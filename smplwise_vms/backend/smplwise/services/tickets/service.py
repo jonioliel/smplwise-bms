@@ -255,6 +255,10 @@ def change_status(conn, viewer: Viewer, seen: Seen, to: str, note: str | None, r
         from .. import access_grants
 
         access_grants.on_ticket_ended(conn, row["id"], "ticket_ended")
+    if to == "closed":  # CR-MAINT215 (owner answer 24.10 q19): the plan that opened this request is marked done, the closer as performer
+        from ..maintenance import service as maintenance_service
+
+        maintenance_service.on_ticket_closed(conn, row, viewer.uid, now)
     kind = "closed" if to == "closed" else "cancelled" if to == "cancelled" else "reopened" if reopen else "status"
     on_behalf = actor == "manager" and model.may_move("assignee", frm, to) and bool(asg)
     data: dict[str, Any] = {"on_behalf": True} if on_behalf else {}

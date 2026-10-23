@@ -328,6 +328,13 @@ PERMISSION_LABELS: dict[str, str] = {
     "insights.read": "תובנות: פתיחות דלת לא מוסברות וצריכת אנרגיה",
     "insights.manage": "תובנות: ספים וזוגות דלת",
     "reports.building": "דוח בניין חודשי (PDF)",
+    # CR-MAINT215 (2.15.0, the maintenance module; OFF by default): view = the ledger, plans, rounds, supplier documents and a scanned tag
+    # (operator, site_admin, system_admin); perform = walk a round, mark a plan done (same roles); manage = create / edit / delete tasks,
+    # renew a certificate or a document, print and revoke tags (site_admin, system_admin). Scoped by the task's place (floor / building /
+    # site; a placeless task is an installation-level task). Not sensitive: no money, no person data, no physical action.
+    "maintenance.view": "אחזקה: צפייה בפנקס, בתוכניות ובסבבים",
+    "maintenance.perform": "אחזקה: ביצוע סבבים וסימון עבודות שבוצעו",
+    "maintenance.manage": "אחזקה: ניהול משימות, אישורים, מסמכי ספקים ותגיות",
     # CR-038 (the optional tickets module, docs/changes/CR-038-TICKETS-MODULE.md section 8; owner decisions D15 / D25): WHAT a person
     # may do with tickets - WHERE is the ticket's place AND department membership (services/tickets/access.py visible()). view: see
     # tickets (own, assigned to me, my departments') and be assignable in a department one is a member of (operator, site_admin,

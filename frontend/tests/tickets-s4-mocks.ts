@@ -46,6 +46,8 @@ export interface S4MockOptions {
   readiness?: Partial<Readiness>;
   /** GRANTS3-295: the external-access feature is on - the preview offers the "access needed" tick */
   accessNeeded?: boolean;
+  /** MAINT215B: the maintenance module is on - the vendor of the technician has an expired insurance, the other vendor none on file (marks in the picker) */
+  insuranceMarks?: boolean;
 }
 export interface Readiness {
   public_page: boolean; public_option: boolean; base_url: boolean; module_key: boolean; public_ready: boolean; public_missing: string[];
@@ -279,7 +281,8 @@ export async function installS4Mock(page: Page, o: S4MockOptions = {}): Promise<
       const outside = external ? contacts.filter((c) => c.kind !== 'employee' && allowed(c)).map((c) => {
         const vendor = c.vendor_id ? contacts.find((v) => v.id === c.vendor_id) : undefined;
         return { kind: 'contact', id: c.id, contact_kind: c.kind, name: c.display_name, company: c.company, vendor_name: vendor?.display_name ?? null, phone: c.phone,
-          has_phone: !!c.phone, has_email: !!c.email, preferred_channel: c.preferred_channel, require_code: c.require_code || !!vendor?.require_code, share_history: c.share_history, lang: c.lang };
+          has_phone: !!c.phone, has_email: !!c.email, preferred_channel: c.preferred_channel, require_code: c.require_code || !!vendor?.require_code, share_history: c.share_history, lang: c.lang,
+          ...(o.insuranceMarks ? { insurance: (c.vendor_id ?? c.id) === 'c000000000000v01' ? { state: 'expired', valid_until: '2027-01-10' } : c.kind === 'vendor' ? { state: 'missing', valid_until: null } : undefined } : {}) };
       }) : [];
       const handlers = [
         ...users.map((u) => ({ key: `user:${u.id}`, kind: 'user', id: u.id, name: u.name, account: true, member_role: u.member_role, phone: null, has_phone: false, preferred_channel: 'inapp' })),

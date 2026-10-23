@@ -116,6 +116,8 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   battery: svg`<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/><path d="M6 10v4"/>`,
   // UXFIX-A11Y-295: the neutral empty state (nothing here yet) - a tray, not a map pin
   inbox: svg`<path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.6 5h12.8L21 13v5.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V13z"/>`,
+  // CR-MAINT215 slice 2: the QR / NFC tags page
+  qr: svg`<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v3h-3M14 21h3M21 21h.01"/>`,
 };
 
 export type IconName = keyof typeof PATHS;

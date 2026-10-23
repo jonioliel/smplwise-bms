@@ -59,6 +59,11 @@ PROJECT_TABLES = PROJECT_TABLES + ["plan_bakes"]
 # Their fire history (`door_automation_fires`: the cooldown / cap counters and the block's decisions) is runtime state: never exported, never
 # restored (NEVER_EXPORTED_TABLES). The `doors.*` switches (feature, kill, limits) are SETTINGS_KEEP_PREFIXES and are never carried either.
 PROJECT_TABLES = PROJECT_TABLES + ["door_automations"]
+# CR-MAINT215 slice 2 (owner answer 24.10 q18): the maintenance ledger travels with the project - the tasks (certificates, plans, rounds,
+# supplier documents), their history (completions and round runs) and the QR / NFC tags (an opaque token; a scan still needs a signed-in
+# person who may see the target). Parents first (records and tags name a task). An archive written before the module KEEPS the current rows.
+MAINTENANCE_TABLES = ["maint_tasks", "maint_records", "maint_tags"]
+PROJECT_TABLES = PROJECT_TABLES + MAINTENANCE_TABLES
 # USR2 (owner answer Q8): the Arx-only identities' password hashes travel with the access part of a project backup (a restore to a
 # new host keeps the users) - the rows hold PHC hashes only, and since BACKUP-HASH-ENC (owner 2026-10-17) the hash column travels
 # ONLY inside the encrypted sensitive section (backup_sensitive.py; an export without a backup password leaves it out); sessions, links, the failure counters and the TOTP secrets
@@ -89,12 +94,14 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    # never revive a revoked family or an already-used refresh token
                                    "app_refresh_families", "app_refresh_tokens", "app_access_tokens",
                                    # CR-FLEET215: what this installation sent to the fleet receiver - runtime history of THIS box
-                                   "fleet_report_log"})
+                                   "fleet_report_log",
+                                   # MAINT215B: the certificate files (the bytes are on the data volume and do not travel) and the reminder log (runtime history)
+                                   "maint_files", "maint_reminder_log"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
 # policy is NOT kept (an older archive without it leaves every class OFF - the default - never a class that happened to be on).
-KEEP_WHEN_ABSENT = frozenset({"door_automations", "device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state", *DEVICE_TYPE_TABLES, "plan_view_prefs"}) | _energy_backup.KEEP_WHEN_ABSENT | _water_backup.KEEP_WHEN_ABSENT
+KEEP_WHEN_ABSENT = frozenset({"door_automations", "device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state", *DEVICE_TYPE_TABLES, "plan_view_prefs", *MAINTENANCE_TABLES}) | _energy_backup.KEEP_WHEN_ABSENT | _water_backup.KEEP_WHEN_ABSENT
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
 if NEVER_EXPORTED_TABLES & set(PROJECT_TABLES + ACCESS_TABLES + OPTIONAL_TABLES["audit"] + OPTIONAL_TABLES["events"]):
     raise RuntimeError("a never-exported table is listed for backup")

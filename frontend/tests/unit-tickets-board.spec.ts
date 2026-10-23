@@ -120,7 +120,7 @@ test('the timeline rows the SLA monitor writes', () => {
 
 test('the board tab: after "המחלקה", for tickets.manage, active on #/tickets/board', () => {
   // owner 2026-10-14: "מטפלים וספקים" fifth; TKRFQ2: requests for quotation; TK258: "חשבון ספקים" last; MGRDASH: the managers' "סקירה" first
-  expect(TICKETS_TABS.map((t) => t.id)).toEqual(['overview', 'mine', 'department', 'board', 'all', 'handlers', 'rfqs', 'accounts', 'external']); // SHAREDID-293: "גישת חוץ" last, offered only when placed here
+  expect(TICKETS_TABS.map((t) => t.id)).toEqual(['overview', 'mine', 'department', 'board', 'all', 'handlers', 'rfqs', 'accounts', 'external', 'maintenance']); // CR-MAINT215: the maintenance section (offered only while its module is on); SHAREDID-293: "גישת חוץ" last, offered only when placed here
   expect(TICKETS_TABS.find((t) => t.id === 'board')?.label).toBe('לוח מנהל');
   expect(TAB_PERMISSIONS['#/tickets/board']).toEqual(['tickets.manage']);
   const r = { path: '/tickets/board', mode: 'tickets', segments: ['tickets', 'board'], params: new URLSearchParams() } as never;
@@ -129,7 +129,7 @@ test('the board tab: after "המחלקה", for tickets.manage, active on #/ticke
 });
 
 test('the notification category and subject kind of the module (spec 13.4)', () => {
-  expect(CATEGORY_ORDER.at(-1)).toBe('tickets');
+  expect(CATEGORY_ORDER.at(-2)).toBe('tickets'); // CR-MAINT215: the maintenance category follows
   expect(CATEGORY_LABEL.tickets).toBe(tt('area')); // a getter: the configured plural (whatever the default is)
   setTicketNames({ he: { one: 'פנייה', many: 'פניות', gender: 'f' } });
   expect(CATEGORY_LABEL.tickets).toBe('פניות');

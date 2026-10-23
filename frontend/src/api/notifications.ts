@@ -29,10 +29,10 @@ import { tt } from '../tickets/text'; // CR-038 (spec 13.4 names this file): the
 // ------------------------------------------------------------------------------------------------ vocabulary (§1)
 
 export type Severity = 'info' | 'alert' | 'critical';
-export type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security' | 'tickets'; // tickets: CR-038
+export type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security' | 'tickets' | 'maintenance'; // tickets: CR-038; maintenance: CR-MAINT215 (owner answer 24.10 q20)
 /** inbox, webpush, email, app (CR-027), whatsapp (NOTIFWA: the user's own number; sends only while its master switch is on). Reserved (enum value only): ha_mobile (Companion step). */
 export type Channel = 'inbox' | 'webpush' | 'email' | 'ha_mobile' | 'whatsapp' | 'app';
-export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator' | 'ticket' | 'rfq' | 'elevator' | 'temperature'; // rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
+export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator' | 'ticket' | 'rfq' | 'elevator' | 'temperature' | 'maintenance'; // maintenance: CR-MAINT215; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 export type NotifyState = 'open' | 'acknowledged' | 'resolved';
 export type Weekday = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
 
@@ -169,7 +169,7 @@ export interface NotifyPolicy {
   /** A quiet "resolved" update (default false; true for critical). */
   resolve_notice: boolean;
   /** `initiator` = the bulk starter / the account's owner. */
-  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator' | 'temperature' | 'energy_bills'; user_ids?: string[] }; // elevator: CR-INFRA-ELEVATORS 2.8.0; energy_bills: ELECBILL77
+  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator' | 'temperature' | 'energy_bills' | 'maintenance'; user_ids?: string[] }; // elevator: CR-INFRA-ELEVATORS 2.8.0; energy_bills: ELECBILL77; maintenance: CR-MAINT215
   /** inbox is fixed on; ha_mobile is fixed false (reserved); whatsapp is a real channel since NOTIFWA (off by default). */
   channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; announce?: boolean; ha_mobile: false; whatsapp: boolean };
   revision: number;
@@ -260,9 +260,10 @@ export const RESERVED_CHANNELS: readonly Channel[] = ['ha_mobile']; // NOTIFWA: 
 export const CATEGORY_LABEL: Record<Category, string> = {
   safety: 'בטיחות', device_faults: 'תקלות', system: 'מערכת', doors: 'דלתות וכניסה', automations: 'אוטומציות ותזמונים', security: 'אבטחת חשבון', alerts: 'מצלמות (חוקים)',
   get tickets() { return tt('area'); }, // CR-038 D33: the tickets module's configured plural
+  maintenance: 'תחזוקה ובקרה', // CR-MAINT215 (owner answer 24.10 q20): a category of its own
 };
 /** The order of the source filter and of the settings matrix groups. */
-export const CATEGORY_ORDER: readonly Category[] = ['safety', 'device_faults', 'system', 'doors', 'automations', 'security', 'alerts', 'tickets'];
+export const CATEGORY_ORDER: readonly Category[] = ['safety', 'device_faults', 'system', 'doors', 'automations', 'security', 'alerts', 'tickets', 'maintenance'];
 
 // ------------------------------------------------------------------------------------------------ errors (§4)
 
@@ -472,6 +473,11 @@ export const RFQ_SOURCES: readonly SourceInfo[] = [
   R('rfq.arrival', 'info', 'clock'), // CR-RFQ-PAYMENT-SCHEDULE: the awarded vendor confirmed / proposed an arrival date
   R('rfq.question_unanswered', 'alert', 'chat'), // RFQQUESTIONS: a vendor question still unanswered after N hours
   R('rfq.instalment_overdue', 'alert', 'clock'), // RFQPAY2: an approved instalment passed its date unpaid (managers who see costs)
+];
+/** CR-MAINT215: the maintenance module's two reminders (services/notify_policy.py, the same labels); listed by the server only while the module is on. */
+export const MAINTENANCE_SOURCES: readonly SourceInfo[] = [
+  S('maintenance.due_soon', 'תחזוקה: מועד מתקרב', 'maintenance', 'info', 'clock'),
+  S('maintenance.overdue', 'תחזוקה: מועד עבר', 'maintenance', 'alert', 'warning'),
 ];
 const CATALOG_BY_KEY = new Map(SOURCE_CATALOG.map((s) => [s.key, s]));
 export const sourceInfo = (key: string): SourceInfo | undefined => CATALOG_BY_KEY.get(key);
@@ -1018,6 +1024,7 @@ export const RECIPIENT_LABEL: Record<NotifyPolicy['recipients']['rule'], string>
   elevator: 'לפי הגדרות המעליות', // CR-INFRA-ELEVATORS 2.8.0: chosen in Settings > Infrastructure > Elevators
   temperature: 'לפי הגדרות הטמפרטורות', // CR-INFRA-TEMPERATURE 2.9.1: chosen in Settings > Infrastructure > Temperatures (or per unit)
   energy_bills: 'בעלי הרשאת חיובי החשמל', // ELECBILL77: the holders of energy.bills (installation scope; services/notify.py)
+  maintenance: 'האחראי ומנהלי התחזוקה של המקום', // CR-MAINT215: the task's responsible person and the maintenance managers of its place
 };
 export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], string> = {
   scope: 'Everyone who can see it', managers: 'Managers', initiator: 'The initiator / account owner', users: 'Selected users',
@@ -1025,6 +1032,7 @@ export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], stri
   elevator: 'As set on the elevators settings',
   temperature: 'As set on the temperatures settings (or per unit)',
   energy_bills: 'Holders of the electricity bills permission',
+  maintenance: 'The responsible person and the maintenance managers of the place',
 };
 export const recipientsText = (r: NotifyPolicy['recipients']): string => (r.rule === 'users' ? `${RECIPIENT_LABEL.users} (${r.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r.rule]);
 export interface ChannelCell {
@@ -1137,6 +1145,7 @@ export const VISIBILITY_PERMISSION: Record<SubjectKind, string | null> = {
   rfq: 'tickets.view', // TKRFQ5: the server's rfq.visible decides
   elevator: 'devices.read', // CR-INFRA-ELEVATORS 2.8.0: the server's rule - devices.read on at least one of the elevator's sensors
   temperature: 'devices.read', // CR-INFRA-TEMPERATURE 2.9.1: devices.read on the unit's sensors
+  maintenance: 'maintenance.view', // CR-MAINT215: the server's rule - maintenance.view on the task's place
 };
 /** Whether a row may be shown to this viewer NOW (the server re-checks at every read; this mirrors it for a permission change that arrives before the
  * next fetch). Owner-only kinds (bulk_job, session) are trusted: the server only returns the caller's own rows - except an account lockout, which

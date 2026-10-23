@@ -187,6 +187,10 @@ class Reach:
         if kind == "access_denied":  # DENYALERT133-295: access.external.grant on THE station of the refused attempt (the approvers of that door)
             sid = origin.get("station_id") or sid
             return bool(sid) and authorize(self.conn, self.principal, "access.external.grant", (STATION, str(sid))).allowed
+        if kind == "maintenance":  # CR-MAINT215: exactly who may see the task (module on, maintenance.view on its place)
+            from .maintenance import access as maintenance_access
+
+            return maintenance_access.can_see_task(self.conn, self.principal, sid)
         if kind == "generator":
             return self._allowed("generator.view")  # CR-031: the generator's alerts reach holders of generator.view only
         if kind == "elevator":  # CR-INFRA-ELEVATORS 2.8.0: devices.read on the sensor of THIS notification's own state (D3, review H1)

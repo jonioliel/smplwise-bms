@@ -5,6 +5,7 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-dialog';
+import '../maintenance/cert-row'; // MAINT215B: the nearest inspection / certificate of the elevator (while the maintenance module is on)
 import type { RouteState } from '../router';
 import { describeError } from '../api/client';
 import { listElevators, type Elevator, type ElevatorsResponse } from '../api/elevators';
@@ -194,6 +195,7 @@ export class InfraElevators extends LitElement {
             ? html`<div class="tl" data-elevator-bar role="img" aria-label=${barSummary(bar)} title=${barSummary(bar)}>${bar.lead > 0 && bar.parts.length ? html`<span class="lead" style=${`flex:${bar.lead}`}></span>` : nothing}${bar.parts.map((p) => html`<span data-look=${p.look} data-bar-state=${p.state} style=${`flex:${p.pct}`}></span>`)}</div>`
             : nothing}
           <div class="row2"><span>${e.history ? (bar.parts.length ? elt('last24') : elt('noHistory')) : e.partial ? elt('partial') : ''}</span><span data-elevator-ago>${ago}</span></div>
+          <maint-cert-row kind="elevator" subjectId=${e.id}></maint-cert-row>
         </div>
       </div>
     </article>`;

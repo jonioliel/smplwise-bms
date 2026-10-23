@@ -190,6 +190,10 @@ def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str
         from . import water_alerts
 
         candidates = water_alerts.recipient_users(conn, n)
+    elif rule == "maintenance":  # CR-MAINT215: the task's responsible person and the maintenance managers of its place
+        from .maintenance import reminders as maintenance_reminders
+
+        candidates = maintenance_reminders.recipient_users(conn, n)
     elif rule == "rfq_managers":  # TKRFQ5: the RFQ manager rule (creator, internal owner, department managers - with tickets.external)
         from .tickets import rfq_notify
 

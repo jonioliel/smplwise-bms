@@ -101,7 +101,7 @@ test('the CSV cell guard neutralises formula starters', () => {
 
 test('the tab: sixth entry of the area, tickets.costs.view, active on #/tickets/accounts', () => {
   // SHAREDID-293 appended "גישת חוץ" (shown only when placed under service management): the vendors account is the last scope tab before it
-  const accounts = TICKETS_TABS.filter((t) => t.id !== 'external').at(-1);
+  const accounts = TICKETS_TABS.filter((t) => t.id !== 'external' && t.id !== 'maintenance').at(-1); // CR-MAINT215: the maintenance section is appended after
   expect(accounts?.id).toBe('accounts');
   expect(accounts?.label).toBe('חשבון ספקים');
   expect(TAB_PERMISSIONS['#/tickets/accounts']).toEqual(['tickets.costs.view']);

@@ -14,13 +14,15 @@ import '../screens/insights-settings'; // CR-INSIGHT215: הגדרות › תשת
 import { temperatureAccess } from '../temperature/access';
 import { insightsAccess } from '../insights/access';
 import '../temperature/temp-settings'; // CR-INFRA-TEMPERATURE 2.9.1: הגדרות › תשתיות › טמפרטורות
+import '../maintenance/settings'; // CR-MAINT215 slice 2: הגדרות › תשתיות › תחזוקה ובקרה
+import { mt } from '../i18n/maintenance';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 // the sections register themselves (`screens/electricity/settings-*.ts`); see docs/architecture/ELECTRICITY_UI_SHELL.md
 import.meta.glob('./electricity/{page,settings}-*.ts', { eager: true });
 
-type Section = 'insights' | 'prices' | 'calendar' | 'business' | 'retention' | 'generator' | 'elevators' | 'temperature';
+type Section = 'insights' | 'prices' | 'calendar' | 'business' | 'retention' | 'generator' | 'elevators' | 'temperature' | 'maintenance';
 interface SectionDef {
   id: Section;
   label: string;
@@ -42,6 +44,8 @@ const SECTIONS: SectionDef[] = [
   { id: 'temperature', label: 'טמפרטורות', tag: 'temp-settings', allowed: () => temperatureAccess().manage },
   // CR-INSIGHT215: the switches, door pairs and thresholds of the insights and the building report (insights.manage, installation)
   { id: 'insights', label: 'תובנות ודוחות', tag: 'insights-settings', allowed: () => insightsAccess().manage },
+  // CR-MAINT215 slice 2: the maintenance module's switch and defaults - lead per kind, the sticker address (system.configure)
+  { id: 'maintenance', get label() { return mt('setTitle'); }, tag: 'maint-settings', allowed: (a) => a.system },
 ];
 
 /**

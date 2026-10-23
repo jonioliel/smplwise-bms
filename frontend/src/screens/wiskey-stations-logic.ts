@@ -272,7 +272,7 @@ export interface PlaceRow {
   depth: 0 | 1;
   count: number;
   /** Every station there online / none / some. */
-  dot: 'live' | 'off' | 'mixed' | null;
+  dot: 'live' | 'off' | 'mixed' | 'alarm' | 'warn' | 'ok' | null; // alarm / warn / ok: CR-MAINT215 (a due state, the worst under the place)
   open?: boolean;
 }
 

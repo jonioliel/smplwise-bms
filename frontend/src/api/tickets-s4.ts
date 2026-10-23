@@ -116,6 +116,8 @@ export interface ExternalAssignee {
   require_code: boolean;
   share_history: boolean | null;
   lang: ContactLang;
+  /** MAINT215B: the supplier's liability insurance, only while the maintenance module is on - a mark in the picker, never a block */
+  insurance?: { state: 'expired' | 'expiring' | 'missing' | 'ok'; valid_until: string | null };
 }
 /** What sending outside still needs (GET tickets/readiness, and `readiness` of GET tickets/assignees): booleans and counts only. */
 export interface Readiness {

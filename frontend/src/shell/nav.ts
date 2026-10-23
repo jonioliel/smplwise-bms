@@ -16,6 +16,7 @@ import { xt } from '../i18n/access-external'; // SHAREDID-293: the external-acce
 import { dwt } from '../i18n/door-windows'; // CR-039 DOORWIN-295: the door-windows tab's label
 import { tst } from '../i18n/tab-sections'; // TABSET-293: the names of the tab registry's sections (he / en / ar / ru)
 import { he } from '../i18n/he'; // TABSET-293: the generator's page names (the registry's `infra.generator` section)
+import { mt } from '../i18n/maintenance'; // CR-MAINT215 slice 2: the maintenance section's label
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
@@ -719,6 +720,7 @@ export const TICKETS_SETTINGS_HREF = '#/system/tickets';
 export const TICKETS_HANDLERS_HREF = '#/tickets/handlers'; // owner request 2026-10-14: "מטפלים וספקים" (out of Settings)
 export const TICKETS_ACCOUNTS_HREF = '#/tickets/accounts'; // TK258: the vendors account
 export const TICKETS_RFQS_HREF = '#/tickets/rfqs'; // TKRFQ2 (2.6.1): requests for quotation (the manager UI)
+export const TICKETS_MAINTENANCE_HREF = '#/tickets/maintenance'; // CR-MAINT215 slice 2: the maintenance section
 export const TICKETS_OVERVIEW_HREF = '#/tickets/overview'; // MGRDASH (owner 2026-10-17): the manager overview, the area's first tab (managers only)
 /** CR-INSIGHT215: "סקירה ודוחות" - the building report (#/tickets/reports/building) and its drill-downs (doors, waste).
  * TODO(SERVICEIA): the service-management navigation slice (pilot/SERVICEIA1-295) turns this into the section's page row; until it lands the
@@ -736,6 +738,10 @@ export const TICKETS_TABS: TabItem[] = [
   { id: 'accounts', get label() { return ct('vaTitle'); }, href: TICKETS_ACCOUNTS_HREF }, // TK258: "חשבון ספקים" (tickets.costs.view)
   // SHAREDID-293: "גישת חוץ" when the owner placed it under service management (access.external.placement tickets | both)
   { id: 'external', get label() { return xt('tab'); }, href: '#/tickets/external' },
+  // CR-MAINT215 slice 2: the section "תחזוקה ובקרה" (its own page row inside the screen: ledger, plans, rounds, tags) - offered only while
+  // the maintenance module is on (applyMaintenanceOn) to holders of maintenance.view. TODO(SERVICEIA1-295): the navigation slice regroups
+  // the service-management area into sections; this entry then moves into that structure (one line).
+  { id: 'maintenance', get label() { return mt('section'); }, href: TICKETS_MAINTENANCE_HREF },
 ];
 const isTicketsAreaHref = (href: string) => href === '#/tickets' || href.startsWith('#/tickets/');
 
@@ -771,6 +777,18 @@ export function applyTicketsHidden(settings: Record<string, unknown> | null | un
 }
 export function ticketsModuleOn(): boolean {
   return !TICKETS_OFF;
+}
+
+/** CR-MAINT215 slice 2: the maintenance module's switch as the session learned it (GET /maintenance/module; maintenance/access.ts). Off
+ * until told otherwise. While on, the service-management area is offered even with the tickets module off - with this section only. */
+let MAINTENANCE_ON = false;
+export function applyMaintenanceOn(on: boolean): void {
+  if (on === MAINTENANCE_ON) return;
+  MAINTENANCE_ON = on;
+  for (const l of tabsListeners) l();
+}
+export function maintenanceModuleOn(): boolean {
+  return MAINTENANCE_ON;
 }
 
 export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices' | 'multimedia' | 'infra' | 'tickets';
@@ -936,7 +954,7 @@ export function activeAreaTab(r: RouteState | null): string {
       return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : s[1] === 'temperature' ? 'temperature' : 'electricity';
     case 'tickets':
       // the full-screen detail (#/tickets/<id>) belongs to no scope tab
-      return s[1] === 'overview' || s[1] === 'reports' || s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' || s[1] === 'external' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
+      return s[1] === 'overview' || s[1] === 'reports' || s[1] === 'department' || s[1] === 'all' || s[1] === 'board' || s[1] === 'handlers' || s[1] === 'accounts' || s[1] === 'rfqs' || s[1] === 'external' || s[1] === 'maintenance' ? s[1] : !s[1] || s[1] === 'mine' ? 'mine' : '';
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -1105,6 +1123,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // TKRFQ2: requests for quotation - whoever may open one (tickets.external) or decide on one (tickets.costs); the server's visibility rule narrows every row
   [TICKETS_RFQS_HREF]: ['tickets.external', 'tickets.costs'],
   [TICKETS_SETTINGS_HREF]: ['system.configure', 'tickets.configure'],
+  // CR-MAINT215 slice 2: the maintenance section - maintenance.view at ANY scope (the server narrows every row by its place)
+  [TICKETS_MAINTENANCE_HREF]: ['maintenance.view'],
   // SHAREDID-293: the external-access screen - approvers (access.external.grant at any scope; the server narrows every grant to the
   // stations the caller may see). Station-scoped people readers keep their own screens: no new tab for them (clean operator screens).
   [EXTERNAL_WISKEY_HREF]: ['access.external.grant'],
@@ -1181,7 +1201,9 @@ export function tabAllowed(href: string, can?: Can): boolean {
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
   // CR-016: the players / groups tabs are offered only when the installation has players / groups (applyMultimediaKinds),
   // with or without a backend
-  const offered = items === TICKETS_TABS && EXTERNAL_PLACEMENT === 'access' ? items.filter((t) => t.id !== 'external') : items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
+  const offered0 = items === TICKETS_TABS && EXTERNAL_PLACEMENT === 'access' ? items.filter((t) => t.id !== 'external') : items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
+  // CR-MAINT215: the maintenance section only with a backend and while that module is on (the static demo has no maintenance data)
+  const offered = items === TICKETS_TABS && (!api || !MAINTENANCE_ON) ? offered0.filter((t) => t.id !== 'maintenance') : offered0;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
   if (!api) return offered;
@@ -1203,7 +1225,7 @@ function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
     const seg = kavarnitSegments(api, can);
     return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
   }) : source;
-  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !insightHiddenHref(t.href) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !insightHiddenHref(t.href) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '') && t.href !== TICKETS_MAINTENANCE_HREF) && !(!MAINTENANCE_ON && t.href === TICKETS_MAINTENANCE_HREF) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
   // TABSET-293: an infrastructure tab opens on the first page of its configured page row (the owner's order is the default page);
   // decided after the gates above, which key on the built-in href
   if (!api || source !== INFRA_TABS) return shown;
@@ -1230,7 +1252,7 @@ export function visibleAreas(api: boolean, can?: Can, order: readonly string[] =
     if (api && !tabs.length) return [];
     // CR-038: the tickets area is OFF until switched on - in the static demo too (2.5.0 gate: an always-on eighth area did not fit
     // the 320 px phone bar and moved every demo screen); Settings › the module switches it on in the demo like on an installation
-    if (n.id === 'tickets' && !ticketsModuleOn()) return [];
+    if (n.id === 'tickets' && !ticketsModuleOn() && !MAINTENANCE_ON) return []; // CR-MAINT215: the maintenance section keeps the area
     if (n.id === 'security') return [n];
     return [{ ...n, href: entryHref(n.href, tabs, n.id) }];
   });
@@ -1370,6 +1392,9 @@ export interface LegacyAccess {
  * stays. Query parameters travel with the redirect (the alarm panel, the camera-health sort), so links written before the
  * move - the search result, the devices screens, notifications, bookmarks - keep working. Applies with and without a backend. */
 export function legacyRedirect(r: RouteState | null, access?: LegacyAccess): string | null {
+  // CR-MAINT215 slice 2: a scanned QR / NFC sticker (`#/m/<token>`, the short path printed on it) opens the maintenance section's scan page
+  // (a signed-in person only; the server resolves the token for THIS person or answers the same 404)
+  if (r && !r.mode && r.segments[0] === 'm' && /^[A-Za-z0-9_-]{16,64}$/.test(r.segments[1] ?? '')) return `/tickets/maintenance/scan/${r.segments[1]}`;
   if (!r?.mode) return null;
   const q = r.params.toString() ? `?${r.params.toString()}` : '';
   const s = r.segments;
