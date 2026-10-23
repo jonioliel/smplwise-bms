@@ -9,6 +9,7 @@ import '../components/sw-automation-card';
 import './automation-drawer';
 import './scenes-panel';
 import './scripts-panel';
+import './scenarios-panel';
 import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
@@ -16,6 +17,8 @@ import { applyAutomationsGlass, autoApi, autoNow, autoReady, demoControl, demoLo
 import { isApi } from '../api/session';
 import { subscribeHa } from '../api/ha';
 import { getScheduleStatus } from '../api/schedules';
+import { scenariosStatus, type ScenariosStatus } from '../api/scenarios';
+import { sct } from '../i18n/scenarios';
 import type { KavarnitSegments } from '../shell/nav';
 import { bidi } from '../i18n/bidi';
 import { onRouteChange, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
@@ -58,6 +61,11 @@ export class DevicesAutomations extends LitElement {
   /** 0.1.154: the segments of "קברניט" this user is offered (set by the shell); the schedules segment is the first button of the strip. */
   @property({ attribute: false }) kavarnit: KavarnitSegments = { schedules: true, automations: true };
   @state() private schedCount: number | null = null;
+  /** XSCENARIO109-295: cross-module scenarios, a block family of this area (owner Q1 = 276 b); null = no server answer / not offered. */
+  @state() private scen: ScenariosStatus | null = null;
+  /** The address is `.../automations/scenarios[/<id>]`: the scenarios panel replaces the body (its own routes, never the HA automation path). */
+  @state() private scenView = false;
+  @state() private scenId = '';
   @state() private status: AutomationsStatus | null = null;
   @state() private items: Item[] | null = null;
   @state() private failed = '';
@@ -286,7 +294,10 @@ export class DevicesAutomations extends LitElement {
 
   private onRoute(r: RouteState) {
     if (r.segments[0] !== 'devices' || r.segments[1] !== 'automations') return;
-    const next = parseAutomationsRoute(r.segments, r.params);
+    const scen = r.segments[2] === 'scenarios';
+    this.scenView = scen;
+    this.scenId = scen ? decodeURIComponent(r.segments[3] ?? '') : '';
+    const next = parseAutomationsRoute(scen ? ['devices', 'automations'] : r.segments, r.params);
     const incoming = r.params.toString();
     if (incoming !== this.lastWritten) {
       const f = filtersFromParams(r.params);
@@ -356,6 +367,7 @@ export class DevicesAutomations extends LitElement {
   private async load() {
     if (demoLoading()) return;
     if (this.kavarnit.schedules) void this.loadScheduleCount();
+    if (isApi()) void scenariosStatus().then((s) => (this.scen = s)).catch(() => (this.scen = null));
     await autoReady();
     this.now = autoNow();
     try {
@@ -587,21 +599,23 @@ export class DevicesAutomations extends LitElement {
     const nb = newButton(this.status, def.kind);
     const active = filtersActive({ ...f, floor: '', q: '' });
     const tools = this.items !== null && !this.failed && !this.noPerm && !!this.status && this.status.available !== 'feature_disabled' && this.status.available !== 'not_configured';
+    const scenOk = !!this.scen?.enabled && this.scen.can.view;
+    const sv = this.scenView;
     return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-auto-header>
       <div class="dh-row">
-        <h1 data-auto-title>${def.label}</h1>
-        ${tools && floors.length ? html`<div class="rooms" role="group" aria-label="קומות">
+        <h1 data-auto-title>${sv ? sct('title') : def.label}</h1>
+        ${tools && floors.length && !sv ? html`<div class="rooms" role="group" aria-label="קומות">
           <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>הכל</button>
           ${floors.map((x) => html`<button type="button" class="rc" aria-pressed=${String(f.floor === x.id)} data-floor=${x.id} @click=${() => this.setFilter({ floor: x.id })}>${bidi(x.name)}</button>`)}
         </div>` : html`<span class="grow"></span>`}
       </div>
-      ${tools ? html`<div class="dh-det">
-        ${kinds.length > 1 || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label="סוג">${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>תזמונים${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id)} data-segment=${s.id} @click=${() => this.setSegment(s.id)}>${s.label} <small>${counts[s.kind]}</small></button>`)}</div>` : nothing}
-        ${def.kind === 'automation' && all.length ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
-        ${def.kind === 'automation' && all.length ? html`<button type="button" class="btn foldbtn" data-fold-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}סינון${active ? html` <small>${active}</small>` : nothing}</button>` : nothing}
+      ${tools || (sv && scenOk) ? html`<div class="dh-det">
+        ${kinds.length > 1 || scenOk || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label="סוג">${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>תזמונים${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id && !sv)} data-segment=${s.id} @click=${() => (sv ? navigate(itemPath(s.id)) : this.setSegment(s.id))}>${s.label} <small>${counts[s.kind]}</small></button>`)}${scenOk ? html`<button type="button" role="tab" aria-selected=${String(sv)} data-segment="scenarios" @click=${() => navigate('/devices/automations/scenarios')}>${sct('tab')}</button>` : nothing}</div>` : nothing}
+        ${def.kind === 'automation' && all.length && !sv ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
+        ${def.kind === 'automation' && all.length && !sv ? html`<button type="button" class="btn foldbtn" data-fold-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}סינון${active ? html` <small>${active}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>
-        <label class="search">${aIcon('search')}<span class="sr-only">חיפוש</span><input type="search" data-search placeholder=${this.phone ? 'חיפוש' : def.searchLabel} .value=${f.q} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></label>
-        ${nb.shown ? html`<button type="button" class="btn primary newbtn" data-auto-new ?disabled=${nb.disabled} title=${nb.reason} @click=${() => this.newItem()}>${aIcon(seg === 'scenes' ? 'camera' : 'plus')}${def.newLabel}</button>` : nothing}
+        ${sv ? (this.scen?.can.manage ? html`<button type="button" class="btn primary newbtn" data-scen-new @click=${() => navigate('/devices/automations/scenarios/new')}>${aIcon('plus')}${sct('new')}</button>` : nothing) : html`<label class="search">${aIcon('search')}<span class="sr-only">חיפוש</span><input type="search" data-search placeholder=${this.phone ? 'חיפוש' : def.searchLabel} .value=${f.q} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></label>
+        ${nb.shown ? html`<button type="button" class="btn primary newbtn" data-auto-new ?disabled=${nb.disabled} title=${nb.reason} @click=${() => this.newItem()}>${aIcon(seg === 'scenes' ? 'camera' : 'plus')}${def.newLabel}</button>` : nothing}`}
       </div>` : nothing}
     </header>`;
   }
@@ -651,6 +665,16 @@ export class DevicesAutomations extends LitElement {
     return html`${this.bannerRow(seg)}${content}`;
   }
 
+  /** XSCENARIO109-295: the scenarios block family (its own switch, permissions and routes). */
+  private scenBody(): TemplateResult {
+    const s = this.scen;
+    if (!s) return this.skeleton();
+    if (!s.enabled) return this.stateBox('settings', sct('disabled'), 'feature_disabled', s.can.admin ? html`<a class="btn sm" href="#/system/automations" data-open-scen-settings>${sct('settingsLink')}</a>` : undefined);
+    if (!s.can.view) return this.stateBox('lock', sct('noPermission'), 'no_permission');
+    return html`<scenarios-panel .status=${s} .scenarioId=${this.scenId} @result=${this.onResult}
+      @open-scenario=${(e: CustomEvent<{ id: string }>) => navigate(`/devices/automations/scenarios/${encodeURIComponent(e.detail.id)}`)} @close-scenario=${() => navigate('/devices/automations/scenarios')}></scenarios-panel>`;
+  }
+
   private dialogs(): TemplateResult | typeof nothing {
     if (this.confirm) {
       const c = this.confirm;
@@ -669,9 +693,9 @@ export class DevicesAutomations extends LitElement {
     const r = this.route;
     const drawerKind = r.segment === 'scripts' ? 'script' : 'automation';
     const drawerOpen = ((!!r.id && r.id !== 'new' && r.segment !== 'scenes') || r.trash) && !r.edit; // the editor sheet replaces the drawer while it is open
-    return html`<div class="page" data-screen="devices-automations" data-segment=${seg}>
+    return html`<div class="page" data-screen="devices-automations" data-segment=${this.scenView ? 'scenarios' : seg}>
       ${this.header(seg)}
-      ${this.body(seg)}
+      ${this.scenView ? this.scenBody() : this.body(seg)}
     </div>
     ${this.drawerUsed || drawerOpen
       ? html`<automation-drawer .kind=${drawerKind} .itemId=${r.segment === 'scenes' ? '' : r.id} .open=${drawerOpen} .trash=${r.trash} .view=${r.view} .runId=${r.run} .status=${this.status} .now=${this.now} .action=${this.cardAction}
