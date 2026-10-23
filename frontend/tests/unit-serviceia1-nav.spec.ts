@@ -26,6 +26,9 @@ import {
   ticketsPageTabs,
   ticketsScopesAllowed,
   TICKETS_SCOPE_HREFS,
+  TICKETS_SCOPE_TABS,
+  TAB_SECTIONS,
+  sectionIdOf,
   ticketsSectionOf,
   ticketsSectionRow,
   ticketsSectionRowShown,
@@ -247,6 +250,7 @@ test('ui.tabs: a value stored before the sections is migrated on read (order, hi
   expect(normalizeTabsConfig({ tickets: { order: ['all', 'mine'], hidden: ['department'], style: 'underline' } })).toEqual({
     tickets: { order: ['requests'], hidden: [], style: 'underline' },
     'tickets.requests': { order: ['list'], hidden: [] }, // the three scope tabs are one page now; hiding one of three leaves the list
+    'tickets.scopes': { order: ['all', 'mine'], hidden: ['department'] }, // SERVICEIA3-295: each scope keeps its own choice
   });
   expect(normalizeTabsConfig({ tickets: { order: [], hidden: ['overview'] } }), 'the only page of a section hidden: the section is hidden').toEqual({ tickets: { order: [], hidden: ['reports'] } });
   const fresh = { tickets: { order: ['vendors', 'requests'], hidden: ['reports'] }, 'tickets.requests': { order: ['board'], hidden: [] } };
@@ -307,4 +311,61 @@ test('SERVICEIA2-295 ui.tabs: a tickets.requests row saved after slice 1 (scope 
   // and it shapes the page row
   applyTabsConfig({ 'ui.tabs': { 'tickets.requests': { order: ['board', 'mine'], hidden: [] } } });
   expect(ids(ticketsPageTabs('requests', true, holding(...ROLES.systemAdmin)))).toEqual(['board', 'list']);
+});
+
+test('SERVICEIA3-295 ui.tabs: the administrator hides each scope of the request list separately (and orders them); the old choices are kept', () => {
+  const adm = holding(...ROLES.systemAdmin);
+  // registry: its own level-2 card, listing the three scopes in their default order
+  expect(sectionIdOf(TICKETS_SCOPE_TABS)).toBe('tickets.scopes');
+  const card = TAB_SECTIONS.find((s) => s.id === 'tickets.scopes');
+  expect(card?.level).toBe(2);
+  expect(card?.tabs().map((t) => t.id)).toEqual(['mine', 'department', 'all']);
+  expect(card?.label.trim()).not.toBe('');
+  expect(card?.where.trim()).not.toBe('');
+  expect(TICKETS_SCOPE_TABS.map((t) => t.href)).toEqual([TICKETS_MINE_HREF, TICKETS_DEPARTMENT_HREF, TICKETS_ALL_HREF]); // addresses unchanged
+  // nothing configured: every permitted scope
+  applyTabsConfig({});
+  expect(ticketsScopesAllowed(true, adm)).toEqual(['mine', 'department', 'all']);
+  // each scope can be hidden on its own
+  for (const hide of ['mine', 'department', 'all']) {
+    applyTabsConfig({ 'ui.tabs': { 'tickets.scopes': { order: [], hidden: [hide] } } });
+    expect(ticketsScopesAllowed(true, adm), `hidden ${hide}`).toEqual(['mine', 'department', 'all'].filter((s) => s !== hide));
+  }
+  // ... and ordered; permissions still gate first (a hidden or ordered scope never grants one)
+  applyTabsConfig({ 'ui.tabs': { 'tickets.scopes': { order: ['all', 'mine'], hidden: ['department'] } } });
+  expect(ticketsScopesAllowed(true, adm)).toEqual(['all', 'mine']);
+  expect(ticketsScopesAllowed(true, holding('tickets.create'))).toEqual(['mine']);
+  expect(ticketsScopesAllowed(true, holding('tickets.view'))).toEqual(['mine']); // department is hidden
+  expect(ticketsScopesAllowed(false), 'the demo shows the defaults').toEqual(['mine', 'department', 'all']);
+  // the list page opens on the first scope left, in the configured order
+  expect(ticketsPageTabs('requests', true, adm).find((p) => p.id === 'list')?.href).toBe(TICKETS_ALL_HREF);
+  applyTabsConfig({ 'ui.tabs': { 'tickets.scopes': { order: [], hidden: ['mine'] } } });
+  expect(ticketsPageTabs('requests', true, holding('tickets.view')).find((p) => p.id === 'list')?.href).toBe(TICKETS_DEPARTMENT_HREF);
+  // hiding is not a lock-out: every scope hidden leaves the permitted ones (the list page is hidden through its own row)
+  applyTabsConfig({ 'ui.tabs': { 'tickets.scopes': { order: [], hidden: ['mine', 'department', 'all'] } } });
+  expect(ticketsScopesAllowed(true, adm)).toEqual(['mine', 'department', 'all']);
+  // the scope addresses keep working whatever is hidden (presentation only)
+  applyTabsConfig({ 'ui.tabs': { 'tickets.scopes': { order: [], hidden: ['department'] } } });
+  const route = (path: string) => ({ path, segments: path.split('/').filter(Boolean), params: new URLSearchParams(), mode: 'tickets' as const });
+  expect(legacyRedirect(route('/tickets/department'), { api: true, ready: true, can: adm })).toBeNull();
+  expect(ticketsPageOf(route('/tickets/department'))).toBe('list');
+  applyTabsConfig({});
+});
+
+test('SERVICEIA3-295 ui.tabs migration: the scope choices of an old or slice-1 value move to the tickets.scopes row; all three hidden hides the list page; idempotent', () => {
+  // the old one-row value (before the sections)
+  expect(normalizeTabsConfig({ tickets: { order: ['all', 'mine'], hidden: ['department'] } })['tickets.scopes']).toEqual({ order: ['all', 'mine'], hidden: ['department'] });
+  // a tickets.requests row saved after slice 1 / by SERVICEIA2
+  const cfg = normalizeTabsConfig({ 'tickets.requests': { order: ['board', 'mine', 'department', 'all'], hidden: ['department'] } });
+  expect(cfg['tickets.requests']).toEqual({ order: ['board', 'list'], hidden: [] });
+  expect(cfg['tickets.scopes']).toEqual({ order: ['mine', 'department', 'all'], hidden: ['department'] });
+  // every scope hidden: the list page is hidden, no empty scope row is stored as hidden
+  const none = normalizeTabsConfig({ 'tickets.requests': { order: ['list', 'board'], hidden: ['mine', 'department', 'all'] } });
+  expect(none['tickets.requests']).toEqual({ order: ['list', 'board'], hidden: ['list'] });
+  expect(none['tickets.scopes']).toBeUndefined();
+  // a scopes row already saved is not overwritten by an old value; the new shape is kept as is; idempotent
+  const saved = { 'tickets.scopes': { order: ['all'], hidden: ['mine'] } };
+  expect(normalizeTabsConfig({ ...saved, 'tickets.requests': { order: ['mine', 'board'], hidden: ['department'] } })['tickets.scopes']).toEqual(saved['tickets.scopes']);
+  expect(normalizeTabsConfig(saved)).toEqual(saved);
+  expect(normalizeTabsConfig(cfg)).toEqual(cfg);
 });

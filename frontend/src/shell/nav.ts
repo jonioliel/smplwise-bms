@@ -446,11 +446,13 @@ function migrateTicketsTabs(out: TabsConfig): void {
   for (const id of old.hidden) {
     const s = TICKETS_LEGACY_PAGE_SECTION[id];
     if (!s) continue;
-    // the list is hidden only when every scope tab was (hiding one scope of three leaves the list; the scope segment is not configurable)
+    // SERVICEIA3-295: a hidden scope stays hidden - in the `tickets.scopes` row (below); the list page is hidden only when every scope tab was
     if (TICKETS_SCOPE_PAGE_ALIAS[id]) {
       if (Object.keys(TICKETS_SCOPE_PAGE_ALIAS).every((sc) => old.hidden.includes(sc)) && !bucket(s).hidden.includes('list')) bucket(s).hidden.push('list');
     } else bucket(s).hidden.push(id);
   }
+  const scopes = scopesRowOf(old.order, old.hidden);
+  if (scopes && !out['tickets.scopes']) out['tickets.scopes'] = scopes;
   const hiddenSections: TicketsSection[] = [];
   for (const s of TICKETS_SECTION_IDS) {
     const b = perSection[s];
@@ -468,8 +470,18 @@ function migrateTicketsTabs(out: TabsConfig): void {
   else delete out.tickets;
 }
 
+/** SERVICEIA3-295: the `tickets.scopes` row (order and hidden of mine / department / all) carried by a list of page ids; undefined when it names
+ * none of them. When EVERY scope is hidden nothing is stored as hidden (hiding is not a lock-out; the caller hides the list page instead). */
+function scopesRowOf(order: readonly string[], hidden: readonly string[]): TabsSectionConfig | undefined {
+  const scopeIds = Object.keys(TICKETS_SCOPE_PAGE_ALIAS);
+  const o = order.filter((id) => scopeIds.includes(id));
+  const h = scopeIds.every((sc) => hidden.includes(sc)) ? [] : hidden.filter((id) => scopeIds.includes(id));
+  return o.length || h.length ? { order: o, hidden: h } : undefined;
+}
+
 /** SERVICEIA2-295: a `tickets.requests` row saved after slice 1 names the scope pages (mine / department / board / all); they are the one
- * page `list` now (at the place of the first of them; hidden only when all three were). Idempotent. */
+ * page `list` now (at the place of the first of them; hidden only when all three were). SERVICEIA3-295: the individual scopes move to the
+ * `tickets.scopes` row (order, and which are hidden), so none of the choices is lost. Idempotent. */
 function migrateRequestsRow(out: TabsConfig): void {
   const row = out['tickets.requests'];
   if (!row || ![...row.order, ...row.hidden].some((id) => id in TICKETS_SCOPE_PAGE_ALIAS)) return;
@@ -481,6 +493,8 @@ function migrateRequestsRow(out: TabsConfig): void {
   const scopes = Object.keys(TICKETS_SCOPE_PAGE_ALIAS);
   const hidden = row.hidden.filter((id) => !(id in TICKETS_SCOPE_PAGE_ALIAS));
   if (scopes.every((sc) => row.hidden.includes(sc))) hidden.push('list');
+  const moved = scopesRowOf(row.order, row.hidden);
+  if (moved && !out['tickets.scopes']) out['tickets.scopes'] = moved;
   out['tickets.requests'] = row.style ? { order, hidden, style: row.style } : { order, hidden };
 }
 
@@ -832,10 +846,20 @@ export const TICKETS_REQUESTS_PAGES: TabItem[] = [
 /** SERVICEIA2-295: the scopes of the request list in their order, each with the permission entry that used to gate its level-1 tab
  * (TAB_PERMISSIONS keeps those entries): the list's scope segment offers exactly these. */
 export const TICKETS_SCOPE_HREFS: Record<'mine' | 'department' | 'all', string> = { mine: TICKETS_MINE_HREF, department: TICKETS_DEPARTMENT_HREF, all: TICKETS_ALL_HREF };
-/** The scopes of the list this user may open (parity with the three tabs of the old row; no backend = all, the demo). */
+/** SERVICEIA3-295: the scope segment of the request list as a configurable row (`ui.tabs` section `tickets.scopes`, level 2): the administrator
+ * hides each scope separately and orders them, as he could when they were three tabs. Presentation only - `tabAllowed` still gates first. */
+export const TICKETS_SCOPE_TABS: TabItem[] = [
+  { id: 'mine', get label() { return tt('tabMine'); }, href: TICKETS_MINE_HREF },
+  { id: 'department', get label() { return tt('tabDepartment'); }, href: TICKETS_DEPARTMENT_HREF },
+  { id: 'all', get label() { return tt('tabAll'); }, href: TICKETS_ALL_HREF },
+];
+/** The scopes of the list this user is offered: those he may open (parity with the three tabs of the old row), minus the ones `ui.tabs`
+ * hides, in the configured order (no backend = all, the demo). Never empty while one is permitted (configureTabs: hiding is not a lock-out). */
 export function ticketsScopesAllowed(api: boolean, can?: Can): Array<'mine' | 'department' | 'all'> {
-  const all = Object.keys(TICKETS_SCOPE_HREFS) as Array<'mine' | 'department' | 'all'>;
-  return api ? all.filter((sc) => tabAllowed(TICKETS_SCOPE_HREFS[sc], can)) : all;
+  const all = TICKETS_SCOPE_TABS.map((t) => t.id as 'mine' | 'department' | 'all');
+  if (!api) return all;
+  const permitted = TICKETS_SCOPE_TABS.filter((t) => tabAllowed(t.href ?? '', can));
+  return configureTabs('tickets.scopes', permitted).map((t) => t.id as 'mine' | 'department' | 'all');
 }
 /** תחזוקה ובקרה (CR-MAINT215 slice 2): one page in the shell's rows - the screen draws its own page row (ledger, plans, rounds, log, tags).
  * Offered only with a backend, while the maintenance module is on (applyMaintenanceOn), to holders of maintenance.view; a section with one
@@ -1701,6 +1725,8 @@ export const TAB_SECTIONS: TabSectionDef[] = [
   ...TICKETS_CONFIGURABLE_SECTIONS.map((sec) => tabSection(`tickets.${sec}`, () => tst('ticketsSectionLabel', { name: tt('area'), section: sectionLabel(sec) }), () => tst('ticketsSectionWhere', { section: sectionLabel(sec) }),
     // SHAREDID-293: "גישת חוץ" only while it is placed under service management
     () => plain(TICKETS_PAGE_ROWS[sec].filter((t) => t.id !== 'external' || EXTERNAL_PLACEMENT !== 'access')), 2, { available: () => ticketsModuleOn() })),
+  // SERVICEIA3-295: the scopes of the request list (שלי · המחלקה · הכול) - one card, each scope hidden separately
+  tabSection('tickets.scopes', () => tst('ticketsScopesLabel', { name: tt('area') }), () => tst('ticketsScopesWhere'), () => plain(TICKETS_SCOPE_TABS), 2, { available: () => ticketsModuleOn() }),
   tabSection('system', () => tst('systemLabel'), () => tst('systemWhere'), () => plain(AREA_TABS.system), 1),
   tabSection('system.security', () => tst('systemSecurityLabel'), () => tst('systemSecurityWhere'), () => plain(SECURITY_SETTINGS_TABS), 2),
 ];
@@ -1740,6 +1766,7 @@ export function sectionIdOf(items: readonly TabItem[]): string | null {
     [TICKETS_TABS, 'tickets'],
     [TICKETS_REQUESTS_PAGES, 'tickets.requests'], // SERVICEIA1-295: the sections' page rows
     [TICKETS_VENDORS_PAGES, 'tickets.vendors'],
+    [TICKETS_SCOPE_TABS, 'tickets.scopes'], // SERVICEIA3-295: the list's scope segment
     [AREA_TABS.system, 'system'],
     [SECURITY_SETTINGS_TABS, 'system.security'],
   ]);
