@@ -114,7 +114,9 @@ def test_delegated_site_admin_limits(settings):
     # the allowlist is a setting: remove operator → the next delegated assignment of operator is refused; system roles cannot be listed
     d = c.get("/api/v1/access/delegation").json()
     # default allow-list: viewer + operator, and (CR-038 8.2) the three plain single-permission ticket grants
-    assert set(d["delegable_roles"]) == {"viewer", "operator", "tickets_view", "tickets_create", "tickets_manage", "door_windows_guard", esc_role["id"], small["id"]} and len(d["rules"]) == 5
+    assert set(d["delegable_roles"]) == {"viewer", "operator", "tickets_view", "tickets_create", "tickets_manage", "door_windows_guard",
+                                          "notices_manage", "notices_push", "notices_boards",  # CR-NOTICE106 section 6: delegable by default
+                                          esc_role["id"], small["id"]} and len(d["rules"]) == 5
     assert d["blocked"]["system_admin"] == "system_role" and d["blocked"]["site_admin"] == "system_role" and d["blocked"][big["id"]] == "sensitive_custom_role"
     assert c.put("/api/v1/access/delegation", json={"delegable_roles": ["viewer", "system_admin"]}).json()["code"] == "system_role_not_delegable"
     assert c.put("/api/v1/access/delegation", json={"delegable_roles": ["viewer"]}, headers=s).status_code == 403

@@ -636,5 +636,12 @@ weather (the installation's `weather.*` entity) and the news ticker (server-side
   drew it in the footer; §8.1 says header).
 - UI: `#/devices/notices` (ראשי › לוח הודעות; KPI filters, table / cards, compose dialog) and `#/system/notices` (+ `/<board id>`: tabs
   כללי / תצוגה / הודעות, the live iframe preview, link + QR shown once).
+- `tests/test_migrations_263_upgrade.py::test_the_release_numbers_are_contiguous_and_final` is red on this branch BY DESIGN while the
+  migration carries the provisional number 0160 (it goes green once the file is renumbered into the release sequence at integration).
+- Permissions deviate from §6 on purpose: the built-in viewer / kiosk / operator / editor roles are NOT changed. Adding a permission to them
+  raises every delegated administrator's ceiling check (`test_rbac_groups`: a delegated admin whose own role lacks it could no longer hand out
+  viewer), and T057 locks kiosk to live + map. Reading is therefore open to every signed-in user with a live binding (the audience still
+  decides what he sees); writing comes with site_admin / system_admin or the grant role `notices_manage` (delegable, like `notices_push` and
+  `notices_boards`). Owner question: should editor get `notices.manage` by default after all (it moves the delegation ceiling)?
 - NOT built: push (slice 2; `notices.push` is catalogued), the home widget, promo slides, the template-2 building photo, the building-status
   chips (the page draws `info` when a feed carries it; the backend sends none yet), internet weather fallback, cast as a picture.

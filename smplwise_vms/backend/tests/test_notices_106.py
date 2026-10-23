@@ -143,7 +143,8 @@ def test_readers_see_active_notices_of_their_audience_only(client, settings):
 def test_a_floor_scoped_writer_stays_inside_his_scope(client, settings):
     _on(client)
     tree = __import__("conftest").seed_tree(client)
-    bind(client, settings, "edna", "editor", "floor", tree["floor2"])
+    bind(client, settings, "edna", "viewer", "floor", tree["floor2"])
+    bind(client, settings, "edna", "notices_manage", "floor", tree["floor2"])  # the writer grant, scoped to one floor
     h = as_user("edna")
     ok = client.post(f"{API}/notices", json={"title": "קומה 2", "audience": {"floors": [tree["floor2"]]}}, headers=h)
     assert ok.status_code == 200, ok.text
@@ -187,7 +188,7 @@ def test_board_create_shows_the_token_once_and_stores_only_its_hash(client, sett
 
 def test_boards_need_notices_boards(client, settings):
     _on(client)
-    bind(client, settings, "edna", "editor", "installation", "*")
+    bind(client, settings, "edna", "notices_manage", "installation", "*")
     h = as_user("edna")
     assert client.post(f"{API}/notices/boards", json={"name": "x", "slug": "x"}, headers=h).status_code == 403
     b, _ = _board(client)
@@ -342,7 +343,7 @@ def test_listener_serves_only_the_tv_page_its_assets_and_the_display_routes(clie
     www = _www(tmp_path)
     db = Database(settings.db_path)
     svc = disp.DisplayService(lambda: db.connection(mode="read"), settings.data_dir, limiter=disp.RateLimiter())
-    r = listener.route(svc, www, "GET", "/b/lobby", {}, "10.0.0.5")
+    r = listener.route(svc, www, "GET", "/b/lobby", {}, "192.0.2.5")
     assert r.status == 200 and b'<base href="../">' in r.body and r.content_type.startswith("text/html")
     assert dict(r.all_headers())["X-Robots-Tag"] == "noindex, nofollow"
     assert listener.route(svc, www, "GET", "/assets/notice-tv-1.js", {}, "c").status == 200
@@ -457,8 +458,10 @@ def test_permissions_are_labelled_and_in_the_built_in_roles():
 
     for p in ("notices.view", "notices.manage", "notices.push", "notices.boards"):
         assert p in PERMISSION_LABELS
-    assert "notices.view" in ROLES["viewer"] and "notices.view" in ROLES["kiosk"]
-    assert "notices.manage" in ROLES["editor"] and "notices.manage" not in ROLES["operator"]
+    # readers need no role permission (any live binding reads its audience); the base roles stay unchanged so delegation ceilings do not move
+    for role in ("viewer", "kiosk", "operator", "editor"):
+        assert not any(p.startswith("notices.") for p in ROLES[role]), role
+    assert ROLES["notices_manage"] == ["notices.view", "notices.manage"] and "notices.manage" in ROLES["site_admin"]
     assert "notices.boards" in ROLES["system_admin"] and "notices.boards" not in ROLES["site_admin"]
     assert {"notices_manage", "notices_push", "notices_boards"} <= set(DEFAULT_DELEGABLE)
 
