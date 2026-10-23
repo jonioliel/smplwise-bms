@@ -494,6 +494,7 @@ def test_lifetime_settings_defaults_bounds_and_idle_never_above_absolute(rx):
     for key, lo, hi in ((svc.ABSOLUTE_KEY, 1, 365), (svc.IDLE_KEY, 1, 90), (svc.ACCESS_KEY, 1, 60)):
         for bad in (lo - 1, hi + 1, "10", 1.5, None):
             assert rx.c.put(f"{API}/auth/app/settings", json={key: bad}).status_code == 422, (key, bad)
+    svc.reset_limits()  # the settings writes above count against the 20-per-minute bucket (frozen clock)
     switch(rx, **{svc.ACCESS_KEY: 1})
     switch(rx, **{svc.ACCESS_KEY: 60})
     # idle never above absolute: in one write, and against the stored absolute
@@ -514,7 +515,9 @@ def test_changed_lifetimes_apply_to_new_tokens_and_existing_families_are_re_eval
     dev, old = started(rx)  # issued with 90 / 30 / 10
     switch(rx, **{svc.ABSOLUTE_KEY: 20, svc.IDLE_KEY: 5, svc.ACCESS_KEY: 2})
     other = register(rx, "vera", install_id="33333333-2222-3333-4444-555555555555", name="הנייד של ורה")
-    new = issue(rx, other["device_id"], user="vera").json()
+    r = issue(rx, other["device_id"], user="vera")
+    assert r.status_code == 201, r.text
+    new = r.json()
     assert new["expires_in"] == 120
     fam = family_row(rx, new["family_id"])
     assert svc.epoch(fam["absolute_expires_at"]) - rx.clock() == pytest.approx(20 * DAY, abs=2)
@@ -619,8 +622,8 @@ def test_f01_the_remote_policy_is_re_evaluated_at_every_refresh_and_access_use(r
 def test_f01_a_wall_user_never_refreshes(rx):
     dev, out = started(rx)
     with rx.db.connection() as conn:  # dana becomes a wall user whose profile does not travel (CR-030)
-        conn.execute("INSERT INTO wall_profiles(user_id, title, enabled, remote_allowed, config_json, created_at, created_by) "
-                     "VALUES ('u-viewer', 'קיר', 1, 0, '{}', '2026-10-23T00:00:00Z', 'test')")
+        conn.execute("INSERT INTO wall_profiles(user_id, title, enabled, remote_allowed, config_json, created_at, created_by, updated_at, updated_by) "
+                     "VALUES ('u-viewer', 'קיר', 1, 0, '{}', '2026-10-23T00:00:00Z', 'test', '2026-10-23T00:00:00Z', 'test')")
     r = refresh(rx, out["refresh_token"], dev["device_id"])
     assert r.status_code == 401 and family_row(rx, out["family_id"])["revoked_reason"] == "wall_user_remote_not_allowed"
 
