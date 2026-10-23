@@ -229,9 +229,20 @@ section's **pages** are a second row, the infrastructure electricity / generator
   bookmarks, the Companion app and every spec use them). New redirect-only `#/tickets/list` -> the first scope offered (query kept); the section
   entry `#/tickets/requests` is as in slice 1. `activeAreaTab` is `requests` and `ticketsPageOf` is `list` for all three scope addresses.
 - **`ui.tabs`:** page ids `mine` / `department` / `all` (the pre-section `tickets` entry and a `tickets.requests` row saved after slice 1) become
-  `list` at the place of the first of them; `list` is hidden only when all three were. The administrator can no longer hide ONE scope through the
-  tabs editor (there is no tab to hide); the permission filter above is the only gate on a scope.
+  `list` at the place of the first of them; `list` is hidden only when all three were. (Slice 2 left no way to hide ONE scope; slice 3 below restores it.)
 - A user with one scope and no board has a single page: no page row (and, with one section, no section row).
+
+### Slice 3 (SERVICEIA3-295): each scope is hidden separately again
+
+- **Editor:** a level-2 card `tickets.scopes` ("<area> ‹ היקף הרשימה", listing שלי · המחלקה · הכול) in הגדרות › כללי › לשוניות, with the same
+  controls as every card (show / hide switch, order, reset). Registry array `TICKETS_SCOPE_TABS`; the last visible scope cannot be switched off.
+- **Effect:** `ticketsScopesAllowed` = the scopes the permission rows allow (`TAB_PERMISSIONS`, unchanged, always first) minus the hidden ones, in the
+  configured order; the list's scope segment and the first-scope entry of the list page / `#/tickets/list` follow it. Every scope address keeps
+  working (presentation only), and a direct link still shows the scope on screen. Hiding all of a user's permitted scopes never empties the segment
+  (`configureTabs`: hiding is not a lock-out).
+- **Migration:** the scope ids of an old `tickets` value or of a `tickets.requests` row saved by slice 1 / 2 move to `tickets.scopes` (order and hidden
+  as they were); a `tickets.scopes` row already stored is not overwritten. All three hidden still hides the `list` page (no empty hidden set is stored).
+- Hebrew in `i18n/tab-sections.ts` (he / en / ar / ru). No backend change.
 
 ## Presentation mode: tabs, hybrid or dropdown (release 0.1.153)
 

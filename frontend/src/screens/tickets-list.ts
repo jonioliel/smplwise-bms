@@ -288,10 +288,13 @@ export class TicketsList extends LitElement {
    */
   /** SERVICEIA2-295: the scope segment is the ONLY place the scope is chosen now (the three level-1 tabs are gone), so it offers exactly the
    * scopes those tabs were offered for (TAB_PERMISSIONS: שלי tickets.view | tickets.create, המחלקה tickets.view, הכול tickets.all_departments),
-   * and always the scope on screen (a direct link keeps showing where the user is). */
+   * and always the scope on screen (a direct link keeps showing where the user is). SERVICEIA3-295: minus the scopes the administrator hid in
+   * the tabs editor (`ui.tabs` section `tickets.scopes`), in the order he set. */
   private scopes(): Array<(typeof SCOPES)[number]> {
     const allowed = ticketsScopesAllowed(isApi(), canNav);
-    return SCOPES.filter((sc) => allowed.includes(sc) || sc === this.r.scope);
+    const shown = [...allowed];
+    if (!shown.includes(this.r.scope)) shown.splice(SCOPES.indexOf(this.r.scope), 0, this.r.scope);
+    return shown;
   }
 
   private async loadCounts(): Promise<void> {

@@ -76,6 +76,7 @@ test('every area with a tab row has a registry section, and every section row is
   // SERVICEIA1-295: level 1 = the sections that have pages on this build; level 2 = the requests and vendors page rows
   expect(byId['tickets']).toEqual(['requests', 'vendors', 'reports']);
   expect(byId['tickets.requests']).toEqual(['list', 'board']); // SERVICEIA2-295: the scopes are the list's own filter
+  expect(byId['tickets.scopes']).toEqual(['mine', 'department', 'all']); // SERVICEIA3-295: each scope of the list is hidden on its own
   expect(byId['tickets.vendors']).toEqual(['handlers', 'rfqs', 'accounts']); // SHAREDID-293: the external-access tab only while placed under tickets
   expect(sectionIdOf(TICKETS_REQUESTS_PAGES)).toBe('tickets.requests');
   expect(sectionIdOf(TICKETS_VENDORS_PAGES)).toBe('tickets.vendors');
