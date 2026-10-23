@@ -9,6 +9,7 @@
  * edited only in the electricity settings.
  */
 import { del, get, patch, post, put } from './client';
+import { isApi } from './session';
 
 export type BillState = 'draft' | 'issued' | 'sent' | 'paid' | 'void';
 export type PriceMode = 'ex_vat' | 'inc_vat';
@@ -152,6 +153,13 @@ export interface Bill extends BillSummary {
   actions: ('recalculate' | 'delete' | 'issue' | 'sent' | 'paid' | 'correct' | 'void')[];
 }
 
+export interface BillEvent {
+  at: string;
+  action: string;
+  actor: { kind: 'user' | 'system'; display_name: string | null };
+  details: Record<string, unknown> | null;
+}
+
 export interface SharedSettings {
   vat: { current: { effective_from: string; rate_percent: string } | null; items: { effective_from: string; rate_percent: string }[] };
   payment_terms: { mode: 'net_days' | 'day_of_month'; days: number; day_of_month: number };
@@ -183,14 +191,15 @@ export const requestId = (): string => `wb-${Date.now().toString(36)}-${Math.ran
 export const waterBilling = {
   sharedSettings: () => get<SharedSettings>(`${W}billing/shared`),
   // customers (the shared card)
-  listCustomers: (q?: string) => get<{ items: Customer[]; total: number }>(`${W}customers${qs({ q })}`),
+  // without a backend the lists answer empty (the pages show their empty states, never invented data)
+  listCustomers: (q?: string) => (isApi() ? get<{ items: Customer[]; total: number }>(`${W}customers${qs({ q })}`) : Promise.resolve({ items: [] as Customer[], total: 0 })),
   customer: (id: string) => get<Customer>(`${W}customers/${id}`),
   nextCustomerNumber: () => get<{ customer_number: string }>(`${W}customers/next-number`),
   createCustomer: (body: Partial<Customer> & { name: string }) => post<Customer>(`${W}customers`, body),
   updateCustomer: (id: string, body: Partial<Customer> & { base_revision: number }) => patch<Customer>(`${W}customers/${id}`, body),
   deleteCustomer: (id: string, revision: number) => del(`${W}customers/${id}${qs({ base_revision: revision })}`),
   // tariffs
-  listTariffs: () => get<{ items: Tariff[] }>(`${W}tariffs`),
+  listTariffs: () => (isApi() ? get<{ items: Tariff[] }>(`${W}tariffs`) : Promise.resolve({ items: [] as Tariff[] })),
   createTariff: (body: { name: string; water_price: string; sewage_price: string; effective_from: string; price_mode?: PriceMode }) => post<Tariff>(`${W}tariffs`, body),
   renameTariff: (id: string, name: string) => patch<Tariff>(`${W}tariffs/${id}`, { name }),
   deleteTariff: (id: string) => del(`${W}tariffs/${id}`),
@@ -199,7 +208,8 @@ export const waterBilling = {
     patch<Tariff>(`${W}tariffs/${id}/versions/${vid}`, body),
   deleteVersion: (id: string, vid: string) => del(`${W}tariffs/${id}/versions/${vid}`),
   // accounts
-  listAccounts: (q?: string) => get<{ items: Account[]; summary: { active: number; drafts: number | null } }>(`${W}accounts${qs({ q })}`),
+  listAccounts: (q?: string) =>
+    isApi() ? get<{ items: Account[]; summary: { active: number; drafts: number | null } }>(`${W}accounts${qs({ q })}`) : Promise.resolve({ items: [] as Account[], summary: { active: 0, drafts: 0 } }),
   account: (id: string) => get<Account>(`${W}accounts/${id}`),
   accountStatus: (id: string) => get<AccountStatus>(`${W}accounts/${id}/status`),
   accountHistory: (id: string, past = 12) => get<{ periods: HistoryPeriod[] }>(`${W}accounts/${id}/history${qs({ past })}`),
@@ -211,8 +221,11 @@ export const waterBilling = {
     post<{ ast: FormulaAst; text: string; sentence_he: string }>(`${W}formula/preset`, { preset, meter_ids: meterIds, main_meter_id: mainMeterId, percent }),
   // bills
   listBills: (o: { state?: BillState; q?: string; account_id?: string; customer_id?: string } = {}) =>
-    get<{ items: BillSummary[]; total: number; counts: Record<BillState, number>; sums: { open: string; paid: string } }>(`${W}bills${qs(o)}`),
+    isApi()
+      ? get<{ items: BillSummary[]; total: number; counts: Record<BillState, number>; sums: { open: string; paid: string } }>(`${W}bills${qs(o)}`)
+      : Promise.resolve({ items: [] as BillSummary[], total: 0, counts: { draft: 0, issued: 0, sent: 0, paid: 0, void: 0 }, sums: { open: '0.00', paid: '0.00' } }),
   bill: (id: string) => get<Bill>(`${W}bills/${id}`),
+  billEvents: (id: string) => get<{ items: BillEvent[] }>(`${W}bills/${id}/events`),
   createBill: (accountId: string, period?: Period) => post<Bill>(`${W}accounts/${accountId}/bills`, { period, client_request_id: requestId() }),
   recalculate: (b: Bill) => post<Bill>(`${W}bills/${b.id}/recalculate`, { row_version: b.row_version }),
   deleteDraft: (b: Bill) => del(`${W}bills/${b.id}${qs({ row_version: b.row_version })}`),

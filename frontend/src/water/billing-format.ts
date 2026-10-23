@@ -100,3 +100,41 @@ export function priceIncVat(water: string, sewage: string, mode: 'ex_vat' | 'inc
   if (vatPercent === null) return null;
   return Math.round(unit * (1 + Number(vatPercent) / 100) * 100) / 100;
 }
+
+/** One signed term of an account's meter formula (the editor's row): +meter or −meter. */
+export interface Term {
+  sign: 1 | -1;
+  meter_id: string;
+}
+
+/** The signed terms of a formula AST of + / − over meters; null when the formula holds anything else (a share, a coefficient). */
+export function termsOf(ast: unknown): Term[] | null {
+  const a = ast as { m?: string; op?: string; args?: unknown[] } | null;
+  if (!a || typeof a !== 'object') return null;
+  if (typeof a.m === 'string') return [{ sign: 1, meter_id: a.m }];
+  if ((a.op === '+' || a.op === '-') && Array.isArray(a.args) && a.args.length >= 2) {
+    const parts = a.args.map((x) => termsOf(x));
+    if (parts.some((p) => p === null)) return null;
+    const [first, ...rest] = parts as Term[][];
+    return [...first, ...rest.flatMap((p) => (a.op === '-' ? p.map((t) => ({ ...t, sign: (t.sign * -1) as 1 | -1 })) : p))];
+  }
+  return null;
+}
+
+/** The formula AST of signed terms (the plus terms first, then the minus terms), or null without a plus term. */
+export function astOf(terms: Term[]): Record<string, unknown> | null {
+  const seen = new Set<string>();
+  const clean = terms.filter((t) => t.meter_id && !seen.has(t.meter_id) && seen.add(t.meter_id));
+  const plus = clean.filter((t) => t.sign > 0);
+  const minus = clean.filter((t) => t.sign < 0);
+  if (!plus.length) return null;
+  let ast: Record<string, unknown> = { m: plus[0].meter_id };
+  for (const t of plus.slice(1)) ast = { op: '+', args: [ast, { m: t.meter_id }] };
+  for (const t of minus) ast = { op: '-', args: [ast, { m: t.meter_id }] };
+  return ast;
+}
+
+/** Bills that are due and unpaid on `today` (YYYY-MM-DD): issued or sent with a due date before today. */
+export function isLate(b: { state: BillState; due_date: string | null }, today: string): boolean {
+  return (b.state === 'issued' || b.state === 'sent') && !!b.due_date && b.due_date < today;
+}

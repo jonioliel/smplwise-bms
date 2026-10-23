@@ -45,3 +45,17 @@ test('bill lines split into water and sewage; price including VAT', () => {
   expect(priceIncVat('10.20', '0', 'inc_vat', null)).toBe(10.2);
   expect(priceIncVat('10.20', '5.10', 'ex_vat', null)).toBeNull();
 });
+
+test('the formula editor: signed terms to the AST and back (the losses account), a share stays unsupported', async () => {
+  const { astOf, termsOf, isLate } = await import('../src/water/billing-format');
+  const loss = { op: '-', args: [{ op: '-', args: [{ m: 'main' }, { m: 'a' }] }, { m: 'b' }] };
+  expect(termsOf(loss)).toEqual([{ sign: 1, meter_id: 'main' }, { sign: -1, meter_id: 'a' }, { sign: -1, meter_id: 'b' }]);
+  expect(astOf(termsOf(loss)!)).toEqual(loss);
+  expect(termsOf({ op: '+', args: [{ m: 'x' }, { op: '-', args: [{ m: 'y' }, { m: 'z' }] }] })).toEqual([{ sign: 1, meter_id: 'x' }, { sign: 1, meter_id: 'y' }, { sign: -1, meter_id: 'z' }]);
+  expect(termsOf({ op: '*', args: [{ n: '0.5' }, { m: 'x' }] })).toBeNull();
+  expect(astOf([{ sign: -1, meter_id: 'a' }])).toBeNull(); // a plus term is needed
+  expect(astOf([{ sign: -1, meter_id: 'a' }, { sign: 1, meter_id: 'b' }, { sign: 1, meter_id: 'b' }, { sign: 1, meter_id: '' }])).toEqual({ op: '-', args: [{ m: 'b' }, { m: 'a' }] });
+  expect(isLate({ state: 'sent', due_date: '2026-10-01' }, '2026-10-23')).toBe(true);
+  expect(isLate({ state: 'paid', due_date: '2026-10-01' }, '2026-10-23')).toBe(false);
+  expect(isLate({ state: 'issued', due_date: '2026-10-30' }, '2026-10-23')).toBe(false);
+});
