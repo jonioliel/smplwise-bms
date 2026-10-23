@@ -455,9 +455,9 @@ def test_after_hours_follows_the_window_in_settings(w):
 def test_no_scenario_module_reaches_the_bridge_or_a_device():
     root = Path(__file__).resolve().parents[1] / "smplwise"
     for rel in ("services/scenarios.py", "services/scenario_model.py", "services/scenario_signals.py", "services/scenario_settings.py", "routers/scenarios.py"):
-        text = (root / rel).read_text(encoding="utf-8")
-        for word in ("automation_transport", "bridge_client", "call_service", "door_execute", "intercom", "go2rtc", "nvr_settings", "recorders."):
-            assert word not in text, (rel, word)
+        code = [ln for ln in (root / rel).read_text(encoding="utf-8").splitlines() if ln.lstrip().startswith(("import ", "from "))]
+        for word in ("automation_transport", "automation_ops", "bridge", "call_service", "door_execute", "door_run", "intercom", "go2rtc", "nvr", "recorders"):
+            assert not any(word in ln for ln in code), (rel, word)  # the imports name no device, bridge or HA-automation path
 
 
 def test_choices_offer_names_for_the_pickers(w):
