@@ -7,6 +7,7 @@ import { ApiError, apiUrl, get } from './client';
 import { ALL_CAPABILITIES, resolveCapabilities, type Capabilities, type CapabilityName } from './capabilities';
 import type { Me } from './types';
 import { isRemoteChannel } from '../arx/channel';
+import { setBrandView } from '../design/brand-logo';
 
 export type SessionMode = 'loading' | 'api' | 'demo' | 'unauthenticated' | 'no_access';
 
@@ -35,6 +36,7 @@ export function onSession(fn: (s: Session) => void): () => void {
 export async function loadSession(): Promise<Session> {
   try {
     const me = await get<Me>('me');
+    setBrandView(me.brand); // LOGOS-295: the company logo, its size / dark-background mode and the tab title come with /me
     set({ mode: me.has_access ? 'api' : 'no_access', me, error: null });
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) set({ mode: 'unauthenticated', me: null, error: err.body.user_message });

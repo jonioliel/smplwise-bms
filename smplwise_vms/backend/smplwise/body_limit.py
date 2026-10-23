@@ -182,7 +182,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"POST"}), re.compile(rf"/api/v1/floors/{_ID}/images"), _floor_image, "floor_image"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/floors/{_ID}/bakes"), _plan_bake, "plan_bake"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/settings/background/{_ID}"), _ui_background, "ui_background"),
-    (frozenset({"POST"}), re.compile(r"/api/v1/brand/company-logo/(light|dark)"), _brand_logo, "brand_logo"),
+    (frozenset({"POST"}), re.compile(rf"/api/v1/brand/company-logo/{_ID}"), _brand_logo, "brand_logo"),
     (frozenset({"POST"}), re.compile(r"/api/v1/backups/upload"), _backup_upload, "backup_upload"),
     (frozenset({"POST"}), re.compile(r"/api/v1/cases/bundles/(verify|import)"), lambda _s: _cases_ceiling(), "evidence_bundle"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/plan-versions/{_ID}/geometry"), _const(LARGE_JSON_MAX), "geometry_document"),

@@ -1,6 +1,8 @@
 // Shapes returned by the add-on backend (smplwise_vms/backend). Keep in step with the routers.
 
 export interface Me {
+  /** CR-LOGOS295: the company logo / name, logo size, dark-background mode and the browser-tab title parts (design/brand-logo.ts). */
+  brand?: import('../design/brand-logo').BrandView;
   user: { id: string; username: string; display_name: string; source: 'ingress' | 'dev' | 'remote' };
   /** CR-008: the entry channel - `remote` through SmplWise Arx (`/arx/`), `local` through Ingress (or a developer backend). */
   channel?: 'remote' | 'local';

@@ -187,7 +187,8 @@ def test_defaults_then_settings_validation_and_audit(settings):
     app = create_app(settings)
     with TestClient(app) as c:
         pub = c.get("/api/v1/brand/public").json()
-        assert pub == {"company": {"name": "", "logo": {"light": None, "dark": None}}, "size": "m", "dark_mode": "plate"}
+        none = {"light": None, "dark": None}
+        assert pub == {"company": {"name": "", "logo": none, "logo_file": none}, "size": "m", "dark_mode": "plate"}
         full = c.get("/api/v1/brand").json()
         assert full["title"] == {"prefix": "Smplwise Arx", "mode": "both"} and full["company"]["kind"] == "developer" and full["project"] == {"name": ""}
         r = c.put("/api/v1/brand", json={"company_name": "  נווה   הירדן ", "company_kind": "management", "logo_size": "xl", "dark_mode": "file", "title_prefix": "Arx",
@@ -224,7 +225,8 @@ def test_upload_serve_replace_delete_png_and_svg(settings):
         stamp = body["stamp"]
         assert stamp == ba.stamp_of(c.get("/api/v1/brand/company-logo/light").content)
         assert c.get("/api/v1/brand/public").json()["company"]["logo"] == {"light": stamp, "dark": None}
-        got = c.get(f"/api/v1/brand/company-logo/light/{stamp}.png")
+        assert c.get("/api/v1/brand/public").json()["company"]["logo_file"] == {"light": f"{stamp}.png", "dark": None}
+        got =c.get(f"/api/v1/brand/company-logo/light/{stamp}.png")
         assert got.status_code == 200 and got.headers["content-type"] == "image/png"
         assert got.headers["cache-control"] == "public, max-age=31536000, immutable" and got.headers["etag"] == f'"{stamp}"'
         assert got.headers["x-content-type-options"] == "nosniff" and "set-cookie" not in got.headers

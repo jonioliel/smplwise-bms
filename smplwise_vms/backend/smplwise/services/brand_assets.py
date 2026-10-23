@@ -169,6 +169,8 @@ def _very_light(im: Any, out: Normalised) -> None:
 def _text(v: Any, limit: int) -> str:
     if not isinstance(v, str):
         raise ValueError("text")
+    if any(ord(c) < 32 for c in v):
+        raise ValueError("control")
     s = " ".join(v.replace("⁦", "").replace("⁧", "").replace("⁨", "").replace("⁩", "").split())
     if len(s) > limit:
         raise ValueError("long")
@@ -242,17 +244,33 @@ def meta(conn: sqlite3.Connection) -> dict[str, Any]:
     return out
 
 
-def public_view(conn: sqlite3.Connection) -> dict[str, Any]:
-    """What the sign-in page may know without a session: the company's name, the two logo stamps and the two look choices that
-    decide how the logos are drawn."""
+def logo_files(conn: sqlite3.Connection) -> dict[str, str | None]:
+    """The stamped file name of each stored logo (`<stamp>.png` / `<stamp>.svg`): what a consumer appends to
+    `brand/company-logo/<variant>/` - the extension says the type without a second request."""
     st = stamps(conn)
-    return {"company": {"name": _stored(conn, K_NAME), "logo": st}, "size": _stored(conn, K_SIZE, SIZES), "dark_mode": _stored(conn, K_DARK, DARK_MODES)}
+    out: dict[str, str | None] = {v: None for v in VARIANTS}
+    try:
+        rows = conn.execute("SELECT variant, stamp, mime FROM brand_assets WHERE kind = ?", (KIND,)).fetchall()
+    except sqlite3.Error:
+        return out
+    for r in rows:
+        if st.get(r["variant"]) == r["stamp"]:
+            out[r["variant"]] = f"{r['stamp']}.{'svg' if r['mime'] == 'image/svg+xml' else 'png'}"
+    return out
+
+
+def public_view(conn: sqlite3.Connection) -> dict[str, Any]:
+    """What the sign-in page may know without a session: the company's name, the two logo stamps (and their file names) and the
+    two look choices that decide how the logos are drawn."""
+    st = stamps(conn)
+    return {"company": {"name": _stored(conn, K_NAME), "logo": st, "logo_file": logo_files(conn)}, "size": _stored(conn, K_SIZE, SIZES),
+            "dark_mode": _stored(conn, K_DARK, DARK_MODES)}
 
 
 def full_view(conn: sqlite3.Connection) -> dict[str, Any]:
     st = stamps(conn)
     return {
-        "company": {"name": _stored(conn, K_NAME), "kind": _stored(conn, K_KIND, COMPANY_KINDS), "logo": st},
+        "company": {"name": _stored(conn, K_NAME), "kind": _stored(conn, K_KIND, COMPANY_KINDS), "logo": st, "logo_file": logo_files(conn)},
         "size": _stored(conn, K_SIZE, SIZES),
         "dark_mode": _stored(conn, K_DARK, DARK_MODES),
         "title": {"prefix": _stored(conn, K_PREFIX) or DEFAULTS[K_PREFIX], "mode": _stored(conn, K_MODE, TITLE_MODES)},

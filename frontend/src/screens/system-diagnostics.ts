@@ -48,7 +48,8 @@ import './system-plan-view'; // CR-029 ST7 UI: הגדרות › מפה › תצ�
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
 import './system-presence'; // CR-027: הגדרות › אפליקציה לנייד
-import './system-brand-colors'; // 2.4.4: הגדרות › כללי › צבעי המותג (accent, switch-on colour)
+import './system-brand-logos'; // LOGOS-295: הגדרות › כללי › מראה המערכת › לוגו ושם המערכת (company logo, size, dark background, tab title)
+import './system-brand-colors';// 2.4.4: הגדרות › כללי › צבעי המותג (accent, switch-on colour)
 import './system-timeline-colors'; // owner 2026-10-01: הגדרות › וידאו ומדיה › צבעי ציר הזמן
 import './system-video-conn-test'; // owner 2026-10-01: הגדרות › גישה מרחוק › בדיקת חיבור וידאו
 import './system-wiskey-diagnostics'; // WisKey B0: הגדרות › מתגי מסכי כניסה › WisKey רואה את Arx כ־
@@ -802,6 +803,7 @@ export class SystemDiagnostics extends LitElement {
     return html`<div class="sections">
       ${this.renderDesign()}
       <system-design></system-design>
+      <system-brand-logos></system-brand-logos>
       <system-brand-colors></system-brand-colors>
       <system-look></system-look>
       <system-nav-size></system-nav-size>
