@@ -1578,6 +1578,14 @@ export interface LegacyAccess {
   api: boolean;
   ready: boolean;
   can: Can;
+  /** SERVICEIA3-295: false while the product settings (`ui.tabs`: page order and hidden tabs) are still loading - the service-management entry
+   * addresses wait for them (absent = loaded). */
+  settings?: boolean;
+}
+
+/** SERVICEIA3-295: the service-management entry addresses whose landing page depends on `ui.tabs` (#/tickets/requests|maintenance|vendors|reports|list). */
+export function isTicketsEntryAddress(r: RouteState | null): boolean {
+  return r?.mode === 'tickets' && !r.segments[2] && ((TICKETS_SECTION_IDS as readonly string[]).includes(r.segments[1] ?? '') || r.segments[1] === 'list');
 }
 
 /** Old routes that moved (2026-09-30). Returns the new path (`/investigate/health?sort=...`) or null when the route
@@ -1598,7 +1606,7 @@ export function legacyRedirect(r: RouteState | null, access?: LegacyAccess): str
   // first page this user may open (permission-aware; nothing decided while the session loads); the query travels. Every page keeps its href.
   // SERVICEIA2-295: #/tickets/list (the one list page) lands on the first scope of the list this user may open, as the requests section does
   if (r.mode === 'tickets' && !s[2] && ((TICKETS_SECTION_IDS as readonly string[]).includes(s[1] ?? '') || s[1] === 'list')) {
-    if (access && !access.ready) return null;
+    if (access && (!access.ready || access.settings === false)) return null; // SERVICEIA3-295: and not before ui.tabs is known
     const target = ticketsSectionTarget(s[1] === 'list' ? 'requests' : s[1], access?.api ?? false, access?.api ? access.can : undefined);
     return `${target.slice(1)}${q}`;
   }

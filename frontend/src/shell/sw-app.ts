@@ -111,7 +111,7 @@ import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../api/setup-hint';
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
-import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
+import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, isTicketsEntryAddress, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
 import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
 import { DD_CHIPS, DD_COLLIDE_MS, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
@@ -1606,6 +1606,9 @@ export class SwApp extends LitElement {
   /** The default screen waits for the product settings (the start-screen choice) before it renders - otherwise the
    * map's own floor redirect would race the start-screen redirect. */
   @state() private startResolved = false;
+  /** SERVICEIA3-295: the entry-address redirects waited long enough for the settings (a slow or failed read must not hold the page forever). */
+  @state() private settingsWaitOver = false;
+  private settingsWaitTimer = 0;
 
   connectedCallback() {
     super.connectedCallback();
@@ -1704,7 +1707,14 @@ export class SwApp extends LitElement {
           // settings unreadable: still no bare address - "ראשי", or this user's first tab
           if (this.landedDefault) this.land(landingTarget(START_ROUTES.devices, true, canNav, navOrder()));
           this.startResolved = true;
+          window.clearTimeout(this.settingsWaitTimer);
+          if (this.route) this.redirectDemo(this.route); // SERVICEIA3-295: an entry address that waited for ui.tabs is resolved now
         });
+        // safety net: after 6 s the entry addresses resolve with whatever is known (the built-in order)
+        this.settingsWaitTimer = window.setTimeout(() => {
+          this.settingsWaitOver = true;
+          if (this.route) this.redirectDemo(this.route);
+        }, 6000);
         void this.pollSummary();
         this.sysTimer = window.setInterval(() => {
           void this.pollSummary();
@@ -2203,7 +2213,7 @@ export class SwApp extends LitElement {
 
   /** Who is asking, for the redirects that depend on it (the device catalogue: settings for system.configure, else the map). */
   private legacyAccess(): LegacyAccess {
-    return { api: this.session.mode === 'api', ready: this.session.mode !== 'loading', can: canNav };
+    return { api: this.session.mode === 'api', ready: this.session.mode !== 'loading', can: canNav, settings: this.session.mode !== 'api' || this.startResolved || this.settingsWaitOver };
   }
 
   /** A user whose only role is the kiosk role belongs on the wall: the shell keeps such a session there (T057).
@@ -2297,6 +2307,8 @@ export class SwApp extends LitElement {
     if (!r) return nothing;
     if (this.landedDefault && this.session.mode === 'api' && !this.startResolved) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const s = r.segments;
+    // SERVICEIA3-295: a service-management entry address shows nothing (no flash of the wrong page) until the settings that decide its landing page are in
+    if (this.session.mode === 'api' && isTicketsEntryAddress(r) && this.legacyAccess().settings === false) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const moved = legacyRedirect(r, this.legacyAccess()); // safety net: the route handler redirects first
     if (moved) {
       queueMicrotask(() => window.location.replace(`#${moved}`));
