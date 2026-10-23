@@ -212,3 +212,8 @@ Built on the owner decisions above. What is in and what is deliberately not (so 
 - Datasets are minimal (site, floors, a recorder, cameras); no tickets, meters, schedules or notifications seed; no go2rtc `smplwise_demo_` sample streams; no PDF watermark; no hand-over PDF report; the history chart is a list.
 - Module checks cover the tickets module only; the technician flag test of the `people` check and the thumbnail / recording-coverage proof of `cameras_verified` are replaced by "seen within N hours" (`cameras.last_seen_at`); the backup check reads "a password-sealed archive exists" instead of the password itself.
 - The score chip on the settings tab is not drawn (the chip value is in `/me.readiness`).
+
+### Slice 1 test evidence (runner, branch head before this note)
+- Backend `tests/test_readiness_96.py`: 21 passed. A 41-file selection around rbac, roles, /me, janitor, backup, health, setup wizard, quiet windows, water, release check: 1013 passed. The FULL backend suite was started and stopped at ~10% (hours on the loaded runner): NOT_RUN to completion.
+- Frontend: `tsc` ok (local and runner); `unit-readiness-96` + `unit-settings-index` 12 passed locally; `evidence-readiness-96` (18, incl. no page scroll at 1366x768 / 1024x768 / 768x1024 / 390x844 / 320x640, light + dark, 20 extra checks) + `evidence-nav-size` + `evidence-nn1-p2`: 47 passed. The whole unit/evidence/layout suites were NOT run. No live (real lab) run, no visual-diff matrix run.
+- Migration 0152 is PROVISIONAL and collides with 0152_infra_water_alerts on release/2150: renumber at integration.
