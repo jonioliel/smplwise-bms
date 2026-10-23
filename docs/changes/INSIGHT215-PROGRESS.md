@@ -127,3 +127,11 @@ Tests: `tests/unit-insights.spec.ts` 10 passed locally; `tests/evidence-insights
 ## Runner state
 
 Worktree `~/work/pilot-INSIGHT215-295` belongs to run_remote.sh (reused); nothing of this agent is running. `~/ins215_*.log` are small logs.
+
+## Slice 3 (2026-10-24, branch `pilot/INSIGHT215B-295`, from `pilot/INSIGHT215-295` @ b1d2d33b4)
+
+Details: CR-INSIGHT215 "Slice 3". Provisional migration **0146_insight215_runs_delivery.sql** (generator_runs, insights_report_sends).
+
+- Backend: `services/insights_generator.py` (run recorder, called from the generator tick; report), `services/insights_delivery.py` (setup / enable rules, planning, e-mail + WhatsApp text send, retry, janitor hooked into `main.janitor_tick`), `services/insights_access.py` (the report's section gate, shared by the routes and the delivery), settings `generator.min_run_s` and `report.generator_runs`, routes `GET/PUT /reports/building/delivery`, `wa_pacing.USE_CLASS` (`insights.reports` = reminder).
+- Frontend: `DELIVERY_BACKEND` is gone - the delivery card in `insights-settings.ts` is real (day, time, language, channels, recipients with their reach, save, explicit enable switch locked until setup is complete and for anyone without `system.configure`); generator run table in the report preview; `min_run_s` and the "who sees the runs" select in the settings; two-column card flow on wide settings (still a little taller than a 768 px window - the thresholds card).
+- `contracts/API_INVENTORY.md` regenerated on the runner (1207 routes: the slice-2 status route and the two delivery routes).
