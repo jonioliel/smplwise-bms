@@ -56,7 +56,8 @@ interface NotifySettings {               // ONE row for the installation; notify
                 to: 'managers' | string[] };                        // notify.manage holders, or named user ids
   lockscreen: 'generic' | 'type_place' | 'full';                     // default 'type_place'
   image_in_push: false;                  // fixed false in v1 (later step); shown disabled as "בקרוב"
-  companion: { critical_sound_safety: boolean };                     // later step; shown disabled as "בקרוב"
+  companion: { critical_sound_safety: boolean; critical_sound_types: Record<'sensor.smoke' | 'sensor.gas' | 'sensor.co' | 'alarm.triggered' | 'sensor.leak', boolean>;
+               resolved_tone: boolean };                             // CRITSOUND (docs/changes/CRITSOUND-SPEC.md); UI still shown disabled as "בקרוב"
   retention_days: 7 | 14 | 30 | 60 | 90; // default 30
   deliveries_retention_days: 14;         // fixed
   email: { configured: boolean; host: string; port: number; security: 'starttls' | 'tls' | 'none';

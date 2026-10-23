@@ -42,13 +42,34 @@ def _sound_types(raw: Any) -> dict[str, bool]:
 
 def _companion_view(raw: Any) -> dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
-    return {"critical_sound_safety": bool(raw.get("critical_sound_safety")), "critical_sound_types": _sound_types(raw.get("critical_sound_types"))}
+    tone = raw.get("resolved_tone")
+    # CRITSERVER217-295: the calming tone of a resolved update. Owner decision 24.10: switchable, ON by default once the capability is enabled.
+    # Stored default True (missing or garbled reads True), but it only ever takes effect behind the master switch and the event type, which are OFF.
+    return {"critical_sound_safety": bool(raw.get("critical_sound_safety")), "critical_sound_types": _sound_types(raw.get("critical_sound_types")),
+            "resolved_tone": tone if isinstance(tone, bool) else True}
 
 
 def critical_sound_for(settings: dict[str, Any], source: str | None, category: str | None, severity: str | None) -> bool:
     """Whether a push for this notification should carry the DND-bypass flag: master switch AND this event type chosen AND still safety / critical."""
     c = settings.get("companion") or {}
     return bool(c.get("critical_sound_safety") and category == "safety" and severity == "critical" and (c.get("critical_sound_types") or {}).get(source or "") is True)
+
+
+def resolved_tone_for(settings: dict[str, Any], source: str | None, category: str | None, severity: str | None) -> bool:
+    """Whether a `resolved` push should carry the calming-tone marker: the same rule as the critical flag (master, type, safety, critical)
+    AND the owner's resolved-tone switch. So the tone only ever follows an event whose first notice could have carried the critical flag."""
+    c = settings.get("companion") or {}
+    return c.get("resolved_tone") is True and critical_sound_for(settings, source, category, severity)
+
+
+def critical_sound_capability(settings: dict[str, Any]) -> dict[str, Any]:
+    """The read-only view the phone app gets (`GET notifications/categories`, member `critical_sound`): booleans and event-type names only.
+    `enabled` = the master switch is on AND at least one event type is chosen (i.e. a push may carry `critical_alert`); `types` = the chosen
+    types (empty while not enabled); `resolved_tone` = a resolved update of such an event will carry the calming-tone marker."""
+    c = settings.get("companion") or {}
+    chosen = [k for k in CRITICAL_SOUND_SOURCES if (c.get("critical_sound_types") or {}).get(k) is True]
+    enabled = bool(c.get("critical_sound_safety")) and bool(chosen)
+    return {"enabled": enabled, "types": chosen if enabled else [], "resolved_tone": enabled and c.get("resolved_tone") is True}
 
 
 DEFAULT_ESCALATION = {"enabled": True, "after_min": 5, "steps": 2, "to": "managers"}
@@ -238,17 +259,19 @@ def update(conn: sqlite3.Connection, body: dict[str, Any], actor_user_id: str, e
         raise SettingsInvalid("validation", "תמונה בהתראה תיתמך בשלב מאוחר יותר.", details={"field": "image_in_push"})
     if "companion" in body:
         c = body["companion"]
-        if not isinstance(c, dict) or set(c) - {"critical_sound_safety", "critical_sound_types"}:
+        if not isinstance(c, dict) or set(c) - {"critical_sound_safety", "critical_sound_types", "resolved_tone"}:
             raise SettingsInvalid("validation", "הגדרת Companion לא תקינה.", details={"field": "companion"})
-        if "critical_sound_safety" in c and not isinstance(c["critical_sound_safety"], bool):
-            raise SettingsInvalid("validation", "הערך חייב להיות כן/לא.", details={"field": "companion.critical_sound_safety"})
+        for f in ("critical_sound_safety", "resolved_tone"):
+            if f in c and not isinstance(c[f], bool):
+                raise SettingsInvalid("validation", "הערך חייב להיות כן/לא.", details={"field": f"companion.{f}"})
         types = dict(cur["companion"]["critical_sound_types"])
         if "critical_sound_types" in c:
             t = c["critical_sound_types"]
             if not isinstance(t, dict) or set(t) - set(CRITICAL_SOUND_SOURCES) or any(not isinstance(v, bool) for v in t.values()):
                 raise SettingsInvalid("validation", "סוג אירוע לא מוכר או ערך לא תקין.", details={"field": "companion.critical_sound_types", "known": list(CRITICAL_SOUND_SOURCES)})
             types.update(t)
-        new["companion"] = {"critical_sound_safety": bool(c["critical_sound_safety"]) if "critical_sound_safety" in c else cur["companion"]["critical_sound_safety"], "critical_sound_types": types}
+        new["companion"] = {"critical_sound_safety": bool(c["critical_sound_safety"]) if "critical_sound_safety" in c else cur["companion"]["critical_sound_safety"], "critical_sound_types": types,
+                            "resolved_tone": c["resolved_tone"] if "resolved_tone" in c else cur["companion"]["resolved_tone"]}
     if "retention_days" in body:
         if body["retention_days"] not in RETENTION_CHOICES or isinstance(body["retention_days"], bool):
             raise SettingsInvalid("validation", "תקופת שמירה: 7, 14, 30, 60 או 90 ימים.", details={"field": "retention_days"})

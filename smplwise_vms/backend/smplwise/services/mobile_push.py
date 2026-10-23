@@ -73,6 +73,12 @@ def categories() -> list[dict[str, Any]]:
     return [{"id": c, "name": CATEGORY_NAMES_HE.get(c) or (_ticket_names["he"]["many"] if c == "tickets" else c), "critical": c in CRITICAL_CATEGORIES} for c in CATEGORIES]
 
 
+def critical_sound(conn: sqlite3.Connection) -> dict[str, Any]:
+    """CRITSERVER217-295: whether the owner enabled the critical-sound capability, for the app's one-time explanation screen and its own
+    settings switch (`GET notifications/categories`, member `critical_sound`). Booleans and event-type names only; never other settings."""
+    return notify_settings.critical_sound_capability(notify_settings.load(conn))
+
+
 def server_id(conn: sqlite3.Connection) -> str:
     """The installation's opaque id at the relay (the app groups notifications by it). Created once; needs a write connection then."""
     sid = get_setting(conn, "push.server_id")
@@ -157,15 +163,17 @@ class Outcome:
     error: str | None = None
 
 
-def send_relay(relay_token: str, category: str, message_id: str, priority: str, server: str, collapse: str | None = None, critical_alert: bool = False) -> Outcome:
+def send_relay(relay_token: str, category: str, message_id: str, priority: str, server: str, collapse: str | None = None, critical_alert: bool = False, resolved_tone: bool = False) -> Outcome:
     url, key = relay_url(), relay_key()
     if not url or not key:
         return Outcome(0, error="relay_unconfigured")
     body = {"relay_token": relay_token, "category": category, "notification_id": message_id, "priority": priority, "server": server}
     if collapse:
         body["collapse"] = collapse[:64]
-    if critical_alert:  # CRITSOUND124-295: the relay maps it to APNs interruption-level critical + critical sound / an FCM max-importance DND-bypass channel; absent otherwise
+    if critical_alert:  # CRITSOUND124-295: the relay maps it to the FCM data key `critical_alert` (the app's DND-bypass channel); iOS ignores it in phase 1; absent otherwise
         body["critical_alert"] = True
+    elif resolved_tone:  # CRITSERVER217-295: the calming tone of a resolved update (FCM data key `resolved_tone`; iOS ignores it); never together with critical_alert, absent otherwise
+        body["resolved_tone"] = True
     try:
         with httpx.Client(timeout=SEND_TIMEOUT_S, transport=TRANSPORT, follow_redirects=False) as client:
             r = client.post(f"{url}/v1/push", json=body, headers={"Authorization": f"Bearer {key}", "User-Agent": "SmplWiseArx-server"})
@@ -239,6 +247,7 @@ class _Job:
     mode: str
     attempt: int = 0
     critical_alert: bool = False
+    resolved_tone: bool = False
 
     def recheck(self, db: Database) -> bool:
         with db.connection(mode="read", label="mobile_push.recheck") as conn:
@@ -260,7 +269,7 @@ class _Job:
 
 
 def attempt_job(notifier: "push.PushNotifier | None", db: Database, job: _Job) -> str:
-    outcome = send_relay(job.relay_token, job.category, job.message_id, job.priority, job.server, collapse=job.notification_id, critical_alert=job.critical_alert)
+    outcome = send_relay(job.relay_token, job.category, job.message_id, job.priority, job.server, collapse=job.notification_id, critical_alert=job.critical_alert, resolved_tone=job.resolved_tone)
     final = job.attempt + 1 >= len(BACKOFF_S) + 1
     result = record(db, job.device_id, outcome, final, delivery_id=job.delivery_id, notification_id=job.notification_id, attempt=job.attempt + 1)
     if result == "retry" and notifier is not None:
@@ -326,7 +335,8 @@ class AppPushChannel(notify_channels.Channel):
             dev = t.data["device"]
             job = _Job(dev["id"], t.user_id or dev["user_id"], dev["push_relay_token"], t.data["message_id"], d.n["category"], "high" if (d.severity == "critical" or d.mode == "escalate") else "normal",
                        d.scratch.get("app_server") or "srv", d.nid, t.delivery_id or None, d.mode,
-                       critical_alert=d.mode != "resolved" and notify_settings.critical_sound_for(d.settings, d.n.get("source"), d.n.get("category"), d.severity))
+                       critical_alert=d.mode != "resolved" and notify_settings.critical_sound_for(d.settings, d.n.get("source"), d.n.get("category"), d.severity),
+                       resolved_tone=d.mode == "resolved" and notify_settings.resolved_tone_for(d.settings, d.n.get("source"), d.n.get("category"), d.severity))
             attempt_job(notifier, notifier.db, job)
 
 
