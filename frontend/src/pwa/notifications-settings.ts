@@ -29,6 +29,7 @@ import {
   type PushSupport,
 } from './push';
 import { dateInputLang, dayTimeText } from '../api/day-format';
+import '../screens/presence-opt-out'; // WHOIN034-295: the person's own "do not show me on מי במבנה"
 
 const CATEGORIES: { id: PushCategory; label: string; detail: string }[] = [
   { id: 'alerts', label: 'התראות מחוקים', detail: 'כל התראה שחוק ב"חוקים והתראות" מעלה: תנועה, חציית קו, אדם, רכב' },
@@ -350,7 +351,7 @@ export class ArxNotificationsSettings extends LitElement {
           ? nothing
           : html`${this.renderCategories()} ${this.renderQuiet()}
             <div class="foot"><sw-button variant="primary" icon="check" data-push-save ?disabled=${!dirty || this.busy || !isApi()} @click=${() => this.save()}>שמירת ההעדפות</sw-button></div>`}
-        ${this.renderDevices()} ${this.renderKey()}
+        ${this.renderDevices()} <presence-opt-out></presence-opt-out> ${this.renderKey()}
       </div>`;
     if (this.embedded) return body;
     return html`<sw-page heading="התראות" subheading=${isApi() ? (this.devicesOnly ? 'המכשירים שלך' : 'התראות Push לטלפון ולמחשב שלך · לכל משתמש בנפרד') : 'התראות Push · נתוני הדגמה'}>${body}</sw-page>`;

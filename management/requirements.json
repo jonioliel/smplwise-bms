@@ -6867,5 +6867,21 @@
     "test_ids": [
       "AT-ENTPOL-1"
     ]
+  },
+  {
+    "id": "R-WHOIN-1",
+    "title": "Who is in the building (board r034) and the geofence / beacon / Wi-Fi editors on one screen (board r035)",
+    "statement": "A holder of presence.view (sensitive, system_admin by default, scoped like the map) sees who the phone app currently places inside, by floor and area, on a screen that fits the viewport; only devices that acknowledged the current notice and report the sensor on count; an opted-out person is counted, never named or placed; every threshold is a setting; the geofences, beacons and Wi-Fi sites are edited on one settings page, network names kept as salted hashes only; nothing while presence is off (the default).",
+    "task_ids": [
+      "WHOIN034-295"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WHOIN-1"
+    ]
   }
 ]

@@ -18,6 +18,7 @@ import { tst } from '../i18n/tab-sections'; // TABSET-293: the names of the tab 
 import { he } from '../i18n/he'; // TABSET-293: the generator's page names (the registry's `infra.generator` section)
 import { mt } from '../i18n/maintenance'; // CR-MAINT215 slice 2: the maintenance section's label
 import { ix } from '../i18n/insights'; // CR-INSIGHT215: the building report page's label
+import { pt } from '../i18n/presence'; // WHOIN034-295: the "מי במבנה" tab's label
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
@@ -665,7 +666,11 @@ export function applyMultimediaKinds(counts: { screens?: number | null; players?
 const EXPLORE_TABS: TabItem[] = [
   { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
   { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
+  // WHOIN034-295 (board r034): "מי במבנה" - presence.view holders only (sensitive, system_admin by default; TAB_PERMISSIONS)
+  { id: 'presence', get label() { return pt('tab'); }, href: '#/explore/presence' },
 ];
+/** WHOIN034-295: the "who is in the building" screen. */
+export const PRESENCE_HREF = '#/explore/presence';
 
 /** The home area's tabs (`ui.tabs` (section `devices`) and the phone bottom bar follow). "מבט על" is the home screen as it always was (the
  * building tree, `#/devices/building`; an area screen is a drill-down of it, #/devices/areas/<id>, not a tab). "קברניט" (0.1.154, owner
@@ -1125,7 +1130,7 @@ export function activeAreaTab(r: RouteState | null): string {
       return sec === 'alarm' ? 'alarm' : '';
     }
     case 'explore':
-      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : 'sites';
+      return s[1] === 'buildings' || s[1] === 'floors' ? 'floors' : s[1] === 'presence' ? 'presence' : 'sites';
     case 'system':
       return !s[1] || s[1] === 'diagnostics' ? 'general' : s[1];
     case 'wiskey':
@@ -1274,6 +1279,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/system/devices': ['video.live'],
   '#/explore/sites': ['map.read'],
   '#/explore/floors/f0': ['map.read'],
+  '#/explore/presence': ['presence.view'], // WHOIN034-295: GET presence/people needs it (at any scope; the server filters by floor)
   // the device catalogue: a management page of the settings (it was the map's "התקנים" tab, gated by entity.state.read)
   [ENTITIES_SETTINGS_HREF]: ['system.configure'],
   '#/wiskey/overview': ['access.read'],

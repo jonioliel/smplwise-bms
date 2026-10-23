@@ -130,8 +130,8 @@ Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidd
     "intervals_s": { "battery": 900, "steps": 300, "app_state": 300 },
     "catalog": [ { "key": "location", "name_he": "מיקום", "purpose_he": "נוכחות במבנה: כניסה ויציאה" }, … ]
   },
-  "beacons": [ { "uuid": "…", "site_id": "site_main" } ],
-  "wifi_sites": [ { "site_id": "site_main", "ssid_hash_salt": "…", "ssid_hashes": ["…"] } ],
+  "beacons": [ { "id": "bcn_lobby", "name": "לובי", "uuid": "…", "major": 1, "minor": 2, "site_id": "site_main", "floor_id": "…", "zone_id": "…" } ],
+  "wifi_sites": [ { "id": "wifi_f3", "name": "קומה 3", "site_id": "site_main", "floor_id": "…", "ssid_hash_salt": "…", "ssid_hashes": ["…"] } ],
   "wifi_match_mode": "phone",
   "required_sensors": { "enabled": false, "sensors": [] },
   "device": { "device_id": "dev_…", "name": "הנייד של יוסי", "notice_ack_version": 0 }
@@ -152,6 +152,11 @@ Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidd
 - `wifi_match_mode` (v2.1; absent from older servers = treat as `server`, the pre-2.1 behaviour) tells the app who decides that
   the phone is on a site's Wi-Fi network; see section 2.1. It is returned whatever the master switch says.
 - Sensor keys (v1, all platforms): `location, activity, steps, altitude, battery, network, beacon, app_state`.
+- WHOIN034-295 (2.16.0, additive): a beacon carries its server `id`, a `name`, optional `major` / `minor` (`null` = any) and an
+  optional placement (`floor_id`, `zone_id`); a Wi-Fi site carries `id`, `name` and an optional `floor_id`. The app ignores what
+  it does not use. `ssid_hashes` are `sha256_hex(ssid_hash_salt + ssid)` over UTF-8 (lowercase hex): the app hashes the SSID
+  it sees the same way with each site's salt and reports the result as `ssid_hash` (section 4). The server never stores or
+  returns a network name.
 
 ### 2.1 Wi-Fi site match: phone-side or server-side (v2.1, PRESENCE307)
 
@@ -215,12 +220,14 @@ Rules:
   | `steps` | steps delta per interval, floors up / down |
   | `altitude` | relative altitude change |
   | `battery` | level %, charging state, low-power mode |
-  | `network` | `wifi \| cellular \| none`; Wi-Fi: `wifi_match` + `wifi_site_id` (phone mode) or `ssid_hash` (server mode), see section 2.1 |
-  | `beacon` | `site_id`, proximity bucket (`immediate \| near \| far`) |
+  | `network` | `type`: `wifi \| cellular \| none`; Wi-Fi: `wifi_match` + `wifi_site_id` (phone mode) or `ssid_hash` (server mode, matched against `wifi_sites[].ssid_hashes`), see section 2.1 |
+  | `beacon` | `beacon_id` (the server's id from `beacons[]`; or `uuid` with `major` / `minor`), `site_id`, `proximity` (`immediate \| near \| far`) |
   | `app_state` | `foreground \| background`, last-seen |
 
   The addendum names the data but not the JSON key spellings for every row; until the owner fixes them, the spellings
-  are the app's choice and the server accepts any.
+  are the app's choice and the server accepts any. **Exception (WHOIN034-295):** the server's "who is in the building"
+  screen READS the `beacon` keys `beacon_id` / `uuid` / `major` / `minor` / `proximity` and the `network` key `ssid_hash`
+  with exactly these spellings; a report with other spellings is stored but places nobody on a floor.
 - `status` is optional and may be sent **alone** (`events: []`): it is how "sharing off", permission changes and the
   per-sensor switches reach the server (and what the required-sensors policy reads). Sensors not allowed are stored
   `off`. The status is accepted even while the installation is switched off.
