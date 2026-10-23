@@ -86,14 +86,24 @@ def test_after_re_registration_a_new_key_needs_the_old_keys_proof(rx):
 
 def test_a_replayed_replace_proof_is_refused(rx):
     dev, _, old = reregistered(rx)
-    body = replace_body(rx, dev["device_id"], Key(), old)
+    # a refused try (the phone's clock off) spends the nonce: the same consent replayed is refused
+    stale = replace_body(rx, dev["device_id"], Key(), old, ts=now(rx) - dk.POP_SKEW_S - 1)
+    assert mint(rx, dev["device_id"], None, body=stale).json()["details"]["reason"] == "clock"
+    stale["replaces"]["ts"] = now(rx)  # (the signature no longer matches either; the nonce check comes first)
+    assert mint(rx, dev["device_id"], None, body=stale).json()["details"]["reason"] == "nonce"
+    # a successful consent, captured on the wire ...
+    new = Key()
+    body = replace_body(rx, dev["device_id"], new, old)
     assert mint(rx, dev["device_id"], None, body=body).status_code == 201
-    register(rx)  # and the sign-in ends again: the captured request replayed
-    r = mint(rx, dev["device_id"], None, body=body)
+    register(rx)  # ... the sign-in ends again; an attacker re-uses the captured `replaces` for their own key
+    attacker = Key()
+    forged = {**key_body(rx, dev["device_id"], attacker), "replaces": body["replaces"]}
+    r = mint(rx, dev["device_id"], None, body=forged)
     assert r.status_code == 409 and r.json()["details"]["reason"] == "nonce"
-    # the captured nonce re-signed by the old key over another new key: still the spent nonce
-    again = replace_body(rx, dev["device_id"], Key(), old, nonce=body["replaces"]["nonce"])
+    # the captured nonce re-signed by the old key over another key: still the spent nonce
+    again = replace_body(rx, dev["device_id"], attacker, old, nonce=body["replaces"]["nonce"])
     assert mint(rx, dev["device_id"], None, body=again).json()["details"]["reason"] == "nonce"
+    assert pin_row(rx, dev["device_id"])["device_key_fp"] == new.fp
 
 
 def test_the_wrong_key_cannot_consent(rx):

@@ -3,6 +3,8 @@
 Status: APPROVED by the owner 2026-10-23 (section 11); security review 2026-10-23 fixes in (section 12); go state **LAB ONLY**; **slice 1 BUILT (backend only, switch default OFF)** on `pilot/APPREFRESH-295` from `origin/main` c37c75c91 (2.12.3).
 **Device-bound key BUILT (backend only, mode default `optional`)** on `pilot/APPREFRESH2-295` (section 13; app contract
 `docs/changes/APPREFRESH-DEVICEKEY-SPEC.md`); migration **0153 PROVISIONAL**. Needs its own security review before customers.
+**Device-key pin + administrator-approved reset BUILT (backend only)** on `pilot/APPREFRESH3-295` (section 14; spec revision 2,
+section 6a); migration **0158 PROVISIONAL**.
 Board item r122, target 2.14.0. Migration **0150 PROVISIONAL** (one file, `0150_app_refresh_tokens.sql`; renumber at integration).
 No app code, no frontend, nothing on a real device or server. Activation (switch ON on a real installation) only after a Fable
 security review of the public surface (owner decision 1, section 11).
@@ -355,3 +357,53 @@ user holding an administrative permission (they re-mint through a sign-in that p
 2. Access tokens stay bearer (minutes); sign every API call (DPoP) or only the session exchange? Decide with the session-exchange slice.
 3. The MFA follow-up of 13.7 (end admin families when the rule is switched on) - owner decision.
 4. Should the installation default move from `optional` to `required` once the app versions with the key are out (an upgrade step)?
+
+## 14. Device-key pin and the administrator-approved reset (APPREFRESH3-295; built on `pilot/APPREFRESH3-295` from `pilot/APPREFRESH2B` 373c04c39)
+
+### 14.1 The weakness closed
+
+Section 13 / D-01 asked for the old key's proof only while the device had a LIVE keyed family. The key lived on the family row, so every
+path that ended the family forgot it: re-registering the device (`device_reregistered`, which a signed-in session can trigger with the
+same install id), deleting and re-adding it, an administrator's end, a refusal. The next mint - any fresh session of the user - could
+then bind an attacker's key with no proof of possession of the old one.
+
+### 14.2 Design
+
+- **Pin** (migration 0158 PROVISIONAL, `app_refresh_device_keys`, one row per `mobile_devices.id`): the last key a mint bound; created /
+  updated by every keyed mint, dropped by a keyless mint that was consented to, backfilled from the newest keyed family. The live keyed
+  family stays authoritative if the two ever differ (logged). Never exported (`backup.NEVER_EXPORTED_TABLES`): a restore can neither drop
+  a pin nor revive one. The janitor drops pins whose registration row is gone and clears lapsed approvals.
+- **Mint rule (secure default):** a pinned device binds another key, or none, only with (1) `device_key.replaces` signed by the pinned key
+  (wire format unchanged), (2) after the USER's own end of the old sign-in (owner decision Q296, 2026-10-23: the app's sign-out with its
+  current token, "end this sign-in" or "sign out everywhere" on their own account - audited `auth.app_refresh.key_released`), or (3) a
+  pending administrator-approved reset. Otherwise `409 device_key_bound`, audited, nothing ends.
+- **Challenge:** a pinned device without a live keyed family gets a stored nonce in its pin scope (`app_refresh_nonces.family_id` =
+  `dk:<device_id>`; no schema change), same answer shape, same rate limits (the scope is the bucket key). Such a nonce is accepted only
+  as a `replaces` nonce of that device.
+- **Reset (lost key):** `POST /auth/app/devices/{id}/key-reset {reason}` - a system administrator (`is_system_admin`, the same gate as the
+  settings); an administrator's OWN device only from the local channel, so a stolen remote administrator session cannot re-key its own
+  phone. Ends the live family (`device_key_reset`), drops pin-scope nonces, opens a **24 h** one-time window (`RESET_WINDOW_S`, a
+  constant), audits `auth.app_refresh.key_reset_approved` (actor, device, user, note, 16-hex fingerprint prefix, channel, families ended,
+  whether the notice was queued), and notifies the device's user. `DELETE` withdraws (audited `key_reset_withdrawn`); `GET .../key` shows
+  the status without key material. The mint that spends the window writes `auth.app_refresh.key_replaced` with `via: "admin_reset"` and
+  `approved_by`.
+- **Notice** (owner decision Q297: in the app and on the phone): source `security.app_device_key_reset` (category security, severity
+  alert, recipients `initiator` = the device's user, channels inbox + push + phone app by default, editable like every policy). Title and
+  body come from the Settings (`security.app_refresh_key_reset_notice_title` <= 80, `_body` <= 180; plain text, placeholders `{device}`
+  and `{until}` only, substituted by plain replacement - never `str.format`; `null` restores the default; `SETTINGS_KEEP`). The notice
+  never names the administrator or the reason. A failure to queue it never undoes the reset (logged; `user_notified: false`).
+
+### 14.3 Residual risk (recorded)
+
+- Path (2) is the owner's choice: a fresh, stolen session of the user can still end the user's own sign-in and then bind a new key. It is
+  audited (`key_released`) but not notified. Cheap follow-up candidate: notify the user on `key_released` too (same source pattern).
+- Path (3) relies on the administrator verifying the request out of band; there is no in-app "request a reset" flow (not asked for).
+- A new install id is a new device registration (no pin); that is session-bound device enrolment, out of this slice's scope.
+
+### 14.4 Tests
+
+`tests/test_app_refresh_keypin_295.py` (re-registration needs the old key; replayed and wrong-key consent; an administrator's end and a
+deleted-and-re-added device keep the pin; the user's own end releases it; the lost-key reset end to end with the audit rows and the
+notice; the wording from the Settings and its validation; who may approve; lapse and withdrawal; the status route; the pin fallback for a
+family the backfill missed; backup and the janitor). `tests/test_app_refresh_devicekey_295.py`: the re-registration test now asserts the
+new default.
