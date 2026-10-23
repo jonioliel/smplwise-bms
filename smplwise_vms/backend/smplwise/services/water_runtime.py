@@ -425,7 +425,18 @@ def evaluate(conn: sqlite3.Connection, store: st.EnergyStore, now_ts: float) -> 
             touched.append((ev, False))
 
         for ev, renotify in touched:
-            _notify(conn, m, ev, now_ts, held, held_alarm, out, renotify=renotify)
+            snoozed = ev.get("snoozed_until")
+            if snoozed and snoozed > now:
+                # CR-WATER78 section 16: a snoozed row is held like a mute (warnings; an alarm only with mute_includes_alarms), still logged
+                s_warn, s_alarm = holds(rules, quiet=quiet, muted=True)
+                _notify(conn, m, ev, now_ts, s_warn, s_alarm, out, renotify=renotify)
+            elif snoozed:
+                # the snooze ended and the condition persists: the alert returns (re-notified once), not acknowledged
+                conn.execute("UPDATE water_alert_events SET snoozed_until = NULL, snoozed_by = NULL WHERE id = ?", (ev["id"],))
+                ev["snoozed_until"] = None
+                _notify(conn, m, ev, now_ts, held, held_alarm, out, renotify=True)
+            else:
+                _notify(conn, m, ev, now_ts, held, held_alarm, out, renotify=renotify)
             _save(conn, ev)
         conn.execute("""INSERT INTO water_alert_state(meter_id, last_bucket, evaluated_at) VALUES (?, ?, ?)
                         ON CONFLICT(meter_id) DO UPDATE SET last_bucket = MAX(COALESCE(last_bucket, 0), excluded.last_bucket), evaluated_at = excluded.evaluated_at""",
@@ -482,9 +493,11 @@ def janitor(db: Database, settings: Any, now: float | None = None) -> dict[str, 
 def summary(conn: sqlite3.Connection, visible: Callable[[Any], bool], now_ts: float) -> dict[str, int]:
     """The KPI row (open / acknowledged open / opened in the last 7 days / open leaks) over the meters the caller may see."""
     since = _iso(now_ts - 7 * 86400)
-    rows = conn.execute("""SELECT e.kind, e.closed_at, e.ack_at, e.opened_at, m.source_ref FROM water_alert_events e JOIN water_meters m ON m.id = e.meter_id
-                           WHERE e.closed_at IS NULL OR e.opened_at >= ?""", (since,)).fetchall()
+    rows = conn.execute("""SELECT e.kind, e.closed_at, e.ack_at, e.opened_at, e.snoozed_until, m.source_ref FROM water_alert_events e
+                           JOIN water_meters m ON m.id = e.meter_id WHERE e.closed_at IS NULL OR e.opened_at >= ?""", (since,)).fetchall()
     rows = [r for r in rows if visible(r)]
     open_ = [r for r in rows if r["closed_at"] is None]
+    now = _iso(now_ts)
     return {"open": len(open_), "acked": sum(1 for r in open_ if r["ack_at"]), "last_7d": sum(1 for r in rows if r["opened_at"] >= since),
-            "open_leaks": sum(1 for r in open_ if r["kind"] in LEAK_KINDS)}
+            "open_leaks": sum(1 for r in open_ if r["kind"] in LEAK_KINDS),
+            "snoozed": sum(1 for r in open_ if r["snoozed_until"] and r["snoozed_until"] > now)}  # section 16: the tile "מנודנדות"

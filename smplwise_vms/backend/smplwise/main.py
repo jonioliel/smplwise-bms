@@ -141,6 +141,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         water_runtime.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("water alerts evaluator failed", exc_info=True)
+    try:  # CR-WATER78 slice 3: automatic water bills at the end of each period (every 5 min inside) and bill retention (the shared keys)
+        from .services import water_billing
+
+        water_billing.janitor(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("water billing janitor failed", exc_info=True)
     try:  # CR-031: generator history and closed alerts past their retention (hourly inside; no Home Assistant call)
         from .services import generator_runtime
 
@@ -606,6 +612,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import insights as insights_router  # CR-INSIGHT215: insights and the monthly building report (its own line; every part OFF by default)
 
     app.include_router(insights_router.router, prefix=api, tags=["insights"])
+    from .routers import water_billing as water_billing_router
+
+    app.include_router(water_billing_router.router, prefix=api, tags=["infra"])  # CR-WATER78 slice 3: water accounts, tariffs, bills (shared billing settings)
     from .routers import nvr_batch as nvr_batch_router
 
     app.include_router(nvr_batch_router.router, prefix=api, tags=["nvr"])  # CR-020 S2C: multi-camera stream batches (background runner)

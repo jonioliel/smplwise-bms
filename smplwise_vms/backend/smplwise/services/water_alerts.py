@@ -62,6 +62,11 @@ OVERRIDE_KEYS: dict[str, tuple[str, float | None, float | None]] = {
     "burst_lph": ("float", 1, 1_000_000), "offline_min": RULE_COLUMNS["offline_min"],
 }
 MUTE_MINUTES = (15, 30, 60, 120)
+# CR-WATER78 section 16 (owner review 24.10): the alert snooze ("נדנוד") - the offered durations (editable list), the main button's default
+# and the maximum, stored in water_alert_settings (0154) with one revision with the routing. Initial set 15 min, 1 hour, 4 hours, 1 day;
+# default 1 hour; maximum 7 days (a proposal the owner may change in Settings).
+SNOOZE_DEFAULTS: dict[str, Any] = {"durations": [15, 60, 240, 1440], "default": 60, "max": 10080}
+SNOOZE_LIMITS = {"min": 5, "max": 43200, "count": 12}  # 5 minutes .. 30 days, at most 12 offered durations
 _HHMM = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
 
@@ -151,7 +156,47 @@ def load(conn: sqlite3.Connection) -> dict[str, Any]:
                 kinds[k] = {"enabled": s.get("enabled") is True, "recipients": _rec_of(s.get("recipients")),
                             "channels": [c for c in CHANNELS if c in (s.get("channels") or [])]}
         version = int(r["row_version"] or 0)
-    return {"rules": rules, "kinds": kinds, "row_version": version}
+    return {"rules": rules, "kinds": kinds, "snooze": snooze_of(r), "row_version": version}
+
+
+def snooze_of(r: Any) -> dict[str, Any]:
+    """The snooze settings of the row (tolerant: before 0154, or an unreadable value, the defaults)."""
+    out = copy.deepcopy(SNOOZE_DEFAULTS)
+    if r is None or "snooze_minutes_json" not in r.keys():
+        return out
+    try:
+        durations = json.loads(r["snooze_minutes_json"] or "[]")
+        out["durations"] = sorted({int(x) for x in durations if isinstance(x, int) and not isinstance(x, bool)}) or out["durations"]
+    except (ValueError, TypeError):
+        pass
+    out["default"] = int(r["snooze_default_min"] or out["default"])
+    out["max"] = int(r["snooze_max_min"] or out["max"])
+    return out
+
+
+def validate_snooze(raw: Any, cur: dict[str, Any]) -> dict[str, Any]:
+    """{durations: [minutes...], default: minutes, max: minutes}: every duration 5 min .. max, at most 12, the default one of them,
+    the maximum 5 min .. 30 days."""
+    if not isinstance(raw, dict) or set(raw) - {"durations", "default", "max"}:
+        raise AlertsInvalid("validation", "הגדרות הנדנוד אינן תקינות.", "The snooze settings are invalid.", {"fields": ["snooze"]})
+    out = copy.deepcopy(cur)
+    for k in ("default", "max"):
+        if k in raw:
+            v = raw[k]
+            if not isinstance(v, int) or isinstance(v, bool) or not SNOOZE_LIMITS["min"] <= v <= SNOOZE_LIMITS["max"]:
+                raise _bad(f"snooze.{k}")
+            out[k] = v
+    if "durations" in raw:
+        d = raw["durations"]
+        if not isinstance(d, list) or not 1 <= len(d) <= SNOOZE_LIMITS["count"] or any(not isinstance(x, int) or isinstance(x, bool) for x in d):
+            raise _bad("snooze.durations")
+        out["durations"] = sorted(set(d))
+    if any(not SNOOZE_LIMITS["min"] <= x <= out["max"] for x in out["durations"]):
+        raise AlertsInvalid("snooze_over_max", "משך נדנוד ארוך מהמקסימום.", "A snooze duration is longer than the maximum.", {"fields": ["snooze.durations"]})
+    if out["default"] not in out["durations"]:
+        raise AlertsInvalid("snooze_default", "ברירת המחדל חייבת להיות אחד מהמשכים המוצעים.", "The default must be one of the offered durations.",
+                            {"fields": ["snooze.default"]})
+    return out
 
 
 def overrides_of(raw: Any) -> dict[str, Any]:
@@ -196,7 +241,7 @@ def effective(rules: dict[str, Any], meter: Any) -> dict[str, Any]:
 
 def view(conn: sqlite3.Connection) -> dict[str, Any]:
     return {**load(conn), "roles": [{"id": r, "label": ROLE_LABELS[r]} for r in ROUTABLE_ROLES], "channels": list(CHANNELS), "kinds_order": list(KINDS),
-            "mute_minutes": list(MUTE_MINUTES), "ranges": {k: {"kind": s[0], "min": s[1], "max": s[2]} for k, s in RULE_COLUMNS.items()}}
+            "mute_minutes": list(MUTE_MINUTES), "snooze_limits": dict(SNOOZE_LIMITS), "ranges": {k: {"kind": s[0], "min": s[1], "max": s[2]} for k, s in RULE_COLUMNS.items()}}
 
 
 def validate_recipients(conn: sqlite3.Connection, rec: Any, field: str) -> dict[str, list[str]]:
@@ -217,9 +262,11 @@ def validate_recipients(conn: sqlite3.Connection, rec: Any, field: str) -> dict[
 
 
 def _validate(conn: sqlite3.Connection, body: dict[str, Any], cur: dict[str, Any]) -> dict[str, Any]:
-    if set(body) - {"rules", "kinds", "row_version"}:
-        raise AlertsInvalid("validation", "מבנה לא תקין.", "Invalid structure.", {"fields": sorted(set(body) - {"rules", "kinds", "row_version"})})
+    if set(body) - {"rules", "kinds", "snooze", "row_version"}:
+        raise AlertsInvalid("validation", "מבנה לא תקין.", "Invalid structure.", {"fields": sorted(set(body) - {"rules", "kinds", "snooze", "row_version"})})
     out = copy.deepcopy(cur)
+    if body.get("snooze") is not None:
+        out["snooze"] = validate_snooze(body["snooze"], cur["snooze"])
     rules = body.get("rules")
     if rules is not None:
         if not isinstance(rules, dict) or set(rules) - set(RULE_COLUMNS):
@@ -277,11 +324,12 @@ def save(conn: sqlite3.Connection, user_id: str | None, body: dict[str, Any]) ->
     cols = list(RULE_COLUMNS)
     vals = [int(new["rules"][c]) if RULE_COLUMNS[c][0] == "bool" else new["rules"][c] for c in cols]
     conn.execute(
-        f"""UPDATE water_alert_settings SET {', '.join(f'{c} = ?' for c in cols)}, kinds_json = ?, row_version = row_version + 1, updated_by = ?, updated_at = ?
-            WHERE id = 1""",
-        (*vals, json.dumps(new["kinds"], ensure_ascii=False), user_id, now_iso()))
+        f"""UPDATE water_alert_settings SET {', '.join(f'{c} = ?' for c in cols)}, kinds_json = ?, snooze_minutes_json = ?, snooze_default_min = ?,
+              snooze_max_min = ?, row_version = row_version + 1, updated_by = ?, updated_at = ? WHERE id = 1""",
+        (*vals, json.dumps(new["kinds"], ensure_ascii=False), json.dumps(new["snooze"]["durations"]), new["snooze"]["default"], new["snooze"]["max"],
+         user_id, now_iso()))
     bridge(conn, new)
-    changed = [b for b in ("rules", "kinds") if new[b] != cur[b]]
+    changed = [b for b in ("rules", "kinds", "snooze") if new[b] != cur[b]]
     return view(conn), changed
 
 

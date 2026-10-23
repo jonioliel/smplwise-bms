@@ -391,3 +391,59 @@ retention) are reused from electricity, not repeated for water**. Revision 4 (`d
 - **Evidence:** `private/review/water-78-mockup-v4.html` and `private/review/water-78-v4/` (screenshots, light and dark, desktop and phone).
 - **Not decided here (left as proposals in the mockup):** the tariff values, the 18% VAT rate, the bill header and the customer
   fixtures are invented example data; the "maximum snooze" default; whether the "loss" account is offered by default.
+
+## 17. Slice 3 / slice A as built (pilot/WATER78C-295, from pilot/WATER78B-295 @ 3dda1a77; backend + frontend foundation)
+
+Status: BUILT on the branch - the backend of section 16 and the frontend's API client and pure helpers. The water screens themselves
+(the "מים" shell, מונים / צריכה / התראות and the new חשבונות / חיובים / לקוחות / הגדרות pages) are NOT built yet: slices 1 and 2 were
+backend-only, so the water area has no shell to mount pages in.
+
+- **Migration `0154_infra_water_billing.sql` (PROVISIONAL; the lead renumbers after the slice-1 / slice-2 files)**: `water_tariffs`,
+  `water_tariff_versions` (`water_price` > 0 and `sewage_price` >= 0 per m3, `price_mode`), `water_accounts` (signed formula over water meter
+  ids; `customer_id` references the SHARED `energy_customers`), `water_account_meters`, `water_bills` (`m3`, `total`, the sealed snapshot),
+  `water_bill_events`, `water_auto_runs`; snooze columns `water_alert_settings.snooze_minutes_json / snooze_default_min / snooze_max_min`
+  and `water_alert_events.snoozed_until / snoozed_by`.
+- **Shared, never copied (owner correction 24.10)**: VAT = `energy_vat_rates`; business details, payment terms, numbering digits, default
+  price entry mode and the automatic delay = the `energy.billing` document; retention = `energy.draft_retention_days` /
+  `energy.bill_retention_years`; customers = `energy_customers` (one tenant card; deleting it is refused while an electricity OR a water
+  account uses it - `energy_billing.delete_customer` gained that check); bill numbers = the electricity format YYYY-MM-CCCC[/S][-R]
+  registered in the same ledger `energy_bill_numbers`, so a water bill and an electricity bill never share a number (the second bill of the
+  same customer and month takes "/2" whichever medium it is).
+- **Engine `services/water_billing.py`**: a `WaterReadings` provider over water.db (millilitres; manual readings; resets and replacements as
+  events); the electricity parts reused - `energy_periods` (cycle, periods), `energy_formula` (signed formula, presets incl. main minus the
+  sub-meters = the losses account), `energy_pricing` (pieces at price / VAT changes, half-up rounding, due date), `energy_consumption.meter_window`
+  (carried late reports, correction caps). Per piece one water line and - when the sewage price is not 0 - one sewage line, m3 to 3 places,
+  money to 2, VAT per line. Lifecycle as electricity: draft, recalculate, delete draft, issue (idempotent, `draft_stale` when the numbers
+  moved), sent, paid, void with a reason, correct (a new draft that replaces; issuing it voids the original). Automatic drafts / issue and
+  retention on the janitor (module-gated).
+- **API `routers/water_billing.py`** (all `module_off` while off): `GET /billing/shared` (read of the shared settings + where they are
+  edited), `/customers` (+ next-number), `/tariffs` (+ versions: add, correct while unused, delete), `/accounts` (+ `/status`, `/history`,
+  `/bills`), `POST /formula/preset`, `/bills` (+ `/recalculate`, `/issue`, `/sent`, `/paid`, `/void`, `/correct`, `/events`);
+  `GET /bills/{id}/pdf` answers `pdf_unavailable` (not built). `DELETE /meters/{id}` answers `meter_in_use` while an account formula uses
+  the meter. `/status` gains `can_ack` and `can_bills`.
+- **Permission `water.bills`** (sensitive, never implied; site_admin and system_admin; operator and viewer OFF): money (prices, amounts,
+  open balances), the bills and every bill action, the customers' contact fields - dropped server-side without it. `water.view` sees the
+  accounts and their consumption without money; `water.manage` creates / edits accounts, tariffs and customers.
+- **Snooze ("נדנוד")**: `PUT /alerts` takes `snooze: {durations, default, max}` (system.configure; durations 5 min .. max, at most 12, the
+  default one of them, max 5 min .. 30 days; initial 15 min / 1 h / 4 h / 1 day, default 1 h, max 7 days). `POST /events/{id}/snooze`
+  (`minutes` omitted = the default; only a listed duration) and `DELETE` (water.ack on the meter). A snoozed row is NOT acknowledged; the
+  evaluator holds its warnings like a mute (an alarm only with `mute_includes_alarms`) and, when the time ends with the condition still on,
+  clears the snooze and re-notifies once. The KPI summary counts `snoozed` (the tile "מנודנדות"). The per-meter mute routes of slice 2 stay.
+- **Frontend foundation**: `frontend/src/api/water-billing.ts` (the one client), `frontend/src/water/billing-format.ts` (m3 / litres /
+  money, chips, snooze labels and end times, the snooze settings checks), `frontend/tests/unit-water-billing.spec.ts`.
+
+Deviations and open points (recorded, not silently resolved):
+
+| # | Decision / deviation | Why |
+|---|---|---|
+| D11 | Customers are the SHARED `energy_customers`, not a water copy | one tenant card for both media; the bill number base is the customer number, so separate lists would give two people the same number base. Owner question Q11 below. |
+| D12 | Water bill numbers share the electricity ledger and format | "bill numbering is shared" (owner 24.10); uniqueness across media. A prefix per medium is Q12. |
+| D13 | No tariff correction planner: a version used by an issued bill is locked (`tariff_period_sealed`); an unused one is corrected in place and the drafts are recalculated | the electricity planner's "later only" path is its own feature; a sealed bill never changes either way |
+| D14 | Snooze is per alert row (`water_alert_events.snoozed_until`); the slice-2 per-meter mute stays | the mockup puts the split button on each alert; the CR text "mute becomes snoozed until" is satisfied for the alert log |
+| D15 | No PDF of a water bill in this slice | the PDF model (bill_pdf_model) is the electricity snapshot's (kWh lines) |
+
+Owner questions: **Q11** customers shared with electricity (a) **recommended: shared** (as built) (b) separate water customers.
+**Q12** bill numbers (a) **recommended: one shared format and ledger** (as built) (b) a medium prefix ("מ-" for water). **Q13** the maximum
+snooze default 7 days (a) keep (b) 1 day (c) 30 days. **Q14** offer the losses account (main minus every sub-meter) as a preset button in
+the account form (a) **recommended: yes** (the preset exists in the API) (b) no.
+- **Migration numbering note:** `test_migrations_263_upgrade::test_the_release_numbers_are_contiguous_and_final` fails on this branch (and on its base) because the provisional files 0152 / 0153 / 0154 sit after 0145. Expected: the integrator renumbers them; the test and the files are not touched here.
