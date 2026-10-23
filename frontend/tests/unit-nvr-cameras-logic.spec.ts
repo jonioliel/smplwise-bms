@@ -167,7 +167,7 @@ test('the demo answers in the lab shape (S2: writable), no address or secret in 
 
 test('the tab: in הגדרות › אבטחה after NVR, system administrators only, installation scope, hidden without an NVR', () => {
   const only = (...perms: string[]): Can => (p, installationOnly) => perms.includes(p) && (installationOnly ? true : true);
-  expect(SECURITY_SETTINGS_TABS.map((t) => t.id)).toEqual(['alarm', 'manage', 'nvr', 'cameras', 'public', 'privacy-masks', 'wiskey']); // + SECFIX2-295, MASKUI-295, SWITCHUI-295
+  expect(SECURITY_SETTINGS_TABS.map((t) => t.id)).toEqual(['alarm', 'manage', 'nvr', 'cameras', 'public', 'privacy-masks', 'wiskey', 'incidents']); // + SECFIX2-295, MASKUI-295, SWITCHUI-295, CR-LIVEEVENT100
   expect(SECURITY_SETTINGS_TABS.find((t) => t.id === 'cameras')).toMatchObject({ label: 'מצלמות', href: SECURITY_CAMERAS_HREF });
   expect(SECURITY_CAMERAS_HREF).toBe('#/system/security/cameras');
   expect(tabAllowed(SECURITY_CAMERAS_HREF, only('system.configure'))).toBe(true);

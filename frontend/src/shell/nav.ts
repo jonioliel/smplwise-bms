@@ -19,6 +19,7 @@ import { he } from '../i18n/he'; // TABSET-293: the generator's page names (the 
 import { mt } from '../i18n/maintenance'; // CR-MAINT215 slice 2: the maintenance section's label
 import { ix } from '../i18n/insights'; // CR-INSIGHT215: the building report page's label
 import { pt } from '../i18n/presence'; // WHOIN034-295: the "מי במבנה" tab's label
+import { it as incText } from '../i18n/incidents'; // CR-LIVEEVENT100: the live event tab's label
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
@@ -346,6 +347,9 @@ export const SECURITY_SETTINGS_TABS: TabItem[] = [
   { id: 'privacy-masks', label: 'מסכות פרטיות', href: SECURITY_PRIVACY_MASKS_HREF },
   /** SWITCHUI-295: turn the access-control reads off / on (system administrators; a switch cannot be turned on without a go-live permit). */
   { id: 'wiskey', label: 'קריאות בקרת כניסה', href: SECURITY_WISKEY_HREF },
+  /** CR-LIVEEVENT100: the live event mode switch and every threshold of its page (system.configure). Always offered to an administrator
+   * (it is where the module is switched on); `#/system/security/incidents`. */
+  { id: 'incidents', label: 'מצב אירוע חי', href: '#/system/security/incidents' },
 ];
 
 /** Is there an alarm panel on this platform? null = not known yet (api/alarm-presence.ts fills it once per session and
@@ -1035,6 +1039,39 @@ export function applyMaintenanceOn(on: boolean): void {
 export function maintenanceModuleOn(): boolean {
   return MAINTENANCE_ON;
 }
+/** CR-LIVEEVENT100: the live event mode (default OFF). The tab of the investigation section, its settings page under הגדרות › אבטחה,
+ * and the open-incident state the shell draws (the "אירוע פעיל" pill beside the corner, the red dots on the security icon and the tab).
+ * Filled by incidents/store.ts from `/me` modules.incidents and GET /incidents/summary. Navigation only: every route checks itself. */
+export const INCIDENTS_HREF = '#/investigate/incidents';
+export const INCIDENTS_SETTINGS_HREF = '#/system/security/incidents';
+export const INCIDENTS_TAB: TabItem = { id: 'incidents', get label() { return incText('tab'); }, href: INCIDENTS_HREF };
+let INCIDENTS_OFF = true;
+let INCIDENTS_OPEN = 0;
+let INCIDENTS_DOT: 'active' | 'off' = 'active';
+/** The page (never its settings tab: that is where the module is switched on). */
+const isIncidentsHref = (href: string) => href === INCIDENTS_HREF || href.startsWith(`${INCIDENTS_HREF}/`);
+export function applyIncidents(on: boolean, open = 0, dot: 'active' | 'off' = 'active'): void {
+  const off = !on;
+  const n = off ? 0 : Math.max(0, Math.floor(Number(open)) || 0);
+  if (off === INCIDENTS_OFF && n === INCIDENTS_OPEN && dot === INCIDENTS_DOT) return;
+  INCIDENTS_OFF = off;
+  INCIDENTS_OPEN = n;
+  INCIDENTS_DOT = dot;
+  INCIDENTS_TAB.alert = !off && n > 0 && dot !== 'off' ? true : undefined;
+  INCIDENTS_TAB.dot = INCIDENTS_TAB.alert;
+  for (const l of tabsListeners) l();
+}
+export function incidentsModuleOn(): boolean {
+  return !INCIDENTS_OFF;
+}
+/** How many incidents the viewer may read are open (0 while the module is off). */
+export function incidentsOpen(): number {
+  return INCIDENTS_OFF ? 0 : INCIDENTS_OPEN;
+}
+/** The red dot of an area icon (the rail and the bottom bar): the security area while an incident is open and the dots are on. */
+export function areaDot(id: string): boolean {
+  return id === 'security' && !INCIDENTS_OFF && INCIDENTS_OPEN > 0 && INCIDENTS_DOT !== 'off';
+}
 
 export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices' | 'multimedia' | 'infra' | 'tickets';
 export type SecuritySection = 'live' | 'investigate' | 'alarm';
@@ -1088,6 +1125,9 @@ export const SECTION_TABS: Record<SecuritySection, TabItem[]> = {
   ],
   investigate: [
     { id: 'events', label: 'מרכז אירועים', href: '#/investigate/events' },
+    /** CR-LIVEEVENT100: "אירוע חי" - one page per incident in progress; offered only while the module is on (applyIncidents), with a red
+     * dot while an incident the viewer may read is open (the setting incident.red_dot can switch the dots off). */
+    INCIDENTS_TAB,
     { id: 'playback', label: 'הקלטות', href: '#/investigate/playback' },
     { id: 'sync', label: 'ניגון מסונכרן', href: '#/investigate/playback/sync' },
     { id: 'history', label: 'מפה היסטורית', href: '#/investigate/floors/f0/history' },
@@ -1433,6 +1473,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [SECURITY_PRIVACY_MASKS_HREF]: ['system.configure'], // MASKUI-295 (GET /nvr/cameras); the write permission is shown on the page
   [SECURITY_SETTINGS_HREF]: [...ALARM_PERMISSIONS, 'sources.configure'],
   '#/investigate/events': ['events.read'],
+  [INCIDENTS_HREF]: ['events.read'], // CR-LIVEEVENT100 (and the module switch: applyIncidents)
+  [INCIDENTS_SETTINGS_HREF]: ['system.configure'], // CR-LIVEEVENT100: PUT /incidents/settings (installation scope)
   '#/investigate/playback': ['video.playback'],
   '#/investigate/playback/sync': ['video.playback'],
   '#/investigate/floors/f0/history': ['video.playback'],
@@ -1468,7 +1510,7 @@ export const NATIVE_WISKEY_TABS: Record<string, { screen: WiskeyScreen; need: st
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/readiness', '#/system/security/manage', SECURITY_CAMERAS_HREF, SECURITY_PUBLIC_HREF, SECURITY_WISKEY_HREF, SECURITY_PRIVACY_MASKS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF, TICKETS_SETTINGS_HREF, '#/system/messaging-accounts', '#/system/fleet-report']); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/readiness', '#/system/security/manage', SECURITY_CAMERAS_HREF, SECURITY_PUBLIC_HREF, SECURITY_WISKEY_HREF, SECURITY_PRIVACY_MASKS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF, TICKETS_SETTINGS_HREF, '#/system/messaging-accounts', '#/system/fleet-report', INCIDENTS_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
@@ -1542,7 +1584,7 @@ function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
     const seg = kavarnitSegments(api, can);
     return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
   }) : source;
-  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !(INFRA_NO_WATER && t.href === INFRA_WATER_HREF) && !insightHiddenHref(t.href) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '') && !isMaintenanceHref(t.href)) && !(!MAINTENANCE_ON && isMaintenanceHref(t.href)) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !(INFRA_NO_WATER && t.href === INFRA_WATER_HREF) && !insightHiddenHref(t.href) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '') && !isMaintenanceHref(t.href)) && !(!MAINTENANCE_ON && isMaintenanceHref(t.href)) && !(INCIDENTS_OFF && isIncidentsHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
   // TABSET-293: an infrastructure tab opens on the first page of its configured page row (the owner's order is the default page);
   // decided after the gates above, which key on the built-in href
   if (!api || source !== INFRA_TABS) return shown;

@@ -56,6 +56,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     from .services import push as push_svc
 
     push_svc.prune(db)  # CR-008 P3: push subscriptions whose browser has not synced for months
+    try:  # CR-LIVEEVENT100: closed incidents past incidents.retention_days (an open incident is never pruned)
+        from .services import incidents as incidents_svc
+
+        incidents_svc.prune_db(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("incidents janitor failed", exc_info=True)
     try:  # CR-014: expired schedule trash, runs past their retention, settled ops, due derived runs (no Home Assistant call)
         from .services import schedules as schedules_svc
 
@@ -623,6 +629,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import shift_summary as shift_summary_router  # CR-SHIFT114: the shift / 24-hour summary (read-only; OFF by default)
 
     app.include_router(shift_summary_router.router, prefix=api, tags=["reports"])
+    from .routers import incidents as incidents_router
+
+    app.include_router(incidents_router.router, prefix=api, tags=["events"])  # CR-LIVEEVENT100: אירוע חי - one page per incident (read-mostly; OFF by default)
     from .routers import water as water_router
 
     app.include_router(water_router.router, prefix=api, tags=["infra"])  # CR-WATER78 slice 1: מים - meters, readings, consumption, settings (module switch, default off)

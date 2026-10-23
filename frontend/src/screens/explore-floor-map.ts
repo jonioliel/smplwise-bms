@@ -73,6 +73,9 @@ import { dt } from '../tickets/device-text';
 import '../tickets/map-create';
 import { mapCreateLabel, mapTicketsOn } from '../tickets/map-create';
 import type { MapElementDraft } from '../api/tickets-map';
+import { incidentsModuleOn } from '../shell/nav'; // CR-LIVEEVENT100 (T4): the map's "open here" only while the module is on
+import { mayOpenHere, openIncident } from '../api/incidents';
+import { it as incText } from '../i18n/incidents';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
@@ -2578,6 +2581,19 @@ export class ExploreFloorMap extends LitElement {
   /** Rename from the card (R3): the manual name lives on the anchor (`label`) and needs placement.edit. */
   @state() private renaming: { id: string; value: string; busy?: boolean } | null = null;
   @state() private notice = '';
+  /** CR-LIVEEVENT100 (T4): "פתח אירוע חי כאן" on a camera / device card - a manual incident at that marker (events.ack on its floor). */
+  @state() private incidentBusy = false;
+  private async openIncidentHere(anchorId: string) {
+    this.incidentBusy = true;
+    try {
+      const r = await openIncident({ anchor_id: anchorId });
+      navigate(`/investigate/incidents/${encodeURIComponent(r.incident.id)}`);
+    } catch (err) {
+      this.notice = describeError(err);
+    } finally {
+      this.incidentBusy = false;
+    }
+  }
   /** CR-006 2a: the control-image export (the 3D tool row's button) is running / what it reported. */
   @state() private skinBusy = false;
   @state() private skinNote = '';
@@ -2718,6 +2734,7 @@ export class ExploreFloorMap extends LitElement {
             <sw-button size="sm" icon="history" ?disabled=${!a.camera || a.camera.recorder_enabled === false} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`
           : nothing}
         ${mapTicketsOn() ? html`<sw-button variant="ghost" size="sm" icon="plus" data-map-ticket @click=${() => (this.ticketFor = { pick: { element: { floor_id: a.floor_id || b.floorId, kind: 'anchor', id: a.id } }, name: entityName(a), floorName: b.floorName, entityId: a.resource_type === 'ha_entity' ? a.resource_id : undefined })}>${mapCreateLabel()}</sw-button>` : nothing}
+        ${mayOpenHere(incidentsModuleOn()) ? html`<sw-button variant="ghost" size="sm" icon="warning" data-map-incident ?disabled=${this.incidentBusy} @click=${() => void this.openIncidentHere(a.id)}>${incText('openHere')}</sw-button>` : nothing}
         ${a.resource_type === 'ha_entity' && b.permissions.edit && a.entity ? html`<sw-button variant="ghost" size="sm" icon="edit" data-rename @click=${() => (this.renaming = { id: a.id, value: a.label ?? '' })}>שנה שם</sw-button>` : nothing}
         ${b.permissions.edit && !this.phone.restricted('structure') ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
     }
