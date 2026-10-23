@@ -17,6 +17,7 @@ from ..db import Database
 from . import generator_alerts as alerts
 from . import generator_core as core
 from . import generator_history as history
+from . import generator_log as glog
 
 log = logging.getLogger("smplwise.generator")
 
@@ -50,6 +51,15 @@ def tick(db: Database, settings: Settings, now: float | None = None, *, require_
             _LAST["minute"] = minute
             out["samples"] = history.record(conn, int(t))
         out.update(alerts.evaluate(conn, t, mirror_connected=True))
+        # GENLOG092-295: the run log (runs, fuel events) follows the same mirror pass; read-only, like everything here
+        conn.execute("SAVEPOINT generator_log")
+        try:
+            out["runs"] = glog.track(conn, t)
+            conn.execute("RELEASE generator_log")
+        except Exception:  # noqa: BLE001 - one failed pass of the log never stops the rest (its own writes are undone); the next tick retries
+            conn.execute("ROLLBACK TO generator_log")
+            conn.execute("RELEASE generator_log")
+            log.warning("generator run log pass failed", exc_info=True)
     return out
 
 
@@ -63,7 +73,12 @@ def janitor(db: Database, now: float | None = None) -> dict[str, Any] | None:
             conn.execute("SELECT 1 FROM generator_devices LIMIT 1")
         except Exception:  # noqa: BLE001
             return {"skipped": "no_schema"}
-        return {"history": history.prune(conn, int(t)), "alerts": alerts.prune_alerts(conn, t)}
+        out: dict[str, Any] = {"history": history.prune(conn, int(t)), "alerts": alerts.prune_alerts(conn, t)}
+        try:
+            out["runs"] = glog.prune(conn, t)
+        except Exception:  # noqa: BLE001 - before the run-log migration
+            out["runs"] = None
+        return out
 
 
 def reset() -> None:
