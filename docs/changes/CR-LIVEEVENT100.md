@@ -1,6 +1,6 @@
 # CR-LIVEEVENT100: live event mode - one page for an incident in progress
 
-Status: change record + mockup for the owner's decision, nothing built. Board item r100. Branch `pilot/LIVEEVENT100-295` from
+Status: change record + mockup (v2, owner review 2026-10-24 applied - see section 10), nothing built. Board item r100. Branch `pilot/LIVEEVENT100-295` from
 `origin/main` @ `320e5555172106843b2690692d534aeed19eb8b3` (v2.12.4). Mockup: `docs/design/mockups/liveevent-100/index.html`
 (single file, RTL Hebrew, light + dark, desktop / tablet / phone, states active · none · camera offline · permission-limited ·
 loading · error · module off). Screenshots: `private/review/liveevent-100/` (gitignored). No code changes, no secrets, fake data only.
@@ -23,10 +23,10 @@ this change.
 - List `#/investigate/incidents` (open incident first, then the closed ones of the retention window) and detail
   `#/investigate/incidents/<id>`. Level-1 row unchanged (לייב · חקירה · אזעקה, `SECURITY_SECTIONS`); the page is a new
   `TabItem` in `SECTION_TABS.investigate` (`nav.ts:810`) between "מרכז אירועים" and "הקלטות", with a red dot while an incident is
-  open (the RFQ-questions badge pattern, `applyRfqQuestions`, `nav.ts:729`).
+  open (the RFQ-questions badge pattern, `applyRfqQuestions`, `nav.ts:729`); the dot is a setting, see section 10.
 - While an incident the viewer may read is open: a red dot on the security rail icon and an "אירוע פעיל" pill beside the floating
   corner pill on every screen (shell `renderChrome`), so the page is one tap away from anywhere. Both disappear when the incident
-  closes or the module is off.
+  closes or the module is off. (Section 10: the setting `incident.red_dot` can switch the two DOTS off; the pill stays.)
 - Why the security area and not the service-management area: every trigger is a security object (alarm panel zone, event-centre
   event, security notification); every permission the page needs already exists in the security vocabulary (`events.read`,
   `events.ack`, `video.live`, `map.read`, `access.events.read`); the components it reuses (`investigate-event-detail`,
@@ -44,13 +44,13 @@ this change.
 
 | # | Trigger | How | Opens automatically? |
 |---|---|---|---|
-| T1 | Intrusion alarm: a zone goes into alarm (`routers/alarm.py`, `/alarm/panels`, the alarm websocket / poll) | the alarm service calls `incidents.open(source='alarm', ...)` with the zone's floor and anchor (zones are mapped to a floor / anchor in alarm settings; without a mapping the incident opens without a location) | setting `incident.auto_open.alarm` (default OFF, Q3) |
+| T1 | Intrusion alarm: a zone goes into alarm (`routers/alarm.py`, `/alarm/panels`, the alarm websocket / poll) | the alarm service calls `incidents.open(source='alarm', ...)` with the zone's floor and anchor (zones are mapped to a floor / anchor in alarm settings; without a mapping the incident opens without a location) | setting `incident.auto_open.alarm` (default OFF; owner 2026-10-24: burglary alarm only, editable) |
 | T2 | Event centre: any event row / the event page | button "פתח אירוע חי" on the event page (`investigate-event-detail`, beside "סמן כטופל"), row menu entry on `investigate-events` | manual only |
 | T3 | Notification: a push / in-app notification whose `link` is `#/investigate/incidents/<id>` (`Notification.link`, `api/notifications.ts:76`) - sent when an incident opens (T1 / T2 / T4) to the recipients of the existing notification matrix for the source kind | the deep link opens the page; the notification's `ack` is one step of the chain | - |
 | T4 | Manual: from the floor map (`explore-floor-map`, a point or a camera / lock marker → "פתח אירוע חי כאן") or from the incidents list ("פתיחת אירוע ידנית" → a floor and a point, optional title) | `incidents.open(source='manual')` | - |
-| T5 | Rule alert (`routers/rules.py`) - optional, Q3 | same as T1 via the rule action "open a live event" | setting per rule, default OFF |
+| T5 | ~~Rule alert~~ - dropped by the owner decision of 2026-10-24 (automatic opening only from the burglary alarm) | - | - |
 
-An incident is one row; a second trigger on the same floor within `incident.merge_window_s` (default 300 s, Q4) is attached to the
+An incident is one row; a second trigger on the same floor within `incident.merge_window_s` (default 300 s = 5 minutes, owner 2026-10-24; editable in the settings sheet) is attached to the
 open incident as a chain step ("אירוע נוסף: ...") instead of opening a second one. Several open incidents on different floors are
 allowed; the pill shows the count and opens the list.
 
@@ -64,7 +64,7 @@ may not see; the client only decides what to draw.
 | Panel | Data (existing source) | Permission (existing key, scope) | Viewer lacks it → |
 |---|---|---|---|
 | Head: title, source, opened by / at, elapsed, status | new `incidents` row (§6) | `events.read` at the incident's floor (the page itself) | the route answers forbidden (`sw-state-panel` forbidden), the pill and the dot are not drawn for this viewer |
-| Facts strip (source state, cameras count / cap, open doors count, first acknowledger) | derived from the panels below | as the panel each fact comes from | the fact shows "אין הרשאה" |
+| ~~Facts strip~~ (v2: removed so the page fits without scrolling; each fact now sits in the head of its own panel - cameras "4 חיות", doors "2 פתוחות", chain "2 ממתינים"; the source and the opener are in the subtitle) | derived from the panels | as the panel each fact comes from | the chip shows "אין הרשאה" or leaves |
 | Map: floor plan, zones, the event pin, camera cones, lock markers | `loadMap(floor_id)` → `MapBundle` (`api/maps.ts`), `<sw-plan-canvas>` with `markers`, `selectedId` = the event anchor, `highlightIds` = the suggested cameras; the same block as `investigate-event-detail.ts:805-830` (incl. the 3D toggle and "מפה חיה") | `map.read` (floor) | the map leaves; the location stays as text (building · floor / zone) |
 | Nearest cameras (live) | `suggestAdjacent()` (`map/adjacent-cameras.ts`: same room → shares a wall → nearby) on the client, cross-checked with `suggest_route()` (`services/correlation.py`) from the server; tiles are `<sw-live-player profile="sub" mode="auto" compact>` inside the live wall's tile; the first tile is the camera in the event's room | `video.live` per camera (`require_camera`); cameras the viewer lacks are not listed at all (the route filters by `row_scope`) | panel replaced by forbidden "וידאו חי אינו זמין לך"; the rest of the page is drawn |
 | Doors in the vicinity | lock entities from `correlate()` (`services/correlation.py`, ±10 min window, kind `lock` and door `binary_sensor`), state from the entity state; "who opened" = the access-events log rows of the window for the station mapped to the lock (`/intercom/door-map`, `/access-control/events?door=&start=&end=`, `AccessEvent.person_name / authentication`); "לדלת" = the existing door page `#/doors/<id>` | state column: `entity.state.read` (floor); "who opened" column: `access.events.read` (station scope); the link: drawn always (the door page enforces its own permissions) | without `access.events.read` the "מי פתח" column leaves (the row still shows open / locked and when) |
@@ -96,11 +96,11 @@ ends up WebRTC for tiles and MSE for a single main view. Therefore:
   (`/media/snapshot`, the existing thumbnails) and a "הפעלה" tap that swaps one live tile out (the live wall's `allocateLive(order,
   wanted, current, cap)` in `api/live-budget.ts`, with the page's order = the suggestion ranking).
 - The page counts against the existing caps: `media.max_live_sessions` (default 16) and `remote.max_live_streams` via
-  `effectiveLiveCap(mediaCap, remoteCap)`; the facts strip shows "4 מתוך 16 במכסה". A 429 from `remote_cap_refusal` turns the tile
+  `effectiveLiveCap(mediaCap, remoteCap)`; the cameras panel shows the live count (the "4 of 16" cap text moves to a tooltip in v2). A 429 from `remote_cap_refusal` turns the tile
   into the snapshot + "המכסה מלאה" state (the existing `liveCapTitle`).
 - **Phone**: one live tile (the event's camera), the rest snapshots that refresh every 10 s; tapping a snapshot swaps the live tile
-  (the lab's SourceBuffer limit and the Companion WebView budget). `?phone-live=1` in the mockup shows the alternative (all tiles
-  live) for the owner's comparison (Q5).
+  (the lab's SourceBuffer limit and the Companion WebView budget). Owner decision 2026-10-24: 4 live tiles on a desktop, 1 on a phone (the v2 mockup
+  drops the all-live comparison switch).
 - Leaving the page (route change, tab hidden > 30 s) stops every player (`active=false`); the page never keeps streams alive in the
   background. Re-entering restores them in ranking order.
 - Camera offline / failed within `WEBRTC_CONNECT_MS` (5 s) and MSE fallback failed: the tile becomes the offline state (mockup
@@ -164,7 +164,7 @@ Frontend (Playwright, evidence + layout + unit):
 | F-01 | `unit-incidents-nav.spec.ts`: tab offered only with `events.read` and the module on; red dot / pill follow the open count; legacy fallbacks |
 | F-02 | `evidence-incidents.spec.ts`: the four panels, the forbidden camera panel, the hidden infra panel, the "מי פתח" column, the actions per role (viewer sees none) |
 | F-03 | `evidence-incidents-live.spec.ts` (bundled Chromium with the fake media server): at most `max_live` players active; snapshot tiles beyond; swap on tap; players stopped on route change and on hidden > 30 s; 429 → cap state |
-| F-04 | `layout-incidents.spec.ts`: 1366 / 1024 / 375, light + dark, no horizontal scroll, 44-px targets on the phone, the plan not mirrored (geometry assert as in the map specs) |
+| F-04 | `layout-incidents.spec.ts`: 1366x768 / 1920x1080 / 390x844 (+ 1024x768, 1280x720, 768x1024), light + dark, NO scrolling at all (owner hard rule 2026-10-24): `scrollTop == 0`, `scrollHeight <= clientHeight`, `scrollWidth <= clientWidth`, no element clipped by an overflow ancestor, no inner overflow, 44-px targets on the phone, the plan not mirrored (geometry assert as in the map specs) |
 | F-05 | states: loading / error / module off / no event / camera offline (the player's failure path) |
 | F-06 | deep link from a notification opens the page and the notification ack appears as a chain step |
 
@@ -188,19 +188,67 @@ without being visible.
 
 ## 9. Owner questions (recommendation first)
 
-1. **Home of the screen.** (a) security area › חקירה › "אירוע חי", plus the rail dot and the "אירוע פעיל" pill (recommended - §2);
+1. **Home of the screen. DECIDED 2026-10-24:** (a) with a red dot that can be disabled or lit only while an event is active. Options were: (a) security area › חקירה › "אירוע חי", plus the rail dot and the "אירוע פעיל" pill (recommended - §2);
    (b) a fourth level-1 section "אירוע" in the security area; (c) inside the service-management area (not recommended while it is
    being reorganised).
 2. **Scope of the first version.** (a) the six slices as written, read-only, no physical action (recommended); (b) also a
    per-incident "notify again" button (sends the existing notification again - the only non-physical action not included).
-3. **Automatic opening.** (a) from the intrusion alarm only, switch default OFF, the owner turns it on after the lab test
+3. **Automatic opening. DECIDED 2026-10-24:** (a) - burglary alarm only, OFF initially, editable. Options were: (a) from the intrusion alarm only, switch default OFF, the owner turns it on after the lab test
    (recommended); (b) also from rule alerts (per rule); (c) never automatically - manual and from notifications only.
-4. **Merge window** for a second trigger on the same floor: (a) 5 minutes (recommended); (b) 15 minutes; (c) no merging - every
+4. **Merge window. DECIDED 2026-10-24: 5 minutes.** Options were: (a) 5 minutes (recommended); (b) 15 minutes; (c) no merging - every
    trigger its own incident.
-5. **Live budget.** (a) desktop 4 live tiles, phone 1 live + snapshots (recommended - the lab facts); (b) desktop 6; (c) phone all
-   tiles live (see `?phone-live=1` in the mockup) - the lab test decides whether the Companion WebView holds it.
+5. **Live budget.** **DECIDED 2026-10-24:** (a) desktop 4 live tiles, phone 1 live + snapshots.
 6. **Audit of viewing.** (a) open / ack / note / close only (recommended, like the event page); (b) also every page view
    (one audit row per viewer per incident).
 7. **Retention** of closed incidents: (a) 365 days (recommended - longer than events, shorter than audit); (b) equal to
    `events.retention_days` (30); (c) equal to `audit.retention_days`.
-8. **Phone order.** (a) cameras first, then the map, doors, infrastructure, chain (recommended - the mockup); (b) the map first.
+8. **Phone order. DECIDED 2026-10-24:** (a) cameras first. Options were: (a) cameras first, then the map, doors, infrastructure, chain (recommended - the mockup); (b) the map first.
+
+## 10. Owner review 2026-10-24 and the v2 layout
+
+Source: `private/planning/OWNER_MOCKUP_REVIEW_2026-10-24_raw.txt`, item 10. **General rule from the owner: from now on no
+scrolling at all in control screens.** This change is the first screen built to it; the rule is recorded here so that slices S2 / S3
+and every later screen are held to it (F-04 asserts it).
+
+### 10.1 Decisions applied
+
+| Topic | Decision | Where in the mockup / record |
+|---|---|---|
+| Home | security > investigation; red dot, which can be disabled or lit only while an event is active (setting) | tab dot + rail dot; setting `incident.red_dot` = `active` (default) or `off`, in the settings sheet |
+| Phone order | cameras first | phone: the part switch starts on "מצלמות" |
+| Live tiles | 4 on a desktop, 1 on a phone | 2x2 grid; phone: one big live tile + 3 snapshots |
+| Automatic opening | only from the burglary alarm, OFF initially, editable | settings sheet row; T5 (rules) dropped |
+| Merge window | 5 minutes, editable | settings sheet; a merged event shows in the chain ("אירוע נוסף צורף") |
+| Header clock | yes | wall-clock chip in the head (setting `incident.header_clock`, default on) |
+| Chain of handling | wanted, but badly placed - fixed | side rail, see 10.2 |
+
+New settings keys (all under Settings > Security > "מצב אירוע חי", `system.configure`): `incident.red_dot` (`active` | `off`),
+`incident.header_clock` (bool, default true), next to the existing `incident.enabled`, `incident.auto_open.alarm`,
+`incident.max_live` (desktop; a separate phone value, default 1), `incident.merge_window_s` (default 300). Assumption to confirm:
+the red-dot setting governs the two dots only; the "אירוע פעיל" pill beside the corner pill stays while an incident is open.
+
+### 10.2 Layout (no scrolling)
+
+- **Desktop (>= 1200)**: one board that takes exactly the height left under the head; three columns, nothing scrolls, nothing is
+  clipped. Column 1 (inline start, where the eye lands first in RTL): the floor plan, with the doors under it. Column 2: the four
+  live cameras (2x2) and under them elevators + generator. Column 3 (side rail): the chain of handling as a compact vertical
+  timeline (time, what, who; one row per step; pending recipients as a hollow dot). The old horizontal chain strip, the facts strip
+  and the page-level scroll are gone.
+- **Tablet / phone (<= 1199)**: the head (title, clock, acknowledge / to case / close / settings) stays; under it a four-part
+  switch - cameras (default), map, doors and infrastructure, chain of handling. One part is on screen at a time and each part fits
+  the space; nothing inside a part scrolls. The settings sheet is a fixed overlay and fits as well.
+- Everything is derived from the viewport: panels either size to their content or fill what is left (`flex: 1; min-height: 0`),
+  the plan letterboxes inside its box, the video tiles fill their cells. There is no `overflow: hidden` on the page frame, so a
+  layout that does not fit shows up as a failing scroll assertion rather than as hidden content.
+- Existing product component not changed by this rule: the level-2 tab row of the investigation section scrolls horizontally on a
+  phone (11 tabs; `sw-tabs`). It is a navigation row, not screen content; flagged for the owner in case the rule should cover it.
+- Honest limits: the mockup's own top bar (the state / role pickers) is part of the frame and is counted inside the viewport; on a
+  1366x768 screen the board is therefore about 530 px high, a little less than a product screen would have, and the layout still fits.
+
+### 10.3 Verification (mockup, Playwright, bundled Chromium)
+
+Run against `docs/design/mockups/liveevent-100/index.html` for 1366x768, 1920x1080, phone 390x844 (touch emulation), plus
+1024x768, 1280x720 and 768x1024 as extra sizes; states active, camera offline, permission-limited, no event, loading, error, module off;
+light and dark; role "operator without infrastructure"; every phone part; the settings sheet open. Per case: scrollTop == 0,
+scrollHeight <= clientHeight, scrollWidth <= clientWidth, no element outside the viewport, no element clipped by an overflow
+ancestor, no inner overflow. Screenshots were looked at (`private/review/liveevent-100-v2/`, gitignored).
