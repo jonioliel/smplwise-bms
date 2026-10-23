@@ -26,6 +26,7 @@ import { badgeLabel, badgeOf, parseNotificationLink } from '../components/notify
 import { inAndroidShell } from '../arx/android-app';
 import '../screens/explore-floor-map';
 import '../screens/explore-sites';
+import '../screens/explore-presence'; // WHOIN034-295: "מי במבנה"
 import '../screens/explore-floors';
 import '../screens/explore-plan-import';
 import '../screens/explore-plan-editor';
@@ -2434,6 +2435,7 @@ export class SwApp extends LitElement {
       case 'explore':
       default: {
         if (s[1] === 'sites') return html`<explore-sites></explore-sites>`;
+        if (s[1] === 'presence') return html`<explore-presence></explore-presence>`; // WHOIN034-295: "מי במבנה" (presence.view; the screen checks it too)
         if (s[1] === 'buildings') return html`<explore-floors .buildingId=${s[2] ?? 'bld-a'}></explore-floors>`;
         if (s[1] === 'entities') return html`<sw-state-panel state="loading"></sw-state-panel>`; // legacyRedirect decides once the session is known
         if (s[1] === 'floors' && s[3] === 'import') return html`<explore-plan-import .floorId=${s[2]}></explore-plan-import>`;

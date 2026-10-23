@@ -13,6 +13,13 @@ import {
 import { can, isApi } from '../api/session';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { parseRoute, replaceRoute } from '../router';
+import { pt } from '../i18n/presence';
+import './system-presence-places'; // WHOIN034-295: the place editors and the "מי במבנה" thresholds
+
+/** WHOIN034-295: the pages of הגדרות › אפליקציה לנייד. */
+type Page = 'general' | 'places' | 'screen';
+const pageOf = (v: string | null): Page => (v === 'places' || v === 'screen' ? v : 'general');
 
 const DEMO: PresenceSettings = {
   enabled: false, mode: 'continuous', interval_s: 60, distance_filter_m: 50, notice_text: '', notice_version: 1, sensors_allowed: [...SENSOR_KEYS], intervals_s: {},
@@ -39,6 +46,7 @@ export class SystemPresence extends LitElement {
   @state() private error = '';
   @state() private devices: PresenceDevice[] | null = null;
   @state() private glassReason = '';
+  @state() private page: Page = pageOf(parseRoute().params.get('page'));
 
   static styles = [css`
     :host {
@@ -138,6 +146,35 @@ export class SystemPresence extends LitElement {
     }
     .wrap {
       overflow-x: auto;
+    }
+    .seg {
+      display: inline-flex;
+      justify-self: start;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      padding: 2px;
+      background: var(--sw-surface-2);
+      flex-wrap: wrap;
+    }
+    .seg button {
+      border: 0;
+      background: transparent;
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      padding: 4px 14px;
+      border-radius: var(--sw-r-pill);
+      color: var(--sw-text-2);
+      cursor: pointer;
+    }
+    .seg button[aria-pressed='true'] {
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .seg button:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 2px;
     }
     @media (max-width: 767px) {
       .row {
@@ -256,8 +293,33 @@ export class SystemPresence extends LitElement {
     </sw-card>`;
   }
 
+  /** WHOIN034-295: the page of this settings tab (`?tab=mobile&page=places|screen`, a deep link from "מי במבנה"). */
+  private setPage(p: Page) {
+    this.page = p;
+    const params = new URLSearchParams(parseRoute().params);
+    params.set('tab', 'mobile');
+    if (p === 'general') params.delete('page');
+    else params.set('page', p);
+    replaceRoute('/system/diagnostics', params);
+  }
+
+  /** A place / threshold save answered the whole settings: keep the general page's draft (its own unsaved edits) apart. */
+  private adopt(s: PresenceSettings) {
+    const pick = { sites: s.sites, beacons: s.beacons, wifi_sites: s.wifi_sites, people: s.people, people_opt_out_count: s.people_opt_out_count, notice_version: s.notice_version };
+    this.saved = { ...this.saved, ...pick };
+    this.draft = { ...this.draft, ...pick };
+  }
+
   render() {
     const editable = this.canEdit && isApi();
+    const seg = (p: Page, key: 'segGeneral' | 'segPlaces' | 'segScreen') => html`<button type="button" aria-pressed=${String(this.page === p)} data-presence-page=${p} @click=${() => this.setPage(p)}>${pt(key)}</button>`;
+    const pages = html`<div class="seg" role="group" data-presence-pages>${seg('general', 'segGeneral')}${seg('places', 'segPlaces')}${seg('screen', 'segScreen')}</div>`;
+    if (this.page === 'places') return html`${pages}<system-presence-places .settings=${this.saved} ?editable=${editable} @saved=${(e: CustomEvent<PresenceSettings>) => this.adopt(e.detail)}></system-presence-places>`;
+    if (this.page === 'screen') return html`${pages}<system-presence-screen .settings=${this.saved} ?editable=${editable} @saved=${(e: CustomEvent<PresenceSettings>) => this.adopt(e.detail)}></system-presence-screen>`;
+    return html`${pages}${this.renderGeneral(editable)}`;
+  }
+
+  private renderGeneral(editable: boolean) {
     const d = this.draft;
     const req = d.required_sensors;
     const problem = policyProblem(d);

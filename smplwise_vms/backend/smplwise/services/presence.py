@@ -499,8 +499,9 @@ def _validate_places(conn: sqlite3.Connection, body: dict[str, Any], current: di
         out["beacons"] = _validate_beacons(conn, body["beacons"], site_ids)
     if "wifi_sites" in body:
         out["wifi_sites"] = _validate_wifi_sites(conn, body["wifi_sites"], site_ids, current["wifi_sites"])
-    if "people" in body:
-        out["people"] = _normalize_people(body["people"], strict=True)
+    if "people" in body:  # a partial object: the keys it leaves out keep their stored values
+        p = body["people"]
+        out["people"] = _normalize_people({**current["people"], **p} if isinstance(p, dict) else p, strict=True)
     return out
 
 

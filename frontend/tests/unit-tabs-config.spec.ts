@@ -116,7 +116,7 @@ test('every registry section comes from the arrays of nav.ts (nothing duplicated
   expect(byId['security']).toEqual(ids(SECURITY_SECTIONS));
   expect(byId['security.live']).toEqual(ids(SECTION_TABS.live));
   expect(byId['security.investigate']).toEqual(ids(SECTION_TABS.investigate));
-  expect(byId['explore']).toEqual(['sites', 'floors']);
+  expect(byId['explore']).toEqual(['sites', 'floors', 'presence']); // WHOIN034-295: "מי במבנה" (presence.view)
   expect(MAP_HREFS).not.toContain('#/explore/entities');
   expect(AREA_TABS.system.some((t) => t.href === ENTITIES_SETTINGS_HREF)).toBe(true);
   for (const s of TAB_SECTIONS) expect(s.tabs().length, s.id).toBeGreaterThan(1 - (s.id === 'wiskey' ? 1 : 0));
@@ -167,7 +167,8 @@ test('the device catalogue is a settings page for system.configure at the instal
   expect(tabAllowed(ENTITIES_SETTINGS_HREF, only('system.configure'))).toBe(true);
   expect(tabAllowed(ENTITIES_SETTINGS_HREF, (p, installationOnly) => p === 'system.configure' && !installationOnly)).toBe(false); // a floor-scoped holder does not count
   expect(tabAllowed(ENTITIES_SETTINGS_HREF, only('entity.state.read', 'map.read', 'placement.edit', 'map.edit'))).toBe(false);
-  expect(ids(visibleTabs(AREA_TABS.explore, true, ALL))).toEqual(['sites', 'floors']);
+  expect(ids(visibleTabs(AREA_TABS.explore, true, ALL))).toEqual(['sites', 'floors', 'presence']); // WHOIN034-295
+  expect(ids(visibleTabs(AREA_TABS.explore, true, only('map.read')))).toEqual(['sites', 'floors']); // "מי במבנה" needs presence.view
   expect(ids(visibleTabs(AREA_TABS.system, true, ALL))).toContain('entities');
   expect(ids(visibleTabs(AREA_TABS.system, true, only('audit.read')))).not.toContain('entities');
 });

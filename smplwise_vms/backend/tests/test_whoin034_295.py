@@ -192,9 +192,14 @@ def test_a_newer_exit_a_sensor_switched_off_stale_reports_and_far_beacons_do_not
     assert c.put(f"{API}/presence/settings", json={"people": {"stale_minutes": 60}}).status_code == 200
     assert "ruth" in {p["name"] for p in people(c)["people"]}
     # a beacon report older than beacon_max_age_minutes does not place
-    send(c, *devs["vera"], [], {**ON, "sensors": {"location": "off", "beacon": "on", "network": "off"}})
-    send(c, *devs["vera"], [beacon("vb", minutes=20)])
+    beacon_only = {**ON, "sensors": {"location": "off", "beacon": "on", "network": "off"}}
+    send(c, *devs["vera"], [beacon("vb", minutes=20)], beacon_only)
     assert "vera" not in {p["name"] for p in people(c)["people"]}
+    assert c.put(f"{API}/presence/settings", json={"people": {"beacon_max_age_minutes": 30}}).status_code == 200
+    out = people(c)
+    assert {p["name"]: p["zone_name"] for p in out["people"]}.get("vera") == "לובי"
+    # each threshold save is partial: the others keep their stored values
+    assert out["settings"]["stale_minutes"] == 60 and out["settings"]["min_proximity"] == "far" and out["settings"]["beacon_max_age_minutes"] == 30
 
 
 def test_the_switch_and_a_new_notice_withdraw_everyone(world):
