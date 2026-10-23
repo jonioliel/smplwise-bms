@@ -555,7 +555,7 @@ export class TempDetail extends LitElement {
             <div class="panel"><div class="ph"><h4>${tt('recent')}</h4><a class="btn sm ghost" href=${`${TEMPERATURE_HREF}/log?unit=${encodeURIComponent(u.id)}`} data-temp-fulllog>${tt('fullLog')}</a></div>
               <div class="events" data-temp-events>${this.events.length ? this.events.map((e) => html`<div class="ev" style=${`--c:${sevC[e.severity]}`}><time>${hhmm(Date.parse(e.started_at), lang)}</time>
                 <div><i aria-hidden="true"></i>${eventText(e)}${this.explain && (e.kind === 'high' || e.kind === 'low') ? html` <button type="button" class="btn sm ghost" data-temp-why-btn=${e.id}
-                  aria-pressed=${String(this.whyEvent === e.id)} @click=${() => { this.whyEvent = this.whyEvent === e.id ? '' : e.id; }}>${tt('whyBtn')}</button>` : nothing}</div>
+                  aria-pressed=${String(this.whyEvent === e.id)} @click=${() => { this.whyEvent = this.whyEvent === e.id ? '' : e.id; void this.updateComplete.then(() => this.renderRoot.querySelector('temp-explain')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>${tt('whyBtn')}</button>` : nothing}</div>
                 <span class="chip" data-tone=${e.ended_at ? 'mut' : 'err'}>${e.ended_at ? tt('closed') : tt('open')}</span></div>`) : html`<p class="hint">${tt('noRecent')}</p>`}</div></div>
           </div>
         </div>

@@ -2,7 +2,7 @@ import type { ExplainFactor, Explanation } from '../api/temperature';
 import { tt, type TtKey, type TtLang, ttLang } from '../i18n/temperature';
 
 /** TEMPEXPLAIN093-295: the pure words of an excursion explanation (no DOM: the unit tests import it directly). */
-export const CONF_TONE: Record<Explanation['confidence'], string> = { high: 'err', medium: 'warn', low: 'mut', none: 'mut' };
+export const CONF_TONE: Record<Explanation['confidence'], string> = { high: 'acc', medium: 'warn', low: 'mut', none: 'mut' };
 export const CONF_KEY: Record<Explanation['confidence'], TtKey> = { high: 'whyConfHigh', medium: 'whyConfMedium', low: 'whyConfLow', none: 'whyConfNone' };
 export const FACTOR_ICON: Record<string, string> = {
   maint: 'wrench', defrost: 'snow', door: 'door', outage: 'bolt', compressor_off: 'bolt', compressor_no_power: 'bolt', compressor_on: 'bolt',

@@ -13,8 +13,8 @@ import { glt, type GltKey } from '../i18n/generator-log';
 const RANGES: RunRange[] = ['7d', '30d', '90d', '365d'];
 const KINDS: RunKind[] = ['test', 'mains_failure', 'manual', 'other'];
 const KIND_TONE: Record<RunKind, string> = { test: 'info', mains_failure: 'alert', manual: 'mut', other: 'mut' };
-/** Rows per page: the page fits the viewport - a pager, never a scrolling list (owner rule: no scrolling in control screens). */
-const PAGE = 8;
+/** Rows per page from the viewport height: the page fits it - a pager, never a scrolling list (owner rule: no scrolling in control screens). */
+export const pageSizeFor = (h: number): number => Math.max(4, Math.min(12, Math.floor((h - 470) / 50)));
 const POLL_MS = 30_000;
 
 export const durText = (s: number): string => {
@@ -54,6 +54,8 @@ export class GenLogPage extends LitElement {
     .lg .fe > div { display: flex; justify-content: space-between; gap: 8px; }
     .lg td .why { display: block; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); }
     .lg .seg button { white-space: nowrap; }
+    .lg .row select { inline-size: auto; min-inline-size: 150px; flex: none; }
+    .lg table.t td { padding: 7px 12px; }
     @media (max-width: 900px) { .lg .split { grid-template-columns: minmax(0, 1fr); } }
     /* the phone keeps start, kind, duration and fuel: no sideways scrolling either */
     @media (max-width: 767px) { .lg table.t th:nth-child(4), .lg table.t td:nth-child(4), .lg table.t th:nth-child(6), .lg table.t td:nth-child(6), .lg table.t th:nth-child(7), .lg table.t td:nth-child(7) { display: none; } }
@@ -76,7 +78,7 @@ export class GenLogPage extends LitElement {
     const my = ++this.seq;
     if (!quiet) this.phase = 'loading';
     try {
-      const r = await getRuns(this.device.id, { range: this.range, kind: this.kind, page: this.page, page_size: PAGE });
+      const r = await getRuns(this.device.id, { range: this.range, kind: this.kind, page: this.page, page_size: pageSizeFor(window.innerHeight) });
       if (my !== this.seq) return;
       this.data = r;
       this.phase = 'ready';

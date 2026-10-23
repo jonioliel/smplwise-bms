@@ -36,15 +36,20 @@ test.describe('generator run log', () => {
     await expect(page.locator(`${S} sw-tabs[data-infra-pages]`)).toContainText('יומן הפעלות');
     await expect(lg.locator('[data-kpi="runs"] .v')).toHaveText('11');
     await expect(lg.locator('[data-log-current]')).toContainText('הפסקת רשת');
-    await expect(lg.locator('[data-run]')).toHaveCount(8);
+    const vh = page.viewportSize()!.height;
+    const size = Math.max(4, Math.min(12, Math.floor((vh - 470) / 50))); // gen-log-page pageSizeFor: the rows that fit the viewport
+    await expect(lg.locator('[data-run]')).toHaveCount(Math.min(11, size));
     await expect(lg.locator('[data-run="r0"] [data-kind="mains_failure"]')).toBeVisible();
     await expect(lg.locator('[data-fuel="refill"]')).toBeVisible();
     await expect(lg).not.toContainText('sensor.');
-    if (test.info().project.name !== 'mobile') expect(await noScroll(page)).toBeLessThanOrEqual(1); // the control screen fits the viewport
-    else await noScroll(page);
+    await noScroll(page);
+    if (test.info().project.name !== 'mobile') { // the control screen fits the viewport: the pager (the page's last line) is on screen
+      const b = (await lg.locator('[data-log-pager]').boundingBox())!;
+      expect(b.y + b.height).toBeLessThanOrEqual(vh);
+    }
     await page.screenshot({ path: path.join(OUT, `run-log-${test.info().project.name}-light.png`) });
     await lg.locator('[data-log-next]').click();
-    await expect(lg.locator('[data-run]')).toHaveCount(3);
+    await expect(lg.locator('[data-run]')).toHaveCount(Math.min(size, 11 - size));
     expect(mock.calls.some((c) => c.path.includes('/runs') && c.path.includes('page=2'))).toBe(true);
     expect(mock.calls.every((c) => c.method === 'GET' || !c.path.includes('/runs'))).toBe(true); // read only
   });
