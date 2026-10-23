@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ציר הזמן של הבניין - דגם למסך</title>
+<!--
+  CR-TIMESCRUB101 (board r101, "building twin looking backwards") - static design mock-up for the owner's approval. NOT product
+  code: self-contained, no network request, fake data only (a synthetic day of change-points per entity).
+
+  Owner standing style (2026-10-23): the visual language of the EXISTING screens - infrastructure temperature / elevators / schedules
+  and the existing historical map (screens/investigate-history-map.ts). Drawn with the product's real token table
+  (frontend/src/design/tokens.ts, classic skin, light + dark columns copied verbatim), the real shell (shell/sw-app.ts: area rail at the
+  inline start, no top bar, the search / status pill floats in the content's corner; phone: a bottom bar), the real tab row of the
+  investigation section (nav.ts SECTION_TABS.investigate, pill track), the historical map's own head / blue status bar / stage /
+  side panel / timeline (its `.bar`, `.hist` tag, `.legend` pill, `.evl` rows), the KPI-less compact cards of sw-card, the sw-timeline
+  look (thin bars, blue cursor with a time bubble, ticks, gaps left empty; time flows LEFT -> RIGHT inside the RTL shell, like video and
+  maps, and the plan is NEVER mirrored).
+
+  What is new on the screen (CR section 3): a layer legend with coverage + permission per layer, a playback bar (play / pause /
+  speed / window), per-layer density lanes and gap hatching on the timeline, room tints (lit / presence / temperature) replayed on the
+  plan, elevator state (position honestly "לא מוקלט"), "play all cameras from here".
+  URL switches: ?theme=dark  ?state=ready|nohistory|loading|error|gap  ?role=full|view  ?mode=snapshot|play  ?sticky=off (full-page captures)
+-->
+<style>
+/* ===== the product token table (frontend/src/design/tokens.ts, classic skin) ===== */
+:root {
+  --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8; --sw-surface-solid: #ffffff;
+  --sw-menu-surface: #ffffff; --sw-menu-border: #e7ebf2; --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef; --sw-overlay: rgba(17,24,39,.45);
+  --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #4b5976; --sw-text-3: #5e6d88; --sw-text-inverse: #ffffff;
+  --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2062ec; --sw-focus: #2767ed;
+  --sw-live: #22c55e; --sw-live-soft: #e8f8ee; --sw-live-text: #15803d;
+  --sw-recorded: #2f6bff; --sw-recorded-soft: #eaf0ff; --sw-recorded-text: #1f5ae6;
+  --sw-offline: #9aa3b5; --sw-offline-soft: #f1f3f7; --sw-offline-text: #666d7a;
+  --sw-unknown: #b3bac7; --sw-unknown-soft: #f4f6f9; --sw-unknown-text: #666d7a;
+  --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-danger-text: #b91c1c;
+  --sw-warning: #f59e0b; --sw-warning-soft: #fff4e0; --sw-warning-text: #b45309;
+  --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-success-text: #117d39;
+  --sw-forbidden: #dc2626; --sw-forbidden-soft: #fdecec; --sw-forbidden-text: #b91c1c; --sw-stale: #f59e0b; --sw-stale-soft: #fff4e0; --sw-purple: #8b5cf6;
+  --sw-tl-recording: var(--sw-accent); --sw-tl-motion: #ef4444; --sw-tl-person: #ea580c; --sw-tl-vehicle: #22c55e; --sw-tl-door: #8b5cf6; --sw-tl-line: #f59e0b; --sw-tl-offline: #6b7280;
+  --sw-map-bg: #f7f9fc; --sw-map-wall: #c5cfdd; --sw-map-room-fill: #ffffff; --sw-map-furniture: #eaeff6; --sw-map-furniture-line: #d3dbe7; --sw-map-structure: #56617a;
+  --sw-map-glass: #7fb2ff; --sw-map-label: #8a97ae; --sw-map-lit: #ffc857; --sw-map-presence: #2767ed; --sw-map-temp: #1e3a63; --sw-fov: rgba(39,103,237,.12);
+  --sw-obj-security: #7a5cc7; --sw-obj-electrical: #e07a2f; --sw-obj-safety: #e0443c;
+  --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --sw-fs-2xs: 10px; --sw-fs-xs: 11px; --sw-fs-sm: 12.5px; --sw-fs-base: 13px; --sw-fs-md: 14px; --sw-fs-lg: 15px; --sw-fs-xl: 17px; --sw-fs-2xl: 20px; --sw-fs-3xl: 26px;
+  --sw-lh: 1.5; --sw-fw-regular: 400; --sw-fw-medium: 500; --sw-fw-semibold: 600; --sw-fw-bold: 700; --sw-h1-weight: 700; --sw-h1-tracking: -0.6px;
+  --sw-s-1: 4px; --sw-s-2: 8px; --sw-s-3: 12px; --sw-s-4: 16px; --sw-s-8: 32px; --sw-page-pad: 30px; --sw-rail-w: 70px; --sw-bottomnav-h: 50px;
+  --sw-r-2xs: 4px; --sw-r-xs: 6px; --sw-r-sm: 8px; --sw-r-md: 12px; --sw-r-lg: 14px; --sw-r-xl: 14px; --sw-r-pill: 999px;
+  --sw-shadow-1: 0 1px 2px rgba(16,24,40,.04); --sw-shadow-2: 0 6px 18px rgba(34,49,76,.06); --sw-shadow-3: 0 14px 36px rgba(34,49,76,.14); --sw-shadow-primary: 0 1px 2px rgba(39,103,237,.25);
+  --sw-ctl-h-sm: 26px; --sw-disabled-opacity: .5; --sw-hover-wash: rgba(20,30,50,.05); --sw-focus-w: 2px; --sw-focus-offset: 2px;
+  --sw-skeleton: #eef2f8; --sw-skeleton-shine: rgba(255,255,255,.65); --sw-toast-bg: #1e2e47; --sw-toast-text: #ffffff;
+  --sw-t-fast: 120ms; --sw-t-med: 200ms; --sw-ease: cubic-bezier(.2,0,0,1); --sw-z-map: 1; --sw-z-map-ui: 5; --sw-z-topbar: 30;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --sw-bg: #0d1220; --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-3: #222d44; --sw-surface-solid: #151c2c;
+  --sw-menu-surface: #151c2c; --sw-menu-border: #232e45; --sw-border: #232e45; --sw-border-strong: #2f3c58; --sw-overlay: rgba(0,0,0,.62);
+  --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #8896af;
+  --sw-accent: #3a6ce0; --sw-accent-hover: #3465d6; --sw-accent-soft: rgba(91,140,255,.18); --sw-accent-text: #8fb2ff; --sw-focus: #7aa2ff;
+  --sw-live: #3ddc84; --sw-live-soft: rgba(61,220,132,.18); --sw-live-text: #3ddc84;
+  --sw-recorded: #6ea2ff; --sw-recorded-soft: rgba(110,162,255,.2); --sw-recorded-text: #8fb8ff;
+  --sw-offline: #8b96a8; --sw-offline-soft: rgba(139,150,168,.2); --sw-offline-text: #b4bdcc;
+  --sw-unknown: #6b7686; --sw-unknown-soft: rgba(107,118,134,.22); --sw-unknown-text: #aab5c9;
+  --sw-danger: #ff6b62; --sw-danger-soft: rgba(255,107,98,.2); --sw-danger-text: #ff8a82;
+  --sw-warning: #f5b043; --sw-warning-soft: rgba(245,176,67,.2); --sw-warning-text: #f5b043;
+  --sw-success: #3ddc84; --sw-success-soft: rgba(61,220,132,.18); --sw-success-text: #3ddc84;
+  --sw-forbidden: #ff7a70; --sw-forbidden-soft: rgba(255,122,112,.2); --sw-forbidden-text: #ff8a82; --sw-stale: #f5b043; --sw-stale-soft: rgba(245,176,67,.2); --sw-purple: #a78bfa;
+  --sw-map-bg: #0f141d; --sw-map-wall: #4a5568; --sw-map-room-fill: #161c28; --sw-map-furniture: #1f2736; --sw-map-furniture-line: #3a4457; --sw-map-structure: #9aa6bb;
+  --sw-map-glass: #6ea2ff; --sw-map-label: #8391a8; --sw-map-lit: #ffb547; --sw-map-presence: #6ea2ff; --sw-map-temp: #cfe0ff; --sw-fov: rgba(110,162,255,.16);
+  --sw-obj-security: #a78bfa; --sw-obj-electrical: #f08a45; --sw-obj-safety: #ff6b62;
+  --sw-shadow-1: 0 1px 2px rgba(0,0,0,.35); --sw-shadow-2: 0 6px 18px rgba(0,0,0,.4); --sw-shadow-3: 0 14px 36px rgba(0,0,0,.55); --sw-shadow-primary: 0 1px 2px rgba(0,0,0,.4);
+  --sw-hover-wash: rgba(255,255,255,.06); --sw-skeleton: #222d44; --sw-skeleton-shine: rgba(255,255,255,.08); --sw-toast-bg: #2c3a57; --sw-toast-text: #f3f6fc;
+  color-scheme: dark;
+}
+/* the state looks (temperature/styles.ts): --c = the colour, --c-text = the text on its soft fill */
+[data-look="ok"] { --c: var(--sw-success); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
+[data-look="warn"] { --c: var(--sw-warning); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
+[data-look="alarm"] { --c: var(--sw-danger); --c-text: var(--sw-danger-text); --c-soft: var(--sw-danger-soft); }
+[data-look="off"] { --c: var(--sw-offline); --c-text: var(--sw-offline-text); --c-soft: var(--sw-offline-soft); }
+[data-look="unk"] { --c: var(--sw-unknown); --c-text: var(--sw-unknown-text); --c-soft: var(--sw-unknown-soft); }
+[data-look="acc"] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); --c-soft: var(--sw-accent-soft); }
+[data-look="rec"] { --c: var(--sw-recorded); --c-text: var(--sw-recorded-text); --c-soft: var(--sw-recorded-soft); }
+[data-look="lock"] { --c: var(--sw-forbidden); --c-text: var(--sw-forbidden-text); --c-soft: var(--sw-forbidden-soft); }
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--sw-bg); color: var(--sw-text); font-family: var(--sw-font); font-size: var(--sw-fs-md); line-height: var(--sw-lh); -webkit-font-smoothing: antialiased; }
+body { min-height: 100dvh; }
+.ltr, .num { direction: ltr; unicode-bidi: isolate; }
+.num { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--sw-font-mono); }
+:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ===== mockup-only controls (not part of the product) ===== */
+.mock { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 12px; background: var(--sw-toast-bg); color: var(--sw-toast-text); font-size: var(--sw-fs-sm); }
+.mock b { margin-inline-end: 6px; }
+.mock select, .mock button { font: inherit; font-size: var(--sw-fs-sm); border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; border-radius: var(--sw-r-pill); padding: 3px 10px; min-block-size: 28px; cursor: pointer; }
+.mock select option { color: #1e2e47; }
+.mock button[aria-pressed="true"] { background: rgba(255,255,255,.18); }
+.mock .sp { flex: 1; }
+
+/* ===== the shell (shell/sw-app.ts): the rail at the inline start, the content column, the floating corner pill ===== */
+.app { display: grid; grid-template-columns: var(--sw-rail-w) minmax(0, 1fr); grid-template-areas: 'rail main'; min-block-size: calc(100dvh - 40px); position: relative; }
+nav.rail { grid-area: rail; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 7px 10px; background: var(--sw-surface); border-inline-end: 1px solid var(--sw-border); }
+.brand { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 800; font-size: var(--sw-fs-xl); margin-block-end: 8px; box-shadow: var(--sw-shadow-primary); }
+nav.rail a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-inline-size: 56px; min-block-size: 52px; padding: 6px 4px; border-radius: var(--sw-r-md); color: var(--sw-text-2); text-decoration: none; font-size: 10.5px; font-weight: var(--sw-fw-medium); line-height: 1.3; white-space: nowrap; }
+nav.rail a svg { font-size: 22px; color: var(--sw-text-3); }
+nav.rail a:hover { background: var(--sw-surface-3); color: var(--sw-text); }
+nav.rail a.active { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+nav.rail a.active svg { color: var(--sw-accent); }
+nav.rail a.active::after { content: ''; position: absolute; inset-inline-end: -8px; inset-block: 16px; inline-size: 3px; border-radius: 3px; background: var(--sw-accent); }
+nav.rail .grow { flex: 1; }
+.me { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; background: var(--sw-surface-3); color: var(--sw-text-2); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); }
+.float { position: absolute; inset-block-start: 8px; inset-inline-end: 22px; z-index: var(--sw-z-topbar); }
+.float .pillrow { display: inline-flex; align-items: center; block-size: 34px; padding-inline: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); }
+.float .pillrow > span { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; color: var(--sw-text-2); font-size: 16px; }
+.float .sysdot i { display: block; inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--sw-live); }
+main { grid-area: main; min-inline-size: 0; display: flex; flex-direction: column; }
+.subnav { padding: 12px 24px 0; display: flex; }
+.tabs { display: inline-flex; max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs .row { position: relative; display: inline-flex; flex: none; gap: 2px; padding-inline: 3px; }
+.tabs .row::before { content: ''; position: absolute; inset: 0; background: var(--sw-surface-3); border-radius: var(--sw-r-md); }
+.tabs a { position: relative; display: inline-flex; align-items: center; min-block-size: 34px; padding-inline: 1px; color: var(--sw-text-2); text-decoration: none; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); white-space: nowrap; }
+.tabs a .lbl { display: inline-flex; align-items: center; min-block-size: 28px; padding: 0 12px; border-radius: var(--sw-r-sm); }
+.tabs a:hover { color: var(--sw-text); }
+.tabs a.on { color: var(--sw-accent-text); }
+.tabs a.on .lbl { background: var(--sw-surface); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
+nav.bottom { display: none; }
+
+/* ===== the screen: the historical map's own head / bar / layout / stage / panel / timeline (investigate-history-map.ts) ===== */
+.screen { display: flex; flex-direction: column; min-inline-size: 0; flex: 1; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 24px 12px; }
+.head h1 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.head .sub { font-size: var(--sw-fs-sm); color: var(--sw-text-3); margin-block-start: 2px; }
+.grow { flex: 1; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 6px 13px; min-block-size: 30px; border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.btn:hover { border-color: var(--sw-border-strong); }
+.btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
+.btn.pri:hover { background: var(--sw-accent-hover); }
+.btn.sm { padding: 3px 10px; min-block-size: var(--sw-ctl-h-sm); font-size: var(--sw-fs-xs); }
+.btn[aria-pressed="true"] { background: var(--sw-accent-soft); border-color: var(--sw-accent); color: var(--sw-accent-text); }
+.btn[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
+.btn svg { font-size: 15px; }
+.btn.icon { inline-size: 34px; padding: 0; }
+.sel { font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: 30px; padding: 0 10px; }
+/* the blue status bar of the history screen (.bar: --sw-recorded-soft with a #cddcff hairline) */
+.bar { display: flex; align-items: center; gap: 10px; margin: 0 24px 10px; padding: 8px 12px; background: var(--sw-recorded-soft); border: 1px solid color-mix(in srgb, var(--sw-recorded) 35%, transparent); border-radius: var(--sw-r-md); font-size: var(--sw-fs-sm); flex-wrap: wrap; }
+.bar .time { font-family: var(--sw-font-mono); direction: ltr; font-weight: var(--sw-fw-semibold); color: var(--sw-accent-text); }
+.bar .note { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+.badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 2px 10px; white-space: nowrap; background: var(--c, var(--sw-recorded)); color: var(--sw-text-inverse); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); line-height: 1.5; }
+.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; border: 1px solid transparent; }
+.chip[data-look] { background: var(--c-soft); color: var(--c-text); }
+button.chip { cursor: pointer; font: inherit; font-size: var(--sw-fs-xs); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); }
+button.chip:hover { border-color: var(--sw-border-strong); }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; margin: 0 24px 12px; align-items: start; }
+.stage { position: relative; block-size: 540px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); background: var(--sw-map-bg); box-shadow: var(--sw-shadow-1); overflow: hidden; }
+.stage > svg.plan { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; direction: ltr; }
+.chipf { position: absolute; inset-inline-start: 12px; inset-block-start: 12px; z-index: var(--sw-z-map-ui); background: var(--sw-menu-surface); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); padding: 5px 10px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); display: inline-flex; gap: 6px; align-items: center; }
+.hist { position: absolute; inset-inline-end: 12px; inset-block-start: 12px; z-index: var(--sw-z-map-ui); background: var(--sw-menu-surface); border: 1px solid var(--sw-purple); color: var(--sw-text); border-radius: var(--sw-r-md); padding: 3px 9px; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
+.hist.gap { border-color: var(--sw-warning); }
+.hist.below { inset-block-start: 44px; }
+.legend { position: absolute; inset-inline-start: 12px; inset-block-end: 12px; z-index: var(--sw-z-map-ui); display: flex; gap: 12px; flex-wrap: wrap; background: var(--sw-menu-surface); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-pill); padding: 3px 10px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
+.legend i { display: inline-block; inline-size: 9px; block-size: 9px; border-radius: 50%; margin-inline-end: 4px; vertical-align: -1px; }
+/* the on-stage overlay states (loading / error / no history / gap banner) */
+.cover { position: absolute; inset: 0; z-index: var(--sw-z-map-ui); display: none; align-items: center; justify-content: center; padding: 24px; background: color-mix(in srgb, var(--sw-surface) 72%, transparent); }
+.cover.on { display: flex; }
+.state-panel { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--sw-s-3); padding: var(--sw-s-8) var(--sw-s-4); color: var(--sw-text-2); background: var(--sw-surface-solid); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-2); max-inline-size: 420px; }
+.state-panel .icon { display: grid; place-items: center; inline-size: 48px; block-size: 48px; border-radius: var(--sw-r-lg); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: 26px; }
+.state-panel[data-state="error"] .icon { background: var(--sw-danger-soft); color: var(--sw-danger); }
+.state-panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-text); }
+.state-panel p { margin: 0; max-inline-size: 42ch; font-size: var(--sw-fs-sm); }
+.spin { inline-size: 26px; block-size: 26px; border-radius: 50%; border: 3px solid var(--sw-accent-soft); border-block-start-color: var(--sw-accent); animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.gapbar { position: absolute; inset-inline: 12px; inset-block-end: 48px; z-index: var(--sw-z-map-ui); display: none; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--sw-r-md); background: var(--sw-warning-soft); border: 1px solid color-mix(in srgb, var(--sw-warning) 45%, transparent); color: var(--sw-warning-text); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
+body[data-st="gap"] .gapbar { display: flex; }
+/* the side panel: sw-card look (heading + subheading), dl rows, event rows (.evl) */
+.panel { display: flex; flex-direction: column; gap: 12px; min-inline-size: 0; }
+.card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 12px 14px; box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
+.card h2 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.card .sh { font-size: var(--sw-fs-xs); color: var(--sw-text-3); margin-block-end: 8px; }
+.card .hd { display: flex; align-items: center; gap: 8px; margin-block-end: 8px; }
+.card .hd .grow { flex: 1; }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; margin: 0; font-size: var(--sw-fs-sm); }
+dt { color: var(--sw-text-3); }
+dd { margin: 0; font-weight: var(--sw-fw-medium); min-inline-size: 0; overflow-wrap: anywhere; }
+.note { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.evl { display: flex; flex-direction: column; gap: 4px; }
+.evl a, .evl div.row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm); text-decoration: none; color: var(--sw-text); font-size: var(--sw-fs-sm); }
+.evl a.hit { border-color: var(--sw-accent); background: var(--sw-accent-soft); }
+.evl .s { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.frame { margin-block-start: 6px; border-radius: var(--sw-r-sm); overflow: hidden; background: var(--sw-surface-3); aspect-ratio: 16 / 9; display: grid; place-items: center; font-size: var(--sw-fs-xs); color: var(--sw-text-3); position: relative; }
+.frame .fake { position: absolute; inset: 0; background: linear-gradient(160deg, #3a4a63, #1b2538 60%, #0f1729); }
+.frame .fake::after { content: ''; position: absolute; inset-inline-start: 18%; inset-block-end: 0; inline-size: 64%; block-size: 46%; background: linear-gradient(transparent, rgba(255,255,255,.08)); border-radius: 60% 60% 0 0 / 100% 100% 0 0; }
+.frame .ts { position: absolute; inset-inline-start: 6px; inset-block-end: 6px; color: #fff; background: rgba(0,0,0,.55); border-radius: var(--sw-r-2xs); padding: 1px 6px; font-family: var(--sw-font-mono); direction: ltr; font-size: var(--sw-fs-2xs); }
+.acts { display: flex; gap: 8px; flex-wrap: wrap; margin-block-start: 10px; }
+/* the layer legend (NEW): one row per layer - toggle, dot, name, coverage, state (ok / locked / not recorded / gap) */
+.layers { display: flex; flex-direction: column; gap: 2px; }
+.lyr { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 5px 6px; border-radius: var(--sw-r-sm); font-size: var(--sw-fs-sm); min-block-size: 34px; }
+.lyr:hover { background: var(--sw-hover-wash); }
+.lyr .sw { position: relative; inline-size: 30px; block-size: 18px; border-radius: var(--sw-r-pill); background: var(--sw-unknown); border: 0; cursor: pointer; flex: none; padding: 0; transition: background var(--sw-t-fast) var(--sw-ease); }
+.lyr .sw::after { content: ''; position: absolute; inset-block-start: 2px; inset-inline-start: 2px; inline-size: 14px; block-size: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.18); transition: transform var(--sw-t-fast) var(--sw-ease); }
+.lyr .sw[aria-checked="true"] { background: var(--sw-accent); }
+.lyr .sw[aria-checked="true"]::after { transform: translateX(-12px); }
+.lyr .sw[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
+.lyr .nm { display: flex; align-items: center; gap: 7px; min-inline-size: 0; }
+.lyr .nm i { inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--c, var(--sw-accent)); flex: none; }
+.lyr .nm .cov { font-size: var(--sw-fs-xs); color: var(--sw-text-3); white-space: nowrap; }
+.lyr[data-off="true"] .nm { color: var(--sw-text-3); }
+.lyr .st { font-size: var(--sw-fs-xs); white-space: nowrap; }
+.lyr .st svg { font-size: 13px; vertical-align: -2px; }
+/* the timeline block (.tl) and the playback bar (NEW) */
+.tl { margin: 0 24px 24px; }
+.tlbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-block-end: 8px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+.tlbar .time { font-family: var(--sw-font-mono); direction: ltr; font-weight: var(--sw-fw-semibold); color: var(--sw-accent-text); font-size: var(--sw-fs-md); }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); }
+.seg button { padding: 3px 10px; border-radius: calc(var(--sw-r-sm) - 2px); color: var(--sw-text-2); cursor: pointer; font: inherit; font-size: var(--sw-fs-xs); white-space: nowrap; border: 0; background: transparent; min-block-size: 24px; }
+.seg button[aria-pressed="true"] { background: var(--sw-surface-solid); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+.play { display: inline-grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; border: 0; background: var(--sw-accent); color: var(--sw-text-inverse); cursor: pointer; box-shadow: var(--sw-shadow-primary); font: inherit; }
+.play:hover { background: var(--sw-accent-hover); }
+.play svg { font-size: 18px; }
+.track { position: relative; direction: ltr; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); padding: 8px 10px 4px; }
+.track svg { display: block; inline-size: 100%; block-size: auto; }
+.lanes { display: grid; grid-template-columns: 92px 1fr; gap: 0 8px; align-items: stretch; }
+.lanes .ln { font-size: var(--sw-fs-2xs); color: var(--sw-text-3); display: flex; align-items: center; gap: 5px; min-block-size: 14px; direction: rtl; justify-content: flex-start; }
+.lanes .ln i { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--c, var(--sw-accent)); }
+.lanes .ln.off { opacity: .45; }
+.kbd { font-family: var(--sw-font-mono); font-size: var(--sw-fs-2xs); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-2xs); padding: 0 4px; color: var(--sw-text-3); }
+/* mock-state switching */
+body[data-st="loading"] .cover.loading, body[data-st="error"] .cover.error, body[data-st="nohistory"] .cover.nohistory { display: flex; }
+body[data-st="loading"] .panel, body[data-st="error"] .panel { opacity: .4; pointer-events: none; }
+body[data-st="nohistory"] .track, body[data-st="nohistory"] .playbar { opacity: .5; pointer-events: none; }
+body[data-role="view"] .needs-dev, body[data-role="view"] .needs-alarm { display: none !important; }
+body[data-mode="snapshot"] .only-play { display: none !important; }
+body[data-mode="play"] .only-snap { display: none !important; }
+.toast { position: fixed; inset-block-end: 20px; inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw; background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: 60; box-shadow: var(--sw-shadow-2); display: none; font-size: var(--sw-fs-sm); }
+.toast.on { display: block; }
+
+/* ===== tablet (<= 1023): rail icons only, the panel moves under the stage ===== */
+@media (max-width: 1023px) {
+  nav.rail a span { display: none; }
+  nav.rail a { min-block-size: 44px; }
+  .subnav { padding: 10px 16px 0; overflow-x: auto; scrollbar-width: none; }
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .stage { block-size: 460px; }
+}
+/* ===== phone (<= 767): no rail, the bottom bar; the stage keeps its aspect, the legend becomes a chip row, the timeline sticks above the bar ===== */
+@media (max-width: 767px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--sw-bottomnav-h); grid-template-areas: 'main' 'bottom'; }
+  nav.rail { display: none; }
+  .float { inset-inline-end: 12px; }
+  .subnav { padding: 8px 12px 0; }
+  .head, .bar, .tl { margin-inline: 12px; }
+  .head { padding: 12px 0 8px; }
+  .head .acts-h { display: flex; gap: 6px; flex-wrap: wrap; inline-size: 100%; }
+  .head .acts-h .btn { min-block-size: 40px; flex: 1; }
+  .layout { margin-inline: 0; gap: 10px; }
+  .stage { block-size: auto; aspect-ratio: 4 / 3; border-radius: 0; border-inline: 0; }
+  .legend { display: none; }
+  .hist { inset-inline-end: 8px; inset-block-start: 8px; }
+  .chipf { inset-inline-start: 8px; inset-block-start: 8px; }
+  .panel { display: flex; padding-inline: 12px; }
+  .layers { flex-direction: row; overflow-x: auto; scrollbar-width: none; gap: 6px; padding-block-end: 2px; }
+  .lyr { grid-template-columns: auto auto; flex: none; border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 4px 10px 4px 6px; min-block-size: 36px; }
+  .lyr .nm .cov { display: none; }
+  .lyr .st { display: none; }
+  .lyr .sw { inline-size: 26px; block-size: 16px; }
+  .lyr .sw::after { inline-size: 12px; block-size: 12px; }
+  .lyr .sw[aria-checked="true"]::after { transform: translateX(-10px); }
+  /* the timeline is a sheet stuck above the bottom bar (the playback screen's rule); body[data-sticky="off"] is a capture switch for full-page screenshots only */
+  .tl { position: sticky; inset-block-end: 0; z-index: var(--sw-z-map-ui); margin: 0; padding: 8px 12px 10px; background: var(--sw-bg); border-block-start: 1px solid var(--sw-border); }
+  body[data-sticky="off"] .tl, body[data-sticky="off"] nav.bottom { position: static; }
+  .tlbar { gap: 6px; }
+  /* the phone playback bar is one row: the hour steps, the window picker, the date and the key hints move to the "..." of the real screen */
+  .tlbar .dateq, .tlbar .note, .tlbar [data-step="-60"], .tlbar [data-step="60"], #win { display: none; }
+  .mock > span:last-child { display: none; }
+  .lanes { grid-template-columns: 64px 1fr; }
+  .btn { min-block-size: 36px; }
+  .play { inline-size: 44px; block-size: 44px; }
+  nav.bottom { grid-area: bottom; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); padding-block-end: env(safe-area-inset-bottom); position: sticky; inset-block-end: 0; z-index: 6; }
+  nav.bottom a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); text-decoration: none; min-block-size: var(--sw-bottomnav-h); font-weight: var(--sw-fw-medium); }
+  nav.bottom a svg { font-size: 22px; }
+  nav.bottom a.active { color: var(--sw-accent-text); }
+}
+</style>
+</head>
+<body data-st="ready" data-role="full" data-mode="snapshot">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M4 6h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4V7a1 1 0 0 1 1-1z"/><path d="M15 7v2M15 11v2M15 15v2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13M8.3 8.3a5 5 0 0 0 0 7.4M15.7 8.3a5 5 0 0 1 0 7.4"/></symbol>
+    <symbol id="i-cube" viewBox="0 0 24 24"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="3"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></symbol>
+    <symbol id="i-cams" viewBox="0 0 24 24"><rect x="3" y="7" width="12" height="10" rx="2"/><path d="m15 11 6-3v8l-6-3"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.6 5h12.8L21 13v5.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V13z"/></symbol>
+    <symbol id="i-case" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-dash" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  </defs>
+</svg>
+
+<!-- mockup-only controls -->
+<nav class="mock" aria-label="בקרת הדגם">
+  <b>דגם</b>
+  <select id="stsel" aria-label="מצב המסך"><option value="ready">מצב: רגיל</option><option value="gap">מצב: פער בהקלטה</option><option value="nohistory">מצב: אין היסטוריה</option><option value="loading">מצב: טעינה</option><option value="error">מצב: שגיאה</option></select>
+  <select id="role" aria-label="תפקיד"><option value="full">הרשאות: מלאות (ללא נוכחות)</option><option value="view">הרשאות: צופה (מצלמות בלבד)</option></select>
+  <select id="modesel" aria-label="אופן"><option value="snapshot">אופן: רגע אחד</option><option value="play">אופן: ניגון תקופה</option></select>
+  <button id="th" aria-pressed="false">כהה</button>
+  <span class="sp"></span>
+  <span>קומה 2 · 21.10.2026 · נתוני הדגמה</span>
+</nav>
+
+<div class="app">
+  <nav class="rail" aria-label="ניווט ראשי">
+    <span class="brand" aria-hidden="true">S</span>
+    <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>ראשי</span></a>
+    <a href="#" class="active" aria-current="page"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>מפה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-bolt"/></svg><span>תשתיות</span></a>
+    <a href="#"><svg class="ic"><use href="#i-ticket"/></svg><span>בקשות שירות</span></a>
+    <div class="grow"></div>
+    <span class="me" aria-label="תפריט המשתמש">דכ</span>
+  </nav>
+  <div class="float" aria-hidden="true"><div class="pillrow"><span><svg class="ic"><use href="#i-search"/></svg></span><span class="sysdot"><i></i></span></div></div>
+  <main>
+    <!-- the investigation section's tab row (nav.ts SECTION_TABS.investigate) -->
+    <div class="subnav">
+      <nav class="tabs" aria-label="לשוניות"><div class="row">
+        <a href="#"><span class="lbl">מרכז אירועים</span></a><a href="#"><span class="lbl">הקלטות</span></a><a href="#"><span class="lbl">ניגון מסונכרן</span></a>
+        <a href="#" class="on" aria-current="page"><span class="lbl">מפה היסטורית</span></a>
+        <a href="#"><span class="lbl">סקירה</span></a><a href="#"><span class="lbl">חיפוש</span></a><a href="#"><span class="lbl">תיקים</span></a><a href="#"><span class="lbl">חוקים והתראות</span></a><a href="#"><span class="lbl">ייצוא</span></a>
+      </div></nav>
+    </div>
+
+    <section class="screen">
+      <div class="head">
+        <div><h1>המפה בזמן שנבחר · קומה 2</h1><div class="sub">מבנה א · <span class="ltr mono" id="sub-time">2026-10-21 14:32:00</span> · Asia/Jerusalem</div></div>
+        <span class="grow"></span>
+        <div class="acts-h">
+          <select class="sel" aria-label="קומה"><option>מבנה א · קומה 2</option><option>מבנה א · קומה 1</option><option>מבנה א · קרקע</option></select>
+          <button class="btn" aria-pressed="true" title="הסתר את תמונת התוכנית"><svg class="ic"><use href="#i-map"/></svg>תמונת התוכנית</button>
+          <button class="btn" title="מקש 3"><svg class="ic"><use href="#i-cube"/></svg>3D</button>
+          <a class="btn" href="#"><svg class="ic"><use href="#i-live"/></svg>חזרה למצב חי</a>
+        </div>
+      </div>
+      <div class="bar">
+        <svg class="ic"><use href="#i-clock"/></svg>
+        <span>מצב חקירה היסטורי — פעולות פיזיות אינן זמינות. מצב ללא היסטוריה מוצג כלא ידוע, לא כערך החי האחרון.</span>
+        <span class="grow"></span>
+        <span class="chip only-snap" data-look="rec">רגע אחד</span>
+        <span class="chip only-play" data-look="rec">ניגון · <span class="ltr num" id="bar-range">12:00–16:00</span> · דגימה כל <span class="num">1</span> דק׳</span>
+      </div>
+
+      <div class="layout">
+        <!-- ===== the stage: the plan at the instant. Geometry is never mirrored (direction: ltr on the svg) ===== -->
+        <div class="stage" id="stage">
+          <div class="chipf"><svg class="ic"><use href="#i-building"/></svg>קומה 2</div>
+          <div class="hist" id="hist-tag">מצב היסטורי · <span class="ltr mono" id="hist-time">14:32:00</span></div>
+          <svg class="plan" viewBox="0 0 1000 600" aria-label="תוכנית הקומה במצב ההיסטורי" role="img">
+            <defs>
+              <pattern id="hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="var(--sw-warning)" stroke-width="2" opacity=".5"/></pattern>
+              <pattern id="hatch-unk" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="var(--sw-unknown)" stroke-width="2" opacity=".55"/></pattern>
+            </defs>
+            <!-- rooms: base fill, then the lit wash and the presence wash (opacity driven by the replay) -->
+            <g id="rooms" stroke="var(--sw-map-wall)" stroke-width="6" stroke-linejoin="round">
+              <g data-room="lobby"><rect x="40" y="40" width="300" height="230" fill="var(--sw-map-room-fill)"/><rect class="lit" x="40" y="40" width="300" height="230" fill="var(--sw-map-lit)" opacity="0" stroke="none"/><rect class="pres" x="40" y="40" width="300" height="230" fill="var(--sw-map-presence)" opacity="0" stroke="none"/></g>
+              <g data-room="corr"><rect x="340" y="40" width="130" height="520" fill="var(--sw-map-room-fill)"/><rect class="lit" x="340" y="40" width="130" height="520" fill="var(--sw-map-lit)" opacity="0" stroke="none"/><rect class="pres" x="340" y="40" width="130" height="520" fill="var(--sw-map-presence)" opacity="0" stroke="none"/></g>
+              <g data-room="officeA"><rect x="470" y="40" width="250" height="230" fill="var(--sw-map-room-fill)"/><rect class="lit" x="470" y="40" width="250" height="230" fill="var(--sw-map-lit)" opacity="0" stroke="none"/><rect class="pres" x="470" y="40" width="250" height="230" fill="var(--sw-map-presence)" opacity="0" stroke="none"/></g>
+              <g data-room="meeting"><rect x="720" y="40" width="240" height="230" fill="var(--sw-map-room-fill)"/><rect class="lit" x="720" y="40" width="240" height="230" fill="var(--sw-map-lit)" opacity="0" stroke="none"/><rect class="pres" x="720" y="40" width="240" height="230" fill="var(--sw-map-presence)" opacity="0" stroke="none"/></g>
+              <g data-room="officeB"><rect x="470" y="270" width="250" height="290" fill="var(--sw-map-room-fill)"/><rect class="lit" x="470" y="270" width="250" height="290" fill="var(--sw-map-lit)" opacity="0" stroke="none"/><rect class="pres" x="470" y="270" width="250" height="290" fill="var(--sw-map-presence)" opacity="0" stroke="none"/></g>
+              <g data-room="server"><rect x="720" y="270" width="240" height="140" fill="var(--sw-map-room-fill)"/><rect class="lit" x="720" y="270" width="240" height="140" fill="var(--sw-map-lit)" opacity="0" stroke="none"/><rect class="pres" x="720" y="270" width="240" height="140" fill="var(--sw-map-presence)" opacity="0" stroke="none"/></g>
+              <g data-room="kitchen"><rect x="720" y="410" width="240" height="150" fill="var(--sw-map-room-fill)"/><rect class="lit" x="720" y="410" width="240" height="150" fill="var(--sw-map-lit)" opacity="0" stroke="none"/><rect class="pres" x="720" y="410" width="240" height="150" fill="var(--sw-map-presence)" opacity="0" stroke="none"/></g>
+              <g data-room="stairs"><rect x="40" y="270" width="150" height="290" fill="var(--sw-map-furniture)"/></g>
+              <g data-room="shaft"><rect x="190" y="270" width="150" height="290" fill="var(--sw-map-furniture)"/></g>
+            </g>
+            <!-- furniture hints -->
+            <g fill="var(--sw-map-furniture)" stroke="var(--sw-map-furniture-line)" stroke-width="2">
+              <rect x="760" y="110" width="160" height="80" rx="6"/><rect x="510" y="90" width="70" height="40" rx="4"/><rect x="620" y="90" width="70" height="40" rx="4"/><rect x="510" y="330" width="70" height="40" rx="4"/><rect x="620" y="330" width="70" height="40" rx="4"/><rect x="510" y="440" width="70" height="40" rx="4"/><rect x="620" y="440" width="70" height="40" rx="4"/>
+              <rect x="740" y="290" width="40" height="100" rx="3"/><rect x="800" y="290" width="40" height="100" rx="3"/><rect x="740" y="500" width="200" height="34" rx="3"/>
+            </g>
+            <!-- stairs lines -->
+            <g stroke="var(--sw-map-furniture-line)" stroke-width="2"><path d="M60 300h110M60 330h110M60 360h110M60 390h110M60 420h110M60 450h110M60 480h110M60 510h110"/></g>
+            <!-- elevator shaft: the cab position is NOT recorded - drawn hatched with the honest label; the state chip is recorded -->
+            <g id="elev">
+              <rect x="212" y="300" width="106" height="230" fill="url(#hatch-unk)" stroke="var(--sw-unknown)" stroke-width="2" stroke-dasharray="6 4" rx="4"/>
+              <rect x="226" y="396" width="78" height="40" rx="4" fill="var(--sw-unknown-soft)" stroke="var(--sw-unknown)" stroke-dasharray="4 3"/>
+              <text x="265" y="420" text-anchor="middle" font-size="13" font-weight="600" fill="var(--sw-unknown-text)" font-family="var(--sw-font)">?</text>
+              <text x="265" y="458" text-anchor="middle" font-size="11" fill="var(--sw-map-label)" font-family="var(--sw-font)" direction="rtl">מיקום התא לא מוקלט</text>
+              <g id="elev-chip" data-look="ok"><rect x="213" y="276" width="104" height="20" rx="10" fill="var(--c)"/><text x="265" y="290" text-anchor="middle" font-size="11" font-weight="600" fill="#fff" font-family="var(--sw-font)" direction="rtl" id="elev-txt">מעלית צפונית · תקין</text></g>
+            </g>
+            <!-- room labels -->
+            <g fill="var(--sw-map-label)" font-size="13" font-family="var(--sw-font)" direction="rtl" text-anchor="middle">
+              <text x="190" y="70">לובי</text><text x="405" y="70">מסדרון</text><text x="595" y="70">משרד א</text><text x="840" y="70">חדר ישיבות</text><text x="595" y="300">משרד ב</text><text x="840" y="300">חדר שרתים</text><text x="840" y="440">מטבחון</text><text x="115" y="290">מדרגות</text>
+            </g>
+            <!-- temperature chips (room-state.ts: the climate attribute is NOT recorded - a sensor's state is) -->
+            <g id="temps" font-family="var(--sw-font)" font-size="11" font-weight="600">
+              <g data-temp="meeting"><rect x="892" y="86" width="56" height="20" rx="10" fill="var(--sw-menu-surface)" stroke="var(--sw-border-strong)"/><text x="920" y="100" text-anchor="middle" fill="var(--sw-map-temp)" direction="ltr" class="tv">23.5°</text></g>
+              <g data-temp="server"><rect x="892" y="330" width="56" height="20" rx="10" fill="var(--sw-menu-surface)" stroke="var(--sw-border-strong)"/><text x="920" y="344" text-anchor="middle" fill="var(--sw-map-temp)" direction="ltr" class="tv">19.1°</text></g>
+              <g data-temp="officeA"><rect x="652" y="236" width="56" height="20" rx="10" fill="var(--sw-menu-surface)" stroke="var(--sw-border-strong)" stroke-dasharray="3 2"/><text x="680" y="250" text-anchor="middle" fill="var(--sw-unknown-text)" direction="ltr" class="tv">—</text></g>
+              <!-- infra fridge probe in the kitchen: its own series (35 d raw / 400 d rollup) -->
+              <g data-temp="fridge"><rect x="736" y="470" width="78" height="20" rx="10" fill="var(--sw-success-soft)" stroke="var(--sw-success)"/><text x="775" y="484" text-anchor="middle" fill="var(--sw-success-text)" direction="ltr" class="tv">מקרר 4.2°</text></g>
+            </g>
+            <!-- openings: a door drawn on the wall; open = the leaf swung (purple), closed = flat; unknown = dashed -->
+            <g id="doors" stroke-width="4" stroke-linecap="round">
+              <g data-door="lobby-corr"><line x1="340" y1="200" x2="340" y2="244" stroke="var(--sw-map-bg)" stroke-width="8"/><line class="leaf" x1="340" y1="244" x2="340" y2="200" stroke="var(--sw-map-structure)"/></g>
+              <g data-door="corr-a"><line x1="470" y1="200" x2="470" y2="244" stroke="var(--sw-map-bg)" stroke-width="8"/><line class="leaf" x1="470" y1="244" x2="470" y2="200" stroke="var(--sw-map-structure)"/></g>
+              <g data-door="corr-b"><line x1="470" y1="330" x2="470" y2="374" stroke="var(--sw-map-bg)" stroke-width="8"/><line class="leaf" x1="470" y1="374" x2="470" y2="330" stroke="var(--sw-map-structure)"/></g>
+              <g data-door="server"><line x1="720" y1="330" x2="720" y2="374" stroke="var(--sw-map-bg)" stroke-width="8"/><line class="leaf" x1="720" y1="374" x2="720" y2="330" stroke="var(--sw-map-structure)"/></g>
+              <g data-door="meeting"><line x1="720" y1="90" x2="720" y2="134" stroke="var(--sw-map-bg)" stroke-width="8"/><line class="leaf" x1="720" y1="134" x2="720" y2="90" stroke="var(--sw-map-structure)"/></g>
+              <g data-door="main"><line x1="120" y1="40" x2="180" y2="40" stroke="var(--sw-map-bg)" stroke-width="8"/><line class="leaf" x1="120" y1="40" x2="180" y2="40" stroke="var(--sw-map-structure)"/></g>
+            </g>
+            <!-- alarm panel at the lobby wall -->
+            <g id="alarm" data-look="ok" transform="translate(70 230)"><rect x="-14" y="-14" width="28" height="28" rx="7" fill="var(--c-soft)" stroke="var(--c)" stroke-width="2"/><path d="M-6 3h12M0-7v2M-7-1a7 7 0 0 1 14 0v4H-7z" fill="none" stroke="var(--c)" stroke-width="2" stroke-linejoin="round"/><text x="0" y="30" text-anchor="middle" font-size="11" font-weight="600" fill="var(--c-text)" font-family="var(--sw-font)" direction="rtl" id="alarm-txt">דרוך בית</text></g>
+            <!-- the generator anchor's chip (numeric series) -->
+            <g transform="translate(150 530)" font-family="var(--sw-font)"><rect x="-56" y="-12" width="112" height="22" rx="11" fill="var(--sw-menu-surface)" stroke="var(--sw-border-strong)"/><circle cx="-42" cy="-1" r="5" fill="var(--sw-obj-electrical)"/><text x="6" y="3" text-anchor="middle" font-size="11" font-weight="600" fill="var(--sw-text)" direction="rtl">גנרטור · המתנה</text></g>
+            <!-- cameras: blue = a recording covers the instant, dashed = gap / unknown; FOV wedge -->
+            <g id="cams" font-family="var(--sw-font)" font-size="11" font-weight="600">
+              <g data-cam="c1" transform="translate(60 60)"><path class="fov" d="M0 0 L120 40 L120 -10 Z" fill="var(--sw-fov)"/><circle r="9" fill="var(--sw-menu-surface)" stroke="var(--sw-recorded)" stroke-width="3"/><text x="0" y="26" text-anchor="middle" fill="var(--sw-text)" direction="rtl">לובי</text></g>
+              <g data-cam="c2" transform="translate(455 540)"><path class="fov" d="M0 0 L-40 -120 L10 -120 Z" fill="var(--sw-fov)"/><circle r="9" fill="var(--sw-menu-surface)" stroke="var(--sw-recorded)" stroke-width="3"/><text x="0" y="-14" text-anchor="middle" fill="var(--sw-text)" direction="rtl">מסדרון דרום</text></g>
+              <g data-cam="c3" transform="translate(940 60)"><path class="fov" d="M0 0 L-120 40 L-120 -10 Z" fill="var(--sw-fov)"/><circle r="9" fill="var(--sw-menu-surface)" stroke="var(--sw-recorded)" stroke-width="3"/><text x="0" y="26" text-anchor="middle" fill="var(--sw-text)" direction="rtl">ישיבות</text></g>
+              <g data-cam="c4" transform="translate(940 540)"><path class="fov" d="M0 0 L-120 -30 L-120 20 Z" fill="var(--sw-fov)"/><circle r="9" fill="var(--sw-menu-surface)" stroke="var(--sw-recorded)" stroke-width="3"/><text x="0" y="-14" text-anchor="middle" fill="var(--sw-text)" direction="rtl">מטבחון</text></g>
+            </g>
+            <!-- lights (small marks) -->
+            <g id="lights" fill="var(--sw-map-lit)">
+              <circle data-l="lobby" cx="190" cy="150" r="6"/><circle data-l="corr" cx="405" cy="300" r="6"/><circle data-l="officeA" cx="595" cy="160" r="6"/><circle data-l="meeting" cx="840" cy="160" r="6"/><circle data-l="officeB" cx="595" cy="400" r="6"/><circle data-l="server" cx="840" cy="350" r="6"/><circle data-l="kitchen" cx="840" cy="470" r="6"/>
+            </g>
+          </svg>
+          <div class="legend"><span><i style="background:var(--sw-recorded)"></i>יש הקלטה</span><span><i style="background:var(--sw-unknown)"></i>מקווקו = לא ידוע / לא מוקלט</span><span><i style="background:var(--sw-map-lit)"></i>מואר</span><span><i style="background:var(--sw-map-presence)"></i>נוכחות</span><span><i style="background:var(--sw-tl-door)"></i>דלת פתוחה</span></div>
+          <div class="gapbar"><svg class="ic"><use href="#i-warning"/></svg>פער בהקלטה <span class="ltr mono">13:40–14:55</span> — המערכת לא הייתה מחוברת. מצבי ההתקנים לא ידועים, המצלמות לפי ה־NVR.</div>
+          <div class="cover loading"><div class="state-panel"><div class="spin" aria-hidden="true"></div><h4>טוען את מצב הקומה…</h4><p>היסטוריה מקומית, הקלטות ואירועים.</p></div></div>
+          <div class="cover error"><div class="state-panel" data-state="error"><div class="icon"><svg class="ic"><use href="#i-warning"/></svg></div><h4>לא ניתן לטעון את המצב ההיסטורי</h4><p>המפה הנוכחית מוצגת ללא מצבים. נסו שוב.</p><button class="btn pri">ניסיון חוזר</button></div></div>
+          <div class="cover nohistory"><div class="state-panel"><div class="icon"><svg class="ic"><use href="#i-history"/></svg></div><h4>אין עדיין היסטוריה לקומה הזאת</h4><p>ההיסטוריה המקומית מתחילה <span class="ltr num">21.10.2026 09:12</span>. לפני כן מוצגת התוכנית בלבד, ההקלטות לפי ה־NVR.</p><button class="btn">לרגע הראשון המוקלט</button></div></div>
+        </div>
+
+        <!-- ===== the side panel ===== -->
+        <div class="panel">
+          <div class="card" id="layers-card">
+            <div class="hd"><h2>שכבות</h2><span class="grow"></span><span class="note">שמירה לכל שכבה</span></div>
+            <div class="layers" role="group" aria-label="שכבות">
+              <div class="lyr" data-layer="lights" data-look="ok"><button class="sw" role="switch" aria-checked="true" aria-label="תאורה"></button><span class="nm"><i style="background:var(--sw-map-lit)"></i>תאורה <span class="cov">· 30 יום</span></span><span class="st" style="color:var(--sw-success-text)">ידוע</span></div>
+              <div class="lyr" data-layer="presence" data-off="true"><button class="sw" role="switch" aria-checked="false" aria-label="נוכחות"></button><span class="nm"><i style="background:var(--sw-map-presence)"></i>נוכחות <span class="cov">· 7 ימים</span></span><span class="st" style="color:var(--sw-forbidden-text)"><svg class="ic"><use href="#i-lock"/></svg> לא מורשה</span></div>
+              <div class="lyr" data-layer="openings"><button class="sw" role="switch" aria-checked="true" aria-label="דלתות וחלונות"></button><span class="nm"><i style="background:var(--sw-tl-door)"></i>דלתות וחלונות <span class="cov">· 30 יום</span></span><span class="st" style="color:var(--sw-success-text)">ידוע</span></div>
+              <div class="lyr" data-layer="temperature"><button class="sw" role="switch" aria-checked="true" aria-label="טמפרטורה"></button><span class="nm"><i style="background:var(--sw-map-temp)"></i>טמפרטורה <span class="cov">· 30 / 400 יום</span></span><span class="st" style="color:var(--sw-warning-text)">חלקי</span></div>
+              <div class="lyr" data-layer="devices"><button class="sw" role="switch" aria-checked="true" aria-label="התקנים"></button><span class="nm"><i style="background:var(--sw-obj-electrical)"></i>התקנים <span class="cov">· 30 / 90 יום</span></span><span class="st" style="color:var(--sw-success-text)">ידוע</span></div>
+              <div class="lyr" data-layer="alarm"><button class="sw" role="switch" aria-checked="true" aria-label="אזעקה"></button><span class="nm"><i style="background:var(--sw-obj-safety)"></i>אזעקה <span class="cov">· 30 יום</span></span><span class="st" style="color:var(--sw-success-text)">ידוע</span></div>
+              <div class="lyr" data-layer="elevators"><button class="sw" role="switch" aria-checked="true" aria-label="מעליות"></button><span class="nm"><i style="background:var(--sw-obj-security)"></i>מעליות <span class="cov">· 8 ימים</span></span><span class="st" style="color:var(--sw-unknown-text)">מצב בלבד</span></div>
+              <div class="lyr" data-layer="cameras"><button class="sw" role="switch" aria-checked="true" aria-label="מצלמות"></button><span class="nm"><i style="background:var(--sw-recorded)"></i>מצלמות <span class="cov">· לפי ה־NVR</span></span><span class="st" style="color:var(--sw-success-text)">4 מ־4</span></div>
+              <div class="lyr" data-layer="events"><button class="sw" role="switch" aria-checked="true" aria-label="אירועים"></button><span class="nm"><i style="background:var(--sw-tl-motion)"></i>אירועים <span class="cov">· 30 יום</span></span><span class="st" style="color:var(--sw-success-text)">ידוע</span></div>
+            </div>
+          </div>
+
+          <div class="card" id="at-card">
+            <h2>בנקודת הזמן שנבחרה</h2><div class="sh">זמן ונתונים מאותו רגע</div>
+            <dl>
+              <dt>זמן</dt><dd><span class="ltr mono" id="at-time">2026-10-21 14:32:00</span> <span class="note">Asia/Jerusalem</span></dd>
+              <dt>מצלמה נבחרת</dt><dd id="at-cam">מסדרון דרום</dd>
+              <dt>הקלטה</dt><dd id="at-rec">יש הקלטה · <span class="ltr num">13:00–15:30</span> · רציף</dd>
+              <dt class="needs-dev">חדר</dt><dd class="needs-dev" id="at-room">משרד ב · מואר · דלת פתוחה · <span class="ltr num">22.8°</span></dd>
+              <dt class="needs-dev">התקנים</dt><dd class="needs-dev"><span id="at-known">11</span> מתוך 14 ידועים בזמן זה <span class="note">(היסטוריה מקומית מ־<span class="ltr num">21.09.2026</span>, 30 ימים)</span></dd>
+              <dt class="needs-alarm">אזעקה</dt><dd class="needs-alarm" id="at-alarm">דרוך בית · מ־<span class="ltr num">08:02:11</span></dd>
+              <dt>פריים</dt><dd><div class="frame"><div class="fake" aria-hidden="true"></div><span class="ts" id="frame-ts">2026-10-21 14:32:00</span></div></dd>
+              <dt>גרסת תוכנית</dt><dd>בתוקף באותו זמן · פורסמה <span class="ltr num">02.10.2026 11:40</span></dd>
+            </dl>
+            <div class="acts">
+              <button class="btn pri sm"><svg class="ic"><use href="#i-history"/></svg>נגן מכאן</button>
+              <button class="btn sm"><svg class="ic"><use href="#i-cams"/></svg>כל מצלמות הקומה מכאן</button>
+              <button class="btn sm"><svg class="ic"><use href="#i-case"/></svg>הוסף לתיק</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>אירועים סביב הזמן</h2><div class="sh">±10 דקות · מצלמות הקומה ומצבי הבניין</div>
+            <div class="evl" id="ev-list">
+              <a href="#" class="hit"><span>תנועה · מסדרון דרום<div class="s">התראה מה־NVR</div></span><span class="ltr mono">14:31:48</span></a>
+              <a href="#"><span>דלת נפתחה · משרד ב<div class="s">חיישן דלת</div></span><span class="ltr mono">14:30:05</span></a>
+              <a href="#"><span>אדם · לובי<div class="s">נגזר מהקלטה</div></span><span class="ltr mono">14:27:12</span></a>
+              <a href="#"><span>כניסה אושרה · דלת ראשית<div class="s">מערכת הדלתות · ייתכן חלקי</div></span><span class="ltr mono">14:26:40</span></a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== the timeline: playback bar + lanes. Time flows left -> right (the sw-timeline rule), never mirrored ===== -->
+      <div class="tl">
+        <div class="tlbar playbar">
+          <span class="badge">היסטורי</span>
+          <span class="time" id="tl-time">2026-10-21 14:32:00</span>
+          <button class="play only-play" id="play" aria-label="ניגון" aria-pressed="false"><svg class="ic" id="play-ic"><use href="#i-play"/></svg></button>
+          <div class="seg only-play" role="group" aria-label="מהירות" id="speed"><button aria-pressed="true" data-s="1">×1</button><button aria-pressed="false" data-s="10">×10</button><button aria-pressed="false" data-s="60">×60</button><button aria-pressed="false" data-s="600">×600</button></div>
+          <button class="chip" data-step="-60">-1 שעה</button><button class="chip" data-step="-5">-5 דק׳</button><button class="chip" data-step="5">+5 דק׳</button><button class="chip" data-step="60">+1 שעה</button>
+          <span class="grow"></span>
+          <div class="seg" role="group" aria-label="חלון" id="win"><button aria-pressed="true">יום</button><button aria-pressed="false">6 שע׳</button><button aria-pressed="false">שעה</button><button aria-pressed="false">10 דק׳</button></div>
+          <span class="dateq"><input class="sel ltr" type="date" value="2026-10-21" max="2026-10-23" aria-label="תאריך"></span>
+          <span class="note only-play"><span class="kbd">רווח</span> ניגון · <span class="kbd">←</span><span class="kbd">→</span> צעד</span>
+        </div>
+        <div class="track">
+          <div class="lanes">
+            <div class="ln" data-look="rec"><i></i>מצלמות</div><svg viewBox="0 0 1440 14" preserveAspectRatio="none" id="lane-cams" style="block-size:14px"></svg>
+            <div class="ln" style="--c:var(--sw-map-lit)"><i></i>תאורה</div><svg viewBox="0 0 1440 10" preserveAspectRatio="none" id="lane-lights" style="block-size:10px"></svg>
+            <div class="ln" style="--c:var(--sw-tl-door)"><i></i>דלתות</div><svg viewBox="0 0 1440 10" preserveAspectRatio="none" id="lane-doors" style="block-size:10px"></svg>
+            <div class="ln off" style="--c:var(--sw-map-presence)" id="ln-pres"><i></i>נוכחות</div><svg viewBox="0 0 1440 10" preserveAspectRatio="none" id="lane-pres" style="block-size:10px"></svg>
+            <div class="ln" style="--c:var(--sw-obj-safety)"><i></i>אזעקה</div><svg viewBox="0 0 1440 10" preserveAspectRatio="none" id="lane-alarm" style="block-size:10px"></svg>
+            <div class="ln" style="--c:var(--sw-obj-security)"><i></i>מעליות</div><svg viewBox="0 0 1440 10" preserveAspectRatio="none" id="lane-elev" style="block-size:10px"></svg>
+            <div class="ln" style="--c:var(--sw-tl-motion)"><i></i>אירועים</div><svg viewBox="0 0 1440 10" preserveAspectRatio="none" id="lane-ev" style="block-size:10px"></svg>
+          </div>
+          <svg viewBox="0 0 1440 34" preserveAspectRatio="none" id="axis" style="block-size:34px; margin-block-start:4px"></svg>
+          <input type="range" min="0" max="1439" step="1" value="872" id="cursor" aria-label="זמן" style="position:absolute; inset-inline-start:110px; inset-inline-end:10px; inset-block-start:8px; block-size:calc(100% - 44px); opacity:0; cursor:col-resize; margin:0; inline-size:calc(100% - 120px)">
+        </div>
+      </div>
+    </section>
+  </main>
+  <nav class="bottom" aria-label="ניווט תחתון">
+    <a href="#"><svg class="ic"><use href="#i-home"/></svg>ראשי</a>
+    <a href="#" class="active"><svg class="ic"><use href="#i-shield"/></svg>אבטחה</a>
+    <a href="#"><svg class="ic"><use href="#i-map"/></svg>מפה</a>
+    <a href="#"><svg class="ic"><use href="#i-bolt"/></svg>תשתיות</a>
+    <a href="#"><svg class="ic"><use href="#i-ticket"/></svg>בקשות</a>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* mockup-only script: a synthetic day of change-points per entity; the cursor (minute of the day) drives the plan, the panel and the
+   timeline. No product code. The replay rule of the product is kept: a state is known only from a recorded change-point before the
+   cursor (within the forward-fill window) - inside the recording gap everything is unknown, never "the last live value". */
+(function () {
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const q = new URLSearchParams(location.search);
+  const body = document.body;
+  // ---- URL switches ----
+  if (q.get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  body.dataset.st = q.get('state') || 'ready';
+  body.dataset.role = q.get('role') || 'full';
+  body.dataset.mode = q.get('mode') || 'snapshot';
+  if (q.get('sticky') === 'off') body.dataset.sticky = 'off';
+  $('#stsel').value = body.dataset.st; $('#role').value = body.dataset.role; $('#modesel').value = body.dataset.mode;
+  $('#th').setAttribute('aria-pressed', String(document.documentElement.dataset.theme === 'dark'));
+  $('#stsel').addEventListener('change', (e) => { body.dataset.st = e.target.value; render(); });
+  $('#role').addEventListener('change', (e) => { body.dataset.role = e.target.value; render(); });
+  $('#modesel').addEventListener('change', (e) => { body.dataset.mode = e.target.value; });
+  $('#th').addEventListener('click', () => { const d = document.documentElement.dataset.theme === 'dark'; if (d) delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = 'dark'; $('#th').setAttribute('aria-pressed', String(!d)); });
+
+  // ---- the synthetic day (minutes 0..1439): change-points [minute, state] per entity ----
+  const GAP = [820, 895]; // 13:40-14:55, the HA sync was down (state "gap" only)
+  const lights = {
+    lobby: [[0, 1]], corr: [[0, 1]], officeA: [[0, 0], [455, 1], [1100, 0]], meeting: [[0, 0], [540, 1], [600, 0], [780, 1], [930, 0]],
+    officeB: [[0, 0], [470, 1], [1080, 0]], server: [[0, 0], [610, 1], [625, 0], [1210, 1], [1230, 0]], kitchen: [[0, 0], [500, 1], [520, 0], [720, 1], [760, 0], [1000, 1], [1020, 0]],
+  };
+  const pres = {
+    lobby: [[0, 0], [430, 1], [445, 0], [600, 1], [605, 0], [870, 1], [880, 0]], corr: [[0, 0], [452, 1], [460, 0], [742, 1], [750, 0], [868, 1], [875, 0]],
+    officeA: [[0, 0], [456, 1], [700, 0], [800, 1], [1095, 0]], meeting: [[0, 0], [542, 1], [598, 0], [782, 1], [928, 0]], officeB: [[0, 0], [471, 1], [1078, 0]], server: [[0, 0], [612, 1], [624, 0]], kitchen: [[0, 0], [722, 1], [758, 0]],
+  };
+  const doors = {
+    'lobby-corr': [[0, 0], [452, 1], [453, 0], [742, 1], [743, 0], [866, 1], [867, 0]], 'corr-a': [[0, 0], [455, 1], [456, 0]], 'corr-b': [[0, 0], [470, 1], [471, 0], [870, 1]],
+    server: [[0, 0], [610, 1], [626, 0], [1208, 1], [1232, 0]], meeting: [[0, 0], [540, 1], [541, 0], [780, 1], [781, 0]], main: [[0, 0], [428, 1], [429, 0], [598, 1], [599, 0], [1100, 1], [1101, 0]],
+  };
+  const temps = { meeting: (m) => (22.4 + 1.6 * Math.sin((m - 600) / 220)).toFixed(1), server: (m) => (19.0 + 0.4 * Math.sin(m / 90)).toFixed(1), fridge: (m) => (4.0 + 0.6 * Math.sin(m / 37)).toFixed(1) };
+  const alarm = [[0, 'armed_home'], [482, 'disarmed'], [1140, 'armed_away']]; // 08:02 disarm, 19:00 arm away
+  const elev = [[0, 'ok'], [655, 'fault'], [700, 'ok']]; // 10:55-11:40 fault
+  const cams = { c1: [[0, 1439]], c2: [[0, 780], [780, 930], [930, 1439]], c3: [[0, 610], [640, 1439]], c4: [[0, 1439]] }; // c3 has a 30-minute NVR gap at 10:10-10:40
+  const camGaps = { c3: [[610, 640]] };
+  const events = [[431, 'person'], [453, 'motion'], [456, 'door'], [540, 'door'], [600, 'person'], [742, 'motion'], [866, 'motion'], [867, 'person'], [870, 'door'], [871, 'motion'], [1100, 'door'], [1208, 'door']];
+
+  const FF = 1440; // forward-fill window (24 h) - a whole day here
+  function stateAt(cp, m) { // last change-point at or before m; unknown (null) inside the gap
+    if (m >= GAP[0] && m <= GAP[1] && body.dataset.st === 'gap') return null;
+    let v = null; for (const [t, s] of cp) { if (t <= m && m - t <= FF) v = s; else if (t > m) break; } return v;
+  }
+  const pad = (n) => String(n).padStart(2, '0');
+  const hhmm = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+  const hhmmss = (m) => `${hhmm(m)}:00`;
+
+  const layerOn = (id) => $(`.lyr[data-layer="${id}"] .sw`).getAttribute('aria-checked') === 'true';
+  function devAllowed() { return body.dataset.role !== 'view'; }
+
+  // ---- render the plan at the cursor ----
+  function render() {
+    const m = Number($('#cursor').value);
+    const gap = body.dataset.st === 'gap' && m >= GAP[0] && m <= GAP[1];
+    const time = `2026-10-21 ${hhmmss(m)}`;
+    $('#tl-time').textContent = time; $('#at-time').textContent = time; $('#sub-time').textContent = time; $('#frame-ts').textContent = time;
+    $('#hist-tag').classList.toggle('gap', gap);
+    $('#hist-tag').innerHTML = gap ? `פער בהקלטה · <span class="ltr mono">${hhmmss(m)}</span>` : `מצב היסטורי · <span class="ltr mono">${hhmmss(m)}</span>`;
+    const dev = devAllowed();
+    // rooms: lit / presence washes
+    $$('#rooms [data-room]').forEach((g) => {
+      const id = g.dataset.room; const lit = g.querySelector('.lit'); const pr = g.querySelector('.pres'); if (!lit) return;
+      const l = dev && layerOn('lights') && !gap ? stateAt(lights[id] || [], m) : null;
+      lit.setAttribute('opacity', l === 1 ? '0.22' : '0');
+      const p = dev && layerOn('presence') && !gap ? stateAt(pres[id] || [], m) : null;
+      pr.setAttribute('opacity', p === 1 ? '0.18' : '0');
+    });
+    $$('#lights circle').forEach((c) => { const l = dev && layerOn('lights') && !gap ? stateAt(lights[c.dataset.l] || [], m) : null; c.setAttribute('fill', l === 1 ? 'var(--sw-map-lit)' : l === 0 ? 'var(--sw-map-furniture-line)' : 'none'); c.setAttribute('stroke', l === null ? 'var(--sw-unknown)' : 'none'); c.setAttribute('stroke-dasharray', l === null ? '2 2' : ''); });
+    // doors
+    $$('#doors [data-door]').forEach((g) => {
+      const id = g.dataset.door; const leaf = g.querySelector('.leaf'); const s = dev && layerOn('openings') && !gap ? stateAt(doors[id] || [], m) : null;
+      const x1 = +leaf.getAttribute('x1'), y1 = +leaf.getAttribute('y1'), x2 = +leaf.getAttribute('x2'), y2 = +leaf.getAttribute('y2');
+      const vertical = x1 === x2; const len = vertical ? Math.abs(y2 - y1) : Math.abs(x2 - x1);
+      leaf.setAttribute('transform', s === 1 ? `rotate(${vertical ? -70 : 70} ${x1} ${y1})` : '');
+      leaf.setAttribute('stroke', s === 1 ? 'var(--sw-tl-door)' : s === 0 ? 'var(--sw-map-structure)' : 'var(--sw-unknown)');
+      leaf.setAttribute('stroke-dasharray', s === null ? '5 4' : '');
+      void len;
+    });
+    // temperature chips
+    $$('#temps [data-temp]').forEach((g) => { const id = g.dataset.temp; const t = g.querySelector('.tv'); if (id === 'officeA') return; const on = (id === 'fridge' ? dev : dev && layerOn('temperature')) && !(gap && id !== 'fridge'); t.textContent = on ? (id === 'fridge' ? `מקרר ${temps.fridge(m)}°` : `${temps[id](m)}°`) : (id === 'fridge' ? 'מקרר —' : '—'); g.style.opacity = layerOn('temperature') ? '1' : '.35'; });
+    // alarm
+    const a = dev && layerOn('alarm') && !gap ? stateAt(alarm, m) : null;
+    const al = $('#alarm'); al.dataset.look = a === 'disarmed' ? 'off' : a === null ? 'unk' : a === 'armed_away' ? 'alarm' : 'ok';
+    $('#alarm-txt').textContent = a === 'disarmed' ? 'מנוטרל' : a === 'armed_away' ? 'דרוך מלא' : a === 'armed_home' ? 'דרוך בית' : 'לא ידוע';
+    $('#at-alarm').innerHTML = a ? `${$('#alarm-txt').textContent} · מ־<span class="ltr num">${hhmmss((alarm.filter(([t]) => t <= m).pop() || [0])[0])}</span>` : 'לא ידוע · פער';
+    al.style.opacity = layerOn('alarm') ? '1' : '.35';
+    // elevator state (derived state is recorded; the position never)
+    const e = dev && layerOn('elevators') ? stateAt(elev, m) : null; const ec = $('#elev-chip'); ec.dataset.look = e === 'fault' ? 'alarm' : e === null ? 'unk' : 'ok';
+    $('#elev-txt').textContent = `מעלית צפונית · ${e === 'fault' ? 'תקלה' : e === null ? 'לא ידוע' : 'תקין'}`;
+    $('#elev').style.opacity = layerOn('elevators') ? '1' : '.35';
+    // cameras: blue ring when a segment covers m, dashed otherwise
+    $$('#cams [data-cam]').forEach((g) => { const id = g.dataset.cam; const c = g.querySelector('circle'); const ok = layerOn('cameras') && (cams[id] || []).some(([a2, b]) => m >= a2 && m <= b) && !(camGaps[id] || []).some(([a2, b]) => m >= a2 && m <= b);
+      c.setAttribute('stroke', ok ? 'var(--sw-recorded)' : 'var(--sw-unknown)'); c.setAttribute('stroke-dasharray', ok ? '' : '4 3'); g.querySelector('.fov').setAttribute('fill', ok ? 'var(--sw-fov)' : 'transparent'); g.style.opacity = layerOn('cameras') ? '1' : '.35'; });
+    // the panel
+    const c2ok = !(m >= 780 && m <= 930) || true; void c2ok;
+    $('#at-rec').innerHTML = `יש הקלטה · <span class="ltr num">${m < 780 ? '00:00–13:00' : m <= 930 ? '13:00–15:30' : '15:30–24:00'}</span> · רציף`;
+    const lB = stateAt(lights.officeB, m), dB = stateAt(doors['corr-b'], m), pB = stateAt(pres.officeB, m);
+    $('#at-room').innerHTML = gap || !dev ? 'משרד ב · <span class="note">לא ידוע בזמן זה</span>' : `משרד ב · ${lB === 1 ? 'מואר' : 'חשוך'} · ${dB === 1 ? 'דלת פתוחה' : 'דלת סגורה'}${layerOn('presence') ? (pB === 1 ? ' · נוכחות' : ' · ללא נוכחות') : ''} · <span class="ltr num">${(21.9 + (lB === 1 ? 0.9 : 0)).toFixed(1)}°</span>`;
+    $('#at-known').textContent = gap ? '0' : '11';
+    // layer rows: statuses by role / gap
+    const presRow = $('.lyr[data-layer="presence"]'); const presSt = presRow.querySelector('.st');
+    presSt.innerHTML = '<svg class="ic"><use href="#i-lock"/></svg> לא מורשה'; presSt.style.color = 'var(--sw-forbidden-text)'; presRow.querySelector('.sw').setAttribute('disabled', ''); presRow.querySelector('.sw').setAttribute('aria-checked', 'false');
+    ['lights', 'openings', 'temperature', 'devices', 'alarm', 'elevators', 'events'].forEach((id) => { const r = $(`.lyr[data-layer="${id}"]`); const st = r.querySelector('.st'); const sw = r.querySelector('.sw');
+      if (!dev) { st.innerHTML = '<svg class="ic"><use href="#i-lock"/></svg> לא מורשה'; st.style.color = 'var(--sw-forbidden-text)'; sw.setAttribute('disabled', ''); sw.setAttribute('aria-checked', 'false'); r.dataset.off = 'true'; }
+      else if (gap && id !== 'elevators' && id !== 'events') { st.textContent = 'פער'; st.style.color = 'var(--sw-warning-text)'; sw.removeAttribute('disabled'); }
+      else { sw.removeAttribute('disabled'); if (sw.getAttribute('aria-checked') === 'false' && r.dataset.off === 'true' && body.dataset.role === 'full' && id !== 'presence') { sw.setAttribute('aria-checked', 'true'); delete r.dataset.off; }
+        st.textContent = id === 'elevators' ? 'מצב בלבד' : id === 'temperature' ? 'חלקי' : 'ידוע'; st.style.color = id === 'elevators' ? 'var(--sw-unknown-text)' : id === 'temperature' ? 'var(--sw-warning-text)' : 'var(--sw-success-text)'; } });
+    drawCursor(m);
+  }
+
+  // ---- layer toggles ----
+  $$('.lyr .sw').forEach((sw) => sw.addEventListener('click', () => { if (sw.hasAttribute('disabled')) { toast('אין הרשאה לשכבה הזאת'); return; } const on = sw.getAttribute('aria-checked') === 'true'; sw.setAttribute('aria-checked', String(!on)); sw.closest('.lyr').dataset.off = String(on); render(); }));
+
+  // ---- the timeline lanes (viewBox 1440 = minutes of the day; time flows left -> right) ----
+  function rect(x, w, y, h, fill, extra) { return `<rect x="${x}" y="${y}" width="${Math.max(w, 1.5)}" height="${h}" fill="${fill}" ${extra || ''}/>`; }
+  function drawLanes() {
+    const gapHatch = body.dataset.st === 'gap' ? rect(GAP[0], GAP[1] - GAP[0], 0, 10, 'url(#lhatch)') : '';
+    const hatchDef = `<defs><pattern id="lhatch" patternUnits="userSpaceOnUse" width="6" height="10" patternTransform="skewX(-30)"><rect width="3" height="10" fill="var(--sw-warning)" opacity=".45"/></pattern></defs>`;
+    // cameras: a bar per camera stacked thin (4 cameras, 3 px each), the NVR gap left empty
+    let s = hatchDef; const ids = Object.keys(cams); ids.forEach((id, i) => { (cams[id] || []).forEach(([a, b]) => { const gaps = camGaps[id] || []; let x = a; gaps.forEach(([ga, gb]) => { if (ga > x && ga < b) { s += rect(x, ga - x, i * 3.4, 2.8, 'var(--sw-recorded)'); x = gb; } }); s += rect(x, b - x, i * 3.4, 2.8, 'var(--sw-recorded)'); }); });
+    $('#lane-cams').innerHTML = s;
+    const changes = (obj) => { let s2 = hatchDef; Object.values(obj).forEach((cp) => cp.forEach(([t, v], i) => { if (i === 0) return; s2 += rect(t, 2, v === 1 ? 0 : 5, v === 1 ? 10 : 5, v === 1 ? 'var(--c, var(--sw-accent))' : 'var(--sw-text-3)', 'opacity=".9"'); })); return s2 + gapHatch; };
+    $('#lane-lights').innerHTML = `<g style="--c:var(--sw-map-lit)">${changes(lights)}</g>`;
+    $('#lane-doors').innerHTML = `<g style="--c:var(--sw-tl-door)">${changes(doors)}</g>`;
+    $('#lane-pres').innerHTML = hatchDef + (layerOn('presence') && devAllowed() ? `<g style="--c:var(--sw-map-presence)">${changes(pres)}</g>` : rect(0, 1440, 3, 4, 'var(--sw-unknown-soft)') + `<text x="720" y="8" text-anchor="middle" font-size="7" fill="var(--sw-unknown-text)" font-family="var(--sw-font)" direction="rtl">לא מורשה</text>`);
+    let al = hatchDef; alarm.forEach(([t, v], i) => { const next = alarm[i + 1] ? alarm[i + 1][0] : 1440; al += rect(t, next - t, 3, 4, v === 'disarmed' ? 'var(--sw-offline)' : v === 'armed_away' ? 'var(--sw-danger)' : 'var(--sw-success)', 'opacity=".75"'); }); $('#lane-alarm').innerHTML = al + gapHatch;
+    let el = hatchDef; elev.forEach(([t, v], i) => { const next = elev[i + 1] ? elev[i + 1][0] : 1440; el += rect(t, next - t, 3, 4, v === 'fault' ? 'var(--sw-danger)' : 'var(--sw-success)', 'opacity=".75"'); }); $('#lane-elev').innerHTML = el;
+    let ev = hatchDef; events.forEach(([t, k]) => { ev += rect(t - 1, 3, 0, 10, k === 'door' ? 'var(--sw-tl-door)' : k === 'person' ? 'var(--sw-tl-person)' : 'var(--sw-tl-motion)'); }); $('#lane-ev').innerHTML = ev;
+    // axis: ticks every hour, labels every 3 h, the future greyed (today only - this is a past day, nothing greyed)
+    let ax = ''; for (let h = 0; h <= 24; h++) { const x = h * 60; ax += `<line x1="${x}" x2="${x}" y1="0" y2="${h % 3 === 0 ? 8 : 4}" stroke="var(--sw-border-strong)" stroke-width="1.5"/>`; if (h % 3 === 0 && h < 24) ax += `<text x="${x + 3}" y="22" font-size="9" fill="var(--sw-text-3)" font-family="var(--sw-font-mono)">${pad(h)}:00</text>`; }
+    $('#axis').innerHTML = ax + '<g id="cur"></g>';
+  }
+  function drawCursor(m) {
+    const g = $('#cur'); if (!g) return;
+    const lab = hhmm(m); const w = 40; const bx = Math.min(Math.max(m - w / 2, 0), 1440 - w);
+    g.innerHTML = `<rect x="${bx}" y="0" width="${w}" height="16" rx="3" fill="var(--sw-accent)"/><text x="${bx + w / 2}" y="11.5" text-anchor="middle" font-size="9" font-weight="600" fill="#fff" font-family="var(--sw-font-mono)">${lab}</text>`;
+    $$('.lanes svg').forEach((l) => { let c = l.querySelector('.cur-line'); if (!c) { c = document.createElementNS('http://www.w3.org/2000/svg', 'line'); c.setAttribute('class', 'cur-line'); c.setAttribute('stroke', 'var(--sw-accent)'); c.setAttribute('stroke-width', '2'); c.setAttribute('y1', '0'); c.setAttribute('y2', '14'); l.appendChild(c); } c.setAttribute('x1', m); c.setAttribute('x2', m); });
+  }
+
+  // ---- cursor, steps, play ----
+  const cur = $('#cursor');
+  cur.addEventListener('input', render);
+  $$('[data-step]').forEach((b) => b.addEventListener('click', () => { cur.value = Math.max(0, Math.min(1439, Number(cur.value) + Number(b.dataset.step))); render(); }));
+  let timer = 0, speed = 1;
+  $$('#speed button').forEach((b) => b.addEventListener('click', () => { $$('#speed button').forEach((x) => x.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); speed = Number(b.dataset.s); }));
+  $$('#win button').forEach((b) => b.addEventListener('click', () => { $$('#win button').forEach((x) => x.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); toast('הדגם מציג יום שלם; חלונות קצרים יותר - כמו בציר הזמן של ההקלטות'); }));
+  function setPlay(on) { const p = $('#play'); p.setAttribute('aria-pressed', String(on)); $('#play-ic').innerHTML = `<use href="#i-${on ? 'pause' : 'play'}"/>`; p.setAttribute('aria-label', on ? 'השהיה' : 'ניגון'); clearInterval(timer); timer = 0;
+    if (on) timer = setInterval(() => { const v = Number(cur.value) + Math.max(1, Math.round(speed / 10)); if (v >= 1439) { cur.value = 1439; render(); setPlay(false); return; } cur.value = v; render(); }, 250); }
+  $('#play').addEventListener('click', () => setPlay(!timer));
+  window.addEventListener('keydown', (e) => { if (e.target.matches('input,select,textarea')) return; if (e.key === ' ' && body.dataset.mode === 'play') { e.preventDefault(); setPlay(!timer); } if (e.key === 'ArrowRight') { cur.value = Math.min(1439, Number(cur.value) + 1); render(); } if (e.key === 'ArrowLeft') { cur.value = Math.max(0, Number(cur.value) - 1); render(); } });
+  let tt = 0; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2200); }
+  $('#stsel').addEventListener('change', drawLanes);
+  $('#role').addEventListener('change', drawLanes);
+  $$('.lyr .sw').forEach((sw) => sw.addEventListener('click', drawLanes));
+  drawLanes(); render();
+})();
+</script>
+</body>
+</html>
