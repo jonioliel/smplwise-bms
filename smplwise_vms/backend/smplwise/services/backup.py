@@ -108,7 +108,9 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    # PARTNERAPI113-295: partner tokens (hashes), webhook targets and sealed secrets, queued payloads, the delivery log,
                                    # idempotency answers and the partner links of requests - a restore leaves the partner state of the target box alone
                                    "partner_clients", "partner_tokens", "partner_endpoints", "partner_outbox", "partner_deliveries",
-                                   "partner_idempotency", "partner_ticket_links"})
+                                   "partner_idempotency", "partner_ticket_links",
+                                   # ATTEST232-295: hardware-attestation verdicts - a restore must never manufacture a "verified" device
+                                   "app_refresh_attestations"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -232,6 +234,9 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"occupancy.enabled", "occupancy.retention_days"
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
 # APPREFRESH3-295: the key-reset notice wording sits with the rest of the app sign-in policy (kept, never taken from an archive)
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_key_reset_notice_title", "security.app_refresh_key_reset_notice_body"}
+# ATTEST232-295: the attestation mode, minimum level and trust roots are security policy - a restore must never weaken or swap them
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_attestation", "security.app_refresh_attestation_min_level",
+                                 "security.app_refresh_attestation_android_roots"}
 
 
 def _kept_setting(key: Any) -> bool:

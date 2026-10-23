@@ -23,6 +23,7 @@ TOKENS with reuse detection, and the short-lived ACCESS TOKENS a refresh hands o
 from __future__ import annotations
 
 import calendar
+import datetime
 import hashlib
 import hmac
 import logging
@@ -36,8 +37,9 @@ from ..db import Database, get_setting, new_id, set_setting
 from ..errors import ApiError
 from ..rbac import LOCAL_ADMIN_PERMISSIONS, Principal, permissions_anywhere
 from . import app_refresh_key as dk
+from . import device_attestation as att
 
-log = logging.getLogger("smplwise.app_refresh")
+log =logging.getLogger("smplwise.app_refresh")
 
 FEATURE_KEY = "security.app_refresh"
 REFRESH_PREFIX = "arxr_"
@@ -73,7 +75,17 @@ NOTICE_DEFAULTS: dict[str, tuple[str, int]] = {
     NOTICE_BODY_KEY: ("מנהל המערכת אישר איפוס של מפתח האבטחה במכשיר {device}. יש להיכנס מחדש באפליקציה עד {until}. אם לא ביקשת זאת - פנה למנהל המערכת.", 180),
 }
 NOTICE_PLACEHOLDERS = ("{device}", "{until}")
-SETTING_KEYS = (FEATURE_KEY, DEVICE_KEY_KEY, *POLICY, *NOTICE_DEFAULTS)
+# ATTEST232-295 (docs/changes/CR-ATTEST232.md): hardware attestation of the device key. off (default) = nothing is asked or recorded |
+# log_only = a verdict is recorded and audited at every mint, nothing is ever refused | required = a mint is refused unless the key's
+# attestation verified at or above the minimum level. Every value is editable in the Settings.
+ATTEST_MODE_KEY = "security.app_refresh_attestation"
+ATTEST_MODES = ("off", "log_only", "required")
+ATTEST_MODE_DEFAULT = "off"
+ATTEST_LEVEL_KEY = "security.app_refresh_attestation_min_level"  # software | tee | strongbox
+ATTEST_LEVEL_DEFAULT = "tee"
+ATTEST_ROOTS_KEY = "security.app_refresh_attestation_android_roots"  # PEM text of the trusted Android attestation roots; empty = none
+ATTEST_SETTING_KEYS = (ATTEST_MODE_KEY, ATTEST_LEVEL_KEY, ATTEST_ROOTS_KEY)
+SETTING_KEYS = (FEATURE_KEY, DEVICE_KEY_KEY, *POLICY, *NOTICE_DEFAULTS, *ATTEST_SETTING_KEYS)
 # APPREFRESH3-295: an administrator-approved device-key reset lets the device's next mint bind a new key without the old key's proof, once,
 # within this window (then the pin holds again). A constant, like the retry grace.
 RESET_WINDOW_S = 24 * 3600
@@ -103,7 +115,8 @@ NOT_FOUND_HE = "Not found"
 KEY_HE = "מפתח המכשיר אינו תקין. יש לעדכן את האפליקציה ולהיכנס מחדש."
 PROOF_RETRY_HE = "יש לחזור על הבקשה."
 KEY_BOUND_HE = "המכשיר הזה רשום עם מפתח אבטחה אחר. אם המפתח אבד, בקשו ממנהל המערכת לאפס אותו."
-NO_KEY_HE = "למכשיר הזה אין מפתח אבטחה רשום."
+ATTEST_HE = "לא ניתן לאמת שמפתח האבטחה נוצר בחומרה מאובטחת של המכשיר. יש לעדכן את האפליקציה ולהיכנס מחדש."
+NO_KEY_HE ="למכשיר הזה אין מפתח אבטחה רשום."
 REASON_HE = f"יש לכתוב סיבה ({RESET_REASON_MIN}-{RESET_REASON_MAX} תווים)."
 SELF_RESET_HE = "איפוס מפתח של המכשיר שלך מאשרים רק מתוך הרשת המקומית."
 NOTICE_INVALID_HE = "נוסח ההודעה: טקסט רגיל, עם {device} ו־{until} בלבד."
@@ -221,6 +234,38 @@ def mode_rank(mode: str) -> int:
     return DEVICE_KEY_MODES.index(mode) if mode in DEVICE_KEY_MODES else len(DEVICE_KEY_MODES)
 
 
+def attest_mode(conn: sqlite3.Connection) -> str:
+    v = (get_setting(conn, ATTEST_MODE_KEY, ATTEST_MODE_DEFAULT) or ATTEST_MODE_DEFAULT).strip()
+    return v if v in ATTEST_MODES else "required"  # a hand-edited unknown value fails closed
+
+
+def attest_mode_rank(mode: str) -> int:
+    return ATTEST_MODES.index(mode) if mode in ATTEST_MODES else len(ATTEST_MODES)
+
+
+def attest_min_level(conn: sqlite3.Connection) -> str:
+    v = (get_setting(conn, ATTEST_LEVEL_KEY, ATTEST_LEVEL_DEFAULT) or ATTEST_LEVEL_DEFAULT).strip()
+    return v if v in att.LEVELS else "strongbox"  # a hand-edited unknown value fails closed (the highest bar)
+
+
+def attest_roots(conn: sqlite3.Connection) -> str:
+    return (get_setting(conn, ATTEST_ROOTS_KEY, "") or "")[:att.MAX_ROOTS_PEM]
+
+
+def clean_roots(value: Any) -> str | None:
+    """PEM trust roots as stored: only the certificate blocks, one per paragraph. '' (none) is valid. None = invalid."""
+    if value is None or value == "":
+        return ""
+    if not isinstance(value, str) or len(value) > att.MAX_ROOTS_PEM:
+        return None
+    try:
+        certs = att.parse_roots(value)
+    except ValueError:
+        return None
+    from cryptography.hazmat.primitives import serialization
+    return "".join(c.public_bytes(serialization.Encoding.PEM).decode("ascii") for c in certs)
+
+
 def clean_notice(value: Any, max_len: int) -> str | None:
     """A notice template as stored: whitespace folded, 1..max_len characters, no braces except the two placeholders. None = invalid."""
     if not isinstance(value, str):
@@ -246,6 +291,7 @@ def render_notice(template: str, device: str, until: str) -> str:
 
 def settings_out(conn: sqlite3.Connection) -> dict[str, Any]:
     return {FEATURE_KEY: "on" if enabled(conn) else "off", DEVICE_KEY_KEY: device_key_mode(conn), **policy(conn),
+            ATTEST_MODE_KEY: attest_mode(conn), ATTEST_LEVEL_KEY: attest_min_level(conn), ATTEST_ROOTS_KEY: attest_roots(conn),
             **{k: notice_template(conn, k) for k in NOTICE_DEFAULTS}}
 
 
@@ -264,6 +310,22 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
                 raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key, "allowed": list(DEVICE_KEY_MODES)})
             if value != device_key_mode(conn):
                 changes[key] = value
+        elif key == ATTEST_MODE_KEY:
+            if value not in ATTEST_MODES:
+                raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key, "allowed": list(ATTEST_MODES)})
+            if value != attest_mode(conn):
+                changes[key] = value
+        elif key == ATTEST_LEVEL_KEY:
+            if value not in att.LEVELS:
+                raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key, "allowed": list(att.LEVELS)})
+            if value != attest_min_level(conn):
+                changes[key] = value
+        elif key == ATTEST_ROOTS_KEY:
+            pem = clean_roots(value)
+            if pem is None:
+                raise ApiError(422, "validation", "תעודות האמון אינן תקינות.", details={"field": key, "max": att.MAX_ROOTS_PEM})
+            if pem != attest_roots(conn):
+                changes[key] = pem
         elif key in NOTICE_DEFAULTS:
             default, max_len = NOTICE_DEFAULTS[key]
             text = default if value is None else clean_notice(value, max_len)
@@ -288,6 +350,11 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
         ended = revoke_all(conn, "feature_off", actor=actor, request_id=request_id)
     elif changes.get(DEVICE_KEY_KEY) == "required":  # no family without a key from now on: the keyless ones end at once
         ended = _revoke(conn, "device_key_fp IS NULL", (), "device_key_required", actor=actor, request_id=request_id, subject="*")
+    if changes.get(ATTEST_MODE_KEY) == "required" and changes.get(FEATURE_KEY) != "off":
+        # no sign-in without a verified attestation of its own key from now on: the others end at once (like device_key `required`)
+        ended += _revoke(conn, "NOT EXISTS (SELECT 1 FROM app_refresh_attestations a WHERE a.device_id = app_refresh_families.device_id "
+                               "AND a.status = 'verified' AND a.key_fp = app_refresh_families.device_key_fp)", (), "attestation_required",
+                         actor=actor, request_id=request_id, subject="*")
     if FEATURE_KEY in changes:
         audit(conn, actor=actor, action="auth.app_refresh.feature_enabled" if changes[FEATURE_KEY] == "on" else "auth.app_refresh.feature_disabled",
               decision="allowed", resource_type="installation", resource_id="app_refresh", request_id=request_id,
@@ -451,6 +518,66 @@ def _mint_key(conn: sqlite3.Connection, principal: Principal, device_id: str, de
                   request_id=request_id, details={"family": pin["family_id"], "old_key_fp": dk.fingerprint_prefix(pin["fp"]), "new_key_fp": new_fp,
                                                   "device_key_mode": mode, "via": "old_key"})
     return key
+
+
+# ---------------------------------------------------------------- hardware attestation (ATTEST232-295, migration 0176)
+
+def attestation_status(conn: sqlite3.Connection, device_id: str) -> dict[str, Any]:
+    """What an administrator (or the device's user) sees of the last verdict: never the chain, a 16-hex key prefix at most."""
+    try:
+        row = conn.execute("SELECT * FROM app_refresh_attestations WHERE device_id = ?", (device_id,)).fetchone()
+    except sqlite3.OperationalError as exc:  # a database before migration 0176
+        if _tables_missing(exc):
+            row = None
+        else:
+            raise
+    if row is None:
+        return {"device_id": device_id, "checked": False}
+    return {"device_id": device_id, "checked": True, "status": row["status"], "level": row["level"], "format": row["format"],
+            "key_fp": dk.fingerprint_prefix(row["key_fp"]), "mode": row["mode"], "reason": row["reason"], "checked_at": row["checked_at"]}
+
+
+def _attest(conn: sqlite3.Connection, principal: Principal, device_id: str, install_id: str, key: tuple[str, str] | None,
+            device_key: dict[str, Any] | None, request_id: str | None) -> dict[str, Any] | None:
+    """The attestation gate of a mint. Mode off: nothing happens (None). log_only: the verdict is stored and audited, the mint always goes
+    on. required: the mint is refused (422, nothing ends) unless the key's attestation `verified` at or above the minimum level. A
+    verifier that cannot judge (`unavailable`: no trust roots, no verifier installed) is NOT a pass in `required`."""
+    mode = attest_mode(conn)
+    if mode == "off":
+        return None
+    min_level = attest_min_level(conn)
+    sent = (device_key or {}).get("attestation")
+    fmt = sent.get("format") if isinstance(sent, dict) else None
+    verdict: att.Verdict
+    if key is None:
+        verdict = att.Verdict(att.MISSING, reason="no_device_key")  # an attestation vouches for a key; no key bound, nothing to vouch for
+    elif not isinstance(sent, dict):
+        verdict = att.Verdict(att.MISSING, reason="not_sent")
+    else:
+        ctx = att.Context(device_id=device_id, install_id=install_id, key_spki=dk.b64u_decode(key[0], max_len=400),
+                          challenge=att.challenge_for(device_id, install_id), trust_roots_pem=attest_roots(conn),
+                          now=datetime.datetime.fromtimestamp(_now(), datetime.timezone.utc), settings={"min_level": min_level})
+        verdict = att.check(fmt, sent.get("data"), ctx)
+    passed = verdict.status == att.VERIFIED and att.level_rank(verdict.level) >= att.level_rank(min_level)
+    reason = verdict.reason if verdict.status != att.VERIFIED else (None if passed else "level_too_low")
+    conn.execute(
+        """INSERT INTO app_refresh_attestations(device_id, user_id, status, level, format, key_fp, mode, reason, checked_at)
+           VALUES (?,?,?,?,?,?,?,?,?)
+           ON CONFLICT(device_id) DO UPDATE SET user_id = excluded.user_id, status = excluded.status, level = excluded.level, format = excluded.format,
+               key_fp = excluded.key_fp, mode = excluded.mode, reason = excluded.reason, checked_at = excluded.checked_at""",
+        (device_id, principal.user_id, verdict.status, verdict.level, fmt if fmt in att.FORMATS else None, key[1] if key else None, mode, reason,
+         iso(_now())))
+    refused = mode == "required" and not passed
+    audit(conn, actor=principal, action="auth.app_refresh.attestation", decision="denied" if refused else "allowed", resource_type="mobile_device",
+          resource_id=device_id, reason=reason, request_id=request_id,
+          details={"mode": mode, "status": verdict.status, "level": verdict.level, "format": fmt if fmt in att.FORMATS else None,
+                   "min_level": min_level, **({"key_fp": dk.fingerprint_prefix(key[1])} if key else {})})
+    if refused:
+        code = {att.MISSING: "attestation_required", att.UNAVAILABLE: "attestation_unavailable"}.get(verdict.status, "attestation_invalid")
+        if verdict.status == att.VERIFIED:
+            code = "attestation_level_too_low"
+        raise Refused(422, code, ATTEST_HE)
+    return {"mode": mode, "status": verdict.status, "level": verdict.level, "enforced": mode == "required"}
 
 
 # ---------------------------------------------------------------- the device-key pin (APPREFRESH3-295, migration 0158)
@@ -772,6 +899,7 @@ def issue(conn: sqlite3.Connection, principal: Principal, device_id: str, instal
     if not take("app_refresh.issue", principal.user_id, RATE_ISSUE):
         raise Refused(429, "rate_limited", RATE_HE, retryable=True, details={"retry_after_s": 60})
     key = _mint_key(conn, principal, device_id, device_key, request_id)  # before the old family is replaced: a refused key ends nothing
+    attestation = _attest(conn, principal, device_id, install_id, key, device_key, request_id)  # ATTEST232: also before anything ends
     revoke_device(conn, device_id, "replaced", actor=principal, request_id=request_id)
     now = _now()
     admin = _holds_admin(conn, principal.user_id)
@@ -794,7 +922,10 @@ def issue(conn: sqlite3.Connection, principal: Principal, device_id: str, instal
           details={"family": fam_id, "anchor": anchor_kind, "admin_capped": admin, "via": channel,
                    "device_key": dk.ALG if key else None, **({"key_fp": dk.fingerprint_prefix(key[1])} if key else {})})
     fam = conn.execute("SELECT * FROM app_refresh_families WHERE family_id = ?", (fam_id,)).fetchone()
-    return _answer(fam, refresh, access, access_exp, idle_exp)
+    out = _answer(fam, refresh, access, access_exp, idle_exp)
+    if attestation is not None:  # only while the mode is not off: an `off` installation answers exactly as before
+        out["attestation"] = attestation
+    return out
 
 
 # ---------------------------------------------------------------- refresh

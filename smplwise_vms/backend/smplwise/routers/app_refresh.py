@@ -106,6 +106,15 @@ class ReplaceProofIn(BaseModel):
     sig: str = Field(min_length=1, max_length=120)
 
 
+class AttestationIn(BaseModel):
+    """ATTEST232: hardware attestation of the device key (docs/changes/CR-ATTEST232.md section 4). `data` is the certificate chain (Android,
+    leaf first, base64 DER) or the attestation object (iOS); its contents are judged by the verifier, never here."""
+    model_config = ConfigDict(extra="forbid")
+
+    format: Literal["android_key_attestation", "ios_app_attest"]
+    data: list[str] = Field(min_length=1, max_length=8)
+
+
 class DeviceKeyIn(BaseModel):
     """APPREFRESH2: the public half of the app's hardware key (docs/changes/APPREFRESH-DEVICEKEY-SPEC.md section 3)."""
     model_config = ConfigDict(extra="forbid")
@@ -114,6 +123,7 @@ class DeviceKeyIn(BaseModel):
     public_key: str = Field(min_length=40, max_length=200)
     proof: MintProofIn
     replaces: ReplaceProofIn | None = None
+    attestation: AttestationIn | None = None
 
 
 class IssueIn(BaseModel):
@@ -332,6 +342,18 @@ def device_key(device_id: str, request: Request, caller: Caller = Depends(sessio
         return svc.key_status(conn, device_id[:64])
 
 
+@router.get("/auth/app/devices/{device_id}/attestation")
+def device_attestation(device_id: str, request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
+    """ATTEST232: the last hardware-attestation verdict of the device (never the chain): its user, or system.configure."""
+    with _db(request).connection(mode="read", label="app_refresh.attestation") as conn:
+        touch_user(conn, caller.principal)
+        owner = _device_owner(conn, device_id)
+        if owner is None:
+            raise ApiError(404, "not_found", svc.DEVICE_HE)
+        _may_manage(conn, caller, owner, request)
+        return svc.attestation_status(conn, device_id[:64])
+
+
 @router.post("/auth/app/devices/{device_id}/key-reset")
 def approve_key_reset(device_id: str, body: KeyResetIn, request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
     """A system administrator approves a device-key reset (the lost-key path): audited, the user notified, the old sign-in ended."""
@@ -364,6 +386,15 @@ def _require_admin(conn, caller: Caller, request: Request, action: str) -> None:
         raise ApiError(403, "forbidden", "רק מנהל מערכת יכול לשנות את הכניסה השמורה באפליקציה.")
 
 
+def _attestation_weakened(conn, body: dict[str, Any]) -> bool:
+    mode, level, roots = body.get(svc.ATTEST_MODE_KEY), body.get(svc.ATTEST_LEVEL_KEY), body.get(svc.ATTEST_ROOTS_KEY)
+    if mode in svc.ATTEST_MODES and svc.attest_mode_rank(mode) < svc.attest_mode_rank(svc.attest_mode(conn)):
+        return True
+    if level in svc.att.LEVELS and svc.att.level_rank(level) < svc.att.level_rank(svc.attest_min_level(conn)):
+        return True
+    return svc.ATTEST_ROOTS_KEY in body and roots != svc.attest_roots(conn) and svc.clean_roots(roots) != svc.attest_roots(conn)
+
+
 @router.get("/auth/app/settings")
 def get_settings(request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
     with _db(request).connection(mode="read", label="app_refresh.settings") as conn:
@@ -385,6 +416,11 @@ def put_settings(request: Request, body: dict[str, Any] = Body(...), caller: Cal
                   resource_id="app_refresh", reason="local_channel_only", request_id=_rid(request))
             raise ApiError(403, "local_channel_only", "את הכניסה השמורה באפליקציה מפעילים רק מתוך הרשת המקומית.")
         wanted = body.get(svc.DEVICE_KEY_KEY)
+        if remote and _attestation_weakened(conn, body):
+            # ATTEST232: lowering the attestation mode or minimum level, or replacing the trust roots, is a local-channel act
+            audit(conn, actor=caller.principal, action="auth.app_refresh.settings", decision="denied", resource_type="installation",
+                  resource_id="app_refresh", reason="local_channel_only", request_id=_rid(request), details={"attestation": True})
+            raise ApiError(403, "local_channel_only", "את דרישת אימות החומרה מחלישים או משנים רק מתוך הרשת המקומית.")
         if remote and wanted in svc.DEVICE_KEY_MODES and svc.mode_rank(wanted) < svc.mode_rank(svc.device_key_mode(conn)):
             # APPREFRESH2: weakening the device-key mode is a local-channel act (like switching the feature on); raising it works anywhere
             audit(conn, actor=caller.principal, action="auth.app_refresh.settings", decision="denied", resource_type="installation",
