@@ -181,7 +181,7 @@ def explain(*, kind: str, start_ts: float, end_ts: float | None, now_ts: float, 
     rate = _slope_h(climb)
     strong = any(f["score"] >= 60 and f["key"] not in ("local",) for f in factors)
     if high_side and not strong:
-        pre = [(p[0], p[1]) for p in win_pts]
+        pre = [(p[0], p[1]) for p in win_pts if p[0] < S]  # the climb BEFORE the start (the first out-of-band reading is not part of it)
         r_pre = _slope_h(pre)
         if r_pre is not None and 0.3 <= r_pre <= 4.0:
             factors.append(_factor("gradual", 45, rate_h=round(r_pre, 2)))

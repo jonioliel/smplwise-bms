@@ -239,6 +239,30 @@ export interface UnitsResponse {
   grouping?: 'area' | 'none';
   home_widget?: boolean;
   ticket_department_id?: string | null;
+  /** TEMPEXPLAIN093-295 (additive): the "why?" explanation of an excursion is offered (installation setting explain_enabled) */
+  explain?: boolean;
+}
+
+/** TEMPEXPLAIN093-295: one factor of a rule-based excursion explanation - a key (the words live in i18n/temperature), its score and its evidence. */
+export type ExplainKey = 'maint' | 'defrost' | 'door' | 'outage' | 'compressor_off' | 'compressor_no_power' | 'compressor_on' | 'unit_off' | 'setpoint' | 'gap' | 'spike' | 'shared' | 'local' | 'gradual';
+export interface ExplainFactor {
+  key: ExplainKey;
+  score: number;
+  vars: Record<string, string | number | boolean | null | string[]>;
+}
+export interface Explanation {
+  unit_id: string;
+  event_id: string | null;
+  kind: 'high' | 'low';
+  started_at: string | null;
+  ended_at: string | null;
+  peak: number | null;
+  factors: ExplainFactor[];
+  primary: ExplainKey | null;
+  confidence: 'high' | 'medium' | 'low' | 'none';
+  reason: 'no_samples' | null;
+  profile: { rate_h: number | null; duration_min: number; ongoing: boolean } | null;
+  generated_at: string;
 }
 
 export interface HistoryResponse {
@@ -423,6 +447,9 @@ export const clearLearned = (id: string) => del(`${B}/${enc(id)}/defrost/learned
 /** phase 3 (idea 9): the maintenance window - a reason and who; holds WARNINGS (alarms only when the setting says so) */
 export const startMaintenance = (id: string, minutes: number, reason: string) => post<{ maintenance: Maintenance }>(`${B}/${enc(id)}/maintenance`, { minutes, reason });
 export const endMaintenance = (id: string) => del(`${B}/${enc(id)}/maintenance`);
+/** TEMPEXPLAIN093-295: why an excursion happened (an alert-log row, or a moment). Read only, rule-based. */
+export const getExplanation = (id: string, o: { eventId?: string; at?: string }) =>
+  get<Explanation>(`${B}/${enc(id)}/explain${logQs({}, o.eventId ? { event_id: o.eventId } : { at: o.at ?? '' })}`);
 /** phase 3 (idea 11): a service ticket from the unit or one of its alert rows */
 export interface TicketDraft {
   title: string;

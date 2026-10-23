@@ -67,6 +67,8 @@ export interface DevicesResponse {
   partial: number;
   open_alerts: number;
   last_detect_at: string | null;
+  /** GENLOG092-295 (additive): the run-log page is offered only while its switch is on (default off). */
+  log_enabled?: boolean;
 }
 
 export interface LiveResponse {
@@ -232,6 +234,10 @@ export interface GenSettings {
   stale_after_s: number;
   critical_escalate_after_min: number;
   limits: Record<string, [number, number]>;
+  /** GENLOG092-295 (additive): the run-log switch, its settings in force and their specs. */
+  log_enabled?: boolean;
+  log?: Record<string, number | boolean>;
+  log_specs?: Record<string, { type: 'int' | 'float' | 'bool'; default: number | boolean; min: number | null; max: number | null }>;
 }
 
 export interface DeviceCandidate {
@@ -277,7 +283,71 @@ export const putSeverityRouting = (id: string, severity: Severity, patch: { reci
 export const resetPolicies = (id: string) => post<{ reset: number }>(`generator/devices/${encodeURIComponent(id)}/policies/reset`);
 
 export const getSettings = () => get<GenSettings>('generator/settings');
-export const putSettings = (patch: Partial<Pick<GenSettings, 'integration_domains' | 'thresholds' | 'alert_retention_days' | 'history_retention_days' | 'stale_after_s' | 'critical_escalate_after_min'>>) => put<GenSettings>('generator/settings', patch);
+export const putSettings = (patch: Partial<Pick<GenSettings, 'integration_domains' | 'thresholds' | 'alert_retention_days' | 'history_retention_days' | 'stale_after_s' | 'critical_escalate_after_min' | 'log_enabled' | 'log'>>) => put<GenSettings>('generator/settings', patch);
+
+/** GENLOG092-295: the run log (start tests, mains-failure runs, run hours, fuel). Derived on the server from the controller's readings; read only. */
+export type RunKind = 'test' | 'mains_failure' | 'manual' | 'other';
+export type RunRange = '7d' | '30d' | '90d' | '365d';
+export interface GenRun {
+  id: string;
+  kind: RunKind;
+  kind_reason: string | null;
+  started_at: string;
+  ended_at: string | null;
+  open: boolean;
+  end_reason: string | null;
+  duration_s: number;
+  hours: number;
+  hours_from_counter: boolean;
+  took_load: boolean;
+  fuel_used_pct: number | null;
+  fuel_used_l: number | null;
+  fuel_start_pct: number | null;
+  fuel_end_pct: number | null;
+  peak_load_pct: number | null;
+  peak_kw: number | null;
+  short: boolean;
+}
+export interface FuelEvent {
+  id: string;
+  kind: 'refill' | 'drop';
+  started_at: string;
+  ended_at: string;
+  from_pct: number;
+  to_pct: number;
+  delta_pct: number;
+}
+export interface RunSummary {
+  runs: number;
+  by_kind: Record<RunKind, number>;
+  run_s: number;
+  hours: number;
+  fuel_used_pct: number;
+  fuel_used_l: number | null;
+  refills: number;
+  refilled_pct: number;
+  drops: number;
+  short_tests: number;
+  last_test: GenRun | null;
+  last_mains_failure: GenRun | null;
+  test_interval_days: number;
+  next_test_due: string | null;
+  test_overdue: boolean;
+  current: GenRun | null;
+  counters: { run_hours: number | null; starts: number | null; fuel_pct: number | null; fuel_l: number | null };
+}
+export interface RunsResponse {
+  runs: GenRun[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+  fuel_events: FuelEvent[];
+  summary: RunSummary;
+  range: RunRange;
+}
+export const getRuns = (id: string, o: { range?: RunRange; kind?: RunKind | ''; page?: number; page_size?: number } = {}) =>
+  get<RunsResponse>(`generator/devices/${encodeURIComponent(id)}/runs${q({ ...o })}`);
 
 /** The user's own live presentation (PUT /me/prefs `generator.view_mode`): the dials or the charts, one at a time. Null = the default (gauges). */
 export function normalizeViewMode(v: unknown): ViewMode {

@@ -169,7 +169,7 @@ export const he = {
   /** CR-031 GEN1: the generator screens (תשתיות › גנרטור and הגדרות › תשתיות › גנרטור). No platform name on operator screens. */
   generator: {
     tab: 'גנרטור',
-    pages: { live: 'מצב חי', alerts: 'התראות פעילות', charts: 'גרפים', history: 'היסטוריה' },
+    pages: { live: 'מצב חי', alerts: 'התראות פעילות', charts: 'גרפים', history: 'היסטוריה', log: 'יומן הפעלות' },
     pickerLabel: 'גנרטור',
     forbidden: 'אין הרשאה לצפות בגנרטור',
     loadError: 'לא ניתן לטעון את נתוני הגנרטור',
