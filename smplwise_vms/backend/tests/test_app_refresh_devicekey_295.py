@@ -563,7 +563,7 @@ def test_d02_challenges_from_a_second_client_never_starve_the_first(rx):
                   headers={"CF-Connecting-IP": phone})
     assert r.status_code == 200, r.text
     rx.seen += [r.json()["refresh_token"], r.json()["access_token"]]
-    for _ in range(svc.RATE_CHALLENGE[0]):
+    for _ in range(svc.RATE_CHALLENGE[0] - 1):  # the phone's own bucket: the rest of its burst (one was spent above)
         assert challenge_from(rx, dev["device_id"], phone).status_code == 200
     assert challenge_from(rx, dev["device_id"], attacker).status_code == 429  # the attacker stays limited
 
