@@ -160,6 +160,11 @@ ${us.map((u) => `${u.name}: מינ׳ ${u.stats.min}° · מקס׳ ${u.stats.max}
     }
     if (tk) return json(route, { ticket_id: 't-41', number: 41, result: 'created', chart_attached: true }, 201);
     if (/^infra\/temperature\/[^/]+\/maintenance$/.test(p)) return json(route, { maintenance: { until: new Date((NOW_S + 3600) * 1000).toISOString(), reason: 'ניקוי', by_name: 'יוני' } });
+    // TEMPEXPLAIN093-295: the rule-based "why?" of an excursion (fake factors)
+    const why = /^infra\/temperature\/([^/]+)\/explain$/.exec(p);
+    if (why) return json(route, { unit_id: why[1], event_id: new URL(route.request().url()).searchParams.get('event_id'), kind: 'high', started_at: iso(9), ended_at: null, peak: 6.8,
+      factors: [{ key: 'door', score: 92, vars: { count: 2, total_min: 7.5, lead_min: 12, open_at_start: true } }, { key: 'local', score: 35, vars: { n_total: 3 } }],
+      primary: 'door', confidence: 'high', reason: null, profile: { rate_h: 5.2, duration_min: 9, ongoing: true }, generated_at: iso(0) });
     if (p === 'infra/temperature/settings') return json(route, { rules: { ...RULES, defrost_hard_margin: 5, retention_days: 400 }, code_defaults: {}, row_version: 1, rule_specs: {} });
     if (p === 'infra/temperature/alerts') return json(route, { kinds: {}, row_version: 1, roles: [], channels: [], kinds_order: [], can_edit: true });
     const m = /^infra\/temperature\/([^/]+)\/history$/.exec(p);
@@ -261,6 +266,26 @@ test.describe('temperature evidence', () => {
     await page.screenshot({ path: path.join(OUT, `detail-climate-${test.info().project.name}.png`) });
     await page.keyboard.press('Escape');
     await expect(d).toHaveCount(0);
+  });
+
+  test('TEMPEXPLAIN093-295: "why?" on an excursion row opens the rule-based explanation', async ({ page }) => {
+    await install(page, units());
+    await page.goto('about:blank');
+    await page.goto(url('/infra/temperature'));
+    await page.locator('sw-app infra-temperature [data-temp-unit="u3"]').click();
+    const d = page.locator('sw-app infra-temperature temp-detail');
+    await expect(d.locator('[data-temp-why-btn="e1"]')).toBeVisible();
+    await expect(d.locator('[data-temp-why-btn="e2"]')).toHaveCount(0); // a door row has no "why?"
+    await d.locator('[data-temp-why-btn="e1"]').click();
+    const w = d.locator('temp-explain [data-temp-why="high"]');
+    await expect(w).toBeVisible();
+    await expect(w.locator('[data-factor="door"][data-primary]')).toContainText('הדלת הייתה פתוחה');
+    await expect(w.locator('[data-factor="local"]')).toBeVisible();
+    await expect(w).not.toContainText('sensor.');
+    await noOverflow(page);
+    await page.screenshot({ path: path.join(OUT, `explain-${test.info().project.name}.png`) });
+    await w.locator('[data-why-close]').click();
+    await expect(d.locator('temp-explain')).toHaveCount(0);
   });
 
   test('page edit mode and the wizard (four steps)', async ({ page }) => {

@@ -740,7 +740,8 @@ export const INFRA_ELECTRICITY_PAGES: TabItem[] = [
 ];
 /** The electricity pages that show money (energy.bills). */
 export const INFRA_MONEY_PAGES: readonly string[] = ['bills', 'customers'];
-export const INFRA_GENERATOR_PAGES: TabItem[] = (['live', 'alerts', 'charts', 'history'] as const).map((id) => ({ id, get label() { return he.generator.pages[id]; }, href: `#/infra/generator/${id}` }));
+// GENLOG092-295 (owner Q319): the run log is a registry page too, so the tab editor orders / hides it; the screen still shows it only while its switch is on
+export const INFRA_GENERATOR_PAGES: TabItem[] = (['live', 'alerts', 'charts', 'history', 'log'] as const).map((id) => ({ id, get label() { return he.generator.pages[id]; }, href: `#/infra/generator/${id}` }));
 /** CR-WATER78 sections 3 and 16: the water pages (level 2, `infra.water`). The money pages (חיובים, לקוחות) need water.bills, the settings
  * page water.manage or system.configure; the screen (screens/infra-water.ts) checks them again from the module's status. */
 export const INFRA_WATER_PAGES: TabItem[] = [
@@ -770,12 +771,19 @@ export function infraEntryHref(tabId: string, can?: Can): string | null {
     const pages = INFRA_ELECTRICITY_PAGES.filter((p) => !INFRA_MONEY_PAGES.includes(p.id) || !can || can('energy.bills'));
     return configureTabs('infra.electricity', pages)[0]?.href ?? null;
   }
-  if (tabId === 'generator' && isSectionConfigured('infra.generator')) return configureTabs('infra.generator', INFRA_GENERATOR_PAGES)[0]?.href ?? null;
+  if (tabId === 'generator' && isSectionConfigured('infra.generator')) return configureTabs('infra.generator', INFRA_GENERATOR_PAGES.filter((p) => p.id !== 'log' || GENERATOR_LOG_ON))[0]?.href ?? null;
   if (tabId === 'water' && isSectionConfigured('infra.water')) {
     const pages = INFRA_WATER_PAGES.filter((p) => (!INFRA_WATER_MONEY_PAGES.includes(p.id) || !can || can('water.bills')) && (!INFRA_WATER_MANAGE_PAGES.includes(p.id) || !can || can('water.manage') || can('system.configure')));
     return configureTabs('infra.water', pages)[0]?.href ?? null;
   }
   return null;
+}
+
+/** GENLOG092-295: whether the generator's run-log page is switched on (the devices list says so; default off). While off, the generator tab never
+ * opens on it, wherever the tab editor placed it. */
+let GENERATOR_LOG_ON = false;
+export function applyGeneratorLog(on: boolean): void {
+  GENERATOR_LOG_ON = on;
 }
 
 /** CR-031: the generator tab is hidden until a generator is detected (generator/access.ts); hidden = true until told otherwise. */

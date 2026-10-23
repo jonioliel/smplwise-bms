@@ -7,6 +7,7 @@ import { LOOK_OF, STATUS_ICON, STATUS_KEY, TEMPERATURE_HREF, chipsOf, deg, doorR
 import { bigChart, bigFrame, gauge, ring, spark, type BigChartData } from './charts';
 import { tempCss } from './styles';
 import './ticket-dialog';
+import './explain'; // TEMPEXPLAIN093-295: "why did it warm?"
 import { ticketsEnabled } from '../tickets/gate'; // owner rule 2026-10-20: no ticket action while the tickets module is off
 import { tt, type TtKey } from '../i18n/temperature';
 import { dayMonthText } from '../api/day-format';
@@ -40,6 +41,8 @@ export class TempDetail extends LitElement {
   @property({ type: Boolean }) canAck = false;
   @property({ type: Boolean }) canManage = false;
   @property({ type: Boolean }) stale = false;
+  /** TEMPEXPLAIN093-295: offer "why?" on an excursion (installation setting explain_enabled) */
+  @property({ type: Boolean }) explain = true;
   @state() private range: RangeKey = '24h';
   @state() private hist: HistoryResponse | null = null;
   @state() private histError = '';
@@ -58,6 +61,8 @@ export class TempDetail extends LitElement {
   @state() private cmp: string[] = [];
   @state() private cmpScale: 'shared' | 'norm' = 'shared';
   @state() private cmpHist: Record<string, HistoryResponse> = {};
+  /** TEMPEXPLAIN093-295: the excursion (alert-log row) whose explanation is open; '' = none */
+  @state() private whyEvent = '';
   @query('.bigchart') private chartBox?: HTMLElement;
   private ro?: ResizeObserver;
   private loadedFor = '';
@@ -203,6 +208,7 @@ export class TempDetail extends LitElement {
       if (unitChanged) {
         this.cmp = [];
         this.cmpHist = {};
+        this.whyEvent = '';
       }
       void this.loadHistory();
       void this.loadCompare();
@@ -537,6 +543,7 @@ export class TempDetail extends LitElement {
               <p class="hint" style="margin:6px 0 0">${tt('compareMax')}</p></div>` : nothing}
           </div>
           <div class="col">
+            ${this.explain && this.whyEvent ? html`<temp-explain .unitId=${u.id} .eventId=${this.whyEvent} @close=${() => { this.whyEvent = ''; }}></temp-explain>` : nothing}
             <div class="panel"><div class="ringrow"><div class="ring">${ring(u, now, lang)}</div>
               <div style="flex:1;display:grid;gap:6px"><h4>${tt('ringTitle')}</h4><p class="hint" style="margin:0">${tt('ringHint')}</p>
                 <div class="legend"><span><i data-k="ok"></i>${tt('ringOk')}</span><span><i data-k="warn"></i>${tt('ringWarn')}</span><span><i data-k="alarm"></i>${tt('ringAlarm')}</span><span><i data-k="none"></i>${tt('ringNone')}</span></div></div></div></div>
@@ -547,7 +554,9 @@ export class TempDetail extends LitElement {
             ${this.defrostPanel(u)}
             <div class="panel"><div class="ph"><h4>${tt('recent')}</h4><a class="btn sm ghost" href=${`${TEMPERATURE_HREF}/log?unit=${encodeURIComponent(u.id)}`} data-temp-fulllog>${tt('fullLog')}</a></div>
               <div class="events" data-temp-events>${this.events.length ? this.events.map((e) => html`<div class="ev" style=${`--c:${sevC[e.severity]}`}><time>${hhmm(Date.parse(e.started_at), lang)}</time>
-                <div><i aria-hidden="true"></i>${eventText(e)}</div><span class="chip" data-tone=${e.ended_at ? 'mut' : 'err'}>${e.ended_at ? tt('closed') : tt('open')}</span></div>`) : html`<p class="hint">${tt('noRecent')}</p>`}</div></div>
+                <div><i aria-hidden="true"></i>${eventText(e)}${this.explain && (e.kind === 'high' || e.kind === 'low') ? html` <button type="button" class="btn sm ghost" data-temp-why-btn=${e.id}
+                  aria-pressed=${String(this.whyEvent === e.id)} @click=${() => { this.whyEvent = this.whyEvent === e.id ? '' : e.id; void this.updateComplete.then(() => this.renderRoot.querySelector('temp-explain')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>${tt('whyBtn')}</button>` : nothing}</div>
+                <span class="chip" data-tone=${e.ended_at ? 'mut' : 'err'}>${e.ended_at ? tt('closed') : tt('open')}</span></div>`) : html`<p class="hint">${tt('noRecent')}</p>`}</div></div>
           </div>
         </div>
         <div class="df">

@@ -23,6 +23,8 @@ export interface GenMockOptions {
   alerts?: 'some' | 'none';
   slowLive?: boolean;
   viewMode?: 'gauges' | 'charts';
+  /** GENLOG092-295: the run-log switch (absent = off, like the server's default) */
+  log?: boolean;
 }
 export interface GenMock {
   calls: { method: string; path: string; body: unknown }[];
@@ -44,6 +46,24 @@ function alertsFor(device: string, none: boolean) {
     mk('al3', 'low_fuel', 'מפלס דלק נמוך', 'info', '2026-10-05T08:00:00Z', false),
     mk('al4', 'fail_to_start', 'כשל התנעה', 'critical', '2026-09-28T09:00:00Z', true, '2026-09-28T09:20:00Z'),
   ];
+}
+
+/** GENLOG092-295: a fake run log - 11 runs over 30 days (tests, a mains failure, a run in progress), two fuel events. */
+function runsFor(page: number, size: number) {
+  const base = Date.parse(NOW);
+  const run = (i: number, kind: string, why: string, hAgo: number, min: number, open = false, load: number | null = null) => ({
+    id: `r${i}`, kind, kind_reason: why, started_at: new Date(base - hAgo * 3600_000).toISOString(), ended_at: open ? null : new Date(base - hAgo * 3600_000 + min * 60_000).toISOString(), open,
+    end_reason: open ? null : 'stopped', duration_s: min * 60, hours: Math.round(min / 60 * 100) / 100, hours_from_counter: true, took_load: load !== null, fuel_used_pct: Math.round(min / 15), fuel_used_l: Math.round(min / 4),
+    fuel_start_pct: 80, fuel_end_pct: 80 - Math.round(min / 15), peak_load_pct: load, peak_kw: load, short: kind === 'test' && min < 10 });
+  const all = [run(0, 'mains_failure', 'mains_lost', 0.5, 30, true, 62), run(1, 'test', 'mode_test', 50, 15), run(2, 'mains_failure', 'mains_lost', 120, 95, false, 58), run(3, 'test', 'unloaded', 218, 8),
+    ...Array.from({ length: 7 }, (_x, k) => run(4 + k, k % 3 ? 'test' : 'other', k % 3 ? 'mode_test' : 'none', 260 + k * 60, 12 + k))];
+  const runs = all.slice((page - 1) * size, page * size);
+  return { runs, total: all.length, page, page_size: size, pages: Math.ceil(all.length / size), range: '30d',
+    fuel_events: [{ id: 'f1', kind: 'refill', started_at: '2026-09-30T08:00:00Z', ended_at: '2026-09-30T08:20:00Z', from_pct: 31, to_pct: 92, delta_pct: 61 },
+      { id: 'f2', kind: 'drop', started_at: '2026-09-22T02:00:00Z', ended_at: '2026-09-22T05:00:00Z', from_pct: 70, to_pct: 63, delta_pct: -7 }],
+    summary: { runs: all.length, by_kind: { test: 6, mains_failure: 2, manual: 0, other: 3 }, run_s: 0, hours: 5.4, fuel_used_pct: 21, fuel_used_l: 78, refills: 1, refilled_pct: 61, drops: 1, short_tests: 1,
+      last_test: all[1], last_mains_failure: all[0], test_interval_days: 7, next_test_due: '2026-10-10T09:00:00Z', test_overdue: false, current: all[0],
+      counters: { run_hours: 1284.5, starts: 212, fuel_pct: 74, fuel_l: 520 } } };
 }
 
 export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): Promise<GenMock> {
@@ -82,7 +102,7 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
     const g = p.slice('generator/'.length);
     st.calls.push({ method, path: g + url.search, body });
     if (!perms.includes('generator.view')) return err(route, 403, 'forbidden', 'אין הרשאה');
-    if (g === 'devices' && method === 'GET') return json(route, { devices: devs, detected: devs.length, partial: 0, open_alerts: open, last_detect_at: '2026-10-05T09:30:00Z' });
+    if (g === 'devices' && method === 'GET') return json(route, { devices: devs, detected: devs.length, partial: 0, open_alerts: open, last_detect_at: '2026-10-05T09:30:00Z', ...(o.log ? { log_enabled: true } : {}) });
     if (g === 'devices/detect') return json(route, { found: [], count: devs.length, last_detect_at: NOW });
     const m = /^devices\/([^/]+)(?:\/([\w-]+))?(?:\/(.+))?$/.exec(g);
     if (m && method === 'GET' && !m[2]) {
@@ -110,6 +130,7 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
       }
       return json(route, { step_s: step, source: 'rollup_5m', from: to - span, to, series, units: Object.fromEntries(roles.map((r) => [r, r.includes('temp') ? '°C' : r.includes('_v') ? 'V' : '%'])), labels: Object.fromEntries(roles.map((r) => [r, r])), range: rng });
     }
+    if (m && m[2] === 'runs') return o.log ? json(route, runsFor(Number(url.searchParams.get('page') ?? 1), Number(url.searchParams.get('page_size') ?? 8))) : err(route, 409, 'generator_log_off', 'יומן ההפעלות כבוי בהגדרות.');
     if (m && m[2] === 'policies' && /\/preview$/.test(m[3] ?? '')) {
       const t = ((body as { template_he?: string | null })?.template_he ?? '{name}: {detail}.');
       const bad = [...t.matchAll(/\{(\w+)\}/g)].map((x) => x[1]).filter((x) => !['name', 'detail', 'type', 'severity'].includes(x));
@@ -142,7 +163,8 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
       return json(route, { items: names.map((r, i) => ({ role: r, label: r, kind: 'num', unit: '', core: i < 2, mapped: i !== 2, entity_id: i !== 2 ? `x.${r}` : null, entity_name: i !== 2 ? r : null, mapped_by: 'auto', unmapped_by_user: false, disabled_in_source: false, candidates: [{ entity_id: `x.${r}`, name: r, unit: null, score: 2 }] })) });
     }
     if (g.startsWith('device-candidates')) return json(route, { items: [{ ha_device_id: 'd1', name: 'בקר מבחן', entities: 12, mapped_roles: 7, registered: false }] });
-    if (g === 'settings') return json(route, { integration_domains: [], known_domains: [], thresholds: {}, threshold_defaults: { fuel_low_pct: 25, oil_min_bar: 1 }, threshold_limits: { fuel_low_pct: [1, 90], oil_min_bar: [0, 10] }, thresholds_set: [], alert_retention_days: 365, history_retention_days: 35, stale_after_s: 300, critical_escalate_after_min: 5, limits: { alert_retention_days: [30, 1825, 365], history_retention_days: [7, 90, 35], stale_after_s: [60, 3600, 300] } });
+    if (g === 'settings') return json(route, { integration_domains: [], known_domains: [], thresholds: {}, threshold_defaults: { fuel_low_pct: 25, oil_min_bar: 1 }, threshold_limits: { fuel_low_pct: [1, 90], oil_min_bar: [0, 10] }, thresholds_set: [], alert_retention_days: 365, history_retention_days: 35, stale_after_s: 300, critical_escalate_after_min: 5, limits: { alert_retention_days: [30, 1825, 365], history_retention_days: [7, 90, 35], stale_after_s: [60, 3600, 300] },
+      ...(o.log ? { log_enabled: true, log: { min_run_s: 60, test_interval_days: 7, classify_unloaded_as_test: true }, log_specs: { min_run_s: { type: 'int', default: 60, min: 10, max: 900 }, test_interval_days: { type: 'int', default: 7, min: 0, max: 90 }, classify_unloaded_as_test: { type: 'bool', default: true, min: null, max: null } } } : {}) });
     if (g.startsWith('alerts') && method === 'GET' && g === 'alerts' || g.startsWith('alerts?')) {
       const state = url.searchParams.get('state');
       const sev = url.searchParams.get('severity');
