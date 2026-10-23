@@ -253,4 +253,185 @@ test.describe('maintenance evidence', () => {
     expect(patches[0]).toEqual({ 'maintenance.lead_days.certificate': '60', 'maintenance.tag_base_url': 'https://arx.example.test' });
     await shot(page, 'settings');
   });
+
+  // ================================================================ MAINT215B (owner review 24.10)
+
+  /** A control screen never scrolls as a page: neither the document nor the shell's main area has anything to scroll. */
+  const noPageScroll = async (page: Page) => {
+    const over = await page.evaluate(() => {
+      const main = document.querySelector('sw-app')?.shadowRoot?.querySelector('main');
+      return { doc: document.documentElement.scrollHeight - document.documentElement.clientHeight, main: main ? main.scrollHeight - main.clientHeight : 0 };
+    });
+    expect(over.doc).toBeLessThanOrEqual(1);
+    expect(over.main).toBeLessThanOrEqual(1);
+  };
+
+  test('no page scrolling: the list, the log and the tags scroll inside their own panel', async ({ page }) => {
+    await installMaintenanceMock(page);
+    for (const pg of ['ledger', 'plans', 'rounds', 'log', 'tags']) {
+      await open(page, `/tickets/maintenance/${pg}`);
+      await expect(page.locator(`${M} [data-maint-page="${pg}"]`)).toBeVisible();
+      await expect(page.locator(`${M} h1`)).toBeVisible();
+      await noPageScroll(page);
+    }
+  });
+
+  test('reminder log: lines by type, the filter, the "reminders are off" note', async ({ page }) => {
+    await installMaintenanceMock(page);
+    await open(page, '/tickets/maintenance/log');
+    await expect(page.locator(`${M} h1`)).toHaveText('יומן תזכורות');
+    await expect(page.locator(`${M} [data-maint-log-off]`)).toBeVisible(); // reminders are off by default
+    await expect(page.locator(`${M} [data-maint-log-off] [data-maint-to-settings]`)).toHaveAttribute('href', '#/system/infra/maintenance');
+    const rows = phone() ? `${M} [data-maint-log-card]` : `${M} [data-maint-log-row]`;
+    await expect(page.locator(rows)).toHaveCount(4);
+    if (!phone()) {
+      await expect(page.locator(`${M} [data-maint-log-row="l2"] a.chip`)).toHaveAttribute('href', '#/tickets/t-1042');
+      await expect(page.locator(`${M} [data-maint-log-row="l4"]`)).toContainText('בקשת שירות לא נפתחה');
+    }
+    await page.locator(`${M} [data-maint-log-filter] [data-ev="overdue"]`).click();
+    await expect(page.locator(rows)).toHaveCount(1);
+    await noOverflow(page);
+    await noPageScroll(page);
+    await shot(page, 'log');
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await installMaintenanceMock(page, { remindersOn: true, emptyLog: true });
+    await open(page, '/tickets/maintenance/log');
+    await expect(page.locator(`${M} [data-maint-log-off]`)).toHaveCount(0);
+    await expect(page.locator(`${M} [data-state="empty"]`)).toBeVisible();
+  });
+
+  test('certificate file: listed, downloaded, attached by a manager, removed after a question, the limit is the servers', async ({ page }) => {
+    const mock = await installMaintenanceMock(page);
+    await open(page, '/tickets/maintenance/ledger');
+    await page.locator(phone() ? `${M} [data-maint-card="c1"]` : `${M} [data-maint-row="c1"]`).click();
+    const files = page.locator(`${M} maint-task-sheet [data-maint-files]`);
+    await expect(files.locator('[data-maint-file="f1"]')).toContainText('תסקיר-מעלית-2026.pdf');
+    await shot(page, 'files');
+    const dl = page.waitForEvent('download');
+    await files.locator('[data-maint-file-download]').click();
+    expect((await dl).suggestedFilename()).toBe('x.pdf');
+    const pdf = { name: 'scan.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF\n') };
+    await files.locator('[data-maint-file-input]').setInputFiles(pdf);
+    await expect(files.locator('[data-maint-file]')).toHaveCount(2);
+    expect(mock.calls.some((c) => c.method === 'POST' && c.path === 'tasks/c1/files')).toBe(true);
+    await files.locator('[data-maint-file-input]').setInputFiles(pdf);
+    await expect(files.locator('[data-maint-file]')).toHaveCount(3);
+    await files.locator('[data-maint-file-input]').setInputFiles(pdf);
+    await expect(files.locator('[data-maint-file-error]')).toContainText('מספר הקבצים המרבי');
+    await files.locator('[data-maint-file-remove]').first().click();
+    await expect(files.locator('[data-maint-file-confirm]')).toBeVisible();
+    await files.locator('[data-maint-file-remove-yes]').click();
+    await expect(files.locator('[data-maint-file]')).toHaveCount(2);
+    expect(mock.calls.some((c) => c.method === 'DELETE' && c.path === 'tasks/c1/files/f1')).toBe(true);
+  });
+
+  test('certificate file: an operator sees and downloads it but cannot attach or remove', async ({ page }) => {
+    await installMaintenanceMock(page, { role: 'op' });
+    await open(page, '/tickets/maintenance/ledger');
+    await page.locator(phone() ? `${M} [data-maint-card="c1"]` : `${M} [data-maint-row="c1"]`).click();
+    const files = page.locator(`${M} maint-task-sheet [data-maint-files]`);
+    await expect(files.locator('[data-maint-file-download]')).toBeVisible();
+    await expect(files.locator('[data-maint-file-input]')).toHaveCount(0);
+    await expect(files.locator('[data-maint-file-remove]')).toHaveCount(0);
+  });
+
+  test('phone round: one list, the quick switch on the screen, remembered in this browser', async ({ page }) => {
+    const mock = await installMaintenanceMock(page);
+    await open(page, '/tickets/maintenance/rounds');
+    await page.locator(`${M} [data-maint-act="continue"]:visible`).first().click();
+    const run = page.locator(`${M} maint-round-run`);
+    await expect(run.locator('[data-maint-step]')).toBeVisible();
+    await run.locator('[data-maint-view-switch] [data-view="list"]').click();
+    await expect(run.locator('[data-maint-list] [data-maint-point]')).toHaveCount(3);
+    await expect(run.locator('[data-maint-step]')).toHaveCount(0);
+    await expect(run.locator('[data-maint-list-progress]')).toContainText('1 מתוך 3');
+    await run.locator('[data-maint-point="pressure"] [data-maint-number]').fill('4');
+    await expect(run.locator('[data-maint-list-progress]')).toContainText('2 מתוך 3');
+    await noPageScroll(page);
+    await shot(page, 'run-list');
+    await run.locator('[data-maint-finish]').click();
+    await expect(page.locator(`${M} .toast`)).toHaveText('הסבב הסתיים');
+    expect(mock.calls.find((c) => c.path === 'runs/run-1/answers')?.body).toEqual({ answers: { pressure: { value: 4 } } });
+    // the choice is remembered in this browser: the next round opens as a list
+    await open(page, '/tickets/maintenance/rounds');
+    await page.locator(`${M} [data-maint-act="continue"]:visible`).first().click();
+    await expect(page.locator(`${M} maint-round-run [data-maint-list]`)).toBeVisible();
+    await page.locator(`${M} maint-round-run [data-maint-view-switch] [data-view="step"]`).click();
+    await expect(page.locator(`${M} maint-round-run [data-maint-step]`)).toBeVisible();
+  });
+
+  test('phone round: the installation default (Settings) is the list until the person chooses', async ({ page }) => {
+    await installMaintenanceMock(page, { roundView: 'list' });
+    await open(page, '/tickets/maintenance/rounds');
+    await page.evaluate(() => localStorage.removeItem('sw.maintenance.round_view'));
+    await page.locator(`${M} [data-maint-act="continue"]:visible`).first().click();
+    await expect(page.locator(`${M} maint-round-run [data-maint-list]`)).toBeVisible();
+  });
+
+  test('closing the request of a plan asks the closer: no leaves the plan, yes marks it done', async ({ page }) => {
+    const mock = await installMaintenanceMock(page);
+    await open(page, '/tickets/maintenance/plans');
+    await expect(page.locator(`${M} [data-maint-page="plans"]`)).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('sw:ticket-closed', { detail: { id: 't-1042' } })));
+    const dlg = page.locator('sw-app maint-close-prompt [data-maint-close-prompt]');
+    await expect(dlg).toBeVisible();
+    await expect(dlg).toContainText('ניקוי מנדף המטבח');
+    await dlg.locator('[data-maint-close-no]').click();
+    await expect(dlg).toHaveCount(0);
+    expect(mock.calls.some((c) => c.path === 'close-proposal/t-1042/confirm')).toBe(false);
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('sw:ticket-closed', { detail: { id: 't-1042' } })));
+    await expect(dlg).toBeVisible();
+    await shot(page, 'close-question');
+    await dlg.locator('[data-maint-close-yes]').click();
+    await expect(page.locator('sw-app maint-close-prompt .toast')).toHaveText('התוכנית סומנה כבוצעה');
+    expect(mock.calls.some((c) => c.method === 'POST' && c.path === 'close-proposal/t-1042/confirm')).toBe(true);
+  });
+
+  test('closing a request that belongs to no plan shows nothing', async ({ page }) => {
+    await installMaintenanceMock(page, { closeAsks: false });
+    await open(page, '/tickets/maintenance/plans');
+    await expect(page.locator(`${M} [data-maint-page="plans"]`)).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('sw:ticket-closed', { detail: { id: 't-9' } })));
+    await page.waitForTimeout(300);
+    await expect(page.locator('sw-app maint-close-prompt [data-maint-close-prompt]')).toHaveCount(0);
+  });
+
+  test('task form: attach to an elevator or a generator', async ({ page }) => {
+    const mock = await installMaintenanceMock(page);
+    await open(page, '/tickets/maintenance/ledger');
+    await page.locator(`${M} [data-maint-new="certificate"]`).click();
+    const form = page.locator(`${M} maint-task-form`);
+    await form.locator('[data-maint-field="title"]').fill('תסקיר מעלית');
+    await form.locator('[data-maint-field="due_date"]').fill('2027-06-30');
+    await form.locator('[data-maint-field="asset"]').selectOption('elevator:e1');
+    await form.locator('[data-maint-save]').click();
+    await expect(form).toHaveCount(0);
+    expect(mock.calls.find((c) => c.method === 'POST' && c.path === 'tasks')?.body).toMatchObject({ elevator_id: 'e1', title: 'תסקיר מעלית' });
+  });
+
+  test('Settings: reminders switch, round default, close mode, thresholds - all editable', async ({ page }) => {
+    await installMaintenanceMock(page);
+    const patches: Record<string, string>[] = [];
+    await page.route('**/api/v1/settings', async (route) => {
+      if (route.request().method() === 'PATCH') patches.push(route.request().postDataJSON());
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ settings: { 'ui.design': 'a', 'tickets.enabled': 'true', 'maintenance.enabled': 'true' }, can_edit: true }) });
+    });
+    await open(page, '/system/infra/maintenance');
+    const s = page.locator('sw-app maint-settings');
+    await expect(s.locator('[data-maint-behaviour]')).toBeVisible();
+    await expect(s.locator('[data-maint-tag-effective]')).toContainText('https://arx.example.test'); // the sticker address = the remote address
+    await s.locator('[data-maint-reminders]').click();
+    await expect.poll(() => patches.length).toBe(1);
+    expect(patches[0]).toEqual({ 'maintenance.reminders_enabled': 'true' });
+    await s.locator('[data-maint-setting="maintenance.reminder_check_minutes"]').fill('0');
+    await expect(s.locator('[data-maint-behaviour-save]')).toBeDisabled();
+    await s.locator('[data-maint-setting="maintenance.reminder_check_minutes"]').fill('5');
+    await s.locator('[data-maint-setting="maintenance.round_phone_view"]').selectOption('list');
+    await s.locator('[data-maint-setting="maintenance.close_request_mode"]').selectOption('auto');
+    await s.locator('[data-maint-setting="maintenance.vendor_insurance_warn_days"]').fill('14');
+    await s.locator('[data-maint-behaviour-save]').click();
+    await expect.poll(() => patches.length).toBe(2);
+    expect(patches[1]).toEqual({ 'maintenance.reminder_check_minutes': '5', 'maintenance.round_phone_view': 'list', 'maintenance.close_request_mode': 'auto', 'maintenance.vendor_insurance_warn_days': '14' });
+    await shot(page, 'settings-behaviour');
+  });
 });

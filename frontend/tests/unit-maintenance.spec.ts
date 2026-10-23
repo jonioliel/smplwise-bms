@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { Task, TaskDetail, VendorRow } from '../src/api/maintenance';
 import { MT_KEYS, MT_TABLES, mt } from '../src/i18n/maintenance';
 import {
-  answerBody, answered, applyFilter, badgeText, bodyOf, draftOf, fmtDate, intervalText, issueKeys, kpiCounts, lookOf, missingRequired, newDraft, nodeOf, outOfRange, pageOf, pagesFor,
+  answerBody, answered, applyFilter, badgeText, bodyOf, certRowOf, draftOf, fileSizeText, fmtDate, insuranceMark, roundViewOf, ROUND_VIEW_KEY, intervalText, issueKeys, kpiCounts, lookOf, missingRequired, newDraft, nodeOf, outOfRange, pageOf, pagesFor,
   placeOptions, rangeText, resumeIndex, segsOf, stickerUrl, treeRows, validate, vendorMark,
 } from '../src/maintenance/model';
 import { CATEGORY_LABEL, CATEGORY_ORDER, MAINTENANCE_SOURCES } from '../src/api/notifications';
@@ -28,8 +28,9 @@ test('pages: the route names the page, the ledger by default; the tags page is f
   expect(pageOf(['tickets', 'maintenance'])).toBe('ledger');
   expect(pageOf(['tickets', 'maintenance', 'rounds'])).toBe('rounds');
   expect(pageOf(['tickets', 'maintenance', 'nope'])).toBe('ledger');
-  expect(pagesFor({ manage: false })).toEqual(['ledger', 'plans', 'rounds']);
-  expect(pagesFor({ manage: true })).toEqual(['ledger', 'plans', 'rounds', 'tags']);
+  expect(pagesFor({ manage: false })).toEqual(['ledger', 'plans', 'rounds', 'log']);
+  expect(pagesFor({ manage: true })).toEqual(['ledger', 'plans', 'rounds', 'log', 'tags']);
+  expect(pageOf(['tickets', 'maintenance', 'log'])).toBe('log');
 });
 
 test('looks and badges follow the due state; a supplier document is "expired", a plan is "late by N days"', () => {
@@ -180,5 +181,69 @@ test('navigation: the section is a tab of the service-management area, maintenan
     expect(visibleTabs(TICKETS_TABS, true, () => false).some((t) => t.id === 'maintenance')).toBe(false);
   } finally {
     applyMaintenanceOn(false);
+  }
+});
+
+// ---------------------------------------------------------------- MAINT215B (owner review 24.10)
+
+test('insurance mark of the assignee picker: red for expired or missing, amber while ending, nothing otherwise - a mark only', () => {
+  expect(insuranceMark({ state: 'expired', valid_until: '2027-01-10' })).toEqual({ look: 'alarm', text: 'ביטוח פג תוקף ב־10.01.2027' });
+  expect(insuranceMark({ state: 'missing', valid_until: null })).toEqual({ look: 'alarm', text: 'אין ביטוח במערכת' });
+  expect(insuranceMark({ state: 'expiring', valid_until: '2027-02-01' })?.look).toBe('warn');
+  expect(insuranceMark({ state: 'ok', valid_until: '2028-02-01' })).toBeNull();
+  expect(insuranceMark(undefined)).toBeNull();
+  expect(insuranceMark(null)).toBeNull();
+});
+
+test('file sizes read in KB / MB', () => {
+  expect(fileSizeText(100)).toBe('1 KB');
+  expect(fileSizeText(182_000)).toBe('178 KB');
+  expect(fileSizeText(3 * 1024 * 1024)).toBe('3.0 MB');
+});
+
+test('the phone round: the installation default until the person chooses, then his own choice', () => {
+  const store = new Map<string, string>();
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
+  try {
+    expect(roundViewOf(undefined)).toBe('step');
+    expect(roundViewOf('list')).toBe('list');
+    store.set(ROUND_VIEW_KEY, 'step');
+    expect(roundViewOf('list')).toBe('step');
+    store.set(ROUND_VIEW_KEY, 'garbage');
+    expect(roundViewOf('list')).toBe('list');
+  } finally {
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+  expect(roundViewOf('step')).toBe('step'); // storage unavailable: no throw
+});
+
+test('the row of an elevator / generator card: the nearest certificate, its date and state', () => {
+  expect(certRowOf([])).toBeNull();
+  const row = certRowOf([task({ state: 'due_soon', days_left: 30, due_date: '2027-02-14' })]);
+  expect(row?.look).toBe('warn');
+  expect(row?.text).toBe('עוד 30 ימים · 14.02.2027');
+  expect(certRowOf([task({ state: 'overdue', days_left: -3, due_date: '2027-01-12' })])?.text).toBe('פג ב־12.01.2027');
+  expect(certRowOf([task({ state: 'ok', days_left: 200, due_date: '2027-08-01' })])?.text).toBe('בתוקף עד 01.08.2027');
+  expect(certRowOf([task({ kind: 'preventive', state: 'ok', due_date: '2027-08-01' }), task({ id: 't2', state: 'overdue', due_date: '2027-01-01', days_left: -9 })])?.task.id).toBe('t2');
+});
+
+test('the form links a task to an elevator or a generator and sends only what changed', () => {
+  const d = { ...newDraft('certificate'), title: 'תסקיר', due_date: '2027-06-30', asset: 'elevator:e1' };
+  expect(bodyOf(d).elevator_id).toBe('e1');
+  expect(bodyOf(d).generator_id).toBeUndefined(); // a new task leaves out the link it does not have
+  expect(bodyOf({ ...d, asset: 'generator:g1' }).generator_id).toBe('g1');
+  const none = bodyOf({ ...d, asset: '' });
+  expect(none.elevator_id).toBeUndefined();
+  expect(none.generator_id).toBeUndefined();
+  const prev = detail({ elevator_id: 'e1', title: 'תסקיר', due_date: '2027-06-30', notes: '', revision: 4 });
+  expect(draftOf(prev).asset).toBe('elevator:e1');
+  expect(bodyOf(draftOf(prev), prev)).toEqual({ revision: 4 });
+  expect(bodyOf({ ...draftOf(prev), asset: '' }, prev)).toMatchObject({ elevator_id: null });
+});
+
+test('every new text exists in Hebrew and English', () => {
+  for (const k of MT_KEYS.filter((x) => /^(evt_|file|ins|certRow|closeAsk|view|list|setReminders|setRoundView|setCloseMode|setCheckMinutes|setLogKeep|setMissingIns|setInsWarn|setFileMax|log|colWhen|colEvent|fAsset)/.test(x))) {
+    expect(MT_TABLES.he[k], k).toBeTruthy();
+    expect(MT_TABLES.en[k] ?? mt(k, undefined, 'he'), k).toBeTruthy();
   }
 });

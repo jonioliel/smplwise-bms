@@ -23,6 +23,14 @@ export interface MaintMockOptions {
   empty?: boolean;
   /** the task list answers 500 */
   failList?: boolean;
+  /** the installation's default of the phone round (default 'step') */
+  roundView?: 'step' | 'list';
+  /** reminders enabled in Settings (default false: the log page says so) */
+  remindersOn?: boolean;
+  /** no lines in the reminder log */
+  emptyLog?: boolean;
+  /** the closed request belongs to a plan (the close question is shown); default true */
+  closeAsks?: boolean;
 }
 export interface MaintMock {
   calls: { method: string; path: string; body: unknown }[];
@@ -89,8 +97,10 @@ export async function installMaintenanceMock(page: Page, o: MaintMockOptions = {
     valid_until: null, note: '', result: null as string | null, checklist: CHECKLIST, answers: { pump: { ok: true, value: null, note: '', at: '2027-01-18T05:43:00Z' } } as Record<string, Record<string, unknown>>, ticket_ids: [] as string[], revision: 2,
     task: { id: 'r1', title: 'סבב בוקר - חדר משאבות', entity_id: null, department_id: 'dept-maint' }, can: { write: role !== 'view', open_request: ticketsOn },
     request_departments: ticketsOn ? [{ id: 'dept-maint', name: 'אחזקה' }] : [] };
+  type MockFile = { id: string; name: string; kind: string; bytes: number; uploaded_at: string; uploaded_by_name: string };
+  const files: Record<string, MockFile[]> = { c1: [{ id: 'f1', name: 'תסקיר-מעלית-2026.pdf', kind: 'pdf', bytes: 182_000, uploaded_at: '2026-02-16T08:05:00Z', uploaded_by_name: 'דני כהן' }] };
   const detail = (t: Record<string, unknown>) => ({
-    ...t, notes: '', checklist: t.kind === 'round' ? CHECKLIST : [], ticket_error: null, open_run_id: (t.open_run as { id: string } | null | undefined)?.id ?? null,
+    ...t, files: files[String(t.id)] ?? [], file_count: (files[String(t.id)] ?? []).length, notes: '', checklist: t.kind === 'round' ? CHECKLIST : [], ticket_error: null, open_run_id: (t.open_run as { id: string } | null | undefined)?.id ?? null,
     can: { edit: role === 'mgr', complete: t.kind === 'certificate' || t.kind === 'vendor_document' ? role === 'mgr' : t.kind === 'preventive' && role !== 'view', start_round: t.kind === 'round' && role !== 'view' && !!t.active, open_request: ticketsOn },
   });
   await page.route('**/api/v1/maintenance/**', async (route) => {
@@ -101,7 +111,7 @@ export async function installMaintenanceMock(page: Page, o: MaintMockOptions = {
     const body: unknown = method === 'GET' || method === 'DELETE' ? null : (() => { try { return req.postDataJSON(); } catch { return null; } })();
     st.calls.push({ method, path: p + url.search, body });
     const can = { view: enabled && perms.includes('maintenance.view'), perform: enabled && perms.includes('maintenance.perform'), manage: enabled && perms.includes('maintenance.manage'), open_request: enabled && ticketsOn };
-    if (p === 'module') return json(route, { enabled, can, tickets_on: ticketsOn });
+    if (p === 'module') return json(route, { enabled, can, tickets_on: ticketsOn, round_view: o.roundView ?? 'step' });
     if (!enabled) return err(route, 404, 'feature_disabled');
     if (!can.view) return err(route, 403, 'forbidden');
     if (p === 'tasks' && method === 'GET') {
@@ -168,6 +178,42 @@ export async function installMaintenanceMock(page: Page, o: MaintMockOptions = {
       run.ticket_ids = [...run.ticket_ids, 't-1043'];
       return json(route, { ticket_id: 't-1043', number: 1043, run }, 201);
     }
+    m = /^tasks\/([^/]+)\/files(?:\/([^/]+))?$/.exec(p);
+    if (m) {
+      const list = files[m[1]] ?? [];
+      if (method === 'POST') {
+        if (!can.manage) return err(route, 403, 'forbidden');
+        if (list.length >= 3) return err(route, 409, 'too_many_files', 'הגעתם למספר הקבצים המרבי למשימה.');
+        const f = { id: `f${list.length + 10}`, name: 'scan.pdf', kind: 'pdf', bytes: 52_000, uploaded_at: '2027-01-15T10:00:00Z', uploaded_by_name: 'דני כהן' };
+        files[m[1]] = [...list, f];
+        return json(route, f, 201);
+      }
+      if (method === 'DELETE') {
+        files[m[1]] = list.filter((x) => x.id !== m![2]);
+        return json(route, { id: m[2], deleted: true });
+      }
+      return route.fulfill({ status: 200, contentType: 'application/pdf', headers: { 'content-disposition': 'attachment; filename="x.pdf"' }, body: '%PDF-1.4\n%%EOF\n' });
+    }
+    if (p === 'reminder-log' || p.startsWith('reminder-log?')) {
+      const ev = url.searchParams.get('event');
+      const rows = o.emptyLog ? [] : [
+        { id: 'l1', task_id: 'p1', title: 'ניקוי מנדף המטבח', task_kind: 'preventive', event: 'overdue', due_date: '2027-01-12', detail: '', at: '2027-01-13T06:00:00Z' },
+        { id: 'l2', task_id: 'p1', title: 'ניקוי מנדף המטבח', task_kind: 'preventive', event: 'request', due_date: '2027-01-12', detail: 't-1042', at: '2027-01-05T06:00:00Z' },
+        { id: 'l3', task_id: 'c1', title: 'בדיקת מעלית שנתית - מעלית צפונית', task_kind: 'certificate', event: 'due_soon', due_date: '2027-02-14', detail: '', at: '2027-01-15T06:00:00Z' },
+        { id: 'l4', task_id: 'p2', title: 'ניקוי מסנני מזגנים', task_kind: 'preventive', event: 'request_failed', due_date: '2027-01-27', detail: 'tickets_off', at: '2027-01-14T06:00:00Z' },
+      ].filter((r) => !ev || r.event === ev);
+      return json(route, { items: rows, reminders_enabled: o.remindersOn === true, keep_days: 365 });
+    }
+    m = /^close-proposal\/([^/]+)(\/confirm)?$/.exec(p);
+    if (m) {
+      if (m[2]) return json(route, { record_id: 'rec-close' });
+      return json(route, { proposal: o.closeAsks === false ? null : { task_id: 'p1', title: 'ניקוי מנדף המטבח', kind: 'preventive', due_date: '2027-01-12', next_due: '2027-04-12' } });
+    }
+    m = /^by-subject\/([^/]+)\/([^/]+)$/.exec(p);
+    if (m) {
+      const items = m[1] === 'elevator' && m[2] === 'e1' ? tasks.filter((t) => t.id === 'c1') : [];
+      return json(route, { kind: m[1], id: m[2], state: items.length ? 'due_soon' : 'none', items });
+    }
     if (p === 'vendors') return json(route, { items: VENDORS });
     m = /^vendors\/([^/]+)\/documents$/.exec(p);
     if (m) {
@@ -177,8 +223,10 @@ export async function installMaintenanceMock(page: Page, o: MaintMockOptions = {
     if (p === 'options') {
       if (!can.manage) return err(route, 403, 'forbidden');
       return json(route, { places: [{ kind: 'building', id: 'b1', name: 'מבנה א', parent_id: 's1' }, { kind: 'floor', id: 'f-roof', name: 'גג', parent_id: 'b1' }], placeless: true, vendors: VENDORS,
+        elevators: [{ id: 'e1', name: 'מעלית צפונית' }], generators: [{ id: 'g1', name: 'גנרטור ראשי' }],
         departments: [{ id: 'dept-maint', name: 'אחזקה' }], people: [{ id: 'u1', name: 'דני כהן' }], categories: ['elevator', 'other'], doc_types: ['insurance', 'other'],
-        defaults: { lead_days: { certificate: 30, preventive: 7, round: 0, vendor_document: 30 }, tag_base_url: 'https://arx.example.test' }, tickets_on: ticketsOn });
+        defaults: { lead_days: { certificate: 30, preventive: 7, round: 0, vendor_document: 30 }, tag_base_url: '', tag_effective_url: 'https://arx.example.test',
+          reminders_enabled: o.remindersOn === true, round_phone_view: o.roundView ?? 'step', close_request_mode: 'ask', file_max_per_task: 3 }, tickets_on: ticketsOn });
     }
     if (p === 'tags' && method === 'GET') {
       if (!can.manage) return err(route, 403, 'forbidden');

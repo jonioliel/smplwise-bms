@@ -291,8 +291,8 @@ def test_closing_the_request_asks_by_default_and_changes_nothing_until_the_close
     assert mw.c.get(f"{M}/tasks/{t['id']}").json()["due_date"] == "2027-01-20", "closing alone does not move the plan"
     prop = mw.c.get(f"{M}/close-proposal/{tid}").json()["proposal"]
     assert prop == {"task_id": t["id"], "title": t["title"], "kind": "preventive", "due_date": "2027-01-20", "next_due": "2027-02-20"}
-    # nobody who may not mark the plan sees the question (an installation task: vic has no permission, gil none at any scope? gil is an operator)
-    assert mw.c.get(f"{M}/close-proposal/{tid}", headers=mw.h("vic")).status_code == 403
+    # nobody who may not see or mark the plan is asked - and learns nothing: the same empty answer as for an unknown request
+    assert mw.c.get(f"{M}/close-proposal/{tid}", headers=mw.h("vic")).json() == {"proposal": None}
     r = mw.c.post(f"{M}/close-proposal/{tid}/confirm", headers=mw.h("tom"))
     assert r.status_code == 200, r.text
     after = mw.c.get(f"{M}/tasks/{t['id']}").json()
@@ -339,8 +339,8 @@ def test_the_question_is_only_for_a_person_who_may_mark_it_and_only_for_the_curr
 def test_a_certificate_without_an_interval_is_never_proposed(mw):
     mw.on()
     cert = mw.task(title="תעודה", due_date="2027-01-20")  # no interval: its new date needs a person
+    t = mw.w.create("joni", "בקשה")
     with mw.db.connection() as conn:
-        t = mw.w.create("joni", "בקשה")
         conn.execute("UPDATE maint_tasks SET ticket_id = ?, ticket_due = due_date WHERE id = ?", (t["id"], cert["id"]))
     _close(mw, t["id"])
     assert mw.c.get(f"{M}/close-proposal/{t['id']}").json() == {"proposal": None}
@@ -372,6 +372,6 @@ def test_the_form_offers_elevators_and_generators_and_a_task_links_to_them(mw):
     t = mw.task(title="תסקיר מעלית", elevator_id="el1")
     assert t["elevator_id"] == "el1" and t["elevator_name"] == "מעלית ראשית"
     card = mw.c.get(f"{M}/by-subject/elevator/el1").json()
-    assert [i["id"] for i in card["items"]] == [t["id"]] and card["state"] == "ok"
+    assert [i["id"] for i in card["items"]] == [t["id"]] and card["state"] == "due_soon"
     assert mw.c.post(f"{M}/tasks", json={"kind": "certificate", "title": "x", "due_date": "2027-02-14", "elevator_id": "nope"}, headers=mw.h("joni")).status_code == 422
 

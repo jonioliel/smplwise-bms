@@ -722,7 +722,7 @@ def file_out(conn: sqlite3.Connection, r: Any) -> dict[str, Any]:
 
 
 def file_list(conn: sqlite3.Connection, task_id: str) -> list[dict[str, Any]]:
-    return [file_out(conn, r) for r in conn.execute("SELECT * FROM maint_files WHERE task_id = ? AND deleted_at IS NULL ORDER BY uploaded_at, id", (task_id,)).fetchall()]
+    return [file_out(conn, r) for r in conn.execute("SELECT * FROM maint_files WHERE task_id = ? AND deleted_at IS NULL ORDER BY uploaded_at, rowid", (task_id,)).fetchall()]
 
 
 def file_precheck(viewer: Viewer, task_id: str) -> sqlite3.Row:
