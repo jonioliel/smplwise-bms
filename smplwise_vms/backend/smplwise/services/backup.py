@@ -80,7 +80,10 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    # DOORHARD-295: the door-automation fire history (cooldown / cap counters, decisions) is never in an archive
                                    "door_automation_fires",
                                    # ECCACT-295: durable WisKey intents / relay map / feature registry - a restore must never revive an old intent
-                                   "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents"})
+                                   "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents",
+                                   # APPREFRESH-295: the phone app's refresh-token families and access tokens (hashes only) - a restore must
+                                   # never revive a revoked family or an already-used refresh token
+                                   "app_refresh_families", "app_refresh_tokens", "app_access_tokens"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -182,6 +185,10 @@ SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.")
 # SAFE2-295 (2.10.0 release notes, open items): the external-grant card switch (GRANTS3-295 X5, `access.external.cards`) is security policy
 # like its siblings above (WISKEYID) - never exported, never taken from an archive, so a restore can never switch card grants on.
 SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards"}
+# APPREFRESH-295: the phone app's persistent sign-in switch and its lifetimes are security policy - never exported, never restored
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh", "security.app_refresh_absolute_days", "security.app_refresh_idle_days",
+                                 "security.app_refresh_access_minutes", "security.app_refresh_admin_absolute_days",
+                                 "security.app_refresh_admin_idle_hours"}
 
 
 def _kept_setting(key: Any) -> bool:
