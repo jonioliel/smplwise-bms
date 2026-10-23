@@ -63,7 +63,22 @@ POLICY: dict[str, tuple[int, int, int]] = {
 DEVICE_KEY_KEY = "security.app_refresh_device_key"
 DEVICE_KEY_MODES = ("off", "optional", "required")
 DEVICE_KEY_DEFAULT = "optional"
-SETTING_KEYS = (FEATURE_KEY, DEVICE_KEY_KEY, *POLICY)
+# APPREFRESH3-295 (CR section 14): the wording of the notice the device's user receives when an administrator approves a device-key reset
+# (owner: configurable in the Settings, not hard-coded). Plain text; the only placeholders are {device} (the device's name) and {until}
+# (when the approval lapses, installation time zone). A PUT with null restores the default.
+NOTICE_TITLE_KEY = "security.app_refresh_key_reset_notice_title"
+NOTICE_BODY_KEY = "security.app_refresh_key_reset_notice_body"
+NOTICE_DEFAULTS: dict[str, tuple[str, int]] = {
+    NOTICE_TITLE_KEY: ("מפתח האבטחה של האפליקציה אופס", 80),
+    NOTICE_BODY_KEY: ("מנהל המערכת אישר איפוס של מפתח האבטחה במכשיר {device}. יש להיכנס מחדש באפליקציה עד {until}. אם לא ביקשת זאת - פנה למנהל המערכת.", 180),
+}
+NOTICE_PLACEHOLDERS = ("{device}", "{until}")
+SETTING_KEYS = (FEATURE_KEY, DEVICE_KEY_KEY, *POLICY, *NOTICE_DEFAULTS)
+# APPREFRESH3-295: an administrator-approved device-key reset lets the device's next mint bind a new key without the old key's proof, once,
+# within this window (then the pin holds again). A constant, like the retry grace.
+RESET_WINDOW_S = 24 * 3600
+RESET_REASON_MIN, RESET_REASON_MAX = 3, 200
+PIN_SCOPE_PREFIX = "dk:"  # app_refresh_nonces.family_id of a nonce issued for a pinned device that has no live keyed family
 # Security review D-02 (2026-10-24): challenge nonces per (family, client /64) - burst 10, 30 per minute - so a third party who knows a
 # device id can no longer empty the phone's bucket; plus a per-family ceiling well above an app's need that only catches storms.
 RATE_CHALLENGE = (10, 30.0)
@@ -87,7 +102,11 @@ DEVICE_HE = "המכשיר לא נמצא."
 NOT_FOUND_HE = "Not found"
 KEY_HE = "מפתח המכשיר אינו תקין. יש לעדכן את האפליקציה ולהיכנס מחדש."
 PROOF_RETRY_HE = "יש לחזור על הבקשה."
-KEY_BOUND_HE = "הכניסה השמורה במכשיר זה קשורה למפתח אחר. יש לסיים אותה תחילה ולהיכנס מחדש."
+KEY_BOUND_HE = "המכשיר הזה רשום עם מפתח אבטחה אחר. אם המפתח אבד, בקשו ממנהל המערכת לאפס אותו."
+NO_KEY_HE = "למכשיר הזה אין מפתח אבטחה רשום."
+REASON_HE = f"יש לכתוב סיבה ({RESET_REASON_MIN}-{RESET_REASON_MAX} תווים)."
+SELF_RESET_HE = "איפוס מפתח של המכשיר שלך מאשרים רק מתוך הרשת המקומית."
+NOTICE_INVALID_HE = "נוסח ההודעה: טקסט רגיל, עם {device} ו־{until} בלבד."
 
 
 class Refused(ApiError):
@@ -202,8 +221,32 @@ def mode_rank(mode: str) -> int:
     return DEVICE_KEY_MODES.index(mode) if mode in DEVICE_KEY_MODES else len(DEVICE_KEY_MODES)
 
 
+def clean_notice(value: Any, max_len: int) -> str | None:
+    """A notice template as stored: whitespace folded, 1..max_len characters, no braces except the two placeholders. None = invalid."""
+    if not isinstance(value, str):
+        return None
+    text = " ".join(value.split())
+    if not 1 <= len(text) <= max_len:
+        return None
+    rest = text
+    for p in NOTICE_PLACEHOLDERS:
+        rest = rest.replace(p, "")
+    return None if ("{" in rest or "}" in rest) else text
+
+
+def notice_template(conn: sqlite3.Connection, key: str) -> str:
+    default, max_len = NOTICE_DEFAULTS[key]
+    return clean_notice(get_setting(conn, key, default), max_len) or default  # a hand-edited bad row falls back to the default
+
+
+def render_notice(template: str, device: str, until: str) -> str:
+    """Plain substitution (never str.format: a device name with braces stays text)."""
+    return template.replace("{device}", device).replace("{until}", until)
+
+
 def settings_out(conn: sqlite3.Connection) -> dict[str, Any]:
-    return {FEATURE_KEY: "on" if enabled(conn) else "off", DEVICE_KEY_KEY: device_key_mode(conn), **policy(conn)}
+    return {FEATURE_KEY: "on" if enabled(conn) else "off", DEVICE_KEY_KEY: device_key_mode(conn), **policy(conn),
+            **{k: notice_template(conn, k) for k in NOTICE_DEFAULTS}}
 
 
 def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Principal, *, channel: str, request_id: str | None) -> tuple[dict[str, Any], dict[str, Any], int]:
@@ -221,6 +264,13 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
                 raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key, "allowed": list(DEVICE_KEY_MODES)})
             if value != device_key_mode(conn):
                 changes[key] = value
+        elif key in NOTICE_DEFAULTS:
+            default, max_len = NOTICE_DEFAULTS[key]
+            text = default if value is None else clean_notice(value, max_len)
+            if text is None:
+                raise ApiError(422, "validation", NOTICE_INVALID_HE, details={"field": key, "max": max_len, "placeholders": list(NOTICE_PLACEHOLDERS)})
+            if text != notice_template(conn, key):
+                changes[key] = text
         elif key in POLICY:
             _, lo, hi = POLICY[key]
             if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
@@ -353,10 +403,11 @@ def _mint_key(conn: sqlite3.Connection, principal: Principal, device_id: str, de
     """The key a new family binds: (SPKI DER base64url, fingerprint hex) or None (no key: mode off, or optional without one). Every
     refusal is audited with the reason only (never the key, the signature or a full fingerprint) and raises 422 / 409.
 
-    Security review D-01 (b): while the device has a live KEYED family, a mint that would leave it without that key (another key, no key,
-    or mode `off`) must carry `device_key.replaces`, a proof by the OLD key (`_check_replace`); otherwise `409 device_key_bound` and
-    nothing ends. The lost-key case goes through an explicit end first (the app's sign-out, the user's own "end this sign-in", an
-    administrator), after which the mint binds the new key normally."""
+    Security review D-01 (b), widened by APPREFRESH3-295: while the device has a PINNED key (the last key it bound - kept beyond the family
+    that bound it, so re-registering the device, the app's sign-out or any "end this sign-in" no longer forgets it), a mint that would
+    leave it without that key (another key, no key, or mode `off`) must carry `device_key.replaces`, a proof by the OLD key
+    (`_check_replace`), or the device must hold a pending administrator-approved reset (`approve_key_reset`, the lost-key path: consumed
+    here, once); otherwise `409 device_key_bound` and nothing ends."""
     mode = device_key_mode(conn)
 
     def deny(status: int, code: str, reason: str) -> Refused:
@@ -385,47 +436,235 @@ def _mint_key(conn: sqlite3.Connection, principal: Principal, device_id: str, de
             if other is not None:  # one hardware key per phone: the same key on another device is a copy
                 raise deny(409, "device_key_in_use", "device_key_in_use")
             key = (dk.b64u_encode(spki), fp)
-    bound = conn.execute("SELECT family_id, device_key_spki, device_key_fp FROM app_refresh_families WHERE device_id = ? AND revoked_at IS NULL"
-                         " AND device_key_fp IS NOT NULL", (device_id,)).fetchone()
-    if bound is not None and (key is None or key[1] != bound["device_key_fp"]):
-        _check_replace(conn, principal, device_id, bound, device_key, mode, request_id)
-        audit(conn, actor=principal, action="auth.app_refresh.key_replaced", decision="allowed", resource_type="mobile_device", resource_id=device_id,
-              request_id=request_id, details={"family": bound["family_id"], "old_key_fp": dk.fingerprint_prefix(bound["device_key_fp"]),
-                                              "new_key_fp": dk.fingerprint_prefix(key[1]) if key else None, "device_key_mode": mode})
+    pin = pinned_key(conn, device_id)
+    if pin is not None and (key is None or key[1] != pin["fp"]):
+        new_fp = dk.fingerprint_prefix(key[1]) if key else None
+        if _reset_pending(pin, _now()):
+            # the lost-key path: an administrator approved this device's reset (audited, the user notified); spent by this mint, once
+            _clear_reset(conn, device_id)
+            audit(conn, actor=principal, action="auth.app_refresh.key_replaced", decision="allowed", resource_type="mobile_device", resource_id=device_id,
+                  request_id=request_id, details={"family": pin["family_id"], "old_key_fp": dk.fingerprint_prefix(pin["fp"]), "new_key_fp": new_fp,
+                                                  "device_key_mode": mode, "via": "admin_reset", "approved_by": pin["reset_by"]})
+        else:
+            _check_replace(conn, principal, device_id, pin, device_key, mode, request_id)
+            audit(conn, actor=principal, action="auth.app_refresh.key_replaced", decision="allowed", resource_type="mobile_device", resource_id=device_id,
+                  request_id=request_id, details={"family": pin["family_id"], "old_key_fp": dk.fingerprint_prefix(pin["fp"]), "new_key_fp": new_fp,
+                                                  "device_key_mode": mode, "via": "old_key"})
     return key
 
 
-def _take_nonce(conn: sqlite3.Connection, family_id: str, nonce: Any, now: float) -> bool:
-    """Spend a challenge nonce of `family_id`: False for an unknown / foreign / used / expired one. A valid one is marked used BEFORE the
-    caller verifies the signature (single use, also when the proof is then refused)."""
+# ---------------------------------------------------------------- the device-key pin (APPREFRESH3-295, migration 0158)
+
+def pin_scope(device_id: str) -> str:
+    return PIN_SCOPE_PREFIX + device_id
+
+
+def _pin_row(conn: sqlite3.Connection, device_id: str) -> sqlite3.Row | None:
+    try:
+        return conn.execute("SELECT * FROM app_refresh_device_keys WHERE device_id = ?", (device_id,)).fetchone()
+    except sqlite3.OperationalError as exc:  # a database before migration 0158
+        if _tables_missing(exc):
+            return None
+        raise
+
+
+def pinned_key(conn: sqlite3.Connection, device_id: str) -> dict[str, Any] | None:
+    """The key this device registration is pinned to - the stored pin, or (a row the backfill missed) the key of its live keyed family; the
+    live family wins if they ever differ. None: the device never bound a key (a slice-1 app), or a reset to keyless was consented to.
+    {spki (base64url SPKI DER), fp, family_id (the live keyed family or None), reset_expires_at, reset_by, stored}."""
+    row = _pin_row(conn, device_id)
+    fam = conn.execute("SELECT family_id, device_key_spki, device_key_fp FROM app_refresh_families WHERE device_id = ? AND revoked_at IS NULL"
+                       " AND device_key_fp IS NOT NULL", (device_id,)).fetchone()
+    if row is None and fam is None:
+        return None
+    if fam is not None and row is not None and fam["device_key_fp"] != row["device_key_fp"]:
+        log.warning("device key pin of %s differs from its live family; the family's key is used", device_id)
+    src = fam if fam is not None else row
+    return {"spki": src["device_key_spki"], "fp": src["device_key_fp"], "family_id": fam["family_id"] if fam is not None else None,
+            "reset_expires_at": row["reset_expires_at"] if row is not None else None, "reset_by": row["reset_by"] if row is not None else None,
+            "reset_approved_at": row["reset_approved_at"] if row is not None else None, "stored": row is not None}
+
+
+def _reset_pending(pin: dict[str, Any], now: float) -> bool:
+    return bool(pin.get("reset_expires_at")) and epoch(pin["reset_expires_at"]) > now
+
+
+def _clear_reset(conn: sqlite3.Connection, device_id: str) -> None:
+    conn.execute("UPDATE app_refresh_device_keys SET reset_approved_at = NULL, reset_expires_at = NULL, reset_by = NULL, reset_reason = NULL"
+                 " WHERE device_id = ?", (device_id,))
+
+
+def _store_pin(conn: sqlite3.Connection, device_id: str, user_id: str, key: tuple[str, str] | None, now: float) -> None:
+    """After a successful mint: pin the key it bound (a new key restarts bound_at; the same key only refreshes updated_at), or - a mint
+    that bound no key, which reached here only with the old key's consent or a reset - drop the pin."""
+    if key is None:
+        conn.execute("DELETE FROM app_refresh_device_keys WHERE device_id = ?", (device_id,))
+        return
+    conn.execute(
+        """INSERT INTO app_refresh_device_keys(device_id, user_id, device_key_spki, device_key_fp, device_key_alg, bound_at, updated_at)
+           VALUES (?,?,?,?,?,?,?)
+           ON CONFLICT(device_id) DO UPDATE SET user_id = excluded.user_id, device_key_spki = excluded.device_key_spki,
+               bound_at = CASE WHEN app_refresh_device_keys.device_key_fp = excluded.device_key_fp THEN app_refresh_device_keys.bound_at ELSE excluded.bound_at END,
+               device_key_fp = excluded.device_key_fp, device_key_alg = excluded.device_key_alg, updated_at = excluded.updated_at""",
+        (device_id, user_id, key[0], key[1], dk.ALG, iso(now), iso(now)))
+
+
+def key_status(conn: sqlite3.Connection, device_id: str) -> dict[str, Any]:
+    """What an administrator (or the device's user) sees of the pin: never the key, a 16-hex fingerprint prefix at most."""
+    pin = pinned_key(conn, device_id)
+    now = _now()
+    if pin is None:
+        return {"device_id": device_id, "pinned": False, "reset_pending": False}
+    row = _pin_row(conn, device_id)
+    pending = _reset_pending(pin, now)
+    return {"device_id": device_id, "pinned": True, "alg": dk.ALG, "key_fp": dk.fingerprint_prefix(pin["fp"]),
+            "bound_at": row["bound_at"] if row is not None else None, "sign_in_live": pin["family_id"] is not None,
+            "reset_pending": pending, "reset_expires_at": pin["reset_expires_at"] if pending else None,
+            "reset_approved_at": pin["reset_approved_at"] if pending else None}
+
+
+def _until_text(conn: sqlite3.Connection, ts: float) -> str:
+    import datetime as _dt
+
+    from .timeutil import zone
+
+    tz = "Asia/Jerusalem"
+    try:
+        from ..routers.settings import read_settings
+
+        tz = read_settings(conn).get("time.zone") or tz
+    except Exception:  # noqa: BLE001 - the notice still goes out, in the default zone
+        pass
+    return _dt.datetime.fromtimestamp(ts, zone(tz)).strftime("%d/%m/%Y %H:%M")
+
+
+def _notify_reset(conn: sqlite3.Connection, user_id: str, device_id: str, device_name: str, expires: float) -> bool:
+    """The device's own user is told (in the inbox and the channels of the `security.app_device_key_reset` policy) in the wording the
+    Settings hold. Never the administrator's name, the reason, or any key material. A failure never undoes the reset (logged)."""
+    try:
+        from . import notify
+
+        until = _until_text(conn, expires)
+        title = render_notice(notice_template(conn, NOTICE_TITLE_KEY), device_name, until)
+        body = render_notice(notice_template(conn, NOTICE_BODY_KEY), device_name, until)
+        res = notify.emit_full(conn, notify.Signal("security.app_device_key_reset", "session", user_id,
+                                                   dedupe_key=f"security.app_device_key_reset:session:{user_id}:{notify.new_id()}",
+                                                   params={"notice_title": title, "notice_body": body, "name": device_name},
+                                                   initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "app_device_key"}))
+        return res.action in ("created", "folded", "renotified")
+    except Exception:  # noqa: BLE001
+        log.warning("device key reset notice failed", exc_info=True)
+        return False
+
+
+def approve_key_reset(conn: sqlite3.Connection, actor: Principal, device_id: str, reason: Any, *, channel: str, request_id: str | None) -> dict[str, Any]:
+    """An administrator's explicit approval of a device-key reset - the lost-key path (the caller checked: a system administrator). The
+    device's live sign-in ends (its key is no longer trusted), its open nonces are dropped, and for RESET_WINDOW_S the device's next mint
+    (by its own user, from a fresh sign-in, as always) may bind a new key - or none - without the old key's proof, once. Audited
+    (`auth.app_refresh.key_reset_approved`, the reason and a fingerprint prefix, never the key) and the user is notified. An administrator
+    approves a reset of their OWN device only from the local channel (a stolen remote session cannot re-key its own phone)."""
+    def deny(status: int, code: str, why: str, msg: str) -> Refused:
+        audit(conn, actor=actor, action="auth.app_refresh.key_reset_approved", decision="denied", resource_type="mobile_device", resource_id=device_id[:64],
+              reason=why, request_id=request_id, details={"channel": channel})
+        return Refused(status, code, msg)
+
+    dev = conn.execute("SELECT id, user_id, name, revoked_at FROM mobile_devices WHERE id = ?", (device_id,)).fetchone()
+    if dev is None:
+        raise deny(404, "not_found", "device_not_found", DEVICE_HE)
+    text = " ".join(str(reason).split()) if isinstance(reason, str) else ""
+    if not RESET_REASON_MIN <= len(text) <= RESET_REASON_MAX:
+        raise deny(422, "validation", "reason_invalid", REASON_HE)
+    if dev["user_id"] == actor.user_id and channel != "local":
+        raise deny(403, "local_channel_only", "own_device_remote", SELF_RESET_HE)
+    pin = pinned_key(conn, device_id)
+    if pin is None:
+        raise deny(409, "no_device_key", "no_device_key", NO_KEY_HE)
+    now = _now()
+    expires = now + RESET_WINDOW_S
+    if not pin["stored"]:
+        _store_pin(conn, device_id, dev["user_id"], (pin["spki"], pin["fp"]), now)
+    conn.execute("UPDATE app_refresh_device_keys SET reset_approved_at = ?, reset_expires_at = ?, reset_by = ?, reset_reason = ? WHERE device_id = ?",
+                 (iso(now), iso(expires), actor.user_id, text, device_id))
+    ended = revoke_device(conn, device_id, "device_key_reset")
+    _drop_nonces(conn, pin_scope(device_id))
+    notified = _notify_reset(conn, dev["user_id"], device_id, dev["name"] or "", expires)
+    audit(conn, actor=actor, action="auth.app_refresh.key_reset_approved", decision="allowed", resource_type="mobile_device", resource_id=device_id,
+          request_id=request_id, reason="admin_approved",
+          details={"user": dev["user_id"], "key_fp": dk.fingerprint_prefix(pin["fp"]), "expires_at": iso(expires), "channel": channel,
+                   "families_ended": ended, "notified": notified, "note": text})
+    return {"device_id": device_id, "reset_expires_at": iso(expires), "families_ended": ended, "user_notified": notified}
+
+
+USER_RELEASE_REASONS = ("app_sign_out", "revoked_by_user", "signed_out_everywhere")
+
+
+def release_pins(conn: sqlite3.Connection, device_ids: Any, reason: str, *, actor: Principal, request_id: str | None) -> int:
+    """Owner decision Q296 (2026-10-23): the USER ending the old sign-in themselves - the app's own sign-out with its current token, "end this
+    sign-in" or "sign out everywhere" on their own account - releases the device's pinned key, so the next mint binds a new key without the
+    old key's proof. Nothing else releases it: re-registering or deleting the device, an administrator's end, a refusal, expiry, the
+    feature switched off (only an administrator-approved reset does). Audited `auth.app_refresh.key_released`."""
+    if reason not in USER_RELEASE_REASONS:
+        return 0
+    n = 0
+    for did in sorted(set(device_ids)):
+        row = _pin_row(conn, did)
+        if row is None or row["user_id"] != actor.user_id:
+            continue
+        if conn.execute("SELECT 1 FROM app_refresh_families WHERE device_id = ? AND revoked_at IS NULL", (did,)).fetchone() is not None:
+            continue
+        conn.execute("DELETE FROM app_refresh_device_keys WHERE device_id = ?", (did,))
+        _drop_nonces(conn, pin_scope(did))
+        audit(conn, actor=actor, action="auth.app_refresh.key_released", decision="allowed", resource_type="mobile_device", resource_id=did,
+              reason=reason, request_id=request_id, details={"key_fp": dk.fingerprint_prefix(row["device_key_fp"])})
+        n += 1
+    return n
+
+
+def withdraw_key_reset(conn: sqlite3.Connection, actor: Principal, device_id: str, *, channel: str, request_id: str | None) -> bool:
+    """Withdraw a pending approval (the pin holds again at once). False: nothing was pending."""
+    pin = pinned_key(conn, device_id)
+    if pin is None or not _reset_pending(pin, _now()):
+        return False
+    _clear_reset(conn, device_id)
+    audit(conn, actor=actor, action="auth.app_refresh.key_reset_withdrawn", decision="allowed", resource_type="mobile_device", resource_id=device_id,
+          request_id=request_id, details={"channel": channel})
+    return True
+
+
+def _take_nonce(conn: sqlite3.Connection, scopes: str | tuple[str, ...], nonce: Any, now: float) -> bool:
+    """Spend a challenge nonce of one of `scopes` (a family id, or a device's pin scope): False for an unknown / foreign / used / expired
+    one. A valid one is marked used BEFORE the caller verifies the signature (single use, also when the proof is then refused)."""
+    allowed = (scopes,) if isinstance(scopes, str) else scopes
     row = conn.execute("SELECT * FROM app_refresh_nonces WHERE nonce_hash = ?", (dk.nonce_hash(nonce),)).fetchone() if dk.is_nonce(nonce) else None
-    if row is None or row["family_id"] != family_id or row["used_at"] or epoch(row["expires_at"]) <= now:
+    if row is None or row["family_id"] not in allowed or row["used_at"] or epoch(row["expires_at"]) <= now:
         return False
     conn.execute("UPDATE app_refresh_nonces SET used_at = ? WHERE nonce_hash = ?", (iso(now), row["nonce_hash"]))
     return True
 
 
-def _check_replace(conn: sqlite3.Connection, principal: Principal, device_id: str, bound: sqlite3.Row, device_key: dict[str, Any] | None,
+def _check_replace(conn: sqlite3.Connection, principal: Principal, device_id: str, pin: dict[str, Any], device_key: dict[str, Any] | None,
                    mode: str, request_id: str | None) -> None:
-    """Security review D-01 (b): the OLD key's consent to hand the device's keyed sign-in to the mint's new key (or to none). The proof
-    `device_key.replaces = {nonce, ts, sig}` signs `replace_message(device_id, nonce, ts, <the new public_key text>)` with the old key over
-    a challenge nonce of the old family (POST /auth/app/refresh-challenge). Every refusal is `409 device_key_bound` with a reason, audited,
-    and ends nothing (a consumed nonce stays consumed)."""
+    """Security review D-01 (b) / APPREFRESH3: the OLD (pinned) key's consent to hand the device to the mint's new key (or to none). The
+    proof `device_key.replaces = {nonce, ts, sig}` signs `replace_message(device_id, nonce, ts, <the new public_key text>)` with the old
+    key over a challenge nonce of the device (POST /auth/app/refresh-challenge: the live keyed family's scope, or - no live family - the
+    device's pin scope). Every refusal is `409 device_key_bound` with a reason, audited, and ends nothing (a consumed nonce stays
+    consumed)."""
     now = _now()
 
     def deny(reason: str) -> Refused:
         audit(conn, actor=principal, action="auth.app_refresh.issue", decision="denied", resource_type="mobile_device", resource_id=device_id,
-              reason="device_key_bound", request_id=request_id, details={"device_key_mode": mode, "family": bound["family_id"], "replace": reason})
+              reason="device_key_bound", request_id=request_id, details={"device_key_mode": mode, "family": pin["family_id"], "replace": reason})
         return Refused(409, "device_key_bound", KEY_BOUND_HE, details={"reason": reason, "server_time": int(now)})
 
     rep = (device_key or {}).get("replaces")
     if not rep:
         raise deny("missing")
     nonce, ts, sig = rep.get("nonce"), rep.get("ts"), rep.get("sig")
-    if not _take_nonce(conn, bound["family_id"], nonce, now):
+    scopes = tuple(s for s in (pin["family_id"], pin_scope(device_id)) if s)
+    if not _take_nonce(conn, scopes, nonce, now):
         raise deny("nonce")
     text = str((device_key or {}).get("public_key") or "")
-    if not isinstance(ts, int) or isinstance(ts, bool) or not dk.verify(dk.b64u_decode(bound["device_key_spki"]), str(sig or ""),
+    if not isinstance(ts, int) or isinstance(ts, bool) or not dk.verify(dk.b64u_decode(pin["spki"]), str(sig or ""),
                                                                         dk.replace_message(device_id, nonce, ts, text)):
         raise deny("invalid")
     if abs(ts - now) > dk.POP_SKEW_S:
@@ -446,11 +685,9 @@ def challenge(conn: sqlite3.Connection, device_id: str) -> tuple[dict[str, Any],
     now = _now()
     answer = unstored_challenge()
     nonce = answer["nonce"]
-    fam = conn.execute("SELECT family_id FROM app_refresh_families WHERE device_id = ? AND revoked_at IS NULL AND device_key_fp IS NOT NULL",
-                       (device_id,)).fetchone()
-    if fam is None:
+    fid = _device_scope(conn, device_id)
+    if fid is None:
         return answer, None
-    fid = fam["family_id"]
     conn.execute("DELETE FROM app_refresh_nonces WHERE family_id = ? AND (used_at IS NOT NULL OR expires_at <= ?)", (fid, iso(now)))
     conn.execute("""DELETE FROM app_refresh_nonces WHERE family_id = ? AND nonce_hash NOT IN (
                         SELECT nonce_hash FROM app_refresh_nonces WHERE family_id = ? ORDER BY issued_at DESC, rowid DESC LIMIT ?)""",
@@ -460,12 +697,21 @@ def challenge(conn: sqlite3.Connection, device_id: str) -> tuple[dict[str, Any],
     return answer, fid
 
 
+def _device_scope(conn: sqlite3.Connection, device_id: str) -> str | None:
+    """Where a challenge nonce of this device is stored: its live KEYED family, else (APPREFRESH3) its pin scope when the device is pinned
+    to a key without a live family (the replace proof after a re-registration / sign-out), else nowhere."""
+    r = conn.execute("SELECT family_id FROM app_refresh_families WHERE device_id = ? AND revoked_at IS NULL AND device_key_fp IS NOT NULL",
+                     (device_id,)).fetchone()
+    if r is not None:
+        return r["family_id"]
+    return pin_scope(device_id) if _pin_row(conn, device_id) is not None else None
+
+
 def peek_device_family(db: Database, device_id: str) -> str | None:
-    """The live KEYED family of a device (a short read, no write gate) - the challenge route's limiter key."""
+    """The nonce scope of a device - its live KEYED family, or its pin scope (a short read, no write gate) - the challenge route's limiter
+    key; None for an unknown / unkeyed device."""
     with db.connection(mode="read", label="app_refresh.peek_device") as conn:
-        r = conn.execute("SELECT family_id FROM app_refresh_families WHERE device_id = ? AND revoked_at IS NULL AND device_key_fp IS NOT NULL",
-                         (device_id,)).fetchone()
-    return r["family_id"] if r else None
+        return _device_scope(conn, device_id)
 
 
 def _proof_retry(reason: str, now: float) -> Refused:
@@ -542,6 +788,7 @@ def issue(conn: sqlite3.Connection, principal: Principal, device_id: str, instal
     if key is not None:
         conn.execute("UPDATE app_refresh_families SET device_key_spki = ?, device_key_fp = ?, device_key_alg = ?, device_key_bound_at = ? WHERE family_id = ?",
                      (key[0], key[1], dk.ALG, iso(now), fam_id))
+    _store_pin(conn, device_id, principal.user_id, key, now)  # APPREFRESH3: the pin outlives this family
     refresh, access, access_exp = _mint_pair(conn, fam_id, principal.user_id, device_id, 1, None, now)
     audit(conn, actor=principal, action="auth.app_refresh.issued", decision="allowed", resource_type="mobile_device", resource_id=device_id, request_id=request_id,
           details={"family": fam_id, "anchor": anchor_kind, "admin_capped": admin, "via": channel,
@@ -604,6 +851,7 @@ def sign_out(conn: sqlite3.Connection, token: str, request_id: str | None) -> st
     revoke_family(conn, fam["family_id"], "app_sign_out")
     audit(conn, actor=_system(fam["user_id"]), action="auth.app_refresh.revoked", decision="allowed", resource_type="mobile_device",
           resource_id=fam["device_id"], reason="app_sign_out", request_id=request_id, details={"family": fam["family_id"], "channel": "app"})
+    release_pins(conn, [fam["device_id"]], "app_sign_out", actor=_system(fam["user_id"]), request_id=request_id)  # Q296: the user's own end
     return "signed_out"
 
 
@@ -837,6 +1085,13 @@ def janitor(db: Database) -> dict[str, int]:
             except sqlite3.OperationalError as exc:
                 if not _tables_missing(exc):
                     raise
+            try:  # APPREFRESH3: a lapsed reset approval is cleared (the pin holds again); a pin whose registration row is gone goes with it
+                conn.execute("UPDATE app_refresh_device_keys SET reset_approved_at = NULL, reset_expires_at = NULL, reset_by = NULL, reset_reason = NULL"
+                             " WHERE reset_expires_at IS NOT NULL AND reset_expires_at <= ?", (iso(now),))
+                conn.execute("DELETE FROM app_refresh_device_keys WHERE device_id NOT IN (SELECT id FROM mobile_devices)")
+            except sqlite3.OperationalError as exc:
+                if not _tables_missing(exc):
+                    raise
             expired = _revoke(conn, "(absolute_expires_at <= ? OR idle_expires_at <= ?)", (iso(now), iso(now)), "expired")
             cutoff = iso(now - KEEP_ENDED_DAYS * 86400)
             old = [r["family_id"] for r in conn.execute("SELECT family_id FROM app_refresh_families WHERE revoked_at IS NOT NULL AND revoked_at < ?", (cutoff,)).fetchall()]
@@ -855,4 +1110,6 @@ def janitor(db: Database) -> dict[str, int]:
 __all__ = ["FEATURE_KEY", "Refused", "enabled", "enabled_db", "policy", "settings_out", "update_settings", "issue", "refresh", "peek_family",
            "resolve_access", "revoke_family", "revoke_device", "revoke_user", "revoke_anchor", "revoke_all", "revoke_anchor_db", "hook",
            "list_families", "family", "janitor", "reset_limits", "is_refresh_token", "is_access_token", "token_hash", "install_hash",
-           "DEVICE_KEY_KEY", "DEVICE_KEY_MODES", "device_key_mode", "mode_rank", "challenge", "peek_device_family"]
+           "DEVICE_KEY_KEY", "DEVICE_KEY_MODES", "device_key_mode", "mode_rank", "challenge", "peek_device_family",
+           "pinned_key", "key_status", "approve_key_reset", "withdraw_key_reset", "release_pins", "NOTICE_TITLE_KEY", "NOTICE_BODY_KEY",
+           "RESET_WINDOW_S"]

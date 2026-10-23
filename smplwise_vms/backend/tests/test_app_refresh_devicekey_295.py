@@ -218,7 +218,12 @@ def test_the_key_of_a_previous_registration_no_longer_works(rx):
     register(rx)  # the same install registers again (a reinstall that kept the install id, a new device token)
     assert family_row(rx, out["family_id"])["revoked_reason"] == "device_reregistered"
     new_key = Key()
-    r = mint(rx, dev["device_id"], new_key)
+    # APPREFRESH3-295: the registration stays pinned to the old key - a new key needs the old key's consent (tests/test_app_refresh_keypin_295)
+    assert mint(rx, dev["device_id"], new_key).json()["code"] == "device_key_bound"
+    body = key_body(rx, dev["device_id"], new_key)
+    n = nonce_of(rx, dev["device_id"])
+    body["replaces"] = {"nonce": n, "ts": now(rx), "sig": old_key.sign(dk.replace_message(dev["device_id"], n, now(rx), body["public_key"]))}
+    r = mint(rx, dev["device_id"], None, body=body)
     assert r.status_code == 201, r.text
     out2 = r.json()
     assert family_row(rx, out2["family_id"])["device_key_fp"] == new_key.fp != old_key.fp
@@ -281,7 +286,8 @@ def test_a_thief_with_the_parent_inside_the_grace_gets_nothing(rx):
     assert r.status_code == 401 and "refresh_token" not in r.json()
     assert family_row(rx, out["family_id"])["revoked_reason"] == "proof_invalid"
     # and without any proof (the same parent, inside the grace) the family would have ended as proof_missing: shown on a new family
-    dev, out, key = keyed(rx)
+    # (APPREFRESH3: the device stays pinned to the phone's key after a refusal - the phone re-mints with its SAME key)
+    dev, out, key = keyed(rx, key=key)
     assert prefresh(rx, out["refresh_token"], dev["device_id"], proof(rx, key, dev["device_id"], out["refresh_token"])).status_code == 200
     assert prefresh(rx, out["refresh_token"], dev["device_id"], None).status_code == 401
     assert family_row(rx, out["family_id"])["revoked_reason"] == "proof_missing"
@@ -475,7 +481,8 @@ def test_d01_replacing_with_the_old_keys_proof_binds_the_new_key(rx):
 
 
 def test_d01_after_the_old_family_ended_a_new_key_binds_normally(rx):
-    # the lost-key path: the user ends the sign-in explicitly (settings card), then the mint binds the new key without the old key
+    # the USER ends the sign-in explicitly (settings card / the app's sign-out; owner decision Q296), then the mint binds the new key without
+    # the old key. Every other end keeps the key pinned (tests/test_app_refresh_keypin_295).
     dev, out, old = keyed(rx)
     assert rx.user("dana").delete(f"{ARX}/auth/app/families/{out['family_id']}").status_code == 204
     new = Key()
@@ -487,6 +494,7 @@ def test_d01_after_the_old_family_ended_a_new_key_binds_normally(rx):
     assert rx.c.post(f"{ARX}/auth/app/sign-out", json={"refresh_token": out2["refresh_token"]}).status_code == 204
     assert mint(rx, dev["device_id"], Key()).status_code == 201
     assert audit_rows(rx, "auth.app_refresh.key_replaced") == []
+    assert [a["reason"] for a in audit_rows(rx, "auth.app_refresh.key_released")] == ["revoked_by_user", "app_sign_out"]
 
 
 def test_d01_mode_off_cannot_drop_a_bound_key_without_the_old_keys_proof(rx):
