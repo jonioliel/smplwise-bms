@@ -316,7 +316,7 @@ def test_shared_settings_read_reports_the_electricity_values(app):
     r = c.get(f"{API}/billing/shared")
     assert r.status_code == 200
     s = r.json()
-    assert s["vat"]["current"]["rate_percent"] == "18" and s["payment_terms"]["mode"] == "net_days" and s["edit_link"].startswith("#/settings")
+    assert s["vat"]["current"]["rate_percent"] == "18" and s["payment_terms"]["mode"] == "net_days" and s["edit_link"] == "#/system/infra"
     assert s["retention"] == {"draft_days": 30, "bill_years": 7}
 
 

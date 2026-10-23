@@ -166,7 +166,7 @@ def shared_settings(principal: Principal = Depends(_money_read), conn: sqlite3.C
             "business": {"name": s["business"]["name"], "registration_no": s["business"]["registration_no"]},
             "retention": {"draft_days": eb._int_setting(conn, "energy.draft_retention_days", 30, 7, 365),
                           "bill_years": eb._int_setting(conn, "energy.bill_retention_years", 7, 1, 15)},
-            "edit_link": "#/settings/infra/electricity", "can_edit": _has(conn, principal, "energy.manage")}
+            "edit_link": "#/system/infra", "can_edit": _has(conn, principal, "energy.manage")}
 
 
 # ====================================================================== customers (the shared card)

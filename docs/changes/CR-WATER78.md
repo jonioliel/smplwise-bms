@@ -446,3 +446,4 @@ Owner questions: **Q11** customers shared with electricity (a) **recommended: sh
 **Q12** bill numbers (a) **recommended: one shared format and ledger** (as built) (b) a medium prefix ("מ-" for water). **Q13** the maximum
 snooze default 7 days (a) keep (b) 1 day (c) 30 days. **Q14** offer the losses account (main minus every sub-meter) as a preset button in
 the account form (a) **recommended: yes** (the preset exists in the API) (b) no.
+- **Migration numbering note:** `test_migrations_263_upgrade::test_the_release_numbers_are_contiguous_and_final` fails on this branch (and on its base) because the provisional files 0152 / 0153 / 0154 sit after 0145. Expected: the integrator renumbers them; the test and the files are not touched here.
