@@ -79,6 +79,7 @@ const SCREENS: { mode: string; items: Entry[] }[] = [
       { sc: 'SC25', name: 'יומן אודיט', route: '#/system/audit', phase: 'PILOT', board: '3:21' },
       { sc: 'SC20', name: 'אנליטיקת אחסון', route: '#/system/storage', phase: 'BETA', board: '2:11' },
       { sc: 'SC26', name: 'אשף התקנה', route: '#/system/wizard', phase: 'PILOT', board: '3:22' },
+      { sc: 'SC26b', name: 'מוכנות ההתקנה', route: '#/system/readiness', phase: 'PILOT', board: 'CR-READY96' },
     ],
   },
 ];

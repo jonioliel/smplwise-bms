@@ -35,6 +35,9 @@ export interface Me {
   /** CR-038 section 6: the optional modules the shell offers - the tickets module's switch (permissions decide the rest) and its
    * display name per language (owner decision D33: every text that names the module is rendered through tickets/naming.ts). Absent on
    * an older backend (= off). */
+  /** CR-READY96: the last RECORDED readiness score (system.configure holders only; null until the first check) and the demo-mode state every signed-in user is told. */
+  readiness?: { score: number; level: 'building' | 'almost' | 'ready'; at: string } | null;
+  demo?: import('./readiness').DemoState;
   modules?: { tickets: boolean; tickets_name?: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>>; tickets_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */ };
 }
 

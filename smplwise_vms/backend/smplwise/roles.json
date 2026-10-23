@@ -512,6 +512,8 @@
     "messaging.accounts.manage",
     "occupancy.view",
     "messaging.pacing.reserve",
+    "demo.run",
+    "demo.run_anywhere",
     "bridge.key.rotate"
   ],
   "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."

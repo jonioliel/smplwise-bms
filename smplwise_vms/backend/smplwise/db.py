@@ -390,6 +390,18 @@ class Database:
         self.touched: dict[str, float] = {}  # per-user last touch stamp (auth.touch_user throttle)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.gate = gate_for(self.path)
+        # CR-READY96 (demo mode): the database file this handle serves can be swapped for a separate demo file while a demo runs (services/demo_mode.py).
+        # Every holder of this handle (requests, workers) follows at once; connections opened before the swap finish on the file they opened.
+        self.real_path = self.path
+        self.demo = False
+        self.demo_state: dict[str, Any] | None = None
+
+    def switch_path(self, path: Path, *, demo: bool) -> None:
+        """Point this handle at another database file (the demo file, or back to the real one). The per-user touch cache restarts: it is keyed by user, not by file."""
+        self.touched = {}
+        self.path = path
+        self.gate = gate_for(path)
+        self.demo = demo
 
     def _open(self, durable: bool = True) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path, timeout=BUSY_TIMEOUT_S, isolation_level=None, check_same_thread=False)

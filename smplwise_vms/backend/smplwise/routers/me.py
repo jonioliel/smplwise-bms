@@ -56,6 +56,10 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         from ..services.connection_store import any_pending_restart
 
         extra["connection_pending_restart"] = any_pending_restart(conn, settings_of(request))
+        # CR-READY96: the last RECORDED readiness score (a cheap read, never a computation) - for whoever configures the system only
+        from ..services import readiness as readiness_svc
+
+        extra["readiness"] = readiness_svc.chip(conn)
     if get_setting(conn, "presence.required_sensors") is not None:
         # CR-027: what the required-sensors policy says about this caller on this channel (the app's user agent counts as the
         # app); `blocked` is what the shell acts on, the rest is the reason it shows. Absent until the policy was ever written.
@@ -88,8 +92,11 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
     from ..services.tickets import settings_doc as tickets_settings  # D17 (slice 3): the long-press behaviour
 
     tickets_name = tickets_naming.read(conn)
+    from ..services import demo_mode as demo_svc
+
     return {
         **extra,
+        "demo": demo_svc.me_block(request.app.state.db),  # CR-READY96: every signed-in user is told while a demo runs (the banner)
         # CR-038 section 6: the optional modules the shell offers (the switch alone - permissions decide the rest) and the tickets
         # module's display name per language (owner decision D33: every screen names the module through it)
         "modules": {"tickets": tickets_access.module_on(conn), "tickets_name": {k: tickets_name[k] for k in tickets_naming.LANGS}, "tickets_long_press": tickets_settings.read(conn)["device_long_press"]},  # D17 (slice 3)
