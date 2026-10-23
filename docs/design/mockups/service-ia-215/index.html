@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ניהול השירות - מבנה הניווט המוצע</title>
+<!--
+  SERVICE-IA (2026-10-23) - clickable NAVIGATION mock-up of the service-management area for the owner's decision.
+  NOT product code: self-contained, no network request, fake data only. Companion documents: docs/changes/SERVICE-IA-INVENTORY.md and
+  docs/changes/SERVICE-IA-PROPOSAL.md.
+
+  Owner standing rule: every mock-up follows the visual language of the existing infrastructure temperature / elevators / schedules-automations
+  screens. This file therefore uses the product's real token table (frontend/src/design/tokens.ts, classic skin, light + dark - copied verbatim
+  from the approved maintenance-215 mock-up), the real shell (shell/sw-app.ts design A: the area rail on the inline-start side, no top bar,
+  the floating search / status pill; phone: the areas bottom bar), the real tab rows (components/sw-tabs.ts: level 1 = pill track, level 2 =
+  compact underline row, nav.ts TAB_STYLE_DEFAULTS), the real page head (screens/infra-temperature.ts .top: crumbs + h1 + subtitle + actions),
+  the KPI row of the temperature / elevators screens, the places tree of components/sw-place-tree.ts, the electricity table (table.t), the
+  segmented control of the tickets list (.seg), the solid badge / soft chip pair, and the sw-state-panel states.
+
+  What it shows: the FOUR job-based sections (level 1) and their pages (level 2) as clickable navigation; the content of every page is a
+  placeholder in the real list / table look. A role switch (עובד / מטפל / מנהל / מנהל מערכת) draws what each role is offered. A "לפני / אחרי"
+  map compares today's flat row of nine tabs with the proposal. Every page shows its canonical href - NO existing href is renamed.
+  URL switches: ?role=emp|handler|mgr|admin  ?sec=requests|maintenance|vendors|reports  ?page=<id>  ?theme=dark  ?map=1
+-->
+<style>
+/* ===== the product token table (frontend/src/design/tokens.ts, classic skin) - the names used by the real screens ===== */
+:root {
+  --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8; --sw-surface-solid: #ffffff;
+  --sw-menu-surface: #ffffff; --sw-menu-border: #e7ebf2; --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef; --sw-overlay: rgba(17,24,39,.45);
+  --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #4b5976; --sw-text-3: #5e6d88; --sw-text-inverse: #ffffff;
+  --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2062ec; --sw-focus: #2767ed;
+  --sw-live: #22c55e; --sw-offline: #9aa3b5; --sw-offline-soft: #f1f3f7; --sw-offline-text: #666d7a;
+  --sw-unknown: #b3bac7; --sw-unknown-soft: #f4f6f9; --sw-unknown-text: #666d7a;
+  --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-danger-text: #b91c1c;
+  --sw-warning: #f59e0b; --sw-warning-soft: #fff4e0; --sw-warning-text: #b45309;
+  --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-success-text: #117d39;
+  --sw-forbidden: #dc2626; --sw-forbidden-soft: #fdecec; --sw-stale: #f59e0b; --sw-stale-soft: #fff4e0;
+  --sw-font: "Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif;
+  --sw-font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --sw-fs-2xs: 10px; --sw-fs-xs: 11px; --sw-fs-sm: 12.5px; --sw-fs-base: 13px; --sw-fs-md: 14px; --sw-fs-lg: 15px; --sw-fs-xl: 17px; --sw-fs-2xl: 20px; --sw-fs-3xl: 26px;
+  --sw-fs-state: 12px; --sw-lh: 1.5; --sw-fw-regular: 400; --sw-fw-medium: 500; --sw-fw-semibold: 600; --sw-fw-bold: 700;
+  --sw-h1-weight: 700; --sw-h1-tracking: -0.6px;
+  --sw-s-1: 4px; --sw-s-2: 8px; --sw-s-3: 12px; --sw-s-4: 16px; --sw-s-8: 32px; --sw-page-pad: 30px; --sw-rail-w: 70px; --sw-bottomnav-h: 50px;
+  --sw-r-2xs: 4px; --sw-r-xs: 6px; --sw-r-sm: 8px; --sw-r-md: 12px; --sw-r-lg: 14px; --sw-r-xl: 14px; --sw-r-pill: 999px;
+  --sw-shadow-1: 0 1px 2px rgba(16,24,40,.04); --sw-shadow-2: 0 6px 18px rgba(34,49,76,.06); --sw-shadow-3: 0 14px 36px rgba(34,49,76,.14);
+  --sw-shadow-primary: 0 1px 2px rgba(39,103,237,.25);
+  --sw-ctl-h-sm: 26px; --sw-disabled-opacity: .5; --sw-hover-wash: rgba(20,30,50,.05); --sw-focus-w: 2px; --sw-focus-offset: 2px;
+  --sw-skeleton: #eef2f8; --sw-skeleton-shine: rgba(255,255,255,.65); --sw-toast-bg: #1e2e47; --sw-toast-text: #ffffff;
+  --sw-touch-desktop: 44px; --sw-t-fast: 120ms; --sw-ease: cubic-bezier(.2,0,0,1); --sw-z-topbar: 30; --sw-z-modal: 50; --sw-z-toast: 60;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --sw-bg: #0d1220; --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-3: #222d44; --sw-surface-solid: #151c2c;
+  --sw-menu-surface: #151c2c; --sw-menu-border: #232e45; --sw-border: #232e45; --sw-border-strong: #2f3c58; --sw-overlay: rgba(0,0,0,.62);
+  --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #8896af; --sw-text-inverse: #ffffff;
+  --sw-accent: #3a6ce0; --sw-accent-hover: #5a88f2; --sw-accent-soft: rgba(91,140,255,.18); --sw-accent-text: #8fb2ff; --sw-focus: #7aa2ff;
+  --sw-live: #3ddc84; --sw-offline: #8b96a8; --sw-offline-soft: rgba(139,150,168,.2); --sw-offline-text: #b4bdcc;
+  --sw-unknown: #6b7686; --sw-unknown-soft: rgba(107,118,134,.22); --sw-unknown-text: #aab5c9;
+  --sw-danger: #ff6b62; --sw-danger-soft: rgba(255,107,98,.2); --sw-danger-text: #ff8a82;
+  --sw-warning: #f5b043; --sw-warning-soft: rgba(245,176,67,.2); --sw-warning-text: #f5b043;
+  --sw-success: #3ddc84; --sw-success-soft: rgba(61,220,132,.18); --sw-success-text: #3ddc84;
+  --sw-forbidden: #ff7a70; --sw-forbidden-soft: rgba(255,122,112,.2); --sw-stale: #f5b043; --sw-stale-soft: rgba(245,176,67,.2);
+  --sw-shadow-1: 0 1px 2px rgba(0,0,0,.35); --sw-shadow-2: 0 6px 18px rgba(0,0,0,.4); --sw-shadow-3: 0 14px 36px rgba(0,0,0,.55);
+  --sw-shadow-primary: 0 1px 2px rgba(0,0,0,.4); --sw-hover-wash: rgba(255,255,255,.06); --sw-skeleton: #222d44; --sw-skeleton-shine: rgba(255,255,255,.08);
+  --sw-toast-bg: #2c3a57; --sw-toast-text: #f3f6fc; color-scheme: dark;
+}
+/* the state looks of the temperature screen (temperature/styles.ts): --c = the colour, --c-text = the text on its soft fill */
+[data-look="ok"] { --c: var(--sw-success); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
+[data-look="warn"] { --c: var(--sw-warning); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
+[data-look="alarm"] { --c: var(--sw-danger); --c-text: var(--sw-danger-text); --c-soft: var(--sw-danger-soft); }
+[data-look="off"] { --c: var(--sw-offline); --c-text: var(--sw-offline-text); --c-soft: var(--sw-offline-soft); }
+[data-look="unk"] { --c: var(--sw-unknown); --c-text: var(--sw-unknown-text); --c-soft: var(--sw-unknown-soft); }
+[data-look="acc"] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); --c-soft: var(--sw-accent-soft); }
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--sw-bg); color: var(--sw-text); font-family: var(--sw-font); font-size: var(--sw-fs-md); line-height: var(--sw-lh); -webkit-font-smoothing: antialiased; }
+body { min-height: 100dvh; }
+.ltr, .num, code { direction: ltr; unicode-bidi: isolate; }
+.num { font-variant-numeric: tabular-nums; }
+code { font-family: var(--sw-font-mono); font-size: var(--sw-fs-xs); background: var(--sw-surface-3); padding: 1px 5px; border-radius: var(--sw-r-2xs); }
+:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+svg.ic { inline-size: 1em; block-size: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+a { color: var(--sw-accent-text); }
+
+/* ===== mock-up-only controls ===== */
+.mock { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 12px; background: var(--sw-toast-bg); color: var(--sw-toast-text); font-size: var(--sw-fs-sm); position: sticky; inset-block-start: 0; z-index: 70; }
+.mock b { margin-inline-end: 6px; }
+.mock select, .mock button { font: inherit; font-size: var(--sw-fs-sm); border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; border-radius: var(--sw-r-pill); padding: 3px 10px; min-block-size: 28px; cursor: pointer; }
+.mock select option { color: #1e2e47; }
+.mock button[aria-pressed="true"] { background: rgba(255,255,255,.18); }
+.mock .sp { flex: 1; }
+.mock .roles { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--sw-r-pill); background: rgba(255,255,255,.08); }
+.mock .roles button { border: 0; }
+
+/* ===== the shell (shell/sw-app.ts, design A) ===== */
+.app { display: grid; grid-template-columns: var(--sw-rail-w) minmax(0, 1fr); grid-template-areas: 'rail main'; min-block-size: calc(100dvh - 40px); position: relative; }
+nav.rail { grid-area: rail; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 7px 10px; background: var(--sw-surface); border-inline-end: 1px solid var(--sw-border); }
+.brand { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: var(--sw-r-md); background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 800; font-size: var(--sw-fs-xl); margin-block-end: 8px; box-shadow: var(--sw-shadow-primary); }
+nav.rail a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-inline-size: 56px; min-block-size: 52px; padding: 6px 4px; border-radius: var(--sw-r-md); color: var(--sw-text-2); text-decoration: none; font-size: 10.5px; font-weight: var(--sw-fw-medium); line-height: 1.3; white-space: nowrap; }
+nav.rail a svg { font-size: 22px; color: var(--sw-text-3); }
+nav.rail a:hover { background: var(--sw-surface-3); color: var(--sw-text); }
+nav.rail a.active { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+nav.rail a.active svg { color: var(--sw-accent); }
+nav.rail a.active::after { content: ''; position: absolute; inset-inline-end: -8px; inset-block: 16px; inline-size: 3px; border-radius: 3px; background: var(--sw-accent); }
+nav.rail .grow { flex: 1; }
+.me { align-self: center; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; background: var(--sw-surface-3); color: var(--sw-text-2); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); }
+.cnt { position: absolute; inset-block-start: 4px; inset-inline-end: 8px; min-inline-size: 16px; block-size: 16px; padding-inline: 4px; border-radius: var(--sw-r-pill); background: var(--sw-danger); color: #fff; font-size: 10px; font-weight: var(--sw-fw-bold); line-height: 16px; text-align: center; }
+.float { position: absolute; inset-block-start: 8px; inset-inline-end: 22px; z-index: var(--sw-z-topbar); }
+.float .pillrow { display: inline-flex; align-items: center; block-size: 34px; padding-inline: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); }
+.float .pillrow > span { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; color: var(--sw-text-2); font-size: 16px; }
+.float .sysdot i { display: block; inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--sw-live); }
+main { grid-area: main; min-inline-size: 0; display: flex; flex-direction: column; }
+
+/* the tab rows (components/sw-tabs.ts): level 1 = pill track, level 2 = compact underline row */
+.subnav { padding: 12px 24px 0; display: flex; align-items: center; gap: 12px; }
+.subnav.l2 { padding-block-start: 8px; }
+.tabs { display: inline-flex; max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs .row { position: relative; display: inline-flex; flex: none; gap: 2px; }
+.tabs a { position: relative; display: inline-flex; align-items: center; color: var(--sw-text-2); text-decoration: none; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); white-space: nowrap; cursor: pointer; }
+.tabs a:hover { color: var(--sw-text); }
+.tabs a.on { color: var(--sw-accent-text); }
+.tabs.pill .row { padding-inline: 3px; }
+.tabs.pill .row::before { content: ''; position: absolute; inset: 0; background: var(--sw-surface-3); border-radius: var(--sw-r-md); }
+.tabs.pill a { min-block-size: 34px; padding-inline: 1px; }
+.tabs.pill a .lbl { display: inline-flex; align-items: center; gap: 6px; min-block-size: 28px; padding: 0 12px; border-radius: var(--sw-r-sm); }
+.tabs.pill a.on .lbl { background: var(--sw-surface); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
+.tabs.compact { display: flex; position: relative; }
+.tabs.compact .row { flex: 1 0 auto; gap: 0; }
+.tabs.compact .row::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 31px; block-size: 1px; background: var(--sw-border); }
+.tabs.compact a { align-items: flex-start; padding: 0 10px; min-block-size: 32px; }
+.tabs.compact a .lbl { display: inline-flex; align-items: center; gap: 6px; min-block-size: 30px; }
+.tabs.compact a::after { content: ''; position: absolute; inset-inline: 0; inset-block-start: 29px; block-size: 2px; z-index: 1; }
+.tabs.compact a.on::after { background: var(--sw-accent); }
+.tabs .bdg { min-inline-size: 18px; block-size: 18px; padding-inline: 6px; border-radius: var(--sw-r-pill); background: var(--sw-danger-soft); color: var(--sw-danger-text); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); display: inline-grid; place-items: center; }
+.tabs .dot { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--sw-danger); }
+.tabs a .short { display: none; }
+.tabs a.reserved .lbl { color: var(--sw-text-3); font-style: italic; }
+.subnav .act { margin-inline-start: auto; }
+@media (max-width: 767px) and (pointer: coarse) { .tabs a { min-block-size: 44px; } }
+
+/* ===== the screen (screens/infra-temperature.ts :host / .top / .kpis) ===== */
+.screen { display: none; flex-direction: column; gap: 16px; padding: 14px var(--sw-page-pad) 28px; max-inline-size: var(--sw-content-max, 1400px); inline-size: 100%; }
+.screen.on { display: flex; }
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.top h1 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-h1-weight); letter-spacing: var(--sw-h1-tracking); color: var(--sw-heading); line-height: 1.2; }
+.top .sub { margin: 2px 0 0; font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
+.top .crumbs { font-size: var(--sw-fs-xs); color: var(--sw-text-3); margin-block-end: 2px; display: flex; gap: 4px; flex-wrap: wrap; }
+.top .crumbs a { color: inherit; text-decoration: none; }
+.top .crumbs a:hover { color: var(--sw-accent-text); }
+.top .sp { flex: 1; }
+.meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.href { font-family: var(--sw-font-mono); font-size: var(--sw-fs-xs); color: var(--sw-text-3); direction: ltr; unicode-bidi: isolate; background: var(--sw-surface-2); border: 1px solid var(--sw-border); border-radius: var(--sw-r-xs); padding: 2px 7px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); padding: 6px 14px; min-block-size: 32px; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.btn:hover { border-color: var(--sw-border-strong); }
+.btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
+.btn.pri:hover { background: var(--sw-accent-hover); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--sw-accent-text); }
+.btn.sm { padding: 4px 10px; min-block-size: 0; font-size: var(--sw-fs-sm); }
+.btn svg { font-size: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.kpi { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); font: inherit; color: inherit; text-align: start; cursor: pointer; --c: var(--sw-accent); }
+.kpi[aria-pressed="true"] { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
+.kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
+.kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; color: var(--sw-heading); }
+.kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
+.badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; white-space: nowrap; background: var(--c); color: var(--sw-text-inverse); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4; }
+.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
+.chip[data-look] { background: var(--c-soft); color: var(--c-text); }
+.panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); }
+.panel.flush { overflow: hidden; }
+.cols { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; }
+.cols.one { grid-template-columns: minmax(0, 1fr); }
+/* the places tree (components/sw-place-tree.ts) */
+.tree { display: flex; flex-direction: column; gap: 2px; padding: 8px; }
+.tree button { display: flex; align-items: center; gap: var(--sw-s-2); min-block-size: 36px; padding-inline: var(--sw-s-3); border: 0; border-radius: var(--sw-r-sm); background: transparent; color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); text-align: start; cursor: pointer; inline-size: 100%; }
+.tree button:hover { background: var(--sw-hover-wash); }
+.tree button .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree .floor .name { font-weight: var(--sw-fw-semibold); }
+.tree .depth-1 { padding-inline-start: var(--sw-s-4); }
+.tree button[aria-current="true"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+.tree .n { font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-variant-numeric: tabular-nums; }
+.tree-m { display: none; }
+/* toolbar: search (shell .search), segmented control (tickets-list .seg) */
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 14px; border-block-end: 1px solid var(--sw-border); }
+.search { flex: 1; min-inline-size: 160px; display: flex; align-items: center; gap: 8px; block-size: 32px; padding: 0 10px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm); background: var(--sw-surface-2); color: var(--sw-text-3); }
+.search input { flex: 1; border: 0; background: transparent; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text); outline: none; min-inline-size: 0; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); max-inline-size: 100%; }
+.seg button { padding: 5px 12px; border-radius: calc(var(--sw-r-sm) - 2px); color: var(--sw-text-2); cursor: pointer; font: inherit; font-size: var(--sw-fs-sm); white-space: nowrap; border: 0; background: transparent; min-block-size: 28px; }
+.seg button[aria-pressed="true"], .seg button[aria-checked="true"] { background: var(--sw-surface-solid); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+.seg .n { color: var(--sw-text-3); font-size: var(--sw-fs-xs); margin-inline-start: 4px; }
+.rooms { display: flex; gap: 6px; flex-wrap: wrap; }
+.rc { border: 1px solid var(--sw-border); background: var(--sw-surface); border-radius: var(--sw-r-pill); padding: 3px 11px; font: inherit; font-size: var(--sw-fs-xs); color: var(--sw-text-2); cursor: pointer; }
+.rc[aria-pressed="true"] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; }
+/* table (electricity/styles.ts table.t) */
+.scrollx { overflow-x: auto; }
+table.t { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-md); }
+table.t th { text-align: start; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 9px 12px; border-block-end: 1px solid var(--sw-border-strong); white-space: nowrap; background: var(--sw-surface-2); }
+table.t td { padding: 10px 12px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; white-space: nowrap; }
+table.t tbody tr:last-child td { border-block-end: 0; }
+table.t tbody tr:hover td { background: var(--sw-surface-2); }
+td .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+td .t2 { display: block; font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
+.cards-m { display: none; }
+/* cards (tickets/ticket-card.ts anatomy) */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; padding: 14px; }
+.card { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-surface); padding: 12px 14px; display: grid; gap: 6px; }
+.card.urgent { border-color: var(--sw-danger); }
+.card .r1 { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.card .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+.card .t2 { font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
+.card .sentence { font-size: var(--sw-fs-sm); }
+.card .r3 { display: flex; gap: 6px; flex-wrap: wrap; }
+.card .foot { display: flex; justify-content: space-between; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.group-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px 0; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); }
+/* state panel (components/sw-state-panel.ts) */
+.state-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--sw-s-3); padding: var(--sw-s-8) var(--sw-s-4); color: var(--sw-text-2); min-block-size: 200px; }
+.state-panel .icon { display: grid; place-items: center; inline-size: 48px; block-size: 48px; border-radius: var(--sw-r-lg); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: 26px; }
+.state-panel h4 { margin: 0; color: var(--sw-heading); font-size: var(--sw-fs-lg); }
+.state-panel p { margin: 4px 0 0; max-inline-size: 48ch; font-size: var(--sw-fs-sm); }
+.note { font-size: var(--sw-fs-xs); color: var(--sw-text-3); padding: 0 2px; }
+/* the section-level action "בקשה חדשה" (proposal slice 3) and the phone FAB */
+.fab { display: none; }
+
+/* ===== the before / after navigation map ===== */
+#map { display: none; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 28px; }
+#map.on { display: flex; }
+.mapgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.mapcol { padding: 14px 16px; }
+.mapcol h3 { margin: 0 0 4px; font-size: var(--sw-fs-lg); color: var(--sw-heading); }
+.mapcol .hint { margin: 0 0 12px; font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
+.flat { display: flex; flex-wrap: wrap; gap: 6px; }
+.flat .tab { border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 4px 11px; font-size: var(--sw-fs-sm); background: var(--sw-surface-2); }
+.flat .tab.x { text-decoration: line-through; color: var(--sw-text-3); }
+ul.tree2 { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+ul.tree2 > li { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 8px 12px; background: var(--sw-surface-2); }
+ul.tree2 > li > b { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-md); color: var(--sw-heading); }
+ul.tree2 ul { list-style: none; margin: 6px 0 0; padding: 0 14px 0 0; display: grid; gap: 4px; }
+ul.tree2 ul li { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-sm); flex-wrap: wrap; }
+ul.tree2 ul li .href { margin-inline-start: auto; }
+#map .href { white-space: normal; overflow-wrap: anywhere; max-inline-size: 100%; }
+#map, #map .mapgrid > *, #map .mapcol, #map ul.tree2 > li { min-inline-size: 0; max-inline-size: 100%; overflow-x: hidden; }
+#map .scrollx { display: block; overflow-x: auto; }
+ul.tree2 > li > b { flex-wrap: wrap; }
+.lg { display: flex; gap: 10px; flex-wrap: wrap; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+.roles-tbl th, .roles-tbl td { font-size: var(--sw-fs-sm); }
+.roles-tbl td.y { color: var(--sw-success-text); font-weight: var(--sw-fw-semibold); }
+.roles-tbl td.n { color: var(--sw-text-3); }
+.toast { position: fixed; inset-block-end: 20px; inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw; background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2); display: none; }
+.toast.on { display: block; }
+nav.bottom { display: none; }
+
+/* ===== tablet (<= 1023: the rail keeps its icons only) ===== */
+@media (max-width: 1023px) {
+  nav.rail a span { display: none; }
+  nav.rail a { min-block-size: 44px; }
+  .subnav { padding-inline: 16px; overflow-x: auto; scrollbar-width: none; }
+  .cols { grid-template-columns: 200px minmax(0, 1fr); }
+  .screen, #map { padding-inline: 20px; }
+  .mapgrid { grid-template-columns: minmax(0, 1fr); }
+}
+/* ===== phone (<= 767: no rail, the areas bottom bar; sections with short labels; the tree becomes a select; the table becomes cards) ===== */
+@media (max-width: 767px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--sw-bottomnav-h); grid-template-areas: 'main' 'bottom'; }
+  nav.rail { display: none; }
+  .float { inset-inline-end: 12px; }
+  .subnav { padding: 8px 12px 0; }
+  .subnav .act { display: none; }
+  .tabs a .full { display: none; }
+  .tabs a .short { display: inline; }
+  .screen, #map { padding: 12px 14px 90px; gap: 12px; }
+  .top { flex-direction: column; align-items: stretch; }
+  .top .sp { display: none; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .tree-w { display: none; }
+  .tree-m { display: block; padding: 10px 10px 0; }
+  .tree-m select { inline-size: 100%; font: inherit; color: var(--sw-text); background: var(--sw-surface-solid); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); min-block-size: 44px; padding: 0 12px; }
+  .toolbar { padding: 10px; gap: 8px; }
+  .search { flex-basis: 100%; min-inline-size: 0; block-size: 44px; }
+  .seg { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-inline-size: 100%; }
+  .seg button { min-block-size: 38px; flex: none; }
+  .scrollx { display: none; }
+  .cards-m { display: grid; gap: 8px; padding: 10px; }
+  .cards-m .c { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 6px; background: var(--sw-surface); }
+  .cards-m .c .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .cards-m .c .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+  .cards { grid-template-columns: minmax(0, 1fr); padding: 10px; }
+  .btn { min-block-size: 44px; }
+  .btn.sm { min-block-size: 36px; }
+  .tree button { min-block-size: 44px; }
+  nav.bottom { grid-area: bottom; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--sw-surface); border-block-start: 1px solid var(--sw-border); padding-block-end: env(safe-area-inset-bottom); position: sticky; inset-block-end: 0; z-index: 40; }
+  nav.bottom a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); text-decoration: none; min-block-size: var(--sw-bottomnav-h); font-weight: var(--sw-fw-medium); }
+  nav.bottom a svg { font-size: 22px; }
+  nav.bottom a.active { color: var(--sw-accent-text); }
+  nav.bottom .cnt { inset-inline-end: 18px; inset-block-start: 2px; }
+  .fab.on { display: inline-flex; position: fixed; inset-block-end: calc(var(--sw-bottomnav-h) + 14px); inset-inline-start: 14px; z-index: 45; box-shadow: var(--sw-shadow-3); }
+  .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 20px); }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M4 6h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4V7a1 1 0 0 1 1-1z"/><path d="M15 7v2M15 11v2M15 15v2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.6 5h12.8L21 13v5.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V13z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 20h16"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+</defs></svg>
+
+<nav class="mock" aria-label="בקרת הדגם">
+  <b>דגם ניווט</b>
+  <span class="roles" role="group" aria-label="תפקיד">
+    <button data-role="emp" aria-pressed="false">עובד</button><button data-role="handler" aria-pressed="false">מטפל</button><button data-role="mgr" aria-pressed="true">מנהל</button><button data-role="admin" aria-pressed="false">מנהל מערכת</button>
+  </span>
+  <button id="th" aria-pressed="false">כהה</button>
+  <button id="mapbtn" aria-pressed="false">מפה: לפני / אחרי</button>
+  <span class="sp"></span>
+  <span id="rolehint" style="opacity:.8"></span>
+</nav>
+
+<div class="app">
+  <nav class="rail" aria-label="ניווט ראשי">
+    <span class="brand" aria-hidden="true">S</span>
+    <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>ראשי</span></a>
+    <a href="#"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>מפה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-bolt"/></svg><span>תשתיות</span></a>
+    <a href="#" class="active" aria-current="page"><svg class="ic"><use href="#i-ticket"/></svg><span data-area-label>בקשות שירות</span><span class="cnt" data-rfq-count hidden>3</span></a>
+    <div class="grow"></div>
+    <span class="me" aria-label="תפריט המשתמש" data-me>דכ</span>
+  </nav>
+  <div class="float" aria-hidden="true"><div class="pillrow"><span><svg class="ic"><use href="#i-search"/></svg></span><span class="sysdot"><i></i></span></div></div>
+  <main>
+    <!-- level 1: the four sections (TICKETS_TABS after the proposal; ui.tabs section `tickets`, style pill) -->
+    <div class="subnav" id="l1row"><nav class="tabs pill" aria-label="מדורים"><div class="row" id="l1"></div></nav></div>
+    <!-- level 2: the section's pages (ui.tabs sections `tickets.<section>`, style underline-compact); the section action at the end (slice 3) -->
+    <div class="subnav l2" id="l2row"><nav class="tabs compact" aria-label="עמודים"><div class="row" id="l2"></div></nav><span class="act" id="act"></span></div>
+    <div id="screens"></div>
+    <section id="map"></section>
+  </main>
+  <nav class="bottom" aria-label="ניווט ראשי">
+    <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>ראשי</span></a>
+    <a href="#"><svg class="ic"><use href="#i-shield"/></svg><span>אבטחה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>מפה</span></a>
+    <a href="#"><svg class="ic"><use href="#i-bolt"/></svg><span>תשתיות</span></a>
+    <a href="#" class="active" aria-current="page"><svg class="ic"><use href="#i-ticket"/></svg><span data-area-label>בקשות שירות</span><span class="cnt" data-rfq-count hidden>3</span></a>
+  </nav>
+</div>
+<a class="btn pri fab" id="fab" href="#"><svg class="ic"><use href="#i-plus"/></svg>בקשה חדשה</a>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+  var q = new URLSearchParams(location.search), root = document.documentElement, body = document.body;
+
+  // ---- the proposal's structure (SERVICE-IA-PROPOSAL.md §2). perm = any-of; mod = the module switch the page needs ----
+  var AREA = 'בקשות שירות'; // tt('area') - configurable (D33)
+  var SECTIONS = [
+    { id: 'requests', label: 'בקשות', short: 'בקשות', href: '#/tickets/requests', pages: [
+      { id: 'list', label: 'רשימה', href: '#/tickets/mine', hrefs: '#/tickets/mine · /department · /all', perm: ['tickets.view', 'tickets.create'], kind: 'list', status: 'MERGED-AS-VIEW', note: 'שלוש הלשוניות שלי / המחלקה / הכול היו כבר מסך אחד: המקטע נשאר, הכפילות בשורת הלשוניות יורדת' },
+      { id: 'board', label: 'לוח מנהל', href: '#/tickets/board', perm: ['tickets.manage'], kind: 'board', status: 'MOVED', note: 'מסך נפרד (לא תצוגה): עץ קומות, קיבוץ, רצועת סגורות, סינון לפי מטפל, לוח מטפלים' } ] },
+    { id: 'maintenance', label: 'תחזוקה ובקרה', short: 'תחזוקה', href: '#/tickets/maintenance', mod: 'maintenance', pages: [
+      { id: 'ledger', label: 'פנקס אישורים ובדיקות', href: '#/tickets/maintenance/ledger', perm: ['maintenance.view'], kind: 'ledger', status: 'NEW', note: 'תסקירים, בדיקות חובה ומסמכי ספקים (2.15.0)' },
+      { id: 'plans', label: 'תחזוקה מונעת', href: '#/tickets/maintenance/plans', perm: ['maintenance.view'], kind: 'plans', status: 'NEW' },
+      { id: 'rounds', label: 'סבבים ובדיקות', href: '#/tickets/maintenance/rounds', perm: ['maintenance.view'], kind: 'rounds', status: 'NEW' },
+      { id: 'tags', label: 'תגי QR/NFC', href: '#/tickets/maintenance/tags', perm: ['maintenance.manage'], kind: 'tags', status: 'NEW' } ] },
+    { id: 'vendors', label: 'ספקים וכספים', short: 'ספקים', href: '#/tickets/vendors', pages: [
+      { id: 'handlers', label: 'מטפלים וספקים', href: '#/tickets/handlers', hrefs: '#/tickets/handlers?seg=handlers|vendors|contacts|review', perm: ['tickets.configure', 'tickets.manage'], kind: 'handlers', status: 'MOVED', note: 'ארבעת המקטעים נשארים בתוך העמוד' },
+      { id: 'rfqs', label: 'בקשות הצעת מחיר', href: '#/tickets/rfqs', hrefs: '#/tickets/rfqs · ?rfq=<id> · &view=compare · ?new=1', perm: ['tickets.external', 'tickets.costs'], kind: 'rfqs', status: 'MOVED', badge: 3 },
+      { id: 'accounts', label: 'חשבון ספקים', href: '#/tickets/accounts', perm: ['tickets.costs.view'], kind: 'accounts', status: 'MOVED' },
+      { id: 'external', label: 'גישת חוץ', href: '#/tickets/external', perm: ['access.external.grant'], kind: 'external', status: 'MOVED', note: 'רק כאשר access.external.placement = tickets | both' },
+      { id: 'budget', label: 'תקציב מחלקות', href: '#/tickets/vendors/budget', perm: ['tickets.costs'], kind: 'reserved', status: 'RESERVED', reserved: true, note: 'מקום שמור - לא נבנה (רעיון 24)' } ] },
+    { id: 'reports', label: 'סקירה ודוחות', short: 'סקירה', href: '#/tickets/reports', pages: [
+      { id: 'overview', label: 'מסך סקירה', href: '#/tickets/overview', hrefs: '#/tickets/overview[?dept=]', perm: ['tickets.manage'], kind: 'overview', status: 'MOVED' },
+      { id: 'building', label: 'דוחות בניין', href: '#/tickets/reports/building', perm: ['reports.building'], mod: 'insights', kind: 'building', status: 'NEW' },
+      { id: 'insights', label: 'תובנות', href: '#/tickets/reports/insights', hrefs: '#/tickets/reports/insights?kind=doors|waste', perm: ['insights.read'], mod: 'insights', kind: 'insights', status: 'NEW' } ] }
+  ];
+  var ROLES = {
+    emp:     { name: 'עובד',       who: 'tickets.create בלבד - פותח בקשות ורואה את שלו', perms: ['tickets.create'], mods: [] },
+    handler: { name: 'מטפל',       who: 'tickets.view + maintenance.perform - מטפל בבקשות, הולך סבבים', perms: ['tickets.view', 'maintenance.view', 'maintenance.perform'], mods: ['maintenance'] },
+    mgr:     { name: 'מנהל מחלקה', who: 'tickets.manage + חברות כמנהל, costs, external, maintenance.manage', perms: ['tickets.view', 'tickets.create', 'tickets.manage', 'tickets.costs', 'tickets.costs.view', 'tickets.external', 'maintenance.view', 'maintenance.perform', 'maintenance.manage'], mods: ['maintenance'] },
+    admin:   { name: 'מנהל מערכת', who: 'system.configure + tickets.configure + reports.building + insights.read + access.external.grant', perms: ['*'], mods: ['maintenance', 'insights'] }
+  };
+  var role = ROLES[q.get('role')] ? q.get('role') : 'mgr';
+  var sec = q.get('sec') || 'requests', page = q.get('page') || '', mapOn = q.get('map') === '1';
+
+  function can(p) { var r = ROLES[role]; return r.perms[0] === '*' || r.perms.indexOf(p) >= 0; }
+  function pageOk(p) { if (p.mod && ROLES[role].mods.indexOf(p.mod) < 0) return false; return p.perm.some(can); }
+  function secOk(s) { if (s.mod && ROLES[role].mods.indexOf(s.mod) < 0) return false; return s.pages.some(pageOk); }
+  function visibleSections() { return SECTIONS.filter(secOk); }
+
+  function theme(dark) { root.setAttribute('data-theme', dark ? 'dark' : 'light'); document.getElementById('th').setAttribute('aria-pressed', String(dark)); }
+  theme(q.get('theme') ? q.get('theme') === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches));
+  document.getElementById('th').onclick = function () { theme(root.getAttribute('data-theme') !== 'dark'); };
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function ic(n) { return '<svg class="ic"><use href="#i-' + n + '"/></svg>'; }
+  function setUrl() { var u = new URL(location.href); u.searchParams.set('role', role); u.searchParams.set('sec', sec); if (page) u.searchParams.set('page', page); else u.searchParams.delete('page'); if (mapOn) u.searchParams.set('map', '1'); else u.searchParams.delete('map'); u.searchParams.set('theme', root.getAttribute('data-theme')); history.replaceState(null, '', u); }
+
+  // ---- chrome: the two rows ----
+  function render() {
+    var vis = visibleSections();
+    if (!vis.length) { sec = ''; page = ''; }
+    else if (!vis.some(function (s) { return s.id === sec; })) sec = vis[0].id;
+    var S = vis.filter(function (s) { return s.id === sec; })[0] || null;
+    var pages = S ? S.pages.filter(pageOk) : [];
+    if (S && !pages.some(function (p) { return p.id === page; })) page = pages.length ? pages[0].id : '';
+    // level 1 (hidden when a single section is visible - proposal Q4)
+    var l1 = document.getElementById('l1'); l1.innerHTML = '';
+    vis.forEach(function (s) {
+      var a = document.createElement('a'); a.href = '#'; a.className = s.id === sec ? 'on' : ''; if (s.id === sec) a.setAttribute('aria-current', 'page');
+      var dot = s.id === 'vendors' && s.pages.some(function (p) { return p.badge && pageOk(p); }) ? '<span class="dot" aria-label="שאלות ספקים ממתינות"></span>' : '';
+      a.innerHTML = '<span class="lbl"><span class="full">' + esc(s.label) + '</span><span class="short">' + esc(s.short) + '</span>' + dot + '</span>';
+      a.onclick = function (e) { e.preventDefault(); sec = s.id; page = ''; mapOn = false; render(); };
+      l1.appendChild(a);
+    });
+    document.getElementById('l1row').hidden = vis.length < 2 || mapOn;
+    // level 2 (not drawn for a single page)
+    var l2 = document.getElementById('l2'); l2.innerHTML = '';
+    pages.forEach(function (p) {
+      var a = document.createElement('a'); a.href = '#'; a.className = (p.id === page ? 'on' : '') + (p.reserved ? ' reserved' : ''); if (p.id === page) a.setAttribute('aria-current', 'page');
+      a.innerHTML = '<span class="lbl">' + esc(p.label) + (p.badge ? '<span class="bdg">' + p.badge + '</span>' : '') + '</span>';
+      a.onclick = function (e) { e.preventDefault(); page = p.id; render(); };
+      l2.appendChild(a);
+    });
+    var act = document.getElementById('act'); act.innerHTML = '';
+    var fab = document.getElementById('fab'); fab.classList.remove('on');
+    if (S && S.id === 'requests' && can('tickets.create') && !mapOn) {
+      act.innerHTML = '<a class="btn pri sm" href="#" data-new>' + ic('plus') + 'בקשה חדשה</a>';
+      act.querySelector('[data-new]').onclick = function (e) { e.preventDefault(); toast('נפתח טופס בקשה חדשה (#/tickets/mine?new=1)'); };
+      fab.classList.add('on'); fab.onclick = function (e) { e.preventDefault(); toast('נפתח טופס בקשה חדשה (#/tickets/mine?new=1)'); };
+    }
+    document.getElementById('l2row').hidden = mapOn || (pages.length < 2 && !act.innerHTML);
+    // rfq count on the area icon (areaBadge: unchanged)
+    var rfqOn = SECTIONS[2].pages[1] && pageOk(SECTIONS[2].pages[1]);
+    document.querySelectorAll('[data-rfq-count]').forEach(function (el) { el.hidden = !rfqOn; });
+    // role hint
+    document.getElementById('rolehint').textContent = ROLES[role].who;
+    document.querySelectorAll('.mock .roles button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.role === role)); });
+    document.querySelector('[data-me]').textContent = role === 'emp' ? 'יל' : role === 'handler' ? 'אד' : role === 'mgr' ? 'דכ' : 'מע';
+    document.getElementById('mapbtn').setAttribute('aria-pressed', String(mapOn));
+    // body
+    var host = document.getElementById('screens'); host.innerHTML = '';
+    var map = document.getElementById('map'); map.classList.toggle('on', mapOn);
+    if (mapOn) { renderMap(map); setUrl(); return; }
+    if (!S) { host.innerHTML = '<section class="screen on"><div class="panel"><div class="state-panel"><div class="icon">' + ic('lock') + '</div><div><h4>אין לך מה לראות כאן</h4><p>לתפקיד הזה אין הרשאה לאף עמוד של ' + esc(AREA) + '. האזור לא מוצג כלל בסרגל.</p></div></div></div></section>'; setUrl(); return; }
+    var P = pages.filter(function (p) { return p.id === page; })[0];
+    host.innerHTML = screenHtml(S, P, vis.length);
+    host.querySelectorAll('[data-go]').forEach(function (el) { el.onclick = function (e) { e.preventDefault(); var t = el.dataset.go.split('/'); sec = t[0]; page = t[1] || ''; render(); }; });
+    host.querySelectorAll('.kpi, .seg button, .rc, .tree button').forEach(function (b) { b.onclick = function () { var g = b.parentElement.querySelectorAll(b.tagName === 'BUTTON' && b.className === 'kpi' ? '.kpi' : b.className.indexOf('rc') === 0 ? '.rc' : 'button'); g.forEach(function (x) { x.setAttribute(x.hasAttribute('aria-checked') ? 'aria-checked' : x.hasAttribute('aria-current') ? 'aria-current' : 'aria-pressed', 'false'); }); b.setAttribute(b.hasAttribute('aria-checked') ? 'aria-checked' : b.hasAttribute('aria-current') ? 'aria-current' : 'aria-pressed', 'true'); }; });
+    setUrl();
+  }
+
+  // ---- placeholder screens in the real list / table look ----
+  function head(S, P, actions) {
+    var crumbs = '<div class="crumbs"><a href="#">' + esc(AREA) + '</a><span>›</span><a href="#">' + esc(S.label) + '</a><span>›</span><span>' + esc(P.label) + '</span></div>';
+    return '<div class="top"><div>' + crumbs + '<h1>' + esc(P.label) + '</h1><p class="sub"><span class="href">' + esc(P.hrefs || P.href) + '</span> · ' + esc(statusText(P)) + '</p></div><span class="sp"></span><div class="meta">' + (actions || '') + '</div></div>';
+  }
+  function statusText(P) { return { 'MOVED': 'אותו מסך, אותה כתובת - רק מקומו בניווט השתנה', 'MERGED-AS-VIEW': P.note || '', 'NEW': 'עמוד חדש של 2.15.0', 'RESERVED': P.note || '' }[P.status] || ''; }
+  function kpis(items) { return '<div class="kpis" role="group" aria-label="מצב">' + items.map(function (k, i) { return '<button class="kpi"' + (k.look ? ' data-look="' + k.look + '"' : '') + ' aria-pressed="' + (i === 0) + '"><span class="dot" aria-hidden="true"></span><div><b class="num">' + k.n + '</b><span class="l">' + esc(k.l) + '</span></div></button>'; }).join('') + '</div>'; }
+  function table(cols, rows) {
+    var h = '<div class="scrollx"><table class="t"><thead><tr>' + cols.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.map(function (r) { return '<tr>' + r.map(function (c, i) { return '<td>' + (i === 0 ? '<span class="t1">' + c + '</span>' : c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+    h += '<div class="cards-m">' + rows.map(function (r) { return '<div class="c"><div class="r1"><span class="t1">' + r[0] + '</span>' + (r[r.length - 1] || '') + '</div><div class="t2">' + r.slice(1, -1).filter(Boolean).join(' · ') + '</div></div>'; }).join('') + '</div>';
+    return h;
+  }
+  function chip(t, look) { return '<span class="chip"' + (look ? ' data-look="' + look + '"' : '') + '>' + esc(t) + '</span>'; }
+  function badge(t, look) { return '<span class="badge" data-look="' + look + '">' + esc(t) + '</span>'; }
+  function tree(sel) {
+    var rows = [['כל המבנה', 14, true], ['קומה 2', 5], ['חדר ישיבות גדול', 2, false, 1], ['מטבחון', 3, false, 1], ['קומה 1', 6], ['קומת קרקע', 3]];
+    var w = '<aside class="panel flush tree-w"><nav class="tree" aria-label="מקומות">' + rows.map(function (r) { return '<button class="' + (r[3] ? 'depth-1' : 'floor') + '" aria-current="' + !!r[2] + '"><span class="name">' + esc(r[0]) + '</span><span class="n">' + r[1] + '</span></button>'; }).join('') + '</nav></aside>';
+    var m = '<div class="tree-m"><select aria-label="מקום">' + rows.map(function (r) { return '<option>' + esc(r[0]) + ' (' + r[1] + ')</option>'; }).join('') + '</select></div>';
+    return sel ? m : w;
+  }
+  function cardsHtml(items) { return '<div class="cards">' + items.map(function (c) { return '<div class="card' + (c.urgent ? ' urgent' : '') + '"><div class="r1"><span class="t1">' + esc(c.t) + '</span>' + chip(c.st, c.look) + '</div><div class="t2">' + esc(c.where) + '</div><div class="sentence">' + esc(c.s) + '</div><div class="r3">' + c.chips.map(function (x) { return chip(x[0], x[1]); }).join('') + '</div><div class="foot"><span>' + esc(c.num) + '</span><span>' + esc(c.when) + '</span></div></div>'; }).join('') + '</div>'; }
+  var CARDS = [
+    { t: 'דליפת מים ממזגן בחדר הישיבות', st: 'בטיפול · ממתין לחלק', look: 'acc', where: 'קומה 2 · חדר ישיבות גדול', s: 'אלון ד. ממתין לחלק · צפי מחר 09:00', chips: [['גבוהה', 'warn'], ['אחזקה']], num: 'SR-2041', when: 'עודכן לפני שעתיים', urgent: false },
+    { t: 'נורה שרופה במסדרון', st: 'חדש', look: 'unk', where: 'קומה 1 · מסדרון מזרחי', s: 'ממתין לשיוך מטפל · 3 שעות', chips: [['רגילה'], ['חשמל']], num: 'SR-2044', when: 'לפני 3 שעות' },
+    { t: 'דלת חירום לא ננעלת', st: 'הסתיים', look: 'ok', where: 'קומת קרקע · יציאה דרומית', s: 'יוסי מ. סימן "בוצע" · ממתין לאישורך ולסגירה', chips: [['דחופה', 'alarm'], ['₪ לאישורך', 'warn']], num: 'SR-2039', when: 'אתמול', urgent: true }
+  ];
+  function screenHtml(S, P, nSec) {
+    var h = '<section class="screen on" data-page="' + P.id + '">';
+    var crumbNote = nSec < 2 ? '<p class="note">לתפקיד הזה נראה מדור אחד בלבד - שורת המדורים מוסתרת (שאלה 4 לבעלים).</p>' : '';
+    switch (P.kind) {
+      case 'list':
+        h += head(S, P, '<a class="btn" href="#" data-go="requests/board">' + ic('grid') + 'לוח מנהל</a>' + (can('tickets.create') ? '<button class="btn pri">' + ic('plus') + 'חדשה</button>' : '')) + crumbNote;
+        h += '<div class="rooms" role="group" aria-label="מחלקות"><button class="rc" aria-pressed="true">כל המחלקות</button><button class="rc" aria-pressed="false">אחזקה <span class="n">9</span></button><button class="rc" aria-pressed="false">חשמל <span class="n">3</span></button><button class="rc" aria-pressed="false">ניקיון <span class="n">2</span></button></div>';
+        h += '<div class="panel flush"><div class="toolbar">';
+        var scopes = [['mine', 'שלי', 4, true], ['department', 'המחלקה', 11, can('tickets.view')], ['all', 'הכול', 14, can('tickets.manage') || can('tickets.all_departments')]];
+        h += '<div class="seg" role="radiogroup" aria-label="היקף">' + scopes.filter(function (s) { return s[3]; }).map(function (s, i) { return '<button role="radio" aria-checked="' + (i === 0) + '">' + s[1] + '<span class="n">' + s[2] + '</span></button>'; }).join('') + '</div>';
+        h += '<div class="seg" role="radiogroup" aria-label="מצב"><button role="radio" aria-checked="true">פתוחות<span class="n">12</span></button><button role="radio" aria-checked="false">ללא מטפל<span class="n">2</span></button><button role="radio" aria-checked="false">בטיפול<span class="n">7</span></button><button role="radio" aria-checked="false">הסתיימו<span class="n">3</span></button><button role="radio" aria-checked="false">סגורות</button><button role="radio" aria-checked="false">הכול</button></div>';
+        h += '<label class="search">' + ic('search') + '<input placeholder="מספר, כותרת או התקן"></label>';
+        h += '<div class="seg" role="radiogroup" aria-label="תצוגה"><button role="radio" aria-checked="true" title="כרטיסים">' + ic('grid') + '</button><button role="radio" aria-checked="false" title="טבלה">' + ic('list') + '</button><button role="radio" aria-checked="false" title="לוח שנה">' + ic('calendar') + '</button></div>';
+        h += '</div>' + cardsHtml(CARDS) + '</div>';
+        h += '<p class="note">הכול כפי שקיים היום במסך הרשימה (tickets-list.ts): מקטע ההיקף, מסנן המצב, שבבי מחלקות, חיפוש, מסנן כרטיסים, מונים, מתג תצוגה כרטיסים / טבלה / לוח שנה, "+ חדשה", המגירה (?t=) והטופס (?new=1). מקטע ההיקף מציג רק היקפים שהתפקיד רשאי לפתוח.</p>';
+        break;
+      case 'board':
+        h += head(S, P, '<a class="btn" href="#" data-go="requests/list">' + ic('list') + 'לרשימה</a><button class="btn pri">' + ic('plus') + 'חדשה</button>');
+        h += '<div class="rooms" role="group" aria-label="מחלקות"><button class="rc" aria-pressed="true">כל המחלקות <span class="n">14</span></button><button class="rc" aria-pressed="false">אחזקה <span class="n">9</span></button><button class="rc" aria-pressed="false">חשמל <span class="n">3</span></button></div>';
+        h += '<div class="cols">' + tree() + '<div class="panel flush">' + tree(true) + '<div class="toolbar"><div class="seg" role="radiogroup" aria-label="מצב"><button role="radio" aria-checked="true">הכול<span class="n">14</span></button><button role="radio" aria-checked="false">ממתינות לי<span class="n">3</span></button><button role="radio" aria-checked="false">תקועות<span class="n">2</span></button><button role="radio" aria-checked="false">ללא מטפל<span class="n">2</span></button><button role="radio" aria-checked="false">נסגרו השבוע<span class="n">5</span></button></div><button class="rc" aria-pressed="false">מטפל: הכול</button><label class="search">' + ic('search') + '<input placeholder="חיפוש"></label><div class="seg" role="radiogroup" aria-label="מעבר"><button role="radio" aria-checked="true">לוח</button><button role="radio" aria-checked="false">מטפלים</button></div></div>';
+        h += '<div class="group-h">ממתין לי <span class="chip" data-look="warn">3</span></div>' + cardsHtml([CARDS[2]]) + '<div class="group-h">תקועות <span class="chip" data-look="alarm">2</span></div>' + cardsHtml([CARDS[0]]) + '<div class="group-h">בטיפול · אלון ד.</div>' + cardsHtml([CARDS[1]]) + '</div></div>';
+        h += '<p class="note">מסך הלוח (tickets-board.ts) ללא שינוי: עץ קומות / שבבים (D19), קיבוץ (D20), רצועת סגורות (D21), שורת "היום", באנר תקועות, לוח מטפלים (?pane=handlers), ריענון כל 30 שניות.</p>';
+        break;
+      case 'handlers':
+        h += head(S, P, '<button class="btn pri">' + ic('plus') + 'מטפל חדש</button>');
+        h += '<div class="rooms" role="group" aria-label="מחלקות"><button class="rc" aria-pressed="true">כל המחלקות</button><button class="rc" aria-pressed="false">אחזקה</button><button class="rc" aria-pressed="false">חשמל</button></div>';
+        h += '<div class="panel flush"><div class="toolbar"><div class="seg" role="radiogroup" aria-label="מקטע"><button role="radio" aria-checked="true">מטפלים<span class="n">6</span></button><button role="radio" aria-checked="false">ספקים<span class="n">9</span></button><button role="radio" aria-checked="false">אנשי קשר<span class="n">4</span></button>' + (can('tickets.configure') ? '<button role="radio" aria-checked="false">דורש בחינה<span class="n">1</span></button>' : '') + '</div><label class="search">' + ic('search') + '<input placeholder="שם, חברה או טלפון"></label></div>';
+        h += table(['מטפל', 'מחלקה', 'ערוץ', 'טופלו (30 יום)', ''], [['אלון ד.<span class="t2">מיזוג אלון בע״מ</span>', 'אחזקה', 'WhatsApp', '<span class="num">12</span>', chip('קישור פעיל', 'ok')], ['דני כהן<span class="t2">חשבון במערכת</span>', 'אחזקה · חשמל', 'התראה באפליקציה', '<span class="num">21</span>', chip('מנהל', 'acc')], ['יוסי מ.<span class="t2">עובד ללא חשבון</span>', 'ניקיון', 'WhatsApp', '<span class="num">4</span>', chip('מספר לא מאומת', 'warn')]]) + '</div>';
+        h += '<p class="note">העמוד כפי שהוא (tickets-handlers.ts): ארבעת המקטעים, שבבי מחלקות, חיפוש, "+" לפי מקטע, בורר תקופת "טופלו", רצועת המוכנות רק כשחסר משהו, מגירת העריכה, ייצוא ומחיקה.</p>';
+        break;
+      case 'rfqs':
+        h += head(S, P, '<button class="btn pri">' + ic('plus') + 'בקשה חדשה</button>');
+        h += kpis([{ n: 5, l: 'פתוחות' }, { n: 3, l: 'שאלות ספקים ממתינות', look: 'warn' }, { n: 2, l: 'ממתינות להחלטה', look: 'acc' }, { n: 1, l: 'הוזמנו', look: 'ok' }]);
+        h += '<div class="panel flush"><div class="toolbar"><div class="seg" role="radiogroup" aria-label="מצב"><button role="radio" aria-checked="true">פתוחות<span class="n">5</span></button><button role="radio" aria-checked="false">נשלחו</button><button role="radio" aria-checked="false">הוחלט</button><button role="radio" aria-checked="false">הכול<span class="n">9</span></button></div><label class="search">' + ic('search') + '<input placeholder="חיפוש"></label></div>';
+        h += table(['בקשה', 'מחלקה', 'ספקים', 'מועד אחרון', ''], [['החלפת משאבת ניקוז<span class="t2">RFQ-17 · מבקשה SR-2041</span>', 'אחזקה', '3 הוזמנו · 2 הציעו · 1 שאל', '<span class="num">28.10</span>', badge('שאלה ממתינה', 'warn')], ['צביעת חדר מדרגות<span class="t2">RFQ-16</span>', 'אחזקה', '4 הוזמנו · 4 הציעו', '<span class="num">25.10</span>', badge('להשוואה', 'acc')], ['בדיקת מערכת כיבוי<span class="t2">RFQ-15</span>', 'בטיחות', '2 הוזמנו · 1 הציע', '<span class="num">20.10</span>', badge('הוזמן', 'ok')]]) + '</div>';
+        h += '<p class="note">הרשימה, לוח הספקים (?rfq=), ההשוואה (&view=compare), גיליון הבקשה החדשה (?new=1&from=), הקבצים, ההזמנה והתנאים - ללא שינוי (tickets-rfqs.ts, rfq-*.ts). תג השאלות: המספר על העמוד, נקודה על המדור, מונה על סמל האזור.</p>';
+        break;
+      case 'accounts':
+        h += head(S, P, '<button class="btn">' + ic('download') + 'CSV</button>' + (can('tickets.costs') ? '<button class="btn pri">סימון כשולם (2)</button>' : ''));
+        h += '<div class="panel flush"><div class="toolbar"><div class="seg" role="radiogroup" aria-label="תקופה"><button role="radio" aria-checked="true">החודש</button><button role="radio" aria-checked="false">החודש שעבר</button><button role="radio" aria-checked="false">הרבעון</button></div><div class="seg" role="radiogroup" aria-label="מצב"><button role="radio" aria-checked="true">הכול</button><button role="radio" aria-checked="false">ממתין לאישור</button><button role="radio" aria-checked="false">אושר</button><button role="radio" aria-checked="false">שולם</button></div></div>';
+        h += table(['ספק', 'מטבע', 'ממתין לאישור', 'אושר', 'שולם', ''], [['מיזוג אלון בע״מ', '₪', '<span class="num">1,880</span>', '<span class="num">4,200</span>', '<span class="num">12,600</span>', chip('2 דרישות', 'warn')], ['חשמל השרון', '₪', '<span class="num">0</span>', '<span class="num">950</span>', '<span class="num">3,100</span>', chip('מעודכן', 'ok')], ['קלין-טק', '€', '<span class="num">0</span>', '<span class="num">0</span>', '<span class="num">1,200</span>', chip('שולם', 'ok')]]) + '</div>';
+        h += '<p class="note">חשבון הספקים (vendor-accounts.ts) ללא שינוי: סינון תקופה ומצב, טבלאות לפי מטבע (אין סיכום בין מטבעות), סימון כשולם בקבוצה, ייצוא CSV.</p>';
+        break;
+      case 'external':
+        h += head(S, P, '<button class="btn">הגדרות</button><button class="btn pri">' + ic('plus') + 'הרשאה חדשה</button>');
+        h += kpis([{ n: 4, l: 'פעילות', look: 'ok' }, { n: 2, l: 'ממתינות לאישור', look: 'warn' }, { n: 1, l: 'פגות היום', look: 'alarm' }, { n: 3, l: 'טכנאים ממתינים', look: 'acc' }]);
+        h += '<div class="panel flush">' + table(['אדם', 'ספק', 'תחנות', 'עד', ''], [['משה לוי', 'חשמל השרון', 'כניסה ראשית · חניון', '<span class="num">24.10 18:00</span>', badge('פעילה', 'ok')], ['רונית ש.', 'קלין-טק', 'כניסה ראשית', '<span class="num">23.10 22:00</span>', badge('פגה היום', 'alarm')], ['אלון ד.', 'מיזוג אלון', 'גג · חדר מכונות', '-', badge('ממתינה לאישור', 'warn')]]) + '</div>';
+        h += '<p class="note">מסך גישת החוץ (access-external.ts) ללא שינוי; מוצג כאן רק כשהמיקום שנבחר בהגדרות הוא "ניהול השירות" או "שניהם". התאום #/wiskey/external לא נוגע.</p>';
+        break;
+      case 'overview':
+        h += head(S, P, '<a class="btn" href="#" data-go="requests/board">' + ic('grid') + 'ללוח</a>');
+        h += '<div class="rooms" role="group" aria-label="מחלקות"><button class="rc" aria-pressed="true">כל המחלקות</button><button class="rc" aria-pressed="false">אחזקה</button><button class="rc" aria-pressed="false">חשמל</button></div>';
+        h += kpis([{ n: 14, l: 'פתוחות' }, { n: 3, l: 'ממתינות לי', look: 'warn' }, { n: 2, l: 'תקועות', look: 'alarm' }, { n: 5, l: 'נסגרו השבוע', look: 'ok' }, { n: 2, l: 'ממתינות לאישורי', look: 'acc' }]);
+        h += '<div class="mapgrid"><div class="panel flush"><div class="group-h">איפה תקוע</div>' + table(['מקום', 'תקועות', 'ללא מטפל', ''], [['קומה 2', '<span class="num">1</span>', '<span class="num">1</span>', chip('מזגן', 'warn')], ['קומת קרקע', '<span class="num">1</span>', '<span class="num">0</span>', chip('דלת', 'alarm')]]) + '</div><div class="panel flush"><div class="group-h">עומס מטפלים · 30 יום</div>' + table(['מטפל', 'בטיפול', 'טופלו', ''], [['אלון ד.', '<span class="num">4</span>', '<span class="num">12</span>', chip('עמוס', 'warn')], ['דני כהן', '<span class="num">2</span>', '<span class="num">21</span>', chip('תקין', 'ok')]]) + '</div></div>';
+        h += '<p class="note">מסך הסקירה (tickets-overview.ts) ללא שינוי: כל הכרטיסים, הקיפול הזכור, בורר התקופה, קישורים ללוח / לחשבון הספקים / לבקשת הצעת המחיר.</p>';
+        break;
+      case 'ledger': case 'plans': case 'rounds': case 'tags':
+        var L = { ledger: ['אישור חדש', ['פריטים', 'פג תוקף', 'מתקרבים', 'בתוקף'], ['אישור', 'מקום', 'בתוקף עד', 'אחראי', ''], [['בדיקת מעלית שנתית<span class="t2">מעלית צפונית</span>', 'מבנה א', '<span class="num">14.02.2027</span>', 'דני כהן', badge('עוד 30 ימים', 'warn')], ['ביטוח צד ג׳<span class="t2">חשמל השרון · מסמך ספק</span>', '-', '<span class="num">10.01.2027</span>', '-', badge('פג', 'alarm')], ['מטפי כיבוי<span class="t2">כל המבנה</span>', 'מבנה א', '<span class="num">30.11.2027</span>', 'דני כהן', badge('בתוקף', 'ok')]]],
+                  plans: ['תוכנית חדשה', ['תוכניות', 'באיחור', 'השבוע', 'תקין'], ['תוכנית', 'מחזור', 'הבא', 'מבצע', ''], [['החלפת מסנני מיזוג<span class="t2">קומות 1-2</span>', 'כל 3 חודשים', '<span class="num">01.11.2026</span>', 'אלון ד.', badge('השבוע', 'warn')], ['שימון משאבות<span class="t2">חדר מכונות</span>', 'כל חודש', '<span class="num">15.11.2026</span>', 'דני כהן', badge('תקין', 'ok')]]],
+                  rounds: ['סבב חדש', ['סבבים', 'פתוחים עכשיו', 'באיחור', 'בוצעו השבוע'], ['סבב', 'תדירות', 'נקודות', 'הליכה אחרונה', ''], [['סבב בטיחות יומי<span class="t2">כל המבנה</span>', 'כל יום', '<span class="num">12</span>', '<span class="num">היום 07:40</span>', badge('בוצע', 'ok')], ['סבב גג שבועי<span class="t2">גג</span>', 'כל שבוע', '<span class="num">6</span>', '<span class="num">16.10</span>', badge('באיחור', 'alarm')]]],
+                  tags: ['תג חדש', ['תגים', 'על התקנים', 'על משימות', 'בוטלו'], ['תג', 'יעד', 'נוצר', 'סריקות', ''], [['QR-0012', 'מזגן VRF-12 · חדר ישיבות', '<span class="num">02.10.2026</span>', '<span class="num">7</span>', badge('פעיל', 'ok')], ['NFC-0003', 'סבב גג שבועי', '<span class="num">02.10.2026</span>', '<span class="num">3</span>', badge('פעיל', 'ok')]]] }[P.kind];
+        h += head(S, P, (can('maintenance.manage') ? '<button class="btn pri">' + ic('plus') + L[0] + '</button>' : ''));
+        h += kpis([{ n: L[3].length + 4, l: L[1][0] }, { n: 1, l: L[1][1], look: 'alarm' }, { n: 2, l: L[1][2], look: 'warn' }, { n: 3, l: L[1][3], look: 'ok' }]);
+        h += '<div class="cols">' + tree() + '<div class="panel flush">' + tree(true) + table(L[2], L[3]) + '</div></div>';
+        h += '<p class="note">העמוד כמו בדגם המאושר של 2.15.0 (docs/design/mockups/maintenance-215): מוצג רק כשמודול "תחזוקה ובקרה" פועל ולבעלי maintenance.view; אין פעולת "פתיחת בקשת שירות" כשמודול הבקשות כבוי.</p>';
+        break;
+      case 'building':
+        h += head(S, P, '<button class="btn">' + ic('download') + 'PDF</button>');
+        h += '<div class="panel flush"><div class="toolbar"><div class="seg" role="radiogroup" aria-label="חודש"><button role="radio" aria-checked="true">ספטמבר 2026</button><button role="radio" aria-checked="false">אוגוסט 2026</button></div><div class="seg" role="radiogroup" aria-label="שפה"><button role="radio" aria-checked="true">עברית</button><button role="radio" aria-checked="false">English</button></div></div>' + table(['מקטע', 'מקור', 'מצב', ''], [['סיכום', 'כל המודולים', 'כלול', chip('כלול', 'ok')], ['בקשות שירות', 'ניהול השירות', 'כלול', chip('כלול', 'ok')], ['חשמל', 'תשתיות › חשמל', 'כלול', chip('כלול', 'ok')], ['דלתות', 'תובנות', 'לא כלול · המתג כבוי', chip('switch_off', 'unk')]]) + '</div>';
+        h += '<p class="note">כמו בדגם המאושר של 2.15.0 (docs/design/mockups/insight-215): חודש, שפה, בחירת מקטעים, תצוגה מקדימה, PDF, רשימת "לא כלול" עם הסיבה.</p>';
+        break;
+      case 'insights':
+        h += head(S, P, '');
+        h += '<div class="panel flush"><div class="toolbar"><div class="seg" role="radiogroup" aria-label="סוג"><button role="radio" aria-checked="true">דלתות</button><button role="radio" aria-checked="false">בזבוז</button></div><div class="seg" role="radiogroup" aria-label="טווח"><button role="radio" aria-checked="true">24 שעות</button><button role="radio" aria-checked="false">7 ימים</button><button role="radio" aria-checked="false">30 ימים</button></div></div>' + table(['דלת', 'פתיחות', 'ללא הסבר', 'לא ניתן לאמת', ''], [['כניסה ראשית', '<span class="num">142</span>', '<span class="num">2</span>', '<span class="num">0</span>', chip('לבדיקה', 'warn')], ['חניון', '<span class="num">61</span>', '<span class="num">0</span>', '<span class="num">3</span>', chip('תקין', 'ok')]]) + '</div>';
+        h += '<p class="note">דלתות / בזבוז כמקטע בתוך עמוד אחד; ההגדרות (מתגים, זוגות דלתות, ספים) בהגדרות › ניהול השירות.</p>';
+        break;
+      case 'reserved':
+        h += head(S, P, '');
+        h += '<div class="panel"><div class="state-panel"><div class="icon">' + ic('lock') + '</div><div><h4>מקום שמור - לא נבנה</h4><p>תקציב מחלקה מול עלויות מאושרות (רעיון 24): סכום שנתי לכל מחלקה, פס ניצול בסקירה, אזהרה באישור דרישה שחוצה את התקציב. מוצג כאן רק כדי שהבעלים יחליט אם לשמור את המקום.</p></div></div></div>';
+        break;
+    }
+    return h + '</section>';
+  }
+
+  // ---- before / after map ----
+  var STATUS_LOOK = { 'MOVED': 'acc', 'MERGED-AS-VIEW': 'warn', 'UNCHANGED': 'ok', 'NEW': 'unk', 'RESERVED': 'unk' };
+  function renderMap(host) {
+    var today = [['סקירה', '#/tickets/overview', 'MOVED'], ['שלי', '#/tickets/mine', 'MERGED-AS-VIEW'], ['המחלקה', '#/tickets/department', 'MERGED-AS-VIEW'], ['לוח מנהל', '#/tickets/board', 'MOVED'], ['הכול', '#/tickets/all', 'MERGED-AS-VIEW'], ['מטפלים וספקים', '#/tickets/handlers', 'MOVED'], ['בקשות הצעת מחיר', '#/tickets/rfqs', 'MOVED'], ['חשבון ספקים', '#/tickets/accounts', 'MOVED'], ['גישת חוץ', '#/tickets/external', 'MOVED']];
+    var h = '<div class="top"><div><h1>מפת הניווט: לפני / אחרי</h1><p class="sub">אף כתובת קיימת לא משתנה; כל קישור בהתראה, בוואטסאפ או בסימנייה ממשיך לעבוד. הסטטוס לפי המילון של הבעלים (23.10).</p></div></div>';
+    h += '<div class="lg">' + [['MOVED', 'acc', 'הועבר - אותו מסך ואותה כתובת, מקום אחר בניווט'], ['MERGED-AS-VIEW', 'warn', 'מוזג כתצוגה - היה כבר מסך אחד; יורדת רק הכפילות'], ['UNCHANGED', 'ok', 'ללא שינוי'], ['NEW', 'unk', 'חדש ב-2.15.0 / שמור']].map(function (l) { return chip(l[0] + ' · ' + l[2], l[1]); }).join('') + '</div>';
+    h += '<div class="mapgrid"><div class="panel mapcol"><h3>היום: שורה אחת של תשע לשוניות</h3><p class="hint">TICKETS_TABS (nav.ts:712-723), מסוננת לפי הרשאה; ההגדרות בנפרד ב-הגדרות › ניהול השירות (9 לשוניות משנה)</p><div class="flat">' + today.map(function (t) { return '<span class="tab' + (t[2] === 'MERGED-AS-VIEW' ? ' x' : '') + '" title="' + t[1] + '">' + esc(t[0]) + '</span>'; }).join('') + '</div><p class="hint" style="margin-top:10px">+ המגירה / העמוד המלא #/tickets/&lt;id&gt;, הטופס ?new=1, המקטעים של "מטפלים וספקים" (?seg=), לוח / השוואה / חדש של הצעות המחיר (?rfq= &view=compare ?new=1), לוח המטפלים בתוך הלוח (?pane=handlers) - כולם נשארים כפי שהם.</p></div>';
+    h += '<div class="panel mapcol"><h3>מוצע: ארבעה מדורים לפי העבודה</h3><p class="hint">שורה 1 = המדור (pill), שורה 2 = עמודי המדור (underline-compact), כמו עמודי החשמל והגנרטור בתשתיות</p><ul class="tree2">' + SECTIONS.map(function (s) {
+      return '<li><b>' + esc(s.label) + ' <span class="chip">' + esc(s.short) + ' בנייד</span>' + (s.mod ? chip('מודול ' + s.mod, 'unk') : '') + '<span class="href" style="margin-inline-start:auto">' + esc(s.href) + '</span></b><ul>' + s.pages.map(function (p) { return '<li>' + esc(p.label) + ' ' + chip(p.status, STATUS_LOOK[p.status]) + ' <span class="chip">' + esc(p.perm.join(' | ')) + '</span><span class="href">' + esc(p.hrefs || p.href) + '</span></li>'; }).join('') + '</ul></li>';
+    }).join('') + '</ul></div></div>';
+    // roles table
+    var roles = ['emp', 'handler', 'mgr', 'admin'];
+    h += '<div class="panel flush"><div class="group-h">מי רואה מה (נגזר מההרשאות הקיימות - אין הרשאה חדשה)</div><div class="scrollx"><table class="t roles-tbl"><thead><tr><th>עמוד</th>' + roles.map(function (r) { return '<th>' + esc(ROLES[r].name) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    SECTIONS.forEach(function (s) { s.pages.forEach(function (p) { h += '<tr><td><span class="t1">' + esc(s.label) + ' › ' + esc(p.label) + '</span></td>' + roles.map(function (r) { var keep = role; role = r; var ok = secOk(s) && pageOk(p); role = keep; return '<td class="' + (ok ? 'y' : 'n') + '">' + (ok ? '✓' : '-') + '</td>'; }).join('') + '</tr>'; }); });
+    h += '</tbody></table></div></div>';
+    h += '<p class="note">הגדרות › ניהול השירות (9 לשוניות משנה) נשארות במקומן; שני המודולים החדשים מתווספים ככרטיס "מודולים נלווים" בלשונית כללי (שאלה 6).</p>';
+    host.innerHTML = h;
+  }
+
+  function toast(t) { var el = document.getElementById('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(function () { el.classList.remove('on'); }, 2200); }
+  document.querySelectorAll('.mock .roles button').forEach(function (b) { b.onclick = function () { role = b.dataset.role; render(); }; });
+  document.getElementById('mapbtn').onclick = function () { mapOn = !mapOn; render(); };
+  render();
+})();
+</script>
+</body>
+</html>
