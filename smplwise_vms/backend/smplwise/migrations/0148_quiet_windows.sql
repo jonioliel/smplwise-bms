@@ -1,5 +1,5 @@
 -- CR-QUIET103 slice 1 (docs/changes/CR-QUIET103.md): time-boxed quiet windows per floor or area.
--- PROVISIONAL number 0155 (built on v2.12.3 whose last migration is 0145; renumbered by the integration lead at the release).
+-- Final number 0148 (built as PROVISIONAL 0155; renumbered at the 2.14.0 integration, release/2140).
 -- Additive only (rollback = run the previous version; the table is ignored by it). The feature ships OFF (setting quiet.windows.enabled = off).
 -- A window is ACTIVE while ended_at IS NULL and started_at <= now < ends_at; the janitor only stamps the row (end_reason 'expired',
 -- ended_at = ends_at) - the end instant itself is decided by the clock, never by the janitor having run.

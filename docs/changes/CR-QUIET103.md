@@ -1,7 +1,7 @@
 # CR-QUIET103 - quiet mode for a floor or an area, one button, two hours
 
-Board item r103. Branch `pilot/QUIET103-295` from `origin/main` (v2.12.3, c37c75c91). Migration **0155** (PROVISIONAL, one file,
-`0155_quiet_windows.sql`; the integration lead renumbers at the release). Status: slice 1 (backend) built; slices 2-4 are proposals.
+Board item r103. Branch `pilot/QUIET103-295` from `origin/main` (v2.12.3, c37c75c91). Migration **0148** (built as provisional 0155, renumbered at the 2.14.0 integration; one file,
+`0148_quiet_windows.sql`). Status: slice 1 (backend) built; slices 2-4 are proposals.
 
 ## 1. Goal
 
