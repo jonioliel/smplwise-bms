@@ -1,5 +1,5 @@
--- PROVISIONAL NUMBER 0152 (CR-WATER78, pilot/WATER78-295): renumbered at the integration to the next free number. ONE file for the
--- water module (slice 1 now; slice 2 appends its alert tables here before the integration). The content does not depend on the number.
+-- Final number 0151 (built as PROVISIONAL 0152; renumbered at the 2.14.0 integration, release/2140) (CR-WATER78, pilot/WATER78-295). ONE file for the
+-- water module slice 1 (released in 2.14.0: slice 2 adds its alert tables in a NEW migration, never here). The content does not depend on the number.
 --
 -- CR-WATER78 slice 1 (water meters, readings, consumption): the meter registry in the main database. The time-series lives in its
 -- own file water.db (services/water_meters.py opens it through the energy store with the water medium profile), never here.

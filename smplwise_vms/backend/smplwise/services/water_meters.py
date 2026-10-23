@@ -1,5 +1,5 @@
 """CR-WATER78 slice 1: the water meter registry (main DB `water_meters`, `water_meter_epochs`, `water_meter_manual_readings`,
-migration 0152 PROVISIONAL), the source validation (section 4.4: a cumulative volume, never a flow rate), the floor scope and the
+migration 0151, built as provisional 0152), the source validation (section 4.4: a cumulative volume, never a flow rate), the floor scope and the
 small read helpers of the API (routers/water.py).
 
 The model is the electricity one (CR-023), parameterised by the medium (D1): the time-series is the energy store's code on its

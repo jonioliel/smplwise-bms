@@ -3,7 +3,7 @@ every route but /status and /settings, the sampler thread only while on, audited
 views, site_admin manages, floor scope narrows the meters, source_ref only to managers), the source validation matrix (a flow rate and a
 gas meter refused with their own codes), litres / m3 conversion (gallon and cubic-foot factors exact in micro-litres), the counter rules
 on litres through the water medium profile (and the electricity profile unchanged), series / consumption windows / CSV, manual
-readings, retention, backup with and without history, and migration 0152 (PROVISIONAL) contiguity. Fake mirror states only; no
+readings, retention, backup with and without history, and migration 0151 contiguity. Fake mirror states only; no
 infrastructure, no device."""
 from __future__ import annotations
 
@@ -425,20 +425,17 @@ def test_water_tables_are_project_tables_kept_when_absent():
         assert t in backup.PROJECT_TABLES and t in backup.KEEP_WHEN_ABSENT
 
 
-# ---------------------------------------------------------------- migration 0152 (PROVISIONAL)
-
-PROVISIONAL = {152}
+# ---------------------------------------------------------------- migration 0151 (built as provisional 0152; renumbered at release/2140)
 
 
-def test_migration_numbers_contiguous_ignoring_the_provisional_number():
+def test_migration_numbers_contiguous():
     files = {int(f.name.split("_", 1)[0]): f for f in dbmod.MIGRATIONS_DIR.glob("*.sql")}
-    released = sorted(n for n in files if n not in PROVISIONAL)
-    assert released == list(range(1, released[-1] + 1)), "the released sequence has no gap"
-    assert all(n > released[-1] for n in PROVISIONAL), "the provisional number sits after the released ones"
+    numbers = sorted(files)
+    assert numbers == list(range(1, numbers[-1] + 1)), "the sequence has no gap"
     water = [f.name for f in files.values() if "water" in f.name]
-    assert water == ["0152_infra_water.sql"], "one file for the water module"
-    text = files[152].read_text(encoding="utf-8")
-    assert "PROVISIONAL" in text.splitlines()[0] and "CREATE TABLE water_meters" in text
+    assert water == ["0151_infra_water.sql"], "one file for the water module"
+    text = files[151].read_text(encoding="utf-8")
+    assert "Final number 0151" in text.splitlines()[0] and "CREATE TABLE water_meters" in text
 
 
 def test_migration_applies_and_carries_the_gas_reservation(settings):
