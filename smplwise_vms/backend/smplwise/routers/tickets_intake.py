@@ -36,7 +36,9 @@ class RevisionBody(BaseModel):
 
 
 class MergeBody(RevisionBody):
-    ticket_id: str = Field(pattern=ID)
+    """The request to attach to: its id, or the number a person reads (exactly one of them)."""
+    ticket_id: str | None = Field(default=None, pattern=ID)
+    number: StrictInt | None = Field(default=None, ge=1, le=9_999_999)
 
 
 class RejectBody(RevisionBody):
@@ -94,7 +96,7 @@ def approve_draft(draft_id: DraftId, body: RevisionBody, request: Request, princ
 @router.post("/tickets/intake/drafts/{draft_id}/merge")
 def merge_draft(draft_id: DraftId, body: MergeBody, request: Request, principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    return intake.merge(conn, Viewer(conn, principal), draft_id, body.revision, body.ticket_id, _rid(request))
+    return intake.merge(conn, Viewer(conn, principal), draft_id, body.revision, body.ticket_id, _rid(request), number=body.number)
 
 
 @router.post("/tickets/intake/drafts/{draft_id}/reject")

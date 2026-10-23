@@ -525,10 +525,19 @@ def _reply_approved(conn: sqlite3.Connection, r: Mapping[str, Any], number: int,
         return False
 
 
-def merge(conn: sqlite3.Connection, viewer: Viewer, draft_id: str, revision: int, ticket_id: str, rid: str | None = None) -> dict[str, Any]:
-    """Attach the text to an existing request as an INTERNAL note (needs: the ticket visible and tickets.manage for its department)."""
+def merge(conn: sqlite3.Connection, viewer: Viewer, draft_id: str, revision: int, ticket_id: str | None, rid: str | None = None, *,
+          number: int | None = None) -> dict[str, Any]:
+    """Attach the text to an existing request as an INTERNAL note (needs: the ticket visible and tickets.manage for its department).
+    The request is named by its id or by its number - an invisible or unknown one is the same 404."""
     require_handler(conn, viewer, rid)
     r = _open_draft(conn, draft_id, revision)
+    if (ticket_id is None) == (number is None):
+        raise _invalid(conn, "ticket_id", "required")
+    if ticket_id is None:
+        found = access.visible_by_number(viewer, int(number or 0))
+        if found is None:
+            raise access.not_found(conn)
+        ticket_id = found.row["id"]
     seen = access.require_visible(viewer, ticket_id)
     if not viewer.is_manager(seen.row):
         audit(conn, actor=viewer.principal, action="ticket.intake.merge", decision="denied", resource_type="ticket", resource_id=ticket_id,
