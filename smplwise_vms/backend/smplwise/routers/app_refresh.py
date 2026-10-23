@@ -8,7 +8,11 @@ identity locally):
   GET    /auth/app/families[?user_id=]       the caller's live families (another user's / everyone's: system.configure)
   DELETE /auth/app/families/{family_id}      end one family (its owner, or system.configure)                              -> 204
   DELETE /auth/app/families[?user_id=]       end every family of a user (own, or system.configure) - the lost-phone kill switch
-  GET    /auth/app/settings, PUT ...         the switch and lifetimes (a system administrator; ON from the local channel only, OFF from
+  GET    /auth/app/devices/{id}/key          APPREFRESH3: the device's pinned key status (its user, or system.configure)
+  POST   /auth/app/devices/{id}/key-reset    APPREFRESH3: a system administrator approves a device-key reset {reason} (the lost-key path;
+                                             own device: local channel only) - audited, the user notified, the old sign-in ended
+  DELETE /auth/app/devices/{id}/key-reset    APPREFRESH3: withdraw a pending approval                                    -> 204
+  GET    /auth/app/settings, PUT ...         the switch, lifetimes and the key-reset notice wording (a system administrator; ON from the local channel only, OFF from
                                              either channel - OFF ends every family)
 Public routes (no cookie, the remote channel only; while the switch is off, or on the local channel, every one answers the same 404
 before its body is read - guarded_route, the PUB-07 rule):
@@ -283,8 +287,9 @@ def end_family(family_id: str, request: Request, caller: Caller = Depends(sessio
         if fam is None or fam["revoked_at"]:
             raise ApiError(404, "not_found", "הכניסה לא נמצאה.")
         _may_manage(conn, caller, fam["user_id"], request)
-        svc.revoke_family(conn, fam["family_id"], "revoked_by_user" if fam["user_id"] == caller.principal.user_id else "revoked_by_admin",
-                          actor=caller.principal, request_id=_rid(request), subject=fam["user_id"])
+        reason = "revoked_by_user" if fam["user_id"] == caller.principal.user_id else "revoked_by_admin"
+        svc.revoke_family(conn, fam["family_id"], reason, actor=caller.principal, request_id=_rid(request), subject=fam["user_id"])
+        svc.release_pins(conn, [fam["device_id"]], reason, actor=caller.principal, request_id=_rid(request))  # Q296: only the user's own end
     return Response(status_code=204)
 
 
@@ -294,9 +299,59 @@ def end_families(request: Request, caller: Caller = Depends(session_caller), use
     with _db(request).connection(label="app_refresh.end_all") as conn:
         touch_user(conn, caller.principal)
         _may_manage(conn, caller, target, request)
-        n = svc.revoke_user(conn, target, "signed_out_everywhere" if target == caller.principal.user_id else "revoked_all_by_admin",
-                            actor=caller.principal, request_id=_rid(request))
+        reason = "signed_out_everywhere" if target == caller.principal.user_id else "revoked_all_by_admin"
+        devices = [r["device_id"] for r in conn.execute("SELECT device_id FROM app_refresh_families WHERE user_id = ? AND revoked_at IS NULL", (target,)).fetchall()]
+        n = svc.revoke_user(conn, target, reason, actor=caller.principal, request_id=_rid(request))
+        svc.release_pins(conn, devices, reason, actor=caller.principal, request_id=_rid(request))  # Q296: only the user's own end
     return {"families_ended": n}
+
+
+# ---------------------------------------------------------------- the device-key pin and its reset (APPREFRESH3-295, CR section 14)
+
+class KeyResetIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=400)
+
+
+def _device_owner(conn, device_id: str) -> str | None:
+    r = conn.execute("SELECT user_id FROM mobile_devices WHERE id = ?", (device_id[:64],)).fetchone()
+    return r["user_id"] if r else None
+
+
+@router.get("/auth/app/devices/{device_id}/key")
+def device_key(device_id: str, request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
+    """The device's pinned key status (never the key; a 16-hex fingerprint prefix): its user, or system.configure."""
+    with _db(request).connection(mode="read", label="app_refresh.device_key") as conn:
+        touch_user(conn, caller.principal)
+        owner = _device_owner(conn, device_id)
+        if owner is None:
+            raise ApiError(404, "not_found", svc.DEVICE_HE)
+        _may_manage(conn, caller, owner, request)
+        return svc.key_status(conn, device_id[:64])
+
+
+@router.post("/auth/app/devices/{device_id}/key-reset")
+def approve_key_reset(device_id: str, body: KeyResetIn, request: Request, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
+    """A system administrator approves a device-key reset (the lost-key path): audited, the user notified, the old sign-in ended."""
+    remote = is_remote(request)
+    with _db(request).connection(label="app_refresh.key_reset") as conn:
+        touch_user(conn, caller.principal)
+        _require_admin(conn, caller, request, "auth.app_refresh.key_reset_approved")
+        if not svc.take("app_refresh.settings", "*", svc.RATE_SETTINGS):
+            raise ApiError(429, "rate_limited", svc.RATE_HE, retryable=True)
+        return svc.approve_key_reset(conn, caller.principal, device_id[:64], body.reason, channel="remote" if remote else "local", request_id=_rid(request))
+
+
+@router.delete("/auth/app/devices/{device_id}/key-reset", status_code=204)
+def withdraw_key_reset(device_id: str, request: Request, caller: Caller = Depends(session_caller)) -> Response:
+    """A system administrator withdraws a pending reset approval (the pin holds again)."""
+    with _db(request).connection(label="app_refresh.key_reset_withdraw") as conn:
+        touch_user(conn, caller.principal)
+        _require_admin(conn, caller, request, "auth.app_refresh.key_reset_withdrawn")
+        if not svc.withdraw_key_reset(conn, caller.principal, device_id[:64], channel="remote" if is_remote(request) else "local", request_id=_rid(request)):
+            raise ApiError(404, "not_found", "אין איפוס ממתין למכשיר הזה.")
+    return Response(status_code=204)
 
 
 # ---------------------------------------------------------------- settings (a system administrator)

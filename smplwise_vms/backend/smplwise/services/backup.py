@@ -85,7 +85,10 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    # never revive a revoked family or an already-used refresh token
                                    "app_refresh_families", "app_refresh_tokens", "app_access_tokens",
                                    # APPREFRESH2-295: the single-use device-key proof nonces
-                                   "app_refresh_nonces"})
+                                   "app_refresh_nonces",
+                                   # APPREFRESH3-295: the device-key pins - a restore must neither drop one (a new key would bind without
+                                   # the old key's proof) nor revive one
+                                   "app_refresh_device_keys"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
@@ -193,6 +196,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh", "security.app_refresh_a
                                  "security.app_refresh_admin_idle_hours"}
 # APPREFRESH2-295: the device-key mode (off | optional | required) - a restore must never weaken it
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
+# APPREFRESH3-295: the key-reset notice wording sits with the rest of the app sign-in policy (kept, never taken from an archive)
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_key_reset_notice_title", "security.app_refresh_key_reset_notice_body"}
 
 
 def _kept_setting(key: Any) -> bool:

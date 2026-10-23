@@ -154,6 +154,11 @@ SOURCES: tuple[Source, ...] = (
     _s("security.lockout", "נעילת קוד", "security", "alert", "נעילת קוד", "הוזנו קודים שגויים ונשארה נעילה זמנית.", window_s=3600, subject="session", resolves=False),
     # TFA2: an administrator reset the account's second factor - the account's own user is told (never who, never a secret)
     _s("security.second_factor_reset", "איפוס אימות דו־שלבי", "security", "alert", "האימות הדו־שלבי של החשבון אופס", "מנהל המערכת אפס את האימות הדו־שלבי של החשבון שלך. אם לא ביקשת זאת - פנה למנהל המערכת. אפשר להפעיל אותו מחדש ב״החשבון שלי״.", window_s=3600, who="initiator", subject="session", resolves=False),
+    # APPREFRESH3-295 (owner Q297): an administrator approved a reset of the user's phone-app device key - the device's own user is told in
+    # the app and on the phone; the title / body are the wording kept in the Settings (security.app_refresh_key_reset_notice_*), rendered
+    # by services/app_refresh before the signal (never the administrator, the reason or key material)
+    _s("security.app_device_key_reset", "איפוס מפתח האבטחה של האפליקציה", "security", "alert", "{notice_title}", "{notice_body}", window_s=3600,
+       who="initiator", subject="session", resolves=False, app=True),
     # USR2 phase 2 (CR-USR2 §3, security review F7): the Arx-only sign-in's security events, to the managers (a `system` subject:
     # system.configure). Content-free - never a username, an address or a person; the audit rows carry the user id.
     _s("security.local_storm", "ניסיונות כניסה רבים של משתמשי Arx", "security", "alert", "ניסיונות כניסה רבים של משתמשי Arx",
