@@ -18,6 +18,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { hev, type HevKey } from '../i18n/ha-events';
 import { SENSOR_TYPES, areaOptions, describeSensorEvent, placeLabel, type SensorEvent } from './ha-events-logic';
+import { dateInputLang, timeText, dayMonthText } from '../api/day-format';
 
 /**
  * NVRLESS-295 — the sensor events list: the investigate area of an installation with no recorder events (no NVR). The same stored
@@ -163,11 +164,11 @@ export class InvestigateHaEvents extends LitElement {
   }
 
   private fmt(iso: string): string {
-    return new Intl.DateTimeFormat(document.documentElement.lang || 'he-IL', { timeZone: this.tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+    return timeText(new Date(iso), { timeZone: this.tz, seconds: true });
   }
 
   private fmtDate(iso: string): string {
-    return new Intl.DateTimeFormat(document.documentElement.lang || 'he-IL', { timeZone: this.tz, day: '2-digit', month: '2-digit' }).format(new Date(iso));
+    return dayMonthText(new Date(iso), { timeZone: this.tz });
   }
 
   private sev(s: string): string {
@@ -200,7 +201,7 @@ export class InvestigateHaEvents extends LitElement {
           <option value="" ?selected=${!this.area}>${hev('areaAll')}</option>
           ${areas.map((a) => html`<option value=${a.value} ?selected=${this.area === a.value}>${a.label}</option>`)}
         </select></sw-field>
-        <sw-field><input type="date" .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr data-ha-date aria-label=${hev('dateLabel')} @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
+        <sw-field><input type="date" lang=${dateInputLang()} .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr data-ha-date aria-label=${hev('dateLabel')} @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
         <span class="rangepick" role="group" aria-label=${hev('rangeLabel')} data-ha-range>
           ${([[1, 'range1'], [7, 'range7'], [30, 'range30']] as [number, HevKey][]).map(([n, k]) => html`<button class=${this.rangeDays === n ? 'on' : ''} aria-pressed=${this.rangeDays === n} data-ha-range-set=${n} @click=${() => { this.rangeDays = n; void this.load(); }}>${hev(k)}</button>`)}
         </span>

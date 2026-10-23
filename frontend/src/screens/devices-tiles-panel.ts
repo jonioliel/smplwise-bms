@@ -22,6 +22,7 @@ import { DeviceControls, deviceControlStyles, rowLabel } from './devices-control
 import { activeOf } from '../api/device-commands';
 import { lockAllQuestion, skippedText, splitLockAll } from './door-path-logic';
 import { runCommand, type CommandPhase } from '../api/device-commands';
+import { timeText, dayMonthText, dayTimeText } from '../api/day-format';
 
 /** Which rows a segment shows: `active` = the tile's counted state (lit, on, open, running, playing, locked, armed). */
 export type ItemsFilter = 'all' | 'active' | 'inactive' | 'unavailable';
@@ -133,8 +134,8 @@ function demoItems(kind: TileKind, scope: ItemsScope, id: string, name: string):
 export function changedAt(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  const time = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  return d.toDateString() === now.toDateString() ? `השתנה ב־${time}` : `השתנה ב־${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })} ${time}`;
+  const time = timeText(d);
+  return d.toDateString() === now.toDateString() ? `השתנה ב־${time}` : `השתנה ב־${dayMonthText(d)} ${time}`;
 }
 
 /** How long the panel waits before refetching (review M4: pushes about listed rows patch them in place; a refetch is
@@ -819,7 +820,7 @@ export class DevicesTilesPanel extends LitElement {
       <sw-icon .name=${icon} size=${16}></sw-icon>
       <div class="txt">
         <div class="nm" title=${r.name}>${bidi(r.name)}</div>
-        <div class="st"><span data-row-state>${stateText}</span>${r.last_changed ? html` · <span class="lc" data-last-changed title=${new Date(r.last_changed).toLocaleString('he-IL')}>${changedAt(r.last_changed)}</span>` : nothing}</div>
+        <div class="st"><span data-row-state>${stateText}</span>${r.last_changed ? html` · <span class="lc" data-last-changed title=${dayTimeText(new Date(r.last_changed), { seconds: true })}>${changedAt(r.last_changed)}</span>` : nothing}</div>
       </div>
       <div class="end">
         ${controllable && toggleKinds ? this.ctl.renderPowerToggle(r) : nothing}

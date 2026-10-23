@@ -26,6 +26,7 @@ import {
 import { dwCss } from '../door-windows/styles';
 import { dwe } from '../i18n/door-windows-events';
 import { limitsOf, openableDoors } from '../door-windows/events-logic';
+import { dateInputLang } from '../api/day-format';
 
 const POLL_MS = 15_000;
 const EM_POLL_MS = 5_000;
@@ -464,8 +465,8 @@ export class DoorWindowsScreen extends LitElement {
 
   private renderRanges(ranges: Range[], set: (fn: (rs: Range[]) => void) => void): TemplateResult {
     return html`${ranges.map((r, i) => html`<div class="range" data-dw-range=${i}>
-      <label class="muted">${dwt('fFrom')} <input type="time" step="900" .value=${r.start} @change=${(e: Event) => set((rs) => (rs[i].start = (e.target as HTMLInputElement).value))}></label>
-      <label class="muted">${dwt('fTo')} <input type="time" step="900" .value=${r.end === '24:00' ? '23:59' : r.end} @change=${(e: Event) => set((rs) => (rs[i].end = (e.target as HTMLInputElement).value))}></label>
+      <label class="muted">${dwt('fFrom')} <input type="time" lang=${dateInputLang()} step="900" .value=${r.start} @change=${(e: Event) => set((rs) => (rs[i].start = (e.target as HTMLInputElement).value))}></label>
+      <label class="muted">${dwt('fTo')} <input type="time" lang=${dateInputLang()} step="900" .value=${r.end === '24:00' ? '23:59' : r.end} @change=${(e: Event) => set((rs) => (rs[i].end = (e.target as HTMLInputElement).value))}></label>
       ${ranges.length > 1 ? html`<sw-button size="sm" variant="ghost" icon="trash" iconOnly label=${dwt('fRemove')} @click=${() => set((rs) => rs.splice(i, 1))}></sw-button>` : nothing}
     </div>`)}
     <div><sw-button size="sm" variant="ghost" icon="plus" data-dw-addrange @click=${() => set((rs) => rs.push({ start: '12:00', end: '13:00' }))}>${dwt('fAddRange')}</sw-button></div>`;
@@ -497,7 +498,7 @@ export class DoorWindowsScreen extends LitElement {
         ${dr.kind === 'weekly' && dr.perDay ? html`${[...dr.perDay.entries()].sort((a, b) => a[0] - b[0]).map(([wd, rs]) => html`
           <div class="field"><span class="lbl">${dwt(`wd${wd}` as DwtKey)}</span>${this.renderRanges(rs, (fn) => this.patch((d) => fn(d.perDay!.get(wd)!)))}</div>`)}` : nothing}
         ${dr.kind === 'once' ? html`
-          <div class="field"><label for="dw-date">${dwt('fDate')}</label><input id="dw-date" type="date" .value=${dr.date} min=${this.today()}
+          <div class="field"><label for="dw-date">${dwt('fDate')}</label><input id="dw-date" type="date" lang=${dateInputLang()} .value=${dr.date} min=${this.today()}
             @change=${(e: Event) => this.patch((d) => (d.date = (e.target as HTMLInputElement).value))}></div>
           <div class="field">${this.renderRanges(dr.ranges, (fn) => this.patch((d) => fn(d.ranges)))}</div>` : nothing}
         ${dr.kind === 'weekly' ? html`<div class="field"><label for="dw-cal">${dwt('fCalendar')}</label>

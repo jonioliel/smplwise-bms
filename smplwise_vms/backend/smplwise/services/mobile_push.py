@@ -290,7 +290,7 @@ class AppPushChannel(notify_channels.Channel):
                 out.append(notify_channels.Target(self.name, uid, ref, "skipped", "snoozed"))
                 continue
             if d.held("webpush"):  # the app follows the matrix's push column (no column of its own)
-                out.append(notify_channels.Target(self.name, uid, ref, "skipped", "quiet_hours"))
+                out.append(notify_channels.Target(self.name, uid, ref, "skipped", d.held_reason()))
                 continue
             if not ready:
                 out.append(notify_channels.Target(self.name, uid, ref, "skipped", "channel_unavailable"))

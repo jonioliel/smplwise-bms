@@ -37,6 +37,7 @@ import type { Camera } from '../api/types';
 import { StallWatch, stallOptionsFromSettings, type StallPhase } from '../api/playback-stall';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dateInputLang, timeText } from '../api/day-format';
 
 type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
 const FINISHED = ['closed', 'expired', 'failed'];
@@ -1226,7 +1227,7 @@ export class InvestigatePlayback extends LitElement {
   }
 
   private fmt(d: Date): string {
-    return new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(d);
+    return timeText(d, { timeZone: this.tz, seconds: true });
   }
 
   // ---------- export ----------
@@ -1297,8 +1298,8 @@ export class InvestigatePlayback extends LitElement {
           ? html`<div class="est"><strong>עבודת הייצוא נוצרה</strong><span>${job.files.length} קבצים · משוער ${formatBytes(job.estimate_bytes)} · מצב: ${job.state}</span><span>ה־NVR עדיין מכין את הקובץ; "מעקב והורדה" למטה עובר למסך שבו כפתור ההורדה יופיע ברגע שהוא מוכן.</span></div>`
           : html`
               <div class="row">
-                <sw-field label="מ־"><input type="time" step="1" data-ltr .value=${this.exportFrom} @change=${(e: Event) => { this.exportFrom = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
-                <sw-field label="עד"><input type="time" step="1" data-ltr .value=${this.exportTo} @change=${(e: Event) => { this.exportTo = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
+                <sw-field label="מ־"><input type="time" lang=${dateInputLang()} step="1" data-ltr .value=${this.exportFrom} @change=${(e: Event) => { this.exportFrom = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
+                <sw-field label="עד"><input type="time" lang=${dateInputLang()} step="1" data-ltr .value=${this.exportTo} @change=${(e: Event) => { this.exportTo = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
               </div>
               ${est
                 ? html`<div class="est">
@@ -1512,8 +1513,8 @@ export class InvestigatePlayback extends LitElement {
           ${api
             ? html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => this.selectCamera((e.target as HTMLSelectElement).value)}>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${cameraLabel(c)}</option>`)}</select></sw-field>`
             : html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => (this.demoCamera = (e.target as HTMLSelectElement).value)}>${demoWall.map((c) => html`<option value=${c.id} ?selected=${c.id === this.demoCamera}>${c.name}</option>`)}</select></sw-field>`}
-          <sw-field><input type="date" .value=${api ? this.date : '2026-09-14'} max=${today} data-ltr aria-label="תאריך" @change=${(e: Event) => api && this.setDate((e.target as HTMLInputElement).value)} /></sw-field>
-          <sw-field style="inline-size:132px"><input type="time" step="1" .value=${api ? hms(this.cursor) : minuteLabel(this.cursor)} data-ltr aria-label="שעה" @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (api) void this.onSeek(new CustomEvent('seek', { detail: { minute: parseHms(v) } })); else { const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; this.generation += 1; } }} /></sw-field>
+          <sw-field><input type="date" lang=${dateInputLang()} .value=${api ? this.date : '2026-09-14'} max=${today} data-ltr aria-label="תאריך" @change=${(e: Event) => api && this.setDate((e.target as HTMLInputElement).value)} /></sw-field>
+          <sw-field style="inline-size:132px"><input type="time" lang=${dateInputLang()} step="1" .value=${api ? hms(this.cursor) : minuteLabel(this.cursor)} data-ltr aria-label="שעה" @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (api) void this.onSeek(new CustomEvent('seek', { detail: { minute: parseHms(v) } })); else { const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; this.generation += 1; } }} /></sw-field>
         </div>
         ${api ? nothing : html`<sw-button slot="actions" variant="ghost" iconOnly icon="download" label="ייצוא קטע"></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="link" label="שיתוף"></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="more" label="עוד"></sw-button>`}
         ${api ? this.renderApi() : this.renderDemo()}

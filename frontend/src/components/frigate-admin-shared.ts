@@ -1,6 +1,7 @@
 import { css, html, nothing } from 'lit';
 import type { FirstWrites, SupervisedKind } from '../api/frigate-control';
-import { fx, frigateLocale } from '../i18n/frigate-text';
+import { fx } from '../i18n/frigate-text';
+import { dayMonthTimeText } from '../api/day-format';
 
 /**
  * FRGD: what the Frigate management panels (Settings > the recorder > "שינויים ב־Frigate") share - one sheet of rules for their
@@ -319,7 +320,7 @@ export function dateText(epochOrIso: number | string | null | undefined, tz?: st
   const d = typeof epochOrIso === 'number' ? new Date(epochOrIso * 1000) : new Date(epochOrIso);
   if (Number.isNaN(d.getTime())) return '—';
   try {
-    return new Intl.DateTimeFormat(frigateLocale(), { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
+    return dayMonthTimeText(d, { timeZone: tz });
   } catch {
     return d.toISOString();
   }

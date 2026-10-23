@@ -18,6 +18,7 @@ import { editorKinds, quoteBodyOf, quoteFormProblem, validUntilProblem, workWind
 import { qt, type QuoteTextKey } from './quote-text';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { costCardStyles, costDialogStyles } from './cost-styles';
+import { dateInputLang } from '../api/day-format';
 
 const PROBLEM_TEXT: Record<string, QuoteTextKey> = { lines: 'obLinesRequired', kind: 'obLinesRequired', work_format: 'obWorkFormat', work_range: 'obWorkRange', work_order: 'obWorkOrder', valid_format: 'obValidFormat', valid_range: 'obValidRange' };
 
@@ -176,11 +177,11 @@ export class TicketQuoteForm extends LitElement {
           <dt class="tot">${ct('total')}</dt><dd class="tot" data-preview-total>${v(t?.total)}</dd>
         </dl>
         <div class="two" data-ob-window>
-          <label class="fld"><span>${qt('obWorkFrom')}</span><input class="inp" type="datetime-local" dir="ltr" data-ob-work-from aria-invalid=${String(!!workBad)} .value=${f.from} @input=${(e: Event) => this.set({ from: (e.target as HTMLInputElement).value })} /></label>
-          <label class="fld"><span>${qt('obWorkTo')}</span><input class="inp" type="datetime-local" dir="ltr" data-ob-work-to aria-invalid=${String(!!workBad)} .value=${f.to} @input=${(e: Event) => this.set({ to: (e.target as HTMLInputElement).value })} /></label>
+          <label class="fld"><span>${qt('obWorkFrom')}</span><input class="inp" type="datetime-local" lang=${dateInputLang()} dir="ltr" data-ob-work-from aria-invalid=${String(!!workBad)} .value=${f.from} @input=${(e: Event) => this.set({ from: (e.target as HTMLInputElement).value })} /></label>
+          <label class="fld"><span>${qt('obWorkTo')}</span><input class="inp" type="datetime-local" lang=${dateInputLang()} dir="ltr" data-ob-work-to aria-invalid=${String(!!workBad)} .value=${f.to} @input=${(e: Event) => this.set({ to: (e.target as HTMLInputElement).value })} /></label>
         </div>
         ${workBad ? html`<span class="err" data-ob-work-error>${workBad}</span>` : html`<span class="muted" data-ob-work-hint>${qt('obWorkHint')}</span>`}
-        <label class="fld"><span>${qt('obValidUntil')}</span><input class="inp" type="date" dir="ltr" data-ob-valid-until aria-invalid=${String(!!validBad)} .value=${f.validUntil} @input=${(e: Event) => this.set({ validUntil: (e.target as HTMLInputElement).value })} /></label>
+        <label class="fld"><span>${qt('obValidUntil')}</span><input class="inp" type="date" lang=${dateInputLang()} dir="ltr" data-ob-valid-until aria-invalid=${String(!!validBad)} .value=${f.validUntil} @input=${(e: Event) => this.set({ validUntil: (e.target as HTMLInputElement).value })} /></label>
         ${validBad ? html`<span class="err" data-ob-valid-error>${validBad}</span>` : html`<span class="muted" data-ob-valid-hint>${qt('obValidHint')}</span>`}
         <label class="fld"><span>${qt('quoteNote')}</span><textarea class="inp" maxlength="1000" data-ob-note .value=${f.note} @input=${(e: Event) => this.set({ note: (e.target as HTMLTextAreaElement).value })}></textarea></label>
         ${this.err ? html`<div class="err" role="alert" data-ob-error>${this.err}</div>` : nothing}

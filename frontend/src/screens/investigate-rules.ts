@@ -26,6 +26,7 @@ import { demoRules } from '../fixtures/catalog';
 import { navigate } from '../router';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dateInputLang, dayTimeText } from '../api/day-format';
 
 const RULE_ICON: Record<string, { icon: IconName; bg: string; fg: string }> = {
   'r-1': { icon: 'user', bg: '#eaf0ff', fg: '#2f6bff' },
@@ -112,7 +113,7 @@ export class InvestigateRules extends LitElement {
   }
 
   private fmt(iso: string | null) {
-    return iso ? new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) : '—';
+    return iso ? dayTimeText(new Date(iso), { timeZone: this.tz }) : '—';
   }
 
   private get floors() {
@@ -221,8 +222,8 @@ export class InvestigateRules extends LitElement {
       <sw-field label="מצלמות ספציפיות (לא חובה)"><div class="chips">${this.cams.map((c) => html`<sw-chip ?selected=${b.scope.camera_ids.includes(c.id)} @click=${() => this.edit((x) => this.toggleIn(x.scope.camera_ids, c.id))}>${c.name}</sw-chip>`)}</div></sw-field>
       <sw-field label="ימים (ריק = כל יום)"><div class="chips">${this.meta.days.map((d) => html`<sw-chip ?selected=${b.window.days.includes(d)} @click=${() => this.edit((x) => this.toggleIn(x.window.days, d))}>${DAY_LABEL[d] ?? d}</sw-chip>`)}</div></sw-field>
       <div class="two">
-        <sw-field label="משעה (זמן האתר)"><input type="time" data-ltr .value=${b.window.from ?? ''} @change=${(ev: Event) => this.edit((x) => (x.window.from = (ev.target as HTMLInputElement).value || null))} /></sw-field>
-        <sw-field label="עד שעה"><input type="time" data-ltr .value=${b.window.to ?? ''} @change=${(ev: Event) => this.edit((x) => (x.window.to = (ev.target as HTMLInputElement).value || null))} /></sw-field>
+        <sw-field label="משעה (זמן האתר)"><input type="time" lang=${dateInputLang()} data-ltr .value=${b.window.from ?? ''} @change=${(ev: Event) => this.edit((x) => (x.window.from = (ev.target as HTMLInputElement).value || null))} /></sw-field>
+        <sw-field label="עד שעה"><input type="time" lang=${dateInputLang()} data-ltr .value=${b.window.to ?? ''} @change=${(ev: Event) => this.edit((x) => (x.window.to = (ev.target as HTMLInputElement).value || null))} /></sw-field>
       </div>
       <div class="two">
         <sw-field label="פעולה"><select data-rule-action-kind @change=${(ev: Event) => this.edit((x) => (x.actions = [{ ...(x.actions[0] ?? { message: '' }), kind: (ev.target as HTMLSelectElement).value as RuleAction['kind'] }]))}>

@@ -25,7 +25,7 @@ import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { LiveController } from '../api/live-refresh'; // HOMELIVE-295
-import { hl, hlLang } from '../i18n/home-live';
+import { hl } from '../i18n/home-live';
 import { haPushLive, subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, getDevicesTree, refreshDevicesFromHa, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
 import { mapHrefForArea } from '../api/plan-links';
@@ -56,6 +56,7 @@ import { demoHome } from './home-demo';
 import { media } from '../api/media-screens';
 import { hueOf, SkinController } from '../design/skin';
 import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
+import { dayTimeText, timeText } from '../api/day-format';
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
  * user menu's "עריכת המסך הראשי"), not by a button on the screen. */
@@ -122,7 +123,7 @@ export function agoHe(what: string, iso: string | null | undefined, now: number 
   if (m < 60) return m === 1 ? `${what} לפני דקה` : `${what} לפני ${m} דקות`;
   const h = Math.round(m / 60);
   if (h < 24) return h === 1 ? `${what} לפני שעה` : `${what} לפני ${h} שעות`;
-  return `${what} ב־${new Date(t).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}`;
+  return `${what} ב־${dayTimeText(new Date(t))}`;
 }
 
 /** The two timing lines next to the refresh button: when the structure last CHANGED (last_structure_at) and when it
@@ -2748,7 +2749,7 @@ export class DevicesBuilding extends LitElement {
     // outcome (an error / "no change") shows for a few seconds after a press, and "מבנה עודכן" after a real change.
     const stale = this.isStale();
     const at = this.live.lastOkAt();
-    const updated = at ? `${hl('updated')} ${new Date(at).toLocaleTimeString(hlLang() === 'he' ? 'he-IL' : hlLang(), { hour: '2-digit', minute: '2-digit' })}` : '';
+    const updated = at ? `${hl('updated')} ${timeText(new Date(at))}` : '';
     const tip = [this.refreshing ? 'מרענן…' : 'רענן', stale ? hl('stale') : '', updated, timing.changed, timing.checked].filter(Boolean).join(' · ');
     return html`<span class="ha-refresh">
       ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}

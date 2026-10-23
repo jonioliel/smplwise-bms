@@ -707,6 +707,10 @@ def still_wanted(conn: sqlite3.Connection, job: Job) -> str | None:
         if nsettings.in_quiet_hours(st["quiet"], notify.now_utc(), read_settings(conn)["time.zone"]) \
                 and not st["pass_through"].get(n["severity"], {}).get(CHANNEL):
             return "quiet_hours"
+        from . import quiet_windows  # CR-QUIET103: a window that began while the job waited (never for critical / safety, see its rule)
+
+        if quiet_windows.suppresses(conn, n, job.mode, notify.now_utc()):
+            return "quiet_window"
     found = resolve_number(conn, job.user_id)
     if found is None or found.digits != job.digits:
         return "no_address"
@@ -906,7 +910,7 @@ class WhatsAppNotifyChannel(Channel):
                 out.append(Target(self.name, uid, ref, "skipped", "snoozed"))
                 continue
             if d.held(self.name):
-                out.append(Target(self.name, uid, ref, "skipped", "quiet_hours"))
+                out.append(Target(self.name, uid, ref, "skipped", d.held_reason()))
                 continue
             if _replayed(conn, d, uid, dedupe_since):
                 out.append(Target(self.name, uid, ref, "skipped", "deduped"))

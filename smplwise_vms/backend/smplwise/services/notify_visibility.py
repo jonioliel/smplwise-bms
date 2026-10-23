@@ -15,6 +15,7 @@ are the product's existing ones, not new ones:
 |                    | (no view-only access, owner 2026-10-01); an item that is gone: installation-wide managers          |
 | bulk_job           | the initiator only                                                                               |
 | energy_bills       | energy.bills (ELECBILL77)                                                                        |
+| access_denied      | access.external.grant on the refused attempt's station (DENYALERT133-295)                        |
 | system             | system.configure                                                                                |
 | session / security | the account's own user; a code lockout ONLY to system.configure holders (not the locked-out user)  |
 
@@ -27,7 +28,7 @@ import json
 import sqlite3
 from typing import Any
 
-from ..rbac import INSTALLATION, Principal, authorize
+from ..rbac import INSTALLATION, STATION, Principal, authorize
 from . import ha_scope
 from .access import row_scope
 
@@ -182,6 +183,9 @@ class Reach:
             return rfq_notify.can_see(self.conn, self.principal, sid)
         if kind == "energy_bills":  # ELECBILL77: holders of energy.bills (installation scope) - the same permission as the bills screen
             return self._allowed("energy.bills")
+        if kind == "access_denied":  # DENYALERT133-295: access.external.grant on THE station of the refused attempt (the approvers of that door)
+            sid = origin.get("station_id") or sid
+            return bool(sid) and authorize(self.conn, self.principal, "access.external.grant", (STATION, str(sid))).allowed
         if kind == "generator":
             return self._allowed("generator.view")  # CR-031: the generator's alerts reach holders of generator.view only
         if kind == "elevator":  # CR-INFRA-ELEVATORS 2.8.0: devices.read on the sensor of THIS notification's own state (D3, review H1)

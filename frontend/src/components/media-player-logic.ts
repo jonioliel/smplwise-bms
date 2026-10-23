@@ -22,6 +22,7 @@ import {
   joinDiff, leaderLabel, liveGroupKeys, needsConfirmation, playerCommandOffered, resolveLeader, upNextMore, upNextText,
   type GroupPreview, type LibraryKind, type MemberOutcome, type PlanMember, type PlayerCommand, type PlayerDevice, type PlayerLive, type ReceiverZone, type UpNext, type VolumeStep,
 } from '../api/media-players';
+import { timeText } from '../api/day-format';
 
 export { CONFIRM_TIMEOUT_MS };
 export const NOT_CONFIRMED = 'הנגן לא אישר את הפקודה';
@@ -64,7 +65,7 @@ export function playerUnavailableLine(d: Pick<PlayerDevice, 'live' | 'kind'>): {
   if (!d.live.since) return { title, since: '' };
   const t = new Date(d.live.since);
   if (Number.isNaN(t.getTime())) return { title, since: '' };
-  return { title, since: new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false }).format(t) };
+  return { title, since: timeText(t) };
 }
 
 /** The big button of the off state: what it does, whether it is enabled and why not (tooltip only). */

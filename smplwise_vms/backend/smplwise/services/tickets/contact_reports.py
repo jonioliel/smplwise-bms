@@ -31,6 +31,12 @@ log = logging.getLogger("smplwise.tickets.reports")
 
 PURPOSE = "report"
 TEXT_MAX = 700
+# DOCLINKSEC-295 M-01 (security review 2026-10-23): the tickets rule (links.py, review T3-2, spec 10.2) is "E-mail never carries the
+# fragment: it carries a redeem link". A document link `#d.<token>` IS the bearer capability, and a mail body is copied to mail servers,
+# archives, shared mailboxes and URL-rewriting scanners that keep the full URL. Until documents get a redeem-style link, a report WITH a
+# document never leaves by e-mail: `queue` refuses it (`document_channel`) and `render` stops a provider that names one at send time
+# (`not_sent` / `document_channel`, non-retryable, the document revoked). Text-only e-mail reports are unchanged.
+EMAIL_CARRIES_NO_DOCUMENT = True
 _MODULE = re.compile(r"[a-z_]{1,32}")
 _SOURCE = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
 # the document line, in the contact's language ({until} = local date and time). ar / ru: developer translations, native review pending
@@ -111,7 +117,8 @@ def queue(conn: sqlite3.Connection, *, module: str, source_id: str, contact_id: 
           idempotency_key: str | None = None, use_key: str | None = None, document_id: str | None = None, department_id: str | None = None,
           channel: str = "whatsapp") -> Any:
     """ONE outbox row (purpose `report`) inside the caller's write transaction. Refusals: reports_to_contacts_off, report_module,
-    report_source, report_channel, reports_email_off, contact (no_contact / no_whatsapp / no_email), document_unknown, queue_unavailable.
+    report_source, report_channel, reports_email_off, contact (no_contact / no_whatsapp / no_email), document_channel (a document on the
+    e-mail channel), document_unknown, queue_unavailable.
     `channel` is `whatsapp` (default) or `email` (VENDORQ2-295; needs `reports.email`). There is NO automatic switch between the two."""
     from . import messaging
     from .outbox import OutboxError
@@ -127,6 +134,8 @@ def queue(conn: sqlite3.Connection, *, module: str, source_id: str, contact_id: 
     why = reach(conn, contact_id, channel)
     if why != "ok":
         raise ReportRefused(why)
+    if document_id is not None and channel == "email":
+        raise ReportRefused("document_channel")  # DOCLINKSEC-295 M-01: see EMAIL_CARRIES_NO_DOCUMENT
     if document_id is not None:
         doc = out_documents.row(conn, document_id)
         if doc is None or doc["recipient_kind"] != "contact" or doc["recipient_id"] != contact_id:
@@ -167,7 +176,7 @@ def _until(conn: sqlite3.Connection, expires_at: str) -> str:
 
 def render(conn: sqlite3.Connection, row: Any, recipient: Recipient, now: dt.datetime) -> tuple[str | None, str | None]:
     """(text, None) or (None, outcome code): report_unavailable (no provider / no body), report_unsafe (link-looking or empty text),
-    document_not_live (the named document cannot be downloaded any more)."""
+    document_channel (a document on the e-mail channel), document_not_live (the named document cannot be downloaded any more)."""
     provider = PROVIDERS.get(row.source_module or "")
     if provider is None:
         return None, "report_unavailable"
@@ -185,6 +194,8 @@ def render(conn: sqlite3.Connection, row: Any, recipient: Recipient, now: dt.dat
     organization = one_line(settings_doc.read(conn).get("organization_name") or "", mt.VALUE_MAX["organization"])
     parts = [organization, text] if organization else [text]
     doc_id = body.document_id or row.document_id
+    if doc_id and getattr(row, "channel", None) == "email":
+        return None, "document_channel"  # DOCLINKSEC-295 M-01: a provider that names a document at send time is stopped here too
     if doc_id:
         doc = out_documents.row(conn, doc_id)
         if doc is None or doc["recipient_kind"] != "contact" or doc["recipient_id"] != row.contact_id or not out_documents.is_live(conn, doc_id, now):

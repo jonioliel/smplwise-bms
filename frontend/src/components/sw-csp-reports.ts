@@ -4,6 +4,7 @@ import './sw-badge';
 import './sw-button';
 import { api, describeError, get } from '../api/client';
 import { patchSettings } from '../api/media';
+import { dayMonthTimeText } from '../api/day-format';
 
 interface CspRow {
   disposition: 'enforce' | 'report';
@@ -104,7 +105,7 @@ export class SwCspReports extends LitElement {
               <td class="ltr">${BLOCKED_LABEL[r.blocked] ?? r.blocked}</td>
               <td>${r.disposition === 'enforce' ? 'נחסם' : 'דיווח'}</td>
               <td>${r.count}</td>
-              <td>${new Date(r.last_at).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+              <td>${dayMonthTimeText(new Date(r.last_at))}</td>
             </tr>`)}</tbody>
           </table>`
         : html`<div class="muted" data-csp-empty>אין דיווחים. דפדפנים שולחים דיווח רק כשמשהו בדף חורג מהמדיניות.</div>`}

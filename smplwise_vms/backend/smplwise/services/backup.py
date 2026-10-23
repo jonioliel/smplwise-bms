@@ -31,6 +31,10 @@ PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "pl
 from . import energy_backup as _energy_backup  # noqa: E402
 
 PROJECT_TABLES = PROJECT_TABLES + [t for t in _energy_backup.MAIN_TABLES if t not in PROJECT_TABLES]
+# CR-WATER78 slice 1: the water meter registry (migration 0150), listed once in services/water_backup (the energy pattern).
+from . import water_backup as _water_backup  # noqa: E402
+
+PROJECT_TABLES = PROJECT_TABLES + [t for t in _water_backup.MAIN_TABLES if t not in PROJECT_TABLES]
 # NN5-F2 (2.2.0 gap): the Frigate write-class tables. The class approvals (frigate_write_policy), the change log with the data to undo
 # (frigate_changes), the alarm-state -> profile mapping (frigate_profile_rules) and the per-user reviewed state with its mirror columns
 # (frigate_review_state: mirrored_at / mirror_error) travel with the project. NOT included: frigate_reviews and frigate_sync_state
@@ -80,12 +84,15 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    # DOORHARD-295: the door-automation fire history (cooldown / cap counters, decisions) is never in an archive
                                    "door_automation_fires",
                                    # ECCACT-295: durable WisKey intents / relay map / feature registry - a restore must never revive an old intent
-                                   "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents"})
+                                   "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents",
+                                   # APPREFRESH-295: the phone app's refresh-token families and access tokens (hashes only) - a restore must
+                                   # never revive a revoked family or an already-used refresh token
+                                   "app_refresh_families", "app_refresh_tokens", "app_access_tokens"})
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
 # policy is NOT kept (an older archive without it leaves every class OFF - the default - never a class that happened to be on).
-KEEP_WHEN_ABSENT = frozenset({"door_automations", "device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state", *DEVICE_TYPE_TABLES, "plan_view_prefs"}) | _energy_backup.KEEP_WHEN_ABSENT
+KEEP_WHEN_ABSENT = frozenset({"door_automations", "device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state", *DEVICE_TYPE_TABLES, "plan_view_prefs"}) | _energy_backup.KEEP_WHEN_ABSENT | _water_backup.KEEP_WHEN_ABSENT
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
 if NEVER_EXPORTED_TABLES & set(PROJECT_TABLES + ACCESS_TABLES + OPTIONAL_TABLES["audit"] + OPTIONAL_TABLES["events"]):
     raise RuntimeError("a never-exported table is listed for backup")
@@ -146,6 +153,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "access.bulk_people",
                  # STATIONPERM-295: the per-station permission switch is security policy - never changed by an archive
                  "access.station_permissions",
+                 # COMPLY108-295: the compliance export switch is security policy - never switched on by an archive
+                 "access.compliance_export",
                  # SECFIX2-295 / PUB-03: the retention period and the per-vendor cap of vendor-typed technicians (privacy policy)
                  "access.external.pending_retention_days", "access.external.pending_max_per_vendor",
                  # SVCIDENT2: the bridge's last reported copy of the extended switch is runtime state (re-read on the next push)
@@ -181,7 +190,15 @@ _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|
 SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.")
 # SAFE2-295 (2.10.0 release notes, open items): the external-grant card switch (GRANTS3-295 X5, `access.external.cards`) is security policy
 # like its siblings above (WISKEYID) - never exported, never taken from an archive, so a restore can never switch card grants on.
-SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards"}
+SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards", "privacy.local_purge", "privacy.local_purge_days", "privacy.personal_export"}  # IDENT146: purge / export policy of THIS installation
+# APPREFRESH-295: the phone app's persistent sign-in switch and its lifetimes are security policy - never exported, never restored
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh", "security.app_refresh_absolute_days", "security.app_refresh_idle_days",
+                                 "security.app_refresh_access_minutes", "security.app_refresh_admin_absolute_days",
+                                 "security.app_refresh_admin_idle_hours"}
+# REL2140 review M-2: the people-count privacy switch and its retention (ZONECOUNT107) are this installation's privacy policy - a restore
+# never switches counting on, and never switches it off behind the audited PUT /occupancy/settings; the denied-attempt alert switch
+# (DENYALERT133) is policy too, and its cursor is runtime state (an archive's older cursor would replay up to an hour of denials)
+SETTINGS_KEEP = SETTINGS_KEEP | {"occupancy.enabled", "occupancy.retention_days", "access.external.denied_alert", "access.external.denied_cursor"}
 
 
 def _kept_setting(key: Any) -> bool:
@@ -277,7 +294,7 @@ def restorable(rel: str | None) -> bool:
     return _NEVER_RESTORED_NAME.search(parts[-1]) is None
 
 
-def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: str, schema: int, note: str = "", energy_history: bool = False,
+def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: str, schema: int, note: str = "", energy_history: bool = False, water_history: bool = False,
               backup_password: str | None = None, min_chars: int = sens.PASSWORD_MIN_CHARS) -> Path:
     """BACKUP-HASH-ENC: the sensitive values (local password hashes, SENSITIVE_SETTINGS) never enter the data files. With a backup
     password they are sealed into `secure/sensitive.bin` (AES-256-GCM, scrypt key; header in the manifest); without one they are
@@ -311,6 +328,9 @@ def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: s
         from . import energy_backup  # CR-023: daily totals always, the energy.db copy only when the setting asks for it
 
         energy = energy_backup.add_to_zip(settings, z, with_history=energy_history)
+        from . import water_backup  # CR-WATER78: daily totals whenever water.db exists, the file only when the setting asks for it
+
+        water = water_backup.add_to_zip(settings, z, with_history=water_history)
         if sealed is not None:
             z.writestr(sens.MEMBER, sealed[1])
         manifest = {
@@ -324,6 +344,7 @@ def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: s
             "files": files,
             "missing_files": missing[:50],
             "energy": energy,
+            "water": water,
             "sensitive": sealed[0] if sealed is not None else sens.omitted_header(payload),
         }
         z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=1))
@@ -400,13 +421,13 @@ def prune(settings: Settings) -> list[str]:
 
 def create(settings: Settings, conn: sqlite3.Connection, kind: str = "manual", note: str = "", include_access: bool = True, include_audit: bool = False, include_events: bool = False,
            backup_password: str | None = None) -> dict[str, Any]:
-    from . import energy_backup
+    from . import energy_backup, water_backup
 
     min_chars = sens.min_chars(conn)
     if backup_password is not None:
         sens.password_bytes(backup_password, min_chars)  # refuse a weak / oversized password before the snapshot is taken
     data = snapshot(conn, include_access, include_audit, include_events)
-    out = write_zip(settings, data, kind, schema_version(conn), note, energy_history=energy_backup.include_history(conn), backup_password=backup_password,
+    out = write_zip(settings, data, kind, schema_version(conn), note, energy_history=energy_backup.include_history(conn), water_history=water_backup.include_history(conn), backup_password=backup_password,
                     min_chars=min_chars)
     return entry(out)
 
@@ -661,6 +682,12 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
 
             allowed = {r[0] for r in conn.execute("SELECT id FROM energy_meters").fetchall()}
             energy = energy_backup.restore_from_zip(settings, z, names, allowed_meters=allowed, replace=(mode == "replace"))
+        water: dict[str, Any] = {}
+        if "water_meters" in tables:  # CR-WATER78: the allow-listed water.db part, only for meters the restored project has
+            from . import water_backup
+
+            allowed_w = {r[0] for r in conn.execute("SELECT id FROM water_meters").fetchall()}
+            water = water_backup.restore_from_zip(settings, z, names, allowed_meters=allowed_w, replace=(mode == "replace"))
     if scope == "project+access":
         if process_hooks:
             bump_permission_revision(conn)
@@ -693,7 +720,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     if files_skipped:
         log.warning("restore skipped %s archive file(s) outside the restorable set", files_skipped)
     return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "bakes_swept": bakes_swept, "skipped_unsafe": skipped,
-            "kept_current": kept_current, "roles_pruned": roles_pruned, "door_automations": {"disarmed": door_blocks_disarmed, "dropped": door_blocks_dropped}, "energy": energy, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at"),
+            "kept_current": kept_current, "roles_pruned": roles_pruned, "door_automations": {"disarmed": door_blocks_disarmed, "dropped": door_blocks_dropped}, "energy": energy, "water": water, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at"),
             "update_apply_enabled": update_switch, "backgrounds_rejected": backgrounds_rejected, "capture_lease_settings": lease_settings,
             "sensitive": {"state": sens_state, "restored": payload is not None or legacy_hashes > 0, "skipped": sens_skipped,
                           "plaintext_ignored": plaintext_ignored, "settings_kept_current": keep_sensitive},

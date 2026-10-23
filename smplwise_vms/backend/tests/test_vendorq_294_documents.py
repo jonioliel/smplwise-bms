@@ -15,6 +15,7 @@ from tickets_s4_world import API, build_s4
 
 UTC = dt.timezone.utc
 PDF = b"%PDF-1.7\n1 0 obj << >> endobj\n%%EOF\n"
+HTML_REINSTATED = {"application/pdf": ".pdf", "text/html": ".html"}  # the pre-DOCLINKSEC-295 allow-list (a reviewed HTML consumer)
 HTML = "<!doctype html><html><head><meta charset='utf-8'><style>td{color:#333}</style></head><body><h1>דוח HACCP</h1><img src='data:image/png;base64,AAAA'></body></html>"
 
 
@@ -79,13 +80,16 @@ def test_minting_is_off_by_default_and_a_build_without_the_page_refuses(settings
     ({"module": "Temperature"}, "document_module"),
     ({"recipient_kind": "group"}, "document_recipient"),
 ])
-def test_mint_limits(s4, kw, code):
+def test_mint_limits(s4, monkeypatch, kw, code):
+    if kw.get("media_type") == "text/html":  # DOCLINKSEC-295 M-02: HTML is off at mint; the tripwire is kept for a reviewed reinstatement
+        monkeypatch.setattr(D, "MEDIA_TYPES", HTML_REINSTATED)
     with pytest.raises(D.DocumentRefused) as exc:
         _mint(s4, **kw)
     assert exc.value.code == code
 
 
 def test_a_self_contained_html_report_is_accepted_and_the_store_has_a_ceiling(s4, monkeypatch):
+    monkeypatch.setattr(D, "MEDIA_TYPES", HTML_REINSTATED)  # DOCLINKSEC-295 M-02: only with HTML reinstated (test_doclinksec_295 has the default)
     doc = _mint(s4, media_type="text/html", filename="haccp-2026-09.html", content=HTML.encode("utf-8"))
     assert doc["sha256"] == hashlib.sha256(HTML.encode("utf-8")).hexdigest() and "content" not in doc
     monkeypatch.setattr(D, "LIVE_TOTAL_MAX", len(HTML.encode("utf-8")) + len(PDF) - 1)

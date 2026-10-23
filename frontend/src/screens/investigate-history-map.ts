@@ -41,6 +41,7 @@ import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { sameRefs } from '../map/memo';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dateInputLang, dayTimeText, timeText } from '../api/day-format';
 
 const NEAR_MIN = 10;
 
@@ -580,7 +581,7 @@ export class InvestigateHistoryMap extends LitElement {
   }
 
   private fmtWhen(iso: string) {
-    return new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
+    return dayTimeText(new Date(iso), { timeZone: this.tz });
   }
 
   private setDate(date: string) {
@@ -590,7 +591,7 @@ export class InvestigateHistoryMap extends LitElement {
   }
 
   private fmt(iso: string) {
-    return new Intl.DateTimeFormat('he-IL', { timeZone: this.tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+    return timeText(new Date(iso), { timeZone: this.tz, seconds: true });
   }
 
   private get floors(): { id: string; name: string }[] {
@@ -773,7 +774,7 @@ export class InvestigateHistoryMap extends LitElement {
           <span class="time">${this.date} ${secondLabel(this.minute)}</span>
           <sw-chip @click=${() => this.setMinute(this.minute - 60)}>-1 שעה</sw-chip><sw-chip @click=${() => this.setMinute(this.minute - 5)}>-5 דק׳</sw-chip><sw-chip @click=${() => this.setMinute(this.minute + 5)}>+5 דק׳</sw-chip><sw-chip @click=${() => this.setMinute(this.minute + 60)}>+1 שעה</sw-chip>
           <span class="grow"></span>
-          <sw-field><input type="date" .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => this.setDate((e.target as HTMLInputElement).value)} /></sw-field>
+          <sw-field><input type="date" lang=${dateInputLang()} .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => this.setDate((e.target as HTMLInputElement).value)} /></sw-field>
           <span class="note">${sel?.resource_type === 'camera' ? `ציר הזמן: ${sel.camera?.name ?? ''}` : 'ציר הזמן: כל מצלמות הקומה'}</span>
         </div>
         <sw-timeline .segments=${segs} .events=${tlEvents} .cursor=${this.minute} .limit=${this.limitMinute} .follow=${false} precision="estimated" @seek=${(e: CustomEvent<{ minute: number }>) => this.setMinute(e.detail.minute)} @scrub=${(e: CustomEvent<{ minute: number }>) => this.setMinute(e.detail.minute)}></sw-timeline>

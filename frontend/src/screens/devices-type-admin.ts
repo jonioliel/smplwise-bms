@@ -13,6 +13,7 @@ import {
 } from './device-types-logic';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { dayTimeText } from '../api/day-format';
 
 const PAGE = 100;
 
@@ -258,7 +259,7 @@ export class DevicesTypeAdmin extends LitElement {
     const place = (r: DeviceTypeRow) => [r.floor_name, r.area_name].filter(Boolean).join(' ‹ ') || 'ללא שיוך';
     const source = (r: DeviceTypeRow) => {
       if (r.set === null) return html`<span class="muted" data-type-source="auto">אוטומטי</span>`;
-      const when = r.set_at ? new Date(r.set_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '';
+      const when = r.set_at ? dayTimeText(new Date(r.set_at)) : '';
       return html`<span class="manual" data-type-source="manual">ידני</span>${r.set_by || when ? html`<div class="muted">${[r.set_by, when].filter(Boolean).join(' · ')}</div>` : nothing}`;
     };
     const box = (r: DeviceTypeRow) =>

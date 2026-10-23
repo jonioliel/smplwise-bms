@@ -4,6 +4,7 @@
  * 2026-10-05: capability-driven, no holes). Unit-tested in tests/unit-generator.spec.ts.
  */
 import type { Availability, GenAlert, GenDevice, GenRange, GenValues, HistoryPoint, HistoryResponse, PolicyItem, Severity, SeverityDefaults, ViewMode } from '../api/generator';
+import { timeText, dayMonthText } from '../api/day-format';
 
 export const GEN_V = ['gen_v_l1', 'gen_v_l2', 'gen_v_l3'] as const;
 export const GEN_A = ['gen_a_l1', 'gen_a_l2', 'gen_a_l3'] as const;
@@ -471,14 +472,14 @@ export function fmtNum(v: number | null | undefined, digits = 0): string {
 export function fmtClock(iso: string | number | null | undefined): string {
   if (iso === null || iso === undefined || iso === '') return '-';
   const d = typeof iso === 'number' ? new Date(iso) : new Date(iso);
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return Number.isNaN(d.getTime()) ? '-' : timeText(d);
 }
 export function fmtDateTime(iso: string | null | undefined, now = new Date()): string {
   if (!iso) return '-';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '-';
   const same = d.toDateString() === now.toDateString();
-  return same ? fmtClock(iso) : `${d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })} ${fmtClock(iso)}`;
+  return same ? fmtClock(iso) : `${dayMonthText(d)} ${fmtClock(iso)}`;
 }
 export function fmtDuration(min: number): string {
   if (min < 1) return '<1';

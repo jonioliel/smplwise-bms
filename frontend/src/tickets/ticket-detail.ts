@@ -52,6 +52,7 @@ import { ticketsLocationsApi, type LocationsAnswer } from '../api/tickets-locati
 import { locationPicker } from './location-picker';
 import { OTHER, editStartPick, otherTooLong, ticketEditLocationBody } from './org-locations-model';
 import { lt } from './org-locations-text';
+import { dateInputLang } from '../api/day-format';
 
 interface EditForm {
   title: string; description: string; department_id: string; category_id: string; priority_id: string;
@@ -1157,7 +1158,7 @@ export class TicketDetailView extends LitElement {
     }
     if (d.kind === 'eta') {
       return html`<sw-dialog open heading=${tt('etaTitle')} data-dialog="eta" @close=${this.onDialogClose}>
-        <div class="form"><label class="fld"><span>${tt('etaSet')}</span><input class="inp" type="datetime-local" data-dialog-eta .value=${this.dlgText} @input=${(e: Event) => { this.dlgText = (e.target as HTMLInputElement).value; this.dlgError = ''; }} /></label>${err}</div>
+        <div class="form"><label class="fld"><span>${tt('etaSet')}</span><input class="inp" type="datetime-local" lang=${dateInputLang()} data-dialog-eta .value=${this.dlgText} @input=${(e: Event) => { this.dlgText = (e.target as HTMLInputElement).value; this.dlgError = ''; }} /></label>${err}</div>
         <div slot="footer" class="sheetfoot">
           <button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy} @click=${() => void this.submitEta(false)}>${tt('save')}</button>
           ${t.eta_at ? html`<button type="button" class="btn" data-eta-clear ?disabled=${this.busy} @click=${() => void this.submitEta(true)}>${tt('etaClear')}</button>` : nothing}

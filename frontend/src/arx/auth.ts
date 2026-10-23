@@ -10,6 +10,7 @@
  */
 import { clientId, redirectUri } from './channel';
 import { clearHassTokens, readHassTokens, seedHassTokens } from './hass-tokens';
+import { syncNativeSession } from './native-app';
 
 export const TOKENS_KEY = 'arx.auth.v1';
 
@@ -527,6 +528,7 @@ async function revoke(refreshToken: string): Promise<void> {
 
 /** Revoke the refresh token at HA, end the Arx session, clear both storages (ours and HA's seed when it is ours). */
 export async function logout(reason: SignOutReason = 'logout'): Promise<void> {
+  syncNativeSession(null); // MOBILE214: the native app stops its background work at once (idle, expired and revoked paths end here too)
   const t = currentTokens();
   window.clearTimeout(refreshTimer);
   window.clearInterval(idleTimer);

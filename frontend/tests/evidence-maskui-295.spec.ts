@@ -57,7 +57,8 @@ test.describe('MASKUI-295 privacy-mask editor (mocked backend, no device)', () =
 
   test('opens in Settings > Security: cameras, the picture, the NVR mask drawn over it, 44 px targets, no hint paragraph, no ticket action', async ({ page }) => {
     await open(page);
-    await expect(page.locator('sw-app system-security [data-security-settings-tabs] sw-tabs a').last()).toHaveText('מסכות פרטיות');
+    // SWITCHUI-295 added a tab after this one: find the privacy-masks tab by its address, not by its position
+    await expect(page.locator('sw-app system-security [data-security-settings-tabs] sw-tabs a[href="#/system/security/privacy-masks"]')).toHaveText('מסכות פרטיות');
     await expect(q(page, '[data-pm-camera]')).toHaveCount(3);
     await expect(q(page, '[data-pm-camera="cam-1"]')).toHaveAttribute('aria-current', 'true');
     await expect(q(page, '[data-pm-region]')).toHaveCount(1);

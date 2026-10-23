@@ -32,6 +32,7 @@ import {
   STUCK_REASONS, stuckPlaces, stuckReasonCounts,
   type AgendaEntry, type CardKey, type HandlerRow, type KpiKey, type Kpis, type OverviewSettings,
 } from '../tickets/overview-model';
+import { timeText, dayMonthText } from '../api/day-format';
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
 
@@ -630,7 +631,7 @@ export class TicketsOverview extends LitElement {
     const all = !!d?.all_departments;
     const total = depts.reduce((s, x) => s + x.count, 0);
     return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-overview-header>
-      ${this.offline && this.lastOk ? html`<div class="offline-top" role="status" data-offline>${tIcon('offline')}${ot('offline', { time: this.lastOk.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}</div>` : nothing}
+      ${this.offline && this.lastOk ? html`<div class="offline-top" role="status" data-offline>${tIcon('offline')}${ot('offline', { time: timeText(this.lastOk) })}</div>` : nothing}
       <div class="dh-row"><div class="titles"><div class="crumbs">${tt('area')}</div><h1 data-overview-title>${ot('title')}</h1></div></div>
       ${this.screen === 'ready' || this.screen === 'loading' ? html`<div class="dh-det">
         ${depts.length > 1 ? html`<div class="seg sm depts" role="radiogroup" aria-label=${ot('deptGroup')} data-dept-chips>
@@ -790,7 +791,7 @@ export class TicketsOverview extends LitElement {
     if (!days.length) return html`${partial}${this.quiet(ot('agNone'))}`;
     return html`<div class="body" data-agenda>${partial}${days.map((day) => html`<div class="sect day" data-day=${day.key}><h4><span class=${day.offset === 0 ? 'today' : ''}>${dayTitle(day.key, day.offset)}</span></h4>
       <div class="closedrows">${day.entries.map((e) => html`<a class="cr" href=${e.rfq ? rfqHref({ id: e.id }) : this.href({}, e.id)} data-agenda-row=${e.kind}>
-        <span class="num">${e.timed ? new Date(e.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ot('agAllDay')}</span>
+        <span class="num">${e.timed ? timeText(new Date(e.at)) : ot('agAllDay')}</span>
         <b><i class=${`dot ${dot[e.kind]}`}></i> ${ot(label[e.kind])}<small>${[e.who, `${e.ref} · ${e.title}`, e.place].filter(Boolean).map((x) => bidi(x)).join(' · ')}</small></b>
         <span></span><span class="back">${tIcon('back')}</span></a>`)}</div></div>`)}</div>`;
   }
@@ -939,7 +940,7 @@ export class TicketsOverview extends LitElement {
     if (!r.items.length) return this.quiet(ot('rqNone'));
     const all = this.expanded.has('rfqs');
     const shown = all ? r.items : r.items.slice(0, OVERDUE_SHOWN);
-    const due = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'numeric' }) : '');
+    const due = (iso: string | null) => (iso ? dayMonthText(new Date(iso)) : '');
     return html`<div class="body"><div class="closedrows" data-rfqs>${shown.map((x) => {
       const st = rfqStageOf(x);
       return html`<a class="cr rq" href=${rfqHref({ id: x.id })} data-rfq-row=${x.stage}>

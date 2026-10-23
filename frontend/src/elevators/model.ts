@@ -13,6 +13,7 @@ import type { IconName } from '../components/sw-icon';
 import type { StateKind } from '../components/sw-badge';
 import { elt, type EltKey } from '../i18n/elevators';
 import { ELEVATOR_FILTERS, ELEVATOR_MODES, type ElevatorFilter, type ElevatorMode } from '../api/home-config';
+import { dayMonthTimeText, timeText } from '../api/day-format';
 
 export const ELEVATORS_HREF = '#/infra/elevators';
 export const ELEVATORS_SETTINGS_HREF = '#/system/infra/elevators';
@@ -181,7 +182,7 @@ export function sinceText(iso: string | null, now = new Date()): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const sameDay = d.toDateString() === now.toDateString();
-  const t = sameDay ? d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const t = sameDay ? timeText(d) : dayMonthTimeText(d);
   return elt('since', { t });
 }
 

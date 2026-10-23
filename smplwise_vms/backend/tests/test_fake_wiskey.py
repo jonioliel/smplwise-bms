@@ -93,7 +93,14 @@ def test_every_adapter_read_gets_an_answer_from_the_admin_identity():
     async def call(msg_type: str, **kw: Any) -> dict[str, Any]:
         return fake.respond({"id": 1, "type": msg_type, **kw})[0]
 
+    from smplwise.services import wiskey_media_contract as w10
+
     for command, invoke in ADAPTER_CALLS.items():
+        if command in w10.COMMANDS:
+            # AVW10-295: the six W10 media commands post-date the pinned catalog this fake serves - they are held to Arx's W10 PROPOSAL
+            # (test_wiskey_contract.test_the_w10_frames_fit_arxs_proposed_request_schema) and answered by the W10 fake of
+            # test_wiskey_media_provider.py, never by this fake (which answers unknown_command, as today's WisKey would)
+            continue
         try:
             asyncio.run(invoke(call))
         except intercom_client.IntercomError as exc:

@@ -460,6 +460,7 @@ def register(conn: sqlite3.Connection, principal: Principal, body: dict[str, Any
             " WHERE id = ?",
             (name, platform, meta["app_version"], meta["os_version"], meta["model"], token_hash(token), now, channel, now, existing["id"]),
         )
+        _end_app_sign_ins("revoke_device", conn, existing["id"], "device_reregistered")  # APPREFRESH-295: a new registration, a new sign-in
         row = conn.execute("SELECT * FROM mobile_devices WHERE id = ?", (existing["id"],)).fetchone()
         return _device_out(row), token, False
     if _name_taken(conn, principal.user_id, name, None):
@@ -526,6 +527,14 @@ def unregister(conn: sqlite3.Connection, device: sqlite3.Row) -> None:
                  (now_iso(), "revoked:" + new_id(), device["id"]))
     conn.execute("DELETE FROM mobile_presence_events WHERE device_id = ?", (device["id"],))
     conn.execute("DELETE FROM mobile_push_messages WHERE device_id = ?", (device["id"],))
+    _end_app_sign_ins("revoke_device", conn, device["id"], "device_deleted")  # APPREFRESH-295: the app's persistent sign-in ends with the device
+
+
+def _end_app_sign_ins(fn: str, conn: sqlite3.Connection, subject: str, reason: str) -> int:
+    """APPREFRESH-295: the phone app's refresh-token families follow the device credential (services/app_refresh.hook never raises)."""
+    from . import app_refresh
+
+    return app_refresh.hook(fn, conn, subject, reason)
 
 
 def revoke_tokens(conn: sqlite3.Connection, user_id: str) -> int:
@@ -538,6 +547,7 @@ def revoke_tokens(conn: sqlite3.Connection, user_id: str) -> int:
     for r in conn.execute("SELECT id FROM mobile_devices WHERE user_id = ? AND revoked_at IS NULL AND token_hash NOT LIKE 'revoked:%'", (user_id,)).fetchall():
         conn.execute("UPDATE mobile_devices SET token_hash = ?, token_rotated_at = ? WHERE id = ?", ("revoked:" + new_id(), now_iso(), r["id"]))
         n += 1
+    _end_app_sign_ins("revoke_user", conn, user_id, "device_tokens_ended")  # APPREFRESH-295: a factor change ends the app's persistent sign-ins too
     return n
 
 

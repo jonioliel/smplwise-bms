@@ -61,7 +61,8 @@ RETRY_DELAYS = (dt.timedelta(minutes=2), dt.timedelta(minutes=8), dt.timedelta(m
 RETRY_SPAN = dt.timedelta(minutes=30)
 NON_RETRYABLE = frozenset({"no_phone", "no_address", "opted_out", "empty", "render_too_long", "template_missing", "code_lost",
                            "target_lost", "contact_missing", "link_not_live", "number_unverified",
-                           "report_unavailable", "report_unsafe", "document_not_live"})  # CR-VENDORQ-294: a report's text / document
+                           "report_unavailable", "report_unsafe", "document_not_live",  # CR-VENDORQ-294: a report's text / document
+                           "document_channel"})  # DOCLINKSEC-295 M-01: a document never leaves by e-mail
 EMAIL_PER_HOUR = 10  # 9.5: a per-module counter, separate from CR-018's
 DEFAULT_HOLD_MIN = 15
 CODE_HOLD_MIN = 2  # a code expires in 10 minutes: it never waits 15 for a down account (recorded interpretation)

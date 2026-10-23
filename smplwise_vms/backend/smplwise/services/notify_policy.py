@@ -25,7 +25,7 @@ RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "tick
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "energy_bills")  # energy_bills: ELECBILL77; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "energy_bills", "access_denied")  # energy_bills: ELECBILL77; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -182,6 +182,12 @@ SOURCES: tuple[Source, ...] = (
        "מנהל מערכת אישר ידנית שאדם אינו קיים עוד במערכת הכניסה וסגר את הביטול. פרטים במסך גישת חוץ.", who="managers", subject="system", resolves=False),
     _s("access.weekly_digest", "סיכום שבועי של גישת חוץ", "security", "info", "סיכום שבועי של גישת חוץ",
        "יש סיכום שבועי חדש. הפרטים במסך גישת חוץ.", who="managers", subject="system", resolves=False, app=True),
+    # DENYALERT133-295 (services/access_denied.py): a refused entry attempt at a station of the external access - one row per grant + station,
+    # folded with a count inside the window; to the holders of access.external.grant on THAT station (subject kind `access_denied`). Station,
+    # short grant reference, local time and a closed reason only - never a PIN, a card, a name or a number. Listed and emitted only while its own
+    # switch (`access.external.denied_alert`, default off) and the external-access feature are on. A burst raises it to `alert`, never `critical`.
+    _s("access.denied_attempt", "ניסיון כניסה נדחה (גישת חוץ)", "security", "info", "ניסיון כניסה נדחה",
+       "{place}: ניסיון כניסה נדחה ({reason}) בשעה {time}. גישה {ref}.", window_s=600, subject="access_denied", resolves=False),
     # NEEDSREVIEW (2.8.0, lead decision 6): the yearly privacy reminder - once in January when the "needs review" report is not empty
     # (services/needs_review.py). Content-free: a count only, never a name or a number; the review and every deletion stay manual.
     _s("privacy.needs_review", "תזכורת שנתית: דוח דורש בחינה", "security", "info", "דוח דורש בחינה",
@@ -315,8 +321,16 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             continue
         if s.key.startswith("energy.") and not _energy_listed(conn):  # ELECBILL77: the electricity bill source exists only with billing accounts
             continue
+        if s.key == "access.denied_attempt" and not _denied_listed(conn):  # DENYALERT133-295: exists only while its switch and the feature are on
+            continue
         out.append(rows.get(s.key) or {**default_row(s), "revision": 0})
     return out
+
+
+def _denied_listed(conn: sqlite3.Connection) -> bool:
+    from . import access_denied
+
+    return access_denied.switch_on(conn)
 
 
 def _energy_listed(conn: sqlite3.Connection) -> bool:

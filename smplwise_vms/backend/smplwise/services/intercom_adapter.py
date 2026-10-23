@@ -1540,7 +1540,7 @@ class IntercomAdapter:
 
     # -- people (never cached)
     def people(self, settings: Settings, auth: ia.Authority, *, query: str, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None,
-               legacy: bool = False) -> dict[str, Any]:
+               legacy: bool = False, with_timing: bool = False) -> dict[str, Any]:
         """One page of the directory as this principal may see it. Unrestricted and no text: WisKey's own page. Otherwise Arx
         scans WisKey's filtered directory page by page (empty text always: D1), keeps the people the caller may see that match
         the text on fields the caller sees, and pages over that list; `total` is exact unless the scan stopped early
@@ -1574,17 +1574,17 @@ class IntercomAdapter:
                                command="users/query")
             if reply.get("people") is not None:
                 page = reply["people"]
-                views = [v for p in page["records"] if (v := ia.view_person(auth, p, legacy=legacy, detail=False)) is not None]
+                views = [v for p in page["records"] if (v := ia.view_person(auth, p, legacy=legacy, detail=False, with_timing=with_timing)) is not None]
                 # the caller should see every row at the level a field filter needs; one that does not (or that does not match
                 # the filter although WisKey said it did) is a surprise, answered the filtered way: fail closed
                 surprise = fields and any(ia.person_level_of(auth, p) != ia.SENSITIVE or not field_filters_match(p, filters) for p in page["records"])
                 if len(views) != len(page["records"]) or surprise:
                     # an unrestricted caller should see every row; one was dropped anyway (fail closed): WisKey's totals would
                     # count it, so this request is answered the restricted way - scanned and counted over what is shown
-                    return self._people_out(self._scan_people(settings, auth, needle, filters, offset, limit, snapshot, True, legacy), filters, legacy, auth)
+                    return self._people_out(self._scan_people(settings, auth, needle, filters, offset, limit, snapshot, True, legacy, with_timing), filters, legacy, auth)
                 page["records"] = views
             return self._people_out(reply, filters, legacy, auth)
-        return self._people_out(self._scan_people(settings, auth, needle, filters, offset, limit, snapshot, restricted, legacy), filters, legacy, auth)
+        return self._people_out(self._scan_people(settings, auth, needle, filters, offset, limit, snapshot, restricted, legacy, with_timing), filters, legacy, auth)
 
     @staticmethod
     def _people_out(reply: dict[str, Any], filters: dict[str, Any], legacy: bool, auth: ia.Authority) -> dict[str, Any]:
@@ -1608,7 +1608,7 @@ class IntercomAdapter:
         }
 
     def _scan_people(self, settings: Settings, auth: ia.Authority, needle: str, filters: dict[str, Any], offset: int, limit: int, snapshot: str | None,
-                     restricted: bool, legacy: bool) -> dict[str, Any]:
+                     restricted: bool, legacy: bool, with_timing: bool = False) -> dict[str, Any]:
         who = auth.principal.user_id
         fields = has_field_filters(filters)
         matches: list[tuple[dict[str, Any], dict[str, Any]]] = []  # (superset, view)
@@ -1642,7 +1642,7 @@ class IntercomAdapter:
                     continue
                 if fields and (level != ia.SENSITIVE or not field_filters_match(person, filters)):
                     continue  # a field filter separates people only by a value the caller may read: names level never matches
-                view = ia.view_person(auth, person, legacy=legacy, detail=False)
+                view = ia.view_person(auth, person, legacy=legacy, detail=False, with_timing=with_timing)
                 if view is not None:
                     matches.append((person, view))
             following = page["next_offset"]

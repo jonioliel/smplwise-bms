@@ -4,6 +4,7 @@
  */
 import { del, get, patch, post, put } from './client';
 import { ltrIsolate } from '../i18n/bidi';
+import { dayTimeText } from './day-format';
 
 export interface AccessBinding {
   id: string;
@@ -239,7 +240,7 @@ export function fmtWhen(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return ltrIsolate(d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }));
+  return ltrIsolate(dayTimeText(d));
 }
 
 export const createRole = (body: CustomRoleBody) => post<RoleInfo>('access/roles', body);
