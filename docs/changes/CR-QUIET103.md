@@ -38,7 +38,8 @@ waited on pacing).
 | category `safety` (any severity) | **never** (same rule as `mobile_push.CRITICAL_CATEGORIES`) |
 | an escalation re-send | **never** |
 | a notification with no area (e.g. a camera row without one) | no (see question 4) |
-| ticket / door / alarm rows | by the same severity rule; their category is not special-cased |
+| category `doors` or `security`, or a `door.*` / `access.*` / `intercom.*` source (any severity) | **never** (REL2140 review M-5: the doorbell, a door window that did not open, a door emergency, a denied external access; `quiet_windows.protected`) |
+| ticket / alarm rows | by the same severity rule; their category is not special-cased |
 
 "Its place": the notification's `area_id` equals the area of an area window, or is an area whose `ha_areas.floor_id` is the floor of a floor
 window.

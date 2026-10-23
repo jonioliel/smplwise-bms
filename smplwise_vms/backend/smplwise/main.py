@@ -109,6 +109,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         local_privacy.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("local privacy janitor failed", exc_info=True)
+    try:  # ZONECOUNT107 / REL2140 M-2: people-count samples - all deleted while the switch is off, retention while on (read-gated)
+        from .services import zone_counts
+
+        zone_counts.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("zone count janitor failed", exc_info=True)
     try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
         from .services import ha_camera_streams
 

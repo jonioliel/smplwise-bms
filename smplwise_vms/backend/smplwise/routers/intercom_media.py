@@ -107,7 +107,7 @@ def station_media(request: Request, auth: ia.Authority = Depends(_gate(READ)), s
     if not station.get("online"):
         return {**body, "state": "unavailable", "reason": "offline"}
     try:
-        d = im.MEDIA.descriptor(im.provider_for(settings), auth.conn, settings, station)
+        d = im.MEDIA.descriptor(im.provider_for(settings, auth.conn), auth.conn, settings, station)
     except im.Unavailable as exc:
         return {**body, "state": "unavailable", "reason": exc.code}
     live_ok = auth.station(LIVE, station_id)
@@ -156,7 +156,7 @@ class StationLease(CameraLease):
             if station is None:
                 return False
             try:
-                d = im.MEDIA.descriptor(im.provider_for(self.settings), conn, self.settings, station)
+                d = im.MEDIA.descriptor(im.provider_for(self.settings, conn), conn, self.settings, station)
             except im.Unavailable:
                 return False
             return d.profile(self.profile) is not None
@@ -191,7 +191,7 @@ async def station_live_ws(websocket: WebSocket, station_id: str, profile: str = 
             if not station.get("online"):
                 return None, "offline"
             try:
-                d = im.MEDIA.descriptor(im.provider_for(settings), conn, settings, station)
+                d = im.MEDIA.descriptor(im.provider_for(settings, conn), conn, settings, station)
             except im.Unavailable:
                 return None, "unavailable"
             if d.profile(profile) is None:
@@ -219,7 +219,7 @@ async def station_live_ws(websocket: WebSocket, station_id: str, profile: str = 
 
     def make_stream() -> str:
         with db.connection(mode="read", label="station media stream") as conn:
-            return im.provider_for(settings).video_stream(conn, settings, station, profile, actor=im.w10.Actor(principal.user_id, principal.username))
+            return im.provider_for(settings, conn).video_stream(conn, settings, station, profile, actor=im.w10.Actor(principal.user_id, principal.username))
 
     try:
         await media._live_relay(
@@ -298,7 +298,7 @@ def talk_start(request: Request, auth: ia.Authority = Depends(_gate(CALL)), stat
     if not station.get("online"):
         raise _refuse(conn, principal, station_id, rid, ApiError(409, "intercom_station_offline", "העמדה אינה מחוברת."))
     try:
-        d = im.MEDIA.descriptor(im.provider_for(settings), conn, settings, station)
+        d = im.MEDIA.descriptor(im.provider_for(settings, conn), conn, settings, station)
     except im.Unavailable as exc:
         raise _refuse(conn, principal, station_id, rid, ApiError(409, "intercom_talk_unavailable", "דיבור עם העמדה אינו זמין כרגע.", details={"reason": exc.code})) from exc
     if not d.talk_transport:
@@ -475,9 +475,10 @@ async def talk_ws(websocket: WebSocket, session_id: str) -> None:
             _state, station = _served_station(settings, t.station_id)
             if station is None:
                 raise ApiError(503, "intercom_talk_upstream_unavailable", "העמדה אינה זמינה.")
-            d = im.MEDIA.descriptor(im.provider_for(settings), conn, settings, station)
-        return im.provider_for(settings).talk_open(settings, t.station_id, d, actor_id=principal.user_id, actor_name=principal.username, request_id=t.request_id,
-                                                   expires_at=t.expires_at)
+            provider = im.provider_for(settings, conn)  # REL2140 M-3: one selection - the descriptor and the talk from the same provider
+            d = im.MEDIA.descriptor(provider, conn, settings, station)
+        return provider.talk_open(settings, t.station_id, d, actor_id=principal.user_id, actor_name=principal.username, request_id=t.request_id,
+                                  expires_at=t.expires_at)
 
     await websocket.accept()
     outcome = "upstream_unavailable"

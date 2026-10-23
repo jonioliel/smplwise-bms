@@ -221,6 +221,31 @@ def series(conn: sqlite3.Connection, area_id: str, hours: int, now: dt.datetime 
             "max": max(known) if known else None, "heartbeat_s": int(HEARTBEAT_S)}
 
 
+def janitor(db: Any, now: dt.datetime | None = None) -> int:
+    """main.janitor_tick hook (REL2140 review M-2). While the feature is OFF, every sample left over is deleted - whatever switched it off
+    without the PUT /occupancy/settings delete (a direct write, an older build); while it is ON, the retention runs at most every
+    PRUNE_EVERY_S even when no Frigate poll calls `sample`. The switch is read on a read connection first, so an OFF install with no
+    samples never takes the write lock. Never raises (a missing table on an older database included); returns the rows deleted."""
+    import logging
+
+    now = now or dt.datetime.now(UTC)
+    try:
+        with db.connection(mode="read", label="zone_counts.janitor_read") as conn:
+            on = enabled(conn)
+            if not on and conn.execute("SELECT 1 FROM zone_count_samples LIMIT 1").fetchone() is None:
+                return 0
+        if on and now.timestamp() - _last_prune.get("janitor", 0.0) < PRUNE_EVERY_S:
+            return 0
+        with db.connection(label="zone_counts.janitor") as conn:
+            if not enabled(conn):  # re-checked inside the write transaction
+                return conn.execute("DELETE FROM zone_count_samples").rowcount
+            _last_prune["janitor"] = now.timestamp()
+            return prune(conn, now)
+    except Exception:  # noqa: BLE001 - housekeeping never stops the janitor
+        logging.getLogger("smplwise.zone_counts").warning("zone count janitor failed", exc_info=True)
+        return 0
+
+
 # ---------------------------------------------------------------------------------------------- the hook
 
 def sample_quietly(conn: sqlite3.Connection) -> None:

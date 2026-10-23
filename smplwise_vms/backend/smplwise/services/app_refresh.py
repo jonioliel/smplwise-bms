@@ -272,8 +272,14 @@ def _refusal(conn: sqlite3.Connection, user_id: str) -> str | None:
 
 
 def _anchor_revoked(conn: sqlite3.Connection, fam: sqlite3.Row) -> bool:
-    if fam["anchor_kind"] != "ha" or not fam["anchor_hash"]:
+    if fam["anchor_kind"] not in ANCHOR_KINDS or not fam["anchor_hash"]:
+        return True  # REL2140 M-4: a family with no anchor (minted by 2.14.0 before this fix) is never refreshed again
+    if fam["anchor_kind"] != "ha":
         return False
+    if fam["anchor_hash"].startswith(SESSION_ANCHOR_PREFIX):  # REL2140 M-4: the sign-in lives only in this process - gone = ended
+        from . import ha_user_auth as hua
+
+        return not any(session_anchor(s.sign_in()) == fam["anchor_hash"] for s in hua.STORE.sessions_of(user_id=fam["user_id"]))
     try:
         return conn.execute("SELECT 1 FROM remote_revoked_chains WHERE iss_hash = ?", (fam["anchor_hash"],)).fetchone() is not None
     except sqlite3.OperationalError:
@@ -328,6 +334,11 @@ def issue(conn: sqlite3.Connection, principal: Principal, device_id: str, instal
         audit(conn, actor=principal, action="auth.app_refresh.issue", decision="denied", resource_type="mobile_device", resource_id=device_id,
               reason=refusal, request_id=request_id)
         raise Refused(403, "remote_not_allowed" if refusal.endswith("remote_not_allowed") else "forbidden", INVALID_HE)
+    if anchor_kind not in ANCHOR_KINDS or not anchor_hash:
+        # REL2140 review M-4 (F-02): every family names the sign-in it came from, so revoking that sign-in ends it - never an unanchored one
+        audit(conn, actor=principal, action="auth.app_refresh.issue", decision="denied", resource_type="mobile_device", resource_id=device_id,
+              reason="sign_in_not_anchorable", request_id=request_id, details={"anchor": anchor_kind})
+        raise Refused(403, "sign_in_not_anchorable", INVALID_HE)
     if not take("app_refresh.issue", principal.user_id, RATE_ISSUE):
         raise Refused(429, "rate_limited", RATE_HE, retryable=True, details={"retry_after_s": 60})
     revoke_device(conn, device_id, "replaced", actor=principal, request_id=request_id)
@@ -542,6 +553,26 @@ def revoke_kind(conn: sqlite3.Connection, anchor_kind: str, reason: str, **kw: A
 def local_anchor(chain_id: str) -> str:
     """The anchor of a family minted from an Arx-only (USR2) session: SHA-256 of its chain id (never the chain id itself)."""
     return hashlib.sha256(("chain:" + chain_id).encode("utf-8")).hexdigest()
+
+
+ANCHOR_KINDS = ("ha", "local")  # REL2140 review M-4: the only kinds a family may be minted with (never ingress / dev / none)
+SESSION_ANCHOR_PREFIX = "s:"
+
+
+def session_anchor(sign_in: str) -> str:
+    """REL2140 review M-4: the anchor of a family minted from a remote HA session whose access token carries no `iss` (no hashed HA
+    refresh-token id to record): `s:` + SHA-256 of that session's sign-in (its cookie chain - every rotation keeps it), stored with
+    anchor kind `ha` (migration 0146's CHECK is unchanged; the prefix never matches an `iss_hash`). Such a family ends when that sign-in
+    is revoked (the sessions list, sign out, the re-validation pass) and, because the sign-in lives only in this process, when no live
+    session of it is left (`_anchor_revoked`) - e.g. after an add-on restart. The device-key slice (slice 2) replaces it."""
+    return SESSION_ANCHOR_PREFIX + hashlib.sha256(("session:" + sign_in).encode("utf-8")).hexdigest()
+
+
+def remote_anchor(s: Any) -> tuple[str, str]:
+    """(anchor kind, anchor hash) of a remote HA session (ha_user_auth.RemoteSession): its HA sign-in, else its own sign-in."""
+    if getattr(s, "iss_hash", ""):
+        return "ha", s.iss_hash
+    return "ha", session_anchor(s.sign_in())
 
 
 def hook(fn_name: str, *args: Any, **kw: Any) -> int:

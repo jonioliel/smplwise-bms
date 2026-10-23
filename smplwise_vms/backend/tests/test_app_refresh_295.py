@@ -647,6 +647,57 @@ def test_f02_a_stale_remote_sign_in_never_mints(rx, monkeypatch):
     assert [a["reason"] for a in audit_rows(rx, "auth.app_refresh.issue")] == ["sign_in_not_fresh"]
 
 
+def _no_iss_family(rx, monkeypatch) -> tuple[dict, dict]:
+    """dana signs in with an HA access token that carries no `iss` (no HA sign-in id to record), then mints a family from it."""
+    on(rx)
+    dev = register(rx)
+    monkeypatch.setattr(hua, "iss_hash", lambda token: "")
+    rx.user("dana", fresh=True)
+    r = issue(rx, dev["device_id"])
+    assert r.status_code == 201, r.text
+    return dev, r.json()
+
+
+def test_m4_a_sign_in_without_an_iss_anchors_the_family_to_that_sign_in_and_its_revoke_ends_it(rx, monkeypatch):
+    """REL2140 review M-4: before the fix such a family was minted with anchor `none` and no revoke of that sign-in ended it."""
+    dev, out = _no_iss_family(rx, monkeypatch)
+    fam = family_row(rx, out["family_id"])
+    [s] = [x for x in hua.STORE.sessions_of(user_id="u-viewer") if not x.iss_hash]
+    assert fam["anchor_kind"] == "ha" and fam["anchor_hash"] == svc.session_anchor(s.sign_in()) and s.sign_in() not in fam["anchor_hash"]
+    assert fam["anchor_hash"].startswith(svc.SESSION_ANCHOR_PREFIX) and len(fam["anchor_hash"]) == 66
+    t2 = refresh(rx, out["refresh_token"], dev["device_id"])
+    assert t2.status_code == 200, "the sign-in is live: the family works"
+    sid = next(x["id"] for x in rx.user("dana").get(f"{ARX}/auth/sessions").json()["sessions"] if x["current"])
+    r = rx.c.delete(f"{API}/auth/sessions/{sid}")  # an administrator ends that one sign-in from the sessions list
+    assert r.status_code == 200, r.text
+    assert family_row(rx, out["family_id"])["revoked_at"] is not None, "ended at once by the revoke, not only at the next refresh"
+    assert refresh(rx, t2.json()["refresh_token"], dev["device_id"]).status_code == 401
+    assert whoami(rx, t2.json()["access_token"]).status_code == 401
+
+
+def test_m4_a_session_anchored_family_ends_when_its_sign_in_is_gone(rx, monkeypatch):
+    dev, out = _no_iss_family(rx, monkeypatch)
+    for s in [x for x in hua.STORE.sessions_of(user_id="u-viewer") if not x.iss_hash]:
+        hua.STORE.drop(s.sid)  # the sign-in expired, or the add-on restarted (sessions live in memory)
+    _dead(rx, dev, out, "sign_in_revoked")
+
+
+def test_m4_an_unanchorable_sign_in_never_mints_and_an_unanchored_family_never_refreshes(rx):
+    on(rx)
+    dev = register(rx)
+    with rx.db.connection() as conn:
+        for kind, anchor in (("none", ""), ("ha", ""), ("ingress", ""), ("dev", "x" * 64)):
+            with pytest.raises(svc.Refused) as e:
+                svc.issue(conn, svc.system_principal("u-viewer"), dev["device_id"], INSTALL, anchor_kind=kind, anchor_hash=anchor, channel="remote", request_id=None)
+            assert e.value.status == 403 and e.value.code == "sign_in_not_anchorable", kind
+        assert conn.execute("SELECT COUNT(*) FROM app_refresh_families").fetchone()[0] == 0
+    assert [a["reason"] for a in audit_rows(rx, "auth.app_refresh.issue")] == ["sign_in_not_anchorable"] * 4
+    out = issue(rx, dev["device_id"]).json()
+    with rx.db.connection() as conn:  # a family minted unanchored by the first 2.14.0 build
+        conn.execute("UPDATE app_refresh_families SET anchor_kind = 'none', anchor_hash = '' WHERE family_id = ?", (out["family_id"],))
+    _dead(rx, dev, out, "sign_in_revoked")
+
+
 def test_f03_only_the_current_token_signs_out_an_old_one_is_reuse(rx):
     dev, out = started(rx)
     t2 = refresh(rx, out["refresh_token"], dev["device_id"]).json()

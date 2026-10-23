@@ -712,7 +712,28 @@ class WiskeyProvider:
             raise Unavailable(w10.unavailable_reason(reply.get("last_error") if reply.get("state") != "unsupported" else "unknown_command"))
         return got
 
+    # REL2140 review M-3: WisKey's reasons that do NOT fall back to Arx's own source (the station itself is offline - Arx's path
+    # reaches the same station and would only hang); every other failure of WisKey's answer serves Arx's own stream when it exists
+    NO_FALLBACK = frozenset({"offline"})
+
     def describe(self, conn: Any, settings: Settings, station: dict[str, Any]) -> Descriptor:
+        """WisKey's descriptor; when WisKey's commands disappear or its answer fails (any reason but `offline`), Arx's own source
+        (`LocalProvider`) - the station keeps its video when the local path exists. If that fails too, WisKey's reason is served.
+        A fallback descriptor names provider `local`, so the stream and the talk follow it and it is never cached as WisKey's."""
+        try:
+            return self._describe(conn, settings, station)
+        except (Unavailable, DescriptorError) as exc:
+            code = exc.code
+            if code in self.NO_FALLBACK:
+                raise
+            try:
+                d = _local.describe(conn, settings, station)
+            except Exception:  # noqa: BLE001 - no local path either: WisKey's own reason stands
+                raise exc from None
+            log.info("station media: WisKey unavailable (%s), serving Arx's own source", code)
+            return d
+
+    def _describe(self, conn: Any, settings: Settings, station: dict[str, Any]) -> Descriptor:
         sid = station["id"]
         video, talk = self.listed(settings)
         if not video:
@@ -726,15 +747,30 @@ class WiskeyProvider:
         return parse_descriptor(raw, station_id=sid, provider=self.name)
 
     def video_stream(self, conn: Any, settings: Settings, station: dict[str, Any], profile: str, *, actor: w10.Actor | None = None) -> str:
-        from . import go2rtc as g2
-
         sid = station["id"]
         try:
             d = MEDIA.descriptor(self, conn, settings, station)
         except Unavailable as exc:
             raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from exc
+        if d.provider == _local.name:  # REL2140 M-3: the descriptor is Arx's own (WisKey failed): so is the stream
+            return _local.video_stream(conn, settings, station, profile, actor=actor)
         if d.profile(profile) is None:
             raise ApiError(409, "intercom_media_profile_unavailable", "האיכות הזו אינה זמינה לעמדה.")
+        try:
+            return self._leased_stream(settings, d, sid, profile, actor)
+        except ApiError as exc:
+            if exc.status != 503:
+                raise
+            try:  # REL2140 M-3: a lease WisKey could not give (or go2rtc refused): Arx's own main stream when that path exists
+                name = _local.video_stream(conn, settings, station, "main", actor=actor)
+            except Exception:  # noqa: BLE001 - no local path either: WisKey's own refusal stands
+                raise exc from None
+            log.info("station media: WisKey lease unavailable (%s), serving Arx's own source", (exc.details or {}).get("reason", exc.code))
+            return name
+
+    def _leased_stream(self, settings: Settings, d: Descriptor, sid: str, profile: str, actor: w10.Actor | None) -> str:
+        from . import go2rtc as g2
+
         who = actor or w10.SYSTEM_ACTOR
         rid = _rid()
         try:
@@ -768,7 +804,7 @@ class WiskeyProvider:
 
     def talk_open(self, settings: Settings, station_id: str, descriptor: Descriptor, *, actor_id: str, actor_name: str, request_id: str | None,
                   expires_at: float | None = None) -> TalkChannel:
-        if not self.listed(settings)[1]:
+        if descriptor.provider == _local.name or not self.listed(settings)[1]:  # a fallback descriptor (M-3) never talks through WisKey
             raise ApiError(409, "intercom_talk_unsupported", "דיבור עם העמדה זמין בלוח הקלאסי בלבד.")
         until = expires_at if expires_at is not None else time.time() + min(descriptor.max_talk_seconds, MAX_TALK_S)
         return WiskeyTalkChannel(self, settings, descriptor, w10.Actor(actor_id, actor_name), request_id, until)
@@ -788,10 +824,26 @@ def set_provider(provider: MediaProvider | None) -> None:
     MEDIA.reset()
 
 
-def provider_for(settings: Settings) -> MediaProvider:
-    """A test's provider; else the fake on a developer backend that asked for it (never in the add-on); else WisKey's W10
-    provider while WisKey's discovery (`overview.api.commands`) lists its video commands (AVW10-295); else Arx's own source,
-    exactly as before W10."""
+PROVIDER_KEY = "access.station_media_provider"  # REL2140 review M-3: local (default) | auto - an Arx switch, never WisKey's discovery alone
+PROVIDER_CHOICES = ("local", "auto")
+
+
+def provider_choice(conn: Any) -> str:
+    """The installation's choice; `local` when unknown (no connection, an older database, a stored value this build does not know)."""
+    if conn is None:
+        return "local"
+    try:
+        value = get_setting(conn, PROVIDER_KEY, "local") or "local"
+    except Exception:  # noqa: BLE001 - an older database without the settings row keeps Arx's own source
+        return "local"
+    return value if value in PROVIDER_CHOICES else "local"
+
+
+def provider_for(settings: Settings, conn: Any = None) -> MediaProvider:
+    """A test's provider; else the fake on a developer backend that asked for it (never in the add-on); else - only when the
+    installation chose `access.station_media_provider = auto` (REL2140 review M-3; default `local`) - WisKey's W10 provider while
+    WisKey's discovery (`overview.api.commands`) lists its video commands (AVW10-295), which itself falls back to Arx's own source
+    when WisKey's answer fails; else Arx's own source, exactly as before W10. A WisKey upgrade alone never changes Arx's live path."""
     global _fake_from_env
     if _override is not None:
         return _override
@@ -799,6 +851,8 @@ def provider_for(settings: Settings) -> MediaProvider:
         if _fake_from_env is None:
             _fake_from_env = FakeProvider()
         return _fake_from_env
+    if provider_choice(conn) != "auto":
+        return _local
     try:
         video, _talk = _wiskey.listed(settings)
     except Exception:  # noqa: BLE001 - an unreadable discovery keeps Arx's own source
@@ -855,7 +909,9 @@ class MediaState:
         now = time.time()
         with self._lock:
             d = self._descriptors.get(key)
-        if d is not None and not fresh and getattr(provider, "cache", True) and d.expires_at - 30 > now:
+        # REL2140 M-3: a fallback descriptor (Arx's own, handed out by WisKey's provider) is never served from the cache, so WisKey is
+        # asked again on the next read - exactly LocalProvider's own `cache = False`
+        if d is not None and not fresh and getattr(provider, "cache", True) and d.provider == provider.name and d.expires_at - 30 > now:
             return d
         try:
             d = provider.describe(conn, settings, station)

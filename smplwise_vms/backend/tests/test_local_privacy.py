@@ -13,6 +13,7 @@ from test_local_identity import GOOD, Lx, lx  # noqa: F401 - the fixture
 from smplwise.services import local_privacy as lpv
 
 T0 = dt.datetime(2026, 9, 1, 12, 0, 0, tzinfo=dt.timezone.utc)
+PURGE_WORD = "מחיקה לצמיתות"
 
 
 def iso(t: dt.datetime) -> str:
@@ -32,6 +33,8 @@ def sql(lx, stmt: str, args=()) -> None:
 
 
 def settings_on(lx, **kv) -> None:
+    if kv.get("privacy.local_purge") == "on":  # REL2140 M-1: switching the purge on needs the typed confirmation
+        kv["privacy.local_purge_confirm"] = PURGE_WORD
     r = lx.admin.patch("/api/v1/settings", json=kv)
     assert r.status_code == 200, r.text
 
@@ -70,6 +73,71 @@ def test_defaults_are_off_and_days_cannot_go_below_30(lx):
     assert lx.admin.patch("/api/v1/settings", json={"privacy.local_purge_days": 29}).status_code == 422
     settings_on(lx, **{"privacy.local_purge_days": 45})
     assert lx.admin.get("/api/v1/settings").json()["settings"]["privacy.local_purge_days"] == 45
+
+
+def _purge_setting(lx) -> str:
+    return lx.rows("SELECT value FROM settings WHERE key = 'privacy.local_purge'")[0]["value"] if lx.rows(
+        "SELECT value FROM settings WHERE key = 'privacy.local_purge'") else "off"
+
+
+def test_m1_switching_the_purge_on_needs_the_typed_confirmation_and_shows_the_count(lx):
+    lx.enable()
+    uid, _ = seed_person(lx, "maria")
+    disable(lx, uid, T0)
+    for confirm in (None, "", "yes"):
+        body = {"privacy.local_purge": "on", **({"privacy.local_purge_confirm": confirm} if confirm is not None else {})}
+        r = lx.admin.patch("/api/v1/settings", json=body)
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required", r.text
+        assert r.json()["details"] == {"field": "privacy.local_purge_confirm", "due_now": 1}
+    assert _purge_setting(lx) == "off"
+    r = lx.admin.patch("/api/v1/settings", json={"privacy.local_purge": "on", "privacy.local_purge_confirm": PURGE_WORD})
+    assert r.status_code == 200 and r.json()["settings"]["privacy.local_purge"] == "on"
+    assert "privacy.local_purge_confirm" not in r.json()["settings"]
+    assert lx.rows("SELECT COUNT(*) AS n FROM settings WHERE key = 'privacy.local_purge_confirm'")[0]["n"] == 0  # never stored
+    rows = lx.rows("SELECT decision, details_json FROM audit_log WHERE action = 'privacy.local_purge.setting'")
+    assert [(r["decision"], json.loads(r["details_json"])["to"], json.loads(r["details_json"])["channel"]) for r in rows] == [("allowed", "on", "local")]
+    # turning it off needs no confirmation
+    assert lx.admin.patch("/api/v1/settings", json={"privacy.local_purge": "off"}).status_code == 200 and _purge_setting(lx) == "off"
+
+
+def test_m1_system_configure_alone_cannot_change_the_purge(lx):
+    """A custom role holding system.configure (not system_admin) - the review's scenario: refused for ON, OFF and the period."""
+    from smplwise.db import bump_permission_revision, new_id, now_iso, permission_revision
+
+    lx.admin.get("/api/v1/me", headers={"X-SW-Dev-User": "sami"})
+    with lx.db.connection() as conn:
+        conn.execute("INSERT INTO custom_roles(id, name_he, permissions_json, created_at, updated_at) VALUES ('cfg_only', 'cfg', ?, ?, ?)",
+                     (json.dumps(["system.configure"]), now_iso(), now_iso()))
+        conn.execute("INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at) "
+                     "VALUES (?, 'user', 'dev-sami', 'cfg_only', 'installation', '*', 'allow', ?, 'test', ?)", (new_id(), permission_revision(conn), now_iso()))
+        bump_permission_revision(conn)
+    h = {"X-SW-Dev-User": "sami"}
+    assert lx.admin.patch("/api/v1/settings", json={"privacy.personal_export": "off"}, headers=h).status_code == 200  # holds system.configure
+    for body in ({"privacy.local_purge": "on", "privacy.local_purge_confirm": PURGE_WORD}, {"privacy.local_purge_days": 60}):
+        r = lx.admin.patch("/api/v1/settings", json=body, headers=h)
+        assert r.status_code == 403, r.text
+    settings_on(lx, **{"privacy.local_purge": "on"})
+    assert lx.admin.patch("/api/v1/settings", json={"privacy.local_purge": "off"}, headers=h).status_code == 403
+    assert _purge_setting(lx) == "on"
+    denied = lx.rows("SELECT actor_user_id, reason FROM audit_log WHERE action = 'privacy.local_purge.setting' AND decision = 'denied'")
+    assert len(denied) == 3 and all(d["actor_user_id"] == "dev-sami" and d["reason"] == "not_system_admin" for d in denied)
+
+
+def test_m1_remote_on_and_period_are_refused_remote_off_works(lx):
+    lx.flag("u-owner")
+    lx.bind("u-owner", "system_admin")
+    assert lx.login(lx.owner).status_code == 200
+    c = lx.client
+    for body in ({"privacy.local_purge": "on", "privacy.local_purge_confirm": PURGE_WORD}, {"privacy.local_purge_days": 60}):
+        r = c.patch("/arx/api/v1/settings", json=body)
+        assert r.status_code == 403 and r.json()["code"] == "local_only", r.text
+    assert _purge_setting(lx) == "off"
+    settings_on(lx, **{"privacy.local_purge": "on"})
+    r = c.patch("/arx/api/v1/settings", json={"privacy.local_purge": "off"})
+    assert r.status_code == 200, r.text
+    assert _purge_setting(lx) == "off"
+    last = json.loads(lx.rows("SELECT details_json FROM audit_log WHERE action = 'privacy.local_purge.setting' AND decision = 'allowed' ORDER BY rowid")[-1]["details_json"])
+    assert (last["from"], last["to"], last["channel"]) == ("on", "off", "remote")
 
 
 # ---------------------------------------------------------------- purge

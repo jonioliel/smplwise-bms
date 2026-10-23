@@ -7,7 +7,8 @@ e-mail, WhatsApp, the spoken announcement) of a notification that is
   * in the window's place (the notification's `area_id` is the area, or an area on the window's floor), and
   * informational: severity `info` (and `alert` only when the administrator turned `quiet.windows.mute_alerts` on).
 It never touches: a CRITICAL severity, the `safety` category (contract 7.3 and the MUTEFIX fix of services/mobile_push: a critical category is never
-muted), an escalation, or the notification ROW itself - the inbox keeps every notification (the delivery log says `quiet_window`).
+muted), the `doors` and `security` categories and every door / entry source (REL2140 review M-5: the doorbell is never muted, `mute_alerts` or not),
+an escalation, or the notification ROW itself - the inbox keeps every notification (the delivery log says `quiet_window`).
 
 The end is decided by the clock: a window is active iff `ended_at IS NULL and started_at <= now < ends_at`; the janitor (`sweep`) only stamps the
 row afterwards. Nothing here calls Home Assistant: the lighting scenario of the change record is NOT part of slice 1.
@@ -215,12 +216,27 @@ def janitor(db: Any) -> int:
 
 # ---------------------------------------------------------------- the notification rule
 
-def suppresses(conn: sqlite3.Connection, n: dict[str, Any], mode: str, now: dt.datetime) -> str | None:
-    """The id of the active window that holds this notification's channels back, or None. Never for a critical severity, the safety category
-    (services/mobile_push.CRITICAL_CATEGORIES), an escalation, a notification with no area, or while the feature is off."""
+# REL2140 review M-5: door and entry notifications are protected like safety - the doorbell, a door window that did not open, a door emergency,
+# a denied or stuck external access - at ANY severity and whatever `quiet.windows.mute_alerts` says. By category (notify_policy.CATEGORIES:
+# `doors`, `security`) and, for a source whose category could be overridden, by its source prefix.
+PROTECTED_CATEGORIES = ("doors", "security")
+PROTECTED_SOURCE_PREFIXES = ("door.", "access.", "intercom.")
+
+
+def protected(n: dict[str, Any]) -> bool:
+    """Is this notification never held by a quiet window (critical severity, the safety / doors / security categories, a door or entry source)."""
     from .mobile_push import CRITICAL_CATEGORIES
 
-    if mode == "escalate" or n.get("severity") == "critical" or n.get("category") in CRITICAL_CATEGORIES:
+    return (n.get("severity") == "critical" or n.get("category") in CRITICAL_CATEGORIES or n.get("category") in PROTECTED_CATEGORIES
+            or str(n.get("source") or "").startswith(PROTECTED_SOURCE_PREFIXES))
+
+
+def suppresses(conn: sqlite3.Connection, n: dict[str, Any], mode: str, now: dt.datetime) -> str | None:
+    """The id of the active window that holds this notification's channels back, or None. Never for a critical severity, the safety category
+    (services/mobile_push.CRITICAL_CATEGORIES), the doors / security categories or a door / entry source (`protected`, REL2140 M-5), an
+    escalation, a notification with no area, or while the feature is off. Every channel (web push, the app, e-mail, WhatsApp - its plan and
+    its `still_wanted` re-check - and the spoken announcement) decides through this one rule."""
+    if mode == "escalate" or protected(n):
         return None
     area = n.get("area_id")
     if not area:

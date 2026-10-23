@@ -336,6 +336,79 @@ def test_switching_off_deletes_the_samples_and_stops_collecting(w):
         assert conn.execute("SELECT COUNT(*) FROM zone_count_map").fetchone()[0] == 1
 
 
+def test_m2_janitor_deletes_leftover_samples_while_off_and_prunes_while_on(w):
+    """REL2140 review M-2: a switch turned off without the PUT delete (a restore of an older build, a direct write) left the samples with no
+    end date, because `prune` ran only inside `sample`, which needs the switch on. The janitor now deletes them while off."""
+    w.map("cam_front", "", "lobby")
+    now = utcnow()
+    with w.conn() as conn:
+        for hours in (200, 1):
+            conn.execute("INSERT INTO zone_count_samples(area_id, at, count) VALUES ('lobby', ?, 1)", (zc._iso(now - dt.timedelta(hours=hours)),))
+    assert zc.janitor(w.db, now) == 2                  # OFF: every sample goes
+    assert w.samples() == []
+    assert zc.janitor(w.db, now) == 0                  # nothing left, nothing to do
+    w.set(zc.ENABLED, "on")
+    zc._last_prune.pop("janitor", None)
+    with w.conn() as conn:
+        for hours in (200, 1):
+            conn.execute("INSERT INTO zone_count_samples(area_id, at, count) VALUES ('lobby', ?, 1)", (zc._iso(now - dt.timedelta(hours=hours)),))
+    assert zc.janitor(w.db, now) == 1                  # ON: the retention (7 days) even without a Frigate poll
+    assert len(w.samples()) == 1
+    assert zc.janitor(w.db, now + dt.timedelta(minutes=5)) == 0   # throttled to PRUNE_EVERY_S while on
+    zc._last_prune.pop("janitor", None)
+
+
+def test_m2_janitor_never_raises_on_a_database_without_the_tables(tmp_path):
+    db = Database(tmp_path / "empty.db")
+    with db.connection() as conn:
+        conn.execute("CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT)")
+    assert zc.janitor(db) == 0
+
+
+def test_m2_the_switch_and_retention_are_never_restored(w, settings, tmp_path):
+    import io
+    import json
+    import zipfile
+    from dataclasses import replace
+
+    from fastapi.testclient import TestClient
+
+    from smplwise.db import get_setting
+    from smplwise.main import create_app
+    from smplwise.services import backup as svc
+
+    for key in (zc.ENABLED, zc.RETENTION, "access.external.denied_alert", "access.external.denied_cursor"):
+        assert svc._kept_setting(key), key
+    w.set(zc.ENABLED, "on")
+    w.set(zc.RETENTION, "30")
+    w.set("ui.design", "b")
+    e = w.client.post("/api/v1/backups", json={}).json()
+    raw = w.client.get(f"/api/v1/backups/{e['name']}/download").content
+    src = zipfile.ZipFile(io.BytesIO(raw))
+    rows = json.loads(src.read("data/settings.json"))
+    keys = {r["key"] for r in rows}
+    assert "ui.design" in keys and zc.ENABLED not in keys and zc.RETENTION not in keys   # never exported
+    out = io.BytesIO()  # an older build's archive (or a hand-edited one) that carries the switch on
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst:
+        for n in src.namelist():
+            data = src.read(n)
+            if n == "data/settings.json":
+                data = json.dumps(rows + [{**dict(rows[0]), "key": zc.ENABLED, "value": "on"}, {**dict(rows[0]), "key": zc.RETENTION, "value": "90"}]).encode()
+            dst.writestr(n, data)
+    app2 = create_app(replace(settings, data_dir=tmp_path / "data2"))
+    c2 = TestClient(app2)
+    c2.get("/api/v1/me")
+    up = c2.post("/api/v1/backups/upload", files={"file": ("copy.zip", out.getvalue(), "application/zip")})
+    assert up.status_code == 201, up.text
+    for mode in ("replace", "merge"):
+        body = {"mode": mode, "confirm": "RESTORE", **({"scope": "project"} if mode == "replace" else {})}
+        res = c2.post(f"/api/v1/backups/{up.json()['name']}/restore", json=body)
+        assert res.status_code == 200, res.text
+        with app2.state.db.connection(mode="read") as conn:
+            assert (get_setting(conn, zc.ENABLED, "off") or "off") == "off", mode
+            assert get_setting(conn, zc.RETENTION) is None, mode
+
+
 def test_retention_setting_is_validated_and_bounds_the_series(w):
     assert w.client.put(f"{API}/settings", json={"retention_days": 0}).status_code == 422
     assert w.client.put(f"{API}/settings", json={"retention_days": 91}).status_code == 422

@@ -228,6 +228,11 @@ Owner directive 2026-10-23: WisKey grants Arx full access through our bridge onl
   add-on); else `WiskeyProvider` while `overview.api.commands` lists `media/station_descriptor` and `media/stream_lease`
   (`min_client` compatible); else `LocalProvider` exactly as before. Talk is offered only while `talk_open` / `talk_frame` /
   `talk_floor` / `talk_close` are listed as well (otherwise the descriptor's talk is forced off: the classic panel keeps it).
+  2.14.0 pre-release review M-3: an Arx switch decides first - `access.station_media_provider` = `local` (default: `LocalProvider`
+  whatever WisKey lists) | `auto` (the discovery rule above). On `auto`, `WiskeyProvider` falls back to `LocalProvider` when its
+  descriptor fails for any reason but `offline` or a stream lease fails (503), whenever Arx's own path exists; the fallback descriptor
+  names provider `local` (never cached as WisKey's, no talk through WisKey), and if the local path fails too WisKey's reason is served.
+  The talk route selects the provider once for the descriptor and the talk.
 - **Channel.** `wiskey_channels.MEDIA` (unpinned, like `readback` / `pacing`): exactly the six commands, same socket and identity as
   `service`. Descriptor and lease: read lane (`SYNC.command`, rate buckets). `talk_open`: action lane (never queued or retried).
   `talk_close`: action lane without a rate token. Frames and the floor: `SYNC.media_post` (no lane, no token; limits are the talk

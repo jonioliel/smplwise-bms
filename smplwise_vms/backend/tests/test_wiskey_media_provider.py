@@ -206,24 +206,96 @@ def test_discovery_decides_what_wiskey_offers():
     assert w10.listed({**api, "commands": "media/station_descriptor media/stream_lease"}) == (False, False, "commands_unknown")
 
 
+def choice_conn(value: str | None) -> Any:
+    """A settings table holding `access.station_media_provider` (None = never saved)."""
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT)")
+    if value is not None:
+        conn.execute("INSERT INTO settings(key, value) VALUES (?, ?)", (im.PROVIDER_KEY, value))
+    return conn
+
+
 def test_the_provider_is_wiskey_only_while_discovery_lists_the_video_commands(settings, monkeypatch):
     im.set_provider(None)
     api: dict[str, Any] = {"value": None}
     monkeypatch.setattr(intercom_sync.SYNC, "api_facts", lambda s: api["value"])
     monkeypatch.delenv(im.FAKE_ENV, raising=False)
-    assert im.provider_for(settings).name == "local", "no discovery: Arx's own source exactly as before"
+    auto = choice_conn("auto")
+    assert im.provider_for(settings, auto).name == "local", "no discovery: Arx's own source exactly as before"
     api["value"] = fixture("overview_api.json")
-    assert im.provider_for(settings).name == "wiskey"
+    assert im.provider_for(settings, auto).name == "wiskey"
     api["value"] = {**api["value"], "commands": ["overview", w10.DESCRIBE]}
-    assert im.provider_for(settings).name == "local", "the descriptor alone is not enough"
+    assert im.provider_for(settings, auto).name == "local", "the descriptor alone is not enough"
     monkeypatch.setattr(intercom_sync.SYNC, "api_facts", lambda s: (_ for _ in ()).throw(RuntimeError("boom")))
-    assert im.provider_for(settings).name == "local", "an unreadable discovery keeps Arx's own source"
+    assert im.provider_for(settings, auto).name == "local", "an unreadable discovery keeps Arx's own source"
     monkeypatch.setattr(intercom_sync.SYNC, "api_facts", lambda s: fixture("overview_api.json"))
     monkeypatch.setenv(im.FAKE_ENV, "1")
     from dataclasses import replace
 
-    assert im.provider_for(replace(settings, in_addon=False)).name == "fake", "the developer fake still wins on a developer backend"
-    assert im.provider_for(replace(settings, in_addon=True)).name == "wiskey"
+    assert im.provider_for(replace(settings, in_addon=False), auto).name == "fake", "the developer fake still wins on a developer backend"
+    assert im.provider_for(replace(settings, in_addon=True), auto).name == "wiskey"
+
+
+def test_m3_wiskey_is_selected_only_by_the_arx_setting(settings, monkeypatch):
+    """REL2140 review M-3: a WisKey upgrade that starts listing the W10 commands never changes Arx's live path by itself."""
+    im.set_provider(None)
+    monkeypatch.delenv(im.FAKE_ENV, raising=False)
+    monkeypatch.setattr(intercom_sync.SYNC, "api_facts", lambda s: fixture("overview_api.json"))
+    for conn in (None, choice_conn(None), choice_conn("local"), choice_conn("bogus")):
+        assert im.provider_for(settings, conn).name == "local"
+    assert im.provider_for(settings).name == "local", "no connection: the default"
+    assert im.provider_for(settings, choice_conn("auto")).name == "wiskey"
+
+
+@pytest.fixture()
+def local_path(monkeypatch):
+    """Arx's own station source exists (host and credentials known) - the path LocalProvider serves."""
+    from smplwise.services import wiskey_camera
+
+    monkeypatch.setattr(intercom_sync.SYNC, "station_host", lambda s, sid: "station-a.invalid")
+    monkeypatch.setattr(wiskey_camera, "credentials", lambda conn, s, sid: ("fixture-user", "fixture-pass"))
+
+
+def test_m3_a_failing_wiskey_descriptor_falls_back_to_arxs_own_source(provider, wk, settings, local_path, registered):
+    for code in ("media_not_supported", "rate_limited", "something_new", "unknown_command"):
+        wk.errors[w10.DESCRIBE] = code
+        im.MEDIA.reset()
+        d = im.MEDIA.descriptor(provider, None, settings, STATION)
+        assert d.provider == "local" and [p.id for p in d.profiles] == ["main"] and not d.talk, code
+    asked = len(wk.sent(w10.DESCRIBE))
+    im.MEDIA.descriptor(provider, None, settings, STATION)
+    assert len(wk.sent(w10.DESCRIBE)) == asked + 1, "a fallback descriptor is never cached as WisKey's: WisKey is asked again"
+    assert provider.video_stream(None, settings, STATION, "main") == "smplwise_wiskey_entry-a" and not wk.sent(w10.STREAM_LEASE)
+    with pytest.raises(ApiError) as e:
+        provider.talk_open(settings, "entry-a", d, actor_id="u1", actor_name="Dana", request_id=None)
+    assert e.value.code == "intercom_talk_unsupported" and not wk.sent(w10.TALK_OPEN)
+    wk.api = None  # WisKey's commands disappear
+    im.MEDIA.reset()
+    assert im.MEDIA.descriptor(provider, None, settings, STATION).provider == "local"
+    no_secret(json.dumps([n for n, _s in registered]))
+
+
+def test_m3_an_offline_station_never_falls_back_and_no_local_path_keeps_wiskeys_reason(provider, wk, settings, local_path):
+    wk.errors[w10.DESCRIBE] = "station_offline"
+    with pytest.raises(im.Unavailable) as e:
+        im.MEDIA.descriptor(provider, None, settings, STATION)
+    assert e.value.code == "offline"
+    wk.errors[w10.DESCRIBE] = "media_not_supported"
+    with pytest.raises(im.Unavailable) as e:
+        im.MEDIA.descriptor(provider, None, settings, {**STATION, "camera_entity": None})  # no local path
+    assert e.value.code == "no_media", "WisKey's own reason, not the local one"
+
+
+def test_m3_a_failed_lease_serves_arxs_own_main_stream(provider, wk, settings, local_path, registered):
+    wk.answers[w10.STREAM_LEASE] = {"source": "http://station-a.invalid/101", "expires_at": im.iso(time.time() + 60)}  # refused by the contract
+    assert provider.video_stream(None, settings, STATION, "sub") == "smplwise_wiskey_entry-a"
+    assert [n for n, _src in registered] == ["smplwise_wiskey_entry-a"], "Arx's own stream registered, never WisKey's refused source"
+    wk.errors[w10.STREAM_LEASE] = "rate_limited"
+    with g2._REGISTERED_LOCK:
+        g2._REGISTERED.pop("smplwise_wiskey_entry-a", None)
+    assert provider.video_stream(None, settings, STATION, "main") == "smplwise_wiskey_entry-a"
 
 
 def test_the_media_channel_carries_exactly_the_six_commands_and_nothing_else(wk, wk_loop):

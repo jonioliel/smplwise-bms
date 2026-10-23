@@ -67,6 +67,10 @@ Table `zone_count_map(recorder_id, camera_key, frigate_zone, area_id)`, unique p
 * **Retention**: setting `occupancy.retention_days`, default 7, range 1-90; pruned at most hourly; additionally capped at 20 000 rows per area
   (oldest first) and rows of an area that is no longer mapped are deleted. The series endpoint never returns more than the retention.
 * **Switching the feature OFF deletes every sample** (the mapping stays). While OFF nothing is written.
+* REL2140 review M-2: `occupancy.enabled` and `occupancy.retention_days` are installation privacy policy - never exported or restored by a backup
+  (`backup.SETTINGS_KEEP`). The main janitor (`zone_counts.janitor`) deletes every sample left while the switch is OFF (whatever switched it off
+  without the PUT delete) and applies the retention hourly while it is ON, also when no Frigate poll runs; an OFF install with no samples only
+  reads.
 * The review rows the count is read from are the existing `frigate_reviews` (their own retention is unchanged); no copy of their ids, labels or
   thumbnails is made.
 

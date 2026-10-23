@@ -34,7 +34,10 @@ Each export writes one audit row (`identity.local.user.data_exported`: subject i
 
 ## Settings (all default OFF, installation policy, never restored from a backup - `backup.SETTINGS_KEEP`)
 `privacy.local_purge` (on/off, off), `privacy.local_purge_days` (30-3650, 30), `privacy.personal_export` (on/off, off). Changing them needs
-`system.configure` (system_admin). Hook: `main.janitor_tick -> services/local_privacy.janitor` (hourly per process, never raises).
+`system.configure` (system_admin). REL2140 review M-1: the purge keys need a system administrator (`rbac.is_system_admin`; a custom role
+holding `system.configure` is refused, audited `privacy.local_purge.setting`); turning the purge ON or changing the period is local channel
+only, and ON needs the typed confirmation `privacy.local_purge_confirm` = `"מחיקה לצמיתות"` (never stored; the 422 answer carries
+`due_now`, the number of accounts the first pass would purge). Turning it OFF works on any channel. Hook: `main.janitor_tick -> services/local_privacy.janitor` (hourly per process, never raises).
 
 ## Open owner questions (recommendation first)
 1. Disabled but not deleted accounts: purge them too (as stated), or only deleted ones? Recommendation: as stated (both), because a

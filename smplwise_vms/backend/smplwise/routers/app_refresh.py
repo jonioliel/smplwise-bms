@@ -75,7 +75,8 @@ def _anchor(request: Request, caller: Caller) -> tuple[str, str, float | None]:
         return "local", svc.local_anchor(s.chain_id), (time.time() - started if started else None)
     if p.source == "remote" and s is not None:
         started = float(getattr(s, "chain_started", 0.0) or getattr(s, "created_at", 0.0) or 0.0)
-        return ("ha" if s.iss_hash else "none"), (s.iss_hash or ""), (time.time() - started if started else None)
+        kind, anchor = svc.remote_anchor(s)  # REL2140 M-4: the HA sign-in, else this session's own sign-in - never "none"
+        return kind, anchor, (time.time() - started if started else None)
     if p.source in ("ingress", "dev"):
         return p.source, "", None
     return "none", "", None

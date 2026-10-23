@@ -155,6 +155,78 @@ def test_an_escalation_is_never_held(w, monkeypatch):
         assert qw.suppresses(conn, {**n, "category": "safety"}, "new", T0) is None
 
 
+# ---------------------------------------------------------------- REL2140 review M-5: door and entry notifications are never muted
+
+def test_m5_door_and_security_notifications_are_never_held_even_with_mute_alerts(w, fake_push, monkeypatch):
+    """The doorbell (doors / alert), a door window that did not open, a denied external access (security / info) - never held, at any
+    severity, with `mute_alerts` on; an ordinary alert in the same place still is (the switch keeps its meaning)."""
+    _clock(monkeypatch, T0)
+    _on(w, **{"quiet.windows.mute_alerts": "on"})
+    assert _start(w, "ops2", "floor", w.ids["floor2"]).status_code == 201
+    protected_rows = [_emit(w, sev, "kitchen", category=cat) for cat in ("doors", "security") for sev in ("info", "alert")]
+    held = _emit(w, "alert", "kitchen")
+    w.flush()
+    for nid in protected_rows:
+        assert ("webpush", "skipped", "quiet_window") not in _reasons(w, nid), nid
+        assert any(s == "sent" for _, s, _ in _reasons(w, nid)), nid
+    assert ("webpush", "skipped", "quiet_window") in _reasons(w, held)
+
+
+def test_m5_the_rule_covers_every_door_and_entry_source_of_the_catalogue(w, monkeypatch):
+    from smplwise.services import notify_policy
+
+    _clock(monkeypatch, T0)
+    _on(w, **{"quiet.windows.mute_alerts": "on"})
+    assert _start(w, "ops2", "area", "kitchen").status_code == 201
+    door_sources = [s for s in notify_policy.SOURCES if s.key.startswith(("door.", "access."))]
+    assert {"door.ring", "door.window_not_started", "door.windows.storm", "door.emergency.released", "access.grant_attention",
+            "access.denied_attempt"} <= {s.key for s in door_sources}
+    with w.db.connection(mode="read") as conn:
+        for s in door_sources:
+            for sev in ("info", "alert"):
+                for mode in ("new", "renotify"):
+                    n = {"source": s.key, "category": s.category, "severity": sev, "area_id": "kitchen"}
+                    assert qw.suppresses(conn, n, mode, T0) is None, (s.key, sev, mode)
+                    # also when a category was overridden: the source prefix alone protects it
+                    assert qw.suppresses(conn, {**n, "category": "device_faults"}, mode, T0) is None, (s.key, "override")
+        assert qw.suppresses(conn, {"source": "camera.offline", "category": "device_faults", "severity": "alert", "area_id": "kitchen"}, "new", T0) is not None
+
+
+def test_m5_every_channel_path_sees_a_door_notification_as_not_held(w, monkeypatch):
+    """All five channels decide on Dispatch.quiet_window (set once by `suppresses`), WhatsApp re-checks with `suppresses` in still_wanted:
+    a spy on every channel's plan sees no window for the doorbell, and the window for an ordinary info notification."""
+    from smplwise.services import notify_channels as nc
+
+    _clock(monkeypatch, T0)
+    _on(w, **{"quiet.windows.mute_alerts": "on"})
+    assert _start(w, "ops2", "area", "kitchen").status_code == 201
+    seen: list[tuple[str, str, str | None]] = []
+
+    class Spy(nc.Channel):
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def plan(self, d, conn):
+            seen.append((self.name, d.n["category"], d.quiet_window))
+            return []
+
+    names = ("webpush", "email", "app", "announce", "whatsapp")
+    monkeypatch.setattr(nc, "CHANNELS", {n: Spy(n) for n in names})
+    real = nc.get_policy
+
+    def all_channels(conn, source):
+        p = real(conn, source)
+        return None if p is None else {**p, "channels": {n: True for n in names}}
+
+    monkeypatch.setattr(nc, "get_policy", all_channels)
+    door = _emit(w, "alert", "kitchen", category="doors")
+    plain = _emit(w, "info", "kitchen")
+    w.flush()
+    assert sorted(x[0] for x in seen if x[1] == "doors") == sorted(names) and all(x[2] is None for x in seen if x[1] == "doors")
+    assert sorted(x[0] for x in seen if x[1] != "doors") == sorted(names) and all(x[2] for x in seen if x[1] != "doors")
+    assert door and plain
+
+
 # ---------------------------------------------------------------- time: exactly at the end, by the clock
 
 def test_expiry_is_exact_and_does_not_wait_for_the_janitor(w, fake_push, monkeypatch):

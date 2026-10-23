@@ -225,6 +225,10 @@ DEFAULTS: dict[str, str] = {
     # Talk also needs a talk transport from the intercom (W10) and access.call on the station; without them the talk button
     # keeps its classic-panel mode (access.talk_button). services/intercom_media.py.
     "access.station_media": "off",
+    # REL2140 review M-3 (AVW10-295): which provider serves that video - local (default: Arx's own station source, exactly as before W10) |
+    # auto (WisKey's W10 media while WisKey's discovery lists its commands, falling back to Arx's own source when WisKey's answer fails).
+    # An Arx decision: a WisKey upgrade alone never changes Arx's live path.
+    "access.station_media_provider": "local",
     # SHAREDID-293 (owner decision 6, 2026-10-20): where the external-access screen ("גישת חוץ") sits - access (the access-control area) |
     # tickets (service management) | both. Read by every user here (navigation only); written by a system administrator through
     # PUT /access-grants/settings (services/access_external.py), never through PATCH /settings.
@@ -398,6 +402,7 @@ DEFAULTS: dict[str, str] = {
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
 ALLOW_DISARM_WORD = "אפשר נטרול"
+LOCAL_PURGE_WORD = "מחיקה לצמיתות"  # REL2140 M-1: typed to switch the irreversible IDENT146 purge on
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
@@ -727,6 +732,7 @@ class SettingsPatch(BaseModel):
     access_announce_scope: str | None = Field(default=None, pattern="^(scope|station)$", alias="access.announce_scope")
     access_announce_phrases: str | None = Field(default=None, max_length=2000, alias="access.announce_phrases")  # one phrase per line
     access_station_media: str | None = Field(default=None, pattern="^(off|video|video_talk)$", alias="access.station_media")  # CR-036 S18
+    access_station_media_provider: str | None = Field(default=None, pattern="^(local|auto)$", alias="access.station_media_provider")  # REL2140 M-3
     devices_style: str | None = Field(default=None, pattern="^(smplwise|glass)$", alias="devices.style")
     devices_theme: str | None = Field(default=None, pattern="^(" + "|".join(DEVICE_THEMES) + ")$", alias="devices.theme")
     devices_default_view: str | None = Field(default=None, pattern="^(cards|tiles)$", alias="devices.default_view")
@@ -772,6 +778,7 @@ class SettingsPatch(BaseModel):
     security_local_password_min: int | None = Field(default=None, ge=10, le=64, alias="security.local_password_min")
     privacy_local_purge: str | None = Field(default=None, pattern="^(on|off)$", alias="privacy.local_purge")  # IDENT146
     privacy_local_purge_days: int | None = Field(default=None, ge=30, le=3650, alias="privacy.local_purge_days")  # IDENT146: never below the owner's 30 days
+    privacy_local_purge_confirm: str | None = Field(default=None, max_length=32, alias="privacy.local_purge_confirm")  # REL2140 M-1: the typed confirmation; never stored
     privacy_personal_export: str | None = Field(default=None, pattern="^(on|off)$", alias="privacy.personal_export")  # IDENT146
     backup_password_min: int | None = Field(default=None, ge=8, le=64, alias="backup.password_min")  # BACKUP-HASH-ENC: hard floor 8
     security_local_link_ttl_h: int | None = Field(default=None, ge=1, le=168, alias="security.local_link_ttl_h")
@@ -1084,6 +1091,38 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         audit(conn, actor=principal, action="identity.local.passkey_setting", decision="allowed", resource_type="installation", resource_id="local_identity",
               request_id=getattr(request.state, "correlation_id", None), details={"key": key, "to": value if key == "security.local_passkey_first" else ("set" if value else "cleared")})
         changes[key] = value
+    purge_confirm = changes.pop("privacy.local_purge_confirm", None)
+    for key in ("privacy.local_purge", "privacy.local_purge_days"):
+        # REL2140 review M-1: the IDENT146 purge deletes personal rows for good. Like the Arx-only identity switch and the alarm-disarm
+        # restriction, only a system administrator changes it (system.configure alone is not enough), and turning it ON or changing the
+        # period only from the local channel, with the typed confirmation for ON; turning it OFF (the stop direction) works on any channel.
+        # The whole PATCH fails on a refusal (no partial write); every actual change is audited on its own row.
+        if key not in changes:
+            continue
+        from ..rbac import is_system_admin
+        from ..remote_channel import is_remote
+        from ..services import local_privacy
+
+        new = str(changes[key])
+        old = str(get_setting(conn, key, DEFAULTS[key]) or DEFAULTS[key])
+        if key == "privacy.local_purge_days":
+            old = str(local_privacy.purge_days(conn))
+        if new == old:
+            changes.pop(key)
+            continue
+        if not (key == "privacy.local_purge" and new == "off"):
+            _local_only_identity_key(conn, request, principal, key)
+        if not is_system_admin(conn, principal.user_id):
+            audit(conn, actor=principal, action="privacy.local_purge.setting", decision="denied", resource_type="installation", resource_id="local_privacy",
+                  reason="not_system_admin", request_id=getattr(request.state, "correlation_id", None), details={"key": key, "to": new})
+            raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את המחיקה האוטומטית של משתמשי Arx.")
+        if key == "privacy.local_purge" and new == "on" and (purge_confirm or "").strip() != LOCAL_PURGE_WORD:
+            due = len(local_privacy.purge_due(conn))
+            raise ApiError(422, "confirm_required", f"המחיקה אינה הפיכה. כדי להפעיל אותה יש להקליד \"{LOCAL_PURGE_WORD}\".",
+                           details={"field": "privacy.local_purge_confirm", "due_now": due})
+        audit(conn, actor=principal, action="privacy.local_purge.setting", decision="allowed", resource_type="installation", resource_id="local_privacy",
+              request_id=getattr(request.state, "correlation_id", None),
+              details={"key": key, "from": old, "to": new, "channel": "remote" if is_remote(request) else "local"})
     tickets_switch = None  # CR-038: the module switch gets its own audit row when it actually changes
     if "tickets.enabled" in changes:
         current_tickets = get_setting(conn, "tickets.enabled", DEFAULTS["tickets.enabled"]) or DEFAULTS["tickets.enabled"]

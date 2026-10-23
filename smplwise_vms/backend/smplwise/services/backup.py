@@ -195,6 +195,10 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards", "privacy.local_purge",
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh", "security.app_refresh_absolute_days", "security.app_refresh_idle_days",
                                  "security.app_refresh_access_minutes", "security.app_refresh_admin_absolute_days",
                                  "security.app_refresh_admin_idle_hours"}
+# REL2140 review M-2: the people-count privacy switch and its retention (ZONECOUNT107) are this installation's privacy policy - a restore
+# never switches counting on, and never switches it off behind the audited PUT /occupancy/settings; the denied-attempt alert switch
+# (DENYALERT133) is policy too, and its cursor is runtime state (an archive's older cursor would replay up to an hour of denials)
+SETTINGS_KEEP = SETTINGS_KEEP | {"occupancy.enabled", "occupancy.retention_days", "access.external.denied_alert", "access.external.denied_cursor"}
 
 
 def _kept_setting(key: Any) -> bool:
