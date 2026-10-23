@@ -748,6 +748,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tickets_budgets_router.router, prefix=api, tags=["tickets"])  # /tickets/costs/budgets... BEFORE the cost routes
     app.include_router(tickets_vendor_stats_router.router, prefix=api, tags=["tickets"])  # /tickets/contacts/{id}/stats
     app.include_router(tickets_visits_router.router, prefix=api, tags=["tickets"])  # /tickets/{id}/visits... BEFORE /tickets/{ticket_id}
+    from .routers import offline_field as offline_field_router  # OFFLINE110-295 S1: offline field work, server half (default OFF)
+
+    app.include_router(offline_field_router.router, prefix=api, tags=["tickets"])
     from .routers import tickets_costs as tickets_costs_router  # CR-038 S9: cost claims (report, export, review, on-behalf, downloads)
     app.include_router(tickets_costs_router.router, prefix=api, tags=["tickets"])  # CR-038 S9 - BEFORE /tickets/{ticket_id}
     from .routers import tickets_detail as tickets_detail_router  # TKDETAILBE: owner, timeline, quotes, vendor messages, drafts
