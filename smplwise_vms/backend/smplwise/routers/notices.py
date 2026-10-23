@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
+from ..rbac import INSTALLATION, Principal, authorize, has_any_binding, permissions_anywhere, require
 from ..services.notices import audience as aud
 from ..services.notices import display as disp
 from ..services.notices import model, page, store
@@ -57,7 +57,7 @@ page_router = APIRouter()  # no login: the static TV page at /b/{slug}
 def _can(conn: sqlite3.Connection, principal: Principal) -> dict[str, bool]:
     anywhere = set(permissions_anywhere(conn, principal))
     return {
-        "view": PERM_VIEW in anywhere,
+        "view": PERM_VIEW in anywhere or has_any_binding(conn, principal),
         "manage": PERM_MANAGE in anywhere,
         "manage_all": authorize(conn, principal, PERM_MANAGE, INSTALLATION).allowed,
         "push": PERM_PUSH in anywhere,
@@ -71,6 +71,16 @@ def _need_anywhere(conn: sqlite3.Connection, principal: Principal, permission: s
         return
     audit(conn, actor=principal, action=permission, decision="denied", resource_type="installation", resource_id="*", reason="no_binding")
     raise ApiError(403, "forbidden", "אין הרשאה ללוח ההודעות.", details={"permission": permission})
+
+
+def _need_reader(conn: sqlite3.Connection, principal: Principal) -> None:
+    """Reading is open to every signed-in user with a live binding (a notice is filtered by its audience anyway); `notices.view` is the
+    explicit grant for a principal without one. Not a role permission of viewer / operator / editor: adding a permission to those roles
+    would raise every delegated administrator's ceiling check (a delegated admin whose own role lacks it could no longer hand out viewer)."""
+    if PERM_VIEW in permissions_anywhere(conn, principal) or has_any_binding(conn, principal):
+        return
+    audit(conn, actor=principal, action=PERM_VIEW, decision="denied", resource_type="installation", resource_id="*", reason="no_binding")
+    raise ApiError(403, "forbidden", "אין הרשאה ללוח ההודעות.", details={"permission": PERM_VIEW})
 
 
 def _may_manage(conn: sqlite3.Connection, principal: Principal, audience: dict[str, Any]) -> bool:
@@ -185,7 +195,7 @@ def delete_logo(request: Request, principal: Principal = Depends(current_princip
 
 @open_router.get("/notices/settings/logo")
 def get_logo(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
-    _need_anywhere(conn, principal, PERM_VIEW)
+    _need_reader(conn, principal)
     path = _logo_path(request)
     if not path.is_file():
         raise ApiError(404, "not_found", "אין לוגו.")
@@ -455,7 +465,7 @@ def list_notices(scope: Literal["mine", "all"] = "mine", principal: Principal = 
     if scope == "all":
         _need_anywhere(conn, principal, PERM_MANAGE)
     else:
-        _need_anywhere(conn, principal, PERM_VIEW)
+        _need_reader(conn, principal)
     now = store.utcnow()
     rows = store.list_notices(conn)
     cache: dict[str, Any] = {}
@@ -505,7 +515,7 @@ def _get_visible(conn: sqlite3.Connection, principal: Principal, notice_id: str)
 
 @router.get("/notices/{notice_id}")
 def get_notice(notice_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    _need_anywhere(conn, principal, PERM_VIEW)
+    _need_reader(conn, principal)
     n, can = _get_visible(conn, principal, notice_id)
     manager = can["manage"] and _may_manage(conn, principal, aud.parse(n["audience_json"]))
     return {"notice": _notice_out(n, store.utcnow(), store.boards_of(conn, [n["id"]])[n["id"]], manager=manager)}
@@ -645,7 +655,7 @@ def delete_notice(notice_id: str, request: Request, principal: Principal = Depen
 
 @router.post("/notices/{notice_id}/read")
 def mark_read(notice_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    _need_anywhere(conn, principal, PERM_VIEW)
+    _need_reader(conn, principal)
     _get_visible(conn, principal, notice_id)
     store.mark_read(conn, notice_id, principal.user_id)
     return {"read": True}

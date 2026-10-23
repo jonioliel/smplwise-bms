@@ -505,6 +505,9 @@ PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("GET", "/api/v1/auth
                     ("POST", "/api/v1/auth/local/sign-in/passkey/options"), ("POST", "/api/v1/auth/local/sign-in/passkey"),
                     ("POST", "/api/v1/auth/local/passkey/options"), ("POST", "/api/v1/auth/local/passkey")}
 BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/bridge/directory"),  # 404: the bridge's signed calls
+                     # CR-NOTICE106: the TV boards' tokenised display routes and page need no session; on the remote channel they answer the uniform
+                     # 404 unless notices.boards.remote is on (tests/test_notices_106.py covers both). /api/v1/b/{slug} is the page router as this test mounts it
+                     ("GET", "/api/v1/notices/display/{slug}"), ("GET", "/api/v1/notices/display/{slug}/logo/company"), ("GET", "/api/v1/b/{slug}"),
                      # CR-022 section 10: the NVR connection, its test and the restart are local-only
                      ("GET", "/api/v1/nvr/vendors"), ("GET", "/api/v1/nvr/connection"), ("PUT", "/api/v1/nvr/connection"), ("DELETE", "/api/v1/nvr/connection"),
                      ("POST", "/api/v1/nvr/connection/test"), ("POST", "/api/v1/system/restart"),

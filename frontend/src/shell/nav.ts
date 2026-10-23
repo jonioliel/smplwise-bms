@@ -1071,9 +1071,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // its settings page: system.configure at installation scope
   [SCHEDULES_SETTINGS_HREF]: ['system.configure'],
   [WALL_SETTINGS_HREF]: ['system.configure'],
-  // CR-NOTICE106: the notice board page (notices.view at any scope; the server narrows to my audience) and its settings page
-  // (the module switch and defaults: system.configure; the TV boards: notices.boards - the screen shows each part by its own right)
-  [NOTICES_HREF]: ['notices.view', 'notices.manage'],
+  // CR-NOTICE106: the notice board page needs no entry (every signed-in user reads the notices of his audience; the server decides),
+  // its settings page: the module switch and defaults need system.configure, the TV boards notices.boards (each part by its own right)
   [NOTICES_SETTINGS_HREF]: ['system.configure', 'notices.boards'],
   // CR-036 S10: access.admin.read at ANY scope (a station-scoped administrator sees the status of their stations; the server narrows every read)
   [ACCESS_CONTROL_SETTINGS_HREF]: ['access.admin.read'],

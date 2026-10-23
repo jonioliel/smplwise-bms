@@ -13,8 +13,7 @@
         "entity.state.read",
         "video.live",
         "media.read",
-        "presence.report",
-        "notices.view"
+        "presence.report"
       ]
     },
     {
@@ -62,8 +61,7 @@
         "infra.temperature.ack",
         "presence.report",
         "tickets.view",
-        "tickets.create",
-        "notices.view"
+        "tickets.create"
       ]
     },
     {
@@ -83,9 +81,7 @@
         "views.edit",
         "catalog.manage",
         "media.read",
-        "presence.report",
-        "notices.view",
-        "notices.manage"
+        "presence.report"
       ]
     },
     {
