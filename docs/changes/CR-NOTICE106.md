@@ -38,6 +38,14 @@ information board), each with a landscape and a portrait composition; boards for
 (portrait), the parking and the gym. The "single notice" rule now also covers the urgent notice (§8.5). Settings from v3 kept
 (size s/m/l, rotation, blocks, sources). §8 rewritten; evidence in §12.
 
+**Owner review of v4, round 4 (same day).** "Much better." Two additions: (1) **control over the rotation** - the interval
+in editable seconds per board, a hold on a chosen notice, manual next / previous (the control strip, the TV remote's arrows,
+the Settings preview), a dwell per notice, and an "urgent stays" rule - all in the board's display tab; (2) a **display mode
+that shows all the notices together**, not only one at a time: per board `rotation` (one notice, the single-notice rule) /
+`all` (every notice in 2-4 columns, auto-fit, no scroll, pages that cycle when there are many) / `focus` (all together with one
+highlighted large). Day / night, the templates and both orientations unchanged. §8.6 (rotation control) and §8.7 (display
+modes) added; the display tab in `index.html` carries the new controls; evidence in §12.
+
 Module switch `notices.enabled`, **OFF by default**. Migration `0160_notices.sql` (**provisional** number, one file; renumber
 at integration like every other branch). Mockup: `docs/design/mockups/notice-106/index.html` (owner standing style: the
 infrastructure temperature / elevators / schedules language, real tokens and shell as in MAINT215 v2).
@@ -373,7 +381,10 @@ so the page asks for the right variant (`?variant=dark`).
 | `theme` | `day` / `night` / `auto` (auto = by sunrise / sunset at the installation's coordinates, or `day_hours`); `light` / `dark` accepted as aliases | `auto` |
 | `day_hours` | `HH:MM-HH:MM` or empty (empty = the sun) | empty |
 | `photo` | the building's picture for template 2 (JPEG/PNG up to 2 MB, re-encoded to 1920 px; the bill-logo pipeline) | none (placeholder scene) |
-| `urgent` | `stage` / `full` / `band` (§8.1 urgent) | `stage` (the takeover is automatic for the first minute) |
+| `urgent` | `stage` / `stay` / `full` / `band` (§8.1 urgent, §8.6) | `stage` (the takeover is automatic for the first minute) |
+| `mode` | `rotation` / `all` / `focus` (§8.7) | `rotation` |
+| `rotate_s` | 6..60, an editable number (not a fixed list) | 12 |
+| `hold` | a notice id or empty (§8.6) | empty |
 | `layout` | `auto` / `landscape` / `portrait` | `auto` |
 | `rotate_s` | 6..60 (notices) | 12 |
 | `font_size` | `s` / `m` / `l` - Settings "גודל הכתב": קטן / בינוני / גדול (multipliers 0.72 / 0.86 / 1.0) | **`s`** (owner 2026-10-24) |
@@ -442,6 +453,30 @@ Installation-wide in Settings > לוח הודעות > ברירות מחדל: the
   edges, no filled blocks, no white; the ambient gradient is replaced by the building's photo in template 2.
 - Privacy on a public screen: building chips are states only; weather is a place, not a person; the news ticker shows titles
   the add-on fetched, never a third-party script in the page (the CSP of §4.1 stays `self` only).
+
+### 8.6 Rotation control (round 4)
+
+All of it in the board's display tab, under "הודעות"; the TV applies a change within one poll (30 s).
+
+| control | setting | behaviour on the TV |
+|---|---|---|
+| interval | `rotate_s`, a number field 6..60 s | one tick of the rotation; in `all` mode a page stays two ticks |
+| dwell per notice | `dwell_s` on the notice (compose / edit dialog; empty = the board's interval) | ticks = round(dwell_s / rotate_s), at least 1; without it an urgent notice and a long body (> 110 chars) take two ticks |
+| hold | `hold` = a notice (select "השהיה על הודעה"; "ללא" releases) | the screen stays on that notice (`rotation` / `focus`: it is the one shown; `all`: its page, the cell gets an accent ring) and shows a quiet "מושהה" mark next to the position dots; the manager releases it from the tab or the TV's remote |
+| manual next / previous / pause | no setting: the TV remote (ArrowLeft = next in a right-to-left list, ArrowRight = previous, Play/Pause, MediaTrackNext / Previous), the Settings preview's three buttons (a `postMessage` to the iframe, the product will send the same command through the feed's `control` field with a 60 s lease), the mock-up's control strip | moves the rotation (or the page) and resets the dwell; pause holds the current item and shows "מושהה"; play resumes and clears a hold |
+| urgent rule | `urgent` = `stage` (rotates with the rest, double dwell, takeover for the first minute) / `stay` (holds the screen until it expires, nothing else rotates; in `all` mode its page holds) / `full` (takeover for the first minute only, then like `stage`) | §8.1 |
+
+A hold and a pause never outlive the notice: when the held notice expires or is archived the rotation resumes by itself.
+
+### 8.7 Display modes (round 4)
+
+| mode | what the screen shows | rules |
+|---|---|---|
+| `rotation` (default) | exactly one notice (or promo slide) at a time; the single-notice rule | §8.5 |
+| `all` ("כולן יחד") | every active notice together in a grid of quiet cells (a 4 % ink tint, a hairline; the urgent one tinted red with a red border); the promo slides are not shown | columns by the stage's width and the count: a wide stage 1-3 notices = 1-3 columns, 4 = 2x2, 5-6 = 3x2; the narrower stage of template 2 at most 2 columns (2x2); portrait one column of up to 4. More notices than a page holds = pages that auto-cycle (two ticks per page) with page dots; nothing scrolls, nothing is clipped: each cell steps its type down to 60 % before the 4-line clamp. Cell type at size l: title 58, body 40, meta 26-28 (size s: 45 / 31 / 21) - every title and body readable from 4 m, the meta for people standing close |
+| `focus` ("כולן יחד + הודעה מודגשת") | one notice large (the rotation's current item, or the held / urgent one) at the stage's inline end, a hairline, and the other notices as a compact list of up to three cells (title + two body lines) with "ועוד N הודעות" when there are more | the large item rotates like `rotation` (same dwell rules, same dots), the list always shows the others; landscape 3:2 columns, portrait two rows; the promo slides are not shown |
+
+The mode is per board (`display.mode`), chosen in the display tab next to the interval; the preview shows it live.
 
 ## 9. UI (owner standing style)
 
@@ -516,13 +551,18 @@ night at 1280x720, 1920x1080, 3840x2160 and portrait both modes, the lobby on te
 at 1080x1920 and 2160x3840, parking day + night, parking 1280x720, the lobby on template 3 with the ticker; urgent as the notice,
 the takeover day + night + portrait, the v3 band; stale / offline / gone / empty / late-night dim; auto theme at 21:00 (night) and
 07:30 with configured hours (day); 1024x768, 2560x1080, a portrait board on a landscape screen (boxed), the control strip; the
-display tab with the preview iframe for templates 1-3 and day). `shots.mjs` fails on page errors, console errors or warnings,
+display tab with the preview iframe for templates 1-3 and day). Round 4 adds 23 shots (67 in all): mode `all` for the lobby
+day + night at 1920x1080 (3x2, 7 notices = 2 pages, page 2), 3840x2160, size l, portrait (1 column, 4 per page), the parking on
+template 3 (2x2), the elevator portrait, the gym on template 2 (2x2 in the card) landscape + portrait; mode `focus` for the lobby
+day + night + 4K + portrait, the parking and the elevator on template 3, the gym on template 2; a hold in rotation and in `all`
+(the accent ring), pause, urgent `stay` in rotation and in `focus`; the display tab with mode `all`. `shots.mjs` fails on page errors, console errors or warnings,
 document scroll, anything outside the canvas, a visible box leaving its container (the clip check) and a missing Heebo;
 `errors.txt` = clean; `report.txt` = canvas size, theme and fit factor per shot. Every screenshot was viewed; the rounds fixed:
 the portrait template 1 stage getting a 1 px grid row, the welcome column overflowing at sizes m / l (the drop order), the
 template 2 card sized by its hidden promo slide, the fourth status chip wrapping out of sight in the card and behind the offline
-line, the template 2 logos forced white on a bright day sky, a promo picture placeholder that read cheap. Playwright TV tests in
-slice 3 take the same resolutions and checks.
+line, the template 2 logos forced white on a bright day sky, a promo picture placeholder that read cheap; round 4: the focus
+layout at 50/50 squeezing the highlighted notice (now 3:2), the secondary list too small for 4 m, the pause label collapsed by the
+dot rule. Playwright TV tests in slice 3 take the same resolutions and checks.
 Risk tier M (one module, one migration, one public surface); the public surface gets the security review of the tickets public
 listener as its checklist.
 
@@ -532,7 +572,9 @@ listener as its checklist.
 2. **Push** - the source, the recipient rule, visibility, resolve on archive, the push checkbox.
 3. **TV boards** - boards API, display routes, the TV page (build target like `public-ticket.html`, Heebo served like the app)
    with templates 1-3 in both orientations, day / night / auto (sun by the installation's coordinates), the clock / Hebrew date /
-   welcome / notices / urgent / logos blocks, the burn-in drift, the board page with the display tab and the live preview, QR.
+   welcome / notices / urgent / logos blocks, the burn-in drift, the rotation control (interval, hold, next / previous / pause
+   through the feed's `control` lease and the remote's keys, dwell per notice, the urgent rule) and the three display modes
+   (§8.6-8.7), the board page with the display tab and the live preview, QR.
 4. **TV data blocks** - weather from the HA entity, building chips, promo slides (table + upload), the building photo for
    template 2, the news ticker with the server-side RSS fetcher and the curated list; each block behind its own setting.
 5. **Cast as picture** (option B of §4.2) - only on the owner's word.

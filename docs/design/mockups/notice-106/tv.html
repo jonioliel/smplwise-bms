@@ -32,8 +32,15 @@
     ?board=lobby|elevator|parking|gym   &template=1|2|3   &orient=auto|landscape|portrait
     &theme=day|night|auto (light / dark accepted as aliases)   &hours=07:00-19:00 (auto by configured hours instead of the sun)
     &now=HH:MM (fake clock, also decides auto theme)   &clock=fixed (= now=09:12, ticker frozen, no drift - for screenshots)
-    &urgent=stage|full|band|0 (default stage: the urgent notice is THE notice on screen, with a double dwell; full = the
-      first-minute takeover; band = the v3 strip for comparison)   &net=live|stale|offline|gone   &empty=1   &night=1 (late-night dim)
+    &urgent=stage|stay|full|band|0 (default stage: the urgent notice is THE notice on screen, with a double dwell; stay = it
+      holds the screen until it expires; full = the first-minute takeover; band = the v3 strip for comparison)
+    &mode=rotation|all|focus (round 4: rotation = one notice at a time; all = every notice together, 2-4 columns, pages that
+      auto-cycle when there are many; focus = every notice together with one highlighted large)   &page=<n> (all: the page)
+    &hold=<n> (pause on notice n of the board's list; the product sets this from the display tab)   &paused=1
+    keyboard / TV remote: ArrowLeft = next, ArrowRight = previous, Space / Enter / MediaPlayPause = pause, MediaTrackNext / Previous;
+    window.postMessage({smplwise:'tv', cmd:'next'|'prev'|'pause'|'play'}) from the Settings preview
+    per-notice dwell: a notice may carry dwell_s (seconds on screen); otherwise the board's rotate seconds (x2 for a long body / urgent)
+    &net=live|stale|offline|gone   &empty=1   &night=1 (late-night dim)
     &size=s|m|l (text size, default s)  &fs=0.85..1.2  &rotate=<s>  &news=0|1 &promo=0|1 &info=0|1 &weather=0|1 &clock=0|1
     &hebdate=0|1 &company=0|1 &welcome=0|1   &photo=1 (template 2: pretend the building uploaded a photo; the placeholder
     scene otherwise)   &controls=1 (mock-up control strip)   &embed=1 (inside the Settings preview iframe)
@@ -172,8 +179,52 @@ body.box #host { background: #000; }
 .it.promo .pic svg { font-size: calc(54px * var(--fs)); margin-block-end: 10px; }
 .it.promo h1 { font-weight: 400; }
 .dots { display: flex; gap: 10px; direction: rtl; align-items: center; }
-.dots span { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--line-2); transition: inline-size .6s, background .6s; }
-.dots span.on { inline-size: 40px; border-radius: 4px; background: var(--accent); }
+.dots > span:not(.pz) { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--line-2); transition: inline-size .6s, background .6s; }
+.dots > span.on { inline-size: 40px; border-radius: 4px; background: var(--accent); }
+.dots .pz { display: none; align-items: center; gap: 8px; margin-inline-end: 28px; padding-inline-end: 28px; border-inline-end: 1px solid var(--line-2); font-size: calc(22px * var(--fs)); font-weight: 500; letter-spacing: .12em; color: var(--accent); white-space: nowrap; }
+.dots .pz svg { font-size: 1.1em; }
+#cv[data-paused="1"] .dots .pz { display: inline-flex; }
+
+/* ===== ALL TOGETHER (mode=all): every notice on the screen in a grid of cells; pages auto-cycle when there are many ===== */
+.stage.all { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr)); gap: calc(22px * var(--fs)); padding-block-end: calc(52px * var(--fs)); }
+.cell { --k: 1; position: relative; display: flex; flex-direction: column; gap: calc(12px * var(--k)); min-block-size: 0; overflow: hidden; padding: calc(28px * var(--fs)) calc(32px * var(--fs)); border-radius: 18px; background: color-mix(in srgb, var(--ink) 4%, transparent); border: 1px solid var(--line); }
+.cell > * { flex-shrink: 0; }
+.cell .meta { display: flex; align-items: center; gap: 14px; font-size: calc(26px * var(--fs) * var(--k)); font-weight: 500; color: var(--ink-3); }
+.cell .meta .sev { font-weight: 600; }
+.cell.warn .meta .sev { color: var(--warn); }
+.cell.alarm .meta .sev { color: var(--danger); }
+.cell.alarm { border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: color-mix(in srgb, var(--danger) 7%, transparent); }
+.cell h2 { margin: 0; font-size: calc(58px * var(--fs) * var(--k)); font-weight: 500; line-height: 1.15; letter-spacing: -0.01em; color: var(--ink); text-wrap: balance; }
+.cell p { margin: 0; font-size: calc(40px * var(--fs) * var(--k)); line-height: 1.38; font-weight: 300; color: var(--ink-2); white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.cell .when { display: flex; align-items: center; gap: 10px; font-size: calc(28px * var(--fs) * var(--k)); color: var(--ink-3); margin-block-start: auto; padding-block-start: calc(8px * var(--k)); }
+.cell .when svg { font-size: 1.1em; }
+.cell.held::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--accent); pointer-events: none; }
+.stage.all .dots { position: absolute; inset-block-end: 0; inset-inline-start: 0; }
+#cv[data-tpl="2"] .cell { background: rgba(255,255,255,.06); border-color: var(--glass-line); }
+:root[data-theme="day"] #cv[data-tpl="2"] .cell { background: rgba(255,255,255,.35); }
+
+/* ===== ALL TOGETHER WITH A HIGHLIGHT (mode=focus): one notice large (it rotates, or holds), the others as a compact list ===== */
+.stage.focus { display: grid; grid-template-columns: minmax(0, 3fr) 1px minmax(0, 2fr); gap: 0 calc(48px * var(--fs)); }
+.stage.focus .fst .it h1 { font-size: calc(68px * var(--fs) * var(--k)); }
+.stage.focus .fst .it p { font-size: calc(42px * var(--fs) * var(--k)); }
+.it .meta > span { white-space: nowrap; }
+.stage.focus .fst { position: relative; display: grid; grid-template-rows: minmax(0, 1fr); min-block-size: 0; }
+.stage.focus .fst .it { grid-area: 1 / 1; }
+.stage.focus .fst .dots { position: absolute; inset-block-end: 0; inset-inline-start: 0; }
+.stage.focus .others { display: grid; grid-auto-rows: minmax(0, 1fr); gap: calc(16px * var(--fs)); min-block-size: 0; align-content: stretch; padding-block: 6px calc(52px * var(--fs)); }
+.stage.focus .others .cell { padding: calc(22px * var(--fs)) calc(28px * var(--fs)); gap: calc(8px * var(--k)); justify-content: center; }
+.stage.focus .others .cell h2 { font-size: calc(44px * var(--fs) * var(--k)); }
+.stage.focus .others .cell p { font-size: calc(34px * var(--fs) * var(--k)); -webkit-line-clamp: 2; }
+.stage.focus .others .cell .meta { font-size: calc(24px * var(--fs) * var(--k)); }
+.stage.focus .others .cell .when { display: none; }
+.stage.focus .others .more { align-self: end; font-size: calc(24px * var(--fs)); color: var(--ink-3); }
+#cv[data-tpl="2"][data-mode="all"] .bd, #cv[data-tpl="2"][data-mode="focus"] .bd { grid-template-columns: minmax(0, 1fr) 1120px; }
+#cv[data-tpl="3"] .stage.all, #cv[data-tpl="3"] .stage.focus { max-inline-size: none; }
+#cv.portrait .stage.all { grid-template-columns: minmax(0, 1fr); }
+#cv.portrait .stage.focus { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr); gap: calc(36px * var(--fs)) 0; }
+#cv.portrait .stage.focus .vrule { display: block; inline-size: auto; block-size: 1px; }
+#cv.portrait .stage.focus .fst .dots { inset-block-end: calc(-28px * var(--fs)); }
+#cv.portrait .stage.focus .others { padding-block: 0; }
 .empty { grid-area: 1 / 1; display: none; flex-direction: column; justify-content: center; gap: 20px; }
 .empty p { margin: 0; font-size: calc(64px * var(--fs)); font-weight: 300; color: var(--ink); }
 .empty span { font-size: calc(34px * var(--fs)); color: var(--ink-3); }
@@ -370,7 +421,8 @@ body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var
 #ctl { position: fixed; inset-block-end: 10px; inset-inline-start: 10px; z-index: 50; display: none; flex-wrap: wrap; gap: 6px; max-inline-size: calc(100vw - 20px); padding: 8px 10px; border-radius: 12px; background: rgba(15,23,42,.88); color: #fff; font: 13px/1.2 "Segoe UI", Arial, sans-serif; opacity: .35; transition: opacity .2s; }
 #ctl:hover, #ctl:focus-within { opacity: 1; }
 body.ctl #ctl { display: flex; }
-#ctl select { font: inherit; color: #fff; background: transparent; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; padding: 4px 10px; }
+#ctl select, #ctl button { font: inherit; color: #fff; background: transparent; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+#ctl button svg { display: block; inline-size: 14px; block-size: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #ctl select option { color: #111; }
 @media (prefers-reduced-motion: reduce) { .tk .track { animation: none; transform: translate(0, -50%); left: auto; right: 0; } .shift, .take { transition: none; } .it { transition: opacity .3s; transform: none; } }
 </style>
@@ -387,6 +439,10 @@ body.ctl #ctl { display: flex; }
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
   <symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/></symbol>
   <symbol id="i-rss" viewBox="0 0 24 24"><path d="M5 19h.01M5 12a7 7 0 0 1 7 7M5 5a14 14 0 0 1 14 14"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M15 5v14M5 6l9 6-9 6z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M9 5v14M19 6l-9 6 9 6z"/></symbol>
   <!-- the SmplWise mark and wordmark (LOGOS-295 mockup symbols; the real files come from frontend/brand/ via the asset pipeline) -->
   <symbol id="sw-mark" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2767ed"/><path d="M43 22c-2.4-3-6.2-4.6-10.6-4.6-6.6 0-11 3.5-11 8.6 0 10.8 22 5.3 22 16.4 0 5.6-4.9 9.2-12.2 9.2-5.2 0-9.4-1.9-12.2-5.2" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="46" cy="44" r="3.2" fill="#8fe1ff"/></symbol>
   <symbol id="sw-word" viewBox="0 0 236 64"><use href="#sw-mark" width="64" height="64"/><text x="76" y="45" direction="ltr" text-anchor="start" font-family="Heebo, Inter, Segoe UI, Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="-1" fill="#1e2e47">Smpl<tspan fill="#2767ed">Wise</tspan></text></symbol>
@@ -417,8 +473,11 @@ body.ctl #ctl { display: flex; }
   var BOARDS = {
     lobby: { name: 'לוח הלובי', place: 'הכניסה הראשית', tpl: 1, rot: 12, news: 1, promo: 1, info: 1, weather: 1, urgent: 1,
       items: [{ sev: 'alert', t: 'טיפול במעלית הצפונית ביום שלישי', b: 'המעלית הצפונית תושבת בין 08:00 ל-14:00.\nהמעלית הדרומית פועלת כרגיל.', when: 'יום שלישי 27.10 · 08:00–14:00' },
-        { sev: 'info', t: 'ניקוי חלונות חיצוני', b: 'צוות סנפלינג יעבוד על חזית הבניין בין 2 ל-5 בנובמבר. נא לסגור תריסים בשעות העבודה.', when: '02.11 – 05.11' },
-        { sev: 'info', t: 'שעות קבלת קהל במשרד הניהול', b: 'ימים א-ה 08:30–16:00.\nבימי שישי בתיאום מראש בלבד.', when: 'קבוע' }],
+        { sev: 'info', t: 'ניקוי חלונות חיצוני', b: 'צוות סנפלינג יעבוד על חזית הבניין בין 2 ל-5 בנובמבר. נא לסגור תריסים בשעות העבודה.', when: '02.11 – 05.11', dwell_s: 24 },
+        { sev: 'info', t: 'שעות קבלת קהל במשרד הניהול', b: 'ימים א-ה 08:30–16:00.\nבימי שישי בתיאום מראש בלבד.', when: 'קבוע' },
+        { sev: 'info', t: 'אסיפת דיירים שנתית', b: 'יום רביעי 11.11 בשעה 19:30 בחדר הדיירים. על סדר היום: תקציב 2027 ושיפוץ הלובי.', when: '11.11 · 19:30' },
+        { sev: 'info', t: 'חניית אורחים', b: 'חניית האורחים ברמה 1- מוגבלת ל-3 שעות. רישום בעמדת השומר.', when: 'קבוע' },
+        { sev: 'info', t: 'איסוף גזם וגרוטאות', b: 'העירייה אוספת גזם ביום שני. נא להניח ליד הכניסה הדרומית עד 07:00.', when: 'יום שני 26.10' }],
       promos: [['חדר הכושר פתוח', 'כל יום 06:00–23:00 · הכניסה עם תג הדייר'], ['אפליקציית הבניין', 'הודעות, שערים ותקלות - סרקו את הקוד בלובי']] },
     elevator: { name: 'לוח המעליות', place: 'לובי המעליות · קומת קרקע', tpl: 3, rot: 10, news: 0, promo: 0, info: 1, weather: 1, urgent: 1, portrait: 1,
       items: [{ sev: 'alert', t: 'טיפול במעלית הצפונית ביום שלישי', b: 'המעלית הצפונית תושבת בין 08:00 ל-14:00. המעלית הדרומית פועלת כרגיל.', when: 'יום שלישי 27.10 · 08:00–14:00' },
@@ -467,9 +526,11 @@ body.ctl #ctl { display: flex; }
     news: B('news', !!b.news), promo: B('promo', !!b.promo) && b.promos.length > 0, info: B('info', !!b.info), weather: B('weather', !!b.weather),
     clock: FIXED ? true : B('clock', true), hebdate: B('hebdate', true), company: B('company', true), welcome: B('welcome', true), photo: P('photo', '0') === '1',
     size: ({ s: 's', m: 'm', l: 'l' })[P('size', 's')] || 's',
-    fs: Math.min(1.2, Math.max(0.85, parseFloat(P('fs', '1')) || 1)), rot: Math.max(6, parseInt(P('rotate', String(b.rot)), 10) || b.rot)
+    fs: Math.min(1.2, Math.max(0.85, parseFloat(P('fs', '1')) || 1)), rot: Math.min(60, Math.max(6, parseInt(P('rotate', String(b.rot)), 10) || b.rot)),
+    mode: ({ rotation: 'rotation', all: 'all', focus: 'focus' })[P('mode', 'rotation')] || 'rotation',
+    hold: P('hold', '') === '' ? -1 : Math.max(-1, parseInt(P('hold', '-1'), 10)), page: Math.max(0, parseInt(P('page', '0'), 10) || 0), paused: P('paused', '0') === '1'
   };
-  if (['stage', 'band', 'full', '0'].indexOf(O.urgent) < 0) O.urgent = O.urgent === '1' ? 'stage' : '0';
+  if (['stage', 'stay', 'band', 'full', '0'].indexOf(O.urgent) < 0) O.urgent = O.urgent === '1' ? 'stage' : '0';
   if (P('controls', '0') === '1' && P('embed', '0') !== '1') body.classList.add('ctl');
   if (FIXED) body.classList.add('frozen');
 
@@ -498,13 +559,21 @@ body.ctl #ctl { display: flex; }
   function wxHtml() { return '<div class="wx"><div class="now">' + ic(WX.i) + '<b class="num">' + WX.t + '°</b><span>' + esc(WX.d) + '</span></div><div class="hrs">' + WX.hrs.map(function (x) { return '<div><span class="num">' + x[0] + '</span>' + ic(x[1]) + '<b class="num">' + x[2] + '°</b></div>'; }).join('') + '</div></div>'; }
   function chipsHtml() { return '<div class="chips">' + INFO.map(function (x) { return '<span class="ch" data-look="' + x[2] + '"><i></i><b>' + esc(x[0]) + '</b>' + esc(x[1]) + '</span>'; }).join('') + '</div>'; }
   function welcomeHtml() { return '<div class="welcome"><small>ברוכים הבאים</small><b>' + esc(BLD) + '</b></div>'; }
-  // the rotation list: notices (the urgent one first, when ?urgent=stage) and the promo slides after them
-  function playlist() {
+  // the playlist: the urgent notice first (urgent=stage / stay / full), the board's notices, then the promo slides (rotation only).
+  // dwell = ticks of the board's rotate seconds: a notice's own dwell_s wins, else x2 for the urgent one and for a long body.
+  function ticks(n) { return n.dwell_s ? Math.max(1, Math.round(n.dwell_s / O.rot)) : (n.sev === 'critical' || n.b.length > 110 ? 2 : 1); }
+  function playlist(withPromo) {
     var list = [];
-    if (O.urgent === 'stage') list.push({ kind: 'n', n: URGENT, dwell: 2 });
-    b.items.forEach(function (n) { list.push({ kind: 'n', n: n, dwell: n.b.length > 110 ? 2 : 1 }); });
-    if (O.promo) b.promos.forEach(function (p) { list.push({ kind: 'p', p: p, dwell: 1 }); });
+    if (O.urgent === 'stage' || O.urgent === 'stay' || O.urgent === 'full') list.push({ kind: 'n', n: URGENT, dwell: ticks(URGENT) });
+    b.items.forEach(function (n) { list.push({ kind: 'n', n: n, dwell: ticks(n) }); });
+    if (withPromo && O.promo) b.promos.forEach(function (p) { list.push({ kind: 'p', p: p, dwell: 1 }); });
     return list;
+  }
+  // the held item: an explicit hold from the display tab, or the urgent notice when the rule is "stays"
+  function heldIndex(list) {
+    if (O.hold >= 0 && O.hold < list.length) return O.hold;
+    if (O.urgent === 'stay') for (var i = 0; i < list.length; i++) if (list[i].kind === 'n' && list[i].n === URGENT) return i;
+    return -1;
   }
   function itemHtml(x, on) {
     if (x.kind === 'p') return '<article class="it promo' + (on ? ' on' : '') + '"><div class="pic">' + ic('photo') + '</div><h1>' + esc(x.p[0]) + '</h1><p>' + tx(x.p[1]) + '</p></article>';
@@ -513,11 +582,36 @@ body.ctl #ctl { display: flex; }
     var when = sev ? '' : '<div class="when">' + ic('calendar') + '<span>' + tx(n.when) + '</span></div>';
     return '<article class="it ' + look + (on ? ' on' : '') + '" data-look="' + look + '">' + (look === 'alarm' ? '<div class="bar"></div>' : '') + meta + '<h1>' + tx(n.t) + '</h1><p>' + tx(n.b) + '</p>' + when + '</article>';
   }
-  function stageHtml(list) {
-    return '<div class="stage">' + list.map(function (x, k) { return itemHtml(x, k === 0); }).join('') +
-      '<div class="dots" aria-hidden="true">' + (list.length > 1 ? list.map(function (x, k) { return '<span' + (k === 0 ? ' class="on"' : '') + '></span>'; }).join('') : '') + '</div>' +
-      '<div class="empty"><p>אין הודעות כרגע</p><span>' + esc(BLD) + ' · יום נעים</span></div>' +
-      '<div class="gone"><p>הלוח אינו פעיל</p><span>פנו להנהלת הבניין</span></div></div>';
+  function cellHtml(x, held) {
+    var n = x.n, look = SEV[n.sev], sev = SEVL[n.sev];
+    return '<article class="cell ' + look + (held ? ' held' : '') + '">' + (sev ? '<div class="meta"><span class="sev">' + sev + '</span></div>' : '') + '<h2>' + tx(n.t) + '</h2><p>' + tx(n.b) + '</p><div class="when">' + ic('calendar') + '<span>' + tx(n.when) + '</span></div></article>';
+  }
+  function dotsHtml(count, cur) {
+    return '<div class="dots" aria-hidden="true"><span class="pz">' + ic('pause') + 'מושהה</span>' + (count > 1 ? Array.apply(null, Array(count)).map(function (x, k) { return '<span' + (k === cur ? ' class="on"' : '') + '></span>'; }).join('') : '') + '</div>';
+  }
+  var TAIL = '<div class="empty"><p>אין הודעות כרגע</p><span>' + esc(BLD) + ' · יום נעים</span></div><div class="gone"><p>הלוח אינו פעיל</p><span>פנו להנהלת הבניין</span></div>';
+  // the grid of "all together": how many cells fit a page, by the stage's width and orientation (readable from 4 m first)
+  function gridPlan(n, wide, portrait) {
+    var per = portrait ? 4 : wide ? 6 : 4, cols;
+    if (portrait) cols = 1; else if (wide) cols = n <= 3 ? n : n === 4 ? 2 : 3; else cols = n <= 1 ? 1 : 2;
+    per = Math.min(per, n); var rows = Math.max(1, Math.ceil(per / cols));
+    return { per: per, cols: cols, rows: rows, pages: Math.max(1, Math.ceil(n / per)) };
+  }
+  function stageHtml() {
+    var list = state.list;
+    if (O.mode === 'all') {
+      var plan = state.plan, pg0 = state.page, slice = list.slice(pg0 * plan.per, pg0 * plan.per + plan.per);
+      return '<div class="stage all" style="--cols:' + plan.cols + ';--rows:' + plan.rows + '">' + slice.map(function (x, k) { return cellHtml(x, pg0 * plan.per + k === state.held); }).join('') + dotsHtml(plan.pages, pg0) + TAIL + '</div>';
+    }
+    if (O.mode === 'focus') {
+      return '<div class="stage focus"><div class="fst">' + list.map(function (x, k) { return itemHtml(x, k === state.i); }).join('') + dotsHtml(list.length, state.i) + '</div><div class="vrule"></div><div class="others">' + othersHtml() + '</div>' + TAIL + '</div>';
+    }
+    return '<div class="stage">' + list.map(function (x, k) { return itemHtml(x, k === state.i); }).join('') + dotsHtml(list.length, state.i) + TAIL + '</div>';
+  }
+  function othersHtml() {
+    var max = 3, rest = state.list.filter(function (x, k) { return k !== state.i; }), h = rest.slice(0, max).map(function (x) { return cellHtml(x, false); }).join('');
+    if (rest.length > max) h += '<div class="more">ועוד ' + (rest.length - max) + ' הודעות</div>';
+    return h;
   }
   function tickerHtml() { return '<div class="tk"><span class="lbl">' + ic('rss') + 'חדשות</span><div class="win"><div class="track">' + NEWS.map(function (n) { return '<span class="h" dir="rtl">' + tx(n[1]) + '</span><em dir="auto">' + esc(n[0]) + '</em><i class="sep" aria-hidden="true"></i>'; }).join('') + '</div></div></div>'; }
   function footerHtml(L, withChips) {
@@ -527,22 +621,27 @@ body.ctl #ctl { display: flex; }
 
   // ===== render: one function for the TV and for the Settings preview iframe =====
   function portraitNow() { if (O.orient === 'portrait') return true; if (O.orient === 'landscape') return false; return innerHeight > innerWidth; }
-  var state = { i: 0, list: [], left: 0 };
+  var state = { i: 0, list: [], left: 0, page: 0, plan: null, held: -1, paused: false };
   function render() {
     var portrait = portraitNow(), tpl = tplReq, L = logos(false);
     cv.classList.toggle('portrait', portrait);
-    cv.dataset.tpl = String(tpl);
+    cv.dataset.tpl = String(tpl); cv.dataset.mode = O.mode;
     cv.dataset.urgent = O.urgent; cv.dataset.net = O.net; cv.dataset.empty = O.empty ? '1' : '0'; cv.dataset.night = O.night ? '1' : '0'; cv.dataset.photo = O.photo ? '1' : '0';
     ['news', 'promo', 'info', 'weather', 'clock', 'hebdate', 'company', 'welcome'].forEach(function (k) { cv.dataset[k] = O[k] ? '1' : '0'; });
     cv.style.setProperty('--fs', (SIZES[O.size] * O.fs).toFixed(3)); cv.dataset.size = O.size;
-    state.list = playlist(); state.i = 0; state.left = state.list.length ? state.list[0].dwell : 0;
+    state.list = playlist(O.mode === 'rotation'); state.held = heldIndex(state.list);
+    state.plan = gridPlan(state.list.length, !portrait && tpl !== 2, portrait);
+    state.i = state.held >= 0 ? state.held : Math.min(state.i, Math.max(0, state.list.length - 1));
+    state.page = state.held >= 0 ? Math.floor(state.held / state.plan.per) : Math.min(O.page, state.plan.pages - 1);
+    state.left = state.list.length ? state.list[state.i].dwell : 0;
+    state.paused = O.paused || state.held >= 0; cv.dataset.paused = state.paused ? '1' : '0';
     var h = '<header class="hd">' + L.co + '<span class="mid"></span>' + (tpl === 2 ? L.sw : '') + '</header>' + bandHtml();
     if (tpl === 1) {
-      h += '<main class="bd"><div class="side">' + welcomeHtml() + clockHtml() + '<div class="rule p" style="display:none"></div>' + wxHtml() + '</div><div class="vrule"></div>' + (portrait ? '<div class="rule"></div>' : '') + stageHtml(state.list) + '</main>';
+      h += '<main class="bd"><div class="side">' + welcomeHtml() + clockHtml() + '<div class="rule p" style="display:none"></div>' + wxHtml() + '</div><div class="vrule"></div>' + (portrait ? '<div class="rule"></div>' : '') + stageHtml() + '</main>';
     } else if (tpl === 2) {
-      h += '<main class="bd"><div class="side">' + welcomeHtml() + clockHtml() + wxHtml() + '</div><section class="card">' + stageHtml(state.list) + chipsHtml() + '</section></main>';
+      h += '<main class="bd"><div class="side">' + welcomeHtml() + clockHtml() + wxHtml() + '</div><section class="card">' + stageHtml() + chipsHtml() + '</section></main>';
     } else {
-      h += '<main class="bd"><div class="top"><div class="name">' + esc(BLD) + '<small>' + esc(b.place) + '</small></div>' + clockHtml() + '</div><div class="rule"></div>' + stageHtml(state.list) + '<div class="rule"></div><div class="bot">' + chipsHtml() + wxHtml() + '</div></main>';
+      h += '<main class="bd"><div class="top"><div class="name">' + esc(BLD) + '<small>' + esc(b.place) + '</small></div>' + clockHtml() + '</div><div class="rule"></div>' + stageHtml() + '<div class="rule"></div><div class="bot">' + chipsHtml() + wxHtml() + '</div></main>';
     }
     h += tickerHtml() + footerHtml(L, tpl === 1);
     pg.innerHTML = h;
@@ -574,19 +673,48 @@ body.ctl #ctl { display: flex; }
   function layoutAfter() {
     var side = cv.querySelector('.side'); if (side) { side.classList.remove('c1', 'c2', 'c3'); ['c1', 'c2', 'c3'].forEach(function (c) { if (side.scrollHeight > side.clientHeight + 1) side.classList.add(c); }); }
     cv.querySelectorAll('.stage .it').forEach(function (c) { fit(c, 0.6); });
+    cv.querySelectorAll('.stage .cell').forEach(function (c) { fit(c, 0.6); });
     if (O.urgent === 'full') fit(take.querySelector('.mid'), 0.6);
     var win = cv.querySelector('.tk .win'), tr = cv.querySelector('.tk .track');
     if (win && tr && O.news) { var ww = win.clientWidth, tw = tr.scrollWidth; tr.style.setProperty('--winw', ww + 'px'); tr.style.setProperty('--dur', Math.max(20, Math.round((ww + tw) / 120)) + 's'); }
   }
 
   // ===== motion: the rotation (dwell-weighted), the clock, the burn-in drift, the day / night switch =====
-  function step() {
-    if (O.empty || O.net === 'gone' || state.list.length < 2) return;
-    if (--state.left > 0) return;
-    state.i = (state.i + 1) % state.list.length; state.left = state.list[state.i].dwell;
+  // ===== the rotation: the timer tick, manual next / previous (keyboard, TV remote, the Settings preview), pause =====
+  function showItem(i) {
+    state.i = (i + state.list.length) % state.list.length; state.left = state.list[state.i].dwell;
     cv.querySelectorAll('.stage .it').forEach(function (c, k) { c.classList.toggle('on', k === state.i); });
-    cv.querySelectorAll('.stage .dots span').forEach(function (d, k) { d.classList.toggle('on', k === state.i); });
+    cv.querySelectorAll('.stage .dots > span:not(.pz)').forEach(function (d, k) { d.classList.toggle('on', k === state.i); });
+    var others = cv.querySelector('.stage .others'); if (others) { others.innerHTML = othersHtml(); others.querySelectorAll('.cell').forEach(function (c) { fit(c, 0.6); }); }
   }
+  function showPage(p) {
+    state.page = (p + state.plan.pages) % state.plan.pages; state.left = 2;
+    var st = cv.querySelector('.stage.all'); if (!st) return;
+    var wrap = document.createElement('div'); wrap.innerHTML = stageHtml(); st.replaceWith(wrap.firstChild);
+    cv.querySelectorAll('.stage .cell').forEach(function (c) { fit(c, 0.6); });
+  }
+  function move(dir) {
+    if (O.empty || O.net === 'gone') return;
+    if (O.mode === 'all') { if (state.plan.pages > 1) showPage(state.page + dir); return; }
+    if (state.list.length > 1) showItem(state.i + dir);
+  }
+  function step() {
+    if (state.paused) return;
+    if (--state.left > 0) return;
+    move(1);
+  }
+  function setPaused(p) { state.paused = p; cv.dataset.paused = p ? '1' : '0'; }
+  function command(cmd) {
+    if (cmd === 'next') move(1); else if (cmd === 'prev') move(-1);
+    else if (cmd === 'pause') setPaused(true); else if (cmd === 'play') { O.hold = -1; state.held = -1; setPaused(false); }
+    else if (cmd === 'toggle') { if (state.paused) command('play'); else setPaused(true); }
+  }
+  addEventListener('keydown', function (e) {
+    var k = e.key, map = { ArrowLeft: 'next', ArrowRight: 'prev', MediaTrackNext: 'next', MediaTrackPrevious: 'prev', MediaPlayPause: 'toggle', ' ': 'toggle', Enter: 'toggle', p: 'toggle' };
+    if (body.classList.contains('ctl') && e.target && e.target.tagName === 'SELECT') return;
+    if (map[k]) { e.preventDefault(); command(map[k]); }
+  });
+  addEventListener('message', function (e) { var d = e.data; if (d && d.smplwise === 'tv' && d.cmd) command(d.cmd); });
   function tickClock() {
     var t = timeStr(), tp = t.replace(/<\/?i>/g, '');
     cv.querySelectorAll('[data-time]').forEach(function (e) { if (e.innerHTML !== t) e.innerHTML = t; });
@@ -603,11 +731,16 @@ body.ctl #ctl { display: flex; }
   if (body.classList.contains('ctl')) {
     var ctl = document.getElementById('ctl');
     function sel(key, label, opts, cur) { return '<select data-k="' + key + '" aria-label="' + label + '">' + opts.map(function (o) { return '<option value="' + o[0] + '"' + (String(cur) === o[0] ? ' selected' : '') + '>' + label + ': ' + o[1] + '</option>'; }).join('') + '</select>'; }
-    ctl.innerHTML = sel('board', 'לוח', [['lobby', 'לובי'], ['elevator', 'מעליות'], ['parking', 'חניון'], ['gym', 'חדר כושר']], boardId) +
+    function btn(cmd, icon, label) { return '<button type="button" data-cmd="' + cmd + '" aria-label="' + label + '" title="' + label + '">' + ic(icon) + '</button>'; }
+    ctl.innerHTML = btn('prev', 'prev', 'הקודמת') + btn('toggle', 'pause', 'השהיה / המשך') + btn('next', 'next', 'הבאה') +
+      sel('board', 'לוח', [['lobby', 'לובי'], ['elevator', 'מעליות'], ['parking', 'חניון'], ['gym', 'חדר כושר']], boardId) +
       sel('template', 'תבנית', [['1', '1 ברוכים הבאים'], ['2', '2 תמונה'], ['3', '3 לוח מידע']], tplReq) +
+      sel('mode', 'תצוגה', [['rotation', 'סבב, אחת בכל פעם'], ['all', 'כולן יחד'], ['focus', 'כולן יחד + מודגשת']], O.mode) +
+      sel('rotate', 'החלפה', [['6', '6 ש׳'], ['8', '8 ש׳'], ['12', '12 ש׳'], ['20', '20 ש׳'], ['30', '30 ש׳'], ['60', '60 ש׳']], O.rot) +
+      sel('hold', 'השהיה על', [['', 'ללא']].concat(playlist(false).map(function (x, k) { return [String(k), (k + 1) + ' · ' + x.n.t.slice(0, 18)]; })), O.hold < 0 ? '' : O.hold) +
       sel('theme', 'מצב', [['auto', 'אוטומטי (שמש)'], ['day', 'יום'], ['night', 'לילה']], P('theme', 'auto')) +
       sel('orient', 'כיוון', [['auto', 'אוטומטי'], ['landscape', 'רוחב'], ['portrait', 'אנכי']], O.orient) +
-      sel('urgent', 'דחוף', [['stage', 'כהודעה'], ['full', 'מסך מלא'], ['band', 'פס (v3)'], ['0', 'ללא']], O.urgent) +
+      sel('urgent', 'דחוף', [['stage', 'מתחלפת, זמן כפול'], ['stay', 'נשארת על המסך'], ['full', 'מסך מלא'], ['band', 'פס (v3)'], ['0', 'ללא']], O.urgent) +
       sel('net', 'רשת', [['live', 'מחובר'], ['stale', 'לא מעודכן'], ['offline', 'מנותק'], ['gone', 'בוטל']], O.net) +
       sel('empty', 'הודעות', [['0', 'יש'], ['1', 'ריק']], O.empty ? '1' : '0') +
       sel('news', 'חדשות', [['1', 'כן'], ['0', 'לא']], O.news ? '1' : '0') +
@@ -615,7 +748,8 @@ body.ctl #ctl { display: flex; }
       sel('company', 'לוגו חברה', [['1', 'כן'], ['0', 'לא']], O.company ? '1' : '0') +
       sel('size', 'כתב', [['s', 'קטן'], ['m', 'בינוני'], ['l', 'גדול']], O.size) +
       sel('night', 'לילה מאוחר', [['0', 'לא'], ['1', 'עמעום']], O.night ? '1' : '0');
-    ctl.addEventListener('change', function (e) { var k = e.target.dataset.k; if (!k) return; Q.set(k, e.target.value); if (k === 'board') { Q.delete('template'); Q.delete('orient'); } location.search = Q.toString(); });
+    ctl.addEventListener('change', function (e) { var k = e.target.dataset.k; if (!k) return; if (e.target.value === '') Q.delete(k); else Q.set(k, e.target.value); if (k === 'board') { Q.delete('template'); Q.delete('orient'); Q.delete('hold'); } location.search = Q.toString(); });
+    ctl.addEventListener('click', function (e) { var bt = e.target.closest('[data-cmd]'); if (bt) command(bt.dataset.cmd); });
   }
 
   render();
