@@ -8,6 +8,7 @@ import '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import './automation-drawer';
+import './scenario-settings';
 import { ApiError } from '../api/client';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
@@ -515,7 +516,7 @@ export class SystemAutomations extends LitElement {
     return html`<sw-page crumbs="הגדרות" heading="אוטומציות" subheading="כל אפשרות של האוטומציות, הסצנות והסקריפטים נמצאת כאן בלבד." wide data-automations-settings>
       <div class="cols">
         <div class="col">${this.who()}${this.codeView()}${this.retention()}${this.display()}${this.platform()}</div>
-        <div class="col">${this.compatCard()}${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}</div>
+        <div class="col">${this.compatCard()}${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}${isApi() ? html`<scenario-settings></scenario-settings>` : nothing}</div>
       </div>
       ${this.dirty || this.note || this.error
         ? html`<div class="savebar" data-settings-bar>
