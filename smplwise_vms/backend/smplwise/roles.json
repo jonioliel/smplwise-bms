@@ -23,8 +23,7 @@
       "permissions": [
         "map.read",
         "video.live",
-        "wall.view",
-        "notices.view"
+        "wall.view"
       ]
     },
     {

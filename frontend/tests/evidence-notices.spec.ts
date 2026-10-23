@@ -16,7 +16,7 @@ const CAN = { view: true, manage: true, manage_all: true, push: true, boards: tr
 
 const SETTINGS = {
   enabled: true, default_days: 7, default_severity: 'info', push_default: 'by_severity', reads_names: true, retention_days: 365, boards_remote: false, boards_max: 10,
-  weather_entity: 'weather.home', weather_fallback: false, news_custom: true, building_name: '', boards_origin: 'http://192.168.1.10:18094',
+  weather_entity: 'weather.home', weather_fallback: false, news_custom: true, building_name: '', boards_origin: 'http://192.0.2.10:18094',
   news_sources: [{ id: 'ynet', name: 'ynet', url: 'https://www.ynet.co.il/Integration/StoryRss2.xml' }],
 };
 const BOARD = { id: 'b1', name: 'לוח הלובי', slug: 'lobby', enabled: true, display: lobbyFeed().board.display, has_token: true, token_rotated_at: '2026-10-15T08:00:00Z',
@@ -147,7 +147,7 @@ test('settings: module, defaults, boards; a new board shows its link once', asyn
   await root.locator('#nb-name').fill('לוח החניון');
   await root.locator('#nb-slug').fill('parking');
   await root.locator('[data-create]').click();
-  await expect(root.locator('[data-board-link]')).toHaveText('http://192.168.1.10:18094/b/parking#t=k9Qw2Lr7Vt3pXa8MbN4cHd6FeJ1sYz0uRiGo5wTqBv');
+  await expect(root.locator('[data-board-link]')).toHaveText('http://192.0.2.10:18094/b/parking#t=k9Qw2Lr7Vt3pXa8MbN4cHd6FeJ1sYz0uRiGo5wTqBv');
   await expect(root.locator('[data-link-dialog] [data-sf-qr]')).toBeVisible();
   await shot(page, 'settings-link');
 });

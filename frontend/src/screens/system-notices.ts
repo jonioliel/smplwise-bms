@@ -229,7 +229,7 @@ export class SystemNotices extends LitElement {
         <div class="fld"><label for="ns-bn">${nt('dBuilding')}</label><input id="ns-bn" class="inp" maxlength="60" .value=${st.building_name} placeholder=${s.building_fallback}
           @change=${(e: Event) => this.patchSettings({ building_name: (e.target as HTMLInputElement).value })}><span class="hint">${nt('dBuildingHint', { name: s.building_fallback || '-' })}</span></div>
       </div>
-      <div class="fld"><label for="ns-origin">${nt('dOrigin')}</label><input id="ns-origin" class="inp ltr" maxlength="220" .value=${st.boards_origin} placeholder="http://192.168.1.10:18094"
+      <div class="fld"><label for="ns-origin">${nt('dOrigin')}</label><input id="ns-origin" class="inp ltr" maxlength="220" .value=${st.boards_origin} placeholder="http://192.0.2.10:18094"
         @change=${(e: Event) => this.patchSettings({ boards_origin: (e.target as HTMLInputElement).value })}><span class="hint">${nt('dOriginHint')}</span></div>
       <label class="ck"><input type="checkbox" .checked=${st.news_custom} @change=${(e: Event) => this.patchSettings({ news_custom: (e.target as HTMLInputElement).checked })}>${nt('dCustomFeeds')}</label>
       <div class="fld"><span class="lbl">${nt('companyLogo')}</span><div class="sum">

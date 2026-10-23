@@ -342,7 +342,7 @@ def test_listener_serves_only_the_tv_page_its_assets_and_the_display_routes(clie
     www = _www(tmp_path)
     db = Database(settings.db_path)
     svc = disp.DisplayService(lambda: db.connection(mode="read"), settings.data_dir, limiter=disp.RateLimiter())
-    r = listener.route(svc, www, "GET", "/b/lobby", {}, "10.0.0.5")
+    r = listener.route(svc, www, "GET", "/b/lobby", {}, "192.0.2.5")
     assert r.status == 200 and b'<base href="../">' in r.body and r.content_type.startswith("text/html")
     assert dict(r.all_headers())["X-Robots-Tag"] == "noindex, nofollow"
     assert listener.route(svc, www, "GET", "/assets/notice-tv-1.js", {}, "c").status == 200
@@ -457,7 +457,7 @@ def test_permissions_are_labelled_and_in_the_built_in_roles():
 
     for p in ("notices.view", "notices.manage", "notices.push", "notices.boards"):
         assert p in PERMISSION_LABELS
-    assert "notices.view" in ROLES["viewer"] and "notices.view" in ROLES["kiosk"]
+    assert "notices.view" in ROLES["viewer"] and "notices.view" not in ROLES["kiosk"]  # T057: the kiosk role stays live + map only
     assert "notices.manage" in ROLES["editor"] and "notices.manage" not in ROLES["operator"]
     assert "notices.boards" in ROLES["system_admin"] and "notices.boards" not in ROLES["site_admin"]
     assert {"notices_manage", "notices_push", "notices_boards"} <= set(DEFAULT_DELEGABLE)

@@ -48,6 +48,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      address `http://<the HA host's LAN IP>:<the host port>`, press "בדוק", switch casting on and allow each screen. Needs
      bridge **0.7.0** (one platform restart). Only `smplwise_*` streams are ever relayed. See
      `docs/changes/CR-028-CAST-TO-SCREENS.md` section 12.
+   - `notice_boards` (default `false`, CR-NOTICE106) — the TV notice boards' listener on container port **18094/tcp**: a TV
+     browser opens its board's link (`/b/<slug>#t=...`) with no sign-in; it serves only the TV page, its files and the read-only
+     board feed. Off by default; to use it, turn the option on, map a host port in the add-on's Network settings, restart, and
+     enter that address in הגדרות › לוח הודעות › "כתובת הלוחות לטלוויזיות".
    - `tickets_public` (default `false`, CR-038) — the service requests' handler page: outside contacts and vendors update a
      request through a personal link, without an account. The page has its own listener on container port **18093/tcp**,
      reached only through the Cloudflare tunnel - never map that port on the host. Off by default; to use it, turn the option

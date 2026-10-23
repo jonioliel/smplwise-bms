@@ -636,5 +636,8 @@ weather (the installation's `weather.*` entity) and the news ticker (server-side
   drew it in the footer; §8.1 says header).
 - UI: `#/devices/notices` (ראשי › לוח הודעות; KPI filters, table / cards, compose dialog) and `#/system/notices` (+ `/<board id>`: tabs
   כללי / תצוגה / הודעות, the live iframe preview, link + QR shown once).
+- `tests/test_migrations_263_upgrade.py::test_the_release_numbers_are_contiguous_and_final` is red on this branch BY DESIGN while the
+  migration carries the provisional number 0160 (it goes green once the file is renumbered into the release sequence at integration).
+- Kiosk: `notices.view` is NOT added to the kiosk role (T057 locks it to live + map; §6 says a wall tablet shows notices later, not in this CR).
 - NOT built: push (slice 2; `notices.push` is catalogued), the home widget, promo slides, the template-2 building photo, the building-status
   chips (the page draws `info` when a feed carries it; the backend sends none yet), internet weather fallback, cast as a picture.
