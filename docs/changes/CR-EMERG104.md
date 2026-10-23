@@ -261,3 +261,12 @@ Standing rule of the owner: every threshold / default / window / recipient is ed
 | 9 | (a) "ready" / "not ready" and banners, no per-door lock state | As written in section 3 (E11, E12) and section 6 (banners). |
 
 Provisional migration number: **0194** (assigned by the lead for this build; renumber at integration). One file, additive: one column, two tables.
+
+## 15. Build status on `pilot/EMERGREADY104-295` (updated with each push)
+
+Built: migration 0194 (provisional), services/emergency (model, engine, service, access), router, settings switch, the permissions `emergency.view` / `emergency.manage`,
+the 20 items, configuration (slots via the closed `emergency_slot` column, thresholds, emergency cameras, not-applicable marks), the dedicated contact list, the one-year
+history, E13 = the list AND the recipients of the enabled critical notification policies, the approval files listed by reference on the ledger rows, the tab
+`#/tickets/maintenance/emergency` with the checklist, contacts and settings views, the Settings switch, printing (browser print).
+Not built: the optional home tile (q201 "can be added in Settings"); merging the approval files into one generated PDF (q208 - the print lists them as links);
+a daily digest (q7b was not chosen); recipients of the elevator/temperature/water rules are not resolved in E13 (rules that need an event are not counted).
