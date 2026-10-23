@@ -453,3 +453,12 @@ All thresholds and defaults below are `tickets.settings` keys (system.configure,
 | Documents data | One reader, `services/tickets/vendor_documents.py`: it calls CR-MAINT215's `vendor_status()` once that bundle is merged and, until then, reads the same `maint_tasks` rows itself; it answers empty while the table or `maintenance.enabled` is missing. The tests create a minimal `maint_tasks` table (`IF NOT EXISTS`, MAINT215's column names) so they hold on both sides of the merge. |
 | Settings added | `vendor_stats.{list_limit, csv_columns, strip_numbers}`, `vendor_documents.{confirm_on_assign, confirm_expiring, comparison_marks}`. No migration. |
 | Not in slice 2 | The strip in the assignee picker (`/tickets/assignees`), the documents block on the card answer, the vendor card's working-hours response time, the RFQ work-order confirmation, every screen. |
+
+## 19. Owner review 24.10 decisions
+
+Source: the owner's review of the mockups, 2026-10-24 (`private/planning/OWNER_MOCKUP_REVIEW_2026-10-24_raw.txt`, item 8). Question numbers below are those of the review form; where they differ from this document's own question list the matching section is named. Recorded as the owner's decisions; the build follows them.
+
+Mockup v2 approved with these answers:
+
+- **Comparison rows (form Q3):** the "supplier" and "documents" rows of the quote comparison go **before** the price row (the recommended option).
+- **Missed-arrival actions (form Q5):** the three actions offered when the vendor did not arrive are **enough for now**, and **adding and editing actions is to be allowed later** (the action list is to be extensible, in line with the standing rule that thresholds, recipients and defaults are editable in Settings).
