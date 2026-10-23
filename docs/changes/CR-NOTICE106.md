@@ -1,6 +1,6 @@
 # CR-NOTICE106 - building notice board: notices, audiences, push, and TV boards
 
-Status: change record + mockup **v3**, no code. Branch `pilot/NOTICE106-295` from v2.12.4 (`320e55551`). Board item r106.
+Status: change record + mockup **v4** (TV surface redesigned), no code. Branch `pilot/NOTICE106-295` from v2.12.4 (`320e55551`). Board item r106.
 
 **Owner review 2026-10-24 (v1 -> v2).** The boards list, the board page and the compose dialog are approved **as the settings /
 editing screens only**. The TV screen is a different product surface: "a comfortable advertising-style screen for the building's
@@ -24,6 +24,19 @@ medium / large (`display.font_size` = `s` / `m` / `l`, multipliers 0.72 / 0.86 /
 with more air around the blocks; (b) every template draws exactly one notice card (template 2 lost its "up next" strip, the
 portrait template its "coming next" list), with position dots only; (c) the news ticker isolates every headline (bidi-safe
 punctuation), puts a dot between items, the source after each, and fades out at both edges instead of a hard cut.
+
+**Owner review of v3, round 3 (v3 -> v4).** "Better, but not enough - it must look much, much better; think about how real
+hotel / office / residential-tower lobby signage looks, day mode and night mode." v3 was a dashboard on a TV: system fallback
+font (the mock-up never loaded Heebo), every block in a box (cards, pills, a boxed ticker), four competing accent colours,
+no welcome, no depth. v4 rebuilds `tv.html` as **lobby signage**: Heebo (the add-on's own woff2, inlined in the mock-up; weights
+200-700), one notice at a time on a quiet ground, a welcome with the building's name, the time as the largest and lightest
+element, weather and date as lines of text rather than widgets, the building's status as a whisper in the footer, both logos
+small and well placed. **Day mode** (ivory, ink, bronze) is bright and airy; **night mode** (charcoal, warm white, champagne) is
+deep, warm and lower in luminance; the switch is automatic by sunrise / sunset (or configured hours) with a manual override,
+and a late-night dim on top. Three templates that really differ (welcome classic / full-bleed image with a frosted card / minimal
+information board), each with a landscape and a portrait composition; boards for the entrance lobby, the elevator lobby
+(portrait), the parking and the gym. The "single notice" rule now also covers the urgent notice (§8.5). Settings from v3 kept
+(size s/m/l, rotation, blocks, sources). §8 rewritten; evidence in §12.
 
 Module switch `notices.enabled`, **OFF by default**. Migration `0160_notices.sql` (**provisional** number, one file; renumber
 at integration like every other branch). Mockup: `docs/design/mockups/notice-106/index.html` (owner standing style: the
@@ -268,39 +281,60 @@ the display routes (§4.1). Audit actions: `notices.create`, `.publish`, `.push`
 - Quiet hours and pacing: whatever the pipeline does for `alert` today (NOTIFWA pacing, `0144_wa_pacing`) applies unchanged;
   the notice module does not add its own.
 
-## 8. The TV display surface (v2)
+## 8. The TV display surface (v4)
 
-The TV is **not** the editing board shown large. It is a digital-signage page for the lobby / parking / gym screens: a
-comfortable information screen the building's customers glance at from 5 metres - the time and date, the weather, the building's
-status, a rotating notice, an information / promo slide, a news ticker - with the notices as one block among them and an urgent
-notice taking the screen over. Drawn with the product tokens, fonts and RTL, but with its own layout language. Mockup v3: the standalone
-`tv.html` (boards `lobby` / `parking` / `gym`, `?template=1|2|3`, all switches in its header comment); verified at 1280x720,
-1366x768, 1920x1080, 3840x2160, 1080x1920, 2160x3840, 1024x768 (4:3) and 2560x1080 (21:9).
+The TV is **not** the editing board shown large. It is lobby signage: part of the building's entrance, like the stone, the
+lighting and the concierge desk - a calm screen the building's customers glance at from 4-5 metres. The time and date, the
+weather, the building's status, one notice at a time, an occasional promo slide, an optional news line; an urgent notice becomes
+the notice on the screen (and, for its first minute, the whole screen). Its own visual language, not the app's: Heebo, generous
+whitespace, hairlines instead of boxes, one accent (bronze by day, champagne by night), restrained luxury. Mockup v4: the
+standalone `tv.html` (boards `lobby` / `elevator` / `parking` / `gym`, `?template=1|2|3`, `?theme=day|night|auto`, all switches
+in its header comment); verified at 1280x720, 1920x1080, 3840x2160, 1080x1920, 2160x3840, 1024x768 (4:3) and 2560x1080 (21:9),
+day and night, every template in both orientations.
+
+### 8.0 Day mode / night mode
+
+| | day | night |
+|---|---|---|
+| ground | ivory `#f4f1ea` with a soft daylight gradient and a faint grain | charcoal `#0b0d12` with a warm lamplight glow top-start and a cool shadow bottom-end |
+| text | ink `#16181d`, secondary `#474a52`, tertiary `#767a84` | warm white `#ebe6db`, secondary `#b9b3a7`, tertiary `#847f76` |
+| accent | bronze `#8a6a3a` (welcome line, forecast icon, position dot, ticker dots) | champagne `#d2b078` |
+| states | warn `#a8600f`, danger `#9b1e1e`, ok `#2f7a4f` | warn `#e2a24b`, danger `#e35c5c`, ok `#5cc48a` |
+| luminance | high contrast, bright | every surface and text level lower; no pure white anywhere |
+
+Switching: `display.theme` = `day` / `night` / `auto` (default **auto**). Auto uses the installation's coordinates (sunrise + 15
+min -> day, sunset - 15 min -> night; NOAA approximation, computed locally, no network) or configured hours
+(`display.day_hours`, e.g. `07:00-19:00`) when the manager sets them; a manual choice overrides. The page re-evaluates every
+clock tick and re-renders once on a change (the product debounces to one switch per 10 minutes so dusk never flickers). On top
+of night mode, `display.night` (23:00-06:00, dim 0.5 by default) lowers brightness further for the small hours. `light` / `dark`
+are accepted as aliases for compatibility with the v3 preview links.
 
 ### 8.1 Blocks
 
 | block | content | source | default |
 |---|---|---|---|
-| **clock + date** | the time in the largest type on the screen (184 px on the 1920 canvas, 17 % of the screen height; 170 px portrait), the weekday and date, the Hebrew date with the Shabbat candle-lighting time | the add-on clock (installation zone); Hebrew date and candle lighting computed locally (`hdate`-style algorithm, no network) | on; Hebrew date on |
-| **weather** | current temperature, condition and icon; the next N hours (3 / 5 / 8) with icon and temperature; the source line | the installation's **Home Assistant weather entity first** (`weather.*` chosen in Settings, `forecast` hourly attribute via `weather.get_forecasts`); internet fallback optional (Q11) | on when a weather entity exists |
-| **building status** | small chips with an icon, a name and a state dot: elevators (ELEVATORS280 state), generator (GEN1 ready / running), free parking (PARK count), gym open; **never** details, names or counts of people | the existing modules' public-safe state; each chip is opt-in per board and disappears when its module is off | on where the module exists; chips chosen per board |
-| **notices** | one notice card at a time (landscape) or the stack (portrait); severity on the card's inline-start edge (normal = accent, important = warning + badge, urgent = the takeover band) | §3 active notices tagged to the board | always on (it is the product) |
-| **urgent takeover** | two forms: the **full-screen takeover** (white on deep red, title 124 px, body 62 px; the clock and both logos stay) for the first 60 s after publication and then one rotation slot per round; between those, the **band** under the header (title 64 px, first line, the "until" chip), never rotated out; while the band is on, the promo strip yields its row (landscape and portrait) and the side column drops the hourly forecast | critical notices | automatic |
-| **promo / info slides** | a strip with a title, a line and an optional picture; rotates every 15 s with its own dots | slides the manager adds per board (text + optional JPEG/PNG up to 1 MB, re-encoded to 800 px like the bill logo; stored in a `notice_board_slides` table) | off until a slide exists |
-| **news ticker** | a single scrolling line of headlines with the source name after each | RSS feeds chosen in the board settings from a curated list or a custom URL, fetched **server-side** by the add-on every 15 min, titles only, HTML stripped, 2 KB per item cap, no images, no links; **off by default** (Q12) | off |
-| **logos** | company logo at the inline start of the header, SmplWise logo at the inline end (opposite sides, owner 2026-10-24), 88 / 76 px high on the 1920 canvas (4.6 % / 4 % of the long side); the dark theme uses each logo's dark variant; a logo without a dark variant sits on a white plate with its light variant (CR-LOGOS295 plate rule; v2 put the dark variant on the plate - fixed); on the red takeover the company logo always sits on a white plate | CR-LOGOS295 | both on; the company logo can be hidden per board, the SmplWise logo cannot |
-| **status footer** | "updated 09:12" with a green dot; the stale chip; in landscape also the building chips; building name | the page itself | always |
+| **clock + date** | the time in the largest and lightest type on the screen (Heebo 200, 232 px on the 1920 canvas at size "l", 248 px portrait, tabular figures, a dimmed colon), the weekday and date under it, the Hebrew date with the Shabbat candle-lighting time in the tertiary colour | the add-on clock (installation zone); Hebrew date and candle lighting computed locally (`hdate`-style algorithm, no network) | on; Hebrew date on |
+| **welcome** | "ברוכים הבאים" in the accent, the building's name large (88 px, Heebo 500) under it; templates 1 and 2 (template 3 shows the name small with the board's place) | the installation's building name | on; the greeting line can be hidden (`blocks.welcome`) |
+| **weather** | a line of text, not a box: icon, temperature (Heebo 300), condition; the next N hours (3 / 5 / 8) as a small row of time / icon / degrees | the installation's **Home Assistant weather entity first** (`weather.*` chosen in Settings, `forecast` hourly attribute via `weather.get_forecasts`); internet fallback optional (Q11) | on when a weather entity exists |
+| **building status** | a quiet line of text in the footer - a state dot, the name, the state - no pills, no icons: elevators (ELEVATORS280 state), generator (GEN1 ready / running), free parking (PARK count), gym open; **never** details, names or counts of people | the existing modules' public-safe state; each chip is opt-in per board and disappears when its module is off | on where the module exists; chips chosen per board |
+| **notices** | exactly one notice on the screen, in every template and orientation, cross-fading; no card frame in templates 1 and 3 (the notice sits on the ground), the frosted card in template 2; a meta line (severity word in its colour, a dot, the window) above the title for important / urgent notices, the window under the body for ordinary ones; an urgent notice adds a short red rule above its meta line | §3 active notices tagged to the board | always on (it is the product) |
+| **urgent** | default `stage`: the urgent notice **is the notice on the screen** - first in the rotation, double dwell, no second notice beside it (the single-notice rule, §8.5); `full`: the first-minute **takeover** (oxblood ground, a short red rule and the words "הודעה דחופה" letter-spaced, title 124 px Heebo 500, body 56 px, the "until" line, the clock and both logos stay; dignified, unmistakable); `band` keeps v3's strip under the header for comparison only | critical notices | automatic: takeover for the first 60 s, then `stage` |
+| **promo / info slides** | a slide in the same rotation as the notices (after them): the picture beside the title and the line on the wide stage, stacked in portrait and in the card; a placeholder tint until the manager uploads a picture | slides the manager adds per board (text + optional JPEG/PNG up to 1 MB, re-encoded to 800 px like the bill logo; stored in a `notice_board_slides` table) | off until a slide exists |
+| **news ticker** | a single line above the footer under a hairline: a small letter-spaced "חדשות" label, the headlines scrolling with the source name after each in the tertiary colour, an accent dot between items, both edges faded | RSS feeds chosen in the board settings from a curated list or a custom URL, fetched **server-side** by the add-on every 15 min, titles only, HTML stripped, 2 KB per item cap, no images, no links; **off by default** (Q12) | off |
+| **logos** | company logo at the inline start of the header (72 px high on the 1920 canvas, 64 portrait); the SmplWise wordmark small at the inline end of the **footer** (40 px) in templates 1 and 3, in the header in template 2 - opposite corners, the operator's brand quiet, as on hotel signage; night mode uses each logo's dark variant; a logo without a dark variant sits on an ivory plate with its light variant (CR-LOGOS295 plate rule); on the takeover the company logo always sits on the plate | CR-LOGOS295 | both on; the company logo can be hidden per board, the SmplWise logo cannot |
+| **status footer** | the building-status line at the inline start; "עודכן 09:12 · the board's name" with a small green dot and the SmplWise mark at the inline end; the stale text in the warn colour; offline replaces the status line with "הלוח מנותק מהמערכת · מוצגות ההודעות האחרונות" | the page itself | always |
 
 ### 8.2 Templates (per board, with a live preview thumbnail in the "display" tab)
 
-| template | layout | for |
-|---|---|---|
-| 1 **מידע והודעות** (info + notices) | header / urgent band / body: side column (clock, date, weather) + stage (notice card, promo strip) / ticker / footer with chips | lobby, entrance |
-| 2 **הודעות בלבד** (notices only) | header with the clock / urgent band / one large notice card (one notice at a time, rotating) / ticker (optional) / footer with chips | parking, service corridors, screens without weather |
-| 3 **לובי אנכי** (portrait lobby) | header / urgent band / clock + weather row / chips row / one large notice card (one notice at a time, rotating; no list of the others) / promo / ticker / footer | portrait screens next to elevators |
+| template | landscape (1920x1080) | portrait (1080x1920) | for |
+|---|---|---|---|
+| 1 **ברוכים הבאים** (welcome classic) | header (company logo) / body: the welcome column at the inline start - "ברוכים הבאים", the building's name, the clock, date, Hebrew date, weather line + hours - a vertical hairline, the stage (one notice) at the inline end / ticker / footer (status line, updated, SmplWise) | welcome and name / the clock large / date / weather and hours on one row / a hairline / the stage / ticker / footer with the status on two lines | entrance lobby, reception |
+| 2 **תמונה** (full-bleed image, overlay card) | the building's own photo on the whole screen (`display.photo`; a placeholder sky / dusk scene until one is uploaded) with a soft veil and grain; both logos in the header; welcome, clock, date and weather on the photo at the inline start; a frosted-glass card (blur 28 px) at the inline end with the notice and the status line | welcome and clock at the top on the photo, the card low on the screen | gym, lounge, pool, any space with a photo worth showing |
+| 3 **לוח מידע** (minimal information board) | typographic, hairlines only: a top row with the building's name + the board's place and the clock + date / a hairline / the notice in editorial type (104 px title, Heebo 400) / a hairline / the status line and a one-line weather | the clock very large and light (220 px) with the date and the name under it / a hairline / the notice / a hairline / status, weather and hours | elevator lobbies (portrait, glanceable from the elevator doors), parking (no weather), service corridors |
 
-A board on a portrait screen with template 1 or 2 falls back to the portrait stacking (template 3 layout) automatically;
-`layout` can pin it; template 3 on a landscape screen is pillar-boxed (black bars), never stretched. The preview in Settings is the
+Every template has both compositions; `layout` = `auto` follows the screen, `portrait` / `landscape` pins it, and a forced
+mismatch (a portrait board on a landscape TV) is pillar-boxed, never stretched. Per-place defaults in the mock-up: lobby = 1,
+elevator = 3 portrait, parking = 3 without weather and news, gym = 2. The preview in Settings is the
 **same page in an iframe** (`/b/{slug}` with the board's draft `display_json` and `embed=1`; in the mock-up `tv.html?...&embed=1`)
 in a 16:9 or 9:16 frame, so the manager sees exactly what the TV draws, in the board's theme; "full screen" opens the same URL.
 
@@ -336,12 +370,15 @@ so the page asks for the right variant (`?variant=dark`).
 |---|---|---|
 | `template` | 1 / 2 / 3 (§8.2) | 1 |
 | `lang` | `he` / `en` (UI strings; notices as written) | `he` |
-| `theme` | `light` / `dark` / `auto` (auto = dark 19:00-07:00) | `dark` |
+| `theme` | `day` / `night` / `auto` (auto = by sunrise / sunset at the installation's coordinates, or `day_hours`); `light` / `dark` accepted as aliases | `auto` |
+| `day_hours` | `HH:MM-HH:MM` or empty (empty = the sun) | empty |
+| `photo` | the building's picture for template 2 (JPEG/PNG up to 2 MB, re-encoded to 1920 px; the bill-logo pipeline) | none (placeholder scene) |
+| `urgent` | `stage` / `full` / `band` (§8.1 urgent) | `stage` (the takeover is automatic for the first minute) |
 | `layout` | `auto` / `landscape` / `portrait` | `auto` |
 | `rotate_s` | 6..60 (notices) | 12 |
 | `font_size` | `s` / `m` / `l` - Settings "גודל הכתב": קטן / בינוני / גדול (multipliers 0.72 / 0.86 / 1.0) | **`s`** (owner 2026-10-24) |
 | `font_scale` | 0.85..1.2, a fine adjustment on top of `font_size` (not shown in the UI) | 1.0 |
-| `blocks.clock`, `blocks.hebdate` | bool | true, true |
+| `blocks.clock`, `blocks.hebdate`, `blocks.welcome` | bool | true, true, true |
 | `blocks.weather`, `weather.source`, `weather.hours` | bool; `ha` / `internet`; 3 / 5 / 8 | true when an entity exists; `ha`; 5 |
 | `blocks.info` | list of chip kinds from `elevators`, `generator`, `parking`, `gym` | the kinds whose module is on |
 | `blocks.promo` | bool (+ the slides table) | true when a slide exists |
@@ -361,37 +398,48 @@ Installation-wide in Settings > לוח הודעות > ברירות מחדל: the
   3840x2160 = x2, so every TV shows the same composition and 4K is sharp, not small. One axis is exactly the base and the other
   follows the screen's real ratio (a 4:3 or 21:9 screen gets a taller / wider canvas instead of black bars); only a forced
   orientation mismatch (template 3 on a landscape TV) is boxed. No scrolling, nothing outside the canvas, the cursor hidden.
-- **Type for 4 m** (1920 canvas px; a 55" TV is ~40 px per inch). The scale below is the **large** size; the default **small**
-  size is 0.72 of it (medium 0.86): clock 184 (small 132), notice title 84 (60; 96 / 69 in template 2; portrait 84 / 60), notice
-  body 50 (36), urgent band title 64 (46), takeover title 124 (89), weather 104 (75), ticker 42 (30), building chips 30 (22);
-  icons follow the same multiplier. Secondary lines (the footer status) are for people standing close. Safe margins 64 / 36 px
-  (3.3 %); high contrast (white on #b71c1c is >= 6:1; the v2 band was white on #ff6b62, ~2.6:1). `font_scale` multiplies the text.
-- **Fit, not clip.** A notice title is up to 2 lines, the body 3 lines (portrait featured card 5); when a long notice still does
-  not fit its card, the card's type steps down to at most 62 % (`--k`) before the clamp cuts; the side column drops, in order,
-  the hourly forecast, the Hebrew date, the condition line and finally the weather card when the screen is short. Numeric ranges
+- **Type** - Heebo throughout (the add-on's own woff2; the TV build target serves them like the app; the weight axis 200-900
+  is used: 200 for the clock, 300 for bodies and temperatures, 400-500 for titles, 500-600 for the few emphasised words; nothing
+  heavier - weight 800 was part of what made v3 look cheap). 1920-canvas px at size **l**; size **s** (default) is x0.78, **m**
+  x0.9: clock 232 (s 181; portrait 248 / 193; template 3 top row 96 / 75), building name 88 (69), notice title 80 (62; template 2
+  68 / 53; template 3 104 / 81; portrait 78-92), body 46 (36; template 3 50 / 39), meta and date 32-40 (25-31), ticker 34 (27),
+  status line 28 (22), takeover title 124 (97). The 4 m rule: everything meant to be read from the lobby floor is >= 30 px at
+  size s (~0.75 cm x-height on a 55"); the footer status (22-25 px) is for people standing close. Safe margins 88 / 64 px
+  (landscape), 64 / 56 (portrait). Contrast: ink on ivory 15:1, warm white on charcoal 14:1, the tertiary colour >= 4.5:1 on
+  both grounds, the severity words >= 4.5:1. `font_scale` multiplies the text as before.
+- **Fit, not clip.** A title wraps freely (balanced); the body is clamped at 4 lines (5 in the card, 6 portrait) and the whole
+  notice steps its type down to at most 60 % (`--k`) before the clamp cuts; the welcome column drops, in order, the hourly
+  forecast, the Hebrew date and the condition text when the column is short (size l, the band, a 4:3 screen); the status line is
+  one row and hides on offline (the offline sentence takes its place); in the card it may take two rows. Numeric ranges
   ("10:00–12:00", "02.11 – 05.11") are wrapped in a left-to-right isolate so the bidi algorithm does not reverse them.
-- **Implementation note:** never combine `text-wrap: balance` with `-webkit-line-clamp` on one element - it hung Chromium's
-  layout during the v3 work (the page never finished loading); titles use balance + the fit step instead of a clamp.
-- **Urgent** (critical): the takeover band under the header, never rotated out, up to two stacked; in landscape the promo strip
-  hides while the band is on so the notice card keeps its body; everything else keeps running (a sign that shows only the
-  alarm loses the people who came for the time).
-- **Rotation**: exactly one notice is on the screen at a time, in every template and orientation (owner 2026-10-24); dots show the
-  position; a long body doubles its time; a single notice does not rotate. Order: pinned, severity, `starts_at` desc. No "up next"
-  strip, no list or stack of the other notices.
-- Promo slides rotate on their own 15 s clock; the ticker scrolls at the chosen speed, right-to-left reading order (the start of
-  a headline enters from the left edge first), ~130 canvas px/s at `normal`; each headline is a bidi-isolated run (punctuation
-  stays with its sentence), a dot separates items, and both edges fade over 90 px so no word is cut hard against the label.
+- **Implementation notes:** never combine `text-wrap: balance` with `-webkit-line-clamp` on one element (it hung Chromium's layout
+  in v3). Hidden stage items are translated **up**, not down, for their entrance, and inline SVG icons are `display: block`:
+  both otherwise extend the scrollable overflow of their containers. Chromium counts a tight-leaded text's font content-area
+  (Heebo ~1.3 em) as layout overflow; the "nothing clipped" check therefore compares real element boxes, not `scrollHeight`.
+- **The single-notice rule** (owner 2026-10-24, extended in v4): the screen never shows two notices. An urgent notice is therefore
+  **the** notice on the screen - first in the rotation, double dwell, with its red rule and "הודעה דחופה" meta line - instead of a
+  band above another notice; for its first 60 s after publication it is the full-screen takeover (`urgent=full`), then it rejoins
+  the rotation as the first item. The v3 band is kept as `urgent=band` only so the owner can compare; it is not the default.
+  Everything else keeps running (a sign that shows only the alarm loses the people who came for the time).
+- **Rotation**: one item at a time - the notices (pinned, severity, `starts_at` desc) and then the promo slides, in one playlist;
+  dots show the position; a long body and the urgent notice take two ticks; a single item does not rotate; the entrance is a 1 s
+  fade with a 14 px settle (reduced motion: a plain 0.3 s fade).
+- The ticker scrolls at the chosen speed, right-to-left reading order (the start of a headline enters from the left edge first),
+  ~120 canvas px/s at `normal`; each headline is a bidi-isolated run (punctuation stays with its sentence), an accent dot separates
+  items, and both edges fade over 80 px so no word is cut hard against the label.
 - Polling every 30 s with `If-None-Match`; a changed version re-renders without flashing (the stage keeps its current item if
   it still exists). No SSE / WebSocket (CR-030's reasoning); polling with a stale indicator is the honest answer for a sign.
 - **Stale**: after 3 missed polls (90 s) the amber "לא מעודכן מ-09:04" chip appears in the footer and the live dot turns
   amber; after 10 minutes the body dims to 0.7 and a grey band says the board is offline; the last good content stays. The
   clock keeps running from the TV's own clock. A 404 (board deleted, token rotated, module off) shows "הלוח אינו פעיל" and
   stops polling.
-- **Empty**: "אין הודעות כרגע" with the clock large inside the stage; the other blocks stay.
-- **Night**: the whole page dims to `night.dim`; a critical notice published during the night wakes it for its validity.
-- **Burn-in**: the whole canvas drifts by up to 6 canvas px on a 60 s cycle (7 positions, 3 s glide; the CR-030 rule, scaled); the only other motion is the ticker, the 0.8 s card fades and the slide
-  fades; flat token backgrounds, no fixed high-contrast edges; the footer and header swap the clock side every hour in template 2.
-- Light + dark + auto from the product token table; dark is the default for a TV (as CR-030 chose for walls).
+- **Empty**: "אין הודעות כרגע · the building's name · יום נעים" in light type where the notice would be; the other blocks stay.
+- **Day / night** (§8.0): automatic by the sun or configured hours, manual override; **late night** dims the whole canvas to
+  `night.dim` (brightness .58 and a touch less saturation in the mock-up); a critical notice published during the night wakes it
+  for its validity.
+- **Burn-in (OLED-safe)**: the whole canvas drifts by up to 6 canvas px on a 60 s cycle (7 positions, 3 s glide; the CR-030 rule,
+  scaled); the only other motion is the ticker and the 1 s item fades; soft gradients and a faint grain, no fixed high-contrast
+  edges, no filled blocks, no white; the ambient gradient is replaced by the building's photo in template 2.
 - Privacy on a public screen: building chips are states only; weather is a place, not a person; the news ticker shows titles
   the add-on fetched, never a third-party script in the page (the CSP of §4.1 stays `self` only).
 
@@ -462,9 +510,19 @@ templates 1-3, urgent on / off, stale / offline / gone / empty / night, with and
 Mockup v2 evidence: `private/review/notice-106-v2/` (29 screenshots). Mockup v3 evidence: `private/review/notice-106-v3/` (42
 screenshots, after the second owner round: the TV at 1280x720, 1366x768, 1920x1080, 3840x2160, 1080x1920, 2160x3840, 1024x768, 2560x1080; templates 1-3; urgent
 band / full takeover / none; stale / offline / gone / empty / night; light + dark; text size small (default) / medium / large; the editing screens with the iframe
-preview). `shots.mjs` fails on page errors, console errors or warnings, document scroll, anything outside the canvas and clipped
-notice text; `errors.txt` = clean; `report.txt` = canvas size and fit factor per shot. Playwright TV tests in slice 3 take the same
-resolutions and checks.
+preview). Mockup **v4** evidence: `private/review/notice-106-v4/` (44 screenshots: template 1 lobby day + night at 1280x720,
+1920x1080, 3840x2160 and portrait 1080x1920, promo slide, no urgent, no company logo / no news, sizes m and l; template 2 gym day +
+night at 1280x720, 1920x1080, 3840x2160 and portrait both modes, the lobby on template 2; template 3 elevator portrait day + night
+at 1080x1920 and 2160x3840, parking day + night, parking 1280x720, the lobby on template 3 with the ticker; urgent as the notice,
+the takeover day + night + portrait, the v3 band; stale / offline / gone / empty / late-night dim; auto theme at 21:00 (night) and
+07:30 with configured hours (day); 1024x768, 2560x1080, a portrait board on a landscape screen (boxed), the control strip; the
+display tab with the preview iframe for templates 1-3 and day). `shots.mjs` fails on page errors, console errors or warnings,
+document scroll, anything outside the canvas, a visible box leaving its container (the clip check) and a missing Heebo;
+`errors.txt` = clean; `report.txt` = canvas size, theme and fit factor per shot. Every screenshot was viewed; the rounds fixed:
+the portrait template 1 stage getting a 1 px grid row, the welcome column overflowing at sizes m / l (the drop order), the
+template 2 card sized by its hidden promo slide, the fourth status chip wrapping out of sight in the card and behind the offline
+line, the template 2 logos forced white on a bright day sky, a promo picture placeholder that read cheap. Playwright TV tests in
+slice 3 take the same resolutions and checks.
 Risk tier M (one module, one migration, one public surface); the public surface gets the security review of the tickets public
 listener as its checklist.
 
@@ -472,10 +530,11 @@ listener as its checklist.
 
 1. **Core** - migration, model, in-app API, permissions, module switch, page + compose + widget, tests. No push, no boards.
 2. **Push** - the source, the recipient rule, visibility, resolve on archive, the push checkbox.
-3. **TV boards** - boards API, display routes, the TV page (build target like `public-ticket.html`) with templates 1-3, the
-   clock / Hebrew date / notices / urgent / logos blocks, the board page with the display tab and the live preview, QR.
-4. **TV data blocks** - weather from the HA entity, building chips, promo slides (table + upload), the news ticker with the
-   server-side RSS fetcher and the curated list; each block behind its own setting.
+3. **TV boards** - boards API, display routes, the TV page (build target like `public-ticket.html`, Heebo served like the app)
+   with templates 1-3 in both orientations, day / night / auto (sun by the installation's coordinates), the clock / Hebrew date /
+   welcome / notices / urgent / logos blocks, the burn-in drift, the board page with the display tab and the live preview, QR.
+4. **TV data blocks** - weather from the HA entity, building chips, promo slides (table + upload), the building photo for
+   template 2, the news ticker with the server-side RSS fetcher and the curated list; each block behind its own setting.
 5. **Cast as picture** (option B of §4.2) - only on the owner's word.
 6. Later: residents / units model, attachments, English second body, a wall-display widget, internet weather fallback (Q11).
 
