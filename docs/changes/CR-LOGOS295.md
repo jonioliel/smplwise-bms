@@ -428,3 +428,41 @@ Slice 1 ships with the placeholder if the owner's file is late; the swap is the 
 | 7 | all values editable in Settings; control screens never scroll | tabbed card + permanent preview column, measured: no page or inner scroll at 1366 x 768 and 1024 x 768, and none on the phone settings tabs at 390 x 844 |
 Tests added to section 11 for the build: title composition (all three modes, empty names), scale applied to each placement, dark mode
 x dark file matrix (`file` without a file falls back to the plate), the sign-in card shows both logos with and without a company logo.
+
+## 16. Build record - branch `pilot/LOGOS295B` (mockup v3.1 approved by the owner 2026-10-24)
+Built on `pilot/LOGOS-295` (main v2.12.4 base); nothing merged, nothing tagged. Provisional migration `0165_brand_assets.sql` (main ends
+0151, release/2150 takes 0152+): the integrator renumbers it.
+
+**Built.**
+- Backend: `services/svg_sanitize.py` (allowlist + rebuild; script / foreignObject / image / animation / event attributes / external or non-local
+  `url()` / `@import` / DOCTYPE-ENTITY refuse the file), `services/brand_assets.py` (content-based validation, PNG re-encode, stamp = sha256[:16],
+  settings validation), `routers/brand.py` (`GET /brand/public` no session, `GET /brand`, `PUT /brand`, `POST|DELETE /brand/company-logo/{variant}`,
+  stamped immutable public image route with ETag / 304 and a sandboxing CSP for SVG, no-store preview route), `/me.brand`, body limit 2 MB,
+  project backup (`brand_assets` joins `PROJECT_TABLES`), audit `brand.company.update` / `.logo.upload` / `.logo.remove`.
+- Frontend: `components/sw-brand.ts` (one logo component: light file / dark file / light plate / chosen invert, size scale, live preview props),
+  `design/brand-logo.ts` (state + cache + tab-title composition), shell: SmplWise mark in the rail instead of the "S" tile, the logo strip
+  (company at the inline start, SmplWise logo at the far left past the search; the pill steps in by the logo's width), phone home head,
+  sign-in card with both logos, wall header (company logo; the CSS invert of the mark is gone), Settings card `system-brand-logos`
+  (tabs: logos / size and dark background (landing) / names and title; permanent preview column, a fourth tab on a narrow screen).
+- Hebrew copy in `i18n/he.ts` (`brandLogos.*`).
+
+**Deviations from sections 4-6 (and why).**
+1. The image is stored as base64 TEXT in `brand_assets.data_b64`, not a BLOB: `backup.py` writes every table as JSON, so a BLOB would need a
+   new serialiser; text travels as is and a restore keeps stamp and image together.
+2. No `defusedxml` (not in `requirements.txt`; a new dependency means a new add-on image). The sanitiser refuses every DOCTYPE / ENTITY /
+   processing instruction before the stdlib parser sees the file, and limits size (512 KB), depth (32) and elements (5 000).
+3. `<style>` elements are allowed when plain (Illustrator / Inkscape exports keep their fills there); `@import`, any `url()` that is not
+   `#local`, escapes and markup inside refuse the file.
+4. A dark file on a LIGHT surface with no light file is drawn on a dark plate (a case the CR did not cover).
+5. The company name is not required to store a logo (the upload would otherwise force an order on the administrator); the `alt` falls back
+   to "לוגו החברה".
+6. The upload route has no per-hour budget yet (the tickets logo budget is a separate limiter).
+
+**Not built here (slice 1 pipeline and slice 3 surfaces).** `frontend/brand/` + `brand-assets.mjs` (the SmplWise asset pipeline; the existing
+`smplwise-logo.png` / `smplwise-mark.png` are used as they are until the owner's file arrives), PDF headers / footers, e-mail header, the public
+tickets pages' "מופעל על ידי" footer and the "copy to the service pages" button, PWA icons from the master. The notice-board TV (CR-NOTICE106)
+is a separate branch: it consumes `<sw-brand kind="company|product" scheme="dark">` and `brand_assets.read()` (the one reader; the display
+route `/notices/display/{slug}/logo/{kind}` calls it) - no notice-board code exists on this base.
+
+**Known consequence.** The strip and the rail mark change the shell's pixels: every `toHaveScreenshot` baseline that shows the shell
+(`evidence-design-foundation`, `pixel-*`, `visual-matrix`) needs regenerating at integration.

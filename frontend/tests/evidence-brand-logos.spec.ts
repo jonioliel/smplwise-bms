@@ -146,10 +146,10 @@ test.describe('LOGOS-295 settings card', () => {
     await expect(card(page).locator('[data-logo-size-px]')).toContainText('54px');
     await expect(card(page).locator('[data-logo-save]')).not.toHaveAttribute('disabled', '');
     // a draft: the shell strip has not changed yet
-    expect(await page.evaluate(() => document.querySelector('sw-app')!.style.getPropertyValue('--sw-brandstrip-h'))).toBe('48px');
+    if (info.project.name !== 'mobile') expect(await page.evaluate(() => document.querySelector('sw-app')!.style.getPropertyValue('--sw-brandstrip-h'))).toBe('50px'); // max(48, 36 + 14); the phone has no strip
     await card(page).locator('[data-logo-save]').click();
     await expect(card(page).locator('[data-logo-message]')).toBeVisible();
-    await expect.poll(() => page.evaluate(() => document.querySelector('sw-app')!.style.getPropertyValue('--sw-brandstrip-h'))).toBe('68px'); // 36 x 1.5 + 14
+    if (info.project.name !== 'mobile') await expect.poll(() => page.evaluate(() => document.querySelector('sw-app')!.style.getPropertyValue('--sw-brandstrip-h'))).toBe('68px'); // 36 x 1.5 + 14
     // names and the title
     await card(page).locator('[data-logo-tab="title"]').click();
     await card(page).locator('[data-brand-name]').fill('חברת ניהול');
@@ -186,7 +186,7 @@ test.describe('LOGOS-295 settings card', () => {
     await expect(card(page).locator('[data-logo-replace="light"]')).toBeVisible();
     await expect(card(page).locator('[data-logo-remove="light"]')).toBeVisible();
     // the shell strip shows it at once
-    await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] img')).toBeVisible();
+    if (info.project.name !== 'mobile') await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] img')).toBeVisible();
   });
 
   test('"file" without a dark file warns and offers the upload tab', async ({ page }, info) => {
