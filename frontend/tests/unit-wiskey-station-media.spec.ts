@@ -208,7 +208,7 @@ test.describe('push-to-talk session', () => {
   });
 
   test('the server ends a session: expiry, a lost permission, a closed channel', async () => {
-    for (const [how, problem] of [[4408, 'expired'], [4403, 'access_lost'], [4503, 'upstream'], [1006, 'network']] as const) {
+    for (const [how, problem] of [[4408, 'expired'], [4403, 'access_lost'], [4503, 'upstream'], [4423, 'busy'], [1006, 'network']] as const) {
       const { session, log } = rig();
       void session.press();
       await flush();
@@ -262,6 +262,8 @@ test.describe('push-to-talk session', () => {
     expect(startProblem(new Error('x'))).toBe('failed');
     expect(outcomeOfClose(4408)).toBe('expired');
     expect(outcomeOfClose(1000)).toBe('ended');
+    expect(outcomeOfClose(4423)).toBe('busy');
+    expect(problemOfOutcome('busy')).toBe('busy'); // shown as "העמדה בדיבור עם מפעיל אחר" (i18n problems.busy)
     expect(problemOfOutcome('stopped')).toBeNull();
     expect(problemOfOutcome('never_connected')).toBe('failed');
   });

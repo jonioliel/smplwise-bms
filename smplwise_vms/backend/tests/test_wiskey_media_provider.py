@@ -20,6 +20,7 @@ from typing import Any
 import pytest
 from conftest import as_user, bind
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 from test_intercom import camera_feed, fake_go2rtc, feed  # noqa: F401 - fixtures
 
 from smplwise.errors import ApiError
@@ -601,14 +602,17 @@ def test_a_talk_on_wiskey_end_to_end_through_the_s18_socket(feed, fake_go2rtc, p
     assert "wk-talk" not in json.dumps(end) and "data" not in details, "never WisKey's handle, never audio"
 
 
-def test_a_busy_station_on_wiskey_ends_the_session_honestly(feed, fake_go2rtc, provider, wk):  # noqa: F811
+def test_a_busy_station_on_wiskey_reaches_the_browser_as_busy(feed, fake_go2rtc, provider, wk):  # noqa: F811
     c, s = camera_feed(feed)
     mode(c, "video_talk")
     wk.errors[w10.TALK_OPEN] = "audio_busy"
     t = c.post(TALK.format("entry-a")).json()
-    with c.websocket_connect(f"/{t['ws_path']}") as ws:
-        assert json.loads(ws.receive_text()) == {"type": "talk/closed", "value": "upstream_unavailable"}
-    assert json.loads(audit_rows(s, "intercom.talk.end")[-1]["details_json"])["outcome"] == "upstream_unavailable"
+    with pytest.raises(WebSocketDisconnect) as gone:
+        with c.websocket_connect(f"/{t['ws_path']}") as ws:
+            assert json.loads(ws.receive_text()) == {"type": "talk/closed", "value": "busy"}
+            ws.receive_text()
+    assert gone.value.code == 4423
+    assert json.loads(audit_rows(s, "intercom.talk.end")[-1]["details_json"])["outcome"] == "busy"
     assert not wk.sent(w10.TALK_CLOSE), "nothing was opened, so nothing is closed"
     assert c.get(MEDIA.format("entry-a")).json()["talk"]["busy"] is False, "the Arx slot is released"
 
