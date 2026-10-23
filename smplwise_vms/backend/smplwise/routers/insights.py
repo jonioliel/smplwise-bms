@@ -154,29 +154,7 @@ def waste(request: Request, range: str = Query("7d", max_length=8), start: str |
 
 # ---------------------------------------------------------------- the monthly building report
 
-SECTION_PERMISSION = {"energy": "energy.view", "elevators": "devices.read", "temperature": "devices.read", "generator": "generator.view",
-                      "cameras": "events.read", "doors": ic.READ, "waste": ic.READ}
-SECTION_SWITCH = {"doors": ic.SW_DOORS, "waste": ic.SW_WASTE}
-
-
-def section_gate(conn: sqlite3.Connection, principal: Principal) -> Any:
-    anywhere = set(permissions_anywhere(conn, principal))
-
-    def allowed(section: str) -> str | None:
-        if section == "tickets":
-            from ..services.tickets import access as ta
-
-            if not ta.module_on(conn):
-                return "module_off"
-            return None if ta.VIEW in anywhere else "not_permitted"
-        if section in SECTION_SWITCH and not ic.switch_on(conn, SECTION_SWITCH[section]):
-            return "switch_off"
-        perm = SECTION_PERMISSION.get(section)
-        if perm is None or not authorize(conn, principal, perm, INSTALLATION).allowed:
-            return "not_permitted"
-        return None
-
-    return allowed
+from ..services.insights_access import build_args  # noqa: E402 - the section gate (shared with the scheduled delivery)
 
 
 def _sections(raw: str | None, conn: sqlite3.Connection) -> list[str]:
@@ -195,7 +173,7 @@ def _model(request: Request, conn: sqlite3.Connection, principal: Principal, mon
     _off(conn, ic.SW_REPORT)
     require(conn, principal, ic.REPORT, INSTALLATION)
     try:
-        return rep.build(conn, principal, _sections(sections, conn), month, lang, now_ts(), allowed=section_gate(conn, principal), store=_store(request))
+        return rep.build(conn, principal, _sections(sections, conn), month, lang, now_ts(), store=_store(request), **build_args(conn, principal))
     except rep.MonthError:
         raise ApiError(422, "validation", ic.MESSAGES["validation"]["he"], details={"fields": ["month"], "message_en": ic.MESSAGES["validation"]["en"]}) from None
 
@@ -228,3 +206,49 @@ def building_pdf(request: Request, month: str | None = Query(None, max_length=7)
           details={"sections": model["sections"], "omitted": [o["section"] for o in model["omitted"]], "digest": model["digest"][:16], "lang": model["lang"]})
     return Response(content=content, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{rep.filename(model)}"', "Cache-Control": "private, no-store", "X-Report-Digest": model["digest"]})
+
+
+# ---------------------------------------------------------------- the scheduled monthly delivery (slice 3)
+
+class DeliveryIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    config: dict[str, Any] | None = None
+    enabled: bool | None = None
+
+
+def _delivery_out(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
+    from ..services import insights_delivery as dl
+
+    return {**dl.view(conn), "can_enable": authorize(conn, principal, ic.CONFIGURE, INSTALLATION).allowed}
+
+
+@router.get("/reports/building/delivery")
+def get_delivery(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The scheduled monthly delivery: its setup, whether it is enabled, what is missing and the last month's outcome (insights.manage)."""
+    _off(conn, ic.SW_REPORT)
+    require(conn, principal, ic.MANAGE, INSTALLATION)
+    return _delivery_out(conn, principal)
+
+
+@router.put("/reports/building/delivery")
+def put_delivery(body: DeliveryIn, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Save the setup (insights.manage) and / or turn the delivery on or off. Turning it ON also needs system.configure and a complete setup (422
+    `setup_incomplete` naming what is missing); turning it off needs only insights.manage. Audited; no address or number is in the audit row."""
+    from ..services import insights_delivery as dl
+
+    _off(conn, ic.SW_REPORT)
+    require(conn, principal, ic.MANAGE, INSTALLATION)
+    if body.enabled is True:
+        require(conn, principal, ic.CONFIGURE, INSTALLATION)
+    try:
+        edit = dl.validate(body.config or {}, conn)
+        before = dl.load(conn)
+        cfg = dl.save(conn, edit, body.enabled, principal.user_id, now_ts())
+    except dl.Invalid as e:
+        if e.code == "setup_incomplete":
+            raise ApiError(422, "setup_incomplete", "ההגדרה לא הושלמה.", details={"fields": e.fields, "message_en": "The setup is not complete."}) from None
+        raise ApiError(422, "validation", ic.MESSAGES["validation"]["he"], details={"fields": e.fields[:40], "message_en": ic.MESSAGES["validation"]["en"]}) from None
+    audit(conn, actor=principal, action="reports.building.delivery.update", decision="allowed", resource_type="building_report_delivery", resource_id="delivery",
+          details={"enabled": cfg["enabled"], "was_enabled": before["enabled"], "email": cfg["email"], "whatsapp": cfg["whatsapp"], "users": len(cfg["users"]),
+                   "dom": cfg["dom"], "at": cfg["at"]})
+    return _delivery_out(conn, principal)

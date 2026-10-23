@@ -51,8 +51,10 @@ _NUM: dict[str, dict[str, tuple[float, float, float]]] = {
     "waste": {"empty_after_min": (20, 5, 240), "min_waste_min": (30, 5, 720), "night_min_min": (60, 10, 720),
               "energy_factor": (1.5, 1.1, 10.0), "energy_min_kwh": (1.0, 0.1, 1000.0), "baseline_weeks": (4, 2, 8),
               "baseline_min_coverage": (0.8, 0.5, 1.0)},
+    "generator": {"min_run_s": (60, 0, 3600)},  # slice 3: a run shorter than this (a blip, a failed start) is not counted in the report
 }
-_INTS = {"before_s", "after_s", "min_open_s", "empty_after_min", "min_waste_min", "night_min_min", "baseline_weeks"}
+_INTS = {"before_s", "after_s", "min_open_s", "empty_after_min", "min_waste_min", "night_min_min", "baseline_weeks", "min_run_s"}
+RUNS_MODES = ("report_readers", "generator_viewers", "off")  # who sees the generator run counts in the report (owner answer 262: report readers, editable)
 WASTE_DOMAINS = ("light", "climate", "fan", "switch")
 SECTIONS = ("summary", "tickets", "energy", "elevators", "generator", "temperature", "doors", "cameras", "waste")
 
@@ -67,7 +69,7 @@ def code_defaults() -> dict[str, Any]:
     out: dict[str, Any] = {g: {k: v[0] for k, v in spec.items()} for g, spec in _NUM.items()}
     out["doors"]["pairs"] = []
     out["waste"].update(domains=["light", "climate"], night_from="22:00", night_to="06:00")
-    out["report"] = {"sections": list(SECTIONS)}
+    out["report"] = {"sections": list(SECTIONS), "generator_runs": RUNS_MODES[0]}
     return out
 
 
@@ -108,15 +110,15 @@ def _pair(conn: sqlite3.Connection | None, i: int, p: Any, fields: list[str]) ->
 def validate(doc: Any, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
     """The whole settings document checked against the bounds; Invalid(fields) names every bad field. Missing keys take the code default."""
     fields: list[str] = []
-    if not isinstance(doc, dict) or set(doc) - {"doors", "waste", "report"}:
+    if not isinstance(doc, dict) or set(doc) - {"doors", "waste", "generator", "report"}:
         raise Invalid(["settings"])
     out = code_defaults()
-    for group in ("doors", "waste"):
+    for group in ("doors", "waste", "generator"):
         g = doc.get(group, {})
         if not isinstance(g, dict):
             fields.append(group)
             continue
-        allowed = set(_NUM[group]) | ({"pairs"} if group == "doors" else {"domains", "night_from", "night_to"})
+        allowed = set(_NUM[group]) | {"doors": {"pairs"}, "waste": {"domains", "night_from", "night_to"}, "generator": set()}[group]
         for k in set(g) - allowed:
             fields.append(f"{group}.{k}")
         for k in _NUM[group]:
@@ -149,13 +151,19 @@ def validate(doc: Any, conn: sqlite3.Connection | None = None) -> dict[str, Any]
     if out["waste"]["night_from"] == out["waste"]["night_to"]:
         fields.append("waste.night_to")
     r = doc.get("report", {})
-    if not isinstance(r, dict) or set(r) - {"sections"}:
+    if not isinstance(r, dict) or set(r) - {"sections", "generator_runs"}:
         fields.append("report")
-    elif "sections" in r:
-        if not isinstance(r["sections"], list) or not r["sections"] or any(s not in SECTIONS for s in r["sections"]):
-            fields.append("report.sections")
-        else:
-            out["report"]["sections"] = [s for s in SECTIONS if s in r["sections"]]
+    else:
+        if "generator_runs" in r:
+            if r["generator_runs"] not in RUNS_MODES:
+                fields.append("report.generator_runs")
+            else:
+                out["report"]["generator_runs"] = r["generator_runs"]
+        if "sections" in r:
+            if not isinstance(r["sections"], list) or not r["sections"] or any(s not in SECTIONS for s in r["sections"]):
+                fields.append("report.sections")
+            else:
+                out["report"]["sections"] = [s for s in SECTIONS if s in r["sections"]]
     if fields:
         raise Invalid(sorted(set(fields)))
     return out

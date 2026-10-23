@@ -44,7 +44,8 @@ LABELS: dict[str, dict[str, str]] = {
            "empty_room": "דלוק בחדר ריק", "after_hours": "דלוק בשעות הלילה", "anomalies": "חריגות צריכה בלילה", "night": "לילה",
            "change": "שינוי", "none": "אין", "no_data": "אין נתונים בחודש הזה", "min_u": "דק׳", "h_u": "שע׳",
            "s_tickets": "{o} נפתחו · {c} נסגרו · {e} פתוחות", "s_energy": "{k} קוט״ש · {d} מול חודש קודם",
-           "s_elevators": "{m} דקות השבתה", "s_generator": "{n} התראות ({c} קריטיות)", "s_temperature": "{a} אזעקות · {o} מחוץ לטווח",
+           "s_elevators": "{m} דקות השבתה", "s_generator": "{n} התראות ({c} קריטיות)", "s_generator_runs": "{r} הפעלות · {h} שעות עבודה",
+           "runs": "הפעלות", "run_hours": "שעות עבודה", "longest": "ההפעלה הארוכה (דק׳)", "meter_hours": "מונה שעות הבקר", "s_temperature": "{a} אזעקות · {o} מחוץ לטווח",
            "s_doors": "{u} פתיחות לא מוסברות מתוך {n}", "s_cameras": "{n} תקלות · {m} דקות", "s_waste": "{e} דק׳ בחדר ריק · {n} דק׳ בלילה · {a} חריגות צריכה"},
     "en": {"title": "Monthly building report", "month": "Month", "generated": "Generated", "digest": "Content digest", "zone": "Time zone", "site": "SmplWise Arx",
            "summary": "Summary", "tickets": "Service requests", "energy": "Electricity", "elevators": "Elevators", "generator": "Generator", "temperature": "Temperatures",
@@ -60,7 +61,8 @@ LABELS: dict[str, dict[str, str]] = {
            "empty_room": "On in an empty room", "after_hours": "On at night", "anomalies": "Night consumption anomalies", "night": "Night",
            "change": "Change", "none": "None", "no_data": "No data this month", "min_u": "min", "h_u": "h",
            "s_tickets": "{o} opened · {c} closed · {e} open", "s_energy": "{k} kWh · {d} vs previous month",
-           "s_elevators": "{m} minutes down", "s_generator": "{n} alerts ({c} critical)", "s_temperature": "{a} alarms · {o} out of range",
+           "s_elevators": "{m} minutes down", "s_generator": "{n} alerts ({c} critical)", "s_generator_runs": "{r} runs · {h} run hours",
+           "runs": "Runs", "run_hours": "Run hours", "longest": "Longest run (min)", "meter_hours": "Controller hour meter", "s_temperature": "{a} alarms · {o} out of range",
            "s_doors": "{u} unexplained of {n} openings", "s_cameras": "{n} conditions · {m} minutes", "s_waste": "{e} min in empty rooms · {n} min at night · {a} anomalies"},
 }
 
@@ -169,7 +171,14 @@ def elevators(conn: sqlite3.Connection, lo: int, hi: int) -> dict[str, Any]:
     return {"items": items, "down_min": sum(i["fault_min"] + i["out_min"] + i["fire_min"] for i in items)}
 
 
-def generator(conn: sqlite3.Connection, lo: int, hi: int) -> dict[str, Any]:
+def generator(conn: sqlite3.Connection, lo: int, hi: int, parts: tuple[bool, bool] = (True, True)) -> dict[str, Any]:
+    """The generator section: the alerts of the month (`parts[0]`) and the run counts and hours (`parts[1]`, slice 3, owner answer 262)."""
+    from . import insights_generator
+
+    alerts, runs = parts
+    runs_out = insights_generator.report(conn, lo, hi, ic.load(conn)["generator"]["min_run_s"]) if runs else None
+    if not alerts:
+        return {"alerts": False, "devices": [], "total": 0, "critical": 0, "runs": runs_out}
     a, b = ic.iso(lo), ic.iso(hi)
     out = []
     for d in conn.execute("SELECT id, name FROM generator_devices ORDER BY name").fetchall():
@@ -179,7 +188,7 @@ def generator(conn: sqlite3.Connection, lo: int, hi: int) -> dict[str, Any]:
         for r in rows:
             keys[r["alert_key"]] = keys.get(r["alert_key"], 0) + 1
         out.append({"name": d["name"], **sev, "total": len(rows), "top": [{"key": k, "count": n} for k, n in sorted(keys.items(), key=lambda kv: (-kv[1], kv[0]))[:TOP]]})
-    return {"devices": out, "total": sum(x["total"] for x in out), "critical": sum(x["critical"] for x in out)}
+    return {"alerts": True, "devices": out, "total": sum(x["total"] for x in out), "critical": sum(x["critical"] for x in out), "runs": runs_out}
 
 
 def temperature(conn: sqlite3.Connection, lo: int, hi: int) -> dict[str, Any]:
@@ -218,7 +227,7 @@ def cameras(conn: sqlite3.Connection, lo: int, hi: int) -> dict[str, Any]:
 # ---------------------------------------------------------------- the model
 
 def build(conn: sqlite3.Connection, principal: Any, sections: list[str], month: str | None, lang: str, now_ts: float, *,
-          allowed: Callable[[str], str | None], store: Any = None) -> dict[str, Any]:
+          allowed: Callable[[str], str | None], store: Any = None, generator_parts: tuple[bool, bool] = (True, True)) -> dict[str, Any]:
     """The report model. `allowed(section)` returns None when the caller may have the section, else the reason it is omitted
     (`not_permitted`, `module_off`, `switch_off`) - decided by the route (permissions) so this module only reads data."""
     lang = lang if lang in LABELS else "he"
@@ -231,7 +240,7 @@ def build(conn: sqlite3.Connection, principal: Any, sections: list[str], month: 
         "tickets": lambda: tickets(conn, principal, lo, hi, now_ts),
         "energy": lambda: energy(conn, store, tz, lo, hi),
         "elevators": lambda: elevators(conn, lo, hi),
-        "generator": lambda: generator(conn, lo, hi),
+        "generator": lambda: generator(conn, lo, hi, generator_parts),
         "temperature": lambda: temperature(conn, lo, hi),
         "doors": lambda: _doors(conn, lo, hi),
         "cameras": lambda: cameras(conn, lo, hi),
@@ -286,7 +295,9 @@ def summary(data: dict[str, Any], lang: str) -> list[dict[str, str]]:
         elif s == "elevators":
             t = L["s_elevators"].format(m=d["down_min"])
         elif s == "generator":
-            t = L["s_generator"].format(n=d["total"], c=d["critical"])
+            t = L["s_generator"].format(n=d["total"], c=d["critical"]) if d.get("alerts", True) else ""
+            if d.get("runs") is not None:
+                t = (t + " · " if t else "") + L["s_generator_runs"].format(r=d["runs"]["runs"], h=_num(d["runs"]["hours"]))
         elif s == "temperature":
             t = L["s_temperature"].format(a=d["alarms"], o=dur_text(d["out_min"], lang))
         elif s == "doors":
@@ -388,7 +399,15 @@ def section_html(s: str, d: dict[str, Any], lang: str) -> str:
                         (E(L["history_from"]) + f'<span class="n">{E(x["history_from"][:10])}</span>') if x["history_from"] else ("" if x["has_data"] else E(L["no_data"]))]
                        for x in d["items"]], L)
     if s == "generator":
-        return _table([L["device"], L["critical"], L["alert"], L["info"]], [[E(x["name"]), _n(x["critical"]), _n(x["alert"]), _n(x["info"])] for x in d["devices"]], L)
+        body = ""
+        runs = d.get("runs")
+        if runs is not None:
+            body += _kpis([("runs", runs["runs"]), ("run_hours", runs["hours"])], L)
+            body += _table([L["device"], L["runs"], L["run_hours"], L["longest"], L["meter_hours"]],
+                           [[E(x["name"]), _n(x["runs"]), _n(x["hours"]), _n(x["longest_min"]), _n(x["meter_hours"]) if x["meter_hours"] is not None else "—"] for x in runs["devices"]], L)
+        if d.get("alerts", True):
+            body += _table([L["device"], L["critical"], L["alert"], L["info"]], [[E(x["name"]), _n(x["critical"]), _n(x["alert"]), _n(x["info"])] for x in d["devices"]], L)
+        return body
     if s == "temperature":
         return _table([L["unit"], L["alarms"], L["warnings"], L["excursion"], L["offline"]],
                       [[E(x["name"]), _n(x["alarms"]), _n(x["warnings"]), E(dur_text(x["out_min"], lang)), _n(x["offline"])] for x in d["units"]], L)
@@ -453,6 +472,8 @@ def plain_lines(model: dict[str, Any]) -> list[tuple[str, float]]:
         elif s == "elevators":
             out += [(f'{x["name"]}: {L["fault_min"]} {dur_text(x["fault_min"], lang)} · {L["out_min"]} {dur_text(x["out_min"], lang)}', 8.5) for x in d["items"]]
         elif s == "generator":
+            if d.get("runs") is not None:
+                out += [(f'{x["name"]}: {L["runs"]} {x["runs"]} · {L["run_hours"]} {_num(x["hours"])}', 8.5) for x in d["runs"]["devices"]]
             out += [(f'{x["name"]}: {L["critical"]} {x["critical"]} · {L["alert"]} {x["alert"]} · {L["info"]} {x["info"]}', 8.5) for x in d["devices"]]
         elif s == "temperature":
             out += [(f'{x["name"]}: {L["alarms"]} {x["alarms"]} · {L["excursion"]} {dur_text(x["out_min"], lang)}', 8.5) for x in d["units"]]
