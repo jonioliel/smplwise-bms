@@ -158,6 +158,8 @@ def snapshot(conn: sqlite3.Connection, principal: Principal, floor_id: str, at_i
     presence_days = ha_history.presence_retention_days(conn)
     per_layer = floor_entities(conn, floor_id, at_iso)
     layers: dict[str, Any] = {}
+    # every gap the history may still span (a state known from a change days ago must not cross a gap older than the window)
+    all_gaps = ha_history.gaps(conn, iso_utc(t - dt.timedelta(days=ha_history.RETENTION_DAYS)), at_iso)
     gap_now = _gap_between(cov["gaps"], None, at_iso)
     for layer in ENTITY_LAYERS:
         if not perms[layer]:
@@ -175,7 +177,7 @@ def snapshot(conn: sqlite3.Connection, principal: Principal, floor_id: str, at_i
                 states.update(ha_history.recorder_state_at(missing, at_iso))
         for eid in ids:
             s = dict(states.get(eid) or {"state": None, "changed_at": None, "known": False, "reason": "אין היסטוריה"})
-            if s.get("source") != "ha_recorder" and _gap_between(cov["gaps"], s.get("changed_at"), at_iso) is not None:
+            if s.get("source") != "ha_recorder" and _gap_between(all_gaps, s.get("changed_at"), at_iso) is not None:
                 s.update(known=False, reason=GAP_REASON)
             block["entities"][eid] = {"state": s.get("state"), "changed_at": s.get("changed_at"), "known": bool(s.get("known")), "reason": s.get("reason"),
                                       **({"source": s["source"]} if s.get("source") and s["source"] != "vms" else {})}
@@ -232,6 +234,7 @@ def history_range(conn: sqlite3.Connection, principal: Principal, floor_id: str,
     it (the screen draws n > 1 as "changed during"). Above ROW_SCAN_CAP native rows: RangeTooLarge."""
     perms = layer_permissions(conn, principal, floor_id, reach)
     cov = coverage(conn, lo, hi)
+    before_gaps = ha_history.gaps(conn, iso_utc(parse_utc(lo) - dt.timedelta(days=ha_history.RETENTION_DAYS)), lo)  # for the initial states
     presence_days = ha_history.presence_retention_days(conn)
     per_layer = floor_entities(conn, floor_id, None)
     wanted = [layer for layer in RANGE_LAYERS if layer in layers]
@@ -264,7 +267,7 @@ def history_range(conn: sqlite3.Connection, principal: Principal, floor_id: str,
             continue
         for eid in lids:
             ini = initial.get(eid) or {"state": None, "known": False, "changed_at": None}
-            known0 = bool(ini.get("known")) and _gap_between(cov["gaps"], ini.get("changed_at"), lo) is None
+            known0 = bool(ini.get("known")) and _gap_between(before_gaps, ini.get("changed_at"), lo) is None
             block["entities"][eid] = {"initial": {"state": ini.get("state") if known0 else None, "known": known0},
                                       "points": series.get(eid, {}).get("points", []), "bounded_after": series.get(eid, {}).get("bounded_after", False)}
         status = "not_recorded" if not cov["from"] or hi < cov["from"] else ("gap" if cov["gaps"] else "ok")

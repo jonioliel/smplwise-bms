@@ -180,10 +180,14 @@ def test_gap_makes_states_unknown_inside_and_after(settings):
     assert after["lights"]["entities"]["light.lobby"]["known"] is False, "off since 60 min ago: the gap lies between - never carried across"
     late = c.get(f"/api/v1/floors/{floor}/history/snapshot?at={iso(NOW - dt.timedelta(minutes=20))}").json()["layers"]
     assert late["openings"]["entities"]["binary_sensor.office_door"] == {"state": "on", "changed_at": iso(NOW - dt.timedelta(minutes=30)), "known": True, "reason": None}
-    # the range carries the gap and an initial state that does not cross it
+    # a range that starts after the gap: the gap is not in its window, yet its initial state does not cross it
     rng = c.get(f"/api/v1/floors/{floor}/history/range?from={iso(NOW - dt.timedelta(minutes=35))}&to={iso(NOW)}&layers=lights,openings").json()
-    assert rng["coverage"]["gaps"] and rng["layers"]["lights"]["entities"]["light.lobby"]["initial"] == {"state": None, "known": False}
-    assert set(rng["layers"]) == {"lights", "openings"}
+    assert rng["coverage"]["gaps"] == [] and rng["layers"]["lights"]["entities"]["light.lobby"]["initial"] == {"state": None, "known": False}
+    assert set(rng["layers"]) == {"lights", "openings"} and rng["layers"]["lights"]["status"] == "ok"
+    # a range over the gap carries it (status gap); an initial state before the gap is still known
+    over = c.get(f"/api/v1/floors/{floor}/history/range?from={iso(NOW - dt.timedelta(minutes=55))}&to={iso(NOW)}&layers=lights").json()
+    assert over["layers"]["lights"]["status"] == "gap" and len(over["coverage"]["gaps"]) == 1
+    assert over["layers"]["lights"]["entities"]["light.lobby"]["initial"] == {"state": "off", "known": True}
 
 
 def test_connect_gap_written_by_the_sync_hook(settings):
