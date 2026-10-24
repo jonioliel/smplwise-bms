@@ -26,6 +26,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, has_any_binding, permissions_anywhere, require
+from ..services import connection_store as cstore
 from ..services.notices import audience as aud
 from ..services.notices import display as disp
 from ..services.notices import model, page, store
@@ -245,7 +246,7 @@ def _boards_w(principal: Principal = Depends(current_principal), conn: sqlite3.C
 
 def _board_out(b: dict[str, Any], counts: dict[str, int]) -> dict[str, Any]:
     return {"id": b["id"], "name": b["name"], "slug": b["slug"], "enabled": bool(b["enabled"]), "display": model.load_display(b["display_json"]),
-            "has_token": bool(b["token_hash"]), "token_rotated_at": b["token_rotated_at"], "last_seen_at": b["last_seen_at"],
+            "has_token": bool(b["token_hash"]), "has_stored_link": bool(b.get("token_sealed")), "token_rotated_at": b["token_rotated_at"], "last_seen_at": b["last_seen_at"],
             "item_count": counts.get(b["id"], 0), "created_at": b["created_at"], "updated_at": b["updated_at"]}
 
 
@@ -280,6 +281,8 @@ def create_board(body: BoardIn, request: Request, principal: Principal = Depends
         board, token = store.create_board(conn, principal.user_id, name, slug, display)
     except Invalid as exc:
         raise _invalid(exc)
+    store.set_sealed_token(conn, board["id"], cstore.seal_notice_board_token(settings_of(request).data_dir, board["id"], token))
+    board = store.get_board(conn, board["id"]) or board
     audit(conn, actor=principal, action="notices.board.create", decision="allowed", resource_type="notice_board", resource_id=board["id"], request_id=_rid(request))
     return {"board": _board_out(board, {}), "token": token}
 
@@ -328,7 +331,37 @@ def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Pr
 def rotate_token(board_id: str, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     b = _board_or_404(conn, board_id)
     token = store.rotate_token(conn, b["id"], principal.user_id)
+    store.set_sealed_token(conn, b["id"], cstore.seal_notice_board_token(settings_of(request).data_dir, b["id"], token))
     audit(conn, actor=principal, action="notices.board.rotate", decision="allowed", resource_type="notice_board", resource_id=b["id"], request_id=_rid(request))
+    return {"token": token, "board": _board_out(store.get_board(conn, b["id"]), store.item_counts(conn))}  # type: ignore[arg-type]
+
+
+@router.get("/notices/boards/{board_id}/link")
+def stored_link(board_id: str, request: Request, response: Response, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """NOTICEPERM-295: the permanent TV link - the SAME token every time, for an administrator only (notices.boards). Never logged; the audit row carries no value."""
+    b = _board_or_404(conn, board_id)
+    if not b.get("token_sealed"):
+        raise ApiError(409, "no_stored_link", "ללוח הזה אין קישור שמור. אפשר להנפיק אותו פעם אחת.")
+    try:
+        token = cstore.open_notice_board_token(settings_of(request).data_dir, b["id"], b["token_sealed"])
+    except cstore.SecretError:
+        raise ApiError(409, "no_stored_link", "הקישור השמור לא נפתח. אפשר להנפיק קישור חדש.")
+    response.headers["Cache-Control"] = "no-store"
+    audit(conn, actor=principal, action="notices.board.link_read", decision="allowed", resource_type="notice_board", resource_id=b["id"], request_id=_rid(request))
+    return {"token": token}
+
+
+@router.post("/notices/boards/{board_id}/issue-link")
+def issue_link(board_id: str, request: Request, response: Response, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """NOTICEPERM-295: for a board saved before the stored token existed (hash only): create the stored token ONCE (the old link stops working,
+    as in a re-issue). A board that already has one answers 409 - read it with GET .../link."""
+    b = _board_or_404(conn, board_id)
+    if b.get("token_sealed"):
+        raise ApiError(409, "link_exists", "ללוח כבר יש קישור שמור.")
+    token = store.rotate_token(conn, b["id"], principal.user_id)
+    store.set_sealed_token(conn, b["id"], cstore.seal_notice_board_token(settings_of(request).data_dir, b["id"], token))
+    response.headers["Cache-Control"] = "no-store"
+    audit(conn, actor=principal, action="notices.board.issue_link", decision="allowed", resource_type="notice_board", resource_id=b["id"], request_id=_rid(request))
     return {"token": token, "board": _board_out(store.get_board(conn, b["id"]), store.item_counts(conn))}  # type: ignore[arg-type]
 
 

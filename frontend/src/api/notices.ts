@@ -59,6 +59,8 @@ export interface Board {
   enabled: boolean;
   display?: Display;
   has_token?: boolean;
+  /** NOTICEPERM-295: the link token is also stored sealed, so an administrator can copy the SAME link again. */
+  has_stored_link?: boolean;
   token_rotated_at?: string | null;
   last_seen_at?: string | null;
   item_count?: number;
@@ -138,6 +140,8 @@ export const createBoard = (body: { name: string; slug: string; display?: Partia
 export const patchBoard = (id: string, body: { name?: string; enabled?: boolean; display?: Partial<Display> | Record<string, unknown> }) =>
   patch<{ board: Board }>(`notices/boards/${encodeURIComponent(id)}`, body);
 export const rotateBoardToken = (id: string) => post<{ token: string; board: Board }>(`notices/boards/${encodeURIComponent(id)}/rotate-token`);
+export const getBoardLink = (id: string) => get<{ token: string }>(`notices/boards/${encodeURIComponent(id)}/link`);
+export const issueBoardLink = (id: string) => post<{ token: string; board: Board }>(`notices/boards/${encodeURIComponent(id)}/issue-link`);
 export const deleteBoard = (id: string) => del(`notices/boards/${encodeURIComponent(id)}`);
 export const putBoardItems = (id: string, notice_ids: string[]) => put<{ notice_ids: string[] }>(`notices/boards/${encodeURIComponent(id)}/items`, { notice_ids });
 export const boardControl = (id: string, cmd: 'next' | 'prev' | 'pause' | 'play') => post<{ control: { seq: number; cmd: string } }>(`notices/boards/${encodeURIComponent(id)}/control`, { cmd });

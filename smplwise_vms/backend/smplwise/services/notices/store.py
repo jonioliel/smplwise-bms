@@ -218,9 +218,14 @@ def rotate_token(conn: sqlite3.Connection, board_id: str, actor: str) -> str:
     return token
 
 
+def set_sealed_token(conn: sqlite3.Connection, board_id: str, sealed: str | None) -> None:
+    """NOTICEPERM-295: the AEAD-sealed copy of the link token (services/connection_store); the hash alone is what the feed checks."""
+    conn.execute("UPDATE notice_boards SET token_sealed = ? WHERE id = ?", (sealed, board_id))
+
+
 def delete_board(conn: sqlite3.Connection, board_id: str, actor: str) -> None:
     now = now_iso()
-    conn.execute("UPDATE notice_boards SET deleted_at = ?, token_hash = NULL, updated_by = ?, updated_at = ? WHERE id = ?", (now, actor, now, board_id))
+    conn.execute("UPDATE notice_boards SET deleted_at = ?, token_hash = NULL, token_sealed = NULL, updated_by = ?, updated_at = ? WHERE id = ?", (now, actor, now, board_id))
     conn.execute("DELETE FROM notice_board_items WHERE board_id = ?", (board_id,))
     from . import slides  # NOTICESLIDES-295: the board's photo and slide links go with it
 

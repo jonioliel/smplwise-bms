@@ -252,6 +252,24 @@ def open_app_secret(data_dir: Path, name: str, blob: str) -> str:
     return _open(_Home(data_dir), _app_secret_aad(name), blob)
 
 
+# ---------------------------------------------------------------- notice-board TV link tokens (NOTICEPERM-295, services/notices/store.py)
+# The same key file and `v1:` format; associated data `"notice_board|<board id>|token"` - a blob moved to another board or store does not
+# decrypt. The SHA-256 hash in the board row stays what the feed checks; the sealed copy only lets an administrator copy the link again.
+
+def _notice_board_aad(board_id: str) -> bytes:
+    if not isinstance(board_id, str) or not 1 <= len(board_id) <= 64 or any(ord(ch) < 32 or ord(ch) == 127 or ch == "|" for ch in board_id):
+        raise SecretError("not a secret field")
+    return f"notice_board|{board_id}|token".encode("utf-8")
+
+
+def seal_notice_board_token(data_dir: Path, board_id: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _notice_board_aad(board_id), plaintext)
+
+
+def open_notice_board_token(data_dir: Path, board_id: str, blob: str) -> str:
+    return _open(_Home(data_dir), _notice_board_aad(board_id), blob)
+
+
 # ---------------------------------------------------------------- per-station WisKey camera passwords (TKWISECRYPT)
 # The same key file and `v1:` format; associated data `"wiskey_station|<station id>|password"` - a blob of another station, store or
 # NVR row does not decrypt.

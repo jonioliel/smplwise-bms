@@ -13,11 +13,14 @@ const LABEL: Record<(typeof INFO_KINDS)[number], NtKey> = { elevators: 'infoElev
 @customElement('notice-display-info')
 export class NoticeDisplayInfo extends LitElement {
   @property({ attribute: false }) value: string[] = [];
+  /** NOTICEPERM-295: show the chips at all (`display.blocks.info_show`); off keeps the picked kinds but the TV asks for none. */
+  @property({ type: Boolean }) show = true;
 
   static styles = css`
     :host { display: block; }
     .blk { display: grid; gap: 8px; padding-block-end: 10px; border-block-end: 1px solid var(--sw-border); }
     .ck { display: inline-flex; align-items: center; gap: 6px; font-size: var(--sw-fs-sm); color: var(--sw-text); cursor: pointer; }
+    .help { margin: 0; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
     .sub { display: flex; gap: 8px 16px; align-items: center; flex-wrap: wrap; padding-inline-start: 22px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
   `;
 
@@ -29,6 +32,8 @@ export class NoticeDisplayInfo extends LitElement {
   protected render() {
     const any = this.value.length > 0;
     return html`<div class="blk" data-info-picker>
+      <label class="ck"><input type="checkbox" data-info-show .checked=${this.show} @change=${(e: Event) => this.dispatchEvent(new CustomEvent<boolean>('info-show-change', { detail: (e.target as HTMLInputElement).checked, bubbles: true, composed: true }))}>${nt('infoShow')}</label>
+      <p class="help" data-info-help>${nt('infoOldBoards')}</p>
       <label class="ck"><input type="checkbox" .checked=${any} @change=${(e: Event) => {
         const on = (e.target as HTMLInputElement).checked;
         this.dispatchEvent(new CustomEvent<string[]>('info-change', { detail: on ? [...INFO_KINDS] : [], bubbles: true, composed: true }));
