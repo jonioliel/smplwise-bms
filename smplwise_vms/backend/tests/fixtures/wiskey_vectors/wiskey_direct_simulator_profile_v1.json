@@ -1,0 +1,1809 @@
+{
+  "kind": "SYNTHETIC_SIMULATOR_PROFILE_FROM_ACTUAL_HA_REGISTRY",
+  "source_CODE": "ff4f51c84a86e487de71379bc109e2aa8f6a180a",
+  "capabilities": {
+    "schema_version": 1,
+    "protocol": "wiskey-direct-ws.v1",
+    "families": [
+      "acceptance",
+      "appearance",
+      "audit",
+      "authorization",
+      "backups",
+      "capture",
+      "cards",
+      "clock",
+      "conflicts",
+      "direct",
+      "events",
+      "features",
+      "fleet",
+      "guest_templates",
+      "health",
+      "investigations",
+      "jobs",
+      "media",
+      "operations",
+      "overview",
+      "peer_bindings",
+      "peer_identity",
+      "peer_protocol",
+      "peer_receipts",
+      "peer_writes",
+      "permissions",
+      "platform",
+      "profiles",
+      "renewal",
+      "schedules",
+      "search",
+      "security",
+      "stations",
+      "subscribe",
+      "support",
+      "sync",
+      "tts",
+      "upgrade",
+      "users",
+      "visits",
+      "whatsapp",
+      "workflows"
+    ],
+    "commands": [
+      {
+        "name": "acceptance/get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "acceptance/update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "appearance/settings_get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "appearance/settings_update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "audit/export",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "audit/list",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "authorization/preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "authorization/session",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "authorization/settings_get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "authorization/settings_update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "backups/apply",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "backups/export",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "backups/preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "capture/lease_event",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "capture/lease_request",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "cards/add",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "cards/capture_cancel",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "cards/capture_confirm",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "cards/capture_start",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "cards/capture_status",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "cards/reader_capabilities",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "cards/remove",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "clock/host_apply",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "clock/host_status",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "clock/settings_get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "clock/settings_update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "clock/station_sync",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "conflicts/list",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "conflicts/resolve",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "conflicts/resolve_deletion",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "conflicts/review",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "direct/capabilities",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "direct/time",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "events/detail",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "events/export",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "events/history_inspect",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "events/list",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "events/print",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "events/report",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "events/support",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "events/trace_get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "events/trace_start",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "events/trace_stop",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "features/cancel",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "features/prepare_media",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "features/result",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "features/start",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "features/status",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "fleet/alerts",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "fleet/alerts_action",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "fleet/inventory_export",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "guest_templates/delete",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "guest_templates/get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "guest_templates/upsert",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "health/get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "health/history",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "health/refresh",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "investigations/query",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "jobs/action",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "jobs/approval_review",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "jobs/bulk_create",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "jobs/csv_create",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "jobs/errors",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "jobs/list",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/call",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/provider_check",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/provider_discover",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/settings_get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/settings_update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/signal",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/station_descriptor",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/stream_lease",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/talk_close",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/talk_floor",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/talk_frame",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "media/talk_open",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "operations/query",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "overview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "overview/summary",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "peer_bindings/get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "peer_bindings/history",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "peer_identity/get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "peer_protocol/get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "peer_receipts/resolve",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "peer_writes/source_v1",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": 1
+      },
+      {
+        "name": "permissions/directory",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/archive",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/capacity",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/config_apply",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/config_decide",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/config_pending",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/config_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/config_read",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/config_review",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/delete",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/demo",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/export",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/import_apply",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/import_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/integrity",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/lifecycle_apply",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/lifecycle_decide",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/lifecycle_jobs",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/lifecycle_plan",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/lifecycle_prepare",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/lifecycle_remove",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/lifecycle_review",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/lifecycle_verify",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/maintenance_cancel",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/maintenance_decide",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/maintenance_enqueue",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/maintenance_jobs",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/maintenance_plan",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/maintenance_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/maintenance_resume_v1",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": 1
+      },
+      {
+        "name": "platform/report",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/retention_apply",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/retention_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/save",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/webhook_key",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "platform/webhook_save",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "profiles/settings_apply",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "profiles/settings_get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "profiles/settings_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "profiles/settings_update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "profiles/versions",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "profiles/versions_compare",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "renewal/binding_update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "renewal/bindings",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "renewal/cancel",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "renewal/request",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "renewal/self",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/assess",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/baseline_clear",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/baseline_save",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/create",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/delete",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/dependencies",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/export",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/import_apply",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/import_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/list",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/normalize_user",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/operations_archive",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/operations_cancel",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/operations_check",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/operations_claim_confirm",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/operations_claim_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/operations_claim_release",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/operations_create",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/operations_export",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/operations_list",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/plan_delete",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/plan_export",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/plan_list",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/plan_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/plan_recheck",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/plan_save",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/readiness",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "schedules/update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "search/query",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "security/lock",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "security/reauth_start",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "security/reauth_step",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "security/session",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "security/touch",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/clock_refresh",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/inventory",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/list",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/permission_audit",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/rescan",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/technical_codes_get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/technical_codes_write",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/technical_get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/technical_hold_delete",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/technical_hold_get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/technical_hold_save",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/technical_program_action",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/technical_program_list",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/technical_program_save",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/technical_relays",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/technical_update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "stations/test_unlock",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "subscribe",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "support/bundle",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "sync/all",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "sync/diagnostics",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "sync/station",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "sync/status",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "sync/user",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "tts/engines",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "tts/start",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "upgrade/readiness",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/access_compare",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/access_compare_options",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/access_review_decide",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/access_review_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/access_reviews",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/access_scenario",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/access_state",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/access_state_v2",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": 2
+      },
+      {
+        "name": "users/adopt",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/archive",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/bulk_apply",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/bulk_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/bulk_receipt",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/bulk_receipts",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/bulk_renewal_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/create",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/csv_apply",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/csv_export",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/csv_inspect",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/csv_preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/data_quality",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/delete",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/delete_unmanaged",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/duplicate_check",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/group_suggestions",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/ignore",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/lifecycle",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/list",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/name_ref_apply_v1",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": 1
+      },
+      {
+        "name": "users/name_ref_prepare_v1",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": 1
+      },
+      {
+        "name": "users/photo_get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/pin_check",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/pin_generate",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/query",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/set_active",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/temporary_cancel",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/unarchive",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "users/update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "visits/create",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "visits/decide",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "visits/list",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "visits/operators",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "visits/request",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "whatsapp/history",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "whatsapp/media",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "whatsapp/pacing_status_v1",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": 1
+      },
+      {
+        "name": "whatsapp/preview",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "whatsapp/send",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "whatsapp/send_pacing_v1",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": 1
+      },
+      {
+        "name": "whatsapp/status",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "whatsapp/template_send_v1",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": 1
+      },
+      {
+        "name": "whatsapp/template_send_v2",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": null,
+        "explicit_parameter_version": 2
+      },
+      {
+        "name": "whatsapp/templates_get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "whatsapp/templates_update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/apply",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/decide",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/get",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/inventory_issue",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/inventory_return",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/inventory_save",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/reminder_action",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/renew_decide",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/renew_request",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/settings_update",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/submit",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/template_delete",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/template_save",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/transfer_begin",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/transfer_finish",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/transfer_recheck",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/transfer_review",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/transfer_start",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      },
+      {
+        "name": "workflows/withdraw",
+        "envelope": "wiskey-direct-ws.v1",
+        "api_contract": 1,
+        "explicit_parameter_version": null
+      }
+    ],
+    "limits": {
+      "max_frame_bytes": 1048576,
+      "max_connect_bytes": 65536,
+      "max_connections_including_preparing": 32,
+      "max_audio_sessions_including_legacy_and_TTS": 3,
+      "nonce_capacity": 65536,
+      "nonce_window_seconds": 120,
+      "nonce_scope": "authenticator_shared_HA_and_direct_all_connections",
+      "nonce_expiry": "age_strictly_greater_than_window",
+      "talk_batch_sizes": [
+        5,
+        10
+      ],
+      "audio_frame_bytes": 160,
+      "talk_idle_seconds": 12,
+      "max_command_ttl_seconds": 15,
+      "hello_timeout_seconds": 10
+    },
+    "station_media_contract": "arx.station_media.v1.1",
+    "stations": [
+      {
+        "station_id": "SYNTHETICSTATION000000001",
+        "max_talk_seconds": 300,
+        "video_main_available": true,
+        "setting_valid": true
+      }
+    ],
+    "resources": {
+      "template_installation": {
+        "schema_version": 1,
+        "state": "not_configured",
+        "configuration_key": "native_whatsapp_templates_v1",
+        "required_fields": [
+          "accounts",
+          "bridge_entry_id",
+          "schema_version",
+          "station_id",
+          "templates"
+        ],
+        "provider_tokens_exposed": false,
+        "configured_accounts": 0,
+        "configured_templates": 0
+      },
+      "features": {
+        "schema_version": 1,
+        "host_registered": true,
+        "current_source_available": false,
+        "features": {
+          "door_windows": {
+            "implementation": "native_coordinator",
+            "build_enabled": true,
+            "execution_available": false,
+            "blocker": "authenticated_current_source_not_installed"
+          },
+          "emergency_buttons": {
+            "implementation": "native_coordinator",
+            "build_enabled": true,
+            "execution_available": false,
+            "blocker": "authenticated_current_source_not_installed"
+          },
+          "door_automations": {
+            "implementation": "native_coordinator",
+            "build_enabled": true,
+            "execution_available": false,
+            "blocker": "authenticated_current_source_not_installed"
+          },
+          "people_csv": {
+            "implementation": "native_coordinator",
+            "build_enabled": true,
+            "execution_available": false,
+            "blocker": "authenticated_current_source_not_installed"
+          },
+          "live_media": {
+            "implementation": "native_coordinator",
+            "build_enabled": true,
+            "execution_available": false,
+            "blocker": "authenticated_current_source_not_installed"
+          },
+          "live_validation": {
+            "implementation": "native_coordinator",
+            "build_enabled": true,
+            "execution_available": false,
+            "blocker": "authenticated_current_source_not_installed"
+          }
+        },
+        "physical_result": "unproven"
+      },
+      "template_host_bound": false,
+      "template_cleanup_blocker": null,
+      "native_peer_registry_present": true
+    },
+    "lifecycle": {
+      "pairing_rotation": "old_connection_invalidated_reconnect_required",
+      "kid_in_v1": false,
+      "event_cursor_resume": false,
+      "reconnect_adopts_old_resources": false
+    },
+    "physical_result": "unproven"
+  },
+  "station_descriptor": {
+    "schema": "arx.station_media.v1.1",
+    "station_id": "SYNTHETICSTATION000000001",
+    "session": "a9be40d4f1694f1db51f9ef036348350",
+    "revision": 1,
+    "issued_at": "2026-10-24T12:25:55.298562+00:00",
+    "expires_at": "2026-10-24T12:30:55.298562+00:00",
+    "video": {
+      "profiles": [
+        {
+          "id": "main",
+          "codec": null,
+          "width": null,
+          "height": null,
+          "fps": null,
+          "transports": [
+            "private_rtsp_source"
+          ]
+        }
+      ]
+    },
+    "audio": {
+      "listen": null,
+      "talk": null,
+      "duplex": null,
+      "codec": null,
+      "talk_transports": [
+        "signed_ws_batch_v1"
+      ],
+      "max_talk_seconds": 300
+    },
+    "limits": {
+      "max_viewers": null,
+      "max_talkers": 1
+    }
+  },
+  "private_source_or_audio_exported": false
+}
