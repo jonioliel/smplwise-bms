@@ -106,7 +106,7 @@ test.describe('home config', () => {
   test('moveWidget and moveId keep the list whole and clamp', () => {
     const o = defaultConfig().order;
     expect(moveWidget(o, 'alarm', 0)).toEqual(['alarm', 'clock', 'weather', 'shabbat', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices']);
-    expect(moveWidget(o, 'clock', 99)).toEqual(['weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'clock']);
+    expect(moveWidget(o, 'clock', 99)).toEqual(['weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'clock']);
     expect(moveWidget(o, 'clock', -5)).toBe(o);
     expect(moveWidget(o, 'clock', 0)).toBe(o);
     expect(moveId(['a', 'b', 'c'], 'a', 2)).toEqual(['b', 'c', 'a']);
@@ -293,7 +293,7 @@ test.describe('home config', () => {
 
   test('the media widget (CR-015): appended last, the common settings only, absent when the caller has no screen', () => {
     const c = defaultConfig();
-    expect(WIDGET_IDS[WIDGET_IDS.length - 1]).toBe('doors'); // GENWIDGET 2.9.3 appended after the temperatures (phase 3)
+    expect(WIDGET_IDS[WIDGET_IDS.length - 2]).toBe('doors'); // GENWIDGET 2.9.3 appended after the temperatures (phase 3)
     expect(c.media).toEqual({ on: true, sizes: { a: 'm', b: 's', c: 'm' }, label: '', phone_on: null, phone_size: null });
     // a config saved before the widget existed reads back with it, last, on
     const old = configOf({ order: ['quick', 'clock'], clock: { on: false } });

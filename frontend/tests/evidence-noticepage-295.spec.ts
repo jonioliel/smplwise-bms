@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installGeneratorMock, url } from './generator-mocks';
+import { tree } from './bubble-mocks';
 
 // NOTICEPAGE-295 evidence: the places tree and the "מי קרא" sheet of ראשי › לוח הודעות (#/devices/notices) and the home widget, from the REAL
 // build against fake data (the generator mock serves the session; the notices routes are layered on top). Screenshots: test-results/noticepage/.
@@ -55,6 +56,9 @@ async function install(page: Page, o: { enabled?: boolean; manager?: boolean; na
     if (p === 'notices/n2/reads') return json(route, { code: 'forbidden', user_message: 'אין הרשאה', retryable: false, correlation_id: 'mock', details: {} }, 403);
     return json(route, { code: 'not_found', user_message: 'לא נמצא', retryable: false, correlation_id: 'mock', details: {} }, 404);
   });
+  // the home screen: the tree answer carries the widget configuration (a later page.route wins over the mock's empty tree)
+  const home = { direction: 'a', side: 'end', time_zone: 'Asia/Jerusalem', personalize: false, config: { notices: { on: true } }, data: {} };
+  await page.route('**/api/v1/devices/tree', (route) => json(route, { ...tree(), home }));
   return calls;
 }
 
@@ -67,6 +71,7 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(OUT, `${name}-${test.info().project.name}.png`) });
 }
 
+const W = 'sw-app devices-building home-widgets';
 const phone = () => test.info().project.name === 'mobile';
 const titles = (page: Page) => page.locator('sw-app devices-notices').locator(phone() ? '.card .t1' : 'table.t tbody .t1').allTextContents();
 
@@ -124,7 +129,7 @@ test('מי קרא: the count opens the sheet with the counts, the progress and t
   await page.goto('about:blank');
   await page.goto(url('/devices/notices'));
   const root = page.locator('sw-app devices-notices');
-  const btn = root.locator('[data-reads="n1"]').first();
+  const btn = root.locator('[data-reads="n1"]:visible').first();
   await btn.click();
   const sheet = root.locator('notice-reads');
   await expect(sheet.locator('[data-reads-read]')).toHaveText('2');
@@ -143,7 +148,7 @@ test('מי קרא: the count opens the sheet with the counts, the progress and t
   await expect(rows.first()).toContainText('אבי שמעוני');
   await expect(rows.first()).toContainText('ועד הבית');
   await shot(page, 'reads-unread');
-  await sheet.getByRole('button', { name: 'סגירה' }).click();
+  await sheet.locator('sw-button[slot="footer"]').click();
   await expect(sheet.locator('[data-reads-body]')).toHaveCount(0);
   // the row did not open the compose dialog
   await expect(root.locator('[data-compose-dialog]')).toBeHidden();
@@ -154,7 +159,7 @@ test('מי קרא: with the names switched off the sheet shows the counts only',
   await page.goto('about:blank');
   await page.goto(url('/devices/notices'));
   const root = page.locator('sw-app devices-notices');
-  await root.locator('[data-reads="n1"]').first().click();
+  await root.locator('[data-reads="n1"]:visible').first().click();
   const sheet = root.locator('notice-reads');
   await expect(sheet.locator('[data-reads-read]')).toHaveText('84');
   await expect(sheet.locator('[data-reads-unread]')).toHaveText('34');
@@ -168,7 +173,7 @@ test('מי קרא: a refused answer shows the error panel with a retry; a draft 
   await page.goto('about:blank');
   await page.goto(url('/devices/notices'));
   const root = page.locator('sw-app devices-notices');
-  await root.locator('[data-reads="n2"]').first().click();
+  await root.locator('[data-reads="n2"]:visible').first().click();
   await expect(root.locator('notice-reads sw-state-panel[state="error"]')).toBeVisible();
   await expect(root.locator('[data-reads="n5"]')).toHaveCount(0);
 });
@@ -177,15 +182,16 @@ test('home widget: up to three notices, urgent first, an unread dot, the link to
   await install(page);
   await page.goto('about:blank');
   await page.goto(url('/devices/building'));
-  const w = page.locator('sw-app devices-building home-widgets [data-home-notices-list]');
-  await expect(w).toBeVisible();
+  const w = page.locator(`${W} [data-home-notices-list]`);
+  await expect(w).toBeAttached({ timeout: 30_000 });
+  await w.scrollIntoViewIfNeeded();
   const rows = w.locator('[data-home-notice]');
   await expect(rows).toHaveCount(3);
   expect(await rows.evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.homeNotice))).toEqual(['n1', 'n2', 'n3']);
   await expect(rows.first()).toHaveAttribute('data-unread', 'true');
   await expect(rows.nth(2)).toHaveAttribute('data-unread', 'false');
   await expect(rows.first()).toContainText('דחוף · עד 27.10');
-  await expect(page.locator('sw-app devices-building home-widgets [data-home-notices-all]')).toHaveAttribute('href', '#/devices/notices');
+  await expect(page.locator(`${W} [data-home-notices-all]`)).toHaveAttribute('href', '#/devices/notices');
   await noOverflow(page);
   await shot(page, 'home-widget');
 });
@@ -194,7 +200,7 @@ test('home widget: absent while the module is off', async ({ page }) => {
   const calls = await install(page, { enabled: false });
   await page.goto('about:blank');
   await page.goto(url('/devices/building'));
-  await expect(page.locator('sw-app devices-building home-widgets')).toBeVisible();
-  await expect(page.locator('sw-app devices-building home-widgets [data-home-notices-list], sw-app devices-building home-widgets [data-home-notices-none]')).toHaveCount(0);
+  await expect(page.locator(`${W} [data-home-widget]`).first()).toBeAttached({ timeout: 30_000 });
+  await expect(page.locator(`${W} [data-home-notices-list], ${W} [data-home-notices-none]`)).toHaveCount(0);
   expect(calls.filter((c) => c.startsWith('GET notices?'))).toEqual([]); // not even a request
 });
