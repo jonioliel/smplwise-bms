@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import './sw-live-player';
 import './wk-talk-button';
+import './wk-listen-button';
 import './wk-action-button';
 import type { SwLivePlayer } from './sw-live-player';
 import { playerModeFor, startProfile, type MediaProfileId, type StationMedia } from '../api/station-media';
@@ -158,6 +159,7 @@ export class WkStationLive extends LitElement {
         : this.classicHref
           ? html`<wk-action-button tone="dashed" icon="window" block size="lg" href=${this.classicHref} data-wk-talk="classic">${this.classicLabel}</wk-action-button>`
           : nothing}
+      ${m?.state === 'ready' ? html`<wk-listen-button .stationId=${this.stationId} .live=${this.live}></wk-listen-button>` : nothing}
     `;
   }
 }

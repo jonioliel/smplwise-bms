@@ -513,6 +513,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import intercom_media as intercom_media_router  # CR-036 S18: station live video + talk (its own line)
 
     app.include_router(intercom_media_router.router, prefix=api, tags=["access-control"])
+    from .routers import intercom_listen as intercom_listen_router  # WKAUDIN-295: listening to a station (its own line; off by default)
+    app.include_router(intercom_listen_router.router, prefix=api, tags=["access-control"])
     from .routers import access_control_writes  # CR-036 S11: the person writes added to the editor's (its own line, like S4's)
 
     app.include_router(access_control_writes.router, prefix=api, tags=["access-control"])

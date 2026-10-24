@@ -253,6 +253,9 @@ DEFAULTS: dict[str, str] = {
     # WisKey's own (`station_media_max_talk_seconds`, exact int 1..86400, no 180 s clamp); WisKey's per-station value, advertised in its
     # descriptor, still applies on top: the effective limit is the smaller.
     "access.station_media_max_talk_s": "300",
+    # WKAUDIN-295 (owner 2026-10-24, live streams and talk first): listening to a station's audio in Arx's own drawer - off (default) | on (needs the
+    # descriptor's audio.listen) | probe (a shared session with the owner: the unknown descriptor is accepted). services/intercom_listen.py.
+    "access.station_listen": "off",
     # SHAREDID-293 (owner decision 6, 2026-10-20): where the external-access screen ("גישת חוץ") sits - access (the access-control area) |
     # tickets (service management) | both. Read by every user here (navigation only); written by a system administrator through
     # PUT /access-grants/settings (services/access_external.py), never through PATCH /settings.
@@ -800,6 +803,7 @@ class SettingsPatch(BaseModel):
     access_station_media: str | None = Field(default=None, pattern="^(off|video|video_talk)$", alias="access.station_media")  # CR-036 S18
     access_station_media_provider: str | None = Field(default=None, pattern="^(local|auto)$", alias="access.station_media_provider")  # REL2140 M-3
     access_station_media_max_talk_s: int | None = Field(default=None, ge=1, le=86400, alias="access.station_media_max_talk_s")  # W10CLIENT-295 / WKDIRECT-295
+    access_station_listen: str | None = Field(default=None, pattern="^(off|on|probe)$", alias="access.station_listen")  # WKAUDIN-295
     devices_style: str | None = Field(default=None, pattern="^(smplwise|glass)$", alias="devices.style")
     devices_theme: str | None = Field(default=None, pattern="^(" + "|".join(DEVICE_THEMES) + ")$", alias="devices.theme")
     devices_default_view: str | None = Field(default=None, pattern="^(cards|tiles)$", alias="devices.default_view")

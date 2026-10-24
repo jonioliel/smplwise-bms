@@ -11,11 +11,13 @@ import { can, isApi } from '../api/session';
 import { MAX_PHRASES, MAX_PHRASE_LENGTH, POLICY_DEFAULTS, POLICY_KEYS, parsePolicy } from './wiskey-stations-logic';
 import { PHRASES_STORED_MAX, mediaOptions, phrasePreview } from '../access-control/parity-logic';
 import { STATION_MEDIA_KEY, TALK_MAX_DEFAULT_S, TALK_MAX_KEY, TALK_MAX_MAX_S, TALK_MAX_MIN_S, parseMediaMode, parseTalkMax, talkMaxInput } from '../api/station-media';
+import { STATION_LISTEN_KEY, parseListenMode } from '../api/station-listen';
+import { slt } from '../i18n/wiskey-station-listen';
 import { settingsStyles } from '../styles/settings';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { pt } from '../i18n/access-parity';
 
-type DisplayKey = (typeof POLICY_KEYS)[keyof typeof POLICY_KEYS] | typeof STATION_MEDIA_KEY | typeof TALK_MAX_KEY;
+type DisplayKey = (typeof POLICY_KEYS)[keyof typeof POLICY_KEYS] | typeof STATION_MEDIA_KEY | typeof TALK_MAX_KEY | typeof STATION_LISTEN_KEY;
 const DEFAULTS: Record<DisplayKey, string> = {
   [POLICY_KEYS.callHint]: POLICY_DEFAULTS.callHint,
   [POLICY_KEYS.talk]: POLICY_DEFAULTS.talk,
@@ -23,6 +25,7 @@ const DEFAULTS: Record<DisplayKey, string> = {
   [POLICY_KEYS.phrases]: '',
   [STATION_MEDIA_KEY]: 'off',
   [TALK_MAX_KEY]: String(TALK_MAX_DEFAULT_S),
+  [STATION_LISTEN_KEY]: 'off',
 };
 
 /**
@@ -94,6 +97,7 @@ export class SystemAccessDisplay extends LitElement {
       [POLICY_KEYS.phrases]: String((settings as Record<string, unknown>)[POLICY_KEYS.phrases] ?? ''),
       [STATION_MEDIA_KEY]: parseMediaMode(settings as Record<string, unknown>),
       [TALK_MAX_KEY]: String(parseTalkMax(settings as Record<string, unknown>)),
+      [STATION_LISTEN_KEY]: parseListenMode(settings as Record<string, unknown>),
     } as Record<DisplayKey, string>;
   }
 
@@ -194,6 +198,10 @@ export class SystemAccessDisplay extends LitElement {
       <div class="row" data-access-display-media><span class="lbl">${pt('dispMedia')}</span>
         ${this.select(STATION_MEDIA_KEY, mediaOptions())}</div>
       ${this.value(STATION_MEDIA_KEY) === 'video_talk' ? this.talkMax() : nothing}
+      ${this.value(STATION_MEDIA_KEY) !== 'off'
+        ? html`<div class="row" data-access-display-listen><span class="lbl">${slt().setting.label}<span class="muted">${slt().setting.text}</span></span>
+            ${this.select(STATION_LISTEN_KEY, [['off', slt().setting.off], ['on', slt().setting.on], ['probe', slt().setting.probe]])}</div>`
+        : nothing}
       <div class="row"><span class="lbl">${pt('dispAnnounce')}<span class="muted">${pt('dispAnnounceText')}</span></span>
         ${this.select(POLICY_KEYS.announceScope, [['scope', pt('dispAnnounceScope')], ['station', pt('dispAnnounceStation')]])}</div>
       <div class="row stack"><span class="lbl">${pt('dispPhrases')}<span class="muted">${pt('dispPhrasesText', { n: MAX_PHRASES, len: MAX_PHRASE_LENGTH })}</span></span>
