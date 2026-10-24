@@ -1,7 +1,7 @@
 # CR-ATTEST232 - Device hardware attestation for the app refresh device key
 
 Status: owner-approved 2026-10-24 (question 66, board row r232). **Server side BUILT, default OFF** on `pilot/ATTEST232-295` from
-`origin/release/2150`. Migration **0160** `0160_app_refresh_attestation.sql` is **provisional** (0159 was the highest on release/2150);
+`origin/release/2150`. Migration **0176** `0176_app_refresh_attestation.sql` (renumbered from the provisional 0160 at the 2.19.0 integration);
 renumber at integration if another branch took 0160. No app code, no frontend, nothing run on a runner, a real phone or Google / Apple.
 
 Read with: `docs/changes/CR-APPREFRESH295.md` (sections 13-14), `docs/changes/APPREFRESH-DEVICEKEY-SPEC.md` (the key and its proofs).
@@ -36,7 +36,7 @@ default is **no roots**, so the Android verifier answers `unavailable/no_trust_r
 
 ## 3. What the server stores
 
-Table `app_refresh_attestations` (migration 0160), one row per device registration: `status`, `level`, `format`, `key_fp` (SHA-256 of the
+Table `app_refresh_attestations` (migration 0176), one row per device registration: `status`, `level`, `format`, `key_fp` (SHA-256 of the
 key the verdict is about), `mode`, `reason` (a code), `checked_at`. Never the chain, the certificates, the challenge or any key. The table is
 in `backup.NEVER_EXPORTED_TABLES` (a restore cannot manufacture a verified device). Audit action `auth.app_refresh.attestation` carries
 mode, status, level, format, min level and a 16-hex key prefix only. `GET /auth/app/devices/{id}/attestation` (the device's user or an

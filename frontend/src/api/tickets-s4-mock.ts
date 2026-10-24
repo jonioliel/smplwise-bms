@@ -291,6 +291,10 @@ export const s4Mock: TicketsS4Backend = {
     }
     return asTicket(t);
   },
+  async setAccessNeeded(ticketId) {
+    await sleep(60); // PHYSENTRY070: the demo store never offers the entry card (access_needed.available is false), so there is nothing to switch
+    return asTicket(mockStore.find(ticketId));
+  },
   async health(): Promise<TicketsHealth> {
     await sleep(60);
     const counts = { live: 0, grace: 0, expired: 0, revoked: 0, locked: 0 };
