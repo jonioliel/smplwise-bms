@@ -415,6 +415,35 @@ class DirectJoin:
 
         return self.template_transport if self.selected(V1_COMMAND) else None
 
+    def template_v2_or_none(self) -> Any:
+        """WKR5-295 unit D: the transport of the v2 (autofill) template send, only while `whatsapp/template_send_v2` is selected."""
+        from .wiskey_template_direct import V2_COMMAND
+
+        return self.template_transport if self.selected(V2_COMMAND) else None
+
+    # -- WKR5-295 unit B: the six features and the emergency v2 engine, BUILT on the capture port (registered, not installed) ---------
+    def features_or_none(self) -> Any:
+        """The `FeatureAdapters` of the six features over this join's direct port, only while `features/start` is selected. No Arx
+        route calls it yet (each feature's own switch / permit decides that separately)."""
+        if not self.selected("features/start"):
+            return None
+        if self._features is None:
+            from .wiskey_feature_direct import DirectFeatureClient, FeatureAdapters
+
+            self._features = FeatureAdapters(DirectFeatureClient(self.capture_port), self.capture_port)
+        return self._features
+
+    _features: Any = None
+
+    def emergency_engine(self, connect: Callable[[], Any]) -> Any:
+        """A `DirectEmergencyEngine` (wiskey-emergency-event.v2) over this join's features. NOT installed here: making it the process's
+        emergency engine (`wiskey_emergency_direct.install`) and any real door action are the owner's separate instruction."""
+        from .wiskey_emergency_direct import DirectEmergencyEngine
+        from .wiskey_feature_direct import DirectFeatureClient, FeatureAdapters
+
+        adapters = self._features or FeatureAdapters(DirectFeatureClient(self.capture_port), self.capture_port)
+        return DirectEmergencyEngine(adapters, connect)
+
     # -- people writes (NativePeopleWriter) ------------------------------------------------------------------------------------------
     async def _ensure_recovered(self, writer: Any) -> None:
         """One `recover(scope)` per process before its first native write (the scope needs the source read). Recovery never sends: it
@@ -678,6 +707,7 @@ def startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | No
     join.template_transport = wiskey_template_direct.DirectTemplateTransport(join.capture_port)
     lease_events.set_transport(join.lease_transport)
     wts.TRANSPORT_PROVIDER = join.template_or_none
+    wts.TRANSPORT_V2_PROVIDER = join.template_v2_or_none
     JOIN = join
     log.info("wiskey direct join installed (%s = auto, key signs); the direct path is used while its socket authenticates", PROVIDER_KEY)
     return join
@@ -696,4 +726,6 @@ def shutdown() -> None:
         lease_events.set_transport(None)
     if wts.TRANSPORT_PROVIDER == join.template_or_none:
         wts.TRANSPORT_PROVIDER = None
+    if wts.TRANSPORT_V2_PROVIDER == join.template_v2_or_none:
+        wts.TRANSPORT_V2_PROVIDER = None
     join.close()
