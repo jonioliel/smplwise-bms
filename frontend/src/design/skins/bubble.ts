@@ -177,7 +177,7 @@ const rules = `
 :host(sw-app) nav.secrow.secrow a.on .pill { border-radius: var(--sw-r-pill); background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-2); }
 @media (max-width: 1100px) { :host(sw-app) .subnav, :host(sw-app) nav.sections.sections { --sw-tab-min-h: 44px; } }
 /* the settings navigation column: pills, like every bubble list row */
-:host(system-nav) a { border-radius: var(--sw-r-pill); min-block-size: 36px; }
+:host(system-nav) a { border-radius: var(--sw-r-pill); min-block-size: max(36px, var(--sw-settings-row-h, 0px)); }
 `;
 
 export const bubble: Skin = { id: 'bubble', name: 'Bubble', nameHe: 'Bubble', noteHe: 'חלונות קופצים שקופים, כמוסות, פס צף בטלפון; צפיפות, משטח ופינות לבחירה', tokens, rules };
