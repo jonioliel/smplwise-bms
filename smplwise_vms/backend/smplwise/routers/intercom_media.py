@@ -130,7 +130,7 @@ def station_media(request: Request, auth: ia.Authority = Depends(_gate(READ)), s
     else:
         busy = im.MEDIA.busy(station_id)
         talk = {"available": True, "reason": None, "transport": d.talk_transport, "codec": d.audio_codec, "duplex": d.duplex,
-                "max_seconds": d.max_talk_seconds, "sample_rate": im.SAMPLE_RATE, "frame_ms": im.FRAME_MS, "busy": busy}
+                "max_seconds": im.talk_limit_s(auth.conn, d), "sample_rate": im.SAMPLE_RATE, "frame_ms": im.FRAME_MS, "busy": busy}
     return {**body, "state": "ready", "video": video, "talk": talk, "listen": d.listen, "expires_at": im.iso(d.expires_at)}
 
 
@@ -304,7 +304,7 @@ def talk_start(request: Request, auth: ia.Authority = Depends(_gate(CALL)), stat
     if not d.talk_transport:
         raise _refuse(conn, principal, station_id, rid, ApiError(409, "intercom_talk_unsupported", "דיבור עם העמדה זמין בלוח הקלאסי בלבד."))
     _audit_pruned(conn)
-    t = im.new_talk(station_id, principal.user_id, principal.username, rid, d)
+    t = im.new_talk(station_id, principal.user_id, principal.username, rid, d, limit_s=im.talk_limit_s(conn, d))
     refusal = im.MEDIA.reserve(t)
     if refusal is not None:
         text = "מישהו אחר כבר מדבר עם העמדה." if refusal == "intercom_talk_busy" else "כבר פתוח אצלך דיבור עם עמדה אחרת."
