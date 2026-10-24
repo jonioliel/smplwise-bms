@@ -10,14 +10,16 @@ import '../components/sw-state-panel';
 import { qrSvg } from '../components/sw-second-factor';
 import { ApiError, describeError } from '../api/client';
 import {
-  boardControl, boardLink, createBoard, deleteBoard, getBoard, listBoards, listNotices, noticesSettings, patchBoard, patchNoticesSettings, putBoardItems,
+  audienceOptions, boardControl, boardLink, createBoard, deleteBoard, getBoard, listBoards, listNotices, noticesSettings, patchBoard, patchNoticesSettings, putBoardItems,
   removeCompanyLogo, rotateBoardToken, uploadCompanyLogo, type Board, type Notice, type SettingsResponse,
 } from '../api/notices';
 import type { Display } from '../notice-tv/tv-logic';
 import { nt } from '../i18n/notices';
-import { SEV_KEY, SEV_LOOK, agoText, seenState, slugOk, suggestSlug, windowText } from '../notices/model';
+import { SEV_KEY, SEV_LOOK, agoText, boardDraft, draftOf, newDraft, seenState, slugOk, suggestSlug, windowText, type Draft } from '../notices/model';
+import '../notices/compose-dialog';
+import type { NoticeSavedDetail } from '../notices/compose-dialog';
 import { noticesCss } from '../notices/styles';
-import { NOTICES_SETTINGS_HREF, applyNoticesHidden } from '../shell/nav';
+import { NOTICES_HREF, NOTICES_SETTINGS_HREF, applyNoticesHidden } from '../shell/nav';
 import { dateInputLang } from '../api/day-format';
 
 type BoardTab = 'general' | 'display' | 'notices';
@@ -87,6 +89,12 @@ export class SystemNotices extends LitElement {
   @state() private feedUrl = '';
   @state() private confirmDelete = false;
   @state() private sendToTvs = false;
+  /** NOTICEADD-295: the compose dialog (null = closed) and what it offers (the audience options load once, for a notice manager). */
+  @state() private compose: Draft | null = null;
+  @state() private floors: { id: string; name: string; building: string }[] = [];
+  @state() private groups: { id: string; name: string }[] = [];
+  @state() private roles: { id: string; name: string }[] = [];
+  private optionsLoaded = false;
   private toastTimer = 0;
   private loadedFor = '';
 
@@ -120,6 +128,7 @@ export class SystemNotices extends LitElement {
       this.forbidden = false;
       await this.loadBoards();
       await this.loadBoard();
+      void this.loadOptions();
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) this.forbidden = true;
       else this.error = describeError(e);
@@ -158,6 +167,54 @@ export class SystemNotices extends LitElement {
     }
   }
 
+  private async loadOptions(): Promise<void> {
+    if (this.optionsLoaded || !this.s?.settings.enabled || !this.s.can.manage) return;
+    this.optionsLoaded = true;
+    try {
+      const o = await audienceOptions();
+      this.floors = o.floors;
+      this.groups = o.groups;
+      this.roles = o.roles;
+    } catch {
+      /* the compose dialog then offers "everyone" and the boards */
+    }
+  }
+
+  // ---------------------------------------------------------------- writing a notice (NOTICEADD-295)
+
+  private newNotice(boardId = ''): void {
+    const st = this.s!.settings;
+    this.compose = boardId ? boardDraft(new Date(), st.default_days, st.default_severity, boardId) : newDraft(new Date(), st.default_days, st.default_severity);
+  }
+
+  private editNotice(id: string): void {
+    const n = this.notices.find((x) => x.id === id);
+    if (n) this.compose = draftOf(n);
+  }
+
+  private async composed(e: CustomEvent<NoticeSavedDetail>): Promise<void> {
+    this.compose = null;
+    this.say(e.detail.message);
+    try {
+      this.notices = (await listNotices('all')).notices;
+    } catch {
+      /* the list stays as it was */
+    }
+    if (this.detail) {
+      try {
+        this.detail = await getBoard(this.detail.board.id);
+      } catch (err) {
+        this.say(describeError(err));
+      }
+    }
+    void this.loadBoards();
+  }
+
+  private composeDialog() {
+    return html`<notice-compose .draft=${this.compose} .boards=${this.boards} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
+      @notice-close=${() => (this.compose = null)} @notice-saved=${(e: CustomEvent<NoticeSavedDetail>) => this.composed(e)}></notice-compose>`;
+  }
+
   // ---------------------------------------------------------------- module + defaults
 
   private async patchSettings(body: Parameters<typeof patchNoticesSettings>[0], msg = nt('saved')): Promise<void> {
@@ -167,6 +224,7 @@ export class SystemNotices extends LitElement {
       if ('enabled' in body) {
         applyNoticesHidden(r.settings.enabled); // the navigation follows at once
         await this.loadBoards();
+        void this.loadOptions();
       }
       this.say(msg);
     } catch (e) {
@@ -179,7 +237,7 @@ export class SystemNotices extends LitElement {
     if (this.error && !this.s) return html`<sw-page heading=${nt('setTitle')}><sw-state-panel state="error" heading=${nt('saveError')} hint=${this.error} actionLabel=${nt('retry')} @action=${() => this.load()}></sw-state-panel></sw-page>`;
     if (!this.s) return html`<sw-page heading=${nt('setTitle')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     return html`<sw-page heading="" data-notices-settings>${this.boardId && this.detail ? this.boardPage() : this.overview()}</sw-page>
-      ${this.createDialog()} ${this.linkDialog()} ${this.deleteDialog()}
+      ${this.createDialog()} ${this.linkDialog()} ${this.deleteDialog()} ${this.composeDialog()}
       ${this.toast ? html`<div class="toast" role="status">${this.toast}</div>` : nothing}`;
   }
 
@@ -188,7 +246,9 @@ export class SystemNotices extends LitElement {
     const st = s.settings;
     const can = s.can;
     return html`
-      <div class="top"><div><h1>${nt('setTitle')}</h1><p class="sub">${nt('setSub')}</p></div><span class="sp"></span></div>
+      <div class="top"><div><h1>${nt('setTitle')}</h1><p class="sub">${nt('setSub')}</p></div><span class="sp"></span>
+        ${st.enabled && can.manage ? html`<div class="meta"><sw-button icon="inbox" data-all-notices @click=${() => (location.hash = NOTICES_HREF)}>${nt('allNotices')}</sw-button>
+          <sw-button variant="primary" icon="plus" data-new-notice @click=${() => this.newNotice()}>${nt('newNotice')}</sw-button></div>` : nothing}</div>
       ${!st.enabled ? html`<sw-state-panel icon="offline" data-notices-state="off" state="empty" heading=${nt('off')} hint=${nt('offBody')}
           actionLabel=${can.configure ? nt('turnOn') : ''} @action=${() => this.patchSettings({ enabled: true })}></sw-state-panel>` : nothing}
       <div class="two">
@@ -502,15 +562,21 @@ export class SystemNotices extends LitElement {
     const d = this.detail!;
     const onBoard = new Set(d.notices.map((n) => n.id));
     const candidates = this.notices.filter((n) => !onBoard.has(n.id) && (n.state === 'active' || n.state === 'scheduled' || n.state === 'draft'));
+    const manage = !!this.s?.can.manage;
+    const editable = (id: string) => manage && this.notices.some((x) => x.id === id && x.state !== 'archived' && x.state !== 'expired');
+    // NOTICEADD-295: the mockup's "הודעה חדשה ללוח" (2.16.0 offered only the picker of existing notices, and drew nothing without one)
     return html`<div class="panel flush">
       <div class="toolbar"><h2>${nt('boardNotices')}</h2><span class="chip num">${d.notices.filter((n) => n.state === 'active').length} ${nt('kpiActive')}</span><span class="sp"></span>
         ${candidates.length ? html`<select class="inp short" data-add-notice @change=${(e: Event) => this.addItem((e.target as HTMLSelectElement).value)}><option value="">${nt('addToBoard')}…</option>
-          ${candidates.map((n) => html`<option value=${n.id}>${n.title}</option>`)}</select>` : nothing}</div>
+          ${candidates.map((n) => html`<option value=${n.id}>${n.title}</option>`)}</select>` : nothing}
+        ${manage ? html`<sw-button variant="primary" icon="plus" data-board-compose @click=${() => this.newNotice(d.board.id)}>${nt('newForBoard')}</sw-button>` : nothing}</div>
       ${d.notices.length ? html`<table class="t"><thead><tr><th>${nt('colState')}</th><th>${nt('colNotice')}</th><th>${nt('colWindow')}</th><th></th></tr></thead><tbody>
-        ${d.notices.map((n) => html`<tr data-look=${n.state === 'active' ? SEV_LOOK[n.severity] : 'off'}><td><span class="badge" data-look=${n.state === 'active' ? SEV_LOOK[n.severity] : 'off'}>${nt(SEV_KEY[n.severity])}${n.pinned ? ' · ' + nt('pinned') : ''}</span></td>
+        ${d.notices.map((n) => html`<tr data-look=${n.state === 'active' ? SEV_LOOK[n.severity] : 'off'} data-board-notice=${n.id}><td><span class="badge" data-look=${n.state === 'active' ? SEV_LOOK[n.severity] : 'off'}>${nt(SEV_KEY[n.severity])}${n.pinned ? ' · ' + nt('pinned') : ''}</span></td>
           <td><span class="t1">${n.title}</span></td><td class="num mut">${windowText(n)}</td>
-          <td class="act"><sw-button size="sm" @click=${() => this.removeItem(n.id)}>${nt('removeFromBoard')}</sw-button></td></tr>`)}</tbody></table>`
-        : html`<sw-state-panel icon="inbox" state="empty" heading=${nt('boardEmpty')} hint=${nt('boardEmptyHint')}></sw-state-panel>`}
+          <td class="act">${editable(n.id) ? html`<sw-button size="sm" data-edit-notice @click=${() => this.editNotice(n.id)}>${nt('edit')}</sw-button>` : nothing}
+            <sw-button size="sm" @click=${() => this.removeItem(n.id)}>${nt('removeFromBoard')}</sw-button></td></tr>`)}</tbody></table>`
+        : html`<sw-state-panel icon="inbox" state="empty" heading=${nt('boardEmpty')}
+            actionLabel=${manage ? nt('newForBoard') : ''} @action=${() => this.newNotice(d.board.id)}></sw-state-panel>`}
     </div>`;
   }
 

@@ -334,3 +334,8 @@ def read(conn: sqlite3.Connection, variant: str, stamp: str | None = None, kind:
 def company_name(conn: sqlite3.Connection) -> str:
     """The company's name as text, for the surfaces that carry no image (the e-mail header line, CR-LOGOS295 P6): '' when none is set."""
     return _stored(conn, K_NAME)
+
+
+def project_name(conn: sqlite3.Connection) -> str:
+    """The project's name (הגדרות › כללי › מראה המערכת › שם הפרויקט) as text: '' when none is set (NOTICEADD-295: the TV boards' title)."""
+    return _stored(conn, K_PROJECT).strip()

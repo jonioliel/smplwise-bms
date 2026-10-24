@@ -6,15 +6,13 @@ import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
-import {
-  archiveNotice, audienceOptions, audiencePreview, createNotice, deleteNotice, listBoards, listNotices, markRead, patchNotice, publishNotice,
-  type Board, type Notice, type NoticesList, type Severity,
-} from '../api/notices';
+import { archiveNotice, audienceOptions, listBoards, listNotices, markRead, type Board, type Notice, type NoticesList } from '../api/notices';
 import { nt } from '../i18n/notices';
-import { SEV_KEY, SEV_LOOK, STATE_KEY, audienceOf, audienceText, draftOf, inputOf, kpiCounts, matches, newDraft, validate, windowText, type Draft, type Kpi, type Seg } from '../notices/model';
+import { SEV_KEY, SEV_LOOK, STATE_KEY, audienceText, draftOf, kpiCounts, matches, newDraft, windowText, type Draft, type Kpi, type Seg } from '../notices/model';
+import '../notices/compose-dialog';
+import type { NoticeSavedDetail } from '../notices/compose-dialog';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_SETTINGS_HREF } from '../shell/nav';
-import { dateInputLang } from '../api/day-format';
 
 /**
  * CR-NOTICE106 section 9: ראשי › לוח הודעות (#/devices/notices). Readers see the active notices of their audience (a read sheet marks
@@ -39,14 +37,9 @@ export class DevicesNotices extends LitElement {
   @state() private groups: { id: string; name: string }[] = [];
   @state() private roles: { id: string; name: string }[] = [];
   @state() private draft: Draft | null = null;
-  @state() private draftErr = '';
-  @state() private audCount: number | null = null;
-  @state() private audScope = true;
-  @state() private busy = false;
   @state() private reading: Notice | null = null;
   @state() private toast = '';
   private toastTimer = 0;
-  private audTimer = 0;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -223,133 +216,17 @@ export class DevicesNotices extends LitElement {
   private compose(n?: Notice): void {
     const defaults = this.data?.defaults ?? { default_days: 7, default_severity: 'info' as const };
     this.draft = n ? draftOf(n) : newDraft(new Date(), defaults.default_days, defaults.default_severity);
-    this.draftErr = '';
-    this.audCount = null;
-    this.refreshAudience();
   }
 
-  private set(p: Partial<Draft>): void {
-    if (!this.draft) return;
-    const next = { ...this.draft, ...p };
-    if (p.severity === 'critical') {
-      next.pinned = true;
-      next.untilArchived = false;
-    }
-    this.draft = next;
-    this.draftErr = '';
-    if ('aud' in p || 'floors' in p || 'groups' in p || 'roles' in p) this.refreshAudience();
-  }
-
-  private refreshAudience(): void {
-    clearTimeout(this.audTimer);
-    const d = this.draft;
-    if (!d) return;
-    this.audTimer = window.setTimeout(async () => {
-      try {
-        const r = await audiencePreview(audienceOf(d));
-        this.audCount = r.users;
-        this.audScope = r.in_scope;
-      } catch {
-        this.audCount = null;
-      }
-    }, 250);
-  }
-
-  private toggle(list: string[], id: string): string[] {
-    return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
-  }
-
-  private async save(publish: boolean): Promise<void> {
-    const d = this.draft;
-    if (!d) return;
-    const bad = validate(d);
-    if (bad) {
-      this.draftErr = nt(bad);
-      return;
-    }
-    this.busy = true;
-    try {
-      const body = inputOf(d);
-      let id = d.id;
-      if (!id) {
-        id = (await createNotice({ ...body, publish })).notice.id;
-      } else {
-        await patchNotice(id, body);
-        if (publish && d.status === 'draft') await publishNotice(id);
-      }
-      this.draft = null;
-      this.say(publish ? nt('published') : d.status === 'published' ? nt('saved') : nt('savedDraft'));
-      await this.load();
-    } catch (e) {
-      this.draftErr = describeError(e);
-    } finally {
-      this.busy = false;
-    }
-  }
-
-  private async removeDraft(): Promise<void> {
-    const d = this.draft;
-    if (!d?.id) {
-      this.draft = null;
-      return;
-    }
-    try {
-      await deleteNotice(d.id);
-      this.draft = null;
-      this.say(nt('deleted'));
-      await this.load();
-    } catch (e) {
-      this.draftErr = describeError(e);
-    }
+  private async saved(e: CustomEvent<NoticeSavedDetail>): Promise<void> {
+    this.draft = null;
+    this.say(e.detail.message);
+    await this.load();
   }
 
   private composeDialog() {
-    const d = this.draft;
-    if (!d) return html`<sw-dialog></sw-dialog>`;
-    const sevs: Severity[] = ['info', 'alert', 'critical'];
-    const auds: Draft['aud'][] = ['all', 'place', 'group', 'tv'];
-    return html`<sw-dialog open wide data-compose-dialog heading=${d.id ? nt('editTitle') : nt('composeTitle')} subheading=${nt('composeSub')} @close=${() => (this.draft = null)}>
-      <div class="two">
-        <div class="form">
-          <div class="fld"><label for="nt-title">${nt('fTitle')}</label><input id="nt-title" class="inp" maxlength="120" .value=${d.title} @input=${(e: Event) => this.set({ title: (e.target as HTMLInputElement).value })}></div>
-          <div class="fld"><label for="nt-body">${nt('fBody')}</label><textarea id="nt-body" class="inp" maxlength="2000" .value=${d.body} @input=${(e: Event) => this.set({ body: (e.target as HTMLTextAreaElement).value })}></textarea></div>
-          <div class="r">
-            <div class="fld"><span class="lbl">${nt('fSeverity')}</span><div class="seg" role="group" data-sev>${sevs.map((s) => html`<button aria-pressed=${String(d.severity === s)} @click=${() => this.set({ severity: s })}>${nt(SEV_KEY[s])}</button>`)}</div></div>
-            <div class="fld"><span class="lbl">&nbsp;</span><label class="ck"><input type="checkbox" .checked=${d.pinned} @change=${(e: Event) => this.set({ pinned: (e.target as HTMLInputElement).checked })}>${nt('fPinned')}</label></div>
-          </div>
-          <div class="r">
-            <div class="fld"><label for="nt-from">${nt('fFrom')}</label><input id="nt-from" class="inp num" type="datetime-local" lang=${dateInputLang()} .value=${d.from} @input=${(e: Event) => this.set({ from: (e.target as HTMLInputElement).value })}></div>
-            <div class="fld"><label for="nt-to">${nt('fTo')}</label><input id="nt-to" class="inp num" type="datetime-local" lang=${dateInputLang()} ?disabled=${d.untilArchived} .value=${d.to} @input=${(e: Event) => this.set({ to: (e.target as HTMLInputElement).value })}>
-              ${d.severity === 'critical' ? html`<span class="hint">${nt('criticalNeedsEnd')}</span>`
-                : html`<label class="ck"><input type="checkbox" .checked=${d.untilArchived} @change=${(e: Event) => this.set({ untilArchived: (e.target as HTMLInputElement).checked })}>${nt('fUntilArchived')}</label>`}</div>
-          </div>
-          <div class="r">
-            <div class="fld"><label for="nt-dwell">${nt('fDwell')}</label><input id="nt-dwell" class="inp short num" type="number" min="3" max="600" .value=${d.dwell} @input=${(e: Event) => this.set({ dwell: (e.target as HTMLInputElement).value })}><span class="hint">${nt('fDwellHint')}</span></div>
-            <div class="fld"><label for="nt-when">${nt('fWhen')}</label><input id="nt-when" class="inp" maxlength="60" .value=${d.when} placeholder=${nt('fWhenHint')} @input=${(e: Event) => this.set({ when: (e.target as HTMLInputElement).value })}></div>
-          </div>
-        </div>
-        <div class="form">
-          <div class="fld"><span class="lbl">${nt('fAudience')}</span>
-            <div class="seg" role="group" data-aud>${auds.map((a) => html`<button aria-pressed=${String(d.aud === a)} data-a=${a} @click=${() => this.set({ aud: a })}>${nt(a === 'all' ? 'audAll' : a === 'place' ? 'audPlace' : a === 'group' ? 'audGroup' : 'audTv')}</button>`)}</div>
-            ${d.aud === 'place' ? html`<div class="chips">${this.floors.map((f) => html`<button class="pick" aria-pressed=${String(d.floors.includes(f.id))} @click=${() => this.set({ floors: this.toggle(d.floors, f.id) })}>${f.building} · ${f.name}</button>`)}</div>` : nothing}
-            ${d.aud === 'group' ? html`<div class="chips">${this.groups.map((g) => html`<button class="pick" aria-pressed=${String(d.groups.includes(g.id))} @click=${() => this.set({ groups: this.toggle(d.groups, g.id) })}>${g.name}</button>`)}
-              ${this.roles.map((r) => html`<button class="pick" aria-pressed=${String(d.roles.includes(r.id))} @click=${() => this.set({ roles: this.toggle(d.roles, r.id) })}>${r.name}</button>`)}</div>` : nothing}
-            ${d.aud !== 'tv' && this.audCount !== null ? html`<div class="sum"><sw-icon name="users" size="14"></sw-icon><b class="num">${this.audCount}</b>${nt('audUsers', { n: '' }).trim()}</div>` : nothing}
-            ${!this.audScope ? html`<span class="err">${nt('audOutOfScope')}</span>` : nothing}
-          </div>
-          <div class="fld"><span class="lbl">${nt('fBoards')}</span>
-            ${this.boards.length ? html`<div class="chips" data-boards>${this.boards.map((b) => html`<button class="pick" ?disabled=${!b.enabled} aria-pressed=${String(d.boards.includes(b.id))}
-              @click=${() => this.set({ boards: this.toggle(d.boards, b.id) })}><sw-icon name="wall" size="12"></sw-icon>${b.enabled ? b.name : nt('boardOff', { name: b.name })}</button>`)}</div>`
-              : html`<span class="hint">${nt('noBoards')}</span>`}
-          </div>
-          <p class="hint">${nt('pushLater')}</p>
-        </div>
-      </div>
-      ${this.draftErr ? html`<p class="err" role="alert" data-compose-error>${this.draftErr}</p>` : nothing}
-      ${d.status === 'new' || d.status === 'draft' ? html`<sw-button slot="footer" variant="ghost" @click=${() => this.removeDraft()}>${nt(d.id ? 'deleteDraft' : 'cancel')}</sw-button>` : nothing}
-      ${d.status === 'new' || d.status === 'draft' ? html`<sw-button slot="footer" ?disabled=${this.busy} data-save-draft @click=${() => this.save(false)}>${nt('saveDraft')}</sw-button>` : nothing}
-      <sw-button slot="footer" variant="primary" ?disabled=${this.busy} data-publish @click=${() => this.save(d.status === 'new' || d.status === 'draft')}>${d.status === 'published' ? nt('save') : nt('publish')}</sw-button>
-    </sw-dialog>`;
+    return html`<notice-compose .draft=${this.draft} .boards=${this.boards} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
+      @notice-close=${() => (this.draft = null)} @notice-saved=${(e: CustomEvent<NoticeSavedDetail>) => this.saved(e)}></notice-compose>`;
   }
 }
 

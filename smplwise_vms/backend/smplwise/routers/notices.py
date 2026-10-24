@@ -137,7 +137,7 @@ def get_settings(request: Request, principal: Principal = Depends(current_princi
     s = store.settings(conn)
     data_dir = settings_of(request).data_dir
     return {"settings": s, "can": can, "weather_entities": _weather_entities(conn), "company_logo": disp.has_company_logo(data_dir),
-            "listener": bool(getattr(settings_of(request), "notice_boards", False)), "building_fallback": disp.building_name(conn)}
+            "listener": bool(getattr(settings_of(request), "notice_boards", False)), "building_fallback": disp.fallback_name(conn)}
 
 
 @open_router.patch("/notices/settings")
