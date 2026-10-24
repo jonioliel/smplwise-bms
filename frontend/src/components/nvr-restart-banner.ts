@@ -172,7 +172,7 @@ export class NvrRestartBanner extends LitElement {
     /* from 768 px up the shell's floating search / status corner sits over the far end of the first row (as for the setup hint) */
     @media (min-width: 768px) {
       .bar {
-        padding-inline-end: 86px;
+        padding-inline-end: calc(86px + var(--sw-corner-extra, 0px)); /* LOGOFIT-295: + the logos that share the corner's row (set by the shell) */
       }
     }
     @media (max-width: 767px) {

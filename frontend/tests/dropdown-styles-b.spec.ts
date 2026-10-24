@@ -489,7 +489,7 @@ test.describe('the rooms chip of the multimedia pages on a wide screen (dropdown
 });
 
 test.describe('the alarm button and the floating corner at wide width (security, dropdown mode)', () => {
-  test('1099 px (below the header-placement breakpoint, the row stays above the title): the row reserves 84 px at its inline end, the pin is 32 px with a hit area larger than the box', async ({ page }) => {
+  test('1099 px (below the header-placement breakpoint, the row stays above the title): the row reserves 84 px (+ the corner logos width) at its inline end, the pin is 32 px with a hit area larger than the box', async ({ page }) => {
     await openShell(page, '/security/live/wall', 1099);
     await setMode(page, 'dropdown');
     const r = await page.locator('sw-app').evaluate((app) => {
@@ -504,6 +504,7 @@ test.describe('the alarm button and the floating corner at wide width (security,
       return {
         padEnd: getComputedStyle(row).paddingInlineEnd,
         dir: getComputedStyle(row).direction,
+        brandW: app.hasAttribute('data-brandstrip') ? parseFloat(getComputedStyle(app).getPropertyValue('--sw-corner-brand-w')) || 160 : 0, // LOGOFIT-295: the logos share the corner's row
         pin: !!pin,
         w: pb ? Math.round(pb.width) : 0,
         h: pb ? Math.round(pb.height) : 0,
@@ -513,7 +514,7 @@ test.describe('the alarm button and the floating corner at wide width (security,
       };
     });
     expect(r).not.toBeNull();
-    expect(r!.padEnd).toBe('84px');
+    expect(parseFloat(r!.padEnd)).toBeCloseTo(84 + r!.brandW, 0); // LOGOFIT-295: 84 px for the pill + the measured logo width when the logos sit in the corner row (2.16.0 had them in a row of their own)
     expect(r!.pin).toBe(true);
     expect(r!.w).toBe(32);
     expect(r!.h).toBe(32);

@@ -56,3 +56,17 @@ export function useSmplwiseWiskeyScreens(): void {
     await setAccessUi(testInfo.project.use.baseURL, before);
   });
 }
+
+/** TOPPILL-295: the pill's search is off by default (ui.global_search); the live specs that click it switch it on and put the owner's choice back. */
+export async function setGlobalSearch(baseURL: string | undefined, value: 'off' | 'admins' | 'roles' | 'all'): Promise<'off' | 'admins' | 'roles' | 'all'> {
+  const ctx = await pwRequest.newContext({ baseURL });
+  try {
+    const r = await ctx.get('/api/v1/settings');
+    const before = r.ok() ? ((await r.json()) as { settings: Record<string, string> }).settings['ui.global_search'] : undefined;
+    const p = await ctx.patch('/api/v1/settings', { data: { 'ui.global_search': value } });
+    if (!p.ok()) throw new Error(`PATCH /settings ${p.status()}: ${await p.text()}`);
+    return before === 'admins' || before === 'roles' || before === 'all' ? before : 'off';
+  } finally {
+    await ctx.dispose();
+  }
+}

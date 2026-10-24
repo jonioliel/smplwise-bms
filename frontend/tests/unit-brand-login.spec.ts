@@ -5,6 +5,7 @@ import path from 'node:path';
 
 // CR-LOGOS295 (mockup v3.1, owner review 24.10 item 1): the sign-in card shows BOTH logos - the company's on top, the SmplWise logo below;
 // SmplWise alone (larger) without a company logo; a failed brand request draws the SmplWise-only layout, never an empty box.
+// LOGOFIT-295: the SmplWise logo is inline SVG (data-brand-img="product"), no longer an <img>.
 // The element is bundled as it is and run on a mocked same-origin page (no backend).
 //   npx playwright test tests/unit-brand-login.spec.ts --project=desktop
 
@@ -48,12 +49,12 @@ const rect = (page: Page, sel: string) => page.locator(sel).first().boundingBox(
 test('both logos on the sign-in card, the company on top', async ({ page }) => {
   await mount(page, { status: 200, body: { company: { name: 'נווה הירדן', logo: {}, logo_file: { light: FILE, dark: null } }, size: 'm', dark_mode: 'plate' } });
   const company = page.locator('arx-login [data-arx-company-logo] img');
-  const product = page.locator('arx-login [data-arx-product-logo] img');
+  const product = page.locator('arx-login [data-arx-product-logo] [data-brand-img="product"]');
   await expect(company).toBeVisible();
   await expect(company).toHaveAttribute('alt', 'נווה הירדן');
   await expect(product).toBeVisible();
   const c = await rect(page, 'arx-login [data-arx-company-logo] img');
-  const p = await rect(page, 'arx-login [data-arx-product-logo] img');
+  const p = await rect(page, 'arx-login [data-arx-product-logo] [data-brand-img="product"]');
   expect(c!.y + c!.height).toBeLessThanOrEqual(p!.y + 1);
   await expect(page.locator('arx-login')).toContainText('SmplWise Arx'); // the name stays as text for a screen reader
 });
@@ -61,12 +62,12 @@ test('both logos on the sign-in card, the company on top', async ({ page }) => {
 test('no company logo: the SmplWise logo alone and larger', async ({ page }) => {
   await mount(page, { status: 200, body: { company: { name: '', logo: {}, logo_file: { light: null, dark: null } }, size: 'm', dark_mode: 'plate' } });
   await expect(page.locator('arx-login [data-arx-company-logo] img')).toHaveCount(0);
-  const p = await rect(page, 'arx-login [data-arx-product-logo] img');
+  const p = await rect(page, 'arx-login [data-arx-product-logo] [data-brand-img="product"]');
   expect(p!.height).toBeGreaterThanOrEqual(60);
 });
 
 test('the brand request fails: the SmplWise-only layout, no empty box', async ({ page }) => {
   await mount(page, { status: 500 });
   await expect(page.locator('arx-login [data-arx-company-logo] img')).toHaveCount(0);
-  await expect(page.locator('arx-login [data-arx-product-logo] img')).toBeVisible();
+  await expect(page.locator('arx-login [data-arx-product-logo] [data-brand-img="product"]')).toBeVisible();
 });

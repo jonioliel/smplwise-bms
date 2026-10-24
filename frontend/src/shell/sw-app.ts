@@ -896,6 +896,10 @@ export class SwApp extends LitElement {
     :host([data-design='a'][data-top='page'][data-brandstrip]) {
       --sw-float-reserve: calc(76px + var(--sw-corner-brand-w, 160px));
     }
+    /* the first rows of the content (setup hint, restart banner) keep clear of the corner's logos too */
+    :host([data-brandstrip]) {
+      --sw-corner-extra: var(--sw-corner-brand-w, 160px);
+    }
     @media (min-width: 768px) {
       :host([data-design='a'][data-brandstrip]) .tabpair,
       :host([data-design='a'][data-top='tabs'][data-brandstrip]) .subnav {
@@ -989,7 +993,7 @@ export class SwApp extends LitElement {
        desktop widths the hint's dismiss button, release stage 0.1.148): the row leaves room for it at every height */
     @media (min-width: 768px) {
       .setuphint {
-        padding-inline-end: 86px;
+        padding-inline-end: calc(86px + var(--sw-corner-extra, 0px)); /* LOGOFIT-295: the logos share the corner's row, so the pill sits further in */
       }
     }
     .sysbanner a {
