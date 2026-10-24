@@ -29,3 +29,5 @@ smplwise_vms/backend/tests/test_bridge_lease_event.py     # a private session ad
 smplwise_vms/backend/tests/test_soak_guard_io.py              # an OSError text that carries a LAN address must be redacted
 smplwise_vms/backend/tests/test_partner_api_113.py            # PARTNERAPI113: the webhook SSRF guard is proven against real private / link-local / CGNAT literals (the guard under test refuses them)
 docs/changes/CR-PARTNERAPI113.md                              # PARTNERAPI113: the design lists the refused address ranges, including the well-known link-local metadata address
+smplwise_vms/backend/tests/test_frigate_perm_restream.py      # FRIGPERM: the stream-URL redaction and restream builder are proven against real private-range literals (the code under test must keep them out of logs)
+smplwise_vms/backend/tests/test_notices_security_295.py       # NOTICEGB: the custom-feed SSRF guard is proven against private / link-local resolutions (the guard under test refuses them)
