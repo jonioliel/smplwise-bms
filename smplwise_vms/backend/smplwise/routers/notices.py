@@ -9,8 +9,8 @@ The display routes (`/b/{slug}` and `/api/v1/notices/display/{slug}...`) need no
 (one long random revocable token per board, in the URL fragment, sent back as `X-Board-Token`), exactly like the LAN listener. On the
 remote channel they answer only while `notices.boards.remote` is on.
 
-Not in this build (CR slices 2 and 4): the push of a notice through the notification pipeline (`notices.push` is catalogued, the
-`push_requested` column is kept), the home widget, promo slides, the building photo of template 2, the building-status chips."""
+Push (NOTICEPUSH-295): publishing can send the notice once through the notification pipeline (services/notices/push.py); there is no
+re-send route. Not in this build (CR slice 4): the home widget, promo slides, the building photo of template 2, the building-status chips."""
 from __future__ import annotations
 
 import datetime as dt
@@ -29,6 +29,7 @@ from ..rbac import INSTALLATION, Principal, authorize, has_any_binding, permissi
 from ..services.notices import audience as aud
 from ..services.notices import display as disp
 from ..services.notices import model, page, store
+from ..services.notices import push as npush
 from ..services.notices.model import PERM_BOARDS, PERM_MANAGE, PERM_PUSH, PERM_VIEW, Invalid
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
@@ -98,6 +99,26 @@ def _require_manage(conn: sqlite3.Connection, principal: Principal, audience: di
         return
     audit(conn, actor=principal, action=PERM_MANAGE, decision="denied", resource_type="notice", resource_id=notice_id, reason="audience_out_of_scope")
     raise ApiError(403, "audience_out_of_scope", "קהל היעד מחוץ לתחום ההרשאה שלך.")
+
+
+def _need_push(conn: sqlite3.Connection, principal: Principal, explicit: bool | None, notice_id: str = "*") -> None:
+    """An explicit tick of the push checkbox needs `notices.push` (section 6); the installation's default needs nothing from the author."""
+    if explicit is not True or PERM_PUSH in permissions_anywhere(conn, principal):
+        return
+    audit(conn, actor=principal, action=PERM_PUSH, decision="denied", resource_type="notice", resource_id=notice_id, reason="no_binding")
+    raise ApiError(403, "forbidden", "אין הרשאה לשלוח התראה על הודעה.", details={"permission": PERM_PUSH})
+
+
+def _publish_and_push(conn: sqlite3.Connection, principal: Principal, request: Request, n: dict[str, Any], explicit: bool | None) -> dict[str, Any]:
+    """Publishes a draft, then sends the push once when it is wanted (inside the same transaction); returns the push result."""
+    store.publish(conn, n["id"], principal.user_id)
+    audit(conn, actor=principal, action="notices.publish", decision="allowed", resource_type="notice", resource_id=n["id"], request_id=_rid(request))
+    published = store.get_notice(conn, n["id"])
+    res = npush.send(conn, published, principal.user_id, explicit=explicit)  # type: ignore[arg-type]
+    if res["requested"]:
+        audit(conn, actor=principal, action="notices.push", decision="allowed" if res["sent"] else "denied", resource_type="notice", resource_id=n["id"],
+              request_id=_rid(request), details={"recipients": res["recipients"], "sent": res["sent"], **({"error": res["error"]} if "error" in res else {})})
+    return res
 
 
 # ---------------------------------------------------------------- the module (answers while off)
@@ -395,6 +416,12 @@ class NoticeIn(BaseModel):
     audience: dict[str, Any] | None = None
     boards: list[str] | None = Field(default=None, max_length=50)
     publish: bool = False
+    push: bool | None = None  # NOTICEPUSH-295: the author's tick; None = the installation's default (notices.push_default)
+
+
+class PublishIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    push: bool | None = None
 
 
 class NoticePatch(BaseModel):
@@ -411,6 +438,7 @@ class NoticePatch(BaseModel):
     when_text: str | None = Field(default=None, max_length=model.WHEN_MAX * 2)
     audience: dict[str, Any] | None = None
     boards: list[str] | None = Field(default=None, max_length=50)
+    push: bool | None = None  # a draft remembers the tick (push_requested)
 
 
 class AudienceIn(BaseModel):
@@ -448,6 +476,8 @@ def _notice_out(n: dict[str, Any], now: dt.datetime, boards: list[str], *, manag
         out["audience"] = aud.parse(n["audience_json"])
         out["status"] = n["status"]
         out["created_at"] = n["created_at"]
+        out["push_requested"] = bool(n["push_requested"])
+        out["pushed_at"] = n["pushed_at"]
         if reads is not None:
             out["reads"] = reads
     return out
@@ -478,7 +508,7 @@ def list_notices(scope: Literal["mine", "all"] = "mine", principal: Principal = 
     read = store.read_ids(conn, principal.user_id)
     counts = store.read_counts(conn) if scope == "all" else {}
     return {"notices": [_notice_out(n, now, boards[n["id"]], manager=scope == "all", read=n["id"] in read, reads=counts.get(n["id"], 0)) for n in rows],
-            "can": can, "now": model.iso(now), "defaults": {k: store.settings(conn)[k] for k in ("default_days", "default_severity")}}
+            "can": can, "now": model.iso(now), "defaults": {k: store.settings(conn)[k] for k in ("default_days", "default_severity", "push_default")}}
 
 
 @router.post("/notices/audience/preview")
@@ -546,17 +576,22 @@ def create_notice(body: NoticeIn, request: Request, principal: Principal = Depen
     except Invalid as exc:
         raise _invalid(exc)
     _require_manage(conn, principal, audience)  # tagging a notice to a TV board is part of notices.manage (section 6)
+    _need_push(conn, principal, body.push)
+    data["push_requested"] = body.push is True
     try:
         n = store.create_notice(conn, principal.user_id, data)
     except Invalid as exc:
         raise _invalid(exc)
     audit(conn, actor=principal, action="notices.create", decision="allowed", resource_type="notice", resource_id=n["id"], request_id=_rid(request),
           details={"audience": aud.summary(conn, audience), "boards": len(body.boards or [])})
+    push_res = None
     if body.publish:
-        store.publish(conn, n["id"], principal.user_id)
-        audit(conn, actor=principal, action="notices.publish", decision="allowed", resource_type="notice", resource_id=n["id"], request_id=_rid(request))
+        push_res = _publish_and_push(conn, principal, request, n, body.push)
         n = store.get_notice(conn, n["id"])
-    return {"notice": _notice_out(n, store.utcnow(), store.boards_of(conn, [n["id"]])[n["id"]], manager=True)}  # type: ignore[index]
+    out = {"notice": _notice_out(n, store.utcnow(), store.boards_of(conn, [n["id"]])[n["id"]], manager=True)}  # type: ignore[index]
+    if push_res is not None:
+        out["push"] = push_res
+    return out
 
 
 def _managed(conn: sqlite3.Connection, principal: Principal, notice_id: str) -> dict[str, Any]:
@@ -613,6 +648,9 @@ def patch_notice(notice_id: str, body: NoticePatch, request: Request, principal:
         raise _invalid(exc)
     if "audience" in data:
         _require_manage(conn, principal, data["audience"], notice_id)
+    if body.push is not None and n["status"] == "draft":  # a published notice never pushes again: its tick is no longer editable
+        _need_push(conn, principal, body.push, notice_id)
+        data["push_requested"] = body.push
     try:
         n2 = store.update_notice(conn, notice_id, principal.user_id, data)
     except Invalid as exc:
@@ -623,21 +661,25 @@ def patch_notice(notice_id: str, body: NoticePatch, request: Request, principal:
 
 
 @router.post("/notices/{notice_id}/publish")
-def publish(notice_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def publish(notice_id: str, request: Request, body: PublishIn | None = None, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     n = _managed(conn, principal, notice_id)
     if n["status"] != "draft":
         raise ApiError(409, "not_draft", "רק טיוטה מתפרסמת.")
     store.validate_window(n["severity"], model.parse_iso(n["starts_at"]) or store.utcnow(), model.parse_iso(n["ends_at"]))
-    store.publish(conn, notice_id, principal.user_id)
-    audit(conn, actor=principal, action="notices.publish", decision="allowed", resource_type="notice", resource_id=notice_id, request_id=_rid(request))
+    sent_tick = body.push if body is not None else None
+    _need_push(conn, principal, sent_tick, notice_id)
+    explicit = sent_tick if sent_tick is not None else (True if n["push_requested"] else None)  # the dialog's tick, else the draft's remembered tick
+    push_res = _publish_and_push(conn, principal, request, n, explicit)
     n2 = store.get_notice(conn, notice_id)
-    return {"notice": _notice_out(n2, store.utcnow(), store.boards_of(conn, [notice_id])[notice_id], manager=True)}  # type: ignore[arg-type]
+    return {"notice": _notice_out(n2, store.utcnow(), store.boards_of(conn, [notice_id])[notice_id], manager=True), "push": push_res}  # type: ignore[arg-type]
 
 
 @router.post("/notices/{notice_id}/archive")
 def archive(notice_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    _managed(conn, principal, notice_id)
+    before = _managed(conn, principal, notice_id)
     store.archive(conn, notice_id, principal.user_id)
+    if before["pushed_at"]:
+        npush.resolve(conn, notice_id, int(before["push_generation"] or 0), "archived")  # the inbox does not keep a dead notice as unread
     audit(conn, actor=principal, action="notices.archive", decision="allowed", resource_type="notice", resource_id=notice_id, request_id=_rid(request))
     n2 = store.get_notice(conn, notice_id)
     return {"notice": _notice_out(n2, store.utcnow(), store.boards_of(conn, [notice_id])[notice_id], manager=True)}  # type: ignore[arg-type]

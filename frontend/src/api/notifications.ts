@@ -29,10 +29,10 @@ import { tt } from '../tickets/text'; // CR-038 (spec 13.4 names this file): the
 // ------------------------------------------------------------------------------------------------ vocabulary (§1)
 
 export type Severity = 'info' | 'alert' | 'critical';
-export type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security' | 'tickets' | 'maintenance'; // tickets: CR-038; maintenance: CR-MAINT215 (owner answer 24.10 q20)
+export type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security' | 'tickets' | 'maintenance' | 'building'; // building: NOTICEPUSH-295 (the notice board); tickets: CR-038; maintenance: CR-MAINT215 (owner answer 24.10 q20)
 /** inbox, webpush, email, app (CR-027), whatsapp (NOTIFWA: the user's own number; sends only while its master switch is on). Reserved (enum value only): ha_mobile (Companion step). */
 export type Channel = 'inbox' | 'webpush' | 'email' | 'ha_mobile' | 'whatsapp' | 'app';
-export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator' | 'ticket' | 'rfq' | 'elevator' | 'temperature' | 'maintenance'; // maintenance: CR-MAINT215; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
+export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator' | 'ticket' | 'rfq' | 'elevator' | 'temperature' | 'maintenance' | 'notice'; // notice: NOTICEPUSH-295; maintenance: CR-MAINT215; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 export type NotifyState = 'open' | 'acknowledged' | 'resolved';
 export type Weekday = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
 
@@ -169,7 +169,7 @@ export interface NotifyPolicy {
   /** A quiet "resolved" update (default false; true for critical). */
   resolve_notice: boolean;
   /** `initiator` = the bulk starter / the account's owner. */
-  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator' | 'temperature' | 'energy_bills' | 'water' | 'maintenance' | 'scenario'; user_ids?: string[] }; // elevator: CR-INFRA-ELEVATORS 2.8.0; energy_bills: ELECBILL77; maintenance: CR-MAINT215
+  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator' | 'temperature' | 'energy_bills' | 'water' | 'maintenance' | 'scenario' | 'notice'; user_ids?: string[] }; // elevator: CR-INFRA-ELEVATORS 2.8.0; energy_bills: ELECBILL77; maintenance: CR-MAINT215
   /** inbox is fixed on; ha_mobile is fixed false (reserved); whatsapp is a real channel since NOTIFWA (off by default). */
   channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; announce?: boolean; ha_mobile: false; whatsapp: boolean };
   revision: number;
@@ -261,9 +261,10 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   safety: 'בטיחות', device_faults: 'תקלות', system: 'מערכת', doors: 'דלתות וכניסה', automations: 'אוטומציות ותזמונים', security: 'אבטחת חשבון', alerts: 'מצלמות (חוקים)',
   get tickets() { return tt('area'); }, // CR-038 D33: the tickets module's configured plural
   maintenance: 'תחזוקה ובקרה', // CR-MAINT215 (owner answer 24.10 q20): a category of its own
+  building: 'הודעות לבניין', // NOTICEPUSH-295: the notice board's push
 };
 /** The order of the source filter and of the settings matrix groups. */
-export const CATEGORY_ORDER: readonly Category[] = ['safety', 'device_faults', 'system', 'doors', 'automations', 'security', 'alerts', 'tickets', 'maintenance'];
+export const CATEGORY_ORDER: readonly Category[] = ['safety', 'device_faults', 'system', 'doors', 'automations', 'security', 'alerts', 'tickets', 'maintenance', 'building'];
 
 // ------------------------------------------------------------------------------------------------ errors (§4)
 
@@ -479,6 +480,8 @@ export const MAINTENANCE_SOURCES: readonly SourceInfo[] = [
   S('maintenance.due_soon', 'תחזוקה: מועד מתקרב', 'maintenance', 'info', 'clock'),
   S('maintenance.overdue', 'תחזוקה: מועד עבר', 'maintenance', 'alert', 'warning'),
 ];
+/** NOTICEPUSH-295: the notice board's one source (services/notify_policy.py); listed by the server only while the notice board is on. */
+export const NOTICE_SOURCES: readonly SourceInfo[] = [S('notice.published', 'לוח הודעות: הודעה חדשה', 'building', 'info', 'bell')];
 const CATALOG_BY_KEY = new Map(SOURCE_CATALOG.map((s) => [s.key, s]));
 export const sourceInfo = (key: string): SourceInfo | undefined => CATALOG_BY_KEY.get(key);
 /** The source filter / settings matrix groups, in order. */
@@ -1026,6 +1029,7 @@ export const RECIPIENT_LABEL: Record<NotifyPolicy['recipients']['rule'], string>
   energy_bills: 'בעלי הרשאת חיובי החשמל', // ELECBILL77: the holders of energy.bills (installation scope; services/notify.py)
   water: 'הנמענים שנבחרו להתראות המים', // CR-WATER78 slice 2: the recipients chosen in Settings > Infrastructure > Water (services/water_alerts.py)
   maintenance: 'האחראי ומנהלי התחזוקה של המקום', // CR-MAINT215: the task's responsible person and the maintenance managers of its place
+  notice: 'קהל היעד של ההודעה', // NOTICEPUSH-295: the audience chosen when the notice was written
   scenario: 'הנמענים שנבחרו בתרחיש', // XSCENARIO109-295: the recipients chosen on the scenario's notify action (or the default list in Settings)
 };
 export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], string> = {
@@ -1036,6 +1040,7 @@ export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], stri
   energy_bills: 'Holders of the electricity bills permission',
   water: 'The recipients chosen for the water alerts',
   maintenance: 'The responsible person and the maintenance managers of the place',
+  notice: 'The audience of the notice',
   scenario: 'The recipients chosen on the scenario',
 };
 export const recipientsText = (r: NotifyPolicy['recipients']): string => (r.rule === 'users' ? `${RECIPIENT_LABEL.users} (${r.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r.rule]);
@@ -1150,6 +1155,7 @@ export const VISIBILITY_PERMISSION: Record<SubjectKind, string | null> = {
   elevator: 'devices.read', // CR-INFRA-ELEVATORS 2.8.0: the server's rule - devices.read on at least one of the elevator's sensors
   temperature: 'devices.read', // CR-INFRA-TEMPERATURE 2.9.1: devices.read on the unit's sensors
   maintenance: 'maintenance.view', // CR-MAINT215: the server's rule - maintenance.view on the task's place
+  notice: null, // NOTICEPUSH-295: the server's rule (the notice's audience, or notices.manage); viewers hold no notices.view role permission, so the server's rows are trusted
 };
 /** Whether a row may be shown to this viewer NOW (the server re-checks at every read; this mirrors it for a permission change that arrives before the
  * next fetch). Owner-only kinds (bulk_job, session) are trusted: the server only returns the caller's own rows - except an account lockout, which

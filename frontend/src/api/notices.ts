@@ -34,6 +34,8 @@ export interface Notice {
   audience?: Audience;
   status?: 'draft' | 'published' | 'archived';
   reads?: number;
+  push_requested?: boolean;
+  pushed_at?: string | null;
 }
 
 export interface NoticesCan {
@@ -49,7 +51,7 @@ export interface NoticesList {
   notices: Notice[];
   can: NoticesCan;
   now: string;
-  defaults: { default_days: number; default_severity: 'info' | 'alert' };
+  defaults: { default_days: number; default_severity: 'info' | 'alert'; push_default?: 'by_severity' | 'always' | 'never' };
 }
 
 export interface Board {
@@ -106,6 +108,7 @@ export interface NoticeInput {
   audience?: Audience;
   boards?: string[];
   publish?: boolean;
+  push?: boolean; // NOTICEPUSH-295: the author's tick (omitted = the installation's default)
 }
 
 export const noticesModule = () => get<{ enabled: boolean; can: NoticesCan }>('notices/module');
@@ -119,9 +122,10 @@ export const uploadCompanyLogo = (file: File) => {
 export const removeCompanyLogo = () => del('notices/settings/logo');
 
 export const listNotices = (scope: 'mine' | 'all') => get<NoticesList>(`notices?scope=${scope}`);
-export const createNotice = (body: NoticeInput) => post<{ notice: Notice }>('notices', body);
+export const createNotice = (body: NoticeInput) => post<{ notice: Notice; push?: { requested: boolean; sent: boolean; recipients: number } }>('notices', body);
 export const patchNotice = (id: string, body: Partial<NoticeInput>) => patch<{ notice: Notice }>(`notices/${encodeURIComponent(id)}`, body);
-export const publishNotice = (id: string) => post<{ notice: Notice }>(`notices/${encodeURIComponent(id)}/publish`);
+export const publishNotice = (id: string, push?: boolean) =>
+  post<{ notice: Notice; push?: { requested: boolean; sent: boolean; recipients: number } }>(`notices/${encodeURIComponent(id)}/publish`, push === undefined ? undefined : { push });
 export const archiveNotice = (id: string) => post<{ notice: Notice }>(`notices/${encodeURIComponent(id)}/archive`);
 export const deleteNotice = (id: string) => del(`notices/${encodeURIComponent(id)}`);
 export const markRead = (id: string) => post<{ read: boolean }>(`notices/${encodeURIComponent(id)}/read`);

@@ -54,13 +54,13 @@ export function placeText(n: Pick<Notification, 'subject' | 'category'> & { plac
 }
 
 const KIND_LABEL: Record<SubjectKind, string> = {
-  camera: 'מצלמה', entity: 'התקן', area: 'אזור', alarm_panel: 'לוח אזעקה', door: 'עמדת כניסה', schedule: 'תזמון', automation: 'אוטומציה', bulk_job: 'פעולה קבוצתית', system: 'מערכת', session: 'כניסות', generator: 'גנרטור', elevator: 'מעלית', temperature: 'יחידת טמפרטורה', maintenance: 'משימת תחזוקה',
+  camera: 'מצלמה', entity: 'התקן', area: 'אזור', alarm_panel: 'לוח אזעקה', door: 'עמדת כניסה', schedule: 'תזמון', automation: 'אוטומציה', bulk_job: 'פעולה קבוצתית', system: 'מערכת', session: 'כניסות', generator: 'גנרטור', elevator: 'מעלית', temperature: 'יחידת טמפרטורה', maintenance: 'משימת תחזוקה', notice: 'הודעה בלוח ההודעות',
   get ticket() { return boardText('kindTicket'); }, // CR-038 D33: the configured name
   get rfq() { return rnt('kind'); }, // TKRFQ5
 };
 const OPEN_LABEL: Record<SubjectKind, string> = {
   camera: 'פתח את המצלמה', entity: 'פתח את ההתקן', area: 'פתח את האזור', alarm_panel: 'פתח את האזעקה', door: 'פתח את העמדה', schedule: 'פתח את התזמון', automation: 'פתח את האוטומציה',
-  bulk_job: 'פתח את התוצאה', system: 'פתח את הבריאות', session: 'פתח את הכניסות', generator: 'פתח את הגנרטור', elevator: 'פתח את המעליות', temperature: 'פתח את הטמפרטורות', maintenance: 'פתח את המשימה',
+  bulk_job: 'פתח את התוצאה', system: 'פתח את הבריאות', session: 'פתח את הכניסות', generator: 'פתח את הגנרטור', elevator: 'פתח את המעליות', temperature: 'פתח את הטמפרטורות', maintenance: 'פתח את המשימה', notice: 'פתח את לוח ההודעות',
   get ticket() { return boardText('openTicket'); }, // CR-038 D33
   get rfq() { return rnt('open'); }, // TKRFQ5
 };
@@ -95,7 +95,7 @@ export function filterCounts(rows: readonly Notification[], now: number): Record
   return { all: rows.length, unread: rows.filter((n) => isUnread(n, now)).length, critical: rows.filter((n) => n.severity === 'critical').length };
 }
 export interface SourceOption { category: Category; label: string; count: number; icon: string }
-const CATEGORY_ICON: Record<Category, string> = { safety: 'siren', device_faults: 'warning', system: 'settings', doors: 'door', automations: 'bolt', security: 'key', alerts: 'cam', tickets: 'ticket', maintenance: 'clock' };
+const CATEGORY_ICON: Record<Category, string> = { safety: 'siren', device_faults: 'warning', system: 'settings', doors: 'door', automations: 'bolt', security: 'key', alerts: 'cam', tickets: 'ticket', maintenance: 'clock', building: 'building' };
 /** The source filter's options: the categories that have rows, in the matrix order, with their counts. */
 export function sourceOptions(rows: readonly Pick<Notification, 'category'>[]): SourceOption[] {
   const count: Partial<Record<Category, number>> = {};

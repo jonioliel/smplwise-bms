@@ -8,7 +8,7 @@ import '../components/notify-whatsapp-mine'; // NOTIFWA review F2: the user's ow
 import { waNotify, type WaNotifyView } from '../api/notify-whatsapp';
 import {
   CENTER_LAYOUTS, CENTER_LAYOUT_LABEL, CHANNEL_LABEL, DELIVERY_STATUS_LABEL, FAILURES_AUDIENCES, FAILURE_SOURCES, LOCKSCREEN_LABEL, LOCKSCREEN_LEVELS, RECIPIENT_LABEL, RETENTION_CHOICES,
-  SEVERITIES, SEVERITY_LABEL, SOURCE_CATALOG, TICKET_SOURCES, RFQ_SOURCES, MAINTENANCE_SOURCES, WEEKDAYS, WEEKDAY_LETTER, channelCell, channelStatus, clockText, deliveryReasonText, errorCode, hhmmToMin, notify, notifyErrorText,
+  SEVERITIES, SEVERITY_LABEL, SOURCE_CATALOG, TICKET_SOURCES, RFQ_SOURCES, MAINTENANCE_SOURCES, NOTICE_SOURCES, WEEKDAYS, WEEKDAY_LETTER, channelCell, channelStatus, clockText, deliveryReasonText, errorCode, hhmmToMin, notify, notifyErrorText,
   policyBody, recipientsRuleFor, relativeTime, settingsBody, validateSettings, parseRecipients, NOTIFY_ERROR_LABEL,
   type CenterLayout, type Channel, type Delivery, type EmailSecurity, type EscalationSettings, type FailuresAudience, type LockscreenLevel, type NotifyPolicy,
   type NotifySettings, type NotifyStats, type RetentionDays, type Severity, type Weekday,
@@ -1212,7 +1212,7 @@ export class SystemNotifications extends LitElement {
   private renderSources() {
     // NN1: the recorder's own sources (recorder offline, recorder storage, camera lost) are not offered without an NVR
     const shown = cap('nvr') ? this.policies : this.policies.filter((p) => !needsNvrSource(p.source));
-    const groups = matrixGroups(shown, [...SOURCE_CATALOG, ...TICKET_SOURCES, ...RFQ_SOURCES, ...MAINTENANCE_SOURCES]); // CR-MAINT215 (maintenance, listed while that module is on); CR-038 / TKRFQ5: the tickets and RFQ sources (listed by the server only while the module is on)
+    const groups = matrixGroups(shown, [...SOURCE_CATALOG, ...TICKET_SOURCES, ...RFQ_SOURCES, ...MAINTENANCE_SOURCES, ...NOTICE_SOURCES]); // NOTICEPUSH-295: the notice board's source (listed while that module is on); // CR-MAINT215 (maintenance, listed while that module is on); CR-038 / TKRFQ5: the tickets and RFQ sources (listed by the server only while the module is on)
     const total = shown.length;
     const ruleOnly = (src: string) => src === 'rule.alert' || SOURCE_CATALOG.find((s) => s.key === src)?.rulesOnly === true;
     const s = this.settings as NotifySettings;

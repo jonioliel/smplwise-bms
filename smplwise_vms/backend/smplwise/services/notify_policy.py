@@ -20,12 +20,12 @@ from ..db import now_iso
 
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
-CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets", "maintenance")  # tickets: CR-038 (services/tickets/notify_sources.py); maintenance: CR-MAINT215 (owner answer 24.10 q20)
-RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature", "energy_bills", "water", "maintenance", "scenario")  # scenario: XSCENARIO109-295; maintenance: CR-MAINT215 (services/maintenance/reminders.py)  # water: CR-WATER78 slice 2 (services/water_alerts.py)  # energy_bills: ELECBILL77 (holders of energy.bills); elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
+CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets", "maintenance", "building")  # building: NOTICEPUSH-295 (the notice board's push, services/notices/push.py); tickets: CR-038 (services/tickets/notify_sources.py); maintenance: CR-MAINT215 (owner answer 24.10 q20)
+RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature", "energy_bills", "water", "maintenance", "scenario", "notice")  # notice: NOTICEPUSH-295 (the notice's audience, services/notices/push.py); scenario: XSCENARIO109-295; maintenance: CR-MAINT215 (services/maintenance/reminders.py)  # water: CR-WATER78 slice 2 (services/water_alerts.py)  # energy_bills: ELECBILL77 (holders of energy.bills); elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "energy_bills", "access_denied", "water", "maintenance", "incident", "scenario")  # scenario: XSCENARIO109-295; incident: CR-LIVEEVENT100 (events.read at the incident's floor); maintenance: CR-MAINT215; water: CR-WATER78 slice 2; energy_bills: ELECBILL77; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "energy_bills", "access_denied", "water", "maintenance", "incident", "scenario", "notice")  # notice: NOTICEPUSH-295; scenario: XSCENARIO109-295; incident: CR-LIVEEVENT100 (events.read at the incident's floor); maintenance: CR-MAINT215; water: CR-WATER78 slice 2; energy_bills: ELECBILL77; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -130,6 +130,11 @@ SOURCES: tuple[Source, ...] = (
        push=False, subject="maintenance", resolve_text="בוצע או עודכן"),
     _s("maintenance.overdue", "תחזוקה: מועד עבר", "maintenance", "alert", "מועד עבר: {name}", "{name} - {what}{date}.", who="maintenance",
        push=False, subject="maintenance", resolve_text="בוצע או עודכן"),
+    # NOTICEPUSH-295 (services/notices/push.py): a notice of the building's notice board, sent ONCE on publish to the notice's audience (rule `notice`),
+    # resolved when the notice is archived or ends. The title is the notice's own title, the body its first 160 characters; no person is named.
+    # Nothing exists while the notice board is off. The app and web-push channels are on; e-mail is the administrator's choice like any source.
+    _s("notice.published", "לוח הודעות: הודעה חדשה", "building", "info", "{name}", "{body}", who="notice", push=True, app=True, subject="notice",
+       resolve_text="ההודעה הוסרה מהלוח"),
     _s("device.battery_low", "סוללה חלשה", "device_faults", "info", "סוללה חלשה", "{name}: {level}.", window_s=86400, push=False, resolve_text="הסוללה הוחלפה"),
     _s("system.health", "תקלת מערכת", "system", "alert", "תקלת מערכת", "{name}.", after_s=300, who="managers", email=True, subject="system", resolve_text="התקלה נפתרה"),
     _s("backup.failed", "גיבוי נכשל", "system", "alert", "הגיבוי נכשל", "הגיבוי האוטומטי לא הסתיים.", window_s=86400, who="managers", push=False, email=True, subject="system", resolve_text="גיבוי הצליח"),
@@ -376,6 +381,8 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             continue
         if s.key.startswith("maintenance.") and not maintenance_on:  # CR-MAINT215: the same rule for the maintenance module
             continue
+        if s.key.startswith("notice.") and not _notices_on(conn):  # NOTICEPUSH-295: the notice source exists only while the notice board is on
+            continue
         if s.key.startswith("scenario.") and not _scenarios_on(conn):  # XSCENARIO109-295: the scenario sources exist only while the module is on
             continue
         out.append(rows.get(s.key) or {**default_row(s), "revision": 0})
@@ -407,6 +414,14 @@ def _scenarios_on(conn: sqlite3.Connection) -> bool:
         return scenario_settings.on(conn, "scenarios.enabled")
     except sqlite3.Error:
         return False
+
+
+def _notices_on(conn: sqlite3.Connection) -> bool:
+    try:
+        row = conn.execute("SELECT value FROM settings WHERE key = 'notices.enabled'").fetchone()
+    except sqlite3.Error:
+        return False
+    return bool(row) and str(row[0]) == "true"
 
 
 def _maintenance_on(conn: sqlite3.Connection) -> bool:

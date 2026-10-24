@@ -225,7 +225,7 @@ export class DevicesNotices extends LitElement {
   }
 
   private composeDialog() {
-    return html`<notice-compose .draft=${this.draft} .boards=${this.boards} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
+    return html`<notice-compose .draft=${this.draft} .canPush=${this.data?.can.push ?? false} .pushDefault=${this.data?.defaults.push_default ?? 'by_severity'} .boards=${this.boards} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
       @notice-close=${() => (this.draft = null)} @notice-saved=${(e: CustomEvent<NoticeSavedDetail>) => this.saved(e)}></notice-compose>`;
   }
 }

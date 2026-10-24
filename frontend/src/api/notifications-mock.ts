@@ -91,6 +91,7 @@ const LINK: Record<SubjectKind, (id: string | null) => string> = {
   elevator: () => '#/infra/elevators', // CR-INFRA-ELEVATORS 2.8.0
   temperature: () => '#/infra/temperature', // CR-INFRA-TEMPERATURE 2.9.1
   maintenance: (id) => `#/tickets/maintenance?task=${id}`, // CR-MAINT215
+  notice: () => '#/devices/notices', // NOTICEPUSH-295
 };
 /** The mockup's notifications plus one row for each remaining v1 source (the sources that are off by default - alarm.state and the rule-only camera events - have none). */
 const SEEDS: Seed[] = [

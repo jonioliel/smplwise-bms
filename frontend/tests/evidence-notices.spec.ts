@@ -328,3 +328,58 @@ test('board header: open the TV screen, copy link (administrator), new link; the
   await root.locator('sw-button[variant="primary"]', { hasText: 'שמירה' }).first().click();
   await expect.poll(() => (calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body as { display?: { place?: string } } | undefined)?.display?.place).toBe('קומה 1 · מבנה א');
 });
+
+// NOTICEPUSH-295: the compose dialog's "שליחת התראה לנמענים בפרסום" and the defaults card's "התראה בפרסום"
+test('push: the checkbox follows the severity default, the tick is sent, a TV-only audience disables it', async ({ page }) => {
+  const calls = await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/devices/notices'));
+  const root = page.locator('sw-app devices-notices');
+  await root.locator('[data-compose]').first().click();
+  const dlg = root.locator('[data-compose-dialog]');
+  const box = dlg.locator('[data-push]');
+  await expect(dlg.locator('[data-push-row]')).toContainText('פעם אחת, בערוצים שכל נמען בחר');
+  await expect(box).not.toBeChecked();
+  await dlg.locator('#nt-title').fill('הודעה רגילה');
+  await dlg.locator('[data-publish]').click();
+  await expect.poll(() => calls.find((c) => c.method === 'POST' && c.path === 'notices')?.body).toMatchObject({ title: 'הודעה רגילה', publish: true, push: false });
+  await root.locator('[data-compose]').first().click();
+  await dlg.locator('[data-sev] button').nth(2).click();
+  await expect(box).toBeChecked();
+  await dlg.locator('[data-aud] button[data-a="tv"]').click();
+  await expect(box).toBeDisabled();
+  await expect(box).not.toBeChecked();
+  await dlg.locator('[data-aud] button[data-a="all"]').click();
+  await expect(box).toBeEnabled();
+  await box.uncheck();
+  await dlg.locator('#nt-title').fill('דחוף בשקט');
+  await dlg.locator('#nt-to').fill('2099-12-24T12:00');
+  await dlg.locator('[data-publish]').click();
+  await expect.poll(() => calls.filter((c) => c.method === 'POST' && c.path === 'notices').pop()?.body).toMatchObject({ title: 'דחוף בשקט', severity: 'critical', push: false });
+});
+
+test('push: a writer without notices.push sees the checkbox disabled and sends no tick; a published notice has no checkbox', async ({ page }) => {
+  const calls = await install(page);
+  await page.route((u) => u.pathname.endsWith('/api/v1/notices') && u.searchParams.get('scope') === 'all', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notices: NOTICES, can: { ...CAN, push: false }, now: NOW, defaults: { default_days: 7, default_severity: 'info' } }) }));
+  await page.goto('about:blank');
+  await page.goto(url('/devices/notices'));
+  const root = page.locator('sw-app devices-notices');
+  await root.locator('[data-compose]').first().click();
+  const dlg = root.locator('[data-compose-dialog]');
+  await expect(dlg.locator('[data-push]')).toBeDisabled();
+  await expect(dlg.locator('[data-push-row]')).toContainText('דורשת הרשאה');
+  await dlg.locator('#nt-title').fill('בלי הרשאה');
+  await dlg.locator('[data-publish]').click();
+  await expect.poll(() => calls.find((c) => c.method === 'POST' && c.path === 'notices')?.body).toMatchObject({ title: 'בלי הרשאה', publish: true });
+  expect((calls.find((c) => c.method === 'POST' && c.path === 'notices')?.body as Record<string, unknown>).push).toBeUndefined();
+});
+
+test('push: the defaults card chooses לפי חומרה / תמיד / אף פעם', async ({ page }) => {
+  const calls = await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices'));
+  const sel = page.locator('sw-app system-notices [data-defaults-card] #ns-push');
+  await expect(sel.locator('option')).toHaveText(['לפי חומרה', 'תמיד', 'אף פעם']);
+  await sel.selectOption('always');
+  await expect.poll(() => calls.find((c) => c.method === 'PATCH' && c.path === 'notices/settings')?.body).toMatchObject({ push_default: 'always' });
+});
