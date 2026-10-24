@@ -230,6 +230,8 @@ async def station_live_ws(websocket: WebSocket, station_id: str, profile: str = 
         )
     finally:
         im.MEDIA.drop_viewer(station_id, token)
+        # WKLIVE-295: the last viewer of a station takes WisKey's leased stream (and its private source) out of go2rtc's memory again
+        await run_in_threadpool(im.release_leased_streams, settings, station_id)
 
 
 def _sanitize_frame(text: str) -> str | None:

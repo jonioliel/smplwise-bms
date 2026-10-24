@@ -1025,3 +1025,65 @@ def test_auto_selects_the_signed_bridge_provider_and_local_stays_the_default(set
 def test_the_key_is_read_through_a_short_cache_and_never_shown():
     key = im._CachedKey(None)
     assert key() is None and "None" not in repr(key) and "secret" not in repr(key)
+
+
+# ================================================================ WKLIVE-295: the leased stream does not outlive its viewers
+
+@pytest.fixture()
+def deleted(monkeypatch):
+    """Records the stream names go2rtc is asked to delete (the Go2rtc client is never really called)."""
+    names: list[str] = []
+    monkeypatch.setattr(g2.Go2rtc, "delete_stream", lambda self, name: names.append(name))
+    im._LEASED.clear()
+    yield names
+    im._LEASED.clear()
+
+
+def test_the_last_viewer_leaving_removes_the_leased_stream_from_go2rtc(provider, station_fake, settings, registered, deleted):
+    name = provider.video_stream(None, settings, STATION, "main")
+    assert im._LEASED[name][0] == "entry-a"
+    im.MEDIA.add_viewer("entry-a", "v1", 4)
+    im.MEDIA.add_viewer("entry-a", "v2", 4)
+    im.MEDIA.drop_viewer("entry-a", "v1")
+    assert im.release_leased_streams(settings, "entry-a") == [] and not deleted, "a viewer is still watching: its stream stays"
+    im.MEDIA.drop_viewer("entry-a", "v2")
+    assert im.release_leased_streams(settings, "entry-a") == [name] and deleted == [name]
+    assert name not in im._LEASED and name not in g2._REGISTERED
+    assert im.release_leased_streams(settings, "entry-a") == [] and deleted == [name], "nothing left to remove: no second delete"
+    provider.video_stream(None, settings, STATION, "main")
+    assert len(registered) == 2, "after the removal the next viewer registers the new lease's source again"
+
+
+def test_an_old_lease_is_swept_by_the_next_one_unless_its_station_has_a_viewer(provider, station_fake, settings, registered, deleted):
+    old = time.time() - im.LEASE_GRACE_S - 5
+    im._LEASED["smplwise_wiskey_entry-b"] = ("entry-b", old)
+    im._LEASED["smplwise_wiskey_entry-c"] = ("entry-c", old)
+    im._LEASED["smplwise_wiskey_entry-d"] = ("entry-d", time.time())
+    im.MEDIA.add_viewer("entry-c", "vc", 4)
+    try:
+        provider.video_stream(None, settings, STATION, "main")
+    finally:
+        im.MEDIA.drop_viewer("entry-c", "vc")
+    assert deleted == ["smplwise_wiskey_entry-b"], "only the old lease without a viewer goes; a fresh lease and a watched one stay"
+    assert set(im._LEASED) == {"smplwise_wiskey_entry-a", "smplwise_wiskey_entry-c", "smplwise_wiskey_entry-d"}
+
+
+def test_only_a_leased_station_stream_of_ours_can_be_deleted(settings, deleted):
+    client = g2.Go2rtc(settings)
+    for bad in ("some_other_stream", "smplwise_wiskey_probe_abc123", "smplwise_" + "x" * 3, "", "smplwise_wiskey_../etc"):
+        with pytest.raises(ValueError):
+            client.discard_leased_stream(bad)
+    assert not deleted
+    client.discard_leased_stream("smplwise_wiskey_entry-a")
+    assert deleted == ["smplwise_wiskey_entry-a"]
+
+
+def test_a_failing_delete_never_breaks_the_end_of_a_viewer(provider, station_fake, settings, registered, deleted, monkeypatch):
+    name = provider.video_stream(None, settings, STATION, "main")
+
+    def boom(self, stream):
+        raise ApiError(503, "media_error", "x")
+
+    monkeypatch.setattr(g2.Go2rtc, "delete_stream", boom)
+    assert im.release_leased_streams(settings, "entry-a") == [name], "the stream is forgotten here even if go2rtc could not delete it"
+    assert name not in im._LEASED
