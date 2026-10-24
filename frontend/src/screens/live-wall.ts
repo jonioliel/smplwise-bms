@@ -156,6 +156,11 @@ export class LiveWall extends LitElement {
     sw-field {
       inline-size: 140px;
     }
+    sw-field[capsule] {
+      inline-size: auto;
+      min-inline-size: 180px;
+      max-inline-size: 100%;
+    }
     .grid {
       display: grid;
       gap: 12px;
@@ -257,16 +262,21 @@ export class LiveWall extends LitElement {
       gap: 6px;
       inline-size: 100%;
     }
+    /* DROPDOWNFIT-295: every control of the bar has room for its label (basis 150 px: two per row from 330 px, one per row below, the rest wrap); the capsule selects
+       and the capsule dropdown share the height / font / ring of the dropdown component, so nothing here sets them. */
     .pbar sw-field {
-      flex: 1 1 64px;
+      flex: 1 1 150px;
       inline-size: auto;
       min-inline-size: 0;
     }
-    .pbar sw-dropdown[block] {
-      flex: 1 1 64px;
+    .pbar sw-field[capsule] {
       min-inline-size: 0;
     }
-    .pbar select {
+    .pbar sw-dropdown[block] {
+      flex: 1 1 150px;
+      min-inline-size: 0;
+    }
+    .pbar sw-field:not([capsule]) select {
       min-block-size: 44px; /* UXFIX-A11Y-295: 44 px touch target (was 40) */
       padding-inline: 8px;
       font-size: var(--sw-fs-xs);
@@ -692,7 +702,7 @@ export class LiveWall extends LitElement {
   /** CR-024: the recorder filter - only when the visible cameras span two or more recorders. */
   private recorderSelect(phone: boolean) {
     if (this.recorders.length < 2) return nothing;
-    return html`<sw-field slot=${phone ? '' : 'actions'}><select aria-label="NVR" data-wall-recorder @change=${(e: Event) => this.setRecorder((e.target as HTMLSelectElement).value)}>
+    return html`<sw-field slot=${phone ? '' : 'actions'} ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="layers"><select aria-label="NVR" data-wall-recorder @change=${(e: Event) => this.setRecorder((e.target as HTMLSelectElement).value)}>
       <option value="" ?selected=${!this.recorderFilter}>${phone ? 'כל ה־NVR' : 'NVR: הכול'}</option>
       ${this.recorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.recorderFilter}>${r.name}</option>`)}
     </select></sw-field>`;
@@ -824,14 +834,19 @@ export class LiveWall extends LitElement {
 
   /** The phone's one-row toolbar: quality, camera count and columns as native selects (two taps to change any of them), and the
    * kiosk button. The cap note lives in the footer line on a phone (renderApi). */
+  /** DROPDOWNFIT-295: the toolbar's native selects wear the capsule dropdown's look (same height / ring / font / icon spacing, label fitted) whenever the dropdown style is the capsule. */
+  private get capsuleField() {
+    return this.tabsMode.ddStyle === 'capsule';
+  }
+
   private renderPhoneBar(api: boolean, total: number) {
     const short = (p: 'sub' | 'main') => (p === 'sub' ? 'רגילה' : 'גבוהה');
     return html`<div slot="actions" class="pbar" data-wall-phone-bar>
-      <sw-field><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}>
+      <sw-field ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="camera"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}>
         <option value="auto" ?selected=${this.stream === 'auto'}>איכות: אוטו</option>
         ${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${short(p)}</option>`)}
       </select></sw-field>
-      <sw-field><select aria-label="מספר מצלמות" data-wall-count-select @change=${(e: Event) => { this.setCount(parseCountId((e.target as HTMLSelectElement).value)); if (this.cameras) navigate('/live/wall'); }}>
+      <sw-field ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="grid"><select aria-label="מספר מצלמות" data-wall-count-select @change=${(e: Event) => { this.setCount(parseCountId((e.target as HTMLSelectElement).value)); if (this.cameras) navigate('/live/wall'); }}>
         ${this.cameras ? html`<option value="" selected disabled>נבחרו במפה</option>` : nothing}
         ${countLadder(total).map((n) => html`<option value=${n} ?selected=${String(n) === countChoiceId(this.count, total) && !this.cameras}>${n} מצלמות</option>`)}
         <option value=${COUNT_ALL_ID} ?selected=${countChoiceId(this.count, total) === COUNT_ALL_ID && !this.cameras}>כל המצלמות (${total})</option>
@@ -851,8 +866,8 @@ export class LiveWall extends LitElement {
     return html`
       <sw-page heading="כל המצלמות" subheading="${total} מצלמות${api ? '' : ` · תצוגה: ${VIEWS.find((v) => v.id === this.view)?.label} · נתוני הדגמה`}" wide>
         ${this.phone.matches ? this.renderPhoneBar(api, total) : nothing}
-        ${api || this.phone.matches ? nothing : html`<sw-field slot="actions"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
-        ${this.phone.matches ? nothing : html`<sw-field slot="actions"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}><option value="auto" ?selected=${this.stream === 'auto'}>איכות: ברירת מחדל (${this.stream === 'auto' ? (this.wallProfile() === 'sub' ? 'רגילה' : 'גבוהה') : this.defaultProfile() === 'sub' ? 'רגילה' : 'גבוהה'})</option>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}</select></sw-field>`}
+        ${api || this.phone.matches ? nothing : html`<sw-field slot="actions" ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="grid"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
+        ${this.phone.matches ? nothing : html`<sw-field slot="actions" ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="camera"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}><option value="auto" ?selected=${this.stream === 'auto'}>איכות: ברירת מחדל (${this.stream === 'auto' ? (this.wallProfile() === 'sub' ? 'רגילה' : 'גבוהה') : this.defaultProfile() === 'sub' ? 'רגילה' : 'גבוהה'})</option>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}</select></sw-field>`}
         ${api && !this.phone.matches ? this.recorderSelect(false) : nothing}
         ${api && this.capNote && !this.phone.matches ? html`<span slot="actions" class="note" data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות ‹ ${this.capNote.where}</span>` : nothing}
         ${this.phone.matches ? nothing : html`<div slot="actions" class="layouts" role="group" aria-label="פריסה" data-wall-count>
