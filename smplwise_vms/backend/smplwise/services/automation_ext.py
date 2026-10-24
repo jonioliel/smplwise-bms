@@ -679,6 +679,44 @@ def test_plan(ctx: Any, draft: Mapping[str, Any]) -> dict[str, Any]:
     return {"steps": steps, "snapshot": list(snap.values()), "triggers": triggers, "end": _enum(ctx.cfg, "automations.device_test_end")}
 
 
+def schedule_test_plan(ctx: Any, draft: Mapping[str, Any], may_manage: Callable[[str], bool] | None = None) -> dict[str, Any]:
+    """KAVDEVTEST-295: the device steps of a schedule DRAFT, in the shape of `test_plan` so the same dialog runs them. A slot action is a device
+    step when its service is one of the device-control route's allow-listed action ids (`ha_bridge.ACTIONS`) and its entity matches that action's
+    domain; the client sends each step through that route, with its own permission and confirmation rules. Nothing is sent from here. An action
+    that cannot be a step (an unknown service, no entity, an entity the caller may not read) is listed with no entities, so the dialog shows it
+    and its button stays disabled."""
+    from . import ha_bridge
+
+    core = schedule_draft_core(draft)
+    ctx.preload([a["entity_id"] for sl in core["slots"] for a in sl["actions"] if a.get("entity_id")])
+    steps: list[dict[str, Any]] = []
+    snap: dict[str, Any] = {}
+    for sl in core["slots"]:
+        when = (sl.get("start") or {}).get("time") or ""
+        for ai, a in enumerate(sl["actions"]):
+            spec = ha_bridge.ACTIONS.get(a.get("service") or "")
+            eid = a.get("entity_id")
+            testable = bool(spec and spec.get("route") is None and eid and eid.split(".", 1)[0] == spec.get("entity_domain", spec["domain"]) and ctx.access.can_read_state(eid) and (may_manage is None or may_manage(eid)))
+            if testable:
+                try:
+                    _spec, cleaned = ha_bridge.validate_action(a["service"], eid, {k: v for k, v in (a.get("data") or {}).items() if k in spec["args"]})
+                except Exception:  # noqa: BLE001 - an invalid argument set is shown but never offered
+                    testable, cleaned = False, {}
+            else:
+                cleaned = {}
+            name = ctx.name_of(eid) if eid and ctx.access.can_read_state(eid) else (eid or "")
+            label = spec["label"] if spec else (a.get("service") or "")
+            if testable:
+                s = snapshot_of(ctx.entity(eid))
+                if s is not None:
+                    snap.setdefault(eid, s)
+            steps.append({"path": f"slots.{sl['index']}.actions.{ai}", "sentence": f"{when} · {label} · {name}".strip(" ·"), "action": a.get("service"),
+                          "data": {k: v for k, v in cleaned.items() if k != "entity_id"} if testable else {}, "entity_ids": [eid] if testable else [],
+                          "sensitive": bool(testable and (spec["sensitive"] or ctx.sens_class(a["service"], eid))),
+                          "now": [{"entity_id": eid, "state": (ctx.entity(eid) or {}).get("state")}] if testable else []})
+    return {"steps": steps, "snapshot": list(snap.values()), "triggers": [], "end": _enum(ctx.cfg, "automations.device_test_end")}
+
+
 def restore_actions(snapshot: list[Mapping[str, Any]], current: Callable[[str], Mapping[str, Any] | None]) -> list[dict[str, Any]]:
     """Device actions (ids of the device-control route's allow-list) that put each snapshot entity back where it was; nothing for one that is
     already there. Pure: `current(entity_id)` gives the mirror's state now."""
