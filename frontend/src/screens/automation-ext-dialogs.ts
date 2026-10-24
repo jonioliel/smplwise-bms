@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { PRESS_WORD, type AnyDraft, type AutomationDraft, type DryRunResult, type ExtFlags, type ModelContext } from '../api/automations';
 import {
-  applyMerge, detectPress, deviceTestPlan, mergeCounts, mergeParts, restorePlan,
+  applyMerge, detectPress, deviceTestPlan, mergeCounts, mergeParts, restorePlan, scheduleDeviceTestPlan,
   type MergePart, type MergeSide, type TestPlan,
 } from '../api/automations-ext';
 import { runAction } from '../api/ha';
@@ -30,6 +30,9 @@ export class KavDeviceTest extends LitElement {
   @property({ attribute: false }) dry: DryRunResult | null = null;
   @property({ attribute: false }) flags: ExtFlags | null = null;
   @property() mode: 'dry' | 'dev' = 'dev';
+  /** 'schedule' (KAVDEVTEST-295): the plan is a schedule's, there is no dry view here, and nothing runs until the person confirms the list once. */
+  @property() source: 'automation' | 'schedule' = 'automation';
+  @state() private armed = false;
   @state() private plan: TestPlan | null = null;
   @state() private error = '';
   @state() private steps: Record<string, { st: StepState; note: string }> = {};
@@ -48,7 +51,7 @@ export class KavDeviceTest extends LitElement {
 
   private async load() {
     if (!this.itemId || this.plan) return;
-    try { this.plan = await deviceTestPlan(this.itemId, this.draft); } catch (e) { this.error = describeError(e); }
+    try { this.plan = this.source === 'schedule' ? await scheduleDeviceTestPlan(this.itemId, this.draft) : await deviceTestPlan(this.itemId, this.draft); } catch (e) { this.error = describeError(e); }
   }
 
   private setMode(m: 'dry' | 'dev') {
@@ -71,7 +74,8 @@ export class KavDeviceTest extends LitElement {
 
   private async runStep(path: string) {
     const s = this.plan?.steps.find((x) => x.path === path);
-    if (!s) return;
+    if (!s || (this.source === 'schedule' && !this.armed)) return;
+    if (Object.values(this.steps).some((x) => x.st === 'busy')) return;  // one run at a time
     this.steps = { ...this.steps, [path]: { st: 'busy', note: '' } };
     try {
       for (const e of s.entity_ids) await runAction(e, s.action, s.data, s.sensitive);
@@ -118,12 +122,16 @@ export class KavDeviceTest extends LitElement {
       ${t ? html`<div class="kav-step ${this.heard.st}" data-kav-listen><span class="sn">${this.heard.st === 'done' ? icon('check') : String(++n)}</span>
         <div><b>${this.heard.st === 'done' ? 'מאזינים לכפתור · זוהה' : 'מאזינים לכפתור'}</b><span class="s">${this.heard.text || t.sentence}</span></div>
         <button class="btn sm" type="button" ?disabled=${this.heard.st === 'busy'} @click=${() => void this.listen()}>${icon(this.heard.st === 'idle' ? 'button' : 'refresh')}${this.heard.st === 'idle' ? 'האזנה' : 'שוב'}</button></div>` : nothing}
+      ${this.source === 'schedule' && !this.armed ? html`<div class="banner bad" role="alert" data-kav-arm>${icon('info')}<div class="t"><b>לפני שמתחילים: הבדיקה תפעיל את ההתקנים האלה באמת</b>
+        <ul>${p.steps.filter((s) => s.entity_ids.length).map((s) => html`<li>${s.sentence}</li>`)}</ul>
+        ${p.steps.some((s) => !s.entity_ids.length) ? html`<small>צעדים שלא ניתן לבדוק כאן מוצגים אך לא יופעלו.</small>` : nothing}
+        <div class="acts"><button class="btn sm primary" type="button" data-kav-arm-yes ?disabled=${!p.steps.some((s) => s.entity_ids.length)} @click=${() => { this.armed = true; }}>הבנתי, אפשר להתחיל</button></div></div></div>` : nothing}
       ${p.steps.length ? p.steps.map((s) => {
         const st = this.steps[s.path] ?? { st: 'idle' as StepState, note: '' };
         const now = s.now.map((x) => x.state ?? '?').join(', ');
         return html`<div class="kav-step ${st.st}" data-kav-step=${s.path}><span class="sn">${st.st === 'done' ? icon('check') : String(++n)}</span>
           <div><b>${s.sentence}</b><span class="s">${st.note || (now ? `עכשיו: ${now}` : '')}</span></div>
-          <button class="btn sm primary" type="button" ?disabled=${st.st === 'busy' || !s.entity_ids.length} @click=${() => void this.runStep(s.path)}>${icon('play')}${st.st === 'done' ? 'שוב' : 'הפעלה'}</button></div>`;
+          <button class="btn sm primary" type="button" ?disabled=${Object.values(this.steps).some((x) => x.st === 'busy') || !s.entity_ids.length || (this.source === 'schedule' && !this.armed)} @click=${() => void this.runStep(s.path)}>${icon('play')}${st.st === 'done' ? 'שוב' : 'הפעלה'}</button></div>`;
       }) : html`<div class="kvrow"><span>אין צעדים שמפעילים התקנים</span></div>`}
       ${this.asking ? html`<div class="banner" role="alert" data-kav-test-ask>${icon('info')}<div class="t"><b>להחזיר את ההתקנים למצב הקודם?</b>
         <div class="acts"><button class="btn sm primary" type="button" ?disabled=${this.busy} data-kav-restore-yes @click=${async () => { if (await this.restore()) void this.close(); }}>החזרה למצב הקודם</button>
@@ -134,9 +142,9 @@ export class KavDeviceTest extends LitElement {
     const end = this.flags?.device_test_end ?? 'ask';
     const endText = end === 'ask' ? 'לשאול' : end === 'restore' ? 'החזרה למצב הקודם' : 'להשאיר כמו שהוא';
     return html`<div class="dlg-body" data-kav-device-test>
-        <div class="seg" role="tablist" aria-label="סוג הבדיקה" data-kav-test-mode>
+        ${this.source === 'schedule' ? nothing : html`<div class="seg" role="tablist" aria-label="סוג הבדיקה" data-kav-test-mode>
           <button type="button" role="tab" aria-selected=${String(this.mode === 'dry')} data-m="dry" @click=${() => this.setMode('dry')}>בלי להפעיל כלום</button>
-          <button type="button" role="tab" aria-selected=${String(this.mode === 'dev')} data-m="dev" @click=${() => this.setMode('dev')}>על ההתקן</button></div>
+          <button type="button" role="tab" aria-selected=${String(this.mode === 'dev')} data-m="dev" @click=${() => this.setMode('dev')}>על ההתקן</button></div>`}
         ${this.mode === 'dry' ? this.renderDry() : this.renderDev()}
       </div>
       <div class="kav-foot">

@@ -39,7 +39,7 @@ export interface RestoreAction { entity_id: string; action: string; arguments: R
 
 const enc = encodeURIComponent;
 export const conflictSummary = (): Promise<ConflictSummary> => (isApi() ? get<ConflictSummary>('automations-ext/conflicts') : Promise.resolve({ enabled: false, window_min: null, items: [] }));
-export const draftConflicts = (source: 'automation' | 'schedule', id: string | null, draft: unknown): Promise<{ enabled: boolean; conflicts: ConflictRow[]; window_min?: number }> =>
+export const draftConflicts = (source: 'automation' | 'schedule', id: string | null, draft: unknown): Promise<{ enabled: boolean; conflicts: ConflictRow[]; window_min?: number; device_test?: boolean; device_test_end?: 'ask' | 'restore' | 'keep' }> =>
   isApi() ? post('automations-ext/conflicts', { source, id, draft }) : Promise.resolve({ enabled: false, conflicts: [] });
 export const wallDevices = (): Promise<{ devices: WallDevice[]; timing: ExtFlags['wall_timing'] }> =>
   isApi() ? get('automations-ext/wall-buttons') : Promise.resolve({ devices: [], timing: EXT_FLAGS_OFF.wall_timing });
@@ -49,6 +49,9 @@ export const detectPress = (deviceId: string): Promise<Detected> =>
   isApi() ? post(`automations-ext/wall-buttons/${enc(deviceId)}/detect`, {}) : Promise.resolve({ detected: false, listen_s: 0 });
 export const deviceTestPlan = (itemId: string, draft?: AnyDraft | null): Promise<TestPlan> =>
   post(`automations-ext/automation/${enc(itemId)}/device-test`, draft ? { draft } : {});
+/** KAVDEVTEST-295: the same plan for a schedule (its draft in the body). A plan only: each step is sent by the client through the device-control route. */
+export const scheduleDeviceTestPlan = (scheduleId: string, draft?: unknown): Promise<TestPlan> =>
+  post(`automations-ext/schedule/${enc(scheduleId)}/device-test`, draft ? { draft } : {});
 export const restorePlan = (snapshot: Snapshot[]): Promise<{ actions: RestoreAction[] }> => post('automations-ext/device-test/restore', { snapshot });
 
 // ------------------------------------------------------------------------------------------------ pure helpers

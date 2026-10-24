@@ -7,6 +7,7 @@ empty answer for the list's summary) while its switch in הגדרות › אוט
   GET  /automations-ext/wall-buttons/{device_id}           one device's buttons and presses, and which presses other items use
   POST /automations-ext/wall-buttons/{device_id}/detect    wait for one real press (a time-limited subscription, never a write)
   POST /automations-ext/automation/{item_id}/device-test   the on-device test plan (the item's editor AND runner only: owner answer 360)
+  POST /automations-ext/schedule/{schedule_id}/device-test the same plan for a schedule's draft (KAVDEVTEST-295; the schedule manager only)
   POST /automations-ext/device-test/restore                the device actions that put a snapshot back (sent by the client through the
                                                            ordinary device-control route, with its own permission and confirmation rules)
 
@@ -117,14 +118,15 @@ def conflicts(request: Request, raw: bytes = Depends(_raw), principal: Principal
     else:
         _require_any(conn, principal, SCHEDULE_PERMS)
     ctx = _ctx(request, conn, principal)
+    dev = {"device_test": ext.flags(ctx.cfg)["device_test"], "device_test_end": ext.flags(ctx.cfg)["device_test_end"]}
     if not ext.precheck_on(ctx.cfg):
-        return {"enabled": False, "conflicts": []}
+        return {"enabled": False, "conflicts": [], **dev}
     try:
         rows = ext.conflicts_for(ctx, body.source, body.id, body.draft)
     except (KeyError, TypeError, ValueError, AttributeError):
         raise ApiError(422, "validation", "הטיוטה אינה שלמה או אינה תקינה.", details={"fields": ["draft"]}) from None
     f = ext.flags(ctx.cfg)
-    return {"enabled": True, "window_min": f["conflict_window_min"], "save_with_warnings": f["save_with_warnings"], "conflicts": rows}
+    return {"enabled": True, "window_min": f["conflict_window_min"], "save_with_warnings": f["save_with_warnings"], "conflicts": rows, **dev}
 
 
 # ---------------------------------------------------------------- wall buttons
@@ -206,6 +208,40 @@ def device_test(request: Request, item_id: str = Path(min_length=1, max_length=1
     plan = ext.test_plan(ctx, draft)
     audit(conn, actor=principal, action="automation.device_test", decision="allowed", resource_type="automation", resource_id=item_id,
           request_id=getattr(request.state, "correlation_id", None), details={"steps": len(plan["steps"])})
+    return plan
+
+
+@router.post("/automations-ext/schedule/{schedule_id}/device-test")
+def schedule_device_test(request: Request, schedule_id: str = Path(min_length=1, max_length=120), raw: bytes = Depends(_raw), principal: Principal = Depends(current_principal),
+                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """KAVDEVTEST-295: the on-device test plan of a schedule (the draft in the body, else the stored one). A PLAN only: the client runs each step
+    through the device-control route, one click per step. The caller must manage schedules (the right the schedule's own run-now needs)."""
+    _require_any(conn, principal, ("schedule.manage",))
+    body = _parse(request, raw, TestBody)
+    ctx = _ctx(request, conn, principal)
+    _flag(ctx, "automations.device_test_enabled")
+    from ..services import schedule_model as smodel
+    from ..services import schedule_view as sview
+    from ..services import schedules as sstore
+
+    sctx = sview.Ctx(conn, principal)
+    row = sstore.cache_row(conn, schedule_id) if sview.cache_shown(sctx) else None
+    core = smodel.normalize(sstore.item_of(row)) if row is not None else None
+    if core is not None:
+        sctx.preload(smodel.action_entities(core))
+    if row is None or core is None or not sview.is_visible(sctx, core):
+        audit(conn, actor=principal, action="schedule.device_test", decision="denied", resource_type="schedule", resource_id=schedule_id, reason="not_found_or_invisible",
+              request_id=getattr(request.state, "correlation_id", None))
+        raise ApiError(404, "schedule_not_found", "התזמון לא נמצא.")
+    draft = body.draft if body.draft is not None else {"weekdays": core["weekdays"], "slots": [
+        {"start": (s["start"] or {}).get("raw") or (s["start"] or {}).get("time"), "stop": None,
+         "actions": [{"service": a["service"], "entity_id": a["entity_id"], "data": a["data"]} for a in s["actions"]]} for s in core["slots"]]}
+    try:
+        plan = ext.schedule_test_plan(ctx, draft, lambda e: sctx.access.allowed(sview.MANAGE, e))
+    except (KeyError, TypeError, ValueError, AttributeError, IndexError, RecursionError):
+        raise ApiError(422, "validation", "הטיוטה אינה שלמה או אינה תקינה.", details={"fields": ["draft"]}) from None
+    audit(conn, actor=principal, action="schedule.device_test", decision="allowed", resource_type="schedule", resource_id=schedule_id,
+          request_id=getattr(request.state, "correlation_id", None), details={"steps": len(plan["steps"]), "testable": sum(1 for x in plan["steps"] if x["entity_ids"])})
     return plan
 
 

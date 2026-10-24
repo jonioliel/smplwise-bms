@@ -110,6 +110,7 @@ import { NEW_DRAFT_KEY } from './schedule-create-dialog';
 import { TEMPLATES, templateById, withPreset, type TemplateDraft } from './schedule-templates';
 import { dateInputLang } from '../api/day-format';
 import { conflictMove, conflictSlotIndex, draftConflicts, warningsHeading, type ConflictRow } from '../api/automations-ext';
+import './automation-ext-dialogs';
 
 /**
  * CR-014 S4: the schedule editor (mockup 05-09, 17-19 editor level, 21, 24-25).
@@ -194,6 +195,9 @@ export class ScheduleEditor extends LitElement {
   /** KAV079 state 7: the checks are on (the "בדיקה בלי הפעלה" button is offered) and its dialog. */
   @state() private kavOn = false;
   @state() private kavDry = false;
+  @state() private kavDevTest = false;
+  @state() private kavDevTestEnd: 'ask' | 'restore' | 'keep' = 'ask';
+  @state() private kavDevOpen = false;
   @state() private showErrors = false;
   @state() private saving = false;
   @state() private saveError = '';
@@ -1333,9 +1337,11 @@ export class ScheduleEditor extends LitElement {
       void draftConflicts('schedule', this.creating ? null : this.scheduleId, draft).then((r) => {
         if (token !== this.previewToken) return;
         this.kavOn = !!r.enabled;
+        this.kavDevTest = !!r.device_test;
+        this.kavDevTestEnd = r.device_test_end ?? 'ask';
         this.kavConflicts = r.enabled ? r.conflicts : [];
         this.kavSaveWithWarnings = (r as { save_with_warnings?: boolean }).save_with_warnings !== false;
-      }).catch(() => { if (token === this.previewToken) { this.kavConflicts = []; this.kavOn = false; } });
+      }).catch(() => { if (token === this.previewToken) { this.kavConflicts = []; this.kavOn = false; this.kavDevTest = false; } });
     } catch {
       if (token === this.previewToken) {
         this.preview = null;
@@ -1970,6 +1976,10 @@ export class ScheduleEditor extends LitElement {
         ${this.kavConflicts.length ? html`<div class="hint" data-kav-dry-conflicts>${warningsHeading(this.kavConflicts.length)} בהתנגשות עם פריטים אחרים (מוצגות בתיבה שמעל הלוח).</div>` : nothing}
         <div slot="footer" style="display:contents"><sw-button variant="primary" @click=${() => (this.kavDry = false)}>סגירה</sw-button></div>
       </sw-dialog>
+      <sw-dialog ?open=${this.kavDevOpen} heading="בדיקה על ההתקן" data-kav-devtest-dialog @close=${() => (this.kavDevOpen = false)}>
+        ${this.kavDevOpen ? html`<kav-device-test source="schedule" .itemId=${this.scheduleId} .draft=${this.currentDraft()} .flags=${{ device_test_end: this.kavDevTestEnd } as never}
+          @test-close=${() => (this.kavDevOpen = false)}></kav-device-test>` : nothing}
+      </sw-dialog>
       <sw-dialog ?open=${this.compareOpen} heading="השוואה לגרסה החדשה" data-compare-dialog @close=${() => (this.compareOpen = false)}>
         ${cmp.length
           ? html`<table style="inline-size:100%;border-collapse:collapse;font-size:var(--sw-fs-sm)">
@@ -2005,6 +2015,7 @@ export class ScheduleEditor extends LitElement {
         <schedule-condition-chip data-condition-chip .conditions=${this.condView()}></schedule-condition-chip>
         ${sensitive ? html`<sw-schedule-markers data-sensitive-badge .sensitive=${true} .lowering=${loweringSummary(this.currentDraft(), this.meta).lowering}></sw-schedule-markers>` : nothing}
         ${this.kavOn && !ro ? html`<sw-button icon="play" data-kav-dry @click=${() => (this.kavDry = true)}>בדיקה בלי הפעלה</sw-button>` : nothing}
+        ${this.kavDevTest && !ro && !this.creating ? html`<sw-button icon="play" data-kav-devtest @click=${() => (this.kavDevOpen = true)}>בדיקה על ההתקן</sw-button>` : nothing}
         <sw-button data-editor-cancel @click=${() => this.cancel()}>${ro ? 'חזרה' : 'ביטול'}</sw-button>
         ${ro ? nothing : this.kavConflicts.length
           ? html`<sw-button icon="warning" data-editor-save data-editor-save-warnings ?disabled=${!this.dirty || this.saving || !this.kavSaveWithWarnings} @click=${() => void this.onSave()}>${this.saving ? 'שומר…' : 'שמירה עם אזהרות'}</sw-button>`

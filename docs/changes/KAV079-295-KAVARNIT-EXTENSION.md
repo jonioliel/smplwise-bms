@@ -111,9 +111,14 @@ card's `VERSION`, `test_one_version_everywhere...`), or change the constant to t
   through Arx's escalation. The line is not shown.
 - **Schedule editor (state 7), follow-up KAVLEFT-295:** built now: "בדיקה בלי הפעלה" (a dialog with the next runs of the draft; nothing is sent), the dashed
   conflict mark on the board's slots (draft slots only, not the split-day arrangement), and "הזזת המשבצת ל־HH:MM" in the conflict box (a fixed-time
-  slot moves just outside the window through the board's own move; hidden in a split-day arrangement). **Still not built:** "בדיקה על ההתקן" for a
-  schedule - the on-device plan route is per automation and a schedule's actions use platform services, not the device-control action ids, so it needs
-  a backend mapping and the owner's approval of a new equipment-writing path.
+  slot moves just outside the window through the board's own move; hidden in a split-day arrangement). **Built in KAVDEVTEST-295 (owner approved):** "בדיקה על ההתקן" for a schedule. `POST /automations-ext/schedule/{id}/device-test` returns a PLAN only (the same
+  shape as the automation's): a slot action is a device step when its service is an id of the device-control allow-list (`ha_bridge.ACTIONS`), the entity matches
+  that action's domain, the caller may read it and holds `schedule.manage` on it, and its arguments validate; anything else (a notify, an unknown service, a bad
+  argument) is listed with no entities and its button stays disabled. Nothing is sent from the server: the client sends each step through the ordinary
+  device-control route, one click per step, one at a time, after the person confirms the list once ("לפני שמתחילים..."), with that route's own permission, grant and
+  confirmation rules and its audit. Off by default: the same switch as the automations' on-device test (`automations.device_test_enabled`); the route audits
+  `schedule.device_test`. The restore at the end uses the existing snapshot / restore plan and `automations.device_test_end`. The schedule editor learns the flag from
+  the conflicts answer, which now also carries `device_test` and `device_test_end`. No bridge change.
 - **Wall-button timing values** are stored and shown; the platform's integration does the actual press timing (ZHA / Shelly decide double /
   long themselves) - nothing applies them to the devices.
 - No evidence screenshots were produced (the evidence spec exists but was not run).
