@@ -367,7 +367,7 @@ export class InfraTemperature extends LitElement {
   private reportOverlays() {
     const units = this.data?.units ?? [];
     return html`${this.report !== null
-      ? html`<temp-report .units=${units} .preselect=${this.report} .canSend=${this.access.manage} @close=${() => { this.report = null; }}
+      ? html`<temp-report .units=${units} .preselect=${this.report} .canSend=${this.access.manage} .canLink=${this.access.link} @close=${() => { this.report = null; }}
           @done=${(e: CustomEvent<string>) => this.flash(e.detail)} @whatsapp=${(e: CustomEvent<ReportParams>) => { this.report = null; this.wa = e.detail; }}></temp-report>`
       : nothing}
       ${this.wa !== null ? html`<temp-wa .units=${units} .params=${this.wa} @close=${() => { this.wa = null; }}></temp-wa>` : nothing}`;

@@ -11,7 +11,7 @@ import {
   rotateKey, runDrill, setDrillMonthly, setTargetEnabled, toRequest, updateTarget,
   type DrillStatus, type OffboxRun, type OffboxStatus, type OffboxTarget, type OffboxTargetIn,
 } from '../api/backup-offbox';
-import { obt, obtError, type ObtKey } from '../i18n/backup-offbox';
+import { keyExportReady, obt, obtError, type ObtKey } from '../i18n/backup-offbox';
 import { settingsStyles } from '../styles/settings';
 import { dayMonthTimeText } from '../api/day-format';
 
@@ -32,6 +32,7 @@ export class SwOffboxBackup extends LitElement {
   @state() private msg: { ok: boolean; text: string } | null = null;
   @state() private dialog: Dialog = null;
   @state() private confirm = '';
+  @state() private acked = false;
   @state() private shownKey = '';
   @state() private copied = false;
   @state() private importText = '';
@@ -235,6 +236,7 @@ export class SwOffboxBackup extends LitElement {
   private closeDialog() {
     this.dialog = null;
     this.confirm = '';
+    this.acked = false;
     this.shownKey = '';
     this.copied = false;
   }
@@ -257,12 +259,18 @@ export class SwOffboxBackup extends LitElement {
         ? html`<div class="msg ok" role="status">${obt('keyShown')}</div>
             <textarea class="keybox" data-ltr readonly rows="3" data-offbox-key-text .value=${this.shownKey}></textarea>`
         : html`<div class="msg warn" role="note">${obt(isExport ? 'keyExportWarn' : 'keyRotateWarn')}</div>
+            ${isExport
+              ? html`<ul class="keyfacts" data-offbox-key-facts>
+                  <li>${obt('keyExportWhat')}</li><li>${obt('keyExportNoRestore')}</li><li>${obt('keyExportLost')}</li><li>${obt('keyExportStore')}</li></ul>
+                <label class="ack"><input type="checkbox" data-offbox-ack .checked=${this.acked}
+                  @change=${(e: Event) => { this.acked = (e.target as HTMLInputElement).checked; }} /><span>${obt('keyExportAck')}</span></label>`
+              : nothing}
             <div class="muted">${obt(isExport ? 'keyExportConfirm' : 'keyRotateConfirm')}</div>
             <input class="confirm-in" data-ltr data-offbox-confirm placeholder=${word} .value=${this.confirm} @input=${(e: Event) => { this.confirm = (e.target as HTMLInputElement).value; }} />`}
       <div slot="footer">
         ${this.shownKey
           ? html`<sw-button variant="primary" icon="copy" data-offbox-copy @click=${() => void this.copyKey()}>${this.copied ? obt('copied') : obt('copy')}</sw-button>`
-          : html`<sw-button variant=${isExport ? 'primary' : 'danger'} ?disabled=${this.confirm !== word || !!this.busy} data-offbox-key-go
+          : html`<sw-button variant=${isExport ? 'primary' : 'danger'} ?disabled=${isExport ? !keyExportReady(this.confirm, this.acked, !!this.busy) : this.confirm !== word || !!this.busy} data-offbox-key-go
               @click=${() => void (isExport ? this.doExport() : this.act('rotate', async () => { await rotateKey(); this.closeDialog(); }, obt('keyRotated')))}>${obt(isExport ? 'keyExport' : 'keyRotate')}</sw-button>`}
         <sw-button variant="ghost" @click=${() => this.closeDialog()}>${obt('cancel')}</sw-button>
       </div>
@@ -340,6 +348,8 @@ export class SwOffboxBackup extends LitElement {
     .ret input { inline-size: 64px; }
     input.ctl, textarea.ctl, .ret input, .confirm-in, .keybox { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-radius-sm, 6px);
       background: var(--sw-surface); color: var(--sw-text); min-inline-size: 0; }
+    .keyfacts { margin: 0; padding-inline-start: 18px; display: grid; gap: 4px; }
+    .ack { display: flex; gap: 8px; align-items: flex-start; }
     textarea.ctl, .keybox { inline-size: 100%; box-sizing: border-box; font-family: var(--sw-font-mono, monospace); font-size: var(--sw-fs-sm); }
     [data-ltr] { direction: ltr; text-align: start; }
     .end { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }

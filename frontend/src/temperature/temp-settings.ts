@@ -26,6 +26,8 @@ const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
   { title: 'setExplain', keys: [['explain_enabled', 'explainEnabled'], ['explain_lookback_min', 'explainLookback'], ['explain_door_lookback_min', 'explainDoorLookback'], ['explain_door_min_open_min', 'explainDoorMin'],
     ['explain_power_lookback_min', 'explainPowerLookback'], ['explain_compressor_off_min', 'explainCompOff'], ['explain_gap_min', 'explainGap'], ['explain_spike_max_min', 'explainSpikeMax'],
     ['explain_spike_jump', 'explainSpikeJump'], ['explain_neighbor_rise', 'explainNbRise'], ['explain_neighbor_scope', 'explainNbScope'], ['explain_min_score', 'explainMinScore']] },
+  // TEMPLINK-295: the temporary report download link (off by default)
+  { title: 'setLink', keys: [['report_link_enabled', 'linkEnabled'], ['report_link_hours', 'linkHours'], ['report_link_max_opens', 'linkMaxOpens'], ['report_link_per_hour', 'linkPerHour']] },
   { title: 'retention', keys: [['retention_days', 'retention']] },
 ];
 const KIND_LABEL: Record<AlertKind, TtKey> = { alarm: 'kindAlarm', warning: 'kindWarning', offline: 'kindOffline', health: 'kindHealth' };

@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
-import { downloadReportPdf, getReportPreview, type ReportModel, type ReportParams, type ReportRange, type TempUnit } from '../api/temperature';
+import { createReportLink, downloadReportPdf, getReportLinks, getReportPreview, revokeReportLink, type ReportLinkCreated, type ReportModel, type ReportParams, type ReportRange, type TempUnit } from '../api/temperature';
 import { REPORT_RANGES, deg, durationText, eventText, friendlyName, localInput } from './model';
 import { bigChart } from './charts';
 import { tempCss } from './styles';
@@ -28,6 +28,11 @@ export class TempReport extends LitElement {
   @property({ attribute: false }) units: TempUnit[] = [];
   @property({ attribute: false }) preselect: string[] = [];
   @property({ type: Boolean }) canSend = false;
+  /** infra.temperature.report_link: the button shows only when the server also says the feature is on */
+  @property({ type: Boolean }) canLink = false;
+  @state() private linkOn = false;
+  @state() private link: ReportLinkCreated | null = null;
+  @state() private copied = false;
   @state() private p: ReportParams = { units: [], range: '24h', lang: 'he', chart: true, events: true, signature: true };
   @state() private model: ReportModel | null = null;
   @state() private err = '';
@@ -84,6 +89,8 @@ export class TempReport extends LitElement {
     .capnote { font-size: var(--sw-fs-xs); color: var(--sw-warn-text, var(--sw-text-2)); margin: 0; }
     table.smp td { font-variant-numeric: tabular-nums; }
     table.smp tr[data-out] td { color: var(--sw-danger-text); }
+    .wl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 20px; border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); }
+    .wl .in { flex: 1; min-inline-size: 200px; }
     .wf { display: flex; gap: 8px; align-items: center; padding: 12px 20px; border-block-start: 1px solid var(--sw-border); background: var(--sw-surface); }
     .wf .sp { flex: 1; }
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
@@ -111,6 +118,7 @@ export class TempReport extends LitElement {
     this.p = { ...this.p, units: this.preselect.length ? [...this.preselect] : this.units.slice(0, 1).map((u) => u.id), lang: document.documentElement.lang.startsWith('en') ? 'en' : 'he',
       from: localInput(now - 7 * 86400_000), to: localInput(now) };
     this.refresh();
+    if (this.canLink) void getReportLinks().then((r) => { this.linkOn = r.available; }, () => { this.linkOn = false; });
   }
 
   disconnectedCallback() {
@@ -183,6 +191,44 @@ export class TempReport extends LitElement {
       this.err = describeError(e);
     } finally {
       this.busy = false;
+    }
+  }
+
+  /** TEMPLINK-295: a temporary download link of THIS report (the same choices as the PDF). Shown once; revoked from the same row. */
+  private async makeLink() {
+    if (!this.p.units.length) {
+      this.err = tt('repNeedUnit');
+      return;
+    }
+    this.busy = true;
+    this.err = '';
+    this.copied = false;
+    try {
+      this.link = await createReportLink(this.params());
+    } catch (e) {
+      this.err = describeError(e);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async copyLink() {
+    try {
+      await navigator.clipboard.writeText(this.link?.url ?? '');
+      this.copied = true;
+    } catch {
+      this.copied = false;
+    }
+  }
+
+  private async revokeLink() {
+    if (!this.link) return;
+    try {
+      await revokeReportLink(this.link.id);
+      this.link = null;
+      this.dispatchEvent(new CustomEvent('done', { detail: tt('repLinkRevoked') }));
+    } catch (e) {
+      this.err = describeError(e);
     }
   }
 
@@ -271,8 +317,14 @@ export class TempReport extends LitElement {
           </div>
           ${this.paper()}
         </div>
+        ${this.link ? html`<div class="wl" data-rep-link-row>
+          <input class="in" dir="ltr" readonly .value=${this.link.url} aria-label=${tt('repLink')} data-rep-link-url @focus=${(e: Event) => (e.target as HTMLInputElement).select()} />
+          <button type="button" class="btn sm" data-rep-link-copy @click=${() => this.copyLink()}><sw-icon name="copy" size="14"></sw-icon>${this.copied ? tt('repLinkCopied') : tt('repLinkCopy')}</button>
+          <span class="hint">${tt('repLinkUntil', { t: dayTimeText(new Date(this.link.expires_at)) })}</span>
+          <button type="button" class="btn sm ghost" data-rep-link-revoke @click=${() => this.revokeLink()}>${tt('repLinkRevoke')}</button></div>` : nothing}
         <div class="wf">
           ${this.canSend ? html`<button type="button" class="btn" ?disabled=${!p.units.length} data-rep-wa @click=${() => this.dispatchEvent(new CustomEvent('whatsapp', { detail: this.params() }))}><sw-icon name="share" size="16"></sw-icon>${tt('repWa')}</button>` : nothing}
+          ${this.canLink && this.linkOn ? html`<button type="button" class="btn" ?disabled=${this.busy || !p.units.length} data-rep-link @click=${() => this.makeLink()}><sw-icon name="link" size="16"></sw-icon>${tt('repLink')}</button>` : nothing}
           <span class="sp"></span>${this.err ? html`<span class="err" role="alert">${this.err}</span>` : nothing}
           <button type="button" class="btn ghost" @click=${() => this.close()}>${tt('cancel')}</button>
           <button type="button" class="btn pri" ?disabled=${this.busy || !p.units.length} data-rep-export @click=${() => this.exportPdf()}><sw-icon name="download" size="16"></sw-icon>${tt('repExport')}</button>

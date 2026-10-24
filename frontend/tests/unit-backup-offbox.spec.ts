@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { OBT_KEYS, OBT_TABLES, obt, obtError } from '../src/i18n/backup-offbox';
+import { OBT_KEYS, OBT_TABLES, keyExportReady, obt, obtError } from '../src/i18n/backup-offbox';
 import { CONFIG_FIELDS, SECRET_FIELDS, blankTarget, toRequest } from '../src/api/backup-offbox';
 
 // DATASTORE-295 phase 2: the words of the off-box copies screen exist in all four languages with the same placeholders, every
@@ -44,4 +44,17 @@ test('the request body: trimmed fields, numeric port, typed secrets only, cleare
   expect(b2.config.port).toBe(2222);
   expect(b2.secrets, 'an explicit clear wins').toEqual({ key: '' });
   expect(SECRET_FIELDS.sftp).toEqual(['key']);
+});
+
+test('key export wording: the four statements exist in every language and the button needs the word AND the tick', () => {
+  for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
+    for (const k of ['keyExportWhat', 'keyExportNoRestore', 'keyExportLost', 'keyExportStore', 'keyExportAck'] as const) {
+      expect(OBT_TABLES[lang][k], `${lang}.${k}`).toBeTruthy();
+    }
+  }
+  expect(keyExportReady('EXPORT', true, false)).toBe(true);
+  expect(keyExportReady('EXPORT', false, false)).toBe(false);
+  expect(keyExportReady('', true, false)).toBe(false);
+  expect(keyExportReady('export', true, false)).toBe(false);
+  expect(keyExportReady('EXPORT', true, true)).toBe(false);
 });

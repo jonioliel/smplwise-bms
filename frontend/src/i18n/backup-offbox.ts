@@ -66,6 +66,11 @@ const he = {
   keyExportTitle: 'ייצוא מפתח ההצפנה',
   keyExportWarn: 'המפתח יוצג פעם אחת בלבד. שמרו אותו מחוץ למכונה (מנהל סיסמאות או נייר). כל מי שמחזיק בו יכול לפתוח את העותקים.',
   keyExportConfirm: 'לאישור הקלידו EXPORT',
+  keyExportWhat: 'מפתח ההצפנה הוא הסוד שמצפין את עותקי הגיבוי החיצוניים. רק הוא פותח אותם.',
+  keyExportNoRestore: 'בלי המפתח אי אפשר לשחזר גיבוי.',
+  keyExportLost: 'אם המפתח אבד, הגיבוי אבד, וגם אנחנו לא נוכל לפתוח אותו.',
+  keyExportStore: 'שמרו את המפתח מחוץ למערכת הזו, במנהל סיסמאות או על נייר, ולא בגיבוי עצמו.',
+  keyExportAck: 'הבנתי ששומרים את המפתח מחוץ למערכת ושבלעדיו אי אפשר לשחזר',
   keyShown: 'העתיקו עכשיו. המפתח לא יוצג שוב.',
   copy: 'העתקה',
   copied: 'הועתק',
@@ -176,6 +181,11 @@ const en: Partial<Record<Key, string>> = {
   keyExportTitle: 'Export the encryption key',
   keyExportWarn: 'The key is shown once only. Keep it outside this machine (a password manager or paper). Anyone holding it can open the copies.',
   keyExportConfirm: 'Type EXPORT to confirm',
+  keyExportWhat: 'The encryption key is the secret that encrypts the off-box backup copies. Only it can open them.',
+  keyExportNoRestore: 'Without the key a backup cannot be restored.',
+  keyExportLost: 'If the key is lost, the backup is lost, and nobody can open it for you.',
+  keyExportStore: 'Store the key outside this system, in a password manager or on paper, never inside the backup itself.',
+  keyExportAck: 'I understand the key must be kept outside the system and that without it nothing can be restored',
   keyShown: 'Copy it now. The key will not be shown again.',
   copy: 'Copy',
   copied: 'Copied',
@@ -286,6 +296,11 @@ const ar: Partial<Record<Key, string>> = {
   keyExportTitle: 'تصدير مفتاح التشفير',
   keyExportWarn: 'يُعرض المفتاح مرة واحدة فقط. احفظه خارج هذا الجهاز (مدير كلمات مرور أو ورق). كل من يملكه يستطيع فتح النسخ.',
   keyExportConfirm: 'اكتب EXPORT للتأكيد',
+  keyExportWhat: 'مفتاح التشفير هو السر الذي يشفّر نسخ النسخ الاحتياطي الخارجية. وهو وحده يفتحها.',
+  keyExportNoRestore: 'بدون المفتاح لا يمكن استعادة نسخة احتياطية.',
+  keyExportLost: 'إذا فُقد المفتاح فُقدت النسخة الاحتياطية، ولا يستطيع أحد فتحها لك.',
+  keyExportStore: 'احفظ المفتاح خارج هذا النظام، في مدير كلمات مرور أو على ورق، وليس داخل النسخة الاحتياطية نفسها.',
+  keyExportAck: 'أفهم أن المفتاح يجب حفظه خارج النظام وأنه بدونه لا يمكن الاستعادة',
   keyShown: 'انسخه الآن. لن يُعرض المفتاح مرة أخرى.',
   copy: 'نسخ',
   copied: 'تم النسخ',
@@ -396,6 +411,11 @@ const ru: Partial<Record<Key, string>> = {
   keyExportTitle: 'Экспорт ключа шифрования',
   keyExportWarn: 'Ключ показывается только один раз. Храните его вне этого устройства (менеджер паролей или бумага). Любой, у кого он есть, может открыть копии.',
   keyExportConfirm: 'Введите EXPORT для подтверждения',
+  keyExportWhat: 'Ключ шифрования — это секрет, которым шифруются внешние резервные копии. Открыть их может только он.',
+  keyExportNoRestore: 'Без ключа резервную копию восстановить нельзя.',
+  keyExportLost: 'Если ключ утерян, резервная копия потеряна, и никто не сможет открыть её за вас.',
+  keyExportStore: 'Храните ключ вне этой системы, в менеджере паролей или на бумаге, но не внутри самой резервной копии.',
+  keyExportAck: 'Я понимаю, что ключ нужно хранить вне системы и что без него восстановление невозможно',
   keyShown: 'Скопируйте сейчас. Ключ больше не будет показан.',
   copy: 'Копировать',
   copied: 'Скопировано',
@@ -464,6 +484,11 @@ export function obt(key: Key, vars?: Record<string, string | number>, lang: ObtL
 export function obtError(code: string | null | undefined, lang: ObtLang = obtLang()): string {
   const k = `err_${code ?? ''}` as Key;
   return k in he ? obt(k, undefined, lang) : obt('err_other', undefined, lang);
+}
+
+/** The export button works only with the typed word AND the ticked acknowledgement. */
+export function keyExportReady(typed: string, acked: boolean, busy: boolean): boolean {
+  return typed === 'EXPORT' && acked && !busy;
 }
 
 export const OBT_KEYS = Object.keys(he) as Key[];
