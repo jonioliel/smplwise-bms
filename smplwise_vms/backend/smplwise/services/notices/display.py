@@ -74,9 +74,21 @@ def too_many() -> Reply:
 
 
 def building_name(conn: sqlite3.Connection) -> str:
+    """The name the TV boards greet with (the welcome title, the template-3 header, the empty stage's line, the footer): the explicit
+    `notices.building_name` (הגדרות › לוח הודעות › ברירות מחדל) first, then the project name of הגדרות › כללי › מראה המערכת
+    (`brand.project.name`, NOTICEADD-295: 2.16.0 skipped it and fell through to the first site building's name), then the first
+    building, then the home title."""
     s = store.settings(conn)
     if s["building_name"]:
         return s["building_name"]
+    return fallback_name(conn)
+
+
+def fallback_name(conn: sqlite3.Connection) -> str:
+    """The name the boards use while `notices.building_name` is empty (the Settings field shows it as its placeholder)."""
+    project = brand_assets.project_name(conn)
+    if project:
+        return project[:60]
     row = conn.execute("SELECT name FROM buildings WHERE deleted_at IS NULL ORDER BY sort_order, created_at LIMIT 1").fetchone()
     if row and row["name"]:
         return str(row["name"])[:60]

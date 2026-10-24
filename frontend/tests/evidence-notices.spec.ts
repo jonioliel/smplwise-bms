@@ -57,6 +57,13 @@ async function install(page: Page, o: { enabled?: boolean; manager?: boolean } =
       return json(route, { notices: list, can: CAN, now: NOW, defaults: { default_days: 7, default_severity: 'info' } });
     }
     if (p === 'notices' && method === 'POST') return json(route, { notice: { ...NOTICES[3], id: 'new1', ...(body as object) } });
+    // NOTICEADD-295: edit / archive / delete of one notice
+    const one = /^notices\/(n\d)(?:\/(archive|publish))?$/.exec(p);
+    if (one) {
+      const n = NOTICES.find((x) => x.id === one[1]);
+      if (method === 'DELETE') return json(route, { deleted: true });
+      return json(route, { notice: { ...n, ...(body as object), ...(one[2] === 'archive' ? { status: 'archived', state: 'archived' } : {}) } });
+    }
     if (p === 'notices/boards' && method === 'GET') return json(route, { boards: [BOARD], full: true, max: 10, remote: false });
     if (p === 'notices/boards' && method === 'POST') return json(route, { board: { ...BOARD, id: 'b2', name: (body as { name: string }).name, slug: (body as { slug: string }).slug, item_count: 0, last_seen_at: null }, token: 'k9Qw2Lr7Vt3pXa8MbN4cHd6FeJ1sYz0uRiGo5wTqBv' });
     if (p === 'notices/boards/b1' && method === 'GET') return json(route, { board: BOARD, notices: NOTICES.slice(0, 2).map((n, i) => ({ ...n, position: i })) });
@@ -167,4 +174,73 @@ test('board page: the display tab previews the real TV page and saves the settin
   await shot(page, 'board-display');
   await root.locator('[data-save-display]').click();
   await expect.poll(() => (calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body as { display?: { template?: number; mode?: string } } | undefined)?.display).toMatchObject({ template: 3, mode: 'all' });
+});
+
+// NOTICEADD-295: the board's "הודעות" tab writes, edits and archives notices (2.16.0 offered only a picker of existing notices, and nothing
+// at all while there were none); the settings page opens the same dialog; the rail carries "לוח הודעות" while the module is on.
+test('board page: a new notice for the board, edit and archive from the notices tab', async ({ page }) => {
+  const calls = await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices/b1'));
+  const root = page.locator('sw-app system-notices');
+  await root.locator('sw-tabs').getByText('הודעות').click();
+  await root.locator('[data-board-compose]').click();
+  const dlg = root.locator('[data-compose-dialog]');
+  await expect(dlg.locator('[data-aud] button[data-a="tv"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(dlg.locator('[data-board-pick="b1"]')).toHaveAttribute('aria-pressed', 'true');
+  await dlg.locator('#nt-title').fill('ניקיון חדר האשפה');
+  await noOverflow(page);
+  await shot(page, 'board-compose');
+  await dlg.locator('[data-publish]').click();
+  await expect.poll(() => calls.find((c) => c.method === 'POST' && c.path === 'notices')?.body).toMatchObject({ title: 'ניקיון חדר האשפה', publish: true, boards: ['b1'], audience: {} });
+  await expect(root.locator('[data-compose-dialog]')).toHaveCount(0);
+  // edit the first notice of the board, then archive it (asked once in the dialog)
+  await root.locator('tr[data-board-notice="n1"] [data-edit-notice]').click();
+  await expect(dlg.locator('#nt-title')).toHaveValue('הפסקת מים מחר 10:00-12:00');
+  await dlg.locator('#nt-title').fill('הפסקת מים מחר 10:00-13:00');
+  await dlg.locator('[data-publish]').click();
+  await expect.poll(() => calls.find((c) => c.method === 'PATCH' && c.path === 'notices/n1')?.body).toMatchObject({ title: 'הפסקת מים מחר 10:00-13:00' });
+  await root.locator('tr[data-board-notice="n1"] [data-edit-notice]').click();
+  await dlg.locator('[data-remove-notice]').click();
+  expect(calls.some((c) => c.path === 'notices/n1/archive')).toBe(false);
+  await dlg.locator('[data-remove-notice]').click();
+  await expect.poll(() => calls.some((c) => c.method === 'POST' && c.path === 'notices/n1/archive')).toBe(true);
+});
+
+test('board page: an empty board offers the new notice right away', async ({ page }) => {
+  await install(page);
+  await page.route('**/api/v1/notices/boards/b1', (route) => (route.request().method() === 'GET' ? json(route, { board: { ...BOARD, item_count: 0 }, notices: [] }) : route.fallback()));
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices/b1'));
+  const root = page.locator('sw-app system-notices');
+  await root.locator('sw-tabs').getByText('הודעות').click();
+  await expect(root.locator('[data-board-compose]')).toBeVisible();
+  await root.locator('sw-state-panel').getByRole('button').click();
+  await expect(root.locator('[data-compose-dialog] [data-board-pick="b1"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('settings page: a new notice opens the same dialog', async ({ page }) => {
+  await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices'));
+  const root = page.locator('sw-app system-notices');
+  await root.locator('[data-new-notice]').click();
+  await expect(root.locator('[data-compose-dialog] [data-aud] button[data-a="all"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('the rail carries לוח הודעות while the module is on, and lights it on its page', async ({ page }) => {
+  await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/devices/notices'));
+  const entry = page.locator('sw-app [data-nav="notices"]');
+  await expect(entry.first()).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('sw-app [data-nav="devices"]').first()).toHaveAttribute('aria-current', 'false');
+});
+
+test('module off: no לוח הודעות in the rail', async ({ page }) => {
+  await install(page, { enabled: false });
+  await page.goto('about:blank');
+  await page.goto(url('/devices/building'));
+  await expect(page.locator('sw-app [data-nav="devices"]').first()).toBeAttached();
+  await expect(page.locator('sw-app [data-nav="notices"]')).toHaveCount(0);
 });

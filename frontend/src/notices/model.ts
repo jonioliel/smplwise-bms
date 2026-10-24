@@ -99,6 +99,12 @@ export function newDraft(now: Date, days: number, severity: Severity): Draft {
   return { id: '', title: '', body: '', severity, pinned: false, from: toLocalInput(now), to: toLocalInput(end), untilArchived: false, aud: 'all', floors: [], groups: [], roles: [], boards: [], dwell: '', when: '', status: 'new' };
 }
 
+/** NOTICEADD-295: a new notice written from a board's "הודעות" tab - tagged to that board and, as written there, for the TV boards only
+ * (the author may widen the audience in the dialog). */
+export function boardDraft(now: Date, days: number, severity: Severity, boardId: string): Draft {
+  return { ...newDraft(now, days, severity), aud: 'tv', boards: boardId ? [boardId] : [] };
+}
+
 export function draftOf(n: Notice): Draft {
   const a = n.audience ?? {};
   const aud: Draft['aud'] = a.everyone ? 'all' : a.floors?.length || a.areas?.length ? 'place' : a.groups?.length || a.roles?.length ? 'group' : 'tv';

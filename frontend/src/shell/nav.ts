@@ -687,8 +687,7 @@ export const PRESENCE_HREF = '#/explore/presence';
 export const DEVICES_TABS: TabItem[] = [
   { id: 'building', label: 'מבט על', href: '#/devices/building' },
   { id: 'automations', label: 'קברניט', href: SCHEDULES_HREF },
-  // CR-NOTICE106: לוח הודעות - offered only while the module is on (applyNoticesHidden) to holders of notices.view
-  { id: 'notices', label: 'לוח הודעות', href: '#/devices/notices' },
+  // CR-NOTICE106 put לוח הודעות here; NOTICEADD-295 (owner decision 2026-10-24) moved it to the rail (NOTICES_AREA)
 ];
 
 /** CR-NOTICE106: the notice board page (readers and managers) and its settings page (the switch, the defaults, the TV boards). */
@@ -1073,7 +1072,8 @@ export function areaDot(id: string): boolean {
   return id === 'security' && !INCIDENTS_OFF && INCIDENTS_OPEN > 0 && INCIDENTS_DOT !== 'off';
 }
 
-export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices' | 'multimedia' | 'infra' | 'tickets';
+// NOTICEADD-295: 'notices' is the rail entry of the notice board (NOTICES_AREA) - not a movable tab (NavTabId) and without a tab row
+export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices' | 'multimedia' | 'infra' | 'tickets' | 'notices';
 export type SecuritySection = 'live' | 'investigate' | 'alarm';
 
 export interface AreaEntry {
@@ -1108,6 +1108,12 @@ export const NAV_A: AreaEntry[] = [
 /** The ids of the movable tabs, in the default order (the server keeps the same list: services/user_prefs.py). */
 export type NavTabId = 'devices' | 'security' | 'explore' | 'multimedia' | 'wiskey' | 'infra' | 'tickets';
 export const NAV_TAB_IDS: NavTabId[] = NAV_A.map((n) => n.id as NavTabId);
+
+/** NOTICEADD-295 (owner decision 2026-10-24): while the notice board module is on, "לוח הודעות" is an entry of the rail and the bottom bar,
+ * directly under "מולטימדיה" (or, without it, where מולטימדיה would stand in the user's order); hidden entirely while the module is off.
+ * Its page stays #/devices/notices (route ids unchanged); `areaOf` names that route 'notices' so the entry lights. It is not one of the
+ * movable tabs (NAV_TAB_IDS, the server's nav.order list): it follows מולטימדיה wherever the user put that. */
+export const NOTICES_AREA: AreaEntry = { id: 'notices', icon: 'pin', label: 'לוח הודעות', href: '#/devices/notices' };
 
 /** "מערכת" (the settings area): a route area of its own (crumbs, tabs) but, since CR-013, reached from the user menu. */
 export const SYSTEM_AREA: AreaEntry = { id: 'system', icon: 'system', label: 'מערכת', href: '#/system/diagnostics' };
@@ -1167,6 +1173,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
   wiskey: WISKEY_TABS,
   infra: INFRA_TABS,
   tickets: TICKETS_TABS,
+  notices: [], // NOTICEADD-295: one page, no tab row
   system: [
     { id: 'general', label: 'כללי', href: '#/system/diagnostics' },
     // CR-008 P3: per-user push notifications - every signed-in user may set their own (no TAB_PERMISSIONS entry)
@@ -1217,6 +1224,7 @@ export function sectionOf(r: RouteState | null): SecuritySection | null {
 export function areaOf(r: RouteState | null): AreaId | null {
   if (!r?.mode) return null;
   if (r.mode === 'live' || r.mode === 'investigate' || r.mode === 'security') return 'security';
+  if (r.mode === 'devices' && r.segments[1] === 'notices') return 'notices'; // NOTICEADD-295: the rail's notice board entry
   return r.mode;
 }
 
@@ -1283,7 +1291,7 @@ export function crumbsOf(r: RouteState | null, api = false): string[] {
     const area = NAV_A.find((n) => n.id === 'tickets');
     return [area?.label ?? '', secTab?.label ?? '', page && page.label !== secTab?.label ? page.label : ''].filter(Boolean);
   }
-  const area = a === 'system' ? SYSTEM_AREA : NAV_A.find((n) => n.id === a);
+  const area = a === 'system' ? SYSTEM_AREA : a === 'notices' ? NOTICES_AREA : NAV_A.find((n) => n.id === a);
   const sec = a === 'security' ? SECURITY_SECTIONS.find((x) => x.id === sectionOf(r)) : undefined;
   const tabs = sec ? SECTION_TABS[sec.id] : AREA_TABS[a];
   const tab = tabs.find((x) => x.id === activeAreaTab(r));
@@ -1615,7 +1623,17 @@ export function visibleAreas(api: boolean, can?: Can, order: readonly string[] =
     return [{ ...n, href: entryHref(n.href, tabs, n.id) }];
   });
   // ui.tabs "areas": areas the admin hid leave the rail and the bottom bar (the order stays the user's)
-  return api ? configureTabs('areas', list, false) : list;
+  return withNoticesArea(api ? configureTabs('areas', list, false) : list, rank);
+}
+
+/** NOTICEADD-295: the notice board's rail entry joins while the module is on (applyNoticesHidden; the static demo keeps it off like the
+ * module), right after מולטימדיה - or, when מולטימדיה is not in the list, before the first entry the user's order puts after it. */
+export function withNoticesArea(list: AreaEntry[], rank: (id: string) => number = (id) => NAV_TAB_IDS.indexOf(id as NavTabId)): AreaEntry[] {
+  if (!noticesModuleOn()) return list;
+  const at = list.findIndex((n) => n.id === 'multimedia');
+  const after = at >= 0 ? at + 1 : list.findIndex((n) => rank(n.id) > rank('multimedia'));
+  const i = after < 0 ? list.length : after;
+  return [...list.slice(0, i), NOTICES_AREA, ...list.slice(i)];
 }
 
 /** The rail's default order for everyone: the admin's `ui.tabs` order of the areas, else the built-in one. A user's own

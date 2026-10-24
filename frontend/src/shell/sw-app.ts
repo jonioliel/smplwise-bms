@@ -2873,7 +2873,7 @@ export class SwApp extends LitElement {
           this.orderOpen = true;
           this.pushOverlay();
         }}>${this.renderMenuPills()}</sw-user-menu>
-      <sw-nav-order .open=${this.orderOpen} .tabs=${visibleAreas(api, canNav, this.navOrder)} .order=${[...this.navOrder]}
+      <sw-nav-order .open=${this.orderOpen} .tabs=${visibleAreas(api, canNav, this.navOrder).filter((a) => a.id !== 'notices') /* NOTICEADD-295: follows מולטימדיה, not movable */} .order=${[...this.navOrder]}
         .onSave=${(o: string[]) => saveNavOrder(o)} .onReset=${() => resetNavOrder()}
         @close=${() => {
           if (!this.orderOpen) return;

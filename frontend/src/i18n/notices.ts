@@ -248,6 +248,11 @@ const he = {
   agoSec: 'לפני {n} שניות',
   agoMin: 'לפני {n} דקות',
   agoHour: 'לפני {n} שעות',
+  // NOTICEADD-295: writing a notice from a board's "הודעות" tab and from the settings page; the in-dialog second click of delete / archive
+  newForBoard: 'הודעה חדשה ללוח',
+  allNotices: 'כל ההודעות',
+  confirmDelete: 'למחוק את הטיוטה?',
+  confirmArchive: 'להעביר לארכיון?',
 };
 
 type Key = keyof typeof he;
@@ -266,6 +271,7 @@ const en: Partial<Record<Key, string>> = {
   audPlace: 'By place', audGroup: 'By group or role', audTv: 'TV boards only', audUsers: '{n} users', fBoards: 'TV boards', setTitle: 'Notice board',
   boardsCard: 'TV boards', newBoard: 'New board', tabGeneral: 'General', tabDisplay: 'Display', tabNotices: 'Notices', preview: 'Preview',
   prev: 'Previous', next: 'Next', pauseToggle: 'Pause / resume', copyLink: 'Copy link', newLink: 'New link', openTv: 'Open the TV screen',
+  newForBoard: 'New notice for this board', allNotices: 'All notices', confirmDelete: 'Delete the draft?', confirmArchive: 'Move to the archive?',
 };
 
 export type NtKey = Key;
