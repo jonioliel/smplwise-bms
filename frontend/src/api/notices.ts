@@ -51,7 +51,7 @@ export interface NoticesList {
   notices: Notice[];
   can: NoticesCan;
   now: string;
-  defaults: { default_days: number; default_severity: 'info' | 'alert'; push_default?: 'by_severity' | 'always' | 'never' };
+  defaults: { default_days: number; default_severity: 'info' | 'alert'; push_default?: 'by_severity' | 'always' | 'never'; home_empty?: 'hide' | 'line' };
 }
 
 export interface Board {
@@ -77,6 +77,8 @@ export interface NoticesSettings {
   push_default: 'by_severity' | 'always' | 'never';
   reads_names: boolean;
   retention_days: number;
+  /** NOTICEPAGE-295: the home widget with no active notice - absent, or one line */
+  home_empty: 'hide' | 'line';
   boards_remote: boolean;
   boards_max: number;
   weather_entity: string;
@@ -133,7 +135,16 @@ export const deleteNotice = (id: string) => del(`notices/${encodeURIComponent(id
 export const markRead = (id: string) => post<{ read: boolean }>(`notices/${encodeURIComponent(id)}/read`);
 export const audiencePreview = (audience: Audience) => post<{ users: number; in_scope: boolean }>('notices/audience/preview', { audience });
 export const audienceOptions = () =>
-  get<{ floors: { id: string; name: string; building: string }[]; groups: { id: string; name: string }[]; roles: { id: string; name: string }[] }>('notices/audience/options');
+  get<{ floors: { id: string; name: string; building: string }[]; areas?: { id: string; name: string; floor: string }[]; groups: { id: string; name: string }[]; roles: { id: string; name: string }[] }>('notices/audience/options');
+
+/** NOTICEPAGE-295: "מי קרא" - names only while the installation shows them (`reads_names`); else the two counts. */
+export interface ReadsAnswer {
+  audience: number;
+  read: number;
+  users?: { user_id: string; name: string; place?: string; read_at: string }[];
+  unread?: { user_id: string; name: string; place?: string }[];
+}
+export const getReads = (id: string) => get<ReadsAnswer>(`notices/${encodeURIComponent(id)}/reads`);
 
 export const listBoards = () => get<{ boards: Board[]; full: boolean; max?: number; remote?: boolean }>('notices/boards');
 export const getBoard = (id: string) =>

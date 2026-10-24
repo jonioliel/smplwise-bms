@@ -513,3 +513,54 @@ def test_saver_and_logo_layout_defaults_and_validation(client):
         assert client.patch(f"{API}/notices/boards/{b['id']}", json={"display": bad}).status_code == 422, bad
     d = client.patch(f"{API}/notices/boards/{b['id']}", json={"display": {"saver": "wash", "logos": "c"}}).json()["board"]["display"]
     assert (d["saver"], d["logos"]) == ("wash", "c")
+
+
+# ---------------------------------------------------------------- NOTICEPAGE-295: the read-receipts sheet and the places tree
+
+def test_reads_sheet_has_names_places_and_is_for_managers_only(client, settings):
+    _on(client)
+    tree = __import__("conftest").seed_tree(client)
+    bind(client, settings, "dana", "viewer", "floor", tree["floor2"])
+    bind(client, settings, "omer", "viewer", "floor", tree["floor3"])
+    n = _notice(client, title="לכולם", audience={"everyone": True})
+    assert client.post(f"{API}/notices/{n['id']}/read", headers=as_user("dana")).status_code == 200
+    r = client.get(f"{API}/notices/{n['id']}/reads")
+    assert r.status_code == 200, r.text
+    got = r.json()
+    dana = next(u for u in got["users"] if u["name"] == "dana")
+    assert dana["place"] == "קומה 2" and dana["read_at"]
+    omer = next(u for u in got["unread"] if u["name"] == "omer")
+    assert omer["place"] == "קומה 3" and "read_at" not in omer
+    assert got["read"] == len(got["users"]) and got["audience"] == got["read"] + len(got["unread"])
+    # a reader cannot open the sheet, and an unknown id is the same 404 as anywhere
+    assert client.get(f"{API}/notices/{n['id']}/reads", headers=as_user("dana")).status_code == 403
+    assert client.get(f"{API}/notices/nope/reads").status_code == 404
+    # counts only when the installation turned the names off
+    assert client.patch(f"{API}/notices/settings", json={"reads_names": False}).status_code == 200
+    counts = client.get(f"{API}/notices/{n['id']}/reads").json()
+    assert "users" not in counts and "unread" not in counts and counts["read"] >= 1
+
+
+def test_audience_options_list_the_named_areas_of_each_floor(client, settings):
+    _on(client)
+    tree = __import__("conftest").seed_tree(client)
+    db = Database(settings.db_path)
+    with db.connection() as conn:
+        for zid, floor, name in (("z-lobby", tree["floor2"], "לובי"), ("z-blank", tree["floor2"], "  "), ("z-gym", tree["floor3"], "חדר כושר")):
+            conn.execute(
+                "INSERT INTO spatial_zones(id, floor_id, name, kind, polygon_json, source, created_at, updated_at) VALUES (?, ?, ?, 'room', '[]', 'manual', '2026-10-24T00:00:00Z', '2026-10-24T00:00:00Z')",
+                (zid, floor, name))
+    opts = client.get(f"{API}/notices/audience/options").json()
+    assert [(a["id"], a["floor"]) for a in opts["areas"]] == [("z-lobby", tree["floor2"]), ("z-gym", tree["floor3"])]
+    bind(client, settings, "dana", "viewer", "installation", "*")
+    assert client.get(f"{API}/notices/audience/options", headers=as_user("dana")).status_code == 403
+
+def test_home_empty_setting_defaults_to_hide_validates_and_reaches_readers(client, settings):
+    _on(client)
+    bind(client, settings, "dana", "viewer", "installation", "*")
+    assert client.get(f"{API}/notices/settings").json()["settings"]["home_empty"] == "hide"
+    assert client.get(f"{API}/notices", headers=as_user("dana")).json()["defaults"]["home_empty"] == "hide"
+    assert client.patch(f"{API}/notices/settings", json={"home_empty": "sometimes"}).status_code == 422
+    assert client.patch(f"{API}/notices/settings", json={"home_empty": "line"}).json()["settings"]["home_empty"] == "line"
+    assert client.get(f"{API}/notices", headers=as_user("dana")).json()["defaults"]["home_empty"] == "line"
+    assert client.patch(f"{API}/notices/settings", json={"home_empty": "hide"}, headers=as_user("dana")).status_code == 403

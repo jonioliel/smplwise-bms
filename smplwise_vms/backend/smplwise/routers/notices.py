@@ -137,6 +137,7 @@ class SettingsIn(BaseModel):
     push_default: Literal["by_severity", "always", "never"] | None = None
     reads_names: bool | None = None
     retention_days: int | None = None
+    home_empty: Literal["hide", "line"] | None = None
     boards_remote: bool | None = None
     boards_max: int | None = None
     weather_entity: str | None = Field(default=None, max_length=200)
@@ -541,7 +542,7 @@ def list_notices(scope: Literal["mine", "all"] = "mine", principal: Principal = 
     read = store.read_ids(conn, principal.user_id)
     counts = store.read_counts(conn) if scope == "all" else {}
     return {"notices": [_notice_out(n, now, boards[n["id"]], manager=scope == "all", read=n["id"] in read, reads=counts.get(n["id"], 0)) for n in rows],
-            "can": can, "now": model.iso(now), "defaults": {k: store.settings(conn)[k] for k in ("default_days", "default_severity", "push_default")}}
+            "can": can, "now": model.iso(now), "defaults": {k: store.settings(conn)[k] for k in ("default_days", "default_severity", "push_default", "home_empty")}}
 
 
 @router.post("/notices/audience/preview")
@@ -565,7 +566,11 @@ def audience_options(principal: Principal = Depends(current_principal_ro), conn:
     from ..rbac import ROLE_NAMES_HE
 
     roles = [{"id": k, "name": v} for k, v in ROLE_NAMES_HE.items() if k in ("viewer", "operator", "editor", "site_admin", "system_admin", "kiosk")]
-    return {"floors": floors, "groups": groups, "roles": roles}
+    # NOTICEPAGE-295: the named areas (rooms / zones) under each floor, for the page's places tree (an area in an audience resolves to its floor)
+    areas = [{"id": r["id"], "name": r["name"], "floor": r["floor_id"]} for r in conn.execute(
+        """SELECT z.id, z.name, z.floor_id FROM spatial_zones z JOIN floors f ON f.id = z.floor_id
+           WHERE z.deleted_at IS NULL AND f.deleted_at IS NULL AND TRIM(z.name) <> '' ORDER BY f.level, f.sort_order, z.name LIMIT 500""").fetchall()]
+    return {"floors": floors, "areas": areas, "groups": groups, "roles": roles}
 
 
 def _get_visible(conn: sqlite3.Connection, principal: Principal, notice_id: str) -> tuple[dict[str, Any], dict[str, bool]]:
@@ -745,8 +750,9 @@ def reads(notice_id: str, principal: Principal = Depends(current_principal_ro), 
     out: dict[str, Any] = {"audience": len(users), "read": len([u for u in users if u in rows])}
     if store.settings(conn)["reads_names"]:
         names = {r["id"]: (r["display_name"] or r["username"]) for r in conn.execute("SELECT id, display_name, username FROM users").fetchall()}
-        out["users"] = [{"user_id": u, "name": names.get(u, u), "read_at": rows[u]} for u in users if u in rows]
-        out["unread"] = [{"user_id": u, "name": names.get(u, u)} for u in users if u not in rows]
+        place = aud.places_of(conn, users)
+        out["users"] = [{"user_id": u, "name": names.get(u, u), "place": place.get(u, ""), "read_at": rows[u]} for u in users if u in rows]
+        out["unread"] = [{"user_id": u, "name": names.get(u, u), "place": place.get(u, "")} for u in users if u not in rows]
     return out
 
 

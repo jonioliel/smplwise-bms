@@ -20,7 +20,7 @@ export const SIDES: Side[] = ['start', 'end'];
 /** The side of b's widget column, as the person sees it: "end" is the left edge of the screen in Hebrew. */
 export const SIDE_LABEL: Record<Side, string> = { end: 'שמאל', start: 'ימין' };
 
-export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media' | 'agenda' | 'launcher' | 'elevators' | 'temperature' | 'generators' | 'doors';
+export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media' | 'agenda' | 'launcher' | 'elevators' | 'temperature' | 'generators' | 'doors' | 'notices';
 /** `media` (CR-015 §7.5) is appended, so a saved order without it keeps its look: it lands last, like every widget a release adds.
  * BV1 (2026-10-05): `agenda` (the next event of the chosen calendars) and `launcher` (the quick-launcher grid) are appended the same way. */
 // CR-INFRA-ELEVATORS 2.8.0 (decision 10b): `elevators` is appended the same way; it is drawn only once the viewer sees at least one elevator.
@@ -28,8 +28,9 @@ export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'me
 // setting `home_widget` is on). It has the elevators' shape: how (combined / cards / both), which units are left out, all states or alerts.
 // GENWIDGET 2.9.3: `generators` is appended the same way; it is drawn only once the viewer sees at least one generator (no options of its own).
 // DOORWIN2-295: `doors` is appended the same way; it is drawn only while the doors tab is on and the viewer sees a door (no options of its own).
-export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors'];
-export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר', elevators: 'מעליות', temperature: 'טמפרטורות', generators: 'גנרטור', doors: 'דלתות' };
+// NOTICEPAGE-295: `notices` (the notice board) is appended last; drawn only while the notice board module is on and the viewer may read (no options of its own).
+export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices'];
+export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר', elevators: 'מעליות', temperature: 'טמפרטורות', generators: 'גנרטור', doors: 'דלתות', notices: 'לוח הודעות' };
 /** The infrastructure-list widgets (the same mode / hidden / filter shape). */
 export const LIST_WIDGETS: readonly WidgetId[] = ['elevators', 'temperature'];
 /** The elevators widget (owner feedback 2026-10-18): one card per elevator, ONE combined card, or both; elevators left out; all states or alerts only. */
@@ -169,6 +170,7 @@ export interface HomeConfig {
   temperature: TemperatureCfg;
   generators: CommonCfg;
   doors: CommonCfg;
+  notices: CommonCfg;
   calendar: CalendarCfg;
 }
 /** CR-INFRA-TEMPERATURE phase 3: the temperatures widget (unit ids left out in `hidden`). */
@@ -193,6 +195,7 @@ export const DEFAULT_SIZES: Record<WidgetId, Sizes> = {
   temperature: { a: 'm', b: 's', c: 'm' },
   generators: { a: 'm', b: 's', c: 'm' },
   doors: { a: 'm', b: 's', c: 'm' },
+  notices: { a: 'm', b: 's', c: 'm' },
 };
 
 export function defaultConfig(): HomeConfig {
@@ -212,6 +215,7 @@ export function defaultConfig(): HomeConfig {
     temperature: { ...base('temperature'), mode: 'combined', hidden: [], filter: 'all' },
     generators: base('generators'),
     doors: base('doors'),
+    notices: base('notices'),
     calendar: { date: '', parsha: '', candles: '', havdalah: '', holiday: '', extras: [] },
   };
 }
@@ -282,6 +286,7 @@ export function configOf(raw: unknown): HomeConfig {
     temperature: { ...commonOf(o.temperature, 'temperature'), mode: pick(temp.mode, ELEVATOR_MODES, 'combined'), hidden: elevatorIds(temp.hidden), filter: pick(temp.filter, ELEVATOR_FILTERS, 'all') },
     generators: commonOf(o.generators, 'generators'),
     doors: commonOf(o.doors, 'doors'),
+    notices: commonOf(o.notices, 'notices'),
     calendar: {
       date: str(cal.date),
       parsha: str(cal.parsha),
@@ -537,6 +542,8 @@ export interface ResolveOpts {
   generatorsAvailable?: boolean;
   /** DOORWIN2-295: the doors tab is on and the viewer sees a door. Anything but `true` = the doors widget is ABSENT, in edit mode too (no ghost). */
   doorsAvailable?: boolean;
+  /** NOTICEPAGE-295: the notice board module is on and the viewer may read it. Anything but `true` = the notices widget is ABSENT, in edit mode too (no ghost). */
+  noticesAvailable?: boolean;
 }
 
 /** Whether a widget is shown on this kind of screen: the phone has its own switch, defaulting to the desktop's. */
@@ -561,6 +568,7 @@ export function resolveWidgets(cfg: HomeConfig, direction: Direction, data: Home
     if (id === 'temperature' && opts.temperatureAvailable !== true) continue;
     if (id === 'generators' && opts.generatorsAvailable !== true) continue;
     if (id === 'doors' && opts.doorsAvailable !== true) continue;
+    if (id === 'notices' && opts.noticesAvailable !== true) continue;
     let avail: Avail = 'ok';
     if (!widgetOn(w, !!opts.phone)) avail = 'off';
     else if (id === 'weather') {

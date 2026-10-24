@@ -28,6 +28,7 @@ import { GENERATOR_WIDGET_STYLES, renderGenerators } from '../generator/home-wid
 import type { LiveSummaryItem } from '../api/generator';
 import { DOORS_WIDGET_STYLES, renderDoors } from '../door-windows/home-widget'; // DOORWIN2-295
 import type { DoorsWidgetData } from '../door-windows/home-widget-model';
+import { NOTICES_WIDGET_STYLES, renderNotices, type NoticesWidgetData } from '../notices/home-widget'; // NOTICEPAGE-295
 import '../door-windows/emergency';
 
 /** The Bubble skin (phase C, 2026-10-02; the approved board docs/design/mockups/bubble-taste/home.html): the status widgets are
@@ -221,6 +222,8 @@ export class HomeWidgetsView extends LitElement {
   /** DOORWIN2-295: the doors widget's data (the windows and the emergency state, as the door-windows screen reads them; the home screen polls them). */
   @property({ attribute: false }) doors: DoorsWidgetData = { windows: null, emergency: null };
   @state() private doorSheet = false;
+  /** NOTICEPAGE-295: the notices active for the viewer (the home screen reads and polls them; null = none to show). */
+  @property({ attribute: false }) notices: NoticesWidgetData = { notices: null, emptyMode: 'hide' };
   /** UXREST2-295: the widgets whose own read failed (the screen reads elevators / temperature / generators); each draws a failure panel with a
    * retry (`home-widget-retry {id}`) in its own slot and the other widgets are untouched. */
   @property({ attribute: false }) failed: WidgetId[] = [];
@@ -1303,7 +1306,7 @@ export class HomeWidgetsView extends LitElement {
         scroll-behavior: auto;
       }
     }
-  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES, TEMPERATURE_WIDGET_STYLES, GENERATOR_WIDGET_STYLES, DOORS_WIDGET_STYLES];
+  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES, TEMPERATURE_WIDGET_STYLES, GENERATOR_WIDGET_STYLES, DOORS_WIDGET_STYLES, NOTICES_WIDGET_STYLES];
 
   connectedCallback() {
     super.connectedCallback();
@@ -1507,6 +1510,8 @@ export class HomeWidgetsView extends LitElement {
         return renderGenerators({ generators: this.generators, editing: this.editing, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       case 'doors':
         return html`${renderDoors({ data: this.doors, editing: this.editing, now: this.now, openEmergency: () => (this.doorSheet = true), shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it)}<span style="display:contents"><door-emergency-sheet .open=${this.doorSheet} .data=${this.doors.emergency} @close=${() => (this.doorSheet = false)} @changed=${() => this.emit('home-widget-retry', { id: 'doors' })}></door-emergency-sheet></span>`;
+      case 'notices':
+        return renderNotices({ data: this.notices, editing: this.editing, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       default:
         return this.quickCard(it);
     }

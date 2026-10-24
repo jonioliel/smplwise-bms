@@ -78,6 +78,21 @@ def resolve_users(conn: sqlite3.Connection, audience: dict[str, Any]) -> list[st
     return [u for u in users if in_audience(conn, u, audience)]
 
 
+def places_of(conn: sqlite3.Connection, user_ids: list[str]) -> dict[str, str]:
+    """NOTICEPAGE-295: the place line of the read-receipts sheet - the floors a person's live allow bindings are scoped to ("" when his grants
+    reach a building, a site or the installation: there is no resident model, section 5.3)."""
+    floors = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM floors WHERE deleted_at IS NULL").fetchall()}
+    out: dict[str, str] = {}
+    for u in user_ids:
+        names: list[str] = []
+        for b in _live_bindings(conn, u):
+            nm = floors.get(b["scope_id"]) if b["scope_type"] == "floor" else None
+            if nm and nm not in names:
+                names.append(nm)
+        out[u] = ", ".join(names)
+    return out
+
+
 def summary(conn: sqlite3.Connection, audience: dict[str, Any]) -> dict[str, Any]:
     """Counts only (the audit rows and the list chips carry no names)."""
     if audience.get("everyone") is True:

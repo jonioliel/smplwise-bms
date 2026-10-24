@@ -58,6 +58,8 @@ export class HomeEditPanel extends LitElement {
   @property({ type: Boolean }) generators = false;
   /** DOORWIN2-295: the editor sees the doors widget (the doors tab is on and a door is visible). */
   @property({ type: Boolean }) doors = false;
+  /** NOTICEPAGE-295: the editor sees the notices widget (the notice board is on and the viewer may read it). */
+  @property({ type: Boolean }) notices = false;
   /** The widget whose settings are open (a card's "הגדרות" button sets it). */
   @property() open: WidgetId | '' = '';
   @state() private dragFloor = '';
@@ -345,7 +347,7 @@ export class HomeEditPanel extends LitElement {
 
   /** The widgets the editor lists: the elevators widget only while the editor sees an elevator (review L6: indices and ends count these). */
   private get listed(): WidgetId[] {
-    return this.draft.config.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.temperatureUnits.length > 0) && (id !== 'generators' || this.generators) && (id !== 'doors' || this.doors));
+    return this.draft.config.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.temperatureUnits.length > 0) && (id !== 'generators' || this.generators) && (id !== 'doors' || this.doors) && (id !== 'notices' || this.notices));
   }
 
   private moveW(id: WidgetId, to: number) {

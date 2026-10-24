@@ -310,6 +310,28 @@ const he = {
   photoUpload: 'העלאת תמונה',
   photoReplace: 'החלפת התמונה',
   photoRemove: 'הסרה',
+  // NOTICEPAGE-295: the places tree, the "מי קרא" sheet and the home widget
+  places: 'מקומות',
+  placeSelect: 'מקום',
+  allPlaces: 'כל הבניין',
+  foldPlace: 'כיווץ {name}',
+  unfoldPlace: 'הרחבה {name}',
+  readsOf: 'מי קרא: {title}',
+  readsList: 'רשימה',
+  readsLoadError: 'לא ניתן לטעון את הרשימה',
+  readsNone: 'אין נמענים ברשימה',
+  segReadShort: 'קראו',
+  segUnreadShort: 'טרם קראו',
+  colName: 'שם',
+  colPlace: 'מקום',
+  colReadAt: 'נקרא',
+  widgetAll: 'הכול',
+  widgetEmpty: 'אין הודעות פעילות',
+  widgetNew: 'חדש',
+  widgetUntil: 'עד {d}',
+  dHomeEmpty: 'ווידג׳ט בבית כשאין הודעות',
+  dHomeEmptyHide: 'להסתיר את הווידג׳ט',
+  dHomeEmptyLine: 'להציג שורה "אין הודעות פעילות"',
 };
 
 type Key = keyof typeof he;
@@ -336,6 +358,10 @@ const en: Partial<Record<Key, string>> = {
   slideRemovePicture: 'Remove the picture', slideBoards: 'Shown on boards', slideDelete: 'Delete the slide', slideDeleteConfirm: 'Delete the slide?',
   slideLimit: 'Up to {n} slides per board', slideFile: 'JPEG or PNG', photoBlock: 'Building photo', photoUpload: 'Upload a photo', photoReplace: 'Replace the photo',
   photoRemove: 'Remove',
+  places: 'Places', placeSelect: 'Place', allPlaces: 'Whole building', foldPlace: 'Collapse {name}', unfoldPlace: 'Expand {name}', readsOf: 'Who read: {title}', readsList: 'List',
+  readsLoadError: 'The list could not be loaded', readsNone: 'No recipients', segReadShort: 'Read', segUnreadShort: 'Not read yet',colName: 'Name', colPlace: 'Place', colReadAt: 'Read', widgetAll: 'All', widgetEmpty: 'No active notices',
+  widgetNew: 'New', widgetUntil: 'Until {d}',
+  dHomeEmpty: 'Home widget with no notices', dHomeEmptyHide: 'Hide the widget', dHomeEmptyLine: 'Show a "No active notices" line',
 };
 
 export type NtKey = Key;
