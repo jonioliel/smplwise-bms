@@ -1,0 +1,30 @@
+{
+  "PROVENANCE": {
+    "purpose": "WisKey Q03 shared case: station A disabled/current/synced, station B pending, one answer, one revision",
+    "defective_blob": "5090a9e64d74f32170c7adb7ea750b48578eb9e5",
+    "defective_source": "06d2b6f45554ee43bd02fb9616317cf34f53b5f8",
+    "fix_commits": ["af47229a9061b30a294deb3062971ffadb257907", "812b49a1df5f8b0ca31803754d114066ed56d6a1"],
+    "ported_on": "pilot/WKB3-295 from origin/main 16bc3926ba253866e9fc78f9a2b950c1a7af4fba",
+    "hand_built": true
+  },
+  "answer": {
+    "schema_version": 2,
+    "observation": "durable_repository_snapshot",
+    "scope": "all_managed_stations",
+    "user_id": "person-a",
+    "person_revision": 4,
+    "presence": "present",
+    "revocation_pending": true,
+    "stations_synced": null,
+    "assignments": [
+      {"station_id": "station-a", "enabled": false, "allowed_locks": [1], "desired_revision": 4, "applied_revision": 4, "sync_state": "synced", "applied": true},
+      {"station_id": "station-b", "enabled": false, "allowed_locks": [1], "desired_revision": 4, "applied_revision": 3, "sync_state": "pending", "applied": false}
+    ],
+    "timing_policy": null,
+    "pending": {"bindings": [], "tombstones": [], "cards": [], "pins": [], "operations": ["station-b"], "unverified": []},
+    "central_revocation_predicate": "inactive-no-enabled-assignments-no-groups-no-overrides-no-pin-v1",
+    "central_revoked": true
+  },
+  "expected_station_verdicts": {"station-a": false, "station-b": true, "station-c": null},
+  "expected_aggregate": true
+}
