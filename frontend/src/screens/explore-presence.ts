@@ -101,8 +101,8 @@ export class ExplorePresence extends LitElement {
     .stage { position: relative; flex: 1; min-block-size: 0; border-radius: var(--sw-r-md); overflow: hidden; background: var(--sw-map-bg); }
     .stage sw-plan-canvas { block-size: 100%; min-block-size: 0; }
     .stage .note {
-      position: absolute; inset-inline-start: 10px; inset-block-end: 10px; padding: 4px 10px; border-radius: var(--sw-r-pill); background: var(--sw-surface);
-      border: 1px solid var(--sw-border); font-size: var(--sw-fs-sm); color: var(--sw-text-2); box-shadow: var(--sw-shadow-1);
+      position: absolute; inset-inline-start: 10px; inset-block-end: 10px; padding: 4px 10px; border-radius: var(--sw-r-pill); background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-border-strong); font-size: var(--sw-fs-sm); color: var(--sw-text-2); box-shadow: var(--sw-shadow-1);
     }
     .stage .center { position: absolute; inset: 0; display: grid; place-items: center; color: var(--sw-text-2); font-size: var(--sw-fs-sm); text-align: center; padding: 16px; }
     .lhead { display: flex; align-items: baseline; gap: 8px; flex: none; }

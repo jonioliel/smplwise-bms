@@ -17,11 +17,17 @@ async function cardWith(page: Page, title: string) {
   await page.goto(url('/tickets/board'));
   await page.waitForSelector('sw-app tickets-board ticket-card');
   const card = page.locator('sw-app tickets-board ticket-card').first();
-  await card.evaluate(async (el, t) => {
-    const c = el as HTMLElement & { item: Record<string, unknown>; updateComplete: Promise<boolean> };
-    c.item = { ...c.item, title: t };
-    await c.updateComplete;
-  }, title);
+  // The board refreshes once right after it opened (the shared LiveRefresh fires on the first window focus, 2.5.4), which replaces the card's item
+  // with the mock's own row: a title set a moment too early is lost. Set it until it survives a short settle (the next refresh is 20 s away).
+  await expect(async () => {
+    await card.evaluate(async (el, t) => {
+      const c = el as HTMLElement & { item: Record<string, unknown>; updateComplete: Promise<boolean> };
+      c.item = { ...c.item, title: t };
+      await c.updateComplete;
+    }, title);
+    await page.waitForTimeout(250);
+    expect(await card.locator('h3[data-card-title] a.name').getAttribute('title')).toBe(title);
+  }).toPass({ timeout: 15_000 });
   return card;
 }
 

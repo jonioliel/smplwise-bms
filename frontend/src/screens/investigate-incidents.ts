@@ -32,6 +32,7 @@ import { it } from '../i18n/incidents';
 import { navigate } from '../router';
 import { refreshIncidents } from '../incidents/store';
 import { SkinController } from '../design/skin';
+import { leadReserveStyles } from '../styles/lead-reserve';
 
 type Part = 'cams' | 'map' | 'doors' | 'chain';
 type Look = 'ok' | 'warn' | 'alarm' | 'off' | 'unk' | 'acc';
@@ -106,7 +107,7 @@ export class InvestigateIncidents extends LitElement {
   private toastTimer = 0;
   private loadedFloor = '';
 
-  static styles = css`
+  static styles = [leadReserveStyles, css`
     :host { display: flex; flex-direction: column; min-block-size: 0; min-inline-size: 0; color: var(--sw-text); font-family: var(--sw-font); }
     [data-look='ok'] { --c: var(--sw-success); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
     [data-look='warn'] { --c: var(--sw-warning); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
@@ -143,10 +144,10 @@ export class InvestigateIncidents extends LitElement {
     .map sw-plan-canvas { position: absolute; inset: 0; }
     .map .loc { position: absolute; inset: 0; display: grid; place-items: center; direction: rtl; color: var(--sw-text-2); font-size: var(--sw-fs-sm); text-align: center; padding: 12px; }
     .tiles { flex: 1; min-block-size: 0; display: grid; gap: 10px; padding: 0 16px 14px; }
-    .tile { position: relative; min-block-size: 0; min-inline-size: 0; border-radius: var(--sw-r-md); overflow: hidden; background: var(--sw-video-bg, #0b1020); cursor: pointer; }
+    .tile { position: relative; min-block-size: 0; min-inline-size: 0; border-radius: var(--sw-r-md); overflow: hidden; background: var(--sw-video-bg); cursor: pointer; }
     .tile.hot { box-shadow: 0 0 0 2px var(--sw-danger); }
     .tile sw-camera-tile { position: absolute; inset: 0; block-size: 100%; inline-size: 100%; }
-    .tile .rel { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: rgba(0,0,0,.55); color: #fff; font-size: var(--sw-fs-2xs); pointer-events: none; z-index: 1; }
+    .tile .rel { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: var(--sw-video-scrim); color: var(--sw-on-video); font-size: var(--sw-fs-2xs); pointer-events: none; z-index: 1; }
     .capchip { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; z-index: 1; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: var(--sw-warning); color: #1e2e47; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); pointer-events: none; }
     .drs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
     .dr { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 7px 16px; border-block-start: 1px solid var(--sw-border); }
@@ -233,7 +234,7 @@ export class InvestigateIncidents extends LitElement {
       .ptabs button { min-block-size: 44px; }
     }
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-  `;
+  `];
 
   connectedCallback() {
     super.connectedCallback();
@@ -550,11 +551,11 @@ export class InvestigateIncidents extends LitElement {
 
   private renderState(kind: 'off' | 'error' | 'forbidden' | 'missing', message = '') {
     if (kind === 'off') {
-      return html`<div class="screen"><sw-state-panel state="empty" icon="offline" heading=${it('offTitle')} hint=${it('offHint')} data-incidents-off
+      return html`<div class="screen"><sw-state-panel icon="offline" state="empty" heading=${it('offTitle')} hint=${it('offHint')} data-incidents-off
         actionLabel=${this.canConfigure() ? it('toSettings') : ''} @action=${() => navigate('/system/security/incidents')}></sw-state-panel></div>`;
     }
     if (kind === 'forbidden') return html`<div class="screen"><sw-state-panel state="forbidden" heading=${it('forbidden')} data-incidents-forbidden></sw-state-panel></div>`;
-    if (kind === 'missing') return html`<div class="screen"><sw-state-panel state="empty" heading=${it('notFound')} actionLabel=${it('listTitle')} @action=${() => navigate('/investigate/incidents')}></sw-state-panel></div>`;
+    if (kind === 'missing') return html`<div class="screen"><sw-state-panel icon="search" state="empty" heading=${it('notFound')} actionLabel=${it('listTitle')} @action=${() => navigate('/investigate/incidents')}></sw-state-panel></div>`;
     return html`<div class="screen"><sw-state-panel state="error" heading=${it('errorTitle')} hint=${message || it('errorHint')} actionLabel=${it('retry')} data-incidents-error @action=${() => void this.reload(false)}></sw-state-panel></div>`;
   }
 
@@ -579,7 +580,7 @@ export class InvestigateIncidents extends LitElement {
     const srcWord = (i: Incident) => ({ alarm: it('srcAlarm'), event: it('srcEvent'), notification: it('srcNotification'), manual: it('srcManual') })[i.source];
     const rows = [...open, ...closed];
     return html`<section class="screen" data-incidents-list>
-      <div class="top">
+      <div class="top lead-head">
         <div><h1>${it('listTitle')}</h1><p class="sub">${open.length ? it('listSubOpen', { n: open.length }) : it('listSub', { n: closed.length })}</p></div>
         <span class="sp"></span>
         ${showClock ? this.renderClock() : nothing}
@@ -602,7 +603,7 @@ export class InvestigateIncidents extends LitElement {
           <div class="cards">${rows.slice(0, 5).map((i) => html`<button type="button" class="c" data-incident-card=${i.id} @click=${() => navigate(`/investigate/incidents/${i.id}`)}>
             <div class="r1"><span class="t1">${i.title}</span><span class="badge sm" data-look=${i.status === 'open' ? 'alarm' : 'off'}>${i.status === 'open' ? it('statusOpen') : it('statusClosed')}</span></div>
             <div class="mut">${srcWord(i)} · ${this.when(i.opened_at, true)} · ${dur(i)}</div></button>`)}</div>`
-        : html`<sw-state-panel state="empty" compact quiet heading=${it('listNone')}></sw-state-panel>`}
+        : html`<sw-state-panel icon="list" state="empty" compact quiet heading=${it('listNone')}></sw-state-panel>`}
       </div>
     </section>`;
   }
@@ -618,7 +619,7 @@ export class InvestigateIncidents extends LitElement {
     const doorsOpen = this.doors.state === 'ready' ? this.doors.data.doors.filter((x) => x.open).length : 0;
     const steps = d.steps.length + (d.pending.length ? 1 : 0);
     return html`<section class="screen" data-incident=${d.id} data-status=${d.status} data-part=${this.pane}>
-      <div class="top">
+      <div class="top lead-head">
         <div>
           <h1><span class="badge" data-look=${open ? 'alarm' : 'off'} style="font-size:var(--sw-fs-sm)" data-incident-status><sw-icon name=${open ? 'warning' : 'check'} size=${14}></sw-icon>${open ? it('statusOpen') : it('statusClosed')} · <span class="num" data-incident-elapsed>${elapsed(d.opened_at, d.closed_at ? new Date(d.closed_at).getTime() : this.now)}</span></span>${d.title}</h1>
           <p class="sub">${sub}</p>
@@ -703,7 +704,7 @@ export class InvestigateIncidents extends LitElement {
         : p.state === 'forbidden' ? html`<sw-state-panel state="forbidden" compact heading=${it('camsForbidden')} hint=${it('camsForbiddenHint')} data-incident-cams-forbidden></sw-state-panel>`
         : p.state === 'error' ? html`<sw-state-panel state="error" compact heading=${it('camsTitle')} hint=${p.message}></sw-state-panel>`
         : p.state === 'hidden' ? nothing
-        : !n ? html`<sw-state-panel state="empty" compact quiet heading=${it('camsNone')}></sw-state-panel>`
+        : !n ? html`<sw-state-panel icon="camera" state="empty" compact quiet heading=${it('camsNone')}></sw-state-panel>`
         : html`<div class="tiles" data-incident-tiles style=${`grid-template-columns: repeat(${cols}, minmax(0, 1fr)); grid-template-rows: ${rows}`}>
             ${tiles.map((c, i) => {
               const capped = this.capped.get(c.camera_id);
@@ -730,8 +731,8 @@ export class InvestigateIncidents extends LitElement {
       <div class="hd"><h2>${it('doorsTitle')}</h2>${openN ? html`<span class="chip" data-look="warn"><span class="d"></span>${it('doorsOpen', { n: openN })}</span>` : nothing}<span class="sp"></span>
         ${data ? html`<span class="mut">${it('doorsWindow', { n: Math.round(data.window_s / 60) })}</span>` : nothing}</div>
       ${p.state === 'loading' ? html`<sw-state-panel state="loading" compact quiet></sw-state-panel>`
-        : p.state !== 'ready' ? html`<sw-state-panel state=${p.state === 'forbidden' ? 'forbidden' : 'error'} compact quiet heading=${it('doorsTitle')}></sw-state-panel>`
-        : !p.data.doors.length ? html`<sw-state-panel state="empty" compact quiet heading=${it('doorsNone')}></sw-state-panel>`
+        : p.state !== 'ready' ? html`<sw-state-panel icon="door" state=${p.state === 'forbidden' ? 'forbidden' : 'error'} compact quiet heading=${it('doorsTitle')}></sw-state-panel>`
+        : !p.data.doors.length ? html`<sw-state-panel icon="door" state="empty" compact quiet heading=${it('doorsNone')}></sw-state-panel>`
         : html`<ul class="drs" data-incident-doors>${p.data.doors.slice(0, this.narrow ? 6 : 3).map((x) => {
             const look: Look = x.open === null ? 'unk' : x.open ? 'warn' : 'ok';
             const label = x.open === null ? (p.data.state_visible ? it('doorUnknown') : it('doorHidden')) : x.open ? it('doorOpen') : it('doorLocked');

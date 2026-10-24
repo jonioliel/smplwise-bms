@@ -156,7 +156,7 @@ export class WaterSnooze extends LitElement {
         flex-direction: column;
         min-inline-size: 150px;
         padding: 4px;
-        background: var(--sw-surface-solid, var(--sw-surface));
+        background: var(--sw-menu-surface);
         border: 1px solid var(--sw-border-strong);
         border-radius: var(--sw-r-md);
         box-shadow: var(--sw-shadow-2, 0 8px 24px rgba(0, 0, 0, 0.18));

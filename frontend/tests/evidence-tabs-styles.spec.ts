@@ -236,8 +236,8 @@ test.describe('tab bar styles (mocked backend)', () => {
     await expect(ed.locator('[data-style-preview="1"]')).toHaveAttribute('data-variant', 'pill');
     // the rail has no bar style; every other section card has its own choice
     await expect(ed.locator('[data-style-row="areas"]')).toHaveCount(0);
-    // TABSET-293 added the multimedia, infrastructure (+ its electricity / generator page rows) and tickets cards: 8 -> 12
-    await expect(ed.locator('[data-style-section]')).toHaveCount(12);
+    // TABSET-293 added the multimedia, infrastructure (+ its electricity / generator page rows) and tickets cards: 8 -> 12; CR-WATER78 added the infra.water page row: 13
+    await expect(ed.locator('[data-style-section]')).toHaveCount(13);
     if (info.project.name === 'desktop') await shot(page, 'editor-styles', info);
     else await shot(page, 'editor-styles', info);
 
@@ -270,7 +270,7 @@ test.describe('tab bar styles (mocked backend)', () => {
     await ed2.locator('li[data-sec="explore"][data-tab="floors"] .mv[data-move="up"]').click();
     await ed2.locator('[data-tabs-save]').click();
     await expect.poll(() => st.patches.length).toBe(3);
-    expect(st.patches[2]).toEqual({ 'ui.tabs': { styles: { level2: 'underline' }, explore: { order: ['floors', 'sites'], hidden: [], style: 'underline' } } });
+    expect(st.patches[2]).toEqual({ 'ui.tabs': { styles: { level2: 'underline' }, explore: { order: ['floors', 'sites', 'presence'], hidden: [], style: 'underline' } } }); // WHOIN034-295: the explore row has a third tab (מי במבנה), so the saved order lists it
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
 });

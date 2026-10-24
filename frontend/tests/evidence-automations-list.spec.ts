@@ -75,7 +75,7 @@ test.describe('the list (installer)', () => {
     }
     await open(page, '/devices/automations');
     await ready(page);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']);
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט', 'לוח הודעות']); // CR-NOTICE106: the static demo lists every tab, the notice board too (unit-schedules-nav)
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
     await expect(scr(page).locator('[data-auto-title]')).toHaveText('אוטומציות');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');

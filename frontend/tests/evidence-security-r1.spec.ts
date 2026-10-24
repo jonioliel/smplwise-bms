@@ -163,7 +163,7 @@ test.describe('security area, UI round 1 (mocked backend)', () => {
     await open(page, '/system/security');
     await expect.poll(() => hashOf(page)).toBe('#/system/security/alarm');
     // 0.1.153: the read-only 'מצלמות' tab (CR-020 S1) is the fourth page of the section
-    await expect(page.locator(SUB_TABS)).toHaveText(['אזעקה', 'ניהול אזעקה', 'NVR', 'מצלמות', 'ממשק ציבורי', 'מסכות פרטיות', 'קריאות בקרת כניסה']); // SWITCHUI-295: + the access-control reads tab (system.configure, installation scope); SECFIX2-295: + the public-interface tab (system.configure, as the cameras tab)
+    await expect(page.locator(SUB_TABS)).toHaveText(['אזעקה', 'ניהול אזעקה', 'NVR', 'מצלמות', 'ממשק ציבורי', 'מסכות פרטיות', 'קריאות בקרת כניסה', 'מצב אירוע חי']); // CR-LIVEEVENT100: + the live event tab (always offered to a system administrator - it holds the module switch); SWITCHUI-295: + the access-control reads tab (system.configure, installation scope); SECFIX2-295: + the public-interface tab (system.configure, as the cameras tab)
     await open(page, '/system/security/manage');
     await expect(page.locator('sw-app system-security system-alarm-settings')).toHaveCount(1);
     expect(st.configRequests).toBeGreaterThan(0);
@@ -177,7 +177,7 @@ test.describe('security area, UI round 1 (mocked backend)', () => {
     await expect.poll(() => hashOf(page)).toBe('#/system/security/nvr');
     await expect(page.locator(SETTINGS_TABS).filter({ hasText: 'אבטחה' })).toHaveCount(1);
     // 0.1.153: with the alarm pages gone, the section keeps NVR plus the read-only 'מצלמות' tab (CR-020 S1)
-    await expect(page.locator(SUB_TABS)).toHaveText(['NVR', 'מצלמות', 'ממשק ציבורי', 'מסכות פרטיות', 'קריאות בקרת כניסה']); // SWITCHUI-295: + the access-control reads tab (system.configure, installation scope); SECFIX2-295: + the public-interface tab
+    await expect(page.locator(SUB_TABS)).toHaveText(['NVR', 'מצלמות', 'ממשק ציבורי', 'מסכות פרטיות', 'קריאות בקרת כניסה', 'מצב אירוע חי']); // CR-LIVEEVENT100: + the live event tab (always offered to a system administrator - it holds the module switch); SWITCHUI-295: + the access-control reads tab (system.configure, installation scope); SECFIX2-295: + the public-interface tab
     await expect(page.locator('sw-app system-security system-security-nvr')).toHaveCount(1);
     await open(page, '/security/alarm'); // a saved link: the usual "no alarm panel" state, not a blank page
     await expect(page.locator('security-alarm [data-alarm-empty]')).toHaveCount(1);

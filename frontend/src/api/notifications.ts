@@ -169,7 +169,7 @@ export interface NotifyPolicy {
   /** A quiet "resolved" update (default false; true for critical). */
   resolve_notice: boolean;
   /** `initiator` = the bulk starter / the account's owner. */
-  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator' | 'temperature' | 'energy_bills' | 'water' | 'maintenance'; user_ids?: string[] }; // elevator: CR-INFRA-ELEVATORS 2.8.0; energy_bills: ELECBILL77; maintenance: CR-MAINT215
+  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator' | 'temperature' | 'energy_bills' | 'water' | 'maintenance' | 'scenario'; user_ids?: string[] }; // elevator: CR-INFRA-ELEVATORS 2.8.0; energy_bills: ELECBILL77; maintenance: CR-MAINT215
   /** inbox is fixed on; ha_mobile is fixed false (reserved); whatsapp is a real channel since NOTIFWA (off by default). */
   channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; announce?: boolean; ha_mobile: false; whatsapp: boolean };
   revision: number;
@@ -1026,6 +1026,7 @@ export const RECIPIENT_LABEL: Record<NotifyPolicy['recipients']['rule'], string>
   energy_bills: 'בעלי הרשאת חיובי החשמל', // ELECBILL77: the holders of energy.bills (installation scope; services/notify.py)
   water: 'הנמענים שנבחרו להתראות המים', // CR-WATER78 slice 2: the recipients chosen in Settings > Infrastructure > Water (services/water_alerts.py)
   maintenance: 'האחראי ומנהלי התחזוקה של המקום', // CR-MAINT215: the task's responsible person and the maintenance managers of its place
+  scenario: 'הנמענים שנבחרו בתרחיש', // XSCENARIO109-295: the recipients chosen on the scenario's notify action (or the default list in Settings)
 };
 export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], string> = {
   scope: 'Everyone who can see it', managers: 'Managers', initiator: 'The initiator / account owner', users: 'Selected users',
@@ -1035,6 +1036,7 @@ export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], stri
   energy_bills: 'Holders of the electricity bills permission',
   water: 'The recipients chosen for the water alerts',
   maintenance: 'The responsible person and the maintenance managers of the place',
+  scenario: 'The recipients chosen on the scenario',
 };
 export const recipientsText = (r: NotifyPolicy['recipients']): string => (r.rule === 'users' ? `${RECIPIENT_LABEL.users} (${r.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r.rule]);
 export interface ChannelCell {

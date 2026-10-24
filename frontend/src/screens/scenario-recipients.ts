@@ -18,17 +18,17 @@ export class ScenarioRecipients extends LitElement {
 
   static styles = css`
     :host { display: inline-block; position: relative; min-inline-size: 220px; max-inline-size: 100%; }
-    .box { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 3px 6px; border: 1px solid var(--dv-border, #ccd); border-radius: var(--dv-radius-control, 10px); background: var(--dv-surface, #fff); min-block-size: 30px; }
-    .chip { display: inline-flex; gap: 4px; align-items: center; padding: 1px 8px; border-radius: 999px; background: var(--dv-accent-soft, #dbe7ff); color: var(--dv-accent-text, #1d3f8a); font-size: 12px; }
+    .box { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 3px 6px; border: 1px solid var(--dv-border, var(--sw-border)); border-radius: var(--dv-radius-control, 10px); background: var(--dv-surface, var(--sw-surface)); min-block-size: 30px; }
+    .chip { display: inline-flex; gap: 4px; align-items: center; padding: 1px 8px; border-radius: 999px; background: var(--dv-accent-soft, var(--sw-accent-soft)); color: var(--dv-accent-text, var(--sw-accent-text)); font-size: var(--sw-fs-sm); }
     .chip button, .add { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 0 2px; }
-    .add { color: var(--dv-text-2, #556); font-size: 13px; }
-    .hint { color: var(--dv-text-3, #889); font-size: 12px; }
+    .add { color: var(--dv-text-2, var(--sw-text-2)); font-size: var(--sw-fs-base); }
+    .hint { color: var(--dv-text-3, var(--sw-text-3)); font-size: var(--sw-fs-sm); }
     .pop { position: absolute; inset-inline-start: 0; inset-block-start: calc(100% + 4px); z-index: 5; inline-size: max(260px, 100%); max-block-size: 260px; overflow: auto;
-      background: var(--dv-surface, #fff); color: var(--dv-text, #123); border: 1px solid var(--dv-border, #ccd); border-radius: 12px; box-shadow: 0 8px 24px rgb(0 0 0 / 18%); padding: 6px; }
-    .pop input[type='search'] { inline-size: 100%; box-sizing: border-box; font: inherit; padding: 4px 8px; border: 1px solid var(--dv-border, #ccd); border-radius: 8px; background: transparent; color: inherit; }
-    .sect { font-size: 11px; color: var(--dv-text-3, #889); margin: 6px 4px 2px; }
-    label { display: flex; gap: 6px; align-items: center; padding: 3px 4px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-    label:hover { background: var(--dv-surface-2, #f3f5fa); }
+      background: var(--sw-menu-surface); color: var(--dv-text, var(--sw-text)); border: 1px solid var(--sw-menu-border); border-radius: var(--sw-r-md); box-shadow: 0 8px 24px rgb(0 0 0 / 18%); padding: 6px; }
+    .pop input[type='search'] { inline-size: 100%; box-sizing: border-box; font: inherit; padding: 4px 8px; border: 1px solid var(--dv-border, var(--sw-border)); border-radius: var(--sw-r-sm); background: transparent; color: inherit; }
+    .sect { font-size: var(--sw-fs-xs); color: var(--dv-text-3, var(--sw-text-3)); margin: 6px 4px 2px; }
+    label { display: flex; gap: 6px; align-items: center; padding: 3px 4px; border-radius: var(--sw-r-xs); cursor: pointer; font-size: var(--sw-fs-base); }
+    label:hover { background: var(--dv-surface-2, var(--sw-surface-2)); }
   `;
 
   private emit(value: Recipients) {

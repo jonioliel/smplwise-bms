@@ -66,7 +66,7 @@ export class SwPartnerApiCard extends LitElement {
     .tabs { display: flex; gap: 4px; flex-wrap: wrap; padding-block: 8px; border-block-end: 1px solid var(--sw-border); }
     .tabs button { font: inherit; font-size: var(--sw-fs-sm); min-block-size: 32px; padding-inline: 10px; border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm); background: var(--sw-surface); color: var(--sw-text); cursor: pointer; }
-    .tabs button[aria-selected='true'] { background: var(--sw-accent, var(--sw-primary)); color: var(--sw-on-accent, #fff); border-color: transparent; }
+    .tabs button[aria-selected='true'] { background: var(--sw-accent, var(--sw-primary)); color: var(--sw-text-inverse); border-color: transparent; }
     .list { max-block-size: 320px; overflow-y: auto; }
     .form { display: grid; gap: 8px; padding-block: 10px; border-block-end: 1px solid var(--sw-border); }
     .chips { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: var(--sw-fs-sm); }

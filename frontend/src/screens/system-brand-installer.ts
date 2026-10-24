@@ -78,7 +78,7 @@ export class SystemBrandInstaller extends LitElement {
     .sw-main { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-surface-2); }
     .sw-main .t { flex: 1; display: flex; flex-direction: column; gap: 1px; min-inline-size: 0; }
     .sw-main .t b { font-weight: var(--sw-fw-semibold); }
-    .tgl { all: unset; box-sizing: border-box; cursor: pointer; inline-size: 44px; block-size: 26px; border-radius: 13px; background: var(--sw-border-strong); position: relative; flex: none; }
+    .tgl { all: unset; box-sizing: border-box; cursor: pointer; inline-size: 44px; block-size: 26px; border-radius: var(--sw-r-pill); background: var(--sw-border-strong); position: relative; flex: none; }
     .tgl::after { content: ''; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 20px; block-size: 20px; border-radius: 50%; background: #fff; transition: inset-inline-start 120ms ease; }
     .tgl[aria-checked='true'] { background: var(--sw-toggle-on, var(--sw-accent)); }
     .tgl[aria-checked='true']::after { inset-inline-start: 21px; }
@@ -98,7 +98,7 @@ export class SystemBrandInstaller extends LitElement {
     .mini.d { color: #e8edf7; }
     .mini b { font-size: var(--sw-fs-sm); overflow-wrap: anywhere; unicode-bidi: plaintext; }
     .mini span.c { font-size: var(--sw-fs-xs); opacity: 0.8; overflow-wrap: anywhere; unicode-bidi: plaintext; }
-    .mini .bar { inline-size: 40px; block-size: 4px; border-radius: 2px; margin-block-start: 4px; }
+    .mini .bar { inline-size: 40px; block-size: 4px; border-radius: var(--sw-r-2xs); margin-block-start: 4px; }
     .cap { display: block; margin-block-start: 4px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); text-align: center; }
     .warn { display: inline-flex; align-items: center; gap: 6px; color: var(--sw-warning-text); font-size: var(--sw-fs-sm); }
     .foot .grow { flex: 1; }

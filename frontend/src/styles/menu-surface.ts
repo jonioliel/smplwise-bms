@@ -79,6 +79,8 @@ export const MENU_SURFACES: readonly MenuSurface[] = [
   { file: 'components/device-activity.ts', selector: '.menu', what: 'the activity row context menu' },
   { file: 'screens/devices-area-nav.ts', selector: '.menu', what: 'the floor / area picker list (a popover, a bottom sheet on a phone)' },
   { file: 'screens/devices-bulk.ts', selector: '.panel', what: 'the bulk menu / the area summary popover of a tree row or tile' },
+  { file: 'screens/scenario-recipients.ts', selector: '.pop', what: 'the recipient picker list that opens under the chip box (scenario settings and the scenario editor)' },
+  { file: 'water/ui.ts', selector: '.menu', what: 'the water pages row menu (the snooze / actions menu, fixed to its button)' },
   { file: 'screens/media-admin-list.ts', selector: '.colspanel', what: 'the column chooser' },
   { file: 'components/scene-capture.ts', selector: '.pop', what: 'the scene editor device picker' },
   { file: 'components/sw-automation-card.ts', selector: '.pop', what: 'the automation card "..." menu' },
@@ -164,6 +166,8 @@ export const HUD_SURFACES: readonly HudSurface[] = [
   { file: 'screens/investigate-event-detail.ts', selector: '.floorchip', what: 'the floor name chip over the event page map' },
   { file: 'screens/investigate-event-detail.ts', selector: '.load3d', what: 'the 3D loading cover of the event page map' },
   { file: 'screens/investigate-event-detail.ts', selector: '.tools3d', via: 'surface-token', what: 'the picture / 2D-3D buttons over the event page map' },
+  // the who-is-in-the-building map (screens/explore-presence.ts)
+  { file: 'screens/explore-presence.ts', selector: '.stage .note', what: 'the note pill in the corner of the presence plan' },
 ];
 
 /** The menu selectors the SKIN sheets (design/skins/*.ts) paint: any skin rule that names one must keep it opaque and un-blurred. */

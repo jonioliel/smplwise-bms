@@ -260,6 +260,7 @@ const HUD_EXEMPT: Record<string, string> = {
   'map/walk-hud.ts | .stick': 'the joystick ring under the thumb: no text, it must show the scene beneath the finger',
   'map/walk-hud.ts | .target': 'the mark where a tap sent the walk: no text, it must show the scene',
   'map/sw-plan-3d.ts | .vignette': 'a pointer-events:none edge darkening of the realistic view: no text, no control',
+  'screens/investigate-incidents.ts | .tile .rel': 'the relative-time pill on a camera tile (the on-video HUD family: --sw-video-scrim with --sw-on-video text; its contrast does not depend on the picture)',
 };
 
 const canvasHosts = files.filter((f) => {

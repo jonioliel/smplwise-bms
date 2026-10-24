@@ -8,6 +8,7 @@ import { ApiError } from '../api/client';
 import { getScenarioSettings, saveScenarioSettings, scenarioChoices, type ScenarioChoices, type TimeWindow } from '../api/scenarios';
 import { sct, type SctKey } from '../i18n/scenarios';
 import { settingsStyles } from '../styles/settings';
+import { dateInputLang } from '../api/day-format';
 
 type Settings = Record<string, unknown>;
 
@@ -40,13 +41,13 @@ export class ScenarioSettings extends LitElement {
     :host { display: block; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
     label { display: grid; gap: 4px; font-size: var(--sw-fs-sm, 13px); }
-    input, select { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--sw-border, #ccd); background: var(--sw-surface, #fff); color: inherit; }
+    input, select { font: inherit; padding: 4px 8px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: inherit; }
     .row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
     .days { display: inline-flex; gap: 2px; }
-    .days button { min-inline-size: 28px; border-radius: 6px; border: 1px solid var(--sw-border, #ccd); background: transparent; color: inherit; font: inherit; cursor: pointer; }
-    .days button[aria-pressed='true'] { background: var(--sw-accent-soft, #dbe7ff); }
+    .days button { min-inline-size: 28px; border-radius: var(--sw-r-xs); border: 1px solid var(--sw-border); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+    .days button[aria-pressed='true'] { background: var(--sw-accent-soft); }
     .bar { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-block-start: 10px; }
-    .err { color: var(--sw-danger, #b00020); } .ok { color: var(--sw-success, #0a7a3b); }
+    .err { color: var(--sw-danger); } .ok { color: var(--sw-success); }
     @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
   `];
 
@@ -102,8 +103,8 @@ export class ScenarioSettings extends LitElement {
       if (days.length) this.set('scenarios.work_window', { ...w, days });
     };
     return html`<label>${sct('setWindow')}<span class="row"><span class="days">${[6, 0, 1, 2, 3, 4, 5].map((d) => html`<button type="button" aria-pressed=${String(w.days.includes(d))} @click=${() => toggle(d)}>${names[d]}</button>`)}</span>
-      <input type="time" .value=${w.from} @change=${(e: Event) => this.set('scenarios.work_window', { ...w, from: (e.target as HTMLInputElement).value })} />
-      <input type="time" .value=${w.to} @change=${(e: Event) => this.set('scenarios.work_window', { ...w, to: (e.target as HTMLInputElement).value })} /></span></label>`;
+      <input type="time" lang=${dateInputLang()} .value=${w.from} @change=${(e: Event) => this.set('scenarios.work_window', { ...w, from: (e.target as HTMLInputElement).value })} />
+      <input type="time" lang=${dateInputLang()} .value=${w.to} @change=${(e: Event) => this.set('scenarios.work_window', { ...w, to: (e.target as HTMLInputElement).value })} /></span></label>`;
   }
 
   render() {

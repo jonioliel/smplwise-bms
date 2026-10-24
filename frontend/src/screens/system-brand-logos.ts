@@ -399,7 +399,7 @@ export class SystemBrandLogos extends LitElement {
     .mini .body i {
       display: block;
       flex: 1;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
     }
     .mini.l .body {
       background: #f5f7fb;
@@ -442,7 +442,7 @@ export class SystemBrandLogos extends LitElement {
       min-inline-size: 0;
       block-size: 26px;
       padding: 0 12px;
-      border-radius: 8px 8px 0 0;
+      border-radius: var(--sw-r-sm) var(--sw-r-sm) 0 0;
       background: var(--sw-surface);
       color: var(--sw-text);
       font-size: var(--sw-fs-xs);

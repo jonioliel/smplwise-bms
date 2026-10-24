@@ -55,7 +55,9 @@ test('title: empty names are left out; no name at all gives the prefix alone; an
 
 test('a server block becomes state; anything unknown reads as the default (a corrupt value never reaches the page)', () => {
   const s = brandFromView({ company: { name: 'נווה', kind: 'management', logo: { light: null, dark: null }, logo_file: { light: L, dark: 'not-a-file' } }, size: 'xl', dark_mode: 'file', title: { prefix: 'Arx', mode: 'dev' }, project: { name: 'P' } });
-  expect(s).toEqual({ companyName: 'נווה', kind: 'management', files: { light: L, dark: null }, size: 'xl', darkMode: 'file', titlePrefix: 'Arx', titleMode: 'dev', projectName: 'P' });
+  expect(s).toEqual({ companyName: 'נווה', kind: 'management', files: { light: L, dark: null }, size: 'xl', darkMode: 'file', titlePrefix: 'Arx', titleMode: 'dev', projectName: 'P',
+    // WL: the server block now carries the white-label object; this server block has none, so it reads as the disabled default
+    wl: { enabled: false, name: '', contact: '', accent: 'default', files: { light: null, dark: null } } });
   const bad = brandFromView({ company: { name: 'x', kind: 'nope' as never, logo: { light: null, dark: null }, logo_file: { light: '../../etc/passwd', dark: 'x.png' } }, size: 'huge' as never, dark_mode: 'neon' as never, title: { prefix: '   ', mode: 'none' as never } });
   expect(bad.kind).toBe('developer');
   expect(bad.files).toEqual({ light: null, dark: null });

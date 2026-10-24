@@ -14,6 +14,7 @@ import { nt } from '../i18n/notices';
 import { SEV_KEY, SEV_LOOK, STATE_KEY, audienceOf, audienceText, draftOf, inputOf, kpiCounts, matches, newDraft, validate, windowText, type Draft, type Kpi, type Seg } from '../notices/model';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_SETTINGS_HREF } from '../shell/nav';
+import { dateInputLang } from '../api/day-format';
 
 /**
  * CR-NOTICE106 section 9: ראשי › לוח הודעות (#/devices/notices). Readers see the active notices of their audience (a read sheet marks
@@ -98,7 +99,7 @@ export class DevicesNotices extends LitElement {
 
   render() {
     if (this.off) {
-      return html`<sw-page heading=${nt('title')}><sw-state-panel data-notices-state="off" state="empty" icon="offline" heading=${nt('off')} hint=${nt('offHint')}
+      return html`<sw-page heading=${nt('title')}><sw-state-panel icon="offline" data-notices-state="off" state="empty" heading=${nt('off')} hint=${nt('offHint')}
         actionLabel=${nt('toSettings')} @action=${() => (location.hash = NOTICES_SETTINGS_HREF)}></sw-state-panel></sw-page>`;
     }
     if (this.forbidden) return html`<sw-page heading=${nt('title')}><sw-state-panel state="forbidden" heading=${nt('forbidden')}></sw-state-panel></sw-page>`;
@@ -115,7 +116,7 @@ export class DevicesNotices extends LitElement {
         <div class="top"><div><h1>${nt('title')}</h1><p class="sub">${sub}</p></div><span class="sp"></span>
           <div class="meta">${this.manager ? html`<sw-button variant="primary" icon="plus" data-compose @click=${() => this.compose()}>${nt('newNotice')}</sw-button>` : nothing}</div></div>
         ${!all.length
-          ? html`<sw-state-panel state="empty" icon="inbox" heading=${nt('emptyTitle')} hint=${this.manager ? nt('emptyManager') : nt('emptyReader')}
+          ? html`<sw-state-panel icon="inbox" state="empty" heading=${nt('emptyTitle')} hint=${this.manager ? nt('emptyManager') : nt('emptyReader')}
               actionLabel=${this.manager ? nt('firstNotice') : ''} @action=${() => this.compose()}></sw-state-panel>`
           : html`
             ${this.kpis(counts)}
@@ -317,8 +318,8 @@ export class DevicesNotices extends LitElement {
             <div class="fld"><span class="lbl">&nbsp;</span><label class="ck"><input type="checkbox" .checked=${d.pinned} @change=${(e: Event) => this.set({ pinned: (e.target as HTMLInputElement).checked })}>${nt('fPinned')}</label></div>
           </div>
           <div class="r">
-            <div class="fld"><label for="nt-from">${nt('fFrom')}</label><input id="nt-from" class="inp num" type="datetime-local" .value=${d.from} @input=${(e: Event) => this.set({ from: (e.target as HTMLInputElement).value })}></div>
-            <div class="fld"><label for="nt-to">${nt('fTo')}</label><input id="nt-to" class="inp num" type="datetime-local" ?disabled=${d.untilArchived} .value=${d.to} @input=${(e: Event) => this.set({ to: (e.target as HTMLInputElement).value })}>
+            <div class="fld"><label for="nt-from">${nt('fFrom')}</label><input id="nt-from" class="inp num" type="datetime-local" lang=${dateInputLang()} .value=${d.from} @input=${(e: Event) => this.set({ from: (e.target as HTMLInputElement).value })}></div>
+            <div class="fld"><label for="nt-to">${nt('fTo')}</label><input id="nt-to" class="inp num" type="datetime-local" lang=${dateInputLang()} ?disabled=${d.untilArchived} .value=${d.to} @input=${(e: Event) => this.set({ to: (e.target as HTMLInputElement).value })}>
               ${d.severity === 'critical' ? html`<span class="hint">${nt('criticalNeedsEnd')}</span>`
                 : html`<label class="ck"><input type="checkbox" .checked=${d.untilArchived} @change=${(e: Event) => this.set({ untilArchived: (e.target as HTMLInputElement).checked })}>${nt('fUntilArchived')}</label>`}</div>
           </div>

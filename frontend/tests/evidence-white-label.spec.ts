@@ -13,6 +13,8 @@ async function boot(page: Page, installer: Record<string, unknown> | null) {
   const cache = { company: { name: '', kind: 'developer', logo: {}, logo_file: { light: null, dark: null } }, size: 'm', dark_mode: 'plate', title: { prefix: 'Smplwise Arx', mode: 'both' }, project: { name: '' }, ...(installer ? { installer } : {}) };
   await page.addInitScript((c) => {
     try {
+      // a boot is a fresh visitor: the colour cache of the previous boot in the same context (`sw.ui.brand`, written when the installer accent applied) must not leak into the next one
+      localStorage.removeItem('sw.ui.brand');
       localStorage.setItem('sw.ui.brandlogo', JSON.stringify(c));
       localStorage.setItem('sw.devices.layout', 'cards');
     } catch {
