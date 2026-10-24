@@ -232,8 +232,9 @@ DEFAULTS: dict[str, str] = {
     # auto (WisKey's W10 media while WisKey's discovery lists its commands, falling back to Arx's own source when WisKey's answer fails).
     # An Arx decision: a WisKey upgrade alone never changes Arx's live path.
     "access.station_media_provider": "local",
-    # W10CLIENT-295 (owner 2026-10-24): the longest a talk through the station may last, in seconds (10..900, default 300). WisKey's own limit
-    # (its descriptor's max_talk_seconds, 180 today and to be removed on its side) still applies on top: the effective limit is the smaller.
+    # W10CLIENT-295 (owner 2026-10-24): the longest a talk through the station may last, in seconds (default 300). WKDIRECT-295: the range is
+    # WisKey's own (`station_media_max_talk_seconds`, exact int 1..86400, no 180 s clamp); WisKey's per-station value, advertised in its
+    # descriptor, still applies on top: the effective limit is the smaller.
     "access.station_media_max_talk_s": "300",
     # SHAREDID-293 (owner decision 6, 2026-10-20): where the external-access screen ("גישת חוץ") sits - access (the access-control area) |
     # tickets (service management) | both. Read by every user here (navigation only); written by a system administrator through
@@ -769,7 +770,7 @@ class SettingsPatch(BaseModel):
     access_announce_phrases: str | None = Field(default=None, max_length=2000, alias="access.announce_phrases")  # one phrase per line
     access_station_media: str | None = Field(default=None, pattern="^(off|video|video_talk)$", alias="access.station_media")  # CR-036 S18
     access_station_media_provider: str | None = Field(default=None, pattern="^(local|auto)$", alias="access.station_media_provider")  # REL2140 M-3
-    access_station_media_max_talk_s: int | None = Field(default=None, ge=10, le=900, alias="access.station_media_max_talk_s")  # W10CLIENT-295
+    access_station_media_max_talk_s: int | None = Field(default=None, ge=1, le=86400, alias="access.station_media_max_talk_s")  # W10CLIENT-295 / WKDIRECT-295
     devices_style: str | None = Field(default=None, pattern="^(smplwise|glass)$", alias="devices.style")
     devices_theme: str | None = Field(default=None, pattern="^(" + "|".join(DEVICE_THEMES) + ")$", alias="devices.theme")
     devices_default_view: str | None = Field(default=None, pattern="^(cards|tiles)$", alias="devices.default_view")

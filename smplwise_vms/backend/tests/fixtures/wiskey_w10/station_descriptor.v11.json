@@ -28,7 +28,7 @@
     "talk_transports": [
       "signed_ws_batch_v1"
     ],
-    "max_talk_seconds": 180
+    "max_talk_seconds": 300
   },
   "limits": {
     "max_viewers": null,

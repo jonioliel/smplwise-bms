@@ -154,7 +154,7 @@ class FakeStation:
 
     def __init__(self, *, secret: str = SECRET, user_id: str = "ha-user-1", clock: Callable[[], float] = time.monotonic) -> None:
         self.secret, self.user_id, self.clock = secret, user_id, clock
-        self.max_talk_s: int | None = 180  # the descriptor's limit (None = none)
+        self.max_talk_s: int | None = 300  # the station's published limit (WisKey: exact int 1..86400, default 300; None = a broken answer)
         self.idle_s = 12.0
         self.credit_per_s = 10.0
         self.ack_delay = 0.0

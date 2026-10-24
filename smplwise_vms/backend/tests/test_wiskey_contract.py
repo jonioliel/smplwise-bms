@@ -281,13 +281,8 @@ ADAPTER_CALLS: dict[str, Any] = {
     "stations/technical_program_list": lambda c: adapter.program_list(c, "s1"),
     "stations/technical_hold_get": lambda c: adapter.hold_get(c, "s1", 1),
     "stations/technical_codes_get": lambda c: adapter.codes_get(c, "s1"),
-    # AVW10-295: WisKey's W10 station media (services/wiskey_media_contract.py) - judged against Arx's W10 PROPOSAL (below), not the pin
-    w10.DESCRIBE: lambda c: w10.station_descriptor(c, "s1", w10.Actor("u1", "Dana"), "req-0001"),
-    w10.STREAM_LEASE: lambda c: w10.stream_lease(c, "wk-desc-0123456789abcdef", "sub", w10.Actor("u1", "Dana"), "req-0002"),
-    w10.TALK_OPEN: lambda c: w10.talk_open(c, "wk-desc-0123456789abcdef", w10.Actor("u1", "Dana"), "req-0003", "2027-01-15T08:02:00Z"),
-    w10.TALK_FRAME: lambda c: w10.talk_frame(c, "wk-talk-0123456789abcdef", 1, b"\xff" * 160),
-    w10.TALK_FLOOR: lambda c: w10.talk_floor(c, "wk-talk-0123456789abcdef", True),
-    w10.TALK_CLOSE: lambda c: w10.talk_close(c, "wk-talk-0123456789abcdef", "stopped"),
+    # WKDIRECT-295 (S6): WisKey's six W10 commands are no adapter command any more - they leave only as signed bridge envelopes
+    # (services/wiskey_media_bridge.py; tests/test_wiskey_media_v11.py and tests/test_wkdirect_295.py hold them to WisKey's v1.1 schemas)
 }
 W10_PROPOSAL = json.loads((ROOT / "docs" / "integrations" / "wiskey" / "catalog" / "w10-proposal" / "commands.proposed.json").read_text(encoding="utf-8"))["commands"]
 
@@ -300,36 +295,18 @@ def adapter_frame(command: str) -> dict[str, Any]:
 
 
 def test_every_adapter_command_has_a_representative_call():
-    assert set(ADAPTER_CALLS) == set(adapter.CHANNEL_OF) | set(w10.COMMANDS)
+    assert set(ADAPTER_CALLS) == set(adapter.CHANNEL_OF)
 
 
-@pytest.mark.parametrize("command", sorted(w10.COMMANDS))
-def test_the_w10_frames_fit_arxs_proposed_request_schema(command: str):
-    """AVW10-295: W10 post-dates the pin, so each frame is held to the request schema Arx PROPOSED to WisKey (section 3 of
-    CR-036-S18-MEDIA.md) - exact key set, required keys, primitive types, `api_contract` exactly on the non-READ ones."""
-    assert command not in COMMANDS, f"{command}: the pin now lists it - judge it against the pin instead of the proposal"
-    entry = W10_PROPOSAL[command]
-    schema = entry["request"]
-    frame = adapter_frame(command)
-    assert frame["type"] == PREFIX + command and schema["properties"]["type"]["const"] == frame["type"]
-    assert not set(frame) - set(schema["properties"]), f"keys the proposal does not list: {sorted(set(frame) - set(schema['properties']))}"
-    assert not set(schema["required"]) - set(frame), "a required key is missing"
-    for key, value in frame.items():
-        assert conforms(value, schema["properties"][key]), f"{key}={value!r}"
-    read = entry["permission"]["read_command_for_security_guard_and_api_contract"]
-    assert (frame.get("api_contract") == intercom_client.API_CONTRACT) == (not read)
-    assert read == (command in w10.READ_COMMANDS)
-
-
-def test_the_w10_proposal_the_channel_and_the_contract_module_name_the_same_six_commands():
+def test_the_w10_commands_have_no_unsigned_frame_and_no_channel():
+    """WKDIRECT-295 (S6): the AVW10-295 proposal named the same six commands as unsigned feed frames; that path is removed. No channel
+    allows one of them, and the contract module has no sender that would build one on the feed's `call`."""
     from smplwise.services import wiskey_channels as ch
 
-    assert set(W10_PROPOSAL) == set(w10.COMMANDS) == ch.MEDIA and len(w10.COMMANDS) == 6
-    assert "media" in ch.UNPINNED_CHANNELS and not (ch.MEDIA & ch.SERVICE), "the media commands ride their own guard only"
-    actor = adapter_frame(w10.DESCRIBE)["actor"]
-    assert actor == {"id": "u1", "display_name": "Dana"}
-    assert adapter_frame(w10.TALK_FRAME)["data"] == __import__("base64").b64encode(b"\xff" * 160).decode()
-    assert adapter_frame(w10.TALK_CLOSE)["reason"] in w10.CLOSE_REASONS
+    assert set(W10_PROPOSAL) == set(w10.COMMANDS) == ch.W10_COMMANDS and len(w10.COMMANDS) == 6
+    assert "media" not in ch.ALLOWLISTS and "media" not in ch.UNPINNED_CHANNELS
+    assert not any(ch.allowed(name, PREFIX + c) for name in ch.ALLOWLISTS for c in w10.COMMANDS)
+    assert not any(hasattr(w10, f) for f in ("station_descriptor", "stream_lease", "talk_open", "talk_frame", "talk_floor", "talk_close"))
 
 
 @pytest.mark.parametrize("command", sorted(adapter.CHANNEL_OF))

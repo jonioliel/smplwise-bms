@@ -1,9 +1,9 @@
-"""W10CLIENT-295: the transport of WisKey's W10 station media - signed bridge commands over a Home Assistant WebSocket, behind an interface.
+"""W10CLIENT-295 / WKDIRECT-295: the transport of WisKey's W10 station media - signed bridge commands, behind an interface.
 
-Owner decision 24.10: Arx gets no new Home Assistant user for W10 and, in the end, talks to WisKey through a direct API of its own.
-Until that API is published the only shape WisKey has is its signed bridge: every one of the six `hikvision_intercom/media/*`
-commands (the `talk_frame` batches too) travels as `{id, type, bridge}` with a closed `bridge` object signed by the pairing key. So
-the client is built behind two small interfaces and the media code (services/intercom_media.py) knows only these:
+Owner decision 24.10: Arx gets no new Home Assistant user for W10 and talks to WisKey through a direct API. WisKey published it
+(DIRECT_API_V1.md): an anonymous WebSocket authenticated by the pairing key, whose every server frame is MAC-wrapped. Every one of the
+six `hikvision_intercom/media/*` commands (the `talk_frame` batches too) travels as `{id, type, bridge}` with a closed `bridge` object
+signed by the pairing key, on either transport. The media code (services/intercom_media.py) knows only these two interfaces:
 
     MediaTransport.connect(purpose) -> MediaLink        one connection per purpose ("video": shared; "talk": one per talk)
     MediaLink.call(command, parameters, timeout=) -> result dict   one request, one answer, never retried here
@@ -12,8 +12,11 @@ Implementations:
 - `SignedBridgeTransport` + `SignedBridgeLink`: the signed bridge over a `RawConnection` (`HaWsConnection` is the real one, a thin
   adapter over `ha_client.ws_session`; tests use scripted fakes). Signing is the EXISTING pairing recipe (`ha_bridge.sign`),
   byte for byte; nothing here invents a second one.
-- `DirectApiTransport`: a placeholder for the direct API WisKey will publish. It carries NO wire: `connect` refuses with
-  `direct_api_not_published`. When the API exists, only this class changes.
+- `DirectApiTransport` + `DirectLink` (WKDIRECT-295): the direct API - hello, signed `direct/connect` over the challenge, the
+  server-issued service subject (`arx-service:<entry>`, never a Home Assistant user) as `query_owner_id`, every reply's MAC and
+  connection_ref verified before it is read, results correlated by id, `talk_closed` only on the id of its `talk_open`.
+- `AutoTransport`: `auto` picks the direct API when the key signs and the direct socket authenticates, else the signed bridge over
+  the Home Assistant WebSocket (selection rule in its docstring). Neither path is unsigned.
 
 Why one connection per purpose (WisKey's code, read - not run): a descriptor is owned by the connection it was read on, and its lease
 and talk must come from the same connection and the same actor; a talk is cancelled with its connection and a second talk on a
@@ -27,6 +30,8 @@ never retried (a signed request spends a single-use nonce; a batch of audio must
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
 import re
@@ -113,6 +118,14 @@ class BridgeSigner:
         if isinstance(key, ha_bridge.BridgeKey) and key.kid != bk.LEGACY_KID:
             raise MediaBridgeError("bridge_key_rotated")
         return str(key)
+
+    def ready(self) -> bool:
+        """Whether a command could be signed now (a key that is present, readable and not rotated). Sends nothing."""
+        try:
+            self._key()
+        except MediaBridgeError:
+            return False
+        return True
 
     def proof(self, command: str, query_owner_id: str, parameters: dict[str, Any], *, window_s: int = WINDOW_S, nonce: str | None = None) -> dict[str, Any]:
         """The `bridge` object: kind, command, query_owner_id, issued_at, expires_at, parameters, ts, nonce, sig."""
@@ -267,15 +280,450 @@ class SignedBridgeTransport:
         return SignedBridgeLink(raw, self._signer, purpose, generation)
 
 
+# ---------------------------------------------------------------- the direct API (WKDIRECT-295, WisKey DIRECT_API_V1.md)
+#
+# `GET /api/hikvision_intercom/arx_bridge/v1/ws` upgrades to a WebSocket with NO Home Assistant token, user, admin or panel. The
+# server greets with `{type: "hello", protocol: "wiskey-direct-ws.v1", challenge: <32 hex>}`; within 10 s Arx sends
+# `{id: 1, type: "hikvision_intercom/direct/connect", bridge: <wiskey-direct-connect.v1 body, query_owner_id "pairing",
+# parameters {challenge}, signed with the pairing key by the existing recipe>}`. Every frame the server sends after the hello is
+# `{kind: "wiskey-direct-reply.v1", connection_ref, frame, sig}`, sig = HMAC-SHA256(pairing, "wiskey-direct-reply.v1." +
+# canonical({connection_ref, frame})); connection_ref is the server's challenge. The connect result names the server-issued service
+# subject (`arx-service:<entry>`, never a Home Assistant user), `principal_kind: "pairing_service"`, the connection_ref, the protocol
+# and the repository id. Every later command is the existing signed `wiskey-bridge-command.v1` envelope with that query_owner_id.
+
+DIRECT_PATH = "/api/hikvision_intercom/arx_bridge/v1/ws"
+DIRECT_PROTOCOL = "wiskey-direct-ws.v1"
+DIRECT_CONNECT_KIND = "wiskey-direct-connect.v1"
+DIRECT_CONNECT_COMMAND = "direct/connect"
+DIRECT_CONNECT_OWNER = "pairing"
+DIRECT_REPLY_KIND = "wiskey-direct-reply.v1"
+DIRECT_PRINCIPAL_KIND = "pairing_service"
+DIRECT_SERVICE_PREFIX = "arx-service:"
+DIRECT_MAX_FRAME_BYTES = 1_048_576  # WisKey's input-frame maximum (and what Arx accepts back)
+DIRECT_MAX_CONNECT_BYTES = 65_536
+DIRECT_MAX_PENDING = 64  # WisKey's pending outgoing frames per connection: Arx never has more requests in flight
+DIRECT_MAX_ID = 2**53 - 1
+CHALLENGE_RE = re.compile(r"^[0-9a-f]{32}$")
+SIG_RE = re.compile(r"^[0-9a-f]{64}$")
+_PRINTABLE_RE = re.compile(r"^[^\x00-\x1f\x7f]{1,128}$")
+
+
+def canonical_json(value: Any) -> bytes:
+    """WisKey's canonical JSON: sorted keys, compact separators, UTF-8, `ensure_ascii=False`, no NaN/Infinity. Used for the signed command
+    bodies (through `ha_bridge.sign`, after `_strict` refused floats) and for the reply MAC (whose frames may carry finite floats, as
+    WisKey's own wire codec keeps them: the parsed tree keeps Python's int/float types, so its re-encoding is WisKey's spelling)."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+
+
+def _key_text(key: Any) -> str:
+    """The pairing material of a signing key (a plain secret or a legacy `BridgeKey`); a rotated key never signs here."""
+    from . import bridge_keys as bk
+    from . import ha_bridge
+
+    if not key:
+        raise MediaBridgeError("bridge_not_paired")
+    if isinstance(key, ha_bridge.BridgeKey) and key.kid != bk.LEGACY_KID:
+        raise MediaBridgeError("bridge_key_rotated")
+    return str(key)
+
+
+def connect_body(challenge: str, now: int, *, window_s: int = WINDOW_S) -> dict[str, Any]:
+    """The exact six-field `direct/connect` body (before ts/nonce/sig)."""
+    if not isinstance(challenge, str) or not CHALLENGE_RE.fullmatch(challenge) or not 0 < window_s <= MAX_WINDOW_S:
+        raise MediaBridgeError("proof_invalid")
+    return {"kind": DIRECT_CONNECT_KIND, "command": DIRECT_CONNECT_COMMAND, "query_owner_id": DIRECT_CONNECT_OWNER,
+            "issued_at": _iso(now), "expires_at": _iso(now + window_s), "parameters": {"challenge": challenge}}
+
+
+def sign_connect(key: Any, challenge: str, *, now: int, nonce: str | None = None, window_s: int = WINDOW_S) -> dict[str, Any]:
+    """The signed `bridge` object of `direct/connect` - the existing recipe (`ha_bridge.sign`), nothing new: HMAC-SHA256 with the UTF-8
+    pairing code over UTF-8 `ts.nonce.sha256(canonical(body)).hexdigest()`."""
+    from . import ha_bridge
+
+    body = connect_body(challenge, int(now), window_s=window_s)
+    _strict(body)
+    return ha_bridge.sign(_key_text(key), body, ts=int(now), nonce=nonce)
+
+
+def reply_mac(key: Any, connection_ref: str, frame: Any) -> str:
+    """WisKey's reply signature: HMAC-SHA256(pairing, UTF-8 "wiskey-direct-reply.v1." + canonical({connection_ref, frame}))."""
+    payload = DIRECT_REPLY_KIND.encode("utf-8") + b"." + canonical_json({"connection_ref": connection_ref, "frame": frame})
+    return hmac.new(_key_text(key).encode("utf-8"), payload, hashlib.sha256).hexdigest()
+
+
+def open_reply(key: Any, connection_ref: str, message: Any) -> dict[str, Any]:
+    """The `frame` of one `wiskey-direct-reply.v1` message, ONLY after its MAC and its connection_ref are verified; nothing of the frame
+    is read before. Any other shape, a foreign connection_ref or a wrong MAC is `reply_unauthenticated` (a marker alone proves nothing)."""
+    if (not isinstance(message, dict) or set(message) != {"kind", "connection_ref", "frame", "sig"} or message["kind"] != DIRECT_REPLY_KIND
+            or not isinstance(message["connection_ref"], str) or not isinstance(message["sig"], str) or not SIG_RE.fullmatch(message["sig"])):
+        raise MediaBridgeError("reply_unauthenticated")
+    if not hmac.compare_digest(message["connection_ref"].encode("utf-8"), connection_ref.encode("utf-8")):
+        raise MediaBridgeError("reply_unauthenticated")
+    try:
+        expected = reply_mac(key, connection_ref, message["frame"])
+    except (TypeError, ValueError):
+        raise MediaBridgeError("reply_unauthenticated") from None
+    if not hmac.compare_digest(expected, message["sig"]):
+        raise MediaBridgeError("reply_unauthenticated")
+    frame = message["frame"]
+    if not isinstance(frame, dict) or type(frame.get("id")) is not int or frame.get("type") not in ("result", "event"):
+        raise MediaBridgeError("invalid_response")
+    return frame
+
+
+def read_identity(result: dict[str, Any], challenge: str) -> dict[str, Any]:
+    """The connect result: exactly protocol, query_owner_id (`arx-service:<entry>`), principal_kind `pairing_service`, connection_ref (=
+    the challenge) and repository_id (a string, or null when WisKey has no peer registry). Anything else refuses the connection."""
+    if set(result) != {"protocol", "query_owner_id", "principal_kind", "connection_ref", "repository_id"}:
+        raise MediaBridgeError("direct_identity_invalid")
+    owner, repo = result["query_owner_id"], result["repository_id"]
+    if (result["protocol"] != DIRECT_PROTOCOL or result["principal_kind"] != DIRECT_PRINCIPAL_KIND or result["connection_ref"] != challenge
+            or not isinstance(owner, str) or not owner.startswith(DIRECT_SERVICE_PREFIX) or not _PRINTABLE_RE.fullmatch(owner)
+            or len(owner) <= len(DIRECT_SERVICE_PREFIX) or not (repo is None or (isinstance(repo, str) and _PRINTABLE_RE.fullmatch(repo)))):
+        raise MediaBridgeError("direct_identity_invalid")
+    return {"query_owner_id": owner, "repository_id": repo, "connection_ref": challenge, "principal_kind": DIRECT_PRINCIPAL_KIND}
+
+
+class DirectSocket(Protocol):
+    """One text WebSocket (the real one is `websockets`' client connection; tests use an in-memory pair)."""
+
+    async def recv(self) -> str | bytes: ...
+
+    async def send(self, text: str) -> None: ...
+
+    async def close(self) -> None: ...
+
+
+def _load(raw: Any, limit: int) -> Any:
+    if isinstance(raw, bytes):  # the direct socket is a text protocol: a binary frame is not a WisKey frame
+        raise MediaBridgeError("invalid_response")
+    if not isinstance(raw, str) or len(raw.encode("utf-8")) > limit:
+        raise MediaBridgeError("invalid_response")
+    try:
+        return json.loads(raw)
+    except ValueError:
+        raise MediaBridgeError("invalid_response") from None
+
+
+class DirectLink:
+    """`MediaLink` over one authenticated direct socket. One reader task verifies EVERY frame (`open_reply`) before anything reads it:
+    a result is handed to the request whose id it names (ids strictly increasing from 2 on this connection; an id nobody waits for is
+    dropped), an event is delivered only when its id is a `talk_open` this connection opened (WisKey's `talk_closed` reuses that id). A
+    frame that fails verification closes the connection: requests in flight end `reply_unauthenticated` with outcome `unknown` (they
+    were sent; nothing is retried). The pairing key lives in this object for the MAC only, never in repr, a log or an error."""
+
+    def __init__(self, socket: DirectSocket, key: Any, identity: dict[str, Any], purpose: str, generation: int, *,
+                 clock: Callable[[], float] = time.time, window_s: int = WINDOW_S) -> None:
+        self._socket = socket
+        self._window_s = window_s
+        self._key = key
+        self.signer = BridgeSigner(lambda: key, clock=clock)
+        self.query_owner_id: str = identity["query_owner_id"]
+        self.repository_id: str | None = identity["repository_id"]
+        self.connection_ref: str = identity["connection_ref"]
+        self.principal_kind: str = identity["principal_kind"]
+        self.purpose = purpose
+        self.generation = generation
+        self._next_id = 2  # 1 was `direct/connect`
+        self._pending: dict[int, tuple[str, asyncio.Future[dict[str, Any]]]] = {}
+        self._event_ids: set[int] = set()
+        self._send_lock = asyncio.Lock()
+        self._closed = False
+        self._event_handler: Callable[[dict[str, Any]], None] | None = None
+        self._closed_handler: Callable[[], None] | None = None
+        self._reader: asyncio.Task[None] | None = None
+        self.close_code: str | None = None
+        self.dropped_frames = 0  # verified frames nobody waited for (counters only, never content)
+
+    def __repr__(self) -> str:  # never the key, the connection_ref or the service subject
+        return f"DirectLink(purpose={self.purpose!r}, generation={self.generation}, closed={self._closed})"
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    @property
+    def event_ids(self) -> frozenset[int]:
+        return frozenset(self._event_ids)
+
+    def start(self) -> None:
+        self._reader = asyncio.get_running_loop().create_task(self._read())
+
+    async def _read(self) -> None:
+        code = "connection_closed"
+        try:
+            while not self._closed:
+                raw = await self._socket.recv()
+                frame = open_reply(self._key, self.connection_ref, _load(raw, DIRECT_MAX_FRAME_BYTES))
+                self._dispatch(frame)
+        except asyncio.CancelledError:
+            raise
+        except MediaBridgeError as exc:
+            code = exc.code
+            log.warning("station media: direct connection refused a frame (%s); closing it", exc.code)
+        except Exception as exc:  # noqa: BLE001 - the socket ended (the reason is the type only)
+            log.info("station media: direct connection ended (%s)", type(exc).__name__)
+        finally:
+            if not self._closed:
+                await self._shutdown(code)
+
+    def _dispatch(self, frame: dict[str, Any]) -> None:
+        mid = frame["id"]
+        if frame["type"] == "result":
+            entry = self._pending.pop(mid, None)
+            if entry is None or entry[1].done():
+                self.dropped_frames += 1  # a late answer to an abandoned request, or an id never asked: never re-attributed
+                return
+            command, fut = entry
+            if command == w10.TALK_OPEN and frame.get("success") is True:
+                self._event_ids.add(mid)  # `talk_closed` for this talk arrives on this id (registered before the next frame is read)
+            fut.set_result(frame)
+            return
+        event = frame.get("event")
+        handler = self._event_handler
+        if mid not in self._event_ids or not isinstance(event, dict):
+            self.dropped_frames += 1
+            return
+        if handler is not None:
+            try:
+                handler(event)
+            except Exception:  # noqa: BLE001 - an event handler never breaks the reader
+                log.warning("station media: an event handler failed")
+
+    async def _shutdown(self, code: str) -> None:
+        self._closed = True
+        self.close_code = code
+        outcome = "unknown" if code == "reply_unauthenticated" else "closed"
+        pending, self._pending = self._pending, {}
+        for _command, fut in pending.values():
+            if not fut.done():
+                fut.set_exception(MediaBridgeError(code if outcome == "unknown" else "connection_closed", outcome))
+        try:
+            await self._socket.close()
+        except Exception:  # noqa: BLE001
+            pass
+        handler, self._closed_handler = self._closed_handler, None
+        if handler is not None:
+            try:
+                handler()
+            except Exception:  # noqa: BLE001
+                log.warning("station media: a close handler failed")
+
+    async def call(self, command: str, parameters: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+        if self._closed:
+            raise MediaBridgeError("connection_closed", "closed")
+        if len(self._pending) >= DIRECT_MAX_PENDING:
+            raise MediaBridgeError("direct_output_capacity")  # refused before anything is signed or sent
+        if self._next_id > DIRECT_MAX_ID:
+            raise MediaBridgeError("connection_exhausted", "closed")
+        proof = self.signer.proof(command, self.query_owner_id, parameters, window_s=self._window_s)
+        mid = self._next_id
+        self._next_id += 1
+        fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
+        self._pending[mid] = (command, fut)
+        text = json.dumps({"id": mid, "type": TYPE_PREFIX + command, "bridge": proof}, separators=(",", ":"), ensure_ascii=False)
+        try:
+            async with self._send_lock:
+                await self._socket.send(text)
+        except Exception as exc:  # noqa: BLE001 - a dead socket: the outcome of THIS request is unknown, the connection is gone
+            self._pending.pop(mid, None)
+            log.info("station media: direct send failed (%s)", type(exc).__name__)
+            if not self._closed:
+                await self._shutdown("connection_closed")
+            raise MediaBridgeError("connection_closed", "closed") from None
+        try:
+            frame = await asyncio.wait_for(asyncio.shield(fut), timeout)
+        except asyncio.TimeoutError:
+            self._pending.pop(mid, None)  # a late answer is dropped by the reader, never re-attributed
+            raise MediaBridgeError("media_outcome_unknown", "unknown") from None
+        except asyncio.CancelledError:
+            self._pending.pop(mid, None)
+            raise
+        if frame.get("id") != mid:  # the reader correlates by id; checked again here (defence in depth)
+            raise MediaBridgeError("invalid_response", "unknown")
+        return verify_result(frame)
+
+    def set_event_handler(self, handler: Callable[[dict[str, Any]], None] | None) -> None:
+        self._event_handler = handler
+
+    def set_closed_handler(self, handler: Callable[[], None] | None) -> None:
+        self._closed_handler = handler
+        if handler is not None and self._closed:
+            self._closed_handler = None
+            handler()
+
+    async def close(self) -> None:
+        reader = self._reader
+        if not self._closed:
+            await self._shutdown("connection_closed")
+        if reader is not None and not reader.done() and reader is not asyncio.current_task():
+            reader.cancel()
+            try:
+                await reader
+            except BaseException:  # noqa: BLE001
+                pass
+
+
 class DirectApiTransport:
-    """PLACEHOLDER for the direct Arx <-> WisKey API (owner decision 24.10: no new Home Assistant user; the two systems talk through an
-    API of their own). WisKey has not published it, so this class has no wire and invents none: it refuses to connect. The media code
-    depends only on `MediaTransport`, so the day the contract exists this is the one class that grows an implementation."""
+    """The direct Arx <-> WisKey API (DIRECT_API_V1.md; owner decision 24.10: no new Home Assistant user, no admin, no panel). Each
+    `connect` opens a NEW socket, authenticates it with a fresh challenge and returns a `DirectLink` that owns nothing of an earlier
+    connection (no session, talk, job or carrier is adopted: those belong to the socket that made them). Nothing is sent before the key
+    is known to sign (`bridge_not_paired` / `bridge_key_rotated` open no socket)."""
 
     kind = "direct_api"
+    HELLO_TIMEOUT_S = 10.0
+    CONNECT_TIMEOUT_S = 10.0
+
+    def __init__(self, opener: Callable[[], Awaitable[DirectSocket]], key_provider: Callable[[], Any], *,
+                 clock: Callable[[], float] = time.time, window_s: int = WINDOW_S) -> None:
+        if not 0 < window_s <= MAX_WINDOW_S:
+            raise ValueError("window_s")
+        self._window_s = window_s  # each command's validity window (WisKey: 0 < TTL <= 15 s); its principal expires with it
+        self._opener = opener
+        self._key_provider = key_provider
+        self._clock = clock
+        self._generation = 0
+        self._lock = threading.Lock()
+        self.last_identity: dict[str, Any] | None = None  # public facts of the latest connection (no key, no challenge)
+
+    def __repr__(self) -> str:
+        return "DirectApiTransport()"
+
+    def _key(self) -> Any:
+        try:
+            key = self._key_provider()
+        except Exception:  # noqa: BLE001 - an unreadable key set is "not paired"
+            key = None
+        _key_text(key)  # raises bridge_not_paired / bridge_key_rotated
+        return key
 
     async def connect(self, purpose: str) -> MediaLink:
-        raise MediaBridgeError("direct_api_not_published")
+        if purpose not in (PURPOSE_VIDEO, PURPOSE_TALK):
+            raise MediaBridgeError("purpose_invalid")
+        key = self._key()
+        try:
+            socket = await self._opener()
+        except MediaBridgeError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - unreachable, refused upgrade, TLS: the type only
+            log.info("station media: direct socket not opened (%s)", type(exc).__name__)
+            raise MediaBridgeError("direct_unreachable", "closed") from None
+        try:
+            identity = await self._authenticate(socket, key)
+        except BaseException as exc:
+            try:
+                await socket.close()
+            except Exception:  # noqa: BLE001
+                pass
+            if isinstance(exc, (asyncio.CancelledError, MediaBridgeError)):
+                raise
+            log.info("station media: direct connect failed (%s)", type(exc).__name__)
+            raise MediaBridgeError("direct_connect_failed", "closed") from None
+        with self._lock:
+            self._generation += 1
+            generation = self._generation
+        link = DirectLink(socket, key, identity, purpose, generation, clock=self._clock, window_s=self._window_s)
+        link.start()
+        self.last_identity = {"query_owner_id": identity["query_owner_id"], "repository_id": identity["repository_id"],
+                              "principal_kind": identity["principal_kind"]}
+        return link
+
+    async def _authenticate(self, socket: DirectSocket, key: Any) -> dict[str, Any]:
+        try:
+            hello = _load(await asyncio.wait_for(socket.recv(), self.HELLO_TIMEOUT_S), DIRECT_MAX_CONNECT_BYTES)
+        except asyncio.TimeoutError:
+            raise MediaBridgeError("direct_hello_timeout", "closed") from None
+        if (not isinstance(hello, dict) or set(hello) != {"type", "protocol", "challenge"} or hello["type"] != "hello"
+                or hello["protocol"] != DIRECT_PROTOCOL or not isinstance(hello["challenge"], str) or not CHALLENGE_RE.fullmatch(hello["challenge"])):
+            raise MediaBridgeError("direct_hello_invalid", "closed")
+        challenge = hello["challenge"]
+        proof = sign_connect(key, challenge, now=int(self._clock()))
+        await socket.send(json.dumps({"id": 1, "type": TYPE_PREFIX + DIRECT_CONNECT_COMMAND, "bridge": proof}, separators=(",", ":"), ensure_ascii=False))
+        try:
+            raw = await asyncio.wait_for(socket.recv(), self.CONNECT_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            raise MediaBridgeError("direct_connect_timeout", "closed") from None
+        except Exception:  # noqa: BLE001 - WisKey closes a refused connect without a word (it never echoes unauthenticated input)
+            raise MediaBridgeError("direct_connect_refused", "closed") from None
+        frame = open_reply(key, challenge, _load(raw, DIRECT_MAX_CONNECT_BYTES))
+        if frame["id"] != 1 or frame["type"] != "result":
+            raise MediaBridgeError("direct_connect_refused", "closed")
+        try:
+            result = verify_result(frame)
+        except MediaBridgeError as exc:
+            raise MediaBridgeError(exc.code, "closed") from None
+        return read_identity(result, challenge)
+
+
+def direct_ws_url(settings: Any) -> str:
+    """The direct socket on Home Assistant core itself (the Supervisor proxy carries no anonymous upgrade): the same core address the
+    other core sockets use (`ha_user_auth.core_ws_url`), with WisKey's path instead of `/api/websocket`."""
+    from .ha_user_auth import core_ws_url
+
+    base = core_ws_url(settings)
+    return base[: -len("/api/websocket")] + DIRECT_PATH if base.endswith("/api/websocket") else base.rstrip("/") + DIRECT_PATH
+
+
+def websocket_opener(settings: Any) -> Callable[[], Awaitable[DirectSocket]]:
+    """Opens the direct socket with `websockets` on the existing private network: no Authorization header, no token, no query string.
+    HA's TLS on the internal network is accepted without a name check, exactly as Arx's other core sockets do (ha_user_auth._dial).
+    NOT exercised against a real Home Assistant (tests use in-memory sockets)."""
+
+    async def open_socket() -> DirectSocket:
+        import websockets
+
+        url = await asyncio.to_thread(direct_ws_url, settings)
+        kw: dict[str, Any] = {"open_timeout": 10, "close_timeout": 2, "max_size": DIRECT_MAX_FRAME_BYTES}
+        if url.startswith("wss://"):
+            import ssl
+
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            kw["ssl"] = ctx
+        return await websockets.connect(url, **kw)
+
+    return open_socket
+
+
+class AutoTransport:
+    """`access.station_media_provider = auto`: the transport is chosen per connection, at runtime.
+
+    Rule: the direct API when the pairing key can sign AND the direct socket opens and authenticates (hello, signed connect, verified
+    reply, service identity); otherwise the existing signed bridge over the Home Assistant WebSocket. Without a usable key neither is
+    tried (both sign with it) and the refusal stands - there is no unsigned path. After a direct failure the direct API is retried for
+    the next connection only after `RETRY_DIRECT_S` (no hammering, no flapping inside one talk); a connection, once open, stays on its
+    transport for its whole life (a talk never moves between transports)."""
+
+    kind = "auto"
+    RETRY_DIRECT_S = 60.0
+    NO_FALLBACK = frozenset({"bridge_not_paired", "bridge_key_rotated", "purpose_invalid"})
+
+    def __init__(self, direct: MediaTransport, fallback: MediaTransport, *, clock: Callable[[], float] = time.monotonic) -> None:
+        self.direct = direct
+        self.fallback = fallback
+        self._clock = clock
+        self._direct_down_until = 0.0
+        self.last_kind: str | None = None
+        self.last_direct_error: str | None = None
+
+    async def connect(self, purpose: str) -> MediaLink:
+        if self._clock() >= self._direct_down_until:
+            try:
+                link = await self.direct.connect(purpose)
+            except MediaBridgeError as exc:
+                if exc.code in self.NO_FALLBACK:
+                    raise
+                self.last_direct_error = exc.code
+                self._direct_down_until = self._clock() + self.RETRY_DIRECT_S
+                log.info("station media: direct API unavailable (%s); using the signed Home Assistant path", exc.code)
+            else:
+                self.last_kind = self.direct.kind
+                self.last_direct_error = None
+                return link
+        link = await self.fallback.connect(purpose)
+        self.last_kind = self.fallback.kind
+        return link
 
 
 # ---------------------------------------------------------------- the real Home Assistant connection

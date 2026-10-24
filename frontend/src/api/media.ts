@@ -149,6 +149,8 @@ export interface ProductSettings {
   'access.announce_phrases'?: string;
   /** CR-036 S18: the station drawer's own live video and push-to-talk - off (default) | video | video_talk. */
   'access.station_media'?: 'off' | 'video' | 'video_talk';
+  /** W10CLIENT-295 / WKDIRECT-295: the longest talk through a station, seconds (1..86400, default 300). */
+  'access.station_media_max_talk_s'?: number;
   /** 'true' hides the whole WisKey area from the navigation for everyone, regardless of role (T054 follow-up); the
    * access.ui.* choices above apply only while this is false. */
   'ui.hide_wiskey'?: string;

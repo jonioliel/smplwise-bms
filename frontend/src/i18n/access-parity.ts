@@ -80,6 +80,10 @@ const he = {
   dispMediaOff: 'כבוי',
   dispMediaVideo: 'וידאו',
   dispMediaTalk: 'וידאו ודיבור',
+  // the longest talk (`access.station_media_max_talk_s`), shown only while talk is on: the label and the number, the unit beside it
+  dispTalkMax: 'משך דיבור מרבי',
+  dispTalkMaxUnit: 'שניות',
+  dispTalkMaxInvalid: 'מספר שלם בין {min} ל-{max}',
   dispAnnounce: 'יעדי הכרזה',
   dispAnnounceText: 'המערכת מכריזה רק לתחנות שבתחום ההרשאה של המשתמש',
   dispAnnounceScope: 'תחנה, מקום או כל התחנות',
@@ -121,6 +125,9 @@ const en: Partial<Record<PtKey, string>> = {
   dispMediaOff: 'Off',
   dispMediaVideo: 'Video',
   dispMediaTalk: 'Video and talk',
+  dispTalkMax: 'Longest talk',
+  dispTalkMaxUnit: 'seconds',
+  dispTalkMaxInvalid: 'A whole number from {min} to {max}',
   dispSave: 'Save',
 };
 

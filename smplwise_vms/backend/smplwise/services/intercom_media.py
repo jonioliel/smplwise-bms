@@ -11,8 +11,9 @@ built against the descriptor contract Arx proposes (docs/changes/CR-036-S18-MEDI
 - `FakeProvider` (tests and a developer backend only - refused inside the add-on): video in both profiles and talk over the
   `pcmu_frames` transport, so the whole Arx side (start / stop / signalling, expiry, limits, audit, the screen) is exercised.
 
-When WisKey delivers W10 a `WiskeyProvider` implements the same three calls (`describe`, `video_stream`, `talk_open`) and
-the screens do not change. The descriptor is parsed by `parse_descriptor` whoever produced it - the fake goes through it too,
+WisKey's W10 is `WiskeyBridgeProvider` (W10CLIENT-295 / WKDIRECT-295: signed commands on the direct API or the signed Home
+Assistant path - the unsigned feed provider is removed); it implements the same three calls (`describe`, `video_stream`, `talk_open`)
+and the screens do not change. The descriptor is parsed by `parse_descriptor` whoever produced it - the fake goes through it too,
 so the contract is what the tests pin.
 
 Rules this module keeps (CLAUDE.md, AGENTS.md security, CR-036 2.1):
@@ -78,12 +79,13 @@ AUDIO_CODECS = ("pcmu", "pcma", "opus", "aac")
 HANDLE_RE = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
 MAX_TALK_S = 300  # the ceiling of a v1 descriptor's own limit (and the legacy default)
 MIN_TALK_S = 10
-# W10CLIENT-295 (owner 24.10): the longest talk is an Arx SETTING (WisKey's 180 s limit is to go); the effective limit is the smaller of the
-# setting and the descriptor's own `max_talk_seconds` when it names one
+# W10CLIENT-295 (owner 24.10): the longest talk is an Arx SETTING; the effective limit is the smaller of the setting and the descriptor's
+# own `max_talk_seconds`. WKDIRECT-295: WisKey publishes `station_media_max_talk_seconds` per station (exact int 1..86400, default 300,
+# no hidden 180 s clamp) and advertises it as the v1.1 descriptor's `audio.max_talk_seconds`; Arx's setting takes the same range.
 TALK_MAX_KEY = "access.station_media_max_talk_s"
 TALK_MAX_DEFAULT_S = 300
-TALK_MAX_LOW_S = 10
-TALK_MAX_HIGH_S = 900
+TALK_MAX_LOW_S = 1
+TALK_MAX_HIGH_S = 86400
 MAX_VIEWERS_CAP = 16
 MAX_DESCRIPTOR_TTL_S = 24 * 3600
 FRAME_MS = 20
@@ -254,9 +256,15 @@ def parse_descriptor(raw: Any, *, station_id: str, provider: str, now: float | N
         # signed batches are the only talk: browsers still send 160-byte frames (`pcmu_frames`); the codec is learned from `talk_open` and is
         # always PCMU; the descriptor knows neither listen nor duplex (null) and names no limit once WisKey drops its 180 s (null = none)
         talk = audio.get("talk_transports") is not None and w10.V11_TALK_TRANSPORT in (audio.get("talk_transports") or [])
+        # WKDIRECT-295: the station's published limit, exact int 1..86400 (required by WisKey's result schema); anything else - missing,
+        # null, a bool, a float, out of range - is not a limit Arx can honour, so the descriptor offers no talk (video is unaffected)
+        published = audio.get("max_talk_seconds")
+        if type(published) is int and TALK_MAX_LOW_S <= published <= TALK_MAX_HIGH_S:
+            max_talk = published
+        else:
+            talk, max_talk = False, TALK_MAX_DEFAULT_S
         talk_transports = ("pcmu_frames",) if talk else ()
         duplex, codec = "half", (w10.V11_CODEC if talk else "unknown")
-        max_talk = _int(audio.get("max_talk_seconds"), MIN_TALK_S, TALK_MAX_HIGH_S, TALK_MAX_HIGH_S) or TALK_MAX_HIGH_S
 
     limits = raw.get("limits") if isinstance(raw.get("limits"), dict) else {}
     max_viewers = _int(limits.get("max_viewers"), 1, MAX_VIEWERS_CAP, MAX_VIEWERS_CAP if v11 else 1) or 1
@@ -274,8 +282,8 @@ def _ts(epoch: float) -> str:
 
 
 def talk_limit_s(conn: Any, d: "Descriptor | None" = None) -> int:
-    """The longest a talk may last: the setting `access.station_media_max_talk_s` (default 300, bounds 10..900; unreadable = default),
-    and the smaller of that and the descriptor's own limit when there is a descriptor."""
+    """The longest a talk may last: the setting `access.station_media_max_talk_s` (default 300, bounds 1..86400 - WisKey's own range;
+    unreadable = default), and the smaller of that and the descriptor's own limit (WisKey's published per-station value) when there is one."""
     try:
         value = int(str(get_setting(conn, TALK_MAX_KEY, str(TALK_MAX_DEFAULT_S))))
     except Exception:  # noqa: BLE001 - an unreadable setting is the default, never a failed screen
@@ -490,35 +498,17 @@ class FakeProvider:
         return FakeTalkChannel(self.talk_log, fail_open=self.fail_open, drop_after_frames=self.drop_after_frames)
 
 
-# ---------------------------------------------------------------- WisKey's W10 provider (AVW10-295)
+# ---------------------------------------------------------------- WisKey's W10: shared pieces (AVW10-295)
+#
+# WKDIRECT-295 (S6): the unsigned feed path of AVW10-295 - `SyncTransport`'s read / act / post on the feed's session under the `media`
+# channel, `WiskeyTalkChannel` (one flat `talk_frame` per frame), the `_TalkRegistry` the feed's `_media_hook` ended talks through, and
+# the `WiskeyProvider` built on them - is REMOVED. What W10 keeps of the feed is its read-only discovery (`overview.api.commands`).
 
-class SyncTransport:
-    """WiskeyProvider's only way to WisKey: the feed's own live session (intercom_sync.SYNC) under the `media` channel's guard
-    (wiskey_channels.MEDIA). The descriptor and the lease are reads (read lane, rate buckets); the talk's open and close are
-    actions (action lane, never queued or retried; the close spends no rate token); frames and the floor are posted without a
-    lane (`media_post`): their limits are the talk socket's."""
+def _feed_discovery(settings: Settings) -> dict[str, Any] | None:
+    """WisKey's discovery as the feed last read it (`overview.api`): which W10 commands WisKey lists. Read only; no command is sent."""
+    from . import intercom_sync
 
-    CHANNEL = "media"
-
-    def api(self, settings: Settings) -> dict[str, Any] | None:
-        from . import intercom_sync
-
-        return intercom_sync.SYNC.api_facts(settings)
-
-    def read(self, settings: Settings, key: str, send: Any, project: Any, who: str) -> dict[str, Any]:
-        from . import intercom_sync
-
-        return intercom_sync.SYNC.command(settings, key, send, project, who=who, channel=self.CHANNEL)
-
-    def act(self, settings: Settings, key: str, send: Any, project: Any, who: str, *, free: bool = False) -> dict[str, Any]:
-        from . import intercom_sync
-
-        return intercom_sync.SYNC.action(settings, key, send, project, who, lane="action", free=free, channel=self.CHANNEL)
-
-    def post(self, send: Any) -> Any:
-        from . import intercom_sync
-
-        return intercom_sync.SYNC.media_post(send, self.CHANNEL)
+    return intercom_sync.SYNC.api_facts(settings)
 
 
 def _rid() -> str:
@@ -544,309 +534,6 @@ def _register_lease(settings: Settings, sid: str, profile: str, source: str) -> 
             if not registered:  # go2rtc refused the stream itself (a frame that failed after registering is fine)
                 raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from None
     return name
-
-
-def _wiskey_code(exc: ApiError) -> str:
-    details = exc.details if isinstance(exc.details, dict) else {}
-    return str(details.get("wiskey_code") or exc.code)
-
-
-class _TalkRegistry:
-    """The open WisKey talks by WisKey's `talk_ref` (in memory): the feed's loop ends them when WisKey says so."""
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._by_ref: dict[str, WiskeyTalkChannel] = {}
-
-    def add(self, ref: str, channel: "WiskeyTalkChannel") -> None:
-        with self._lock:
-            self._by_ref[ref] = channel
-
-    def drop(self, ref: str | None) -> None:
-        if ref is None:
-            return
-        with self._lock:
-            self._by_ref.pop(ref, None)
-
-    def get(self, ref: str) -> "WiskeyTalkChannel | None":
-        with self._lock:
-            return self._by_ref.get(ref)
-
-    def all(self) -> list["WiskeyTalkChannel"]:
-        with self._lock:
-            return list(self._by_ref.values())
-
-    def count(self) -> int:
-        with self._lock:
-            return len(self._by_ref)
-
-
-WISKEY_TALKS = _TalkRegistry()
-
-
-def on_wiskey_event(event: dict[str, Any] | None) -> None:
-    """Called on the feed's loop (intercom_sync `_media_hook`): `media/talk_closed` ends that talk; None ends every WisKey talk
-    (the session is going, or the add-on lost WisKey access). Never raises, never blocks."""
-    if event is None:
-        for channel in WISKEY_TALKS.all():
-            channel.remote_closed("upstream_closed")
-        return
-    hit = w10.talk_closed(event)
-    if hit is None:
-        return
-    channel = WISKEY_TALKS.get(hit[0])
-    if channel is not None:
-        log.info("station media: WisKey ended a talk (%s)", hit[1])
-        channel.remote_closed(hit[1])
-
-
-class WiskeyTalkChannel:
-    """One talk through WisKey's talk hook (`media/talk_open` ... `media/talk_close`, section 3.3). Lives on the web server's loop;
-    the WisKey frames go out on the feed's loop. Frames: one `talk_frame` per G.711 frame with `seq` +1 each, at most
-    FRAMES_IN_FLIGHT unanswered (a slower WisKey drops frames, never queues audio); a refused or undeliverable frame or floor ends
-    the talk (no retry). Nothing here keeps audio: the bytes go into the frame and are gone."""
-
-    FRAMES_IN_FLIGHT = 8
-    FLOOR_TIMEOUT_S = 5.0
-
-    def __init__(self, provider: "WiskeyProvider", settings: Settings, descriptor: Descriptor, actor: w10.Actor, request_id: str | None, expires_at: float) -> None:
-        self.provider = provider
-        self.settings = settings
-        self.descriptor = descriptor
-        self.actor = actor
-        self.request_id = request_id or _rid()
-        self.expires_at = expires_at
-        self.ref: str | None = None
-        self.seq = 0
-        self.in_flight = 0
-        self.dropped = 0
-        self.closed_by_wiskey = False
-        self._close_sent = False
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._closed: asyncio.Future[str] | None = None
-
-    def _future(self) -> asyncio.Future[str]:
-        if self._closed is None:
-            self._loop = asyncio.get_running_loop()
-            self._closed = self._loop.create_future()
-        return self._closed
-
-    def _end(self, reason: str) -> None:
-        fut = self._closed
-        if fut is not None and not fut.done():
-            fut.set_result(reason)
-
-    def remote_closed(self, reason: str) -> None:
-        """WisKey ended it (any thread): no `talk_close` is sent for it, the session ends `upstream_closed`."""
-        self.closed_by_wiskey = True
-        loop = self._loop
-        if loop is not None:
-            try:
-                loop.call_soon_threadsafe(self._end, "upstream_closed")
-            except RuntimeError:  # the web server's loop is gone
-                pass
-
-    async def open(self) -> None:
-        self._future()
-        d = self.descriptor
-        when = _ts(self.expires_at)
-        try:
-            reply = await asyncio.to_thread(self.provider.transport.act, self.settings, "talk",
-                                            lambda call: w10.talk_open(call, d.session, self.actor, self.request_id, when), w10.project_object, self.actor.id)
-        except ApiError as exc:
-            code = _wiskey_code(exc)
-            if code in w10.BUSY_CODES:  # the panel or another operator holds the station: who is never said
-                raise ApiError(409, "intercom_talk_busy", "מישהו אחר כבר מדבר עם העמדה.", retryable=True) from exc
-            raise ApiError(503, "intercom_talk_upstream_unavailable", "העמדה לא פתחה ערוץ דיבור.", details={"reason": w10.unavailable_reason(code)}) from exc
-        raw = reply.get("talk")
-        try:
-            opened = w10.parse_talk_open(raw)
-        except w10.ContractError as exc:
-            log.warning("station media: a talk open answer refused (%s)", exc.code)
-            self.ref = w10.talk_ref_of(raw)  # WisKey may hold its busy lock for it: closed at once when it can be named
-            if self.ref is not None:
-                await self.close("ended")
-            raise ApiError(503, "intercom_talk_upstream_unavailable", "העמדה לא פתחה ערוץ דיבור.", details={"reason": exc.code}) from None
-        self.ref = opened.talk_ref
-        WISKEY_TALKS.add(opened.talk_ref, self)
-        if opened.codec != d.audio_codec:  # the browser encodes the descriptor's codec: a different one would be noise at the door
-            await self.close("ended")
-            raise ApiError(503, "intercom_talk_upstream_unavailable", "העמדה לא פתחה ערוץ דיבור.", details={"reason": "talk_codec_mismatch"})
-
-    def _post(self, send: Any) -> Any:
-        try:
-            return self.provider.transport.post(send)
-        except Exception:  # noqa: BLE001 - an undeliverable frame ends the talk
-            return None
-
-    def _frame_done(self, fut: Any) -> None:
-        loop = self._loop
-        if loop is None:
-            return
-        try:
-            loop.call_soon_threadsafe(self._after_frame, fut)
-        except RuntimeError:
-            pass
-
-    def _after_frame(self, fut: Any) -> None:
-        self.in_flight = max(0, self.in_flight - 1)
-        if fut.cancelled() or fut.exception() is not None:
-            self._end("upstream_closed")
-
-    async def send_frame(self, frame: bytes) -> None:
-        closed = self._future()
-        if self.ref is None or closed.done():
-            return
-        if self.in_flight >= self.FRAMES_IN_FLIGHT:
-            self.dropped += 1
-            return
-        self.seq += 1
-        ref, seq, data = self.ref, self.seq, bytes(frame)
-        fut = self._post(lambda call: w10.talk_frame(call, ref, seq, data))
-        if fut is None:
-            self._end("upstream_closed")
-            return
-        self.in_flight += 1
-        fut.add_done_callback(self._frame_done)
-
-    async def floor(self, held: bool) -> None:
-        closed = self._future()
-        if self.ref is None or closed.done():
-            return
-        ref = self.ref
-        fut = self._post(lambda call: w10.talk_floor(call, ref, held))
-        if fut is None:
-            self._end("upstream_closed")
-            return
-        try:
-            await asyncio.wait_for(asyncio.wrap_future(fut), self.FLOOR_TIMEOUT_S)
-        except Exception:  # noqa: BLE001 - refused, timed out or the session went: the talk is over, never retried
-            self._end("upstream_closed")
-
-    async def wait_closed(self) -> str:
-        return await self._future()
-
-    async def close(self, reason: str) -> None:
-        self._future()
-        ref = self.ref
-        if ref is not None and not self.closed_by_wiskey and not self._close_sent:
-            self._close_sent = True
-            try:
-                await asyncio.to_thread(self.provider.transport.act, self.settings, "talk_close",
-                                        lambda call: w10.talk_close(call, ref, reason), lambda _raw: {"closed": True}, self.actor.id, free=True)
-            except Exception as exc:  # noqa: BLE001 - WisKey's own limit ends it on its side; nothing is retried
-                log.info("station media: talk close not confirmed (%s)", getattr(exc, "code", type(exc).__name__))
-        WISKEY_TALKS.drop(ref)
-        self._end(reason)
-
-
-class WiskeyProvider:
-    """WisKey's W10 (`arx.station_media.v1`): the descriptor from `media/station_descriptor`, each profile's source from
-    `media/stream_lease` (registered IN MEMORY in Arx's own go2rtc under `smplwise_wiskey_<station>[.sub]` - never written to a
-    configuration, never logged, audited or served), talk through the talk hook. Selected only while WisKey's discovery lists the
-    video commands (`provider_for`); talk is offered only while the four talk commands are listed too. Every WisKey wire name is in
-    services/wiskey_media_contract.py."""
-
-    name = "wiskey"
-    cache = True  # one WisKey read per station until 30 s before the descriptor expires (MediaState.descriptor)
-
-    def __init__(self, transport: Any | None = None) -> None:
-        self.transport = transport or SyncTransport()
-
-    def listed(self, settings: Settings) -> tuple[bool, bool]:
-        video, talk, _why = w10.listed(self.transport.api(settings))
-        return video, talk
-
-    def _read(self, settings: Settings, key: str, send: Any, project: Any, who: str) -> Any:
-        try:
-            reply = self.transport.read(settings, key, send, project, who)
-        except ApiError as exc:
-            raise Unavailable(w10.unavailable_reason(_wiskey_code(exc))) from exc
-        got = reply.get(key) if isinstance(reply, dict) else None
-        if reply.get("state") != "ready" or got is None:
-            raise Unavailable(w10.unavailable_reason(reply.get("last_error") if reply.get("state") != "unsupported" else "unknown_command"))
-        return got
-
-    # REL2140 review M-3: WisKey's reasons that do NOT fall back to Arx's own source (the station itself is offline - Arx's path
-    # reaches the same station and would only hang); every other failure of WisKey's answer serves Arx's own stream when it exists
-    NO_FALLBACK = frozenset({"offline"})
-
-    def describe(self, conn: Any, settings: Settings, station: dict[str, Any]) -> Descriptor:
-        """WisKey's descriptor; when WisKey's commands disappear or its answer fails (any reason but `offline`), Arx's own source
-        (`LocalProvider`) - the station keeps its video when the local path exists. If that fails too, WisKey's reason is served.
-        A fallback descriptor names provider `local`, so the stream and the talk follow it and it is never cached as WisKey's."""
-        try:
-            return self._describe(conn, settings, station)
-        except (Unavailable, DescriptorError) as exc:
-            code = exc.code
-            if code in self.NO_FALLBACK:
-                raise
-            try:
-                d = _local.describe(conn, settings, station)
-            except Exception:  # noqa: BLE001 - no local path either: WisKey's own reason stands
-                raise exc from None
-            log.info("station media: WisKey unavailable (%s), serving Arx's own source", code)
-            return d
-
-    def _describe(self, conn: Any, settings: Settings, station: dict[str, Any]) -> Descriptor:
-        sid = station["id"]
-        video, talk = self.listed(settings)
-        if not video:
-            raise Unavailable("not_listed")
-        if not settings.go2rtc_url:  # every profile is relayed through Arx's own go2rtc, whatever the lease names
-            raise Unavailable("no_media")
-        rid = _rid()
-        raw = self._read(settings, "media", lambda call: w10.station_descriptor(call, sid, w10.SYSTEM_ACTOR, rid), w10.project_descriptor, "arx-media")
-        if not talk and isinstance(raw.get("audio"), dict):
-            raw = {**raw, "audio": {**raw["audio"], "talk": False}}  # the talk hook is not listed: talk stays in the classic panel
-        return parse_descriptor(raw, station_id=sid, provider=self.name)
-
-    def video_stream(self, conn: Any, settings: Settings, station: dict[str, Any], profile: str, *, actor: w10.Actor | None = None) -> str:
-        sid = station["id"]
-        try:
-            d = MEDIA.descriptor(self, conn, settings, station)
-        except Unavailable as exc:
-            raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from exc
-        if d.provider == _local.name:  # REL2140 M-3: the descriptor is Arx's own (WisKey failed): so is the stream
-            return _local.video_stream(conn, settings, station, profile, actor=actor)
-        if d.profile(profile) is None:
-            raise ApiError(409, "intercom_media_profile_unavailable", "האיכות הזו אינה זמינה לעמדה.")
-        try:
-            return self._leased_stream(settings, d, sid, profile, actor)
-        except ApiError as exc:
-            if exc.status != 503:
-                raise
-            try:  # REL2140 M-3: a lease WisKey could not give (or go2rtc refused): Arx's own main stream when that path exists
-                name = _local.video_stream(conn, settings, station, "main", actor=actor)
-            except Exception:  # noqa: BLE001 - no local path either: WisKey's own refusal stands
-                raise exc from None
-            log.info("station media: WisKey lease unavailable (%s), serving Arx's own source", (exc.details or {}).get("reason", exc.code))
-            return name
-
-    def _leased_stream(self, settings: Settings, d: Descriptor, sid: str, profile: str, actor: w10.Actor | None) -> str:
-        who = actor or w10.SYSTEM_ACTOR
-        rid = _rid()
-        try:
-            raw = self._read(settings, "lease", lambda call: w10.stream_lease(call, d.session, profile, who, rid), w10.project_object, who.id)
-        except Unavailable as exc:
-            raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from exc
-        try:
-            lease = w10.parse_lease(raw)
-        except w10.ContractError as exc:
-            log.warning("station media: a stream lease refused (%s)", exc.code)  # the rule only, never the value
-            raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from None
-        finally:
-            raw = None  # the source lives on only inside the lease
-        if lease.stream is not None:
-            return lease.stream  # a stream in Arx's own namespace (checked by the contract): named only, never created here
-        return _register_lease(settings, sid, profile, lease.source or "")
-
-    def talk_open(self, settings: Settings, station_id: str, descriptor: Descriptor, *, actor_id: str, actor_name: str, request_id: str | None,
-                  expires_at: float | None = None) -> TalkChannel:
-        if descriptor.provider == _local.name or not self.listed(settings)[1]:  # a fallback descriptor (M-3) never talks through WisKey
-            raise ApiError(409, "intercom_talk_unsupported", "דיבור עם העמדה זמין בלוח הקלאסי בלבד.")
-        until = expires_at if expires_at is not None else time.time() + min(descriptor.max_talk_seconds, MAX_TALK_S)
-        return WiskeyTalkChannel(self, settings, descriptor, w10.Actor(actor_id, actor_name), request_id, until)
 
 
 # ---------------------------------------------------------------- WisKey's W10 over the signed bridge (W10CLIENT-295)
@@ -988,8 +675,8 @@ class WiskeyBridgeTalkChannel:
 
 
 class _DiscoveryOnly:
-    """What the bridge provider keeps of the old feed transport: the read-only discovery list (`overview.api.commands`). The unsigned
-    command paths are gone - there is no way left to send a W10 command without a signature."""
+    """What the bridge provider keeps of the old feed transport: the read-only discovery list (`overview.api.commands`). It has no
+    read / act / post - there is no way left to send a W10 command without a signature (WKDIRECT-295, S6)."""
 
     def __init__(self, discovery: Callable[[Settings], dict[str, Any] | None]) -> None:
         self._discovery = discovery
@@ -997,24 +684,69 @@ class _DiscoveryOnly:
     def api(self, settings: Settings) -> dict[str, Any] | None:
         return self._discovery(settings)
 
-    def _retired(self, *_a: Any, **_k: Any) -> Any:
-        raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": "unsigned_path_retired"})
 
-    read = act = post = _retired
+class WiskeyBridgeProvider:
+    """WisKey's W10 v1.1 over a `MediaTransport` (`AutoTransport`: the direct API, else the signed bridge over the Home Assistant
+    WebSocket - both signed): video from ONE shared connection (the descriptor and the lease, both as the actor `Arx`), talk on a
+    dedicated connection per talk (`WiskeyBridgeTalkChannel`, as the operator). Selected only by `access.station_media_provider = auto`
+    while WisKey's discovery lists the six commands and the pairing key can sign (`provider_for`); a failed WisKey answer falls back to
+    Arx's own source (REL2140 M-3). Implemented and tested on fakes; NOT run against a real WisKey."""
 
-
-class WiskeyBridgeProvider(WiskeyProvider):
-    """WisKey's W10 v1.1 over a `MediaTransport` (the signed bridge today, the direct API later): video from ONE shared connection (the
-    descriptor and the lease, both as the actor `Arx`), talk on a dedicated connection per talk (`WiskeyBridgeTalkChannel`). Selected only
-    by `access.station_media_provider = auto` while WisKey's discovery lists the six commands, and falls back to Arx's own source exactly
-    as `WiskeyProvider` does. Implemented and tested on fakes; NOT yet run against a real WisKey."""
+    name = "wiskey"
+    cache = True  # one WisKey read per station until 30 s before the descriptor expires (MediaState.descriptor)
+    # REL2140 review M-3: WisKey's reasons that do NOT fall back to Arx's own source (the station itself is offline - Arx's path
+    # reaches the same station and would only hang); every other failure of WisKey's answer serves Arx's own stream when it exists
+    NO_FALLBACK = frozenset({"offline"})
 
     def __init__(self, media: bridge.MediaTransport, *, discovery: Callable[[Settings], dict[str, Any] | None] | None = None,
                  video: bridge.VideoChannel | None = None, pump_options: dict[str, Any] | None = None) -> None:
-        super().__init__(_DiscoveryOnly(discovery or SyncTransport().api))
+        self.transport = _DiscoveryOnly(discovery or _feed_discovery)
         self.media = media
         self.video = video or bridge.VideoChannel(media)
         self.pump_options = dict(pump_options or {})
+
+    def listed(self, settings: Settings) -> tuple[bool, bool]:
+        video, talk, _why = w10.listed(self.transport.api(settings))
+        return video, talk
+
+    def describe(self, conn: Any, settings: Settings, station: dict[str, Any]) -> Descriptor:
+        """WisKey's descriptor; when WisKey's commands disappear or its answer fails (any reason but `offline`), Arx's own source
+        (`LocalProvider`) - the station keeps its video when the local path exists. If that fails too, WisKey's reason is served.
+        A fallback descriptor names provider `local`, so the stream and the talk follow it and it is never cached as WisKey's."""
+        try:
+            return self._describe(conn, settings, station)
+        except (Unavailable, DescriptorError) as exc:
+            code = exc.code
+            if code in self.NO_FALLBACK:
+                raise
+            try:
+                d = _local.describe(conn, settings, station)
+            except Exception:  # noqa: BLE001 - no local path either: WisKey's own reason stands
+                raise exc from None
+            log.info("station media: WisKey unavailable (%s), serving Arx's own source", code)
+            return d
+
+    def video_stream(self, conn: Any, settings: Settings, station: dict[str, Any], profile: str, *, actor: w10.Actor | None = None) -> str:
+        sid = station["id"]
+        try:
+            d = MEDIA.descriptor(self, conn, settings, station)
+        except Unavailable as exc:
+            raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from exc
+        if d.provider == _local.name:  # REL2140 M-3: the descriptor is Arx's own (WisKey failed): so is the stream
+            return _local.video_stream(conn, settings, station, profile, actor=actor)
+        if d.profile(profile) is None:
+            raise ApiError(409, "intercom_media_profile_unavailable", "האיכות הזו אינה זמינה לעמדה.")
+        try:
+            return self._leased_stream(settings, d, sid, profile, actor)
+        except ApiError as exc:
+            if exc.status != 503:
+                raise
+            try:  # REL2140 M-3: a lease WisKey could not give (or go2rtc refused): Arx's own main stream when that path exists
+                name = _local.video_stream(conn, settings, station, "main", actor=actor)
+            except Exception:  # noqa: BLE001 - no local path either: WisKey's own refusal stands
+                raise exc from None
+            log.info("station media: WisKey lease unavailable (%s), serving Arx's own source", (exc.details or {}).get("reason", exc.code))
+            return name
 
     def _describe_raw(self, sid: str) -> dict[str, Any]:
         try:
@@ -1106,21 +838,25 @@ class _CachedKey:
 FAKE_ENV = "SW_FAKE_STATION_MEDIA"
 _override: MediaProvider | None = None
 _local = LocalProvider()
-_wiskey = WiskeyProvider()  # the retired unsigned feed path: kept for the legacy tests; `provider_for` no longer returns it
 _bridge: WiskeyBridgeProvider | None = None
 _bridge_for: tuple[int, int | None] | None = None
 _fake_from_env: FakeProvider | None = None
 
 
 def bridge_provider(settings: Settings, conn: Any) -> WiskeyBridgeProvider:
-    """The one signed-bridge provider of the process (built on first use; the transport reads the pairing key through `conn`'s database).
-    Today's transport is the signed bridge over the service channel; the direct API of WisKey replaces `SignedBridgeTransport` here only."""
+    """The one signed W10 provider of the process (built on first use; the transports read the pairing key through `conn`'s database).
+    WKDIRECT-295: its transport is `AutoTransport` - WisKey's direct API (DIRECT_API_V1.md) when the key signs and the direct socket
+    authenticates, else the existing signed bridge over the Home Assistant WebSocket (the service channel). Both sign every command."""
     global _bridge, _bridge_for
     marker = (id(settings), id(database_of(conn)) if conn is not None else None)
     if _bridge is None or _bridge_for != marker:
         _bridge_for = marker
-        signer = bridge.BridgeSigner(_CachedKey(conn))
-        _bridge = WiskeyBridgeProvider(bridge.SignedBridgeTransport(bridge.ha_connector(settings), signer))
+        key = _CachedKey(conn)
+        signer = bridge.BridgeSigner(key)
+        media = bridge.AutoTransport(bridge.DirectApiTransport(bridge.websocket_opener(settings), key),
+                                     bridge.SignedBridgeTransport(bridge.ha_connector(settings), signer))
+        _bridge = WiskeyBridgeProvider(media)
+        _bridge.signing_ready = signer.ready  # type: ignore[attr-defined]
     return _bridge
 
 
@@ -1148,9 +884,10 @@ def provider_choice(conn: Any) -> str:
 
 def provider_for(settings: Settings, conn: Any = None) -> MediaProvider:
     """A test's provider; else the fake on a developer backend that asked for it (never in the add-on); else - only when the
-    installation chose `access.station_media_provider = auto` (REL2140 review M-3; default `local`) - WisKey's W10 provider while
-    WisKey's discovery (`overview.api.commands`) lists its video commands (AVW10-295), which itself falls back to Arx's own source
-    when WisKey's answer fails; else Arx's own source, exactly as before W10. A WisKey upgrade alone never changes Arx's live path."""
+    installation chose `access.station_media_provider = auto` (REL2140 review M-3; default `local`) - WisKey's signed W10 provider while
+    WisKey's discovery (`overview.api.commands`) lists its video commands AND the pairing key can sign (WKDIRECT-295: no unsigned path
+    exists any more), which itself falls back to Arx's own source when WisKey's answer fails; else Arx's own source, exactly as before
+    W10. A WisKey upgrade alone never changes Arx's live path."""
     global _fake_from_env
     if _override is not None:
         return _override
@@ -1161,10 +898,19 @@ def provider_for(settings: Settings, conn: Any = None) -> MediaProvider:
     if provider_choice(conn) != "auto":
         return _local
     try:
-        video, _talk = _wiskey.listed(settings)
+        video, _talk, _why = w10.listed(_feed_discovery(settings))
     except Exception:  # noqa: BLE001 - an unreadable discovery keeps Arx's own source
         video = False
-    return bridge_provider(settings, conn) if video else _local
+    if not video:
+        return _local
+    chosen = bridge_provider(settings, conn)
+    # WKDIRECT-295 (S6): `auto` requires the signed path - no pairing key that can sign (absent, unreadable, rotated) is Arx's own source
+    ready = getattr(chosen, "signing_ready", None)
+    try:
+        signed = bool(ready()) if ready is not None else True
+    except Exception:  # noqa: BLE001
+        signed = False
+    return chosen if signed else _local
 
 
 # ---------------------------------------------------------------- the state: descriptors, viewers, talk sessions

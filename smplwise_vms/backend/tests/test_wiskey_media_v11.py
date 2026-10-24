@@ -217,12 +217,16 @@ def test_the_v11_descriptor_is_read_as_one_main_profile_with_unknowns_and_talk_b
     assert main is not None and main.codec == "unknown" and (main.width, main.height, main.fps) == (None, None, None)
     assert main.transports == ("mse", "webrtc")
     assert d.talk is True and d.talk_transport == "pcmu_frames" and d.audio_codec == "pcmu" and d.duplex == "half"
-    assert d.listen is False and d.max_talk_seconds == 180 and d.max_viewers == im.MAX_VIEWERS_CAP and d.max_talkers == 1
-    # a descriptor that does not name signed batches offers no talk; one without a limit names none (the Arx setting then rules)
+    assert d.listen is False and d.max_talk_seconds == 300 and d.max_viewers == im.MAX_VIEWERS_CAP and d.max_talkers == 1
+    # a descriptor that does not name signed batches offers no talk; WKDIRECT-295: one whose published limit is not an exact int
+    # 1..86400 offers no talk either (WisKey's schema requires it), and its video is unaffected
     no_talk = im.parse_descriptor(descriptor_v11(audio={**descriptor_v11()["audio"], "talk_transports": []}), station_id="entry-a", provider="wiskey")
     assert no_talk.talk is False and no_talk.talk_transport is None
-    free = im.parse_descriptor(descriptor_v11(audio={**descriptor_v11()["audio"], "max_talk_seconds": None}), station_id="entry-a", provider="wiskey")
-    assert free.max_talk_seconds == im.TALK_MAX_HIGH_S
+    for bad in (None, 0, 86401, True, 30.0, "300"):
+        broken = im.parse_descriptor(descriptor_v11(audio={**descriptor_v11()["audio"], "max_talk_seconds": bad}), station_id="entry-a", provider="wiskey")
+        assert broken.talk is False and broken.talk_transport is None and broken.profiles, bad
+    for good in (1, 180, 3600, 86400):
+        assert im.parse_descriptor(descriptor_v11(audio={**descriptor_v11()["audio"], "max_talk_seconds": good}), station_id="entry-a", provider="wiskey").max_talk_seconds == good
     # profiles other than main, or without the private source transport, are not offered
     sub = descriptor_v11(video={"profiles": [{"id": "sub", "transports": ["private_rtsp_source"]}, {"id": "main", "transports": ["webrtc"]}]})
     assert im.parse_descriptor(sub, station_id="entry-a", provider="wiskey").profiles == ()
@@ -338,18 +342,14 @@ def test_the_signed_link_signs_each_call_and_maps_answers_and_failures():
     run(scenario())
 
 
-def test_the_direct_api_placeholder_has_no_wire_and_refuses():
+def test_a_purpose_other_than_video_or_talk_is_refused():
+    # WKDIRECT-295: the direct API is real now (tests/test_wkdirect_295.py); the placeholder and its `direct_api_not_published` are gone
     async def scenario() -> None:
-        transport = bridge.DirectApiTransport()
-        assert transport.kind == "direct_api"
-        with pytest.raises(bridge.MediaBridgeError) as exc:
-            await transport.connect(bridge.PURPOSE_VIDEO)
-        assert exc.value.code == "direct_api_not_published"
         with pytest.raises(bridge.MediaBridgeError):
             await transport_for(FakeStation()).connect("elsewhere")
 
     run(scenario())
-    assert w10.unavailable_reason("direct_api_not_published") == "no_media"
+    assert "direct_api_not_published" not in w10.ERRORS
 
 
 def test_ha_ws_connection_asks_who_it_is_routes_events_and_closes(monkeypatch):
@@ -788,10 +788,9 @@ def test_video_falls_back_to_arxs_own_source_when_the_signed_path_has_no_key(set
 
 
 def test_the_unsigned_feed_path_is_gone_from_the_bridge_provider(provider, settings):
-    for call in (provider.transport.read, provider.transport.act, provider.transport.post):
-        with pytest.raises(ApiError) as exc:
-            call(settings, "media", None, None, "x")
-        assert exc.value.details == {"reason": "unsigned_path_retired"}
+    # WKDIRECT-295 (S6): the discovery list is all that is left of the feed transport - no read / act / post exists to call
+    assert not any(hasattr(provider.transport, name) for name in ("read", "act", "post"))
+    assert provider.transport.api(settings) is not None
 
 
 def talk_channel(provider: im.WiskeyBridgeProvider, settings: Any, **kw: Any) -> im.WiskeyBridgeTalkChannel:
@@ -976,12 +975,15 @@ def conn_with(value: str | None) -> sqlite3.Connection:
 
 
 def test_the_maximum_talk_time_is_an_editable_setting_bounded_and_never_above_the_descriptors_limit():
-    d180 = im.parse_descriptor(descriptor_v11(), station_id="entry-a", provider="wiskey")
-    free = im.parse_descriptor(descriptor_v11(audio={**descriptor_v11()["audio"], "max_talk_seconds": None}), station_id="entry-a", provider="wiskey")
-    assert im.talk_limit_s(conn_with(None), d180) == 180, "default 300, the descriptor's 180 is smaller"
+    def published(seconds: int) -> im.Descriptor:
+        return im.parse_descriptor(descriptor_v11(audio={**descriptor_v11()["audio"], "max_talk_seconds": seconds}), station_id="entry-a", provider="wiskey")
+
+    d180, free = published(180), published(86400)
+    assert im.talk_limit_s(conn_with(None), d180) == 180, "default 300, the station's published 180 is smaller"
     assert im.talk_limit_s(conn_with(None), free) == 300 and im.talk_limit_s(conn_with(None)) == 300
     assert im.talk_limit_s(conn_with("60"), d180) == 60 and im.talk_limit_s(conn_with("600"), free) == 600
-    assert im.talk_limit_s(conn_with("5"), free) == im.TALK_MAX_LOW_S and im.talk_limit_s(conn_with("100000"), free) == im.TALK_MAX_HIGH_S
+    assert im.talk_limit_s(conn_with("5"), free) == 5, "WKDIRECT-295: WisKey's own range 1..86400, no 10 s floor"
+    assert im.talk_limit_s(conn_with("0"), free) == im.TALK_MAX_LOW_S == 1 and im.talk_limit_s(conn_with("100000"), free) == im.TALK_MAX_HIGH_S == 86400
     assert im.talk_limit_s(conn_with("not a number"), free) == 300
     assert im.talk_limit_s(sqlite3.connect(":memory:"), free) == 300, "an unreadable settings table is the default"
     talk = im.new_talk("entry-a", "u1", "dana", "r1", d180, limit_s=45)
@@ -996,7 +998,7 @@ def test_the_setting_is_registered_with_a_default_and_bounds():
     assert "access.station_media_max_talk_s" in settings_router.INT_KEYS
     field = settings_router.SettingsPatch.model_fields["access_station_media_max_talk_s"]
     meta = {type(m).__name__: m for m in field.metadata}
-    assert meta["Ge"].ge == 10 and meta["Le"].le == 900
+    assert meta["Ge"].ge == 1 and meta["Le"].le == 86400
     assert settings_router.DEFAULTS["access.station_media"] == "off" and settings_router.DEFAULTS["access.station_media_provider"] == "local"
 
 
@@ -1009,8 +1011,10 @@ def test_auto_selects_the_signed_bridge_provider_and_local_stays_the_default(set
     auto = sqlite3.connect(":memory:")
     auto.execute("CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT)")
     auto.execute("INSERT INTO settings(key, value) VALUES (?, 'auto')", (im.PROVIDER_KEY,))
+    monkeypatch.setattr(im._CachedKey, "__call__", lambda self: SECRET)  # a pairing key that signs (WKDIRECT-295: `auto` requires it)
     chosen = im.provider_for(settings, auto)
-    assert isinstance(chosen, im.WiskeyBridgeProvider) and chosen.name == "wiskey" and chosen.media.kind == "signed_bridge_ws"
+    assert isinstance(chosen, im.WiskeyBridgeProvider) and chosen.name == "wiskey" and chosen.media.kind == "auto"
+    assert (chosen.media.direct.kind, chosen.media.fallback.kind) == ("direct_api", "signed_bridge_ws")
     assert im.provider_for(settings, auto) is chosen, "one provider (and one shared video connection) per process"
     assert im.provider_for(settings).name == "local" and im.provider_for(settings, sqlite3.connect(":memory:")).name == "local"
     assert im.PROVIDER_CHOICES == ("local", "auto") and im.MEDIA_DEFAULT == "off"

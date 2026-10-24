@@ -4,7 +4,7 @@ Everything WisKey names on the wire for station media lives in this file and now
 keys Arx sends, the reply keys Arx reads, the event of a talk WisKey ended, and the mapping of WisKey's error codes. WisKey may
 still rename fields (owner directive 2026-10-23: WisKey grants Arx full access through our bridge only, and may adjust field
 names), so a rename is a change to the tables below and to the fixtures of tests/test_wiskey_media_v11.py - the provider
-(services/intercom_media.py `WiskeyProvider`), the endpoints and the screens do not change.
+(services/intercom_media.py `WiskeyBridgeProvider`), the endpoints and the screens do not change.
 
 The contract text is docs/changes/CR-036-S18-MEDIA.md section 3 (W10). Until WisKey ships its own contract package with these
 commands, the request schemas Arx holds them to are Arx's PROPOSAL (docs/integrations/wiskey/catalog/w10-proposal), not an
@@ -13,8 +13,8 @@ extraction of WisKey's registry: the frames are checked against what Arx asked f
 W10CLIENT-295 (contract v1.1, owner 24.10): the section "contract v1.1" at the end of this file is the signed-bridge shape of the
 same six commands as WisKey registered them (tests/fixtures/wiskey_w10/w10_parameters_schemas.json is derived from the fixture
 W10_REGISTRATION_AND_SCHEMAS.json of WisKey's pinned source): closed parameter objects, NO `api_contract`, a batch of 5 or 10
-frames per `talk_frame`, the sequence from 0, one profile `main`. The older flat-frame helpers above (`station_descriptor`, ...)
-belong to the retired unsigned feed path and are kept only for the legacy `WiskeyProvider` until the cut-over (plan slice S6).
+frames per `talk_frame`, the sequence from 0, one profile `main`. WKDIRECT-295 closed S6: the unsigned flat-frame senders of the
+feed path are gone; the v1 readers above stay only where the signed provider still reads with them (discovery, close reasons).
 
 Rules kept here (CLAUDE.md, AGENTS.md security, CR-036 S18 2.1):
 - a reply is untrusted input: every reader is total (a wrong shape is a `ContractError` with a rule code, never a guess), and an
@@ -113,10 +113,23 @@ ERRORS: dict[str, str] = {
     "media_outcome_unknown": "provider_error",
     "bridge_command_capacity": "rate_limited",
     "bridge_command_replayed": "provider_error",
-    "direct_api_not_published": "no_media",
     "bridge_not_paired": "provider_forbidden",
     "bridge_key_rotated": "provider_forbidden",
     "connection_closed": "provider_error",
+    # WKDIRECT-295: the direct API's own failures (DIRECT_API_V1.md) - an Arx-side reading of the socket, never WisKey's text
+    "reply_unauthenticated": "provider_forbidden",
+    "direct_identity_invalid": "provider_forbidden",
+    "direct_connect_refused": "provider_forbidden",
+    "direct_hello_invalid": "provider_error",
+    "direct_hello_timeout": "provider_error",
+    "direct_connect_timeout": "provider_error",
+    "direct_connect_failed": "provider_error",
+    "direct_unreachable": "provider_error",
+    "direct_output_capacity": "rate_limited",
+    "direct_connection_capacity": "rate_limited",
+    "connection_exhausted": "provider_error",
+    "bridge_outcome_unknown": "provider_error",
+    "command_unavailable": "no_media",
 }
 BUSY_CODES = frozenset({"audio_busy"})
 
@@ -193,42 +206,9 @@ def listed(api: dict[str, Any] | None) -> tuple[bool, bool, str | None]:
 
 # ---------------------------------------------------------------- the frames Arx sends
 
-def _type(command: str) -> str:
-    return intercom_client.command_type(command)
-
-
-def _api(command: str) -> dict[str, Any]:
-    return {} if command in READ_COMMANDS else {K_API: API_CONTRACT}
-
-
-async def station_descriptor(call: intercom_client.Call, station_id: str, actor: Actor, request_id: str) -> Any:
-    frame = await call(_type(DESCRIBE), **{K_STATION: station_id, K_ACTOR: actor.wire(), K_REQUEST: request_id}, **_api(DESCRIBE))
-    return intercom_client._result(frame, DESCRIBE)
-
-
-async def stream_lease(call: intercom_client.Call, session: str, profile: str, actor: Actor, request_id: str) -> Any:
-    frame = await call(_type(STREAM_LEASE), **{K_SESSION: session, K_PROFILE: profile, K_ACTOR: actor.wire(), K_REQUEST: request_id}, **_api(STREAM_LEASE))
-    return intercom_client._result(frame, STREAM_LEASE)
-
-
-async def talk_open(call: intercom_client.Call, session: str, actor: Actor, request_id: str, expires_at: str) -> Any:
-    frame = await call(_type(TALK_OPEN), **{K_SESSION: session, K_ACTOR: actor.wire(), K_REQUEST: request_id, K_EXPIRES: expires_at}, **_api(TALK_OPEN))
-    return intercom_client._result(frame, TALK_OPEN)
-
-
-async def talk_frame(call: intercom_client.Call, talk_ref: str, seq: int, data: bytes) -> Any:
-    frame = await call(_type(TALK_FRAME), **{K_TALK_REF: talk_ref, K_SEQ: seq, K_DATA: base64.b64encode(data).decode("ascii")}, **_api(TALK_FRAME))
-    return intercom_client._result(frame, TALK_FRAME)
-
-
-async def talk_floor(call: intercom_client.Call, talk_ref: str, held: bool) -> Any:
-    frame = await call(_type(TALK_FLOOR), **{K_TALK_REF: talk_ref, K_HELD: bool(held)}, **_api(TALK_FLOOR))
-    return intercom_client._result(frame, TALK_FLOOR)
-
-
-async def talk_close(call: intercom_client.Call, talk_ref: str, reason: str) -> Any:
-    frame = await call(_type(TALK_CLOSE), **{K_TALK_REF: talk_ref, K_REASON: close_reason(reason)}, **_api(TALK_CLOSE))
-    return intercom_client._result(frame, TALK_CLOSE)
+# WKDIRECT-295 (S6): the unsigned flat-frame senders of AVW10-295 (`station_descriptor(call, ...)`, `stream_lease`, `talk_open`,
+# `talk_frame`, `talk_floor`, `talk_close` on the feed's `call`) are REMOVED: every W10 command now leaves only as a signed `bridge`
+# envelope built from the v1.1 parameter builders below (services/wiskey_media_bridge.py), on the direct API or the signed HA path.
 
 
 def close_reason(outcome: str) -> str:
