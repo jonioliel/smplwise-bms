@@ -263,7 +263,7 @@ covered user whose phone does not report the required sensors is refused:
   `max_stale_hours` (default 48) **and** acknowledged the current notice version; for `location` also `sharing: true` and
   `location_auth` in `always | when_in_use`. A required sensor reported `unavailable` (no such hardware; owner decision
   2026-10-24, PRESUNAVAIL-295) **also counts as met**, under the same freshness / acknowledgement / allowed-sensor rules, so a
-  user is never locked out for hardware the phone lacks. Exceptions: `off` never counts, and `location` reported `unavailable` does
+  user is never locked out for hardware the phone lacks. Exceptions: sensors listed in the policy field `hardware_required` (sensor keys chosen per server by its administrator, default `[]`) never count when `unavailable`; `off` never counts, and `location` reported `unavailable` does
   **not** count (a phone always has it; the requirement needs sharing and authorisation). The app still never bypasses the gate
   locally: it sends the truthful state and reloads `/me`. So: after the user switches a sensor on, send `status` (alone is enough),
   then reload `/me`.

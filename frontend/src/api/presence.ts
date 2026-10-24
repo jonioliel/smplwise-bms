@@ -17,6 +17,7 @@ export const RETENTION_CHOICES: readonly number[] = [7, 14, 30, 60, 90, 180, 365
 export interface RequiredSensorsPolicy {
   enabled: boolean;
   sensors: SensorKey[];
+  hardware_required?: SensorKey[];
   apply_to_web: boolean;
   max_stale_hours: number;
   roles: string[];
