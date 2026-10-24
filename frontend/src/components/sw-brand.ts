@@ -1,8 +1,20 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, svg, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { onDesign, resolvedTheme } from '../design/apply';
-import { brandLogo, chooseCompanyLogo, companyLogoUrl, installerLogoUrl, logoScale, onBrandLogo, productLogoUrl, productMarkUrl, type BrandLogoState, type DarkMode, type LogoSize } from '../design/brand-logo';
+import { brandLogo, chooseCompanyLogo, companyLogoUrl, installerLogoUrl, logoScale, onBrandLogo, type BrandLogoState, type DarkMode, type LogoSize } from '../design/brand-logo';
 import { t } from '../i18n/he';
+
+/** LOGOFIT-295: the approved mockup's SmplWise mark (#sw-mark, logos-mockup-v3.html), drawn as-is. */
+const MARK = svg`<rect width="64" height="64" rx="14" fill="#2767ed"/><path d="M43 22c-2.4-3-6.2-4.6-10.6-4.6-6.6 0-11 3.5-11 8.6 0 10.8 22 5.3 22 16.4 0 5.6-4.9 9.2-12.2 9.2-5.2 0-9.4-1.9-12.2-5.2" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="46" cy="44" r="3.2" fill="#8fe1ff"/>`;
+
+function swMark(alt: string) {
+  return html`<svg class="sw" viewBox="0 0 64 64" width="64" height="64" role=${alt ? 'img' : 'presentation'} aria-label=${alt || nothing} data-brand-img="product" data-brand-art="mockup-v3-mark">${MARK}</svg>`;
+}
+
+/** LOGOFIT-295: the approved mockup's SmplWise wordmark (#sw-word on a light background, #sw-word-dark on a dark one), drawn as-is. */
+function swWord(alt: string, dark: boolean) {
+  return html`<svg class="sw" viewBox="0 0 236 64" width="236" height="64" role=${alt ? 'img' : 'presentation'} aria-label=${alt || nothing} data-brand-img="product" data-brand-art=${dark ? 'mockup-v3-word-dark' : 'mockup-v3-word'}>${MARK}${svg`<text x="76" y="45" direction="ltr" text-anchor="start" font-family="Heebo, Inter, Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="-1" fill=${dark ? '#ffffff' : 'currentColor'}>Smpl<tspan fill=${dark ? '#8fb2ff' : '#2767ed'}>Wise</tspan></text>`}</svg>`;
+}
 
 /**
  * CR-LOGOS295 4.4: ONE logo component for every placement. `<sw-brand kind="company|product">` draws the installation's company logo or
@@ -53,6 +65,13 @@ export class SwBrand extends LitElement {
       min-inline-size: 0;
       max-inline-size: 100%;
     }
+    svg.sw {
+      display: block;
+      block-size: var(--_h);
+      inline-size: auto;
+      max-inline-size: min(100%, var(--_w, 100%));
+      overflow: visible;
+    }
     img {
       display: block;
       block-size: var(--_h);
@@ -97,11 +116,15 @@ export class SwBrand extends LitElement {
     const scale = logoScale(this.previewSize ?? b.size);
     const h = Math.round(this.h * scale * 10) / 10;
     const style = `--_h:${h}px;${this.maxw ? `--_w:${Math.round(this.maxw * scale)}px` : ''}`;
+    const dark = (this.scheme === 'auto' ? this.theme : this.scheme) === 'dark';
     if (this.kind === 'product') {
       const alt = this.decorative ? '' : t('brandLogos.productAlt');
-      return html`<span class="box" style=${style} ?aria-hidden=${this.decorative}><img src=${this.mark ? productMarkUrl() : productLogoUrl()} alt=${alt} data-brand-img="product" draggable="false" /></span>`;
+      // LOGOFIT-295 (owner 2026-10-24): the SmplWise logo exactly as the approved mockup draws it (private/review/logos-mockup-v3.html,
+      // symbols #sw-mark / #sw-word / #sw-word-dark): the blue tile mark and the word "Smpl" + "Wise" in Heebo. The mint PNG of the
+      // 2026-09-14 design baseline (public/brand/smplwise-logo.png / smplwise-mark.png) is not that logo. Inline (not an <img>) so the
+      // word is set in the app's own Heebo, and "Smpl" follows the placement's text colour (currentColor) on the light scheme.
+      return html`<span class="box" style=${style} ?aria-hidden=${this.decorative}>${this.mark ? swMark(alt) : swWord(alt, dark)}</span>`;
     }
-    const dark = (this.scheme === 'auto' ? this.theme : this.scheme) === 'dark';
     const installer = this.kind === 'installer';
     // WHITELABEL097-295: the installer's logo follows the same light / dark rules as the company's; nothing at all while the profile is off
     if (installer && !b.wl.enabled) return nothing;
