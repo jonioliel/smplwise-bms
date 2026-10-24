@@ -16,7 +16,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 
 const DEMO: PresenceSettings = {
   enabled: false, mode: 'continuous', interval_s: 60, distance_filter_m: 50, notice_text: '', notice_version: 1, sensors_allowed: [...SENSOR_KEYS], intervals_s: {},
-  sites: [], beacons: [], wifi_sites: [], wifi_match_mode: 'phone', retention_days: 30, required_sensors: { enabled: false, sensors: [], apply_to_web: false, max_stale_hours: 48, roles: [], users: [], exempt_users: [] },
+  sites: [], beacons: [], wifi_sites: [], wifi_match_mode: 'phone', retention_days: 30, required_sensors: { enabled: false, sensors: [], hardware_required: [], apply_to_web: false, max_stale_hours: 48, roles: [], users: [], exempt_users: [] },
   break_glass: { until: null, reason: '', by: null },
 };
 
@@ -194,6 +194,13 @@ export class SystemPresence extends LitElement {
     this.patch({ required_sensors: { ...this.draft.required_sensors, sensors: SENSOR_KEYS.filter((k) => set.has(k)) } });
   }
 
+  private toggleHardware(key: SensorKey, on: boolean) {
+    const set = new Set(this.draft.required_sensors.hardware_required ?? []);
+    if (on) set.add(key);
+    else set.delete(key);
+    this.patch({ required_sensors: { ...this.draft.required_sensors, hardware_required: SENSOR_KEYS.filter((k) => set.has(k)) } });
+  }
+
   private async save() {
     const problem = policyProblem(this.draft);
     if (problem && this.draft.required_sensors.enabled && this.draft.required_sensors.sensors.length === 0) {
@@ -283,6 +290,8 @@ export class SystemPresence extends LitElement {
         <div class="row" data-presence-row="policy"><span class="lbl">הדרישה פעילה<span class="muted">חלה על הפעלות מהאפליקציה בלבד, אלא אם סומן אחרת</span></span>
           <sw-toggle ?checked=${req.enabled} ?disabled=${!editable || this.busy} label="הדרישה פעילה" labelHidden data-presence-policy-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ required_sensors: { ...req, enabled: e.detail.checked } })}></sw-toggle></div>
         <div class="grid" data-presence-required>${SENSOR_KEYS.map((k) => html`<label class="chk"><input type="checkbox" data-presence-required-sensor=${k} .checked=${req.sensors.includes(k)} ?disabled=${!editable || this.busy || !req.enabled} @change=${(e: Event) => this.toggleRequired(k, (e.target as HTMLInputElement).checked)} /> ${SENSOR_LABEL[k]}</label>`)}</div>
+        <div class="row" data-presence-row="hardware"><span class="lbl">חומרה שחובה בשרת זה</span></div>
+        <div class="grid" data-presence-hardware>${SENSOR_KEYS.map((k) => html`<label class="chk"><input type="checkbox" data-presence-hardware-sensor=${k} .checked=${(req.hardware_required ?? []).includes(k)} ?disabled=${!editable || this.busy || !req.enabled} @change=${(e: Event) => this.toggleHardware(k, (e.target as HTMLInputElement).checked)} /> ${SENSOR_LABEL[k]}</label>`)}</div>
         <div class="row" data-presence-row="web"><span class="lbl">גם בדפדפן<span class="muted">משתמש בלי האפליקציה ייחסם גם בדפדפן</span></span>
           <sw-toggle ?checked=${req.apply_to_web} ?disabled=${!editable || this.busy || !req.enabled} label="גם בדפדפן" labelHidden data-presence-policy-web @change=${(e: CustomEvent<{ checked: boolean }>) => this.patch({ required_sensors: { ...req, apply_to_web: e.detail.checked } })}></sw-toggle></div>
         ${problem && req.enabled ? html`<div class="warn" role="status" data-presence-policy-problem>${problem}</div>` : nothing}

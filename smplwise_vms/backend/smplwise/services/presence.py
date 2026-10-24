@@ -93,7 +93,7 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "presence.wifi_sites": "[]",
     "presence.wifi_match_mode": "phone",
     "presence.retention_days": str(RETENTION_DEFAULT),
-    "presence.required_sensors": json.dumps({"enabled": False, "sensors": [], "apply_to_web": False, "max_stale_hours": 48, "roles": [], "users": [], "exempt_users": []}),
+    "presence.required_sensors": json.dumps({"enabled": False, "sensors": [], "hardware_required": [], "apply_to_web": False, "max_stale_hours": 48, "roles": [], "users": [], "exempt_users": []}),
     "presence.break_glass": json.dumps({"until": None, "reason": "", "by": None}),
 }
 
@@ -268,6 +268,14 @@ def _normalize_required(p: Any, *, strict: bool) -> dict[str, Any]:
     unknown = [s for s in sensors if s not in SENSORS]
     if unknown and strict:
         raise bad("חיישן לא מוכר: " + ", ".join(unknown), "required_sensors.sensors")
+    hw = p.get("hardware_required", [])
+    if not isinstance(hw, list) or any(not isinstance(s, str) for s in hw):
+        if strict:
+            raise bad("יש לבחור חומרה מהרשימה.", "required_sensors.hardware_required")
+        hw = []
+    unknown_hw = [s for s in hw if s not in SENSORS]
+    if unknown_hw and strict:
+        raise bad("חומרה לא מוכרת: " + ", ".join(unknown_hw), "required_sensors.hardware_required")
     stale = p.get("max_stale_hours", 48)
     if not isinstance(stale, int) or isinstance(stale, bool) or not 1 <= stale <= 24 * 30:
         if strict:
@@ -285,6 +293,7 @@ def _normalize_required(p: Any, *, strict: bool) -> dict[str, Any]:
     return {
         "enabled": bool(p.get("enabled", False)),
         "sensors": sorted({s for s in sensors if s in SENSORS}),
+        "hardware_required": sorted({s for s in hw if s in SENSORS}),
         "apply_to_web": bool(p.get("apply_to_web", False)),
         "max_stale_hours": stale,
         "roles": ids("roles"),
@@ -835,8 +844,9 @@ def gate_for(conn: sqlite3.Connection, user_id: str, *, app: bool, st: dict[str,
             if key not in st["sensors_allowed"]:
                 continue
             if state == "unavailable":
-                # no such hardware: counts as meeting the requirement (never for location, which needs sharing + authorisation)
-                if UNAVAILABLE_SATISFIES_REQUIRED and key != "location":
+                # no such hardware: counts as meeting the requirement, except location (needs sharing + authorisation)
+                # and the hardware this server's administrator marked mandatory (hardware_required)
+                if UNAVAILABLE_SATISFIES_REQUIRED and key != "location" and key not in pol.get("hardware_required", []):
                     satisfied.add(key)
                 continue
             if state != "on":

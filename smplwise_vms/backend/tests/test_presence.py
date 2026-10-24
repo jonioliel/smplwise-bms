@@ -546,3 +546,41 @@ def test_unavailable_never_satisfies_location_and_stale_or_unacked_reports_still
         st["reported_at"] = "2026-01-01T00:00:00Z"
         conn.execute("UPDATE mobile_devices SET status_json = ? WHERE id = ?", (json.dumps(st), did))
     assert gate()["blocked"] is True
+
+
+# ---------------------------------------------------------------- PRESUNAVAIL2-295: per-server mandatory hardware
+
+def test_hardware_required_defaults_validates_and_round_trips(world):
+    app, c, ids = world
+    assert c.get(f"{API}/presence/settings").json()["settings"]["required_sensors"]["hardware_required"] == []
+    r = c.put(f"{API}/presence/settings", json={"required_sensors": {"enabled": True, "sensors": ["battery"], "hardware_required": ["beacon", "location", "beacon"]}})
+    assert r.status_code == 200
+    assert r.json()["settings"]["required_sensors"]["hardware_required"] == sorted(["beacon", "location"])
+    assert c.get(f"{API}/presence/settings").json()["settings"]["required_sensors"]["hardware_required"] == sorted(["beacon", "location"])
+    bad = c.put(f"{API}/presence/settings", json={"required_sensors": {"enabled": True, "sensors": ["battery"], "hardware_required": ["warp_drive"]}})
+    assert bad.status_code == 422 and bad.json()["details"]["field"] == "required_sensors.hardware_required"
+    bad = c.put(f"{API}/presence/settings", json={"required_sensors": {"enabled": True, "sensors": ["battery"], "hardware_required": "beacon"}})
+    assert bad.status_code == 422 and bad.json()["details"]["field"] == "required_sensors.hardware_required"
+    # a policy stored without the key (older servers) reads as []
+    from smplwise.services import presence as pres
+    assert pres._normalize_required({"enabled": True, "sensors": ["battery"]}, strict=False)["hardware_required"] == []
+    assert pres._normalize_required({"hardware_required": "x"}, strict=False)["hardware_required"] == []
+
+
+def test_hardware_required_makes_unavailable_not_count_for_that_sensor_only(world):
+    app, c, ids = world
+    _, a = register(c, "dana")
+    did, tok = a["device_id"], bearer(a["device_token"])
+    enable(c, required_sensors={"enabled": True, "sensors": ["beacon", "battery", "location"], "hardware_required": ["beacon"]})
+    c.post(f"{API}/presence/devices/{did}/ack", json={"notice_version": 2}, headers=tok)
+    gate = lambda: c.get(f"{API}/presence/gate", headers={**as_user("dana"), **APP_UA}).json()["gate"]  # noqa: E731
+    status = {**STATUS_ON, "sensors": {"beacon": "unavailable", "battery": "unavailable", "location": "unavailable"}}
+    c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": status}, headers=tok)
+    assert gate()["missing"] == ["beacon", "location"] and gate()["blocked"] is True  # battery unavailable still counts
+    # beacon really on satisfies the mandatory hardware; location is still never satisfied by unavailable
+    c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": {**status, "sensors": {**status["sensors"], "beacon": "on"}}}, headers=tok)
+    assert gate()["missing"] == ["location"]
+    # without the mandatory list, unavailable beacon counts again
+    c.put(f"{API}/presence/settings", json={"required_sensors": {"enabled": True, "sensors": ["beacon", "battery"], "hardware_required": []}})
+    c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": status}, headers=tok)
+    assert gate()["blocked"] is False
