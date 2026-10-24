@@ -49,6 +49,28 @@ class JoinServer(FakeDirectServer):
         self.script: dict[str, Any] = {}
         self.received: list[tuple[str, str, dict[str, Any]]] = []
         self.people: FakeWisKey | None = None
+        # WKR5-295: the two discovery reads are answered from WisKey's shapes (direct_bridge_discovery.py): the discovered command names
+        # of the round-5 catalog (or `discovered` when a test sets it) and this process's clock shifted by `clock_offset_s`.
+        self.discovered: set[str] | None = None
+        self.clock_offset_s = 0.0
+
+    def capabilities_doc(self) -> dict[str, Any]:
+        from smplwise.services import wiskey_direct_catalog as wdc
+
+        names = sorted(self.discovered if self.discovered is not None else {e.command for e in wdc.load().entries() if e.discovered})
+        return {"schema_version": 1, "protocol": "wiskey-direct-ws.v1", "families": sorted({n.split("/")[0] for n in names}),
+                "commands": [{"name": n, "envelope": "wiskey-direct-ws.v1", "api_contract": None, "explicit_parameter_version": None} for n in names],
+                "limits": {"max_connections_including_preparing": 32, "max_audio_sessions_including_legacy_and_TTS": 3, "nonce_capacity": 65536,
+                           "nonce_window_seconds": 120, "talk_batch_sizes": [5, 10], "max_command_ttl_seconds": 15, "hello_timeout_seconds": 10},
+                "station_media_contract": "wiskey-station-media.v1", "stations": [], "resources": {"features": None, "template_host_bound": False},
+                "lifecycle": {"pairing_rotation": "old_connection_invalidated_reconnect_required", "kid_in_v1": False,
+                              "event_cursor_resume": False, "reconnect_adopts_old_resources": False},
+                "physical_result": "unproven"}
+
+    def time_doc(self) -> dict[str, Any]:
+        now = datetime.now(timezone.utc) + timedelta(seconds=self.clock_offset_s)
+        return {"schema_version": 1, "server_utc": now.isoformat(), "max_ts_skew_seconds": 60, "max_issued_future_seconds": 2,
+                "max_command_ttl_seconds": 15}
 
     def _check(self, dc: Any, message: dict[str, Any]) -> tuple[str, str, dict[str, Any]]:
         b = message.get("bridge")
@@ -76,6 +98,13 @@ class JoinServer(FakeDirectServer):
         self.received.append((command, kind, params))
         mid = message["id"]
         act = self.script.get(command)
+        if act is None and command in ("direct/capabilities", "direct/time"):
+            if params != {}:  # WisKey: exactly empty signed parameters
+                await dc.send_frame({"id": mid, "type": "result", "success": False, "error": {"code": "invalid_fields", "message": "x"}})
+                return
+            doc = self.capabilities_doc() if command == "direct/capabilities" else self.time_doc()
+            await dc.send_frame({"id": mid, "type": "result", "success": True, "result": doc})
+            return
         if act == "drop":
             return
         if act == "close":
@@ -298,8 +327,9 @@ def test_a_native_people_write_commits_over_the_direct_socket(env: Any, lineage:
                                               actor=ACTOR, decision=_decision(), create_origin_ref="arx-create:c-1"))
     assert outcome.state == "committed" and raw == {"id": outcome.user_id, "revision": 1}
     commands = [c for c, _k, _p in env.server.received]
-    # the source read for the once-per-process recovery of the scope, the writer's own source read, then the ONE write
-    assert commands == ["peer_writes/source_v1", "peer_writes/source_v1", "users/create"]
+    # WKR5-295: the connection's discovery first (once), then the source read for the once-per-process recovery of the scope, the
+    # writer's own source read, then the ONE write
+    assert commands == ["direct/capabilities", "direct/time", "peer_writes/source_v1", "peer_writes/source_v1", "users/create"]
     assert lineage.get(outcome.operation_id).state == "committed"
     assert PIN_MARK not in json.dumps(lineage.handoff_export())  # the raw value only ever travelled inside the signed command
 

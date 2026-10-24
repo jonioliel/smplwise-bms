@@ -1,0 +1,2538 @@
+{
+ "schema": "wkr5-caller-map.v1",
+ "catalog_source_sha256": "f707d1a15252e08f87596a1296b476f366d8718f884c5857756f1a6c63f431d7",
+ "implementation_input_CODE": "fa05c60b001ad1af092a9e43e8f9170388e708c3",
+ "method": "string-literal scan of smplwise_vms/backend/smplwise/**/*.py; a caller candidate is not a send, an acceptance or an installation",
+ "family_count": 43,
+ "command_count": 277,
+ "families": {
+  "acceptance": {
+   "commands": {
+    "acceptance/get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "acceptance/update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "appearance": {
+   "commands": {
+    "appearance/settings_get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "appearance/settings_update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "audio": {
+   "commands": {
+    "audio/diagnostics": {
+     "row_kind": "COMMAND",
+     "direct_envelope": null,
+     "discovered_for_native_owner": false,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "audio/mute": {
+     "row_kind": "COMMAND",
+     "direct_envelope": null,
+     "discovered_for_native_owner": false,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "audio/receive": {
+     "row_kind": "COMMAND",
+     "direct_envelope": null,
+     "discovered_for_native_owner": false,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "audio/send": {
+     "row_kind": "COMMAND",
+     "direct_envelope": null,
+     "discovered_for_native_owner": false,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "audio/start": {
+     "row_kind": "COMMAND",
+     "direct_envelope": null,
+     "discovered_for_native_owner": false,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "audit": {
+   "commands": {
+    "audit/export": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "audit/list": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_adapter.py",
+    "smplwise/services/wiskey_channels.py"
+   ]
+  },
+  "authorization": {
+   "commands": {
+    "authorization/preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "authorization/session": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/wiskey_background_feed.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_diagnostics.py"
+     ]
+    },
+    "authorization/settings_get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "authorization/settings_update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_client.py",
+    "smplwise/services/wiskey_background_feed.py",
+    "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_diagnostics.py"
+   ]
+  },
+  "backups": {
+   "commands": {
+    "backups/apply": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "backups/export": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "backups/preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "capture": {
+   "commands": {
+    "capture/lease_event": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_capture_direct.py"
+     ]
+    },
+    "capture/lease_request": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_capture_direct.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/wiskey_capture_direct.py"
+   ]
+  },
+  "cards": {
+   "commands": {
+    "cards/add": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control_writes.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    },
+    "cards/capture_cancel": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control.py",
+      "smplwise/services/intercom_authority.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "cards/capture_confirm": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control.py",
+      "smplwise/services/intercom_authority.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "cards/capture_start": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control.py",
+      "smplwise/services/intercom_authority.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "cards/capture_status": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_authority.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "cards/reader_capabilities": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "cards/remove": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control_writes.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/routers/access_control.py",
+    "smplwise/routers/access_control_writes.py",
+    "smplwise/services/intercom_authority.py",
+    "smplwise/services/intercom_client.py",
+    "smplwise/services/intercom_writes.py",
+    "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_native_write.py"
+   ]
+  },
+  "clock": {
+   "commands": {
+    "clock/host_apply": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "clock/host_status": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "clock/settings_get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "clock/settings_update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "clock/station_sync": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "conflicts": {
+   "commands": {
+    "conflicts/list": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "conflicts/resolve": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "conflicts/resolve_deletion": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "conflicts/review": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_adapter.py",
+    "smplwise/services/wiskey_channels.py"
+   ]
+  },
+  "direct": {
+   "commands": {
+    "direct/capabilities": {
+     "row_kind": "DIRECT_ONLY_COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_direct_discovery.py"
+     ]
+    },
+    "direct/time": {
+     "row_kind": "DIRECT_ONLY_COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_direct_discovery.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/wiskey_direct_discovery.py"
+   ]
+  },
+  "events": {
+   "commands": {
+    "events/detail": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "events/export": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "events/history_inspect": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "events/list": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/access_denied.py",
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/intercom_parity.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "events/print": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "events/report": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "events/support": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "events/trace_get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "events/trace_start": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "events/trace_stop": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/access_denied.py",
+    "smplwise/services/intercom_adapter.py",
+    "smplwise/services/intercom_parity.py",
+    "smplwise/services/wiskey_channels.py"
+   ]
+  },
+  "features": {
+   "commands": {
+    "features/cancel": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_feature_direct.py"
+     ]
+    },
+    "features/prepare_media": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_feature_direct.py"
+     ]
+    },
+    "features/result": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_feature_direct.py"
+     ]
+    },
+    "features/start": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_feature_direct.py"
+     ]
+    },
+    "features/status": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_feature_direct.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/wiskey_feature_direct.py"
+   ]
+  },
+  "fleet": {
+   "commands": {
+    "fleet/alerts": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/intercom_parity.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "fleet/alerts_action": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "fleet/inventory_export": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_adapter.py",
+    "smplwise/services/intercom_parity.py",
+    "smplwise/services/wiskey_channels.py"
+   ]
+  },
+  "guest_templates": {
+   "commands": {
+    "guest_templates/delete": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "guest_templates/get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "guest_templates/upsert": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "health": {
+   "commands": {
+    "health/get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "health/history": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "health/refresh": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_adapter.py",
+    "smplwise/services/wiskey_channels.py"
+   ]
+  },
+  "investigations": {
+   "commands": {
+    "investigations/query": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "jobs": {
+   "commands": {
+    "jobs/action": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "jobs/approval_decide": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": false,
+     "owner_excluded_write": true,
+     "arx_callers": []
+    },
+    "jobs/approval_request": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": false,
+     "owner_excluded_write": true,
+     "arx_callers": []
+    },
+    "jobs/approval_review": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "jobs/bulk_create": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "jobs/csv_create": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "jobs/errors": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "jobs/list": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "media": {
+   "commands": {
+    "media/call": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "media/provider_check": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "media/provider_discover": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "media/settings_get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "media/settings_update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "media/signal": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "media/station_descriptor": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_media_contract.py"
+     ]
+    },
+    "media/stream_lease": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_media_contract.py"
+     ]
+    },
+    "media/talk_close": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_media_contract.py"
+     ]
+    },
+    "media/talk_floor": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_media_contract.py"
+     ]
+    },
+    "media/talk_frame": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_media_contract.py"
+     ]
+    },
+    "media/talk_open": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_media_contract.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_client.py",
+    "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_media_contract.py"
+   ]
+  },
+  "operations": {
+   "commands": {
+    "operations/query": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "overview": {
+   "commands": {
+    "overview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control.py",
+      "smplwise/routers/tickets_admin.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_sync.py",
+      "smplwise/services/tickets/settings_doc.py",
+      "smplwise/services/wiskey_background_feed.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_diagnostics.py"
+     ]
+    },
+    "overview/summary": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/routers/access_control.py",
+    "smplwise/routers/tickets_admin.py",
+    "smplwise/services/intercom_client.py",
+    "smplwise/services/intercom_sync.py",
+    "smplwise/services/tickets/settings_doc.py",
+    "smplwise/services/wiskey_background_feed.py",
+    "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_diagnostics.py"
+   ]
+  },
+  "peer_bindings": {
+   "commands": {
+    "peer_bindings/get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-peer-query.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_command_port.py",
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    },
+    "peer_bindings/history": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-peer-query.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_command_port.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/wiskey_command_port.py",
+    "smplwise/services/wiskey_native_write.py"
+   ]
+  },
+  "peer_identity": {
+   "commands": {
+    "peer_identity/get": {
+     "row_kind": "DIRECT_ONLY_COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "peer_protocol": {
+   "commands": {
+    "peer_protocol/get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-peer-query.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_command_port.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/wiskey_command_port.py"
+   ]
+  },
+  "peer_receipts": {
+   "commands": {
+    "peer_receipts/resolve": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-peer-query.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_command_port.py",
+      "smplwise/services/wiskey_native_write.py",
+      "smplwise/services/wiskey_peer.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/wiskey_command_port.py",
+    "smplwise/services/wiskey_native_write.py",
+    "smplwise/services/wiskey_peer.py"
+   ]
+  },
+  "peer_writes": {
+   "commands": {
+    "peer_writes/source_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/wiskey_native_write.py"
+   ]
+  },
+  "permissions": {
+   "commands": {
+    "permissions/directory": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "platform": {
+   "commands": {
+    "platform/archive": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/capacity": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/config_apply": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/config_decide": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/config_pending": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/config_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/config_read": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/config_review": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/delete": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/demo": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/export": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/import_apply": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/import_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/integrity": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/lifecycle_apply": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py"
+     ]
+    },
+    "platform/lifecycle_decide": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/lifecycle_jobs": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/lifecycle_plan": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/lifecycle_prepare": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/lifecycle_remove": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/lifecycle_review": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/lifecycle_verify": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/maintenance_cancel": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/maintenance_decide": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/maintenance_enqueue": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/maintenance_jobs": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/maintenance_plan": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/maintenance_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/maintenance_resume_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/report": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/retention_apply": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/retention_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/save": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/webhook_key": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "platform/webhook_save": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_adapter.py"
+   ]
+  },
+  "profiles": {
+   "commands": {
+    "profiles/settings_apply": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "profiles/settings_get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/intercom_parity.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "profiles/settings_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "profiles/settings_update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py"
+     ]
+    },
+    "profiles/versions": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "profiles/versions_compare": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_adapter.py",
+    "smplwise/services/intercom_parity.py",
+    "smplwise/services/wiskey_channels.py"
+   ]
+  },
+  "renewal": {
+   "commands": {
+    "renewal/binding_update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "renewal/bindings": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "renewal/cancel": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "renewal/request": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "renewal/self": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "schedules": {
+   "commands": {
+    "schedules/assess": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/baseline_clear": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/baseline_save": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/create": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/delete": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/dependencies": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/export": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/import_apply": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/import_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/list": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/intercom_parity.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "schedules/normalize_user": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_readback.py"
+     ]
+    },
+    "schedules/operations_archive": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/operations_cancel": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/operations_check": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/operations_claim_confirm": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/operations_claim_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/operations_claim_release": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/operations_create": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/operations_export": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/operations_list": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "schedules/plan_delete": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/plan_export": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/plan_list": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "schedules/plan_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/plan_recheck": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/plan_save": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/readiness": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "schedules/update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_adapter.py",
+    "smplwise/services/intercom_parity.py",
+    "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_readback.py"
+   ]
+  },
+  "search": {
+   "commands": {
+    "search/query": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "security": {
+   "commands": {
+    "security/lock": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "security/reauth_start": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "security/reauth_step": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "security/session": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "security/touch": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "stations": {
+   "commands": {
+    "stations/clock_refresh": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/inventory": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/list": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/permission_audit": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/rescan": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/technical_codes_get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "stations/technical_codes_write": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/technical_get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/technical_hold_delete": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/technical_hold_get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "stations/technical_hold_save": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/technical_program_action": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/technical_program_list": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "stations/technical_program_save": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/technical_relays": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/technical_update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "stations/test_unlock": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_authority.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_adapter.py",
+    "smplwise/services/intercom_authority.py",
+    "smplwise/services/intercom_client.py",
+    "smplwise/services/wiskey_channels.py"
+   ]
+  },
+  "subscribe": {
+   "commands": {
+    "subscribe": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_sync.py",
+      "smplwise/services/recorders/provision_isr.py",
+      "smplwise/services/wiskey_background_feed.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_diagnostics.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_client.py",
+    "smplwise/services/intercom_sync.py",
+    "smplwise/services/recorders/provision_isr.py",
+    "smplwise/services/wiskey_background_feed.py",
+    "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_diagnostics.py"
+   ]
+  },
+  "support": {
+   "commands": {
+    "support/bundle": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "sync": {
+   "commands": {
+    "sync/all": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "sync/diagnostics": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "sync/station": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "sync/status": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "sync/user": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_adapter.py",
+    "smplwise/services/wiskey_channels.py"
+   ]
+  },
+  "tts": {
+   "commands": {
+    "tts/engines": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "tts/start": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_client.py",
+    "smplwise/services/wiskey_channels.py"
+   ]
+  },
+  "upgrade": {
+   "commands": {
+    "upgrade/readiness": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "users": {
+   "commands": {
+    "users/access_compare": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/access_compare_options": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/access_review_decide": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/access_review_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/access_reviews": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/access_scenario": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/access_state": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "users/access_state_v2": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "users/adopt": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/archive": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control_writes.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    },
+    "users/bulk_apply": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/bulk_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/bulk_receipt": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    },
+    "users/bulk_receipts": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/bulk_renewal_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/create": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control.py",
+      "smplwise/services/intercom_authority.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_native_write.py",
+      "smplwise/services/wiskey_write_lineage.py"
+     ]
+    },
+    "users/csv_apply": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/csv_export": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/csv_inspect": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/csv_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/data_quality": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/delete": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control.py",
+      "smplwise/services/intercom_authority.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_direct_join.py",
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    },
+    "users/delete_unmanaged": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/duplicate_check": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "users/group_suggestions": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/ignore": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/lifecycle": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/list": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/name_ref_apply_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    },
+    "users/name_ref_prepare_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    },
+    "users/photo_get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "users/pin_check": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "users/pin_generate": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "users/query": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_adapter.py",
+      "smplwise/services/intercom_parity.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "users/set_active": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control_writes.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    },
+    "users/temporary_cancel": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control_writes.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    },
+    "users/unarchive": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control_writes.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    },
+    "users/update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/routers/access_control.py",
+      "smplwise/routers/access_control_writes.py",
+      "smplwise/services/intercom_authority.py",
+      "smplwise/services/intercom_client.py",
+      "smplwise/services/intercom_writes.py",
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_native_write.py"
+     ]
+    }
+   },
+   "arx_callers": [
+    "smplwise/routers/access_control.py",
+    "smplwise/routers/access_control_writes.py",
+    "smplwise/services/intercom_adapter.py",
+    "smplwise/services/intercom_authority.py",
+    "smplwise/services/intercom_client.py",
+    "smplwise/services/intercom_parity.py",
+    "smplwise/services/intercom_writes.py",
+    "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_direct_join.py",
+    "smplwise/services/wiskey_native_write.py",
+    "smplwise/services/wiskey_write_lineage.py"
+   ]
+  },
+  "visits": {
+   "commands": {
+    "visits/create": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "visits/decide": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "visits/list": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "visits/operators": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "visits/request": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  },
+  "whatsapp": {
+   "commands": {
+    "whatsapp/history": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "whatsapp/media": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "whatsapp/pacing_status_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wa_pacing.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "whatsapp/preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_messaging_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "whatsapp/send": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_messaging_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "whatsapp/send_pacing_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "whatsapp/status": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/intercom_messaging_adapter.py",
+      "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "whatsapp/template_send_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_template_direct.py"
+     ]
+    },
+    "whatsapp/template_send_v2": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_template_direct.py"
+     ]
+    },
+    "whatsapp/templates_get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "whatsapp/templates_update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/intercom_messaging_adapter.py",
+    "smplwise/services/wa_pacing.py",
+    "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_template_direct.py"
+   ]
+  },
+  "workflows": {
+   "commands": {
+    "workflows/apply": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/decide": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/get": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/inventory_issue": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/inventory_return": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/inventory_save": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/reminder_action": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/renew_decide": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/renew_request": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/settings_update": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/submit": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/template_delete": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/template_save": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/transfer_begin": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/transfer_finish": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/transfer_recheck": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/transfer_review": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/transfer_start": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "workflows/withdraw": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": []
+  }
+ }
+}
