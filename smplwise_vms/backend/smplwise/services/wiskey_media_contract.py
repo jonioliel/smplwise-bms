@@ -3,12 +3,18 @@
 Everything WisKey names on the wire for station media lives in this file and nowhere else: the six command names, the request
 keys Arx sends, the reply keys Arx reads, the event of a talk WisKey ended, and the mapping of WisKey's error codes. WisKey may
 still rename fields (owner directive 2026-10-23: WisKey grants Arx full access through our bridge only, and may adjust field
-names), so a rename is a change to the tables below and to the fixtures of tests/test_wiskey_media_contract.py - the provider
-(services/intercom_media.py `WiskeyProvider`), the endpoints and the screens do not change.
+names), so a rename is a change to the tables below and to the fixtures of tests/test_wiskey_media_v11.py - the provider
+(services/intercom_media.py `WiskeyBridgeProvider`), the endpoints and the screens do not change.
 
 The contract text is docs/changes/CR-036-S18-MEDIA.md section 3 (W10). Until WisKey ships its own contract package with these
 commands, the request schemas Arx holds them to are Arx's PROPOSAL (docs/integrations/wiskey/catalog/w10-proposal), not an
 extraction of WisKey's registry: the frames are checked against what Arx asked for, nothing more.
+
+W10CLIENT-295 (contract v1.1, owner 24.10): the section "contract v1.1" at the end of this file is the signed-bridge shape of the
+same six commands as WisKey registered them (tests/fixtures/wiskey_w10/w10_parameters_schemas.json is derived from the fixture
+W10_REGISTRATION_AND_SCHEMAS.json of WisKey's pinned source): closed parameter objects, NO `api_contract`, a batch of 5 or 10
+frames per `talk_frame`, the sequence from 0, one profile `main`. WKDIRECT-295 closed S6: the unsigned flat-frame senders of the
+feed path are gone; the v1 readers above stay only where the signed provider still reads with them (discovery, close reasons).
 
 Rules kept here (CLAUDE.md, AGENTS.md security, CR-036 S18 2.1):
 - a reply is untrusted input: every reader is total (a wrong shape is a `ContractError` with a rule code, never a guess), and an
@@ -96,6 +102,34 @@ ERRORS: dict[str, str] = {
     "unauthorized": "provider_forbidden",
     "unknown_command": "no_media",
     "api_incompatible": "provider_error",
+    # contract v1.1 (W10CLIENT-295): the signed bridge's own codes, exactly as WisKey spells them (`Unauthorized` is capitalised there)
+    "Unauthorized": "provider_forbidden",
+    "invalid_fields": "provider_error",
+    "source_changed": "provider_error",
+    "session_expired": "provider_error",
+    "sequence_invalid": "provider_error",
+    "floor_not_held": "provider_error",
+    "cleanup_failed": "provider_error",
+    "media_outcome_unknown": "provider_error",
+    "bridge_command_capacity": "rate_limited",
+    "bridge_command_replayed": "provider_error",
+    "bridge_not_paired": "provider_forbidden",
+    "bridge_key_rotated": "provider_forbidden",
+    "connection_closed": "provider_error",
+    # WKDIRECT-295: the direct API's own failures (DIRECT_API_V1.md) - an Arx-side reading of the socket, never WisKey's text
+    "reply_unauthenticated": "provider_forbidden",
+    "direct_identity_invalid": "provider_forbidden",
+    "direct_connect_refused": "provider_forbidden",
+    "direct_hello_invalid": "provider_error",
+    "direct_hello_timeout": "provider_error",
+    "direct_connect_timeout": "provider_error",
+    "direct_connect_failed": "provider_error",
+    "direct_unreachable": "provider_error",
+    "direct_output_capacity": "rate_limited",
+    "direct_connection_capacity": "rate_limited",
+    "connection_exhausted": "provider_error",
+    "bridge_outcome_unknown": "provider_error",
+    "command_unavailable": "no_media",
 }
 BUSY_CODES = frozenset({"audio_busy"})
 
@@ -172,42 +206,9 @@ def listed(api: dict[str, Any] | None) -> tuple[bool, bool, str | None]:
 
 # ---------------------------------------------------------------- the frames Arx sends
 
-def _type(command: str) -> str:
-    return intercom_client.command_type(command)
-
-
-def _api(command: str) -> dict[str, Any]:
-    return {} if command in READ_COMMANDS else {K_API: API_CONTRACT}
-
-
-async def station_descriptor(call: intercom_client.Call, station_id: str, actor: Actor, request_id: str) -> Any:
-    frame = await call(_type(DESCRIBE), **{K_STATION: station_id, K_ACTOR: actor.wire(), K_REQUEST: request_id}, **_api(DESCRIBE))
-    return intercom_client._result(frame, DESCRIBE)
-
-
-async def stream_lease(call: intercom_client.Call, session: str, profile: str, actor: Actor, request_id: str) -> Any:
-    frame = await call(_type(STREAM_LEASE), **{K_SESSION: session, K_PROFILE: profile, K_ACTOR: actor.wire(), K_REQUEST: request_id}, **_api(STREAM_LEASE))
-    return intercom_client._result(frame, STREAM_LEASE)
-
-
-async def talk_open(call: intercom_client.Call, session: str, actor: Actor, request_id: str, expires_at: str) -> Any:
-    frame = await call(_type(TALK_OPEN), **{K_SESSION: session, K_ACTOR: actor.wire(), K_REQUEST: request_id, K_EXPIRES: expires_at}, **_api(TALK_OPEN))
-    return intercom_client._result(frame, TALK_OPEN)
-
-
-async def talk_frame(call: intercom_client.Call, talk_ref: str, seq: int, data: bytes) -> Any:
-    frame = await call(_type(TALK_FRAME), **{K_TALK_REF: talk_ref, K_SEQ: seq, K_DATA: base64.b64encode(data).decode("ascii")}, **_api(TALK_FRAME))
-    return intercom_client._result(frame, TALK_FRAME)
-
-
-async def talk_floor(call: intercom_client.Call, talk_ref: str, held: bool) -> Any:
-    frame = await call(_type(TALK_FLOOR), **{K_TALK_REF: talk_ref, K_HELD: bool(held)}, **_api(TALK_FLOOR))
-    return intercom_client._result(frame, TALK_FLOOR)
-
-
-async def talk_close(call: intercom_client.Call, talk_ref: str, reason: str) -> Any:
-    frame = await call(_type(TALK_CLOSE), **{K_TALK_REF: talk_ref, K_REASON: close_reason(reason)}, **_api(TALK_CLOSE))
-    return intercom_client._result(frame, TALK_CLOSE)
+# WKDIRECT-295 (S6): the unsigned flat-frame senders of AVW10-295 (`station_descriptor(call, ...)`, `stream_lease`, `talk_open`,
+# `talk_frame`, `talk_floor`, `talk_close` on the feed's `call`) are REMOVED: every W10 command now leaves only as a signed `bridge`
+# envelope built from the v1.1 parameter builders below (services/wiskey_media_bridge.py), on the direct API or the signed HA path.
 
 
 def close_reason(outcome: str) -> str:
@@ -312,3 +313,227 @@ def talk_closed(event: Any) -> tuple[str, str] | None:
 def unavailable_reason(code: Any) -> str:
     """WisKey's (or the feed's) error code -> the media read's `reason`."""
     return ERRORS.get(str(code or ""), "provider_error")
+
+
+# ================================================================ contract v1.1 (W10CLIENT-295): the signed bridge shape
+#
+# Everything below is pure (no I/O): the closed `bridge.parameters` of the six commands, built and checked BEFORE signing, and
+# the readers of the six answers. WisKey's own validators are strict (`additionalProperties: false`, exact key sets, a batch of
+# exactly 5 or 10 frames), so a request that would be refused is refused here first and never signed.
+
+SCHEMA_V11 = "arx.station_media.v1.1"
+V11_PROFILE = "main"
+V11_VIDEO_TRANSPORT = "private_rtsp_source"  # a private RTSP source Arx's own go2rtc pulls; Arx serves it to browsers as mse / webrtc
+V11_TALK_TRANSPORT = "signed_ws_batch_v1"  # talk frames in signed batches over a dedicated bridge connection
+V11_CODEC = "pcmu"
+BATCH_FRAMES = 5  # Arx's batch size (100 ms): 10 leaves no rate-credit margin on WisKey's side (see the change note)
+BATCH_SIZES = (5, 10)
+FRAME_BYTES = 160  # 20 ms of G.711 at 8 kHz
+FRAME_B64_CHARS = 216
+MAX_SEQ = 2**53 - 1
+SILENCE_PCMU = b"\xff" * FRAME_BYTES  # mu-law digital silence (0xFF is +0 in G.711 mu-law)
+LEASE_MAX_AHEAD_S = 15.0
+LEASE_CLOCK_SLACK_S = 15.0  # WisKey's clock against ours: a lease named a little later than its 15 s is not refused for that
+V11_CLOSE_REASONS = CLOSE_REASONS  # the caller's enum of talk_close
+V11_EVENT_REASONS = ("stopped", "ended", "expired", "access_lost", "upstream_closed", "idle_timeout", "source_changed")
+
+_TEXT_RE = re.compile(r"^[^\x00-\x1f\x7f]+$")
+_PARAM_KEYS: dict[str, frozenset[str]] = {
+    DESCRIBE: frozenset({K_STATION, K_ACTOR, K_REQUEST}),
+    STREAM_LEASE: frozenset({K_SESSION, K_PROFILE, K_ACTOR, K_REQUEST}),
+    TALK_OPEN: frozenset({K_SESSION, K_ACTOR, K_REQUEST, K_EXPIRES}),
+    TALK_FRAME: frozenset({K_TALK_REF, "frames"}),
+    TALK_FLOOR: frozenset({K_TALK_REF, K_HELD}),
+    TALK_CLOSE: frozenset({K_TALK_REF, K_REASON}),
+}
+
+
+def _text(value: Any, maximum: int, code: str) -> str:
+    if not isinstance(value, str) or not 1 <= len(value) <= maximum or _TEXT_RE.fullmatch(value) is None:
+        raise ContractError(code)
+    return value
+
+
+def actor_wire(actor: Actor) -> dict[str, str]:
+    """The `actor` object of the closed schema: `id` (1..128, no control characters) and `display_name` (up to 256)."""
+    return {K_ACTOR_ID: _text(actor.id[:128], 128, "actor_id_invalid"), K_ACTOR_NAME: actor.display_name[:256]}
+
+
+def _handle(value: Any, code: str) -> str:
+    if not isinstance(value, str) or not HANDLE_RE.fullmatch(value):
+        raise ContractError(code)
+    return value
+
+
+def descriptor_params(station_id: str, actor: Actor, request_id: str) -> dict[str, Any]:
+    return {K_STATION: _text(station_id, 128, "station_id_invalid"), K_ACTOR: actor_wire(actor), K_REQUEST: _text(request_id, 128, "request_id_invalid")}
+
+
+def lease_params(session: str, actor: Actor, request_id: str) -> dict[str, Any]:
+    """The profile is always `main` (the only profile of v1.1)."""
+    return {K_SESSION: _handle(session, "session_invalid"), K_PROFILE: V11_PROFILE, K_ACTOR: actor_wire(actor), K_REQUEST: _text(request_id, 128, "request_id_invalid")}
+
+
+def talk_open_params(session: str, actor: Actor, request_id: str, expires_at: str) -> dict[str, Any]:
+    _when(expires_at, "expires_at_invalid")
+    return {K_SESSION: _handle(session, "session_invalid"), K_ACTOR: actor_wire(actor), K_REQUEST: _text(request_id, 128, "request_id_invalid"), K_EXPIRES: expires_at}
+
+
+def talk_frame_params(talk_ref: str, first_seq: int, frames: "list[bytes] | tuple[bytes, ...]") -> dict[str, Any]:
+    """One batch: 5 or 10 frames of exactly 160 bytes, `seq` consecutive from `first_seq`; `data` is the base64 of one frame (216 chars)."""
+    if len(frames) not in BATCH_SIZES:
+        raise ContractError("batch_size_invalid")
+    if isinstance(first_seq, bool) or not isinstance(first_seq, int) or not 0 <= first_seq <= MAX_SEQ - len(frames):
+        raise ContractError("seq_invalid")
+    out: list[dict[str, Any]] = []
+    for index, frame in enumerate(frames):
+        if not isinstance(frame, (bytes, bytearray)) or len(frame) != FRAME_BYTES:
+            raise ContractError("frame_size_invalid")
+        out.append({K_SEQ: first_seq + index, K_DATA: base64.b64encode(bytes(frame)).decode("ascii")})
+    return {K_TALK_REF: _handle(talk_ref, "talk_ref_invalid"), "frames": out}
+
+
+def talk_floor_params(talk_ref: str, held: bool) -> dict[str, Any]:
+    return {K_TALK_REF: _handle(talk_ref, "talk_ref_invalid"), K_HELD: bool(held)}
+
+
+def talk_close_params(talk_ref: str, reason: str) -> dict[str, Any]:
+    return {K_TALK_REF: _handle(talk_ref, "talk_ref_invalid"), K_REASON: close_reason(reason)}
+
+
+def _actor_pair(actor: Any) -> tuple[str, str]:
+    if (not isinstance(actor, dict) or set(actor) != {K_ACTOR_ID, K_ACTOR_NAME} or not isinstance(actor[K_ACTOR_NAME], str)
+            or len(actor[K_ACTOR_NAME]) > 256):
+        raise ContractError("actor_invalid")
+    return _text(actor[K_ACTOR_ID], 128, "actor_id_invalid"), actor[K_ACTOR_NAME]
+
+
+def validate_parameters(command: str, parameters: Any) -> None:
+    """The last check before a request is signed: the exact key set of the command, the shapes of its fields, nothing else. Raises
+    `ContractError` (a rule code; never the value). Strict on purpose: WisKey refuses any other shape, and a signed request spends
+    one of its single-use nonces whether or not it is accepted."""
+    keys = _PARAM_KEYS.get(command)
+    if keys is None or not isinstance(parameters, dict) or set(parameters) != keys:
+        raise ContractError("parameters_keys")
+    if command == DESCRIBE:
+        descriptor_params(parameters[K_STATION], Actor(*_actor_pair(parameters[K_ACTOR])), parameters[K_REQUEST])
+    elif command == STREAM_LEASE:
+        if parameters[K_PROFILE] != V11_PROFILE:
+            raise ContractError("profile_invalid")
+        lease_params(parameters[K_SESSION], Actor(*_actor_pair(parameters[K_ACTOR])), parameters[K_REQUEST])
+    elif command == TALK_OPEN:
+        talk_open_params(parameters[K_SESSION], Actor(*_actor_pair(parameters[K_ACTOR])), parameters[K_REQUEST], parameters[K_EXPIRES])
+    elif command == TALK_FRAME:
+        frames = parameters["frames"]
+        if not isinstance(frames, list) or len(frames) not in BATCH_SIZES:
+            raise ContractError("batch_size_invalid")
+        first = frames[0].get(K_SEQ) if isinstance(frames[0], dict) else None
+        if isinstance(first, bool) or not isinstance(first, int):
+            raise ContractError("seq_invalid")
+        decoded: list[bytes] = []
+        for index, item in enumerate(frames):
+            if not isinstance(item, dict) or set(item) != {K_SEQ, K_DATA} or isinstance(item[K_SEQ], bool) or item[K_SEQ] != first + index:
+                raise ContractError("seq_invalid")
+            data = item[K_DATA]
+            if not isinstance(data, str) or len(data) != FRAME_B64_CHARS:
+                raise ContractError("frame_size_invalid")
+            try:
+                raw = base64.b64decode(data, validate=True)
+            except ValueError:
+                raise ContractError("frame_size_invalid") from None
+            if len(raw) != FRAME_BYTES or base64.b64encode(raw).decode("ascii") != data:
+                raise ContractError("frame_size_invalid")
+            decoded.append(raw)
+        talk_frame_params(parameters[K_TALK_REF], first, decoded)
+    elif command == TALK_FLOOR:
+        if not isinstance(parameters[K_HELD], bool):
+            raise ContractError("held_invalid")
+        _handle(parameters[K_TALK_REF], "talk_ref_invalid")
+    elif command == TALK_CLOSE:
+        if parameters[K_REASON] not in V11_CLOSE_REASONS:
+            raise ContractError("reason_invalid")
+        _handle(parameters[K_TALK_REF], "talk_ref_invalid")
+
+
+# ---------------------------------------------------------------- the answers (v1.1)
+
+@dataclass(frozen=True)
+class FrameAck:
+    next_seq: int
+    accepted_frames: int
+
+
+def _int(value: Any, code: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= MAX_SEQ:
+        raise ContractError(code)
+    return value
+
+
+def parse_frame_ack(raw: Any, *, first_seq: int, count: int) -> FrameAck:
+    """`talk_frame`'s answer `{next_seq, accepted_frames, retry_permitted}`: all of the batch accepted, the sequence advanced by exactly
+    the batch, never a retry offer. Anything else ends the talk (a partly accepted or doubtful batch is never replayed)."""
+    if not isinstance(raw, dict) or set(raw) != {"next_seq", "accepted_frames", "retry_permitted"}:
+        raise ContractError("frame_ack_shape")
+    if raw["retry_permitted"] is not False:
+        raise ContractError("frame_ack_retry")
+    accepted, nxt = _int(raw["accepted_frames"], "frame_ack_shape"), _int(raw["next_seq"], "frame_ack_shape")
+    if accepted != count or nxt != first_seq + count:
+        raise ContractError("frame_ack_mismatch")
+    return FrameAck(next_seq=nxt, accepted_frames=accepted)
+
+
+def parse_floor(raw: Any, *, held: bool) -> int:
+    """`talk_floor`'s answer `{held, next_seq}`: the floor as asked; returns WisKey's next sequence number."""
+    if not isinstance(raw, dict) or set(raw) != {"held", "next_seq"} or raw["held"] is not held:
+        raise ContractError("floor_ack_shape")
+    return _int(raw["next_seq"], "floor_ack_shape")
+
+
+def parse_close(raw: Any) -> None:
+    """`talk_close`'s answer `{state: "closed", cleanup_joined: true, no_effect: null}`; any other state is not a clean close."""
+    if (not isinstance(raw, dict) or raw.get("state") != "closed" or raw.get("cleanup_joined") is not True
+            or raw.get("no_effect") is not None):
+        raise ContractError("close_not_clean")
+
+
+def parse_talk_open_v11(raw: Any) -> TalkOpened:
+    """`talk_open`'s answer `{talk_ref, codec: "pcmu", frame_ms: 20}`; v1.1 carries exactly PCMU (the only codec the pump sends)."""
+    if not isinstance(raw, dict):
+        raise ContractError("talk_open_not_an_object")
+    ref = raw.get(R_TALK_REF)
+    if not isinstance(ref, str) or not HANDLE_RE.fullmatch(ref):
+        raise ContractError("talk_ref_invalid")
+    if raw.get(R_CODEC) != V11_CODEC:
+        raise ContractError("talk_codec_unsupported")
+    if isinstance(raw.get(R_FRAME_MS), bool) or raw.get(R_FRAME_MS) != FRAME_MS:
+        raise ContractError("talk_frame_ms_unsupported")
+    return TalkOpened(talk_ref=ref, codec=V11_CODEC, frame_ms=FRAME_MS)
+
+
+def parse_lease_v11(raw: Any, *, now: float | None = None) -> StreamLease:
+    """`stream_lease`'s answer `{source, expires_at}`: a private RTSP source for Arx's own go2rtc, valid for at most 15 s (plus a clock
+    allowance). There is no `go2rtc_stream` alternative in v1.1. `source` is the one secret: never in a message, a log or a repr."""
+    now = time.time() if now is None else now
+    if not isinstance(raw, dict) or set(raw) != {R_SOURCE, R_EXPIRES}:
+        raise ContractError("lease_shape")
+    expires = _when(raw.get(R_EXPIRES), "lease_expires_at_invalid")
+    if expires <= now:
+        raise ContractError("lease_expired")
+    if expires - now > LEASE_MAX_AHEAD_S + LEASE_CLOCK_SLACK_S:
+        raise ContractError("lease_lifetime_too_long")
+    source = raw[R_SOURCE]
+    if not isinstance(source, str) or not SOURCE_RE.fullmatch(source) or any(ord(ch) < 33 for ch in source):
+        raise ContractError("lease_source_invalid")
+    return StreamLease(expires_at=expires, source=source)
+
+
+def talk_closed_v11(event: Any) -> tuple[str, str, bool | None] | None:
+    """(talk_ref, reason, cleanup_joined) of WisKey's `media/talk_closed` event for a talk, else None. An unknown reason is read as
+    `upstream_closed` (the talk is over either way)."""
+    hit = talk_closed(event)
+    if hit is None:
+        return None
+    data = event.get("data") if isinstance(event.get("data"), dict) else event
+    reason = hit[1] if hit[1] in V11_EVENT_REASONS else "upstream_closed"
+    joined = data.get("cleanup_joined")
+    return hit[0], reason, joined if isinstance(joined, bool) else None

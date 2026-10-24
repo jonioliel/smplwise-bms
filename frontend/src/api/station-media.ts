@@ -89,6 +89,29 @@ export const talkSocketUrl = (wsPath: string): string => relayWsUrl(wsPath);
 export const STATION_MEDIA_KEY = 'access.station_media';
 export const STATION_MEDIA_MODES: readonly StationMediaMode[] = ['off', 'video', 'video_talk'];
 
+/** WKDIRECT-295: the longest a talk through the station may last, in seconds (routers/settings.py `access.station_media_max_talk_s`).
+ * The range is the station's own (`station_media_max_talk_seconds`: a whole number 1..86400, default 300); the station's published value
+ * still applies on top, so a talk ends at the smaller of the two. */
+export const TALK_MAX_KEY = 'access.station_media_max_talk_s';
+export const TALK_MAX_DEFAULT_S = 300;
+export const TALK_MAX_MIN_S = 1;
+export const TALK_MAX_MAX_S = 86400;
+
+/** The setting as the screen reads it: a whole number inside the range, else the default the server acts on. */
+export function parseTalkMax(settings: Record<string, unknown> | null | undefined): number {
+  const raw = settings?.[TALK_MAX_KEY];
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : NaN;
+  return Number.isInteger(n) && n >= TALK_MAX_MIN_S && n <= TALK_MAX_MAX_S ? n : TALK_MAX_DEFAULT_S;
+}
+
+/** What the operator typed, as a value the server accepts (a whole number 1..86400), or null. */
+export function talkMaxInput(text: string): number | null {
+  const s = text.trim();
+  if (!/^\d{1,5}$/.test(s)) return null;
+  const n = Number(s);
+  return n >= TALK_MAX_MIN_S && n <= TALK_MAX_MAX_S ? n : null;
+}
+
 /** The administrator setting as the screen reads it; anything unreadable is `off` (the still and the classic panel). */
 export function parseMediaMode(settings: Record<string, unknown> | null | undefined): StationMediaMode {
   const v = settings?.[STATION_MEDIA_KEY];
