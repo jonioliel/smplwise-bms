@@ -288,6 +288,28 @@ def open_bridge_key(data_dir: Path, kid: str, blob: str) -> str:
     return _open(_Home(data_dir), _bridge_key_aad(kid), blob)
 
 
+# ---------------------------------------------------------------- WisKey people-write lineage records (WKWRITE-295, services/wiskey_write_lineage.py)
+# The same key file and `v1:` format; associated data `"wiskey_lineage|<operation id>|<field>"` - a record moved to another operation
+# (or into any other store) does not decrypt. The lineage file itself lives outside every backup; so does this key.
+
+LINEAGE_FIELDS = frozenset({"original", "bindings"})
+
+
+def _lineage_aad(operation_id: str, field: str) -> bytes:
+    if (field not in LINEAGE_FIELDS or not isinstance(operation_id, str) or not 1 <= len(operation_id) <= 128
+            or any(ord(ch) < 32 or ord(ch) == 127 or ch == "|" for ch in operation_id)):
+        raise SecretError("not a secret field")
+    return f"wiskey_lineage|{operation_id}|{field}".encode("utf-8")
+
+
+def seal_lineage_record(data_dir: Path, operation_id: str, field: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _lineage_aad(operation_id, field), plaintext)
+
+
+def open_lineage_record(data_dir: Path, operation_id: str, field: str, blob: str) -> str:
+    return _open(_Home(data_dir), _lineage_aad(operation_id, field), blob)
+
+
 # ---------------------------------------------------------------- rows
 
 def get_row(conn: sqlite3.Connection, recorder_id: str = DEFAULT_RECORDER) -> sqlite3.Row | None:

@@ -230,6 +230,9 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh", "security.app_refresh_a
 SETTINGS_KEEP = SETTINGS_KEEP | {"occupancy.enabled", "occupancy.retention_days", "access.external.denied_alert", "access.external.denied_cursor"}
 # APPREFRESH2-295: the device-key mode (off | optional | required) - a restore must never weaken it
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
+# WKWRITE-295: the anchor of the WisKey people-write lineage (generation + last intent sequence) describes THIS installation's lineage
+# file, which lives outside every backup - an archive must never carry it or move it backwards (services/wiskey_write_lineage.py)
+SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.native_write.lineage_anchor"}
 # APPREFRESH3-295: the key-reset notice wording sits with the rest of the app sign-in policy (kept, never taken from an archive)
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_key_reset_notice_title", "security.app_refresh_key_reset_notice_body"}
 
