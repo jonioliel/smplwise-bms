@@ -6,7 +6,7 @@ import '../components/sw-dialog';
 import { describeError } from '../api/client';
 import { archiveNotice, audiencePreview, createNotice, deleteNotice, patchNotice, publishNotice, type Board, type Severity } from '../api/notices';
 import { nt } from '../i18n/notices';
-import { SEV_KEY, audienceOf, inputOf, validate, type Draft } from './model';
+import { SEV_KEY, audienceOf, inputOf, pushState, validate, type Draft } from './model';
 import { noticesCss } from './styles';
 import { dateInputLang } from '../api/day-format';
 
@@ -30,6 +30,9 @@ export class NoticeCompose extends LitElement {
   @property({ attribute: false }) floors: { id: string; name: string; building: string }[] = [];
   @property({ attribute: false }) groups: { id: string; name: string }[] = [];
   @property({ attribute: false }) roles: { id: string; name: string }[] = [];
+  /** NOTICEPUSH-295: the writer holds notices.push (the checkbox can be changed) and the installation's "התראה בפרסום" default. */
+  @property({ attribute: false }) canPush = false;
+  @property({ attribute: false }) pushDefault: 'by_severity' | 'always' | 'never' = 'by_severity';
   @state() private d: Draft | null = null;
   @state() private err = '';
   @state() private audCount: number | null = null;
@@ -101,12 +104,17 @@ export class NoticeCompose extends LitElement {
     this.busy = true;
     try {
       const body = inputOf(d);
-      if (!d.id) await createNotice({ ...body, publish });
+      // NOTICEPUSH-295: only a writer with notices.push sends the tick; a published notice never pushes again, so nothing is sent for it.
+      // Publishing sends the value the checkbox shows (the default included); saving a draft remembers only what the author touched.
+      const editable = d.status === 'new' || d.status === 'draft';
+      const tick = !this.canPush || !editable ? undefined : publish ? pushState(d, this.pushDefault, true).checked : d.push ?? undefined;
+      let sent = 0;
+      if (!d.id) sent = (await createNotice({ ...body, publish, ...(tick === undefined ? {} : { push: tick }) })).push?.recipients ?? 0;
       else {
-        await patchNotice(d.id, body);
-        if (publish && d.status === 'draft') await publishNotice(d.id);
+        await patchNotice(d.id, { ...body, ...(editable && this.canPush && d.push !== null ? { push: d.push } : {}) });
+        if (publish && d.status === 'draft') sent = (await publishNotice(d.id, tick)).push?.recipients ?? 0;
       }
-      this.done(publish ? nt('published') : d.status === 'published' ? nt('saved') : nt('savedDraft'));
+      this.done(publish ? (sent ? nt('pushDone', { n: sent }) : nt('published')) : d.status === 'published' ? nt('saved') : nt('savedDraft'));
     } catch (e) {
       this.err = describeError(e);
     } finally {
@@ -140,6 +148,16 @@ export class NoticeCompose extends LitElement {
       this.busy = false;
       this.confirming = false;
     }
+  }
+
+  /** "שליחת התראה לנמענים בפרסום": once, in the channels each recipient chose. Not offered for a notice that is already published. */
+  private pushRow(d: Draft) {
+    if (d.status === 'published' || d.status === 'archived') return nothing;
+    const p = pushState(d, this.pushDefault, this.canPush);
+    return html`<div class="fld" data-push-row><span class="lbl">${nt('pushTick')}</span>
+      <label class="ck"><input type="checkbox" data-push .checked=${p.checked} ?disabled=${p.disabled}
+        @change=${(e: Event) => this.set({ push: (e.target as HTMLInputElement).checked })}>${nt('pushTick')}</label>
+      <span class="hint">${d.aud === 'tv' ? nt('pushTv') : !this.canPush ? nt('pushNoPerm') : nt('pushHint')}</span></div>`;
   }
 
   render() {
@@ -183,7 +201,7 @@ export class NoticeCompose extends LitElement {
               @click=${() => this.set({ boards: this.toggle(d.boards, b.id) })}><sw-icon name="wall" size="12"></sw-icon>${b.enabled ? b.name : nt('boardOff', { name: b.name })}</button>`)}</div>`
               : html`<span class="hint">${nt('noBoards')}</span>`}
           </div>
-          <p class="hint">${nt('pushLater')}</p>
+          ${this.pushRow(d)}
         </div>
       </div>
       ${this.err ? html`<p class="err" role="alert" data-compose-error>${this.err}</p>` : nothing}

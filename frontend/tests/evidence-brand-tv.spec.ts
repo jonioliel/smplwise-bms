@@ -42,8 +42,10 @@ test('day: the light file as uploaded, no plate; the SmplWise logo is a picture 
   await open(page, 'theme=day', { dark: true });
   await expect(co(page).locator('img')).toHaveAttribute('alt', 'נווה הירדן');
   expect(await tr(page)).toBe('plain');
-  await expect(page.locator('#cv .pg .ft .lg.product img')).toBeVisible();
-  expect(await page.locator('#cv .pg .ft .lg.product img').evaluate((i: HTMLImageElement) => i.src.startsWith('data:image/png'))).toBe(true);
+  // NOTICEPUSH-295: the SmplWise logo is the approved mockup artwork, inline SVG (no PNG), the light file's colours on the day surface
+  await expect(page.locator('#cv .pg .ft .lg.product svg[data-brand-art="mockup-v3-word"]')).toBeVisible();
+  await expect(page.locator('#cv .pg .ft .lg.product svg tspan')).toHaveAttribute('fill', '#2767ed');
+  await expect(page.locator('#cv .pg .ft .lg.product img')).toHaveCount(0);
 });
 
 test('night x mode x dark file: plate (default), the dark file in file mode, the chosen invert, plate fallback without a dark file', async ({ page }) => {
@@ -79,12 +81,12 @@ test('without a company logo the header slot keeps its place and nothing shows',
   await open(page, 'theme=day', { light: false });
   expect(await tr(page)).toBeNull();
   await expect(co(page).locator('img')).toHaveCount(0);
-  await expect(page.locator('#cv .pg .ft .lg.product img')).toBeVisible(); // the SmplWise logo stays
+  await expect(page.locator('#cv .pg .ft .lg.product svg')).toBeVisible(); // the SmplWise logo stays
 });
 
 test('the take-over screen carries both logos on its own (always dark) surface', async ({ page }) => {
   await open(page, 'theme=day', { urgent: true, brand: { dark_mode: 'plate' } });
   const top = page.locator('#cv .take .top .lg.company');
   await expect(top.locator('img')).toBeVisible();
-  await expect(page.locator('#cv .take .bot .lg.product img')).toBeVisible();
+  await expect(page.locator('#cv .take .bot .lg.product svg[data-brand-art="mockup-v3-word-dark"]')).toBeVisible(); // the always-dark surface wears the dark file's colours
 });

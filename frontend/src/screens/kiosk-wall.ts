@@ -154,10 +154,8 @@ export class KioskWall extends LitElement {
       gap: 12px;
       min-block-size: 48px;
     }
-    header img {
-      block-size: 24px;
-      inline-size: auto;
-      opacity: 0.9; /* LOGOS-295: the mark's own teal reads on the dark wall - the CSS invert of the PNG is gone (CR 4.4 rule 2) */
+    header sw-brand[kind='product'] {
+      opacity: 0.9; /* NOTICEPUSH-295: the approved mockup mark (sw-brand draws it inline, 24 px), as before the mint PNG it replaces */
     }
     h1 {
       margin: 0;
@@ -576,7 +574,6 @@ export class KioskWall extends LitElement {
   }
 
   render() {
-    const base = import.meta.env.BASE_URL;
     const api = isApi();
     const pageIndex = this.page % this.pages;
     const real = api ? this.selected.slice(pageIndex * this.pageSize, (pageIndex + 1) * this.pageSize) : [];
@@ -585,7 +582,7 @@ export class KioskWall extends LitElement {
     const cap = this.settings?.['media.max_live_sessions'] ?? 16;
     return html`
       <header>
-        <img src="${base}brand/smplwise-mark.png" alt="SmplWise" />
+        <sw-brand kind="product" mark scheme="dark" .h=${24} data-kiosk-product-logo></sw-brand>
         <h1>ניטור חי</h1>
         <sw-brand kind="company" scheme="dark" .h=${24} .maxw=${120} data-kiosk-company-logo></sw-brand>
         <span class="spacer"></span>

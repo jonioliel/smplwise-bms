@@ -193,6 +193,10 @@ class Reach:
             from .maintenance import access as maintenance_access
 
             return maintenance_access.can_see_task(self.conn, self.principal, sid)
+        if kind == "notice":  # NOTICEPUSH-295: the notice's audience, or a notice manager (the sent item in the deliveries screen)
+            from .notices import push as notice_push
+
+            return notice_push.can_see(self.conn, self.principal, sid)
         if kind == "generator":
             return self._allowed("generator.view")  # CR-031: the generator's alerts reach holders of generator.view only
         if kind == "elevator":  # CR-INFRA-ELEVATORS 2.8.0: devices.read on the sensor of THIS notification's own state (D3, review H1)

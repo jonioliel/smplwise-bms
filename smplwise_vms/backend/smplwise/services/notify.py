@@ -109,6 +109,7 @@ def _default_link(s: Signal) -> str:
         "system": "#/system/diagnostics", "session": "#/system/security",
         "ticket": f"#/tickets/{s.subject_id}" if s.subject_id else "#/tickets",  # CR-038: the ticket (one-tap "received" for its assignee)
         "rfq": f"#/tickets/rfqs?rfq={s.subject_id}" if s.subject_id else "#/tickets/rfqs",  # TKRFQ5: the request on the manager's board
+        "notice": "#/devices/notices",  # NOTICEPUSH-295: the notice board page
         "water": "#/infra/water/alerts",  # CR-WATER78 slice 2: the water alert log
     }.get(s.subject_kind, "#/system/notifications")
 
@@ -194,6 +195,10 @@ def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str
         from .maintenance import reminders as maintenance_reminders
 
         candidates = maintenance_reminders.recipient_users(conn, n)
+    elif rule == "notice":  # NOTICEPUSH-295: the notice's audience (services/notices/push.py); visibility below re-checks every user
+        from .notices import push as notice_push
+
+        candidates = notice_push.recipient_users(conn, n)
     elif rule == "scenario":  # XSCENARIO109-295: the people the scenario's notify action addressed for this row (detailed or generic audience)
         candidates = [u for u in ((n.get("origin") or {}).get("to") or []) if isinstance(u, str)][:200]
     elif rule == "rfq_managers":  # TKRFQ5: the RFQ manager rule (creator, internal owner, department managers - with tickets.external)

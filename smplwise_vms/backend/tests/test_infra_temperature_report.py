@@ -127,6 +127,7 @@ def test_html_is_rtl_with_a_signature_line_and_the_chart(app):
     m = c.get(f"{API}/report/preview?units={u1}&range=24h").json()
     page = rep.html_of(m)
     assert '<html lang="he" dir="rtl">' in page and "חתימת מנהל" in page and "<svg class=\"chart\"" in page and "sha256" in page
+    assert 'src="bill-brand:smplwise-word.png"' in page  # NOTICEPUSH-295: the approved SmplWise logo (bundled picture)
     assert "bill-asset:Heebo-he-400.ttf" in page and "http" not in page.replace("http://www.w3.org/2000/svg", "")  # bundled fonts only
     m["lang"] = "en"
     assert '<html lang="en" dir="ltr">' in rep.html_of(m) and "Manager signature" in rep.html_of(m)
@@ -145,7 +146,7 @@ def test_white_label_names_the_installer_in_the_page_head_only_while_on(app):
     on = c.get(f"{API}/report/preview?units={u1}&range=24h").json()
     assert on["installer"] == {"name": "מתקין <i>", "contact": "03-1234567"} and on["digest"] != m["digest"]
     page = rep.html_of(on)
-    assert 'SmplWise<div class="inst">מתקין &lt;i&gt; · 03-1234567</div>' in page and "<i>" not in page
+    assert 'alt="SmplWise"><div class="inst">מתקין &lt;i&gt; · 03-1234567</div>' in page and "<i>" not in page
 
 
 def test_pdf_route_with_a_fake_renderer_and_the_unavailable_engine(app):

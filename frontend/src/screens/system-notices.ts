@@ -217,7 +217,7 @@ export class SystemNotices extends LitElement {
   }
 
   private composeDialog() {
-    return html`<notice-compose .draft=${this.compose} .boards=${this.boards} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
+    return html`<notice-compose .draft=${this.compose} .canPush=${this.s?.can.push ?? false} .pushDefault=${this.s?.settings.push_default ?? 'by_severity'} .boards=${this.boards} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
       @notice-close=${() => (this.compose = null)} @notice-saved=${(e: CustomEvent<NoticeSavedDetail>) => this.composed(e)}></notice-compose>`;
   }
 
@@ -290,6 +290,12 @@ export class SystemNotices extends LitElement {
         <div class="fld"><label for="ns-ret">${nt('dRetention')}</label><select id="ns-ret" class="inp" data-v=${String(st.retention_days)}
           @change=${(e: Event) => this.patchSettings({ retention_days: Number((e.target as HTMLSelectElement).value) })}>
           ${retentionOptions(st.retention_days).map((o) => html`<option value=${String(o.value)}>${o.label}</option>`)}</select></div>
+      </div>
+      <div class="r">
+        <div class="fld"><label for="ns-push">${nt('dPush')}</label><select id="ns-push" class="inp" data-v=${st.push_default}
+          @change=${(e: Event) => this.patchSettings({ push_default: (e.target as HTMLSelectElement).value as 'by_severity' | 'always' | 'never' })}>
+          <option value="by_severity">${nt('dPushSev')}</option><option value="always">${nt('dPushAlways')}</option><option value="never">${nt('dPushNever')}</option></select>
+          <span class="hint">${nt('dPushHint')}</span></div>
       </div>
       <div class="r">
         <div class="fld"><label for="ns-wx">${nt('dWeather')}</label><select id="ns-wx" class="inp" data-v=${st.weather_entity} @change=${(e: Event) => this.patchSettings({ weather_entity: (e.target as HTMLSelectElement).value })}>

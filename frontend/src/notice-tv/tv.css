@@ -104,9 +104,8 @@ body.box #host { background: #000; }
 .lg.company svg { inline-size: 315px; }
 .lg.product { block-size: calc(40px * var(--lg, 1)); opacity: .92; }
 .lg.product svg { inline-size: 148px; }
-/* CR-LOGOS295: the SmplWise logo is a picture (its PNG carries clear space, so the box is taller than the visible wordmark) */
-.lg.product { inline-size: calc(190px * var(--lg, 1)); }
-.lg.product img { display: block; inline-size: 100%; block-size: auto; flex: none; } /* the box keeps the mock-up height (the layout does not move); the picture is a little taller and overflows its clear space evenly */
+/* NOTICEPUSH-295: the SmplWise logo is the approved mockup artwork, inline SVG (236 x 64 viewBox) at the approved mock-up's footprint: 148 x 40 (portrait 132 x 36) */
+.lg.product svg { inline-size: calc(148px * var(--lg, 1)); overflow: visible; }
 /* the company logo on a dark surface: a light plate (default), a dark plate for a dark-only file, or the administrator's invert; plain = as uploaded */
 .lg.company[data-tr="plate"], .lg.company[data-tr="darkplate"] { box-sizing: border-box; padding: 6px 16px; border-radius: 12px; background: #ffffff; }
 .lg.company[data-tr="darkplate"] { background: #0d1220; }
@@ -343,10 +342,9 @@ body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var
 #cv.portrait .lg.company { block-size: calc(64px * var(--lg, 1)); }
 #cv.portrait .lg.company svg { inline-size: 280px; }
 /* R2160B: the box keeps the approved mock-up's footprint (132 x 36): a wider box left the status chips of the portrait footer too little room, so the fit logic dropped the last one
-   (the parking chip). The picture is wider than its box (it carries clear space) and overflows it evenly. */
-#cv.portrait .lg.product { block-size: calc(36px * var(--lg, 1)); inline-size: calc(132px * var(--lg, 1)); justify-content: center; }
-#cv.portrait .lg.product img { inline-size: calc(170px * var(--lg, 1)); max-inline-size: none; }
-#cv.portrait .lg.product svg { inline-size: 132px; }
+   (the parking chip). The artwork has no clear space of its own now, so it fills the box exactly. */
+#cv.portrait .lg.product { block-size: calc(36px * var(--lg, 1)); justify-content: center; }
+#cv.portrait .lg.product svg { inline-size: calc(132px * var(--lg, 1)); }
 #cv.portrait .welcome b { font-size: calc(84px * var(--fs)); }
 #cv.portrait .clock .t { font-size: calc(248px * var(--fs)); }
 #cv.portrait .it h1 { font-size: calc(78px * var(--fs) * var(--k)); }

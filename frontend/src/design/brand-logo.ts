@@ -190,8 +190,6 @@ export function installerLogoUrl(variant: LogoVariant, fileName: string | null =
 }
 
 /** The SmplWise product logo (a bundle file; the owner's final artwork replaces these files - CR-LOGOS295 4.1). */
-export const productLogoUrl = (base: string = import.meta.env.BASE_URL): string => `${base}brand/smplwise-logo.png`;
-export const productMarkUrl = (base: string = import.meta.env.BASE_URL): string => `${base}brand/smplwise-mark.png`;
 
 const FSI = '⁨';
 const PDI = '⁩';

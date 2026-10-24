@@ -14,7 +14,7 @@
  * timers), `?now=<ISO>` (a fixed instant).
  */
 import './tv.css';
-import swLogo from '../../public/brand/smplwise-logo.png?inline'; // the SmplWise logo, inlined: the TV page is served at /b/<slug> and reaches no other file
+import { swWordSvg } from '../design/sw-logo-art'; // the SmplWise logo (approved mockup artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
   AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlan, heldIndex, logoLayoutOf, netOf, nightDim, onPoll,
@@ -119,7 +119,7 @@ function hebDate(): string {
 
 /** The two logos of a header / footer (CR-LOGOS295 section 3 P7). `dark` = this surface is dark (the night theme, the urgent take-over):
  * the administrator's dark-background choice decides which company file is drawn and on what (design/brand-choice.ts). The SmplWise logo
- * is the product's own artwork - teal, it reads on both. */
+ * is the approved mockup artwork (design/sw-logo-art.ts): the light file's wordmark on a light surface, the dark file's on a dark one. */
 function logos(dark: boolean): { co: string; sw: string } {
   const b = feed?.board.brand;
   const name = esc(b?.name || feed?.board.building || '');
@@ -127,7 +127,7 @@ function logos(dark: boolean): { co: string; sw: string } {
   const co = pick
     ? '<div class="lg company" data-tr="' + pick.treatment + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></div>'
     : '<div class="lg company"><svg viewBox="0 0 280 64" aria-hidden="true"></svg></div>';
-  return { co, sw: '<div class="lg product"><img alt="SmplWise" src="' + swLogo + '"></div>' };
+  return { co, sw: '<div class="lg product">' + swWordSvg(dark, 'SmplWise') + '</div>' };
 }
 
 // ---------------------------------------------------------------- pieces (the mock-up's, driven by the feed)

@@ -81,6 +81,7 @@ export interface Draft {
   dwell: string;
   when: string;
   status: 'new' | 'draft' | 'published' | 'archived';
+  push: boolean | null; // NOTICEPUSH-295: the push checkbox as the author set it; null = untouched (the suggested value shows)
 }
 
 /** A Date as the value of a datetime-local input (the browser's local time). */
@@ -96,7 +97,7 @@ export function fromLocalInput(v: string): string | null {
 
 export function newDraft(now: Date, days: number, severity: Severity): Draft {
   const end = new Date(now.getTime() + days * 86_400_000);
-  return { id: '', title: '', body: '', severity, pinned: false, from: toLocalInput(now), to: toLocalInput(end), untilArchived: false, aud: 'all', floors: [], groups: [], roles: [], boards: [], dwell: '', when: '', status: 'new' };
+  return { id: '', title: '', body: '', severity, pinned: false, from: toLocalInput(now), to: toLocalInput(end), untilArchived: false, aud: 'all', floors: [], groups: [], roles: [], boards: [], dwell: '', when: '', status: 'new', push: null };
 }
 
 /** NOTICEADD-295: a new notice written from a board's "הודעות" tab - tagged to that board and, as written there, for the TV boards only
@@ -111,8 +112,22 @@ export function draftOf(n: Notice): Draft {
   return {
     id: n.id, title: n.title, body: n.body, severity: n.severity, pinned: n.pinned, from: toLocalInput(new Date(n.starts_at)), to: n.ends_at ? toLocalInput(new Date(n.ends_at)) : '',
     untilArchived: !n.ends_at, aud, floors: a.floors ?? [], groups: a.groups ?? [], roles: a.roles ?? [], boards: n.boards.slice(), dwell: n.dwell_s ? String(n.dwell_s) : '',
-    when: n.when_text ?? '', status: n.status === 'published' ? 'published' : n.status === 'archived' ? 'archived' : 'draft',
+    when: n.when_text ?? '', status: n.status === 'published' ? 'published' : n.status === 'archived' ? 'archived' : 'draft', push: n.push_requested ? true : null,
   };
+}
+
+/** NOTICEPUSH-295: the value the push checkbox shows before the author touches it - the installation's default ("התראה בפרסום"); under
+ * "לפי חומרה" an urgent notice is ticked and an important one suggested (ticked), an ordinary one never. */
+export function suggestedPush(mode: 'by_severity' | 'always' | 'never', severity: Severity): boolean {
+  if (mode === 'always') return true;
+  if (mode === 'never') return false;
+  return severity !== 'info';
+}
+
+/** The checkbox value of a draft and whether it can be changed at all (TV-only = nobody to send to; a published notice never pushes again). */
+export function pushState(d: Draft, mode: 'by_severity' | 'always' | 'never', canPush: boolean): { checked: boolean; disabled: boolean } {
+  const checked = d.push ?? suggestedPush(mode, d.severity);
+  return { checked: d.aud === 'tv' ? false : checked, disabled: !canPush || d.aud === 'tv' };
 }
 
 export function audienceOf(d: Draft): Audience {
@@ -137,6 +152,7 @@ export function validate(d: Draft): NtKey | null {
   return null;
 }
 
+/** `push` is added by the dialog only when the writer holds notices.push and the notice can still push (see compose-dialog). */
 export function inputOf(d: Draft): NoticeInput {
   const end = d.untilArchived ? null : fromLocalInput(d.to);
   return {

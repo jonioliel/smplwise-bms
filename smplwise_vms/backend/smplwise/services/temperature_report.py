@@ -24,6 +24,7 @@ from zoneinfo import ZoneInfo
 
 from . import temperature as t
 from . import white_label
+from .bill_pdf_html import BRAND_URL
 from .timeutil import iso_utc
 
 MAX_UNITS = 30
@@ -355,7 +356,7 @@ def _css(lang: str) -> str:
 body {{ font-family: HeeboHe, HeeboLa, NotoCy, NotoAr; font-size: 9.5pt; color: #1d2433; }}
 .unit {{ page-break-after: always; }} .unit:last-child {{ page-break-after: auto; }}
 .hd {{ display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1.5pt solid #1d2433; padding-bottom: 4pt; margin-bottom: 8pt; }}
-.hd h1 {{ margin: 0; font-size: 15pt; }} .hd .brand {{ font-weight: 700; font-size: 11pt; }} .hd .brand .inst {{ font-weight: 400; font-size: 8pt; color: #5b6a85; text-align: end; }}
+.hd h1 {{ margin: 0; font-size: 15pt; }} .hd .brand {{ font-weight: 700; font-size: 11pt; }} .hd .brand img {{ display: block; height: 8mm; width: auto; margin-inline-start: auto; }} .hd .brand .inst {{ font-weight: 400; font-size: 8pt; color: #5b6a85; text-align: end; }}
 .sub {{ color: #5b6a85; font-size: 8.5pt; }}
 .stats {{ display: flex; gap: 5pt; margin: 6pt 0 10pt; }}
 .stats div {{ flex: 1; border: 0.6pt solid #d5dbe6; border-radius: 4pt; padding: 4pt 6pt; }}
@@ -408,7 +409,7 @@ def html_of(model: dict[str, Any]) -> str:
         haccp = model.get("layout") == "haccp"
         body = [f'<div class="hd"><div><h1>{E(L["haccp"] if haccp else L["title"])} · {E(u["name"])}</h1><div class="sub">{E(u["area"] or "")} · {E(L["sensor"])}: {E(u["sensor"] or "—")}'
                 f' · {E(L["door"])}: {E(u["door"] or L["none"])} · {E(L["band"])}: {band}</div><div class="sub">{E(L["range"])}: <span class="n">{E(rng)}</span></div></div>'
-                f'<div class="brand">SmplWise{inst}</div></div>', f'<div class="stats">{stats}</div>']
+                f'<div class="brand"><img src="{BRAND_URL}" alt="SmplWise">{inst}</div></div>', f'<div class="stats">{stats}</div>']
         if not u.get("has_data", True):
             body.append(f'<div class="nodata" data-nodata>{E(L["no_data_range"])} · <span class="n">{E(rng)}</span></div>')
         if haccp and u.get("daily") is not None:

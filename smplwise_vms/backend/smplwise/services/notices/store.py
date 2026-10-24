@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import logging
 import secrets
 import sqlite3
 from typing import Any
@@ -11,6 +12,8 @@ from typing import Any
 from ...db import get_setting, new_id, now_iso, set_setting
 from . import model
 from .model import Invalid
+
+log = logging.getLogger(__name__)
 
 
 def utcnow() -> dt.datetime:
@@ -79,10 +82,10 @@ def create_notice(conn: sqlite3.Connection, actor: str, data: dict[str, Any]) ->
     now = now_iso()
     conn.execute(
         """INSERT INTO notices(id, title, body, severity, status, starts_at, ends_at, pinned, dwell_s, when_text, audience_json,
-                               created_by, created_at, updated_by, updated_at)
-           VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                               created_by, created_at, updated_by, updated_at, push_requested)
+           VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (nid, data["title"], data["body"], data["severity"], data["starts_at"], data["ends_at"], 1 if data["pinned"] else 0,
-         data["dwell_s"], data["when_text"] or None, json.dumps(data["audience"], ensure_ascii=False), actor, now, actor, now))
+         data["dwell_s"], data["when_text"] or None, json.dumps(data["audience"], ensure_ascii=False), actor, now, actor, now, 1 if data.get("push_requested") else 0))
     if data.get("boards") is not None:
         set_notice_boards(conn, nid, data["boards"])
     return get_notice(conn, nid)  # type: ignore[return-value]
@@ -92,6 +95,8 @@ def update_notice(conn: sqlite3.Connection, notice_id: str, actor: str, data: di
     cols = {k: data[k] for k in ("title", "body", "severity", "starts_at", "ends_at", "dwell_s", "when_text") if k in data}
     if "pinned" in data:
         cols["pinned"] = 1 if data["pinned"] else 0
+    if "push_requested" in data:
+        cols["push_requested"] = 1 if data["push_requested"] else 0
     if "audience" in data:
         cols["audience_json"] = json.dumps(data["audience"], ensure_ascii=False)
     if "when_text" in cols:
@@ -273,6 +278,12 @@ def janitor(db: Any) -> None:
     _LAST_SWEEP[key] = time.time()
     with db.connection(label="notices.retention") as conn:
         retention_sweep(conn)
+        try:  # NOTICEPUSH-295: the notifications of notices that ended (archive resolves its own at once)
+            from . import push as notice_push
+
+            notice_push.resolve_ended(conn)
+        except Exception:  # noqa: BLE001 - the janitor never stops on a notification problem
+            log.warning("notice push resolve failed", exc_info=True)
 
 
 def retention_sweep(conn: sqlite3.Connection, now: dt.datetime | None = None) -> int:
