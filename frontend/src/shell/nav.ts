@@ -1531,8 +1531,7 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
   // with or without a backend
   const offered0 = items === TICKETS_VENDORS_PAGES && EXTERNAL_PLACEMENT === 'access' ? items.filter((t) => t.id !== 'external') : items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator' && t.id !== 'elevators' && t.id !== 'temperature' && t.id !== 'water') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
   // CR-MAINT215: the maintenance section only with a backend and while that module is on (the static demo has no maintenance data)
-  // CR-NOTICE106 (R2160B): the notice board is OFF by default, the static demo too - without a backend its tab (DEVICES_TABS) is never drawn
-  const offered = items === TICKETS_MAINTENANCE_PAGES && (!api || !MAINTENANCE_ON) ? [] : items === DEVICES_TABS && !api ? offered0.filter((t) => t.href !== NOTICES_HREF) : offered0;
+  const offered = items === TICKETS_MAINTENANCE_PAGES && (!api || !MAINTENANCE_ON) ? [] : offered0;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
   if (!api) return offered;

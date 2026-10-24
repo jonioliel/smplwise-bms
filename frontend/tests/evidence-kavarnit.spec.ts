@@ -33,7 +33,7 @@ async function openDemo(page: Page, hash: string) {
 test.describe('קברניט (demo mode)', () => {
   test('the home tabs are מבט על | קברניט and the tab opens on the schedules, the first segment', async ({ page }) => {
     await openDemo(page, '/devices/building');
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']);
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט', 'לוח הודעות']); // CR-NOTICE106: the static demo lists every tab, the notice board too (unit-schedules-nav)
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect.poll(() => hashOf(page)).toBe('#/devices/schedules');
     await expect(page.locator('sw-app devices-schedules')).toHaveCount(1);
