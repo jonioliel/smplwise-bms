@@ -458,6 +458,12 @@ class FakeProvider:
         self.unavailable: dict[str, str] = {}
         self.raw_override: dict[str, Any] | None = None
         self.described = 0
+        # WKAUDIN-295: the synthetic downlink of `listen_open`
+        self.listen_log: list[tuple[str, str, str | None]] = []
+        self.listen_packets: list[bytes] = []
+        self.listen_gap_s = 0.0
+        self.listen_end: str | None = "upstream_closed"
+        self.listen_fail_open = False
 
     def raw(self, station_id: str, now: float) -> dict[str, Any]:
         if self.raw_override is not None:
@@ -496,6 +502,14 @@ class FakeProvider:
                   expires_at: float | None = None) -> TalkChannel:
         self.talk_log.actors.append((station_id, actor_id, request_id))
         return FakeTalkChannel(self.talk_log, fail_open=self.fail_open, drop_after_frames=self.drop_after_frames)
+
+    def listen_open(self, settings: Settings, station_id: str, descriptor: Descriptor, *, actor_id: str, actor_name: str, request_id: str | None,
+                    expires_at: float | None = None) -> Any:
+        """WKAUDIN-295: a synthetic downlink (tests only): `listen_packets` are played like AudioSession.receive() hands them over."""
+        from .wiskey_listen_adapter import SyntheticDownlink
+
+        self.listen_log.append((station_id, actor_id, request_id))
+        return SyntheticDownlink(list(self.listen_packets), gap_s=self.listen_gap_s, end_reason=self.listen_end, fail_open=self.listen_fail_open)
 
 
 # ---------------------------------------------------------------- WisKey's W10: shared pieces (AVW10-295)
@@ -806,6 +820,14 @@ class WiskeyBridgeProvider:
             raise ApiError(409, "intercom_talk_unsupported", "דיבור עם העמדה זמין בלוח הקלאסי בלבד.")
         until = expires_at if expires_at is not None else time.time() + min(descriptor.max_talk_seconds, TALK_MAX_DEFAULT_S)
         return WiskeyBridgeTalkChannel(self, settings, descriptor, w10.Actor(actor_id, actor_name), request_id, until)
+
+    def listen_open(self, settings: Settings, station_id: str, descriptor: Descriptor, *, actor_id: str, actor_name: str, request_id: str | None,
+                    expires_at: float | None = None) -> Any:
+        """WKAUDIN-295: listening to the station. PENDING WisKey's downlink contract (services/wiskey_listen_adapter.py): the channel it returns
+        refuses to open (`downlink_pending`), so a real station is never listened to through a guess."""
+        from .wiskey_listen_adapter import WiskeyDownlinkChannel
+
+        return WiskeyDownlinkChannel(self, settings, descriptor)
 
 
 class _CachedKey:
