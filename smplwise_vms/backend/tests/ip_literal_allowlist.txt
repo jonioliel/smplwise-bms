@@ -27,3 +27,5 @@ frontend/tests/fixtures/media_fake_ha.py                      # fake music serve
 smplwise_vms/backend/tests/test_ha_camera_live.py             # DNS-rebind guard: a name resolving to the well-known link-local metadata address must be refused
 smplwise_vms/backend/tests/test_bridge_lease_event.py     # a private session address must be refused by the lease answer check
 smplwise_vms/backend/tests/test_soak_guard_io.py              # an OSError text that carries a LAN address must be redacted
+smplwise_vms/backend/tests/test_partner_api_113.py            # PARTNERAPI113: the webhook SSRF guard is proven against real private / link-local / CGNAT literals (the guard under test refuses them)
+docs/changes/CR-PARTNERAPI113.md                              # PARTNERAPI113: the design lists the refused address ranges, including the well-known link-local metadata address

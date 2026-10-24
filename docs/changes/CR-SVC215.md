@@ -413,6 +413,7 @@ S1 and S2 are independent of each other; S3 needs both; S4 needs S1. S5 is optio
 9. The vendor message on a miss ("לא נרשמה הגעה..."), through the link channel inside the send hours:
    a. yes (recommended)  b. notify the managers only, no message to the vendor
 10. Switch defaults: `tickets.vendor_stats` on, `tickets.visits.enabled` off, `tickets.budgets.enabled` off.
+    OWNER DECISION 400 (2.16.0, supersedes answer 36 for visits and the arrival button): `tickets.visits.enabled` and `tickets.visits.public_arrival` (the vendor "I arrived" button) default OFF; an installation that saved its own `visits` settings keeps them. `vendor_stats` and `budgets` keep their defaults as built (both ON, owner answer 36).
     a. as proposed (recommended)  b. all three off  c. all three on
 11. The reports page "דוחות" inside the section סקירה ודוחות (section 6a; the earlier "דוחות ובקרות" hub tab is superseded by the
     four-section layout): reports, the vendor PDF and the full budget table live there; the budget summary stays on סקירה.

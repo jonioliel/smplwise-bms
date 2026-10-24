@@ -469,6 +469,8 @@ def _validate_wifi_sites(conn: sqlite3.Connection | None, v: Any, site_ids: set[
         if not isinstance(salt, str) or not 8 <= len(salt) <= 64:
             raise PresenceError(422, "validation", "ערך ההמלחה אינו תקין.", details={"field": "wifi_sites.ssid_hash_salt"})
         hashes = w.get("ssid_hashes", [])
+        if isinstance(hashes, list):  # 2.16.0 integration: hashes compare case-insensitively (the 2.15.0 behaviour); stored lowercase
+            hashes = [h.strip().lower() if isinstance(h, str) else h for h in hashes]
         add = w.get("add_ssids", [])
         if not isinstance(hashes, list) or any(not isinstance(h, str) or not _HEX64_RE.match(h) for h in hashes):
             raise PresenceError(422, "validation", "רשימת הרשתות אינה תקינה.", details={"field": "wifi_sites.ssid_hashes"})

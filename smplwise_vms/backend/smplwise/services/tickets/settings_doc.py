@@ -537,12 +537,14 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     #   eta_window_min / rfq_window_min  the length of a visit made from an ETA / an RFQ date without an end
     #   notify_vendor_on_miss  also message the vendor on a miss (answer 35: managers only by default, the message one switch away)
     #   backfill_days          older planned visits move to missed silently (no mass notification on an upgrade)
-    ("visits", "enabled"): (True, boolean),
+    # OWNER DECISION 400 (2.16.0): vendor visits and the vendor's "I arrived" button ship OFF; an installation that has never saved the
+    # `visits` block follows this default, one that saved it keeps its value
+    ("visits", "enabled"): (False, boolean),
     ("visits", "grace_min"): (60, int_range(0, 240)),
     ("visits", "claim_counts"): (True, boolean),
-    # the public "הגעתי" route on the vendor's page (`POST /t/api/arrived`): its own kill switch inside `visits` - the public-surface review of
-    # CR-SVC215 slice 4 is due before a release ships it on
-    ("visits", "public_arrival"): (True, boolean),
+    # the public "הגעתי" route on the vendor's page (`POST /t/api/arrived`): its own switch inside `visits`, OFF by default (owner decision
+    # 400; the public-surface review of CR-SVC215 slice 4 is due before it is switched on). Needs `visits.enabled` too
+    ("visits", "public_arrival"): (False, boolean),
     ("visits", "staff_can_undo_claim"): (True, boolean),
     ("visits", "early_min"): (60, int_range(0, 720)),
     ("visits", "eta_window_min"): (60, int_range(15, 720)),

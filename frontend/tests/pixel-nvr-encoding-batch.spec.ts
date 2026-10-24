@@ -5,8 +5,11 @@ import { settlePage } from './pixel-settle';
 import { batchCameras, installBatch, newBatchMock } from './nvr-batch-mock';
 import { SKIN_IDS } from '../src/design/skins';
 
-// CR-020 phase D pixel baselines: the bulk encoding change's two new screens - the target settings form and the preview - in the four skins
-// (classic, domus, tesla, bubble), desktop 1440 and phone 390, against the mocked backend (deterministic data, fixed clock, performance:full).
+// CR-020 phase D pixel baselines: the bulk encoding change's two dialog phases - the target settings form and the preview - in the skins
+// (SKIN_IDS), desktop 1440 and phone 390, against the mocked backend (deterministic data, fixed clock, performance:full).
+// OWNER DECISION 403 (2.16.0): the shot covers the DIALOG ONLY (`sw-dialog[data-nvr-enc]`), not the whole page - the page behind it (the cameras list,
+// the rail, the clock) is covered by other specs and kept this check red in three gates. The baselines are named `enc-<skin>-dialog-<phase>-<width>`;
+// until the runner generates them (NEEDS RUNNER PIXEL RUN, `--update-snapshots`) the missing-baseline rule below skips the compare.
 // Baselines are per OS (fonts and text shaping differ): the Linux ones are generated on the runner with `--update-snapshots`; on an OS without a
 // baseline the check is skipped instead of failing on a missing file (the design-foundation rule).
 //   ~/run_remote.sh spec <branch> tests/pixel-nvr-encoding-batch.spec.ts --project=desktop --project=mobile [--update-snapshots]
@@ -50,15 +53,15 @@ test.describe('pixel: the bulk encoding change', () => {
       bm.encSkip['cam-3:301'] = 'codec_not_offered';
       await installBatch(page, st, bm);
       await toSettings(page, skin);
-      const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      const settingsName = `enc-${skin}-dialog-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
-      else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+      else await expect(page.locator(DLG)).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
       await settlePage(page);
-      const previewName = `enc-${skin}-preview-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      const previewName = `enc-${skin}-dialog-preview-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
       if (noBaseline(info, previewName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${previewName}: no baseline on ${process.platform}` });
-      else await expect(page).toHaveScreenshot(previewName, { maxDiffPixels: 40, animations: 'disabled' });
+      else await expect(page.locator(DLG)).toHaveScreenshot(previewName, { maxDiffPixels: 40, animations: 'disabled' });
     });
   }
 });

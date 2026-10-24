@@ -496,6 +496,9 @@ def test_remote_config_is_public_on_the_remote_channel_only(arx):
 # every route of the app, reached on the remote channel without a session, is refused (CR-008 §3e.2)
 # config; an idempotent sign-out; the CSP report sink (CR-008 P2: counters only, rate-limited, bounded)
 PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("GET", "/api/v1/auth/app-download"), ("GET", "/api/v1/auth/app-download/file"), ("DELETE", "/api/v1/auth/session"), ("POST", "/api/v1/csp-report"),
+                    # LOGOS295B / WHITELABEL097 (2.16.0): the sign-in card shows the company name and logo before a session exists, so the brand
+                    # public read and the stamped (immutable, no private data) logo images are public by design (tests/test_brand_logos_295.py, test_white_label_097.py)
+                    ("GET", "/api/v1/brand/public"), ("GET", "/api/v1/brand/company-logo/{variant}/{filename}"), ("GET", "/api/v1/brand/white-label/logo/{variant}/{filename}"),
                     # USR2: the Arx-only sign-in, its second step and the first-login / reset link page are public by nature (403 while
                     # security.local_identity is off; tests/test_local_identity.py covers their guards)
                     ("POST", "/api/v1/auth/local/sign-in"), ("POST", "/api/v1/auth/local/sign-in/second-factor"), ("POST", "/api/v1/auth/local/set-password"),

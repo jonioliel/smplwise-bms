@@ -22,6 +22,8 @@ export class SystemNav extends LitElement {
   @state() private route: RouteState | null = null;
   @state() private q = '';
   @state() private cursor = -1;
+  /** Owner decision 402 (2.16.0): one group open at a time so the column fits the screen. null = the group of the page the user is on; '' = all closed. */
+  @state() private opened: string | null = null;
   private offRoute: (() => void) | null = null;
   private offSession: (() => void) | null = null;
 
@@ -122,8 +124,8 @@ export class SystemNav extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
-      margin: 0 0 4px;
-      padding-inline: 10px;
+      margin: 0;
+      padding: 0;
       font-size: var(--sw-fs-2xs);
       font-weight: var(--sw-fw-semibold);
       letter-spacing: 0.06em;
@@ -133,6 +135,41 @@ export class SystemNav extends LitElement {
     }
     .grp > b sw-icon {
       color: var(--sw-text-2);
+    }
+    /* the group label is the button that opens / closes its entries (the whole column has to fit the screen without a scroll) */
+    .grp > b .gh {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-block-size: 28px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: var(--sw-r-sm);
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      letter-spacing: inherit;
+      text-transform: inherit;
+      text-align: start;
+      cursor: pointer;
+    }
+    .grp > b .gh:hover {
+      background: var(--sw-hover-wash);
+    }
+    .grp > b .gh:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: -2px;
+    }
+    .grp > b .gh .chev {
+      margin-inline-start: auto;
+      transition: transform var(--sw-t-fast) var(--sw-ease);
+    }
+    .grp > b .gh[aria-expanded='true'] .chev {
+      transform: rotate(180deg);
+    }
+    .grp[data-open='true'] > b {
+      margin-block-end: 2px;
     }
     a {
       display: flex;
@@ -209,6 +246,50 @@ export class SystemNav extends LitElement {
     :host([compact]) nav {
       display: none;
     }
+    /* Owner decision 402: on a short desktop screen the open group is drawn denser so the whole column fits without a scroll (the ‘system’
+       group is the longest, 17 entries); the overflow:auto on :host stays only as the last resort below about 700 px of height */
+    @media (min-width: 1101px) and (max-height: 960px) {
+      :host {
+        gap: var(--sw-s-2);
+        padding-block: 10px 10px;
+      }
+      nav {
+        gap: var(--sw-s-2);
+      }
+      a {
+        min-block-size: 28px;
+        padding-block: 2px;
+      }
+      a.sub {
+        min-block-size: 26px;
+      }
+      .grp > b .gh {
+        min-block-size: 26px;
+      }
+    }
+    @media (min-width: 1101px) and (max-height: 800px) {
+      :host {
+        gap: 6px;
+        padding-block: 6px 6px;
+      }
+      nav {
+        gap: 4px;
+      }
+      a {
+        min-block-size: 24px;
+        padding-block: 0;
+        font-size: var(--sw-fs-xs);
+      }
+      a.sub {
+        min-block-size: 22px;
+      }
+      .grp > b .gh {
+        min-block-size: 24px;
+      }
+      .search input {
+        min-block-size: 32px;
+      }
+    }
     /* a tablet gets the search row too (the shell stacks the column above the page up to 1100 px, the reference tablet width included) */
     @media (max-width: 1100px) {
       :host {
@@ -251,7 +332,10 @@ export class SystemNav extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.refresh();
-    this.offRoute = onRouteChange((r) => (this.route = r));
+    this.offRoute = onRouteChange((r) => {
+      this.route = r;
+      this.opened = null; // a new page: the column follows it
+    });
     this.offSession = onSession(() => this.refresh());
   }
 
@@ -312,7 +396,22 @@ export class SystemNav extends LitElement {
         ? res.length
           ? html`<div class="results" role="list" aria-label="תוצאות" data-settings-results>${res.map(({ group, entry }, i) => this.link(entry, active, i === this.cursor, this.where(group, entry)))}</div>`
           : html`<div class="none" data-settings-no-results>לא נמצא דבר ב"${this.q}"</div>`
-        : html`<nav aria-label="הגדרות" data-settings-nav>${this.groups.map((g) => html`<div class="grp" data-settings-group=${g.id}><b><sw-icon name=${g.icon} size=${13}></sw-icon>${g.label}</b>${this.tree(g, active).map((e) => this.link(e, active))}</div>`)}</nav>`}`;
+        : html`<nav aria-label="הגדרות" data-settings-nav>${this.groups.map((g) => {
+            const open = this.isOpen(g, active);
+            return html`<div class="grp" data-settings-group=${g.id} data-open=${open ? 'true' : 'false'}><b><button type="button" class="gh" aria-expanded=${open ? 'true' : 'false'} data-settings-group-toggle=${g.id} @click=${() => this.toggle(g, active)}><sw-icon name=${g.icon} size=${13}></sw-icon>${g.label}<sw-icon class="chev" name="chevronDown" size=${12}></sw-icon></button></b>${open ? this.tree(g, active).map((e) => this.link(e, active)) : nothing}</div>`;
+          })}</nav>`}`;
+  }
+
+  private groupOf(active: SettingsEntry | null): SettingsGroup | undefined {
+    return active ? this.groups.find((g) => g.entries.includes(active)) : undefined;
+  }
+
+  private isOpen(group: SettingsGroup, active: SettingsEntry | null): boolean {
+    return this.opened === null ? this.groupOf(active)?.id === group.id : this.opened === group.id;
+  }
+
+  private toggle(group: SettingsGroup, active: SettingsEntry | null) {
+    this.opened = this.isOpen(group, active) ? '' : group.id;
   }
 
   /** A group's entries with the sub-pages folded away except under the screen the user is on (the column stays one glance long). */

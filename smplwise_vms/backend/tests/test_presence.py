@@ -452,7 +452,7 @@ def test_wifi_phone_mode_trusts_the_boolean_and_still_understands_old_apps_that_
     app, c, _ = world
     _, body = register(c, "dana")
     did, tok = body["device_id"], bearer(body["device_token"])
-    salt = "s4lt"
+    salt = "s4lt-salt-8"  # 8..64 characters (WHOIN034)
     good = svc.ssid_hash(salt, "OfficeNet")
     enable(c, sites=[{"id": "site_main", "name": "x", "lat": 32.0, "lon": 34.8, "radius_m": 150}],
            wifi_sites=[{"site_id": "site_main", "ssid_hash_salt": salt, "ssid_hashes": [good.upper()]}])
@@ -479,9 +479,11 @@ def test_wifi_server_mode_matches_the_hash_itself_and_ignores_a_phone_claim(worl
     app, c, _ = world
     _, body = register(c, "dana")
     did, tok = body["device_id"], bearer(body["device_token"])
-    salt = "s4lt"
+    salt = "s4lt-salt-8"  # 8..64 characters (WHOIN034)
     good = svc.ssid_hash(salt, "OfficeNet")
-    enable(c, wifi_sites=[{"site_id": "site_main", "ssid_hash_salt": salt, "ssid_hashes": [good]}], wifi_match_mode="server")
+    # 2.16.0 (WHOIN034): a Wi-Fi site must belong to a configured geofence, so the geofence is part of the save
+    enable(c, sites=[{"id": "site_main", "name": "x", "lat": 32.0, "lon": 34.8, "radius_m": 150}],
+           wifi_sites=[{"site_id": "site_main", "ssid_hash_salt": salt, "ssid_hashes": [good]}], wifi_match_mode="server")
     c.post(f"{API}/presence/devices/{did}/ack", json={"notice_version": 2}, headers=tok)
     events = [_net("n1", "2026-10-05T10:00:00Z", ssid_hash=good), _net("n2", "2026-10-05T10:01:00Z", ssid_hash="deadbeef"),
               _net("n3", "2026-10-05T10:02:00Z", wifi_match=True, wifi_site_id="site_main")]  # a claim without a hash: not trusted

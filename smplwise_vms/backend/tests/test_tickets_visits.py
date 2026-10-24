@@ -18,10 +18,18 @@ UTC = dt.timezone.utc
 
 
 @pytest.fixture()
-def s4(settings, monkeypatch):
+def s4_defaults(settings, monkeypatch):
+    """The world exactly as installed: no `visits` setting saved (owner decision 400: the feature and the arrival button are OFF)."""
     w = build_s4(settings, monkeypatch)
     visits._LAST.clear()
     return w
+
+
+@pytest.fixture()
+def s4(s4_defaults):
+    """The same world with the feature switched on by the administrator (the behaviour tests below need it)."""
+    settings_put(s4_defaults, visits={"enabled": True, "public_arrival": True})
+    return s4_defaults
 
 
 def hdr(token: str) -> dict[str, str]:
@@ -65,13 +73,34 @@ def events(s4, tid, kind: str) -> list[dict]:
 
 # ---------------------------------------------------------------- switches and the module
 
-def test_the_three_switches_default_on_and_the_module_answers_them(s4):
+def test_visits_and_the_arrival_button_default_off_and_stats_and_budgets_stay_on(s4_defaults):
+    """Owner decision 400 (2.16.0): vendor visits and the vendor's "I arrived" ship OFF; vendor stats and budgets keep their answer-36 default."""
+    s4 = s4_defaults
     f = s4.c.get(f"{API}/tickets/module").json()["features"]
-    assert f == {"vendor_stats": True, "visits": True, "budgets": True}, "owner answer 36: all three ON by default"
+    assert f == {"vendor_stats": True, "visits": False, "budgets": True}
     doc = s4.c.get(f"{API}/tickets/settings").json()
+    assert doc["visits"]["enabled"] is False and doc["visits"]["public_arrival"] is False, "decision 400: both OFF"
     assert doc["visits"]["grace_min"] == 60, "owner answer 32: 60 minutes"
     assert doc["visits"]["notify_vendor_on_miss"] is False, "owner answer 35: managers only by default"
     assert doc["visits"]["claim_counts"] is True and doc["visits"]["staff_can_undo_claim"] is True, "owner answer 31"
+    t, token = s4.sent()
+    r = s4.c.get(f"{API}/tickets/{t['id']}/visits")
+    assert r.status_code == 404 and r.json()["code"] == "feature_disabled", "OFF = no visit routes"
+    client, _ = s4.public(Clock(time.time()))
+    assert "visit" not in client.get("/t/api/ticket", headers=hdr(token)).json()
+    r = client.post("/t/api/arrived", headers=hdr(token), json={"client_request_id": crid()})
+    assert r.status_code == 404 and r.content == UNIFORM_404, "OFF = the uniform 404 for the arrival button"
+
+
+def test_the_arrival_button_needs_its_own_switch_even_with_visits_on(s4_defaults):
+    s4 = s4_defaults
+    settings_put(s4, visits={"enabled": True})
+    t, token = s4.sent()
+    assert plan(s4, t["id"], now() - dt.timedelta(minutes=10), now() + dt.timedelta(hours=1)).status_code == 200
+    client, _ = s4.public(Clock(time.time()))
+    assert client.get("/t/api/ticket", headers=hdr(token)).json()["visit"]["can_arrive"] is False
+    r = client.post("/t/api/arrived", headers=hdr(token), json={"client_request_id": crid()})
+    assert r.status_code == 404 and r.content == UNIFORM_404
 
 
 def test_switch_off_every_visit_route_is_feature_disabled_and_the_page_has_no_visit(s4):

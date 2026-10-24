@@ -29,7 +29,7 @@ answer 32: 60 minutes); a department may switch the detector off (`visit_detect`
 (VENDOR_MISS_MESSAGE, services/tickets/messaging.py). The detector never changes the ticket's status, never closes, never escalates
 beyond the managers, never touches a grant. The clock is injectable (`utcnow`, and `now=` on every function).
 
-Everything here is behind the module switch AND `visits.enabled` (owner answer 36: default ON): off, the routes answer 404
+Everything here is behind the module switch AND `visits.enabled` (owner decision 400, 2.16.0: default OFF; it was ON in 2.15.0 by answer 36): off, the routes answer 404
 `feature_disabled`, the public page carries no `visit` and `/t/api/arrived` is the uniform 404, the hooks do nothing and the detector
 idles. All SQL lives in store_visits.py."""
 from __future__ import annotations
