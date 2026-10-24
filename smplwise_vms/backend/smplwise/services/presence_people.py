@@ -97,7 +97,17 @@ def match_beacon(value: dict[str, Any], beacons: list[dict[str, Any]]) -> dict[s
 def match_wifi(value: dict[str, Any], wifi_sites: list[dict[str, Any]]) -> dict[str, Any] | None:
     h = value.get("ssid_hash")
     if not isinstance(h, str) or not h:
-        return None
+        # PRESENCE307 (phone mode, the default): the server already derived the match when the event arrived and did NOT keep the hash,
+        # only `wifi_match` / `wifi_site_id` (a configured site). The floor is then known only when every Wi-Fi network of that site
+        # names the same floor; otherwise the person is placed on the site only.
+        site = value.get("wifi_site_id")
+        if value.get("wifi_match") is not True or not isinstance(site, str) or not site:
+            return None
+        of_site = [w for w in wifi_sites if w.get("site_id") == site]
+        floors = {w.get("floor_id") for w in of_site}
+        if len(floors) == 1 and None not in floors:
+            return of_site[0]
+        return {"site_id": site, "floor_id": None}
     h = h.lower()
     return next((w for w in wifi_sites if h in (w.get("ssid_hashes") or [])), None)
 
