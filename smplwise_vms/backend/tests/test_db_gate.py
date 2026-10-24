@@ -609,6 +609,8 @@ def test_no_manual_transaction_control_outside_db_py():
     for path in sorted(root.rglob("*.py")):
         if path.name == "db.py" and path.parent == root:
             continue
+        if path.name == "wiskey_write_lineage.py" and path.parent.name == "services":
+            continue  # owns its own SQLite file (the write-lineage intents), never the add-on database or its write gate
         for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if pattern.search(line) and "ROLLBACK TO" not in line.upper():
                 offenders.append(f"{path.relative_to(root)}:{n}: {line.strip()}")

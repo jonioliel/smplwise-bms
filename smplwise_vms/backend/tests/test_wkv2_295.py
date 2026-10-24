@@ -39,7 +39,8 @@ def v1(**over: Any) -> dict[str, Any]:
     return raw
 
 
-ALL_FIXTURES = sorted(p.stem for p in FIX.glob("*.json"))
+# a_current_b_pending.json is the WKB3 (Q03) shared case: a delivery wrapper with expected verdicts, covered by test_wkb3_295.py
+ALL_FIXTURES = sorted(p.stem for p in FIX.glob("*.json") if p.stem != "a_current_b_pending")
 
 
 # ================================================================ every delivery-derived fixture parses, closed and consistent

@@ -233,7 +233,7 @@ def test_the_v11_descriptor_is_read_as_one_main_profile_with_unknowns_and_talk_b
     # v1 still parses as before, and a v1.1 descriptor with an address is still refused
     assert im.parse_descriptor(load("station_descriptor.json") | {"issued_at": im.iso(time.time()), "expires_at": im.iso(time.time() + 300)}, station_id="entry-a", provider="x").profiles
     with pytest.raises(im.DescriptorError):
-        im.parse_descriptor(descriptor_v11(video={"profiles": [{"id": "main", "transports": ["private_rtsp_source"], "note": "rtsp://10.0.0.1/x"}]}), station_id="entry-a", provider="wiskey")
+        im.parse_descriptor(descriptor_v11(video={"profiles": [{"id": "main", "transports": ["private_rtsp_source"], "note": "rtsp://192.0.2.1/x"}]}), station_id="entry-a", provider="wiskey")
 
 
 def test_the_envelope_is_exactly_id_type_bridge_and_the_signature_matches_the_written_recipe():
