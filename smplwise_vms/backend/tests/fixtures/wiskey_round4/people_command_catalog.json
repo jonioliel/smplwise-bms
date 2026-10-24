@@ -1,0 +1,542 @@
+{
+ "commands": {
+  "cards/add": {
+   "outer_type_const": "hikvision_intercom/cards/add",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "actor": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+     },
+     "api_contract": {
+      "type": "integer"
+     },
+     "data": {
+      "type": "object"
+     },
+     "peer_write": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/NativePeerWriteMetadata"
+     },
+     "revision": {
+      "type": "integer"
+     },
+     "user_id": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "data",
+     "revision",
+     "user_id"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge_legacy_business",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "cards/remove": {
+   "outer_type_const": "hikvision_intercom/cards/remove",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "actor": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+     },
+     "api_contract": {
+      "type": "integer"
+     },
+     "card_id": {
+      "type": "string"
+     },
+     "peer_write": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/NativePeerWriteMetadata"
+     },
+     "revision": {
+      "type": "integer"
+     },
+     "user_id": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "card_id",
+     "revision",
+     "user_id"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge_legacy_business",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "peer_bindings/get": {
+   "outer_type_const": "hikvision_intercom/peer_bindings/get",
+   "parameters_schema": {
+    "oneOf": [
+     {
+      "additionalProperties": false,
+      "properties": {
+       "expected_revision": {
+        "const": 0,
+        "type": "integer"
+       },
+       "initialize": {
+        "const": true
+       }
+      },
+      "required": [
+       "expected_revision",
+       "initialize"
+      ],
+      "type": "object"
+     },
+     {
+      "additionalProperties": false,
+      "properties": {
+       "peer_binding_ref": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+       },
+       "peer_binding_revision": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "peer_binding_ref",
+       "peer_binding_revision"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "transport_mode": "original_peer_read_transport",
+   "wire_schema": "original wiskey-peer-query.v1 signed read envelope"
+  },
+  "peer_receipts/resolve": {
+   "outer_type_const": "hikvision_intercom/peer_receipts/resolve",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "original": {
+      "additionalProperties": false,
+      "properties": {
+       "descriptor_epoch": {
+        "type": "string"
+       },
+       "original": {
+        "type": "object"
+       },
+       "peer_binding_ref": {
+        "type": "string"
+       },
+       "peer_binding_revision": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+       },
+       "query_owner_id": {
+        "type": "string"
+       },
+       "repository_id": {
+        "type": "string"
+       },
+       "verified_peer_ref": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "descriptor_epoch",
+       "original",
+       "peer_binding_ref",
+       "peer_binding_revision",
+       "query_owner_id",
+       "repository_id",
+       "verified_peer_ref"
+      ],
+      "type": "object"
+     },
+     "peer_binding_ref": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+     },
+     "peer_binding_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "type": "integer"
+     }
+    },
+    "required": [
+     "original",
+     "peer_binding_ref",
+     "peer_binding_revision"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "original_peer_read_transport",
+   "wire_schema": "original wiskey-peer-query.v1 signed read envelope"
+  },
+  "peer_writes/source_v1": {
+   "outer_type_const": "hikvision_intercom/peer_writes/source_v1",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {},
+    "required": [],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge_original_write_source",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "users/archive": {
+   "outer_type_const": "hikvision_intercom/users/archive",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "actor": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+     },
+     "api_contract": {
+      "type": "integer"
+     },
+     "confirmed": {
+      "type": "boolean"
+     },
+     "peer_write": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/NativePeerWriteMetadata"
+     },
+     "revision": {
+      "type": "integer"
+     },
+     "user_id": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "confirmed",
+     "revision",
+     "user_id"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge_legacy_business",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "users/bulk_receipt": {
+   "outer_type_const": "hikvision_intercom/users/bulk_receipt",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "actor": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+     },
+     "api_contract": {
+      "type": "integer"
+     },
+     "operation_id": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "operation_id"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge_legacy_business",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "users/create": {
+   "outer_type_const": "hikvision_intercom/users/create",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "actor": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+     },
+     "api_contract": {
+      "type": "integer"
+     },
+     "data": {
+      "type": "object"
+     },
+     "peer_write": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/NativePeerWriteMetadata"
+     },
+     "sync_now": {
+      "default": true,
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "data"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge_legacy_business",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "users/delete": {
+   "outer_type_const": "hikvision_intercom/users/delete",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "actor": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+     },
+     "api_contract": {
+      "type": "integer"
+     },
+     "peer_write": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/NativePeerWriteMetadata"
+     },
+     "revision": {
+      "type": "integer"
+     },
+     "user_id": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "revision",
+     "user_id"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge_legacy_business",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "users/name_ref_apply_v1": {
+   "outer_type_const": "hikvision_intercom/users/name_ref_apply_v1",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "expected_person_revision": {
+      "maximum": 9007199254740990,
+      "minimum": 1,
+      "type": "integer"
+     },
+     "name_ref": {
+      "pattern": "^[A-Za-z0-9_-]{16,128}$",
+      "type": "string"
+     },
+     "operation_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+     },
+     "person_ref": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+     },
+     "request_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+     }
+    },
+    "required": [
+     "person_ref",
+     "expected_person_revision",
+     "request_id",
+     "operation_id",
+     "name_ref"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "users/name_ref_prepare_v1": {
+   "outer_type_const": "hikvision_intercom/users/name_ref_prepare_v1",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "display_name": {
+      "maxLength": 32,
+      "minLength": 1,
+      "type": "string"
+     },
+     "expected_person_revision": {
+      "maximum": 9007199254740990,
+      "minimum": 1,
+      "type": "integer"
+     },
+     "operation_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+     },
+     "person_ref": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+     },
+     "request_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+     }
+    },
+    "required": [
+     "person_ref",
+     "expected_person_revision",
+     "request_id",
+     "operation_id",
+     "display_name"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "users/set_active": {
+   "outer_type_const": "hikvision_intercom/users/set_active",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "active": {
+      "type": "boolean"
+     },
+     "actor": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+     },
+     "api_contract": {
+      "type": "integer"
+     },
+     "peer_write": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/NativePeerWriteMetadata"
+     },
+     "revision": {
+      "type": "integer"
+     },
+     "user_id": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "active",
+     "revision",
+     "user_id"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge_legacy_business",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "users/temporary_cancel": {
+   "outer_type_const": "hikvision_intercom/users/temporary_cancel",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "actor": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+     },
+     "api_contract": {
+      "type": "integer"
+     },
+     "peer_write": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/NativePeerWriteMetadata"
+     },
+     "reason_code": {
+      "type": "string"
+     },
+     "revision": {
+      "type": "integer"
+     },
+     "user_id": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "reason_code",
+     "revision",
+     "user_id"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge_legacy_business",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "users/unarchive": {
+   "outer_type_const": "hikvision_intercom/users/unarchive",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "actor": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+     },
+     "api_contract": {
+      "type": "integer"
+     },
+     "confirmed": {
+      "type": "boolean"
+     },
+     "peer_write": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/NativePeerWriteMetadata"
+     },
+     "revision": {
+      "type": "integer"
+     },
+     "user_id": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "confirmed",
+     "revision",
+     "user_id"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge_legacy_business",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  },
+  "users/update": {
+   "outer_type_const": "hikvision_intercom/users/update",
+   "parameters_schema": {
+    "additionalProperties": false,
+    "properties": {
+     "actor": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+     },
+     "api_contract": {
+      "type": "integer"
+     },
+     "data": {
+      "type": "object"
+     },
+     "peer_write": {
+      "$ref": "CATALOG_DEFINITIONS.json#/$defs/NativePeerWriteMetadata"
+     },
+     "revision": {
+      "type": "integer"
+     },
+     "sync_now": {
+      "default": true,
+      "type": "boolean"
+     },
+     "user_id": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "data",
+     "revision",
+     "user_id"
+    ],
+    "type": "object"
+   },
+   "transport_mode": "native_bridge_legacy_business",
+   "wire_schema": "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
+  }
+ },
+ "source": "WisKey intake 3707f97fb, reference/command_catalog/COMMAND_CATALOG.jsonl (product CODE d2579588b0b8)"
+}

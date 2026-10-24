@@ -44,6 +44,10 @@ ports_description:
   18092/tcp: Cast relay for media screens (optional; only with the cast_relay option)
   18093/tcp: Handler page for service tickets (optional; only with the tickets_public option)
 backup: hot
+# WKWRITE-295: the WisKey people-write lineage (services/wiskey_write_lineage.py) is kept OUT of the add-on backup; after a restore
+# Arx finds the lineage ahead of (or missing from) the restored database and keeps every open write UNKNOWN - never resent
+backup_exclude:
+  - "wiskey_lineage/*"
 options:
   bootstrap_admin_username: ""
   nvr_host: ""
