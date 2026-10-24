@@ -11,7 +11,7 @@ import { qrSvg } from '../components/sw-second-factor';
 import { ApiError, describeError } from '../api/client';
 import {
   audienceOptions, boardControl, boardLink, createBoard, deleteBoard, getBoard, listBoards, listNotices, noticesSettings, patchBoard, patchNoticesSettings, putBoardItems,
-  rotateBoardToken, type Board, type Notice, type SettingsResponse,
+  getBoardLink, rotateBoardToken, type Board, type Notice, type SettingsResponse,
 } from '../api/notices';
 import type { Display } from '../notice-tv/tv-logic';
 import { nt } from '../i18n/notices';
@@ -333,7 +333,7 @@ export class SystemNotices extends LitElement {
   private rowActions(b: Board) {
     const stop = (fn: () => void) => (e: Event) => { e.stopPropagation(); fn(); };
     return html`${!b.enabled ? html`<sw-button size="sm" data-activate @click=${stop(() => void this.activate(b))}>${nt('activate')}</sw-button>` : nothing}
-      ${this.canCopyLink() ? html`<sw-button size="sm" data-copy-link @click=${stop(() => (this.confirmRotate = { board: b, copy: true }))}>${nt('copyLink')}</sw-button>` : nothing}
+      ${this.canCopyLink() ? html`<sw-button size="sm" data-copy-link @click=${stop(() => void this.copyLink(b))}>${nt('copyLink')}</sw-button>` : nothing}
       <sw-button size="sm" @click=${stop(() => this.goBoard(b))}>${nt('open')}</sw-button>`;
   }
 
@@ -342,6 +342,22 @@ export class SystemNotices extends LitElement {
   private canCopyLink(): boolean {
     const can = this.s?.can;
     return !!(can?.configure && can.boards);
+  }
+
+  /** NOTICEPERM-295: the TV link is permanent - the stored one is read back and copied (the same link every time); a board saved before
+   * the stored token existed asks once before it issues one. */
+  private async copyLink(b: Board): Promise<void> {
+    if (!b.has_stored_link) {
+      this.confirmRotate = { board: b, copy: true };
+      return;
+    }
+    try {
+      const r = await getBoardLink(b.id);
+      this.link = { board: b, token: r.token, rotated: false };
+      void navigator.clipboard?.writeText(this.linkUrl(b, r.token)).then(() => this.say(nt('copied')), () => undefined);
+    } catch (e) {
+      this.say(describeError(e));
+    }
   }
 
   private async activate(b: Board): Promise<void> {
@@ -434,7 +450,7 @@ export class SystemNotices extends LitElement {
       <div class="top"><div><h1>${b.name}</h1><p class="sub"><a href=${NOTICES_SETTINGS_HREF}>${nt('back')}</a> · <span class="ltr">/b/${b.slug}</span> · ${agoText(b.last_seen_at, Date.now())}</p></div><span class="sp"></span>
         <div class="meta">
           <sw-button icon="eye" data-tv-open @click=${() => window.open(this.previewSrc(false), '_blank', 'noopener')}>${nt('openTv')}</sw-button>
-          ${this.canCopyLink() ? html`<sw-button icon="copy" data-copy-link @click=${() => (this.confirmRotate = { board: b, copy: true })}>${nt('copyLink')}</sw-button>` : nothing}
+          ${this.canCopyLink() ? html`<sw-button icon="copy" data-copy-link @click=${() => void this.copyLink(b)}>${nt('copyLink')}</sw-button>` : nothing}
           <sw-button icon="refresh" data-rotate @click=${() => (this.confirmRotate = { board: b, copy: false })}>${nt('newLink')}</sw-button>
           <sw-toggle .checked=${b.enabled} label=${nt('boardEnabled')} @change=${(e: CustomEvent<{ checked: boolean }>) => this.saveBoard({ enabled: e.detail.checked })}></sw-toggle>
         </div></div>
@@ -560,7 +576,7 @@ export class SystemNotices extends LitElement {
               ${this.feedPick === 'custom' ? html`<input class="inp ltr" placeholder="https://" .value=${this.feedUrl} @input=${(e: Event) => (this.feedUrl = (e.target as HTMLInputElement).value)}>` : nothing}
               <sw-button size="sm" icon="plus" ?disabled=${!this.feedPick || d.news.feeds.length >= 6} @click=${() => this.addFeed()}>${nt('add')}</sw-button>
               <span>${nt('speed')}</span><div class="seg">${(['slow', 'normal', 'fast'] as const).map((sp) => html`<button aria-pressed=${String(d.news.speed === sp)} @click=${() => this.setD({ news: { ...d.news, speed: sp } })}>${nt(sp === 'slow' ? 'spSlow' : sp === 'normal' ? 'spNormal' : 'spFast')}</button>`)}</div></div></div>
-          <notice-display-info .value=${d.blocks.info} @info-change=${(e: CustomEvent<string[]>) => this.setD({ blocks: { ...d.blocks, info: e.detail } })}></notice-display-info>
+          <notice-display-info .value=${d.blocks.info} .show=${d.blocks.info_show !== false} @info-show-change=${(e: CustomEvent<boolean>) => this.setD({ blocks: { ...d.blocks, info_show: e.detail } })} @info-change=${(e: CustomEvent<string[]>) => this.setD({ blocks: { ...d.blocks, info: e.detail } })}></notice-display-info>
           <div class="blk"><span class="ck"><b>${nt('blkNotices')}</b></span><span class="hint">${active.length} ${nt('kpiActive')}</span>
             <div class="sub"><span>${nt('mode')}</span><div class="seg" data-mode-seg>${(['rotation', 'all', 'focus'] as const).map((m) => html`<button aria-pressed=${String(d.mode === m)} data-mode=${m} @click=${() => this.setD({ mode: m })}>${nt(m === 'rotation' ? 'modeRotation' : m === 'all' ? 'modeAll' : 'modeFocus')}</button>`)}</div></div>
             <div class="sub"><span>${nt('rotateEvery')}</span><input class="inp short num" type="number" min="6" max="60" step="1" data-rot .value=${String(d.rotate_s)}

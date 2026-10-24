@@ -35,7 +35,7 @@ export interface Display {
   font_size: 's' | 'm' | 'l';
   font_scale: number;
   place: string;
-  blocks: { clock: boolean; hebdate: boolean; welcome: boolean; weather: boolean; info: string[]; promo: boolean; news: boolean; company_logo: boolean };
+  blocks: { clock: boolean; hebdate: boolean; welcome: boolean; weather: boolean; info: string[]; info_show?: boolean; promo: boolean; news: boolean; company_logo: boolean };
   weather: { hours: number };
   news: { feeds: { name: string; url: string }[]; speed: 'slow' | 'normal' | 'fast' };
   night: { enabled: boolean; from: string; to: string; dim: number };

@@ -187,7 +187,7 @@ def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime
         feeds = [f for f in feeds if f["url"] in curated]
     if disp["blocks"].get("news") and feeds:
         doc["news"] = sources.news_block(feeds, news)
-    chips = info.build(conn, disp["blocks"].get("info") or [], disp["lang"])
+    chips = info.build(conn, (disp["blocks"].get("info") or []) if disp["blocks"].get("info_show", True) else [], disp["lang"])
     if chips:
         doc["info"] = chips
     try:

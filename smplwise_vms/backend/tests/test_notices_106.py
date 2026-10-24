@@ -475,10 +475,10 @@ def test_slug_shapes(slug):
 
 def test_saver_and_logo_layout_defaults_and_old_boards():
     d = model.normalize_display({})
-    assert (d["saver"], d["logos"]) == ("off", "a")
+    assert (d["saver"], d["logos"]) == ("wash", "a")
     old = model.load_display('{"template": 2, "burn_in": {"shift": false}}')  # a board stored before 2.17.1
-    assert (old["saver"], old["logos"], old["template"], old["burn_in"]["shift"]) == ("off", "a", 2, False)
-    assert model.normalize_display({"saver": "disco", "logos": "z"})["saver"] == "off"  # lenient on load: the default replaces the unknown value
+    assert (old["saver"], old["logos"], old["template"], old["burn_in"]["shift"]) == ("wash", "a", 2, False)
+    assert model.normalize_display({"saver": "disco", "logos": "z"})["saver"] == "wash"  # lenient on load: the default replaces the unknown value
     assert model.normalize_display({"saver": "disco", "logos": "z"})["logos"] == "a"
 
 
@@ -501,10 +501,10 @@ def test_saver_and_logo_layout_are_validated_and_stored(client):
 
 def test_saver_and_logo_layout_defaults_and_validation(client):
     """NOTICESAVER-295: `saver` and `logos` live in the display JSON; old boards read the defaults, bad values are refused."""
-    assert model.DISPLAY_DEFAULTS["saver"] == "off" and model.DISPLAY_DEFAULTS["logos"] == "a"
+    assert model.DISPLAY_DEFAULTS["saver"] == "wash" and model.DISPLAY_DEFAULTS["logos"] == "a"
     old = model.normalize_display({"template": 2})
-    assert (old["saver"], old["logos"]) == ("off", "a")
-    assert model.normalize_display({"saver": "bogus", "logos": "z"})["saver"] == "off"
+    assert (old["saver"], old["logos"]) == ("wash", "a")
+    assert model.normalize_display({"saver": "bogus", "logos": "z"})["saver"] == "wash"
     for s in model.SAVERS:
         assert model.normalize_display({"saver": s})["saver"] == s
     _on(client)
