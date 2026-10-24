@@ -278,6 +278,25 @@ const he = {
   allNotices: 'כל ההודעות',
   confirmDelete: 'למחוק את הטיוטה?',
   confirmArchive: 'להעביר לארכיון?',
+  // NOTICEPAGE-295: the places tree, the "מי קרא" sheet and the home widget
+  places: 'מקומות',
+  placeSelect: 'מקום',
+  allPlaces: 'כל הבניין',
+  foldPlace: 'כיווץ {name}',
+  unfoldPlace: 'הרחבה {name}',
+  readsOf: 'מי קרא: {title}',
+  readsList: 'רשימה',
+  readsLoadError: 'לא ניתן לטעון את הרשימה',
+  readsNone: 'אין נמענים ברשימה',
+  segReadShort: 'קראו',
+  segUnreadShort: 'טרם קראו',
+  colName: 'שם',
+  colPlace: 'מקום',
+  colReadAt: 'נקרא',
+  widgetAll: 'הכול',
+  widgetEmpty: 'אין הודעות פעילות',
+  widgetNew: 'חדש',
+  widgetUntil: 'עד {d}',
 };
 
 type Key = keyof typeof he;
@@ -298,6 +317,9 @@ const en: Partial<Record<Key, string>> = {
   boardsCard: 'TV boards', newBoard: 'New board', tabGeneral: 'General', tabDisplay: 'Display', tabNotices: 'Notices', preview: 'Preview',
   prev: 'Previous', next: 'Next', pauseToggle: 'Pause / resume', copyLink: 'Copy link', retYear: 'A year', retHalf: 'Six months', retDays: '{n} days', activate: 'Turn on', placeOther: 'Other...', newLink: 'New link', openTv: 'Open the TV screen',
   newForBoard: 'New notice for this board', allNotices: 'All notices', confirmDelete: 'Delete the draft?', confirmArchive: 'Move to the archive?',
+  places: 'Places', placeSelect: 'Place', allPlaces: 'Whole building', foldPlace: 'Collapse {name}', unfoldPlace: 'Expand {name}', readsOf: 'Who read: {title}', readsList: 'List',
+  readsLoadError: 'The list could not be loaded', readsNone: 'No recipients', segReadShort: 'Read', segUnreadShort: 'Not read yet',colName: 'Name', colPlace: 'Place', colReadAt: 'Read', widgetAll: 'All', widgetEmpty: 'No active notices',
+  widgetNew: 'New', widgetUntil: 'Until {d}',
 };
 
 export type NtKey = Key;

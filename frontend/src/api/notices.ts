@@ -127,7 +127,16 @@ export const deleteNotice = (id: string) => del(`notices/${encodeURIComponent(id
 export const markRead = (id: string) => post<{ read: boolean }>(`notices/${encodeURIComponent(id)}/read`);
 export const audiencePreview = (audience: Audience) => post<{ users: number; in_scope: boolean }>('notices/audience/preview', { audience });
 export const audienceOptions = () =>
-  get<{ floors: { id: string; name: string; building: string }[]; groups: { id: string; name: string }[]; roles: { id: string; name: string }[] }>('notices/audience/options');
+  get<{ floors: { id: string; name: string; building: string }[]; areas?: { id: string; name: string; floor: string }[]; groups: { id: string; name: string }[]; roles: { id: string; name: string }[] }>('notices/audience/options');
+
+/** NOTICEPAGE-295: "מי קרא" - names only while the installation shows them (`reads_names`); else the two counts. */
+export interface ReadsAnswer {
+  audience: number;
+  read: number;
+  users?: { user_id: string; name: string; place?: string; read_at: string }[];
+  unread?: { user_id: string; name: string; place?: string }[];
+}
+export const getReads = (id: string) => get<ReadsAnswer>(`notices/${encodeURIComponent(id)}/reads`);
 
 export const listBoards = () => get<{ boards: Board[]; full: boolean; max?: number; remote?: boolean }>('notices/boards');
 export const getBoard = (id: string) =>

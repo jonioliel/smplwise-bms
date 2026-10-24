@@ -11,6 +11,9 @@ import { nt } from '../i18n/notices';
 import { SEV_KEY, SEV_LOOK, STATE_KEY, audienceText, draftOf, kpiCounts, matches, newDraft, windowText, type Draft, type Kpi, type Seg } from '../notices/model';
 import '../notices/compose-dialog';
 import type { NoticeSavedDetail } from '../notices/compose-dialog';
+import '../notices/places-tree';
+import '../notices/reads-sheet';
+import { PLACE_ALL, buildPlaces, inPlace, placesCss, placesSelect, type AreaOpt } from '../notices/places-tree';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_SETTINGS_HREF } from '../shell/nav';
 
@@ -22,7 +25,7 @@ import { NOTICES_SETTINGS_HREF } from '../shell/nav';
  */
 @customElement('devices-notices')
 export class DevicesNotices extends LitElement {
-  static styles = [noticesCss];
+  static styles = [noticesCss, placesCss];
 
   @state() private data: NoticesList | null = null;
   @state() private manager = false;
@@ -36,6 +39,9 @@ export class DevicesNotices extends LitElement {
   @state() private floors: { id: string; name: string; building: string }[] = [];
   @state() private groups: { id: string; name: string }[] = [];
   @state() private roles: { id: string; name: string }[] = [];
+  @state() private areas: AreaOpt[] = [];
+  @state() private place = PLACE_ALL; // NOTICEPAGE-295: the places tree's choice
+  @state() private readsFor: Notice | null = null; // NOTICEPAGE-295: the "מי קרא" sheet
   @state() private draft: Draft | null = null;
   @state() private reading: Notice | null = null;
   @state() private toast = '';
@@ -75,6 +81,7 @@ export class DevicesNotices extends LitElement {
       const [b, o] = await Promise.all([listBoards(), audienceOptions()]);
       this.boards = b.boards;
       this.floors = o.floors;
+      this.areas = o.areas ?? [];
       this.groups = o.groups;
       this.roles = o.roles;
     } catch {
@@ -102,7 +109,9 @@ export class DevicesNotices extends LitElement {
     if (!this.data) return html`<sw-page heading=${nt('title')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const all = this.data.notices;
     const counts = kpiCounts(all);
-    const rows = all.filter((n) => matches(n, this.kpi, this.seg, this.q, this.manager));
+    const tree = this.manager && this.floors.length ? buildPlaces(all.filter((n) => matches(n, 'all', 'all', '', true)), this.floors, this.areas) : [];
+    const place = tree.some((p) => p.id === this.place) ? this.place : PLACE_ALL;
+    const rows = all.filter((n) => matches(n, this.kpi, this.seg, this.q, this.manager) && inPlace(n, place, this.floors, this.areas));
     const sub = this.manager ? nt('subtitleMgr', { n: counts.all, s: counts.scheduled, d: counts.drafts }) : nt('subtitle', { n: counts.all });
     return html`
       <sw-page heading="" data-notices-page>
@@ -113,7 +122,10 @@ export class DevicesNotices extends LitElement {
               actionLabel=${this.manager ? nt('firstNotice') : ''} @action=${() => this.compose()}></sw-state-panel>`
           : html`
             ${this.kpis(counts)}
-            <div class="panel flush">
+            <div class=${tree.length ? 'with-tree' : ''}>
+            ${tree.length ? html`<notice-places .nodes=${tree} .value=${place} @place-change=${(e: CustomEvent<string>) => (this.place = e.detail)}></notice-places>` : nothing}
+            <div class="panel flush main">
+              ${tree.length ? placesSelect(tree, place, (id) => (this.place = id)) : nothing}
               <div class="toolbar">
                 ${this.manager ? html`<div class="seg" role="group" aria-label=${nt('colBoards')}>${(['all', 'mine', 'tv'] as Seg[]).map((s) => html`<button aria-pressed=${String(this.seg === s)} @click=${() => (this.seg = s)}>${nt(s === 'all' ? 'segAll' : s === 'mine' ? 'segMine' : 'segTv')}</button>`)}</div>` : nothing}
                 <span class="sp"></span>
@@ -121,9 +133,10 @@ export class DevicesNotices extends LitElement {
               </div>
               <div class="scrollx">${this.table(rows)}</div>
               <div class="cards">${rows.map((n) => this.card(n))}</div>
-            </div>`}
+            </div></div>`}
       </sw-page>
       ${this.composeDialog()} ${this.readDialog()}
+      <notice-reads .notice=${this.readsFor} @reads-close=${() => (this.readsFor = null)}></notice-reads>
       ${this.toast ? html`<div class="toast" role="status">${this.toast}</div>` : nothing}`;
   }
 
@@ -161,7 +174,7 @@ export class DevicesNotices extends LitElement {
         ${this.manager ? html`<td><span class="chips">${audienceText(n.audience, floors).map((a) => html`<span class="chip">${a}</span>`)}</span></td>
           <td>${this.boardNames(n).length ? html`<span class="chips">${this.boardNames(n).map((b) => html`<span class="chip">${b}</span>`)}</span>` : html`<span class="mut">-</span>`}</td>` : nothing}
         <td class="num mut">${windowText(n)}</td>
-        ${this.manager ? html`<td class="num mut">${n.state === 'draft' ? '-' : n.reads ?? 0}</td><td class="act" @click=${(e: Event) => e.stopPropagation()}>${this.actions(n)}</td>` : nothing}
+        ${this.manager ? html`<td class="num mut">${this.readsButton(n)}</td><td class="act" @click=${(e: Event) => e.stopPropagation()}>${this.actions(n)}</td>` : nothing}
       </tr>`)}
       </tbody></table>`;
   }
@@ -170,7 +183,13 @@ export class DevicesNotices extends LitElement {
     return html`<div class="card" data-look=${this.look(n)} @click=${() => this.open(n)}>
       <div class="row">${this.badge(n)}<span class="mut num">${windowText(n)}</span></div>
       <span class="t1">${n.title}</span><span class="t2">${n.body.split('\n')[0]}</span>
-      ${this.manager ? html`<div class="row" @click=${(e: Event) => e.stopPropagation()}>${this.actions(n)}</div>` : nothing}</div>`;
+      ${this.manager ? html`<div class="row" @click=${(e: Event) => e.stopPropagation()}>${this.readsButton(n)}${this.actions(n)}</div>` : nothing}</div>`;
+  }
+
+  /** NOTICEPAGE-295: the read count is the button that opens "מי קרא" (a draft has no readers). */
+  private readsButton(n: Notice) {
+    if (n.state === 'draft') return '-';
+    return html`<button type="button" class="pick" data-reads=${n.id} aria-label=${nt('readsOf', { title: n.title })} @click=${(e: Event) => { e.stopPropagation(); this.readsFor = n; }}>${n.reads ?? 0}</button>`;
   }
 
   private actions(n: Notice) {
