@@ -278,6 +278,27 @@ const he = {
   allNotices: 'כל ההודעות',
   confirmDelete: 'למחוק את הטיוטה?',
   confirmArchive: 'להעביר לארכיון?',
+  // NOTICESLIDES-295: promo slides and the building photo
+  slidesBlock: 'שקופיות מידע ופרסום',
+  slidesCount: '{n} שקופיות · {s} שניות',
+  slideNew: 'שקופית חדשה',
+  slideEditTitle: 'עריכת שקופית',
+  slideTitle: 'כותרת',
+  slideText: 'טקסט',
+  slideSeconds: 'שניות על המסך',
+  slidePicture: 'תמונה',
+  slidePick: 'בחירת תמונה',
+  slideNoPicture: 'ללא תמונה',
+  slideRemovePicture: 'הסרת התמונה',
+  slideBoards: 'מוצגת בלוחות',
+  slideDelete: 'מחיקת השקופית',
+  slideDeleteConfirm: 'למחוק את השקופית?',
+  slideLimit: 'עד {n} שקופיות בלוח',
+  slideFile: 'JPEG או PNG',
+  photoBlock: 'תמונת הבניין',
+  photoUpload: 'העלאת תמונה',
+  photoReplace: 'החלפת התמונה',
+  photoRemove: 'הסרה',
 };
 
 type Key = keyof typeof he;
@@ -298,6 +319,11 @@ const en: Partial<Record<Key, string>> = {
   boardsCard: 'TV boards', newBoard: 'New board', tabGeneral: 'General', tabDisplay: 'Display', tabNotices: 'Notices', preview: 'Preview',
   prev: 'Previous', next: 'Next', pauseToggle: 'Pause / resume', copyLink: 'Copy link', retYear: 'A year', retHalf: 'Six months', retDays: '{n} days', activate: 'Turn on', placeOther: 'Other...', newLink: 'New link', openTv: 'Open the TV screen',
   newForBoard: 'New notice for this board', allNotices: 'All notices', confirmDelete: 'Delete the draft?', confirmArchive: 'Move to the archive?',
+  slidesBlock: 'Info and promo slides', slidesCount: '{n} slides · {s} seconds', slideNew: 'New slide', slideEditTitle: 'Edit slide', slideTitle: 'Title',
+  slideText: 'Text', slideSeconds: 'Seconds on screen', slidePicture: 'Picture', slidePick: 'Choose a picture', slideNoPicture: 'No picture',
+  slideRemovePicture: 'Remove the picture', slideBoards: 'Shown on boards', slideDelete: 'Delete the slide', slideDeleteConfirm: 'Delete the slide?',
+  slideLimit: 'Up to {n} slides per board', slideFile: 'JPEG or PNG', photoBlock: 'Building photo', photoUpload: 'Upload a photo', photoReplace: 'Replace the photo',
+  photoRemove: 'Remove',
 };
 
 export type NtKey = Key;

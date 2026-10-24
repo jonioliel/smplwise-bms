@@ -222,6 +222,9 @@ def delete_board(conn: sqlite3.Connection, board_id: str, actor: str) -> None:
     now = now_iso()
     conn.execute("UPDATE notice_boards SET deleted_at = ?, token_hash = NULL, updated_by = ?, updated_at = ? WHERE id = ?", (now, actor, now, board_id))
     conn.execute("DELETE FROM notice_board_items WHERE board_id = ?", (board_id,))
+    from . import slides  # NOTICESLIDES-295: the board's photo and slide links go with it
+
+    slides.drop_board(conn, board_id)
 
 
 def set_board_items(conn: sqlite3.Connection, board_id: str, notice_ids: list[str]) -> None:

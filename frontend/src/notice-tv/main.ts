@@ -18,8 +18,8 @@ import swLogo from '../../public/brand/smplwise-logo.png?inline'; // the SmplWis
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
   AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlan, heldIndex, logoLayoutOf, netOf, nightDim, onPoll,
-  playlist, remoteKey, saverOf, sevLabel, slugFrom, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, whenText,
-  type Clock, type Display, type Feed, type FeedNotice, type Item, type LogoLayout, type NetState, type Saver,
+  playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, whenText,
+  type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type Item, type LogoLayout, type NetState, type Saver,
 } from './tv-logic';
 
 const Q = new URLSearchParams(location.search);
@@ -47,6 +47,10 @@ let etag = '';
 let companyUrl: Record<'light' | 'dark', string> = { light: '', dark: '' };
 let companySrc: Record<'light' | 'dark', string> = { light: '', dark: '' }; // blob URLs of the loaded logo files (CR-LOGOS295)
 const hasCompany = (): boolean => !!(companySrc.light || companySrc.dark);
+// NOTICESLIDES-295: the slide pictures and the building photo are read with the board token like the logo, so they live as blob URLs
+const slideSrc = new Map<string, string>(); // feed image URL -> blob URL
+let photoUrl = '';
+let photoSrc = '';
 let lastControl = -1;
 let forceTheme = '';
 
@@ -153,7 +157,14 @@ function when(n: FeedNotice): string {
   return whenText(n, feed?.board.tz || 'Asia/Jerusalem', nowDate(), lang());
 }
 
+function slideHtml(x: Item, on: boolean): string {
+  const s = x.slide as FeedSlide;
+  const src = s.image ? slideSrc.get(s.image) : '';
+  return '<article class="it promo' + (on ? ' on' : '') + '"><div class="pic">' + (src ? '<img alt="" src="' + esc(src) + '">' : ic('photo')) + '</div><h1>' + tx(s.title) + '</h1><p>' + tx(s.text) + '</p></article>';
+}
+
 function itemHtml(x: Item, on: boolean): string {
+  if (x.slide) return slideHtml(x, on);
   const n = x.n;
   const look = SEV_LOOK[n.severity] || 'acc';
   const sev = sevLabel(lang(), n.severity);
@@ -274,14 +285,15 @@ function render(): void {
   cv.dataset.mode = d.mode;
   cv.dataset.urgent = urgentNow ? 'full' : band ? 'band' : d.urgent;
   cv.dataset.net = netOf(net, Date.now());
-  cv.dataset.photo = '0';
+  cv.dataset.photo = tpl === 2 && photoSrc ? '1' : '0';
+  (cv.querySelector('.photo .img') as HTMLElement | null)?.style.setProperty('background-image', photoSrc ? 'url("' + photoSrc + '")' : 'none');
   const anyCritical = notices.some((n) => n.severity === 'critical');
   const dim = nightDim(d, clock(), anyCritical);
   cv.dataset.night = dim ? '1' : '0';
   cv.style.setProperty('--night-b', String(dimBrightness(d.night?.dim ?? 0.5)));
   const flags: Record<string, boolean> = {
     news: !!d.blocks.news && (feed.news?.length ?? 0) > 0,
-    promo: false,
+    promo: !!d.blocks.promo && (feed.slides?.length ?? 0) > 0,
     info: (feed.info?.length ?? 0) > 0,
     weather: !!d.blocks.weather && !!feed.weather,
     clock: d.blocks.clock !== false,
@@ -295,7 +307,7 @@ function render(): void {
   cv.style.setProperty('--lg', String(LOGO_SCALE[feed.board.brand?.size ?? 'm'] ?? 1)); // the administrator's logo size scale
 
   const prevId = state.currentId;
-  state.list = playlist(notices, d);
+  state.list = withSlides(playlist(notices, d), feed.slides, d);
   cv.dataset.empty = state.list.length ? '0' : '1';
   state.held = heldIndex(state.list, d);
   state.plan = gridPlan(state.list.length, !portrait && tpl !== 2, portrait);
@@ -608,6 +620,36 @@ async function loadCompanyLogo(variant: 'light' | 'dark', url: string | undefine
   }
 }
 
+/** NOTICESLIDES-295: fetch what the feed names (slide pictures, the building photo) once per URL; a URL the feed dropped is released. */
+async function fetchBlob(url: string): Promise<string> {
+  try {
+    const r = await fetch(new URL(url, document.baseURI).toString(), { headers: PREVIEW ? {} : { 'X-Board-Token': TOKEN }, credentials: PREVIEW ? 'same-origin' : 'omit', cache: 'no-store' });
+    return r.ok ? URL.createObjectURL(await r.blob()) : '';
+  } catch {
+    return ''; // a picture is optional: the placeholder stays
+  }
+}
+
+async function loadMedia(doc: Feed): Promise<void> {
+  const want = new Set((doc.slides ?? []).map((s) => s.image).filter((u): u is string => !!u));
+  for (const [url, blob] of slideSrc) {
+    if (!want.has(url)) {
+      URL.revokeObjectURL(blob);
+      slideSrc.delete(url);
+    }
+  }
+  await Promise.all([...want].filter((u) => !slideSrc.has(u)).map(async (u) => {
+    const blob = await fetchBlob(u);
+    if (blob) slideSrc.set(u, blob);
+  }));
+  const photo = doc.board.display?.photo || '';
+  if (photo !== photoUrl || (photo && !photoSrc)) {
+    if (photoSrc) URL.revokeObjectURL(photoSrc);
+    photoSrc = photo ? await fetchBlob(photo) : '';
+    photoUrl = photo;
+  }
+}
+
 let rotTimer = 0;
 function restartRotation(): void {
   clearInterval(rotTimer);
@@ -655,7 +697,7 @@ async function poll(force = false): Promise<void> {
     } else if (!doc.control && lastControl < 0) {
       lastControl = 0;
     }
-    await Promise.all([loadCompanyLogo('light', doc.board.logos?.company), loadCompanyLogo('dark', doc.board.logos?.company_dark)]);
+    await Promise.all([loadCompanyLogo('light', doc.board.logos?.company), loadCompanyLogo('dark', doc.board.logos?.company_dark), loadMedia(doc)]);
     if (changed) render();
     if (rotate) restartRotation();
   } else if (net.gone && !feed) {

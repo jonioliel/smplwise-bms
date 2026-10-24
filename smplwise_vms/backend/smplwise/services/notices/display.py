@@ -25,10 +25,11 @@ from typing import Any, Callable
 from .. import brand_assets
 from ..ha_user_auth import RateLimiter
 from . import audience as aud
-from . import info, model, sources, store
+from . import info, model, slides, sources, store
 
 SLUG_PATH = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
+ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 DUMMY_HASH = hashlib.sha256(b"notice-board-dummy").hexdigest()
 PER_TOKEN = [(5.0, 10), (60.0, 120)]  # 2/s with a burst of 10
 PER_NETWORK = [(5.0, 50)]  # 10/s
@@ -148,7 +149,7 @@ def company_logos(conn: sqlite3.Connection, data_dir: Path | None, slug: str, *,
 
 
 def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime, *, data_dir: Path | None = None,
-               display: dict[str, Any] | None = None, news: sources.NewsCache | None = None, logo_base: str = "") -> dict[str, Any]:
+               display: dict[str, Any] | None = None, news: sources.NewsCache | None = None, logo_base: str = "", public: bool = True) -> dict[str, Any]:
     disp = display if display is not None else model.load_display(board["display_json"])
     items = active_items(conn, board["id"], now)
     ids = {n["id"] for n in items}
@@ -190,6 +191,13 @@ def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime
     chips = info.build(conn, disp["blocks"].get("info") or [], disp["lang"])
     if chips:
         doc["info"] = chips
+    # NOTICESLIDES-295: the promo slides (only while the board's `promo` block is on) and the building photo of template 2
+    cards, photo = slides.feed_block(conn, board, public=public, logo_base=logo_base)
+    if disp["blocks"].get("promo") and cards:
+        doc["slides"] = cards
+    if photo and disp.get("template") == 2:
+        doc["board"]["display"] = {**disp, "photo": photo}
+    stamps.append(_stamp(slides.newest_stamp(conn, board["id"])))
     try:
         ctl = json.loads(board.get("control_json") or "{}")
     except ValueError:
@@ -264,6 +272,21 @@ class DisplayService:
             return Reply(304, b"", headers=[("ETag", etag)])
         return _json(200, doc, [("ETag", etag)])
 
+    def image(self, req: Request, kind: str, slide_id: str | None = None) -> Reply:
+        """A slide picture / the building photo of the board the token belongs to (NOTICESLIDES-295); the stamp in `?v=` is the cache key."""
+        with self.open_conn() as conn:
+            board, refusal = self.resolve(conn, req)
+            if refusal is not None:
+                return refusal
+            assert board is not None
+            if slide_id is not None and not ID_RE.match(slide_id):
+                return not_found()
+            got = slides.image_of(conn, board["id"], slide_id, kind)
+        if got is None:
+            return not_found()
+        mime, data, stamp = got
+        return Reply(200, data, mime, headers=[("Cache-Control", "private, max-age=3600"), ("ETag", f'"{stamp}"')])
+
     def logo(self, req: Request) -> Reply:
         with self.open_conn() as conn:
             board, refusal = self.resolve(conn, req)
@@ -300,7 +323,7 @@ def touch_seen(db: Any) -> Callable[[str], None]:
 
 def preview_feed(conn: sqlite3.Connection, board: dict[str, Any], display: dict[str, Any] | None, data_dir: Path | None, now: dt.datetime | None = None) -> dict[str, Any]:
     """The Settings preview: the same payload the TV gets, through the session, optionally with the draft display settings."""
-    doc = build_feed(conn, board, now or store.utcnow(), data_dir=data_dir, display=display, logo_base="")
+    doc = build_feed(conn, board, now or store.utcnow(), data_dir=data_dir, display=display, logo_base="", public=False)
     doc["board"]["logos"] = {}
     doc["board"].pop("brand", None)
     if doc["board"]["display"]["blocks"].get("company_logo", True):

@@ -433,3 +433,6 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 .lg.company img { display: block; block-size: 100%; inline-size: auto; max-inline-size: 315px; object-fit: contain; }
 #cv.portrait .lg.company img { max-inline-size: 280px; }
 .take .top .lg.company img { max-inline-size: 300px; }
+/* NOTICESLIDES-295: a slide's picture fills the mock-up's picture box; the building photo is the mock-up's .photo .img (background set through the CSSOM) */
+.it.promo .pic { overflow: hidden; }
+.it.promo .pic img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
