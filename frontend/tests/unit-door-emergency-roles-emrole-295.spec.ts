@@ -59,3 +59,13 @@ test('the panel stops a missing person, a past expiry, a too long one for a secu
   expect(grantProblem(admin, 'u', '', true, now)).toBeNull();
   expect(grantProblem(admin, 'u', at(72), false, now)).toBeNull();
 });
+
+test('the emergency-open settings card sits in the general system settings behind system.configure and uses the same four words in every language', async () => {
+  const { readFileSync } = await import('node:fs');
+  const setup = readFileSync(new URL('../src/screens/system-setup.ts', import.meta.url), 'utf8');
+  expect(setup).toMatch(/can\('system\.configure'\) \? html`[^`]*<sw-emergency-open-settings><\/sw-emergency-open-settings>/);
+  const card = readFileSync(new URL('../src/screens/system-emergency-open.ts', import.meta.url), 'utf8');
+  for (const key of ['doors.emergency.grant.default_hours', 'doors.emergency.grant.max_hours', 'doors.emergency.grant.by_security_manager', 'doors.emergency.retry_open.by_holders']) expect(card).toContain(key);
+  const { DWT_TABLES } = await import('../src/i18n/door-windows');
+  for (const lang of ['he', 'en', 'ar', 'ru'] as const) for (const k of ['sGrants', 'sGrantDefault', 'sGrantMax', 'sGrantManager', 'sRetryHolders', 'sSave', 'saved'] as const) expect(DWT_TABLES[lang][k].length).toBeGreaterThan(0);
+});
