@@ -15,6 +15,7 @@ from ..db import get_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
 from . import automation_draft as drafts
+from . import automation_ext as ext
 from . import automation_model as model
 from . import automation_policy as pol
 from . import automation_scope as scope
@@ -254,6 +255,8 @@ def build_item(ctx: scope.Ctx, env: Env, row: Row, *, rd: dict[str, Any] | None,
         "revision": row.revision, "pinned": bool(row.pref["pinned"]) if row.pref is not None else False, "favourite": bool(row.pref["favourite"]) if row.pref is not None else False,
         "hidden": bool(meta["hidden"]) if meta is not None else False, "can": can, "read_only": None if can["edit"] else {"reasons": reasons}, "warnings": warnings,
     }
+    if row.kind == "automation" and rd is not None and any(t.get("kind") == "typed" and t.get("type") == "button" for t in rd["draft"].get("triggers") or []):
+        item["wall_button"] = True  # KAV079-295 (additive): the list's "כפתור קיר · ניתן לעריכה" chip
     return item
 
 
@@ -419,7 +422,8 @@ def status_payload(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
         "available": avail, "stale": is_stale(ctx, avail, st), "last_sync_at": st.get("last_sync_at"), "writable": writable, "write_block": block, "scheduler_present": ctx.scheduler_present(),
         "can": can, "delegation": {"on": ctx.delegation_on, "needed": not ctx.ha_admin},
         "ui": {"sensitive_warning": cfg["automations.sensitive_warning"] == "true", "ask_when_on_new": cfg["automations.ask_when_on_new"] == "true",
-               "templates_enabled": cfg["automations.templates_enabled"] == "true", "phone_filter": cfg["automations.phone_filter"], "sensitive_chip": cfg["automations.sensitive_chip"]},
+               "templates_enabled": cfg["automations.templates_enabled"] == "true", "phone_filter": cfg["automations.phone_filter"], "sensitive_chip": cfg["automations.sensitive_chip"],
+               "ext": ext.flags(cfg)},  # KAV079-295: the editors' extension switches (additive)
         "counts": counts,
     }
     if can["configure"]:
@@ -507,7 +511,8 @@ def catalog_payload(ctx: scope.Ctx, q: str | None, floor: str | None, area: str 
             scripts.append({"entity_id": row.entity_id, "name": _name_of_row(ctx, row, rd), "fields": fields})
     return {"scope": ctx.scope_info(), "entities": ents, "actions": specs, "notify_targets": [{"action": t, "name": ctx.notify_name(t) or t} for t in ctx.notify_targets], "scenes": scenes,
             "scripts": scripts, "floors": sorted(floors.values(), key=lambda f: f["name"]), "areas": sorted(areas.values(), key=lambda x: x["name"]), "shabbat_sensor": ctx.shabbat_sensor or None,
-            "allowed_actions": sorted(a for dom in specs.values() for a in (sp["action"] for sp in dom))}
+            "allowed_actions": sorted(a for dom in specs.values() for a in (sp["action"] for sp in dom)),
+            "extension": ext.catalog_extension(ctx)}  # KAV079-295 (additive)
 
 
 def template_defs(ctx: scope.Ctx) -> list[dict[str, Any]]:

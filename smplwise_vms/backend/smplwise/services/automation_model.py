@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping
 
 from . import automation_policy as pol
+from . import wall_buttons as wb
 from .automation_policy import MASK, has_mask, has_template, first_template, is_entity_id, is_number, mask_secrets, secret_kind
 from .automation_text import (  # noqa: F401  (re-exported for the callers)
     ModelContext, action_sentence, automation_sentence, block_sentence, condition_sentence, draft_sentence, duration_text, join_names, locked_label,
@@ -247,6 +248,29 @@ def _finish(b: Block, section: str, ctx: ModelContext) -> Block:
     return b
 
 
+# ---------------------------------------------------------------- KAV079-295: wall buttons, critical sound
+
+def _button_block(raw: Raw, ctx: ModelContext) -> Block:
+    b: Block = {"uid": _uid(ctx), "kind": "typed", "raw": raw, "type": "button", "device_id": raw["device_id"], "domain": raw["domain"],
+                "ha_type": raw["type"], "ha_subtype": raw["subtype"], "button": wb.button_of(raw["subtype"]), "press": wb.press_of(raw["type"]),
+                "extra": {k: raw[k] for k in wb.CARRIED if k in raw}}
+    if isinstance(raw.get("id"), str):
+        b["id"] = raw["id"]
+    return b
+
+
+# Home Assistant's companion app: a critical alert passes "do not disturb" (iOS `push.sound.critical`, Android the alarm stream).
+CRITICAL_DATA: dict[str, Any] = {"push": {"sound": {"name": "default", "critical": 1, "volume": 1.0}}, "ttl": 0, "priority": "high", "channel": "alarm_stream"}
+
+
+def _split_critical(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """A notify step's data with the exact critical payload taken out (and whether it was there)."""
+    if "data" in data and canonical_json(data["data"]) == canonical_json(CRITICAL_DATA):
+        rest = {k: v for k, v in data.items() if k != "data"}
+        return rest, True
+    return data, False
+
+
 # ---------------------------------------------------------------- parse: triggers
 
 def parse_trigger(raw: Any, ctx: ModelContext | None = None) -> Block:
@@ -259,6 +283,8 @@ def parse_trigger(raw: Any, ctx: ModelContext | None = None) -> Block:
     if not isinstance(typ, str):
         return _locked_for(raw, "trigger", ctx, "unknown")
     if typ == "device":
+        if ctx.wall_buttons and not has_template(raw) and wb.is_button_trigger(raw):  # KAV079-295: a wall-button press, typed while the setting is on
+            return _finish(_button_block(raw, ctx), "trigger", ctx)
         return mk_locked(raw, "device", "trigger", ctx)
     if typ == "template":
         return mk_locked(raw, "template", "trigger", ctx)
@@ -373,6 +399,9 @@ def parse_condition(raw: Any, ctx: ModelContext | None = None, in_group: bool = 
         sensor = ctx.shabbat_sensor
         if sensor and len(ids) == 1 and ids[0] == sensor and not f and state in ("on", "off") and isinstance(state, str):
             return _finish({**common, "type": "shabbat", "mode": "only_holy_days" if state == "on" else "not_holy_days"}, "condition", ctx)
+        pres = ctx.presence_entity  # KAV079-295: "who is in the building"
+        if pres and len(ids) == 1 and ids[0] == pres and not f and state in ("on", "off") and isinstance(state, str):
+            return _finish({**common, "type": "presence", "mode": "someone" if state == "on" else "nobody", "where": "building"}, "condition", ctx)
         b = {**common, "type": "state", "entity_ids": ids, "state": state}
         if f:
             b["for"] = f
@@ -524,10 +553,16 @@ def parse_action(raw: Any, ctx: ModelContext | None = None) -> Block:
     if "data" in r and not isinstance(r["data"], dict):
         return bad()
     data = _clone(r["data"]) if isinstance(r.get("data"), dict) else {}
+    critical = False
+    if cls.role == "notify":
+        data, critical = _split_critical(data)  # KAV079-295: the critical-sound payload is the block's `critical` flag, not a nested (locking) argument
     if "entity_id" in data or not pol.args_fit(svc, cls.role, data):
         return bad()
     script_call = cls.role == "script" and svc.split(".")[1] not in ("turn_on", "turn_off")
-    return mk({"kind": "typed", "raw": raw, "type": "service", "action": svc, "entity_ids": [svc] if script_call else ids, "data": data, "role": cls.role})
+    out_b: Block = {"kind": "typed", "raw": raw, "type": "service", "action": svc, "entity_ids": [svc] if script_call else ids, "data": data, "role": cls.role}
+    if critical:
+        out_b["critical"] = True
+    return mk(out_b)
 
 
 def parse_actions(v: Any, ctx: ModelContext | None = None) -> list[Block]:
@@ -720,6 +755,15 @@ def _build_trigger(b: Block) -> Raw:
             out["offset"] = _fmt_offset(b["offset_min"])
     elif t == "homeassistant":
         out["trigger"], out["event"] = "homeassistant", "start"
+    elif t == "button":  # KAV079-295: the press word of the stored family, the button number inside the stored subtype
+        ha_type = wb.type_for(str(b.get("ha_type") or ""), str(b.get("press") or ""))
+        ha_sub = wb.subtype_for(str(b.get("ha_subtype") or ""), int(b.get("button") or 0)) if isinstance(b.get("button"), int) else None
+        if not isinstance(b.get("device_id"), str) or not b["device_id"] or not isinstance(b.get("domain"), str) or not ha_type or not ha_sub:
+            raise ModelError("block_invalid", "a button trigger needs a device, a known press and a numbered button")
+        out["trigger"], out["device_id"], out["domain"], out["type"], out["subtype"] = "device", b["device_id"], b["domain"], ha_type, ha_sub
+        for k, v in (b.get("extra") or {}).items():
+            if k in wb.CARRIED and isinstance(v, str):
+                out[k] = v
     else:
         raise ModelError("block_invalid", f"unknown trigger type {t!r}")
     if b.get("id"):
@@ -788,6 +832,10 @@ def _build_condition(b: Block, ctx: ModelContext) -> Raw:
         if not ctx.shabbat_sensor:
             raise ModelError("shabbat_sensor_missing", "no Shabbat sensor is configured")
         return {"condition": "state", "entity_id": [ctx.shabbat_sensor], "state": "on" if b["mode"] == "only_holy_days" else "off"}
+    if t == "presence":  # KAV079-295
+        if not ctx.presence_entity:
+            raise ModelError("presence_entity_missing", "no presence entity is configured")
+        return {"condition": "state", "entity_id": [ctx.presence_entity], "state": "on" if b.get("mode") == "someone" else "off"}
     raise ModelError("block_invalid", f"unknown condition type {t!r}")
 
 
@@ -804,6 +852,8 @@ def _build_action(b: Block, ctx: ModelContext) -> Raw:
             out["target"] = {"entity_id": list(b["entity_ids"])}
         if b.get("data"):
             out["data"] = _clone(b["data"])
+        if b.get("critical") and b.get("role") == "notify":  # KAV079-295
+            out["data"] = {**(out.get("data") or {}), "data": _clone(CRITICAL_DATA)}
         return out
     if t == "delay":
         return {"delay": _dur_out(b["delay"])}
@@ -832,7 +882,8 @@ def _reparse(raw: Any, section: str, ctx: ModelContext) -> Block:
 
 def _plain_ctx(ctx: ModelContext) -> ModelContext:
     """The context for the internal comparison parses: no names, no uids that burn the counter, no template text."""
-    return ModelContext(allowed_actions=ctx.allowed_actions, shabbat_sensor=ctx.shabbat_sensor, template_text=False, uid=lambda: "_")
+    return ModelContext(allowed_actions=ctx.allowed_actions, shabbat_sensor=ctx.shabbat_sensor, template_text=False, uid=lambda: "_",
+                        wall_buttons=ctx.wall_buttons, presence_entity=ctx.presence_entity)
 
 
 def emit_block(block: Block, section: str, ctx: ModelContext | None = None) -> Any:
@@ -1258,13 +1309,13 @@ def block_changed(block: Block, section: str, ctx: ModelContext | None = None) -
 
 
 def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Iterable[str] | None = None, shabbat_sensor: str | None = None,
-                   allowed_actions: Iterable[str] | None = None) -> list[dict[str, str]]:
+                   allowed_actions: Iterable[str] | None = None, presence_entity: str | None = None, wall_buttons: bool = False) -> list[dict[str, str]]:
     """Validation of a draft with the caps of section 2.2 (the issues carry the dotted block path of `walk_draft`). A typed block that still equals its
     stored `raw` is not re-judged by the argument and notify rules (an old step stays saveable). Pure: permissions, scope and Home Assistant's own
     validation are the caller's."""
     out: list[dict[str, str]] = []
     allowed = list(allowed_actions) if allowed_actions is not None else None
-    vctx = ModelContext(shabbat_sensor=shabbat_sensor, allowed_actions=allowed)
+    vctx = ModelContext(shabbat_sensor=shabbat_sensor, allowed_actions=allowed, presence_entity=presence_entity, wall_buttons=wall_buttons)
     notify = list(notify_targets) if notify_targets is not None else None
     if kind == "scene":
         d = draft
@@ -1349,6 +1400,11 @@ def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Itera
                 need(not pol.TIME_RE.match(b["at"]), "time_required", "בחרו שעה")
             if b["type"] == "time_pattern":
                 need(all(b.get(k) is None for k in ("hours", "minutes", "seconds")), "pattern_required", "הגדירו מחזור")
+            if b["type"] == "button":  # KAV079-295
+                need(not wall_buttons and fresh, "wall_buttons_off", "עריכת כפתורי קיר כבויה בהגדרות")
+                need(not isinstance(b.get("device_id"), str) or not b.get("device_id"), "device_required", "בחרו מפסק")
+                need(b.get("press") not in wb.PRESSES or not wb.type_for(str(b.get("ha_type") or ""), str(b.get("press") or "")), "press_invalid", "סוג הלחיצה אינו נתמך במפסק")
+                need(not isinstance(b.get("button"), int) or not wb.subtype_for(str(b.get("ha_subtype") or ""), int(b.get("button") or 0)), "button_invalid", "בחרו כפתור")
         elif w.section == "condition":
             t = b["type"]
             if t in ("state", "numeric_state"):
@@ -1361,6 +1417,9 @@ def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Itera
                 need((bool(b.get("after")) and not pol.TIME_RE.match(b["after"])) or (bool(b.get("before")) and not pol.TIME_RE.match(b["before"])), "time_invalid", "שעה לא תקינה")
             if t == "shabbat":
                 need(not shabbat_sensor, "shabbat_sensor_missing", "לא הוגדר חיישן שבת")
+            if t == "presence":  # KAV079-295
+                need(not presence_entity, "presence_entity_missing", "לא הוגדר מקור ל״מי במבנה״")
+                need(b.get("mode") not in ("someone", "nobody"), "presence_mode_invalid", "בחרו מצב")
             if t == "trigger":
                 need(not b["ids"], "trigger_id_required", "בחרו טריגר")
                 need(any(i not in trigger_ids for i in b["ids"]), "trigger_id_unknown", "הטריגר אינו קיים")

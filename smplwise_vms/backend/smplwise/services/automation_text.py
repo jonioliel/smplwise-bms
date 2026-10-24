@@ -32,6 +32,11 @@ class ModelContext:
     allowed_actions: Collection[str] | None = None  # the catalogue's approved services; None = the built-in list and any notify service
     uid: Callable[[], str] | None = None
     template_text: bool = True  # put the first template text in `template_text` of locked template blocks (the server sets it per caller)
+    # KAV079-295 (the extension of the schedules / automations editors, default OFF): a wall-button device trigger is read as the typed
+    # `button` block only while `automations.wall_buttons_editable` is on; a `state` condition on the configured "who is in the building"
+    # entity is the typed `presence` block (the Shabbat pattern of CR-014)
+    wall_buttons: bool = False
+    presence_entity: str | None = None
 
 
 # ---------------------------------------------------------------- small helpers (JavaScript-like formatting of numbers)
@@ -223,6 +228,8 @@ def locked_label(raw: Any, reason: str, section: str, ctx: ModelContext | None =
 
 # ---------------------------------------------------------------- sentences
 
+PRESS_WORD = {"short": "לחיצה קצרה", "double": "לחיצה כפולה", "long": "לחיצה ארוכה"}  # KAV079-295
+
 def service_sentence(b: Block, ctx: ModelContext) -> str:
     n = join_names(b["entity_ids"], ctx)
     d = b.get("data") or {}
@@ -238,7 +245,8 @@ def service_sentence(b: Block, ctx: ModelContext) -> str:
         if not target:
             target = re.sub(r"^mobile_app_", "", re.sub(r"^notify\.", "", action)).replace("_", " ") or "התראות"
         msg = d.get("message") if isinstance(d.get("message"), str) else ""
-        return f'שלח ל{target} "{msg}"' if msg else f"שלח התראה ל{target}"
+        crit = " עם צליל קריטי" if b.get("critical") else ""  # KAV079-295
+        return f'שלח ל{target} "{msg}"{crit}' if msg else f"שלח התראה ל{target}{crit}"
     verb = ACTION_VERBS.get(action)
     if not verb:
         text = f"{action} · {n}"
@@ -304,6 +312,10 @@ def trigger_sentence(b: Block, ctx: ModelContext | None = None) -> str:
         return f"{abs(off)} דק׳ {'לפני' if off < 0 else 'אחרי'} ה{word}" if off else f"ב{word}"
     if t == "homeassistant":
         return "כשהמערכת עולה"
+    if t == "button":  # KAV079-295: a wall button / switch press
+        did = b.get("device_id")
+        name = (ctx.device_name(did) if ctx.device_name and isinstance(did, str) else None) or "מפסק"
+        return f"{PRESS_WORD.get(b.get('press'), 'לחיצה')} על כפתור {b.get('button')} · {name}"
     return b.get("label", "")
 
 
@@ -350,6 +362,8 @@ def condition_sentence(b: Block, ctx: ModelContext | None = None) -> str:
         return f"לא ({' וגם '.join(condition_sentence(c, ctx) for c in b['conditions'])})"
     if t == "shabbat":
         return "בשבת וחג בלבד" if b["mode"] == "only_holy_days" else "לא בשבת וחג"
+    if t == "presence":  # KAV079-295: "who is in the building"
+        return "אין אף אחד במבנה" if b.get("mode") == "nobody" else "יש מישהו במבנה"
     return b.get("label", "")
 
 

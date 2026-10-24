@@ -883,6 +883,19 @@ class SettingsPatch(BaseModel):
     automations_blueprints_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.blueprints_enabled")
     automations_phone_filter: str | None = Field(default=None, pattern="^(fold|rows)$", alias="automations.phone_filter")
     automations_sensitive_chip: str | None = Field(default=None, pattern="^(amber|red)$", alias="automations.sensitive_chip")
+    # KAV079-295: the editors' extension (services/automation_ext.py; every switch OFF by default)
+    automations_wall_buttons_editable: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.wall_buttons_editable")
+    automations_wall_double_ms: int | None = Field(default=None, ge=150, le=1500, alias="automations.wall_double_ms")
+    automations_wall_long_ms: int | None = Field(default=None, ge=300, le=5000, alias="automations.wall_long_ms")
+    automations_wall_debounce_ms: int | None = Field(default=None, ge=0, le=500, alias="automations.wall_debounce_ms")
+    automations_wall_listen_s: int | None = Field(default=None, ge=5, le=120, alias="automations.wall_listen_s")
+    automations_precheck_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.precheck_enabled")
+    automations_conflict_window_min: int | None = Field(default=None, ge=1, le=120, alias="automations.conflict_window_min")
+    automations_save_with_warnings: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.save_with_warnings")
+    automations_button_reuse: str | None = Field(default=None, pattern="^(warn|error)$", alias="automations.button_reuse")
+    automations_device_test_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.device_test_enabled")
+    automations_device_test_end: str | None = Field(default=None, pattern="^(ask|restore|keep)$", alias="automations.device_test_end")
+    automations_presence_entity: str | None = Field(default=None, pattern=r"^(|(binary_sensor|input_boolean)\.[a-z0-9_]{1,100})$", alias="automations.presence_entity")
     update_apply_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="update.apply_enabled")  # 2.4.4: CR-021 self-update switch
     tickets_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="tickets.enabled")  # CR-038: the tickets module switch
     emergency_readiness_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="emergency_readiness.enabled")  # CR-EMERG104: the readiness view switch

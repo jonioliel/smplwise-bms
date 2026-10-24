@@ -242,6 +242,8 @@ ROLE_ACTIONS: dict[str, tuple[Arg, ...]] = {
     "automation.turn_on": (), "automation.turn_off": (_a("stop_actions", "bool"),), "automation.trigger": (_a("skip_condition", "bool"),),
 }
 NOTIFY_ARGS: tuple[Arg, ...] = (_a("message", "str", 1, 500, required=True), _a("title", "str", 1, 100))
+# KAV079-295: the critical sound of a notify step (the add-on's automation_model.CRITICAL_DATA; the drift test compares them)
+CRITICAL_NOTIFY_DATA: dict[str, Any] = {"push": {"sound": {"name": "default", "critical": 1, "volume": 1.0}}, "ttl": 0, "priority": "high", "channel": "alarm_stream"}
 BUILDER_SERVICES: frozenset[str] = frozenset(DEVICE_ACTIONS)
 
 NEVER_TYPED_RE = re.compile(r"^(homeassistant|shell_command|rest_command|hassio|recorder|smplwise_bridge)\.|\.reload(_[a-z_]+)?$")
@@ -306,6 +308,10 @@ def classify_service(action: str) -> tuple[str | None, str | None]:
 def args_fit(action: str, role: str, data: Mapping[str, Any]) -> bool:
     """The `data` of a typed step: every key is an argument of the service and every value is in range. Open family (`script.<key>`): plain field names and values."""
     if role == "notify":
+        if "data" in data:  # KAV079-295: the one nested payload a notify step may carry - the companion app's critical sound, exactly
+            if canonical_json(data["data"]) != canonical_json(CRITICAL_NOTIFY_DATA):
+                return False
+            data = {k: v for k, v in data.items() if k != "data"}
         specs = {a.name: a for a in NOTIFY_ARGS}
     elif action in DEVICE_ACTIONS:
         specs = {a.name: a for a in DEVICE_ACTIONS[action]}
@@ -381,10 +387,39 @@ def _preflight(raw: Any, deep: bool) -> bool:
     return True
 
 
+# KAV079-295: a wall-button press (a DEVICE trigger in one of the closed press families, a numbered button) is inside the builder's schema - the
+# add-on's twin is services/wall_buttons.py (the drift test compares both). Anything else of `trigger: device` stays outside, as before.
+BUTTON_FAMILIES = (
+    ("remote_button_short_press", "remote_button_double_press", "remote_button_long_press"),
+    ("single", "double", "long"),
+    ("single_push", "double_push", "long_push"),
+    ("short_press", "double_press", "long_press"),
+    ("button_short_press", "button_double_press", "button_long_press"),
+)
+BUTTON_WORDS = frozenset(w for fam in BUTTON_FAMILIES for w in fam)
+BUTTON_KEYS = ("trigger", "platform", "device_id", "domain", "type", "subtype", "id", "discovery_id", "metadata", "alias")
+_BUTTON_SUBTYPE_RE = re.compile(r"^(.*?)(\d{1,2})$")
+
+
+def button_trigger_authorable(raw: Mapping[str, Any]) -> bool:
+    if not all(k in BUTTON_KEYS for k in raw):
+        return False
+    if not (_is_str(raw.get("device_id")) and raw["device_id"]) or not (_is_str(raw.get("domain")) and raw["domain"]) or raw.get("type") not in BUTTON_WORDS:
+        return False
+    if "id" in raw and not isinstance(raw["id"], str):
+        return False
+    if "discovery_id" in raw and not isinstance(raw["discovery_id"], str):
+        return False
+    m = _BUTTON_SUBTYPE_RE.match(raw["subtype"]) if isinstance(raw.get("subtype"), str) else None
+    return bool(m) and 1 <= int(m.group(2)) <= 12
+
+
 def trigger_authorable(raw: Any) -> bool:
     if not _preflight(raw, True):
         return False
     typ = raw.get("trigger") if raw.get("trigger") is not None else raw.get("platform")
+    if typ == "device" and not has_template(raw):
+        return button_trigger_authorable(raw)
     if not isinstance(typ, str) or typ in ("device", "template") or "." in typ or has_template(raw):
         return False
     if "id" in raw and not isinstance(raw["id"], str):

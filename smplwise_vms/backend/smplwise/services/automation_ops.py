@@ -25,6 +25,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
 from . import automation_draft as drafts
 from . import automation_model as model
+from . import automation_ext as ext
 from . import automation_policy as pol
 from . import automation_scope as scope
 from . import automation_text as text
@@ -369,10 +370,12 @@ LOCKED_CHANGED = "חלק נעול שונה. אפשר לשנות אותו רק ב
 MASKED_TEXT = "הפריט כולל ערכים חסויים; ערכו אותו בתשתית המערכת."
 
 
-def _validate(w: W, kind: str, draft: dict[str, Any]) -> list[dict[str, str]]:
+def _validate(w: W, kind: str, draft: dict[str, Any], item_id: str | None = None) -> list[dict[str, str]]:
     """The model's validation (caps, required values, the argument and notify rules of NEW or CHANGED blocks) plus what only the service knows: a device step
     drives devices of its own domain (`light.turn_on` on a switch is a mistake the catalogue never offers)."""
-    out = model.validate_draft(kind, draft, notify_targets=list(w.ctx.notify_targets), shabbat_sensor=w.ctx.shabbat_sensor or None, allowed_actions=w.ctx.allowed_actions())
+    out = model.validate_draft(kind, draft, notify_targets=list(w.ctx.notify_targets), shabbat_sensor=w.ctx.shabbat_sensor or None, allowed_actions=w.ctx.allowed_actions(),
+                               presence_entity=w.ctx.presence_entity, wall_buttons=w.ctx.wall_buttons)
+    out.extend(ext.draft_errors(w.ctx, kind, draft, item_id))  # KAV079-295: a button outside the caller's reach, a critical sound that is not allowed
     mctx = w.ctx.model_ctx(code_view=False, scoped=False)
     for wk in model.walk_draft(draft):
         b = wk.block
@@ -399,7 +402,7 @@ def judge(w: W, kind: str, *, draft: dict[str, Any] | None, config_in: dict[str,
         try:
             san = drafts.sanitise(kind, draft, stored_draft, mctx)
             j.draft = san.draft
-            problems = _validate(w, kind, san.draft)
+            problems = _validate(w, kind, san.draft, item_id)
         except (KeyError, TypeError, ValueError, AttributeError, IndexError, RecursionError):
             j.errors.append({"path": "", "code": "validation", "message": "הטיוטה אינה שלמה או אינה תקינה"})  # a draft that is not shaped like one is the caller's mistake, never a crash
             return j
@@ -438,7 +441,7 @@ def judge(w: W, kind: str, *, draft: dict[str, Any] | None, config_in: dict[str,
             j.errors.append({"path": "", "code": "validation", "message": "התוכן אינו ניתן לשמירה כפי שהוא (מפתחות לא מוכרים או מבנה לא תקין)."})
             return j
         j.draft = parsed
-        j.errors.extend(_validate(w, kind, parsed))
+        j.errors.extend(_validate(w, kind, parsed, item_id))
         known = {model.true_fingerprint(b) for b in model.locked_blocks(stored_draft)} if stored_draft else set()
         for wk in model.walk_draft(parsed):
             b = wk.block
@@ -1251,11 +1254,16 @@ def preview(w: W, kind: str, item_id: str | None, draft: dict[str, Any] | None, 
         warnings.append({"path": "", "code": "unknown_effects", "message": "לפריט פעולות שאינן ידועות מראש"})
     if j.sensitive:
         warnings.append({"path": "", "code": "sensitive", "message": "פעולה רגישה"})
+    if kind == "automation" and j.rd is not None and ext.precheck_on(w.ctx.cfg):
+        # KAV079-295: the pre-save checks (conflict window, a button already used, a device not available) - warnings the save may override
+        warnings.extend(ext.precheck_warnings(w.ctx, j.rd["draft"], item_id))
     if kind == "automation" and j.rd is not None:
         sug = view.suggest_schedule_for(w.ctx, j.rd)
         if sug is not None:
             warnings.append({"path": "", "code": "suggest_schedule", "message": "אפשר ליצור כתזמון"})
             out["suggest_schedule"] = sug
+    if kind == "automation" and j.rd is not None:  # KAV079-295 (additive): whether a notify step may carry the critical sound
+        out["extension"] = {"critical": ext.critical_allowed(w.ctx, j.rd["draft"])}
     out["ha_validation"] = ha_validate(w, kind, j.config)
     if out["ha_validation"] == "failed":
         errors.append({"path": "", "code": "ha_validation", "message": "תשתית המערכת דחתה את ההגדרה."})

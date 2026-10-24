@@ -12,11 +12,16 @@ LIMITS_DEFAULT: dict[str, int] = {"writes_per_min": 30, "preview_per_min": 60, "
 LIMITS_RANGE: dict[str, tuple[int, int]] = {"writes_per_min": (1, 600), "preview_per_min": (1, 1200), "run_interval_s": (0, 3600), "scene_apply_interval_s": (0, 600),
                                             "storm_item_per_min": (2, 1000), "storm_total_per_min": (5, 10000)}
 CODE_VIEW_ROLES_DEFAULT = ["site_admin", "system_admin"]
-BOOL_KEYS = ("automations.enabled", "automations.storm_auto_disable", "automations.sensitive_warning", "automations.templates_enabled", "automations.ask_when_on_new", "automations.blueprints_enabled")
+BOOL_KEYS = ("automations.enabled", "automations.storm_auto_disable", "automations.sensitive_warning", "automations.templates_enabled", "automations.ask_when_on_new", "automations.blueprints_enabled",
+             # KAV079-295: the editors' extension (each OFF until the administrator turns it on; `save_with_warnings` only matters once the checks run)
+             "automations.wall_buttons_editable", "automations.precheck_enabled", "automations.save_with_warnings", "automations.device_test_enabled")
 LIST_KEYS = ("automations.code_view_roles", "automations.templates_hidden", "automations.templates_order", "automations.notify_targets")
 JSON_KEYS = LIST_KEYS + ("automations.limits",)
-INT_KEYS = ("automations.trash_days", "automations.versions_keep")
-INT_RANGE = {"automations.trash_days": (7, 90), "automations.versions_keep": (5, 50)}
+INT_KEYS = ("automations.trash_days", "automations.versions_keep",
+            "automations.wall_double_ms", "automations.wall_long_ms", "automations.wall_debounce_ms", "automations.wall_listen_s", "automations.conflict_window_min")
+INT_RANGE = {"automations.trash_days": (7, 90), "automations.versions_keep": (5, 50),
+             "automations.wall_double_ms": (150, 1500), "automations.wall_long_ms": (300, 5000), "automations.wall_debounce_ms": (0, 500),
+             "automations.wall_listen_s": (5, 120), "automations.conflict_window_min": (1, 120)}
 DEFAULTS: dict[str, str] = {
     "automations.enabled": "true",
     "automations.code_view_roles": json.dumps(CODE_VIEW_ROLES_DEFAULT),
@@ -34,8 +39,22 @@ DEFAULTS: dict[str, str] = {
     # owner answers 2026-10-01: how the phone list header folds the state filter, and the colour of the sensitive-step warning chip
     "automations.phone_filter": "fold",
     "automations.sensitive_chip": "amber",
+    # KAV079-295 (mockup r079 state 8; owner answers 359 / 362): wall buttons, the pre-save checks, the on-device test, "who is in the building"
+    "automations.wall_buttons_editable": "false",
+    "automations.wall_double_ms": "400",
+    "automations.wall_long_ms": "800",
+    "automations.wall_debounce_ms": "50",
+    "automations.wall_listen_s": "30",
+    "automations.precheck_enabled": "false",
+    "automations.conflict_window_min": "10",
+    "automations.save_with_warnings": "true",
+    "automations.button_reuse": "warn",
+    "automations.device_test_enabled": "false",
+    "automations.device_test_end": "ask",
+    "automations.presence_entity": "",
 }
-ENUM_KEYS: dict[str, tuple[str, ...]] = {"automations.phone_filter": ("fold", "rows"), "automations.sensitive_chip": ("amber", "red")}
+ENUM_KEYS: dict[str, tuple[str, ...]] = {"automations.phone_filter": ("fold", "rows"), "automations.sensitive_chip": ("amber", "red"),
+                                         "automations.button_reuse": ("warn", "error"), "automations.device_test_end": ("ask", "restore", "keep")}
 _ROLE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 _TEMPLATE = re.compile(r"^[a-z0-9_]{1,40}$")
 _NOTIFY = re.compile(r"^notify\.[a-z0-9_]{1,80}$")
