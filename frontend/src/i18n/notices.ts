@@ -136,6 +136,8 @@ const he = {
   dOrigin: 'כתובת הלוחות לטלוויזיות',
   dOriginHint: 'הכתובת שבה הטלוויזיות פותחות את הלוחות ברשת הבניין, למשל http://192.0.2.10:18094',
   dRemote: 'זמינים גם מחוץ לרשת הבניין',
+  dConnTotal: 'מקסימום חיבורים בו-זמנית',
+  dConnPerAddr: 'מקסימום חיבורים מכתובת אחת',
   dCustomFeeds: 'מותר להוסיף כתובת RSS אחרת',
   companyLogo: 'לוגו היזם / חברת הניהול',
   logoUpload: 'העלאת לוגו',
@@ -361,6 +363,7 @@ const en: Partial<Record<Key, string>> = {
   places: 'Places', placeSelect: 'Place', allPlaces: 'Whole building', foldPlace: 'Collapse {name}', unfoldPlace: 'Expand {name}', readsOf: 'Who read: {title}', readsList: 'List',
   readsLoadError: 'The list could not be loaded', readsNone: 'No recipients', segReadShort: 'Read', segUnreadShort: 'Not read yet',colName: 'Name', colPlace: 'Place', colReadAt: 'Read', widgetAll: 'All', widgetEmpty: 'No active notices',
   widgetNew: 'New', widgetUntil: 'Until {d}',
+  dConnTotal: 'Max simultaneous connections', dConnPerAddr: 'Max connections per address',
   dHomeEmpty: 'Home widget with no notices', dHomeEmptyHide: 'Hide the widget', dHomeEmptyLine: 'Show a "No active notices" line',
 };
 

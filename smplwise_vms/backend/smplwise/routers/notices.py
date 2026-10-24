@@ -145,6 +145,8 @@ class SettingsIn(BaseModel):
     news_custom: bool | None = None
     building_name: str | None = Field(default=None, max_length=60)
     boards_origin: str | None = Field(default=None, max_length=220)
+    conn_total: int | None = None  # NOTICECAPS-295: validated in model.settings_values (4..256)
+    conn_per_address: int | None = None  # NOTICECAPS-295: validated in model.settings_values (1..64)
 
 
 def _weather_entities(conn: sqlite3.Connection) -> list[dict[str, str]]:

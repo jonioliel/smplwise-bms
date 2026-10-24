@@ -52,7 +52,13 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     # the origin the TV links point to: the LAN listener as the owner mapped it (e.g. http://<host>:18094) or the remote address;
     # empty = the address the manager uses (the Settings screen says so)
     "notices.boards.origin": "",
+    # NOTICECAPS-295: the TV listener's hardening caps, read by the listener at every connection (no restart). 32 is the cap the
+    # listener always had; 8 per address is the new per-client ceiling (a TV, or a few TVs behind one NAT).
+    "notices.boards.conn_total": "32",
+    "notices.boards.conn_per_address": "8",
 }
+CONN_TOTAL_RANGE = (4, 256)
+CONN_PER_ADDRESS_RANGE = (1, 64)
 
 
 class Invalid(ValueError):
@@ -309,6 +315,8 @@ def settings_doc(get: Any) -> dict[str, Any]:
         "news_custom": raw["notices.news_custom"] == "true",
         "building_name": raw["notices.building_name"][:60],
         "boards_origin": raw["notices.boards.origin"],
+        "conn_total": num("notices.boards.conn_total", *CONN_TOTAL_RANGE),
+        "conn_per_address": num("notices.boards.conn_per_address", *CONN_PER_ADDRESS_RANGE),
         "news_sources": CURATED_NEWS,
     }
 
@@ -320,6 +328,7 @@ SETTINGS_FIELDS: dict[str, str] = {  # API field -> settings key
     "boards_remote": "notices.boards.remote", "boards_max": "notices.boards.max", "weather_entity": "notices.weather_entity",
     "weather_fallback": "notices.weather_fallback", "news_custom": "notices.news_custom", "building_name": "notices.building_name",
     "boards_origin": "notices.boards.origin",
+    "conn_total": "notices.boards.conn_total", "conn_per_address": "notices.boards.conn_per_address",
 }
 
 
@@ -336,6 +345,11 @@ def settings_values(patch: dict[str, Any]) -> dict[str, str]:
             out[key] = "true" if value else "false"
         elif field in ("default_days", "retention_days", "boards_max"):
             lo, hi = {"default_days": (1, 90), "retention_days": (30, 3650), "boards_max": (1, 50)}[field]
+            if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
+                raise Invalid(field, f"מספר בין {lo} ל-{hi}.")
+            out[key] = str(value)
+        elif field in ("conn_total", "conn_per_address"):
+            lo, hi = CONN_TOTAL_RANGE if field == "conn_total" else CONN_PER_ADDRESS_RANGE
             if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
                 raise Invalid(field, f"מספר בין {lo} ל-{hi}.")
             out[key] = str(value)

@@ -307,6 +307,12 @@ export class SystemNotices extends LitElement {
       </div>
       <div class="fld"><label for="ns-origin">${nt('dOrigin')}</label><input id="ns-origin" class="inp ltr" maxlength="220" .value=${st.boards_origin} placeholder="http://192.0.2.10:18094"
         @change=${(e: Event) => this.patchSettings({ boards_origin: (e.target as HTMLInputElement).value })}><span class="hint">${nt('dOriginHint')}</span></div>
+      <div class="r">
+        <div class="fld"><label for="ns-ctot">${nt('dConnTotal')}</label><input id="ns-ctot" class="inp short num" type="number" min="4" max="256" data-conn-total .value=${String(st.conn_total)}
+          @change=${(e: Event) => this.patchSettings({ conn_total: Number((e.target as HTMLInputElement).value) })}></div>
+        <div class="fld"><label for="ns-cadr">${nt('dConnPerAddr')}</label><input id="ns-cadr" class="inp short num" type="number" min="1" max="64" data-conn-per-address .value=${String(st.conn_per_address)}
+          @change=${(e: Event) => this.patchSettings({ conn_per_address: Number((e.target as HTMLInputElement).value) })}></div>
+      </div>
       <label class="ck"><input type="checkbox" .checked=${st.news_custom} @change=${(e: Event) => this.patchSettings({ news_custom: (e.target as HTMLInputElement).checked })}>${nt('dCustomFeeds')}</label>
       <div class="fld"><span class="lbl">${nt('companyLogo')}</span><a href="#/system/diagnostics?tab=general" data-logo-link>${nt('logoWhere')}</a></div>
     </div></div>`;
