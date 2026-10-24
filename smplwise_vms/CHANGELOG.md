@@ -1,5 +1,23 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.17.0 (pilot) — The WisKey integration: direct connection, write path and capture, tested on fakes only
+**After installing:** no database migration is added. Nothing is switched on by this version; the bridge stays at 0.9.9. Everything below was tested against test doubles only, never against a real WisKey, station, Home Assistant installation or go2rtc.
+- **עברית:** אחרי ההתקנה: לא נוספת מיגרציה. שום דבר לא מופעל על ידי הגרסה הזאת; הגשר נשאר 0.9.9. כל מה שלמטה נבדק מול דמויות בלבד, לא מול WisKey, עמדה, התקנה או go2rtc אמיתיים.
+
+### What was added - מה נוסף
+- **English:** WisKey direct connection (WKDIRECT-295 with W10CLIENT-295): an Arx client of WisKey's direct interface over one authenticated socket, a published talk limit, and a join that carries commands and media on it.
+- **עברית:** חיבור ישיר ל-WisKey: לקוח של הממשק הישיר של WisKey על חיבור מאומת אחד, מגבלת שיחה מפורסמת, וחיבור שמעביר פקודות ומדיה עליו.
+- **English:** Native people writes (WKWRITE-295): a write path with an intent log that is committed before any change, and recovery after a crash.
+- **עברית:** כתיבת אנשים מקומית (WKWRITE-295): נתיב כתיבה עם יומן כוונות שנשמר לפני כל שינוי, ושחזור אחרי קריסה.
+- **English:** Capture and capability handling (WKCAP-295) and the per-station access judgement (WKB3-295).
+- **עברית:** טיפול בצילום וביכולות (WKCAP-295) ושיפוט גישה לפי עמדה (WKB3-295).
+- **English:** Presence: an "unavailable" state for presence sources (PRESUNAVAIL-295 and PRESUNAVAIL2-295), and a fix for dropdown fit (DROPDOWNFIT-295).
+- **עברית:** נוכחות: מצב "לא זמין" למקורות נוכחות, ותיקון התאמת רשימות נפתחות.
+
+### Fixed - תוקן
+- **English:** Four backend tests that were red on the candidate gate (an IP literal in a test, a shared fixture folder, and the transaction-control check for the separate lineage store). Tests only; no product code changed.
+- **עברית:** ארבע בדיקות backend שנכשלו בגייט של המועמד (כתובת IP בבדיקה, תיקיית דוגמאות משותפת, ובדיקת בקרת הטרנזקציות עבור מאגר היומן הנפרד). בדיקות בלבד; קוד המוצר לא השתנה.
+
 ## 2.16.0 (pilot) — Combined version: notice board with TV screens, partner API (off), logos and white-label branding, live event page, free-text request intake (off), scenarios engine (off), emergency readiness, camera image health, generator run log, water billing, "who is in the building", time scrub on the historical map
 **After installing:** twelve new database migrations, additive only (0160 `ha_history_gaps`, 0161 `infra_water_billing`, 0162 `generator_run_log`, 0163 `camera_image_refs`, 0164 `emergency_readiness`, 0165 `notices`, 0166 `brand_assets`, 0167 `brand_assets_installer`, 0168 `incidents`, 0169 `partner_api`, 0170 `ticket_intake`, 0171 `scenarios`; the sequence is now 0001..0171; `ticket_outbox` is rebuilt by 0170 with the new `intake_reply` purpose). New add-on option `notice_boards` (default false) and an unmapped container port 18094 for the TV boards. **The Home Assistant bridge stays at 0.9.9** (no change under `custom_components` since 2.15.0). **Every new feature ships OFF** (own switch, see "How to enable"); every existing switch keeps its value and every permit stays as it was. **This version has NOT yet been through its gate: pytest and Playwright were not run on this branch, the API inventory and the `www` / `www-public` bundles are not yet regenerated (see "Known limits").**
 - **עברית:** אחרי ההתקנה: שתים-עשרה מיגרציות חדשות למסד הנתונים, הוספה בלבד (0160 `ha_history_gaps`, 0161 `infra_water_billing`, 0162 `generator_run_log`, 0163 `camera_image_refs`, 0164 `emergency_readiness`, 0165 `notices`, 0166 `brand_assets`, 0167 `brand_assets_installer`, 0168 `incidents`, 0169 `partner_api`, 0170 `ticket_intake`, 0171 `scenarios`; הרצף עכשיו 0001..0171; הטבלה `ticket_outbox` נבנית מחדש במיגרציה 0170 עם מטרת השליחה החדשה `intake_reply`). אפשרות תוסף חדשה `notice_boards` (כבויה כברירת מחדל) ופורט קונטיינר 18094 לא ממופה למסכי הטלוויזיה. **הגשר למערכת הבית נשאר ב-0.9.9** (אין שינוי ב-`custom_components` מאז 2.15.0). **כל יכולת חדשה מגיעה כבויה** (מתג משלה, ראו "איך מפעילים"); כל מתג קיים שומר על ערכו וכל היתר נשאר כפי שהיה. **הגרסה הזו עדיין לא עברה את שער הבדיקות: pytest ו-Playwright לא הורצו על הענף, מלאי ה-API וחבילות ה-`www` / `www-public` עדיין לא נוצרו מחדש (ראו "מגבלות ידועות").**
