@@ -937,6 +937,11 @@ def holds_live_credential(settings: Settings, conn: Any) -> bool:
 
         if local_identity.holds_live_cookie(sid):
             return True
+    if sid and sid.startswith("a."):  # SESSIONEXCH2: the phone app's WebView session
+        from . import app_session
+
+        if app_session.holds_live_cookie(sid):
+            return True
     s = STORE.peek(sid)
     if s is not None and s.token_exp > now:
         return True
@@ -1269,6 +1274,11 @@ def logout(app_state: Any, settings: Settings, conn_like: Any) -> bool:
 
         if local_identity.logout(app_state.db, settings, conn_like, sid):
             return True
+    if sid and sid.startswith("a."):  # SESSIONEXCH2 decision 394: the web sign-out ends the web session AND the phone's saved sign-in
+        from . import app_session
+
+        if app_session.logout(app_state.db, conn_like, sid):
+            return True
     s = STORE.drop_chain(sid) if sid else None
     if s is not None:
         _audit(app_state.db, actor=s.principal, action="auth.remote_session.logout", decision="allowed", reason=None, meta=request_meta(conn_like))
@@ -1525,6 +1535,14 @@ def remote_principal(request: Any, settings: Settings, offline: bool = False) ->
         local = local_identity.remote_principal(request, settings, sid, offline=offline)
         if local is not None:
             return local
+    if sid and sid.startswith("a."):
+        # SESSIONEXCH2: the phone app's WebView session (spec section 6.4). None (a switch off, an unknown / ended session) falls through to
+        # exactly what any unknown cookie gets below
+        from . import app_session
+
+        app = app_session.remote_principal(request, settings, sid, offline=offline)
+        if app is not None:
+            return app
     s = STORE.get(sid)
     if s is not None and _stale(s):
         if offline:
@@ -1552,6 +1570,10 @@ async def remote_principal_ws(websocket: Any, settings: Settings) -> Principal |
             from . import local_identity
 
             return await local_identity.remote_principal_ws(websocket, settings, sid)
+        if sid.startswith("a."):  # SESSIONEXCH2: the phone app's WebView session
+            from . import app_session
+
+            return await app_session.remote_principal_ws(websocket, settings, sid)
         s = STORE.get(sid)
         if s is not None and _stale(s):
             s = await _recheck_async(websocket, settings, s)
@@ -1767,7 +1789,9 @@ def _days_ago(days: int) -> str:
 async def _close_sockets() -> None:
     from . import local_identity  # USR2: the sockets of revoked local sessions close on the same pass
 
-    for ws in STORE.take_sockets_to_close() + local_identity.take_sockets_to_close():
+    from . import app_session  # SESSIONEXCH2: the sockets of ended app web sessions too
+
+    for ws in STORE.take_sockets_to_close() + local_identity.take_sockets_to_close() + app_session.take_sockets_to_close():
         try:
             await ws.close(code=4401)
         except Exception:  # noqa: BLE001 - already closed
@@ -1851,6 +1875,7 @@ def reset_for_tests() -> None:
     _core_base.clear()
     _xff_refused.clear()
     _REVOKED_TABLE["seen"] = False
-    from . import local_identity
+    from . import app_session, local_identity
 
     local_identity.reset_for_tests()
+    app_session.reset_for_tests()

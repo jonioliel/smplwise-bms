@@ -209,6 +209,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         app_refresh_svc.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("app refresh janitor failed", exc_info=True)
+    try:  # SESSIONEXCH2-295: lapsed codes, web sessions past expiry or whose family ended (the sweep for a missed fan-out)
+        from .services import app_session as app_session_svc
+
+        app_session_svc.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("app session janitor failed", exc_info=True)
     try:  # TFA2: expired second-factor lockout rows
         from .services import second_factor as second_factor_svc
 
@@ -804,6 +810,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             local_identity_svc.restore_tiers(app.state.db)
         except Exception:  # noqa: BLE001
             log.warning("local identity tiers restore failed", exc_info=True)
+        # SESSIONEXCH2-295 (decision 398, review S-03): no app web session and no one-time code survives a restart (never raises)
+        from .services import app_session as app_session_svc
+
+        app_session_svc.end_on_startup(app.state.db)
         # Sessions never survive a restart: remove our leftover playback streams, then expire idle
         # sessions every 30 s. Only `smplwise_pb_*` names are ever deleted.
         from starlette.concurrency import run_in_threadpool

@@ -233,6 +233,7 @@ def list_remote_sessions(request: Request, scope: str = Query("own", pattern="^(
     live = _live_by_chain()
     sessions = [hua.describe(e, current, live) for e in entries]
     sessions += _local_rows(request, None if scope == "all" else principal.user_id, current, live)
+    sessions += _app_rows(request, None if scope == "all" else principal.user_id, current, live)
     return {"scope": scope, "can_manage": admin, "channel": channel_of(request), "sessions": sessions}
 
 
@@ -252,6 +253,47 @@ def _local_rows(request: Request, user_id: str | None, current: str | None, live
         chain = r.pop("_chain")
         out.append({**r, "current": chain == current, "live_streams": live.get(chain, 0)})
     return out
+
+
+def _app_rows(request: Request, user_id: str | None, current: str | None, live: dict[str, int]) -> list[dict[str, Any]]:
+    """SESSIONEXCH2 (decision 396): the phone app's WebView sessions, one row each (`kind: "app"`, the device's name, `saved_sign_in`)."""
+    from ..services import app_session
+
+    with request.app.state.db.connection(mode="read", label="auth/sessions app") as conn:
+        rows = app_session.list_rows(conn, user_id)
+    out = []
+    for r in rows:
+        chain = r.pop("_chain")
+        out.append({**r, "current": chain == current, "live_streams": live.get(chain, 0)})
+    return out
+
+
+def _app_revoke(request: Request, principal: Principal, admin: bool, pid: str) -> JSONResponse | None:
+    """SESSIONEXCH2 / review S-04: ending an app web session's row ends its FAMILY (the phone's saved sign-in), exactly like
+    DELETE /auth/app/families/{id} - so the app cannot silently re-create it. None = not an app web session."""
+    from ..services import app_refresh, app_session
+
+    settings = settings_of(request)
+    current = _current_chain(request)
+    rid = getattr(request.state, "correlation_id", None)
+    with request.app.state.db.connection(label="auth/sessions app revoke") as conn:
+        row = app_session.owner_of(conn, pid)
+        if row is None:
+            return None
+        owner = row["user_id"]
+        if owner != principal.user_id and not admin:
+            require(conn, principal, "system.configure", INSTALLATION)  # 403, audited
+        reason = "revoked_by_user" if owner == principal.user_id else "revoked_by_admin"
+        ended = app_refresh.revoke_family(conn, row["family_id"], reason, actor=principal, request_id=rid, subject=owner)
+        app_session._end_where(conn, "sid_hash = ?", (row["sid_hash"],), reason)  # the family was already ended elsewhere: the row still goes
+        app_refresh.release_pins(conn, [row["device_id"]], reason, actor=principal, request_id=rid)  # Q296: only the user's own end
+        audit(conn, actor=principal, action="auth.app_session.revoked", decision="allowed", resource_type="user", resource_id=owner, reason=reason,
+              request_id=rid, details={"session": pid, "family": row["family_id"], "families_ended": ended})
+    ends_current = current == "a:" + pid
+    response = JSONResponse({"sessions_ended": 1, "ha_sign_ins_ended": 0, "saved_sign_ins_ended": ended, "current_ended": ends_current})
+    if ends_current:
+        _clear_cookie(response, settings)
+    return response
 
 
 def _local_revoke(request: Request, principal: Principal, admin: bool, *, chain_pid: str | None = None, user_id: str | None = None) -> JSONResponse | None:
@@ -316,6 +358,10 @@ async def revoke_remote_session(session_id: str, request: Request) -> JSONRespon
         if local is not None:
             await hua._close_sockets()
             return local
+        app = await run_in_threadpool(lambda: _app_revoke(request, principal, admin, session_id))
+        if app is not None:
+            await hua._close_sockets()
+            return app
     if not sessions:
         raise ApiError(404, "session_not_found", SESSION_NOT_FOUND_HE)
     owner = sessions[0].principal.user_id

@@ -105,6 +105,9 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    # APPREFRESH3-295: the device-key pins - a restore must neither drop one (a new key would bind without
                                    # the old key's proof) nor revive one
                                    "app_refresh_device_keys",
+                                   # SESSIONEXCH2-295: the app WebView sessions and their one-time codes (hashes only) - a restore must never
+                                   # revive a session or a code
+                                   "app_web_sessions", "app_session_codes",
                                    # PARTNERAPI113-295: partner tokens (hashes), webhook targets and sealed secrets, queued payloads, the delivery log,
                                    # idempotency answers and the partner links of requests - a restore leaves the partner state of the target box alone
                                    "partner_clients", "partner_tokens", "partner_endpoints", "partner_outbox", "partner_deliveries",
@@ -236,6 +239,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
 # WKWRITE-295: the anchor of the WisKey people-write lineage (generation + last intent sequence) describes THIS installation's lineage
 # file, which lives outside every backup - an archive must never carry it or move it backwards (services/wiskey_write_lineage.py)
 SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.native_write.lineage_anchor"}
+# SESSIONEXCH2-295: the WebView session exchange switch and its lifetimes are this box's security state
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_session_exchange", "security.app_session_idle_minutes", "security.app_session_max_days"}
 # APPREFRESH3-295: the key-reset notice wording sits with the rest of the app sign-in policy (kept, never taken from an archive)
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_key_reset_notice_title", "security.app_refresh_key_reset_notice_body"}
 

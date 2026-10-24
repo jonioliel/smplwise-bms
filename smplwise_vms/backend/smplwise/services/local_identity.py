@@ -1490,6 +1490,9 @@ def on_factor_removed(conn, user_id: str) -> bool:
     cached sessions are dropped so the change is seen on the next request. True when the factor flag was cleared."""
     lease_hook("second_factor_changed", user_ids=[user_id])  # T6: any factor removed (strict: also when another factor is left)
     CACHE.drop_user(user_id)
+    from . import app_session
+
+    app_session.drop_user_cache(user_id)  # SESSIONEXCH2: the app web sessions recompute factor_ok on the next request
     if has_factor(conn, user_id):
         return False
     conn.execute("UPDATE auth_local_sessions SET factor_at = NULL WHERE user_id = ? AND factor_at IS NOT NULL", (user_id,))
