@@ -468,6 +468,64 @@ class DirectJoin:
 
         return await self.session.run_async(go())
 
+    # -- WKR5-295 unit C / F: the lineage's administration and the original receipt readers ---------------------------------------
+    def lineage_view(self) -> dict[str, Any]:
+        """What an administrator may see: status, counts per state, the OPEN operations (refs, command, state, code, times). Never the
+        sealed original, a name, a PIN or a card."""
+        lin = self.lineage
+        if lin is None:
+            return {"installed": True, "lineage": None}
+        counts: dict[str, int] = {}
+        for state, n in lin.db.execute("SELECT state, COUNT(*) FROM intents GROUP BY state").fetchall():
+            counts[state] = n
+        open_ops = [{"operation_id": i.operation_id, "kind": i.kind, "command": i.command, "state": i.state, "code": i.outcome_code,
+                     "target_ref": i.target_ref, "created_at": i.created_at, "send_started_at": i.send_started_at}
+                    for i in lin.open_intents()]
+        return {"installed": True, "lineage": {"status": lin.status, "writable": lin.writable(), "counts": counts, "open": open_ops},
+                "discovery": self.session.discovery.snapshot()}
+
+    async def resolve(self, operation_id: str) -> Any:
+        """The ORIGINAL reader of one UNKNOWN operation, chosen by its kind: a peer write -> `peer_receipts/resolve` with a CURRENT read
+        binding and the stored full original7 (never rebuilt from refs or the current state); a name_ref apply -> `users/bulk_receipt`
+        by the same pairing-service actor. A read only: the mutation is never sent again. Runs on the session loop."""
+        from .wiskey_native_write import NativePeopleWriter
+
+        lin = self.lineage
+        if lin is None:
+            from .wiskey_native_write import NativeWriteError
+
+            raise NativeWriteError("lineage_unavailable")
+        intent = lin.get(operation_id)
+
+        async def go() -> Any:
+            writer = NativePeopleWriter(self.command_port, lin)
+            return await (writer.resolve_name_ref(operation_id) if intent.kind == "name_ref" else writer.resolve(operation_id))
+
+        return await self.session.run_async(go())
+
+    def close_unknown(self, operation_id: str, *, actor_ref: str, code: str) -> None:
+        if self.lineage is None:
+            raise ValueError("lineage_unavailable")
+        self.lineage.close_unknown(operation_id, actor_ref=actor_ref, code=code)
+
+    def reinitialise(self, *, actor_ref: str) -> None:
+        if self.lineage is None:
+            raise ValueError("lineage_unavailable")
+        self.lineage.reinitialise(actor_ref=actor_ref)
+
+    PURGE_EVERY_S = 3600.0
+    _purged_at = -1e18
+
+    def purge_due(self, now: float | None = None) -> int | None:
+        """The 30-day retention of ENDED operations (open unknowns are never purged), at most once an hour. None when not run now."""
+        if self.lineage is None:
+            return None
+        t = time.monotonic() if now is None else now
+        if t - self._purged_at < self.PURGE_EVERY_S:
+            return None
+        self._purged_at = t
+        return self.lineage.purge()
+
     def close(self) -> None:
         if self.lineage is not None:
             try:
@@ -502,6 +560,14 @@ JOIN: DirectJoin | None = None
 
 def installed() -> DirectJoin | None:
     return JOIN
+
+
+def janitor() -> int | None:
+    """WKR5-295 unit C: the hourly lineage retention step of the main janitor (nothing when the join is not installed)."""
+    join = JOIN
+    if join is None:
+        return None
+    return join.purge_due()
 
 
 def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, Any], *, targets: list[tuple[str, str]],
