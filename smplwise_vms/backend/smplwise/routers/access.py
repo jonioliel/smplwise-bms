@@ -1060,8 +1060,10 @@ def local_binding_check(conn: sqlite3.Connection, principal: Principal, user_id:
         audit(conn, actor=principal, action="rbac.bind", decision="denied", resource_type="user", resource_id=user_id, reason="local_admin_target_remote",
               details={"role_id": role_id})
         raise ApiError(404, "not_found", "Not found")
-    existing = conn.execute(_active_bindings_sql("AND subject_kind = 'user' AND subject_id = ?"), (now_iso(), user_id)).fetchone()
-    if existing:
+    # EMROLE-295 (owner answer 2026-10-25): the emergency_open grant (always expiry-bound, audited, through /doors/emergency/grants) is the one exception to
+    # "one binding": it neither counts as the person's role nor is refused for already holding one.
+    existing = conn.execute(_active_bindings_sql("AND subject_kind = 'user' AND subject_id = ? AND role_id != 'emergency_open'"), (now_iso(), user_id)).fetchone()
+    if existing and role_id != "emergency_open":
         raise refuse("local_user_one_binding", LOCAL_ONE_BINDING_HE, 409)
 
 

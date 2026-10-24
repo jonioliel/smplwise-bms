@@ -298,3 +298,28 @@ def test_a_holder_scoped_to_another_station_cannot_retry_this_door(pw):
     r = retry(pw, iid, "desk")
     assert r.status_code == 403 and r.json()["code"] == "retry_not_allowed"
     assert len(apply_calls(pw)) == 1
+
+
+# ---------------------------------------------------------------- a local (Arx-only) identity: the one exception to "one binding"
+
+def test_a_local_identity_with_a_role_also_holds_emergency_open_expiry_bound_and_audited(pw):
+    from smplwise.db import new_id, now_iso, permission_revision
+    from smplwise.rbac import Principal, permissions_anywhere
+
+    uid = "l_clerk0000001"
+    with pw.db.connection() as conn:
+        conn.execute("INSERT INTO users(id, username, display_name, source, active, first_seen_at, last_seen_at) VALUES (?, 'clerk', 'Clerk', 'local', 1, ?, ?)", (uid, now_iso(), now_iso()))
+        conn.execute("""INSERT INTO bindings(id, subject_kind, subject_id, role_id, scope_type, scope_id, effect, permission_revision, assigned_by, created_at)
+                        VALUES (?, 'user', ?, 'operator', 'installation', '*', 'allow', ?, 'test', ?)""", (new_id(), uid, permission_revision(conn), now_iso()))
+    r = pw.post("/doors/emergency/grants", None, user_id=uid, scope_type="installation", scope_id="*", no_expiry=True, confirmed=True)
+    assert r.status_code == 422 and r.json()["code"] == "expiry_required", "a local identity's grant is always expiry-bound"
+    r = pw.post("/doors/emergency/grants", None, user_id=uid, scope_type="installation", scope_id="*", expires_at=at(pw, 6), confirmed=True)
+    assert r.status_code == 201, r.text
+    with pw.db.connection(mode="read") as conn:
+        perms = permissions_anywhere(conn, Principal(user_id=uid, username="clerk", display_name="Clerk", source="local"))
+        assert de.OPEN in perms and "devices.read" in perms, "the emergency-open right is added to the person's own role"
+    row = audit_rows(pw, "door.emergency.grant")[-1]
+    assert row["decision"] == "allowed" and row["details"]["expires_at"] == at(pw, 6)
+    # the exception is this role only: a second ordinary role is still refused
+    r = pw.post("/access/bindings", None, subject_kind="user", subject_id=uid, role_id="viewer", scope_type="installation", scope_id="*")
+    assert r.status_code == 409 and r.json()["code"] == "local_user_one_binding"

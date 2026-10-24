@@ -167,6 +167,8 @@ def grant(conn: sqlite3.Connection, request: Request, principal: Principal, *, u
         raise _refuse(conn, principal, action, 403, "grant_self", "אי אפשר לתת לעצמך את התפקיד.", user=user_id)
     expiry = resolve_expiry(conn, principal, basis, expires_at, no_expiry, now)
     if user_id.startswith(LOCAL_ID_PREFIX):
+        if expiry is None:  # a local (Arx-only) identity holds this role as an addition to its one role, so it is always expiry-bound
+            raise _refuse(conn, principal, action, 422, "expiry_required", "למשתמש Arx התפקיד ניתן רק עם תוקף.", user=user_id)
         local_binding_check(conn, principal, user_id, ROLE_ID, "allow", remote=remote)
     dup = conn.execute(_active_sql("AND subject_kind = 'user' AND subject_id = ? AND role_id = ? AND scope_type = ? AND scope_id = ? AND effect = 'allow'"),
                        (now_iso(), user_id, ROLE_ID, scope_type, scope_id)).fetchone()
