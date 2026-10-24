@@ -221,6 +221,8 @@ export interface Incident {
   superseded_by: string | null;
   foreign_paused?: { door: string; label: string }[];
   can_release?: boolean;
+  /** WKOPENUNK-295: a system administrator may start one explicit new OPEN attempt for a door whose OPEN ended unknown. */
+  can_retry_open?: boolean;
   doors?: { door: string; label: string; phase: 'apply' | 'release'; state: DoorResult; attempts: number; code: string | null }[];
 }
 
@@ -281,3 +283,7 @@ export const getEmergencySettings = () => get<{ settings: EmergencySettings }>(`
 export const putEmergencySettings = (changes: Record<string, string>) =>
   put<{ settings: EmergencySettings; changed: string[] }>(`${E}/settings`, { changes, confirmed: true });
 export const attest = (version: number) => post<{ attested: boolean; version: number }>(`${E}/attestation`, { version, accepted: true, confirmed: true });
+
+/** WKOPENUNK-295: one explicit new OPEN attempt for ONE door whose OPEN ended unknown; the person types the door's name (the server checks it) - never automatic. */
+export const retryOpenDoor = (incidentId: string, stationId: string, relay: number, confirmDoor: string) =>
+  post<{ incident: Incident }>(`${E}/incidents/${encodeURIComponent(incidentId)}/retry-open`, { station_id: stationId, relay, confirm_door: confirmDoor });

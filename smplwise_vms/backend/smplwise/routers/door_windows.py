@@ -26,7 +26,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, get_read_conn, settings_of
 from ..db import commit_now, rollback_and_restart
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
+from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require, is_system_admin
 from ..services import door_emergency as de
 from ..services import door_window_triggers as dwt
 from ..services import door_windows as dw
@@ -517,7 +517,8 @@ def emergency_state(request: Request, principal: Principal = Depends(current_pri
         "home_widget": de.setting(conn, de.HOME_WIDGET) == "on",  # DOORWIN2-295: the optional home-screen entry (off by default)
         "can": {"lock": can_lock, "open": can_open},
         "active": de.incident_view(conn, active, with_doors=can_lock or can_open) | {"can_release": authorize(conn, principal, de.PERMISSION[active["kind"]],
-                                                                                                                de.scope_target(active["scope_type"], active["scope_id"])).allowed}
+                                                                                                                de.scope_target(active["scope_type"], active["scope_id"])).allowed,
+                                                              "can_retry_open": active["kind"] == "open" and not active["drill"] and is_system_admin(conn, principal.user_id)}
         if active is not None else None,
     }
     if can_lock or can_open:
@@ -599,6 +600,26 @@ def emergency_release(body: ReleaseBody, request: Request, incident_id: str = Pa
     commit_now(conn)
     db = request.app.state.db
     de.submit(db, settings, incident_id, "release")
+    with db.connection(mode="read") as rconn:
+        return {"incident": de.incident_view(rconn, de.incident_row(rconn, incident_id))}
+
+
+class RetryOpenBody(BaseModel):
+    station_id: str = Field(min_length=1, max_length=128)
+    relay: int = Field(ge=0, le=64)
+    confirm_door: str = Field(min_length=1, max_length=120)
+
+
+@router.post("/doors/emergency/incidents/{incident_id}/retry-open")
+def emergency_retry_open(body: RetryOpenBody, request: Request, incident_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+                         conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """WKOPENUNK-295: the explicit new OPEN attempt for ONE door whose OPEN ended UNKNOWN (system administrator, confirmation by the door's name, one at a time)."""
+    settings = settings_of(request)
+    de.retry_open(conn, settings, principal, incident_id=incident_id, station_id=body.station_id, relay=body.relay, confirm_door=body.confirm_door, now=now_utc(),
+                  dev_mode=_dev(request))
+    commit_now(conn)
+    db = request.app.state.db
+    de.submit(db, settings, incident_id, "apply")
     with db.connection(mode="read") as rconn:
         return {"incident": de.incident_view(rconn, de.incident_row(rconn, incident_id))}
 
