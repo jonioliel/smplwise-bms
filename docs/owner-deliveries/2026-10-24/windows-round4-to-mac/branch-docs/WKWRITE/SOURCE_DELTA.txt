@@ -1,0 +1,14 @@
+A	docs/changes/WKWRITE-295-ADOPTION-MAP.md
+A	docs/changes/WKWRITE-295-NATIVE-WRITE.md
+M	smplwise_vms/backend/smplwise/services/backup.py
+M	smplwise_vms/backend/smplwise/services/connection_store.py
+A	smplwise_vms/backend/smplwise/services/wiskey_command_port.py
+A	smplwise_vms/backend/smplwise/services/wiskey_native_write.py
+A	smplwise_vms/backend/smplwise/services/wiskey_write_lineage.py
+A	smplwise_vms/backend/tests/fixtures/wiskey_round4/GENERALIZED_W1_ENVELOPE.draft3.schema.json
+A	smplwise_vms/backend/tests/fixtures/wiskey_round4/people_command_catalog.json
+A	smplwise_vms/backend/tests/test_wkwrite_295.py
+A	smplwise_vms/backend/tests/test_wkwrite_295_crash.py
+A	smplwise_vms/backend/tests/wkwrite_crash_child.py
+A	smplwise_vms/backend/tests/wkwrite_fake.py
+M	smplwise_vms/config.yaml

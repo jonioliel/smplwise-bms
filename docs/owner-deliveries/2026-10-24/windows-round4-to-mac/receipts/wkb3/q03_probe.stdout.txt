@@ -1,0 +1,19 @@
+{
+  "pureAB": {
+    "A": false,
+    "B": true,
+    "aggregate_AB": true
+  },
+  "orphanC_with_A_row": {
+    "A": null,
+    "C": true,
+    "aggregate_AC": true
+  },
+  "orphanC_with_pureAB": {
+    "A": null,
+    "B": true,
+    "C": true,
+    "aggregate_ABC": true
+  }
+}
+EXPECTED_MATCH True

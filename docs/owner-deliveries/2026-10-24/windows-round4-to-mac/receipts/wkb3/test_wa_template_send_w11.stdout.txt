@@ -1,0 +1,119 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\cloude\wt-wkb3-receipts\smplwise_vms\backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 88 items
+
+tests\test_wa_template_send_w11.py ..................................... [ 42%]
+...................................................                      [100%]
+
+============================== warnings summary ===============================
+..\..\..\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\cloude\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================================== PASSES ====================================
+_______ test_everything_unproven_is_unknown_and_never_retried[answer20] _______
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise.intercom:wa_template_send.py:391 template send: the transport failed after the hand-over (TimeoutError)
+_______ test_everything_unproven_is_unknown_and_never_retried[answer21] _______
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise.intercom:wa_template_send.py:391 template send: the transport failed after the hand-over (ConnectionError)
+_______ test_everything_unproven_is_unknown_and_never_retried[answer22] _______
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise.intercom:wa_template_send.py:391 template send: the transport failed after the hand-over (RuntimeError)
+_ test_budget_free_send_passes_and_an_unknown_answer_is_counted_never_credited _
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise.intercom:wa_template_send.py:391 template send: the transport failed after the hand-over (TimeoutError)
+=========================== short test summary info ===========================
+PASSED tests/test_wa_template_send_w11.py::test_permit_is_false_and_production_sends_nothing
+PASSED tests/test_wa_template_send_w11.py::test_switch_defaults_off_and_unreadable_is_off
+PASSED tests/test_wa_template_send_w11.py::test_switch_off_sends_nothing
+PASSED tests/test_wa_template_send_w11.py::test_unwired_transport_refuses_and_nothing_leaves
+PASSED tests/test_wa_template_send_w11.py::test_admission_refusals_send_nothing[kw0-template_not_found]
+PASSED tests/test_wa_template_send_w11.py::test_admission_refusals_send_nothing[kw1-template_params_mismatch]
+PASSED tests/test_wa_template_send_w11.py::test_admission_refusals_send_nothing[kw2-invalid_fields]
+PASSED tests/test_wa_template_send_w11.py::test_admission_refusals_send_nothing[kw3-template_params_mismatch]
+PASSED tests/test_wa_template_send_w11.py::test_wkadapt_no_recipient_consent_gate_and_no_consent_on_the_wire[consent-values0-declined]
+PASSED tests/test_wa_template_send_w11.py::test_wkadapt_no_recipient_consent_gate_and_no_consent_on_the_wire[consent-values0-unknown]
+PASSED tests/test_wa_template_send_w11.py::test_wkadapt_no_recipient_consent_gate_and_no_consent_on_the_wire[consent-values0-granted]
+PASSED tests/test_wa_template_send_w11.py::test_wkadapt_no_recipient_consent_gate_and_no_consent_on_the_wire[consent-values0-None]
+PASSED tests/test_wa_template_send_w11.py::test_wkadapt_no_recipient_consent_gate_and_no_consent_on_the_wire[notice-values1-declined]
+PASSED tests/test_wa_template_send_w11.py::test_wkadapt_no_recipient_consent_gate_and_no_consent_on_the_wire[notice-values1-unknown]
+PASSED tests/test_wa_template_send_w11.py::test_wkadapt_no_recipient_consent_gate_and_no_consent_on_the_wire[notice-values1-granted]
+PASSED tests/test_wa_template_send_w11.py::test_wkadapt_no_recipient_consent_gate_and_no_consent_on_the_wire[notice-values1-None]
+PASSED tests/test_wa_template_send_w11.py::test_wkadapt_the_constructor_has_no_consent_switch_any_more
+PASSED tests/test_wa_template_send_w11.py::test_inside_an_open_window_a_notice_is_not_sent_as_template
+PASSED tests/test_wa_template_send_w11.py::test_accepted_is_sent_and_the_request_is_the_template_send_v1_shape
+PASSED tests/test_wa_template_send_w11.py::test_wire_problem_follows_the_v1_bounds[kw0-template]
+PASSED tests/test_wa_template_send_w11.py::test_wire_problem_follows_the_v1_bounds[kw1-template]
+PASSED tests/test_wa_template_send_w11.py::test_wire_problem_follows_the_v1_bounds[kw2-template]
+PASSED tests/test_wa_template_send_w11.py::test_wire_problem_follows_the_v1_bounds[kw3-operation_id]
+PASSED tests/test_wa_template_send_w11.py::test_wire_problem_follows_the_v1_bounds[kw4-operation_id]
+PASSED tests/test_wa_template_send_w11.py::test_wire_problem_follows_the_v1_bounds[kw5-request_id]
+PASSED tests/test_wa_template_send_w11.py::test_wire_problem_follows_the_v1_bounds[kw6-parameters]
+PASSED tests/test_wa_template_send_w11.py::test_wire_problem_follows_the_v1_bounds[kw7-parameters]
+PASSED tests/test_wa_template_send_w11.py::test_wire_problem_follows_the_v1_bounds[kw8-parameters]
+PASSED tests/test_wa_template_send_w11.py::test_wire_problem_follows_the_v1_bounds[kw9-None]
+PASSED tests/test_wa_template_send_w11.py::test_wire_problem_follows_the_v1_bounds[kw10-too_large]
+PASSED tests/test_wa_template_send_w11.py::test_operation_id_is_required_and_a_closed_string
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result0-sent-None]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result1-not_sent-template_mismatch]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result2-not_sent-source_or_admission_refused]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result3-unknown-operation_pending_or_unknown]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result4-unknown-provider_outcome_unknown]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result5-unknown-invalid_response]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result6-unknown-invalid_response]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result7-unknown-invalid_response]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result8-unknown-invalid_response]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result9-unknown-invalid_response]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result10-unknown-invalid_response]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result11-unknown-invalid_response]
+PASSED tests/test_wa_template_send_w11.py::test_a_v1_result_is_read_strictly[result12-unknown-invalid_response]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer0]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer1]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer2]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer3]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer4]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer5]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer6]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer7]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer8]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer9]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer10]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer11]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer12]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer13]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer14]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer15]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[ok]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[None]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer18]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer19]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer20]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer21]
+PASSED tests/test_wa_template_send_w11.py::test_everything_unproven_is_unknown_and_never_retried[answer22]
+PASSED tests/test_wa_template_send_w11.py::test_a_v2_result_is_never_read_as_v1[answer0]
+PASSED tests/test_wa_template_send_w11.py::test_a_v2_result_is_never_read_as_v1[answer1]
+PASSED tests/test_wa_template_send_w11.py::test_a_v2_result_is_never_read_as_v1[answer2]
+PASSED tests/test_wa_template_send_w11.py::test_the_v1_reader_keeps_the_version_and_accepts_only_the_provider_ack
+PASSED tests/test_wa_template_send_w11.py::test_the_v2_reader_is_explicit_and_keeps_its_version
+PASSED tests/test_wa_template_send_w11.py::test_no_legacy_branch_remains
+PASSED tests/test_wa_template_send_w11.py::test_unwired_transport_is_refused_before_any_hand_over
+PASSED tests/test_wa_template_send_w11.py::test_adapter_wrapper_maps_to_send_result
+PASSED tests/test_wa_template_send_w11.py::test_template_class_is_the_normal_ticket_class
+PASSED tests/test_wa_template_send_w11.py::test_budget_holds_a_template_send_like_any_other
+PASSED tests/test_wa_template_send_w11.py::test_budget_free_send_passes_and_an_unknown_answer_is_counted_never_credited
+PASSED tests/test_wa_template_send_w11.py::test_not_sent_v1_is_a_plain_refusal_with_no_backoff
+PASSED tests/test_wa_template_send_w11.py::test_pacer_off_mode_admits
+PASSED tests/test_wa_template_send_w11.py::test_registry_roundtrip_and_fail_closed
+PASSED tests/test_wa_template_send_w11.py::test_registry_rejects_bad_entries[item0]
+PASSED tests/test_wa_template_send_w11.py::test_registry_rejects_bad_entries[item1]
+PASSED tests/test_wa_template_send_w11.py::test_registry_rejects_bad_entries[item2]
+PASSED tests/test_wa_template_send_w11.py::test_registry_rejects_bad_entries[item3]
+PASSED tests/test_wa_template_send_w11.py::test_registry_rejects_bad_entries[x]
+PASSED tests/test_wa_template_send_w11.py::test_registry_rejects_bad_entries[None]
+PASSED tests/test_wa_template_send_w11.py::test_registry_duplicates_and_limits
+======================== 88 passed, 1 warning in 1.27s ========================

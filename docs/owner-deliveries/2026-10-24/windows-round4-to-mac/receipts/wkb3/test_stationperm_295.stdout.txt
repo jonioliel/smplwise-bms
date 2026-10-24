@@ -1,0 +1,165 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\cloude\wt-wkb3-receipts\smplwise_vms\backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 31 items
+
+tests\test_stationperm_295.py ...............................            [100%]
+
+============================== warnings summary ===============================
+..\..\..\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\cloude\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================================== PASSES ====================================
+____ test_the_switch_cannot_be_turned_on_without_the_owners_go_live_permit ____
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+___________ test_a_setting_left_on_does_nothing_without_the_permit ____________
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+__________ test_the_migration_carries_its_final_number_and_ids_only ___________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+____________ test_the_view_tells_group_personal_and_blocked_apart _____________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+___________ test_a_person_the_caller_cannot_see_is_the_uniform_404 ____________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+___ test_allow_writes_the_complete_overrides_and_only_the_new_station_doors ___
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_block_beats_the_group_and_is_applied_only_when_no_revocation_is_pending[v2] _
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_block_beats_the_group_and_is_applied_only_when_no_revocation_is_pending[v1] _
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_follow_groups_removes_the_personal_entry_and_the_group_applies_again[v2] _
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_follow_groups_removes_the_personal_entry_and_the_group_applies_again[v1] _
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+____________________ test_a_stale_arx_revision_is_refused _____________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+___________________________ test_relays_are_checked ___________________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_a_station_holder_decides_on_his_station_even_when_the_person_has_others _
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+____ test_a_request_only_manager_requests_a_widening_and_cannot_approve_it ____
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+____________ test_a_requester_may_withdraw_and_a_holder_may_refuse ____________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+__________________ test_no_self_service_unless_system_admin ___________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+___________ test_a_person_owned_by_a_live_external_grant_is_refused ___________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_____________ test_a_bearer_client_is_not_an_interactive_session ______________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_native_mode_needs_an_existing_binding_and_the_policy_is_never_written[v2] _
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_native_mode_needs_an_existing_binding_and_the_policy_is_never_written[v1] _
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_________ test_an_unreadable_policy_refuses_an_allow_but_not_a_block __________
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_________ test_a_restricted_read_never_writes_a_partial_overrides_map _________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+______________ test_an_unknown_outcome_is_read_back_never_resent ______________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_an_unreachable_wiskey_keeps_the_decision_pending_and_sync_sends_it[v2] _
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_an_unreachable_wiskey_keeps_the_decision_pending_and_sync_sends_it[v1] _
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_______________ test_a_revision_moved_in_wiskey_is_reread_once ________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_removing_a_personal_allow_that_a_group_grants_writes_an_explicit_personal_deny _
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+____ test_removing_a_personal_allow_no_group_grants_stays_a_plain_removal _____
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_blocking_a_station_a_group_grants_says_so_and_a_block_set_elsewhere_does_not _
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+=========================== short test summary info ===========================
+PASSED tests/test_stationperm_295.py::test_the_switch_cannot_be_turned_on_without_the_owners_go_live_permit
+PASSED tests/test_stationperm_295.py::test_a_setting_left_on_does_nothing_without_the_permit
+PASSED tests/test_stationperm_295.py::test_the_live_engine_refuses_and_writes_only_the_two_access_fields
+PASSED tests/test_stationperm_295.py::test_the_permission_is_catalogued_station_scoped_sensitive_and_held_by_both_admin_roles
+PASSED tests/test_stationperm_295.py::test_the_migration_carries_its_final_number_and_ids_only
+PASSED tests/test_stationperm_295.py::test_the_view_tells_group_personal_and_blocked_apart
+PASSED tests/test_stationperm_295.py::test_a_person_the_caller_cannot_see_is_the_uniform_404
+PASSED tests/test_stationperm_295.py::test_allow_writes_the_complete_overrides_and_only_the_new_station_doors
+PASSED tests/test_stationperm_295.py::test_block_beats_the_group_and_is_applied_only_when_no_revocation_is_pending[v2]
+PASSED tests/test_stationperm_295.py::test_block_beats_the_group_and_is_applied_only_when_no_revocation_is_pending[v1]
+PASSED tests/test_stationperm_295.py::test_follow_groups_removes_the_personal_entry_and_the_group_applies_again[v2]
+PASSED tests/test_stationperm_295.py::test_follow_groups_removes_the_personal_entry_and_the_group_applies_again[v1]
+PASSED tests/test_stationperm_295.py::test_a_stale_arx_revision_is_refused
+PASSED tests/test_stationperm_295.py::test_relays_are_checked
+PASSED tests/test_stationperm_295.py::test_a_station_holder_decides_on_his_station_even_when_the_person_has_others
+PASSED tests/test_stationperm_295.py::test_a_request_only_manager_requests_a_widening_and_cannot_approve_it
+PASSED tests/test_stationperm_295.py::test_a_requester_may_withdraw_and_a_holder_may_refuse
+PASSED tests/test_stationperm_295.py::test_no_self_service_unless_system_admin
+PASSED tests/test_stationperm_295.py::test_a_person_owned_by_a_live_external_grant_is_refused
+PASSED tests/test_stationperm_295.py::test_a_bearer_client_is_not_an_interactive_session
+PASSED tests/test_stationperm_295.py::test_native_mode_needs_an_existing_binding_and_the_policy_is_never_written[v2]
+PASSED tests/test_stationperm_295.py::test_native_mode_needs_an_existing_binding_and_the_policy_is_never_written[v1]
+PASSED tests/test_stationperm_295.py::test_an_unreadable_policy_refuses_an_allow_but_not_a_block
+PASSED tests/test_stationperm_295.py::test_a_restricted_read_never_writes_a_partial_overrides_map
+PASSED tests/test_stationperm_295.py::test_an_unknown_outcome_is_read_back_never_resent
+PASSED tests/test_stationperm_295.py::test_an_unreachable_wiskey_keeps_the_decision_pending_and_sync_sends_it[v2]
+PASSED tests/test_stationperm_295.py::test_an_unreachable_wiskey_keeps_the_decision_pending_and_sync_sends_it[v1]
+PASSED tests/test_stationperm_295.py::test_a_revision_moved_in_wiskey_is_reread_once
+PASSED tests/test_stationperm_295.py::test_removing_a_personal_allow_that_a_group_grants_writes_an_explicit_personal_deny
+PASSED tests/test_stationperm_295.py::test_removing_a_personal_allow_no_group_grants_stays_a_plain_removal
+PASSED tests/test_stationperm_295.py::test_blocking_a_station_a_group_grants_says_so_and_a_block_set_elsewhere_does_not
+================== 31 passed, 1 warning in 154.39s (0:02:34) ==================

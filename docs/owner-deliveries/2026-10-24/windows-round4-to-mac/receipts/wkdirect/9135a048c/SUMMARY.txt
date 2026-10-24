@@ -1,0 +1,8 @@
+﻿worktree=C:\cloude\wt-wkdirect
+head=9135a048c4ea605eaaa212dd42f4475580edca75 (uncommitted changed paths: 0)
+python=C:\cloude\smplwisebms\.venv\Scripts\python.exe
+cwd=C:\cloude\wt-wkdirect\smplwise_vms\backend
+PYTHONPATH=.
+command=python -m pytest <files> -p no:cacheprovider -rA -s --junitxml=<group>.junit.xml
+test_wkdirect_295	exit=0	start=2026-10-24T14:12:18.4708405+03:00	end=2026-10-24T14:14:22.2890649+03:00	files=tests/test_wkdirect_295.py
+neighbours	exit=0	start=2026-10-24T14:14:22.2931030+03:00	end=2026-10-24T14:21:09.5897889+03:00	files=tests/test_wiskey_media_v11.py tests/test_wiskey_channels.py tests/test_wiskey_contract.py tests/test_intercom_media.py tests/test_fake_wiskey.py tests/test_remote_mic_policy.py tests/test_eccact_readback_295.py tests/test_wa_pacing_coverage_295.py tests/test_ui_settings.py

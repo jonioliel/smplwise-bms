@@ -1,0 +1,10 @@
+A	docs/changes/WKCAP-295-CAPTURE-FEATURES-EMERGENCY.md
+M	smplwise_vms/backend/smplwise/routers/access_control.py
+A	smplwise_vms/backend/smplwise/services/wiskey_capture_direct.py
+A	smplwise_vms/backend/smplwise/services/wiskey_capture_port.py
+A	smplwise_vms/backend/smplwise/services/wiskey_emergency_direct.py
+A	smplwise_vms/backend/smplwise/services/wiskey_feature_direct.py
+M	smplwise_vms/backend/smplwise/services/wiskey_feature_exec.py
+A	smplwise_vms/backend/smplwise/services/wiskey_template_direct.py
+A	smplwise_vms/backend/tests/test_wkcap_295.py
+A	smplwise_vms/backend/tests/wkcap_fakes.py

@@ -1,0 +1,58 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\cloude\wt-wkb3-receipts\smplwise_vms\backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 39 items
+
+tests\test_wa_pacing_coverage_295.py ................................... [ 89%]
+....                                                                     [100%]
+
+============================== warnings summary ===============================
+..\..\..\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\cloude\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/test_wa_pacing_coverage_295.py::test_missing_route_fails_closed_and_never_falls_back_to_whatsapp_status[None-discovery_unknown]
+PASSED tests/test_wa_pacing_coverage_295.py::test_missing_route_fails_closed_and_never_falls_back_to_whatsapp_status[whatsapp/pacing_status_v1-discovery_unknown]
+PASSED tests/test_wa_pacing_coverage_295.py::test_missing_route_fails_closed_and_never_falls_back_to_whatsapp_status[commands2-pacing_route_not_listed]
+PASSED tests/test_wa_pacing_coverage_295.py::test_missing_route_fails_closed_and_never_falls_back_to_whatsapp_status[commands3-pacing_route_not_listed]
+PASSED tests/test_wa_pacing_coverage_295.py::test_missing_route_fails_closed_and_never_falls_back_to_whatsapp_status[commands4-pacing_route_not_listed]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_listed_route_is_chosen_explicitly
+PASSED tests/test_wa_pacing_coverage_295.py::test_the_pacing_channel_carries_only_the_pacing_route
+PASSED tests/test_wa_pacing_coverage_295.py::test_adapter_without_the_listed_route_makes_no_call_and_reports_the_closed_reason
+PASSED tests/test_wa_pacing_coverage_295.py::test_adapter_with_no_discovery_copy_fails_closed
+PASSED tests/test_wa_pacing_coverage_295.py::test_adapter_with_an_incompatible_contract_fails_closed
+PASSED tests/test_wa_pacing_coverage_295.py::test_adapter_reads_the_listed_route_on_the_pacing_channel
+PASSED tests/test_wa_pacing_coverage_295.py::test_adapter_route_error_fails_closed
+PASSED tests/test_wa_pacing_coverage_295.py::test_whatsapp_status_no_longer_feeds_the_pacing_cache
+PASSED tests/test_wa_pacing_coverage_295.py::test_the_cache_is_unknown_when_never_read_or_stale
+PASSED tests/test_wa_pacing_coverage_295.py::test_wrong_schema_location_version_only_on_accounts_is_closed
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env0-schema_version_missing]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env1-schema_version_unsupported]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env2-envelope_invalid]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env3-envelope_invalid]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[None-envelope_invalid]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env5-envelope_invalid]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env6-coverage_inconsistent]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_per_account_version_that_contradicts_the_envelope_drops_that_account
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_read_beyond_the_account_bound_is_refused_whole_never_cut
+PASSED tests/test_wa_pacing_coverage_295.py::test_truncated_coverage_is_explicit_when_wiskey_sends_fewer_than_it_has
+PASSED tests/test_wa_pacing_coverage_295.py::test_full_coverage_is_not_truncated_and_reprojection_is_stable
+PASSED tests/test_wa_pacing_coverage_295.py::test_reprojection_keeps_the_invalid_count
+PASSED tests/test_wa_pacing_coverage_295.py::test_out_of_range_counters_stay_unknown
+PASSED tests/test_wa_pacing_coverage_295.py::test_an_uncovered_account_is_unknown_not_zero
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_closed_read_names_its_reason_on_the_account
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_covered_account_is_used_and_says_covered
+PASSED tests/test_wa_pacing_coverage_295.py::test_incomplete_counters_say_why
+PASSED tests/test_wa_pacing_coverage_295.py::test_no_reader_is_not_read
+PASSED tests/test_wa_pacing_coverage_295.py::test_the_status_account_list_reports_its_own_truncation
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_configured_account_beyond_the_cut_is_not_covered_not_missing
+PASSED tests/test_wa_pacing_coverage_295.py::test_producer_over_limit_has_its_own_closed_reason[request_too_large-producer_over_limit]
+PASSED tests/test_wa_pacing_coverage_295.py::test_producer_over_limit_has_its_own_closed_reason[timeout-route_error]
+PASSED tests/test_wa_pacing_coverage_295.py::test_producer_over_limit_has_its_own_closed_reason[unauthorized-route_error]
+PASSED tests/test_wa_pacing_coverage_295.py::test_producer_over_limit_has_its_own_closed_reason[None-route_error]
+======================== 39 passed, 1 warning in 1.10s ========================

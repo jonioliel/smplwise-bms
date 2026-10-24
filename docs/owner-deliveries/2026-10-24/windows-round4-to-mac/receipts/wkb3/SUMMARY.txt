@@ -1,0 +1,12 @@
+﻿head=b01cb96918469befef37bf9ee959bd619ec41c64
+python=C:\cloude\smplwisebms\.venv\Scripts\python.exe
+cwd=C:\cloude\wt-wkb3-receipts\smplwise_vms\backend
+PYTHONPATH=.
+command=python -m pytest tests/<file> -p no:cacheprovider -v -rA
+test_wkb3_295.py	exit=0	start=2026-10-24T13:28:01.6159192+03:00	end=2026-10-24T13:28:26.1053165+03:00
+test_eccact_readback_295.py	exit=0	start=2026-10-24T13:28:26.1093396+03:00	end=2026-10-24T13:28:46.4886712+03:00
+test_stationperm_295.py	exit=0	start=2026-10-24T13:28:46.4886712+03:00	end=2026-10-24T13:31:38.4752125+03:00
+test_wkpeer_295.py	exit=0	start=2026-10-24T13:31:38.4752125+03:00	end=2026-10-24T13:31:59.6900998+03:00
+test_wa_template_send_w11.py	exit=0	start=2026-10-24T13:31:59.6900998+03:00	end=2026-10-24T13:32:13.8084569+03:00
+test_wa_pacing_coverage_295.py	exit=0	start=2026-10-24T13:32:13.8094260+03:00	end=2026-10-24T13:32:24.8994131+03:00
+q03_probe.py	exit=0	command=python q03_probe.py (cwd backend, PYTHONPATH=.;tests)

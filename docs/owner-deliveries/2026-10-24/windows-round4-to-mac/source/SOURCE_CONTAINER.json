@@ -1,0 +1,7 @@
+{
+  "file": "SOURCE_BLOBS.zip",
+  "bytes": 57487057,
+  "sha256": "edc2425119f6d2589ee4e127cba42f24156bc6cc50bac04984388bd0b6736ba4",
+  "unique_original_blobs": 4022,
+  "scope": "Declared source scope only, four separate original Git CODEs. Never a combined implementation."
+}

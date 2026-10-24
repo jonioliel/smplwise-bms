@@ -1,0 +1,165 @@
+...........................................WKDIRECT-295 lifetime simulation (scaled x0.10; seconds below are simulated seconds):
+{
+  "TTL10_no_heartbeat": {
+    "window_s": 10,
+    "client_heartbeat_s": null,
+    "server_closures": [
+      {
+        "reason": "access_lost",
+        "elapsed_s": 10.15,
+        "signed_event_sent": false
+      }
+    ],
+    "client_events_received": [],
+    "lock_released": true,
+    "journal_empty": true,
+    "heartbeats": 0,
+    "client_ended": [],
+    "client_end_code": null
+  },
+  "TTL15_no_heartbeat": {
+    "window_s": 15,
+    "client_heartbeat_s": null,
+    "server_closures": [
+      {
+        "reason": "idle_timeout",
+        "elapsed_s": 12.03,
+        "signed_event_sent": true
+      }
+    ],
+    "client_events_received": [
+      "idle_timeout"
+    ],
+    "lock_released": true,
+    "journal_empty": true,
+    "heartbeats": 0,
+    "client_ended": [
+      "upstream_closed"
+    ],
+    "client_end_code": "idle_timeout"
+  },
+  "TTL10_heartbeat_5s": {
+    "window_s": 10,
+    "client_heartbeat_s": 5.0,
+    "server_closures": [],
+    "client_events_received": [],
+    "lock_released": false,
+    "journal_empty": false,
+    "heartbeats": 5,
+    "client_ended": [],
+    "client_end_code": null
+  },
+  "TTL15_heartbeat_5s": {
+    "window_s": 15,
+    "client_heartbeat_s": 5.0,
+    "server_closures": [],
+    "client_events_received": [],
+    "lock_released": false,
+    "journal_empty": false,
+    "heartbeats": 5,
+    "client_ended": [],
+    "client_end_code": null
+  }
+}
+..........
+============================== warnings summary ===============================
+..\..\..\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\cloude\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================================== PASSES ====================================
+_ test_one_forged_or_unwrapped_frame_closes_the_connection_and_the_request_in_flight_is_unknown _
+------------------------------ Captured log call ------------------------------
+DEBUG    asyncio:proactor_events.py:634 Using proactor: IocpProactor
+WARNING  smplwise.intercom.media.bridge:wiskey_media_bridge.py:463 station media: direct connection refused a frame (reply_unauthenticated); closing it
+DEBUG    asyncio:proactor_events.py:634 Using proactor: IocpProactor
+WARNING  smplwise.intercom.media.bridge:wiskey_media_bridge.py:463 station media: direct connection refused a frame (reply_unauthenticated); closing it
+DEBUG    asyncio:proactor_events.py:634 Using proactor: IocpProactor
+WARNING  smplwise.intercom.media.bridge:wiskey_media_bridge.py:463 station media: direct connection refused a frame (reply_unauthenticated); closing it
+_ test_video_reads_the_descriptor_and_the_lease_as_arx_on_one_direct_connection_and_registers_the_source_in_memory _
+------------------------------ Captured log call ------------------------------
+DEBUG    asyncio:proactor_events.py:634 Using proactor: IocpProactor
+_ test_the_media_read_on_the_direct_provider_serves_the_same_projection_and_no_handle _
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_______ test_a_talk_end_to_end_through_the_s18_socket_on_the_direct_api _______
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+______ test_a_busy_station_on_the_direct_api_reaches_the_browser_as_busy ______
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+__ test_a_viewer_without_the_call_permission_never_reaches_the_talk_commands __
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+=========================== short test summary info ===========================
+PASSED tests/test_wkdirect_295.py::test_the_published_signing_vector_is_reproduced_byte_for_byte
+PASSED tests/test_wkdirect_295.py::test_the_connect_body_is_closed_and_a_rotated_or_missing_key_signs_nothing
+PASSED tests/test_wkdirect_295.py::test_the_reply_mac_matches_an_independent_implementation_and_keeps_number_types
+PASSED tests/test_wkdirect_295.py::test_any_reply_that_is_not_exactly_a_verified_wrapper_is_refused_before_it_is_read[<lambda>0]
+PASSED tests/test_wkdirect_295.py::test_any_reply_that_is_not_exactly_a_verified_wrapper_is_refused_before_it_is_read[<lambda>1]
+PASSED tests/test_wkdirect_295.py::test_any_reply_that_is_not_exactly_a_verified_wrapper_is_refused_before_it_is_read[<lambda>2]
+PASSED tests/test_wkdirect_295.py::test_any_reply_that_is_not_exactly_a_verified_wrapper_is_refused_before_it_is_read[<lambda>3]
+PASSED tests/test_wkdirect_295.py::test_any_reply_that_is_not_exactly_a_verified_wrapper_is_refused_before_it_is_read[<lambda>4]
+PASSED tests/test_wkdirect_295.py::test_any_reply_that_is_not_exactly_a_verified_wrapper_is_refused_before_it_is_read[<lambda>5]
+PASSED tests/test_wkdirect_295.py::test_any_reply_that_is_not_exactly_a_verified_wrapper_is_refused_before_it_is_read[<lambda>6]
+PASSED tests/test_wkdirect_295.py::test_any_reply_that_is_not_exactly_a_verified_wrapper_is_refused_before_it_is_read[<lambda>7]
+PASSED tests/test_wkdirect_295.py::test_connect_signs_the_challenge_without_any_home_assistant_identity_and_adopts_the_service_subject
+PASSED tests/test_wkdirect_295.py::test_ids_increase_strictly_and_each_answer_reaches_only_its_own_request
+PASSED tests/test_wkdirect_295.py::test_a_late_answer_or_an_unsolicited_frame_is_never_given_to_another_request
+PASSED tests/test_wkdirect_295.py::test_one_forged_or_unwrapped_frame_closes_the_connection_and_the_request_in_flight_is_unknown
+PASSED tests/test_wkdirect_295.py::test_a_connection_that_does_not_authenticate_is_refused_and_nothing_else_is_sent[refuse_open-direct_unreachable]
+PASSED tests/test_wkdirect_295.py::test_a_connection_that_does_not_authenticate_is_refused_and_nothing_else_is_sent[bad_hello-direct_hello_invalid]
+PASSED tests/test_wkdirect_295.py::test_a_connection_that_does_not_authenticate_is_refused_and_nothing_else_is_sent[wrong_protocol-direct_hello_invalid]
+PASSED tests/test_wkdirect_295.py::test_a_connection_that_does_not_authenticate_is_refused_and_nothing_else_is_sent[wrong_key-direct_connect_refused]
+PASSED tests/test_wkdirect_295.py::test_a_connection_that_does_not_authenticate_is_refused_and_nothing_else_is_sent[bad_identity_kind-direct_identity_invalid]
+PASSED tests/test_wkdirect_295.py::test_a_connection_that_does_not_authenticate_is_refused_and_nothing_else_is_sent[bad_identity_ref-direct_identity_invalid]
+PASSED tests/test_wkdirect_295.py::test_a_connection_that_does_not_authenticate_is_refused_and_nothing_else_is_sent[ha_user_identity-direct_identity_invalid]
+PASSED tests/test_wkdirect_295.py::test_a_connection_that_does_not_authenticate_is_refused_and_nothing_else_is_sent[forged_connect_reply-reply_unauthenticated]
+PASSED tests/test_wkdirect_295.py::test_a_hello_that_never_comes_times_out_and_no_key_opens_no_socket
+PASSED tests/test_wkdirect_295.py::test_the_real_opener_dials_core_with_no_token_no_header_and_no_query
+PASSED tests/test_wkdirect_295.py::test_auto_uses_the_direct_api_when_it_authenticates_and_the_signed_home_assistant_path_otherwise
+PASSED tests/test_wkdirect_295.py::test_auto_without_a_key_that_signs_tries_neither_path
+PASSED tests/test_wkdirect_295.py::test_provider_for_auto_requires_the_signed_path_and_builds_the_auto_transport
+PASSED tests/test_wkdirect_295.py::test_video_reads_the_descriptor_and_the_lease_as_arx_on_one_direct_connection_and_registers_the_source_in_memory
+PASSED tests/test_wkdirect_295.py::test_a_reopened_direct_connection_adopts_nothing_old_and_costs_one_fresh_descriptor
+PASSED tests/test_wkdirect_295.py::test_a_talk_gets_its_own_direct_connection_as_the_operator_with_floor_first_batches_from_zero_and_one_close
+PASSED tests/test_wkdirect_295.py::test_batches_of_ten_are_signed_and_accepted_too
+PASSED tests/test_wkdirect_295.py::test_wiskeys_signed_talk_closed_arrives_on_the_talk_open_id_and_ends_the_talk_without_a_close
+PASSED tests/test_wkdirect_295.py::test_after_a_dropped_talk_connection_the_next_talk_starts_clean_and_never_reuses_the_old_talk
+PASSED tests/test_wkdirect_295.py::test_no_channel_lets_a_w10_command_through_and_the_feed_has_no_media_path
+PASSED tests/test_wkdirect_295.py::test_the_published_station_limit_and_the_arx_setting_give_the_smaller_with_no_180_clamp[60-None-60]
+PASSED tests/test_wkdirect_295.py::test_the_published_station_limit_and_the_arx_setting_give_the_smaller_with_no_180_clamp[300-None-300]
+PASSED tests/test_wkdirect_295.py::test_the_published_station_limit_and_the_arx_setting_give_the_smaller_with_no_180_clamp[600-None-300]
+PASSED tests/test_wkdirect_295.py::test_the_published_station_limit_and_the_arx_setting_give_the_smaller_with_no_180_clamp[600-900-600]
+PASSED tests/test_wkdirect_295.py::test_the_published_station_limit_and_the_arx_setting_give_the_smaller_with_no_180_clamp[3600-3600-3600]
+PASSED tests/test_wkdirect_295.py::test_the_published_station_limit_and_the_arx_setting_give_the_smaller_with_no_180_clamp[86400-86400-86400]
+PASSED tests/test_wkdirect_295.py::test_the_published_station_limit_and_the_arx_setting_give_the_smaller_with_no_180_clamp[1-300-1]
+PASSED tests/test_wkdirect_295.py::test_a_talk_open_asks_for_no_more_than_the_station_publishes
+PASSED tests/test_wkdirect_295.py::test_wiskeys_ttl10_and_ttl15_no_traffic_measurements_are_what_the_client_meets
+PASSED tests/test_wkdirect_295.py::test_ttl10_without_traffic_ends_quietly_and_the_clients_next_request_is_refused_not_retried
+PASSED tests/test_wkdirect_295.py::test_a_batch_queued_before_the_release_is_sent_whole_then_the_floor_and_a_later_frame_is_floor_not_held
+PASSED tests/test_wkdirect_295.py::test_discovery_decides_what_wiskey_offers
+PASSED tests/test_wkdirect_295.py::test_m3_wiskey_is_selected_only_by_the_arx_setting_and_only_while_discovery_lists_it
+PASSED tests/test_wkdirect_295.py::test_m3_a_failing_wiskey_descriptor_falls_back_to_arxs_own_source_and_an_offline_station_does_not
+PASSED tests/test_wkdirect_295.py::test_the_media_read_on_the_direct_provider_serves_the_same_projection_and_no_handle
+PASSED tests/test_wkdirect_295.py::test_a_talk_end_to_end_through_the_s18_socket_on_the_direct_api
+PASSED tests/test_wkdirect_295.py::test_a_busy_station_on_the_direct_api_reaches_the_browser_as_busy
+PASSED tests/test_wkdirect_295.py::test_a_viewer_without_the_call_permission_never_reaches_the_talk_commands
+53 passed, 1 warning in 84.36s (0:01:24)

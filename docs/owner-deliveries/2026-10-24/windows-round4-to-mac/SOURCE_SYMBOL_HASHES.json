@@ -1,0 +1,4402 @@
+[
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_access_state.py",
+    "sha256": "86a744b794a3e2028a2078882551436910e181b93408a1ff2b25c18a475f4579",
+    "symbols": [
+      {
+        "symbol": "AccessStateError",
+        "line": 77
+      },
+      {
+        "symbol": "strict_int",
+        "line": 90
+      },
+      {
+        "symbol": "revision_ok",
+        "line": 95
+      },
+      {
+        "symbol": "id_ok",
+        "line": 100
+      },
+      {
+        "symbol": "_flag",
+        "line": 106
+      },
+      {
+        "symbol": "schedule_ok",
+        "line": 113
+      },
+      {
+        "symbol": "policy_ok",
+        "line": 130
+      },
+      {
+        "symbol": "Assignment",
+        "line": 143
+      },
+      {
+        "symbol": "PendingQueues",
+        "line": 154
+      },
+      {
+        "symbol": "AccessState",
+        "line": 179
+      },
+      {
+        "symbol": "unwrap_frame",
+        "line": 206
+      },
+      {
+        "symbol": "parse_frame",
+        "line": 219
+      },
+      {
+        "symbol": "_ids",
+        "line": 226
+      },
+      {
+        "symbol": "_queues",
+        "line": 236
+      },
+      {
+        "symbol": "_row",
+        "line": 246
+      },
+      {
+        "symbol": "parse_result",
+        "line": 269
+      },
+      {
+        "symbol": "_v2",
+        "line": 323
+      },
+      {
+        "symbol": "v1_engine_consistent",
+        "line": 364
+      },
+      {
+        "symbol": "v1_acr5_consistent",
+        "line": 370
+      },
+      {
+        "symbol": "try_parse",
+        "line": 376
+      },
+      {
+        "symbol": "evidence_of",
+        "line": 391
+      },
+      {
+        "symbol": "revocation_verdict_v2",
+        "line": 408
+      },
+      {
+        "symbol": "station_removal_verdict_v2",
+        "line": 436
+      },
+      {
+        "symbol": "last_known_stations",
+        "line": 465
+      },
+      {
+        "symbol": "Negotiated",
+        "line": 494
+      },
+      {
+        "symbol": "_listed",
+        "line": 510
+      },
+      {
+        "symbol": "negotiate",
+        "line": 516
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_acr5.py",
+    "sha256": "ec070557f787a7b49ed5dd42714ee4852985a1c54d4e03c6cbaabc38c989e7c6",
+    "symbols": [
+      {
+        "symbol": "ConsumerOff",
+        "line": 81
+      },
+      {
+        "symbol": "Unknown",
+        "line": 88
+      },
+      {
+        "symbol": "go_live_permitted",
+        "line": 92
+      },
+      {
+        "symbol": "consumer_mode",
+        "line": 96
+      },
+      {
+        "symbol": "consumer_on",
+        "line": 106
+      },
+      {
+        "symbol": "capability_ok",
+        "line": 110
+      },
+      {
+        "symbol": "_pos_int",
+        "line": 116
+      },
+      {
+        "symbol": "_id",
+        "line": 120
+      },
+      {
+        "symbol": "_result",
+        "line": 124
+      },
+      {
+        "symbol": "access_state_request",
+        "line": 136
+      },
+      {
+        "symbol": "parse_access_state",
+        "line": 143
+      },
+      {
+        "symbol": "revocation_verdict",
+        "line": 154
+      },
+      {
+        "symbol": "_v1_status",
+        "line": 172
+      },
+      {
+        "symbol": "revocation_evidence",
+        "line": 192
+      },
+      {
+        "symbol": "RevisionBoundAccessState",
+        "line": 205
+      },
+      {
+        "symbol": "revocation_pending_at",
+        "line": 209
+      },
+      {
+        "symbol": "revocation_evidence_at",
+        "line": 222
+      },
+      {
+        "symbol": "_row_current",
+        "line": 233
+      },
+      {
+        "symbol": "stations_synced_verdict",
+        "line": 237
+      },
+      {
+        "symbol": "PendingView",
+        "line": 254
+      },
+      {
+        "symbol": "visible_pending",
+        "line": 259
+      },
+      {
+        "symbol": "presence_diagnostic",
+        "line": 273
+      },
+      {
+        "symbol": "is_cleanup_proof",
+        "line": 277
+      },
+      {
+        "symbol": "normalize_request",
+        "line": 284
+      },
+      {
+        "symbol": "parse_normalized",
+        "line": 290
+      },
+      {
+        "symbol": "_normalized",
+        "line": 306
+      },
+      {
+        "symbol": "policy_equivalent",
+        "line": 314
+      },
+      {
+        "symbol": "grant_policy_proven",
+        "line": 331
+      },
+      {
+        "symbol": "FeaturePlan",
+        "line": 347
+      },
+      {
+        "symbol": "parse_feature_plan",
+        "line": 356
+      },
+      {
+        "symbol": "consume_plan",
+        "line": 368
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_background.py",
+    "sha256": "a810b4de2e98e1ab504f05b097ddc114c7d28cede673b0808b5a11cf61b369e8",
+    "symbols": [
+      {
+        "symbol": "_utc_z",
+        "line": 42
+      },
+      {
+        "symbol": "_now_z",
+        "line": 56
+      },
+      {
+        "symbol": "closed_station",
+        "line": 60
+      },
+      {
+        "symbol": "_revision",
+        "line": 79
+      },
+      {
+        "symbol": "project_background",
+        "line": 83
+      },
+      {
+        "symbol": "from_served_copy",
+        "line": 96
+      },
+      {
+        "symbol": "walk_keys",
+        "line": 106
+      },
+      {
+        "symbol": "find_person_fields",
+        "line": 118
+      },
+      {
+        "symbol": "assert_closed",
+        "line": 123
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_background_feed.py",
+    "sha256": "37885b27a84a206f5c793c86485f21b1f9c284ecc98d8cc04c0b205fdbc097b4",
+    "symbols": [
+      {
+        "symbol": "_NotReady",
+        "line": 40
+      },
+      {
+        "symbol": "configured",
+        "line": 44
+      },
+      {
+        "symbol": "BackgroundFeed",
+        "line": 49
+      },
+      {
+        "symbol": "copy_of",
+        "line": 373
+      },
+      {
+        "symbol": "channel_view",
+        "line": 381
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_camera.py",
+    "sha256": "04b665e39840924f6b81a5e2546cf6b242227675d1d53b2fc58cdbfd25fe7327",
+    "symbols": [
+      {
+        "symbol": "default_configured",
+        "line": 23
+      },
+      {
+        "symbol": "credentials",
+        "line": 27
+      },
+      {
+        "symbol": "status",
+        "line": 42
+      },
+      {
+        "symbol": "listing",
+        "line": 55
+      },
+      {
+        "symbol": "set_override",
+        "line": 70
+      },
+      {
+        "symbol": "clear_override",
+        "line": 87
+      },
+      {
+        "symbol": "camera_access",
+        "line": 91
+      },
+      {
+        "symbol": "convert_plaintext",
+        "line": 114
+      },
+      {
+        "symbol": "apply_at_startup",
+        "line": 140
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_channels.py",
+    "sha256": "05540eee733a7e5c52a32ff1b7ae8f123dd5c2b129eee2e76e58e7816c11c8b7",
+    "symbols": [
+      {
+        "symbol": "allowed",
+        "line": 113
+      },
+      {
+        "symbol": "guard",
+        "line": 120
+      },
+      {
+        "symbol": "describe",
+        "line": 140
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_diagnostics.py",
+    "sha256": "eca73700c0126a400b373e071bb94119418e77add75319a864aeecda13d8e3e1",
+    "symbols": [
+      {
+        "symbol": "_level",
+        "line": 36
+      },
+      {
+        "symbol": "_bool",
+        "line": 40
+      },
+      {
+        "symbol": "_int",
+        "line": 44
+      },
+      {
+        "symbol": "project_authorization",
+        "line": 48
+      },
+      {
+        "symbol": "_now",
+        "line": 81
+      },
+      {
+        "symbol": "_service",
+        "line": 87
+      },
+      {
+        "symbol": "_background",
+        "line": 108
+      },
+      {
+        "symbol": "_finding",
+        "line": 132
+      },
+      {
+        "symbol": "findings",
+        "line": 136
+      },
+      {
+        "symbol": "collect",
+        "line": 173
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_feature_exec.py",
+    "sha256": "87c0e42e8c898395088f2a852b05b78a0cb9581cbc2a1d24bebcd8547ec4153c",
+    "symbols": [
+      {
+        "symbol": "FeatureError",
+        "line": 94
+      },
+      {
+        "symbol": "_ref",
+        "line": 100
+      },
+      {
+        "symbol": "_utc",
+        "line": 104
+      },
+      {
+        "symbol": "absolute_time",
+        "line": 109
+      },
+      {
+        "symbol": "validate_params",
+        "line": 125
+      },
+      {
+        "symbol": "execution_end",
+        "line": 156
+      },
+      {
+        "symbol": "human_actor",
+        "line": 161
+      },
+      {
+        "symbol": "automation_actor",
+        "line": 167
+      },
+      {
+        "symbol": "build_request",
+        "line": 175
+      },
+      {
+        "symbol": "RelayRow",
+        "line": 227
+      },
+      {
+        "symbol": "set_relay_map",
+        "line": 234
+      },
+      {
+        "symbol": "relay_row",
+        "line": 255
+      },
+      {
+        "symbol": "StationGrant",
+        "line": 263
+      },
+      {
+        "symbol": "PolicyDocument",
+        "line": 271
+      },
+      {
+        "symbol": "_held_on_all",
+        "line": 285
+      },
+      {
+        "symbol": "resolve_policy",
+        "line": 289
+      },
+      {
+        "symbol": "admit_request",
+        "line": 327
+      },
+      {
+        "symbol": "intent_state",
+        "line": 345
+      },
+      {
+        "symbol": "mark_feature_sent",
+        "line": 350
+      },
+      {
+        "symbol": "settle_feature",
+        "line": 355
+      },
+      {
+        "symbol": "LiveFeatureTransport",
+        "line": 364
+      },
+      {
+        "symbol": "registry",
+        "line": 373
+      },
+      {
+        "symbol": "set_feature_enabled",
+        "line": 379
+      },
+      {
+        "symbol": "record_host_registration",
+        "line": 387
+      },
+      {
+        "symbol": "status",
+        "line": 397
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_intents.py",
+    "sha256": "937fccd17302a5ceeb6790c5eda3b217e0afe031693b9e471759bac9cbc06c1c",
+    "symbols": [
+      {
+        "symbol": "IntentError",
+        "line": 48
+      },
+      {
+        "symbol": "_now",
+        "line": 54
+      },
+      {
+        "symbol": "ExactOriginal",
+        "line": 59
+      },
+      {
+        "symbol": "_row_original",
+        "line": 83
+      },
+      {
+        "symbol": "admit",
+        "line": 93
+      },
+      {
+        "symbol": "original",
+        "line": 118
+      },
+      {
+        "symbol": "state",
+        "line": 124
+      },
+      {
+        "symbol": "_move",
+        "line": 130
+      },
+      {
+        "symbol": "mark_sent",
+        "line": 137
+      },
+      {
+        "symbol": "mark_unknown",
+        "line": 143
+      },
+      {
+        "symbol": "_terminal",
+        "line": 150
+      },
+      {
+        "symbol": "settle_update",
+        "line": 167
+      },
+      {
+        "symbol": "CreateExpectation",
+        "line": 183
+      },
+      {
+        "symbol": "CreateVerdict",
+        "line": 198
+      },
+      {
+        "symbol": "_unknown",
+        "line": 205
+      },
+      {
+        "symbol": "verify_create_resolution",
+        "line": 209
+      },
+      {
+        "symbol": "settle_create",
+        "line": 267
+      },
+      {
+        "symbol": "open_intents",
+        "line": 279
+      },
+      {
+        "symbol": "settle_resolution",
+        "line": 285
+      },
+      {
+        "symbol": "LiveResolveTransport",
+        "line": 308
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_media_bridge.py",
+    "sha256": "8fad25fbafb48f86f732ed63c8001063c9d51ed71ca7ce829c2124ded7289d57",
+    "symbols": [
+      {
+        "symbol": "MediaBridgeError",
+        "line": 59
+      },
+      {
+        "symbol": "_strict",
+        "line": 72
+      },
+      {
+        "symbol": "_iso",
+        "line": 89
+      },
+      {
+        "symbol": "BridgeSigner",
+        "line": 93
+      },
+      {
+        "symbol": "verify_result",
+        "line": 154
+      },
+      {
+        "symbol": "MediaLink",
+        "line": 180
+      },
+      {
+        "symbol": "MediaTransport",
+        "line": 198
+      },
+      {
+        "symbol": "RawConnection",
+        "line": 204
+      },
+      {
+        "symbol": "SignedBridgeLink",
+        "line": 221
+      },
+      {
+        "symbol": "SignedBridgeTransport",
+        "line": 262
+      },
+      {
+        "symbol": "canonical_json",
+        "line": 311
+      },
+      {
+        "symbol": "_key_text",
+        "line": 318
+      },
+      {
+        "symbol": "connect_body",
+        "line": 330
+      },
+      {
+        "symbol": "sign_connect",
+        "line": 338
+      },
+      {
+        "symbol": "reply_mac",
+        "line": 348
+      },
+      {
+        "symbol": "open_reply",
+        "line": 354
+      },
+      {
+        "symbol": "read_identity",
+        "line": 374
+      },
+      {
+        "symbol": "DirectSocket",
+        "line": 387
+      },
+      {
+        "symbol": "_load",
+        "line": 397
+      },
+      {
+        "symbol": "DirectLink",
+        "line": 408
+      },
+      {
+        "symbol": "DirectApiTransport",
+        "line": 567
+      },
+      {
+        "symbol": "direct_ws_url",
+        "line": 658
+      },
+      {
+        "symbol": "websocket_opener",
+        "line": 667
+      },
+      {
+        "symbol": "AutoTransport",
+        "line": 689
+      },
+      {
+        "symbol": "HaWsConnection",
+        "line": 731
+      },
+      {
+        "symbol": "ha_connector",
+        "line": 842
+      },
+      {
+        "symbol": "LoopThread",
+        "line": 851
+      },
+      {
+        "symbol": "VideoChannel",
+        "line": 888
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_media_contract.py",
+    "sha256": "b94f3745598074154e5f7a524b6d0b689200c5acb2555a94159055c0398be44e",
+    "symbols": [
+      {
+        "symbol": "ContractError",
+        "line": 145
+      },
+      {
+        "symbol": "Actor",
+        "line": 154
+      },
+      {
+        "symbol": "StreamLease",
+        "line": 167
+      },
+      {
+        "symbol": "TalkOpened",
+        "line": 180
+      },
+      {
+        "symbol": "listed",
+        "line": 188
+      },
+      {
+        "symbol": "close_reason",
+        "line": 214
+      },
+      {
+        "symbol": "_when",
+        "line": 222
+      },
+      {
+        "symbol": "project_descriptor",
+        "line": 234
+      },
+      {
+        "symbol": "parse_lease",
+        "line": 243
+      },
+      {
+        "symbol": "parse_talk_open",
+        "line": 270
+      },
+      {
+        "symbol": "project_object",
+        "line": 285
+      },
+      {
+        "symbol": "talk_ref_of",
+        "line": 294
+      },
+      {
+        "symbol": "talk_closed",
+        "line": 300
+      },
+      {
+        "symbol": "unavailable_reason",
+        "line": 313
+      },
+      {
+        "symbol": "_text",
+        "line": 351
+      },
+      {
+        "symbol": "actor_wire",
+        "line": 357
+      },
+      {
+        "symbol": "_handle",
+        "line": 362
+      },
+      {
+        "symbol": "descriptor_params",
+        "line": 368
+      },
+      {
+        "symbol": "lease_params",
+        "line": 372
+      },
+      {
+        "symbol": "talk_open_params",
+        "line": 377
+      },
+      {
+        "symbol": "talk_frame_params",
+        "line": 382
+      },
+      {
+        "symbol": "talk_floor_params",
+        "line": 396
+      },
+      {
+        "symbol": "talk_close_params",
+        "line": 400
+      },
+      {
+        "symbol": "_actor_pair",
+        "line": 404
+      },
+      {
+        "symbol": "validate_parameters",
+        "line": 411
+      },
+      {
+        "symbol": "FrameAck",
+        "line": 461
+      },
+      {
+        "symbol": "_int",
+        "line": 466
+      },
+      {
+        "symbol": "parse_frame_ack",
+        "line": 472
+      },
+      {
+        "symbol": "parse_floor",
+        "line": 485
+      },
+      {
+        "symbol": "parse_close",
+        "line": 492
+      },
+      {
+        "symbol": "parse_talk_open_v11",
+        "line": 499
+      },
+      {
+        "symbol": "parse_lease_v11",
+        "line": 513
+      },
+      {
+        "symbol": "talk_closed_v11",
+        "line": 530
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_peer.py",
+    "sha256": "a572b1d3f97237102a31e981ee28790897e5aeb575c1efc85469404955e4b6dc",
+    "symbols": [
+      {
+        "symbol": "PeerSeamError",
+        "line": 78
+      },
+      {
+        "symbol": "_Seal",
+        "line": 84
+      },
+      {
+        "symbol": "is_ref",
+        "line": 97
+      },
+      {
+        "symbol": "is_pos_int",
+        "line": 104
+      },
+      {
+        "symbol": "is_uuid",
+        "line": 108
+      },
+      {
+        "symbol": "is_ha_user_id",
+        "line": 112
+      },
+      {
+        "symbol": "_Sealed",
+        "line": 116
+      },
+      {
+        "symbol": "TransportAttestation",
+        "line": 158
+      },
+      {
+        "symbol": "VerifiedPeerRef",
+        "line": 168
+      },
+      {
+        "symbol": "attest_transport",
+        "line": 181
+      },
+      {
+        "symbol": "_mint_peer",
+        "line": 189
+      },
+      {
+        "symbol": "as_peer_binding",
+        "line": 198
+      },
+      {
+        "symbol": "refuse_as_peer",
+        "line": 210
+      },
+      {
+        "symbol": "go_live_permitted",
+        "line": 220
+      },
+      {
+        "symbol": "mode",
+        "line": 224
+      },
+      {
+        "symbol": "enabled",
+        "line": 231
+      },
+      {
+        "symbol": "signed_capture_covered",
+        "line": 236
+      },
+      {
+        "symbol": "ReceiptExpectation",
+        "line": 244
+      },
+      {
+        "symbol": "FenceContext",
+        "line": 266
+      },
+      {
+        "symbol": "ReceiptVerdict",
+        "line": 277
+      },
+      {
+        "symbol": "_unknown",
+        "line": 292
+      },
+      {
+        "symbol": "_result_of",
+        "line": 296
+      },
+      {
+        "symbol": "verify_receipt",
+        "line": 308
+      },
+      {
+        "symbol": "_json_safe",
+        "line": 385
+      },
+      {
+        "symbol": "_canonical",
+        "line": 400
+      },
+      {
+        "symbol": "ResolveOriginal",
+        "line": 405
+      },
+      {
+        "symbol": "resolve_parameters",
+        "line": 434
+      },
+      {
+        "symbol": "ResolutionVerdict",
+        "line": 449
+      },
+      {
+        "symbol": "_resolution_unknown",
+        "line": 470
+      },
+      {
+        "symbol": "verify_resolution",
+        "line": 474
+      },
+      {
+        "symbol": "OneCommitLedger",
+        "line": 498
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_peer_registry.py",
+    "sha256": "2c4b1c927bad1a5ea9691a0dcb984b93f8bfc7345f4bae0225f13db6e6024ce4",
+    "symbols": [
+      {
+        "symbol": "RegistryRefused",
+        "line": 49
+      },
+      {
+        "symbol": "RegistryTransport",
+        "line": 55
+      },
+      {
+        "symbol": "LiveRegistryTransport",
+        "line": 61
+      },
+      {
+        "symbol": "OwnerPin",
+        "line": 71
+      },
+      {
+        "symbol": "encode_pin",
+        "line": 84
+      },
+      {
+        "symbol": "parse_pin",
+        "line": 88
+      },
+      {
+        "symbol": "read_pin",
+        "line": 103
+      },
+      {
+        "symbol": "BindingVerdict",
+        "line": 111
+      },
+      {
+        "symbol": "_no",
+        "line": 118
+      },
+      {
+        "symbol": "parse_binding",
+        "line": 122
+      },
+      {
+        "symbol": "RegistryClient",
+        "line": 150
+      },
+      {
+        "symbol": "client_for",
+        "line": 218
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_readback.py",
+    "sha256": "ed11739ddc6245311751799d22f157cbd3d6b7480587591a75ae51aa50999ee0",
+    "symbols": [
+      {
+        "symbol": "ReadbackUnavailable",
+        "line": 40
+      },
+      {
+        "symbol": "project_api_lists",
+        "line": 49
+      },
+      {
+        "symbol": "LiveReadback",
+        "line": 63
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_switches.py",
+    "sha256": "16938d9366666a753b2349beb3321df88b2222cbc02662827bc140071ac9f34d",
+    "symbols": [
+      {
+        "symbol": "SwitchRefused",
+        "line": 33
+      },
+      {
+        "symbol": "mode",
+        "line": 42
+      },
+      {
+        "symbol": "view",
+        "line": 49
+      },
+      {
+        "symbol": "check",
+        "line": 53
+      },
+      {
+        "symbol": "apply",
+        "line": 71
+      }
+    ]
+  },
+  {
+    "unit": "WKDIRECT",
+    "CODE": "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_talk_pump.py",
+    "sha256": "376ca8c17c52d6178a155d3a96fb55ffead67af5748132366673c297d244d5f2",
+    "symbols": [
+      {
+        "symbol": "TalkPump",
+        "line": 37
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_access_state.py",
+    "sha256": "86a744b794a3e2028a2078882551436910e181b93408a1ff2b25c18a475f4579",
+    "symbols": [
+      {
+        "symbol": "AccessStateError",
+        "line": 77
+      },
+      {
+        "symbol": "strict_int",
+        "line": 90
+      },
+      {
+        "symbol": "revision_ok",
+        "line": 95
+      },
+      {
+        "symbol": "id_ok",
+        "line": 100
+      },
+      {
+        "symbol": "_flag",
+        "line": 106
+      },
+      {
+        "symbol": "schedule_ok",
+        "line": 113
+      },
+      {
+        "symbol": "policy_ok",
+        "line": 130
+      },
+      {
+        "symbol": "Assignment",
+        "line": 143
+      },
+      {
+        "symbol": "PendingQueues",
+        "line": 154
+      },
+      {
+        "symbol": "AccessState",
+        "line": 179
+      },
+      {
+        "symbol": "unwrap_frame",
+        "line": 206
+      },
+      {
+        "symbol": "parse_frame",
+        "line": 219
+      },
+      {
+        "symbol": "_ids",
+        "line": 226
+      },
+      {
+        "symbol": "_queues",
+        "line": 236
+      },
+      {
+        "symbol": "_row",
+        "line": 246
+      },
+      {
+        "symbol": "parse_result",
+        "line": 269
+      },
+      {
+        "symbol": "_v2",
+        "line": 323
+      },
+      {
+        "symbol": "v1_engine_consistent",
+        "line": 364
+      },
+      {
+        "symbol": "v1_acr5_consistent",
+        "line": 370
+      },
+      {
+        "symbol": "try_parse",
+        "line": 376
+      },
+      {
+        "symbol": "evidence_of",
+        "line": 391
+      },
+      {
+        "symbol": "revocation_verdict_v2",
+        "line": 408
+      },
+      {
+        "symbol": "station_removal_verdict_v2",
+        "line": 436
+      },
+      {
+        "symbol": "last_known_stations",
+        "line": 465
+      },
+      {
+        "symbol": "Negotiated",
+        "line": 494
+      },
+      {
+        "symbol": "_listed",
+        "line": 510
+      },
+      {
+        "symbol": "negotiate",
+        "line": 516
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_acr5.py",
+    "sha256": "ec070557f787a7b49ed5dd42714ee4852985a1c54d4e03c6cbaabc38c989e7c6",
+    "symbols": [
+      {
+        "symbol": "ConsumerOff",
+        "line": 81
+      },
+      {
+        "symbol": "Unknown",
+        "line": 88
+      },
+      {
+        "symbol": "go_live_permitted",
+        "line": 92
+      },
+      {
+        "symbol": "consumer_mode",
+        "line": 96
+      },
+      {
+        "symbol": "consumer_on",
+        "line": 106
+      },
+      {
+        "symbol": "capability_ok",
+        "line": 110
+      },
+      {
+        "symbol": "_pos_int",
+        "line": 116
+      },
+      {
+        "symbol": "_id",
+        "line": 120
+      },
+      {
+        "symbol": "_result",
+        "line": 124
+      },
+      {
+        "symbol": "access_state_request",
+        "line": 136
+      },
+      {
+        "symbol": "parse_access_state",
+        "line": 143
+      },
+      {
+        "symbol": "revocation_verdict",
+        "line": 154
+      },
+      {
+        "symbol": "_v1_status",
+        "line": 172
+      },
+      {
+        "symbol": "revocation_evidence",
+        "line": 192
+      },
+      {
+        "symbol": "RevisionBoundAccessState",
+        "line": 205
+      },
+      {
+        "symbol": "revocation_pending_at",
+        "line": 209
+      },
+      {
+        "symbol": "revocation_evidence_at",
+        "line": 222
+      },
+      {
+        "symbol": "_row_current",
+        "line": 233
+      },
+      {
+        "symbol": "stations_synced_verdict",
+        "line": 237
+      },
+      {
+        "symbol": "PendingView",
+        "line": 254
+      },
+      {
+        "symbol": "visible_pending",
+        "line": 259
+      },
+      {
+        "symbol": "presence_diagnostic",
+        "line": 273
+      },
+      {
+        "symbol": "is_cleanup_proof",
+        "line": 277
+      },
+      {
+        "symbol": "normalize_request",
+        "line": 284
+      },
+      {
+        "symbol": "parse_normalized",
+        "line": 290
+      },
+      {
+        "symbol": "_normalized",
+        "line": 306
+      },
+      {
+        "symbol": "policy_equivalent",
+        "line": 314
+      },
+      {
+        "symbol": "grant_policy_proven",
+        "line": 331
+      },
+      {
+        "symbol": "FeaturePlan",
+        "line": 347
+      },
+      {
+        "symbol": "parse_feature_plan",
+        "line": 356
+      },
+      {
+        "symbol": "consume_plan",
+        "line": 368
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_background.py",
+    "sha256": "a810b4de2e98e1ab504f05b097ddc114c7d28cede673b0808b5a11cf61b369e8",
+    "symbols": [
+      {
+        "symbol": "_utc_z",
+        "line": 42
+      },
+      {
+        "symbol": "_now_z",
+        "line": 56
+      },
+      {
+        "symbol": "closed_station",
+        "line": 60
+      },
+      {
+        "symbol": "_revision",
+        "line": 79
+      },
+      {
+        "symbol": "project_background",
+        "line": 83
+      },
+      {
+        "symbol": "from_served_copy",
+        "line": 96
+      },
+      {
+        "symbol": "walk_keys",
+        "line": 106
+      },
+      {
+        "symbol": "find_person_fields",
+        "line": 118
+      },
+      {
+        "symbol": "assert_closed",
+        "line": 123
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_background_feed.py",
+    "sha256": "37885b27a84a206f5c793c86485f21b1f9c284ecc98d8cc04c0b205fdbc097b4",
+    "symbols": [
+      {
+        "symbol": "_NotReady",
+        "line": 40
+      },
+      {
+        "symbol": "configured",
+        "line": 44
+      },
+      {
+        "symbol": "BackgroundFeed",
+        "line": 49
+      },
+      {
+        "symbol": "copy_of",
+        "line": 373
+      },
+      {
+        "symbol": "channel_view",
+        "line": 381
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_camera.py",
+    "sha256": "04b665e39840924f6b81a5e2546cf6b242227675d1d53b2fc58cdbfd25fe7327",
+    "symbols": [
+      {
+        "symbol": "default_configured",
+        "line": 23
+      },
+      {
+        "symbol": "credentials",
+        "line": 27
+      },
+      {
+        "symbol": "status",
+        "line": 42
+      },
+      {
+        "symbol": "listing",
+        "line": 55
+      },
+      {
+        "symbol": "set_override",
+        "line": 70
+      },
+      {
+        "symbol": "clear_override",
+        "line": 87
+      },
+      {
+        "symbol": "camera_access",
+        "line": 91
+      },
+      {
+        "symbol": "convert_plaintext",
+        "line": 114
+      },
+      {
+        "symbol": "apply_at_startup",
+        "line": 140
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_channels.py",
+    "sha256": "8be223a530498de1148c0bf5e3e75be68f381a12057f27ec55b1a76b1d26ecbd",
+    "symbols": [
+      {
+        "symbol": "allowed",
+        "line": 116
+      },
+      {
+        "symbol": "guard",
+        "line": 123
+      },
+      {
+        "symbol": "describe",
+        "line": 143
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_command_port.py",
+    "sha256": "3e4df666903ad1d94c04916db068a1e8184b0d358520c567c8631adbb520e20f",
+    "symbols": [
+      {
+        "symbol": "WiskeyCommandError",
+        "line": 41
+      },
+      {
+        "symbol": "WiskeyCommandPort",
+        "line": 60
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_diagnostics.py",
+    "sha256": "eca73700c0126a400b373e071bb94119418e77add75319a864aeecda13d8e3e1",
+    "symbols": [
+      {
+        "symbol": "_level",
+        "line": 36
+      },
+      {
+        "symbol": "_bool",
+        "line": 40
+      },
+      {
+        "symbol": "_int",
+        "line": 44
+      },
+      {
+        "symbol": "project_authorization",
+        "line": 48
+      },
+      {
+        "symbol": "_now",
+        "line": 81
+      },
+      {
+        "symbol": "_service",
+        "line": 87
+      },
+      {
+        "symbol": "_background",
+        "line": 108
+      },
+      {
+        "symbol": "_finding",
+        "line": 132
+      },
+      {
+        "symbol": "findings",
+        "line": 136
+      },
+      {
+        "symbol": "collect",
+        "line": 173
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_feature_exec.py",
+    "sha256": "87c0e42e8c898395088f2a852b05b78a0cb9581cbc2a1d24bebcd8547ec4153c",
+    "symbols": [
+      {
+        "symbol": "FeatureError",
+        "line": 94
+      },
+      {
+        "symbol": "_ref",
+        "line": 100
+      },
+      {
+        "symbol": "_utc",
+        "line": 104
+      },
+      {
+        "symbol": "absolute_time",
+        "line": 109
+      },
+      {
+        "symbol": "validate_params",
+        "line": 125
+      },
+      {
+        "symbol": "execution_end",
+        "line": 156
+      },
+      {
+        "symbol": "human_actor",
+        "line": 161
+      },
+      {
+        "symbol": "automation_actor",
+        "line": 167
+      },
+      {
+        "symbol": "build_request",
+        "line": 175
+      },
+      {
+        "symbol": "RelayRow",
+        "line": 227
+      },
+      {
+        "symbol": "set_relay_map",
+        "line": 234
+      },
+      {
+        "symbol": "relay_row",
+        "line": 255
+      },
+      {
+        "symbol": "StationGrant",
+        "line": 263
+      },
+      {
+        "symbol": "PolicyDocument",
+        "line": 271
+      },
+      {
+        "symbol": "_held_on_all",
+        "line": 285
+      },
+      {
+        "symbol": "resolve_policy",
+        "line": 289
+      },
+      {
+        "symbol": "admit_request",
+        "line": 327
+      },
+      {
+        "symbol": "intent_state",
+        "line": 345
+      },
+      {
+        "symbol": "mark_feature_sent",
+        "line": 350
+      },
+      {
+        "symbol": "settle_feature",
+        "line": 355
+      },
+      {
+        "symbol": "LiveFeatureTransport",
+        "line": 364
+      },
+      {
+        "symbol": "registry",
+        "line": 373
+      },
+      {
+        "symbol": "set_feature_enabled",
+        "line": 379
+      },
+      {
+        "symbol": "record_host_registration",
+        "line": 387
+      },
+      {
+        "symbol": "status",
+        "line": 397
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_intents.py",
+    "sha256": "937fccd17302a5ceeb6790c5eda3b217e0afe031693b9e471759bac9cbc06c1c",
+    "symbols": [
+      {
+        "symbol": "IntentError",
+        "line": 48
+      },
+      {
+        "symbol": "_now",
+        "line": 54
+      },
+      {
+        "symbol": "ExactOriginal",
+        "line": 59
+      },
+      {
+        "symbol": "_row_original",
+        "line": 83
+      },
+      {
+        "symbol": "admit",
+        "line": 93
+      },
+      {
+        "symbol": "original",
+        "line": 118
+      },
+      {
+        "symbol": "state",
+        "line": 124
+      },
+      {
+        "symbol": "_move",
+        "line": 130
+      },
+      {
+        "symbol": "mark_sent",
+        "line": 137
+      },
+      {
+        "symbol": "mark_unknown",
+        "line": 143
+      },
+      {
+        "symbol": "_terminal",
+        "line": 150
+      },
+      {
+        "symbol": "settle_update",
+        "line": 167
+      },
+      {
+        "symbol": "CreateExpectation",
+        "line": 183
+      },
+      {
+        "symbol": "CreateVerdict",
+        "line": 198
+      },
+      {
+        "symbol": "_unknown",
+        "line": 205
+      },
+      {
+        "symbol": "verify_create_resolution",
+        "line": 209
+      },
+      {
+        "symbol": "settle_create",
+        "line": 267
+      },
+      {
+        "symbol": "open_intents",
+        "line": 279
+      },
+      {
+        "symbol": "settle_resolution",
+        "line": 285
+      },
+      {
+        "symbol": "LiveResolveTransport",
+        "line": 308
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_media_contract.py",
+    "sha256": "79d7b5bc97ad812175fa7d9fd4dac83e325e112e4e1c19d6151f9af20dcf0d4a",
+    "symbols": [
+      {
+        "symbol": "ContractError",
+        "line": 111
+      },
+      {
+        "symbol": "Actor",
+        "line": 120
+      },
+      {
+        "symbol": "StreamLease",
+        "line": 133
+      },
+      {
+        "symbol": "TalkOpened",
+        "line": 146
+      },
+      {
+        "symbol": "listed",
+        "line": 154
+      },
+      {
+        "symbol": "_type",
+        "line": 175
+      },
+      {
+        "symbol": "_api",
+        "line": 179
+      },
+      {
+        "symbol": "station_descriptor",
+        "line": 183
+      },
+      {
+        "symbol": "stream_lease",
+        "line": 188
+      },
+      {
+        "symbol": "talk_open",
+        "line": 193
+      },
+      {
+        "symbol": "talk_frame",
+        "line": 198
+      },
+      {
+        "symbol": "talk_floor",
+        "line": 203
+      },
+      {
+        "symbol": "talk_close",
+        "line": 208
+      },
+      {
+        "symbol": "close_reason",
+        "line": 213
+      },
+      {
+        "symbol": "_when",
+        "line": 221
+      },
+      {
+        "symbol": "project_descriptor",
+        "line": 233
+      },
+      {
+        "symbol": "parse_lease",
+        "line": 242
+      },
+      {
+        "symbol": "parse_talk_open",
+        "line": 269
+      },
+      {
+        "symbol": "project_object",
+        "line": 284
+      },
+      {
+        "symbol": "talk_ref_of",
+        "line": 293
+      },
+      {
+        "symbol": "talk_closed",
+        "line": 299
+      },
+      {
+        "symbol": "unavailable_reason",
+        "line": 312
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_native_write.py",
+    "sha256": "364bdc795953e900f2f949f60737f98d6a6723b4793b4a4523f65e308545d51b",
+    "symbols": [
+      {
+        "symbol": "NativeWriteError",
+        "line": 110
+      },
+      {
+        "symbol": "_utcnow",
+        "line": 118
+      },
+      {
+        "symbol": "_instant",
+        "line": 122
+      },
+      {
+        "symbol": "_canonical",
+        "line": 126
+      },
+      {
+        "symbol": "_json_tree",
+        "line": 130
+      },
+      {
+        "symbol": "WriteSource",
+        "line": 147
+      },
+      {
+        "symbol": "parse_source",
+        "line": 169
+      },
+      {
+        "symbol": "WriteActor",
+        "line": 193
+      },
+      {
+        "symbol": "ArxDecision",
+        "line": 209
+      },
+      {
+        "symbol": "arx_decision",
+        "line": 225
+      },
+      {
+        "symbol": "schema_id",
+        "line": 247
+      },
+      {
+        "symbol": "build_descriptor",
+        "line": 251
+      },
+      {
+        "symbol": "check_descriptor",
+        "line": 295
+      },
+      {
+        "symbol": "ReceiptMismatch",
+        "line": 346
+      },
+      {
+        "symbol": "verify_receipt",
+        "line": 352
+      },
+      {
+        "symbol": "verify_ack",
+        "line": 385
+      },
+      {
+        "symbol": "WriteOutcome",
+        "line": 398
+      },
+      {
+        "symbol": "audit_to",
+        "line": 413
+      },
+      {
+        "symbol": "NativePeopleWriter",
+        "line": 426
+      },
+      {
+        "symbol": "_name_receipt_mismatch",
+        "line": 713
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_peer.py",
+    "sha256": "a572b1d3f97237102a31e981ee28790897e5aeb575c1efc85469404955e4b6dc",
+    "symbols": [
+      {
+        "symbol": "PeerSeamError",
+        "line": 78
+      },
+      {
+        "symbol": "_Seal",
+        "line": 84
+      },
+      {
+        "symbol": "is_ref",
+        "line": 97
+      },
+      {
+        "symbol": "is_pos_int",
+        "line": 104
+      },
+      {
+        "symbol": "is_uuid",
+        "line": 108
+      },
+      {
+        "symbol": "is_ha_user_id",
+        "line": 112
+      },
+      {
+        "symbol": "_Sealed",
+        "line": 116
+      },
+      {
+        "symbol": "TransportAttestation",
+        "line": 158
+      },
+      {
+        "symbol": "VerifiedPeerRef",
+        "line": 168
+      },
+      {
+        "symbol": "attest_transport",
+        "line": 181
+      },
+      {
+        "symbol": "_mint_peer",
+        "line": 189
+      },
+      {
+        "symbol": "as_peer_binding",
+        "line": 198
+      },
+      {
+        "symbol": "refuse_as_peer",
+        "line": 210
+      },
+      {
+        "symbol": "go_live_permitted",
+        "line": 220
+      },
+      {
+        "symbol": "mode",
+        "line": 224
+      },
+      {
+        "symbol": "enabled",
+        "line": 231
+      },
+      {
+        "symbol": "signed_capture_covered",
+        "line": 236
+      },
+      {
+        "symbol": "ReceiptExpectation",
+        "line": 244
+      },
+      {
+        "symbol": "FenceContext",
+        "line": 266
+      },
+      {
+        "symbol": "ReceiptVerdict",
+        "line": 277
+      },
+      {
+        "symbol": "_unknown",
+        "line": 292
+      },
+      {
+        "symbol": "_result_of",
+        "line": 296
+      },
+      {
+        "symbol": "verify_receipt",
+        "line": 308
+      },
+      {
+        "symbol": "_json_safe",
+        "line": 385
+      },
+      {
+        "symbol": "_canonical",
+        "line": 400
+      },
+      {
+        "symbol": "ResolveOriginal",
+        "line": 405
+      },
+      {
+        "symbol": "resolve_parameters",
+        "line": 434
+      },
+      {
+        "symbol": "ResolutionVerdict",
+        "line": 449
+      },
+      {
+        "symbol": "_resolution_unknown",
+        "line": 470
+      },
+      {
+        "symbol": "verify_resolution",
+        "line": 474
+      },
+      {
+        "symbol": "OneCommitLedger",
+        "line": 498
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_peer_registry.py",
+    "sha256": "2c4b1c927bad1a5ea9691a0dcb984b93f8bfc7345f4bae0225f13db6e6024ce4",
+    "symbols": [
+      {
+        "symbol": "RegistryRefused",
+        "line": 49
+      },
+      {
+        "symbol": "RegistryTransport",
+        "line": 55
+      },
+      {
+        "symbol": "LiveRegistryTransport",
+        "line": 61
+      },
+      {
+        "symbol": "OwnerPin",
+        "line": 71
+      },
+      {
+        "symbol": "encode_pin",
+        "line": 84
+      },
+      {
+        "symbol": "parse_pin",
+        "line": 88
+      },
+      {
+        "symbol": "read_pin",
+        "line": 103
+      },
+      {
+        "symbol": "BindingVerdict",
+        "line": 111
+      },
+      {
+        "symbol": "_no",
+        "line": 118
+      },
+      {
+        "symbol": "parse_binding",
+        "line": 122
+      },
+      {
+        "symbol": "RegistryClient",
+        "line": 150
+      },
+      {
+        "symbol": "client_for",
+        "line": 218
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_readback.py",
+    "sha256": "ed11739ddc6245311751799d22f157cbd3d6b7480587591a75ae51aa50999ee0",
+    "symbols": [
+      {
+        "symbol": "ReadbackUnavailable",
+        "line": 40
+      },
+      {
+        "symbol": "project_api_lists",
+        "line": 49
+      },
+      {
+        "symbol": "LiveReadback",
+        "line": 63
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_switches.py",
+    "sha256": "16938d9366666a753b2349beb3321df88b2222cbc02662827bc140071ac9f34d",
+    "symbols": [
+      {
+        "symbol": "SwitchRefused",
+        "line": 33
+      },
+      {
+        "symbol": "mode",
+        "line": 42
+      },
+      {
+        "symbol": "view",
+        "line": 49
+      },
+      {
+        "symbol": "check",
+        "line": 53
+      },
+      {
+        "symbol": "apply",
+        "line": 71
+      }
+    ]
+  },
+  {
+    "unit": "WKWRITE",
+    "CODE": "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_write_lineage.py",
+    "sha256": "6ec9ef20cde3fb42d3863417fd41d425984b4eebd1d704ea4644344e0f766fb6",
+    "symbols": [
+      {
+        "symbol": "LineageError",
+        "line": 82
+      },
+      {
+        "symbol": "is_ref",
+        "line": 88
+      },
+      {
+        "symbol": "is_count",
+        "line": 92
+      },
+      {
+        "symbol": "_iso",
+        "line": 96
+      },
+      {
+        "symbol": "_utcnow",
+        "line": 100
+      },
+      {
+        "symbol": "process_holder",
+        "line": 104
+      },
+      {
+        "symbol": "Anchor",
+        "line": 111
+      },
+      {
+        "symbol": "SettingsAnchor",
+        "line": 117
+      },
+      {
+        "symbol": "Intent",
+        "line": 207
+      },
+      {
+        "symbol": "_intent",
+        "line": 234
+      },
+      {
+        "symbol": "WriteLineage",
+        "line": 238
+      },
+      {
+        "symbol": "_code",
+        "line": 608
+      },
+      {
+        "symbol": "_Tx",
+        "line": 612
+      },
+      {
+        "symbol": "lineage_path",
+        "line": 629
+      },
+      {
+        "symbol": "open_lineage",
+        "line": 633
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_access_state.py",
+    "sha256": "86a744b794a3e2028a2078882551436910e181b93408a1ff2b25c18a475f4579",
+    "symbols": [
+      {
+        "symbol": "AccessStateError",
+        "line": 77
+      },
+      {
+        "symbol": "strict_int",
+        "line": 90
+      },
+      {
+        "symbol": "revision_ok",
+        "line": 95
+      },
+      {
+        "symbol": "id_ok",
+        "line": 100
+      },
+      {
+        "symbol": "_flag",
+        "line": 106
+      },
+      {
+        "symbol": "schedule_ok",
+        "line": 113
+      },
+      {
+        "symbol": "policy_ok",
+        "line": 130
+      },
+      {
+        "symbol": "Assignment",
+        "line": 143
+      },
+      {
+        "symbol": "PendingQueues",
+        "line": 154
+      },
+      {
+        "symbol": "AccessState",
+        "line": 179
+      },
+      {
+        "symbol": "unwrap_frame",
+        "line": 206
+      },
+      {
+        "symbol": "parse_frame",
+        "line": 219
+      },
+      {
+        "symbol": "_ids",
+        "line": 226
+      },
+      {
+        "symbol": "_queues",
+        "line": 236
+      },
+      {
+        "symbol": "_row",
+        "line": 246
+      },
+      {
+        "symbol": "parse_result",
+        "line": 269
+      },
+      {
+        "symbol": "_v2",
+        "line": 323
+      },
+      {
+        "symbol": "v1_engine_consistent",
+        "line": 364
+      },
+      {
+        "symbol": "v1_acr5_consistent",
+        "line": 370
+      },
+      {
+        "symbol": "try_parse",
+        "line": 376
+      },
+      {
+        "symbol": "evidence_of",
+        "line": 391
+      },
+      {
+        "symbol": "revocation_verdict_v2",
+        "line": 408
+      },
+      {
+        "symbol": "station_removal_verdict_v2",
+        "line": 436
+      },
+      {
+        "symbol": "last_known_stations",
+        "line": 465
+      },
+      {
+        "symbol": "Negotiated",
+        "line": 494
+      },
+      {
+        "symbol": "_listed",
+        "line": 510
+      },
+      {
+        "symbol": "negotiate",
+        "line": 516
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_acr5.py",
+    "sha256": "ec070557f787a7b49ed5dd42714ee4852985a1c54d4e03c6cbaabc38c989e7c6",
+    "symbols": [
+      {
+        "symbol": "ConsumerOff",
+        "line": 81
+      },
+      {
+        "symbol": "Unknown",
+        "line": 88
+      },
+      {
+        "symbol": "go_live_permitted",
+        "line": 92
+      },
+      {
+        "symbol": "consumer_mode",
+        "line": 96
+      },
+      {
+        "symbol": "consumer_on",
+        "line": 106
+      },
+      {
+        "symbol": "capability_ok",
+        "line": 110
+      },
+      {
+        "symbol": "_pos_int",
+        "line": 116
+      },
+      {
+        "symbol": "_id",
+        "line": 120
+      },
+      {
+        "symbol": "_result",
+        "line": 124
+      },
+      {
+        "symbol": "access_state_request",
+        "line": 136
+      },
+      {
+        "symbol": "parse_access_state",
+        "line": 143
+      },
+      {
+        "symbol": "revocation_verdict",
+        "line": 154
+      },
+      {
+        "symbol": "_v1_status",
+        "line": 172
+      },
+      {
+        "symbol": "revocation_evidence",
+        "line": 192
+      },
+      {
+        "symbol": "RevisionBoundAccessState",
+        "line": 205
+      },
+      {
+        "symbol": "revocation_pending_at",
+        "line": 209
+      },
+      {
+        "symbol": "revocation_evidence_at",
+        "line": 222
+      },
+      {
+        "symbol": "_row_current",
+        "line": 233
+      },
+      {
+        "symbol": "stations_synced_verdict",
+        "line": 237
+      },
+      {
+        "symbol": "PendingView",
+        "line": 254
+      },
+      {
+        "symbol": "visible_pending",
+        "line": 259
+      },
+      {
+        "symbol": "presence_diagnostic",
+        "line": 273
+      },
+      {
+        "symbol": "is_cleanup_proof",
+        "line": 277
+      },
+      {
+        "symbol": "normalize_request",
+        "line": 284
+      },
+      {
+        "symbol": "parse_normalized",
+        "line": 290
+      },
+      {
+        "symbol": "_normalized",
+        "line": 306
+      },
+      {
+        "symbol": "policy_equivalent",
+        "line": 314
+      },
+      {
+        "symbol": "grant_policy_proven",
+        "line": 331
+      },
+      {
+        "symbol": "FeaturePlan",
+        "line": 347
+      },
+      {
+        "symbol": "parse_feature_plan",
+        "line": 356
+      },
+      {
+        "symbol": "consume_plan",
+        "line": 368
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_background.py",
+    "sha256": "a810b4de2e98e1ab504f05b097ddc114c7d28cede673b0808b5a11cf61b369e8",
+    "symbols": [
+      {
+        "symbol": "_utc_z",
+        "line": 42
+      },
+      {
+        "symbol": "_now_z",
+        "line": 56
+      },
+      {
+        "symbol": "closed_station",
+        "line": 60
+      },
+      {
+        "symbol": "_revision",
+        "line": 79
+      },
+      {
+        "symbol": "project_background",
+        "line": 83
+      },
+      {
+        "symbol": "from_served_copy",
+        "line": 96
+      },
+      {
+        "symbol": "walk_keys",
+        "line": 106
+      },
+      {
+        "symbol": "find_person_fields",
+        "line": 118
+      },
+      {
+        "symbol": "assert_closed",
+        "line": 123
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_background_feed.py",
+    "sha256": "37885b27a84a206f5c793c86485f21b1f9c284ecc98d8cc04c0b205fdbc097b4",
+    "symbols": [
+      {
+        "symbol": "_NotReady",
+        "line": 40
+      },
+      {
+        "symbol": "configured",
+        "line": 44
+      },
+      {
+        "symbol": "BackgroundFeed",
+        "line": 49
+      },
+      {
+        "symbol": "copy_of",
+        "line": 373
+      },
+      {
+        "symbol": "channel_view",
+        "line": 381
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_camera.py",
+    "sha256": "04b665e39840924f6b81a5e2546cf6b242227675d1d53b2fc58cdbfd25fe7327",
+    "symbols": [
+      {
+        "symbol": "default_configured",
+        "line": 23
+      },
+      {
+        "symbol": "credentials",
+        "line": 27
+      },
+      {
+        "symbol": "status",
+        "line": 42
+      },
+      {
+        "symbol": "listing",
+        "line": 55
+      },
+      {
+        "symbol": "set_override",
+        "line": 70
+      },
+      {
+        "symbol": "clear_override",
+        "line": 87
+      },
+      {
+        "symbol": "camera_access",
+        "line": 91
+      },
+      {
+        "symbol": "convert_plaintext",
+        "line": 114
+      },
+      {
+        "symbol": "apply_at_startup",
+        "line": 140
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_capture_direct.py",
+    "sha256": "7b6a62ae0fb5bb0f8c56126a6263d7355aae07496c816c23df2649683e316fd1",
+    "symbols": [
+      {
+        "symbol": "DirectLeaseTransport",
+        "line": 43
+      },
+      {
+        "symbol": "_api_error",
+        "line": 72
+      },
+      {
+        "symbol": "install",
+        "line": 81
+      },
+      {
+        "symbol": "uninstall",
+        "line": 89
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_capture_port.py",
+    "sha256": "21791f0983d0b4964b20d355531e83b32b0ac98102a9d9f1eede895c91975fbf",
+    "symbols": [
+      {
+        "symbol": "PortError",
+        "line": 24
+      },
+      {
+        "symbol": "PortIdentity",
+        "line": 34
+      },
+      {
+        "symbol": "WiskeyDirectPort",
+        "line": 43
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_channels.py",
+    "sha256": "8be223a530498de1148c0bf5e3e75be68f381a12057f27ec55b1a76b1d26ecbd",
+    "symbols": [
+      {
+        "symbol": "allowed",
+        "line": 116
+      },
+      {
+        "symbol": "guard",
+        "line": 123
+      },
+      {
+        "symbol": "describe",
+        "line": 143
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_diagnostics.py",
+    "sha256": "eca73700c0126a400b373e071bb94119418e77add75319a864aeecda13d8e3e1",
+    "symbols": [
+      {
+        "symbol": "_level",
+        "line": 36
+      },
+      {
+        "symbol": "_bool",
+        "line": 40
+      },
+      {
+        "symbol": "_int",
+        "line": 44
+      },
+      {
+        "symbol": "project_authorization",
+        "line": 48
+      },
+      {
+        "symbol": "_now",
+        "line": 81
+      },
+      {
+        "symbol": "_service",
+        "line": 87
+      },
+      {
+        "symbol": "_background",
+        "line": 108
+      },
+      {
+        "symbol": "_finding",
+        "line": 132
+      },
+      {
+        "symbol": "findings",
+        "line": 136
+      },
+      {
+        "symbol": "collect",
+        "line": 173
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_emergency_direct.py",
+    "sha256": "f960f3daeeb1fdb0409381ae9c8469bc5eb8091c90091e0b4efa229aebac05d8",
+    "symbols": [
+      {
+        "symbol": "event_ref_of",
+        "line": 50
+      },
+      {
+        "symbol": "scope_ref_of",
+        "line": 55
+      },
+      {
+        "symbol": "EmergencyContext",
+        "line": 60
+      },
+      {
+        "symbol": "incident_context",
+        "line": 80
+      },
+      {
+        "symbol": "Attempt",
+        "line": 100
+      },
+      {
+        "symbol": "attempts",
+        "line": 108
+      },
+      {
+        "symbol": "latest_hold_event",
+        "line": 116
+      },
+      {
+        "symbol": "outcome_of",
+        "line": 122
+      },
+      {
+        "symbol": "DirectEmergencyEngine",
+        "line": 132
+      },
+      {
+        "symbol": "_commit",
+        "line": 272
+      },
+      {
+        "symbol": "_receipt_token",
+        "line": 279
+      },
+      {
+        "symbol": "install",
+        "line": 291
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_feature_direct.py",
+    "sha256": "860c251eaf9f08606895fb26f45d74712edd303b3c3f8ea7fdc0767a59df6dca",
+    "symbols": [
+      {
+        "symbol": "FeatureWireError",
+        "line": 50
+      },
+      {
+        "symbol": "_ref",
+        "line": 59
+      },
+      {
+        "symbol": "_utc",
+        "line": 63
+      },
+      {
+        "symbol": "_gid",
+        "line": 68
+      },
+      {
+        "symbol": "RowGrantInput",
+        "line": 75
+      },
+      {
+        "symbol": "build_policy_snapshot",
+        "line": 86
+      },
+      {
+        "symbol": "StartOutcome",
+        "line": 137
+      },
+      {
+        "symbol": "FeatureResult",
+        "line": 144
+      },
+      {
+        "symbol": "CancelResult",
+        "line": 153
+      },
+      {
+        "symbol": "MediaStep",
+        "line": 160
+      },
+      {
+        "symbol": "MediaPreparation",
+        "line": 167
+      },
+      {
+        "symbol": "MediaIngressRequest",
+        "line": 176
+      },
+      {
+        "symbol": "read_start_ack",
+        "line": 181
+      },
+      {
+        "symbol": "read_result",
+        "line": 190
+      },
+      {
+        "symbol": "read_cancel",
+        "line": 200
+      },
+      {
+        "symbol": "media_path",
+        "line": 207
+      },
+      {
+        "symbol": "read_media",
+        "line": 217
+      },
+      {
+        "symbol": "_commit",
+        "line": 236
+      },
+      {
+        "symbol": "DirectFeatureClient",
+        "line": 243
+      },
+      {
+        "symbol": "record_operation",
+        "line": 362
+      },
+      {
+        "symbol": "operation_of",
+        "line": 367
+      },
+      {
+        "symbol": "FeatureSpec",
+        "line": 375
+      },
+      {
+        "symbol": "FeatureAdapters",
+        "line": 394
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_feature_exec.py",
+    "sha256": "42a12625f50309271553a8bea16c12284ad8a94c39bfd14dd403b91efa543ce0",
+    "symbols": [
+      {
+        "symbol": "FeatureError",
+        "line": 94
+      },
+      {
+        "symbol": "_ref",
+        "line": 100
+      },
+      {
+        "symbol": "_utc",
+        "line": 104
+      },
+      {
+        "symbol": "absolute_time",
+        "line": 109
+      },
+      {
+        "symbol": "validate_params",
+        "line": 125
+      },
+      {
+        "symbol": "execution_end",
+        "line": 156
+      },
+      {
+        "symbol": "human_actor",
+        "line": 161
+      },
+      {
+        "symbol": "automation_actor",
+        "line": 167
+      },
+      {
+        "symbol": "build_request",
+        "line": 175
+      },
+      {
+        "symbol": "RelayRow",
+        "line": 231
+      },
+      {
+        "symbol": "set_relay_map",
+        "line": 238
+      },
+      {
+        "symbol": "relay_row",
+        "line": 259
+      },
+      {
+        "symbol": "StationGrant",
+        "line": 267
+      },
+      {
+        "symbol": "PolicyDocument",
+        "line": 275
+      },
+      {
+        "symbol": "_held_on_all",
+        "line": 289
+      },
+      {
+        "symbol": "resolve_policy",
+        "line": 293
+      },
+      {
+        "symbol": "admit_request",
+        "line": 331
+      },
+      {
+        "symbol": "intent_state",
+        "line": 349
+      },
+      {
+        "symbol": "mark_feature_sent",
+        "line": 354
+      },
+      {
+        "symbol": "settle_feature",
+        "line": 359
+      },
+      {
+        "symbol": "LiveFeatureTransport",
+        "line": 368
+      },
+      {
+        "symbol": "registry",
+        "line": 377
+      },
+      {
+        "symbol": "set_feature_enabled",
+        "line": 383
+      },
+      {
+        "symbol": "record_host_registration",
+        "line": 391
+      },
+      {
+        "symbol": "status",
+        "line": 401
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_intents.py",
+    "sha256": "937fccd17302a5ceeb6790c5eda3b217e0afe031693b9e471759bac9cbc06c1c",
+    "symbols": [
+      {
+        "symbol": "IntentError",
+        "line": 48
+      },
+      {
+        "symbol": "_now",
+        "line": 54
+      },
+      {
+        "symbol": "ExactOriginal",
+        "line": 59
+      },
+      {
+        "symbol": "_row_original",
+        "line": 83
+      },
+      {
+        "symbol": "admit",
+        "line": 93
+      },
+      {
+        "symbol": "original",
+        "line": 118
+      },
+      {
+        "symbol": "state",
+        "line": 124
+      },
+      {
+        "symbol": "_move",
+        "line": 130
+      },
+      {
+        "symbol": "mark_sent",
+        "line": 137
+      },
+      {
+        "symbol": "mark_unknown",
+        "line": 143
+      },
+      {
+        "symbol": "_terminal",
+        "line": 150
+      },
+      {
+        "symbol": "settle_update",
+        "line": 167
+      },
+      {
+        "symbol": "CreateExpectation",
+        "line": 183
+      },
+      {
+        "symbol": "CreateVerdict",
+        "line": 198
+      },
+      {
+        "symbol": "_unknown",
+        "line": 205
+      },
+      {
+        "symbol": "verify_create_resolution",
+        "line": 209
+      },
+      {
+        "symbol": "settle_create",
+        "line": 267
+      },
+      {
+        "symbol": "open_intents",
+        "line": 279
+      },
+      {
+        "symbol": "settle_resolution",
+        "line": 285
+      },
+      {
+        "symbol": "LiveResolveTransport",
+        "line": 308
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_media_contract.py",
+    "sha256": "79d7b5bc97ad812175fa7d9fd4dac83e325e112e4e1c19d6151f9af20dcf0d4a",
+    "symbols": [
+      {
+        "symbol": "ContractError",
+        "line": 111
+      },
+      {
+        "symbol": "Actor",
+        "line": 120
+      },
+      {
+        "symbol": "StreamLease",
+        "line": 133
+      },
+      {
+        "symbol": "TalkOpened",
+        "line": 146
+      },
+      {
+        "symbol": "listed",
+        "line": 154
+      },
+      {
+        "symbol": "_type",
+        "line": 175
+      },
+      {
+        "symbol": "_api",
+        "line": 179
+      },
+      {
+        "symbol": "station_descriptor",
+        "line": 183
+      },
+      {
+        "symbol": "stream_lease",
+        "line": 188
+      },
+      {
+        "symbol": "talk_open",
+        "line": 193
+      },
+      {
+        "symbol": "talk_frame",
+        "line": 198
+      },
+      {
+        "symbol": "talk_floor",
+        "line": 203
+      },
+      {
+        "symbol": "talk_close",
+        "line": 208
+      },
+      {
+        "symbol": "close_reason",
+        "line": 213
+      },
+      {
+        "symbol": "_when",
+        "line": 221
+      },
+      {
+        "symbol": "project_descriptor",
+        "line": 233
+      },
+      {
+        "symbol": "parse_lease",
+        "line": 242
+      },
+      {
+        "symbol": "parse_talk_open",
+        "line": 269
+      },
+      {
+        "symbol": "project_object",
+        "line": 284
+      },
+      {
+        "symbol": "talk_ref_of",
+        "line": 293
+      },
+      {
+        "symbol": "talk_closed",
+        "line": 299
+      },
+      {
+        "symbol": "unavailable_reason",
+        "line": 312
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_peer.py",
+    "sha256": "a572b1d3f97237102a31e981ee28790897e5aeb575c1efc85469404955e4b6dc",
+    "symbols": [
+      {
+        "symbol": "PeerSeamError",
+        "line": 78
+      },
+      {
+        "symbol": "_Seal",
+        "line": 84
+      },
+      {
+        "symbol": "is_ref",
+        "line": 97
+      },
+      {
+        "symbol": "is_pos_int",
+        "line": 104
+      },
+      {
+        "symbol": "is_uuid",
+        "line": 108
+      },
+      {
+        "symbol": "is_ha_user_id",
+        "line": 112
+      },
+      {
+        "symbol": "_Sealed",
+        "line": 116
+      },
+      {
+        "symbol": "TransportAttestation",
+        "line": 158
+      },
+      {
+        "symbol": "VerifiedPeerRef",
+        "line": 168
+      },
+      {
+        "symbol": "attest_transport",
+        "line": 181
+      },
+      {
+        "symbol": "_mint_peer",
+        "line": 189
+      },
+      {
+        "symbol": "as_peer_binding",
+        "line": 198
+      },
+      {
+        "symbol": "refuse_as_peer",
+        "line": 210
+      },
+      {
+        "symbol": "go_live_permitted",
+        "line": 220
+      },
+      {
+        "symbol": "mode",
+        "line": 224
+      },
+      {
+        "symbol": "enabled",
+        "line": 231
+      },
+      {
+        "symbol": "signed_capture_covered",
+        "line": 236
+      },
+      {
+        "symbol": "ReceiptExpectation",
+        "line": 244
+      },
+      {
+        "symbol": "FenceContext",
+        "line": 266
+      },
+      {
+        "symbol": "ReceiptVerdict",
+        "line": 277
+      },
+      {
+        "symbol": "_unknown",
+        "line": 292
+      },
+      {
+        "symbol": "_result_of",
+        "line": 296
+      },
+      {
+        "symbol": "verify_receipt",
+        "line": 308
+      },
+      {
+        "symbol": "_json_safe",
+        "line": 385
+      },
+      {
+        "symbol": "_canonical",
+        "line": 400
+      },
+      {
+        "symbol": "ResolveOriginal",
+        "line": 405
+      },
+      {
+        "symbol": "resolve_parameters",
+        "line": 434
+      },
+      {
+        "symbol": "ResolutionVerdict",
+        "line": 449
+      },
+      {
+        "symbol": "_resolution_unknown",
+        "line": 470
+      },
+      {
+        "symbol": "verify_resolution",
+        "line": 474
+      },
+      {
+        "symbol": "OneCommitLedger",
+        "line": 498
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_peer_registry.py",
+    "sha256": "2c4b1c927bad1a5ea9691a0dcb984b93f8bfc7345f4bae0225f13db6e6024ce4",
+    "symbols": [
+      {
+        "symbol": "RegistryRefused",
+        "line": 49
+      },
+      {
+        "symbol": "RegistryTransport",
+        "line": 55
+      },
+      {
+        "symbol": "LiveRegistryTransport",
+        "line": 61
+      },
+      {
+        "symbol": "OwnerPin",
+        "line": 71
+      },
+      {
+        "symbol": "encode_pin",
+        "line": 84
+      },
+      {
+        "symbol": "parse_pin",
+        "line": 88
+      },
+      {
+        "symbol": "read_pin",
+        "line": 103
+      },
+      {
+        "symbol": "BindingVerdict",
+        "line": 111
+      },
+      {
+        "symbol": "_no",
+        "line": 118
+      },
+      {
+        "symbol": "parse_binding",
+        "line": 122
+      },
+      {
+        "symbol": "RegistryClient",
+        "line": 150
+      },
+      {
+        "symbol": "client_for",
+        "line": 218
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_readback.py",
+    "sha256": "ed11739ddc6245311751799d22f157cbd3d6b7480587591a75ae51aa50999ee0",
+    "symbols": [
+      {
+        "symbol": "ReadbackUnavailable",
+        "line": 40
+      },
+      {
+        "symbol": "project_api_lists",
+        "line": 49
+      },
+      {
+        "symbol": "LiveReadback",
+        "line": 63
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_switches.py",
+    "sha256": "16938d9366666a753b2349beb3321df88b2222cbc02662827bc140071ac9f34d",
+    "symbols": [
+      {
+        "symbol": "SwitchRefused",
+        "line": 33
+      },
+      {
+        "symbol": "mode",
+        "line": 42
+      },
+      {
+        "symbol": "view",
+        "line": 49
+      },
+      {
+        "symbol": "check",
+        "line": 53
+      },
+      {
+        "symbol": "apply",
+        "line": 71
+      }
+    ]
+  },
+  {
+    "unit": "WKCAP",
+    "CODE": "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_template_direct.py",
+    "sha256": "22553d50cf689abfdc066d8f375fea7933fb6e89af110f8ccd3f2476fca6e258",
+    "symbols": [
+      {
+        "symbol": "DirectTemplateTransport",
+        "line": 26
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_access_state.py",
+    "sha256": "e046e1d9fe537b07606bcfb7799c06869f17d7b4b43646f38523d040d490eee0",
+    "symbols": [
+      {
+        "symbol": "AccessStateError",
+        "line": 77
+      },
+      {
+        "symbol": "strict_int",
+        "line": 90
+      },
+      {
+        "symbol": "revision_ok",
+        "line": 95
+      },
+      {
+        "symbol": "id_ok",
+        "line": 100
+      },
+      {
+        "symbol": "_flag",
+        "line": 106
+      },
+      {
+        "symbol": "schedule_ok",
+        "line": 113
+      },
+      {
+        "symbol": "policy_ok",
+        "line": 130
+      },
+      {
+        "symbol": "Assignment",
+        "line": 143
+      },
+      {
+        "symbol": "PendingQueues",
+        "line": 154
+      },
+      {
+        "symbol": "AccessState",
+        "line": 179
+      },
+      {
+        "symbol": "unwrap_frame",
+        "line": 206
+      },
+      {
+        "symbol": "parse_frame",
+        "line": 219
+      },
+      {
+        "symbol": "_ids",
+        "line": 226
+      },
+      {
+        "symbol": "_queues",
+        "line": 236
+      },
+      {
+        "symbol": "_row",
+        "line": 246
+      },
+      {
+        "symbol": "parse_result",
+        "line": 269
+      },
+      {
+        "symbol": "_v2",
+        "line": 323
+      },
+      {
+        "symbol": "v1_engine_consistent",
+        "line": 364
+      },
+      {
+        "symbol": "v1_acr5_consistent",
+        "line": 370
+      },
+      {
+        "symbol": "try_parse",
+        "line": 376
+      },
+      {
+        "symbol": "evidence_of",
+        "line": 391
+      },
+      {
+        "symbol": "revocation_verdict_v2",
+        "line": 408
+      },
+      {
+        "symbol": "station_removal_verdict_v2",
+        "line": 436
+      },
+      {
+        "symbol": "last_known_stations",
+        "line": 477
+      },
+      {
+        "symbol": "Negotiated",
+        "line": 506
+      },
+      {
+        "symbol": "_listed",
+        "line": 522
+      },
+      {
+        "symbol": "negotiate",
+        "line": 528
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_acr5.py",
+    "sha256": "ec070557f787a7b49ed5dd42714ee4852985a1c54d4e03c6cbaabc38c989e7c6",
+    "symbols": [
+      {
+        "symbol": "ConsumerOff",
+        "line": 81
+      },
+      {
+        "symbol": "Unknown",
+        "line": 88
+      },
+      {
+        "symbol": "go_live_permitted",
+        "line": 92
+      },
+      {
+        "symbol": "consumer_mode",
+        "line": 96
+      },
+      {
+        "symbol": "consumer_on",
+        "line": 106
+      },
+      {
+        "symbol": "capability_ok",
+        "line": 110
+      },
+      {
+        "symbol": "_pos_int",
+        "line": 116
+      },
+      {
+        "symbol": "_id",
+        "line": 120
+      },
+      {
+        "symbol": "_result",
+        "line": 124
+      },
+      {
+        "symbol": "access_state_request",
+        "line": 136
+      },
+      {
+        "symbol": "parse_access_state",
+        "line": 143
+      },
+      {
+        "symbol": "revocation_verdict",
+        "line": 154
+      },
+      {
+        "symbol": "_v1_status",
+        "line": 172
+      },
+      {
+        "symbol": "revocation_evidence",
+        "line": 192
+      },
+      {
+        "symbol": "RevisionBoundAccessState",
+        "line": 205
+      },
+      {
+        "symbol": "revocation_pending_at",
+        "line": 209
+      },
+      {
+        "symbol": "revocation_evidence_at",
+        "line": 222
+      },
+      {
+        "symbol": "_row_current",
+        "line": 233
+      },
+      {
+        "symbol": "stations_synced_verdict",
+        "line": 237
+      },
+      {
+        "symbol": "PendingView",
+        "line": 254
+      },
+      {
+        "symbol": "visible_pending",
+        "line": 259
+      },
+      {
+        "symbol": "presence_diagnostic",
+        "line": 273
+      },
+      {
+        "symbol": "is_cleanup_proof",
+        "line": 277
+      },
+      {
+        "symbol": "normalize_request",
+        "line": 284
+      },
+      {
+        "symbol": "parse_normalized",
+        "line": 290
+      },
+      {
+        "symbol": "_normalized",
+        "line": 306
+      },
+      {
+        "symbol": "policy_equivalent",
+        "line": 314
+      },
+      {
+        "symbol": "grant_policy_proven",
+        "line": 331
+      },
+      {
+        "symbol": "FeaturePlan",
+        "line": 347
+      },
+      {
+        "symbol": "parse_feature_plan",
+        "line": 356
+      },
+      {
+        "symbol": "consume_plan",
+        "line": 368
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_background.py",
+    "sha256": "a810b4de2e98e1ab504f05b097ddc114c7d28cede673b0808b5a11cf61b369e8",
+    "symbols": [
+      {
+        "symbol": "_utc_z",
+        "line": 42
+      },
+      {
+        "symbol": "_now_z",
+        "line": 56
+      },
+      {
+        "symbol": "closed_station",
+        "line": 60
+      },
+      {
+        "symbol": "_revision",
+        "line": 79
+      },
+      {
+        "symbol": "project_background",
+        "line": 83
+      },
+      {
+        "symbol": "from_served_copy",
+        "line": 96
+      },
+      {
+        "symbol": "walk_keys",
+        "line": 106
+      },
+      {
+        "symbol": "find_person_fields",
+        "line": 118
+      },
+      {
+        "symbol": "assert_closed",
+        "line": 123
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_background_feed.py",
+    "sha256": "37885b27a84a206f5c793c86485f21b1f9c284ecc98d8cc04c0b205fdbc097b4",
+    "symbols": [
+      {
+        "symbol": "_NotReady",
+        "line": 40
+      },
+      {
+        "symbol": "configured",
+        "line": 44
+      },
+      {
+        "symbol": "BackgroundFeed",
+        "line": 49
+      },
+      {
+        "symbol": "copy_of",
+        "line": 373
+      },
+      {
+        "symbol": "channel_view",
+        "line": 381
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_camera.py",
+    "sha256": "04b665e39840924f6b81a5e2546cf6b242227675d1d53b2fc58cdbfd25fe7327",
+    "symbols": [
+      {
+        "symbol": "default_configured",
+        "line": 23
+      },
+      {
+        "symbol": "credentials",
+        "line": 27
+      },
+      {
+        "symbol": "status",
+        "line": 42
+      },
+      {
+        "symbol": "listing",
+        "line": 55
+      },
+      {
+        "symbol": "set_override",
+        "line": 70
+      },
+      {
+        "symbol": "clear_override",
+        "line": 87
+      },
+      {
+        "symbol": "camera_access",
+        "line": 91
+      },
+      {
+        "symbol": "convert_plaintext",
+        "line": 114
+      },
+      {
+        "symbol": "apply_at_startup",
+        "line": 140
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_channels.py",
+    "sha256": "8be223a530498de1148c0bf5e3e75be68f381a12057f27ec55b1a76b1d26ecbd",
+    "symbols": [
+      {
+        "symbol": "allowed",
+        "line": 116
+      },
+      {
+        "symbol": "guard",
+        "line": 123
+      },
+      {
+        "symbol": "describe",
+        "line": 143
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_diagnostics.py",
+    "sha256": "eca73700c0126a400b373e071bb94119418e77add75319a864aeecda13d8e3e1",
+    "symbols": [
+      {
+        "symbol": "_level",
+        "line": 36
+      },
+      {
+        "symbol": "_bool",
+        "line": 40
+      },
+      {
+        "symbol": "_int",
+        "line": 44
+      },
+      {
+        "symbol": "project_authorization",
+        "line": 48
+      },
+      {
+        "symbol": "_now",
+        "line": 81
+      },
+      {
+        "symbol": "_service",
+        "line": 87
+      },
+      {
+        "symbol": "_background",
+        "line": 108
+      },
+      {
+        "symbol": "_finding",
+        "line": 132
+      },
+      {
+        "symbol": "findings",
+        "line": 136
+      },
+      {
+        "symbol": "collect",
+        "line": 173
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_feature_exec.py",
+    "sha256": "87c0e42e8c898395088f2a852b05b78a0cb9581cbc2a1d24bebcd8547ec4153c",
+    "symbols": [
+      {
+        "symbol": "FeatureError",
+        "line": 94
+      },
+      {
+        "symbol": "_ref",
+        "line": 100
+      },
+      {
+        "symbol": "_utc",
+        "line": 104
+      },
+      {
+        "symbol": "absolute_time",
+        "line": 109
+      },
+      {
+        "symbol": "validate_params",
+        "line": 125
+      },
+      {
+        "symbol": "execution_end",
+        "line": 156
+      },
+      {
+        "symbol": "human_actor",
+        "line": 161
+      },
+      {
+        "symbol": "automation_actor",
+        "line": 167
+      },
+      {
+        "symbol": "build_request",
+        "line": 175
+      },
+      {
+        "symbol": "RelayRow",
+        "line": 227
+      },
+      {
+        "symbol": "set_relay_map",
+        "line": 234
+      },
+      {
+        "symbol": "relay_row",
+        "line": 255
+      },
+      {
+        "symbol": "StationGrant",
+        "line": 263
+      },
+      {
+        "symbol": "PolicyDocument",
+        "line": 271
+      },
+      {
+        "symbol": "_held_on_all",
+        "line": 285
+      },
+      {
+        "symbol": "resolve_policy",
+        "line": 289
+      },
+      {
+        "symbol": "admit_request",
+        "line": 327
+      },
+      {
+        "symbol": "intent_state",
+        "line": 345
+      },
+      {
+        "symbol": "mark_feature_sent",
+        "line": 350
+      },
+      {
+        "symbol": "settle_feature",
+        "line": 355
+      },
+      {
+        "symbol": "LiveFeatureTransport",
+        "line": 364
+      },
+      {
+        "symbol": "registry",
+        "line": 373
+      },
+      {
+        "symbol": "set_feature_enabled",
+        "line": 379
+      },
+      {
+        "symbol": "record_host_registration",
+        "line": 387
+      },
+      {
+        "symbol": "status",
+        "line": 397
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_intents.py",
+    "sha256": "937fccd17302a5ceeb6790c5eda3b217e0afe031693b9e471759bac9cbc06c1c",
+    "symbols": [
+      {
+        "symbol": "IntentError",
+        "line": 48
+      },
+      {
+        "symbol": "_now",
+        "line": 54
+      },
+      {
+        "symbol": "ExactOriginal",
+        "line": 59
+      },
+      {
+        "symbol": "_row_original",
+        "line": 83
+      },
+      {
+        "symbol": "admit",
+        "line": 93
+      },
+      {
+        "symbol": "original",
+        "line": 118
+      },
+      {
+        "symbol": "state",
+        "line": 124
+      },
+      {
+        "symbol": "_move",
+        "line": 130
+      },
+      {
+        "symbol": "mark_sent",
+        "line": 137
+      },
+      {
+        "symbol": "mark_unknown",
+        "line": 143
+      },
+      {
+        "symbol": "_terminal",
+        "line": 150
+      },
+      {
+        "symbol": "settle_update",
+        "line": 167
+      },
+      {
+        "symbol": "CreateExpectation",
+        "line": 183
+      },
+      {
+        "symbol": "CreateVerdict",
+        "line": 198
+      },
+      {
+        "symbol": "_unknown",
+        "line": 205
+      },
+      {
+        "symbol": "verify_create_resolution",
+        "line": 209
+      },
+      {
+        "symbol": "settle_create",
+        "line": 267
+      },
+      {
+        "symbol": "open_intents",
+        "line": 279
+      },
+      {
+        "symbol": "settle_resolution",
+        "line": 285
+      },
+      {
+        "symbol": "LiveResolveTransport",
+        "line": 308
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_media_contract.py",
+    "sha256": "79d7b5bc97ad812175fa7d9fd4dac83e325e112e4e1c19d6151f9af20dcf0d4a",
+    "symbols": [
+      {
+        "symbol": "ContractError",
+        "line": 111
+      },
+      {
+        "symbol": "Actor",
+        "line": 120
+      },
+      {
+        "symbol": "StreamLease",
+        "line": 133
+      },
+      {
+        "symbol": "TalkOpened",
+        "line": 146
+      },
+      {
+        "symbol": "listed",
+        "line": 154
+      },
+      {
+        "symbol": "_type",
+        "line": 175
+      },
+      {
+        "symbol": "_api",
+        "line": 179
+      },
+      {
+        "symbol": "station_descriptor",
+        "line": 183
+      },
+      {
+        "symbol": "stream_lease",
+        "line": 188
+      },
+      {
+        "symbol": "talk_open",
+        "line": 193
+      },
+      {
+        "symbol": "talk_frame",
+        "line": 198
+      },
+      {
+        "symbol": "talk_floor",
+        "line": 203
+      },
+      {
+        "symbol": "talk_close",
+        "line": 208
+      },
+      {
+        "symbol": "close_reason",
+        "line": 213
+      },
+      {
+        "symbol": "_when",
+        "line": 221
+      },
+      {
+        "symbol": "project_descriptor",
+        "line": 233
+      },
+      {
+        "symbol": "parse_lease",
+        "line": 242
+      },
+      {
+        "symbol": "parse_talk_open",
+        "line": 269
+      },
+      {
+        "symbol": "project_object",
+        "line": 284
+      },
+      {
+        "symbol": "talk_ref_of",
+        "line": 293
+      },
+      {
+        "symbol": "talk_closed",
+        "line": 299
+      },
+      {
+        "symbol": "unavailable_reason",
+        "line": 312
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_peer.py",
+    "sha256": "a572b1d3f97237102a31e981ee28790897e5aeb575c1efc85469404955e4b6dc",
+    "symbols": [
+      {
+        "symbol": "PeerSeamError",
+        "line": 78
+      },
+      {
+        "symbol": "_Seal",
+        "line": 84
+      },
+      {
+        "symbol": "is_ref",
+        "line": 97
+      },
+      {
+        "symbol": "is_pos_int",
+        "line": 104
+      },
+      {
+        "symbol": "is_uuid",
+        "line": 108
+      },
+      {
+        "symbol": "is_ha_user_id",
+        "line": 112
+      },
+      {
+        "symbol": "_Sealed",
+        "line": 116
+      },
+      {
+        "symbol": "TransportAttestation",
+        "line": 158
+      },
+      {
+        "symbol": "VerifiedPeerRef",
+        "line": 168
+      },
+      {
+        "symbol": "attest_transport",
+        "line": 181
+      },
+      {
+        "symbol": "_mint_peer",
+        "line": 189
+      },
+      {
+        "symbol": "as_peer_binding",
+        "line": 198
+      },
+      {
+        "symbol": "refuse_as_peer",
+        "line": 210
+      },
+      {
+        "symbol": "go_live_permitted",
+        "line": 220
+      },
+      {
+        "symbol": "mode",
+        "line": 224
+      },
+      {
+        "symbol": "enabled",
+        "line": 231
+      },
+      {
+        "symbol": "signed_capture_covered",
+        "line": 236
+      },
+      {
+        "symbol": "ReceiptExpectation",
+        "line": 244
+      },
+      {
+        "symbol": "FenceContext",
+        "line": 266
+      },
+      {
+        "symbol": "ReceiptVerdict",
+        "line": 277
+      },
+      {
+        "symbol": "_unknown",
+        "line": 292
+      },
+      {
+        "symbol": "_result_of",
+        "line": 296
+      },
+      {
+        "symbol": "verify_receipt",
+        "line": 308
+      },
+      {
+        "symbol": "_json_safe",
+        "line": 385
+      },
+      {
+        "symbol": "_canonical",
+        "line": 400
+      },
+      {
+        "symbol": "ResolveOriginal",
+        "line": 405
+      },
+      {
+        "symbol": "resolve_parameters",
+        "line": 434
+      },
+      {
+        "symbol": "ResolutionVerdict",
+        "line": 449
+      },
+      {
+        "symbol": "_resolution_unknown",
+        "line": 470
+      },
+      {
+        "symbol": "verify_resolution",
+        "line": 474
+      },
+      {
+        "symbol": "OneCommitLedger",
+        "line": 498
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_peer_registry.py",
+    "sha256": "2c4b1c927bad1a5ea9691a0dcb984b93f8bfc7345f4bae0225f13db6e6024ce4",
+    "symbols": [
+      {
+        "symbol": "RegistryRefused",
+        "line": 49
+      },
+      {
+        "symbol": "RegistryTransport",
+        "line": 55
+      },
+      {
+        "symbol": "LiveRegistryTransport",
+        "line": 61
+      },
+      {
+        "symbol": "OwnerPin",
+        "line": 71
+      },
+      {
+        "symbol": "encode_pin",
+        "line": 84
+      },
+      {
+        "symbol": "parse_pin",
+        "line": 88
+      },
+      {
+        "symbol": "read_pin",
+        "line": 103
+      },
+      {
+        "symbol": "BindingVerdict",
+        "line": 111
+      },
+      {
+        "symbol": "_no",
+        "line": 118
+      },
+      {
+        "symbol": "parse_binding",
+        "line": 122
+      },
+      {
+        "symbol": "RegistryClient",
+        "line": 150
+      },
+      {
+        "symbol": "client_for",
+        "line": 218
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_readback.py",
+    "sha256": "ed11739ddc6245311751799d22f157cbd3d6b7480587591a75ae51aa50999ee0",
+    "symbols": [
+      {
+        "symbol": "ReadbackUnavailable",
+        "line": 40
+      },
+      {
+        "symbol": "project_api_lists",
+        "line": 49
+      },
+      {
+        "symbol": "LiveReadback",
+        "line": 63
+      }
+    ]
+  },
+  {
+    "unit": "WKB3",
+    "CODE": "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "file": "smplwise_vms/backend/smplwise/services/wiskey_switches.py",
+    "sha256": "16938d9366666a753b2349beb3321df88b2222cbc02662827bc140071ac9f34d",
+    "symbols": [
+      {
+        "symbol": "SwitchRefused",
+        "line": 33
+      },
+      {
+        "symbol": "mode",
+        "line": 42
+      },
+      {
+        "symbol": "view",
+        "line": 49
+      },
+      {
+        "symbol": "check",
+        "line": 53
+      },
+      {
+        "symbol": "apply",
+        "line": 71
+      }
+    ]
+  }
+]

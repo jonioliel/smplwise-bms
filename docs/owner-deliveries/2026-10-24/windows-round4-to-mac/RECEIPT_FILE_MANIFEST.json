@@ -1,0 +1,218 @@
+[
+  {
+    "path": "receipts/wkb3/q03_probe.py",
+    "bytes": 1713,
+    "sha256": "cfc576378a471261689caf93a9a3ce966774032d805b5ba4c40dbf14a853268b"
+  },
+  {
+    "path": "receipts/wkb3/q03_probe.stderr.txt",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "receipts/wkb3/q03_probe.stdout.txt",
+    "bytes": 306,
+    "sha256": "409343e77fa115b5728466a9fdeb2a3e328409891b2d667063c076ce5b171fd2"
+  },
+  {
+    "path": "receipts/wkb3/SUMMARY.txt",
+    "bytes": 975,
+    "sha256": "a4b912300b1050f8cd2bc83f5d30512710fcc1dd373913aacff43eb884ccc822"
+  },
+  {
+    "path": "receipts/wkb3/test_eccact_readback_295.stderr.txt",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "receipts/wkb3/test_eccact_readback_295.stdout.txt",
+    "bytes": 2755,
+    "sha256": "b699a643c4025b085548bc441d21b24c2f4abada944c8c4498951fdfabbafc0a"
+  },
+  {
+    "path": "receipts/wkb3/test_stationperm_295.stderr.txt",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "receipts/wkb3/test_stationperm_295.stdout.txt",
+    "bytes": 14715,
+    "sha256": "328b31c415b802223f7a171b678e370ed9c06b3a6d0ee6cbee643f05d0f1b282"
+  },
+  {
+    "path": "receipts/wkb3/test_wa_pacing_coverage_295.stderr.txt",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "receipts/wkb3/test_wa_pacing_coverage_295.stdout.txt",
+    "bytes": 5535,
+    "sha256": "6c9ccd96bd022af91ac34a0766d030fc0389c802eec8dac71b58e046c63ed2ad"
+  },
+  {
+    "path": "receipts/wkb3/test_wa_template_send_w11.stderr.txt",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "receipts/wkb3/test_wa_template_send_w11.stdout.txt",
+    "bytes": 11490,
+    "sha256": "15e61d4af0d06aa0bcdc7228ca4fb67591bb3caaa287b3bf4a0e351517f88c95"
+  },
+  {
+    "path": "receipts/wkb3/test_wkb3_295.stderr.txt",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "receipts/wkb3/test_wkb3_295.stdout.txt",
+    "bytes": 3046,
+    "sha256": "ab8b45da4a1c88d7faa2023464b16d0dc900ac5867724df303c9e9c8d9642157"
+  },
+  {
+    "path": "receipts/wkb3/test_wkpeer_295.stderr.txt",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "receipts/wkb3/test_wkpeer_295.stdout.txt",
+    "bytes": 16147,
+    "sha256": "372d2c392a552fed34ab2988ecb5840d39e4327376bfd09b1eb78d126ab928fa"
+  },
+  {
+    "path": "receipts/wkdirect/9135a048c/frontend_tsc.stderr.txt",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "receipts/wkdirect/9135a048c/frontend_tsc.stdout.txt",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "receipts/wkdirect/9135a048c/frontend_unit.stderr.txt",
+    "bytes": 843,
+    "sha256": "570b96f72eb19be0288066f2b89c1f09c057f5b46911bf21e523af8e7a5b0d75"
+  },
+  {
+    "path": "receipts/wkdirect/9135a048c/frontend_unit.stdout.txt",
+    "bytes": 4298,
+    "sha256": "cdcff5797bcbcfc90e50a5b65085c153af65d8fd24d95e343532a6415f5b32d4"
+  },
+  {
+    "path": "receipts/wkdirect/9135a048c/neighbours.junit.xml",
+    "bytes": 40413,
+    "sha256": "2ce91cdc94b6edc86a6eb8dda0257c80cc6b82c14c35ec6888995e4b7273652b",
+    "junit": {
+      "tests": 289,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 2
+    },
+    "skips": [
+      {
+        "test": "test_every_command_of_every_channel_exists_in_the_pinned_catalog[pacing]",
+        "message": "channel holds commands newer than the pinned catalog"
+      },
+      {
+        "test": "test_every_command_of_every_channel_exists_in_the_pinned_catalog[readback]",
+        "message": "channel holds commands newer than the pinned catalog"
+      }
+    ]
+  },
+  {
+    "path": "receipts/wkdirect/9135a048c/neighbours.stderr.txt",
+    "bytes": 240,
+    "sha256": "8caadb143516dfe35860c574ffcacb9984731440f12641f654e6eddebd43a882"
+  },
+  {
+    "path": "receipts/wkdirect/9135a048c/neighbours.stdout.txt",
+    "bytes": 72149,
+    "sha256": "47b2774b6ed82679b1ca5337187bfd790a0685a1bf9a2f57e6de175c7a88c6a0"
+  },
+  {
+    "path": "receipts/wkdirect/9135a048c/SUMMARY.txt",
+    "bytes": 828,
+    "sha256": "3775084276288074e2c881d241c12702701f7c2c66422f914a4b24b49358135c"
+  },
+  {
+    "path": "receipts/wkdirect/9135a048c/test_wkdirect_295.junit.xml",
+    "bytes": 8703,
+    "sha256": "b242a10b63948dec5838c29860575d43238be9be98f2a30d12988055765d7ebf",
+    "junit": {
+      "tests": 53,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0
+    },
+    "skips": []
+  },
+  {
+    "path": "receipts/wkdirect/9135a048c/test_wkdirect_295.stderr.txt",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "receipts/wkdirect/9135a048c/test_wkdirect_295.stdout.txt",
+    "bytes": 12661,
+    "sha256": "d300cc4d2a41531f335baeeddd3d580dcd7307c05d8b986e950ed7fcd1c11325"
+  },
+  {
+    "path": "receipts/wkdirect/pre-commit/neighbours.junit.xml",
+    "bytes": 40415,
+    "sha256": "ef261b458103594d31d837ba2fcbca6ae28c8500ff73962cff87acdb09bd37fd",
+    "junit": {
+      "tests": 289,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 2
+    },
+    "skips": [
+      {
+        "test": "test_every_command_of_every_channel_exists_in_the_pinned_catalog[pacing]",
+        "message": "channel holds commands newer than the pinned catalog"
+      },
+      {
+        "test": "test_every_command_of_every_channel_exists_in_the_pinned_catalog[readback]",
+        "message": "channel holds commands newer than the pinned catalog"
+      }
+    ]
+  },
+  {
+    "path": "receipts/wkdirect/pre-commit/neighbours.stderr.txt",
+    "bytes": 240,
+    "sha256": "6c229aa92fb8f2ac3b24aa395929b30a8d415714de62391c31b013778574eba0"
+  },
+  {
+    "path": "receipts/wkdirect/pre-commit/neighbours.stdout.txt",
+    "bytes": 72149,
+    "sha256": "10fae802ecb2b0a6c72b2e395f4214819eb9d55a383d80300886c87c2c00a0ce"
+  },
+  {
+    "path": "receipts/wkdirect/pre-commit/SUMMARY.txt",
+    "bytes": 829,
+    "sha256": "2c46b3eb52d562e9b3625d63d56de900aaf080fd073c0f41b01cb597461e9e7d"
+  },
+  {
+    "path": "receipts/wkdirect/pre-commit/test_wkdirect_295.junit.xml",
+    "bytes": 8703,
+    "sha256": "952282c9b21d2697ba71335e58d4fd1f13080edbc58b01bf613dd87a05456060",
+    "junit": {
+      "tests": 53,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0
+    },
+    "skips": []
+  },
+  {
+    "path": "receipts/wkdirect/pre-commit/test_wkdirect_295.stderr.txt",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "receipts/wkdirect/pre-commit/test_wkdirect_295.stdout.txt",
+    "bytes": 12660,
+    "sha256": "5d50be990816081d32ac342a720bbc471fc78e817b81922ff5b30c394755c061"
+  }
+]

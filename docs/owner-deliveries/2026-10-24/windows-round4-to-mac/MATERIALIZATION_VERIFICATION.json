@@ -1,0 +1,17 @@
+{
+  "status": "ARCHIVE_VERIFIED",
+  "original_files": 16045,
+  "unique_blobs": 4022,
+  "CODEs": [
+    "b01cb96918469befef37bf9ee959bd619ec41c64",
+    "4a68d92ce8b36363f45a2ed3950a716cf04a52c1",
+    "9135a048c4ea605eaaa212dd42f4475580edca75",
+    "66eec12c2a87f8e574f5d1cd37b6c9d8e0bec2e2"
+  ],
+  "product_tests": "NOT_RUN",
+  "method": "The archive utility verified every original Git blob and SHA256 before materializing four separate source scopes. No product imports or tests.",
+  "utility_sha256": "c172ea5b7fcfb8175751fdef976e04ad46d426b55c4e84232781873b112709c6",
+  "command": "python MATERIALIZE_SOURCE.py --output C:\\wk-arx-round4-reply-20261024\\materialized-originals",
+  "platform": "Windows / Python 3.12",
+  "recorded_shell_PID": 56464
+}

@@ -1,0 +1,9 @@
+M	docs/changes/CR-W11TPL-295.md
+M	smplwise_vms/backend/smplwise/services/intercom_messaging_adapter.py
+M	smplwise_vms/backend/smplwise/services/wa_pacing.py
+M	smplwise_vms/backend/smplwise/services/wa_template_send.py
+M	smplwise_vms/backend/smplwise/services/wiskey_access_state.py
+A	smplwise_vms/backend/tests/fixtures/wiskey_access_state_v2/a_current_b_pending.json
+M	smplwise_vms/backend/tests/test_wa_pacing_coverage_295.py
+M	smplwise_vms/backend/tests/test_wa_template_send_w11.py
+A	smplwise_vms/backend/tests/test_wkb3_295.py

@@ -1,0 +1,714 @@
+.................................................................s.s.............................pin rc37-contract.4: files match PIN.json
+pinned:    2.0.0-rc.37  238 commands, 301 errors
+candidate: 2.0.0-rc.37  238 commands, 301 errors
+files byte-identical
+no difference in the tracked facts (a clean diff is not an approval to write)
+.pinned:    2.0.0-rc.37  238 commands, 301 errors
+candidate: 2.0.0-rc.37  238 commands, 301 errors
+files byte-identical
+no difference in the tracked facts (a clean diff is not an approval to write)
+..pinned:    2.0.0-rc.37  238 commands, 301 errors
+candidate: 2.0.0-rc.37  237 commands, 301 errors
+files differ
+NEEDS MIGRATION REVIEW (1):
+  - command removed: users/get
+pinned:    2.0.0-rc.37  238 commands, 301 errors
+candidate: 2.0.0-rc.37  238 commands, 301 errors
+files differ
+NEEDS MIGRATION REVIEW (1):
+  - users/get: required keys ['id', 'type', 'user_id'] -> ['extra', 'id', 'type', 'user_id']
+pinned:    2.0.0-rc.37  238 commands, 301 errors
+candidate: 2.0.0-rc.37  238 commands, 301 errors
+files differ
+NEEDS MIGRATION REVIEW (1):
+  - users/get: required keys ['id', 'type', 'user_id'] -> ['id', 'type']
+pinned:    2.0.0-rc.37  238 commands, 301 errors
+candidate: 2.0.0-rc.37  238 commands, 301 errors
+files differ
+NEEDS MIGRATION REVIEW (1):
+  - users/get: base permission classification changed
+pinned:    2.0.0-rc.37  238 commands, 301 errors
+candidate: 2.0.0-rc.37  238 commands, 301 errors
+files differ
+NEEDS MIGRATION REVIEW (1):
+  - overview: base permission classification changed
+pinned:    2.0.0-rc.37  238 commands, 301 errors
+candidate: 2.0.0-rc.37  238 commands, 301 errors
+files differ
+NEEDS MIGRATION REVIEW (1):
+  - stations/test_unlock: READ classification False -> True
+pinned:    2.0.0-rc.37  238 commands, 301 errors
+candidate: 2.0.0-rc.37  238 commands, 301 errors
+files differ
+NEEDS MIGRATION REVIEW (1):
+  - users/get: properties removed ['api_contract'] added []
+.............................................................................................................................................................................................
+============================== warnings summary ===============================
+..\..\..\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\cloude\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================================== PASSES ====================================
+_ test_the_lease_comes_from_the_same_connection_and_actor_and_the_source_is_registered_in_memory_and_never_shown _
+------------------------------ Captured log call ------------------------------
+DEBUG    asyncio:proactor_events.py:634 Using proactor: IocpProactor
+_ test_a_lease_with_a_long_expiry_or_a_failing_go2rtc_is_refused_and_the_failure_names_no_source _
+------------------------------ Captured log call ------------------------------
+DEBUG    asyncio:proactor_events.py:634 Using proactor: IocpProactor
+WARNING  smplwise.intercom.media:intercom_media.py:797 station media: a stream lease refused (lease_lifetime_too_long)
+_____ test_a_talk_open_answer_arx_cannot_use_is_closed_by_its_ref_at_once _____
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise.intercom.media:intercom_media.py:626 station media: a talk open refused (talk_codec_unsupported)
+_ test_a_close_wiskey_cannot_finish_is_reported_not_retried_and_the_connection_is_still_dropped _
+------------------------------ Captured log call ------------------------------
+INFO     smplwise.intercom.media:intercom_media.py:670 station media: talk close not confirmed (cleanup_failed)
+_ test_the_background_guard_refuses_before_writing_a_frame[stations/test_unlock] _
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/stations/test_unlock (not on the channel's allow-list)
+___ test_the_background_guard_refuses_before_writing_a_frame[media/signal] ____
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/media/signal (not on the channel's allow-list)
+_____ test_the_background_guard_refuses_before_writing_a_frame[tts/start] _____
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/tts/start (not on the channel's allow-list)
+___ test_the_background_guard_refuses_before_writing_a_frame[users/update] ____
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/users/update (not on the channel's allow-list)
+___ test_the_background_guard_refuses_before_writing_a_frame[users/delete] ____
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/users/delete (not on the channel's allow-list)
+___ test_the_background_guard_refuses_before_writing_a_frame[users/create] ____
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/users/create (not on the channel's allow-list)
+_ test_the_background_guard_refuses_before_writing_a_frame[users/pin_generate] _
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/users/pin_generate (not on the channel's allow-list)
+_ test_the_background_guard_refuses_before_writing_a_frame[cards/capture_start] _
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/cards/capture_start (not on the channel's allow-list)
+_ test_the_background_guard_refuses_before_writing_a_frame[cards/capture_confirm] _
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/cards/capture_confirm (not on the channel's allow-list)
+____ test_the_background_guard_refuses_before_writing_a_frame[events/list] ____
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/events/list (not on the channel's allow-list)
+_____ test_the_background_guard_refuses_before_writing_a_frame[users/get] _____
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/users/get (not on the channel's allow-list)
+____ test_the_background_guard_refuses_before_writing_a_frame[users/query] ____
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/users/query (not on the channel's allow-list)
+______________ test_the_adapter_guards_refuse_every_write[read] _______________
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/cards/add (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/cards/capture_cancel (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/cards/capture_confirm (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/cards/capture_start (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/cards/reader_capabilities (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/cards/remove (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/media/signal (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/overview (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/profiles/settings_apply (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/stations/technical_codes_write (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/stations/technical_relays (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/stations/test_unlock (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/tts/start (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/users/archive (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/users/create (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/users/delete (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/users/pin_generate (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/users/set_active (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/users/temporary_cancel (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/users/unarchive (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/users/update (not on the channel's allow-list)
+____________ test_the_adapter_guards_refuse_every_write[technical] ____________
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/cards/add (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/cards/capture_cancel (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/cards/capture_confirm (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/cards/capture_start (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/cards/reader_capabilities (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/cards/remove (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/media/signal (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/overview (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/profiles/settings_apply (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/stations/technical_codes_write (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/stations/technical_relays (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/stations/test_unlock (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/tts/start (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/users/archive (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/users/create (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/users/delete (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/users/pin_generate (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/users/set_active (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/users/temporary_cancel (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/users/unarchive (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/users/update (not on the channel's allow-list)
+________ test_the_guards_let_their_own_lists_through_and_nothing_else _________
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send call_service (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey service channel: refused to send call_service (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send call_service (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send call_service (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey messaging channel: refused to send call_service (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey readback channel: refused to send call_service (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey pacing channel: refused to send call_service (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send auth/current_user (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey service channel: refused to send auth/current_user (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send auth/current_user (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send auth/current_user (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey messaging channel: refused to send auth/current_user (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey readback channel: refused to send auth/current_user (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey pacing channel: refused to send auth/current_user (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send config/auth/create (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey service channel: refused to send config/auth/create (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send config/auth/create (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send config/auth/create (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey messaging channel: refused to send config/auth/create (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey readback channel: refused to send config/auth/create (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey pacing channel: refused to send config/auth/create (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/platform/import (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey service channel: refused to send hikvision_intercom/platform/import (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey read channel: refused to send hikvision_intercom/platform/import (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey technical channel: refused to send hikvision_intercom/platform/import (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey messaging channel: refused to send hikvision_intercom/platform/import (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey readback channel: refused to send hikvision_intercom/platform/import (not on the channel's allow-list)
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey pacing channel: refused to send hikvision_intercom/platform/import (not on the channel's allow-list)
+__________________ test_both_live_sessions_carry_their_guard __________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+ERROR    smplwise.intercom:wiskey_channels.py:132 WisKey background channel: refused to send hikvision_intercom/stations/test_unlock (not on the channel's allow-list)
+_____ test_the_setting_is_off_by_default_validated_audited_and_admin_only _____
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+____ test_off_by_default_the_drawer_keeps_the_still_and_the_classic_panel _____
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_______ test_ready_offers_profiles_paths_and_talk_and_serves_no_source ________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_____________________________ test_who_sees_what ______________________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+__________________ test_unavailable_states_name_their_reason __________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+__________ test_live_video_rides_the_existing_relay_budget_and_audit __________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+__________________________ test_live_video_refusals ___________________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+__________________ test_live_video_follows_the_station_chain __________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+__________________ test_a_lost_permission_ends_the_live_view __________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+____________ test_a_talk_session_end_to_end_audited_without_audio _____________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+____________ test_one_talker_per_station_and_one_session_per_user _____________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+____________________ test_talk_refusals_each_leave_one_row ____________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_________________________ test_a_talk_session_expires _________________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+__________ test_a_reservation_never_attached_is_released_and_audited __________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+______________ test_the_socket_belongs_to_the_session_owner_once ______________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+________ test_an_upstream_that_does_not_open_ends_the_session_honestly ________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+________________ test_an_upstream_that_closes_ends_the_session ________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_______________ test_turning_the_setting_off_ends_an_open_talk ________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_schema_drift_never_reaches_the_entry_center_or_the_background_projection _
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+___ test_an_offline_station_is_shown_offline_and_a_release_to_it_is_refused ___
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_a_forbidden_service_account_is_the_forbidden_state_and_serves_nothing __
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise.intercom:intercom_sync.py:1645 WisKey feed: forbidden (unauthorized)
+________________ test_a_stale_people_page_is_reported_as_stale ________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_____ test_a_slow_wiskey_times_out_a_read_without_changing_the_feed_state _____
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_____________ test_the_split_background_session_against_the_fake ______________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise.intercom:intercom_sync.py:1645 WisKey feed: forbidden (unauthorized)
+WARNING  smplwise.intercom:wiskey_background_feed.py:219 WisKey background feed: forbidden (unauthorized)
+_____________________ test_defaults_allow_the_microphone ______________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+_____ test_both_features_off_deny_the_microphone_on_every_remote_response _____
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+___________________ test_switching_back_on_follows_at_once ____________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+____________ test_regression_talk_on_keeps_the_microphone_allowed _____________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+____________________ test_a_route_cannot_widen_the_policy _____________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+___________________ test_restart_reads_the_stored_settings ____________________
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+_________ test_a_restored_database_is_followed_by_the_background_pass _________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+_______________ test_ingress_carries_no_arx_permissions_policy ________________
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+__________________ test_start_route_and_hide_map_round_trip ___________________
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+___________________ test_hide_wiskey_round_trip_and_audited ___________________
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+___ test_wiskey_size_defaults_to_normal_validates_audits_and_is_admin_only ____
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_wiskey_density_and_wall_installation_defaults_validate_and_are_admin_only _
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_access_ui_screen_choice_defaults_to_the_embedded_panel_and_is_audited __
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+____________ test_access_phone_embed_is_off_by_default_and_audited ____________
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+______ test_stations_screen_settings_defaults_validation_audit_and_gate _______
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_schedules_screen_switch_defaults_to_the_embedded_panel_validated_audited_and_gated _
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+__________ test_devices_settings_defaults_validation_audit_and_gate ___________
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+______________________ test_devices_theme_and_scheme_6b _______________________
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_______________ test_ui_design_is_deprecated_but_still_accepted _______________
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_________________________ test_ui_tile_layout_setting _________________________
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+______________________ test_ui_skin_and_scheme_settings _______________________
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+_ test_security_snapshot_defaults_to_shown_round_trips_and_needs_system_configure _
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+__ test_video_notices_default_hidden_round_trips_and_needs_system_configure ___
+------------------------------ Captured log call ------------------------------
+WARNING  smplwise:main.py:420 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1027 no built UI found (SW_WWW_DIR=None); API only
+=========================== short test summary info ===========================
+PASSED tests/test_wiskey_media_v11.py::test_every_parameter_object_satisfies_the_published_schema_and_carries_no_api_contract
+PASSED tests/test_wiskey_media_v11.py::test_a_talk_frame_batch_is_exactly_five_or_ten_frames[0]
+PASSED tests/test_wiskey_media_v11.py::test_a_talk_frame_batch_is_exactly_five_or_ten_frames[1]
+PASSED tests/test_wiskey_media_v11.py::test_a_talk_frame_batch_is_exactly_five_or_ten_frames[4]
+PASSED tests/test_wiskey_media_v11.py::test_a_talk_frame_batch_is_exactly_five_or_ten_frames[6]
+PASSED tests/test_wiskey_media_v11.py::test_a_talk_frame_batch_is_exactly_five_or_ten_frames[9]
+PASSED tests/test_wiskey_media_v11.py::test_a_talk_frame_batch_is_exactly_five_or_ten_frames[11]
+PASSED tests/test_wiskey_media_v11.py::test_frames_are_160_bytes_with_a_216_character_payload_and_a_sequence_from_the_first_seq
+PASSED tests/test_wiskey_media_v11.py::test_validate_parameters_refuses_everything_wisKey_would_refuse
+PASSED tests/test_wiskey_media_v11.py::test_close_reasons_outside_the_enum_are_sent_as_the_nearest_one
+PASSED tests/test_wiskey_media_v11.py::test_the_answers_are_read_totally
+PASSED tests/test_wiskey_media_v11.py::test_talk_open_v11_accepts_pcmu_only_and_a_lease_only_the_source_with_a_short_expiry
+PASSED tests/test_wiskey_media_v11.py::test_the_closed_event_is_read_by_its_reason_and_unknown_reasons_end_the_talk_anyway
+PASSED tests/test_wiskey_media_v11.py::test_every_wiskey_error_code_has_a_reason_and_busy_is_separate
+PASSED tests/test_wiskey_media_v11.py::test_the_v11_descriptor_is_read_as_one_main_profile_with_unknowns_and_talk_by_signed_batches
+PASSED tests/test_wiskey_media_v11.py::test_the_envelope_is_exactly_id_type_bridge_and_the_signature_matches_the_written_recipe
+PASSED tests/test_wiskey_media_v11.py::test_the_window_is_short_the_clock_is_whole_seconds_and_nonces_are_fresh
+PASSED tests/test_wiskey_media_v11.py::test_without_a_key_or_with_a_rotated_key_nothing_is_signed_and_no_key_is_ever_shown
+PASSED tests/test_wiskey_media_v11.py::test_the_result_reader_is_total_and_never_carries_wiskeys_text
+PASSED tests/test_wiskey_media_v11.py::test_the_signed_link_signs_each_call_and_maps_answers_and_failures
+PASSED tests/test_wiskey_media_v11.py::test_a_purpose_other_than_video_or_talk_is_refused
+PASSED tests/test_wiskey_media_v11.py::test_ha_ws_connection_asks_who_it_is_routes_events_and_closes
+PASSED tests/test_wiskey_media_v11.py::test_ha_ws_connection_failures_are_a_rule_code_only
+PASSED tests/test_wiskey_media_v11.py::test_floor_first_then_batches_numbered_from_zero_one_request_at_a_time
+PASSED tests/test_wiskey_media_v11.py::test_releasing_pads_the_last_partial_batch_with_silence_and_then_lowers_the_floor
+PASSED tests/test_wiskey_media_v11.py::test_a_second_press_starts_clean_and_the_sequence_goes_on
+PASSED tests/test_wiskey_media_v11.py::test_frames_arriving_faster_than_real_time_are_dropped_as_whole_batches_without_a_gap_in_the_sequence
+PASSED tests/test_wiskey_media_v11.py::test_batches_are_never_sent_faster_than_real_time_so_the_credit_bucket_never_runs_dry
+PASSED tests/test_wiskey_media_v11.py::test_an_answer_that_does_not_come_ends_the_talk_and_the_batch_is_never_re_sent
+PASSED tests/test_wiskey_media_v11.py::test_any_refusal_of_a_batch_ends_the_talk_without_a_retry[rate_limited]
+PASSED tests/test_wiskey_media_v11.py::test_any_refusal_of_a_batch_ends_the_talk_without_a_retry[floor_not_held]
+PASSED tests/test_wiskey_media_v11.py::test_any_refusal_of_a_batch_ends_the_talk_without_a_retry[sequence_invalid]
+PASSED tests/test_wiskey_media_v11.py::test_any_refusal_of_a_batch_ends_the_talk_without_a_retry[source_changed]
+PASSED tests/test_wiskey_media_v11.py::test_any_refusal_of_a_batch_ends_the_talk_without_a_retry[media_outcome_unknown]
+PASSED tests/test_wiskey_media_v11.py::test_any_refusal_of_a_batch_ends_the_talk_without_a_retry[Unauthorized]
+PASSED tests/test_wiskey_media_v11.py::test_a_floor_that_is_refused_or_answered_wrongly_ends_the_talk
+PASSED tests/test_wiskey_media_v11.py::test_the_heartbeat_keeps_an_idle_talk_alive_and_without_it_wiskey_ends_it
+PASSED tests/test_wiskey_media_v11.py::test_wiskey_ending_the_talk_stops_every_request_and_the_pump_stays_quiet
+PASSED tests/test_wiskey_media_v11.py::test_a_dropped_connection_ends_the_talk
+PASSED tests/test_wiskey_media_v11.py::test_only_whole_160_byte_frames_are_taken_from_the_browser
+PASSED tests/test_wiskey_media_v11.py::test_describe_asks_as_arx_on_the_shared_connection_and_parses_the_v11_descriptor
+PASSED tests/test_wiskey_media_v11.py::test_talk_stays_in_the_classic_panel_while_the_four_talk_commands_are_not_all_listed
+PASSED tests/test_wiskey_media_v11.py::test_the_lease_comes_from_the_same_connection_and_actor_and_the_source_is_registered_in_memory_and_never_shown
+PASSED tests/test_wiskey_media_v11.py::test_only_the_main_profile_exists
+PASSED tests/test_wiskey_media_v11.py::test_a_reopened_connection_costs_one_fresh_descriptor_and_one_more_lease_never_more
+PASSED tests/test_wiskey_media_v11.py::test_a_lease_with_a_long_expiry_or_a_failing_go2rtc_is_refused_and_the_failure_names_no_source
+PASSED tests/test_wiskey_media_v11.py::test_video_falls_back_to_arxs_own_source_when_the_signed_path_has_no_key
+PASSED tests/test_wiskey_media_v11.py::test_the_unsigned_feed_path_is_gone_from_the_bridge_provider
+PASSED tests/test_wiskey_media_v11.py::test_a_talk_gets_its_own_connection_reads_a_descriptor_as_the_operator_and_closes_once
+PASSED tests/test_wiskey_media_v11.py::test_a_busy_station_is_audio_busy_and_never_says_who
+PASSED tests/test_wiskey_media_v11.py::test_audio_busy_from_the_fleet_limit_is_busy_too
+PASSED tests/test_wiskey_media_v11.py::test_other_open_failures_are_unavailable_with_a_reason_and_nothing_stays_open
+PASSED tests/test_wiskey_media_v11.py::test_a_talk_open_answer_arx_cannot_use_is_closed_by_its_ref_at_once
+PASSED tests/test_wiskey_media_v11.py::test_wiskey_ending_the_talk_ends_the_session_and_no_close_is_sent
+PASSED tests/test_wiskey_media_v11.py::test_a_close_wiskey_cannot_finish_is_reported_not_retried_and_the_connection_is_still_dropped
+PASSED tests/test_wiskey_media_v11.py::test_a_talk_ends_when_its_connection_drops_and_the_next_talk_may_start_after_it
+PASSED tests/test_wiskey_media_v11.py::test_no_key_means_no_talk_and_not_a_single_request
+PASSED tests/test_wiskey_media_v11.py::test_a_local_fallback_descriptor_never_talks_through_wiskey
+PASSED tests/test_wiskey_media_v11.py::test_an_invalid_request_id_is_replaced_by_an_arx_one_instead_of_sending_something_wiskey_refuses
+PASSED tests/test_wiskey_media_v11.py::test_the_maximum_talk_time_is_an_editable_setting_bounded_and_never_above_the_descriptors_limit
+PASSED tests/test_wiskey_media_v11.py::test_the_setting_is_registered_with_a_default_and_bounds
+PASSED tests/test_wiskey_media_v11.py::test_auto_selects_the_signed_bridge_provider_and_local_stays_the_default
+PASSED tests/test_wiskey_media_v11.py::test_the_key_is_read_through_a_short_cache_and_never_shown
+PASSED tests/test_wiskey_channels.py::test_every_command_of_every_channel_exists_in_the_pinned_catalog[background]
+PASSED tests/test_wiskey_channels.py::test_every_command_of_every_channel_exists_in_the_pinned_catalog[messaging]
+PASSED tests/test_wiskey_channels.py::test_every_command_of_every_channel_exists_in_the_pinned_catalog[read]
+PASSED tests/test_wiskey_channels.py::test_every_command_of_every_channel_exists_in_the_pinned_catalog[service]
+PASSED tests/test_wiskey_channels.py::test_every_command_of_every_channel_exists_in_the_pinned_catalog[technical]
+PASSED tests/test_wiskey_channels.py::test_a_read_only_channel_holds_no_write[background]
+PASSED tests/test_wiskey_channels.py::test_a_read_only_channel_holds_no_write[read]
+PASSED tests/test_wiskey_channels.py::test_the_background_channel_is_exactly_overview_subscribe_and_the_session_read
+PASSED tests/test_wiskey_channels.py::test_every_non_read_command_on_the_service_channel_is_declared_a_write
+PASSED tests/test_wiskey_channels.py::test_every_command_the_client_can_send_is_on_the_service_channel
+PASSED tests/test_wiskey_channels.py::test_the_adapter_channels_are_exactly_what_the_adapter_sends
+PASSED tests/test_wiskey_channels.py::test_the_technical_channel_holds_only_reviewed_view_level_reads
+PASSED tests/test_wiskey_channels.py::test_the_phase1b_reads_left_the_service_channel
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[stations/test_unlock]
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[media/signal]
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[tts/start]
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[users/update]
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[users/delete]
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[users/create]
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[users/pin_generate]
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[cards/capture_start]
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[cards/capture_confirm]
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[events/list]
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[users/get]
+PASSED tests/test_wiskey_channels.py::test_the_background_guard_refuses_before_writing_a_frame[users/query]
+PASSED tests/test_wiskey_channels.py::test_the_adapter_guards_refuse_every_write[read]
+PASSED tests/test_wiskey_channels.py::test_the_adapter_guards_refuse_every_write[technical]
+PASSED tests/test_wiskey_channels.py::test_the_guards_let_their_own_lists_through_and_nothing_else
+PASSED tests/test_wiskey_channels.py::test_both_live_sessions_carry_their_guard
+PASSED tests/test_wiskey_channels.py::test_the_pinned_d006_schema_is_the_one_arx_builds
+PASSED tests/test_wiskey_channels.py::test_the_projection_from_the_fake_conforms_to_the_pinned_d006_schema
+PASSED tests/test_wiskey_contract.py::test_pin_is_intact_and_matches_the_delivery_record
+PASSED tests/test_wiskey_contract.py::test_identical_catalogs_are_a_clean_diff
+PASSED tests/test_wiskey_contract.py::test_a_delivery_root_with_a_schemas_folder_is_found
+PASSED tests/test_wiskey_contract.py::test_added_commands_and_errors_are_changes_not_breaking
+PASSED tests/test_wiskey_contract.py::test_removal_or_required_key_or_permission_or_read_change_needs_review
+PASSED tests/test_wiskey_contract.py::test_a_changed_pin_file_fails_verification
+PASSED tests/test_wiskey_contract.py::test_a_count_that_disagrees_with_the_content_is_refused
+PASSED tests/test_wiskey_contract.py::test_every_command_literal_in_the_client_has_a_representative_call
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[authorization/session]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[cards/add]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[cards/capture_cancel]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[cards/capture_confirm]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[cards/capture_start]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[cards/capture_status]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[cards/reader_capabilities]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[cards/remove]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[media/signal]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[overview]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[stations/test_unlock]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[users/archive]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[users/create]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[users/delete]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[users/get]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[users/pin_generate]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[users/set_active]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[users/temporary_cancel]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[users/unarchive]
+PASSED tests/test_wiskey_contract.py::test_the_frame_arx_sends_fits_the_pinned_request_schema[users/update]
+PASSED tests/test_wiskey_contract.py::test_commands_with_their_own_handlers_are_absent_from_the_catalog_and_keep_their_exact_key_sets
+PASSED tests/test_wiskey_contract.py::test_the_commands_arx_uses_are_in_the_pinned_set_and_the_read_ones_are_not_physical
+PASSED tests/test_wiskey_contract.py::test_every_adapter_command_has_a_representative_call
+PASSED tests/test_wiskey_contract.py::test_the_w10_commands_have_no_unsigned_frame_and_no_channel
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[audit/list]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[conflicts/list]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[events/detail]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[events/export]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[events/list]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[fleet/alerts]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[health/get]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[health/history]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[profiles/settings_get]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[profiles/versions]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[schedules/list]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[schedules/operations_list]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[schedules/plan_list]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[stations/technical_codes_get]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[stations/technical_hold_get]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[stations/technical_program_list]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[sync/status]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[users/get]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[users/photo_get]
+PASSED tests/test_wiskey_contract.py::test_the_frame_the_adapter_sends_fits_the_pinned_request_schema[users/query]
+PASSED tests/test_wiskey_contract.py::test_the_adapter_never_hands_wiskey_an_oracle_filter
+PASSED tests/test_intercom_media.py::test_the_setting_is_off_by_default_validated_audited_and_admin_only
+PASSED tests/test_intercom_media.py::test_a_valid_descriptor_parses_and_arx_keeps_its_own_limits
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change0-descriptor_schema_unknown]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change1-descriptor_station_mismatch]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change2-descriptor_session_invalid]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change3-descriptor_session_invalid]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change4-descriptor_expired]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change5-descriptor_lifetime_too_long]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change6-descriptor_expires_at_invalid]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change7-descriptor_carries_address]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change8-descriptor_carries_address]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change9-descriptor_carries_address]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change10-descriptor_carries_secret]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change11-descriptor_carries_secret]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change12-descriptor_carries_secret]
+PASSED tests/test_intercom_media.py::test_a_descriptor_that_could_leak_or_overgrant_is_refused[change13-descriptor_not_an_object]
+PASSED tests/test_intercom_media.py::test_unknown_profiles_transports_and_codecs_are_dropped_not_guessed
+PASSED tests/test_intercom_media.py::test_the_fake_provider_is_refused_inside_the_add_on
+PASSED tests/test_intercom_media.py::test_off_by_default_the_drawer_keeps_the_still_and_the_classic_panel
+PASSED tests/test_intercom_media.py::test_ready_offers_profiles_paths_and_talk_and_serves_no_source
+PASSED tests/test_intercom_media.py::test_who_sees_what
+PASSED tests/test_intercom_media.py::test_unavailable_states_name_their_reason
+PASSED tests/test_intercom_media.py::test_live_video_rides_the_existing_relay_budget_and_audit
+PASSED tests/test_intercom_media.py::test_live_video_refusals
+PASSED tests/test_intercom_media.py::test_live_video_follows_the_station_chain
+PASSED tests/test_intercom_media.py::test_a_lost_permission_ends_the_live_view
+PASSED tests/test_intercom_media.py::test_a_talk_session_end_to_end_audited_without_audio
+PASSED tests/test_intercom_media.py::test_one_talker_per_station_and_one_session_per_user
+PASSED tests/test_intercom_media.py::test_talk_refusals_each_leave_one_row
+PASSED tests/test_intercom_media.py::test_a_talk_session_expires
+PASSED tests/test_intercom_media.py::test_a_reservation_never_attached_is_released_and_audited
+PASSED tests/test_intercom_media.py::test_the_socket_belongs_to_the_session_owner_once
+PASSED tests/test_intercom_media.py::test_an_upstream_that_does_not_open_ends_the_session_honestly
+PASSED tests/test_intercom_media.py::test_an_upstream_that_closes_ends_the_session
+PASSED tests/test_intercom_media.py::test_turning_the_setting_off_ends_an_open_talk
+PASSED tests/test_fake_wiskey.py::test_every_fixture_is_json_synthetic_and_has_provenance
+PASSED tests/test_fake_wiskey.py::test_every_error_code_the_fake_answers_is_in_the_catalog_or_home_assistants_own
+PASSED tests/test_fake_wiskey.py::test_an_unknown_command_and_a_malformed_frame_are_refused_like_home_assistant_does
+PASSED tests/test_fake_wiskey.py::test_every_typed_client_function_gets_an_answer_from_the_admin_identity
+PASSED tests/test_fake_wiskey.py::test_every_adapter_read_gets_an_answer_from_the_admin_identity
+PASSED tests/test_fake_wiskey.py::test_the_admin_overview_lists_every_catalog_command_and_unlist_removes_one
+PASSED tests/test_fake_wiskey.py::test_authorization_follows_the_catalog_area_grants
+PASSED tests/test_fake_wiskey.py::test_a_restricted_account_gets_the_restricted_overview_with_last_access_still_in_it
+PASSED tests/test_fake_wiskey.py::test_offline_station_switch
+PASSED tests/test_fake_wiskey.py::test_stale_revision_switch
+PASSED tests/test_fake_wiskey.py::test_forbidden_switch_all_or_some
+PASSED tests/test_fake_wiskey.py::test_schema_drift_switch
+PASSED tests/test_fake_wiskey.py::test_slow_switch_delays_the_answer_on_the_socket
+PASSED tests/test_fake_wiskey.py::test_the_socket_refuses_an_unknown_token
+PASSED tests/test_fake_wiskey.py::test_schema_drift_never_reaches_the_entry_center_or_the_background_projection
+PASSED tests/test_fake_wiskey.py::test_an_offline_station_is_shown_offline_and_a_release_to_it_is_refused
+PASSED tests/test_fake_wiskey.py::test_a_forbidden_service_account_is_the_forbidden_state_and_serves_nothing
+PASSED tests/test_fake_wiskey.py::test_a_stale_people_page_is_reported_as_stale
+PASSED tests/test_fake_wiskey.py::test_a_slow_wiskey_times_out_a_read_without_changing_the_feed_state
+PASSED tests/test_fake_wiskey.py::test_the_split_background_session_against_the_fake
+PASSED tests/test_fake_wiskey.py::test_separate_handlers_listed_by_the_fake_match_the_contract_test
+PASSED tests/test_remote_mic_policy.py::test_the_rule[off-false-True]
+PASSED tests/test_remote_mic_policy.py::test_the_rule[video-false-True]
+PASSED tests/test_remote_mic_policy.py::test_the_rule[video_talk-false-True]
+PASSED tests/test_remote_mic_policy.py::test_the_rule[off-true-False]
+PASSED tests/test_remote_mic_policy.py::test_the_rule[video-true-False]
+PASSED tests/test_remote_mic_policy.py::test_the_rule[video_talk-true-True]
+PASSED tests/test_remote_mic_policy.py::test_the_rule[None-None-True]
+PASSED tests/test_remote_mic_policy.py::test_the_rule[garbage-garbage-True]
+PASSED tests/test_remote_mic_policy.py::test_defaults_allow_the_microphone
+PASSED tests/test_remote_mic_policy.py::test_both_features_off_deny_the_microphone_on_every_remote_response
+PASSED tests/test_remote_mic_policy.py::test_switching_back_on_follows_at_once
+PASSED tests/test_remote_mic_policy.py::test_regression_talk_on_keeps_the_microphone_allowed
+PASSED tests/test_remote_mic_policy.py::test_a_route_cannot_widen_the_policy
+PASSED tests/test_remote_mic_policy.py::test_restart_reads_the_stored_settings
+PASSED tests/test_remote_mic_policy.py::test_a_restored_database_is_followed_by_the_background_pass
+PASSED tests/test_remote_mic_policy.py::test_ingress_carries_no_arx_permissions_policy
+PASSED tests/test_remote_mic_policy.py::test_the_public_listener_keeps_the_microphone_denied
+PASSED tests/test_eccact_readback_295.py::test_a_clean_v1_answer_is_unknown_not_false_in_the_engine_and_the_consumer
+PASSED tests/test_eccact_readback_295.py::test_v1_still_reports_work_that_is_owed
+PASSED tests/test_eccact_readback_295.py::test_v2_can_still_prove_with_full_evidence
+PASSED tests/test_eccact_readback_295.py::test_negotiation_prefers_v2_and_needs_command_and_capability
+PASSED tests/test_eccact_readback_295.py::test_the_readback_channel_holds_exactly_three_reads_and_no_write
+PASSED tests/test_eccact_readback_295.py::test_the_reader_negotiates_then_asks_v2_and_pins_the_schema
+PASSED tests/test_eccact_readback_295.py::test_a_v1_answer_to_a_v2_question_is_refused_not_downgraded
+PASSED tests/test_eccact_readback_295.py::test_every_failure_is_unknown[kw0]
+PASSED tests/test_eccact_readback_295.py::test_every_failure_is_unknown[kw1]
+PASSED tests/test_eccact_readback_295.py::test_every_failure_is_unknown[kw2]
+PASSED tests/test_eccact_readback_295.py::test_every_failure_is_unknown[kw3]
+PASSED tests/test_eccact_readback_295.py::test_negotiation_is_cached_for_a_short_ttl_only
+PASSED tests/test_eccact_readback_295.py::test_revisions_are_bounded_to_2_pow_53_minus_1
+PASSED tests/test_eccact_readback_295.py::test_the_engine_proves_a_revocation_only_through_a_negotiated_v2_answer
+PASSED tests/test_eccact_readback_295.py::test_station_removal_is_proven_only_by_a_disabled_applied_row_of_that_station_in_a_v2_answer
+PASSED tests/test_eccact_readback_295.py::test_station_removal_reports_work_that_names_the_station_and_never_trusts_v1
+PASSED tests/test_eccact_readback_295.py::test_the_engine_port_for_one_station_follows_the_same_rules
+PASSED tests/test_wa_pacing_coverage_295.py::test_missing_route_fails_closed_and_never_falls_back_to_whatsapp_status[None-discovery_unknown]
+PASSED tests/test_wa_pacing_coverage_295.py::test_missing_route_fails_closed_and_never_falls_back_to_whatsapp_status[whatsapp/pacing_status_v1-discovery_unknown]
+PASSED tests/test_wa_pacing_coverage_295.py::test_missing_route_fails_closed_and_never_falls_back_to_whatsapp_status[commands2-pacing_route_not_listed]
+PASSED tests/test_wa_pacing_coverage_295.py::test_missing_route_fails_closed_and_never_falls_back_to_whatsapp_status[commands3-pacing_route_not_listed]
+PASSED tests/test_wa_pacing_coverage_295.py::test_missing_route_fails_closed_and_never_falls_back_to_whatsapp_status[commands4-pacing_route_not_listed]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_listed_route_is_chosen_explicitly
+PASSED tests/test_wa_pacing_coverage_295.py::test_the_pacing_channel_carries_only_the_pacing_route
+PASSED tests/test_wa_pacing_coverage_295.py::test_adapter_without_the_listed_route_makes_no_call_and_reports_the_closed_reason
+PASSED tests/test_wa_pacing_coverage_295.py::test_adapter_with_no_discovery_copy_fails_closed
+PASSED tests/test_wa_pacing_coverage_295.py::test_adapter_with_an_incompatible_contract_fails_closed
+PASSED tests/test_wa_pacing_coverage_295.py::test_adapter_reads_the_listed_route_on_the_pacing_channel
+PASSED tests/test_wa_pacing_coverage_295.py::test_adapter_route_error_fails_closed
+PASSED tests/test_wa_pacing_coverage_295.py::test_whatsapp_status_no_longer_feeds_the_pacing_cache
+PASSED tests/test_wa_pacing_coverage_295.py::test_the_cache_is_unknown_when_never_read_or_stale
+PASSED tests/test_wa_pacing_coverage_295.py::test_wrong_schema_location_version_only_on_accounts_is_closed
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env0-schema_version_missing]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env1-schema_version_unsupported]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env2-envelope_invalid]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env3-envelope_invalid]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[None-envelope_invalid]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env5-envelope_invalid]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_bad_envelope_is_closed_with_its_reason[env6-coverage_inconsistent]
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_per_account_version_that_contradicts_the_envelope_drops_that_account
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_read_beyond_the_account_bound_is_refused_whole_never_cut
+PASSED tests/test_wa_pacing_coverage_295.py::test_truncated_coverage_is_explicit_when_wiskey_sends_fewer_than_it_has
+PASSED tests/test_wa_pacing_coverage_295.py::test_full_coverage_is_not_truncated_and_reprojection_is_stable
+PASSED tests/test_wa_pacing_coverage_295.py::test_reprojection_keeps_the_invalid_count
+PASSED tests/test_wa_pacing_coverage_295.py::test_out_of_range_counters_stay_unknown
+PASSED tests/test_wa_pacing_coverage_295.py::test_an_uncovered_account_is_unknown_not_zero
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_closed_read_names_its_reason_on_the_account
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_covered_account_is_used_and_says_covered
+PASSED tests/test_wa_pacing_coverage_295.py::test_incomplete_counters_say_why
+PASSED tests/test_wa_pacing_coverage_295.py::test_no_reader_is_not_read
+PASSED tests/test_wa_pacing_coverage_295.py::test_the_status_account_list_reports_its_own_truncation
+PASSED tests/test_wa_pacing_coverage_295.py::test_a_configured_account_beyond_the_cut_is_not_covered_not_missing
+PASSED tests/test_ui_settings.py::test_start_route_and_hide_map_round_trip
+PASSED tests/test_ui_settings.py::test_hide_wiskey_round_trip_and_audited
+PASSED tests/test_ui_settings.py::test_wiskey_size_defaults_to_normal_validates_audits_and_is_admin_only
+PASSED tests/test_ui_settings.py::test_wiskey_density_and_wall_installation_defaults_validate_and_are_admin_only
+PASSED tests/test_ui_settings.py::test_access_ui_screen_choice_defaults_to_the_embedded_panel_and_is_audited
+PASSED tests/test_ui_settings.py::test_access_phone_embed_is_off_by_default_and_audited
+PASSED tests/test_ui_settings.py::test_stations_screen_settings_defaults_validation_audit_and_gate
+PASSED tests/test_ui_settings.py::test_schedules_screen_switch_defaults_to_the_embedded_panel_validated_audited_and_gated
+PASSED tests/test_ui_settings.py::test_devices_settings_defaults_validation_audit_and_gate
+PASSED tests/test_ui_settings.py::test_devices_theme_and_scheme_6b
+PASSED tests/test_ui_settings.py::test_ui_design_is_deprecated_but_still_accepted
+PASSED tests/test_ui_settings.py::test_ui_tile_layout_setting
+PASSED tests/test_ui_settings.py::test_ui_skin_and_scheme_settings
+PASSED tests/test_ui_settings.py::test_security_snapshot_defaults_to_shown_round_trips_and_needs_system_configure
+PASSED tests/test_ui_settings.py::test_video_notices_default_hidden_round_trips_and_needs_system_configure
+SKIPPED [2] tests\test_wiskey_channels.py:32: channel holds commands newer than the pinned catalog
+287 passed, 2 skipped, 1 warning in 372.82s (0:06:12)
