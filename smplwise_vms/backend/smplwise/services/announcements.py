@@ -46,9 +46,11 @@ PERM = "media.announce"
 CONFIGURE = "system.configure"
 MAX_TEXT = 200
 COOLDOWN_S = 5
-TEST_TEXT = {"he": "זוהי הכרזת בדיקה של המערכת.", "en": "This is a system test announcement.", "ru": "Это тестовое объявление системы."}
-LANGUAGES = ("he", "en", "ru")  # the spoken languages (ANNOUNCE-295); Arabic is screen text only
+TEST_TEXT = {"he": "זוהי הכרזת בדיקה של המערכת.", "en": "This is a system test announcement.", "ru": "Это тестовое объявление системы.", "ar": "هذا إعلان تجريبي من النظام."}
+LANGUAGES = ("he", "en", "ru", "ar")  # the spoken languages (ANNOUNCE-295); automatic translation is a later stage
 K_ENGINE_KIND, K_CLOUD = "announce.engine_kind", "announce.cloud_enabled"
+# the home-system integrations whose speech engine sends the text to a cloud service (the settings warn when the chosen engine is one of them)
+CLOUD_PLATFORMS = frozenset({"cloud", "google_translate", "google_cloud", "microsoft", "azure_tts", "amazon_polly", "elevenlabs", "openai_tts", "watson_tts", "baidu"})
 QUEUE_MAX = 20  # held announcements (quiet hours mode `queue`); a further one is refused as `queue_full`
 QUEUE_EXPIRE_H = 24  # a queued row older than this at release time is dropped (cancelled, `expired`)
 K_ENABLED, K_ENGINE, K_LANG, K_DEVICES, K_MAX = "announce.enabled", "announce.engine", "announce.language", "announce.devices", "announce.max_per_minute"
@@ -689,11 +691,14 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
     return {"id": aid, "status": status, "targets": len(keys)}
 
 
-def emergency(conn: sqlite3.Connection, settings: Settings, principal: Principal, request_id: str | None, template_id: str, *, unlock: Any = None) -> dict[str, Any]:
+def emergency(conn: sqlite3.Connection, settings: Settings, principal: Principal, request_id: str | None, template_id: str | None, *, unlock: Any = None,
+              text: Any = None, language: str | None = None, texts: Any = None) -> dict[str, Any]:
     """The ONE-CLICK emergency announcement: a template of kind `emergency`, every allowed speaker, in the emergency languages the template has. No
     confirmation step, no quiet hours, no rate limit; one audit row `media.announce.emergency` (who, when, text, languages, targets - no audio)."""
     from . import announce_templates as tpl
 
+    if template_id is None:  # free text (owner 2026-10-25): the same one-click flow, the same audit
+        return announce(conn, settings, principal, request_id, source="emergency", scope="all", ref="*", text=text, language=language, texts=texts, critical=True, unlock=unlock)
     t = tpl.by_id(conn, template_id) if isinstance(template_id, str) else None
     if t is None or t["kind"] != "emergency":
         raise err(404, "template_unknown")

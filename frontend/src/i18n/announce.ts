@@ -66,7 +66,7 @@ const he = {
   cloudKeySet: 'המפתח שמור',
   cloudKeyMissing: 'המפתח לא הוגדר. מזינים אותו בהגדרות ‹ חיבורים ‹ סודות.',
   emergencyLangs: 'שפות הכרזת חירום',
-  langName: { he: 'עברית', en: 'English', ru: 'Русский' } as Record<string, string>,
+  langName: { he: 'עברית', en: 'English', ru: 'Русский', ar: 'العربية' } as Record<string, string>,
   // the templates editor
   templates: 'תבניות הודעה',
   templatesHint: 'הודעות מוכנות להכרזה. תבנית חירום מופיעה ככפתור בלחיצה אחת במסך ההכרזות.',
@@ -91,6 +91,8 @@ const he = {
   emergencySent: 'הכרזת החירום נשלחה',
   off: 'ההכרזות כבויות',
   noTargets: 'אין רמקול מורשה להכרזה',
+  emergencyFree: 'הכרזת חירום בטקסט חופשי',
+  engineCloudWarn: 'המנוע שנבחר שולח את הטקסט לשירות בענן, מחוץ לבניין.',
 };
 const en: typeof he = {
   tab: 'Voice announcements',
@@ -155,7 +157,7 @@ const en: typeof he = {
   cloudKeySet: 'The key is stored',
   cloudKeyMissing: 'The key is not set. Enter it in Settings > Connections > Secrets.',
   emergencyLangs: 'Emergency announcement languages',
-  langName: { he: 'עברית', en: 'English', ru: 'Русский' },
+  langName: { he: 'עברית', en: 'English', ru: 'Русский', ar: 'العربية' },
   templates: 'Message templates',
   templatesHint: 'Ready-made announcements. An emergency template appears as a one-click button on the announcements screen.',
   addTemplate: 'New template',
@@ -178,6 +180,8 @@ const en: typeof he = {
   emergencySent: 'The emergency announcement was sent',
   off: 'Announcements are off',
   noTargets: 'No speaker is allowed to announce',
+  emergencyFree: 'Free-text emergency announcement',
+  engineCloudWarn: 'The chosen engine sends the text to a cloud service outside the building.',
 };
 const ru: typeof he = {
   tab: 'Голосовые объявления',
@@ -242,7 +246,7 @@ const ru: typeof he = {
   cloudKeySet: 'Ключ сохранён',
   cloudKeyMissing: 'Ключ не задан. Введите его в Настройки › Подключения › Секреты.',
   emergencyLangs: 'Языки экстренного объявления',
-  langName: { he: 'עברית', en: 'English', ru: 'Русский' },
+  langName: { he: 'עברית', en: 'English', ru: 'Русский', ar: 'العربية' },
   templates: 'Шаблоны сообщений',
   templatesHint: 'Готовые объявления. Экстренный шаблон появляется кнопкой в одно нажатие на экране объявлений.',
   addTemplate: 'Новый шаблон',
@@ -265,6 +269,8 @@ const ru: typeof he = {
   emergencySent: 'Экстренное объявление отправлено',
   off: 'Объявления выключены',
   noTargets: 'Нет колонки, которой разрешено объявлять',
+  emergencyFree: 'Экстренное объявление свободным текстом',
+  engineCloudWarn: 'Выбранный движок отправляет текст облачному сервису за пределами здания.',
 };
 const ar: typeof he = {
   tab: 'الإعلانات الصوتية',
@@ -329,7 +335,7 @@ const ar: typeof he = {
   cloudKeySet: 'المفتاح محفوظ',
   cloudKeyMissing: 'المفتاح غير معيّن. أدخله في الإعدادات ‹ الاتصالات ‹ الأسرار.',
   emergencyLangs: 'لغات إعلان الطوارئ',
-  langName: { he: 'עברית', en: 'English', ru: 'Русский' },
+  langName: { he: 'עברית', en: 'English', ru: 'Русский', ar: 'العربية' },
   templates: 'قوالب الرسائل',
   templatesHint: 'إعلانات جاهزة. يظهر قالب الطوارئ كزر بنقرة واحدة في شاشة الإعلانات.',
   addTemplate: 'قالب جديد',
@@ -352,6 +358,8 @@ const ar: typeof he = {
   emergencySent: 'تم إرسال إعلان الطوارئ',
   off: 'الإعلانات متوقفة',
   noTargets: 'لا يوجد مكبر مسموح له بالإعلان',
+  emergencyFree: 'إعلان طوارئ بنص حر',
+  engineCloudWarn: 'المحرك المختار يرسل النص إلى خدمة سحابية خارج المبنى.',
 };
 
 export type AnnounceText = typeof he;

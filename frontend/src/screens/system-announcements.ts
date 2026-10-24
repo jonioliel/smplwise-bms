@@ -222,17 +222,10 @@ export class SystemAnnouncements extends LitElement {
       <sw-card heading=${t.general}>
         <div class="row"><span class="lbl">${t.enabled}<span class="muted">${t.enabledHint}</span></span>
           <sw-toggle label=${t.enabled} labelHidden .checked=${cf.enabled} data-announce-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ enabled: e.detail.checked })}></sw-toggle></div>
-        <div class="row"><span class="lbl">${t.engineKind}</span>
-          <select data-announce-engine-kind aria-label=${t.engineKind} @change=${(e: Event) => void this.save({ engine_kind: (e.target as HTMLSelectElement).value as 'local' | 'cloud' })}>
-            <option value="local" ?selected=${cf.engine_kind === 'local'}>${t.engineLocal}</option>
-            <option value="cloud" ?selected=${cf.engine_kind === 'cloud'} ?disabled=${!cf.cloud_enabled}>${t.engineCloud}</option></select></div>
-        <div class="row"><span class="lbl">${t.cloudSwitch}<span class="muted" data-announce-cloud-warn>${t.cloudWarn}</span></span>
-          <sw-toggle label=${t.cloudSwitch} labelHidden .checked=${cf.cloud_enabled} data-announce-cloud-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ cloud_enabled: e.detail.checked })}></sw-toggle></div>
-        ${cf.cloud_enabled ? html`<div class="row"><span class="lbl">${t.cloudKey}</span><span class="muted" data-announce-cloud-key>${cf.cloud_key_set ? t.cloudKeySet : t.cloudKeyMissing}</span></div>` : nothing}
-        ${cf.engine_kind === 'cloud' ? nothing : html`<div class="row"><span class="lbl">${t.engine}<span class="muted">${t.engineHint}</span></span>
-          <span class="inl"><input type="text" data-ltr data-announce-engine list="announce-engines" .value=${cf.engine} placeholder="tts.…"
-            @change=${(e: Event) => void this.save({ engine: (e.target as HTMLInputElement).value.trim() })} />
-          <datalist id="announce-engines">${d.engines.map((x) => html`<option value=${x}></option>`)}</datalist></span></div>`}
+        <div class="row"><span class="lbl">${t.engine}<span class="muted">${t.engineHint}</span>${(d.engine_info ?? []).some((x) => x.entity_id === cf.engine && x.cloud) ? html`<span class="muted" data-announce-cloud-warn>${t.engineCloudWarn}</span>` : nothing}</span>
+          <select data-ltr data-announce-engine aria-label=${t.engine} @change=${(e: Event) => void this.save({ engine: (e.target as HTMLSelectElement).value })}>
+            <option value="" ?selected=${cf.engine === ''}>—</option>
+            ${[...new Set([...d.engines, ...(cf.engine ? [cf.engine] : [])])].map((x) => html`<option value=${x} ?selected=${x === cf.engine}>${(d.engine_info ?? []).find((i) => i.entity_id === x)?.name ?? x}</option>`)}</select></div>
         <div class="row"><span class="lbl">${t.emergencyLangs}</span>
           <span class="inl">${ANNOUNCE_LANGS.map((l) => html`<label class="pick"><input type="checkbox" data-announce-emergency-lang=${l} .checked=${(cf.emergency_languages ?? []).includes(l)}
             @change=${(e: Event) => void this.save({ emergency_languages: this.emergencyLangs(l, (e.target as HTMLInputElement).checked) })} />${t.langName[l]}</label>`)}</span></div>

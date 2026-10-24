@@ -510,6 +510,7 @@
       "id": "announcer",
       "name_he": "מכריז: הכרזות קוליות",
       "permissions": [
+        "devices.read",
         "media.announce"
       ]
     }

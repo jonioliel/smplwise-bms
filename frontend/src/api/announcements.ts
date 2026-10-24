@@ -37,9 +37,9 @@ export interface AnnounceQuiet {
 export type AnnounceQuietMode = 'suppress' | 'lower' | 'queue' | 'allow';
 export const ANNOUNCE_QUIET_MODES: readonly AnnounceQuietMode[] = ['suppress', 'lower', 'queue', 'allow'];
 export type AnnounceEngineKind = 'local' | 'cloud';
-/** The spoken languages. Arabic exists as screen text only. */
-export type AnnounceLang = 'he' | 'en' | 'ru';
-export const ANNOUNCE_LANGS: readonly AnnounceLang[] = ['he', 'en', 'ru'];
+/** The spoken languages (automatic translation between them is a later stage). */
+export type AnnounceLang = 'he' | 'en' | 'ru' | 'ar';
+export const ANNOUNCE_LANGS: readonly AnnounceLang[] = ['he', 'en', 'ru', 'ar'];
 export type AnnounceTemplateKind = 'routine' | 'emergency';
 export interface AnnounceTemplate {
   id: string;
@@ -86,6 +86,8 @@ export interface AnnounceConfigAnswer {
   config: AnnounceConfig;
   speakers: AnnounceSpeaker[];
   engines: string[];
+  /** the speech engines the home system exposes; `cloud` = the engine's integration sends the text to a cloud service */
+  engine_info?: { entity_id: string; name: string; platform: string; cloud: boolean }[];
   history: AnnounceHistoryRow[];
   templates: AnnounceTemplate[];
 }
@@ -127,7 +129,7 @@ export const announceAreas = () => get<AnnounceForm>(`${BASE}/areas`);
 export const announceSpeak = (body: { scope: AnnounceScope; ref: string; text?: string; language?: AnnounceLang; texts?: { language: AnnounceLang; text: string }[]; template_id?: string; volume?: number }) =>
   post<AnnounceResult>(BASE, body);
 /** The ONE-CLICK emergency announcement: no confirmation step, every allowed speaker. */
-export const announceEmergency = (templateId: string) => post<AnnounceResult>(`${BASE}/emergency`, { template_id: templateId });
+export const announceEmergency = (body: { template_id: string } | { texts: { language: AnnounceLang; text: string }[] }) => post<AnnounceResult>(`${BASE}/emergency`, body);
 export const announceTest = (body: { scope: AnnounceScope; ref: string; language: AnnounceLang }) => post<AnnounceResult>(`${BASE}/test`, body);
 export const announceTemplates = () => get<{ templates: AnnounceTemplate[]; languages: AnnounceLang[] }>(`${BASE}/templates`);
 export const announcePutTemplates = (templates: AnnounceTemplate[]) => put<{ templates: AnnounceTemplate[] }>(`${BASE}/templates`, { templates });

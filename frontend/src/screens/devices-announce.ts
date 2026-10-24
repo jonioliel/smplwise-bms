@@ -118,11 +118,14 @@ export class DevicesAnnounce extends LitElement {
   }
 
   // ONE click, no confirmation step (owner decision): the permission and the audit row are the whole safeguard
-  private async emergency(id: string) {
+  private async emergency(id: string, free = false) {
     this.busy = `e:${id}`;
     this.err = '';
     try {
-      await announceEmergency(id);
+      if (free) {
+        await announceEmergency({ texts: partsOf(this.texts, this.langs) });
+        this.texts = {};
+      } else await announceEmergency({ template_id: id });
       this.say(announceText().emergencySent);
     } catch (err) {
       this.err = describeError(err);
@@ -165,7 +168,8 @@ export class DevicesAnnounce extends LitElement {
             ${this.note ? html`<span class="ok" role="status">${this.note}</span>` : nothing}</div>
           ${this.err ? html`<div class="err" role="alert">${this.err}</div>` : nothing}
         </div>
-        ${emergency.length ? html`<div class="panel em" data-announce-emergency>
+        ${emergency.length || canSend(this.room, this.texts, this.langs) ? html`<div class="panel em" data-announce-emergency>
+          ${canSend(ALL_ROOMS, this.texts, this.langs) ? html`<sw-button variant="danger" data-announce-emergency-free ?disabled=${this.busy !== ''} @click=${() => void this.emergency('free', true)}>${t.emergencyFree}</sw-button>` : nothing}
           ${emergency.map((x) => html`<sw-button variant="danger" data-announce-emergency-button=${x.id} ?disabled=${this.busy !== ''} @click=${() => void this.emergency(x.id)}>${templateName(x, ui)}</sw-button>`)}
         </div>` : nothing}
       </div>

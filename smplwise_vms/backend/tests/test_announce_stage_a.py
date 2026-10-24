@@ -99,8 +99,9 @@ def whole_building(w, text="שלום", **extra):
 # ---------------------------------------------------------------------------------------------------- the role and its permission
 
 def test_announcer_is_a_built_in_role_holding_only_the_announce_permission(world):
-    assert ROLES["announcer"] == ["media.announce"]
-    assert "announcer" not in DEFAULT_DELEGABLE, "a delegated administrator hands it out only when the owner adds it to the allow-list"
+    assert ROLES["announcer"] == ["devices.read", "media.announce"]
+    assert "announcer" in DEFAULT_DELEGABLE, "owner 2026-10-25: easy to hand out"
+    assert "devices.read" in ROLES["announcer"], "the base read permission that lets the announcer reach the home area's tabs"
     holders = sorted(r for r, p in ROLES.items() if "media.announce" in p)
     assert holders == ["announcer", "site_admin", "system_admin"]
     roles = {r["id"]: r for r in world.c.get("/api/v1/access/roles").json()["roles"]}
@@ -146,11 +147,11 @@ def test_the_permission_is_editable_per_role_through_a_custom_role(world):
 def test_default_templates_are_served_in_three_languages_and_both_kinds(world):
     w = world
     got = w.c.get(f"{API}/templates").json()
-    assert got["languages"] == ["he", "en", "ru"]
+    assert got["languages"] == ["he", "en", "ru", "ar"]
     kinds = {t["kind"] for t in got["templates"]}
     assert kinds == {"routine", "emergency"}
     for t in got["templates"]:
-        assert set(t["name"]) == {"he", "en", "ru"} and set(t["text"]) == {"he", "en", "ru"}, t["id"]
+        assert set(t["name"]) == {"he", "en", "ru", "ar"} and set(t["text"]) == {"he", "en", "ru", "ar"}, t["id"]
     assert [t["id"] for t in got["templates"] if t["kind"] == "emergency"] == ["evacuate", "shelter"]
     assert w.c.get(f"{API}/config").json()["templates"] == got["templates"]
 
@@ -174,7 +175,7 @@ def test_templates_are_edited_as_a_whole_validated_and_audited(world):
         [{"id": "x", "kind": "routine", "name": {"en": "A"}, "text": {"en": "B"}}],
         [{"id": "x", "kind": "loud", "name": {"he": "א"}, "text": {"he": "ב"}}],
         [{"id": "x", "kind": "routine", "name": {"he": "א"}, "text": {"he": "ב" * 201}}],
-        [{"id": "x", "kind": "routine", "name": {"he": "א"}, "text": {"he": "ב", "ar": "ج"}}],
+        [{"id": "x", "kind": "routine", "name": {"he": "א"}, "text": {"he": "ב", "fr": "c"}}],
         [{"id": "x", "kind": "routine", "name": {"he": "א"}, "text": {"he": "ב\u0007"}}],
         [{"id": f"t{i}", "kind": "routine", "name": {"he": "א"}, "text": {"he": "ב"}} for i in range(31)],
     ]
@@ -215,7 +216,7 @@ def test_one_language_a_room_and_the_refusals(world):
     for body in ({"scope": "all", "ref": "*"},  # neither text nor texts
                  {"scope": "all", "ref": "*", "text": "x", "texts": [{"language": "he", "text": "x"}]},
                  {"scope": "all", "ref": "*", "text": "x", "language": "fr"},
-                 {"scope": "all", "ref": "*", "texts": [{"language": "ar", "text": "x"}]},  # Arabic is screen text only
+                 {"scope": "all", "ref": "*", "texts": [{"language": "fr", "text": "x"}]},
                  {"scope": "all", "ref": "room", "text": "x"},
                  {"scope": "area", "ref": "*", "text": "x"}):
         advance(w)
@@ -361,18 +362,18 @@ def test_one_click_emergency_speaks_every_language_to_every_speaker_and_audits_w
     r = w.c.post(f"{API}/emergency", json={"template_id": "evacuate"}, headers=as_user("anna"))  # ONE request: there is no confirmation step to call
     assert r.status_code == 200 and r.json() == {"id": r.json()["id"], "status": "sent", "targets": 2}, r.text
     got = [(c[3], c[2]) for c in w.speaker.calls]
-    assert [g[0] for g in got] == ["he", "en", "ru"] and all(len(c[1]) == 2 for c in w.speaker.calls)
+    assert [g[0] for g in got] == ["he", "en", "ru", "ar"] and all(len(c[1]) == 2 for c in w.speaker.calls)
     texts = {t["id"]: t["text"] for t in tpl.DEFAULTS}["evacuate"]
-    assert [g[1] for g in got] == [texts["he"], texts["en"], texts["ru"]]
+    assert [g[1] for g in got] == [texts["he"], texts["en"], texts["ru"], texts["ar"]]
     a = audits(w, "media.announce.emergency")
     assert len(a) == 1 and a[0]["decision"] == "allowed" and a[0]["actor_username"] == "anna" and a[0]["at"], "who and when"
     d = a[0]["details"]
-    assert d["languages"] == ["he", "en", "ru"] and d["text"] == [texts["he"], texts["en"], texts["ru"]] and d["scope"] == "all" and d["source"] == "emergency"
+    assert d["languages"] == ["he", "en", "ru", "ar"] and d["text"] == [texts["he"], texts["en"], texts["ru"], texts["ar"]] and d["scope"] == "all" and d["source"] == "emergency"
     assert d["template_id"] == "evacuate" and len(d["target_keys"]) == 2 and d["targets"] == 2 and d["critical"] is True
     blob = json.dumps(a[0]).lower()
     assert "audio" not in blob and "mp3" not in blob and "bytes" not in blob, "no audio is ever part of the audit"
     row = rows(w)[-1]
-    assert row["source"] == "emergency" and row["scope"] == "all" and row["critical"] == 1 and row["status"] == "sent" and json.loads(row["languages_json"]) == ["he", "en", "ru"]
+    assert row["source"] == "emergency" and row["scope"] == "all" and row["critical"] == 1 and row["status"] == "sent" and json.loads(row["languages_json"]) == ["he", "en", "ru", "ar"]
 
 
 def test_the_emergency_is_not_blocked_by_quiet_hours_or_the_rate_limit_and_obeys_the_emergency_languages(world):
@@ -381,13 +382,13 @@ def test_the_emergency_is_not_blocked_by_quiet_hours_or_the_rate_limit_and_obeys
     w.clock["now"] = NIGHT
     for _ in range(4):  # repeated in the same minute: never limited
         assert w.c.post(f"{API}/emergency", json={"template_id": "shelter"}).status_code == 200
-    assert len(w.speaker.calls) == 12
+    assert len(w.speaker.calls) == 16
     out = w.c.put(f"{API}/config", json={"emergency_languages": ["ru", "he"]}).json()
     assert out["config"]["emergency_languages"] == ["he", "ru"]
     before = len(w.speaker.calls)
     assert w.c.post(f"{API}/emergency", json={"template_id": "shelter"}).status_code == 200
     assert [c[3] for c in w.speaker.calls[before:]] == ["he", "ru"]
-    for bad in ([], ["ar"], ["he", "fr"], "he"):
+    for bad in ([], ["fr"], ["he", "fr"], "he"):
         assert w.c.put(f"{API}/config", json={"emergency_languages": bad}).status_code == 422, bad
 
 
@@ -540,3 +541,42 @@ def test_the_cloud_key_is_never_visible_anywhere(world, cloud, caplog):
     # and no setting key can carry it
     assert w.c.put(f"{API}/config", json={"cloud_key": KEY}).status_code == 422
     assert w.c.put(f"{API}/config", json={"api_key": KEY}).status_code == 422
+
+
+# ---------------------------------------------------------------------------------------------------- owner answers 2026-10-25
+
+def test_free_text_emergency_is_the_same_one_click_flow_with_the_same_audit(world):
+    w = world
+    enable(w, quiet={"enabled": True, "mode": "suppress"}, max_per_minute=1)
+    w.clock["now"] = NIGHT
+    bind(w.c, w.settings, "anna", "announcer", "installation", "*")
+    h = as_user("anna")
+    r = w.c.post(f"{API}/emergency", json={"texts": [{"language": "he", "text": "אש בקומה 3"}, {"language": "ar", "text": "حريق في الطابق الثالث"}]}, headers=h)
+    assert r.status_code == 200 and r.json()["targets"] == 2, r.text
+    assert [(c[3], c[2]) for c in w.speaker.calls] == [("he", "אש בקומה 3"), ("ar", "حريق في الطابق الثالث")]
+    assert w.c.post(f"{API}/emergency", json={"text": "fire", "language": "en"}, headers=h).status_code == 200, "not rate limited, not held by quiet hours"
+    a = audits(w, "media.announce.emergency")
+    assert len(a) == 2 and a[0]["actor_username"] == "anna" and a[0]["details"]["languages"] == ["he", "ar"] and a[0]["details"]["text"][0] == "אש בקומה 3"
+    assert a[0]["details"]["source"] == "emergency" and len(a[0]["details"]["target_keys"]) == 2 and "audio" not in json.dumps(a[0]).lower()
+    assert rows(w)[0]["source"] == "emergency" and rows(w)[0]["template_id"] is None
+    for body in ({}, {"template_id": "evacuate", "text": "x"}, {"text": "x", "texts": [{"language": "he", "text": "x"}]}, {"text": "x", "language": "fr"}):
+        assert w.c.post(f"{API}/emergency", json=body, headers=h).status_code == 422, body
+    assert w.c.post(f"{API}/emergency", json={"text": "x"}, headers=as_user("nobody")).status_code == 403
+
+
+def test_all_four_languages_are_spoken_and_the_engines_come_from_the_home_system(world):
+    w = world
+    enable(w)
+    advance(w)
+    parts = [{"language": lang, "text": t} for lang, t in (("he", "שלום"), ("ar", "مرحبا"), ("en", "Hello"), ("ru", "Привет"))]
+    assert w.c.post(API, json={"scope": "all", "ref": "*", "texts": parts}).status_code == 200
+    assert [c[3] for c in w.speaker.calls] == ["he", "ar", "en", "ru"]
+    advance(w)
+    assert w.c.post(f"{API}/test", json={"scope": "all", "ref": "*", "language": "ar"}).status_code == 200 and w.speaker.calls[-1][3] == "ar"
+    now = "2026-10-01T08:00:00Z"
+    with w.db.connection() as conn:
+        for ent, plat in (("tts.piper", "wyoming"), ("tts.google_translate_en_com", "google_translate")):
+            conn.execute("INSERT INTO ha_entities(entity_id, platform, name, domain, first_seen_at, updated_at) VALUES (?,?,?,?,?,?)", (ent, plat, ent, "tts", now, now))
+    got = w.c.get(f"{API}/config").json()
+    info = {i["entity_id"]: i["cloud"] for i in got["engine_info"]}
+    assert info == {"tts.piper": False, "tts.google_translate_en_com": True} and set(got["engines"]) == set(info)

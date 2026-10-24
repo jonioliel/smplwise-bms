@@ -2,7 +2,7 @@
 
 A template is `{id, kind, name: {he,en,ru}, text: {he,en,ru}}`. `kind` is `routine` (a building notice the announcer picks, edits if he wants and
 sends to a room or the whole building) or `emergency` (a one-click emergency announcement: no confirmation step, every allowed speaker, every
-language the template has). The spoken languages are Hebrew, English and Russian (`LANGUAGES`); Arabic exists only as screen text in the UI. A template
+language the template has). The spoken languages are Hebrew, English and Russian (`LANGUAGES`) and Arabic. A template
 may leave a language out (Hebrew is the one that is required), and the announcer is only ever offered the languages a template has.
 
 The list lives in the settings table (`announce.templates`, a JSON list) and is edited in Settings by `system.configure` as a whole list (strict
@@ -18,7 +18,7 @@ from typing import Any
 
 from ..db import get_setting
 
-LANGUAGES = ("he", "en", "ru")
+LANGUAGES = ("he", "en", "ru", "ar")
 KINDS = ("routine", "emergency")
 K_TEMPLATES = "announce.templates"
 K_EMERGENCY_LANGS = "announce.emergency_languages"
@@ -28,32 +28,37 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 
 DEFAULTS: list[dict[str, Any]] = [
     {"id": "water_off", "kind": "routine",
-     "name": {"he": "הפסקת מים", "en": "Water interruption", "ru": "Отключение воды"},
+     "name": {"he": "הפסקת מים", "en": "Water interruption", "ru": "Отключение воды", "ar": "انقطاع المياه"},
      "text": {"he": "שימו לב: בעוד זמן קצר תופסק אספקת המים בבניין לצורך עבודות תחזוקה.",
               "en": "Attention: the water supply to the building will be interrupted shortly for maintenance work.",
-              "ru": "Внимание: в ближайшее время подача воды в здание будет прекращена для проведения работ."}},
+              "ru": "Внимание: в ближайшее время подача воды в здание будет прекращена для проведения работ.",
+              "ar": "انتبهوا: سيتم قطع المياه عن المبنى قريبًا لأعمال الصيانة."}},
     {"id": "elevator_service", "kind": "routine",
-     "name": {"he": "מעלית בטיפול", "en": "Elevator service", "ru": "Обслуживание лифта"},
+     "name": {"he": "מעלית בטיפול", "en": "Elevator service", "ru": "Обслуживание лифта", "ar": "صيانة المصعد"},
      "text": {"he": "שימו לב: המעלית אינה זמינה כרגע בשל טיפול. אנו מתנצלים על אי הנוחות.",
               "en": "Attention: the elevator is unavailable at the moment due to service. We apologise for the inconvenience.",
-              "ru": "Внимание: лифт временно недоступен из-за технического обслуживания. Приносим извинения за неудобства."}},
+              "ru": "Внимание: лифт временно недоступен из-за технического обслуживания. Приносим извинения за неудобства.",
+              "ar": "انتبهوا: المصعد غير متاح حاليًا بسبب الصيانة. نعتذر عن الإزعاج."}},
     {"id": "visitors", "kind": "routine",
-     "name": {"he": "אורחים בבניין", "en": "Visitors in the building", "ru": "Гости в здании"},
+     "name": {"he": "אורחים בבניין", "en": "Visitors in the building", "ru": "Гости в здании", "ar": "ضيوف في المبنى"},
      "text": {"he": "שימו לב: בשעות הקרובות יגיעו אורחים לבניין.",
               "en": "Attention: visitors will arrive at the building in the coming hours.",
-              "ru": "Внимание: в ближайшие часы в здание прибудут гости."}},
+              "ru": "Внимание: в ближайшие часы в здание прибудут гости.",
+              "ar": "انتبهوا: سيصل ضيوف إلى المبنى في الساعات القادمة."}},
     {"id": "evacuate", "kind": "emergency",
-     "name": {"he": "פינוי הבניין", "en": "Evacuate the building", "ru": "Эвакуация здания"},
+     "name": {"he": "פינוי הבניין", "en": "Evacuate the building", "ru": "Эвакуация здания", "ar": "إخلاء المبنى"},
      "text": {"he": "חירום. יש לפנות את הבניין מיד דרך יציאות החירום. אל תשתמשו במעליות.",
               "en": "Emergency. Evacuate the building immediately through the emergency exits. Do not use the elevators.",
-              "ru": "Чрезвычайная ситуация. Немедленно покиньте здание через аварийные выходы. Не пользуйтесь лифтами."}},
+              "ru": "Чрезвычайная ситуация. Немедленно покиньте здание через аварийные выходы. Не пользуйтесь лифтами.",
+              "ar": "حالة طوارئ. أخلوا المبنى فورًا عبر مخارج الطوارئ. لا تستخدموا المصاعد."}},
     {"id": "shelter", "kind": "emergency",
-     "name": {"he": "הישארו במקום מוגן", "en": "Shelter in place", "ru": "Оставайтесь в укрытии"},
+     "name": {"he": "הישארו במקום מוגן", "en": "Shelter in place", "ru": "Оставайтесь в укрытии", "ar": "ابقوا في مكان محمي"},
      "text": {"he": "חירום. הישארו במקום מוגן ופעלו לפי הנחיות הצוות.",
               "en": "Emergency. Stay in a protected place and follow the staff instructions.",
-              "ru": "Чрезвычайная ситуация. Оставайтесь в безопасном месте и следуйте указаниям персонала."}},
+              "ru": "Чрезвычайная ситуация. Оставайтесь в безопасном месте и следуйте указаниям персонала.",
+              "ar": "حالة طوارئ. ابقوا في مكان محمي واتبعوا تعليمات الطاقم."}},
 ]
-DEFAULT_EMERGENCY_LANGS = ["he", "en", "ru"]
+DEFAULT_EMERGENCY_LANGS = ["he", "en", "ru", "ar"]
 
 
 class TemplateInvalid(ValueError):

@@ -38,7 +38,7 @@ class _Body(BaseModel):
 
 
 class PartBody(_Body):
-    language: Literal["he", "en", "ru"]
+    language: Literal["he", "en", "ru", "ar"]
     text: str = Field(min_length=1, max_length=400)
 
 
@@ -46,8 +46,8 @@ class SpeakBody(_Body):
     scope: Literal["area", "device", "all"]
     ref: str = Field(min_length=1, max_length=64)  # `*` for scope all
     text: str | None = Field(default=None, min_length=1, max_length=400)
-    language: Literal["he", "en", "ru"] | None = None  # the language of `text`; default = the configured one
-    texts: list[PartBody] | None = Field(default=None, min_length=1, max_length=3)  # several languages, spoken one after the other
+    language: Literal["he", "en", "ru", "ar"] | None = None  # the language of `text`; default = the configured one
+    texts: list[PartBody] | None = Field(default=None, min_length=1, max_length=4)  # several languages, spoken one after the other
     template_id: str | None = Field(default=None, max_length=32)  # the template it came from (a record only; the text is what is spoken)
     volume: int | float | None = None  # percent, clamped to 0-100 by the service; None = the configured default
     critical: bool = False  # exempt from the quiet hours (the same permission, installation scope)
@@ -56,11 +56,14 @@ class SpeakBody(_Body):
 class TestBody(_Body):
     scope: Literal["area", "device", "all"]
     ref: str = Field(min_length=1, max_length=64)
-    language: Literal["he", "en", "ru"] = "he"
+    language: Literal["he", "en", "ru", "ar"] = "he"
 
 
 class EmergencyBody(_Body):
-    template_id: str = Field(min_length=1, max_length=32)
+    template_id: str | None = Field(default=None, min_length=1, max_length=32)  # an emergency template, or free text (text / texts), exactly one
+    text: str | None = Field(default=None, min_length=1, max_length=400)
+    language: Literal["he", "en", "ru", "ar"] | None = None
+    texts: list[PartBody] | None = Field(default=None, min_length=1, max_length=4)
 
 
 class TemplatesBody(_Body):
@@ -93,14 +96,19 @@ def speak(body: SpeakBody, request: Request, principal: Principal = Depends(curr
 @router.post("/announcements/emergency")
 def emergency(body: EmergencyBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.PERM, INSTALLATION)  # one click: no confirmation step, the permission is the whole gate
-    return svc.emergency(conn, settings_of(request), principal, _rid(request), body.template_id, unlock=lambda: unlocked(conn))
+    if sum(x is not None for x in (body.template_id, body.text, body.texts)) != 1:
+        raise svc.err(422, "validation", fields=["template_id"])
+    return svc.emergency(conn, settings_of(request), principal, _rid(request), body.template_id, unlock=lambda: unlocked(conn), text=body.text, language=body.language,
+                         texts=[(p.language, p.text) for p in body.texts] if body.texts is not None else None)
 
 
 @router.get("/announcements/config")
 def get_config(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
-    engines = [r[0] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE entity_id LIKE 'tts.%' ORDER BY entity_id LIMIT 50").fetchall()]
-    return {"config": svc.config(conn), "speakers": svc.admin_targets(conn), "engines": engines, "history": svc.history(conn, 10), "templates": tpl.load(conn)}
+    info = [{"entity_id": r[0], "name": r[1] or r[0], "platform": r[2] or "", "cloud": (r[2] or "") in svc.CLOUD_PLATFORMS}
+            for r in conn.execute("SELECT entity_id, name, platform FROM ha_entities WHERE entity_id LIKE 'tts.%' AND disabled = 0 AND removed_at IS NULL ORDER BY entity_id LIMIT 50").fetchall()]
+    engines = [i["entity_id"] for i in info]  # the speech engines the home system exposes (read from it, never typed)
+    return {"config": svc.config(conn), "speakers": svc.admin_targets(conn), "engines": engines, "engine_info": info, "history": svc.history(conn, 10), "templates": tpl.load(conn)}
 
 
 @router.put("/announcements/config")
@@ -138,7 +146,7 @@ def put_templates(body: TemplatesBody, request: Request, principal: Principal = 
 @router.post("/announcements/test")
 def test_announcement(body: TestBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
-    return svc.announce(conn, settings_of(request), principal, _rid(request), source="test", scope=body.scope, ref=body.ref, text=svc.TEST_TEXT[body.language], unlock=lambda: unlocked(conn))
+    return svc.announce(conn, settings_of(request), principal, _rid(request), source="test", scope=body.scope, ref=body.ref, text=svc.TEST_TEXT[body.language], language=body.language, unlock=lambda: unlocked(conn))
 
 
 @router.get("/announcements/history")
