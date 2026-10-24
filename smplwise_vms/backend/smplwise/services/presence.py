@@ -72,6 +72,11 @@ SENSORS: dict[str, dict[str, str]] = {
     "app_state": {"name_he": "פעילות האפליקציה", "purpose_he": "האם האפליקציה פתוחה; פעימת חיים"},
 }
 SENSOR_KEYS = tuple(SENSORS)
+# A sensor in the phone's `status.sensors` is `on`, `off` (denied / switched off by the user) or `unavailable` (the hardware is not
+# there). PRESUNAVAIL-295 (owner decision 2026-10-24): `unavailable` is stored and returned as is, and it satisfies a REQUIRED sensor
+# (the user cannot be blocked for hardware the phone does not have) - except `location`, which also needs sharing + authorisation.
+SENSOR_STATES = ("on", "off", "unavailable")
+UNAVAILABLE_SATISFIES_REQUIRED = True
 DEFAULT_INTERVALS: dict[str, int] = {"battery": 900, "steps": 300, "app_state": 300}
 
 SETTINGS_DEFAULTS: dict[str, str] = {
@@ -405,6 +410,14 @@ def break_glass(conn: sqlite3.Connection, actor_user_id: str, hours: int, reason
 
 # ---------------------------------------------------------------- devices
 
+def _state_of(sensors: Any, key: str, allowed: list[str] | None = None) -> str:
+    """One sensor's reported state: `on`, `unavailable` or `off` (anything else, and any sensor outside `allowed` when given, is `off`)."""
+    v = sensors.get(key) if isinstance(sensors, dict) else None
+    if v not in ("on", "unavailable") or (allowed is not None and key not in allowed):
+        return "off"
+    return v
+
+
 def _device_out(r: sqlite3.Row, *, with_user: bool = False, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
     status = _json(r["status_json"], {})
     out: dict[str, Any] = {
@@ -412,7 +425,7 @@ def _device_out(r: sqlite3.Row, *, with_user: bool = False, conn: sqlite3.Connec
         "registered_at": r["created_at"], "last_seen_at": r["last_seen_at"], "last_event_at": r["last_event_at"],
         "notice_ack_version": r["notice_ack_version"], "notice_ack_at": r["notice_ack_at"],
         "status": {"location_auth": status.get("location_auth") or "not_determined", "precise": bool(status.get("precise", False)), "sharing": bool(status.get("sharing", False)),
-                   "sensors": {k: ("on" if status.get("sensors", {}).get(k) == "on" else "off") for k in SENSOR_KEYS}},
+                   "sensors": {k: _state_of(status.get("sensors"), k) for k in SENSOR_KEYS}},
         "presence": _json(r["presence_json"], {}),
         "push": {"registered": bool(r["push_relay_token"]), "platform": r["push_platform"], "muted": _json(r["push_muted_json"], []), "last_ok_at": r["push_last_ok_at"],
                  "failures": r["push_failures"], "last_error": r["push_last_error"]},
@@ -608,7 +621,7 @@ def _clean_status(status: dict[str, Any] | None, allowed: list[str]) -> dict[str
         "location_auth": auth if auth in LOCATION_AUTH else "not_determined",
         "precise": bool(status.get("precise", False)),
         "sharing": bool(status.get("sharing", False)),
-        "sensors": {k: ("on" if (sensors_in.get(k) == "on" and k in allowed) else "off") for k in SENSOR_KEYS},
+        "sensors": {k: _state_of(sensors_in, k, allowed) for k in SENSOR_KEYS},
         "reported_at": now_iso(),
     }
 
@@ -818,7 +831,15 @@ def gate_for(conn: sqlite3.Connection, user_id: str, *, app: bool, st: dict[str,
             continue
         sensors = status.get("sensors") if isinstance(status.get("sensors"), dict) else {}
         for key in pol["sensors"]:
-            if sensors.get(key) != "on" or key not in st["sensors_allowed"]:
+            state = sensors.get(key)
+            if key not in st["sensors_allowed"]:
+                continue
+            if state == "unavailable":
+                # no such hardware: counts as meeting the requirement (never for location, which needs sharing + authorisation)
+                if UNAVAILABLE_SATISFIES_REQUIRED and key != "location":
+                    satisfied.add(key)
+                continue
+            if state != "on":
                 continue
             if key == "location" and not (status.get("sharing") and status.get("location_auth") in ("always", "when_in_use")):
                 continue

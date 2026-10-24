@@ -222,8 +222,10 @@ Rules:
   The addendum names the data but not the JSON key spellings for every row; until the owner fixes them, the spellings
   are the app's choice and the server accepts any.
 - `status` is optional and may be sent **alone** (`events: []`): it is how "sharing off", permission changes and the
-  per-sensor switches reach the server (and what the required-sensors policy reads). Sensors not allowed are stored
-  `off`. The status is accepted even while the installation is switched off.
+  per-sensor switches reach the server (and what the required-sensors policy reads). `status.sensors.<key>` is one of
+  `on`, `off` (permission denied or the user switched the sensor off) or `unavailable` (the phone has no such hardware).
+  The server stores and returns all three as sent (`GET presence/devices/{id}/state`, the device list and `GET presence/devices/me`
+  carry `status.sensors`); any other value, a missing key, and every sensor the administrator does not allow, is stored `off`. The status is accepted even while the installation is switched off.
 - The whole batch is refused on the first problem: `400 invalid_event` (`details.field`, `details.client_event_id`),
   `400 sensor_not_allowed` (`details.sensor` → the app switches that sensor off locally), `400 batch_too_large`,
   `409 presence_disabled` (the switch is off: stop collecting), `409 notice_ack_required` (`details.notice_version`).
@@ -252,7 +254,11 @@ covered user whose phone does not report the required sensors is refused:
   `/health` - the routes the app needs to get out of that state.
 - A sensor counts as shared when some live device of the user reported it `on` in `status` within the policy's
   `max_stale_hours` (default 48) **and** acknowledged the current notice version; for `location` also `sharing: true` and
-  `location_auth` in `always | when_in_use`. So: after the user switches a sensor on, send `status` (alone is enough),
+  `location_auth` in `always | when_in_use`. A required sensor reported `unavailable` (no such hardware; owner decision
+  2026-10-24, PRESUNAVAIL-295) **also counts as met**, under the same freshness / acknowledgement / allowed-sensor rules, so a
+  user is never locked out for hardware the phone lacks. Exceptions: `off` never counts, and `location` reported `unavailable` does
+  **not** count (a phone always has it; the requirement needs sharing and authorisation). The app still never bypasses the gate
+  locally: it sends the truthful state and reloads `/me`. So: after the user switches a sensor on, send `status` (alone is enough),
   then reload `/me`.
 - The policy is inert while the master switch is off; administrators are never blocked; the administrator may suspend it
   (break-glass) or exempt users; a browser session is covered only when the administrator says so (`apply_to_web`).
