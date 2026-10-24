@@ -322,7 +322,7 @@ def test_connections_over_the_cap_are_closed_without_a_thread():
         extra.sendall(b"GET /b/x HTTP/1.1\r\nHost: x\r\n\r\n")
         try:
             assert extra.recv(100) == b""  # closed at once, no answer
-        except ConnectionResetError:
+        except ConnectionError:  # reset / aborted: also "closed at once" (Windows reports it so)
             pass
         extra.close()
         for h in held:

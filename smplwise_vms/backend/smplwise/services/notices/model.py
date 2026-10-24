@@ -128,7 +128,7 @@ DISPLAY_DEFAULTS: dict[str, Any] = {
     "template": 1, "lang": "he", "theme": "auto", "day_hours": "", "layout": "auto",
     "urgent": "stage", "mode": "rotation", "rotate_s": 12, "hold": "",
     "font_size": "s", "font_scale": 1.0, "place": "",
-    "blocks": {"clock": True, "hebdate": True, "welcome": True, "weather": True, "info": [], "promo": False, "news": False, "company_logo": True},
+    "blocks": {"clock": True, "hebdate": True, "welcome": True, "weather": True, "info": list(INFO_KINDS), "promo": False, "news": False, "company_logo": True},
     "weather": {"hours": 5},
     "news": {"feeds": [], "speed": "normal"},
     "night": {"enabled": True, "from": "23:00", "to": "06:00", "dim": 0.5},

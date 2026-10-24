@@ -25,7 +25,7 @@ from typing import Any, Callable
 from .. import brand_assets
 from ..ha_user_auth import RateLimiter
 from . import audience as aud
-from . import model, sources, store
+from . import info, model, sources, store
 
 SLUG_PATH = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
@@ -187,6 +187,9 @@ def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime
         feeds = [f for f in feeds if f["url"] in curated]
     if disp["blocks"].get("news") and feeds:
         doc["news"] = sources.news_block(feeds, news)
+    chips = info.build(conn, disp["blocks"].get("info") or [], disp["lang"])
+    if chips:
+        doc["info"] = chips
     try:
         ctl = json.loads(board.get("control_json") or "{}")
     except ValueError:

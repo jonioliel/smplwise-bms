@@ -17,6 +17,7 @@ import type { Display } from '../notice-tv/tv-logic';
 import { nt } from '../i18n/notices';
 import { SEV_KEY, SEV_LOOK, agoText, boardDraft, draftOf, newDraft, seenState, slugOk, suggestSlug, windowText, type Draft } from '../notices/model';
 import '../notices/compose-dialog';
+import '../notices/display-info';
 import type { NoticeSavedDetail } from '../notices/compose-dialog';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_HREF, NOTICES_SETTINGS_HREF, applyNoticesHidden } from '../shell/nav';
@@ -532,6 +533,7 @@ export class SystemNotices extends LitElement {
               ${this.feedPick === 'custom' ? html`<input class="inp ltr" placeholder="https://" .value=${this.feedUrl} @input=${(e: Event) => (this.feedUrl = (e.target as HTMLInputElement).value)}>` : nothing}
               <sw-button size="sm" icon="plus" ?disabled=${!this.feedPick || d.news.feeds.length >= 6} @click=${() => this.addFeed()}>${nt('add')}</sw-button>
               <span>${nt('speed')}</span><div class="seg">${(['slow', 'normal', 'fast'] as const).map((sp) => html`<button aria-pressed=${String(d.news.speed === sp)} @click=${() => this.setD({ news: { ...d.news, speed: sp } })}>${nt(sp === 'slow' ? 'spSlow' : sp === 'normal' ? 'spNormal' : 'spFast')}</button>`)}</div></div></div>
+          <notice-display-info .value=${d.blocks.info} @info-change=${(e: CustomEvent<string[]>) => this.setD({ blocks: { ...d.blocks, info: e.detail } })}></notice-display-info>
           <div class="blk"><span class="ck"><b>${nt('blkNotices')}</b></span><span class="hint">${active.length} ${nt('kpiActive')}</span>
             <div class="sub"><span>${nt('mode')}</span><div class="seg" data-mode-seg>${(['rotation', 'all', 'focus'] as const).map((m) => html`<button aria-pressed=${String(d.mode === m)} data-mode=${m} @click=${() => this.setD({ mode: m })}>${nt(m === 'rotation' ? 'modeRotation' : m === 'all' ? 'modeAll' : 'modeFocus')}</button>`)}</div></div>
             <div class="sub"><span>${nt('rotateEvery')}</span><input class="inp short num" type="number" min="6" max="60" step="1" data-rot .value=${String(d.rotate_s)}
