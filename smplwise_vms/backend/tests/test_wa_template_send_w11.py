@@ -111,7 +111,7 @@ def test_inside_an_open_window_a_notice_is_not_sent_as_template():
 # ---------------------------------------------------------------- the three answers
 
 def test_accepted_is_sent_and_the_request_is_the_template_send_v1_shape():
-    fake = T.FakeTemplateTransport({"state": "accepted"})
+    fake = T.FakeTemplateTransport()
     r = go(sender(fake), rid="abc", op="op-7")
     assert r.outcome == "sent"
     w = fake.requests[0]
@@ -167,28 +167,85 @@ def test_a_v1_result_is_read_strictly(result, outcome, code):
     assert (r.outcome, r.code) == (outcome, code) and len(fake.requests) == 1
 
 
-@pytest.mark.parametrize("answer,code,retry,scope", [
-    ({"state": "not_sent", "code": "template_not_approved"}, "template_not_approved", None, None),
-    ({"state": "not_sent", "code": "rate_limited", "retry_after_s": 7, "scope": "burst"}, "rate_limited", 7, "burst"),
-    ({"state": "not_sent", "code": "pair_rate_limited", "retry_after_s": 300, "scope": "pair"}, "pair_rate_limited", 300, "pair"),
-])
-def test_not_sent_needs_a_pre_send_code(answer, code, retry, scope):
-    r = go(sender(T.FakeTemplateTransport(answer)))
-    assert (r.outcome, r.code, r.retry_after_s, r.scope) == ("not_sent", code, retry, scope)
+def v1(state, code, pa):
+    return T.closed_result(1, state, code, pa)
+
+
+def v2(state, code, pa):
+    return T.closed_result(2, state, code, pa)
 
 
 @pytest.mark.parametrize("answer", [
+    # the former legacy shapes (no schema_version) are unknown now, even the ones that used to count as sent / not_sent
+    {"state": "accepted"},
+    {"state": "not_sent", "code": "template_not_approved"},
+    {"state": "not_sent", "code": "rate_limited", "retry_after_s": 7, "scope": "burst"},
+    {"state": "not_sent", "code": "pair_rate_limited", "retry_after_s": 300, "scope": "pair"},
+    {"state": "not_sent", "code": "unauthorized"},
     {"state": "not_sent", "code": "whatsapp_send_uncertain"},  # not proven pre-send
     {"state": "not_sent"},  # no code
     {"state": "unknown", "code": "status_unknown"},
+    # an HA error code, a bridge_schema marker alone, the operation / source errors: never not_sent
+    {"code": "operation_conflict"}, {"code": "template_source_unavailable"}, {"code": "invalid_fields"}, {"code": "unauthorized"},
+    {"bridge_schema": "wiskey-bridge-command.v1"}, {"bridge_schema": "wiskey-bridge-command.v1", "state": "not_sent", "code": "template_mismatch"},
+    {"success": False, "error": {"code": "operation_conflict"}},
     {"state": "accepted-ish"}, "ok", None, [], {},
-    TimeoutError("late"), RuntimeError("dropped"),
+    TimeoutError("late"), ConnectionError("disconnected"), RuntimeError("dropped"),
 ])
 def test_everything_unproven_is_unknown_and_never_retried(answer):
     fake = T.FakeTemplateTransport(answer)
     r = go(sender(fake))
-    assert r.outcome == "unknown" and len(fake.requests) <= 1
+    assert r.outcome == "unknown" and len(fake.requests) == 1  # handed over once, never retried
     assert r.as_send_result().code == "uncertain" and r.as_send_result().outcome == "unknown"
+
+
+@pytest.mark.parametrize("answer", [v2("accepted", "provider_accepted", True), v2("not_sent", "template_mismatch", False),
+                                    v2("unknown", "provider_outcome_unknown", None)])
+def test_a_v2_result_is_never_read_as_v1(answer):
+    assert T.read_answer(answer) == T.TransportAnswer("unknown", "invalid_response")  # the default (v1) reader refuses a v2 result
+    assert T.read_v1(answer) == T.TransportAnswer("unknown", "invalid_response")
+    r = go(sender(T.FakeTemplateTransport(answer)))  # a v1 request answered by a v2 result: unknown, not sent, not not_sent
+    assert (r.outcome, r.code, r.result_version) == ("unknown", "invalid_response", None)
+
+
+def test_the_v1_reader_keeps_the_version_and_accepts_only_the_provider_ack():
+    got = T.read_answer(v1("accepted", "provider_accepted", True))
+    assert (got.state, got.code, got.version) == ("accepted", None, 1)
+    for pa, code in ((False, "template_mismatch"), (False, "source_or_admission_refused")):
+        assert T.read_v1(v1("not_sent", code, pa)) == T.TransportAnswer("not_sent", code, version=1)
+    r = go(sender(T.FakeTemplateTransport(v1("accepted", "provider_accepted", True))))
+    assert (r.outcome, r.result_version) == ("sent", 1)
+
+
+def test_the_v2_reader_is_explicit_and_keeps_its_version():
+    assert T.READERS[1] is T.read_v1 and T.READERS[2] is T.read_v2 and T.read_v1 is not T.read_v2
+    assert len(T.V2_REQUEST_KEYS) == 10 and len(T.V2_RESULT_KEYS) == 6 and "parameters" not in T.V2_REQUEST_KEYS
+    assert T.read_answer(v2("accepted", "provider_accepted", True), version=2) == T.TransportAnswer("accepted", None, version=2)
+    assert T.read_v2(v2("not_sent", "source_or_admission_refused", False)) == T.TransportAnswer("not_sent", "source_or_admission_refused", version=2)
+    assert T.read_v2(v2("unknown", "operation_pending_or_unknown", None)).state == "unknown"
+    # the other way round: a v1 result is not a v2 result
+    assert T.read_answer(v1("accepted", "provider_accepted", True), version=2) == T.TransportAnswer("unknown", "invalid_response")
+    assert T.read_v2(v1("not_sent", "template_mismatch", False)) == T.TransportAnswer("unknown", "invalid_response")
+    # same strictness as v1: six keys, real int version, closed combinations
+    bad = [dict(v2("accepted", "provider_accepted", True), extra=1), dict(v2("accepted", "provider_accepted", True), schema_version=True),
+           dict(v2("accepted", "provider_accepted", True), provider_accepted=1), dict(v2("accepted", "provider_accepted", True), delivery="delivered"),
+           dict(v2("not_sent", "template_mismatch", False), retry_permitted=True), v2("not_sent", "rate_limited", False)]
+    assert all(T.read_v2(b).state == "unknown" for b in bad)
+    # an unsupported version asks nothing of any reader
+    for version in (0, 3, True, "1", None):
+        assert T.read_answer(v1("accepted", "provider_accepted", True), version=version).state == "unknown"
+
+
+def test_no_legacy_branch_remains():
+    assert not hasattr(T, "PRE_SEND_CODES")
+    assert T.read_answer({"state": "accepted"}).state == "unknown"  # used to be counted as sent without a provider ACK
+
+
+def test_unwired_transport_is_refused_before_any_hand_over():
+    r = go(T.TemplateSender(T.UnwiredTransport(), registry=lambda: REG, switch=lambda: True, permit_fn=lambda: True,
+                            pacer=wp.WaPacer(ma.MemorySendLedger(), wp.MemoryPacerStore(), config=lambda: wp.PacerConfig(mode="off")),
+                            pacing_for=lambda _k: ma.Pacing(), clock=lambda: NOW))
+    assert (r.outcome, r.code) == ("not_sent", "template_unsupported")
 
 
 def test_adapter_wrapper_maps_to_send_result():
@@ -218,13 +275,21 @@ def test_budget_holds_a_template_send_like_any_other():
     assert (r.outcome, r.code) == ("not_sent", "paced") and r.wait_until is not None and r.retry_after_s >= 1 and fake.requests == []
 
 
-def test_budget_free_send_passes_and_a_rate_answer_starts_the_backoff():
+def test_budget_free_send_passes_and_an_unknown_answer_is_counted_never_credited():
     p, store = pacer_with(0)
-    fake = T.FakeTemplateTransport({"state": "not_sent", "code": "rate_limited"})
-    assert go(sender(fake, pacer=p)).code == "rate_limited"
-    assert store.get_state(f"account:{ACC}") is not None  # the platform's slow-down is learned
-    assert go(sender(fake, pacer=p), rid="r2").code == "paced"  # ... and the next template waits on it
-    assert len(fake.requests) == 1
+    fake = T.FakeTemplateTransport(TimeoutError("late"), v1("unknown", "provider_outcome_unknown", None))
+    assert go(sender(fake, pacer=p)).outcome == "unknown"
+    assert go(sender(fake, pacer=p), rid="r2").outcome == "unknown"  # no refund, no retry: the next send is a new request, not a replay
+    assert len(fake.requests) == 2 and [w["request_id"] for w in fake.requests] == ["r1", "r2"]
+    assert store.get_state(f"account:{ACC}") is None  # an unknown answer starts no backoff and credits nothing
+
+
+def test_not_sent_v1_is_a_plain_refusal_with_no_backoff():
+    p, store = pacer_with(0)
+    fake = T.FakeTemplateTransport(v1("not_sent", "template_mismatch", False))
+    r = go(sender(fake, pacer=p))
+    assert (r.outcome, r.code, r.result_version) == ("not_sent", "template_mismatch", 1)
+    assert store.get_state(f"account:{ACC}") is None
 
 
 def test_pacer_off_mode_admits():

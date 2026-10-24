@@ -307,7 +307,8 @@ class MessagingAdapter:
             reply = {}
         got = reply.get("pacing")
         if reply.get("state") != "ready" or not isinstance(got, dict):
-            got = wa_pacing.closed_envelope("route_error")
+            # WisKey's producer refused the request as too large (`request_too_large`): its own closed reason, not the generic one
+            got = wa_pacing.closed_envelope("producer_over_limit" if reply.get("last_error") == "request_too_large" else "route_error")
         self._keep_pacing(got)
         return got.get("closed_reason")
 
