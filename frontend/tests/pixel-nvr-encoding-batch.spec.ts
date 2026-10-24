@@ -16,6 +16,8 @@ import { SKIN_IDS } from '../src/design/skins';
 const SKINS = SKIN_IDS;
 const PAGE = 'sw-app system-security system-security-cameras';
 const DLG = `${PAGE} nvr-encoding-batch sw-dialog[open][data-nvr-enc]`;
+// The <sw-dialog> host itself has no box of its own (its backdrop is fixed), so Playwright reports it as not visible: the shot is taken of the dialog panel inside it.
+const BOX = `${DLG} .box[role="dialog"]`;
 
 /** `--update-snapshots` is "changed" by default in this Playwright ("all" when spelled out): both write the baseline. */
 const noBaseline = (info: { snapshotPath: (...name: string[]) => string; config: { updateSnapshots: string } }, name: string) =>
@@ -55,13 +57,13 @@ test.describe('pixel: the bulk encoding change', () => {
       await toSettings(page, skin);
       const settingsName = `enc-${skin}-dialog-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
-      else await expect(page.locator(DLG)).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+      else await expect(page.locator(BOX)).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
       await settlePage(page);
       const previewName = `enc-${skin}-dialog-preview-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
       if (noBaseline(info, previewName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${previewName}: no baseline on ${process.platform}` });
-      else await expect(page.locator(DLG)).toHaveScreenshot(previewName, { maxDiffPixels: 40, animations: 'disabled' });
+      else await expect(page.locator(BOX)).toHaveScreenshot(previewName, { maxDiffPixels: 40, animations: 'disabled' });
     });
   }
 });
