@@ -28,11 +28,11 @@ const FLOORS = [{ id: 'f1', name: 'קומה 1', building: 'מבנה א' }, { id:
 const AREAS = [{ id: 'z1', name: 'לובי', floor: 'f1' }];
 const READS = {
   audience: 118, read: 84,
-  users: [{ user_id: 'u1', name: 'דני כהן', place: 'קומה 4', read_at: '2026-10-24T05:41:00Z' }, { user_id: 'u2', name: 'רונית לוי', place: 'קומה 2', read_at: '2026-10-24T05:52:00Z' }],
+  users: [{ user_id: 'u1', name: 'דני כהן', place: '', read_at: '2026-10-24T05:41:00Z' }, { user_id: 'u2', name: 'רונית לוי', place: 'קומה 2', read_at: '2026-10-24T05:52:00Z' }],
   unread: [{ user_id: 'u3', name: 'אבי שמעוני', place: 'ועד הבית' }],
 };
 
-async function install(page: Page, o: { enabled?: boolean; manager?: boolean; names?: boolean } = {}): Promise<string[]> {
+async function install(page: Page, o: { enabled?: boolean; manager?: boolean; names?: boolean; empty?: boolean; homeEmpty?: 'hide' | 'line' } = {}): Promise<string[]> {
   const enabled = o.enabled ?? true;
   const manager = o.manager ?? true;
   const perms = manager ? ['devices.read', 'notices.view', 'notices.manage', 'notices.push', 'notices.boards', 'system.configure'] : ['devices.read', 'notices.view'];
@@ -47,9 +47,10 @@ async function install(page: Page, o: { enabled?: boolean; manager?: boolean; na
     if (p === 'notices' && req.method() === 'GET') {
       const scope = new URL(req.url()).searchParams.get('scope');
       if (scope === 'all' && !manager) return json(route, { code: 'forbidden', user_message: 'אין הרשאה', retryable: false, correlation_id: 'mock', details: {} }, 403);
-      const list = scope === 'all' ? NOTICES : NOTICES.filter((n) => n.state === 'active').map(({ audience: _a, status: _s, reads: _r, ...n }) => n);
-      return json(route, { notices: list, can: CAN, now: NOW, defaults: { default_days: 7, default_severity: 'info' } });
+      const list = o.empty ? [] : scope === 'all' ? NOTICES : NOTICES.filter((n) => n.state === 'active').map(({ audience: _a, status: _s, reads: _r, ...n }) => n);
+      return json(route, { notices: list, can: CAN, now: NOW, defaults: { default_days: 7, default_severity: 'info', home_empty: o.homeEmpty ?? 'hide' } });
     }
+    if (p === 'notices/settings') return json(route, req.method() === 'GET' ? { settings: { ...SETTINGS, home_empty: o.homeEmpty ?? 'hide' }, can: CAN, weather_entities: [], company_logo: false, listener: false, building_fallback: '' } : { settings: SETTINGS });
     if (p === 'notices/boards' && req.method() === 'GET') return json(route, { boards: [], full: false, max: 10, remote: false });
     if (p === 'notices/audience/options') return json(route, { floors: FLOORS, areas: AREAS, groups: [], roles: [] });
     if (p === 'notices/n1/reads') return json(route, o.names === false ? { audience: 118, read: 84 } : READS);
@@ -72,6 +73,10 @@ async function shot(page: Page, name: string): Promise<void> {
 }
 
 const W = 'sw-app devices-building home-widgets';
+const SETTINGS = {
+  enabled: true, default_days: 7, default_severity: 'info', push_default: 'by_severity', reads_names: true, retention_days: 365, home_empty: 'hide', boards_remote: false, boards_max: 10,
+  weather_entity: '', weather_fallback: false, news_custom: false, building_name: '', boards_origin: '', news_sources: [],
+};
 const phone = () => test.info().project.name === 'mobile';
 const titles = (page: Page) => page.locator('sw-app devices-notices').locator(phone() ? '.card .t1' : 'table.t tbody .t1').allTextContents();
 
@@ -142,6 +147,7 @@ test('מי קרא: the count opens the sheet with the counts, the progress and t
   await expect(rows.first()).toContainText('רונית לוי'); // newest first
   await expect(rows.first()).toContainText('קומה 2');
   await expect(rows.first()).toContainText('24.10 08:52');
+  await expect(rows.nth(1).locator('[data-reads-place]')).toHaveText('כל הבניין'); // no floor binding
   await shot(page, 'reads-read');
   await sheet.locator('[data-seg="unread"]').click();
   await expect(rows).toHaveCount(1);
@@ -203,4 +209,35 @@ test('home widget: absent while the module is off', async ({ page }) => {
   await expect(page.locator(`${W} [data-home-widget]`).first()).toBeAttached({ timeout: 30_000 });
   await expect(page.locator(`${W} [data-home-notices-list], ${W} [data-home-notices-none]`)).toHaveCount(0);
   expect(calls.filter((c) => c.startsWith('GET notices?'))).toEqual([]); // not even a request
+});
+
+test('home widget: no active notice - hidden by default, one line when the board setting asks for it', async ({ page }) => {
+  await install(page, { empty: true });
+  await page.goto('about:blank');
+  await page.goto(url('/devices/building'));
+  await expect(page.locator(`${W} [data-home-widget]`).first()).toBeAttached({ timeout: 30_000 });
+  await expect(page.locator(`${W} [data-home-notices-list], ${W} [data-home-notices-none]`)).toHaveCount(0);
+});
+
+test('home widget: the board setting "line" shows the single "no active notices" line', async ({ page }) => {
+  await install(page, { empty: true, homeEmpty: 'line' });
+  await page.goto('about:blank');
+  await page.goto(url('/devices/building'));
+  const none = page.locator(`${W} [data-home-notices-none]`);
+  await expect(none).toBeAttached({ timeout: 30_000 });
+  await expect(none).toContainText('אין הודעות פעילות');
+  await expect(page.locator(`${W} [data-home-notices-list]`)).toHaveCount(0);
+});
+
+test('settings: the home-widget empty setting is a choice that saves home_empty', async ({ page }) => {
+  await install(page);
+  const bodies: unknown[] = [];
+  page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/notices/settings')) bodies.push(r.postDataJSON()); });
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices'));
+  const sel = page.locator('sw-app system-notices notice-home-empty select[data-home-empty]');
+  await expect(sel).toBeVisible({ timeout: 30_000 });
+  await expect(sel).toHaveValue('hide');
+  await sel.selectOption('line');
+  await expect.poll(() => bodies).toEqual([{ home_empty: 'line' }]);
 });

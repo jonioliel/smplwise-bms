@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Notice } from '../src/api/notices';
 import { configOf, defaultConfig, resolveWidgets, WIDGET_IDS, WIDGET_NAME, type HomeData } from '../src/api/home-config';
-import { noticeSubline, noticesWidgetAvailable, widgetNotices } from '../src/notices/home-widget-model';
+import { noticeSubline, noticesWidgetAvailable, noticesWidgetOffered, widgetNotices } from '../src/notices/home-widget-model';
 import { PLACE_ALL, buildPlaces, inPlace, visibleNodes } from '../src/notices/places-model';
 import { readAtText, readsView } from '../src/notices/reads-model';
 import { NT_KEYS, nt } from '../src/i18n/notices';
@@ -82,9 +82,17 @@ test('widget: active only, urgent first, at most three, the server order inside 
 });
 
 test('widget: absent unless the module is on and the read worked; the last widget; the default config keeps it on', () => {
-  expect(noticesWidgetAvailable({ notices: [] }, true)).toBe(true);
-  expect(noticesWidgetAvailable({ notices: null }, true)).toBe(false);
-  expect(noticesWidgetAvailable({ notices: [] }, false)).toBe(false);
+  // the board setting: with no active notice the widget is absent (the default) or shows one line
+  expect(noticesWidgetAvailable({ notices: [], emptyMode: 'hide' }, true)).toBe(false);
+  expect(noticesWidgetAvailable({ notices: [note('d', { state: 'draft' })], emptyMode: 'hide' }, true)).toBe(false);
+  expect(noticesWidgetAvailable({ notices: [], emptyMode: 'line' }, true)).toBe(true);
+  expect(noticesWidgetAvailable({ notices: [note('a')], emptyMode: 'hide' }, true)).toBe(true);
+  expect(noticesWidgetAvailable({ notices: null, emptyMode: 'line' }, true)).toBe(false);
+  expect(noticesWidgetAvailable({ notices: [note('a')], emptyMode: 'line' }, false)).toBe(false);
+  // the editor and the personal list still offer it while the board is empty (so it can be placed)
+  expect(noticesWidgetOffered({ notices: [], emptyMode: 'hide' }, true)).toBe(true);
+  expect(noticesWidgetOffered({ notices: null, emptyMode: 'hide' }, true)).toBe(false);
+  expect(noticesWidgetOffered({ notices: [], emptyMode: 'hide' }, false)).toBe(false);
   expect(WIDGET_IDS[WIDGET_IDS.length - 1]).toBe('notices');
   expect(WIDGET_NAME.notices).toBe('לוח הודעות');
   const cfg = defaultConfig();
@@ -101,7 +109,7 @@ test('widget: absent unless the module is on and the read worked; the last widge
 });
 
 test('words: the new strings exist in Hebrew and English, with their placeholders', () => {
-  for (const k of ['places', 'allPlaces', 'readsOf', 'colName', 'colPlace', 'colReadAt', 'widgetAll', 'widgetEmpty', 'widgetNew', 'widgetUntil', 'segReadShort', 'segUnreadShort'] as const) {
+  for (const k of ['places', 'allPlaces', 'readsOf', 'colName', 'colPlace', 'colReadAt', 'widgetAll', 'widgetEmpty', 'widgetNew', 'widgetUntil', 'dHomeEmpty', 'dHomeEmptyHide', 'dHomeEmptyLine', 'segReadShort', 'segUnreadShort'] as const) {
     expect(NT_KEYS).toContain(k);
     expect(nt(k, { title: 'x', d: 'y', name: 'z' }, 'en')).not.toBe(nt(k, { title: 'x', d: 'y', name: 'z' }, 'he'));
   }

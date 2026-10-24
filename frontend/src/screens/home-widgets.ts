@@ -223,7 +223,7 @@ export class HomeWidgetsView extends LitElement {
   @property({ attribute: false }) doors: DoorsWidgetData = { windows: null, emergency: null };
   @state() private doorSheet = false;
   /** NOTICEPAGE-295: the notices active for the viewer (the home screen reads and polls them; null = none to show). */
-  @property({ attribute: false }) notices: NoticesWidgetData = { notices: null };
+  @property({ attribute: false }) notices: NoticesWidgetData = { notices: null, emptyMode: 'hide' };
   /** UXREST2-295: the widgets whose own read failed (the screen reads elevators / temperature / generators); each draws a failure panel with a
    * retry (`home-widget-retry {id}`) in its own slot and the other widgets are untouched. */
   @property({ attribute: false }) failed: WidgetId[] = [];

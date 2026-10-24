@@ -16,7 +16,7 @@ import { generatorsAvailable } from '../generator/home-widget-model';
 import { loadHomeDoorsChecked } from '../door-windows/access'; // DOORWIN2-295: the home doors widget
 import { doorsWidgetAvailable, type DoorsWidgetData } from '../door-windows/home-widget-model';
 import { doorWindowsTabOn, noticesModuleOn } from '../shell/nav';
-import { loadHomeNoticesChecked, noticesWidgetAvailable, type NoticesWidgetData } from '../notices/home-widget'; // NOTICEPAGE-295: the home notice board widget
+import { loadHomeNoticesChecked, noticesWidgetAvailable, noticesWidgetOffered, type NoticesWidgetData } from '../notices/home-widget'; // NOTICEPAGE-295: the home notice board widget
 import type { LiveSummaryItem } from '../api/generator';
 import '../components/sw-state-panel';
 import '../components/sw-button';
@@ -1015,7 +1015,7 @@ export class DevicesBuilding extends LitElement {
   /** DOORWIN2-295: the doors widget's data (none = no widget at all); polled by the HOMELIVE-295 live controller below. */
   @state() private doorsData: DoorsWidgetData = { windows: null, emergency: null };
   /** NOTICEPAGE-295: the notices widget's data (none = no widget at all); polled by the live controller below. */
-  @state() private noticesData: NoticesWidgetData = { notices: null };
+  @state() private noticesData: NoticesWidgetData = { notices: null, emptyMode: 'hide' };
   /** HOMELIVE-295: ONE controller for every live read of this screen (the tree, the elevators, the temperature units, the generators): polls
    * only while the page is visible and online, catches up on visibility / focus / pageshow / online, backs off on failures (api/live-refresh.ts). */
   private readonly live = new LiveController();
@@ -1301,7 +1301,7 @@ export class DevicesBuilding extends LitElement {
     return resolveWidgets(h.config, h.direction, h.data, { editing: this.lay.editing, quickAllowed: this.quickInfo(t).allowed, phone: this.isPhone, mediaAvailable: this.mediaScreens === null ? undefined : this.mediaScreens > 0,
       elevatorsAvailable: !!this.elevators?.length, temperatureAvailable: this.tempWidget && this.tempUnits.length > 0,
       generatorsAvailable: generatorsAvailable(this.generators), doorsAvailable: doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()),
-      noticesAvailable: noticesWidgetAvailable(this.noticesData, noticesModuleOn()) });
+      noticesAvailable: (this.lay.editing ? noticesWidgetOffered : noticesWidgetAvailable)(this.noticesData, noticesModuleOn()) });
   }
 
   /** CR-015: whether the home's media widget has anything to show - the approved screens of this user (the same question the widget
@@ -1370,7 +1370,7 @@ export class DevicesBuilding extends LitElement {
     poll('temperature', () => this.loadTemperature(), () => temperatureAccess().view && ((this.tempUnits.length > 0 && this.tempWidget) || this.firstReadFailed.has('temperature')), () => !this.tempUnits.length);
     poll('generators', () => this.loadGenerators(), () => generatorsAvailable(this.generators) || this.firstReadFailed.has('generators'), () => !generatorsAvailable(this.generators));
     poll('doors', () => this.loadDoors(), () => doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()) || (doorWindowsTabOn() && this.firstReadFailed.has('doors')), () => !doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()));
-    poll('notices', () => this.loadNotices(), () => noticesWidgetAvailable(this.noticesData, noticesModuleOn()) || (noticesModuleOn() && this.firstReadFailed.has('notices')), () => !noticesWidgetAvailable(this.noticesData, noticesModuleOn()));
+    poll('notices', () => this.loadNotices(), () => noticesWidgetOffered(this.noticesData, noticesModuleOn()) || (noticesModuleOn() && this.firstReadFailed.has('notices')), () => !noticesWidgetOffered(this.noticesData, noticesModuleOn()));
     this.live.add({ id: 'tree', run: () => this.reloadTree(), pollMs: () => (haPushLive() ? 300_000 : 60_000), enabled: () => isApi() && !this.forbidden && !this.lay.editing });
     this.live.onChange(() => this.requestUpdate());
     this.live.start();
@@ -1484,7 +1484,7 @@ export class DevicesBuilding extends LitElement {
     if (!d) return nothing;
     const names = new Map(t.floors.map((f) => [f.floor_id, f.name]));
     const floors = this.floorsOf(t).map((f) => ({ id: f.floor_id, name: names.get(f.floor_id) ?? f.floor_id }));
-    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetAvailable(this.noticesData, noticesModuleOn())}
+    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())}
       @home-draft=${this.onDraft} @home-reset=${this.onHomeReset} @home-edit-open=${(e: CustomEvent<{ id: WidgetId | '' }>) => (this.openWidget = e.detail.id)}></home-edit-panel>`;
   }
 

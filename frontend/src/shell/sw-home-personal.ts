@@ -12,7 +12,7 @@ import { temperatureAccess } from '../temperature/access';
 import { loadHomeGenerators } from '../generator/access'; // GENWIDGET 2.9.3
 import { generatorsAvailable } from '../generator/home-widget-model';
 import { loadHomeDoors } from '../door-windows/access'; // DOORWIN2-295
-import { loadHomeNoticesChecked, noticesWidgetAvailable } from '../notices/home-widget'; // NOTICEPAGE-295
+import { loadHomeNoticesChecked, noticesWidgetOffered } from '../notices/home-widget'; // NOTICEPAGE-295
 import { doorsWidgetAvailable } from '../door-windows/home-widget-model';
 import { doorWindowsTabOn, noticesModuleOn } from './nav';
 import { MODE_KEY, personalHidden } from '../elevators/model';
@@ -161,7 +161,7 @@ export class SwHomePersonal extends LitElement {
     if (temperatureAccess().view) void listUnits(false).then((r) => (this.tempUnits = r.home_widget === false ? 0 : r.units.length)).catch(() => (this.tempUnits = 0));
     void loadHomeGenerators().then((g) => (this.generators = generatorsAvailable(g)));
     void loadHomeDoors().then((d) => (this.doors = doorsWidgetAvailable(d, doorWindowsTabOn())));
-    void loadHomeNoticesChecked().then((d) => (this.notices = !!d && noticesWidgetAvailable(d, noticesModuleOn())));
+    void loadHomeNoticesChecked().then((d) => (this.notices = !!d && noticesWidgetOffered(d, noticesModuleOn())));
   }
 
   /** The elevators widget's own choices: how they appear (null = the installation's) and which are left out (null = the installation's list). */

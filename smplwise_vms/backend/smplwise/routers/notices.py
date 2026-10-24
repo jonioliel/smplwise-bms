@@ -115,6 +115,7 @@ class SettingsIn(BaseModel):
     push_default: Literal["by_severity", "always", "never"] | None = None
     reads_names: bool | None = None
     retention_days: int | None = None
+    home_empty: Literal["hide", "line"] | None = None
     boards_remote: bool | None = None
     boards_max: int | None = None
     weather_entity: str | None = Field(default=None, max_length=200)
@@ -478,7 +479,7 @@ def list_notices(scope: Literal["mine", "all"] = "mine", principal: Principal = 
     read = store.read_ids(conn, principal.user_id)
     counts = store.read_counts(conn) if scope == "all" else {}
     return {"notices": [_notice_out(n, now, boards[n["id"]], manager=scope == "all", read=n["id"] in read, reads=counts.get(n["id"], 0)) for n in rows],
-            "can": can, "now": model.iso(now), "defaults": {k: store.settings(conn)[k] for k in ("default_days", "default_severity")}}
+            "can": can, "now": model.iso(now), "defaults": {k: store.settings(conn)[k] for k in ("default_days", "default_severity", "home_empty")}}
 
 
 @router.post("/notices/audience/preview")

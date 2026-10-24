@@ -22,6 +22,7 @@ import '../notices/display-info';
 import type { NoticeSavedDetail } from '../notices/compose-dialog';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_HREF, NOTICES_SETTINGS_HREF, applyNoticesHidden } from '../shell/nav';
+import '../notices/display-home';
 import { dateInputLang } from '../api/day-format';
 
 type BoardTab = 'general' | 'display' | 'notices';
@@ -289,6 +290,7 @@ export class SystemNotices extends LitElement {
         <div class="fld"><label for="ns-ret">${nt('dRetention')}</label><select id="ns-ret" class="inp" data-v=${String(st.retention_days)}
           @change=${(e: Event) => this.patchSettings({ retention_days: Number((e.target as HTMLSelectElement).value) })}>
           ${retentionOptions(st.retention_days).map((o) => html`<option value=${String(o.value)}>${o.label}</option>`)}</select></div>
+        <notice-home-empty .value=${st.home_empty ?? 'hide'} @home-empty-change=${(e: CustomEvent<'hide' | 'line'>) => this.patchSettings({ home_empty: e.detail })}></notice-home-empty>
       </div>
       <div class="r">
         <div class="fld"><label for="ns-wx">${nt('dWeather')}</label><select id="ns-wx" class="inp" data-v=${st.weather_entity} @change=${(e: Event) => this.patchSettings({ weather_entity: (e.target as HTMLSelectElement).value })}>

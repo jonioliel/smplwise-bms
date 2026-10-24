@@ -6,15 +6,22 @@ import { SEV_KEY } from './model';
 export interface NoticesWidgetData {
   /** the notices active for me; null = nothing to show (module off, or not allowed) */
   notices: Notice[] | null;
+  /** the board setting `home_empty`: with no active notice the widget is absent (`hide`, the default) or shows one line (`line`) */
+  emptyMode: 'hide' | 'line';
 }
 
-export const NONE: NoticesWidgetData = { notices: null };
+export const NONE: NoticesWidgetData = { notices: null, emptyMode: 'hide' };
 export const MAX = 3;
 const SEV_RANK: Record<Severity, number> = { critical: 0, alert: 1, info: 2 };
 
-/** The widget is ABSENT unless the module is on and the read succeeded (an empty list still shows the widget with its empty line). */
-export function noticesWidgetAvailable(d: NoticesWidgetData, moduleOn: boolean): boolean {
+/** The widget is OFFERED (listed in the home editor and the personal list) when the module is on and the read succeeded. */
+export function noticesWidgetOffered(d: NoticesWidgetData, moduleOn: boolean): boolean {
   return moduleOn && d.notices !== null;
+}
+
+/** The widget is DRAWN when it is offered and there is something to say: an active notice, or the board setting asks for the empty line. */
+export function noticesWidgetAvailable(d: NoticesWidgetData, moduleOn: boolean): boolean {
+  return noticesWidgetOffered(d, moduleOn) && (widgetNotices(d.notices).length > 0 || d.emptyMode === 'line');
 }
 
 /** The notices the widget lists: active only, urgent first, then important, then the rest, each group in the server's order (pinned first). */

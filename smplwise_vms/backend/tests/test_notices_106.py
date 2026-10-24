@@ -554,3 +554,13 @@ def test_audience_options_list_the_named_areas_of_each_floor(client, settings):
     assert [(a["id"], a["floor"]) for a in opts["areas"]] == [("z-lobby", tree["floor2"]), ("z-gym", tree["floor3"])]
     bind(client, settings, "dana", "viewer", "installation", "*")
     assert client.get(f"{API}/notices/audience/options", headers=as_user("dana")).status_code == 403
+
+def test_home_empty_setting_defaults_to_hide_validates_and_reaches_readers(client, settings):
+    _on(client)
+    bind(client, settings, "dana", "viewer", "installation", "*")
+    assert client.get(f"{API}/notices/settings").json()["settings"]["home_empty"] == "hide"
+    assert client.get(f"{API}/notices", headers=as_user("dana")).json()["defaults"]["home_empty"] == "hide"
+    assert client.patch(f"{API}/notices/settings", json={"home_empty": "sometimes"}).status_code == 422
+    assert client.patch(f"{API}/notices/settings", json={"home_empty": "line"}).json()["settings"]["home_empty"] == "line"
+    assert client.get(f"{API}/notices", headers=as_user("dana")).json()["defaults"]["home_empty"] == "line"
+    assert client.patch(f"{API}/notices/settings", json={"home_empty": "hide"}, headers=as_user("dana")).status_code == 403

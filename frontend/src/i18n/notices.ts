@@ -297,6 +297,9 @@ const he = {
   widgetEmpty: 'אין הודעות פעילות',
   widgetNew: 'חדש',
   widgetUntil: 'עד {d}',
+  dHomeEmpty: 'ווידג׳ט בבית כשאין הודעות',
+  dHomeEmptyHide: 'להסתיר את הווידג׳ט',
+  dHomeEmptyLine: 'להציג שורה "אין הודעות פעילות"',
 };
 
 type Key = keyof typeof he;
@@ -320,6 +323,7 @@ const en: Partial<Record<Key, string>> = {
   places: 'Places', placeSelect: 'Place', allPlaces: 'Whole building', foldPlace: 'Collapse {name}', unfoldPlace: 'Expand {name}', readsOf: 'Who read: {title}', readsList: 'List',
   readsLoadError: 'The list could not be loaded', readsNone: 'No recipients', segReadShort: 'Read', segUnreadShort: 'Not read yet',colName: 'Name', colPlace: 'Place', colReadAt: 'Read', widgetAll: 'All', widgetEmpty: 'No active notices',
   widgetNew: 'New', widgetUntil: 'Until {d}',
+  dHomeEmpty: 'Home widget with no notices', dHomeEmptyHide: 'Hide the widget', dHomeEmptyLine: 'Show a "No active notices" line',
 };
 
 export type NtKey = Key;

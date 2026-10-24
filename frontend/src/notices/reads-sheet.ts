@@ -80,7 +80,7 @@ export class NoticeReads extends LitElement {
           <button aria-pressed=${String(this.seg === 'unread')} data-seg="unread" @click=${() => (this.seg = 'unread')}>${nt('unreadN', { n: v.unread })}</button></div>
         ${rows.length
           ? html`<div class="list"><table class="t" data-reads-table><thead><tr><th>${nt('colName')}</th><th>${nt('colPlace')}</th>${this.seg === 'read' ? html`<th>${nt('colReadAt')}</th>` : nothing}</tr></thead><tbody>
-              ${rows.map((r) => html`<tr data-reads-row><td><span class="t1">${r.name}</span></td><td class="mut">${r.place || '-'}</td>${this.seg === 'read' ? html`<td class="date num">${readAtText(r.at)}</td>` : nothing}</tr>`)}
+              ${rows.map((r) => html`<tr data-reads-row><td><span class="t1">${r.name}</span></td><td class="mut" data-reads-place>${r.place || nt('allPlaces')}</td>${this.seg === 'read' ? html`<td class="date num">${readAtText(r.at)}</td>` : nothing}</tr>`)}
             </tbody></table></div>`
           : html`<p class="mut" data-reads-none>${nt('readsNone')}</p>`}` : nothing}
     </div>`;

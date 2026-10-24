@@ -38,7 +38,7 @@ section 9, `docs/design/mockups/notice-106/index.html`, gap rows N1, N2, N3 of t
   list the widget only when it is available.
 - Default OFF / hidden: like every widget its stored config is `on: true`, but it is ABSENT (no card, no ghost in the editor) unless the module is
   on (`/me` modules.notices) and the read succeeded. With the module off no request is made at all. An empty list shows the widget with one line
-  "אין הודעות פעילות". The CR's "hide when empty" option was not built (no widget options, like doors / generators): see open questions.
+  "אין הודעות פעילות". Owner decision: with no active notice the widget is hidden (default) or shows one line, a board setting `notices.home_empty` (`hide` / `line`, in the existing settings store, no migration), chosen in הגדרות › לוח הודעות › ברירות מחדל (`notices/display-home.ts`). The editor and the personal list still offer the widget while it is hidden for emptiness, so it can be placed; the read of `GET /notices` carries the setting in `defaults.home_empty`.
 - A saved order from before this release keeps its look: the widget lands last.
 
 ### 4. Words and files
@@ -69,9 +69,8 @@ snapshot spec visits the notices page). None is refreshed; none is expected to c
 No migration. Rollback = revert the branch. A home config saved after this release may hold a `notices` entry; how the older validator treats
 that unknown key was not tested (NOT_RUN) - re-save the home config from the editor after a revert if the old build rejects it.
 
-## Open questions
-1. Home widget "hide when empty" (CR section 9, default on): not built. Today an empty board shows the check line. Build the option?
-2. Tree for readers: none (no audience data for them). Acceptable, or should the server return the place tags of the reader's notices?
-3. "Everyone" notices appear only under "כל הבניין", not under every floor (mockup rule). Should a floor also list the notices that reach it
-   through "everyone"?
-4. A person's "place" is the floor of his bindings; for building-wide staff it is empty ("-"). Is a different source wanted (a profile field)?
+## Owner answers (applied)
+1. Home widget when empty: a board setting, default hide (built).
+2. Readers get no places tree (kept).
+3. "Everyone" notices stay under "כל הבניין" only (kept).
+4. In the "who read" table a person with no floor binding shows "כל הבניין" (built).

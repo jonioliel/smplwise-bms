@@ -49,7 +49,7 @@ export interface NoticesList {
   notices: Notice[];
   can: NoticesCan;
   now: string;
-  defaults: { default_days: number; default_severity: 'info' | 'alert' };
+  defaults: { default_days: number; default_severity: 'info' | 'alert'; home_empty?: 'hide' | 'line' };
 }
 
 export interface Board {
@@ -73,6 +73,8 @@ export interface NoticesSettings {
   push_default: 'by_severity' | 'always' | 'never';
   reads_names: boolean;
   retention_days: number;
+  /** NOTICEPAGE-295: the home widget with no active notice - absent, or one line */
+  home_empty: 'hide' | 'line';
   boards_remote: boolean;
   boards_max: number;
   weather_entity: string;

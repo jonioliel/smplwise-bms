@@ -8,7 +8,7 @@ import { noticesModuleOn, NOTICES_HREF } from '../shell/nav';
 import { SEV_LOOK } from './model';
 import { MAX, NONE, noticeSubline, widgetNotices, type NoticesWidgetData } from './home-widget-model';
 
-export { noticesWidgetAvailable } from './home-widget-model';
+export { noticesWidgetAvailable, noticesWidgetOffered } from './home-widget-model';
 export type { NoticesWidgetData } from './home-widget-model';
 
 /**
@@ -36,7 +36,7 @@ export async function loadHomeNoticesChecked(): Promise<NoticesWidgetData | null
   if (!noticesModuleOn()) return NONE;
   try {
     const r = await listNotices('mine');
-    return { notices: r.notices };
+    return { notices: r.notices, emptyMode: r.defaults?.home_empty === 'line' ? 'line' : 'hide' };
   } catch (e) {
     if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return NONE;
     return null;
