@@ -183,7 +183,8 @@ def test_0089_keeps_every_outbox_row_and_widens_only_the_purposes(settings, tmp_
         assert conn.execute("SELECT count(*) FROM ticket_outbox").fetchone()[0] == 3
     rebuilds = sorted(f.name for f in real.glob("*.sql") if "CREATE TABLE ticket_outbox_new" in f.read_text(encoding="utf-8") and int(f.name[:4]) > 86)
     # CR-VENDORQ-294: exactly one LATER rebuild exists - the vendor-queue migration (the `report` purpose; renumbered at integration)
-    assert rebuilds[0] == "0089_ticket_rfq.sql" and len(rebuilds) == 2 and "_vendor_queue_documents" in rebuilds[1], rebuilds
+    # 2.16.0 integration: the intake migration adds the purpose `intake_reply` with the same pattern (0170, WA-intake); it follows the vendor-queue one
+    assert rebuilds[0] == "0089_ticket_rfq.sql" and len(rebuilds) == 3 and "_vendor_queue_documents" in rebuilds[1] and "_ticket_intake" in rebuilds[2], rebuilds
 
 
 # ---------------------------------------------------------------- visibility and the permission matrix
