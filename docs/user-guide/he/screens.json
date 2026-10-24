@@ -1831,5 +1831,59 @@
     "evidence_from": [
       "docs/design/evidence/nn5-f2/review-event-controls-desktop.png"
     ]
+  },
+  {
+    "id": "temperature-report-dialog",
+    "name_he": "דוח טמפרטורה - החלון",
+    "section": "infra",
+    "route": "#/infra/temperature",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "operator"
+    ],
+    "setup": [],
+    "caption_he": "חלון דוח הטמפרטורה (PDF) עם תצוגה מקדימה. פרטים ב-49-temperature-report_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/evidence/temperature/report-desktop.png"
+    ]
+  },
+  {
+    "id": "temperature-report-haccp",
+    "name_he": "דוח טמפרטורה - תאימות HACCP",
+    "section": "infra",
+    "route": "#/infra/temperature",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "operator"
+    ],
+    "setup": [],
+    "caption_he": "דוח תאימות HACCP עם הטבלה היומית. פרטים ב-49-temperature-report_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/evidence/temperature/p3-report-haccp-desktop.png"
+    ]
+  },
+  {
+    "id": "temperature-report-all-samples",
+    "name_he": "דוח טמפרטורה - כל הדגימות",
+    "section": "infra",
+    "route": "#/infra/temperature",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "operator"
+    ],
+    "setup": [],
+    "caption_he": "האפשרות \"פירוט כל הדגימות\". פרטים ב-49-temperature-report_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/evidence/temperature/temprep-samples-desktop.png"
+    ]
   }
 ]
