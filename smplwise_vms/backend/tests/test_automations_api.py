@@ -22,7 +22,10 @@ def test_status_for_the_administrator_and_for_nobody(autos_app):
     assert st["can"] == {"view": True, "manage": True, "scene_manage": True, "script_run": True, "script_manage": True, "code_view": True, "configure": True, "scene_run": True}
     assert st["delegation"] == {"on": False, "needed": False}
     assert st["scope"] == {"installation": True, "scoped": False, "floors": [], "areas": []}
-    assert st["ui"] == {"sensitive_warning": True, "ask_when_on_new": False, "templates_enabled": True, "phone_filter": "fold", "sensitive_chip": "amber"}
+    ui = dict(st["ui"])
+    ext = ui.pop("ext")  # KAV079-295: the editors' extension switches (additive), every one off by default
+    assert ui == {"sensitive_warning": True, "ask_when_on_new": False, "templates_enabled": True, "phone_filter": "fold", "sensitive_chip": "amber"}
+    assert not (ext["wall_buttons"] or ext["precheck"] or ext["device_test"] or ext["presence"])
     assert st["counts"]["automations"] == 18 and st["counts"]["scripts"] == 3 and st["counts"]["scenes"] == 22
     assert st["admin"]["bridge_version"] == "0.6.0" and st["admin"]["bridge_required"] == "0.6.0" and st["admin"]["caller_is_ha_admin"] is True and st["admin"]["config_api"] == "ok"
     bind(c, s, "vera", "viewer", "installation", "*")
