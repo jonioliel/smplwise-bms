@@ -236,8 +236,8 @@ test.describe('tab bar styles (mocked backend)', () => {
     await expect(ed.locator('[data-style-preview="1"]')).toHaveAttribute('data-variant', 'pill');
     // the rail has no bar style; every other section card has its own choice
     await expect(ed.locator('[data-style-row="areas"]')).toHaveCount(0);
-    // TABSET-293 added the multimedia, infrastructure (+ its electricity / generator page rows) and tickets cards: 8 -> 12
-    await expect(ed.locator('[data-style-section]')).toHaveCount(12);
+    // TABSET-293 added the multimedia, infrastructure (+ its electricity / generator page rows) and tickets cards: 8 -> 12; CR-WATER78 added the infra.water page row: 13
+    await expect(ed.locator('[data-style-section]')).toHaveCount(13);
     if (info.project.name === 'desktop') await shot(page, 'editor-styles', info);
     else await shot(page, 'editor-styles', info);
 

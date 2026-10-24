@@ -144,7 +144,7 @@ export class InvestigateIncidents extends LitElement {
     .map sw-plan-canvas { position: absolute; inset: 0; }
     .map .loc { position: absolute; inset: 0; display: grid; place-items: center; direction: rtl; color: var(--sw-text-2); font-size: var(--sw-fs-sm); text-align: center; padding: 12px; }
     .tiles { flex: 1; min-block-size: 0; display: grid; gap: 10px; padding: 0 16px 14px; }
-    .tile { position: relative; min-block-size: 0; min-inline-size: 0; border-radius: var(--sw-r-md); overflow: hidden; background: var(--sw-video-bg, #0b1020); cursor: pointer; }
+    .tile { position: relative; min-block-size: 0; min-inline-size: 0; border-radius: var(--sw-r-md); overflow: hidden; background: var(--sw-video-bg); cursor: pointer; }
     .tile.hot { box-shadow: 0 0 0 2px var(--sw-danger); }
     .tile sw-camera-tile { position: absolute; inset: 0; block-size: 100%; inline-size: 100%; }
     .tile .rel { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: var(--sw-video-scrim); color: var(--sw-on-video); font-size: var(--sw-fs-2xs); pointer-events: none; z-index: 1; }

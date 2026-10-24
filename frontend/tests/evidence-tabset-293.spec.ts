@@ -86,6 +86,8 @@ test.describe('TABSET-293: every section is ordered from the tabs settings', () 
     await expect(ed.locator('[data-tabs-offered="infra"]')).toHaveCount(1);
     const up = (sec: string, tab: string) => ed.locator(`li[data-sec="${sec}"][data-tab="${tab}"] .mv[data-move="up"]`);
     await up('infra', 'generator').scrollIntoViewIfNeeded();
+    // CR-WATER78 put the water page directly after the electricity meters, so the generator is the third tab now: two steps up to be first
+    await up('infra', 'generator').click();
     await up('infra', 'generator').click();
     await up('infra.generator', 'charts').scrollIntoViewIfNeeded();
     await up('infra.generator', 'charts').click();
@@ -97,7 +99,7 @@ test.describe('TABSET-293: every section is ordered from the tabs settings', () 
     await expect.poll(() => srv.patches.length).toBe(1);
     expect(srv.patches[0]).toEqual({
       'ui.tabs': {
-        infra: { order: ['generator', 'electricity', 'elevators', 'temperature'], hidden: [] },
+        infra: { order: ['generator', 'electricity', 'water', 'elevators', 'temperature'], hidden: [] },
         'infra.generator': { order: ['charts', 'live', 'alerts', 'history', 'log'], hidden: [] }, // GENLOG092-295: the run log is saved in the order too
       },
     });

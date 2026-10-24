@@ -54,7 +54,7 @@ export class TicketsIntakeChip extends LitElement {
     @media (max-width: 560px) { .grid { grid-template-columns: minmax(0, 1fr); } }
     .msg { white-space: pre-wrap; overflow-wrap: anywhere; padding: var(--sw-s-2) var(--sw-s-3); border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-sm); background: var(--sw-surface-2); }
-    .msg mark { background: var(--sw-accent-soft, var(--sw-surface-2)); color: inherit; border-block-end: 2px solid var(--sw-accent-text); }
+    .msg mark { background: var(--sw-accent-soft); color: inherit; border-block-end: 2px solid var(--sw-accent-text); }
     label.f { display: flex; flex-direction: column; gap: 2px; font-size: var(--sw-fs-sm); min-inline-size: 0; }
     label.f small { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
     label.f input, label.f select { inline-size: 100%; min-inline-size: 0; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--sw-border);

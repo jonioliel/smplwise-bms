@@ -78,7 +78,7 @@ export class SystemBrandInstaller extends LitElement {
     .sw-main { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-surface-2); }
     .sw-main .t { flex: 1; display: flex; flex-direction: column; gap: 1px; min-inline-size: 0; }
     .sw-main .t b { font-weight: var(--sw-fw-semibold); }
-    .tgl { all: unset; box-sizing: border-box; cursor: pointer; inline-size: 44px; block-size: 26px; border-radius: 13px; background: var(--sw-border-strong); position: relative; flex: none; }
+    .tgl { all: unset; box-sizing: border-box; cursor: pointer; inline-size: 44px; block-size: 26px; border-radius: var(--sw-r-pill); background: var(--sw-border-strong); position: relative; flex: none; }
     .tgl::after { content: ''; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 20px; block-size: 20px; border-radius: 50%; background: #fff; transition: inset-inline-start 120ms ease; }
     .tgl[aria-checked='true'] { background: var(--sw-toggle-on, var(--sw-accent)); }
     .tgl[aria-checked='true']::after { inset-inline-start: 21px; }

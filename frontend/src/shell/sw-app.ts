@@ -718,7 +718,7 @@ export class SwApp extends LitElement {
       inline-size: 8px;
       block-size: 8px;
       border-radius: 50%;
-      background: #fff;
+      background: var(--sw-text-inverse);
       animation: sw-evpulse 1.6s ease-in-out infinite;
     }
     @keyframes sw-evpulse { 50% { opacity: .35; } }
