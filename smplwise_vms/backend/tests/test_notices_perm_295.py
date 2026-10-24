@@ -61,7 +61,7 @@ def test_board_saved_before_the_migration_issues_its_link_once(client, settings)
     made = _board(client)
     bid, old = made["board"]["id"], made["token"]
     with Database(settings.db_path).connection() as c:
-        c.execute("UPDATE notice_boards SET token_sealed = NULL WHERE id = ?", (bid,))  # what a pre-0178 board looks like
+        c.execute("UPDATE notice_boards SET token_sealed = NULL WHERE id = ?", (bid,))  # what a pre-0173 board looks like
     assert client.get(f"{API}/notices/boards/{bid}").json()["board"]["has_stored_link"] is False
     miss = client.get(f"{API}/notices/boards/{bid}/link")
     assert miss.status_code == 409 and miss.json()["code"] == "no_stored_link"
