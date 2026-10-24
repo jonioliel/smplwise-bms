@@ -210,6 +210,16 @@ class _NotReady(Exception):
 class _Expired(Exception):
     """A physical action reached the feed's loop after its `not_after`: it is not sent."""
 
+
+class NotSent(Exception):
+    """WKINT-295: a `send` that proves nothing of its own frame left Arx (the native people write over WisKey's direct API refused
+    locally, or its transport proved not-sent). `code` is a short machine code. Raised only by services/wiskey_direct_join.py; the
+    Home Assistant path never raises it."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
 # ha_not_configured | idle | connecting | ha_unavailable | not_installed | forbidden | error | ready
 STATES = ("ha_not_configured", "idle", "connecting", "ha_unavailable", "not_installed", "forbidden", "error", "ready")
 
@@ -1374,6 +1384,9 @@ class IntercomSync:
             outcome = "not_sent"
         except _Expired:
             reply.update(state="error", last_error="expired")
+            outcome = "not_sent"
+        except NotSent as exc:  # WKINT-295: only the direct people-write send raises it
+            reply.update(state="error", last_error=exc.code)
             outcome = "not_sent"
         except intercom_client.UnclearAnswer as exc:
             reply.update(state="error", last_error=exc.code)  # outcome stays "unknown"

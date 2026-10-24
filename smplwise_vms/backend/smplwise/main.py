@@ -899,6 +899,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # earlier process holds the next write to that person until a fresh readback) - installed before the feed can send anything
         intercom_sync.SYNC.journal = intercom_write_journal.WriteJournal(app.state.db)
         intercom_sync.SYNC.start(settings)  # CR-005: WisKey entry-center feed (read-only)
+        from .services import wiskey_direct_join
+
+        # WKINT-295: WisKey's direct API behind the people-write / capture / template ports - installed ONLY when the installation chose
+        # `access.station_media_provider = auto` AND the pairing key signs (else nothing at all: no lineage, no transport, no thread);
+        # one lineage per process, its scope recovered once the direct socket authenticates (in the background, never blocking start)
+        _wkjoin = await run_in_threadpool(wiskey_direct_join.startup, app.state.db, settings)
+        if _wkjoin is not None:
+            threading.Thread(target=_wkjoin.recover_now, name="wiskey-join-recover", daemon=True).start()
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.start(app.state.db, settings)  # CR-023: one poll a minute of the meters from the state mirror (read-only)
@@ -1048,6 +1056,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import intercom_consent, intercom_sync
 
         intercom_consent.RELEASER.stop()  # WA-CONSENT-LINK: no new release starts; due rows stay due for the next start
+        from .services import wiskey_direct_join as _wkj
+
+        _wkj.shutdown()  # WKINT-295: the existing transports come back; the lineage closes (a no-op when nothing was installed)
         intercom_sync.SYNC.shutdown()
         intercom_sync.SYNC.journal = None  # R5-A6: nothing is sent after shutdown; unresolved rows stay for the next process
         from .services import energy_sampler

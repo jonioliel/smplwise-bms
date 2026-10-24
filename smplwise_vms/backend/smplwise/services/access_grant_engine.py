@@ -663,8 +663,15 @@ class WiskeyServiceEngine:
         """One people write. With `person_id` (every write to an existing person) an `unknown` outcome blocks the next write to that
         person until `get_person` has read it fresh (WisKey round 3, R3-06): that write is refused here as `not_sent`
         (`outcome_pending` / `readback_required`), never replayed."""
-        from . import intercom_sync
+        from . import intercom_sync, wiskey_direct_join
 
+        # WKINT-295: while WisKey's direct API is selected, people writes go through the native writer (services/wiskey_native_write.py),
+        # whose contract needs a HUMAN actor in an active interactive session. This engine acts as `system:access_grants`, so it cannot
+        # make a native write: refused here, nothing sent (never a silent second path to the same WisKey). Without the join (no usable
+        # key, or `local`) this is skipped and the write below runs exactly as before.
+        join = wiskey_direct_join.installed()
+        if join is not None and join.selected():
+            raise EngineError("not_sent", "native_human_actor_required")
         target = intercom_sync.person_target(person_id) if person_id is not None else None
         try:
             reply = intercom_sync.SYNC.action(self.settings, "person", send, person_from_raw_dict, self.WHO, lane="config", target=target)

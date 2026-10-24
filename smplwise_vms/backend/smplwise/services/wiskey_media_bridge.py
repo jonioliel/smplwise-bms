@@ -53,6 +53,10 @@ MAX_SIGNED_BYTES = 1_048_576  # WisKey's canonical-body ceiling
 MAX_RESULT_BYTES = 256 * 1024
 PURPOSE_VIDEO = "video"
 PURPOSE_TALK = "talk"
+# WKINT-295: the one generic command connection of services/wiskey_direct_join.py (people writes, capture lease, features, templates).
+# Only DirectApiTransport accepts it; the media code never asks for it.
+PURPOSE_COMMAND = "command"
+PEER_QUERY_KIND = "wiskey-peer-query.v1"  # DIRECT_API_V1.md: peer query commands keep the existing signed peer-query envelope
 ERROR_CODE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 
 
@@ -172,6 +176,33 @@ def verify_result(message: Any) -> dict[str, Any]:
             raise MediaBridgeError("invalid_response")
     except (TypeError, ValueError):
         raise MediaBridgeError("invalid_response") from None
+    return result
+
+
+def _strict_ns(value: Any) -> None:
+    """`_strict` for a generic command: a value WisKey's canonical body refuses is refused here, before anything is written."""
+    try:
+        _strict(value)
+    except MediaBridgeError as exc:
+        raise MediaBridgeError(exc.code, "not_sent") from None
+
+
+def verify_command_result(message: Any, kind: str = KIND) -> dict[str, Any]:
+    """WKINT-295: the answer to one generic command (an already MAC-verified, id-correlated frame) -> its `result`. A verified
+    `{success: false, error: {code}}` is `refused` with WisKey's code (a code outside the closed alphabet is `provider_error`); any
+    other shape - and a `bridge_schema` naming another envelope than the one sent - is `invalid_response`, outcome `unknown`."""
+    if not isinstance(message, dict) or message.get("type") != "result" or not isinstance(message.get("success"), bool):
+        raise MediaBridgeError("invalid_response", "unknown")
+    if message["success"] is False:
+        error = message.get("error")
+        code = error.get("code") if isinstance(error, dict) else None
+        raise MediaBridgeError(code if isinstance(code, str) and ERROR_CODE_RE.fullmatch(code) else "provider_error", "refused")
+    schema = message.get("bridge_schema")
+    if schema is not None and schema != kind:
+        raise MediaBridgeError("invalid_response", "unknown")
+    result = message.get("result")
+    if not isinstance(result, dict):
+        raise MediaBridgeError("invalid_response", "unknown")
     return result
 
 
@@ -543,6 +574,82 @@ class DirectLink:
             raise MediaBridgeError("invalid_response", "unknown")
         return verify_result(frame)
 
+    # -- WKINT-295: one generic signed command on this connection (services/wiskey_direct_join.py) -------------------------------------
+    def signed_body(self, command: str, parameters: dict[str, Any], *, kind: str = KIND) -> dict[str, Any]:
+        """The closed signed `bridge` object of ANY public command (not only the six W10 ones): kind (`wiskey-bridge-command.v1`, or
+        `wiskey-peer-query.v1` for the peer reads), the command WITHOUT the `hikvision_intercom/` prefix, this connection's service
+        query_owner_id, issued_at / expires_at (this link's window), the parameters unchanged, ts / nonce / sig by the existing recipe
+        (`ha_bridge.sign`). Raises MediaBridgeError (outcome `not_sent`) when it cannot be built - nothing is written then."""
+        from . import ha_bridge
+
+        if kind not in (KIND, PEER_QUERY_KIND) or not isinstance(command, str) or command.startswith(TYPE_PREFIX) or not _PRINTABLE_RE.fullmatch(command):
+            raise MediaBridgeError("proof_invalid", "not_sent")
+        if not isinstance(parameters, dict):
+            raise MediaBridgeError("proof_invalid", "not_sent")
+        _strict_ns(parameters)
+        now = int(self.signer._clock())
+        body = {"kind": kind, "command": command, "query_owner_id": self.query_owner_id, "issued_at": _iso(now),
+                "expires_at": _iso(now + self._window_s), "parameters": parameters}
+        try:
+            signed = ha_bridge.sign(_key_text(self._key), body, ts=now)
+        except MediaBridgeError as exc:
+            raise MediaBridgeError(exc.code, "not_sent") from None
+        return signed
+
+    async def call_command(self, command: str, parameters: dict[str, Any], *, kind: str = KIND, timeout: float) -> dict[str, Any]:
+        """One signed request of any public command; the `result` of its reply once the reply's MAC + connection_ref (reader) and its
+        id (here) are verified. Failure: MediaBridgeError whose `outcome` is exactly one of
+          `not_sent` - proven: no byte of THIS frame was handed to the socket (closed link, full queue, unsignable, oversize);
+          `refused` - a verified error frame for this id (`code` = WisKey's code);
+          `unknown` - anything once the write may have begun (send failure, timeout, connection lost, unverifiable frame).
+        Never retried, never re-sent on another connection."""
+        if self._closed:
+            raise MediaBridgeError("connection_closed", "not_sent")
+        if len(self._pending) >= DIRECT_MAX_PENDING:
+            raise MediaBridgeError("direct_output_capacity", "not_sent")
+        if self._next_id > DIRECT_MAX_ID:
+            raise MediaBridgeError("connection_exhausted", "not_sent")
+        proof = self.signed_body(command, parameters, kind=kind)
+        mid = self._next_id
+        text = json.dumps({"id": mid, "type": TYPE_PREFIX + command, "bridge": proof}, separators=(",", ":"), ensure_ascii=False)
+        if len(text.encode("utf-8")) > DIRECT_MAX_FRAME_BYTES:
+            raise MediaBridgeError("request_too_large", "not_sent")
+        self._next_id += 1
+        fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
+        self._pending[mid] = (command, fut)
+        started = False
+        try:
+            async with self._send_lock:
+                if self._closed:
+                    raise MediaBridgeError("connection_closed", "not_sent")
+                started = True  # from here a byte of the frame may have reached the socket
+                await self._socket.send(text)
+        except MediaBridgeError:
+            self._pending.pop(mid, None)
+            raise
+        except asyncio.CancelledError:
+            self._pending.pop(mid, None)
+            raise
+        except Exception as exc:  # noqa: BLE001 - a dead socket during the write: this request's outcome is unknown
+            self._pending.pop(mid, None)
+            log.info("wiskey direct: send failed (%s)", type(exc).__name__)
+            if not self._closed:
+                await self._shutdown("connection_closed")
+            raise MediaBridgeError("connection_closed", "unknown" if started else "not_sent") from None
+        try:
+            frame = await asyncio.wait_for(asyncio.shield(fut), timeout)
+        except asyncio.TimeoutError:
+            self._pending.pop(mid, None)  # a late answer is dropped by the reader, never re-attributed
+            raise MediaBridgeError("outcome_unknown", "unknown") from None
+        except MediaBridgeError as exc:  # the connection ended (or a frame failed its MAC) while this request was out
+            raise MediaBridgeError(exc.code, "unknown") from None
+        except asyncio.CancelledError:
+            self._pending.pop(mid, None)
+            raise
+        if frame.get("id") != mid:
+            raise MediaBridgeError("invalid_response", "unknown")
+        return verify_command_result(frame, kind)
+
     def set_event_handler(self, handler: Callable[[dict[str, Any]], None] | None) -> None:
         self._event_handler = handler
 
@@ -598,7 +705,7 @@ class DirectApiTransport:
         return key
 
     async def connect(self, purpose: str) -> MediaLink:
-        if purpose not in (PURPOSE_VIDEO, PURPOSE_TALK):
+        if purpose not in (PURPOSE_VIDEO, PURPOSE_TALK, PURPOSE_COMMAND):
             raise MediaBridgeError("purpose_invalid")
         key = self._key()
         try:

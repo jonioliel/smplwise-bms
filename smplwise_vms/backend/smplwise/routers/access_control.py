@@ -1284,6 +1284,33 @@ def gated(act: "_Action", conn: sqlite3.Connection, check: Callable[[], Any]) ->
         raise act.refuse(exc) from None
 
 
+def native_targets(stations: Any) -> list[tuple[str, str]]:
+    """WKINT-295: the RBAC targets of the native write's fresh Arx decision - every station the station-scope gate covered, or the
+    installation itself when the gate took the unrestricted shortcut (no station list)."""
+    ids = [s for s in dict.fromkeys(stations or []) if isinstance(s, str) and s]
+    return [(ia.STATION_SCOPE, s) for s in ids] or [INSTALLATION]
+
+
+def people_send(act: "_Action", conn: sqlite3.Connection, command: str, business: dict[str, Any], fallback: Callable[[intercom_client.Call], Any], *,
+                stations: Any, create_origin_ref: str | None = None) -> Callable[[intercom_client.Call], Any]:
+    """WKINT-295: the people write's `send`. With WisKey's direct API selected (services/wiskey_direct_join.py: `access.station_media_provider
+    = auto`, a pairing key that signs and an authenticated direct socket) it is the NATIVE write (services/wiskey_native_write.py:
+    durable intent, signed command, verified receipt, UNKNOWN never re-sent); otherwise `fallback` - the Home Assistant send, unchanged.
+    Without an installed join (no usable key, or `local`) nothing here runs at all. The selection may open the direct socket, so it
+    runs with the request's write lock released."""
+    from ..services import wiskey_direct_join
+
+    if wiskey_direct_join.installed() is None:
+        return fallback
+    with unlocked(conn):
+        native = wiskey_direct_join.people_send(conn, act.principal, command, business, targets=native_targets(stations),
+                                                create_origin_ref=create_origin_ref)
+    if native is None:
+        return fallback
+    act.details["transport"] = "wiskey_direct"
+    return native
+
+
 @router.get("/intercom/people-editor/context")
 def people_editor_context(request: Request, auth: ia.Authority = Depends(people_writer())) -> dict[str, Any]:
     """What the editor needs from WisKey's `overview` beyond the entry center (intercom_sync.project_editor_context):
@@ -1412,7 +1439,9 @@ def person_create(request: Request, auth: ia.Authority = Depends(people_writer()
         iw.gate_create(auth, iw.draft_stations(data), sensitive=iw.sensitive_write(auth, data))
     except ApiError as exc:
         raise act.refuse(exc) from None
-    reply = _perform(act, "person", lambda call: intercom_client.users_create(call, data, body.sync_now), iw.project_editor, not_after, lane="config", summary=_person_summary)
+    send = people_send(act, conn, "users/create", {"data": data, "sync_now": body.sync_now}, lambda call: intercom_client.users_create(call, data, body.sync_now),
+                       stations=iw.draft_stations(data), create_origin_ref=f"arx-create:{body.client_request_id}")
+    reply = _perform(act, "person", send, iw.project_editor, not_after, lane="config", summary=_person_summary)
     reply["person"] = iw.view_editor_person(auth, reply["person"])
     reply["note"] = SAVE_NOTE
     reply.update(iw.effect_fields("users/create"))
@@ -1436,9 +1465,12 @@ def person_update(request: Request, user_id: str, auth: ia.Authority = Depends(p
         raise act.refuse(ApiError(422, "validation", "אין שינוי לשמור.", details={"fields": ["data"]}))
     act.details.update(sync_now=body.sync_now, **_write_summary(data), **iw.effect_fields("users/update"))
     settings = settings_of(request)
-    gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, after=iw.draft_stations(data), sensitive=iw.sensitive_write(auth, data), revision=body.revision))
+    gate = gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, after=iw.draft_stations(data), sensitive=iw.sensitive_write(auth, data), revision=body.revision))
     not_after = _envelope(act, body)  # expiry and duplicate under the write lock again, right before the attempt row
-    reply = _perform(act, "person", lambda call: intercom_client.users_update(call, user_id, body.revision, data, body.sync_now), iw.project_editor, not_after, lane="config", summary=_person_summary,
+    send = people_send(act, conn, "users/update", {"user_id": user_id, "revision": body.revision, "data": data, "sync_now": body.sync_now},
+                       lambda call: intercom_client.users_update(call, user_id, body.revision, data, body.sync_now),
+                       stations=None if getattr(gate, "stations", None) is None else [*gate.stations, *iw.draft_stations(data)])
+    reply = _perform(act, "person", send, iw.project_editor, not_after, lane="config", summary=_person_summary,
                      target=intercom_sync.person_target(user_id))
     reply["person"] = iw.view_editor_person(auth, reply["person"])
     reply["note"] = SAVE_NOTE
@@ -1463,9 +1495,11 @@ def person_delete(request: Request, user_id: str, auth: ia.Authority = Depends(p
         _envelope(act, body)  # an expired or duplicate command is refused as such first (the order the rows always had)
         raise act.refuse(ApiError(409, "confirmation_required", "מחיקת אדם דורשת אישור מפורש."))
     settings = settings_of(request)
-    gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, revision=body.revision))
+    gate = gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, revision=body.revision))
     not_after = _envelope(act, body)
-    reply = _perform(act, "deleted", lambda call: intercom_client.users_delete(call, user_id, body.revision), intercom_sync.project_accepted, not_after, lane="config",
+    send = people_send(act, conn, "users/delete", {"user_id": user_id, "revision": body.revision},
+                       lambda call: intercom_client.users_delete(call, user_id, body.revision), stations=getattr(gate, "stations", None))
+    reply = _perform(act, "deleted", send, intercom_sync.project_accepted, not_after, lane="config",
                      target=intercom_sync.person_target(user_id))
     reply["note"] = "WisKey קיבל את המחיקה. ההסרה מכל תחנה (גם מנותקת) מתוזמנת על ידי WisKey ואינה מיידית."
     reply.update(iw.effect_fields("users/delete"))

@@ -235,6 +235,25 @@ class UnwiredTransport:
         return {"state": "not_sent", "code": "template_unsupported"}
 
 
+# WKINT-295: the process-wide transport a TemplateSender built WITHOUT an explicit transport uses at send time. None (the default, and
+# always without a usable pairing key or with `access.station_media_provider = local`) keeps `UnwiredTransport` - exactly the behaviour
+# before. services/wiskey_direct_join.py installs a provider that returns its `DirectTemplateTransport` only while the direct path is
+# selected (else None). The switch / permit gates above it (TEMPLATE_SEND_SUPPORTED) are untouched.
+TRANSPORT_PROVIDER: Callable[[], "TemplateTransport | None"] | None = None
+
+
+def installed_transport() -> "TemplateTransport":
+    provider = TRANSPORT_PROVIDER
+    if provider is not None:
+        try:
+            chosen = provider()
+        except Exception:  # noqa: BLE001 - an unreadable selection keeps the unwired transport (nothing leaves)
+            chosen = None
+        if chosen is not None:
+            return chosen
+    return UnwiredTransport()
+
+
 def closed_result(version: int, state: str, code: str, provider_accepted: bool | None) -> dict[str, Any]:
     """A closed six-key result of `version` (tests and fakes)."""
     return {"schema_version": version, "state": state, "code": code, "provider_accepted": provider_accepted, "delivery": "unknown",
@@ -345,6 +364,7 @@ class TemplateSender:
     def __init__(self, transport: TemplateTransport | None = None, *, registry: Callable[[], list[TemplateRef]], switch: Callable[[], bool],
                  permit_fn: Callable[[], bool] = permit, pacer: wa_pacing.WaPacer | None = None, pacing_for: Callable[[str], Any] | None = None,
                  clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.timezone.utc)) -> None:
+        self._explicit = transport is not None  # WKINT-295: without one, the installed transport is read at send time
         self.transport = transport or UnwiredTransport()
         self._registry, self._switch, self._permit = registry, switch, permit_fn
         self._pacer, self._pacing_for, self._clock = pacer, pacing_for, clock
@@ -378,7 +398,8 @@ class TemplateSender:
             return refused or _refuse("template_unsupported")
         if not needs_template(window) and tpl.purpose != "consent_request":  # F3C TP-04
             return _refuse("window_open")  # the caller should have chosen free text; a template inside the window is not Arx's decision to make here
-        if isinstance(self.transport, UnwiredTransport):
+        transport = self.transport if self._explicit else installed_transport()
+        if isinstance(transport, UnwiredTransport):
             return _refuse("template_unsupported")  # nothing is wired: refused before any hand-over (there is no answer to read)
         now = self._clock()
         req = TemplateRequest(request_id, account, person_id, tpl.name, tpl.language, tuple(values[s] for s in tpl.params), now + dt.timedelta(seconds=15),
@@ -386,7 +407,7 @@ class TemplateSender:
         if wire_problem(req) is not None:
             return _refuse("invalid_fields")  # outside template_send_v1's bounds: refused before the hand-over, nothing leaves
         try:
-            raw = self.transport.send_template(req)
+            raw = transport.send_template(req)
         except Exception as exc:  # noqa: BLE001 - an exception after the hand-over may have left: unknown, never retried
             log.warning("template send: the transport failed after the hand-over (%s)", type(exc).__name__)
             raw = {"state": "unknown", "code": "transport_error"}

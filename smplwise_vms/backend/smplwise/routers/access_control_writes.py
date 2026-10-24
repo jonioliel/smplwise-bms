@@ -43,6 +43,7 @@ from .access_control import (
     _person_summary,
     _raw_body,
     gated,
+    people_send,
     people_writer,
 )
 
@@ -104,6 +105,7 @@ def _write(
     *,
     sensitive: bool = False,
     confirm: str | None = None,
+    native: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The shared path: the envelope's ids recorded, the confirmation (when the action asks for one), the station-scope gate (a
     WisKey read with the write lock released, unless the caller is unrestricted), expiry and duplicate under the lock again, then
@@ -113,8 +115,10 @@ def _write(
         _envelope(act, body)  # an expired or duplicate command is refused as such first
         raise act.refuse(ApiError(409, "confirmation_required", confirm))
     settings = settings_of(request)
-    gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, sensitive=sensitive, revision=body.revision))
+    gate = gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, sensitive=sensitive, revision=body.revision))
     not_after = _envelope(act, body)
+    if native is not None:  # WKINT-295: the native write when WisKey's direct API is selected, else `send` unchanged
+        send = people_send(act, conn, command, native, send, stations=getattr(gate, "stations", None))
     reply = _perform(act, "person", send, iw.project_editor, not_after, lane="config", summary=_person_summary, target=intercom_sync.person_target(user_id))
     reply["person"] = iw.view_editor_person(auth, reply["person"])
     reply.update(iw.effect_fields(command))
@@ -131,7 +135,7 @@ def person_archive(request: Request, user_id: str = Path(min_length=1, max_lengt
     act = _Action(request, conn, auth.principal, "intercom.person.archive", user_id, PERSON)
     body: ArchiveBody = _parse(act, ArchiveBody, raw)
     return _write(request, auth, conn, act, body, user_id, "users/archive", lambda call: intercom_client.users_archive(call, user_id, body.revision, True),
-                  confirm="העברת אדם לארכיון דורשת אישור מפורש.")
+                  native={"user_id": user_id, "revision": body.revision, "confirmed": True}, confirm="העברת אדם לארכיון דורשת אישור מפורש.")
 
 
 @router.post("/intercom/people/{user_id}/unarchive")
@@ -142,7 +146,7 @@ def person_unarchive(request: Request, user_id: str = Path(min_length=1, max_len
     act = _Action(request, conn, auth.principal, "intercom.person.unarchive", user_id, PERSON)
     body: ArchiveBody = _parse(act, ArchiveBody, raw)
     return _write(request, auth, conn, act, body, user_id, "users/unarchive", lambda call: intercom_client.users_archive(call, user_id, body.revision, False),
-                  confirm="שחזור אדם מהארכיון דורש אישור מפורש.")
+                  native={"user_id": user_id, "revision": body.revision, "confirmed": True}, confirm="שחזור אדם מהארכיון דורש אישור מפורש.")
 
 
 @router.post("/intercom/people/{user_id}/active")
@@ -153,7 +157,8 @@ def person_set_active(request: Request, user_id: str = Path(min_length=1, max_le
     act = _Action(request, conn, auth.principal, "intercom.person.set_active", user_id, PERSON)
     body: ActiveBody = _parse(act, ActiveBody, raw)
     act.details["active"] = body.active  # the logical action (on / off), not a value of the person's
-    return _write(request, auth, conn, act, body, user_id, "users/set_active", lambda call: intercom_client.users_set_active(call, user_id, body.revision, body.active))
+    return _write(request, auth, conn, act, body, user_id, "users/set_active", lambda call: intercom_client.users_set_active(call, user_id, body.revision, body.active),
+                  native={"user_id": user_id, "revision": body.revision, "active": body.active})
 
 
 @router.post("/intercom/people/{user_id}/temporary-cancel")
@@ -166,7 +171,8 @@ def person_temporary_cancel(request: Request, user_id: str = Path(min_length=1, 
     body: TemporaryCancelBody = _parse(act, TemporaryCancelBody, raw)
     act.details["reason_code"] = body.reason_code  # one of three fixed codes (the reason class, no free text)
     return _write(request, auth, conn, act, body, user_id, "users/temporary_cancel",
-                  lambda call: intercom_client.users_temporary_cancel(call, user_id, body.revision, body.reason_code), confirm="סיום גישה זמנית דורש אישור מפורש.")
+                  lambda call: intercom_client.users_temporary_cancel(call, user_id, body.revision, body.reason_code),
+                  native={"user_id": user_id, "revision": body.revision, "reason_code": body.reason_code}, confirm="סיום גישה זמנית דורש אישור מפורש.")
 
 
 @router.post("/intercom/people/{user_id}/cards")
@@ -178,7 +184,8 @@ def person_card_add(request: Request, user_id: str = Path(min_length=1, max_leng
     act = _Action(request, conn, auth.principal, "intercom.person.card_add", user_id, PERSON)
     body: CardAddBody = _parse(act, CardAddBody, raw)
     card = {"card_no": body.card_no, "label": body.label, "card_type": "normalCard", "enabled": body.enabled}
-    return _write(request, auth, conn, act, body, user_id, "cards/add", lambda call: intercom_client.cards_add(call, user_id, body.revision, card), sensitive=True)
+    return _write(request, auth, conn, act, body, user_id, "cards/add", lambda call: intercom_client.cards_add(call, user_id, body.revision, card), sensitive=True,
+                  native={"user_id": user_id, "revision": body.revision, "data": card})
 
 
 @router.post("/intercom/people/{user_id}/cards/{card_id}/remove")
@@ -193,7 +200,7 @@ def person_card_remove(request: Request, user_id: str = Path(min_length=1, max_l
         raise act.refuse(ApiError(422, "validation", "מזהה הכרטיס אינו תקין.", details={"fields": ["card_id"]}))
     act.details["card_id"] = card_id  # the logical target (WisKey's card id), never a number
     return _write(request, auth, conn, act, body, user_id, "cards/remove", lambda call: intercom_client.cards_remove(call, user_id, body.revision, card_id),
-                  sensitive=True, confirm="הסרת כרטיס דורשת אישור מפורש.")
+                  sensitive=True, native={"user_id": user_id, "revision": body.revision, "card_id": card_id}, confirm="הסרת כרטיס דורשת אישור מפורש.")
 
 
 @router.put("/intercom/people/{user_id}/photo")
@@ -208,4 +215,5 @@ def person_photo_set(request: Request, user_id: str = Path(min_length=1, max_len
     act.details.update(sync_now=body.sync_now, change="removed" if body.photo is None else "set")
     data = {"photo": body.photo}
     return _write(request, auth, conn, act, body, user_id, "users/update",
-                  lambda call: intercom_client.users_update(call, user_id, body.revision, data, body.sync_now), sensitive=True)
+                  lambda call: intercom_client.users_update(call, user_id, body.revision, data, body.sync_now), sensitive=True,
+                  native={"user_id": user_id, "revision": body.revision, "data": data, "sync_now": body.sync_now})
