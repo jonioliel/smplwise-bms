@@ -115,7 +115,7 @@ def lease_world(settings, monkeypatch) -> LeaseWorld:
     with db.connection() as conn:
         set_setting(conn, "bridge.secret", TEST_SECRET)
         set_setting(conn, "bridge.paired_at", "2026-10-16T11:00:00Z")
-        set_setting(conn, "bridge.integration_version", "0.9.9")
+        set_setting(conn, "bridge.integration_version", "0.10.0")
         set_setting(conn, "installation_id", "arx-installation-1")
         set_setting(conn, cl.FLAG_KEY, "on")
     monkeypatch.setattr(cl, "MIN_BRIDGE_FOR_CAPTURE_LEASE", "0.9.0")
