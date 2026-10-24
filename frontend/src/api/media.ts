@@ -129,6 +129,9 @@ export interface ProductSettings {
   'ui.kiosk_cols'?: number | string;
   'ui.kiosk_rows'?: number | string;
   'ui.hide_search'?: string;
+  /** TOPPILL-295: the pill's search: off (default) | admins | roles | all; `roles` reads ui.global_search_roles (comma-separated role ids). */
+  'ui.global_search'?: 'off' | 'admins' | 'roles' | 'all';
+  'ui.global_search_roles'?: string;
   /** Screen the UI opens on (0.1.68): explore | live | wall | events | playback. */
   'ui.start_route'?: string;
   /** 'true' hides the map area from the navigation for everyone (0.1.68). */
@@ -246,7 +249,7 @@ export interface ProductSettings {
 }
 
 /** `nvr_channels`: the recorder's channel capacity when known; `warnings`: advisory only, never blocks a save. */
-export type SettingsResponse = { settings: ProductSettings; can_edit: boolean; nvr_channels?: number | null; warnings?: { key: string; message: string }[] };
+export type SettingsResponse = { settings: ProductSettings; can_edit: boolean; /** TOPPILL-295: this caller may use the global search */ search_allowed?: boolean; nvr_channels?: number | null; warnings?: { key: string; message: string }[] };
 export const getSettings = () => get<SettingsResponse>('settings');
 export const patchSettings = (body: Partial<ProductSettings>) => patch<SettingsResponse>('settings', body);
 

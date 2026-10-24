@@ -9,7 +9,7 @@ import datetime as dt
 from dataclasses import replace
 
 import pytest
-from conftest import as_user, bind, png_bytes, seed_tree
+from conftest import enable_search, as_user, bind, png_bytes, seed_tree
 from fastapi.testclient import TestClient
 
 from smplwise.errors import ApiError
@@ -131,6 +131,7 @@ def test_global_search_finds_objects_of_published_documents(settings):
     objects = [OBJ("x1", "extinguisher.co2", (0.15, 0.8), label="מטף כניסה", size={"w_m": 0.2, "d_m": 0.2, "h_m": 0.6}, z_m=0.9),
                OBJ("x2", "chair.basic", (0.2, 0.2), size={"w_m": 0.45, "d_m": 0.45, "h_m": 0.85}, z_m=0)]
     _publish(c, vid, objects=objects)
+    enable_search(c)
     r = c.get("/api/v1/search?q=מטף").json()
     hits = [x for x in r["results"] if x["kind"] == "object"]
     assert len(hits) == 1 and r["counts"]["object"] == 1

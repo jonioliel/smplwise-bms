@@ -45,6 +45,11 @@ DEFAULTS: dict[str, str] = {
     "ui.kiosk_cols": "3",  # kiosk page layout when the URL carries none
     "ui.kiosk_rows": "2",
     "ui.hide_search": "false",  # hide the AI search tab (the owner's choice while it is not in use)
+    # TOPPILL-295 (owner 2026-10-24): the search button in the top-left pill. OFF by default - a search is a way to reach places a person
+    # was not sent to. `ui.global_search` = off | admins | roles | all; `roles` reads `ui.global_search_roles` (comma-separated role ids).
+    # A system administrator (system.configure) always passes while it is on. Enforced by GET /search, not only by hiding the button.
+    "ui.global_search": "off",
+    "ui.global_search_roles": "",
     # screen the UI opens on: explore (map) | live (overview) | wall | events | playback | devices ("ראשי", the device overview).
     # CR-013 (owner request 2026-09-29): "ראשי" is the default landing screen; an administrator's saved choice still wins.
     "ui.start_route": "devices",
@@ -709,6 +714,8 @@ class SettingsPatch(BaseModel):
     ui_kiosk_cols: int | None = Field(default=None, ge=1, le=6, alias="ui.kiosk_cols")
     ui_kiosk_rows: int | None = Field(default=None, ge=1, le=5, alias="ui.kiosk_rows")
     ui_hide_search: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_search")
+    ui_global_search: str | None = Field(default=None, pattern="^(off|admins|roles|all)$", alias="ui.global_search")
+    ui_global_search_roles: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_.\-]+(,[A-Za-z0-9_.\-]+)*$|^$", max_length=600, alias="ui.global_search_roles")
     ui_start_route: str | None = Field(default=None, pattern="^(explore|live|wall|events|playback|devices)$", alias="ui.start_route")
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
     ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
@@ -936,7 +943,9 @@ def _capacity_info(conn: sqlite3.Connection) -> dict[str, Any]:
 @router.get("/settings")
 def get_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     can_edit = authorize(conn, principal, "system.configure", INSTALLATION).allowed
-    return {"settings": read_settings(conn, private=can_edit), "can_edit": can_edit, **_capacity_info(conn)}
+    from .search import search_allowed
+
+    return {"settings": read_settings(conn, private=can_edit), "can_edit": can_edit, "search_allowed": search_allowed(conn, principal), **_capacity_info(conn)}
 
 
 LOCAL_ONLY_IDENTITY_KEYS = ("security.local_public_url", "security.local_passkey_first", "security.local_passkey_android")

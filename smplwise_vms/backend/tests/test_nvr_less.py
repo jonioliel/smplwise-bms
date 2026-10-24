@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import as_user, bind, png_bytes, seed_tree, sw_time_factor
+from conftest import enable_search, as_user, bind, png_bytes, seed_tree, sw_time_factor
 from fastapi.testclient import TestClient
 
 from smplwise.db import Database, now_iso, set_setting
@@ -400,6 +400,7 @@ def test_local_reads_and_the_rest_of_the_product_keep_working(ha_only):
     c = TestClient(create_app(ha_only))
     ids = seed_tree(c)
     publish_plan(c, ids["floor2"])
+    enable_search(c)
     for path in ("/api/v1/cameras", "/api/v1/events", "/api/v1/exports", "/api/v1/cases", "/api/v1/storage", "/api/v1/storage/local", "/api/v1/devices/tree",
                  "/api/v1/nvr/connection", "/api/v1/backups", "/api/v1/sites", f"/api/v1/floors/{ids['floor2']}/map", "/api/v1/search?q=קומה"):
         r = c.get(path)

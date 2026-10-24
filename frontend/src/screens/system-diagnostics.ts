@@ -14,6 +14,9 @@ import '../components/sw-remote-sessions';
 import '../components/sw-csp-reports';
 import '../components/recorder-health-panel'; // CR-026: per-recorder health cards and thresholds (בריאות ועבודות)
 import '../components/camera-image-health-settings'; // CAMHEALTH091: the camera picture check (off by default), its thresholds and recipients
+import '../components/sw-search-access';
+import { sa } from '../i18n/search-access';
+import { parseSearchRoles, searchModeOf } from '../api/search-access';
 import '../components/sw-offbox-backup'; // DATASTORE-295 phase 2: off-box copies, encryption key, restore drill
 import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
@@ -955,6 +958,9 @@ export class SystemDiagnostics extends LitElement {
             ${[128, 256, 512, 1024, 2048].map((v) => html`<option value=${v} ?selected=${this.bakeValue('total_cap_mb', 512) === v}>${v >= 1024 ? `${v / 1024} GB` : `${v} MB`} בסך הכול</option>`)}
           </select></sw-field></div>
         ${api && this.canEdit ? this.renderSiteLocation(api) : nothing}
+        <div class="row" data-global-search-row><span class="lbl">${sa('label')}<span class="muted">${sa('hint')}</span></span>
+          <sw-search-access .mode=${searchModeOf(this.value('ui.global_search'))} .roles=${String(this.value('ui.global_search_roles') ?? '')} ?disabled=${!api || !this.canEdit}
+            @sw-search-access-change=${(e: CustomEvent<{ mode: 'off' | 'admins' | 'roles' | 'all'; roles: string }>) => { this.set('ui.global_search', e.detail.mode); this.set('ui.global_search_roles', parseSearchRoles(e.detail.roles).join(',')); }}></sw-search-access></div>
         ${NVR ? nothing : html`<div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_search') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_search') ?? 'false') === 'true'}>מוסתר</option>

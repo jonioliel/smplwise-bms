@@ -9,7 +9,7 @@ import sqlite3
 from dataclasses import replace
 
 import pytest
-from conftest import as_user, bind, seed_tree
+from conftest import enable_search, as_user, bind, seed_tree
 from fastapi.testclient import TestClient
 from test_devices import AREAS, ENTITY_REGISTRY, FLOORS, STATES, _body, _pair, _publish_plan, _reg
 
@@ -211,6 +211,7 @@ def test_a_schedule_cannot_be_placed_on_a_map(sched_app):
 
 def test_search_leaves_schedule_switches_out(sched_app):
     app, s, c = sched_app
+    enable_search(c)
 
     def entity_ids(q: str) -> set[str]:
         return {h["id"] for h in c.get("/api/v1/search", params={"q": q}).json()["results"] if h["kind"] == "entity"}
