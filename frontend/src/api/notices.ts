@@ -147,3 +147,38 @@ export function boardLink(slug: string, token: string, origin?: string): string 
   const base = origin ? origin.replace(/\/+$/, '') + '/' : new URL('./', location.href).toString();
   return `${base}b/${slug}#t=${token}`;
 }
+
+// ---- NOTICESLIDES-295: promo slides (one slide may be shown on several boards) and the building photo of template 2
+export interface Slide {
+  id: string;
+  title: string;
+  text: string;
+  seconds: number | null;
+  has_image: boolean;
+  stamp: string;
+  boards: string[];
+}
+export interface SlidesDoc {
+  slides: Slide[];
+  limit: number;
+  seconds: { min: number; max: number };
+  photo?: { has: boolean; stamp: string };
+}
+export const listSlides = () => get<SlidesDoc>('notices/promo-slides/all');
+export const boardSlides = (boardId: string) => get<SlidesDoc>(`notices/boards/${encodeURIComponent(boardId)}/slides`);
+export const createSlide = (body: { title: string; text?: string; seconds?: number | null; board_ids?: string[] }) => post<{ id: string } & SlidesDoc>('notices/promo-slides', body);
+export const patchSlide = (id: string, body: { title?: string; text?: string; seconds?: number | null; board_ids?: string[] }) =>
+  patch<SlidesDoc>(`notices/promo-slides/${encodeURIComponent(id)}`, body);
+export const deleteSlide = (id: string) => api<SlidesDoc>(`notices/promo-slides/${encodeURIComponent(id)}`, { method: 'DELETE' });
+const picture = (path: string, file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api<SlidesDoc>(path, { method: 'PUT', body: form });
+};
+export const putSlideImage = (id: string, file: File) => picture(`notices/promo-slides/${encodeURIComponent(id)}/image`, file);
+export const deleteSlideImage = (id: string) => api<SlidesDoc>(`notices/promo-slides/${encodeURIComponent(id)}/image`, { method: 'DELETE' });
+export const putBoardPhoto = (boardId: string, file: File) => picture(`notices/boards/${encodeURIComponent(boardId)}/photo`, file);
+export const deleteBoardPhoto = (boardId: string) => api<SlidesDoc>(`notices/boards/${encodeURIComponent(boardId)}/photo`, { method: 'DELETE' });
+/** The signed-in URL of a slide picture / a board's photo (the stamp is the cache key). */
+export const slideImageUrl = (s: Pick<Slide, 'id' | 'stamp'>) => `api/v1/notices/promo-slides/${encodeURIComponent(s.id)}/image?v=${encodeURIComponent(s.stamp)}`;
+export const boardPhotoUrl = (boardId: string, stamp: string) => `api/v1/notices/boards/${encodeURIComponent(boardId)}/photo?v=${encodeURIComponent(stamp)}`;

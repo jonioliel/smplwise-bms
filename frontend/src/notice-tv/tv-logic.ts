@@ -22,6 +22,14 @@ export interface FeedNotice {
   when?: string;
 }
 
+export interface FeedSlide {
+  id: string;
+  title: string;
+  text: string;
+  seconds?: number;
+  image?: string;
+}
+
 export interface Display {
   template: 1 | 2 | 3;
   lang: 'he' | 'en';
@@ -43,6 +51,8 @@ export interface Display {
   /** NOTICESAVER-295: the screen saver and the logo layout (absent on a board saved before 2.17.1 = off / 'a') */
   saver?: Saver;
   logos?: LogoLayout;
+  /** NOTICESLIDES-295: the building photo of template 2 (a URL the feed adds only when one is uploaded) */
+  photo?: string;
 }
 
 export type Saver = 'off' | 'wash' | 'cycle' | 'wave' | 'ambient';
@@ -72,6 +82,8 @@ export interface Feed {
   now: string;
   notices: FeedNotice[];
   weather?: { now: { t: number; condition: string; text: string }; hours: { at: string; t: number; condition: string }[] };
+  /** NOTICESLIDES-295: the promo / info slides (only while the board's `promo` block is on and there is at least one) */
+  slides?: FeedSlide[];
   info?: { kind: string; label: string; state: 'ok' | 'warn' | 'alarm' | 'off'; text: string }[];
   news?: { source: string; title: string }[];
   sun?: { rise: string; set: string; candles?: string };
@@ -113,6 +125,8 @@ export function sevLabel(lang: 'he' | 'en', s: Severity): string {
 export interface Item {
   n: FeedNotice;
   dwell: number;
+  /** NOTICESLIDES-295: set when the item is a promo slide (`n` is then a stand-in with the id `slide:<id>`) */
+  slide?: FeedSlide;
 }
 
 /** Ticks of the board's interval: a notice's own dwell_s wins, else x2 for the urgent one and for a long body (> 110 characters). */
@@ -127,6 +141,19 @@ export function playlist(notices: FeedNotice[], d: Pick<Display, 'urgent' | 'rot
   const list = d.urgent === 'band' ? notices.filter((n) => n.severity !== 'critical') : notices.slice();
   list.sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1));
   return list.map((n) => ({ n, dwell: ticks(n, d.rotate_s) }));
+}
+
+/** NOTICESLIDES-295: the promo slides after the notices, in the rotation only (the mock-up's rule: "all together" and "focus" never show them).
+ * A slide stays `seconds` on the screen (the board's interval when it names none), in ticks of the board's interval. */
+export function withSlides(list: Item[], slides: FeedSlide[] | undefined, d: Pick<Display, 'mode' | 'rotate_s' | 'blocks'>): Item[] {
+  if (d.mode !== 'rotation' || !d.blocks?.promo || !slides?.length) return list;
+  const rot = Math.max(1, d.rotate_s || 12);
+  const cards = slides.map((slide) => ({
+    n: { id: 'slide:' + slide.id, title: slide.title, body: slide.text, severity: 'info' as Severity, starts_at: '', ends_at: null },
+    dwell: Math.max(1, Math.round((slide.seconds || rot) / rot)),
+    slide,
+  }));
+  return [...list, ...cards];
 }
 
 export function bandNotice(notices: FeedNotice[], d: Pick<Display, 'urgent'>): FeedNotice | null {

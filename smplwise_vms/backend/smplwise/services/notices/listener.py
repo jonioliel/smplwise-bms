@@ -31,12 +31,16 @@ def route(svc: DisplayService, www_dir: Any, method: str, path: str, headers: di
     if len(parts) == 2 and parts[0] == "assets":
         got = page.asset(www_dir, parts[1])
         return Reply(200, got[0], got[1], [("Cache-Control", "public, max-age=31536000, immutable")]) if got else not_found()
-    if len(parts) in (5, 7) and parts[:4] == ["api", "v1", "notices", "display"]:
+    if len(parts) in (5, 6, 7) and parts[:4] == ["api", "v1", "notices", "display"]:
         req = Request(slug=parts[4], token=headers.get("x-board-token"), if_none_match=headers.get("if-none-match"), client=client)
         if len(parts) == 5:
             return svc.feed(req)
         if parts[5:] == ["logo", "company"]:
             return svc.logo(req)
+        if parts[5:] == ["photo"]:  # NOTICESLIDES-295
+            return svc.image(req, "photo")
+        if len(parts) == 7 and parts[5] == "slide":
+            return svc.image(req, "slide", parts[6])
     return not_found()
 
 

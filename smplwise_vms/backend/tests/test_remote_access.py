@@ -516,6 +516,8 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      # CR-NOTICE106: the TV boards' tokenised display routes and page need no session; on the remote channel they answer the uniform
                      # 404 unless notices.boards.remote is on (tests/test_notices_106.py covers both). /api/v1/b/{slug} is the page router as this test mounts it
                      ("GET", "/api/v1/notices/display/{slug}"), ("GET", "/api/v1/notices/display/{slug}/logo/company"), ("GET", "/api/v1/b/{slug}"),
+                     # NOTICESLIDES-295: the slide pictures and the building photo are read with the board token, like the logo
+                     ("GET", "/api/v1/notices/display/{slug}/slide/{slide_id}"), ("GET", "/api/v1/notices/display/{slug}/photo"),
                      # CR-022 section 10: the NVR connection, its test and the restart are local-only
                      ("GET", "/api/v1/nvr/vendors"), ("GET", "/api/v1/nvr/connection"), ("PUT", "/api/v1/nvr/connection"), ("DELETE", "/api/v1/nvr/connection"),
                      ("POST", "/api/v1/nvr/connection/test"), ("POST", "/api/v1/system/restart"),

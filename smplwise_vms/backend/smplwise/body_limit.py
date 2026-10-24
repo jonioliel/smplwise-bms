@@ -139,6 +139,20 @@ def _brand_logo(_s: Settings) -> int:
     return brand_assets.MAX_BYTES + MULTIPART_SLACK
 
 
+def _notice_slide_image(_s: Settings) -> int:
+    """NOTICESLIDES-295: a promo slide's picture (1 MB, services/notices/slides.SLIDE_IMAGE_BYTES; re-encoded by the bill-logo pipeline)."""
+    from .services.notices import slides
+
+    return slides.SLIDE_IMAGE_BYTES + MULTIPART_SLACK
+
+
+def _notice_photo(_s: Settings) -> int:
+    """NOTICESLIDES-295: the building photo of a notice board (2 MB, services/notices/slides.PHOTO_IMAGE_BYTES)."""
+    from .services.notices import slides
+
+    return slides.PHOTO_IMAGE_BYTES + MULTIPART_SLACK
+
+
 def _brand_pack(_s: Settings) -> int:
     """WHITELABEL097-295: the customer pack import (services/white_label.MAX_PACK_BYTES; the route validates the zip itself)."""
     from .services import white_label
@@ -200,6 +214,8 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"POST"}), re.compile(rf"/api/v1/brand/company-logo/{_ID}"), _brand_logo, "brand_logo"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/brand/white-label/logo/{_ID}"), _brand_logo, "brand_logo"),
     (frozenset({"POST"}), re.compile(r"/api/v1/brand/white-label/pack"), _brand_pack, "brand_pack"),
+    (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/promo-slides/{_ID}/image"), _notice_slide_image, "notice_slide_image"),
+    (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/boards/{_ID}/photo"), _notice_photo, "notice_photo"),
     (frozenset({"POST"}), re.compile(r"/api/v1/backups/upload"), _backup_upload, "backup_upload"),
     (frozenset({"POST"}), re.compile(r"/api/v1/cases/bundles/(verify|import)"), lambda _s: _cases_ceiling(), "evidence_bundle"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/plan-versions/{_ID}/geometry"), _const(LARGE_JSON_MAX), "geometry_document"),

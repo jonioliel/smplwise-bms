@@ -19,6 +19,7 @@ import { SEV_KEY, SEV_LOOK, agoText, boardDraft, draftOf, newDraft, placePresets
 import '../notices/compose-dialog';
 import '../notices/display-saver';
 import '../notices/display-info';
+import '../notices/display-slides';
 import type { NoticeSavedDetail } from '../notices/compose-dialog';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_HREF, NOTICES_SETTINGS_HREF, applyNoticesHidden } from '../shell/nav';
@@ -570,7 +571,7 @@ export class SystemNotices extends LitElement {
             <div class="sub"><span>${nt('hold')}</span><select class="inp" data-hold data-v=${d.hold} @change=${(e: Event) => this.setD({ hold: (e.target as HTMLSelectElement).value })}>
               <option value="">${nt('holdNone')}</option>${active.map((n) => html`<option value=${n.id}>${n.title}</option>`)}</select><span class="hint">${nt('holdHint')}</span></div>
             <p class="hint">${nt('dwellNote')}</p></div>
-          <p class="hint">${nt('notBuilt')}</p>
+          <notice-display-slides .display=${d} .boardId=${this.detail!.board.id} .boards=${this.boards} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)} @slides-changed=${() => this.pushPreview()}></notice-display-slides>
         </div></div>
     </div>`;
   }

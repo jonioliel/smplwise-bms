@@ -736,3 +736,172 @@ def tv_page(slug: str, request: Request) -> Response:
     if html is None:
         return _respond(disp.not_found())
     return _respond(disp.Reply(200, html, "text/html; charset=utf-8"))
+
+
+# ---------------------------------------------------------------- NOTICESLIDES-295: promo slides and the building photo (notices.boards)
+# A new block at the end of the file; the permission is the boards' (`notices.boards`), exactly like the other board routes.
+
+from ..services.bill_pdf_logo import LogoError  # noqa: E402
+from ..services.notices import slides as sl  # noqa: E402
+
+IMAGE_REFUSED = {
+    "logo_too_large": "התמונה גדולה מדי.", "logo_type": "אפשר להעלות JPEG או PNG בלבד.", "logo_dimensions": "מידות התמונה אינן נתמכות.",
+    "logo_undecodable": "התמונה לא ניתנת לקריאה.", "logo_empty": "הקובץ ריק.",
+}
+
+
+class SlideIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(max_length=200)
+    text: str = Field(default="", max_length=2000)
+    seconds: int | None = None
+    board_ids: list[str] = Field(default_factory=list, max_length=50)
+
+
+class SlidePatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str | None = Field(default=None, max_length=200)
+    text: str | None = Field(default=None, max_length=2000)
+    seconds: int | None = None
+    board_ids: list[str] | None = Field(default=None, max_length=50)
+
+
+class SlideOrderIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    slide_ids: list[str] = Field(max_length=sl.SLIDES_PER_BOARD)
+
+
+def _slide_or_404(conn: sqlite3.Connection, slide_id: str) -> None:
+    if sl.get(conn, slide_id) is None:
+        raise ApiError(404, "not_found", "השקופית לא נמצאה.")
+
+
+def _slides_out(conn: sqlite3.Connection, board_id: str | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"slides": sl.list_all(conn, board_id), "limit": sl.SLIDES_PER_BOARD,
+                           "seconds": {"min": sl.SECONDS_MIN, "max": sl.SECONDS_MAX}}
+    if board_id:
+        p = sl.photo_row(conn, board_id)
+        out["photo"] = {"has": bool(p and p["image_b64"]), "stamp": (p["image_stamp"] if p else "") or ""}
+    return out
+
+
+@router.get("/notices/promo-slides/all")  # a one-segment GET would be taken by /notices/{notice_id}
+def list_slides(principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    return _slides_out(conn)
+
+
+@router.get("/notices/boards/{board_id}/slides")
+def board_slides(board_id: str, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    _board_or_404(conn, board_id)
+    return _slides_out(conn, board_id)
+
+
+@router.post("/notices/promo-slides")
+def create_slide(body: SlideIn, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    try:
+        sid = sl.create(conn, principal.user_id, body.model_dump())
+    except Invalid as exc:
+        raise _invalid(exc)
+    audit(conn, actor=principal, action="notices.slide.create", decision="allowed", resource_type="notice_slide", resource_id=sid, request_id=_rid(request))
+    return {"id": sid, **_slides_out(conn)}
+
+
+@router.patch("/notices/promo-slides/{slide_id}")
+def patch_slide(slide_id: str, body: SlidePatch, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _slide_or_404(conn, slide_id)
+    try:
+        sl.update(conn, principal.user_id, slide_id, body.model_dump(exclude_unset=True))
+    except Invalid as exc:
+        raise _invalid(exc)
+    audit(conn, actor=principal, action="notices.slide.update", decision="allowed", resource_type="notice_slide", resource_id=slide_id, request_id=_rid(request))
+    return _slides_out(conn)
+
+
+@router.delete("/notices/promo-slides/{slide_id}")
+def delete_slide(slide_id: str, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _slide_or_404(conn, slide_id)
+    sl.delete(conn, slide_id)
+    audit(conn, actor=principal, action="notices.slide.delete", decision="allowed", resource_type="notice_slide", resource_id=slide_id, request_id=_rid(request))
+    return _slides_out(conn)
+
+
+@router.put("/notices/promo-slides/{slide_id}/image")
+async def put_slide_image(slide_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _slide_or_404(conn, slide_id)
+    data = await file.read(sl.SLIDE_IMAGE_BYTES + 1)
+    try:
+        sl.put_image(conn, principal.user_id, slide_id, data)
+    except LogoError as exc:
+        raise ApiError(422, "image_refused", IMAGE_REFUSED.get(str(exc), "התמונה נדחתה."), details={"reason": str(exc)})
+    audit(conn, actor=principal, action="notices.slide.image", decision="allowed", resource_type="notice_slide", resource_id=slide_id, request_id=_rid(request))
+    return _slides_out(conn)
+
+
+@router.delete("/notices/promo-slides/{slide_id}/image")
+def delete_slide_image(slide_id: str, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _slide_or_404(conn, slide_id)
+    sl.remove_image(conn, principal.user_id, slide_id)
+    audit(conn, actor=principal, action="notices.slide.image_delete", decision="allowed", resource_type="notice_slide", resource_id=slide_id, request_id=_rid(request))
+    return _slides_out(conn)
+
+
+@router.get("/notices/promo-slides/{slide_id}/image")
+def get_slide_image(slide_id: str, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+    r = sl.get(conn, slide_id)
+    if r is None or not r["image_b64"]:
+        raise ApiError(404, "not_found", "אין תמונה.")
+    import base64
+
+    return Response(base64.b64decode(r["image_b64"]), media_type=r["image_mime"] or "image/png", headers={"Cache-Control": "private, max-age=60"})
+
+
+@router.put("/notices/boards/{board_id}/slides")
+def put_board_slides(board_id: str, body: SlideOrderIn, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _board_or_404(conn, board_id)
+    try:
+        sl.set_order(conn, board_id, body.slide_ids)
+    except Invalid as exc:
+        raise _invalid(exc)
+    audit(conn, actor=principal, action="notices.slide.order", decision="allowed", resource_type="notice_board", resource_id=board_id, request_id=_rid(request))
+    return _slides_out(conn, board_id)
+
+
+@router.put("/notices/boards/{board_id}/photo")
+async def put_board_photo(board_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _board_or_404(conn, board_id)
+    data = await file.read(sl.PHOTO_IMAGE_BYTES + 1)
+    try:
+        sl.put_photo(conn, principal.user_id, board_id, data)
+    except LogoError as exc:
+        raise ApiError(422, "image_refused", IMAGE_REFUSED.get(str(exc), "התמונה נדחתה."), details={"reason": str(exc)})
+    audit(conn, actor=principal, action="notices.photo.update", decision="allowed", resource_type="notice_board", resource_id=board_id, request_id=_rid(request))
+    return _slides_out(conn, board_id)
+
+
+@router.delete("/notices/boards/{board_id}/photo")
+def delete_board_photo(board_id: str, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _board_or_404(conn, board_id)
+    sl.drop_photo(conn, board_id)
+    audit(conn, actor=principal, action="notices.photo.delete", decision="allowed", resource_type="notice_board", resource_id=board_id, request_id=_rid(request))
+    return _slides_out(conn, board_id)
+
+
+@router.get("/notices/boards/{board_id}/photo")
+def get_board_photo(board_id: str, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+    _board_or_404(conn, board_id)
+    got = sl.image_of(conn, board_id, None, "photo")
+    if got is None:
+        raise ApiError(404, "not_found", "אין תמונה.")
+    return Response(got[1], media_type=got[0], headers={"Cache-Control": "private, max-age=60"})
+
+
+@display_router.get("/notices/display/{slug}/slide/{slide_id}")
+def display_slide(slug: str, slide_id: str, request: Request) -> Response:
+    req = disp.Request(slug=slug, token=request.headers.get("x-board-token"), client=_client(request), remote=_is_remote(request))
+    return _respond(_display_service(request).image(req, "slide", slide_id))
+
+
+@display_router.get("/notices/display/{slug}/photo")
+def display_photo(slug: str, request: Request) -> Response:
+    req = disp.Request(slug=slug, token=request.headers.get("x-board-token"), client=_client(request), remote=_is_remote(request))
+    return _respond(_display_service(request).image(req, "photo"))

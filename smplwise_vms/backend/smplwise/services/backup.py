@@ -138,7 +138,10 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "tickets.rules",
                  # CR-NOTICE106: the notice board's switch and whether its TV links open on the remote channel are this installation's
                  # policy - a restore never switches the module on or opens the boards outside the LAN. The module's tables are not
-                 # project tables (the tickets precedent: TV board tokens describe this installation's screens).
+                 # project tables (the tickets precedent: TV board tokens describe this installation's screens). NOTICESLIDES-295: the same
+                 # classification for `notice_slides` / `notice_board_slides` (migration 0172: promo slides, the board photos): operational
+                 # tables of the module, not in PROJECT_TABLES, because they hang off `notice_boards` ids that an archive does not carry
+                 # (tests/test_notice_slides_295.py pins it).
                  "notices.enabled", "notices.boards.remote",
                  # NOTIFWA: the WhatsApp notification channel's master switch - a restore can never switch WhatsApp sending on
                  "notify.whatsapp",
