@@ -142,7 +142,7 @@ export class SystemNav extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
-      min-block-size: 28px;
+      min-block-size: max(28px, var(--sw-settings-row-h, 0px));
       padding: 0 10px;
       border: 0;
       border-radius: var(--sw-r-sm);
@@ -175,7 +175,7 @@ export class SystemNav extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
-      min-block-size: 32px;
+      min-block-size: max(32px, var(--sw-settings-row-h, 0px));
       padding: 4px 10px;
       border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
@@ -185,7 +185,7 @@ export class SystemNav extends LitElement {
     }
     a.sub {
       margin-inline-start: 14px;
-      min-block-size: 28px;
+      min-block-size: max(28px, var(--sw-settings-row-h, 0px));
       font-weight: var(--sw-fw-regular);
       font-size: var(--sw-fs-xs);
       border-inline-start: 2px solid var(--sw-border);
@@ -257,14 +257,14 @@ export class SystemNav extends LitElement {
         gap: var(--sw-s-2);
       }
       a {
-        min-block-size: 28px;
+        min-block-size: max(28px, var(--sw-settings-row-h, 0px));
         padding-block: 2px;
       }
       a.sub {
-        min-block-size: 26px;
+        min-block-size: max(26px, var(--sw-settings-row-h, 0px));
       }
       .grp > b .gh {
-        min-block-size: 26px;
+        min-block-size: max(26px, var(--sw-settings-row-h, 0px));
       }
     }
     @media (min-width: 1101px) and (max-height: 800px) {
@@ -276,18 +276,18 @@ export class SystemNav extends LitElement {
         gap: 4px;
       }
       a {
-        min-block-size: 24px;
+        min-block-size: max(24px, var(--sw-settings-row-h, 0px));
         padding-block: 0;
         font-size: var(--sw-fs-xs);
       }
       a.sub {
-        min-block-size: 22px;
+        min-block-size: max(22px, var(--sw-settings-row-h, 0px));
       }
       .grp > b .gh {
-        min-block-size: 24px;
+        min-block-size: max(24px, var(--sw-settings-row-h, 0px));
       }
       .search input {
-        min-block-size: 32px;
+        min-block-size: max(32px, var(--sw-settings-row-h, 0px));
       }
     }
     /* a tablet gets the search row too (the shell stacks the column above the page up to 1100 px, the reference tablet width included) */

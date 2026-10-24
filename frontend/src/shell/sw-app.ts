@@ -523,11 +523,12 @@ export class SwApp extends LitElement {
     }
     /* LOGOS-295: the logo strip - the company logo at the inline start, the SmplWise logo at the inline end, PAST the search / status pill
        (RTL: the far left, to the left of the search; owner 2026-10-24). Desktop and tablet only: the phone has no strip. The pill (.float,
-       absolute) moves inward by the SmplWise logo's width; the strip stays at the top while the page scrolls. */
+       absolute) moves inward by the SmplWise logo's width; the strip scrolls away with the page. */
     .brandstrip {
-      position: sticky;
-      inset-block-start: 0;
-      z-index: calc(var(--sw-z-topbar) - 1);
+      /* Not sticky (2.16.0 gate): a sticky strip stuck at the same edge as the pages' own sticky headers (.dh, the tab rows, 40+ of them) and
+         covered them, intercepted their clicks and hid whatever scrolled under it. It scrolls away with the page like the phone's home row. */
+      position: relative;
+      z-index: 0;
       display: flex;
       align-items: center;
       gap: 14px;

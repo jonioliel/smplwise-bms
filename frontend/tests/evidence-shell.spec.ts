@@ -113,8 +113,10 @@ test.describe('CR-013 shell on the demo data', () => {
     await expect(btn).toBeVisible();
     await expect(page.locator('sw-app .search input')).toHaveCount(0);
     const b = (await btn.boundingBox())!;
-    expect(b.x).toBeLessThan(110);
-    expect(b.y).toBeLessThan(30);
+    // LOGOS-295: with the logo strip the corner button steps in by the SmplWise logo's width (22 px + the logo + 14 px, up to 4 x 40 x the size scale)
+    const strip = await page.locator('sw-app').evaluate((el) => el.hasAttribute('data-brandstrip'));
+    expect(b.x).toBeLessThan(strip ? 260 : 110);
+    expect(b.y).toBeLessThan(strip ? 60 : 30);
     expect(b.width).toBeLessThanOrEqual(phone(info) ? 44 : 32); // UXFIX-A11Y-295: on touch each corner key is 44 px wide
     if (phone(info)) {
       // still a 44 px tap target: the hit area reaches 22 px around the centre

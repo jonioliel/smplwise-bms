@@ -114,7 +114,7 @@ const tokens: TokenTable = {
    shell and the shared components. A floating glass layer always has its solid twin (@supports / reduced transparency). */
 const rules = `
 /* bubble 1 - the canvas with its two blooms */
-:host(sw-app) { background: var(--sw-canvas); --sw-tab-min-h: var(--sw-touch-desktop); --sw-settings-search-h: var(--sw-touch-desktop); /* 0.1.157: the shell's tab rows meet the touch dial; 2.4.6: so does the settings search field (screens/system-nav.ts) */ }
+:host(sw-app) { background: var(--sw-canvas); --sw-tab-min-h: var(--sw-touch-desktop); --sw-settings-search-h: var(--sw-touch-desktop); --sw-settings-row-h: var(--sw-touch-desktop); /* 2.16.0: the settings side column rows meet the touch dial too (the layout guard's 44 px), the dense short-screen mode never goes below it */ /* 0.1.157: the shell's tab rows meet the touch dial; 2.4.6: so does the settings search field (screens/system-nav.ts) */ }
 /* bubble 2 - the rail is a floating glass pill column */
 :host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 0; border-radius: var(--sw-r-lg); background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: inset 0 1px 0 var(--sw-highlight); }
 :host(sw-app) .brand-tile { border-radius: 50%; }
