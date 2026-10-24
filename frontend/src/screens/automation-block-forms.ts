@@ -29,6 +29,9 @@ export interface PickerRequest {
 export interface FormCtx {
   env: EditorEnv;
   kind: ItemKind;
+  /** KAV079-295 (optional): the edited item's id (the button picker marks the presses OTHER items use) and what the live preview said. */
+  itemId?: string | null;
+  ext?: { critical?: { allowed: boolean; sources: string[] } };
   block: Block;
   section: Section;
   /** Mutates this block (on a clone of the draft); the editor re-renders and refreshes the sentences. */

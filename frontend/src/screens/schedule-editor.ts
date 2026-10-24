@@ -109,6 +109,7 @@ import {
 import { NEW_DRAFT_KEY } from './schedule-create-dialog';
 import { TEMPLATES, templateById, withPreset, type TemplateDraft } from './schedule-templates';
 import { dateInputLang } from '../api/day-format';
+import { draftConflicts, warningsHeading, type ConflictRow } from '../api/automations-ext';
 
 /**
  * CR-014 S4: the schedule editor (mockup 05-09, 17-19 editor level, 21, 24-25).
@@ -187,6 +188,9 @@ export class ScheduleEditor extends LitElement {
   @state() private phone = false;
   @state() private phoneTab: 'board' | 'settings' = 'board';
   @state() private preview: PreviewResult | null = null;
+  /** KAV079-295 (mockup r079 state 7): the conflicts of this draft with the automations / schedules around it (empty while the checks are off). */
+  @state() private kavConflicts: ConflictRow[] = [];
+  @state() private kavSaveWithWarnings = true;
   @state() private showErrors = false;
   @state() private saving = false;
   @state() private saveError = '';
@@ -220,6 +224,13 @@ export class ScheduleEditor extends LitElement {
   private savedOk = false;
 
   static styles = [...devicesStyleTokens, mediaGlassKnobs, mediaBubbleKnobs, css`
+    /* KAV079-295: the conflict box of the schedule editor (mockup r079 state 7) */
+    .kav-vbox { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; margin-block-end: 10px;
+      background: color-mix(in srgb, var(--dv-warning, #f59e0b) 10%, transparent); border: 1px solid color-mix(in srgb, var(--dv-warning, #f59e0b) 35%, transparent); }
+    .kav-vbox > b { display: flex; gap: 8px; align-items: center; }
+    .kav-vbox > b small { font-weight: 400; color: var(--dv-text-2, var(--sw-text-2)); }
+    .kav-iss { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+    .kav-iss span { font-size: var(--sw-fs-sm); color: var(--dv-text-2, var(--sw-text-2)); }
     :host {
       display: block;
       min-block-size: 100%;
@@ -1316,6 +1327,11 @@ export class ScheduleEditor extends LitElement {
         this.previewFor = draft;
         this.preview = p;
       }
+      void draftConflicts('schedule', this.creating ? null : this.scheduleId, draft).then((r) => {
+        if (token !== this.previewToken) return;
+        this.kavConflicts = r.enabled ? r.conflicts : [];
+        this.kavSaveWithWarnings = (r as { save_with_warnings?: boolean }).save_with_warnings !== false;
+      }).catch(() => { if (token === this.previewToken) this.kavConflicts = []; });
     } catch {
       if (token === this.previewToken) {
         this.preview = null;
@@ -1735,6 +1751,16 @@ export class ScheduleEditor extends LitElement {
     </div>`;
   }
 
+  /** KAV079-295: the conflict box (a warning: the save stays possible as "שמירה עם אזהרות" unless the administrator turned that off). */
+  private renderKavConflicts() {
+    const c = this.kavConflicts;
+    if (!c.length || this.readOnly) return nothing;
+    return html`<div class="kav-vbox" role="status" data-kav-conflicts><b><sw-icon name="warning" size="16"></sw-icon>${warningsHeading(c.length)}<small>· ${this.kavSaveWithWarnings ? 'אפשר לשמור עם אזהרות' : 'יש לטפל באזהרות לפני השמירה'}</small></b>
+      ${c.map((x) => html`<div class="kav-iss" data-kav-conflict=${x.other.id}><b>${x.title}</b><span>${x.detail}</span>
+        <sw-button size="sm" data-kav-open-other @click=${() => navigate(x.other.kind === 'schedule' ? `/devices/schedules/${encodeURIComponent(x.other.id)}/edit` : `/devices/automations/${encodeURIComponent(x.other.id)}`)}>${x.other.kind === 'schedule' ? 'פתיחת התזמון' : 'פתיחת האוטומציה'}</sw-button></div>`)}
+    </div>`;
+  }
+
   private renderSide() {
     const v = this.validation;
     const ro = this.readOnly;
@@ -1747,6 +1773,7 @@ export class ScheduleEditor extends LitElement {
     const condWarn = v.warnings.filter((w) => w.path.startsWith('conditions'));
     const summaryFor = (u: { slot_index: number; summary?: string }) => u.summary ?? this.slotSummaryText(u.slot_index);
     return html`<aside class="card side" data-side>
+      ${this.renderKavConflicts()}
       <div class="status ${v.errors.length && this.showErrors ? 'bad' : v.errors.length ? '' : 'ok'}" data-validation-status style=${v.errors.length && !this.showErrors ? 'display:none' : ''}>
         <sw-icon name=${v.errors.length ? 'warning' : 'check'} size="16"></sw-icon>
         ${v.errors.length
@@ -1938,7 +1965,9 @@ export class ScheduleEditor extends LitElement {
         <schedule-condition-chip data-condition-chip .conditions=${this.condView()}></schedule-condition-chip>
         ${sensitive ? html`<sw-schedule-markers data-sensitive-badge .sensitive=${true} .lowering=${loweringSummary(this.currentDraft(), this.meta).lowering}></sw-schedule-markers>` : nothing}
         <sw-button data-editor-cancel @click=${() => this.cancel()}>${ro ? 'חזרה' : 'ביטול'}</sw-button>
-        ${ro ? nothing : html`<sw-button variant="primary" icon="check" data-editor-save ?disabled=${!this.dirty || this.saving} @click=${() => void this.onSave()}>${this.saving ? 'שומר…' : 'שמירה'}</sw-button>`}
+        ${ro ? nothing : this.kavConflicts.length
+          ? html`<sw-button icon="warning" data-editor-save data-editor-save-warnings ?disabled=${!this.dirty || this.saving || !this.kavSaveWithWarnings} @click=${() => void this.onSave()}>${this.saving ? 'שומר…' : 'שמירה עם אזהרות'}</sw-button>`
+          : html`<sw-button variant="primary" icon="check" data-editor-save ?disabled=${!this.dirty || this.saving} @click=${() => void this.onSave()}>${this.saving ? 'שומר…' : 'שמירה'}</sw-button>`}
       </div>
       ${this.renderBanners()}
       <div class="tabs" role="tablist">

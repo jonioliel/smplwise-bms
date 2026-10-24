@@ -49,7 +49,12 @@ export type TriggerBlock = BlockBase & { kind: 'typed'; id?: string | null } & (
   | { type: 'time'; at: string /* HH:MM or HH:MM:SS */ }
   | { type: 'time_pattern'; hours?: string | null; minutes?: string | null; seconds?: string | null }
   | { type: 'sun'; event: 'sunrise' | 'sunset'; offset_min: number }
-  | { type: 'homeassistant'; event: 'start' });
+  | { type: 'homeassistant'; event: 'start' }
+  /** KAV079-295: a wall-button press (a device trigger in a known press family; typed only while `automations.wall_buttons_editable` is on).
+   *  `ha_type` / `ha_subtype` keep the integration's own words; `press` / `button` are what the builder edits. */
+  | { type: 'button'; device_id: string; domain: string; ha_type: string; ha_subtype: string; button: number; press: PressKind; extra?: Record<string, string> });
+/** KAV079-295. */
+export type PressKind = 'short' | 'double' | 'long';
 
 export type ConditionBlock = BlockBase & { kind: 'typed' } & (
   | { type: 'state'; entity_ids: string[]; state: string | string[]; for?: Duration | null }
@@ -58,11 +63,14 @@ export type ConditionBlock = BlockBase & { kind: 'typed' } & (
   | { type: 'sun'; after?: SunRef | null; before?: SunRef | null }
   | { type: 'trigger'; ids: string[] }
   | { type: 'and' | 'or' | 'not'; conditions: Array<ConditionBlock | LockedBlock> }   // one nesting level
-  | { type: 'shabbat'; mode: 'only_holy_days' | 'not_holy_days' });                    // CR-014 preset = a state condition
+  | { type: 'shabbat'; mode: 'only_holy_days' | 'not_holy_days' }                     // CR-014 preset = a state condition
+  | { type: 'presence'; mode: 'someone' | 'nobody'; where?: 'building' });            // KAV079-295: "who is in the building" = a state condition on the configured entity
 
 export type ActionBlock = BlockBase & { kind: 'typed' } & (
   | { type: 'service'; action: string; entity_ids: string[]; data: Record<string, unknown>;
-      role: 'device' | 'scene' | 'script' | 'notify' | 'automation' }
+      role: 'device' | 'scene' | 'script' | 'notify' | 'automation';
+      /** KAV079-295: a notify step with the critical sound (the exact companion payload `CRITICAL_DATA` inside `data.data`). */
+      critical?: boolean }
   | { type: 'delay'; delay: Duration }
   | { type: 'choose'; options: Array<{ conditions: Array<ConditionBlock | LockedBlock>; sequence: Block[] }>; default: Block[] | null }
   | { type: 'if'; conditions: Array<ConditionBlock | LockedBlock>; then: Block[]; else: Block[] | null }
@@ -123,6 +131,10 @@ export interface Item {
   created_via: 'arx' | 'external'; owner: { display_name: string } | null; updated_at: string | null;
   revision: string | null; pinned: boolean; favourite: boolean; hidden: boolean;
   can: { edit: boolean; code_view: boolean; toggle: boolean; run: boolean; delete: boolean; copy: boolean };
+  /** KAV079-295 (additive): a typed wall-button trigger is in it (the "כפתור קיר · ניתן לעריכה" chip). */
+  wall_button?: boolean;
+  /** KAV079-295 (client-side, from GET /automations-ext/conflicts): how many possible conflicts it has. */
+  conflicts?: number;
   read_only: null | { reasons: Array<{ code: string; message: string; entity_id?: string }> };
   warnings: Array<{ code: 'missing_entity' | 'invalid_config' | 'self_trigger' | 'cycle' | 'storm' | 'changed_outside'
                          | 'suggest_schedule' | 'unknown_effects' | 'sensitive'; message: string }>;
@@ -151,12 +163,16 @@ export interface AutomationsStatus {
   delegation: { on: boolean; needed: boolean };  // needed = the caller is not an HA admin (so saving depends on `on`)
   ui: { sensitive_warning: boolean; ask_when_on_new: boolean; templates_enabled: boolean;
         /** Optional echoes of the two owner display settings (absent = defaults `fold` / `amber`). */
-        phone_filter?: PhoneFilter; sensitive_chip?: SensitiveChip };   // settings echoed for the client
+        phone_filter?: PhoneFilter; sensitive_chip?: SensitiveChip;
+        /** KAV079-295: the editors' extension switches (absent on an older server = all off). */
+        ext?: ExtFlags };   // settings echoed for the client
   counts: { automations: number; scripts: number; scenes: number; running: number; attention: number; hidden: number | null };
   admin?: { ha_version: string; bridge_version: string | null; bridge_required: string; delegation_changed_at: string | null;
             caller_is_ha_admin: boolean; config_api: 'ok' | 'unavailable'; authoring_block_reason: string | null };
 }
-export interface Issue { path: string; code: string; message: string }
+export interface Issue { path: string; code: string; message: string;
+  /** KAV079-295 (pre-save warnings): the second line, and the other item a conflict / a button reuse is with. */
+  detail?: string; other?: { kind?: 'automation' | 'schedule'; id: string; name: string }; delta_min?: number }
 export interface PreviewResult {
   valid: boolean; errors: Issue[]; warnings: Issue[]; ha_validation: 'ok' | 'failed' | 'skipped';
   sentence: string; block_sentences: Record<string, string>;
@@ -165,6 +181,8 @@ export interface PreviewResult {
   sensitive: boolean; sensitive_steps: Array<{ path: string; entity_id: string; action: string; grant: string; granted: boolean }>;
   requires: { confirm: boolean; code_view: boolean; ha_admin: boolean /* the save is a `code` profile save */ };
   suggest_schedule: null | { schedule_draft: unknown /* CR-014 ScheduleDraft */ };   // a suggestion, never a refusal (CR §5)
+  /** KAV079-295 (additive): whether a notify step of this automation may carry the critical sound. */
+  extension?: { critical?: { allowed: boolean; sources: string[] } };
 }
 /** "למה זה רץ" - the full trace (owner decision 9ג), for every caller who may view the item. */
 export interface RunTrace { run_id: string; at: string; finished_at: string | null; duration_ms: number | null;
@@ -203,7 +221,22 @@ export interface AutomationCatalog {
   shabbat_sensor: string | null;
   /** The services the builder may type (the bridge enforces the same list). Absent = the client's DEFAULT_ALLOWED_ACTIONS. */
   allowed_actions?: string[];
+  /** KAV079-295: the extension's switches and what its forms need (absent on an older server). */
+  extension?: ExtFlags & { presence_sources?: PresenceSources };
 }
+/** KAV079-295: the switches of the editors' extension (הגדרות › אוטומציות). */
+export interface ExtFlags {
+  wall_buttons: boolean; wall_timing: { double_ms: number; long_ms: number; debounce_ms: number; listen_s: number };
+  precheck: boolean; conflict_window_min: number; save_with_warnings: boolean; button_reuse: 'warn' | 'error';
+  device_test: boolean; device_test_end: 'ask' | 'restore' | 'keep'; presence: boolean; bridge_required?: string;
+  /** The entity the presence condition compiles to (only in the catalogue). */
+  presence_entity?: string | null;
+}
+export interface PresenceSources { enabled: boolean; geofence: boolean; beacon: boolean; wifi: boolean; wifi_mode: 'phone' | 'server' }
+export const EXT_FLAGS_OFF: ExtFlags = {
+  wall_buttons: false, wall_timing: { double_ms: 400, long_ms: 800, debounce_ms: 50, listen_s: 30 }, precheck: false, conflict_window_min: 10, save_with_warnings: true,
+  button_reuse: 'warn', device_test: false, device_test_end: 'ask', presence: false,
+};
 export interface AutomationTemplate { id: string; name: string; description: string; icon: string; target: 'automation' | 'schedule';
   /** The time-only templates also offer "צור כתזמון" (CR §4.2.4). */
   suggest_schedule: boolean; sensitive: boolean; draft: AutomationDraft }
@@ -246,6 +279,10 @@ export interface AutomationSettings {
   phone_filter: PhoneFilter;
   /** Colour of the sensitive-step warning chip (owner answer 2026-10-01). Default `amber`. */
   sensitive_chip: SensitiveChip;
+  /** KAV079-295: the editors' extension (mockup r079 state 8). Every switch OFF by default. */
+  wall_buttons_editable: boolean; wall_double_ms: number; wall_long_ms: number; wall_debounce_ms: number; wall_listen_s: number;
+  precheck_enabled: boolean; conflict_window_min: number; save_with_warnings: boolean; button_reuse: 'warn' | 'error';
+  device_test_enabled: boolean; device_test_end: 'ask' | 'restore' | 'keep'; presence_entity: string;
 }
 export type PhoneFilter = 'fold' | 'rows';
 export type SensitiveChip = 'amber' | 'red';
@@ -254,8 +291,11 @@ export const AUTOMATION_SETTINGS_DEFAULT: AutomationSettings = {
   limits: { writes_per_min: 30, preview_per_min: 60, run_interval_s: 10, scene_apply_interval_s: 3, storm_item_per_min: 20, storm_total_per_min: 200 },
   storm_auto_disable: false, sensitive_warning: true, templates_enabled: true, templates_hidden: [], templates_order: [], notify_targets: [], ask_when_on_new: false,
   phone_filter: 'fold', sensitive_chip: 'amber',
+  wall_buttons_editable: false, wall_double_ms: 400, wall_long_ms: 800, wall_debounce_ms: 50, wall_listen_s: 30,
+  precheck_enabled: false, conflict_window_min: 10, save_with_warnings: true, button_reuse: 'warn', device_test_enabled: false, device_test_end: 'ask', presence_entity: '',
 };
-export const AUTOMATION_SETTING_RANGES = { trash_days: [7, 90], versions_keep: [5, 50] } as const;
+export const AUTOMATION_SETTING_RANGES = { trash_days: [7, 90], versions_keep: [5, 50],
+  wall_double_ms: [150, 1500], wall_long_ms: [300, 5000], wall_debounce_ms: [0, 500], wall_listen_s: [5, 120], conflict_window_min: [1, 120] } as const;
 
 /** Reads the `automations.*` keys of the settings map (the server's values, defaults for what is missing or out of range). */
 export function automationSettingsOf(s: Record<string, unknown> | null | undefined): AutomationSettings {
@@ -285,6 +325,18 @@ export function automationSettingsOf(s: Record<string, unknown> | null | undefin
     ask_when_on_new: bool(s?.['automations.ask_when_on_new'], d.ask_when_on_new),
     phone_filter: s?.['automations.phone_filter'] === 'rows' ? 'rows' : 'fold',
     sensitive_chip: s?.['automations.sensitive_chip'] === 'red' ? 'red' : 'amber',
+    wall_buttons_editable: bool(s?.['automations.wall_buttons_editable'], d.wall_buttons_editable),
+    wall_double_ms: num(s?.['automations.wall_double_ms'], d.wall_double_ms, AUTOMATION_SETTING_RANGES.wall_double_ms),
+    wall_long_ms: num(s?.['automations.wall_long_ms'], d.wall_long_ms, AUTOMATION_SETTING_RANGES.wall_long_ms),
+    wall_debounce_ms: num(s?.['automations.wall_debounce_ms'], d.wall_debounce_ms, AUTOMATION_SETTING_RANGES.wall_debounce_ms),
+    wall_listen_s: num(s?.['automations.wall_listen_s'], d.wall_listen_s, AUTOMATION_SETTING_RANGES.wall_listen_s),
+    precheck_enabled: bool(s?.['automations.precheck_enabled'], d.precheck_enabled),
+    conflict_window_min: num(s?.['automations.conflict_window_min'], d.conflict_window_min, AUTOMATION_SETTING_RANGES.conflict_window_min),
+    save_with_warnings: bool(s?.['automations.save_with_warnings'], d.save_with_warnings),
+    button_reuse: s?.['automations.button_reuse'] === 'error' ? 'error' : 'warn',
+    device_test_enabled: bool(s?.['automations.device_test_enabled'], d.device_test_enabled),
+    device_test_end: s?.['automations.device_test_end'] === 'restore' ? 'restore' : s?.['automations.device_test_end'] === 'keep' ? 'keep' : 'ask',
+    presence_entity: typeof s?.['automations.presence_entity'] === 'string' ? (s['automations.presence_entity'] as string) : '',
   };
 }
 /** The PATCH /settings body for what differs (system.configure; audited by the server). Booleans travel as in the other tabs. */
@@ -305,6 +357,9 @@ export function automationSettingsPatch(from: AutomationSettings, to: Automation
   if (from.ask_when_on_new !== to.ask_when_on_new) body['automations.ask_when_on_new'] = String(to.ask_when_on_new);
   if (from.phone_filter !== to.phone_filter) body['automations.phone_filter'] = to.phone_filter;
   if (from.sensitive_chip !== to.sensitive_chip) body['automations.sensitive_chip'] = to.sensitive_chip;
+  // KAV079-295
+  for (const k of ['wall_buttons_editable', 'precheck_enabled', 'save_with_warnings', 'device_test_enabled'] as const) if (from[k] !== to[k]) body[`automations.${k}`] = String(to[k]);
+  for (const k of ['wall_double_ms', 'wall_long_ms', 'wall_debounce_ms', 'wall_listen_s', 'conflict_window_min', 'button_reuse', 'device_test_end', 'presence_entity'] as const) if (from[k] !== to[k]) body[`automations.${k}`] = to[k];
   return body;
 }
 
@@ -564,6 +619,10 @@ export interface ModelContext {
   uid?: () => string;
   /** Put the first template text in `template_text` of locked template blocks (default true; the server sets it per caller). */
   templateText?: boolean;
+  /** KAV079-295: a wall-button device trigger is the typed `button` block (the setting `automations.wall_buttons_editable`). */
+  wallButtons?: boolean;
+  /** KAV079-295: the "who is in the building" entity (`automations.presence_entity`): a state condition on it is the `presence` block. */
+  presenceEntity?: string | null;
 }
 
 let uidCounter = 0;
@@ -821,7 +880,15 @@ export function parseTrigger(raw: unknown, ctx: ModelContext = {}): TriggerBlock
   const r = raw as Raw;
   const type = r.trigger ?? r.platform;
   if (typeof type !== 'string') return lockedFor(raw, 'trigger', ctx, 'unknown');
-  if (type === 'device') return mkLocked(raw, 'device', 'trigger', ctx);
+  if (type === 'device') {
+    if (ctx.wallButtons && !hasTemplate(raw) && isButtonTrigger(r)) {
+      const b = { uid: (ctx.uid ?? newUid)(), kind: 'typed' as const, raw, type: 'button' as const, device_id: r.device_id as string, domain: r.domain as string,
+        ha_type: r.type as string, ha_subtype: r.subtype as string, button: buttonOf(r.subtype)!, press: pressOf(r.type)!,
+        extra: typeof r.discovery_id === 'string' ? { discovery_id: r.discovery_id } : {}, ...(typeof r.id === 'string' ? { id: r.id } : {}) };
+      return finish<TriggerBlock>(b, 'trigger', ctx);
+    }
+    return mkLocked(raw, 'device', 'trigger', ctx);
+  }
   if (type === 'template') return mkLocked(raw, 'template', 'trigger', ctx);
   if (type.includes('.')) return mkLocked(raw, 'purpose_trigger', 'trigger', ctx);
   if (hasTemplate(raw)) return mkLocked(raw, 'template', 'trigger', ctx);
@@ -896,6 +963,10 @@ export function parseCondition(raw: unknown, ctx: ModelContext = {}, inGroup = f
       const sensor = ctx.shabbatSensor;
       if (sensor && ids.length === 1 && ids[0] === sensor && !f && (state === 'on' || state === 'off')) {
         return finish<ConditionBlock>({ ...common, type: 'shabbat', mode: state === 'on' ? 'only_holy_days' : 'not_holy_days' }, 'condition', ctx);
+      }
+      const pres = ctx.presenceEntity;
+      if (pres && ids.length === 1 && ids[0] === pres && !f && (state === 'on' || state === 'off')) {
+        return finish<ConditionBlock>({ ...common, type: 'presence', mode: state === 'on' ? 'someone' : 'nobody', where: 'building' }, 'condition', ctx);
       }
       return finish<ConditionBlock>({ ...common, type: 'state', entity_ids: ids, state, ...(f ? { for: f } : {}) }, 'condition', ctx);
     }
@@ -1005,10 +1076,16 @@ export function parseAction(raw: unknown, ctx: ModelContext = {}): ActionBlock |
   } else if (r.entity_id !== undefined) ids = entityList(r.entity_id);
   if (!ids) return bad();
   if (r.data !== undefined && !isObj(r.data)) return bad();
-  const data = isObj(r.data) ? clone(r.data) : {};
+  let data = isObj(r.data) ? clone(r.data) : {};
   if ('entity_id' in data) return bad();
+  let critical = false;
+  if (cls.role === 'notify' && 'data' in data) {  // KAV079-295: the critical-sound payload is the step's `critical` flag
+    if (canonicalJson(data.data) !== canonicalJson(CRITICAL_DATA)) return bad();
+    critical = true;
+    data = Object.fromEntries(Object.entries(data).filter(([k]) => k !== 'data'));
+  }
   const scriptCall = cls.role === 'script' && svc.split('.')[1] !== 'turn_on' && svc.split('.')[1] !== 'turn_off';
-  return mk<ActionBlock>({ kind: 'typed', raw, type: 'service', action: svc, entity_ids: scriptCall ? [svc] : ids, data, role: cls.role });
+  return mk<ActionBlock>({ kind: 'typed', raw, type: 'service', action: svc, entity_ids: scriptCall ? [svc] : ids, data, role: cls.role, ...(critical ? { critical: true } : {}) });
 }
 export const parseActions = (v: unknown, ctx: ModelContext = {}): Array<ActionBlock | LockedBlock> => toList(v).map((a) => parseAction(a, ctx));
 
@@ -1101,8 +1178,50 @@ export function configToDraft(kind: ItemKind, config: unknown, ctx: ModelContext
 // ---- write
 
 export class ModelError extends Error {
-  constructor(public code: 'shabbat_sensor_missing' | 'block_invalid', message: string) { super(message); }
+  constructor(public code: 'shabbat_sensor_missing' | 'presence_entity_missing' | 'block_invalid', message: string) { super(message); }
 }
+
+// ---- KAV079-295: wall-button vocabulary (the twin of services/wall_buttons.py) and the critical sound
+
+export const PRESSES: readonly PressKind[] = ['short', 'double', 'long'];
+export const PRESS_FAMILIES: ReadonlyArray<Record<PressKind, string>> = [
+  { short: 'remote_button_short_press', double: 'remote_button_double_press', long: 'remote_button_long_press' },
+  { short: 'single', double: 'double', long: 'long' },
+  { short: 'single_push', double: 'double_push', long: 'long_push' },
+  { short: 'short_press', double: 'double_press', long: 'long_press' },
+  { short: 'button_short_press', double: 'button_double_press', long: 'button_long_press' },
+];
+const BUTTON_KEYS = ['trigger', 'platform', 'device_id', 'domain', 'type', 'subtype', 'id', 'discovery_id', 'metadata', 'alias'];
+const BUTTON_RE = /^(.*?)(\d{1,2})$/;
+export const PRESS_WORD: Record<PressKind, string> = { short: 'לחיצה קצרה', double: 'לחיצה כפולה', long: 'לחיצה ארוכה' };
+export function pressOf(t: unknown): PressKind | null {
+  if (typeof t !== 'string') return null;
+  for (const f of PRESS_FAMILIES) for (const p of PRESSES) if (f[p] === t) return p;
+  return null;
+}
+export function buttonOf(sub: unknown): number | null {
+  const m = typeof sub === 'string' ? BUTTON_RE.exec(sub) : null;
+  if (!m) return null;
+  const n = Number(m[2]);
+  return n >= 1 && n <= 12 ? n : null;
+}
+export function typeFor(haType: string, press: PressKind): string | null {
+  const f = PRESS_FAMILIES.find((x) => Object.values(x).includes(haType));
+  return f ? f[press] : null;
+}
+export function subtypeFor(haSubtype: string, button: number): string | null {
+  const m = BUTTON_RE.exec(haSubtype);
+  return m && button >= 1 && button <= 12 ? `${m[1]}${button}` : null;
+}
+export function isButtonTrigger(r: Raw): boolean {
+  if ((r.trigger ?? r.platform) !== 'device' || !Object.keys(r).every((k) => BUTTON_KEYS.includes(k))) return false;
+  if (typeof r.device_id !== 'string' || !r.device_id || typeof r.domain !== 'string' || !r.domain) return false;
+  if (r.id !== undefined && typeof r.id !== 'string') return false;
+  if (r.discovery_id !== undefined && typeof r.discovery_id !== 'string') return false;
+  return pressOf(r.type) !== null && buttonOf(r.subtype) !== null;
+}
+/** The companion app's critical alert (the server's automation_model.CRITICAL_DATA). */
+export const CRITICAL_DATA = { push: { sound: { name: 'default', critical: 1, volume: 1.0 } }, ttl: 0, priority: 'high', channel: 'alarm_stream' } as const;
 
 function buildTrigger(b: TriggerBlock): Raw {
   const out: Raw = {};
@@ -1113,6 +1232,13 @@ function buildTrigger(b: TriggerBlock): Raw {
     case 'time_pattern': out.trigger = 'time_pattern'; if (b.hours != null) out.hours = b.hours; if (b.minutes != null) out.minutes = b.minutes; if (b.seconds != null) out.seconds = b.seconds; break;
     case 'sun': out.trigger = 'sun'; out.event = b.event; if (b.offset_min) out.offset = fmtOffset(b.offset_min); break;
     case 'homeassistant': out.trigger = 'homeassistant'; out.event = 'start'; break;
+    case 'button': {
+      const t = typeFor(b.ha_type, b.press); const sub = subtypeFor(b.ha_subtype, b.button);
+      if (!b.device_id || !b.domain || !t || !sub) throw new ModelError('block_invalid', 'a button trigger needs a device, a known press and a numbered button');
+      Object.assign(out, { trigger: 'device', device_id: b.device_id, domain: b.domain, type: t, subtype: sub });
+      if (typeof b.extra?.discovery_id === 'string') out.discovery_id = b.extra.discovery_id;
+      break;
+    }
   }
   if (b.id) out.id = b.id;
   return out;
@@ -1129,6 +1255,10 @@ function buildCondition(b: ConditionBlock, ctx: ModelContext): Raw {
       if (!ctx.shabbatSensor) throw new ModelError('shabbat_sensor_missing', 'no Shabbat sensor is configured');
       return { condition: 'state', entity_id: [ctx.shabbatSensor], state: b.mode === 'only_holy_days' ? 'on' : 'off' };
     }
+    case 'presence': {
+      if (!ctx.presenceEntity) throw new ModelError('presence_entity_missing', 'no presence entity is configured');
+      return { condition: 'state', entity_id: [ctx.presenceEntity], state: b.mode === 'someone' ? 'on' : 'off' };
+    }
   }
 }
 function buildAction(b: ActionBlock, ctx: ModelContext): Raw {
@@ -1139,6 +1269,7 @@ function buildAction(b: ActionBlock, ctx: ModelContext): Raw {
       const scriptCall = b.role === 'script' && b.action === b.entity_ids[0];
       if (b.entity_ids.length && !scriptCall) out.target = { entity_id: [...b.entity_ids] };
       if (Object.keys(b.data).length) out.data = clone(b.data);
+      if (b.critical && b.role === 'notify') out.data = { ...((out.data as Raw | undefined) ?? {}), data: clone(CRITICAL_DATA) };
       return out;
     }
     case 'delay': return { delay: durOut(b.delay) };
@@ -1395,7 +1526,8 @@ function serviceSentence(b: Extract<ActionBlock, { type: 'service' }>, ctx: Mode
   if (b.role === 'notify') {
     const target = ctx.notifyName?.(b.action) ?? (b.action.replace(/^notify\./, '').replace(/^mobile_app_/, '').replace(/_/g, ' ') || 'התראות');
     const msg = typeof d.message === 'string' ? d.message : '';
-    return msg ? `שלח ל${target} "${msg}"` : `שלח התראה ל${target}`;
+    const crit = b.critical ? ' עם צליל קריטי' : '';
+    return msg ? `שלח ל${target} "${msg}"${crit}` : `שלח התראה ל${target}${crit}`;
   }
   const verb = ACTION_VERBS[b.action];
   let text: string;
@@ -1439,6 +1571,7 @@ export function triggerSentence(b: TriggerBlock | LockedBlock, ctx: ModelContext
       return b.offset_min ? `${Math.abs(b.offset_min)} דק׳ ${b.offset_min < 0 ? 'לפני' : 'אחרי'} ה${word}` : `ב${word}`;
     }
     case 'homeassistant': return 'כשהמערכת עולה';
+    case 'button': return `${PRESS_WORD[b.press] ?? 'לחיצה'} על כפתור ${b.button} · ${ctx.deviceName?.(b.device_id) ?? 'מפסק'}`;
   }
 }
 export function conditionSentence(b: ConditionBlock | LockedBlock, ctx: ModelContext = {}): string {
@@ -1466,6 +1599,7 @@ export function conditionSentence(b: ConditionBlock | LockedBlock, ctx: ModelCon
     case 'or': return b.conditions.map((c) => conditionSentence(c, ctx)).join(' או ');
     case 'not': return `לא (${b.conditions.map((c) => conditionSentence(c, ctx)).join(' וגם ')})`;
     case 'shabbat': return b.mode === 'only_holy_days' ? 'בשבת וחג בלבד' : 'לא בשבת וחג';
+    case 'presence': return b.mode === 'nobody' ? 'אין אף אחד במבנה' : 'יש מישהו במבנה';
   }
 }
 /** One action step. `short` = the one-line form of a nested step ("בחר לפי תנאים (2 ענפים)"); the long form spells the branches. */

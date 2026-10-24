@@ -35,7 +35,7 @@ function rememberTemplates(list: TplRef[]): void {
 }
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-type NumKey = 'trash_days' | 'versions_keep';
+type NumKey = 'trash_days' | 'versions_keep' | 'wall_double_ms' | 'wall_long_ms' | 'wall_debounce_ms' | 'wall_listen_s' | 'conflict_window_min';
 type LimKey = keyof AutomationSettings['limits'];
 
 /**
@@ -66,6 +66,8 @@ export class SystemAutomations extends LitElement {
   @state() private busy = false;
   @state() private trashOpen = false;
   @state() private now: Date = new Date();
+  /** KAV079-295: entity ids of the catalogue (the "who is in the building" picker). */
+  @state() private candidates: string[] = [];
   private noteTimer = 0;
 
   static styles = [settingsStyles, css`
@@ -315,6 +317,7 @@ export class SystemAutomations extends LitElement {
       this.review = review;
       this.trash = trash;
       this.notify = catalog?.notify_targets ?? [];
+      this.candidates = (catalog?.entities ?? []).map((e) => e.entity_id);
       this.phase = 'ready';
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) this.phase = 'forbidden';
@@ -356,11 +359,11 @@ export class SystemAutomations extends LitElement {
 
   // ------------------------------------------------------------------------------------------------ pieces
 
-  private stepper(key: NumKey | LimKey, value: number, unit: string, min: number, max: number, set: (v: number) => void, label: string): TemplateResult {
+  private stepper(key: NumKey | LimKey, value: number, unit: string, min: number, max: number, set: (v: number) => void, label: string, step = 1): TemplateResult {
     return html`<div class="stepper" role="group" aria-label=${label}>
-      <button type="button" aria-label="פחות" data-step-minus=${key} ?disabled=${value <= min} @click=${() => set(Math.max(min, value - 1))}>−</button>
+      <button type="button" aria-label="פחות" data-step-minus=${key} ?disabled=${value <= min} @click=${() => set(Math.max(min, value - step))}>−</button>
       <span class="v" data-setting=${key}><bdi>${value}</bdi>${unit ? html`<small>${unit}</small>` : nothing}</span>
-      <button type="button" aria-label="יותר" data-step-plus=${key} ?disabled=${value >= max} @click=${() => set(Math.min(max, value + 1))}>+</button>
+      <button type="button" aria-label="יותר" data-step-plus=${key} ?disabled=${value >= max} @click=${() => set(Math.min(max, value + step))}>+</button>
     </div>`;
   }
 
@@ -377,11 +380,58 @@ export class SystemAutomations extends LitElement {
     const codeOn = (id: string, fixed: boolean | null) => (fixed !== null ? fixed : this.draft.code_view_roles.includes(id));
     return html`<sw-card heading="מי רשאי" data-card="who">
       <table class="mtx" data-roles-matrix>
-        <thead><tr><th>תפקיד</th><th class="c">הפעלה</th><th class="c">יצירה ועריכה</th><th class="c">קוד</th></tr></thead>
-        <tbody>${ROLE_ROWS.map((r) => html`<tr data-role=${r.id}><td>${r.label}${r.scope ? html`<small>${r.scope}</small>` : nothing}</td><td class="c">${tick(r.run)}</td><td class="c">${tick(r.edit)}</td><td class="c">${tick(codeOn(r.id, r.codeFixed))}</td></tr>`)}</tbody>
+        <thead><tr><th>תפקיד</th><th class="c">הפעלה</th><th class="c">יצירה ועריכה</th><th class="c">קוד</th>${this.draft.device_test_enabled ? html`<th class="c" data-col-device-test>בדיקה על ההתקן</th>` : nothing}</tr></thead>
+        <tbody>${ROLE_ROWS.map((r) => html`<tr data-role=${r.id}><td>${r.label}${r.scope ? html`<small>${r.scope}</small>` : nothing}</td><td class="c">${tick(r.run)}</td><td class="c">${tick(r.edit)}</td><td class="c">${tick(codeOn(r.id, r.codeFixed))}</td>${this.draft.device_test_enabled ? html`<td class="c">${tick(r.run && r.edit)}</td>` : nothing}</tr>`)}</tbody>
       </table>
       ${this.row('הרשאות ותפקידים', 'ההקצאה למשתמשים ולקומות במסך "משתמשים והרשאות".', html`<a class="link" href="#/system/access" data-link-access>למסך המשתמשים</a>`)}
     </sw-card>`;
+  }
+
+  // ------------------------------------------------------------------------------------------------ KAV079-295 (mockup r079 state 8)
+
+  private wallButtons(): TemplateResult {
+    const d = this.draft;
+    const R = AUTOMATION_SETTING_RANGES;
+    const st = (k: 'wall_double_ms' | 'wall_long_ms' | 'wall_debounce_ms' | 'wall_listen_s', unit: string, label: string, step: number) => {
+      const [lo, hi] = R[k];
+      return this.stepper(k, d[k], unit, lo, hi, (v) => this.set({ [k]: v } as Partial<AutomationSettings>), label, step);
+    };
+    return html`<sw-card heading="כפתורי קיר ומתגים" data-card="wall-buttons">
+      ${this.row('פתוח לעריכה בבונה', 'כפתורי קיר ומתגים בלבד בגרסה הראשונה', this.tog('פתוח לעריכה בבונה', d.wall_buttons_editable, (v) => this.set({ wall_buttons_editable: v }), 'wall_buttons_editable'))}
+      ${d.wall_buttons_editable ? html`
+        ${this.row('חלון לחיצה כפולה', 'הזמן המרבי בין שתי לחיצות', st('wall_double_ms', 'מ״ש', 'חלון לחיצה כפולה', 50))}
+        ${this.row('לחיצה ארוכה מתחילה אחרי', '', st('wall_long_ms', 'מ״ש', 'לחיצה ארוכה', 50))}
+        ${this.row('התעלמות מרעידות מגע', '', st('wall_debounce_ms', 'מ״ש', 'רעידות מגע', 10))}
+        ${this.row('זמן האזנה בזיהוי לחיצה', '', st('wall_listen_s', 'שנ׳', 'זמן האזנה', 5))}
+        ${this.row('טריגרים ייעודיים (מתג נדלק וכד׳)', 'לא בגרסה הראשונה', html`<span class="tag" data-wall-purpose>כבוי</span>`)}
+        ${this.row('תבניות מתקדמות', 'נשארות נעולות, נשמרות כמו שהן', html`<span class="tag" data-wall-templates><sw-icon name="lock" size=${12}></sw-icon>נעול</span>`)}` : nothing}
+    </sw-card>`;
+  }
+
+  private prechecks(): TemplateResult {
+    const d = this.draft;
+    const [wlo, whi] = AUTOMATION_SETTING_RANGES.conflict_window_min;
+    const seg = <T extends string>(attr: string, value: T, opts: Array<[T, string]>, set: (v: T) => void) => html`<div class="seg" role="group" aria-label=${attr}>${opts.map(([v, l]) => html`<button type="button" aria-pressed=${String(value === v)} data-seg=${`${attr}:${v}`} @click=${() => set(v)}>${l}</button>`)}</div>`;
+    return html`<sw-card heading="בדיקות לפני שמירה" data-card="prechecks">
+      ${this.row('בדיקות לפני שמירה', 'התנגשויות, התקן לא זמין, כפתור שכבר בשימוש', this.tog('בדיקות לפני שמירה', d.precheck_enabled, (v) => this.set({ precheck_enabled: v }), 'precheck_enabled'))}
+      ${d.precheck_enabled ? html`
+        ${this.row('חלון זיהוי התנגשות', 'פעולות הפוכות על אותו התקן, בין תזמונים ואוטומציות', this.stepper('conflict_window_min', d.conflict_window_min, 'דק׳', wlo, whi, (v) => this.set({ conflict_window_min: v }), 'חלון זיהוי התנגשות'))}
+        ${this.row('לאפשר "שמירה עם אזהרות"', 'שגיאה חוסמת תמיד', this.tog('שמירה עם אזהרות', d.save_with_warnings, (v) => this.set({ save_with_warnings: v }), 'save_with_warnings'))}
+        ${this.row('כפתור שכבר משמש פריט אחר', 'אותה לחיצה מפעילה שני פריטים', seg('button_reuse', d.button_reuse, [['warn', 'אזהרה'], ['error', 'שגיאה']], (v) => this.set({ button_reuse: v })))}` : nothing}
+      ${this.row('בדיקה על ההתקן', 'למי שמורשה לערוך וגם להפעיל ידנית', this.tog('בדיקה על ההתקן', d.device_test_enabled, (v) => this.set({ device_test_enabled: v }), 'device_test_enabled'))}
+      ${d.device_test_enabled ? html`
+        ${this.row('בדיקה על ההתקן: בסיום', 'מה קורה להתקנים שהופעלו בבדיקה', seg('device_test_end', d.device_test_end, [['ask', 'לשאול'], ['restore', 'להחזיר'], ['keep', 'להשאיר']], (v) => this.set({ device_test_end: v })))}
+        ${this.row('בדיקה על ההתקן לפעולה רגישה', 'כמו היום: לפי הרשאת הפעלה ידנית', html`<span class="tag" data-device-test-sensitive><sw-icon name="lock" size=${12}></sw-icon>לפי הרשאה</span>`)}` : nothing}
+      ${this.row('"מי במבנה" באוטומציות', 'החיישן שמדווח אם יש מישהו במבנה', html`<select class="sel" aria-label="מי במבנה" data-presence-entity @change=${(e: Event) => this.set({ presence_entity: (e.target as HTMLSelectElement).value })}>
+        <option value="" ?selected=${!d.presence_entity}>כבוי</option>
+        ${this.presenceCandidates().map((id) => html`<option value=${id} ?selected=${id === d.presence_entity}>${id}</option>`)}</select>`)}
+    </sw-card>`;
+  }
+
+  /** The binary sensors / input booleans the catalogue lists (the "who is in the building" entity is one of them). */
+  private presenceCandidates(): string[] {
+    const ids = this.candidates.filter((e) => /^(binary_sensor|input_boolean)\./.test(e));
+    return this.draft.presence_entity && !ids.includes(this.draft.presence_entity) ? [this.draft.presence_entity, ...ids] : ids;
   }
 
   private delegation(): TemplateResult | typeof nothing {
@@ -515,8 +565,8 @@ export class SystemAutomations extends LitElement {
     if (this.phase === 'forbidden') return html`<sw-page crumbs="הגדרות" heading="אוטומציות"><sw-state-panel state="forbidden" heading="אין הרשאה" data-automations-settings-forbidden></sw-state-panel></sw-page>`;
     return html`<sw-page crumbs="הגדרות" heading="אוטומציות" subheading="כל אפשרות של האוטומציות, הסצנות והסקריפטים נמצאת כאן בלבד." wide data-automations-settings>
       <div class="cols">
-        <div class="col">${this.who()}${this.codeView()}${this.retention()}${this.display()}${this.platform()}</div>
-        <div class="col">${this.compatCard()}${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}${isApi() ? html`<scenario-settings></scenario-settings>` : nothing}</div>
+        <div class="col">${this.wallButtons()}${this.codeView()}${this.who()}${this.retention()}${this.display()}${this.platform()}</div>
+        <div class="col">${this.prechecks()}${this.compatCard()}${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}${isApi() ? html`<scenario-settings></scenario-settings>` : nothing}</div>
       </div>
       ${this.dirty || this.note || this.error
         ? html`<div class="savebar" data-settings-bar>

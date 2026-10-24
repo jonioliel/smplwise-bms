@@ -50,6 +50,9 @@ export function deriveScope(cat: AutomationCatalog): UserScope {
   return { floors: null, areas: null };
 }
 
+/** KAV079-295: wall-switch names the button picker has loaded (the local sentence of a button trigger names its switch). */
+export const wallDeviceNames = new Map<string, string>();
+
 export function buildEnv(status: AutomationsStatus, catalog: AutomationCatalog): EditorEnv {
   const byId = new Map(catalog.entities.map((e) => [e.entity_id, e]));
   const scenes = new Map(catalog.scenes.map((s) => [s.entity_id, s.name]));
@@ -64,6 +67,10 @@ export function buildEnv(status: AutomationsStatus, catalog: AutomationCatalog):
       notifyName: (a) => notify.get(a) ?? null,
       shabbatSensor: catalog.shabbat_sensor,
       ...(catalog.allowed_actions ? { allowedActions: catalog.allowed_actions } : {}),
+      // KAV079-295: the extension's model switches (absent on an older server = off)
+      wallButtons: !!catalog.extension?.wall_buttons,
+      presenceEntity: catalog.extension?.presence_entity ?? null,
+      deviceName: (id) => wallDeviceNames.get(id) ?? null,
     },
     notifyActions: catalog.notify_targets.length ? catalog.notify_targets.map((n) => n.action) : null,
     sensitiveChip: status.ui.sensitive_chip === 'red' ? 'red' : 'amber',
@@ -317,13 +324,13 @@ export function blockIcon(b: Block, section: Section): string {
     switch (t.type) {
       case 'state': return entityIcon((b as TriggerBlock & { entity_ids: string[] }).entity_ids?.[0]);
       case 'numeric_state': return presenceOf(b) ? 'users' : entityIcon((b as TriggerBlock & { entity_ids: string[] }).entity_ids?.[0]) === 'sensor' ? 'thermo' : entityIcon((b as TriggerBlock & { entity_ids: string[] }).entity_ids?.[0]);
-      case 'time': return 'clock'; case 'time_pattern': return 'timer'; case 'sun': return 'sunset'; default: return 'power';
+      case 'time': return 'clock'; case 'time_pattern': return 'timer'; case 'sun': return 'sunset'; case 'button': return 'button'; default: return 'power';
     }
   }
   if (section === 'condition') {
     switch (t.type) {
       case 'state': case 'numeric_state': return entityIcon((b as ConditionBlock & { entity_ids: string[] }).entity_ids?.[0]);
-      case 'time': return 'clock'; case 'sun': return 'sunset'; case 'trigger': return 'bolt'; case 'shabbat': return 'calendar'; case 'not': return 'slash'; default: return 'branch';
+      case 'time': return 'clock'; case 'sun': return 'sunset'; case 'trigger': return 'bolt'; case 'shabbat': return 'calendar'; case 'presence': return 'users'; case 'not': return 'slash'; default: return 'branch';
     }
   }
   switch (t.type) {

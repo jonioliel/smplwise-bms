@@ -15,6 +15,7 @@ import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { applyAutomationsGlass, autoApi, autoNow, autoReady, demoControl, demoLoading } from '../api/automations-demo';
 import { isApi } from '../api/session';
+import { conflictSummary, extFlags } from '../api/automations-ext';
 import { subscribeHa } from '../api/ha';
 import { getScheduleStatus } from '../api/schedules';
 import { scenariosStatus, type ScenariosStatus } from '../api/scenarios';
@@ -28,7 +29,7 @@ import {
   type AnyDraft, type AutomationsStatus, type Item, type ItemDetail, type ItemKind, type ScriptDraft,
 } from '../api/automations';
 import {
-  BASE, NO_FILTERS, STATE_FILTERS, applyFilters, banners, countsOf, confirmLine, editPath, editTarget, filtersActive, filtersFromParams, filtersToParams, floorOptions, hiddenScenes, itemPath,
+  BASE, NO_FILTERS, STATE_FILTERS_OF, withConflicts, applyFilters, banners, countsOf, confirmLine, editPath, editTarget, filtersActive, filtersFromParams, filtersToParams, floorOptions, hiddenScenes, itemPath,
   newButton, newPath, parseAutomationsRoute, screenKind, segmentOf, segmentOfKind, stateCounts, trashPath, SEGMENTS,
   type AutomationsRoute, type ListFilters, type Segment, type StateFilter,
 } from './automations-logic';
@@ -386,6 +387,8 @@ export class DevicesAutomations extends LitElement {
     try {
       const r = await autoApi().list({ limit: 500 });
       this.items = r.items;
+      // KAV079-295: the possible conflicts (only while the pre-save checks are on; nothing changes otherwise)
+      if (extFlags(this.status?.ui ?? null).precheck) void conflictSummary().then((c) => { if (this.items && c.enabled) this.items = withConflicts(this.items, c.items); }).catch(() => undefined);
       this.failed = '';
       this.now = autoNow();
       void this.loadFieldScripts();
@@ -611,7 +614,7 @@ export class DevicesAutomations extends LitElement {
       </div>
       ${tools || (sv && scenOk) ? html`<div class="dh-det">
         ${kinds.length > 1 || scenOk || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label="סוג">${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>תזמונים${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id && !sv)} data-segment=${s.id} @click=${() => (sv ? navigate(itemPath(s.id)) : this.setSegment(s.id))}>${s.label} <small>${counts[s.kind]}</small></button>`)}${scenOk ? html`<button type="button" role="tab" aria-selected=${String(sv)} data-segment="scenarios" @click=${() => navigate('/devices/automations/scenarios')}>${sct('tab')}</button>` : nothing}</div>` : nothing}
-        ${def.kind === 'automation' && all.length && !sv ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
+        ${def.kind === 'automation' && all.length && !sv ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_FILTERS_OF(extFlags(this.status?.ui ?? null).precheck).map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
         ${def.kind === 'automation' && all.length && !sv ? html`<button type="button" class="btn foldbtn" data-fold-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}סינון${active ? html` <small>${active}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>
         ${sv ? (this.scen?.can.manage ? html`<button type="button" class="btn primary newbtn" data-scen-new @click=${() => navigate('/devices/automations/scenarios/new')}>${aIcon('plus')}${sct('new')}</button>` : nothing) : html`<label class="search">${aIcon('search')}<span class="sr-only">חיפוש</span><input type="search" data-search placeholder=${this.phone ? 'חיפוש' : def.searchLabel} .value=${f.q} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></label>

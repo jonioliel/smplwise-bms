@@ -80,16 +80,25 @@ export function editTarget(r: AutomationsRoute, params: URLSearchParams): { kind
 
 // ------------------------------------------------------------------------------------------------ filters
 
-export type StateFilter = 'all' | 'on' | 'off' | 'sensitive' | 'attention';
+export type StateFilter = 'all' | 'on' | 'off' | 'sensitive' | 'conflict' | 'attention';
 export const STATE_FILTERS: ReadonlyArray<{ id: StateFilter; label: string }> = [
   { id: 'all', label: 'הכל' }, { id: 'on', label: 'פעילות' }, { id: 'off', label: 'כבויות' }, { id: 'sensitive', label: 'רגישות' }, { id: 'attention', label: 'דורשות תשומת לב' },
 ];
+/** KAV079-295: `conflict` ("התנגשות אפשרית", before "דורשות תשומת לב" as drawn) is offered only while the pre-save checks are on. */
+const CONFLICT_FILTER = { id: 'conflict' as StateFilter, label: 'התנגשות אפשרית' };
+export const STATE_FILTERS_OF = (precheck: boolean): ReadonlyArray<{ id: StateFilter; label: string }> =>
+  (precheck ? [...STATE_FILTERS.slice(0, 4), CONFLICT_FILTER, ...STATE_FILTERS.slice(4)] : STATE_FILTERS);
+/** KAV079-295: the per-item conflict counts of GET /automations-ext/conflicts put on the list's items. */
+export function withConflicts<T extends Item>(items: readonly T[], counts: ReadonlyArray<{ kind: string; id: string; count: number }>): T[] {
+  const by = new Map(counts.filter((c) => c.kind === 'automation').map((c) => [c.id, c.count]));
+  return items.map((i) => (i.kind === 'automation' ? { ...i, conflicts: by.get(i.id) ?? 0 } : i));
+}
 export interface ListFilters { q: string; floor: string; state: StateFilter }
 export const NO_FILTERS: ListFilters = { q: '', floor: '', state: 'all' };
 
 export function filtersFromParams(p: URLSearchParams): ListFilters {
   const s = p.get('state');
-  return { q: p.get('q') ?? '', floor: p.get('floor') ?? '', state: STATE_FILTERS.some((f) => f.id === s) ? (s as StateFilter) : 'all' };
+  return { q: p.get('q') ?? '', floor: p.get('floor') ?? '', state: STATE_FILTERS_OF(true).some((f) => f.id === s) ? (s as StateFilter) : 'all' };
 }
 export function filtersToParams(f: ListFilters, extra: Record<string, string> = {}): URLSearchParams {
   const p = new URLSearchParams();
@@ -106,11 +115,11 @@ export function needsAttention(i: Item): boolean {
   return i.state === 'invalid' || i.state === 'unavailable' || i.warnings.some((w) => w.code === 'missing_entity') || i.targets.some((t) => t.missing) || i.last_run?.result === 'error';
 }
 const stateMatches = (i: Item, s: StateFilter): boolean =>
-  s === 'all' ? true : s === 'on' ? i.state === 'on' || i.state === 'running' : s === 'off' ? i.state === 'off' : s === 'sensitive' ? i.sensitive : needsAttention(i);
+  s === 'all' ? true : s === 'on' ? i.state === 'on' || i.state === 'running' : s === 'off' ? i.state === 'off' : s === 'sensitive' ? i.sensitive : s === 'conflict' ? (i.conflicts ?? 0) > 0 : needsAttention(i);
 
 export function stateCounts(items: readonly Item[]): Record<StateFilter, number> {
   return { all: items.length, on: items.filter((i) => stateMatches(i, 'on')).length, off: items.filter((i) => stateMatches(i, 'off')).length,
-    sensitive: items.filter((i) => i.sensitive).length, attention: items.filter(needsAttention).length };
+    sensitive: items.filter((i) => i.sensitive).length, conflict: items.filter((i) => (i.conflicts ?? 0) > 0).length, attention: items.filter(needsAttention).length };
 }
 
 /** One segment's items with the filters applied: search (name, description, sentence, devices), floor, state; most recently run first. */
@@ -188,7 +197,10 @@ export interface CardChip extends ItemChip { count?: number }
 export function cardChips(i: Item, opts: { sensitiveWarning?: boolean } = {}): CardChip[] {
   return itemChips(i, opts)
     .filter((c) => c.id !== 'off' && c.id !== 'running')
-    .map((c) => (c.id === 'locked' ? { ...c, count: i.locked_count, label: i.locked_count > 1 ? `${i.locked_count} חלקים נעולים` : 'חלק נעול' } : c));
+    .map((c) => (c.id === 'locked' ? { ...c, count: i.locked_count, label: i.locked_count > 1 ? `${i.locked_count} חלקים נעולים` : 'חלק נעול' } : c))
+    // KAV079-295 (state 1): "כפתור קיר · ניתן לעריכה" and "התנגשות אפשרית · N"
+    .concat(i.wall_button ? [{ id: 'wall_button', label: 'כפתור קיר · ניתן לעריכה', tone: 'ok' as const }] : [])
+    .concat((i.conflicts ?? 0) > 0 ? [{ id: 'conflict', label: `התנגשות אפשרית · ${i.conflicts}`, tone: 'warn' as const, count: i.conflicts }] : []);
 }
 
 // ------------------------------------------------------------------------------------------------ scenes and scripts
