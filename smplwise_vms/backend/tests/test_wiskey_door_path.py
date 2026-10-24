@@ -303,7 +303,7 @@ def test_d3_grant_card_switches_users_groups_and_custom_roles(world):
         # CR-038: the nine single-purpose tickets roles hold no door permission - a door switch is per user, as for operator / editor
         **{r: "per_user" for r in ("tickets_view", "tickets_create", "tickets_manage", "tickets_external", "tickets_all_departments", "tickets_configure", "tickets_costs", "tickets_costs_view",
                                    "tickets_delete", "tickets_handlers", "tickets_directory", "tickets_technician_requests", "tickets_intake",
-                                   "door_windows_manager", "door_windows_guard", "emergency_lock", "emergency_open",
+                                   "door_windows_manager", "door_windows_guard", "emergency_lock", "emergency_open", "security_manager",
                                    "notices_manage", "notices_push", "notices_boards")}}  # CR-NOTICE106: the notice grants hold no door permission; DOORWIN2-295: the four single-permission roles hold no door-open permission
     assert all(not r["editable"] for r in card["roles"] if not r["custom"]), "built-in roles are read-only"
     # one switch on: a door_opener binding at installation scope, audited, the revision moves

@@ -301,6 +301,10 @@ PERMISSION_LABELS: dict[str, str] = {
     "access.windows.cancel": "בקרת כניסה: הפסקת חלון פתיחה פעיל ואימות ידני שהדלת חזרה למצב רגיל",
     "access.emergency.lock": "בקרת כניסה: נעילת חירום של כל הדלתות בהיקף",
     "access.emergency.open": "בקרת כניסה: פתיחת חירום של כל הדלתות בהיקף (פינוי)",
+    # EMROLE-295 (owner decisions 2026-10-24): who may give the built-in emergency_open role to a person (guard, temporary guard, reception), with an expiry.
+    # System administrators always; the built-in security_manager role (this permission alone) while the setting doors.emergency.grant.by_security_manager is on.
+    # Sensitive, never implied, never delegable: it grants the single emergency_open role and nothing else (no rbac.assign, no other role).
+    "emergency.open.grant": "מתן תפקיד פתיחת חירום לאנשים (עם תוקף) וביטולו",
     # CR-023 (electricity meters and bills; owner decision 2026-10-04: three permissions only). energy.view: meters, kWh and
     # account status without money (operator and above). energy.bills: money (prices, amounts, bills, PDFs), customer
     # contact fields, and every bill act - draft, issue, mark sent/paid, correct, cancel (site_admin, system_admin; SENSITIVE,

@@ -221,7 +221,7 @@ export interface Incident {
   superseded_by: string | null;
   foreign_paused?: { door: string; label: string }[];
   can_release?: boolean;
-  /** WKOPENUNK-295: a system administrator may start one explicit new OPEN attempt for a door whose OPEN ended unknown. */
+  /** WKOPENUNK-295 / EMROLE-295: a system administrator, or a holder of the emergency-open role, may start one explicit new OPEN attempt for a door whose OPEN ended unknown. */
   can_retry_open?: boolean;
   doors?: { door: string; label: string; phase: 'apply' | 'release'; state: DoorResult; attempts: number; code: string | null }[];
 }
@@ -230,7 +230,8 @@ export interface EmergencyState {
   enabled: boolean;
   open_enabled: boolean;
   hold_ms: number;
-  can: { lock: boolean; open: boolean };
+  /** `grant` (EMROLE-295): the person may give / take away the emergency-open role (a system administrator or a security manager). */
+  can: { lock: boolean; open: boolean; grant?: boolean };
   active: Incident | null;
   drill?: Incident | null;
   scopes?: Record<EmergencyKind, Scope[]>;
@@ -273,6 +274,11 @@ export interface EmergencySettings {
   'doors.emergency.hold_ms': string;
   'doors.emergency.announce_phrase'?: string;
   'doors.emergency.home_widget'?: string;
+  /** EMROLE-295: the expiry offered when a grant names none (hours, 0 = none), the longest a security manager may give, and the two switches. */
+  'doors.emergency.grant.default_hours'?: string;
+  'doors.emergency.grant.max_hours'?: string;
+  'doors.emergency.grant.by_security_manager'?: string;
+  'doors.emergency.retry_open.by_holders'?: string;
   go_live_permitted: boolean;
   open_available: boolean;
   attested: boolean;
@@ -287,3 +293,37 @@ export const attest = (version: number) => post<{ attested: boolean; version: nu
 /** WKOPENUNK-295: one explicit new OPEN attempt for ONE door whose OPEN ended unknown; the person types the door's name (the server checks it) - never automatic. */
 export const retryOpenDoor = (incidentId: string, stationId: string, relay: number, confirmDoor: string) =>
   post<{ incident: Incident }>(`${E}/incidents/${encodeURIComponent(incidentId)}/retry-open`, { station_id: stationId, relay, confirm_door: confirmDoor });
+
+// ---------------------------------------------------------------- EMROLE-295: who holds the emergency-open role
+
+export interface GrantHolder {
+  id: string;
+  subject_kind: 'user' | 'group';
+  subject_id: string;
+  name: string;
+  scope_type: string;
+  scope_id: string;
+  scope_name: string;
+  expires_at: string | null;
+  created_at: string;
+  assigned_by: string | null;
+  assigned_by_name: string;
+  role_name: string;
+}
+
+export interface GrantsView {
+  basis: 'system_admin' | 'security_manager';
+  default_hours: number;
+  max_hours: number;
+  can_no_expiry: boolean;
+  holders: GrantHolder[];
+  candidates: { id: string; name: string }[];
+  scopes: { scope_type: 'installation' | 'site' | 'building'; scope_id: string; name: string }[];
+  role_name: string;
+}
+
+export const getEmergencyGrants = () => get<GrantsView>(`${E}/grants`);
+/** Give the built-in emergency-open role to one person; `expires_at` is a UTC instant (Z), `noExpiry` is for a system administrator only. */
+export const grantEmergencyOpen = (userId: string, scope: { scope_type: string; scope_id: string }, expiresAt: string | null, noExpiry: boolean) =>
+  post<{ grant: { id: string; expires_at: string | null } }>(`${E}/grants`, { user_id: userId, ...scope, expires_at: noExpiry ? null : expiresAt, no_expiry: noExpiry, confirmed: true });
+export const revokeEmergencyGrant = (bindingId: string) => post<{ revoked: string }>(`${E}/grants/${encodeURIComponent(bindingId)}/revoke`, { confirmed: true });

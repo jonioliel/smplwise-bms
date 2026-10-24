@@ -7,6 +7,7 @@ import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import '../door-windows/emergency';
+import '../door-windows/emergency-grants';
 import '../door-windows/event-rules';
 import '../door-windows/holidays';
 import '../door-windows/open-for';
@@ -26,11 +27,14 @@ import {
 import { dwCss } from '../door-windows/styles';
 import { dwe } from '../i18n/door-windows-events';
 import { limitsOf, openableDoors } from '../door-windows/events-logic';
+import { canManageGrants } from '../door-windows/grants-logic';
 import { dateInputLang } from '../api/day-format';
 
 const POLL_MS = 15_000;
 const EM_POLL_MS = 5_000;
 const DAYS = [0, 1, 2, 3, 4, 5, 6];
+/** EMROLE-295: the settings of the emergency-open role (who may give it, the expiry, whether holders may retry). */
+const GRANT_KEYS = ['doors.emergency.grant.default_hours', 'doors.emergency.grant.max_hours', 'doors.emergency.grant.by_security_manager', 'doors.emergency.retry_open.by_holders'];
 const CALENDARS: CalendarPolicy[] = ['skip_holidays', 'holidays_like_friday', 'ignore_calendar'];
 
 type Confirm = { title: string; text: string; btn: string; danger?: boolean; run: () => Promise<unknown> };
@@ -107,6 +111,7 @@ export class DoorWindowsScreen extends LitElement {
   @state() private confirm: Confirm | null = null;
   @state() private manual: { occ: Occurrence; checked: 'camera' | 'door' | '' } | null = null;
   @state() private sheet = false;
+  @state() private grantsOpen = false;
   @state() private holidaysOpen = false;
   @state() private openForOpen = false;
   @state() private openForDoor = '';
@@ -274,7 +279,7 @@ export class DoorWindowsScreen extends LitElement {
       this.ws = w.settings;
       this.wsEdit = { ...w.settings };
       this.es = e.settings;
-      this.esEdit = { 'doors.emergency.enabled': e.settings['doors.emergency.enabled'], 'doors.emergency.open_enabled': e.settings['doors.emergency.open_enabled'] };
+      this.esEdit = Object.fromEntries(Object.entries(e.settings).filter(([k, v]) => typeof v === 'string' && ['doors.emergency.enabled', 'doors.emergency.open_enabled', ...GRANT_KEYS].includes(k))) as Record<string, string>;
     } catch (err) {
       this.sError = describeError(err);
     }
@@ -318,6 +323,14 @@ export class DoorWindowsScreen extends LitElement {
       }}></div>`;
   }
 
+  private hours(key: string, label: DwtKey, min: number, max: number): TemplateResult {
+    return html`<div class="field"><label for=${key}>${dwt(label)}</label><input id=${key} type="text" inputmode="numeric" data-dw-setting=${key}
+      .value=${this.esEdit[key] ?? ''} @input=${(e: Event) => {
+        const v = (e.target as HTMLInputElement).value.trim();
+        this.esEdit = { ...this.esEdit, [key]: /^\d+$/.test(v) && Number(v) >= min && Number(v) <= max ? String(Number(v)) : v };
+      }}></div>`;
+  }
+
   private check(on: boolean, label: DwtKey, set: (v: boolean) => void, disabled = false, key = ''): TemplateResult {
     return html`<label class="occ" data-dw-switch=${key}><input type="checkbox" .checked=${on} ?disabled=${disabled} @change=${(e: Event) => set((e.target as HTMLInputElement).checked)}> ${dwt(label)}</label>`;
   }
@@ -345,6 +358,11 @@ export class DoorWindowsScreen extends LitElement {
           <div class="card" data-dw-attestation><b>${dwt('sAttestTitle')}</b><p class="muted">${es.attestation.text}</p>
             ${es.attested ? html`<span class="chip" data-tone="ok">${dwt('sAttested')}</span>`
               : html`<div><sw-button size="sm" variant="secondary" data-dw-attest @click=${() => void this.doAttest()}>${dwt('sAttest')}</sw-button></div>`}</div>
+          <h2>${dwt('sGrants')}</h2>
+          ${this.hours('doors.emergency.grant.default_hours', 'sGrantDefault', 0, 8760)}
+          ${this.hours('doors.emergency.grant.max_hours', 'sGrantMax', 1, 8760)}
+          ${this.check(this.esEdit['doors.emergency.grant.by_security_manager'] === 'on', 'sGrantManager', (v) => (this.esEdit = { ...this.esEdit, 'doors.emergency.grant.by_security_manager': v ? 'on' : 'off' }), false, 'doors.emergency.grant.by_security_manager')}
+          ${this.check(this.esEdit['doors.emergency.retry_open.by_holders'] === 'on', 'sRetryHolders', (v) => (this.esEdit = { ...this.esEdit, 'doors.emergency.retry_open.by_holders': v ? 'on' : 'off' }), false, 'doors.emergency.retry_open.by_holders')}
         </section>` : nothing}
         ${this.sError ? html`<div class="err" role="alert">${this.sError}</div>` : nothing}
       </div>
@@ -375,6 +393,7 @@ export class DoorWindowsScreen extends LitElement {
       ${d.can.manage ? html`<sw-button slot="actions" variant="primary" icon="plus" data-dw-new @click=${() => this.openEditor()}>${dwt('newRule')}</sw-button>` : nothing}
       ${openableDoors(d).length ? html`<sw-button slot="actions" variant="secondary" icon="clock" data-dw-openfor-btn @click=${() => this.askOpenFor('')}>${dwe('ofBtn')}</sw-button>` : nothing}
       <sw-button slot="actions" variant="ghost" icon="calendar" data-dw-holidays-btn @click=${() => (this.holidaysOpen = true)}>${dwe('hlBtn')}</sw-button>
+      ${canManageGrants(em) ? html`<sw-button slot="actions" variant="ghost" icon="user" data-dw-grants-btn @click=${() => (this.grantsOpen = true)}>${dwt('grBtn')}</sw-button>` : nothing}
       ${d.can.configure ? html`<sw-button slot="actions" variant="ghost" icon="system" data-dw-settings-btn @click=${() => void this.openSettings()}>${dwt('settings')}</sw-button>` : nothing}
       <sw-button slot="actions" variant="ghost" icon="refresh" iconOnly label=${dwt('refresh')} @click=${() => void this.load()}></sw-button>
       <div class="stack">
@@ -395,6 +414,7 @@ export class DoorWindowsScreen extends LitElement {
         @close=${() => (this.holidaysOpen = false)} @changed=${() => void this.load()} @notice=${(e: CustomEvent<string>) => this.flash(e.detail)}></door-holidays>
       <door-open-for .open=${this.openForOpen} .doors=${openableDoors(d)} .preset=${this.openForDoor} .maxHours=${limitsOf(d.settings).maxHours} .nowIso=${d.now}
         @close=${() => (this.openForOpen = false)} @changed=${() => void this.load()} @notice=${(e: CustomEvent<string>) => this.flash(e.detail)}></door-open-for>
+      <door-emergency-grants .open=${this.grantsOpen} @close=${() => (this.grantsOpen = false)} @notice=${(e: CustomEvent<string>) => this.flash(e.detail)}></door-emergency-grants>
       <door-emergency-sheet .open=${this.sheet} .data=${em} @close=${() => (this.sheet = false)} @changed=${() => void this.loadEmergency()}></door-emergency-sheet>
       ${this.toast ? html`<div class="toast" role="status">${this.toast}</div>` : nothing}
     </sw-page>`;
