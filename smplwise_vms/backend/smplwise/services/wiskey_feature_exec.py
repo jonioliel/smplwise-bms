@@ -195,7 +195,11 @@ def build_request(*, feature: str, actor: dict[str, Any], authority_ref: str, au
             raise FeatureError("binding_denied")
     else:
         raise FeatureError("Unauthorized")
-    if (feature == "door_automations") != (kind == "automation"):
+    # WisKey FeatureRequest.parse: door automations need an automation actor; an automation actor is allowed only for door automations and for the
+    # emergency FIRE trigger (EMERGENCY_EVENT_V2.md) - never for the other features, and never a human for door automations.
+    if (feature == "door_automations") and kind != "automation":
+        raise FeatureError("Unauthorized")
+    if kind == "automation" and feature not in ("door_automations", "emergency_buttons"):
         raise FeatureError("Unauthorized")
     if feature in ("door_windows", "door_automations", "live_media", "live_validation"):
         end = execution_end(feature, clean)
