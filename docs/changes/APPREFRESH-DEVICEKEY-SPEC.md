@@ -162,7 +162,9 @@ refresh (the request timeout stays below 20 s, CR F-05; budget the challenge rou
   key plus `replaces` signed by the old one.
 - **The user's own end releases the key** (owner decision Q296): the app's own `POST /auth/app/sign-out` with its current token, the user's
   "end this sign-in" (`DELETE /auth/app/families/{id}`) or "sign out everywhere" (`DELETE /auth/app/families`) on their OWN account. The
-  next mint then binds any key without `replaces`. An administrator's end, re-registration, deleting and re-adding the device, a refusal,
+  next mint then binds any key without `replaces`, and the user receives the notification `security.app_device_key_released` (owner
+  decision Q312: in the app and on the phone; wording in the Settings, `security.app_refresh_key_released_notice_title` / `_body`,
+  placeholder `{device}` only). An administrator's end, re-registration, deleting and re-adding the device, a refusal,
   expiry or the feature switched off do NOT release it.
 - **Lost old key** (Keystore key invalidated by a lock-screen change, data cleared while the install id survived, a restored phone): if the
   user can still end the old sign-in themselves (above), that releases it; otherwise an administrator approves a reset (section 6a).

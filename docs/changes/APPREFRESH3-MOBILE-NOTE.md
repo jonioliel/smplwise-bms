@@ -15,7 +15,8 @@ Re-registering the device, deleting and re-adding it, or an administrator ending
    Do not retry in a loop. Once the administrator approves (the user gets a notification in the app and on the phone, valid for 24 hours),
    mint normally with the new key. No `replaces` is needed.
 4. **The user's own sign-out frees the key.** That is the app's own `POST /auth/app/sign-out`, or "end this sign-in" / "sign out
-   everywhere" on their own account. After it the next mint may use a new key with no proof.
+   everywhere" on their own account. After it the next mint may use a new key with no proof, and the user receives a notification
+   that the key was released (in the app and on the phone).
 
 **Unchanged:** every request and response shape, the signed strings, the error codes and the `details.reason` values. Apps with no
 device key are not affected. The only behaviour change for a rev-1 app: a mint with a NEW key after a re-registration or an

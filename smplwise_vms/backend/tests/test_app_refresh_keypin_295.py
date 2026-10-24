@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from test_app_refresh_295 import API, ARX, INSTALL, audit_rows, family_row, register, rx, switch  # noqa: F401 - rx is the shared fixture
+from test_app_refresh_295 import API, ARX, INSTALL, audit_rows, family_row, issue, register, rx, switch  # noqa: F401 - rx is the shared fixture
 from test_app_refresh_devicekey_295 import Key, challenge, key_body, keyed, mint, nonce_of, now, prefresh, proof
 
 from smplwise.services import app_refresh as svc
@@ -46,11 +46,14 @@ def reset(rx, device_id: str, client=None, prefix: str = API, reason: str = REAS
     return (client or rx.c).post(f"{prefix}/auth/app/devices/{device_id}/key-reset", json={"reason": reason})
 
 
-def notices(rx, user_id: str = "u-viewer") -> list[dict]:
+def notices(rx, user_id: str = "u-viewer", source: str = "security.app_device_key_reset") -> list[dict]:
     with rx.db.connection(mode="read") as conn:
         return [dict(r) for r in conn.execute(
             """SELECT n.* FROM notifications n JOIN notification_recipients r ON r.notification_id = n.id
-               WHERE n.source = 'security.app_device_key_reset' AND r.user_id = ? ORDER BY n.created_at""", (user_id,)).fetchall()]
+               WHERE n.source = ? AND r.user_id = ? ORDER BY n.created_at, n.rowid""", (source, user_id)).fetchall()]
+
+
+RELEASED = "security.app_device_key_released"
 
 
 # ---------------------------------------------------------------- the pin outlives the sign-in
@@ -136,6 +139,7 @@ def test_deleting_the_device_or_an_administrators_end_keeps_the_pin(rx):
     r = rx.c.delete(f"{API}/auth/app/families", params={"user_id": "u-viewer"})  # an administrator's "all of them": nothing to end, no release
     assert r.status_code == 200
     assert pin_row(rx, dev["device_id"]) is not None and audit_rows(rx, "auth.app_refresh.key_released") == []
+    assert notices(rx, source=RELEASED) == []  # nothing released, nothing told
 
 
 def test_the_users_own_end_releases_the_pin(rx):
@@ -147,7 +151,48 @@ def test_the_users_own_end_releases_the_pin(rx):
     rel = audit_rows(rx, "auth.app_refresh.key_released")
     assert [a["reason"] for a in rel] == ["signed_out_everywhere"] and json.loads(rel[0]["details_json"])["key_fp"] == old.fp[:16]
     assert old.text not in rel[0]["details_json"]
+    assert json.loads(rel[0]["details_json"])["notified"] is True
     assert mint(rx, dev["device_id"], Key()).status_code == 201
+
+
+def test_a_release_notifies_the_user_for_each_of_the_three_own_ends(rx):
+    # owner decision Q312: the user is told whenever their own end of the sign-in released the device key (in the app and on the phone)
+    dev, out, _ = keyed(rx)
+    assert rx.c.post(f"{ARX}/auth/app/sign-out", json={"refresh_token": out["refresh_token"]}).status_code == 204  # the app's own sign-out
+    out = mint(rx, dev["device_id"], Key()).json()
+    assert rx.user("dana").delete(f"{ARX}/auth/app/families/{out['family_id']}").status_code == 204  # "end this sign-in"
+    out = mint(rx, dev["device_id"], Key()).json()
+    assert rx.user("dana").delete(f"{ARX}/auth/app/families").status_code == 200  # "sign out everywhere"
+    n = notices(rx, source=RELEASED)
+    assert len(n) == 3
+    for row in n:
+        assert row["title"] == svc.NOTICE_DEFAULTS[svc.RELEASED_TITLE_KEY][0]
+        assert dev["name"] in row["body"] and "{device}" not in row["body"]
+    assert [a["reason"] for a in audit_rows(rx, "auth.app_refresh.key_released")] == ["app_sign_out", "revoked_by_user", "signed_out_everywhere"]
+    assert all(json.loads(a["details_json"])["notified"] for a in audit_rows(rx, "auth.app_refresh.key_released"))
+    # a keyless sign-in ended by the user releases nothing and tells nothing
+    vdev = register(rx, "vera", install_id=INSTALL3, name="הנייד של ורה")
+    vfam = issue(rx, vdev["device_id"], user="vera", install_id=INSTALL3).json()
+    assert rx.user("vera").delete(f"{ARX}/auth/app/families/{vfam['family_id']}").status_code == 204
+    assert notices(rx, "u-vera", RELEASED) == []
+    row = notify_policy.default_row(notify_policy.BY_KEY[RELEASED])
+    assert row["channels"]["inbox"] and row["channels"]["webpush"] and row["channels"]["app"] and row["recipients"] == {"rule": "initiator"}
+
+
+def test_the_release_notice_wording_comes_from_the_settings(rx):
+    dev, out, _ = keyed(rx)
+    title, body = svc.RELEASED_TITLE_KEY, svc.RELEASED_BODY_KEY
+    for bad in ({body: "עד {until}"}, {body: "{user}"}, {title: ""}, {body: "x" * 181}):  # {until} belongs to the reset notice only
+        r = rx.c.put(f"{API}/auth/app/settings", json=bad)
+        assert r.status_code == 422 and r.json()["details"]["placeholders"] == ["{device}"], (bad, r.text)
+    svc.reset_limits()
+    st = switch(rx, **{title: "המפתח שוחרר", body: "סיימת את הכניסה ב{device}."})["settings"]
+    assert st[title] == "המפתח שוחרר" and st[body] == "סיימת את הכניסה ב{device}."
+    assert rx.user("dana").delete(f"{ARX}/auth/app/families/{out['family_id']}").status_code == 204
+    n = notices(rx, source=RELEASED)[-1]
+    assert n["title"] == "המפתח שוחרר" and n["body"] == f"סיימת את הכניסה ב{dev['name']}."
+    assert switch(rx, **{body: None})["settings"][body] == svc.NOTICE_DEFAULTS[body][0]
+    assert {title, body} <= backup.SETTINGS_KEEP and {title, body} <= set(svc.SETTING_KEYS)
 
 
 # ---------------------------------------------------------------- the lost-key path: an administrator-approved reset

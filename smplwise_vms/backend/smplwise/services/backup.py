@@ -246,7 +246,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.native_write.lineage_anchor"}
 # SESSIONEXCH2-295: the WebView session exchange switch and its lifetimes are this box's security state
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_session_exchange", "security.app_session_idle_minutes", "security.app_session_max_days"}
 # APPREFRESH3-295: the key-reset notice wording sits with the rest of the app sign-in policy (kept, never taken from an archive)
-SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_key_reset_notice_title", "security.app_refresh_key_reset_notice_body"}
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_key_reset_notice_title", "security.app_refresh_key_reset_notice_body",
+                                 "security.app_refresh_key_released_notice_title", "security.app_refresh_key_released_notice_body"}
 # ATTEST232-295: the attestation mode, minimum level and trust roots are security policy - a restore must never weaken or swap them
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_attestation", "security.app_refresh_attestation_min_level",
                                  "security.app_refresh_attestation_android_roots"}
