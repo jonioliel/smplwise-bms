@@ -95,6 +95,7 @@ class FakeFrigate:
         self.viewer_blocks: set[str] = set()      # path prefixes a viewer role may not read (answered 403)
         self.openapi = True
         self.restream = False
+        self.go2rtc_yaml: dict[str, Any] = {}      # FRIGPERM-295: `go2rtc.streams` of the YAML (written by `config/set`, listed by `/api/config`)
         self.restream_names = ["cam_front"]       # TKFRIGLIVE: the stream names Frigate's go2rtc lists while `restream` is on
         self.latest_status = 200
         self.cameras = {"cam_front": camera_config("cam_front", onvif=True, friendly="Front door"), "cam_yard": camera_config("cam_yard", w=2560, h=1440),
@@ -196,6 +197,7 @@ class FakeFrigate:
             "review": {"alerts": {"labels": ["person", "car"]}},
             "semantic_search": {"enabled": True}, "face_recognition": {"enabled": False}, "lpr": {"enabled": False}, "genai": {"provider": None},
             "birdseye": {"enabled": False}, "notifications": {"enabled": False},
+            **({"go2rtc": {"streams": dict(self.go2rtc_yaml)}} if self.go2rtc_yaml else {}),
             **({"motion": {"threshold": self.global_motion_threshold}} if self.global_motion_threshold is not None else {}),
         }
 
@@ -334,6 +336,19 @@ class FakeFrigate:
         """FRGS: `PUT /api/config/set` with `{"requires_restart", "update_topic", "config_data"}` as the adapter sends it (shape NOT verified).
         Only camera sections are accepted here (the adapter never sends anything else); "" removes a key, as Frigate does."""
         data = (body or {}).get("config_data") if isinstance(body, dict) else None
+        if isinstance(data, dict) and set(data) == {"go2rtc"}:   # FRIGPERM-295: stream entries only; applied at the next restart
+            streams = (data["go2rtc"] or {}).get("streams") if isinstance(data["go2rtc"], dict) else None
+            if not isinstance(streams, dict):
+                return httpx.Response(400, json={"success": False, "message": "bad config_data"})
+            for name, val in streams.items():
+                if val == "":
+                    if name not in self.go2rtc_yaml:
+                        return httpx.Response(500, json={"success": False, "message": "Error updating config"})
+                    del self.go2rtc_yaml[name]
+                else:
+                    self.go2rtc_yaml[name] = val
+            self.writes.append(("PUT", "/api/config/set", body))
+            return self._json({"success": True, "message": "Config successfully updated, restart to apply"})
         cams = data.get("cameras") if isinstance(data, dict) else None
         if not isinstance(cams, dict) or set(data) != {"cameras"} or any(c not in self.cameras for c in cams):
             return httpx.Response(400, json={"success": False, "message": "bad config_data"})
