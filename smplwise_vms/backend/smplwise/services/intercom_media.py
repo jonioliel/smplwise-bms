@@ -515,7 +515,15 @@ def _rid() -> str:
     return "arx-" + secrets.token_hex(10)
 
 
-def _register_lease(settings: Settings, sid: str, profile: str, source: str) -> str:
+# WKLIVE-295: the leased streams this process registered in go2rtc: stream name -> (station id, lease expiry). A lease is valid for a few
+# seconds only, but the stream it created stays in go2rtc's memory under the private source; it is removed again when the station's last
+# viewer leaves (`release_leased_streams`) and, as a janitor, when a later lease finds an old one with no viewer left.
+_LEASED: dict[str, tuple[str, float]] = {}
+_LEASE_LOCK = threading.RLock()  # registering and releasing never interleave: a new viewer's stream is not deleted under it
+LEASE_GRACE_S = 60.0
+
+
+def _register_lease(settings: Settings, sid: str, profile: str, source: str, expires_at: float | None = None) -> str:
     """The leased source into Arx's own go2rtc, IN MEMORY, under `smplwise_wiskey_<station>[.sub]` (no configuration write); the stream name
     is all that leaves. The source is compared by digest so an unchanged one is not registered again."""
     from . import go2rtc as g2
@@ -523,17 +531,61 @@ def _register_lease(settings: Settings, sid: str, profile: str, source: str) -> 
     base = g2.wiskey_stream_name(sid)
     name = base if profile == "main" else f"{base}.sub"
     digest = hashlib.sha256(source.encode()).hexdigest()
-    with g2._REGISTERED_LOCK:
-        known = g2._REGISTERED.get(name) == digest
-    if not known:
-        try:
-            g2.Go2rtc(settings).frame_jpeg(name, source)  # registers in memory (go2rtc's GetOrPatch); no configuration write
-        except ApiError as exc:
-            with g2._REGISTERED_LOCK:
-                registered = g2._REGISTERED.get(name) == digest
-            if not registered:  # go2rtc refused the stream itself (a frame that failed after registering is fine)
-                raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from None
+    with _LEASE_LOCK:
+        _sweep_leased(settings, skip_station=sid)
+        with g2._REGISTERED_LOCK:
+            known = g2._REGISTERED.get(name) == digest
+        if not known:
+            try:
+                g2.Go2rtc(settings).frame_jpeg(name, source)  # registers in memory (go2rtc's GetOrPatch); no configuration write
+            except ApiError as exc:
+                with g2._REGISTERED_LOCK:
+                    registered = g2._REGISTERED.get(name) == digest
+                if not registered:  # go2rtc refused the stream itself (a frame that failed after registering is fine)
+                    raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from None
+        _LEASED[name] = (sid, expires_at if expires_at is not None else time.time())
     return name
+
+
+def _discard_leased(settings: Settings, name: str) -> None:
+    from . import go2rtc as g2
+
+    _LEASED.pop(name, None)
+    try:
+        g2.Go2rtc(settings).discard_leased_stream(name)
+    except ValueError:  # not one of ours (cannot happen: only names this module registered are kept)
+        log.warning("station media: a stream name was refused for removal")
+
+
+def _sweep_leased(settings: Settings, *, skip_station: str | None = None, now: float | None = None) -> list[str]:
+    """Removes leased streams whose lease ended more than `LEASE_GRACE_S` ago and whose station has no viewer (a viewer keeps its stream)."""
+    now = time.time() if now is None else now
+    gone: list[str] = []
+    with _LEASE_LOCK:
+        for name, (sid, expires_at) in list(_LEASED.items()):
+            if sid == skip_station or expires_at + LEASE_GRACE_S > now or MEDIA.viewers(sid) > 0:
+                continue
+            _discard_leased(settings, name)
+            gone.append(name)
+    return gone
+
+
+def release_leased_streams(settings: Settings, station_id: str) -> list[str]:
+    """Called when a viewer of a station has gone: when it was the last one, the station's leased streams are removed from go2rtc (its
+    private source is forgotten, nothing else of go2rtc is touched). Never raises: a stream that cannot be removed goes at go2rtc's
+    next restart. Returns the removed stream names."""
+    gone: list[str] = []
+    try:
+        with _LEASE_LOCK:
+            if MEDIA.viewers(station_id) > 0:
+                return gone
+            for name, (sid, _exp) in list(_LEASED.items()):
+                if sid == station_id:
+                    _discard_leased(settings, name)
+                    gone.append(name)
+    except Exception as exc:  # noqa: BLE001 - a cleanup problem never breaks the viewer's end
+        log.warning("station media: leased streams not released (%s)", type(exc).__name__)
+    return gone
 
 
 # ---------------------------------------------------------------- WisKey's W10 over the signed bridge (W10CLIENT-295)
@@ -798,7 +850,7 @@ class WiskeyBridgeProvider:
             raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from None
         finally:
             raw = None  # the source lives on only inside the lease
-        return _register_lease(settings, sid, profile, lease.source or "")
+        return _register_lease(settings, sid, profile, lease.source or "", lease.expires_at)
 
     def talk_open(self, settings: Settings, station_id: str, descriptor: Descriptor, *, actor_id: str, actor_name: str, request_id: str | None,
                   expires_at: float | None = None) -> TalkChannel:

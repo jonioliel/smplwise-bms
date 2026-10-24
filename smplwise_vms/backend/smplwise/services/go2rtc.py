@@ -289,6 +289,19 @@ class Go2rtc:
         status, body, too_large = self._grab({"src": name})
         return self._frame(status, body, too_large)
 
+    def discard_leased_stream(self, name: str) -> None:
+        """WKLIVE-295: delete a leased station stream (`smplwise_wiskey_<station>`, never a probe, never another namespace) and forget its
+        registration, so the private lease source does not outlive its viewers inside go2rtc's memory. The caller decides that no viewer is
+        left; a failure is logged (never the source) and swallowed - the stream is in-memory only and goes at the next go2rtc restart."""
+        if not name.startswith(f"{STREAM_PREFIX}wiskey_") or name.startswith(f"{STREAM_PREFIX}wiskey_probe_") or not NAME_RE.match(name):
+            raise ValueError("refusing to delete a stream that is not a leased station stream")
+        with _REGISTERED_LOCK:
+            _REGISTERED.pop(name, None)
+        try:
+            self.delete_stream(name)
+        except ApiError:
+            log.warning("leased stream %s not deleted", name)
+
     def discard_probe_stream(self, name: str) -> None:
         """Delete a throwaway probe stream and forget its registration; a failure is logged (never the source) and swallowed - the
         stream is in-memory only and goes at the next go2rtc restart."""
