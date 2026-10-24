@@ -976,7 +976,8 @@ export class WiskeyPersonEditor extends LitElement {
     .pane {
       inline-size: min(1040px, 100%);
       max-block-size: calc(100dvh - 32px);
-      background: var(--sw-surface);
+      /* opaque: the glass skins make --sw-surface translucent, and this pane sits over the people table */
+      background: var(--sw-surface-solid);
       border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-3);
       display: flex;
