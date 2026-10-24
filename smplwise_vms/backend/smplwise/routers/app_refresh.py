@@ -20,7 +20,12 @@ before its body is read - guarded_route, the PUB-07 rule):
   POST   /auth/app/refresh-challenge         {device_id} -> a single-use nonce for the device-key proof (APPREFRESH2; the same shape
                                              for an unknown device, stored nowhere then)
   POST   /auth/app/sign-out                  {refresh_token} -> 204: the family ends (the app's own sign-out)
-  GET    /auth/app/whoami                    `Authorization: Bearer arxa_...` -> who the access token speaks for (slice 1's only consumer)
+  GET    /auth/app/whoami                    `Authorization: Bearer arxa_...` -> who the access token speaks for
+  POST   /auth/app/session                   SESSIONEXCH2-295 (spec APPREFRESH-SESSION-EXCHANGE-SPEC revision 3; also needs
+                                             `security.app_session_exchange` = on): `Authorization: Bearer arxa_...` + {device_id,
+                                             install_id, proof} -> a ONE-TIME code (60 s, single use) for the WebView
+  GET    /auth/app/session/redeem?code=      SESSIONEXCH2-295: the WebView's top-level navigation; spends the code and answers 303 with
+                                             the Arx session cookie set by the server (or 303 to `?app_session=failed`, no cookie)
 No route logs, audits or echoes a token; only the two minting answers carry one, to its owner."""
 from __future__ import annotations
 
@@ -28,16 +33,17 @@ import time
 from typing import Any, Literal
 
 from fastapi import APIRouter, Body, Depends, Query, Request, Response
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from .. import guarded_route
 from ..audit import audit
-from ..auth import touch_user
+from ..auth import settings_of, touch_user
 from ..db import Database
 from ..errors import ApiError
 from ..rbac import INSTALLATION, authorize, is_system_admin, note_grant
 from ..remote_channel import is_remote
 from ..services import app_refresh as svc
+from ..services import app_session as xs
 from ..services import ha_user_auth as hua
 from .presence import Caller, session_caller
 
@@ -161,7 +167,18 @@ def issue(body: IssueIn, request: Request, caller: Caller = Depends(session_call
     # anchor and end. The local channel (Ingress, developer) never mints: the same 404 as the public routes there.
     if not is_remote(request) or not svc.enabled_db(_db(request)):
         raise _not_found()
+    s = hua.session_of(request)
+    if xs.is_app_session(s):
+        # SESSIONEXCH2 / review S-01: a web session made by the exchange never mints (nor anchors) a family - refused before the pin, the
+        # replace logic and revoke_device run, so the phone's live family is untouched
+        with _db(request).connection(label="app_refresh.issue") as conn:
+            audit(conn, actor=caller.principal, action="auth.app_refresh.issue", decision="denied", resource_type="mobile_device", resource_id=body.device_id,
+                  reason="sign_in_not_anchorable", request_id=_rid(request), details={"anchor": "web_session"})
+        raise ApiError(403, "sign_in_not_anchorable", svc.INVALID_HE)
     kind, anchor, age = _anchor(request, caller)
+    ha_user = getattr(s, "ha_user", None)
+    ha_mfa = bool(ha_user.mfa) if ha_user is not None and caller.principal.source == "remote" else None
+    factor = caller.principal.source == "local" and caller.principal.factor_ok
     with _db(request).connection(label="app_refresh.issue") as conn:
         touch_user(conn, caller.principal)
         if age is None or age > svc.FRESH_SIGN_IN_S:
@@ -169,7 +186,8 @@ def issue(body: IssueIn, request: Request, caller: Caller = Depends(session_call
                   reason="sign_in_not_fresh", request_id=_rid(request))
             raise ApiError(403, "fresh_sign_in_required", svc.FRESH_HE)
         return svc.issue(conn, caller.principal, body.device_id, body.install_id, anchor_kind=kind, anchor_hash=anchor,
-                         channel="remote", request_id=_rid(request), device_key=body.device_key.model_dump() if body.device_key else None)
+                         channel="remote", request_id=_rid(request), device_key=body.device_key.model_dump() if body.device_key else None,
+                         ha_mfa=ha_mfa, factor=factor)
 
 
 # ---------------------------------------------------------------- the public routes
@@ -255,6 +273,93 @@ def whoami(request: Request) -> dict[str, Any]:
         svc.failed(key)
         raise ApiError(401, "app_access_invalid", svc.INVALID_HE)
     return found
+
+
+# ---------------------------------------------------------------- SESSIONEXCH2-295: the WebView session through a one-time code
+
+def _session_guard(request: Request) -> None:
+    """Both switches and the remote channel, else the same 404 whatever the body (PUB-07)."""
+    if not is_remote(request) or not xs.enabled_db(_db(request)):
+        raise _not_found()
+
+
+def _origin(request: Request) -> str:
+    return hua.arx_client_id(settings_of(request), request)  # `<scheme>://<host><remote_path>/` - what the code is bound to
+
+
+class SessionProofIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nonce: str = Field(min_length=1, max_length=100)
+    ts: StrictInt  # review D-08 / S-11: a strict JSON integer on this route
+    sig: str = Field(min_length=1, max_length=120)
+
+
+class SessionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    device_id: str = Field(pattern=r"^dev_[0-9a-f]{16}$")  # review D-07 / S-15
+    install_id: str = Field(min_length=8, max_length=64)
+    proof: SessionProofIn | None = None  # absent for a keyed family = a theft signal: the service ends the family (spec 5 step 7)
+
+
+@guarded_route.post(router, _session_guard, "/auth/app/session")
+def session_exchange(body: SessionIn, request: Request) -> dict[str, Any]:
+    """The exchange (spec section 5): authenticated by the bearer access token ONLY - the route never reads, touches, rotates or ends a
+    cookie (review S-06; a POST carrying the session cookie without its origin never gets here: the channel answers 403 csrf_refused)."""
+    key = _client_key(request)
+    if svc.client_blocked(key):
+        raise _too_many()
+    db = _db(request)
+    token = hua.bearer_of(request) or ""
+    fam_id, live = xs.peek_access(db, token)  # an unknown token never takes the write gate
+    if not live and svc.global_blocked():
+        raise _too_many()
+    if fam_id is None or not live:
+        svc.failed(key)
+        raise ApiError(401, "app_access_invalid", svc.INVALID_HE)
+    if not svc.take("app_session.exchange", fam_id, xs.RATE_EXCHANGE):
+        raise _too_many()
+    with db.connection(label="app_session.exchange") as conn:
+        try:
+            return xs.exchange(conn, token, body.device_id, body.install_id, body.proof.model_dump() if body.proof else None, origin=_origin(request),
+                               remote_path=settings_of(request).remote_path, request_id=_rid(request))
+        except ApiError:
+            svc.failed(key)
+            raise  # the connection commits (an ended family, a consumed nonce and the audit row are kept)
+
+
+CROSS_SITE = ("cross-site", "same-site")
+
+
+@router.get("/auth/app/session/redeem")
+def session_redeem(request: Request, code: str = Query("", max_length=100)) -> Response:
+    """The WebView's top-level navigation (spec section 5a). 303 to the web app with the server-set cookie, or 303 to
+    `?app_session=failed` without one (the reason is audited, never in the URL)."""
+    _session_guard(request)
+    settings = settings_of(request)
+    home = settings.remote_path + "/"
+    headers = {"Cache-Control": "no-store"}  # the remote channel adds its own security headers (Referrer-Policy: same-origin)
+    key = _client_key(request)
+    if svc.client_blocked(key):
+        raise _too_many()
+    failed = Response(status_code=303, headers={**headers, "Location": home + "?app_session=failed"})
+    if (request.headers.get("sec-fetch-site") or "").lower() in CROSS_SITE:  # login CSRF / session fixation from another page
+        svc.failed(key)
+        return failed
+    with _db(request).connection(label="app_session.redeem") as conn:
+        out = xs.redeem(conn, code, origin=_origin(request), meta=hua.request_meta(request), request_id=_rid(request))
+    if not out.ok:
+        if out.count_failure:
+            svc.failed(key)
+        return failed
+    from ..services import local_identity as li
+
+    name = hua.cookie_name(settings, request)
+    max_age = max(1, int(out.expires_at - svc._now()))
+    response = Response(status_code=303, headers={**headers, "Location": home})
+    response.headers.append("set-cookie", li.cookie_header(name, out.cookie_value, home, secure=name == hua.COOKIE_SECURE, max_age=max_age))
+    return response
 
 
 # ---------------------------------------------------------------- manage (session)
@@ -384,6 +489,11 @@ def put_settings(request: Request, body: dict[str, Any] = Body(...), caller: Cal
             audit(conn, actor=caller.principal, action="auth.app_refresh.feature_enabled", decision="denied", resource_type="installation",
                   resource_id="app_refresh", reason="local_channel_only", request_id=_rid(request))
             raise ApiError(403, "local_channel_only", "את הכניסה השמורה באפליקציה מפעילים רק מתוך הרשת המקומית.")
+        if remote and body.get(xs.FEATURE_KEY) == "on" and xs.mode(conn) != "on":
+            # SESSIONEXCH2: switching the WebView session exchange on is a local-channel act (like the saved sign-in itself); off works anywhere
+            audit(conn, actor=caller.principal, action="auth.app_session.feature_enabled", decision="denied", resource_type="installation",
+                  resource_id="app_session", reason="local_channel_only", request_id=_rid(request))
+            raise ApiError(403, "local_channel_only", "את חיבור מסך האפליקציה מפעילים רק מתוך הרשת המקומית.")
         wanted = body.get(svc.DEVICE_KEY_KEY)
         if remote and wanted in svc.DEVICE_KEY_MODES and svc.mode_rank(wanted) < svc.mode_rank(svc.device_key_mode(conn)):
             # APPREFRESH2: weakening the device-key mode is a local-channel act (like switching the feature on); raising it works anywhere

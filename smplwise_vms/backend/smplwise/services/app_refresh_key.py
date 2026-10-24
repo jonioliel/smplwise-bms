@@ -121,6 +121,13 @@ def replace_message(device_id: str, nonce: str, ts: int, new_public_key_text: st
     return "\n".join((POP_VERSION, "replace", device_id, nonce, str(int(ts)), new_public_key_text)).encode("utf-8")
 
 
+def session_message(device_id: str, nonce: str, ts: int, access_token: str) -> bytes:
+    """SESSIONEXCH2-295 (device-key spec revision 3, session exchange spec section 4.1): the exact bytes the exchange proof signs - a
+    challenge nonce of the device's live keyed family and the digest of the ACCESS token sent in `Authorization` as the last line. The
+    purpose line `session` keeps a refresh / mint / replace signature from ever verifying here, and back."""
+    return "\n".join((POP_VERSION, "session", device_id, nonce, str(int(ts)), token_digest(access_token))).encode("utf-8")
+
+
 def nonce_hash(nonce: str) -> str:
     return hashlib.sha256(("nonce:" + nonce).encode("utf-8", "replace")).hexdigest()
 
@@ -130,5 +137,5 @@ def is_nonce(value: object) -> bool:
 
 
 __all__ = ["ALG", "POP_VERSION", "NONCE_PREFIX", "NONCE_TTL_S", "POP_SKEW_S", "MAX_OPEN_NONCES", "BadKey", "parse_public_key",
-           "fingerprint_prefix", "verify", "refresh_message", "mint_message", "replace_message", "token_digest", "nonce_hash", "is_nonce", "b64u_encode",
+           "fingerprint_prefix", "verify", "refresh_message", "mint_message", "replace_message", "session_message", "token_digest", "nonce_hash", "is_nonce", "b64u_encode",
            "b64u_decode"]

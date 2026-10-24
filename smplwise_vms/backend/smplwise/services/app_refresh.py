@@ -245,16 +245,30 @@ def render_notice(template: str, device: str, until: str) -> str:
 
 
 def settings_out(conn: sqlite3.Connection) -> dict[str, Any]:
+    from . import app_session as xs
+
     return {FEATURE_KEY: "on" if enabled(conn) else "off", DEVICE_KEY_KEY: device_key_mode(conn), **policy(conn),
-            **{k: notice_template(conn, k) for k in NOTICE_DEFAULTS}}
+            **{k: notice_template(conn, k) for k in NOTICE_DEFAULTS}, **xs.settings_out(conn)}
 
 
 def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Principal, *, channel: str, request_id: str | None) -> tuple[dict[str, Any], dict[str, Any], int]:
     """Validate and store a partial update. Returns (settings, changes, families ended). The caller checked the authority (a system
     administrator) and the channel rule (ON from the local channel only). Switching OFF revokes every family."""
+    from . import app_session as xs
+
     changes: dict[str, Any] = {}
     for key, value in body.items():
-        if key == FEATURE_KEY:
+        if key == xs.FEATURE_KEY:  # SESSIONEXCH2-295: the WebView session exchange (off | on; decision 430: no keyless mode)
+            if value not in xs.MODES:
+                raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key, "allowed": list(xs.MODES)})
+            if value != xs.mode(conn):
+                changes[key] = value
+        elif key in xs.POLICY:
+            _, lo, hi = xs.POLICY[key]
+            if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
+                raise ApiError(422, "validation", f"ערך בין {lo} ל־{hi}.", details={"field": key})
+            changes[key] = value
+        elif key == FEATURE_KEY:
             if value not in ("on", "off"):
                 raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key})
             if value != ("on" if enabled(conn) else "off"):
@@ -281,6 +295,12 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
     merged = {**policy(conn), **{k: v for k, v in changes.items() if k in POLICY}}
     if merged[IDLE_KEY] > merged[ABSOLUTE_KEY]:
         raise ApiError(422, "validation", "משך חוסר הפעילות לא יכול לעלות על משך החיים המרבי.", details={"field": IDLE_KEY, "max": merged[ABSOLUTE_KEY]})
+    exchange_on = changes.get(xs.FEATURE_KEY, xs.mode(conn)) == "on"
+    if changes.get(xs.FEATURE_KEY) == "on" and changes.get(FEATURE_KEY, "on" if enabled(conn) else "off") != "on":
+        raise ApiError(422, "validation", "את חיבור מסך האפליקציה מפעילים רק כשהכניסה השמורה באפליקציה פעילה.", details={"field": xs.FEATURE_KEY})
+    if exchange_on and merged[ACCESS_KEY] > xs.ACCESS_MAX_WHILE_ON:  # review S-02 / F-09: a short access token while it can become a session
+        raise ApiError(422, "validation", f"כשחיבור מסך האפליקציה פעיל, תוקף אסימון הגישה עד {xs.ACCESS_MAX_WHILE_ON} דקות.",
+                       details={"field": ACCESS_KEY, "max": xs.ACCESS_MAX_WHILE_ON})
     ended = 0
     for key, value in changes.items():
         set_setting(conn, key, str(value))
@@ -288,6 +308,13 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
         ended = revoke_all(conn, "feature_off", actor=actor, request_id=request_id)
     elif changes.get(DEVICE_KEY_KEY) == "required":  # no family without a key from now on: the keyless ones end at once
         ended = _revoke(conn, "device_key_fp IS NULL", (), "device_key_required", actor=actor, request_id=request_id, subject="*")
+    web_ended = 0
+    if changes.get(xs.FEATURE_KEY) == "off":
+        web_ended = xs.end_all(conn, "feature_off")
+    if xs.FEATURE_KEY in changes:
+        audit(conn, actor=actor, action="auth.app_session.feature_enabled" if changes[xs.FEATURE_KEY] == "on" else "auth.app_session.feature_disabled",
+              decision="allowed", resource_type="installation", resource_id="app_session", request_id=request_id,
+              details={"channel": channel, **({"sessions_ended": web_ended} if web_ended else {})})
     if FEATURE_KEY in changes:
         audit(conn, actor=actor, action="auth.app_refresh.feature_enabled" if changes[FEATURE_KEY] == "on" else "auth.app_refresh.feature_disabled",
               decision="allowed", resource_type="installation", resource_id="app_refresh", request_id=request_id,
@@ -382,7 +409,12 @@ def _mint_pair(conn: sqlite3.Connection, fam_id: str, user_id: str, device_id: s
     if parent is not None:
         conn.execute("UPDATE app_refresh_tokens SET child_hash = ? WHERE token_hash = ?", (rh, parent))
     access_exp = now + policy(conn)["security.app_refresh_access_minutes"] * 60.0
-    conn.execute("DELETE FROM app_access_tokens WHERE family_id = ? AND expires_at <= ?", (fam_id, iso(now)))
+    from . import app_session as xs
+
+    if xs.mode(conn) == "on":  # SESSIONEXCH2 / review S-02 (F-09): only the newest access token of a family can ever be exchanged
+        conn.execute("DELETE FROM app_access_tokens WHERE family_id = ?", (fam_id,))
+    else:
+        conn.execute("DELETE FROM app_access_tokens WHERE family_id = ? AND expires_at <= ?", (fam_id, iso(now)))
     conn.execute("INSERT INTO app_access_tokens(token_hash, family_id, user_id, device_id, issued_at, expires_at) VALUES (?,?,?,?,?,?)",
                  (token_hash(access), fam_id, user_id, device_id, iso(now), iso(access_exp)))
     return refresh, access, access_exp
@@ -595,7 +627,7 @@ def approve_key_reset(conn: sqlite3.Connection, actor: Principal, device_id: str
     return {"device_id": device_id, "reset_expires_at": iso(expires), "families_ended": ended, "user_notified": notified}
 
 
-USER_RELEASE_REASONS = ("app_sign_out", "revoked_by_user", "signed_out_everywhere")
+USER_RELEASE_REASONS = ("app_sign_out", "revoked_by_user", "signed_out_everywhere", "web_sign_out")  # SESSIONEXCH2 decision 394
 
 
 def release_pins(conn: sqlite3.Connection, device_ids: Any, reason: str, *, actor: Principal, request_id: str | None) -> int:
@@ -747,7 +779,7 @@ def _check_proof(conn: sqlite3.Connection, fam: sqlite3.Row, token: str, device_
 # ---------------------------------------------------------------- issue
 
 def issue(conn: sqlite3.Connection, principal: Principal, device_id: str, install_id: str, *, anchor_kind: str, anchor_hash: str, channel: str,
-          request_id: str | None, device_key: dict[str, Any] | None = None) -> dict[str, Any]:
+          request_id: str | None, device_key: dict[str, Any] | None = None, ha_mfa: bool | None = None, factor: bool = False) -> dict[str, Any]:
     """Mint a family for the caller's own device `device_id` (the install_id must be the one the registration holds). A previous live
     family of that device is replaced. Raises Refused (the router audits nothing more: every refusal here is audited)."""
     dev = conn.execute("SELECT * FROM mobile_devices WHERE id = ?", (device_id,)).fetchone()
@@ -789,6 +821,12 @@ def issue(conn: sqlite3.Connection, principal: Principal, device_id: str, instal
         conn.execute("UPDATE app_refresh_families SET device_key_spki = ?, device_key_fp = ?, device_key_alg = ?, device_key_bound_at = ? WHERE family_id = ?",
                      (key[0], key[1], dk.ALG, iso(now), fam_id))
     _store_pin(conn, device_id, principal.user_id, key, now)  # APPREFRESH3: the pin outlives this family
+    try:  # SESSIONEXCH2 (migration 0174, decision 397): what the minting sign-in showed - HA MFA, the Arx-only factor
+        conn.execute("UPDATE app_refresh_families SET ha_mfa = ?, factor_at = ? WHERE family_id = ?",
+                     (None if ha_mfa is None else int(bool(ha_mfa)), iso(now) if factor else None, fam_id))
+    except sqlite3.OperationalError as exc:
+        if "no such column" not in str(exc):
+            raise
     refresh, access, access_exp = _mint_pair(conn, fam_id, principal.user_id, device_id, 1, None, now)
     audit(conn, actor=principal, action="auth.app_refresh.issued", decision="allowed", resource_type="mobile_device", resource_id=device_id, request_id=request_id,
           details={"family": fam_id, "anchor": anchor_kind, "admin_capped": admin, "via": channel,
@@ -967,6 +1005,9 @@ def _revoke(conn: sqlite3.Connection, where: str, args: tuple[Any, ...], reason:
         conn.execute("UPDATE app_refresh_tokens SET state = 'revoked' WHERE family_id = ? AND state = 'live'", (fid,))
         conn.execute("DELETE FROM app_access_tokens WHERE family_id = ?", (fid,))
         _drop_nonces(conn, fid)
+    from . import app_session as xs
+
+    xs.end_family_sessions(conn, ids, reason)  # SESSIONEXCH2 (review S-09): the family's web sessions end in THIS transaction
     if actor is not None:
         audit(conn, actor=actor, action="auth.app_refresh.revoked", decision="allowed", resource_type="user", resource_id=subject, reason=reason,
               request_id=request_id, details={"families": len(ids), "ids": sorted(ids)[:20]})

@@ -70,6 +70,11 @@ def _pre_resolved(request: Request) -> Principal | None:
     principal = getattr(request.state, PRE_RESOLVED, None)
     if principal is None:
         return None
+    from .services import app_session
+
+    if app_session.is_app_session((getattr(request, "scope", None) or {}).get("state", {}).get("sw_remote_session")):
+        # SESSIONEXCH2: the phone app's WebView session is still live while a revoke has not dropped its cache entry
+        return principal if app_session.still_live(principal, request) else None
     if principal.source == "local":  # USR2: a local session is still live while a revoke has not emptied its cache entry
         from .services import local_identity
 

@@ -1,6 +1,6 @@
 # APPREFRESH-SESSION-EXCHANGE-SPEC - The phone app's WebView session: one-time code exchange (`POST /auth/app/session` + `GET /auth/app/session/redeem`)
 
-> **Revision 3 (2026-10-24) - spec fixed first (owner decision 428); the build follows on `pilot/SESSIONEXCH2-295`, OFF by default, NOT ACTIVATED.** Revision 2.2 (`998f2a756`,
+> **Revision 3 (2026-10-24) - BUILT on `pilot/SESSIONEXCH2-295` (the spec was fixed first, owner decision 428), OFF by default, NOT ACTIVATED.** Revision 2.2 (`998f2a756`,
 > "DRAFT - NOT BUILT") was reviewed in `private/planning/SECURITY_REVIEW_SESSIONEXCH217_2026-10-24.md` (S-01 .. S-16). This revision
 > applies the owner decisions of 2026-10-24 (answers 427-432, section 0) and the review's four medium findings (S-01 .. S-04,
 > section 17), and describes the server side as built. The switch `security.app_session_exchange` stays `off` on every installation
@@ -160,7 +160,7 @@ GET /arx/api/v1/auth/app/session/redeem?code=arxc_<43 base64url>
 9. Create the web session (section 6): the previous live web session of the family ends `replaced`; audit `auth.app_session.created`.
 
 Success: `303 See Other`, `Location: <remote_path>/`, `Set-Cookie` with the server's own attributes (section 6.2),
-`Cache-Control: no-store`, `Referrer-Policy: no-referrer`. Any refusal: `303`, `Location: <remote_path>/?app_session=failed`, no
+`Cache-Control: no-store` (the remote channel's own `Referrer-Policy: same-origin` applies, so the redeem URL never travels as a referrer to another origin). Any refusal: `303`, `Location: <remote_path>/?app_session=failed`, no
 cookie (the web app then shows its normal sign-in; the reason is in the audit, never in the URL). The code never appears in a log:
 the access-log line of this path is redacted (`code=REDACTED`).
 
