@@ -15,6 +15,8 @@ from .display import DisplayService, Reply, Request, not_found
 
 log = logging.getLogger(__name__)
 CONTAINER_PORT = 18094
+SOCKET_TIMEOUT_S = 10.0  # a TV that stalls (or a slow-loris client) frees its thread after this long
+MAX_CONNECTIONS = 32  # simultaneous connections; more are closed at once (a TV retries on its own)
 
 
 def route(svc: DisplayService, www_dir: Any, method: str, path: str, headers: dict[str, str], client: str) -> Reply:
@@ -38,7 +40,34 @@ def route(svc: DisplayService, www_dir: Any, method: str, path: str, headers: di
     return not_found()
 
 
+class _CappedServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer with a ceiling on simultaneous connections: over the cap the socket is closed without a thread."""
+
+    daemon_threads = True
+
+    def __init__(self, *args: Any, max_connections: int = MAX_CONNECTIONS, **kw: Any) -> None:
+        super().__init__(*args, **kw)
+        self._slots = threading.BoundedSemaphore(max_connections)
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        if not self._slots.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self._slots.release()
+            raise
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._slots.release()
+
+
 class _Handler(BaseHTTPRequestHandler):
+    timeout = SOCKET_TIMEOUT_S  # StreamRequestHandler applies it to the connection socket
     server_version = "SmplWise"
     sys_version = ""
     svc: DisplayService
@@ -84,7 +113,7 @@ class BoardServer:
             return True
         handler = type("NoticeBoardHandler", (_Handler,), {"svc": svc, "www_dir": www_dir})
         try:
-            server = ThreadingHTTPServer((host, port), handler)
+            server = _CappedServer((host, port), handler)
         except OSError as exc:
             log.warning("notice board listener could not start: %s", type(exc).__name__)
             return False

@@ -18,8 +18,12 @@ import logging
 import math
 import re
 import threading
+import socket
+import ssl
 import time
-import urllib.request
+import http.client
+import ipaddress
+from urllib.parse import urljoin, urlsplit
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
@@ -31,7 +35,9 @@ NEWS_TTL_S = 15 * 60
 NEWS_MAX_BYTES = 512 * 1024
 NEWS_ITEMS_PER_FEED = 8
 NEWS_ITEM_MAX = 2048
-NEWS_TIMEOUT_S = 8.0
+NEWS_TIMEOUT_S = 8.0  # per socket operation
+NEWS_TOTAL_S = 15.0  # the whole fetch, redirects included
+NEWS_MAX_REDIRECTS = 3
 
 CONDITIONS = {"clear-night": "moon", "sunny": "sun", "partlycloudy": "cloudsun", "cloudy": "cloud", "fog": "cloud", "rainy": "cloud", "pouring": "cloud",
               "snowy": "cloud", "snowy-rainy": "cloud", "lightning": "cloud", "lightning-rainy": "cloud", "hail": "cloud", "windy": "cloudsun",
@@ -174,16 +180,143 @@ def parse_feed(data: bytes, limit: int = NEWS_ITEMS_PER_FEED) -> list[str]:
     return out
 
 
+class FetchRefused(ValueError):
+    """The feed URL or one of its redirects is refused. `code` only - never the URL (NOTICEGB-295)."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def _dns(host: str) -> list[str]:
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+    except (socket.gaierror, UnicodeError, OSError):
+        return []
+    return list(dict.fromkeys(str(i[4][0]) for i in infos))
+
+
+RESOLVE: Callable[[str], list[str]] = _dns  # test seam: nothing here resolves a real name in a test
+
+
+class _PinnedHTTPS(http.client.HTTPSConnection):
+    """Connects to the CHECKED address while TLS (SNI + certificate) and Host stay the feed's name, so a DNS answer that changes
+    between the check and the connect cannot steer the request (DNS rebinding)."""
+
+    def __init__(self, host: str, ip: str, port: int, timeout: float) -> None:
+        super().__init__(host, port, timeout=timeout, context=ssl.create_default_context())
+        self._pinned_ip = ip
+
+    def connect(self) -> None:
+        sock = socket.create_connection((self._pinned_ip, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+
+def _connect(host: str, ip: str, port: int, timeout: float) -> Any:
+    return _PinnedHTTPS(host, ip, port, timeout)
+
+
+CONNECT: Callable[[str, str, int, float], Any] = _connect  # test seam: returns an object with request() / getresponse() / close()
+
+
+def check_feed_url(url: str, resolve: Callable[[str], list[str]] | None = None) -> tuple[str, str, int, str]:
+    """(host, checked ip, port, path) of a feed URL that may be fetched, else FetchRefused. https only, port 443, no credentials, no
+    local names, and EVERY resolved address must be globally routable (IPv4 and IPv6; mapped / NAT64 / 6to4 forms are refused)."""
+    from ..partner import ssrf
+
+    if not isinstance(url, str) or not url or len(url) > 2048 or any(ord(c) <= 32 or ord(c) == 127 for c in url) or "\\" in url:
+        raise FetchRefused("syntax")
+    try:
+        parts = urlsplit(url)
+        port = parts.port or 443
+    except ValueError:
+        raise FetchRefused("syntax") from None
+    if parts.scheme.lower() != "https":
+        raise FetchRefused("scheme")
+    if parts.username is not None or parts.password is not None or "@" in parts.netloc:
+        raise FetchRefused("credentials")
+    if port != 443:
+        raise FetchRefused("port")
+    host = (parts.hostname or "").rstrip(".").lower()
+    if not host:
+        raise FetchRefused("syntax")
+    path = (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
+    try:
+        literal: ipaddress.IPv4Address | ipaddress.IPv6Address | None = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is None:
+        if re.fullmatch(r"[0-9.]+|0x[0-9a-f.x]+|[0-9a-fx.]*\.0x[0-9a-f]+[0-9a-fx.]*", host):
+            raise FetchRefused("syntax")  # 2130706433, 0177.0.0.1, 127.1 and the like
+        try:
+            host = host.encode("idna").decode("ascii")
+        except UnicodeError:
+            raise FetchRefused("syntax") from None
+        if "." not in host or host in ssrf.REFUSED_NAMES or host.endswith(ssrf.REFUSED_SUFFIXES):
+            raise FetchRefused("name")
+        ips = []
+        for a in (resolve or RESOLVE)(host) or []:
+            try:
+                ips.append(ipaddress.ip_address(str(a).split("%", 1)[0]))
+            except ValueError:
+                raise FetchRefused("address") from None
+        if not ips:
+            raise FetchRefused("dns")
+    else:
+        ips = [literal]
+    if any(ssrf.address_refused(ip) for ip in ips):
+        raise FetchRefused("address")
+    return host, str(ips[0]), port, path
+
+
+def fetch_feed(url: str, *, resolve: Callable[[str], list[str]] | None = None, connect: Callable[[str, str, int, float], Any] | None = None,
+               clock: Callable[[], float] = time.monotonic) -> bytes:
+    """The guarded RSS fetch: every hop (the URL and each redirect, at most NEWS_MAX_REDIRECTS) is re-validated and connected by its
+    checked address; the whole fetch is bounded by NEWS_TOTAL_S and the body by NEWS_MAX_BYTES; no cookies, no credentials."""
+    deadline = clock() + NEWS_TOTAL_S
+    current = url
+    for _hop in range(NEWS_MAX_REDIRECTS + 1):
+        host, ip, port, path = check_feed_url(current, resolve)
+        left = deadline - clock()
+        if left <= 0:
+            raise FetchRefused("timeout")
+        conn = (connect or CONNECT)(host, ip, port, min(NEWS_TIMEOUT_S, left))
+        try:
+            conn.request("GET", path, headers={"Host": host, "User-Agent": "SmplWise-Arx-NoticeBoard/1", "Accept": "application/rss+xml, application/xml, text/xml",
+                                               "Accept-Encoding": "identity", "Connection": "close"})
+            resp = conn.getresponse()
+            if resp.status in (301, 302, 303, 307, 308):
+                loc = resp.getheader("Location")
+                if not loc:
+                    raise FetchRefused("redirect")
+                current = urljoin(current, loc)
+                continue
+            if resp.status != 200:
+                raise FetchRefused("status")
+            declared = resp.getheader("Content-Length")
+            if declared and declared.isdigit() and int(declared) > NEWS_MAX_BYTES:
+                raise FetchRefused("size")
+            data = bytearray()
+            while len(data) <= NEWS_MAX_BYTES:
+                if clock() > deadline:
+                    raise FetchRefused("timeout")
+                chunk = resp.read(min(16384, NEWS_MAX_BYTES + 1 - len(data)))
+                if not chunk:
+                    break
+                data += chunk
+            if len(data) > NEWS_MAX_BYTES:
+                raise FetchRefused("size")
+            return bytes(data)
+        finally:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass
+    raise FetchRefused("redirects")
+
+
 def _default_fetch(url: str) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "SmplWise-Arx-NoticeBoard/1", "Accept": "application/rss+xml, application/xml, text/xml"})
-    with urllib.request.urlopen(req, timeout=NEWS_TIMEOUT_S) as resp:  # noqa: S310 - https only (model._feed), the owner's chosen feeds
-        final = resp.geturl()
-        if not final.startswith("https://"):
-            raise ValueError("redirect away from https")
-        data = resp.read(NEWS_MAX_BYTES + 1)
-    if len(data) > NEWS_MAX_BYTES:
-        raise ValueError("feed too large")
-    return data
+    return fetch_feed(url)
 
 
 class NewsCache:

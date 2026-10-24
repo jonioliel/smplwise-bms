@@ -181,8 +181,12 @@ def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime
         w = sources.weather_block(conn, s["weather_entity"], disp["weather"]["hours"], disp["lang"], now)
         if w:
             doc["weather"] = w
-    if disp["blocks"].get("news") and disp["news"]["feeds"]:
-        doc["news"] = sources.news_block(disp["news"]["feeds"], news)
+    feeds = disp["news"]["feeds"]
+    if not s["news_custom"]:  # custom feeds switched off (the default): a board saved earlier with one never fetches it
+        curated = {f["url"] for f in model.CURATED_NEWS}
+        feeds = [f for f in feeds if f["url"] in curated]
+    if disp["blocks"].get("news") and feeds:
+        doc["news"] = sources.news_block(feeds, news)
     try:
         ctl = json.loads(board.get("control_json") or "{}")
     except ValueError:

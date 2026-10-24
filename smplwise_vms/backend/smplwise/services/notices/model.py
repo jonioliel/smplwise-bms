@@ -42,7 +42,7 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "notices.boards.max": "10",
     "notices.weather_entity": "",
     "notices.weather_fallback": "false",
-    "notices.news_custom": "true",
+    "notices.news_custom": "false",  # NOTICEGB-295: custom feeds stay off until the owner turns them on; a stored value always wins
     "notices.building_name": "",
     # the origin the TV links point to: the LAN listener as the owner mapped it (e.g. http://<host>:18094) or the remote address;
     # empty = the address the manager uses (the Settings screen says so)
@@ -157,8 +157,8 @@ def _feed(raw: Any) -> dict[str, str] | None:
         return None
     url = str(raw.get("url") or "").strip()
     name = str(raw.get("name") or "").strip()[:40]
-    if not url.startswith("https://") or len(url) > 400 or any(c.isspace() or ord(c) < 33 for c in url):
-        return None
+    if not url.startswith("https://") or len(url) > 400 or any(c.isspace() or ord(c) < 33 for c in url) or "@" in url.split("/", 3)[2]:
+        return None  # https only, and no credentials in the URL
     return {"name": name or url[8:40], "url": url}
 
 
