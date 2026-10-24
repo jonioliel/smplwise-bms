@@ -17,6 +17,7 @@ import type { Display } from '../notice-tv/tv-logic';
 import { nt } from '../i18n/notices';
 import { SEV_KEY, SEV_LOOK, agoText, boardDraft, draftOf, newDraft, seenState, slugOk, suggestSlug, windowText, type Draft } from '../notices/model';
 import '../notices/compose-dialog';
+import '../notices/display-saver';
 import type { NoticeSavedDetail } from '../notices/compose-dialog';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_HREF, NOTICES_SETTINGS_HREF, applyNoticesHidden } from '../shell/nav';
@@ -515,6 +516,7 @@ export class SystemNotices extends LitElement {
           <div class="chips"><label class="ck"><input type="checkbox" .checked=${d.burn_in.shift} @change=${(e: Event) => this.setD({ burn_in: { shift: (e.target as HTMLInputElement).checked } })}>${nt('burnIn')}</label>
             <label class="ck"><input type="checkbox" .checked=${d.blocks.company_logo} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, company_logo: (e.target as HTMLInputElement).checked } })}>${nt('companyLogo')}</label>
             <label class="ck"><input type="checkbox" checked disabled>${nt('smplwiseLogo')}</label></div>
+          <notice-display-saver .display=${d} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-saver>
         </div></div>
       <div class="panel"><div class="hd"><h2>${nt('whatShown')}</h2><span class="sp"></span><sw-button size="sm" variant="primary" data-save-display ?disabled=${!this.dirty} @click=${() => this.saveAll()}>${nt('save')}</sw-button></div>
         <div class="blocks">

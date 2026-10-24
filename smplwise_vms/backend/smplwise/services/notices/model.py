@@ -19,6 +19,10 @@ ROTATE_MIN, ROTATE_MAX = 6, 60
 INFO_KINDS = ("elevators", "generator", "parking", "gym")
 NEWS_SPEEDS = ("slow", "normal", "fast")
 NEWS_FEEDS_MAX = 6
+# NOTICESAVER-295: the TV's screen saver (OLED care) and where the two logos sit. Stored inside the board's display JSON (no migration);
+# an old board without the keys reads the defaults (saver off, logos "a" = the v4 layout).
+SAVERS = ("off", "wash", "cycle", "wave", "ambient")
+LOGO_LAYOUTS = ("a", "b", "c")
 
 PERM_VIEW, PERM_MANAGE, PERM_PUSH, PERM_BOARDS = "notices.view", "notices.manage", "notices.push", "notices.boards"
 
@@ -133,6 +137,7 @@ DISPLAY_DEFAULTS: dict[str, Any] = {
     "news": {"feeds": [], "speed": "normal"},
     "night": {"enabled": True, "from": "23:00", "to": "06:00", "dim": 0.5},
     "burn_in": {"shift": True},
+    "saver": "off", "logos": "a",
 }
 
 
@@ -199,6 +204,10 @@ def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
     take("font_size", v in ("s", "m", "l"), v)
     v = src.get("font_scale")
     take("font_scale", isinstance(v, (int, float)) and not isinstance(v, bool) and 0.85 <= float(v) <= 1.2, float(v) if isinstance(v, (int, float)) else 1.0)
+    v = src.get("saver")
+    take("saver", v in SAVERS, v)
+    v = src.get("logos")
+    take("logos", v in LOGO_LAYOUTS, v)
     v = src.get("place")
     take("place", isinstance(v, str) and len(v.strip()) <= PLACE_MAX and not any(ord(c) < 32 for c in v), v.strip() if isinstance(v, str) else "")
 

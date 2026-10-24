@@ -62,8 +62,37 @@ body.box #host { background: #000; }
 .amb::after { content: ""; position: absolute; inset: 0; opacity: .06; mix-blend-mode: multiply; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
 :root[data-theme="night"] .amb::after { mix-blend-mode: screen; opacity: .05; }
 
-/* the page (drifts for burn-in) */
-.shift { position: absolute; inset: 0; z-index: 1; transition: transform 3s linear; }
+/* the screen saver (OLED-safe): "ambient" = pure black, only a dim clock that wanders slowly; "wash" = the hourly pixel-equalising sweep */
+#saver { position: absolute; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
+#saver[data-m="ambient"] { background: #000; }
+#saver .svc { position: absolute; display: grid; gap: 12px; text-align: right; transition: left 28s linear, top 28s linear; }
+#saver .svt { direction: ltr; unicode-bidi: isolate; font-size: 200px; font-weight: 200; line-height: .9; letter-spacing: -0.035em; color: rgba(236, 226, 206, .5); font-variant-numeric: tabular-nums; text-align: right; }
+#saver .svd { font-size: 34px; font-weight: 400; color: rgba(236, 226, 206, .3); }
+#saver[data-m="wash"] .svc, #saver[data-m="wave"] .svc, #saver[data-m="cycle"] .svc { display: none; }
+/* "cycle" = the permanent mode: (1) the whole canvas orbits on a slow ellipse (~16 px, 8 min per lap, no jumps), so no edge, hairline or digit stays on the same pixels; (2) the wash (the owner's favourite) runs by itself every 10 minutes for 12 s */
+#cv[data-saver="cycle"] .shift, #cv[data-saver="cycle"] .take { transition: none; animation: svorbit 480s linear infinite; }
+@keyframes svorbit { 0% { transform: translate(16px, 0); } 25% { transform: translate(0, 10px); } 50% { transform: translate(-16px, 0); } 75% { transform: translate(0, -10px); } 100% { transform: translate(16px, 0); } }
+#saver[data-m="cycle"]::before { content: ""; position: absolute; inset: -30% -60%; background: linear-gradient(100deg, transparent 38%, rgba(255, 255, 255, .13) 50%, transparent 62%); transform: translateX(80%); }
+#saver[data-m="cycle"]::after { content: ""; position: absolute; inset: 0; background: #8c8c8c; opacity: 0; }
+#saver[data-m="cycle"][data-run="1"]::before { animation: svsweep 12s ease-in-out 1 both; }
+#saver[data-m="cycle"][data-run="1"]::after { animation: svveil 12s ease-in-out 1 both; }
+/* "wave": always on, the content stays fully readable. A light band and a dark band sweep the screen in opposite phase (36 s, back and forth), so every pixel region is brightened and dimmed in turn and none stays at one level */
+#saver[data-m="wave"]::before, #saver[data-m="wave"]::after { content: ""; position: absolute; inset: -30% -60%; animation: svwave 36s ease-in-out infinite alternate; }
+#saver[data-m="wave"]::before { background: linear-gradient(100deg, transparent 32%, rgba(255, 255, 255, .11) 50%, transparent 68%); mix-blend-mode: screen; }
+#saver[data-m="wave"]::after { background: linear-gradient(100deg, transparent 32%, rgba(0, 0, 0, .20) 50%, transparent 68%); animation-delay: -18s; }
+@keyframes svwave { from { transform: translateX(48%); } to { transform: translateX(-48%); } }
+#saver[data-m="wash"]::before { content: ""; position: absolute; inset: -30% -60%; background: linear-gradient(100deg, transparent 38%, rgba(255, 255, 255, .13) 50%, transparent 62%); animation: svsweep 12s ease-in-out infinite; }
+#saver[data-m="wash"]::after { content: ""; position: absolute; inset: 0; background: #8c8c8c; opacity: 0; animation: svveil 12s ease-in-out infinite; }
+@keyframes svsweep { from { transform: translateX(45%); } to { transform: translateX(-45%); } }
+@keyframes svveil { 0%, 100% { opacity: 0; } 45%, 55% { opacity: .22; } }
+/* DAY: the night wash is a pale band over black; on the ivory ground a pale band is invisible, so the day wash is the same sweep drawn in ink: a wide soft shadow band with a bronze edge on each side and a warm dim veil at the middle of the pass */
+:root[data-theme="day"] #saver[data-m="wash"]::before, :root[data-theme="day"] #saver[data-m="cycle"]::before { background: linear-gradient(100deg, transparent 30%, rgba(176, 125, 58, .16) 42%, rgba(22, 24, 29, .26) 50%, rgba(176, 125, 58, .16) 58%, transparent 70%); }
+:root[data-theme="day"] #saver[data-m="wash"]::after, :root[data-theme="day"] #saver[data-m="cycle"]::after { background: #2b2620; }
+:root[data-theme="day"] #saver[data-m="wash"]::after { animation-name: svveilday; }
+:root[data-theme="day"] #saver[data-m="cycle"][data-run="1"]::after { animation-name: svveilday; }
+
+/* the page (drifts for burn-in; NOTICESAVER-295: 8 s ease like the mock-up v4 + saver) */
+.shift { position: absolute; inset: 0; z-index: 1; transition: transform 8s ease-in-out; }
 .pg { position: absolute; inset: 0; display: grid; padding: 64px 88px 44px; grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-areas: 'hd' 'bd' 'tk' 'ft'; row-gap: 0; }
 #cv.portrait .pg { padding: 56px 64px 44px; }
 
@@ -92,6 +121,8 @@ body.box #host { background: #000; }
 #cv[data-welcome="0"] .welcome small { display: none; }
 .clock { display: grid; gap: 2px; }
 .clock .t { font-size: calc(232px * var(--fs)); font-weight: 200; line-height: .9; letter-spacing: -0.035em; color: var(--ink); font-variant-numeric: tabular-nums; }
+/* NOTICESAVER-295: the time is an LTR number block; in the RTL page it must sit at the inline start = the right edge (mock-up: .clock .t { text-align: right }) */
+:root[lang="he"] .clock .t { text-align: right; }
 .clock .t i { display: inline-block; font-style: normal; font-weight: 200; opacity: .55; }
 .clock .d { font-size: calc(40px * var(--fs)); font-weight: 400; color: var(--ink); margin-block-start: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .clock .h { font-size: calc(30px * var(--fs)); font-weight: 400; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-block-start: 4px; }
@@ -214,6 +245,13 @@ body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var
 /* footer: chips at the inline start, the status line and the product mark at the inline end */
 .ft { grid-area: ft; display: flex; align-items: center; gap: 32px; min-block-size: 44px; margin-block-start: 26px; }
 .ft .sp { flex: 1; }
+/* NOTICESAVER-295 logo layouts: b = both logos together at the end of the bottom row (no header row); c = both in the header, a small line below */
+#cv[data-logos="b"] .hd { display: none; }
+.ft .lgs { flex: none; display: inline-flex; align-items: center; gap: 40px; }
+.ft .lg.company { block-size: calc(48px * var(--lg, 1)); }
+.ft .lg.company svg { inline-size: 210px; }
+.ft .lg.company img { max-inline-size: 210px; }
+.ft .pwr { flex: none; font-size: calc(22px * var(--fs)); color: var(--ink-3); white-space: nowrap; letter-spacing: .04em; }
 .live { flex: none; display: inline-flex; align-items: center; gap: 12px; font-size: calc(24px * var(--fs)); color: var(--ink-3); white-space: nowrap; }
 .live i { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--ok); }
 .stale { display: none; align-items: center; gap: 10px; font-size: calc(26px * var(--fs)); font-weight: 500; color: var(--warn); white-space: nowrap; }

@@ -109,8 +109,24 @@ body.box #host { background: #000; }
 .amb::after { content: ""; position: absolute; inset: 0; opacity: .06; mix-blend-mode: multiply; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
 :root[data-theme="night"] .amb::after { mix-blend-mode: screen; opacity: .05; }
 
+/* the screen saver (OLED-safe): "ambient" = pure black, only a dim clock that wanders slowly; "wash" = the hourly pixel-equalising sweep */
+#saver { position: absolute; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
+#saver[data-m="ambient"] { background: #000; }
+#saver .svc { position: absolute; display: grid; gap: 12px; text-align: right; transition: left 28s linear, top 28s linear; }
+#saver .svt { direction: ltr; unicode-bidi: isolate; font-size: 200px; font-weight: 200; line-height: .9; letter-spacing: -0.035em; color: rgba(236, 226, 206, .5); font-variant-numeric: tabular-nums; text-align: right; }
+#saver .svd { font-size: 34px; font-weight: 400; color: rgba(236, 226, 206, .3); }
+#saver[data-m="wash"] .svc { display: none; }
+#saver[data-m="wash"]::before { content: ""; position: absolute; inset: -30% -60%; background: linear-gradient(100deg, transparent 38%, rgba(255, 255, 255, .13) 50%, transparent 62%); animation: svsweep 12s ease-in-out infinite; }
+#saver[data-m="wash"]::after { content: ""; position: absolute; inset: 0; background: #8c8c8c; opacity: 0; animation: svveil 12s ease-in-out infinite; }
+@keyframes svsweep { from { transform: translateX(45%); } to { transform: translateX(-45%); } }
+@keyframes svveil { 0%, 100% { opacity: 0; } 45%, 55% { opacity: .22; } }
+/* DAY: the night wash is a pale band over black; on the ivory ground a pale band is invisible, so the day wash is the same sweep drawn in ink: a wide soft shadow band with a bronze edge on each side and a warm dim veil at the middle of the pass */
+:root[data-theme="day"] #saver[data-m="wash"]::before { background: linear-gradient(100deg, transparent 30%, rgba(176, 125, 58, .16) 42%, rgba(22, 24, 29, .26) 50%, rgba(176, 125, 58, .16) 58%, transparent 70%); }
+:root[data-theme="day"] #saver[data-m="wash"]::after { background: #2b2620; }
+:root[data-theme="day"] #saver[data-m="wash"]::after { animation-name: svveilday; }
+@keyframes svveilday { 0%, 100% { opacity: 0; } 45%, 55% { opacity: .2; } }
 /* the page (drifts for burn-in) */
-.shift { position: absolute; inset: 0; z-index: 1; transition: transform 3s linear; }
+.shift { position: absolute; inset: 0; z-index: 1; transition: transform 8s ease-in-out; }
 .pg { position: absolute; inset: 0; display: grid; padding: 64px 88px 44px; grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-areas: 'hd' 'bd' 'tk' 'ft'; row-gap: 0; }
 #cv.portrait .pg { padding: 56px 64px 44px; }
 
@@ -132,6 +148,7 @@ body.box #host { background: #000; }
 #cv[data-welcome="0"] .welcome small { display: none; }
 .clock { display: grid; gap: 2px; }
 .clock .t { font-size: calc(232px * var(--fs)); font-weight: 200; line-height: .9; letter-spacing: -0.035em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.clock .t { text-align: right; }
 .clock .t i { display: inline-block; font-style: normal; font-weight: 200; opacity: .55; }
 .clock .d { font-size: calc(40px * var(--fs)); font-weight: 400; color: var(--ink); margin-block-start: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .clock .h { font-size: calc(30px * var(--fs)); font-weight: 400; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-block-start: 4px; }
@@ -722,9 +739,19 @@ body.ctl #ctl { display: flex; }
     var d = dateStr(false); cv.querySelectorAll('[data-date]').forEach(function (e) { if (e.textContent !== d) e.textContent = d; });
     if (P('theme', 'auto') === 'auto' || P('theme', '') === 'light' && false) { var th = autoTheme(); if (th !== root.getAttribute('data-theme')) { root.setAttribute('data-theme', th); render(); } }
   }
-  var DRIFT = [[0, 0], [6, 3], [0, 6], [-6, 3], [-6, -3], [0, -6], [6, -3]], ph = 0;
+  var DRIFT = [[0, 0], [10, 5], [3, 11], [-8, 8], [-12, 0], [-7, -9], [2, -12], [10, -6]], ph = 0;
   function drift() { ph = (ph + 1) % DRIFT.length; shift.style.transform = 'translate(' + DRIFT[ph][0] + 'px,' + DRIFT[ph][1] + 'px)'; take.style.transform = shift.style.transform; }
-  if (!FIXED) { setInterval(step, O.rot * 1000); setInterval(tickClock, 5000); setInterval(drift, 60000); }
+  if (!FIXED) { setInterval(step, O.rot * 1000); setInterval(tickClock, 5000); setInterval(drift, 45000); }
+  // ===== screen saver: ambient (black, the clock wanders) and the hourly wash; ?saver=ambient|wash (the product runs both by schedule, see the Settings screen) =====
+  var SV = P('saver', 'off');
+  if (SV === 'ambient' || SV === 'wash') {
+    cv.insertAdjacentHTML('beforeend', '<div id="saver" data-m="' + SV + '" aria-hidden="true"><div class="svc"><div class="svt num" data-time-plain>' + timeStr().replace(/<\/?i>/g, '') + '</div><div class="svd" data-date>' + esc(dateStr(false)) + '</div></div></div>');
+    if (SV === 'ambient') {
+      var SVP = [[10, 14], [52, 8], [62, 46], [36, 62], [12, 40], [48, 26], [24, 64], [58, 20]], sk = 0, svc = cv.querySelector('#saver .svc');
+      function svMove() { svc.style.left = SVP[sk][0] + '%'; svc.style.top = SVP[sk][1] + '%'; sk = (sk + 1) % SVP.length; }
+      svMove(); if (!FIXED) setInterval(svMove, P('saverfast', '0') === '1' ? 6000 : 30000);
+    }
+  }
   var rt = null; addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(render, 120); });
 
   // ===== mock-up control strip (?controls=1) =====
@@ -747,7 +774,8 @@ body.ctl #ctl { display: flex; }
       sel('promo', 'שקופיות', [['1', 'כן'], ['0', 'לא']], O.promo ? '1' : '0') +
       sel('company', 'לוגו חברה', [['1', 'כן'], ['0', 'לא']], O.company ? '1' : '0') +
       sel('size', 'כתב', [['s', 'קטן'], ['m', 'בינוני'], ['l', 'גדול']], O.size) +
-      sel('night', 'לילה מאוחר', [['0', 'לא'], ['1', 'עמעום']], O.night ? '1' : '0');
+      sel('night', 'לילה מאוחר', [['0', 'לא'], ['1', 'עמעום']], O.night ? '1' : '0') +
+      sel('saver', 'שומר מסך', [['off', 'כבוי'], ['ambient', 'שעון נע, רקע שחור'], ['wash', 'מטאטא ריענון']], SV);
     ctl.addEventListener('change', function (e) { var k = e.target.dataset.k; if (!k) return; if (e.target.value === '') Q.delete(k); else Q.set(k, e.target.value); if (k === 'board') { Q.delete('template'); Q.delete('orient'); Q.delete('hold'); } location.search = Q.toString(); });
     ctl.addEventListener('click', function (e) { var bt = e.target.closest('[data-cmd]'); if (bt) command(bt.dataset.cmd); });
   }

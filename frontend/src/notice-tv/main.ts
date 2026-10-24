@@ -7,6 +7,9 @@
  * If-None-Match), the token from the URL fragment, the clock from the installation's zone, the company logo through the token, the
  * CSP (no inline style attributes: the grid sizes are set through the CSSOM), and the stale / offline / gone states are real.
  *
+ * NOTICESAVER-295: the board's screen saver (`display.saver`: off / wash / cycle / wave / ambient, drawn as the mock-up's `#saver` layer),
+ * the logo layout (`display.logos`: a / b / c) and the mock-up's drift values. Test hooks `?saver=` and `?logos=` override both.
+ *
  * Test hooks (never used by a real TV): `?clock=fixed` (09:12 on 23.10.2026 in the board's zone, ticker frozen, no rotation / drift
  * timers), `?now=<ISO>` (a fixed instant).
  */
@@ -14,9 +17,9 @@ import './tv.css';
 import swLogo from '../../public/brand/smplwise-logo.png?inline'; // the SmplWise logo, inlined: the TV page is served at /b/<slug> and reaches no other file
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
-  NEWS_SPEED, POLL_MS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlan, heldIndex, netOf, nightDim, onPoll,
-  playlist, remoteKey, sevLabel, slugFrom, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, whenText,
-  type Clock, type Display, type Feed, type FeedNotice, type Item, type NetState,
+  AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlan, heldIndex, logoLayoutOf, netOf, nightDim, onPoll,
+  playlist, remoteKey, saverOf, sevLabel, slugFrom, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, whenText,
+  type Clock, type Display, type Feed, type FeedNotice, type Item, type LogoLayout, type NetState, type Saver,
 } from './tv-logic';
 
 const Q = new URLSearchParams(location.search);
@@ -221,9 +224,18 @@ function updatedText(): string {
   return timeText(at);
 }
 
-function footerHtml(L: { sw: string }, withChips: boolean): string {
+/** The logo layout in force: the board's setting, or the `?logos=` test hook. */
+function layoutOf(): LogoLayout {
+  const q = Q.get('logos');
+  return q === 'a' || q === 'b' || q === 'c' ? q : logoLayoutOf(display());
+}
+
+function footerHtml(L: { co: string; sw: string }, withChips: boolean, lay: LogoLayout, tpl: number): string {
+  // a: the v4 layout (template 2 carries the SmplWise mark in its header); b: both logos together at the end of the bottom row;
+  // c: both logos are in the header, the bottom row says who runs the board
+  const mark = lay === 'b' ? '<span class="lgs">' + L.co + L.sw + '</span>' : lay === 'c' ? '<span class="pwr">' + esc(str(lang(), 'poweredBy')) + '</span>' : tpl === 2 ? '' : L.sw;
   return '<footer class="ft">' + (withChips ? chipsHtml() : '') + '<span class="offline">' + ic('offline') + esc(str(lang(), 'offline')) + '</span><span class="sp"></span><span class="stale">' + ic('clock') +
-    '<span data-stale>' + esc(str(lang(), 'staleFrom', { t: updatedText() })) + '</span></span><span class="live"><i></i>' + esc(str(lang(), 'updated')) + ' <span class="num" data-updated>' + updatedText() + '</span> · ' + esc(feed?.board.name || '') + '</span>' + L.sw + '</footer>';
+    '<span data-stale>' + esc(str(lang(), 'staleFrom', { t: updatedText() })) + '</span></span><span class="live"><i></i>' + esc(str(lang(), 'updated')) + ' <span class="num" data-updated>' + updatedText() + '</span> · ' + esc(feed?.board.name || '') + '</span>' + mark + '</footer>';
 }
 
 function bandHtml(u: FeedNotice | null): string {
@@ -295,7 +307,10 @@ function render(): void {
   state.paused = state.userPaused || state.held >= 0;
   cv.dataset.paused = state.paused ? '1' : '0';
 
-  let h = '<header class="hd">' + L.co + '<span class="mid"></span>' + (tpl === 2 ? L.sw : '') + '</header>' + bandHtml(band);
+  const lay = layoutOf();
+  cv.dataset.logos = lay;
+  const head = lay === 'b' ? '' : L.co + '<span class="mid"></span>' + (tpl === 2 || lay === 'c' ? L.sw : '');
+  let h = '<header class="hd">' + head + '</header>' + bandHtml(band);
   if (tpl === 1) {
     h += '<main class="bd"><div class="side">' + welcomeHtml() + clockHtml() + wxHtml() + '</div><div class="vrule"></div>' + (portrait ? '<div class="rule"></div>' : '') + stageHtml() + '</main>';
   } else if (tpl === 2) {
@@ -303,7 +318,7 @@ function render(): void {
   } else {
     h += '<main class="bd"><div class="top"><div class="name">' + esc(feed.board.building || '') + '<small>' + esc(d.place || '') + '</small></div>' + clockHtml() + '</div><div class="rule"></div>' + stageHtml() + '<div class="rule"></div><div class="bot">' + chipsHtml() + wxHtml() + '</div></main>';
   }
-  h += tickerHtml() + footerHtml(tpl === 2 ? { sw: '' } : L, tpl === 1); // template 2 carries the SmplWise mark in its header (CR 8.1 logos)
+  h += tickerHtml() + footerHtml(L, tpl === 1, lay, tpl);
   pg.innerHTML = h;
   applyGridVars();
   const D = logos(true);
@@ -313,6 +328,7 @@ function render(): void {
       '<div class="mid"><span class="tag">' + esc(str(lang(), 'urgent')) + '</span><h1>' + tx(u.title) + '</h1><p>' + tx(u.body) + '</p><div class="until">' + tx(when(u)) + '</div></div>' +
       '<div class="bot"><span>' + esc(feed.board.building || '') + ' · ' + esc(feed.board.name) + '</span>' + D.sw + '</div>'
     : '';
+  applySaver();
   fitCanvas();
   layoutAfter();
 }
@@ -480,6 +496,10 @@ function tickClock(): void {
   cv.querySelectorAll('[data-time]').forEach((e) => {
     if (e.innerHTML !== t) e.innerHTML = t;
   });
+  const plain = timeText(clock());
+  cv.querySelectorAll('[data-time-plain]').forEach((e) => {
+    if (e.textContent !== plain) e.textContent = plain;
+  });
   const dd = dateStr();
   cv.querySelectorAll('[data-date]').forEach((e) => {
     if (e.textContent !== dd) e.textContent = dd;
@@ -503,10 +523,10 @@ function tickClock(): void {
   }
 }
 
-const DRIFT = [[0, 0], [6, 3], [0, 6], [-6, 3], [-6, -3], [0, -6], [6, -3]];
 let ph = 0;
 function drift(): void {
-  if (!display().burn_in?.shift) {
+  if (!display().burn_in?.shift || activeSaver() === 'cycle') {
+    // `cycle` moves the whole canvas by its own CSS orbit; a board without the drift stays put
     shift.style.transform = '';
     take.style.transform = '';
     return;
@@ -514,6 +534,56 @@ function drift(): void {
   ph = (ph + 1) % DRIFT.length;
   shift.style.transform = 'translate(' + DRIFT[ph][0] + 'px,' + DRIFT[ph][1] + 'px)';
   take.style.transform = shift.style.transform;
+}
+
+// ---------------------------------------------------------------- the screen saver (mock-up v4 + saver: the `#saver` layer over the canvas)
+
+/** The saver in force: the board's setting, or the `?saver=` test hook. */
+function activeSaver(): Saver {
+  const q = Q.get('saver');
+  return q && (SAVERS as string[]).includes(q) ? (q as Saver) : saverOf(display());
+}
+
+let svMode: Saver = 'off';
+let svRunTimer = 0;
+let svMoveTimer = 0;
+let svSpot = 0;
+
+function svRun(el: HTMLElement): void {
+  el.dataset.run = '0';
+  void el.offsetWidth; // restart the CSS animation
+  el.dataset.run = '1';
+}
+
+function svMove(): void {
+  const c = document.querySelector('#saver .svc') as HTMLElement | null;
+  if (!c) return;
+  c.style.left = AMBIENT_SPOTS[svSpot][0] + '%';
+  c.style.top = AMBIENT_SPOTS[svSpot][1] + '%';
+  svSpot = (svSpot + 1) % AMBIENT_SPOTS.length;
+}
+
+/** Builds / removes the saver layer when the mode changes. The layer survives the re-renders of the same mode, so its animation never restarts. */
+function applySaver(): void {
+  const m = activeSaver();
+  cv.dataset.saver = m;
+  if (m === svMode && (m === 'off' || document.getElementById('saver'))) return;
+  clearInterval(svRunTimer);
+  clearInterval(svMoveTimer);
+  document.getElementById('saver')?.remove();
+  svMode = m;
+  if (m === 'off') return;
+  cv.insertAdjacentHTML('beforeend', '<div id="saver" data-m="' + m + '" aria-hidden="true"><div class="svc"><div class="svt num" data-time-plain>' + esc(timeText(clock())) + '</div><div class="svd" data-date>' + esc(dateStr()) + '</div></div></div>');
+  const el = document.getElementById('saver') as HTMLElement;
+  if (m === 'cycle' && !FIXED && !NOW_Q) {
+    window.setTimeout(() => svRun(el), 1500);
+    svRunTimer = window.setInterval(() => svRun(el), CYCLE_WASH_MS);
+  }
+  if (m === 'ambient') {
+    svSpot = 0;
+    svMove();
+    if (!FIXED && !NOW_Q) svMoveTimer = window.setInterval(svMove, 30_000);
+  }
 }
 
 // ---------------------------------------------------------------- the feed
@@ -602,7 +672,7 @@ function emptyFeed(): Feed {
     board: { name: '', slug: SLUG, version: 0, building: '', tz: 'Asia/Jerusalem', logos: {}, display: {
       template: 1, lang: 'he', theme: 'auto', day_hours: '', layout: 'auto', urgent: 'stage', mode: 'rotation', rotate_s: 12, hold: '', font_size: 's', font_scale: 1, place: '',
       blocks: { clock: true, hebdate: true, welcome: true, weather: false, info: [], promo: false, news: false, company_logo: false },
-      weather: { hours: 5 }, news: { feeds: [], speed: 'normal' }, night: { enabled: true, from: '23:00', to: '06:00', dim: 0.5 }, burn_in: { shift: true },
+      weather: { hours: 5 }, news: { feeds: [], speed: 'normal' }, night: { enabled: true, from: '23:00', to: '06:00', dim: 0.5 }, burn_in: { shift: true }, saver: 'off', logos: 'a',
     } },
     now: new Date().toISOString(),
     notices: [],
@@ -625,5 +695,5 @@ void poll(true).then(() => {
 if (!FIXED && !NOW_Q) {
   setInterval(() => void poll(), POLL_MS);
   setInterval(tickClock, 5000);
-  setInterval(drift, 60_000);
+  setInterval(drift, DRIFT_MS);
 }
