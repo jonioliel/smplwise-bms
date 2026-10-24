@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import pytest
-from conftest import as_user, png_bytes, seed_tree
+from conftest import enable_search, as_user, png_bytes, seed_tree
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
@@ -380,6 +380,7 @@ def _(c, h, w, cams, wide):
 
 @resource("search")
 def _(c, h, w, cams, wide):
+    enable_search(c)
     found = {r["id"] for r in c.get("/api/v1/search?q=cam&limit=20", headers=h).json()["results"] if r["kind"] == "camera"}
     assert found == (_others(cams) if wide else {cams["cam2"]})
 

@@ -18,6 +18,11 @@ export const TRANSPORT_DEFAULT: Transport = 'auto';
 
 const DEFAULTS: ProductSettings = { 'media.transport_default': TRANSPORT_DEFAULT, 'media.max_live_sessions': 16, 'media.wall_profile': 'sub', 'snapshots.max_age_s': 60 };
 
+/** TOPPILL-295: may this user use the global search (the pill's search button, Ctrl/Cmd+K)? The server decides (`ui.global_search`
+ * plus the user's roles) and answers with GET /settings; off until that answer says otherwise. GET /search enforces it too. */
+let searchOk = false;
+export const searchAllowed = (): boolean => searchOk;
+
 export async function productSettings(force = false): Promise<ProductSettings> {
   if (!isApi()) return DEFAULTS;
   if (cached && !force && Date.now() - cachedAt < SETTINGS_TTL_MS) return cached;
@@ -25,6 +30,7 @@ export async function productSettings(force = false): Promise<ProductSettings> {
     inflight = getSettings()
       .then((r) => {
         cachedAt = Date.now();
+        searchOk = r.search_allowed === true;
         return (cached = r.settings);
       })
       .finally(() => (inflight = null));

@@ -143,7 +143,7 @@ import { onTicketNames, setTicketNames } from '../tickets/naming'; // CR-038 D33
 import { isTicketId } from '../tickets/model';
 import { can, canNav, isApi, loadSession, onRemote, onSession, watchPermissions, type Session } from '../api/session';
 import { SENSOR_LABEL } from '../api/presence'; // CR-027: the names of the sensors a required-sensors gate names
-import { productSettings } from '../api/prefs';
+import { productSettings, searchAllowed } from '../api/prefs';
 import { applyTimelineColors } from '../api/timeline-colors';
 import { setGlassScheme } from '../screens/devices-style';
 import { applyPlaybackDisplay } from '../api/playback-display';
@@ -1843,6 +1843,7 @@ export class SwApp extends LitElement {
           applyInstallationColors(ps['ui.accent'], ps['ui.toggle_on']); // 2.4.4: the installation's accent and switch-on colours (design/brand.ts)
           setGlassScheme(ps['devices.glass_scheme']); // 2.4.4: the glass screens follow the product's scheme, or a fixed light / dark
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
+          this.requestUpdate(); // TOPPILL-295: the search button follows the answer
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
           if (hideMap) for (const h of MAP_HREFS) HIDDEN_HREFS.add(h);
           // הגדרות › מתגי מסכי כניסה: hide the whole WisKey area for everyone, regardless of role (T054 follow-up) - same
@@ -2308,8 +2309,13 @@ export class SwApp extends LitElement {
 
   /** Design A: open the search popover (the corner button, Ctrl/Cmd+K) with the input focused and, when it still holds
    * the last query, that query selected. Not inside the kiosk / Lovelace card view (no shell there), nor behind the gate. */
+  /** TOPPILL-295: the search is off by default; the server says whether this user may use it (the static demo keeps its page search). */
+  private searchEnabled(): boolean {
+    return !isApi() || searchAllowed();
+  }
+
   private openSearch() {
-    if (this.gated || this.route?.segments[0] === 'kiosk' || this.embedded()) return;
+    if (this.gated || !this.searchEnabled() || this.route?.segments[0] === 'kiosk' || this.embedded()) return;
     this.searchPanel = true;
     if (this.searchQ.trim() && this.searchResults.length) this.searchOpen = true;
     void this.updateComplete.then(() => {
@@ -2450,7 +2456,7 @@ export class SwApp extends LitElement {
   /** Design A: the floating corner - the system status dot and the search button (the popover opens under them). */
   private renderFloat(editor = false) {
     const dot = this.renderSysDot();
-    const canSearch = !this.gated;
+    const canSearch = !this.gated && this.searchEnabled();
     const brand = this.brandStripOn(editor);
     if (dot === nothing && !canSearch && !brand) return nothing;
     const open = this.searchOpen && !!this.searchQ.trim();

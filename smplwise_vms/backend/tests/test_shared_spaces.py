@@ -9,7 +9,7 @@ import math
 from typing import Any
 
 import pytest
-from conftest import as_user, png_bytes, seed_tree
+from conftest import enable_search, as_user, png_bytes, seed_tree
 from fastapi.testclient import TestClient
 
 from smplwise.db import Database, new_id, now_iso, permission_revision
@@ -886,6 +886,7 @@ def test_a_user_of_the_upper_floor_only_reaches_the_halls_members_and_nothing_el
     pub = c.get(f"/api/v1/plan-versions/{w['v3']}/geometry", headers=hdr)
     assert pub.status_code == 200 and any(o["id"] == f"{w['f2']}:trib" for o in pub.json()["doc"]["objects"])
     assert pub.json()["doc"]["shared_spaces"][0]["home_floor_name"] == "קומה אחרת", "review L1: the home floor is not named to her"
+    enable_search(c)
     res = c.get("/api/v1/search?q=אולם", headers=hdr).json()["results"]
     assert {x["floor_id"] for x in res if x["kind"] == "zone"} == {w["f3"]}
     tree = c.get("/api/v1/sites", headers=hdr).json()

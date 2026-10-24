@@ -238,6 +238,12 @@ def seed_tree(client: TestClient) -> dict[str, str]:
     return {"site": site["id"], "building": building["id"], "floor2": f2["id"], "floor3": f3["id"]}
 
 
+def enable_search(client: TestClient, mode: str = "all", roles: str = "") -> None:
+    """TOPPILL-295: the global search is off by default; a test that exercises it turns it on first (as the installation's admin)."""
+    r = client.patch("/api/v1/settings", json={"ui.global_search": mode, **({"ui.global_search_roles": roles} if roles else {})})
+    assert r.status_code == 200, r.text
+
+
 def bind(client: TestClient, settings: Settings, username: str, role: str, scope_type: str, scope_id: str) -> None:
     """Direct DB binding for tests (the bindings API arrives with T076/T083)."""
     from smplwise.db import Database, new_id, now_iso, permission_revision

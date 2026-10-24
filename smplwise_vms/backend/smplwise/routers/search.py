@@ -10,7 +10,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Query, Request
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..rbac import INSTALLATION, Principal, authorize
+from ..rbac import INSTALLATION, Principal, authorize, bindings_of
 from ..errors import ApiError
 from ..services import devices as dsvc
 from ..services import semantic
@@ -30,6 +30,28 @@ def _visible_floors(conn: sqlite3.Connection, principal: Principal, permission: 
     return {f["id"] for f in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall() if authorize(conn, principal, permission, ("floor", f["id"])).allowed}
 
 
+def search_allowed(conn: sqlite3.Connection, principal: Principal) -> bool:
+    """TOPPILL-295: may this caller use the global search at all? `ui.global_search` is off by default. When on, a system
+    administrator (system.configure) passes; `admins` stops there, `all` admits every signed-in user, `roles` admits the holders
+    of a listed role (a binding of the user or of one of their groups; a deny binding never admits)."""
+    mode = read_settings(conn)["ui.global_search"]
+    if mode not in ("admins", "roles", "all"):
+        return False
+    if authorize(conn, principal, "system.configure", INSTALLATION).allowed:
+        return True
+    if mode == "all":
+        return True
+    if mode == "admins":
+        return False
+    listed = {r.strip() for r in str(read_settings(conn)["ui.global_search_roles"] or "").split(",") if r.strip()}
+    return any(b["role_id"] in listed for b in bindings_of(conn, principal) if b.get("effect") != "deny")
+
+
+def _require_search(conn: sqlite3.Connection, principal: Principal) -> None:
+    if not search_allowed(conn, principal):
+        raise ApiError(403, "search_disabled", "החיפוש הכללי כבוי או אינו זמין למשתמש הזה.")
+
+
 def _contains(hay: str | None, needle: str) -> bool:
     return bool(hay) and needle in hay.casefold()
 
@@ -41,6 +63,7 @@ def search(
     principal: Principal = Depends(current_principal_ro),
     conn: sqlite3.Connection = Depends(get_read_conn),
 ) -> dict[str, Any]:
+    _require_search(conn, principal)
     needle = q.strip().casefold()
     if not needle:
         return {"q": q, "results": [], "counts": {}}
@@ -85,6 +108,7 @@ def search(
 
     # cameras (scope: the cameras the caller may see on a map; unplaced cameras for installation-wide readers)
     cam_ids = visible_camera_ids(conn, principal, "map.read")
+    live_ids = visible_camera_ids(conn, principal, "video.live")  # TOPPILL-295: a camera the caller may not watch is not a hit either
     placed = {r["resource_id"]: r["floor_id"] for r in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL").fetchall()}
     for (rtype, rid), pairs in mirrored.items():  # a camera of a shared room the caller reaches only through the other floor
         if rtype == "camera" and (rid not in placed or not floor_ok(placed[rid])):
@@ -92,7 +116,7 @@ def search(
             if ok:
                 placed[rid] = ok
     for c in conn.execute("SELECT id, alias, name_source, channel FROM cameras WHERE enabled = 1 ORDER BY sort_order, channel").fetchall():
-        if cam_ids is not None and c["id"] not in cam_ids:
+        if (cam_ids is not None and c["id"] not in cam_ids) or (live_ids is not None and c["id"] not in live_ids):
             continue
         title = c["alias"] or c["name_source"] or c["id"]
         if not (_contains(c["alias"], needle) or _contains(c["name_source"], needle) or needle == str(c["channel"])):

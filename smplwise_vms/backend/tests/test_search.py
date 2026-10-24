@@ -2,7 +2,7 @@
 open the hit, and scope (a floor-bound viewer sees only what is on their floors)."""
 from __future__ import annotations
 
-from conftest import as_user, bind, seed_tree
+from conftest import enable_search, as_user, bind, seed_tree
 from fastapi.testclient import TestClient
 
 from smplwise.db import now_iso
@@ -15,6 +15,7 @@ def test_search_kinds_routes_and_scope(settings):
     app = create_app(settings)
     c = TestClient(app)
     ids = seed_tree(c)
+    enable_search(c)
     cam = c.post("/api/v1/cameras", json={"channel": 4, "alias": "כניסה ראשית"}).json()
     assert c.post(f"/api/v1/floors/{ids['floor2']}/zones", json={"name": "לובי ראשי", "polygon": RECT}).status_code == 201
     assert c.post(f"/api/v1/floors/{ids['floor2']}/zones", json={"name": "לובי צדדי", "polygon": RECT, "searchable": False}).status_code == 201
