@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .bill_pdf_html import (ASSET_SCHEME, FONT_FILES, LOGO_URL, STATE_MARKS, build_html, chart_series, dmy, kwh, moment,
+from .bill_pdf_html import (ASSET_SCHEME, BRAND_FILE, BRAND_URL, FONT_FILES, LOGO_URL, STATE_MARKS, build_html, chart_series, dmy, kwh, moment,
                             money, price, reading)
 from .bill_pdf_model import BillSnapshot
 
@@ -36,7 +36,7 @@ class RenderRefused(Exception):
 
 # ---------------------------------------------------------------------------------------------------- WeasyPrint
 class LockedFetcher:
-    """Resolves only the bundled fonts and the sanitised logo. Everything else (http, https, file, data, ftp,
+    """Resolves only the bundled fonts, the bundled SmplWise logo and the sanitised logo. Everything else (http, https, file, data, ftp,
     relative paths, redirects) is refused and recorded in `blocked`. It deliberately does not derive from WeasyPrint's
     URLFetcher, so no urllib opener, proxy handler or socket code exists in this object at all."""
 
@@ -53,6 +53,8 @@ class LockedFetcher:
             name = url[len(ASSET_SCHEME):]
             if name in FONT_FILES:  # exact allow-list, no path syntax can pass
                 return URLFetcherResponse(url, (FONT_DIR / name).read_bytes(), {"Content-Type": "font/ttf"})
+        elif url == BRAND_URL:  # one exact URL, one bundled file (NOTICEPUSH-295)
+            return URLFetcherResponse(url, (ASSET_DIR / "brand" / BRAND_FILE).read_bytes(), {"Content-Type": "image/png"})
         elif url == LOGO_URL and self.logo_png:
             return URLFetcherResponse(url, self.logo_png, {"Content-Type": "image/png"})
         self.blocked.append(url[:200])

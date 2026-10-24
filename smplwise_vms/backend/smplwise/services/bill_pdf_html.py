@@ -19,6 +19,8 @@ E = html.escape
 
 ASSET_SCHEME = "bill-asset:"
 LOGO_URL = "bill-logo:logo.png"
+BRAND_URL = "bill-brand:smplwise-word.png"  # NOTICEPUSH-295: the approved SmplWise logo (assets/bill/brand/), the one bundled picture besides the installation's own logo
+BRAND_FILE = "smplwise-word.png"
 FONT_FILES = ("Heebo-he-400.ttf", "Heebo-he-700.ttf", "Heebo-la-400.ttf", "Heebo-la-700.ttf",
               # 2.0.2: names in Cyrillic or Arabic (customers, meters, addresses) - Noto subsets, used only for those scripts
               "NotoSans-cy-400.ttf", "NotoSans-cy-700.ttf", "NotoSansArabic-ar-400.ttf", "NotoSansArabic-ar-700.ttf")

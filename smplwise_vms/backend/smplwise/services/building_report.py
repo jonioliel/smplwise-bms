@@ -21,6 +21,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from . import insights_common as ic
+from .bill_pdf_html import BRAND_URL
 from .timeutil import zone
 
 E = html.escape
@@ -345,7 +346,7 @@ def _css(lang: str) -> str:
   @bottom-{side} {{ content: element(foot); }} }}
 body {{ font-family: HeeboHe, HeeboLa, NotoCy, NotoAr; font-size: 9.5pt; color: #1d2433; }}
 .hd {{ border-bottom: 1.5pt solid #1d2433; padding-bottom: 4pt; margin-bottom: 10pt; display: flex; justify-content: space-between; align-items: flex-end; }}
-.hd h1 {{ margin: 0; font-size: 17pt; }} .brand {{ font-weight: 700; font-size: 11pt; }}
+.hd h1 {{ margin: 0; font-size: 17pt; }} .brand {{ font-weight: 700; font-size: 11pt; }} .brand img {{ display: block; height: 8mm; width: auto; }}
 .sub {{ color: #5b6a85; font-size: 8.5pt; }}
 h2 {{ font-size: 12pt; margin: 14pt 0 5pt; border-bottom: 0.6pt solid #d5dbe6; padding-bottom: 2pt; break-after: avoid; }}
 section {{ break-inside: auto; }}
@@ -439,7 +440,7 @@ def html_of(model: dict[str, Any]) -> str:
     foot = (f'<div class="foot">{E(L["site"])} · {E(L["generated"])} {gen.astimezone(tz):%d.%m.%Y %H:%M} ({E(model["zone"])}) · '
             f'<span class="n">{gen:%Y-%m-%dT%H:%M:%SZ}</span> · {E(L["digest"])} <span class="n">sha256 {model["digest"][:16]}</span></div>')
     parts = [f'<div class="hd"><div><h1>{E(L["title"])}</h1><div class="sub">{E(L["month"])}: <span class="n">{E(model["month"])}</span></div></div>'
-             f'<div class="brand">SmplWise</div></div>']
+             f'<div class="brand"><img src="{BRAND_URL}" alt="SmplWise"></div></div>']
     for s in model["sections"]:
         d = model["data"].get(s)
         if s == "summary":

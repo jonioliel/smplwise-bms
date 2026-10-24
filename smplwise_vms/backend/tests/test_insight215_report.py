@@ -86,6 +86,7 @@ def test_html_and_plain_lines_in_both_languages(w):
         m = w["c"].get(f"{API}/reports/building/preview?month=2026-09&lang={lang}").json()
         html = rep.html_of(m)
         assert ('dir="rtl"' in html) == (lang == "he")
+        assert 'src="bill-brand:smplwise-word.png"' in html and '>SmplWise</div>' not in html  # NOTICEPUSH-295: the approved logo, not a text
         assert rep.plain_lines(m)
 
 
