@@ -109,7 +109,7 @@ import {
 import { NEW_DRAFT_KEY } from './schedule-create-dialog';
 import { TEMPLATES, templateById, withPreset, type TemplateDraft } from './schedule-templates';
 import { dateInputLang } from '../api/day-format';
-import { draftConflicts, warningsHeading, type ConflictRow } from '../api/automations-ext';
+import { conflictMove, conflictSlotIndex, draftConflicts, warningsHeading, type ConflictRow } from '../api/automations-ext';
 
 /**
  * CR-014 S4: the schedule editor (mockup 05-09, 17-19 editor level, 21, 24-25).
@@ -191,6 +191,9 @@ export class ScheduleEditor extends LitElement {
   /** KAV079-295 (mockup r079 state 7): the conflicts of this draft with the automations / schedules around it (empty while the checks are off). */
   @state() private kavConflicts: ConflictRow[] = [];
   @state() private kavSaveWithWarnings = true;
+  /** KAV079 state 7: the checks are on (the "בדיקה בלי הפעלה" button is offered) and its dialog. */
+  @state() private kavOn = false;
+  @state() private kavDry = false;
   @state() private showErrors = false;
   @state() private saving = false;
   @state() private saveError = '';
@@ -1329,9 +1332,10 @@ export class ScheduleEditor extends LitElement {
       }
       void draftConflicts('schedule', this.creating ? null : this.scheduleId, draft).then((r) => {
         if (token !== this.previewToken) return;
+        this.kavOn = !!r.enabled;
         this.kavConflicts = r.enabled ? r.conflicts : [];
         this.kavSaveWithWarnings = (r as { save_with_warnings?: boolean }).save_with_warnings !== false;
-      }).catch(() => { if (token === this.previewToken) this.kavConflicts = []; });
+      }).catch(() => { if (token === this.previewToken) { this.kavConflicts = []; this.kavOn = false; } });
     } catch {
       if (token === this.previewToken) {
         this.preview = null;
@@ -1562,8 +1566,31 @@ export class ScheduleEditor extends LitElement {
       sensitive,
       lowering,
       invalid: this.showErrors && bad,
+      conflict: this.kavConflictUids().has(s.uid),
       aria: `משבצת ${order + 1} מתוך ${count}: ${title}, ${timeLabel}${lowering ? ', פותח או מנטרל' : sensitive ? ', פעולה רגישה' : ''}${locked ? ', לקריאה בלבד' : ''}`,
     };
+  }
+
+  /** The uids of the draft's slots that a conflict row points at (`slots.N`) - the dashed mark on the board. */
+  private kavConflictUids(): Set<string> {
+    const out = new Set<string>();
+    for (const c of this.kavConflicts) {
+      const i = conflictSlotIndex(c);
+      const s = i === null ? undefined : this.draft.slots[i];
+      if (s) out.add(s.uid);
+    }
+    return out;
+  }
+
+  /** "הזזת המשבצת ל־HH:MM": the slot moves just outside the window (the board's own move, so neighbours and the snap still apply); the checks run again. */
+  private moveConflictSlot(c: ConflictRow) {
+    const i = conflictSlotIndex(c);
+    const mv = conflictMove(c);
+    const s = i === null ? undefined : this.draft.slots[i];
+    if (!s || !mv || this.override) return;
+    const at = this.draft.slots.findIndex((x) => x.uid === s.uid);
+    const r = moveSlot(this.draft.slots, at, mv.delta, this.opts);
+    this.setWork(r.slots, s.uid);
   }
 
   private slotViews(slots: EditSlot[]): GridSlotView[] {
@@ -1757,6 +1784,11 @@ export class ScheduleEditor extends LitElement {
     if (!c.length || this.readOnly) return nothing;
     return html`<div class="kav-vbox" role="status" data-kav-conflicts><b><sw-icon name="warning" size="16"></sw-icon>${warningsHeading(c.length)}<small>· ${this.kavSaveWithWarnings ? 'אפשר לשמור עם אזהרות' : 'יש לטפל באזהרות לפני השמירה'}</small></b>
       ${c.map((x) => html`<div class="kav-iss" data-kav-conflict=${x.other.id}><b>${x.title}</b><span>${x.detail}</span>
+        ${(() => {
+          const mv = conflictMove(x), i = conflictSlotIndex(x), s = i === null ? undefined : this.draft.slots[i];
+          const fixed = !!s && parseTime(s.start)?.kind === 'fixed';
+          return mv && fixed && !this.override && !this.readOnly ? html`<sw-button size="sm" data-kav-move-slot @click=${() => this.moveConflictSlot(x)}>הזזת המשבצת ל־${mv.to}</sw-button>` : nothing;
+        })()}
         <sw-button size="sm" data-kav-open-other @click=${() => navigate(x.other.kind === 'schedule' ? `/devices/schedules/${encodeURIComponent(x.other.id)}/edit` : `/devices/automations/${encodeURIComponent(x.other.id)}`)}>${x.other.kind === 'schedule' ? 'פתיחת התזמון' : 'פתיחת האוטומציה'}</sw-button></div>`)}
     </div>`;
   }
@@ -1930,6 +1962,14 @@ export class ScheduleEditor extends LitElement {
           <sw-button variant="primary" data-copy-ok @click=${() => this.applyCopyDays()}>אישור</sw-button>
         </div>
       </sw-dialog>
+      <sw-dialog ?open=${this.kavDry} heading="בדיקה בלי הפעלה" data-kav-dry-dialog @close=${() => (this.kavDry = false)}>
+        <div class="hint">לא מופעל דבר. כך התזמון יפעל בפעמים הקרובות לפי מה שמוצג עכשיו, כולל שינויים שעוד לא נשמרו.</div>
+        ${(this.preview?.upcoming ?? []).length
+          ? html`<ul class="runs">${(this.preview?.upcoming ?? []).slice(0, 10).map((u) => html`<li><span>${whenLabel(u.at)}</span><span>${u.summary ?? this.slotSummaryText(u.slot_index)}</span></li>`)}</ul>`
+          : html`<div>אין הרצה קרובה.</div>`}
+        ${this.kavConflicts.length ? html`<div class="hint" data-kav-dry-conflicts>${warningsHeading(this.kavConflicts.length)} בהתנגשות עם פריטים אחרים (מוצגות בתיבה שמעל הלוח).</div>` : nothing}
+        <div slot="footer" style="display:contents"><sw-button variant="primary" @click=${() => (this.kavDry = false)}>סגירה</sw-button></div>
+      </sw-dialog>
       <sw-dialog ?open=${this.compareOpen} heading="השוואה לגרסה החדשה" data-compare-dialog @close=${() => (this.compareOpen = false)}>
         ${cmp.length
           ? html`<table style="inline-size:100%;border-collapse:collapse;font-size:var(--sw-fs-sm)">
@@ -1964,6 +2004,7 @@ export class ScheduleEditor extends LitElement {
         ${this.schedule ? html`<span class="ver" title="גרסה">גרסה ${this.schedule.revision.slice(0, 4)}</span>` : nothing}
         <schedule-condition-chip data-condition-chip .conditions=${this.condView()}></schedule-condition-chip>
         ${sensitive ? html`<sw-schedule-markers data-sensitive-badge .sensitive=${true} .lowering=${loweringSummary(this.currentDraft(), this.meta).lowering}></sw-schedule-markers>` : nothing}
+        ${this.kavOn && !ro ? html`<sw-button icon="play" data-kav-dry @click=${() => (this.kavDry = true)}>בדיקה בלי הפעלה</sw-button>` : nothing}
         <sw-button data-editor-cancel @click=${() => this.cancel()}>${ro ? 'חזרה' : 'ביטול'}</sw-button>
         ${ro ? nothing : this.kavConflicts.length
           ? html`<sw-button icon="warning" data-editor-save data-editor-save-warnings ?disabled=${!this.dirty || this.saving || !this.kavSaveWithWarnings} @click=${() => void this.onSave()}>${this.saving ? 'שומר…' : 'שמירה עם אזהרות'}</sw-button>`

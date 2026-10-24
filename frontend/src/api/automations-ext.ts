@@ -70,7 +70,28 @@ export function saveMode(warnings: readonly Issue[], flags: Pick<ExtFlags, 'prec
 }
 
 /** "2 אזהרות · אין שגיאות. אפשר לשמור עם אזהרות." */
-export const warningsHeading = (n: number): string => (n === 1 ? 'אזהרה אחת' : `${n} אזהרות`);
+/** The slot index a schedule conflict row points at (`slots.N`), null for any other path. */
+export const conflictSlotIndex = (c: Pick<ConflictRow, 'path'>): number | null => {
+  const m = /^slots\.(\d+)$/.exec(c.path);
+  return m ? Number(m[1]) : null;
+};
+
+/** Where to move the conflicting slot: just outside the window, on the side it already is, and the signed shift in minutes (null when the times do not parse). */
+export const conflictMove = (c: Pick<ConflictRow, 'mine_at' | 'other_at' | 'window_min'>): { to: string; delta: number } | null => {
+  const at = (s: string): number | null => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(s);
+    return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const mine = at(c.mine_at), other = at(c.other_at);
+  if (mine === null || other === null || !(c.window_min >= 0)) return null;
+  const wrap = (n: number) => ((n % 1440) + 1440) % 1440;
+  const side = ((mine - other + 1440 + 720) % 1440) - 720 >= 0 ? 1 : -1;  // which side of the other switch this one is on
+  const target = wrap(other + side * (c.window_min + 1));
+  const delta = ((target - mine + 1440 + 720) % 1440) - 720;
+  return { to: `${String(Math.floor(target / 60)).padStart(2, '0')}:${String(target % 60).padStart(2, '0')}`, delta };
+};
+
+export const warningsHeading =(n: number): string => (n === 1 ? 'אזהרה אחת' : `${n} אזהרות`);
 
 // ---- the three-way merge (state 5)
 
