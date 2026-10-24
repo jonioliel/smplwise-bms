@@ -80,6 +80,14 @@ def test_no_route_fetches_a_caller_supplied_url_and_media_paths_stay_relative(cl
                 for name in props:
                     if name.lower() in ("url", "uri", "href", "callback", "redirect", "target_url", "webhook"):
                         suspicious.append((path, name))
+    # CR-PARTNER-API (2.16.0): the partner webhook endpoint routes are the ONE reviewed place that takes a caller-supplied URL (the
+    # outbound webhook target). They are not an open fetch: every delivery goes through services/partner/ssrf.py (scheme/port/name
+    # matrix, private+loopback+link-local refusal, DNS-rebinding pin, no redirects), pinned by tests/test_partner_api*.py "SSRF".
+    # Any OTHER route with a URL field still fails this guard; the allowance is exact (path, field) pairs, not a pattern.
+    reviewed = {("/api/v1/partners/clients/{client_id}/endpoints", "url"), ("/api/v1/partners/endpoints/{endpoint_id}", "url")}
+    from smplwise.services.partner import ssrf as _partner_ssrf  # the guard the allowance depends on must exist
+    assert hasattr(_partner_ssrf, "parse") and hasattr(_partner_ssrf, "Refused")
+    suspicious = [x for x in suspicious if x not in reviewed]
     assert suspicious == [], f"routes that accept a URL to fetch: {suspicious}"
     seed_tree(client)
     cam = client.post("/api/v1/cameras", json={"channel": 1, "alias": "a"}).json()

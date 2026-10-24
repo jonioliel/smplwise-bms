@@ -765,6 +765,8 @@ class MessagingRuntime:
             self.counters["intake_failed"] += 1
             log.warning("intake failed (%s)", type(exc).__name__)
             return
+        if reason == "intake_off":  # the module / switch is off (the default): the envelope stays exactly as before the intake existed
+            return
         conn.execute("UPDATE ticket_inbound SET reason = ?, intake_draft_id = ? WHERE id = ?", (reason, draft_id, inbound_id))
         self.counters[reason] += 1
 

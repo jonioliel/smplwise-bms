@@ -52,6 +52,9 @@ PINNED = frozenset({
     ("smplwise/services/elevators.py", "door_open"),  # CR-INFRA-ELEVATORS: an elevator's binary-sensor ROLE name (read only)
     ("smplwise/services/intercom_authority.py", "door_open"),  # the command -> scope classification table (a lookup, not a send)
     ("smplwise/services/intercom_authority.py", "stations/test_unlock"),  # same table
+    # 2.16.0 integration re-pin (reviewed - neither sends anything):
+    ("smplwise/services/emergency/model.py", "door_open"),  # an elevator's derived-state label (door ajar -> amber), read only
+    ("smplwise/services/incidents.py", "door_open"),  # the incident timeline step KIND for an audit row of a person's confirmed release (read only)
 })
 PINNED_HA_LOCK = frozenset({
     ("smplwise/routers/automations.py", "lock.unlock"),
