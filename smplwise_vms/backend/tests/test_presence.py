@@ -492,3 +492,59 @@ def test_wifi_server_mode_matches_the_hash_itself_and_ignores_a_phone_claim(worl
     assert v["n1"] == {"network": "wifi", "ssid_hash": good, "wifi_match": True, "wifi_site_id": "site_main"}
     assert v["n2"]["wifi_match"] is False and "wifi_site_id" not in v["n2"]
     assert v["n3"] == {"network": "wifi"}
+
+
+# ---------------------------------------------------------------- PRESUNAVAIL-295: the `unavailable` sensor state
+
+def test_unavailable_is_stored_returned_and_satisfies_a_required_non_location_sensor(world):
+    app, c, ids = world
+    _, a = register(c, "dana")
+    did, tok = a["device_id"], bearer(a["device_token"])
+    enable(c, required_sensors={"enabled": True, "sensors": ["altitude"]})
+    c.post(f"{API}/presence/devices/{did}/ack", json={"notice_version": 2}, headers=tok)
+    gate = lambda: c.get(f"{API}/presence/gate", headers={**as_user("dana"), **APP_UA}).json()["gate"]  # noqa: E731
+    # nothing reported yet: blocked
+    assert gate()["blocked"] is True and gate()["missing"] == ["altitude"]
+    # `off` (denied / switched off) does not satisfy; junk values are stored as `off`
+    for bad in ("off", "banana", None, True):
+        c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": {**STATUS_ON, "sensors": {"altitude": bad}}}, headers=tok)
+        assert gate()["blocked"] is True, bad
+    # `unavailable` is stored as such, returned by the device reads, and satisfies the requirement
+    r = c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": {**STATUS_ON, "sensors": {"altitude": "unavailable", "battery": "on", "steps": "unavailable"}}}, headers=tok)
+    assert r.status_code == 200
+    mine = c.get(f"{API}/presence/devices/{did}/state", headers=tok).json()
+    assert mine["status"]["sensors"]["altitude"] == "unavailable" and mine["status"]["sensors"]["battery"] == "on" and mine["status"]["sensors"]["location"] == "off"
+    listed = [d for d in c.get(f"{API}/presence/devices").json()["devices"] if d["device_id"] == did][0]
+    assert listed["status"]["sensors"]["altitude"] == "unavailable"
+    assert gate()["blocked"] is False and gate()["missing"] == []
+    assert c.get(f"{API}/sites", headers={**as_user("dana"), **APP_UA}).status_code == 200
+    # a sensor the administrator does not allow is stored `off` even if the phone says unavailable
+    c.put(f"{API}/presence/settings", json={"sensors_allowed": ["location", "battery"]})
+    c.post(f"{API}/presence/devices/{did}/ack", json={"notice_version": 3}, headers=tok)
+    c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": {**STATUS_ON, "sensors": {"altitude": "unavailable"}}}, headers=tok)
+    assert c.get(f"{API}/presence/devices/{did}/state", headers=tok).json()["status"]["sensors"]["altitude"] == "off"
+    assert gate()["blocked"] is True
+
+
+def test_unavailable_never_satisfies_location_and_stale_or_unacked_reports_still_do_not_count(world):
+    app, c, ids = world
+    _, a = register(c, "dana")
+    did, tok = a["device_id"], bearer(a["device_token"])
+    enable(c, required_sensors={"enabled": True, "sensors": ["location", "battery"]})
+    gate = lambda: c.get(f"{API}/presence/gate", headers={**as_user("dana"), **APP_UA}).json()["gate"]  # noqa: E731
+    status = {**STATUS_ON, "sensors": {"location": "unavailable", "battery": "unavailable"}}
+    # not acknowledged yet: neither counts
+    c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": status}, headers=tok)
+    assert gate()["missing"] == ["battery", "location"]
+    c.post(f"{API}/presence/devices/{did}/ack", json={"notice_version": 2}, headers=tok)
+    c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": status}, headers=tok)
+    assert gate()["missing"] == ["location"] and gate()["blocked"] is True  # battery unavailable counts, location unavailable does not
+    c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": STATUS_ON}, headers=tok)
+    assert gate()["blocked"] is False
+    # a stale report does not count, unavailable or not
+    c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": {**STATUS_ON, "sensors": {"location": "on", "battery": "unavailable"}}}, headers=tok)
+    with app.state.db.connection() as conn:
+        st = json.loads(conn.execute("SELECT status_json FROM mobile_devices WHERE id = ?", (did,)).fetchone()[0])
+        st["reported_at"] = "2026-01-01T00:00:00Z"
+        conn.execute("UPDATE mobile_devices SET status_json = ? WHERE id = ?", (json.dumps(st), did))
+    assert gate()["blocked"] is True
