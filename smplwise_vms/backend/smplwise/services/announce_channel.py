@@ -70,7 +70,7 @@ class AnnounceChannel(nc.Channel):
             return []
         if SEVERITY_RANK[d.severity] < SEVERITY_RANK[route["min_severity"]]:
             return []
-        if not cfg["enabled"] or not cfg["engine"] or not route["ref"]:
+        if not cfg["enabled"] or not ann.engine_ready(cfg) or not route["ref"]:
             return [nc.Target(self.name, None, ref, "skipped", "channel_unavailable")]
         exempt = d.severity == "critical" or d.mode == "escalate"
         if not exempt and cfg["quiet"]["mode"] == "suppress" and ann.quiet_active(conn, d.now, cfg):
@@ -91,8 +91,10 @@ class AnnounceChannel(nc.Channel):
             status, reason = "sent", None
             try:
                 with notifier.db.connection(label="announce.notify") as conn:
-                    ann.announce(conn, ann._SETTINGS[0] if ann._SETTINGS else None, None, None, source="notification", scope=t.data["scope"], ref=t.data["ref"],  # type: ignore[arg-type]
-                                 text=t.data["text"], critical=t.data["critical"], notification_id=t.data["nid"], unlock=lambda: unlocked(conn))
+                    out = ann.announce(conn, ann._SETTINGS[0] if ann._SETTINGS else None, None, None, source="notification", scope=t.data["scope"], ref=t.data["ref"],  # type: ignore[arg-type]
+                                       text=t.data["text"], critical=t.data["critical"], notification_id=t.data["nid"], unlock=lambda: unlocked(conn))
+                    if out.get("status") == "queued":  # ANNOUNCE-295: held for the end of the quiet hours (it is spoken then, by the janitor)
+                        status, reason = "skipped", "quiet_hours_queued"
             except ann.ApiError as exc:
                 # a refusal of the announcements' own rules is a skip of this delivery (limits, quiet hours, switched off, no allowed speaker);
                 # only the engine not speaking is a failure

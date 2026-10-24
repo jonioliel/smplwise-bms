@@ -122,7 +122,7 @@ Source: original
 | `analytics.review` | מסך הסקירה של מקליט Frigate וסימון "נסקר" אישי | מפעיל ומעלה |
 | `analytics.control`, `analytics.record_control`, `analytics.profile`, `analytics.events` | סוגי הפעולה ב-Frigate (ראו `33-frigate_HE.md`); רגישות | מנהל אתר, מנהל מערכת |
 | `analytics.exports`, `analytics.cases` | ייצואים ותיקים ב-Frigate (מגרסה 2.3.0, בשרת בלבד, בלי מסך; ייצוא דורש גם `video.export`); רגישות | מנהל אתר, מנהל מערכת |
-| `media.announce` | הכרזה קולית ברמקולים מורשים; רגישה | מנהל אתר, מנהל מערכת |
+| `media.announce` | הכרזה קולית ברמקולים מורשים והכרזת חירום בלחיצה אחת; רגישה | מכריז (תפקיד מובנה), מנהל אתר, מנהל מערכת |
 | `media.cast` | שידור מצלמה למסך מורשה | מפעיל ומעלה |
 | `generator.view` / `generator.manage` | צפייה והתראות בגנרטור / הגדרות וניהול | מפעיל ומעלה / מנהל אתר ומערכת |
 | `wall.view` | ממשק מסך הקיר (תפקיד kiosk) | תפקיד kiosk |
