@@ -550,6 +550,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import automation_blueprints as automation_blueprints_router  # CR-BLUEPRINT80: ready-made automation templates (its own line)
 
     app.include_router(automation_blueprints_router.router, prefix=api, tags=["automations"])
+    from .routers import automation_ext as automation_ext_router  # KAV079-295: the editors' extension (wall buttons, pre-save checks, on-device test)
+
+    app.include_router(automation_ext_router.router, prefix=api, tags=["automations"])
     app.include_router(alarm.router, prefix=api, tags=["alarm"])  # CR-010: אבטחה › אזעקה
     app.include_router(zones.router, prefix=api, tags=["zones"])
     app.include_router(skins.router, prefix=api, tags=["plans"])

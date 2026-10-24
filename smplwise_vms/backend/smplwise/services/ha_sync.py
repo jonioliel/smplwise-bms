@@ -811,6 +811,10 @@ class HaSync:
                 log.exception("state update failed for %s", eid)
 
         def on_message(msg: dict[str, Any]) -> None:
+            from . import automation_ext  # KAV079-295: a frame of a "detect by pressing" subscription (time-limited, its own ids)
+
+            if automation_ext.LISTENERS.dispatch(msg):
+                return
             if self._sched_sub_id is not None and msg.get("id") == self._sched_sub_id:
                 from . import schedules as schedules_svc  # CR-014: a frame of the scheduler component's own subscription
 

@@ -144,7 +144,7 @@ def _compare_config(kind, config, ctx, problems, label):
 
 
 def test_typed_blocks_are_exactly_the_authorable_ones_on_every_seed_item(house):
-    ctx = ModelContext(shabbat_sensor=seed.SHABBAT_SENSOR)
+    ctx = ModelContext(shabbat_sensor=seed.SHABBAT_SENSOR, wall_buttons=True)  # KAV079-295: the bridge accepts what the add-on types at most
     problems: list = []
     n = 0
     for kind, items in (("automation", house.automations), ("script", list(house.scripts.values()))):
@@ -194,7 +194,7 @@ def _variants(raw):
 
 def test_the_same_answer_over_mutations_of_every_block_of_the_seed(house):
     """Mutate each top-level block (trigger, condition, action step) of every seed item and compare the add-on's parse with the bridge's judgment."""
-    ctx = ModelContext(shabbat_sensor=seed.SHABBAT_SENSOR)
+    ctx = ModelContext(shabbat_sensor=seed.SHABBAT_SENSOR, wall_buttons=True)  # KAV079-295: the bridge accepts what the add-on types at most
     problems: list = []
     n = 0
     for c in house.automations:
