@@ -244,3 +244,20 @@ test('module off: no לוח הודעות in the rail', async ({ page }) => {
   await expect(page.locator('sw-app [data-nav="devices"]').first()).toBeAttached();
   await expect(page.locator('sw-app [data-nav="notices"]')).toHaveCount(0);
 });
+
+// NOTICEGB-295 slice B: the building-status chip picker of the display tab (states only; the server shows a chip only for a kind it has).
+test('board page: the building-status picker saves blocks.info in the picker order', async ({ page }) => {
+  const calls = await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices/b1'));
+  const root = page.locator('sw-app system-notices');
+  await root.locator('sw-tabs').getByText('תצוגה').click();
+  const picker = root.locator('notice-display-info');
+  await expect(picker.locator('[data-info="elevators"]')).toBeChecked();
+  await expect(picker.locator('[data-info="gym"]')).not.toBeChecked();
+  await picker.locator('[data-info="parking"]').uncheck();
+  await picker.locator('[data-info="gym"]').check();
+  await root.locator('[data-save-display]').click();
+  await expect.poll(() => (calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body as { display?: { blocks?: { info?: string[] } } } | undefined)?.display?.blocks?.info)
+    .toEqual(['elevators', 'generator', 'gym']);
+});

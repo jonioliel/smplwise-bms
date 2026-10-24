@@ -46,7 +46,7 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "notices.boards.max": "10",
     "notices.weather_entity": "",
     "notices.weather_fallback": "false",
-    "notices.news_custom": "true",
+    "notices.news_custom": "false",  # NOTICEGB-295: custom feeds stay off until the owner turns them on; a stored value always wins
     "notices.building_name": "",
     # the origin the TV links point to: the LAN listener as the owner mapped it (e.g. http://<host>:18094) or the remote address;
     # empty = the address the manager uses (the Settings screen says so)
@@ -132,7 +132,7 @@ DISPLAY_DEFAULTS: dict[str, Any] = {
     "template": 1, "lang": "he", "theme": "auto", "day_hours": "", "layout": "auto",
     "urgent": "stage", "mode": "rotation", "rotate_s": 12, "hold": "",
     "font_size": "s", "font_scale": 1.0, "place": "",
-    "blocks": {"clock": True, "hebdate": True, "welcome": True, "weather": True, "info": [], "promo": False, "news": False, "company_logo": True},
+    "blocks": {"clock": True, "hebdate": True, "welcome": True, "weather": True, "info": list(INFO_KINDS), "promo": False, "news": False, "company_logo": True},
     "weather": {"hours": 5},
     "news": {"feeds": [], "speed": "normal"},
     "night": {"enabled": True, "from": "23:00", "to": "06:00", "dim": 0.5},
@@ -162,8 +162,8 @@ def _feed(raw: Any) -> dict[str, str] | None:
         return None
     url = str(raw.get("url") or "").strip()
     name = str(raw.get("name") or "").strip()[:40]
-    if not url.startswith("https://") or len(url) > 400 or any(c.isspace() or ord(c) < 33 for c in url):
-        return None
+    if not url.startswith("https://") or len(url) > 400 or any(c.isspace() or ord(c) < 33 for c in url) or "@" in url.split("/", 3)[2]:
+        return None  # https only, and no credentials in the URL
     return {"name": name or url[8:40], "url": url}
 
 

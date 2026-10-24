@@ -244,7 +244,7 @@ def test_feed_headers_and_no_personal_data(client, settings):
     doc = r.json()
     allowed_notice = {"id", "title", "body", "severity", "starts_at", "ends_at", "pinned", "published_at", "dwell_s", "when"}
     assert set(doc["notices"][0]) <= allowed_notice
-    assert set(doc) <= {"board", "now", "notices", "weather", "news", "sun", "control"}
+    assert set(doc) <= {"board", "now", "notices", "weather", "news", "sun", "control", "info"}
     assert set(doc["board"]) == {"name", "slug", "display", "building", "tz", "logos", "version"}
     text = json.dumps(doc, ensure_ascii=False)
     for secret in ("joni", "dev-joni", "audience", "created_by", "token"):
