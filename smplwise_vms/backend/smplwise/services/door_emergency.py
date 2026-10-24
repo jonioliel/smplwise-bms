@@ -43,7 +43,7 @@ from typing import Any
 from ..audit import audit
 from ..db import Database, get_setting, new_id, set_setting
 from ..errors import ApiError
-from ..rbac import INSTALLATION, STATION, Principal, authorize, scope_name, station_chain
+from ..rbac import INSTALLATION, STATION, Principal, authorize, is_system_admin, scope_name, station_chain
 from . import door_windows as dw
 from . import door_windows_engine as dwe
 
@@ -472,6 +472,49 @@ def release(conn: sqlite3.Connection, settings: Any, principal: Principal, *, to
           resource_type="door_emergency", resource_id=row["id"], reason="release_requested",
           details={"kind": row["kind"], "doors": len(doors_), "request_id": client_request_id, "drill": bool(row["drill"])})
     return row["id"]
+
+
+def retry_open(conn: sqlite3.Connection, settings: Any, principal: Principal, *, incident_id: str, station_id: str, relay: int, confirm_door: Any,
+               now: dt.datetime, actor_kind: str = "person", dev_mode: bool = False) -> dict[str, Any]:
+    """WKOPENUNK-295 (WisKey emergency-event v2, P0-4): an EXPLICIT new OPEN attempt for one door whose OPEN apply ended UNKNOWN. It is the replacement for the automatic
+    retry that stays OFF (`DW09_OPEN_RETRY_AFTER_UNKNOWN`): a person starts it, on purpose, after seeing the UNKNOWN. Policy (owner recommendation, 24.10):
+    a system administrator only; the confirmation must name the door (its name as shown, or its key) every time; one attempt in the whole incident at a time; never while the
+    previous attempt is still live; audited with the earlier outcome. Nothing is edited or hidden: the earlier UNKNOWN stays in `wiskey_feature_intents` and in the audit, the
+    engine sends a NEW request (new request id, new operation, `retry_of` = the UNKNOWN attempt's operation) on the SAME event fence (the per-door request id is unchanged),
+    and a drill, a released incident or a LOCK never reaches this path. The caller commits, then `submit`s the apply phase (only this door's row is `pending`)."""
+    audit_action = "door.emergency.retry_open"
+    check_actor(conn, principal, actor_kind, audit_action, dev_mode=dev_mode)
+    if not is_system_admin(conn, principal.user_id):
+        raise _refuse(conn, principal, audit_action, 403, "admin_only", "רק מנהל מערכת רשאי לנסות שוב פתיחת חירום.")
+    if not enabled(conn):
+        raise _refuse(conn, principal, audit_action, 409, "emergency_off", "לחצני החירום כבויים.")
+    if not open_enabled(conn, settings):
+        raise _refuse(conn, principal, audit_action, 409, "open_unavailable", "פתיחת חירום אינה זמינה.")
+    row = incident_row(conn, incident_id)
+    if row is None or row["kind"] != "open" or row["drill"] or row["state"] not in PHASE_STATES["apply"]:
+        raise _refuse(conn, principal, audit_action, 409, "not_retryable", "אין מצב חירום פתיחה פעיל שניתן לנסות בו שוב.")
+    door = dw.doors_by_key(conn).get(dw.door_key(station_id, relay))
+    if door is None:
+        raise _refuse(conn, principal, audit_action, 404, "door_not_found", "הדלת לא נמצאה.")
+    given = confirm_door.strip() if isinstance(confirm_door, str) else ""
+    if not given or given not in (door.name, door.key):
+        raise _refuse(conn, principal, audit_action, 409, "confirm_door_required", "יש לאשר בשם הדלת.", door=door.key)
+    busy = conn.execute("SELECT 1 FROM door_emergency_doors WHERE incident_id = ? AND state IN ('pending','sent') LIMIT 1", (incident_id,)).fetchone()
+    if busy is not None:
+        raise _refuse(conn, principal, audit_action, 409, "retry_in_progress", "פעולה אחרת של מצב החירום עדיין מתבצעת.")
+    d = conn.execute("SELECT state, code, attempts, last_at FROM door_emergency_doors WHERE incident_id = ? AND station_id = ? AND relay = ? AND phase = 'apply'",
+                     (incident_id, station_id, relay)).fetchone()
+    if d is None or d["state"] != "unknown":
+        raise _refuse(conn, principal, audit_action, 409, "door_not_unknown", "רק דלת בתוצאה לא ידועה ניתנת לניסיון חוזר.")
+    if d["last_at"] and now < dw.parse_iso(d["last_at"]) + dt.timedelta(seconds=RETRY_GAP_S):
+        raise _refuse(conn, principal, audit_action, 429, "too_soon", "יש להמתין מספר שניות בין ניסיונות.")
+    changed = conn.execute("""UPDATE door_emergency_doors SET state = 'pending', next_at = NULL, settled_at = NULL WHERE incident_id = ? AND station_id = ? AND relay = ?
+                              AND phase = 'apply' AND state = 'unknown'""", (incident_id, station_id, relay)).rowcount
+    if changed != 1:
+        raise _refuse(conn, principal, audit_action, 409, "door_not_unknown", "רק דלת בתוצאה לא ידועה ניתנת לניסיון חוזר.")
+    audit(conn, actor=principal, action=audit_action, decision="allowed", resource_type="door", resource_id=door.key, reason="explicit_new_attempt",
+          details={"incident_id": incident_id, "earlier_outcome": "unknown", "earlier_code": d["code"], "earlier_attempts": d["attempts"], "earlier_at": d["last_at"]})
+    return {"incident_id": incident_id, "door": door.key, "state": "pending"}
 
 
 # ---------------------------------------------------------------- dispatch (the incident lane)

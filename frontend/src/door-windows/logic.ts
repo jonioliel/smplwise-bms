@@ -227,3 +227,15 @@ export function incidentLines(inc: Incident, phase: 'apply' | 'release' = 'apply
 export function incidentLive(inc: Incident | null | undefined): boolean {
   return !!inc && (inc.state === 'applying' || inc.state === 'in_effect' || inc.state === 'in_effect_partial' || inc.state === 'releasing');
 }
+
+/** WKOPENUNK-295: the doors of a live OPEN incident whose OPEN apply ended unknown, with the door name the person must type (the part of the label after the station). */
+export function retryableOpenDoors(inc: Incident | null | undefined): { door: string; stationId: string; relay: number; label: string; name: string }[] {
+  if (!inc || inc.kind !== 'open' || inc.drill || inc.can_retry_open !== true || !['applying', 'in_effect', 'in_effect_partial'].includes(inc.state)) return [];
+  return (inc.doors ?? []).filter((d) => d.phase === 'apply' && d.state === 'unknown').flatMap((d) => {
+    const at = d.door.lastIndexOf(':');
+    const relay = Number(d.door.slice(at + 1));
+    if (at < 1 || !Number.isInteger(relay)) return [];
+    const parts = d.label.split(' · ');
+    return [{ door: d.door, stationId: d.door.slice(0, at), relay, label: d.label, name: parts[parts.length - 1] }];
+  });
+}

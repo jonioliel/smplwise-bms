@@ -5,11 +5,11 @@ import '../components/sw-icon';
 import '../components/sw-sheet';
 import { ApiError, describeError } from '../api/client';
 import {
-  getIncident, prepareRelease, prepareStart, releaseIncident, startIncident,
+  getIncident, prepareRelease, prepareStart, releaseIncident, retryOpenDoor, startIncident,
   type EmergencyKind, type EmergencyState, type Incident, type Prepared, type Scope,
 } from '../api/door-windows';
 import { dwt, dwtDynamic } from '../i18n/door-windows';
-import { AUTO_CLOSE_MS, RESULT_TONE, holdProgress, incidentLines, nextStep, type SheetStep } from './logic';
+import { AUTO_CLOSE_MS, RESULT_TONE, holdProgress, incidentLines, nextStep, retryableOpenDoors, type SheetStep } from './logic';
 import { dwCss } from './styles';
 import { timeText } from '../api/day-format';
 
@@ -328,6 +328,8 @@ export class DoorEmergencyStrip extends LitElement {
     .t b { font-size: var(--sw-fs-md); }
     .t small { font-size: var(--sw-fs-sm); opacity: .9; }
     .rel { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+    .retry { display: grid; gap: 6px; }
+    .retry input { padding: 6px 8px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface-solid); color: var(--sw-text); }
     door-hold-button { min-inline-size: 180px; }
     @media (max-width: 640px) { .strip { grid-template-columns: auto 1fr; } .rel { grid-column: 1 / -1; justify-content: stretch; } door-hold-button { inline-size: 100%; } }
   `];
@@ -338,6 +340,24 @@ export class DoorEmergencyStrip extends LitElement {
   @state() private prepared: Prepared | null = null;
   @state() private error = '';
   @state() private busy = false;
+  @state() private retryDoor: { stationId: string; relay: number; label: string; name: string } | null = null;
+  @state() private typed = '';
+
+  private async sendRetry(): Promise<void> {
+    if (!this.incident || !this.retryDoor) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      await retryOpenDoor(this.incident.id, this.retryDoor.stationId, this.retryDoor.relay, this.typed);
+      this.retryDoor = null;
+      this.typed = '';
+      this.dispatchEvent(new CustomEvent('changed', { bubbles: true, composed: true }));
+    } catch (err) {
+      this.error = errorText(err);
+    } finally {
+      this.busy = false;
+    }
+  }
 
   private async held(): Promise<void> {
     if (!this.incident) return;
@@ -371,7 +391,13 @@ export class DoorEmergencyStrip extends LitElement {
     return html`<div class="strip ${inc.drill ? 'drill' : ''}" role="status" data-em-strip=${inc.kind}>
       <sw-icon name="warning"></sw-icon>
       <div class="t"><b>${text}</b><small>${dwt(inc.drill ? 'emResultDrill' : 'emResult', { ok: inc.counts.ok, total: inc.counts.total })}</small>
-        ${this.error ? html`<small data-em-error>${this.error}</small>` : nothing}</div>
+        ${this.error ? html`<small data-em-error>${this.error}</small>` : nothing}
+        ${this.retryDoor
+          ? html`<div class="retry" data-em-retry-form><b>${dwt('emRetryOpenTitle', { door: this.retryDoor.label })}</b><small>${dwt('emRetryOpenText', { name: this.retryDoor.name })}</small>
+              <input type="text" data-em-retry-name autocomplete="off" .value=${this.typed} @input=${(e: Event) => (this.typed = (e.target as HTMLInputElement).value)}>
+              <span class="rel"><sw-button variant="secondary" data-em-retry-send ?disabled=${this.busy || this.typed.trim() === ''} @click=${() => this.sendRetry()}>${dwt('emRetryOpenSend')}</sw-button>
+              <sw-button variant="ghost" @click=${() => { this.retryDoor = null; this.typed = ''; }}>${dwt('cancel')}</sw-button></span></div>`
+          : retryableOpenDoors(inc).map((d) => html`<small><sw-button variant="ghost" size="sm" data-em-retry=${d.door} @click=${() => { this.retryDoor = d; this.typed = ''; }}>${dwt('emRetryOpen')}: ${d.label}</sw-button></small>`)}</div>
       ${inc.can_release !== false ? html`<div class="rel">
         ${this.prepared
           ? html`<sw-button variant="secondary" data-em-release-confirm ?disabled=${this.busy} @click=${() => this.release()}>${dwt('emRelease')}</sw-button>
