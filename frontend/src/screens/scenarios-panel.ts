@@ -17,6 +17,7 @@ import {
   type Action, type Cmp, type ScenarioChoices, type Definition, type DryRun, type Leaf, type Node, type Run, type Scenario, type ScenariosStatus, type SignalDef, type SignalsCatalogue, type Tri,
 } from '../api/scenarios';
 import type { DrawerResult } from './automation-drawer';
+import { dateInputLang } from '../api/day-format';
 
 const CMP_TEXT: Record<Cmp, string> = { is_true: 'כן', is_false: 'לא', gt: '>', ge: '≥', lt: '<', le: '≤', eq: '=', ne: '≠', between: 'בין', outside: 'מחוץ ל', in_set: 'אחד מ' };
 const TRI: Record<Tri, { mark: string; cls: string }> = { TRUE: { mark: '✓', cls: 't' }, FALSE: { mark: '✗', cls: 'f' }, UNKNOWN: { mark: '?', cls: 'u' } };
@@ -84,7 +85,7 @@ export class ScenariosPanel extends LitElement {
     .leaf input[type='number'] { inline-size: 84px; }
     .leaf .sm { inline-size: 64px; }
     .red { color: var(--dv-text-3); font-style: italic; padding: 6px 8px; }
-    .tri { inline-size: 22px; block-size: 22px; display: inline-grid; place-items: center; border-radius: 50%; font-size: 12px; font-weight: 700; }
+    .tri { inline-size: 22px; block-size: 22px; display: inline-grid; place-items: center; border-radius: 50%; font-size: var(--sw-fs-sm); font-weight: 700; }
     .tri.t { background: var(--dv-success-soft); color: var(--dv-success); }
     .tri.f { background: var(--dv-surface-3); color: var(--dv-text-2); }
     .tri.u { background: var(--dv-warning-soft); color: var(--dv-warning); }
@@ -94,7 +95,7 @@ export class ScenariosPanel extends LitElement {
     .err { color: var(--dv-danger); font-size: var(--sw-fs-sm, 13px); }
     .hint { color: var(--dv-text-3); font-size: var(--sw-fs-xs, 12px); }
     .days { display: inline-flex; gap: 2px; }
-    .days button { min-inline-size: 26px; padding: 2px 4px; border-radius: 6px; border: 1px solid var(--dv-border); background: var(--dv-surface); color: var(--dv-text-2); font: inherit; font-size: 12px; cursor: pointer; }
+    .days button { min-inline-size: 26px; padding: 2px 4px; border-radius: var(--sw-r-xs); border: 1px solid var(--dv-border); background: var(--dv-surface); color: var(--dv-text-2); font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; }
     .days button[aria-pressed='true'] { background: var(--dv-accent-soft); color: var(--dv-accent-text, var(--dv-accent)); }
     .foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
     .runs { display: grid; gap: 6px; }
@@ -260,8 +261,8 @@ export class ScenariosPanel extends LitElement {
       if (days.length) upd({ window: { ...w, days } });
     };
     return html`<span class="days" role="group" aria-label=${sct('days')}>${[6, 0, 1, 2, 3, 4, 5].map((d) => html`<button type="button" aria-pressed=${String(w.days.includes(d))} @click=${() => toggle(d)}>${names[d]}</button>`)}</span>
-      <input type="time" aria-label=${sct('from')} .value=${w.from} @change=${(e: Event) => upd({ window: { ...w, from: (e.target as HTMLInputElement).value } })} />
-      <input type="time" aria-label=${sct('to')} .value=${w.to} @change=${(e: Event) => upd({ window: { ...w, to: (e.target as HTMLInputElement).value } })} />`;
+      <input type="time" lang=${dateInputLang()} aria-label=${sct('from')} .value=${w.from} @change=${(e: Event) => upd({ window: { ...w, from: (e.target as HTMLInputElement).value } })} />
+      <input type="time" lang=${dateInputLang()} aria-label=${sct('to')} .value=${w.to} @change=${(e: Event) => upd({ window: { ...w, to: (e.target as HTMLInputElement).value } })} />`;
   }
 
   private nodeView(n: Node, path: number[], sp: string): TemplateResult {

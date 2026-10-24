@@ -18,6 +18,7 @@ import { nt } from '../i18n/notices';
 import { SEV_KEY, SEV_LOOK, agoText, seenState, slugOk, suggestSlug, windowText } from '../notices/model';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_SETTINGS_HREF, applyNoticesHidden } from '../shell/nav';
+import { dateInputLang } from '../api/day-format';
 
 type BoardTab = 'general' | 'display' | 'notices';
 type BoardDetail = Awaited<ReturnType<typeof getBoard>>;
@@ -188,7 +189,7 @@ export class SystemNotices extends LitElement {
     const can = s.can;
     return html`
       <div class="top"><div><h1>${nt('setTitle')}</h1><p class="sub">${nt('setSub')}</p></div><span class="sp"></span></div>
-      ${!st.enabled ? html`<sw-state-panel data-notices-state="off" state="empty" icon="offline" heading=${nt('off')} hint=${nt('offBody')}
+      ${!st.enabled ? html`<sw-state-panel icon="offline" data-notices-state="off" state="empty" heading=${nt('off')} hint=${nt('offBody')}
           actionLabel=${can.configure ? nt('turnOn') : ''} @action=${() => this.patchSettings({ enabled: true })}></sw-state-panel>` : nothing}
       <div class="two">
         <div class="panel" data-module-card><div class="hd"><h2>${nt('moduleCard')}</h2><span class="sp"></span>
@@ -203,7 +204,7 @@ export class SystemNotices extends LitElement {
           ${can.configure ? html`<label class="ck"><input type="checkbox" .checked=${st.boards_remote} @change=${(e: Event) => this.patchSettings({ boards_remote: (e.target as HTMLInputElement).checked })}>${nt('dRemote')}</label>` : nothing}
           <sw-button variant="primary" icon="plus" data-new-board ?disabled=${this.boards.length >= st.boards_max} @click=${() => this.openCreate()}>${nt('newBoard')}</sw-button></div>
         ${this.boards.length ? html`<div class="scrollx">${this.boardsTable()}</div><div class="cards">${this.boards.map((b) => this.boardCard(b))}</div>`
-          : html`<sw-state-panel state="empty" icon="wall" heading=${nt('noBoards')} hint=${nt('boardsEmpty')} actionLabel=${nt('firstBoard')} @action=${() => this.openCreate()}></sw-state-panel>`}
+          : html`<sw-state-panel icon="wall" state="empty" heading=${nt('noBoards')} hint=${nt('boardsEmpty')} actionLabel=${nt('firstBoard')} @action=${() => this.openCreate()}></sw-state-panel>`}
       </div>` : nothing}`;
   }
 
@@ -447,8 +448,8 @@ export class SystemNotices extends LitElement {
             <div class="fld"><label for="bd-fs">${nt('fontSize')}</label><select id="bd-fs" class="inp" data-v=${d.font_size} @change=${(e: Event) => this.setD({ font_size: (e.target as HTMLSelectElement).value as Display['font_size'] })}>
               <option value="s">${nt('fsS')}</option><option value="m">${nt('fsM')}</option><option value="l">${nt('fsL')}</option></select></div></div>
           <div class="fld"><label class="ck"><input type="checkbox" .checked=${d.night.enabled} @change=${(e: Event) => this.setD({ night: { ...d.night, enabled: (e.target as HTMLInputElement).checked } })}>${nt('nightDim')}</label>
-            ${d.night.enabled ? html`<div class="sum">${nt('nightFrom')}<input class="inp short ltr" type="time" .value=${d.night.from} @change=${(e: Event) => this.setD({ night: { ...d.night, from: (e.target as HTMLInputElement).value } })}>
-              ${nt('nightTo')}<input class="inp short ltr" type="time" .value=${d.night.to} @change=${(e: Event) => this.setD({ night: { ...d.night, to: (e.target as HTMLInputElement).value } })}>
+            ${d.night.enabled ? html`<div class="sum">${nt('nightFrom')}<input class="inp short ltr" type="time" lang=${dateInputLang()} .value=${d.night.from} @change=${(e: Event) => this.setD({ night: { ...d.night, from: (e.target as HTMLInputElement).value } })}>
+              ${nt('nightTo')}<input class="inp short ltr" type="time" lang=${dateInputLang()} .value=${d.night.to} @change=${(e: Event) => this.setD({ night: { ...d.night, to: (e.target as HTMLInputElement).value } })}>
               ${nt('nightLevel')}<select class="inp short" data-v=${String(d.night.dim)} @change=${(e: Event) => this.setD({ night: { ...d.night, dim: Number((e.target as HTMLSelectElement).value) } })}>
                 ${[0.3, 0.4, 0.5, 0.6, 0.7, 0.8].map((v) => html`<option value=${String(v)}>${Math.round(v * 100)}%</option>`)}</select></div>` : nothing}</div>
           <div class="chips"><label class="ck"><input type="checkbox" .checked=${d.burn_in.shift} @change=${(e: Event) => this.setD({ burn_in: { shift: (e.target as HTMLInputElement).checked } })}>${nt('burnIn')}</label>
@@ -509,7 +510,7 @@ export class SystemNotices extends LitElement {
         ${d.notices.map((n) => html`<tr data-look=${n.state === 'active' ? SEV_LOOK[n.severity] : 'off'}><td><span class="badge" data-look=${n.state === 'active' ? SEV_LOOK[n.severity] : 'off'}>${nt(SEV_KEY[n.severity])}${n.pinned ? ' · ' + nt('pinned') : ''}</span></td>
           <td><span class="t1">${n.title}</span></td><td class="num mut">${windowText(n)}</td>
           <td class="act"><sw-button size="sm" @click=${() => this.removeItem(n.id)}>${nt('removeFromBoard')}</sw-button></td></tr>`)}</tbody></table>`
-        : html`<sw-state-panel state="empty" icon="inbox" heading=${nt('boardEmpty')} hint=${nt('boardEmptyHint')}></sw-state-panel>`}
+        : html`<sw-state-panel icon="inbox" state="empty" heading=${nt('boardEmpty')} hint=${nt('boardEmptyHint')}></sw-state-panel>`}
     </div>`;
   }
 

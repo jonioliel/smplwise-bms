@@ -359,7 +359,7 @@ export class WaterMetersPage extends LitElement {
       <div class="cand list" data-candidates>
         ${this.candPhase === 'loading' ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
         ${this.candPhase === 'error' ? html`<sw-state-panel state="error" compact actionLabel=${wt('retry')} @action=${() => void this.searchCands()}></sw-state-panel>` : nothing}
-        ${this.candPhase === 'ready' && !this.cands.length ? html`<sw-state-panel state="empty" icon="drop" compact heading=${wt('candNone')}></sw-state-panel>` : nothing}
+        ${this.candPhase === 'ready' && !this.cands.length ? html`<sw-state-panel icon="drop" state="empty" compact heading=${wt('candNone')}></sw-state-panel>` : nothing}
         ${this.candPhase === 'ready'
           ? this.cands.map((c) => {
               const off = c.verdict === 'rejected' || !!c.already_meter_id;

@@ -98,7 +98,7 @@ export class SystemBrandInstaller extends LitElement {
     .mini.d { color: #e8edf7; }
     .mini b { font-size: var(--sw-fs-sm); overflow-wrap: anywhere; unicode-bidi: plaintext; }
     .mini span.c { font-size: var(--sw-fs-xs); opacity: 0.8; overflow-wrap: anywhere; unicode-bidi: plaintext; }
-    .mini .bar { inline-size: 40px; block-size: 4px; border-radius: 2px; margin-block-start: 4px; }
+    .mini .bar { inline-size: 40px; block-size: 4px; border-radius: var(--sw-r-2xs); margin-block-start: 4px; }
     .cap { display: block; margin-block-start: 4px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); text-align: center; }
     .warn { display: inline-flex; align-items: center; gap: 6px; color: var(--sw-warning-text); font-size: var(--sw-fs-sm); }
     .foot .grow { flex: 1; }

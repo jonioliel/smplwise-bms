@@ -16,6 +16,7 @@ import { INFRA_SETTINGS_HREF } from '../../shell/nav';
 import { wt } from '../../water/i18n';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
+import { dateInputLang } from '../../api/day-format';
 
 type Section = 'prices' | 'alerts';
 const MAX_CHOICES = [1440, 10080, 43200];
@@ -187,7 +188,7 @@ export class WaterSettingsPage extends LitElement {
     return html`<elec-dialog open heading=${f.tariffId ? wt('newVersion') : wt('newTariff')} data-dialog="version" @close=${() => (this.vf = null)}>
       <div class="formgrid">
         ${f.tariffId ? nothing : html`<div class="fld wide"><label for="wtn">${wt('tariffName')}</label><input id="wtn" data-tariff-name .value=${f.name} @input=${(e: Event) => set('name', (e.target as HTMLInputElement).value)} /></div>`}
-        <div class="fld"><label for="wtf">${wt('colFrom')}</label><input id="wtf" type="date" class="ltr" .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} /></div>
+        <div class="fld"><label for="wtf">${wt('colFrom')}</label><input id="wtf" type="date" lang=${dateInputLang()} class="ltr" .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} /></div>
         <div class="fld"><span class="lbl">${wt('priceMode')}</span><div class="seg" role="group" aria-label=${wt('priceMode')}>
           <button type="button" aria-pressed=${f.mode === 'ex_vat' ? 'true' : 'false'} @click=${() => set('mode', 'ex_vat')}>${wt('modeEx')}</button>
           <button type="button" aria-pressed=${f.mode === 'inc_vat' ? 'true' : 'false'} @click=${() => set('mode', 'inc_vat')}>${wt('modeInc')}</button></div></div>

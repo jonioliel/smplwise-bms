@@ -15,6 +15,7 @@ import { fmtDate } from '../../electricity/format';
 import { wt } from '../../water/i18n';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
+import { dateInputLang } from '../../api/day-format';
 
 const BASE = '/infra/water/accounts';
 const chip = (c: { label: string; cls: string }) => html`<span class="chip ${c.cls}">${c.label}</span>`;
@@ -286,7 +287,7 @@ export class WaterAccountsPage extends LitElement {
             <button type="button" aria-pressed=${f.period_months === 1 ? 'true' : 'false'} @click=${() => this.setF('period_months', 1)}>${wt('accMonthly')}</button>
             <button type="button" aria-pressed=${f.period_months === 2 ? 'true' : 'false'} @click=${() => this.setF('period_months', 2)}>${wt('accBimonthly')}</button></div></div>
           ${this.fld('period_anchor_day', wt('accAnchorDay'), html`<input id="wa-period_anchor_day" type="number" min="1" max="31" class="ltr" .value=${String(f.period_anchor_day)} @input=${(e: Event) => this.setF('period_anchor_day', Math.min(31, Math.max(1, Number((e.target as HTMLInputElement).value) || 1)))} />`)}
-          ${this.fld('first_period_start', wt('accFirstStart'), html`<input id="wa-first_period_start" type="date" class="ltr ${this.errs.first_period_start ? 'err' : ''}" .value=${f.first_period_start} @change=${(e: Event) => this.setF('first_period_start', (e.target as HTMLInputElement).value)} />`)}
+          ${this.fld('first_period_start', wt('accFirstStart'), html`<input id="wa-first_period_start" type="date" lang=${dateInputLang()} class="ltr ${this.errs.first_period_start ? 'err' : ''}" .value=${f.first_period_start} @change=${(e: Event) => this.setF('first_period_start', (e.target as HTMLInputElement).value)} />`)}
           ${this.fld('auto_mode', wt('accAuto'), html`<select id="wa-auto_mode" @change=${(e: Event) => this.setF('auto_mode', (e.target as HTMLSelectElement).value as AutoMode)}>${(['off', 'draft', 'issue'] as AutoMode[]).map((m) => html`<option value=${m} ?selected=${m === f.auto_mode}>${AUTO_LABEL[m]}</option>`)}</select>`)}
           ${id ? html`<div class="fld"><span class="lbl">${wt('accStatus')}</span><div class="seg" role="group" aria-label=${wt('accStatus')}>
             <button type="button" aria-pressed=${f.status === 'active' ? 'true' : 'false'} @click=${() => this.setF('status', 'active')}>${wt('accActive')}</button>

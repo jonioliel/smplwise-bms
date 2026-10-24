@@ -83,7 +83,7 @@ export interface Draft {
   status: 'new' | 'draft' | 'published' | 'archived';
 }
 
-/** A Date as the value of an <input type="datetime-local"> (the browser's local time). */
+/** A Date as the value of a datetime-local input (the browser's local time). */
 export function toLocalInput(d: Date): string {
   return d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()) + 'T' + hhmm(d);
 }
