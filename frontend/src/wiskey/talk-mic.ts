@@ -6,7 +6,7 @@
  * A ScriptProcessorNode rather than an AudioWorklet on purpose: a worklet module must be fetched from a URL, which the add-on's
  * strict Content-Security-Policy and the Ingress path make fragile, and 8 kHz voice needs no more than the main thread gives.
  */
-import { Downsampler, FramePacker } from './g711';
+import { Downsampler, FramePacker, g711Sample } from './g711';
 
 export type MicProblem = 'insecure' | 'denied' | 'no_mic' | 'mic_busy' | 'failed';
 
@@ -19,6 +19,7 @@ export class MicFailure extends Error {
 export interface MicHandle {
   setActive(on: boolean): void;
   stop(): void;
+  play?(packet: Uint8Array): void;
 }
 
 /** The microphone permission as far as the browser says without asking: `insecure` when no microphone can be had at all here
@@ -66,6 +67,9 @@ export async function openMic(codec: 'pcmu' | 'pcma', frameBytes: number, onFram
   const down = new Downsampler(ctx.sampleRate, 8000);
   const pack = new FramePacker(codec, frameBytes);
   let active = false;
+  let stopped = false;
+  let playAt = 0;
+  const playing = new Set<AudioBufferSourceNode>();
   track.enabled = false;
   proc.onaudioprocess = (ev: AudioProcessingEvent) => {
     if (!active) return;
@@ -74,6 +78,26 @@ export async function openMic(codec: 'pcmu' | 'pcma', frameBytes: number, onFram
   source.connect(proc);
   proc.connect(ctx.destination); // a script processor runs only when connected; it writes silence (its output is never filled)
   return {
+    play(packet: Uint8Array) {
+      if (stopped || packet.byteLength !== 800) return;
+      if (ctx.state === 'suspended') void ctx.resume();
+      if (playAt > ctx.currentTime + 0.3) {
+        for (const node of playing) node.stop();
+        playing.clear();
+        playAt = ctx.currentTime;
+      }
+      const buffer = ctx.createBuffer(1, packet.length, 8000);
+      const samples = buffer.getChannelData(0);
+      for (let i = 0; i < packet.length; i++) samples[i] = g711Sample(packet[i], codec);
+      const node = ctx.createBufferSource();
+      node.buffer = buffer;
+      node.connect(ctx.destination);
+      playing.add(node);
+      node.onended = () => { playing.delete(node); node.disconnect(); };
+      playAt = Math.max(ctx.currentTime, playAt);
+      node.start(playAt);
+      playAt += buffer.duration;
+    },
     setActive(on: boolean) {
       active = on;
       track.enabled = on;
@@ -81,6 +105,9 @@ export async function openMic(codec: 'pcmu' | 'pcma', frameBytes: number, onFram
       if (on && ctx.state === 'suspended') void ctx.resume();
     },
     stop() {
+      stopped = true;
+      for (const node of playing) node.stop();
+      playing.clear();
       active = false;
       proc.onaudioprocess = null;
       try {

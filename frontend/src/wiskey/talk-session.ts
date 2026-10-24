@@ -197,7 +197,12 @@ export class TalkSession {
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
     ws.onmessage = (ev) => {
-      if (gen !== this.gen || typeof ev.data !== 'string') return;
+      if (gen !== this.gen) return;
+      if (ev.data instanceof ArrayBuffer) {
+        if (this.phase === 'open' || this.phase === 'talking') this.micHandle?.play?.(new Uint8Array(ev.data));
+        return;
+      }
+      if (typeof ev.data !== 'string') return;
       let msg: { type?: string; value?: string };
       try {
         msg = JSON.parse(ev.data);

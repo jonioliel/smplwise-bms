@@ -1030,6 +1030,13 @@ class VideoChannel:
         return self.runner.run(self._call(w10.STREAM_LEASE, w10.lease_params(session, actor, request_id)), self.CALL_TIMEOUT_S + 15)
 
     def close(self) -> None:
+        """Closes the shared connection. WKF01F02-295 (Mac delta): first the leased streams this channel obtained leave go2rtc and their
+        timers are joined (`intercom_media.close_leased_streams`); when go2rtc did not confirm a delete, `media_cleanup_failed` is raised
+        BEFORE the connection goes, so the exact owner stays (its records are quarantined, not forgotten)."""
+        from .intercom_media import close_leased_streams
+
+        if not close_leased_streams(self):
+            raise MediaBridgeError("media_cleanup_failed", "unknown")
         link, self._link = self._link, None
         if link is not None:
             try:

@@ -374,9 +374,14 @@ def lease_params(session: str, actor: Actor, request_id: str) -> dict[str, Any]:
     return {K_SESSION: _handle(session, "session_invalid"), K_PROFILE: V11_PROFILE, K_ACTOR: actor_wire(actor), K_REQUEST: _text(request_id, 128, "request_id_invalid")}
 
 
-def talk_open_params(session: str, actor: Actor, request_id: str, expires_at: str) -> dict[str, Any]:
+def talk_open_params(session: str, actor: Actor, request_id: str, expires_at: str, *, listen: bool = False) -> dict[str, Any]:
     _when(expires_at, "expires_at_invalid")
-    return {K_SESSION: _handle(session, "session_invalid"), K_ACTOR: actor_wire(actor), K_REQUEST: _text(request_id, 128, "request_id_invalid"), K_EXPIRES: expires_at}
+    if type(listen) is not bool:
+        raise ContractError("listen_invalid")
+    result = {K_SESSION: _handle(session, "session_invalid"), K_ACTOR: actor_wire(actor), K_REQUEST: _text(request_id, 128, "request_id_invalid"), K_EXPIRES: expires_at}
+    if listen:
+        result["listen"] = True
+    return result
 
 
 def talk_frame_params(talk_ref: str, first_seq: int, frames: "list[bytes] | tuple[bytes, ...]") -> dict[str, Any]:
@@ -413,7 +418,12 @@ def validate_parameters(command: str, parameters: Any) -> None:
     `ContractError` (a rule code; never the value). Strict on purpose: WisKey refuses any other shape, and a signed request spends
     one of its single-use nonces whether or not it is accepted."""
     keys = _PARAM_KEYS.get(command)
-    if keys is None or not isinstance(parameters, dict) or set(parameters) != keys:
+    actual = set(parameters) if isinstance(parameters, dict) else None
+    if command == TALK_OPEN and actual is not None and "listen" in actual:
+        if type(parameters["listen"]) is not bool:
+            raise ContractError("listen_invalid")
+        actual = actual - {"listen"}
+    if keys is None or actual != keys:
         raise ContractError("parameters_keys")
     if command == DESCRIBE:
         descriptor_params(parameters[K_STATION], Actor(*_actor_pair(parameters[K_ACTOR])), parameters[K_REQUEST])
@@ -537,3 +547,23 @@ def talk_closed_v11(event: Any) -> tuple[str, str, bool | None] | None:
     reason = hit[1] if hit[1] in V11_EVENT_REASONS else "upstream_closed"
     joined = data.get("cleanup_joined")
     return hit[0], reason, joined if isinstance(joined, bool) else None
+
+
+def talk_audio_v1(event: Any, talk_ref: str, expected_seq: int) -> bytes | None:
+    """Authenticated DirectLink event -> one bounded native PCMU packet."""
+    if not isinstance(event, dict) or event.get("type") != "media/talk_audio":
+        return None
+    if (set(event) != {"type", "schema", "talk_ref", "seq", "codec", "sample_rate", "channels", "data"}
+            or event["schema"] != "arx.station_talk_audio.v1" or event["talk_ref"] != talk_ref
+            or type(event["seq"]) is not int or event["seq"] != expected_seq
+            or event["codec"] != "pcmu" or type(event["sample_rate"]) is not int or event["sample_rate"] != 8000
+            or type(event["channels"]) is not int or event["channels"] != 1
+            or type(event["data"]) is not str or len(event["data"]) != 1068):
+        raise ContractError("talk_audio_invalid")
+    try:
+        packet = base64.b64decode(event["data"], validate=True)
+    except ValueError:
+        raise ContractError("talk_audio_invalid") from None
+    if len(packet) != 800:
+        raise ContractError("talk_audio_invalid")
+    return packet

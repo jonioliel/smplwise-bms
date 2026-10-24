@@ -529,77 +529,204 @@ def _rid() -> str:
     return "arx-" + secrets.token_hex(10)
 
 
-# WKLIVE-295: the leased streams this process registered in go2rtc: stream name -> (station id, lease expiry). A lease is valid for a few
-# seconds only, but the stream it created stays in go2rtc's memory under the private source; it is removed again when the station's last
-# viewer leaves (`release_leased_streams`) and, as a janitor, when a later lease finds an old one with no viewer left.
-_LEASED: dict[str, tuple[str, float]] = {}
-_LEASE_LOCK = threading.RLock()  # registering and releasing never interleave: a new viewer's stream is not deleted under it
+# WKLIVE-295: the leased streams this process registered in go2rtc: stream name -> its `_Lease` record (station id, lease expiry, ...). A
+# lease is valid for a few seconds only, but the stream it created stays in go2rtc's memory under the private source; it is removed again
+# when the station's last viewer leaves (`release_leased_streams`) and, as a janitor, when a later lease finds an old one with no viewer left.
+#
+# WKF01F02-295 (F01): the Mac lease lifecycle (WisKey delta be2c1c05, `_LEASE_STREAMS` / `_retire_stream_lease` / `close_leased_streams`)
+# merged INTO this registry - not a parallel table. Each record also names its owner (the `VideoChannel` that obtained the lease), the go2rtc
+# registration it made (`digest`), and one timer per record with a generation, so a renewed lease invalidates the earlier timer. Rules:
+# - a stream is deleted only while go2rtc's registration is still the record's own (`_REGISTERED[name] == digest`); a foreign registration of
+#   the name is never deleted, only the record is dropped;
+# - a delete go2rtc does not confirm keeps the record and the registration (`quarantined`): it is not forgotten and not retried by the timer
+#   or the janitor; the last viewer leaving, the owner's close and the application shutdown try again (explicit events, one attempt each);
+# - a station with a viewer keeps its streams (the timer and the janitor never delete under a viewer); only the owner's close ignores that;
+# - names stay in the `smplwise_wiskey_` namespace (`Go2rtc.discard_leased_stream` refuses anything else); every change runs under _LEASE_LOCK;
+# - the owner's close (`close_leased_streams`, called by `VideoChannel.close`) and the shutdown (`shutdown_bridge`) cancel and join every
+#   timer generation of that owner.
 LEASE_GRACE_S = 60.0
+LEASE_MAX = 128  # leased streams this process keeps at once (Mac delta: "no room for another stream")
 
 
-def _register_lease(settings: Settings, sid: str, profile: str, source: str, expires_at: float | None = None) -> str:
-    """The leased source into Arx's own go2rtc, IN MEMORY, under `smplwise_wiskey_<station>[.sub]` (no configuration write); the stream name
-    is all that leaves. The source is compared by digest so an unchanged one is not registered again."""
+@dataclass(repr=False, eq=False)
+class _Lease:
+    """One leased stream (no source is kept here: only the digest of it, as `go2rtc._REGISTERED` holds it)."""
+
+    station: str
+    expires_at: float
+    owner: Any = None
+    profile: str = "main"
+    digest: str | None = None  # None: a record without a registration of its own (treated as owned)
+    settings: Any = None
+    generation: int = 0
+    timer: Any = None
+    timers: list[Any] = field(default_factory=list)
+    quarantined: bool = False
+
+    def __getitem__(self, index: int) -> Any:  # WKLIVE-295 read the record as (station, expires_at)
+        return (self.station, self.expires_at)[index]
+
+
+_LEASED: dict[str, _Lease] = {}
+_LEASE_LOCK = threading.RLock()  # registering and releasing never interleave: a new viewer's stream is not deleted under it
+
+
+def _owned(name: str, rec: _Lease) -> bool:
     from . import go2rtc as g2
 
-    base = g2.wiskey_stream_name(sid)
-    name = base if profile == "main" else f"{base}.sub"
+    if rec.digest is None:
+        return True
+    with g2._REGISTERED_LOCK:
+        return g2._REGISTERED.get(name) == rec.digest
+
+
+def _arm(name: str, rec: _Lease) -> None:
+    """(Re)arms the record's one timer for `expires_at + LEASE_GRACE_S`; a new generation invalidates every earlier one. Under _LEASE_LOCK."""
+    if rec.timer is not None:
+        rec.timer.cancel()
+    rec.timers[:] = [t for t in rec.timers if t.is_alive()]
+    rec.generation += 1
+    generation = rec.generation
+    timer = threading.Timer(max(0.001, rec.expires_at + LEASE_GRACE_S - time.time()), _on_timer, args=(name, rec, generation))
+    timer.daemon = True
+    rec.timer = timer
+    rec.timers.append(timer)
+    timer.start()
+
+
+def _on_timer(name: str, rec: _Lease, generation: int) -> None:
+    try:
+        with _LEASE_LOCK:
+            if _LEASED.get(name) is not rec or generation != rec.generation or rec.quarantined:
+                return  # a renewed lease, a removed record or an unresolved delete: this generation has nothing to do
+            if time.time() < rec.expires_at + LEASE_GRACE_S:
+                _arm(name, rec)
+                return
+            _retire(rec.settings, name, rec)
+    except Exception as exc:  # noqa: BLE001 - a timer never raises into its thread
+        log.warning("station media: leased stream timer failed (%s)", type(exc).__name__)
+
+
+def _retire(settings: Any, name: str, rec: _Lease, *, force: bool = False) -> bool:
+    """Removes one record (under _LEASE_LOCK). True: the record is gone (deleted, or the name is no longer this record's in go2rtc). False:
+    it stays - its station has a viewer (not `force`), or go2rtc did not confirm the delete (quarantined, registration kept)."""
+    from . import go2rtc as g2
+
+    if _LEASED.get(name) is not rec:
+        return True
+    if not force and MEDIA.viewers(rec.station) > 0:
+        return False
+    if rec.timer is not None:
+        rec.timer.cancel()
+    if _owned(name, rec):
+        target = settings if settings is not None else rec.settings
+        try:
+            ok = target is not None and g2.Go2rtc(target).discard_leased_stream(name, rec.digest)
+        except ValueError:  # not one of ours (cannot happen: only names this module registered are kept)
+            log.warning("station media: a stream name was refused for removal")
+            ok = True
+        except ApiError as exc:  # no go2rtc configured any more: nothing confirmed the delete
+            log.warning("station media: leased stream cleanup failed (%s)", exc.code)
+            ok = False
+        if not ok:
+            rec.quarantined = True
+            return False
+    _LEASED.pop(name, None)
+    return True
+
+
+def _register_lease(settings: Settings, sid: str, profile: str, source: str, expires_at: float | None = None, *, owner: Any = None) -> str:
+    """The leased source into Arx's own go2rtc, IN MEMORY (go2rtc's GetOrPatch; no configuration write), under a name of its own owner
+    `smplwise_wiskey_<station>[.sub].w10.<random>`; the stream name is all that leaves. A fresh signed lease of the same owner, station and
+    profile with an unchanged source renews the existing registration (it is not sent again) and re-arms its timer; a changed source retires
+    the earlier stream first and is refused (`intercom_media_cleanup_failed`) while that delete is unconfirmed."""
+    from . import go2rtc as g2
+
+    now = time.time()
+    if expires_at is not None and expires_at <= now:
+        raise ApiError(503, "intercom_media_unavailable", "תוקף השידור מהעמדה הסתיים.")
+    until = expires_at if expires_at is not None else now
     digest = hashlib.sha256(source.encode()).hexdigest()
     with _LEASE_LOCK:
         _sweep_leased(settings, skip_station=sid)
-        with g2._REGISTERED_LOCK:
-            known = g2._REGISTERED.get(name) == digest
-        if not known:
-            try:
-                g2.Go2rtc(settings).frame_jpeg(name, source)  # registers in memory (go2rtc's GetOrPatch); no configuration write
-            except ApiError as exc:
-                with g2._REGISTERED_LOCK:
-                    registered = g2._REGISTERED.get(name) == digest
-                if not registered:  # go2rtc refused the stream itself (a frame that failed after registering is fine)
-                    raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from None
-        _LEASED[name] = (sid, expires_at if expires_at is not None else time.time())
+        for name, rec in list(_LEASED.items()):
+            if rec.owner is not owner or rec.station != sid or rec.profile != profile:
+                continue
+            if rec.digest == digest and _owned(name, rec):
+                rec.expires_at = max(rec.expires_at, until)
+                rec.settings = settings
+                rec.quarantined = False  # a fresh signed lease for the very same source makes the stream valid again
+                _arm(name, rec)
+                return name
+            if MEDIA.viewers(sid) > 0 and not rec.quarantined:
+                continue  # a viewer still watches the earlier stream: it stays until the station's last viewer leaves (WKLIVE-295)
+            if not _retire(settings, name, rec, force=True):
+                raise ApiError(503, "intercom_media_cleanup_failed", "סגירת השידור הקודם מהעמדה טרם אושרה.")
+        if len(_LEASED) >= LEASE_MAX:
+            raise ApiError(503, "intercom_media_unavailable", "אין מקום לשידור נוסף מהעמדה.")
+        base = g2.wiskey_stream_name(sid)
+        name = (base if profile == "main" else f"{base}.sub") + ".w10." + secrets.token_hex(8)
+        try:
+            g2.Go2rtc(settings).frame_jpeg(name, source)  # registers in memory (go2rtc's GetOrPatch); no configuration write
+        except ApiError as exc:
+            with g2._REGISTERED_LOCK:
+                registered = g2._REGISTERED.get(name) == digest
+            if not registered:  # go2rtc refused the stream itself (a frame that failed after registering is fine)
+                raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from None
+        rec = _Lease(sid, until, owner=owner, profile=profile, digest=digest, settings=settings)
+        _LEASED[name] = rec
+        _arm(name, rec)
     return name
 
 
-def _discard_leased(settings: Settings, name: str) -> None:
-    from . import go2rtc as g2
-
-    _LEASED.pop(name, None)
-    try:
-        g2.Go2rtc(settings).discard_leased_stream(name)
-    except ValueError:  # not one of ours (cannot happen: only names this module registered are kept)
-        log.warning("station media: a stream name was refused for removal")
-
-
 def _sweep_leased(settings: Settings, *, skip_station: str | None = None, now: float | None = None) -> list[str]:
-    """Removes leased streams whose lease ended more than `LEASE_GRACE_S` ago and whose station has no viewer (a viewer keeps its stream)."""
+    """Removes leased streams whose lease ended more than `LEASE_GRACE_S` ago and whose station has no viewer (a viewer keeps its stream).
+    A quarantined record (an unconfirmed delete) is not retried here."""
     now = time.time() if now is None else now
     gone: list[str] = []
     with _LEASE_LOCK:
-        for name, (sid, expires_at) in list(_LEASED.items()):
-            if sid == skip_station or expires_at + LEASE_GRACE_S > now or MEDIA.viewers(sid) > 0:
+        for name, rec in list(_LEASED.items()):
+            if rec.station == skip_station or rec.quarantined or rec.expires_at + LEASE_GRACE_S > now or MEDIA.viewers(rec.station) > 0:
                 continue
-            _discard_leased(settings, name)
-            gone.append(name)
+            if _retire(settings, name, rec):
+                gone.append(name)
     return gone
 
 
 def release_leased_streams(settings: Settings, station_id: str) -> list[str]:
     """Called when a viewer of a station has gone: when it was the last one, the station's leased streams are removed from go2rtc (its
-    private source is forgotten, nothing else of go2rtc is touched). Never raises: a stream that cannot be removed goes at go2rtc's
-    next restart. Returns the removed stream names."""
+    private source is forgotten, nothing else of go2rtc is touched). Never raises. A delete go2rtc does not confirm keeps its record
+    (quarantined, WKF01F02-295) - it is not reported as removed. Returns the removed stream names."""
     gone: list[str] = []
     try:
         with _LEASE_LOCK:
             if MEDIA.viewers(station_id) > 0:
                 return gone
-            for name, (sid, _exp) in list(_LEASED.items()):
-                if sid == station_id:
-                    _discard_leased(settings, name)
+            for name, rec in list(_LEASED.items()):
+                if rec.station == station_id and _retire(settings, name, rec):
                     gone.append(name)
     except Exception as exc:  # noqa: BLE001 - a cleanup problem never breaks the viewer's end
         log.warning("station media: leased streams not released (%s)", type(exc).__name__)
     return gone
+
+
+def close_leased_streams(owner: Any) -> bool:
+    """The owner's close (`VideoChannel.close`) and the shutdown: every stream of THIS owner is retired (a viewer does not keep it - its
+    owner is gone) and every timer generation of the owner is cancelled and joined (outside the lock: a firing timer waits for it). True when
+    nothing of the owner is left; False when go2rtc did not confirm a delete (that record stays, quarantined)."""
+    with _LEASE_LOCK:
+        rows = [(name, rec) for name, rec in _LEASED.items() if rec.owner is owner]
+        timers = [timer for _name, rec in rows for timer in rec.timers]
+        results = [_retire(None, name, rec, force=True) for name, rec in rows]
+        for _name, rec in rows:
+            if rec.timer is not None:
+                rec.timer.cancel()
+    current = threading.current_thread()
+    for timer in timers:
+        timer.cancel()
+        if timer is not current:
+            timer.join(5)
+    return all(results)
 
 
 # ---------------------------------------------------------------- WisKey's W10 over the signed bridge (W10CLIENT-295)
@@ -631,7 +758,19 @@ class WiskeyBridgeTalkChannel:
         self.link: Any = None
         self.pump: Any = None
         self._close_sent = False
+        # WKF01F02-295 (F02, Mac delta `arx.station_talk_audio.v1`): the station's sound inside the SAME talk - `talk_open(listen=true)` when
+        # WisKey's descriptor offers `signed_ws_pcmu_v1`; WisKey then sends `media/talk_audio` events (800-byte PCMU packets, sequence from 0)
+        # on this talk's own signed connection. Newest wins: at most INCOMING_MAX packets wait, none older than INCOMING_MAX_AGE_S is served.
+        self._listen = False
+        self._receive_sequence = 0
+        self._incoming: asyncio.Queue[tuple[float, bytes]] = asyncio.Queue(maxsize=self.INCOMING_MAX)
+        self._opening_events: list[dict[str, Any]] = []
         self._closed: asyncio.Future[str] | None = None
+
+    INCOMING_MAX = 3
+    INCOMING_MAX_AGE_S = 0.3
+    LISTEN_TRANSPORT = "signed_ws_pcmu_v1"
+    LISTEN_REPLY = {"transport": "signed_ws_pcmu_v1", "schema": "arx.station_talk_audio.v1", "sample_rate": 8000, "channels": 1, "packet_bytes": 800}
 
     def _future(self) -> asyncio.Future[str]:
         if self._closed is None:
@@ -642,6 +781,17 @@ class WiskeyBridgeTalkChannel:
         fut = self._closed
         if fut is not None and not fut.done():
             fut.set_result(reason)
+
+    @property
+    def listening(self) -> bool:
+        """True once a talk opened WITH the station's sound (WisKey confirmed the listen block of `talk_open`)."""
+        return self._listen and self.pump is not None
+
+    @classmethod
+    def _offers_listen(cls, raw: Any) -> bool:
+        audio = raw.get("audio") if isinstance(raw, dict) else None
+        transports = audio.get("listen_transports") if isinstance(audio, dict) else None
+        return isinstance(transports, list) and cls.LISTEN_TRANSPORT in transports
 
     @property
     def dropped(self) -> int:
@@ -680,8 +830,14 @@ class WiskeyBridgeTalkChannel:
             if fresh.talk_transport is None:
                 raise Unavailable("talk_not_offered")
             until = min(self.expires_at, fresh.expires_at, time.time() + fresh.max_talk_seconds)
-            reply = await link.call(w10.TALK_OPEN, w10.talk_open_params(fresh.session, self.actor, self.request_id, _ts(until)), timeout=self.OPEN_TIMEOUT_S)
+            self._listen = self._offers_listen(raw)
+            reply = await link.call(w10.TALK_OPEN, w10.talk_open_params(fresh.session, self.actor, self.request_id, _ts(until), listen=self._listen),
+                                    timeout=self.OPEN_TIMEOUT_S)
             opened_ref = w10.talk_ref_of(reply)
+            if self._listen and (not isinstance(reply, dict) or reply.get("listen") != self.LISTEN_REPLY):
+                raise w10.ContractError("talk_listen_unavailable")
+            if isinstance(reply, dict) and "listen" in reply:
+                reply = {k: v for k, v in reply.items() if k != "listen"}
             opened = w10.parse_talk_open_v11(reply)
         except bridge.MediaBridgeError as exc:
             await self._abandon(opened_ref)
@@ -698,8 +854,29 @@ class WiskeyBridgeTalkChannel:
         self.ref = opened.talk_ref
         self.pump = TalkPump(link, self.ref, on_end=self._end, **self.provider.pump_options)
         self.pump.start()
+        pending, self._opening_events = self._opening_events, []
+        for event in pending:  # events that arrived between WisKey's answer and the pump: handled now, in order
+            self._on_event(event)
 
     def _on_event(self, event: dict[str, Any]) -> None:
+        if self.pump is None:
+            if len(self._opening_events) < self.INCOMING_MAX:
+                self._opening_events.append(event)
+            else:
+                self._end("upstream_closed")
+            return
+        if self._listen and self.ref is not None:
+            try:
+                packet = w10.talk_audio_v1(event, self.ref, self._receive_sequence)
+            except w10.ContractError:  # another talk's, out of sequence or malformed: the talk ends (nothing of it is kept)
+                self.pump.fail("talk_audio_invalid")
+                return
+            if packet is not None:
+                self._receive_sequence += 1
+                if self._incoming.full():
+                    self._incoming.get_nowait()  # newest wins: the oldest waiting packet goes
+                self._incoming.put_nowait((time.monotonic(), packet))
+                return
         hit = w10.talk_closed_v11(event)
         if hit is None or hit[0] != self.ref or self.pump is None:
             return
@@ -711,6 +888,16 @@ class WiskeyBridgeTalkChannel:
             self.pump.fail("connection_closed")
         else:
             self._end("upstream_closed")
+
+    async def receive_audio(self) -> bytes:
+        """The next packet of the station's sound (800 bytes PCMU). Raises `MediaBridgeError("connection_closed")` once the talk is over (its
+        connection gone, closed or expired); a packet older than INCOMING_MAX_AGE_S is dropped, never served late."""
+        while True:
+            received, packet = await self._incoming.get()
+            if self.link is None or self.link.closed or self._future().done() or time.time() >= self.expires_at:
+                raise bridge.MediaBridgeError("connection_closed", "closed")
+            if time.monotonic() - received <= self.INCOMING_MAX_AGE_S:
+                return packet
 
     async def send_frame(self, frame: bytes) -> None:
         if self.pump is not None:
@@ -737,6 +924,9 @@ class WiskeyBridgeTalkChannel:
         if link is not None:
             self.link = None
             await link.close()
+        while not self._incoming.empty():  # no sound outlives its talk
+            self._incoming.get_nowait()
+        self._opening_events.clear()
         self._end(reason)
 
 
@@ -864,7 +1054,7 @@ class WiskeyBridgeProvider:
             raise ApiError(503, "intercom_media_unavailable", "השידור מהעמדה אינו זמין כרגע.", details={"reason": exc.code}) from None
         finally:
             raw = None  # the source lives on only inside the lease
-        return _register_lease(settings, sid, profile, lease.source or "", lease.expires_at)
+        return _register_lease(settings, sid, profile, lease.source or "", lease.expires_at, owner=self.video)
 
     def talk_open(self, settings: Settings, station_id: str, descriptor: Descriptor, *, actor_id: str, actor_name: str, request_id: str | None,
                   expires_at: float | None = None) -> TalkChannel:
@@ -924,14 +1114,39 @@ def bridge_provider(settings: Settings, conn: Any) -> WiskeyBridgeProvider:
     global _bridge, _bridge_for
     marker = (id(settings), id(database_of(conn)) if conn is not None else None)
     if _bridge is None or _bridge_for != marker:
-        _bridge_for = marker
+        if _bridge is not None:
+            # WKF01F02-295 (Mac delta): the earlier provider's video owner is closed first - its leased streams and timers go with it. An
+            # unconfirmed delete raises `media_cleanup_failed` here and the earlier provider stays: no replacement while that is unresolved.
+            _bridge.video.close()
+            _bridge = None
+            _bridge_for = None
         key = _CachedKey(conn)
         signer = bridge.BridgeSigner(key)
         media = bridge.AutoTransport(bridge.DirectApiTransport(bridge.websocket_opener(settings), key),
                                      bridge.SignedBridgeTransport(bridge.ha_connector(settings), signer))
         _bridge = WiskeyBridgeProvider(media)
         _bridge.signing_ready = signer.ready  # type: ignore[attr-defined]
+        _bridge_for = marker  # only once the new provider exists: a failed build never adopts the closed earlier owner
     return _bridge
+
+
+def shutdown_bridge() -> bool:
+    """WKF01F02-295 (Mac delta): the application shutdown closes the signed provider's video owner - its leased streams leave go2rtc and its
+    timers are joined. Never raises. False (logged by rule only) when go2rtc did not confirm a delete: the provider and the exact record stay."""
+    global _bridge, _bridge_for
+    if _bridge is None:
+        return True
+    try:
+        _bridge.video.close()
+    except bridge.MediaBridgeError:
+        log.warning("station media: leased stream cleanup at shutdown remains unresolved")
+        return False
+    except Exception as exc:  # noqa: BLE001 - shutdown goes on
+        log.warning("station media: provider shutdown failed (%s)", type(exc).__name__)
+        return False
+    _bridge = None
+    _bridge_for = None
+    return True
 
 
 def set_provider(provider: MediaProvider | None) -> None:
@@ -977,7 +1192,11 @@ def provider_for(settings: Settings, conn: Any = None) -> MediaProvider:
         video = False
     if not video:
         return _local
-    chosen = bridge_provider(settings, conn)
+    try:
+        chosen = bridge_provider(settings, conn)
+    except bridge.MediaBridgeError as exc:  # WKF01F02-295: the earlier provider's cleanup is unresolved - Arx's own source meanwhile
+        log.warning("station media: signed provider not replaced (%s)", exc.code)
+        return _local
     # WKDIRECT-295 (S6): `auto` requires the signed path - no pairing key that can sign (absent, unreadable, rotated) is Arx's own source
     ready = getattr(chosen, "signing_ready", None)
     try:
