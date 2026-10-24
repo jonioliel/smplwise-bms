@@ -469,3 +469,47 @@ def test_permissions_are_labelled_and_in_the_built_in_roles():
 @pytest.mark.parametrize("slug", ["lobby", "a", "parking-2"])
 def test_slug_shapes(slug):
     assert model.clean_slug(slug) == slug
+
+
+# ---------------------------------------------------------------- NOTICESAVER-295: the screen saver and the logo layout
+
+def test_saver_and_logo_layout_defaults_and_old_boards():
+    d = model.normalize_display({})
+    assert (d["saver"], d["logos"]) == ("off", "a")
+    old = model.load_display('{"template": 2, "burn_in": {"shift": false}}')  # a board stored before 2.17.1
+    assert (old["saver"], old["logos"], old["template"], old["burn_in"]["shift"]) == ("off", "a", 2, False)
+    assert model.normalize_display({"saver": "disco", "logos": "z"})["saver"] == "off"  # lenient on load: the default replaces the unknown value
+    assert model.normalize_display({"saver": "disco", "logos": "z"})["logos"] == "a"
+
+
+def test_saver_and_logo_layout_are_validated_and_stored(client):
+    _on(client)
+    b, token = _board(client)
+    for bad in ({"saver": "disco"}, {"saver": 3}, {"logos": "d"}, {"logos": ["a"]}):
+        assert client.patch(f"{API}/notices/boards/{b['id']}", json={"display": bad}).status_code == 422, bad
+    for sv in model.SAVERS:
+        r = client.patch(f"{API}/notices/boards/{b['id']}", json={"display": {"saver": sv, "logos": "c"}})
+        assert r.status_code == 200
+        assert (r.json()["board"]["display"]["saver"], r.json()["board"]["display"]["logos"]) == (sv, "c")
+    feed = _feed(client, "lobby", token).json()["board"]["display"]
+    assert (feed["saver"], feed["logos"]) == ("ambient", "c")  # the TV feed carries the stored choice (the last value of the loop)
+    # the preview takes a draft without saving it
+    r = client.post(f"{API}/notices/boards/{b['id']}/preview", json={"display": {"saver": "wash", "logos": "b"}})
+    assert r.status_code == 200 and (r.json()["board"]["display"]["saver"], r.json()["board"]["display"]["logos"]) == ("wash", "b")
+    assert client.get(f"{API}/notices/boards/{b['id']}").json()["board"]["display"]["saver"] == "ambient"
+
+
+def test_saver_and_logo_layout_defaults_and_validation(client):
+    """NOTICESAVER-295: `saver` and `logos` live in the display JSON; old boards read the defaults, bad values are refused."""
+    assert model.DISPLAY_DEFAULTS["saver"] == "off" and model.DISPLAY_DEFAULTS["logos"] == "a"
+    old = model.normalize_display({"template": 2})
+    assert (old["saver"], old["logos"]) == ("off", "a")
+    assert model.normalize_display({"saver": "bogus", "logos": "z"})["saver"] == "off"
+    for s in model.SAVERS:
+        assert model.normalize_display({"saver": s})["saver"] == s
+    _on(client)
+    b, _ = _board(client)
+    for bad in ({"saver": "disco"}, {"logos": "d"}, {"saver": 3}):
+        assert client.patch(f"{API}/notices/boards/{b['id']}", json={"display": bad}).status_code == 422, bad
+    d = client.patch(f"{API}/notices/boards/{b['id']}", json={"display": {"saver": "wash", "logos": "c"}}).json()["board"]["display"]
+    assert (d["saver"], d["logos"]) == ("wash", "c")

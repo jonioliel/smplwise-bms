@@ -40,7 +40,32 @@ export interface Display {
   news: { feeds: { name: string; url: string }[]; speed: 'slow' | 'normal' | 'fast' };
   night: { enabled: boolean; from: string; to: string; dim: number };
   burn_in: { shift: boolean };
+  /** NOTICESAVER-295: the screen saver and the logo layout (absent on a board saved before 2.17.1 = off / 'a') */
+  saver?: Saver;
+  logos?: LogoLayout;
 }
+
+export type Saver = 'off' | 'wash' | 'cycle' | 'wave' | 'ambient';
+export type LogoLayout = 'a' | 'b' | 'c';
+export const SAVERS: Saver[] = ['off', 'wash', 'cycle', 'wave', 'ambient'];
+
+/** The saver of a display: an unknown value reads as off. */
+export function saverOf(d: Pick<Display, 'saver'>): Saver {
+  return SAVERS.includes(d.saver as Saver) ? (d.saver as Saver) : 'off';
+}
+
+/** The logo layout of a display: an unknown value reads as the v4 layout 'a'. */
+export function logoLayoutOf(d: Pick<Display, 'logos'>): LogoLayout {
+  return d.logos === 'b' || d.logos === 'c' ? d.logos : 'a';
+}
+
+/** The burn-in drift (mock-up v4 + saver): 8 positions of at most 12 px, one step per 45 s, eased over 8 s. `cycle` replaces it by a CSS orbit. */
+export const DRIFT: readonly (readonly [number, number])[] = [[0, 0], [10, 5], [3, 11], [-8, 8], [-12, 0], [-7, -9], [2, -12], [10, -6]];
+export const DRIFT_MS = 45_000;
+/** The `cycle` saver runs the wash once per this interval (10 minutes). */
+export const CYCLE_WASH_MS = 600_000;
+/** The `ambient` saver moves the dim clock between these positions (percent of the canvas), one step per 30 s. */
+export const AMBIENT_SPOTS: readonly (readonly [number, number])[] = [[10, 14], [52, 8], [62, 46], [36, 62], [12, 40], [48, 26], [24, 64], [58, 20]];
 
 export interface Feed {
   board: { name: string; slug: string; version: number; display: Display; building: string; tz: string; logos: { company?: string; company_dark?: string }; /** CR-LOGOS295: how the TV draws the company logo (absent without one) */ brand?: { size: 's' | 'm' | 'l' | 'xl'; dark_mode: 'plate' | 'file' | 'invert'; name: string } };
@@ -63,13 +88,13 @@ const STRINGS = {
   he: {
     welcome: 'ברוכים הבאים', urgent: 'הודעה דחופה', alert: 'חשוב', paused: 'מושהה', news: 'חדשות', empty: 'אין הודעות כרגע', niceDay: 'יום נעים',
     gone: 'הלוח אינו פעיל', goneHint: 'פנו להנהלת הבניין', offline: 'הלוח מנותק מהמערכת · מוצגות ההודעות האחרונות', staleFrom: 'לא מעודכן מ-{t}',
-    updated: 'עודכן', more: 'ועוד {n} הודעות', permanent: 'קבוע', until: 'עד {d}', today: 'היום', tomorrow: 'מחר', candles: 'כניסת שבת {t}',
+    updated: 'עודכן', more: 'ועוד {n} הודעות', permanent: 'קבוע', until: 'עד {d}', today: 'היום', tomorrow: 'מחר', candles: 'כניסת שבת {t}', poweredBy: 'מופעל על ידי SmplWise Arx',
   },
   en: {
     welcome: 'Welcome', urgent: 'Urgent notice', alert: 'Important', paused: 'Paused', news: 'News', empty: 'No notices right now', niceDay: 'Have a nice day',
     gone: 'This board is not active', goneHint: 'Please contact the building management', offline: 'The board is offline · showing the last notices',
     staleFrom: 'Not updated since {t}', updated: 'Updated', more: '{n} more notices', permanent: 'Ongoing', until: 'Until {d}', today: 'today',
-    tomorrow: 'tomorrow', candles: 'Candle lighting {t}',
+    tomorrow: 'tomorrow', candles: 'Candle lighting {t}', poweredBy: 'Powered by SmplWise Arx',
   },
 };
 export type StrKey = keyof typeof STRINGS.he;
