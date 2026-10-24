@@ -250,10 +250,10 @@ export const bubbleChrome = css`
   :host([data-skin='bubble']) th {
     border-color: color-mix(in srgb, var(--sw-border-strong) 55%, transparent);
   }
-  /* 5. fields (the screens' own inputs and selects; sw-field's are slotted and dressed by the skin sheet): pill fields on the
+  /* 5. fields (DROPDOWNFIT-295: a capsule select - sw-field[capsule] - is dressed by sw-field itself, like the capsule dropdown; the screens' own inputs and selects; sw-field's are slotted and dressed by the skin sheet): pill fields on the
         second surface, the touch dial; checkboxes, radios, colour wells and ranges keep their native drawing */
   :host([data-skin='bubble']) input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='range']):not([type='file']),
-  :host([data-skin='bubble']) select,
+  :host([data-skin='bubble']) select:not(sw-field[capsule] > select),
   :host([data-skin='bubble']) textarea {
     border-color: transparent;
     border-radius: var(--sw-r-md);
@@ -266,7 +266,7 @@ export const bubbleChrome = css`
     border-radius: var(--sw-r-md);
   }
   :host([data-skin='bubble']) input:focus-visible,
-  :host([data-skin='bubble']) select:focus-visible,
+  :host([data-skin='bubble']) select:focus-visible:not(sw-field[capsule] > select),
   :host([data-skin='bubble']) textarea:focus-visible {
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 1px;
@@ -343,7 +343,7 @@ export const bubbleChrome = css`
     :host([data-skin='bubble']) button.kiosk,
     :host([data-skin='bubble']) button.chip,
     :host([data-skin='bubble']) input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='range']):not([type='file']),
-    :host([data-skin='bubble']) select,
+    :host([data-skin='bubble']) select:not(sw-field[capsule] > select),
     :host([data-skin='bubble']) textarea {
       min-block-size: 44px;
       min-inline-size: 44px;

@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
+import { fitSchedule, fitTextElement } from './fit-text';
 import type { IconName } from './sw-icon';
 
 /**
@@ -163,11 +164,19 @@ export class SwDropdown extends LitElement {
     .chip[aria-expanded='true'] {
       border-color: var(--sw-dd-accent, var(--sw-accent));
     }
+    /* DROPDOWNFIT-295: the label never ends in an ellipsis. fit-text.ts shrinks its font size to a floor, then sets data-fit="wrap" (two lines,
+       a long word breaks) - overflow stays hidden only as the safety net the fit never needs. */
     .txt {
       min-inline-size: 0;
       overflow: hidden;
-      text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .txt[data-fit='wrap'] {
+      white-space: normal;
+      overflow: visible;
+      overflow-wrap: anywhere;
+      line-height: 1.2;
+      text-align: start;
     }
     .n {
       font-weight: var(--sw-fw-medium);
@@ -906,6 +915,12 @@ export class SwDropdown extends LitElement {
         min-block-size: max(var(--_ch), 44px);
       }
     }
+    /* DROPDOWNFIT-295: a squeezed capsule (a phone header with three controls in a row) first shrinks its label to the floor and then, before the label
+       wraps, tightens the chrome: the same capsule, the icon and the chevron untouched, less air around them (data-tight, set by the fit). */
+    :host([dd-style='capsule'][data-tight]) .chip {
+      gap: 6px;
+      padding-inline: calc(var(--_ch) * 0.2) calc(var(--_ch) * 0.16);
+    }
     :host([dd-style='capsule']) .chip::after {
       inset-block: 0;
       inset-inline: 0;
@@ -1095,6 +1110,7 @@ export class SwDropdown extends LitElement {
     super.connectedCallback();
     document.addEventListener('pointerdown', this.onOutside, true);
     this.syncSkin();
+    if (this.hasUpdated) this.watchFit();
     try {
       this.skinObserver = new MutationObserver(this.syncSkin);
       this.skinObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-skin'] });
@@ -1103,7 +1119,25 @@ export class SwDropdown extends LitElement {
     }
   }
 
+  private fitSlot = { raf: 0 };
+  private fitObserver?: ResizeObserver;
+  /** DROPDOWNFIT-295: fits the chip's label (`.txt`) into the room the control gives it; see fit-text.ts. */
+  private fitLabel = () => {
+    const txt = this.renderRoot.querySelector<HTMLElement>('.chip .txt');
+    if (!txt) return;
+    this.removeAttribute('data-tight');
+    fitTextElement(txt);
+    if (txt.getAttribute('data-fit') === 'wrap' && this.ddStyle === 'capsule') {
+      this.setAttribute('data-tight', '');
+      fitTextElement(txt);
+    }
+  };
+
   disconnectedCallback() {
+    this.fitObserver?.disconnect();
+    this.fitObserver = undefined;
+    cancelAnimationFrame(this.fitSlot.raf);
+    this.fitSlot.raf = 0;
     document.removeEventListener('pointerdown', this.onOutside, true);
     this.skinObserver?.disconnect();
     window.clearTimeout(this.typedTimer);
@@ -1581,7 +1615,20 @@ export class SwDropdown extends LitElement {
     return out;
   }
 
+  private watchFit() {
+    const chip = this.renderRoot.querySelector<HTMLElement>('.chip');
+    if (this.fitObserver || !chip || typeof ResizeObserver === 'undefined') return;
+    this.fitObserver = new ResizeObserver(() => fitSchedule(this.fitLabel, this.fitSlot));
+    this.fitObserver.observe(chip);
+  }
+
+  protected firstUpdated() {
+    this.watchFit();
+    void document.fonts?.ready.then(() => fitSchedule(this.fitLabel, this.fitSlot));
+  }
+
   protected updated(changed: Map<string, unknown>) {
+    fitSchedule(this.fitLabel, this.fitSlot); // every render may change the label, the size dial or the room
     if (this.open && (changed.has('pos') || changed.has('open') || changed.has('present'))) {
       const pop = this.popEl();
       // only the popover is anchored to the chip; a sheet, a centred box and the inline list are placed by the CSS
