@@ -42,9 +42,9 @@ test('day: the light file as uploaded, no plate; the SmplWise logo is a picture 
   await open(page, 'theme=day', { dark: true });
   await expect(co(page).locator('img')).toHaveAttribute('alt', 'נווה הירדן');
   expect(await tr(page)).toBe('plain');
-  // NOTICEPUSH-295: the SmplWise logo is the approved mockup artwork, inline SVG (no PNG), the light file's colours on the day surface
-  await expect(page.locator('#cv .pg .ft .lg.product svg[data-brand-art="mockup-v3-word"]')).toBeVisible();
-  await expect(page.locator('#cv .pg .ft .lg.product svg tspan')).toHaveAttribute('fill', '#2767ed');
+  // LOGOKIT-295: the SmplWise logo is the developer-kit artwork, inline SVG (no PNG), the brand colours on the day surface
+  await expect(page.locator('#cv .pg .ft .lg.product svg[data-brand-art="kit-horizontal-brand"]')).toBeVisible();
+  await expect(page.locator('#cv .pg .ft .lg.product svg path').first()).toHaveAttribute('fill', '#0062ff');
   await expect(page.locator('#cv .pg .ft .lg.product img')).toHaveCount(0);
 });
 
@@ -88,5 +88,5 @@ test('the take-over screen carries both logos on its own (always dark) surface',
   await open(page, 'theme=day', { urgent: true, brand: { dark_mode: 'plate' } });
   const top = page.locator('#cv .take .top .lg.company');
   await expect(top.locator('img')).toBeVisible();
-  await expect(page.locator('#cv .take .bot .lg.product svg[data-brand-art="mockup-v3-word-dark"]')).toBeVisible(); // the always-dark surface wears the dark file's colours
+  await expect(page.locator('#cv .take .bot .lg.product svg[data-brand-art="kit-horizontal-white"]')).toBeVisible(); // the always-dark surface wears the dark file's colours
 });

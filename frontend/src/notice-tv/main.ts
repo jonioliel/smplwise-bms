@@ -14,7 +14,7 @@
  * timers), `?now=<ISO>` (a fixed instant).
  */
 import './tv.css';
-import { swWordSvg } from '../design/sw-logo-art'; // the SmplWise logo (approved mockup artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
+import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo (developer kit artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
   AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlan, heldIndex, logoLayoutOf, netOf, nightDim, onPoll,
@@ -127,7 +127,7 @@ function logos(dark: boolean): { co: string; sw: string } {
   const co = pick
     ? '<div class="lg company" data-tr="' + pick.treatment + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></div>'
     : '<div class="lg company"><svg viewBox="0 0 280 64" aria-hidden="true"></svg></div>';
-  return { co, sw: '<div class="lg product">' + swWordSvg(dark, 'SmplWise') + '</div>' };
+  return { co, sw: '<div class="lg product">' + swLogoSvg('horizontal', dark ? 'white' : 'brand', 'SmplWise') + '</div>' };
 }
 
 // ---------------------------------------------------------------- pieces (the mock-up's, driven by the feed)

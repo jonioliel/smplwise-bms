@@ -582,7 +582,7 @@ export class KioskWall extends LitElement {
     const cap = this.settings?.['media.max_live_sessions'] ?? 16;
     return html`
       <header>
-        <sw-brand kind="product" mark scheme="dark" .h=${24} data-kiosk-product-logo></sw-brand>
+        <sw-brand kind="product" scheme="dark" .h=${24} data-kiosk-product-logo></sw-brand>
         <h1>ניטור חי</h1>
         <sw-brand kind="company" scheme="dark" .h=${24} .maxw=${120} data-kiosk-company-logo></sw-brand>
         <span class="spacer"></span>

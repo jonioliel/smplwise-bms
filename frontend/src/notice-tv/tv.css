@@ -102,10 +102,10 @@ body.box #host { background: #000; }
 .lg svg { block-size: 100%; inline-size: auto; }
 .lg.company { block-size: calc(72px * var(--lg, 1)); }
 .lg.company svg { inline-size: 315px; }
-.lg.product { block-size: calc(40px * var(--lg, 1)); opacity: .92; }
-.lg.product svg { inline-size: 148px; }
-/* NOTICEPUSH-295: the SmplWise logo is the approved mockup artwork, inline SVG (236 x 64 viewBox) at the approved mock-up's footprint: 148 x 40 (portrait 132 x 36) */
-.lg.product svg { inline-size: calc(148px * var(--lg, 1)); overflow: visible; }
+.lg.product { block-size: calc(30px * var(--lg, 1)); opacity: .92; }
+.lg.product svg { inline-size: auto; }
+/* LOGOKIT-295: the SmplWise logo is the developer kit artwork (horizontal), inline SVG; the box height decides the size, the width follows the ratio */
+.lg.product svg { inline-size: auto; overflow: visible; }
 /* the company logo on a dark surface: a light plate (default), a dark plate for a dark-only file, or the administrator's invert; plain = as uploaded */
 .lg.company[data-tr="plate"], .lg.company[data-tr="darkplate"] { box-sizing: border-box; padding: 6px 16px; border-radius: 12px; background: #ffffff; }
 .lg.company[data-tr="darkplate"] { background: #0d1220; }
@@ -343,8 +343,8 @@ body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var
 #cv.portrait .lg.company svg { inline-size: 280px; }
 /* R2160B: the box keeps the approved mock-up's footprint (132 x 36): a wider box left the status chips of the portrait footer too little room, so the fit logic dropped the last one
    (the parking chip). The artwork has no clear space of its own now, so it fills the box exactly. */
-#cv.portrait .lg.product { block-size: calc(36px * var(--lg, 1)); justify-content: center; }
-#cv.portrait .lg.product svg { inline-size: calc(132px * var(--lg, 1)); }
+#cv.portrait .lg.product { block-size: calc(26px * var(--lg, 1)); justify-content: center; }
+#cv.portrait .lg.product svg { inline-size: auto; }
 #cv.portrait .welcome b { font-size: calc(84px * var(--fs)); }
 #cv.portrait .clock .t { font-size: calc(248px * var(--fs)); }
 #cv.portrait .it h1 { font-size: calc(78px * var(--fs) * var(--k)); }

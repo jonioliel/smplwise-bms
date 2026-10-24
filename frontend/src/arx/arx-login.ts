@@ -616,7 +616,7 @@ export class ArxLogin extends LitElement {
         return html`<div class="lhead" data-arx-brand>
           <sw-brand kind="company" .h=${46} .maxw=${220} data-arx-company-logo></sw-brand>
           ${hasCompany ? html`<span class="lsep" aria-hidden="true"></span>` : nothing}
-          <sw-brand kind="product" decorative .h=${hasCompany ? 46 : 62} data-arx-product-logo></sw-brand>
+          <sw-brand kind="product" stacked decorative .h=${hasCompany ? 60 : 84} data-arx-product-logo></sw-brand>
           <span class="sr">SmplWise Arx</span>
           ${brandLogo().wl.enabled && (brandLogo().wl.name || brandLogo().wl.contact || brandLogo().wl.files.light || brandLogo().wl.files.dark)
             ? html`<div class="linst" data-arx-installer>

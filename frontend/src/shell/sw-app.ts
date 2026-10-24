@@ -2995,7 +2995,7 @@ export class SwApp extends LitElement {
     const rowMode = this.rowModeProps(area, rowStyle);
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
-        <span class="brand-tile" aria-hidden="true" data-brand-tile ?data-demo=${this.session.me?.demo?.active === true}><sw-brand kind="product" mark decorative .h=${36} .previewSize=${'m'}></sw-brand></span>
+        <span class="brand-tile" aria-hidden="true" data-brand-tile ?data-demo=${this.session.me?.demo?.active === true}><sw-brand kind="product" mark decorative .h=${15} .maxw=${38} .previewSize=${'m'}></sw-brand></span>
         ${areas.map(
           (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}>
             <sw-icon .name=${n.icon} size=${this.nav.icon}></sw-icon><span>${n.label}</span>${this.areaCount(n.id)}

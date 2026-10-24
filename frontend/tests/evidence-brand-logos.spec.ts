@@ -66,9 +66,9 @@ test.describe('LOGOS-295 placements', () => {
     expect(p.height).toBeGreaterThan(28); // enlarged compared with the earlier 24 px mark
     expect(await page.title()).toBe('Smplwise Arx - ⁨נווה הירדן⁩ · ⁨Tower A⁩');
     // the rail carries the SmplWise mark, not the "S" tile
-    // LOGOFIT-295: drawn as the approved mockup draws it (the blue tile mark), not the mint PNG of the 2026-09-14 design baseline
-    await expect(page.locator('sw-app [data-brand-tile] sw-brand [data-brand-img="product"]')).toHaveAttribute('data-brand-art', 'mockup-v3-mark');
-    await expect(product).toHaveAttribute('data-brand-art', 'mockup-v3-word');
+    // LOGOKIT-295: the approved developer-kit artwork (the SW symbol on the rail, the horizontal logo in the strip), not the mint PNG
+    await expect(page.locator('sw-app [data-brand-tile] sw-brand [data-brand-img="product"]')).toHaveAttribute('data-brand-art', 'kit-symbol-brand');
+    await expect(product).toHaveAttribute('data-brand-art', 'kit-horizontal-brand');
   });
 
   test('without a company logo the company slot collapses and nothing else moves', async ({ page }, info) => {

@@ -483,7 +483,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const buildingId = ((await building.json()) as { id: string }).id;
       const floorA = ((await (await request.post(`/api/v1/buildings/${buildingId}/floors`, { data: { name: 'CR-007 floor A', level: 1 } })).json()) as { id: string }).id;
       const floorB = ((await (await request.post(`/api/v1/buildings/${buildingId}/floors`, { data: { name: 'CR-007 floor B', level: 2 } })).json()) as { id: string }).id;
-      const png = await (await request.get('/brand/smplwise-mark.png')).body();
+      const png = await (await request.get('/icons/arx-192.png')).body();
       const asset = await request.post(`/api/v1/floors/${floorA}/plan-assets`, { multipart: { file: { name: 'plan.png', mimeType: 'image/png', buffer: png } } });
       expect(asset.status()).toBeLessThan(300);
       const version = await request.post(`/api/v1/floors/${floorA}/plan-versions`, { data: { asset_id: ((await asset.json()) as { id: string }).id } });
@@ -2081,7 +2081,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const building = await request.post(`/api/v1/sites/${siteId}/buildings`, { data: { name: 'CR-007 6b building' } });
       const buildingId = ((await building.json()) as { id: string }).id;
       const floorA = ((await (await request.post(`/api/v1/buildings/${buildingId}/floors`, { data: { name: 'CR-007 6b floor A', level: 1 } })).json()) as { id: string }).id;
-      const png = await (await request.get('/brand/smplwise-mark.png')).body();
+      const png = await (await request.get('/icons/arx-192.png')).body();
       const asset = await request.post(`/api/v1/floors/${floorA}/plan-assets`, { multipart: { file: { name: 'plan.png', mimeType: 'image/png', buffer: png } } });
       const version = await request.post(`/api/v1/floors/${floorA}/plan-versions`, { data: { asset_id: ((await asset.json()) as { id: string }).id } });
       await request.post(`/api/v1/plan-versions/${((await version.json()) as { id: string }).id}/publish`);
