@@ -466,7 +466,7 @@ class Mock {
       else if ('nav.order' in body) this.prefs.set(u.id, this.normalize(body['nav.order']));
       return json(this.prefsBody());
     }
-    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.hide_map': 'false', 'ui.hide_wiskey': 'false', 'ui.hide_search': 'false' }, can_edit: u.perms.includes('system.configure') });
+    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.hide_map': 'false', 'ui.hide_wiskey': 'false', 'ui.hide_search': 'false' }, can_edit: u.perms.includes('system.configure'), search_allowed: true }); // TOPPILL-295: the search is off by default on the server
     if (p === 'health/summary') return json({ status: 'ok', items: [], checked_at: '2026-09-30T00:00:00Z', version: 'test' });
     if (p.startsWith('rules/alerts')) {
       if (!u.perms.includes('events.read')) return json({ code: 'forbidden', user_message: 'אין הרשאה', retryable: false, correlation_id: '', details: {} }, 403);

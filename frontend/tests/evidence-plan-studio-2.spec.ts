@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { setGlobalSearch } from './wiskey-ui-mode';
 import { ACTION_STATUS_LABEL } from '../src/api/ha';
 
 // Plan Studio phase 2 (T085) against the running developer backend: objects and connectors on the live map, the library
@@ -8,6 +9,7 @@ import { ACTION_STATUS_LABEL } from '../src/api/ha';
 const ids = { site: '', building: '', floor: '', floor2: '', version: '', version2: '', asset: '' };
 const customIds: string[] = [];
 let api: APIRequestContext;
+let savedSearch: Awaited<ReturnType<typeof setGlobalSearch>> | null = null;
 
 const LEVEL = (id: string, name: string, elevation: number, ceiling: number, isDefault = false) => ({ id, name, elevation_m: elevation, ceiling_height_m: ceiling, is_default: isDefault, external_ids: {} });
 const OBJ = (id: string, item: string, pos: [number, number], extra: Record<string, unknown> = {}) => ({ id, item_id: item, level_id: 'L0', position: pos, rotation_deg: 0, size: { w_m: 0.45, d_m: 0.45, h_m: 0.85 },
@@ -52,6 +54,7 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
 
   test.beforeAll(async ({ playwright, browser }) => {
     api = await playwright.request.newContext({ baseURL: process.env.SW_BASE_URL || 'http://127.0.0.1:4173/' });
+    savedSearch = await setGlobalSearch(process.env.SW_BASE_URL || 'http://127.0.0.1:4173/', 'all'); // TOPPILL-295: the search is off by default; this spec opens it
     const stamp = new Date().toISOString().slice(0, 19);
     ids.site = (await (await api.post('api/v1/sites', { data: { name: `בדיקת סטודיו 2 ${stamp}`, address: '' } })).json()).id;
     ids.building = (await (await api.post(`api/v1/sites/${ids.site}/buildings`, { data: { name: 'אולם ספורט' } })).json()).id;
@@ -72,6 +75,7 @@ test.describe.serial('plan studio phase 2 (SW A)', () => {
   });
 
   test.afterAll(async () => {
+    if (savedSearch) await setGlobalSearch(process.env.SW_BASE_URL || 'http://127.0.0.1:4173/', savedSearch);
     if (!api) return;
     // every delete is tried, even after one fails, so a single leftover does not keep the rest in the shared backend
     const failures: string[] = [];

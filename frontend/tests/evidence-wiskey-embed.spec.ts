@@ -1,5 +1,5 @@
 import { test, expect, request as pwRequest, type Frame, type Page, type Route } from '@playwright/test';
-import { setAccessUi, setWiskeySize, type AccessUi, type WiskeySizeSetting } from './wiskey-ui-mode';
+import { setAccessUi, setGlobalSearch, setWiskeySize, type AccessUi, type WiskeySizeSetting } from './wiskey-ui-mode';
 import { EDGE_COLORS, EDGE_MARKER_PX, FAKE_CATALOG, PANEL_URL, stubPanel, type FakeCatalog } from './wiskey-fake-ha';
 
 // Evidence for the embedded WisKey panel (CR-005 recorded decision 2026-09-28): the WisKey area shows WisKey's own
@@ -160,6 +160,7 @@ async function expectFrameFillsContentArea(page: Page, scale = 1) {
 
 let saved: AccessUi | null = null;
 let savedSize: WiskeySizeSetting | null = null;
+let savedSearch: Awaited<ReturnType<typeof setGlobalSearch>> | null = null;
 
 test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)', () => {
   test.skip(process.env.SW_LIVE !== '1' || process.env.SW_WISKEY_FIXTURE === '1', 'set SW_LIVE=1 with a plain backend running (no WisKey fixture)');
@@ -169,10 +170,12 @@ test.describe('the embedded WisKey panel (CR-005 recorded decision 2026-09-28)',
     // start from the default for every screen (the embed), and put the owner's choice back at the end
     saved = await setAccessUi(testInfo.project.use.baseURL, { 'access.ui.overview': 'wiskey', 'access.ui.events': 'wiskey', 'access.ui.people': 'wiskey' });
     savedSize = await setWiskeySize(testInfo.project.use.baseURL, { 'ui.wiskey_size': 'normal', 'ui.wiskey_scale': '90' }); // the default size
+    savedSearch = await setGlobalSearch(testInfo.project.use.baseURL, 'all'); // TOPPILL-295: the search is off by default; the shell-parts checks look for its button
   });
   test.afterAll(async ({}, testInfo) => {
     if (saved && Object.keys(saved).length) await setAccessUi(testInfo.project.use.baseURL, saved);
     if (savedSize) await setWiskeySize(testInfo.project.use.baseURL, savedSize);
+    if (savedSearch) await setGlobalSearch(testInfo.project.use.baseURL, savedSearch);
   });
 
   // ------------------------------------------------------------------ embed API v1
