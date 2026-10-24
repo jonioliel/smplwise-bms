@@ -148,7 +148,7 @@ import { applyTimelineColors } from '../api/timeline-colors';
 import { setGlassScheme } from '../screens/devices-style';
 import { applyPlaybackDisplay } from '../api/playback-display';
 import { currentSkin, onDesign, setInstallationDesign } from '../design/apply';
-import { applyInstallationColors, brandLogo, logoScale, onBrandLogo } from '../design/brand-logo'; // LOGOS-295: the logo strip's size follows the administrator's scale
+import { applyInstallationColors, brandLogo, onBrandLogo } from '../design/brand-logo'; // LOGOS-295: the corner's logos follow the installation's choices
 import '../components/sw-brand';
 import { loadLook, setInstallationLook } from '../design/look';
 import { loadBackgroundPref, setInstallationBackground } from '../design/background';
@@ -521,26 +521,62 @@ export class SwApp extends LitElement {
       text-decoration: none;
       margin-block-end: 8px;
     }
-    /* LOGOS-295: the logo strip - the company logo at the inline start, the SmplWise logo at the inline end, PAST the search / status pill
-       (RTL: the far left, to the left of the search; owner 2026-10-24). Desktop and tablet only: the phone has no strip. The pill (.float,
-       absolute) moves inward by the SmplWise logo's width; the strip scrolls away with the page. */
-    .brandstrip {
-      /* Not sticky (2.16.0 gate): a sticky strip stuck at the same edge as the pages' own sticky headers (.dh, the tab rows, 40+ of them) and
-         covered them, intercepted their clicks and hid whatever scrolled under it. It scrolls away with the page like the phone's home row. */
-      position: relative;
-      z-index: 0;
+    /* LOGOS-295 + LOGOFIT-295: the logos share the floating corner's row (the page's own top row) - order inline-start -> end: the company
+       logo, the search / status pill, a hairline, the SmplWise logo (RTL: the far left, to the left of the search; owner 2026-10-24).
+       Desktop and tablet only: the phone has no strip. 2.16.0 drew them as a 48 px row of their own above every screen, which pushed the
+       whole screen down (owner bug report on 2.16.0); now they add no height: the row is part of the absolute corner and the pages keep
+       their end side clear of it through --sw-float-reserve (the measured logo width, --sw-corner-brand-w, on top of the pill's 76 px).
+       Not sticky either (the 2.16.0 gate): the logos are decorative (no hit target - clicks reach the page under them) and fade out as
+       soon as the content scrolls, so a page's sticky header (.dh, the tab rows) never has a logo over it; the pill stays where it was. */
+    .float {
+      pointer-events: none;
+    }
+    .float .pillrow,
+    .float .evpill,
+    .float .searchpanel {
+      pointer-events: auto;
+    }
+    .float .cornerrow {
       display: flex;
       align-items: center;
       gap: 14px;
-      flex: none;
-      box-sizing: border-box;
-      block-size: var(--sw-brandstrip-h, 48px);
-      padding-inline: var(--sw-page-pad, 30px) 22px;
-      background: var(--sw-bg);
-      min-inline-size: 0;
     }
-    .brandstrip .sp {
-      flex: 1;
+    .float .cornerrow sw-brand[kind='product'] {
+      color: var(--sw-text-3); /* "Smpl" of the wordmark, as the mockup's strip (.strip .sw) */
+    }
+    .float .cornerrow sw-brand {
+      transition: opacity var(--sw-t-fast) var(--sw-ease), visibility 0s linear var(--sw-t-fast);
+    }
+    .float .cornerrow .bsep {
+      inline-size: 1px;
+      block-size: 22px;
+      background: var(--sw-border-strong);
+      transition: opacity var(--sw-t-fast) var(--sw-ease), visibility 0s linear var(--sw-t-fast);
+    }
+    :host([data-scrolled]) .float .cornerrow sw-brand,
+    :host([data-scrolled]) .float .cornerrow .bsep {
+      opacity: 0;
+      visibility: hidden;
+    }
+    :host(:not([data-scrolled])) .float .cornerrow sw-brand,
+    :host(:not([data-scrolled])) .float .cornerrow .bsep {
+      transition-delay: 0s;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .float .cornerrow sw-brand,
+      .float .cornerrow .bsep {
+        transition: none;
+      }
+    }
+    /* the tablet widths: the logos give the page title its room */
+    @media (max-width: 1099px) {
+      .float .cornerrow sw-brand[kind='company'],
+      .float .cornerrow sw-brand[kind='installer'] {
+        max-inline-size: 130px;
+      }
+      .float .cornerrow sw-brand[kind='product'] {
+        max-inline-size: 104px;
+      }
     }
     .homebrand {
       display: flex;
@@ -557,17 +593,11 @@ export class SwApp extends LitElement {
       flex: 1;
     }
     @media print {
-      .brandstrip,
+      .float .cornerrow sw-brand,
+      .float .cornerrow .bsep,
       .homebrand {
         display: none;
       }
-    }
-    :host([data-brandstrip]) .float {
-      inset-block-start: calc(var(--sw-banner-h, 0px) + var(--sw-safe-top, 0px) + (var(--sw-brandstrip-h, 48px) - 34px) / 2);
-      inset-inline-end: calc(22px + var(--sw-brand-sw-w, 0px) + 14px);
-    }
-    :host([data-design='a'][data-top='page'][data-brandstrip]) {
-      --sw-float-reserve: 0px; /* the pill sits in the strip's row now, not over the page header */
     }
     a.item.a {
       flex-direction: column;
@@ -860,6 +890,29 @@ export class SwApp extends LitElement {
     }
     :host([data-design='a'][data-top='page']) {
       --sw-float-reserve: 76px;
+    }
+    /* LOGOFIT-295: with the logos in the corner's row, every reserve of that row grows by their measured width (--sw-corner-brand-w,
+       written by syncBrandStrip; 160 px until the first measure) */
+    :host([data-design='a'][data-top='page'][data-brandstrip]) {
+      --sw-float-reserve: calc(76px + var(--sw-corner-brand-w, 160px));
+    }
+    @media (min-width: 768px) {
+      :host([data-design='a'][data-brandstrip]) .tabpair,
+      :host([data-design='a'][data-top='tabs'][data-brandstrip]) .subnav {
+        padding-inline-end: calc(84px + var(--sw-corner-brand-w, 160px));
+      }
+    }
+    @media (min-width: 1100px) {
+      :host([data-design='a'][data-brandstrip][data-dd-head][data-dd-place='3']) .subnav[data-tabstyle='dropdown'],
+      :host([data-design='a'][data-brandstrip][data-dd-head][data-dd-place='3']) .tabpair:not(.single),
+      :host([data-design='a'][data-brandstrip][data-dd-head][data-dd-place='4']) .subnav[data-tabstyle='dropdown'],
+      :host([data-design='a'][data-brandstrip][data-dd-head][data-dd-place='4']) .tabpair:not(.single) {
+        padding-inline-end: calc(84px + var(--sw-corner-brand-w, 160px));
+      }
+      :host([data-design='a'][data-brandstrip][data-dd-head][data-dd-place='3']),
+      :host([data-design='a'][data-brandstrip][data-dd-head][data-dd-place='4']) {
+        --sw-float-reserve: calc(76px + var(--sw-corner-brand-w, 160px));
+      }
     }
     .perm-toast {
       position: fixed;
@@ -2005,19 +2058,36 @@ export class SwApp extends LitElement {
     }
   }
 
-  /** LOGOS-295: the strip's height and the SmplWise logo's width (the pill steps in by it) follow the size scale; the host attribute tells the CSS. */
+  /** LOGOS-295 + LOGOFIT-295: the logos sit in the floating corner's row; the host attribute tells the CSS, and the logos' measured width
+   * (the row minus the pill: it follows the size scale, the company file's aspect and the tablet caps) is the extra reserve the pages
+   * keep at their end side (--sw-corner-brand-w). A ResizeObserver re-measures when a logo file arrives or the size changes. */
+  private brandRowObs: ResizeObserver | null = null;
+  private observedBrandRow: HTMLElement | null = null;
   private syncBrandStrip() {
-    const on = !!this.renderRoot.querySelector('[data-brand-strip]');
-    this.toggleAttribute('data-brandstrip', on);
-    if (!on) {
-      this.style.removeProperty('--sw-brandstrip-h');
-      this.style.removeProperty('--sw-brand-sw-w');
-      return;
+    const row = this.renderRoot.querySelector<HTMLElement>('[data-brand-strip]');
+    this.toggleAttribute('data-brandstrip', !!row);
+    if (row !== this.observedBrandRow) {
+      this.brandRowObs?.disconnect();
+      this.brandRowObs = null;
+      this.observedBrandRow = row;
+      if (row) {
+        const measure = () => {
+          const pill = row.querySelector<HTMLElement>('.pillrow');
+          const w = Math.max(0, Math.round(row.offsetWidth - (pill?.offsetWidth ?? 0)));
+          if (row.offsetWidth > 0 && this.style.getPropertyValue('--sw-corner-brand-w') !== `${w}px`) this.style.setProperty('--sw-corner-brand-w', `${w}px`);
+        };
+        this.brandRowObs = new ResizeObserver(measure);
+        this.brandRowObs.observe(row);
+        measure();
+      } else this.style.removeProperty('--sw-corner-brand-w');
     }
-    const sc = logoScale(brandLogo().size);
-    this.style.setProperty('--sw-brandstrip-h', `${Math.max(48, Math.round(36 * sc + 14))}px`);
-    this.style.setProperty('--sw-brand-sw-w', `${Math.round(40 * 4 * sc)}px`); // the logo PNG is 4:1
   }
+
+  /** LOGOFIT-295: the corner's logos fade out once the content scrolls (a sticky page header never has a logo over it). */
+  private onMainScroll = (e: Event) => {
+    const scrolled = (e.currentTarget as HTMLElement).scrollTop > 4;
+    if (scrolled !== this.hasAttribute('data-scrolled')) this.toggleAttribute('data-scrolled', scrolled);
+  };
 
   protected updated() {
     // The first load is over: the session is known and, with a backend, the product settings (ui.tabs, the start screen, the
@@ -2089,6 +2159,9 @@ export class SwApp extends LitElement {
     this.stopScreenViews?.();
     this.railObs?.disconnect();
     this.railObs = null;
+    this.brandRowObs?.disconnect();
+    this.brandRowObs = null;
+    this.observedBrandRow = null;
     this.stopTabsConfig?.();
     this.stopTabsMode?.();
     this.stopPair?.();
@@ -2375,10 +2448,11 @@ export class SwApp extends LitElement {
   }
 
   /** Design A: the floating corner - the system status dot and the search button (the popover opens under them). */
-  private renderFloat() {
+  private renderFloat(editor = false) {
     const dot = this.renderSysDot();
     const canSearch = !this.gated;
-    if (dot === nothing && !canSearch) return nothing;
+    const brand = this.brandStripOn(editor);
+    if (dot === nothing && !canSearch && !brand) return nothing;
     const open = this.searchOpen && !!this.searchQ.trim();
     const incidents = incidentsOpen();
     const latest = incidentState().latest_id;
@@ -2388,7 +2462,15 @@ export class SwApp extends LitElement {
       : nothing;
     return html`<div class="float" data-float>
         ${pill}
-        <div class="pillrow">${this.session.mode === 'api' && !this.gated ? html`<sw-cast-pill data-cast-slot ?remote=${onRemote()}></sw-cast-pill>` : nothing}${dot}${canSearch ? html`<button type="button" data-search-open aria-label=${t('app.search')} title=${t('app.search')} aria-haspopup="dialog" aria-expanded=${this.searchPanel ? 'true' : 'false'} @click=${() => (this.searchPanel ? this.closeSearchPanel(false) : this.openSearch())}><sw-icon name="search" size=${16}></sw-icon></button>` : nothing}</div>
+        <div class="cornerrow" ?data-brand-strip=${brand}>
+          ${brand
+            ? html`<sw-brand kind="company" .h=${34} .maxw=${190}></sw-brand><sw-brand kind="installer" .h=${34} .maxw=${190} data-installer-logo></sw-brand>`
+            : nothing}
+          ${dot === nothing && !canSearch
+            ? nothing
+            : html`<div class="pillrow">${this.session.mode === 'api' && !this.gated ? html`<sw-cast-pill data-cast-slot ?remote=${onRemote()}></sw-cast-pill>` : nothing}${dot}${canSearch ? html`<button type="button" data-search-open aria-label=${t('app.search')} title=${t('app.search')} aria-haspopup="dialog" aria-expanded=${this.searchPanel ? 'true' : 'false'} @click=${() => (this.searchPanel ? this.closeSearchPanel(false) : this.openSearch())}><sw-icon name="search" size=${16}></sw-icon></button>` : nothing}</div>`}
+          ${brand ? html`${this.hasCompanyLogo() ? html`<span class="bsep" aria-hidden="true"></span>` : nothing}<sw-brand kind="product" decorative .h=${32} data-brand-product></sw-brand>` : nothing}
+        </div>
         ${this.searchPanel
           ? html`<div class="searchpanel" data-search-panel role="dialog" aria-label="חיפוש">
               <label class="search a"><sw-icon name="search" size=${16}></sw-icon><input type="search" placeholder="חיפוש חדרים, מצלמות, קומות וישויות…" aria-label=${t('app.search')} autocomplete="off" role="combobox" aria-expanded=${open} aria-controls="search-results" .value=${this.searchQ} @input=${this.onSearchInput} @keydown=${this.onSearchKey} @focus=${() => { if (this.searchResults.length) this.searchOpen = true; }} /></label>
@@ -2912,11 +2994,10 @@ export class SwApp extends LitElement {
         <div class="grow"></div>
         ${this.renderMe('rail')}
       </nav>
-      ${this.renderFloat()}
+      ${this.renderFloat(editor)}
       ${this.renderSysBanner()}
-      <main>
+      <main @scroll=${this.onMainScroll}>
         <sw-demo-banner></sw-demo-banner>
-        ${this.renderBrandStrip(editor)}
         ${this.renderHomeBrand(editor)}
         ${this.renderSetupHint()}
         ${this.embedded() || this.gated || this.session.mode !== 'api' ? nothing : html`<nvr-restart-banner></nvr-restart-banner>`}
@@ -2959,14 +3040,10 @@ export class SwApp extends LitElement {
     </div>`;
   }
 
-  private renderBrandStrip(editor: boolean) {
-    if (!this.brandStripOn(editor)) return nothing;
-    return html`<div class="brandstrip" role="presentation" data-brand-strip>
-      <sw-brand kind="company" .h=${36} .maxw=${200}></sw-brand>
-      <sw-brand kind="installer" .h=${36} .maxw=${200} data-installer-logo></sw-brand>
-      <span class="sp"></span>
-      <sw-brand kind="product" decorative .h=${40} data-brand-product></sw-brand>
-    </div>`;
+  /** LOGOFIT-295: the hairline between the pill and the SmplWise logo shows only beside a company / installer logo (mockup v3: no-company hides it). */
+  private hasCompanyLogo(): boolean {
+    const b = brandLogo();
+    return !!(b.files.light || b.files.dark || (b.wl.enabled && (b.wl.files.light || b.wl.files.dark)));
   }
 
   /** RFQQUESTIONS: the small count on an area icon (vendor questions waiting in the tickets area for a manager). */

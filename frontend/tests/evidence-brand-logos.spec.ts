@@ -54,26 +54,28 @@ test.describe('LOGOS-295 placements', () => {
     const strip = page.locator('sw-app [data-brand-strip]');
     await expect(strip).toBeVisible();
     const company = page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] img');
-    const product = page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] img');
+    const product = page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] [data-brand-img="product"]');
     await expect(company).toBeVisible();
     await expect(company).toHaveAttribute('alt', 'נווה הירדן');
     await expect(product).toBeVisible();
     const c = await box(page, 'sw-app [data-brand-strip] sw-brand[kind="company"] img');
-    const p = await box(page, 'sw-app [data-brand-strip] sw-brand[kind="product"] img');
+    const p = await box(page, 'sw-app [data-brand-strip] sw-brand[kind="product"] [data-brand-img="product"]');
     const search = await box(page, 'sw-app [data-search-open]');
     expect(c.x).toBeGreaterThan(p.x); // RTL: the company logo is on the right (inline start), SmplWise on the far left
     expect(p.x + p.width).toBeLessThanOrEqual(search.x + 1); // "to the left of the search"
     expect(p.height).toBeGreaterThan(28); // enlarged compared with the earlier 24 px mark
     expect(await page.title()).toBe('Smplwise Arx - ⁨נווה הירדן⁩ · ⁨Tower A⁩');
     // the rail carries the SmplWise mark, not the "S" tile
-    await expect(page.locator('sw-app [data-brand-tile] sw-brand img')).toHaveAttribute('src', /brand\/smplwise-mark\.png/);
+    // LOGOFIT-295: drawn as the approved mockup draws it (the blue tile mark), not the mint PNG of the 2026-09-14 design baseline
+    await expect(page.locator('sw-app [data-brand-tile] sw-brand [data-brand-img="product"]')).toHaveAttribute('data-brand-art', 'mockup-v3-mark');
+    await expect(product).toHaveAttribute('data-brand-art', 'mockup-v3-word');
   });
 
   test('without a company logo the company slot collapses and nothing else moves', async ({ page }, info) => {
     test.skip(info.project.name === 'mobile', 'desktop / tablet');
     await boot(page, '/system/diagnostics', { company: false });
     await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] img')).toHaveCount(0);
-    await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] img')).toBeVisible();
+    await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] [data-brand-img="product"]')).toBeVisible();
   });
 
   test('the size scale multiplies the strip: very large is taller than medium', async ({ page }, info) => {
@@ -112,7 +114,7 @@ test.describe('LOGOS-295 placements', () => {
     const head = page.locator('sw-app [data-home-brand]');
     await expect(head).toBeVisible();
     await expect(head.locator('sw-brand[kind="company"] img')).toBeVisible();
-    await expect(head.locator('sw-brand[kind="product"] img')).toBeVisible();
+    await expect(head.locator('sw-brand[kind="product"] [data-brand-img="product"]')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 });
@@ -146,10 +148,12 @@ test.describe('LOGOS-295 settings card', () => {
     await expect(card(page).locator('[data-logo-size-px]')).toContainText('54px');
     await expect(card(page).locator('[data-logo-save]')).not.toHaveAttribute('disabled', '');
     // a draft: the shell strip has not changed yet
-    if (info.project.name !== 'mobile') expect(await page.evaluate(() => document.querySelector('sw-app')!.style.getPropertyValue('--sw-brandstrip-h'))).toBe('50px'); // max(48, 36 + 14); the phone has no strip
+    // LOGOFIT-295: the logos sit in the corner's row (no strip height any more): the company logo is 34 px at the medium size; the phone has no strip
+    const coH = () => page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] img').first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
+    if (info.project.name !== 'mobile') expect(await coH()).toBe(34);
     await card(page).locator('[data-logo-save]').click();
     await expect(card(page).locator('[data-logo-message]')).toBeVisible();
-    if (info.project.name !== 'mobile') await expect.poll(() => page.evaluate(() => document.querySelector('sw-app')!.style.getPropertyValue('--sw-brandstrip-h'))).toBe('68px'); // 36 x 1.5 + 14
+    if (info.project.name !== 'mobile') await expect.poll(coH).toBe(51); // 34 x 1.5
     // names and the title
     await card(page).locator('[data-logo-tab="title"]').click();
     await card(page).locator('[data-brand-name]').fill('חברת ניהול');
@@ -185,7 +189,11 @@ test.describe('LOGOS-295 settings card', () => {
     await expect(card(page).locator('[data-logo-warning]')).toContainText('יחס התמונה חריג');
     await expect(card(page).locator('[data-logo-replace="light"]')).toBeVisible();
     await expect(card(page).locator('[data-logo-remove="light"]')).toBeVisible();
-    // the shell strip shows it at once
+    // the shell strip shows it at once (LOGOFIT-295: the corner's logos hide while the page is scrolled - back to the top first)
+    await page.evaluate(() => {
+      const main = document.querySelector('sw-app')!.shadowRoot!.querySelector('main');
+      if (main) main.scrollTop = 0;
+    });
     if (info.project.name !== 'mobile') await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] img')).toBeVisible();
   });
 

@@ -36,10 +36,10 @@ test.describe('WHITELABEL-097 shell strip', () => {
     const logo = page.locator('sw-app [data-brand-strip] sw-brand[kind="installer"] img');
     await expect(logo).toBeVisible();
     await expect(logo).toHaveAttribute('alt', 'מתקין');
-    await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] img')).toBeVisible();
+    await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] [data-brand-img="product"]')).toBeVisible();
     await boot(page, { enabled: false });
     await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="installer"] img')).toHaveCount(0);
-    await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] img')).toBeVisible();
+    await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] [data-brand-img="product"]')).toBeVisible();
   });
 
   test('ON with a preset accent: the installation accent token follows it', async ({ page }, info) => {
