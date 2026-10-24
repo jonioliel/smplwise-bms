@@ -8,7 +8,7 @@
  * moving_down (possible only with sensors mapped before this release) is shown as "פעילה" without an arrow. Every state has its own look
  * (`look`): the out-of-service state has its own strong colour, clearly apart from fault and fire service (decision 9a).
  */
-import type { AlertRecipients, AlertSettings, AlertState, Elevator, ElevatorRole, ElevatorState, HistorySegment } from '../api/elevators';
+import type { AlertChannel, AlertRecipients, AlertSettings, AlertState, AlertStateSettings, Elevator, ElevatorRole, ElevatorState, HistorySegment } from '../api/elevators';
 import type { IconName } from '../components/sw-icon';
 import type { StateKind } from '../components/sw-badge';
 import { elt, type EltKey } from '../i18n/elevators';
@@ -231,6 +231,10 @@ export function alertActive(s: Pick<AlertSettings, 'enabled' | 'states'>, state:
 
 /** How many recipient choices a state has (roles + users + groups); 0 = nobody is notified. */
 export const recipientChoices = (r: AlertRecipients): number => r.roles.length + r.users.length + r.groups.length;
+
+/** GENELEV-295: WhatsApp is read-only for a viewer without notify.manage (the server refuses adding it or changing its reach); removing it stays possible. */
+export const whatsappLocked = (s: Pick<AlertSettings, 'can_whatsapp'>, cfg: Pick<AlertStateSettings, 'channels'>, channel: AlertChannel): boolean =>
+  channel === 'whatsapp' && s.can_whatsapp === false && !cfg.channels.includes('whatsapp');
 
 /** A list with `id` added (on) or removed (off), order kept, no duplicates. */
 export function toggled<T extends string>(list: readonly T[], id: T, on: boolean): T[] {

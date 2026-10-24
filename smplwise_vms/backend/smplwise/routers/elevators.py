@@ -168,6 +168,7 @@ def candidates(q: str = Query("", max_length=80), principal: Principal = Depends
 # ---------------------------------------------------------------- 2.8.0: alert settings (owner decision 2026-10-18; services/elevator_alerts.py)
 
 CONFIGURE = "system.configure"
+NOTIFY_MANAGE = "notify.manage"  # also needed to add WhatsApp (GENELEV-295)
 
 
 class AlertRecipientsIn(_Body):
@@ -205,7 +206,8 @@ def get_alerts(principal: Principal = Depends(_alerts_reader), conn: sqlite3.Con
     """The elevator alert settings: master switch, per-state switches (all default off), recipients (roles / users / groups) and channels."""
     from ..services import elevator_alerts
 
-    return {**elevator_alerts.view(conn), "can_edit": authorize(conn, principal, CONFIGURE, INSTALLATION).allowed}
+    return {**elevator_alerts.view(conn), "can_edit": authorize(conn, principal, CONFIGURE, INSTALLATION).allowed,
+            "can_whatsapp": authorize(conn, principal, NOTIFY_MANAGE, INSTALLATION).allowed}
 
 
 @router.put("/infra/elevators/alerts")
@@ -214,11 +216,15 @@ def put_alerts(body: AlertsIn, principal: Principal = Depends(_alerts_writer), c
     resolution "התראות המעליות כובו"; turning one on notifies only transitions that happen from now on."""
     from ..services import elevator_alerts
 
+    raw = body.model_dump(exclude_none=True)
+    if elevator_alerts.whatsapp_change(elevator_alerts.load(conn), raw):
+        # WhatsApp is an external, budget-limited channel shared with the tickets module (NOTIFWA): adding it, or changing who it reaches, needs notify.manage too
+        require(conn, principal, NOTIFY_MANAGE, INSTALLATION)
     try:
         out = elevator_alerts.save(conn, principal, body.model_dump(exclude_none=True))
     except elevator_alerts.AlertsInvalid as e:
         raise ApiError(409 if e.code == "revision_conflict" else 422, e.code, e.message, details={**e.details, "message_en": e.message_en}) from None
-    return {**out, "can_edit": True}
+    return {**out, "can_edit": True, "can_whatsapp": authorize(conn, principal, NOTIFY_MANAGE, INSTALLATION).allowed}
 
 
 def _validate(conn: sqlite3.Connection, principal: Principal, body: ElevatorIn) -> list[tuple[str, int, str, str | None]]:

@@ -263,7 +263,7 @@ def test_alert_settings_permissions_and_validation(owner):
         ({"states": {"fault": {"recipients": {"users": ["nobody"]}}}}, "recipient_user"),
         ({"states": {"fault": {"recipients": {"groups": ["nogroup"]}}}}, "recipient_group"),
         ({"states": {"fault": {"channels": ["email"]}}}, "channel"),
-        ({"states": {"fault": {"channels": ["whatsapp"]}}}, "channel"),
+        ({"states": {"fault": {"channels": ["sms"]}}}, "channel"),  # GENELEV-295: whatsapp became a channel (it needs notify.manage to add)
     ):
         r = c.put(ALERTS, json=body)
         assert r.status_code == 422 and r.json()["code"] == code, (body, r.text)

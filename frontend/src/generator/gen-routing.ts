@@ -12,6 +12,7 @@ import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
 import { effectiveRecipients, fill, hasRecipients, routeGroups, routingEmpty } from './gen-logic';
 import { grt } from '../i18n/generator-routing';
+import './gen-escalation';
 
 const G = he.generator;
 const S = G.settings;
@@ -295,6 +296,7 @@ export class GenRouting extends LitElement {
       : html`<button class="li" data-type=${i.key} @click=${() => this.edit(i)}><div class="grow"><div class="t1">${i.title}</div><div class="t2">${this.recChips(i)}</div><div style="margin-block-start:6px">${this.chIcons(i)}</div></div><span class="sev ${i.policy?.severity ?? i.default_severity}">${G.alerts.sev[i.policy?.severity ?? i.default_severity]}</span></button>`;
     return html`<div class="col" data-gen-routing>
       ${routingEmpty(data.items, data.severity_defaults) ? html`<div class="notice warnbox" data-routing-empty role="status"><sw-icon name="info" size="18"></sw-icon><span><b>${grt('emptyTitle')}.</b> ${grt('emptyCritical', { n: data.critical_escalate_after_min })}</span></div>` : nothing}
+      <gen-escalation .minutes=${data.critical_escalate_after_min}></gen-escalation>
       ${this.severityTable(data)}
       <div class="notice"><sw-icon name="info" size="18"></sw-icon><span>${S.routingNote}</span></div>
       <div class="row"><span class="h3">${S.subs.routing}</span><span class="mut">${fill(S.activeCount, { n: active })}${data.total - data.available ? ` · ${fill(S.noSensor, { n: data.total - data.available })}` : ''}</span><div class="sp"></div>

@@ -275,3 +275,9 @@ app channel merged for the `app` channel chip to be live; CR-018 center as the d
   entity shown here; no IP, token or id left in any file.
 - No product file, migration, setting or permission was changed.
 - Revision 3 (owner answers): detection rewritten as device-based and capability-driven; control buttons and the confirm dialog removed from the mockups (commands only mentioned as a future phase); device picker (two generators in the mockup); routing starts empty with an empty state and per-type templates with preview; history charts added to the live screen and as a full-size view (5 ranges, light / dark / phone) with the storage, downsampling and retention model; the owner questions page now lists decisions taken and two open questions.
+- GENELEV-295: the routing section of the generator settings carries a collapsed explainer, "how a critical alert escalates" (`frontend/src/generator/gen-escalation.ts`,
+  words in `frontend/src/i18n/generator-escalation.ts`, he / en / ar / ru), that states the behaviour as built: recipients per alert type, else the severity default; an
+  unacknowledged CRITICAL alert goes after `generator.critical_escalate_after_min` (the type's own delay when set) to the notification managers or the users chosen in the
+  notification settings who may see it, even when the installation's escalation switch is off; further steps follow the notification settings (1 to 3); other severities
+  escalate only when the type's own escalation is on; acknowledging or clearing stops it; quiet hours never hold a critical alert. Read-only, no API. Drift guard:
+  `frontend/tests/unit-generator-escalation.spec.ts` reads the backend sources it describes.

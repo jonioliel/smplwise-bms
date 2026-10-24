@@ -142,8 +142,12 @@ glyphs are product icons; the door LED is shown faded ("not linked") as in the m
   the master AND its own switch are on. Stored in `infra_elevator_alert_settings` (one row, migration **0119** extended - no new number).
 - Recipients per state: roles, named users, groups (none = nobody). Roles resolve against the current bindings, direct and through a group;
   groups resolve to their members; then only those who may see the elevator.
-- Channels per state: the notification centre always; browser push and the phone app on request. E-mail and WhatsApp are not offered for
-  elevators (the pipeline's flags are written false).
+- Channels per state: the notification centre always; browser push, the phone app and (GENELEV-295, brief 2026-10-24) WhatsApp on request. E-mail
+  is not offered for elevators (its pipeline flag is written false). WhatsApp is an external, budget-limited channel shared with the tickets module:
+  it is off by default, and adding it, or changing who it reaches (the state's switch, its recipients, the master switch while a state carries it),
+  also needs `notify.manage` as for the generator (NOTIFWA). The GET answer carries `can_whatsapp`; the audit row of every change lists the states
+  on, each state's channels and the recipient COUNTS (never names). Tests: `tests/test_elevator_alert_recipients_295.py`,
+  `frontend/tests/unit-elevator-alert-recipients.spec.ts`. No migration (the `channels` list lives in the existing `states_json`).
 - The choices are mirrored onto the CR-018 policy of each source (enabled = master AND state, rule `elevator`, channels). The evaluator ALSO asks
   the elevator settings before raising, so switching the generic policy on in the notification matrix cannot start elevator alerts by itself.
   (Changing the generic matrix's recipient rule for an elevator source is possible there, as for the generator; the next save here rewrites it.)
