@@ -3,7 +3,7 @@ import {
   AUTOMATION_SETTINGS_DEFAULT, CRITICAL_DATA, automationSettingsOf, automationSettingsPatch, buttonOf, emitBlock, parseAction, parseCondition, parseTrigger, pressOf, subtypeFor, typeFor,
   type AutomationDraft, type Block, type Item, type ModelContext,
 } from '../src/api/automations';
-import { applyMerge, extFlags, mergeCounts, mergeParts, precheckWarnings, saveMode, warningsHeading } from '../src/api/automations-ext';
+import { applyMerge, conflictMove, conflictSlotIndex, extFlags, mergeCounts, mergeParts, precheckWarnings, saveMode, warningsHeading } from '../src/api/automations-ext';
 import { STATE_FILTERS_OF, applyFilters, cardChips, stateCounts, withConflicts, NO_FILTERS } from '../src/screens/automations-logic';
 
 // KAV079-295 ("הרחבת הקברניט", mockup r079): the client twins of the new typed blocks (wall-button trigger, "who is in the building", critical sound),
@@ -98,4 +98,13 @@ test('the list: the conflict filter only with the checks on, counts and chips', 
   expect(applyFilters(items, { ...NO_FILTERS, state: 'conflict' }, 'automation').map((i) => i.id)).toEqual(['a']);
   expect(cardChips(items[0]).map((c) => c.label)).toContain('התנגשות אפשרית · 2');
   expect(cardChips(items[1]).map((c) => c.label)).toContain('כפתור קיר · ניתן לעריכה');
+});
+
+test('the schedule editor moves a conflicting slot just outside the window, on the side it is already on', () => {
+  expect(conflictSlotIndex({ path: 'slots.2' })).toBe(2);
+  expect(conflictSlotIndex({ path: 'triggers.0' })).toBeNull();
+  expect(conflictMove({ mine_at: '07:10', other_at: '07:00', window_min: 15 })).toEqual({ to: '07:16', delta: 6 });
+  expect(conflictMove({ mine_at: '06:55', other_at: '07:00', window_min: 15 })).toEqual({ to: '06:44', delta: -11 });
+  expect(conflictMove({ mine_at: '00:05', other_at: '23:58', window_min: 10 })).toEqual({ to: '00:09', delta: 4 });  // across midnight
+  expect(conflictMove({ mine_at: 'x', other_at: '07:00', window_min: 15 })).toBeNull();
 });

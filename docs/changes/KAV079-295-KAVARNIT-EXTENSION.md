@@ -109,8 +109,11 @@ card's `VERSION`, `test_one_version_everywhere...`), or change the constant to t
   future Arx publisher) the condition cannot be offered. The source chips show the site's presence configuration (read-only), not a per-condition choice.
 - **"In every escalation step the sound is sent again"** (state 6 text): an automation's notification is a one-shot platform notify; it does not go
   through Arx's escalation. The line is not shown.
-- **Schedule editor (state 7):** "בדיקה בלי הפעלה" / "בדיקה על ההתקן" buttons, the dashed conflict mark on the week grid and "הזזת המשבצת ל־HH:MM"
-  are not built (the week board is a separate component; the on-device plan route is per automation). The conflict box links to the other item.
+- **Schedule editor (state 7), follow-up KAVLEFT-295:** built now: "בדיקה בלי הפעלה" (a dialog with the next runs of the draft; nothing is sent), the dashed
+  conflict mark on the board's slots (draft slots only, not the split-day arrangement), and "הזזת המשבצת ל־HH:MM" in the conflict box (a fixed-time
+  slot moves just outside the window through the board's own move; hidden in a split-day arrangement). **Still not built:** "בדיקה על ההתקן" for a
+  schedule - the on-device plan route is per automation and a schedule's actions use platform services, not the device-control action ids, so it needs
+  a backend mapping and the owner's approval of a new equipment-writing path.
 - **Wall-button timing values** are stored and shown; the platform's integration does the actual press timing (ZHA / Shelly decide double /
   long themselves) - nothing applies them to the devices.
 - No evidence screenshots were produced (the evidence spec exists but was not run).

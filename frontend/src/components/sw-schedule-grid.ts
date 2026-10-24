@@ -47,6 +47,8 @@ export interface GridSlotView {
   sensitive?: boolean;
   lowering?: boolean;
   invalid?: boolean;
+  /** KAV079: this slot switches a device within the conflict window of another item (a dashed mark, never a block). */
+  conflict?: boolean;
   aria: string;
 }
 
@@ -415,6 +417,10 @@ export class SwScheduleGrid extends LitElement {
     }
     .slot.invalid {
       box-shadow: 0 0 0 2px var(--sw-danger);
+    }
+    .slot.conflict {
+      outline: 2px dashed var(--sw-warning);
+      outline-offset: 1px;
     }
     /* the marker of a sensitive / lowering slot stays visible on a narrow bar too (the flags inside hide there) */
     .slot.lowering::after,
@@ -961,7 +967,7 @@ export class SwScheduleGrid extends LitElement {
 
   private renderSlot(row: GridRowView, s: GridSlotView) {
     const dragging = this.ghost && this.ghost.key === s.key && this.drag?.row === row.key;
-    const cls = ['slot', `cat-${s.category}`, s.point ? 'point' : '', s.key === this.selected ? 'sel' : '', dragging ? 'dragging' : '', s.locked ? 'locked' : '', s.invalid ? 'invalid' : '', this.pinFlips(s) ? 'flip' : '', s.lowering ? 'lowering' : s.sensitive ? 'sensitive' : '']
+    const cls = ['slot', `cat-${s.category}`, s.point ? 'point' : '', s.key === this.selected ? 'sel' : '', dragging ? 'dragging' : '', s.locked ? 'locked' : '', s.invalid ? 'invalid' : '', s.conflict ? 'conflict' : '', this.pinFlips(s) ? 'flip' : '', s.lowering ? 'lowering' : s.sensitive ? 'sensitive' : '']
       .filter(Boolean)
       .join(' ');
     return html`<div
