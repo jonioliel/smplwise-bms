@@ -176,3 +176,18 @@ export function suggestSlug(name: string, taken: string[]): string {
   while (taken.includes(s)) s = `${base}-${i++}`;
   return s;
 }
+
+/** NOTICEPOLISH-295: the history retention is a choice of two (a year / half a year), stored as the day count the server already keeps
+ * (30-3650). An older stored value that is neither stays selectable, so opening the page never rewrites it. */
+export const RETENTION_YEAR = 365;
+export const RETENTION_HALF = 180;
+
+export function retentionOptions(days: number): { value: number; label: string }[] {
+  const base = [{ value: RETENTION_YEAR, label: nt('retYear') }, { value: RETENTION_HALF, label: nt('retHalf') }];
+  return base.some((o) => o.value === days) ? base : [{ value: days, label: nt('retDays', { n: days }) }, ...base];
+}
+
+/** The place choices of a board: "floor · building" for each floor the installation has. */
+export function placePresets(floors: { name: string; building: string }[]): string[] {
+  return [...new Set(floors.filter((f) => f.name.trim()).map((f) => (f.building ? `${f.name} · ${f.building}` : f.name)))];
+}

@@ -244,3 +244,70 @@ test('module off: no לוח הודעות in the rail', async ({ page }) => {
   await expect(page.locator('sw-app [data-nav="devices"]').first()).toBeAttached();
   await expect(page.locator('sw-app [data-nav="notices"]')).toHaveCount(0);
 });
+
+// NOTICEPOLISH-295: the settings polish - one logo place (a link), retention as a choice, boards-table and board-header actions, place presets.
+test('settings polish: no logo upload here, retention is a choice, a row offers copy link / open', async ({ page }) => {
+  const calls = await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices'));
+  const root = page.locator('sw-app system-notices');
+  await expect(root.locator('[data-defaults-card]')).toBeVisible();
+  await expect(root.locator('[data-defaults-card] input[type="file"]')).toHaveCount(0);
+  await expect(root.locator('[data-logo-link]')).toHaveAttribute('href', '#/system/diagnostics?tab=general');
+  await expect(root.locator('#ns-ret')).toHaveValue('365');
+  await root.locator('#ns-ret').selectOption('180');
+  await expect.poll(() => calls.find((c) => c.method === 'PATCH' && c.path === 'notices/settings')?.body).toMatchObject({ retention_days: 180 });
+  if (test.info().project.name === 'mobile') return;
+  const row = root.locator('tr[data-board="lobby"]');
+  await expect(row.locator('[data-activate]')).toHaveCount(0);
+  await expect(row.locator('[data-copy-link]')).toBeVisible();
+  // "copy" re-issues the link after a confirmation (the stored token is a hash), then shows it
+  await row.locator('[data-copy-link]').click();
+  await expect(root.locator('[data-rotate-go]')).toBeVisible();
+  expect(calls.some((c) => c.path.endsWith('rotate-token'))).toBe(false);
+  await root.locator('[data-rotate-go]').click();
+  await expect(root.locator('[data-board-link]')).toContainText('#t=');
+  expect(calls.filter((c) => c.path.endsWith('rotate-token')).length).toBe(1);
+});
+
+test('settings polish: a disabled board offers הפעלה, which turns it on', async ({ page }) => {
+  const calls = await install(page);
+  await page.route('**/api/v1/notices/boards', (route) => (route.request().method() === 'GET' ? json(route, { boards: [{ ...BOARD, enabled: false }], full: true, max: 10, remote: false }) : route.fallback()));
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices'));
+  const root = page.locator('sw-app system-notices');
+  if (test.info().project.name === 'mobile') return;
+  await root.locator('tr[data-board="lobby"] [data-activate]').click();
+  await expect.poll(() => calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body).toMatchObject({ enabled: true });
+});
+
+test('settings polish: without system.configure nobody is offered the link copy', async ({ page }) => {
+  await install(page);
+  await page.route('**/api/v1/notices/settings', (route) => (route.request().method() === 'GET'
+    ? json(route, { settings: SETTINGS, can: { ...CAN, configure: false }, weather_entities: [], company_logo: false, listener: true, building_fallback: 'מגדל הים' }) : route.fallback()));
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices/b1'));
+  const root = page.locator('sw-app system-notices');
+  await expect(root.locator('[data-tv-open]')).toBeVisible();
+  await expect(root.locator('[data-copy-link]')).toHaveCount(0);
+  await expect(root.locator('[data-rotate]')).toBeVisible();
+});
+
+test('board header: open the TV screen, copy link (administrator), new link; the place is a choice of floors', async ({ page }) => {
+  const calls = await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices/b1'));
+  const root = page.locator('sw-app system-notices');
+  await expect(root.locator('[data-tv-open]')).toBeVisible();
+  await expect(root.locator('[data-copy-link]')).toBeVisible();
+  await root.locator('[data-rotate]').click();
+  await expect(root.locator('[data-rotate-go]')).toBeVisible();
+  await root.locator('[data-rotate-confirm] sw-button').first().click();
+  expect(calls.some((c) => c.path.endsWith('rotate-token'))).toBe(false);
+  const sel = root.locator('[data-place-select]');
+  await expect(sel).toBeVisible();
+  await expect(sel.locator('option')).toContainText(['-', 'קומה 1 · מבנה א', 'אחר...']);
+  await sel.selectOption({ label: 'קומה 1 · מבנה א' });
+  await root.locator('sw-button[variant="primary"]', { hasText: 'שמירה' }).first().click();
+  await expect.poll(() => (calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body as { display?: { place?: string } } | undefined)?.display?.place).toBe('קומה 1 · מבנה א');
+});

@@ -11,11 +11,11 @@ import { qrSvg } from '../components/sw-second-factor';
 import { ApiError, describeError } from '../api/client';
 import {
   audienceOptions, boardControl, boardLink, createBoard, deleteBoard, getBoard, listBoards, listNotices, noticesSettings, patchBoard, patchNoticesSettings, putBoardItems,
-  removeCompanyLogo, rotateBoardToken, uploadCompanyLogo, type Board, type Notice, type SettingsResponse,
+  rotateBoardToken, type Board, type Notice, type SettingsResponse,
 } from '../api/notices';
 import type { Display } from '../notice-tv/tv-logic';
 import { nt } from '../i18n/notices';
-import { SEV_KEY, SEV_LOOK, agoText, boardDraft, draftOf, newDraft, seenState, slugOk, suggestSlug, windowText, type Draft } from '../notices/model';
+import { SEV_KEY, SEV_LOOK, agoText, boardDraft, draftOf, newDraft, placePresets, retentionOptions, seenState, slugOk, suggestSlug, windowText, type Draft } from '../notices/model';
 import '../notices/compose-dialog';
 import type { NoticeSavedDetail } from '../notices/compose-dialog';
 import { noticesCss } from '../notices/styles';
@@ -88,6 +88,9 @@ export class SystemNotices extends LitElement {
   @state() private feedPick = '';
   @state() private feedUrl = '';
   @state() private confirmDelete = false;
+  /** NOTICEPOLISH-295: the board whose link is about to be re-issued (copy link = issue a new one, the stored token is a hash). */
+  @state() private confirmRotate: { board: Board; copy: boolean } | null = null;
+  @state() private placeOther = false;
   @state() private sendToTvs = false;
   /** NOTICEADD-295: the compose dialog (null = closed) and what it offers (the audience options load once, for a notice manager). */
   @state() private compose: Draft | null = null;
@@ -237,7 +240,7 @@ export class SystemNotices extends LitElement {
     if (this.error && !this.s) return html`<sw-page heading=${nt('setTitle')}><sw-state-panel state="error" heading=${nt('saveError')} hint=${this.error} actionLabel=${nt('retry')} @action=${() => this.load()}></sw-state-panel></sw-page>`;
     if (!this.s) return html`<sw-page heading=${nt('setTitle')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     return html`<sw-page heading="" data-notices-settings>${this.boardId && this.detail ? this.boardPage() : this.overview()}</sw-page>
-      ${this.createDialog()} ${this.linkDialog()} ${this.deleteDialog()} ${this.composeDialog()}
+      ${this.createDialog()} ${this.linkDialog()} ${this.rotateDialog()} ${this.deleteDialog()} ${this.composeDialog()}
       ${this.toast ? html`<div class="toast" role="status">${this.toast}</div>` : nothing}`;
   }
 
@@ -281,8 +284,9 @@ export class SystemNotices extends LitElement {
       <div class="r">
         <div class="fld"><label for="ns-reads">${nt('dReads')}</label><select id="ns-reads" class="inp" data-v=${st.reads_names ? 'names' : 'counts'} @change=${(e: Event) => this.patchSettings({ reads_names: (e.target as HTMLSelectElement).value === 'names' })}>
           <option value="names">${nt('dReadsNames')}</option><option value="counts">${nt('dReadsCounts')}</option></select></div>
-        <div class="fld"><label for="ns-ret">${nt('dRetention')}</label><input id="ns-ret" class="inp short num" type="number" min="30" max="3650" .value=${String(st.retention_days)}
-          @change=${(e: Event) => this.patchSettings({ retention_days: Number((e.target as HTMLInputElement).value) })}></div>
+        <div class="fld"><label for="ns-ret">${nt('dRetention')}</label><select id="ns-ret" class="inp" data-v=${String(st.retention_days)}
+          @change=${(e: Event) => this.patchSettings({ retention_days: Number((e.target as HTMLSelectElement).value) })}>
+          ${retentionOptions(st.retention_days).map((o) => html`<option value=${String(o.value)}>${o.label}</option>`)}</select></div>
       </div>
       <div class="r">
         <div class="fld"><label for="ns-wx">${nt('dWeather')}</label><select id="ns-wx" class="inp" data-v=${st.weather_entity} @change=${(e: Event) => this.patchSettings({ weather_entity: (e.target as HTMLSelectElement).value })}>
@@ -293,32 +297,8 @@ export class SystemNotices extends LitElement {
       <div class="fld"><label for="ns-origin">${nt('dOrigin')}</label><input id="ns-origin" class="inp ltr" maxlength="220" .value=${st.boards_origin} placeholder="http://192.0.2.10:18094"
         @change=${(e: Event) => this.patchSettings({ boards_origin: (e.target as HTMLInputElement).value })}><span class="hint">${nt('dOriginHint')}</span></div>
       <label class="ck"><input type="checkbox" .checked=${st.news_custom} @change=${(e: Event) => this.patchSettings({ news_custom: (e.target as HTMLInputElement).checked })}>${nt('dCustomFeeds')}</label>
-      <div class="fld"><span class="lbl">${nt('companyLogo')}</span><div class="sum">
-        ${s.company_logo ? html`<img alt="" src="api/v1/notices/settings/logo?ts=${Date.now()}" height="32">` : html`<span class="mut">${nt('logoNone')}</span>`}
-        <label class="pick"><sw-icon name="upload" size="12"></sw-icon>${nt('logoUpload')}<input type="file" accept="image/png,image/jpeg" hidden @change=${(e: Event) => this.uploadLogo(e)}></label>
-        ${s.company_logo ? html`<sw-button size="sm" variant="ghost" @click=${() => this.dropLogo()}>${nt('logoRemove')}</sw-button>` : nothing}</div></div>
+      <div class="fld"><span class="lbl">${nt('companyLogo')}</span><a href="#/system/diagnostics?tab=general" data-logo-link>${nt('logoWhere')}</a></div>
     </div></div>`;
-  }
-
-  private async uploadLogo(e: Event): Promise<void> {
-    const f = (e.target as HTMLInputElement).files?.[0];
-    if (!f) return;
-    try {
-      await uploadCompanyLogo(f);
-      if (this.s) this.s = { ...this.s, company_logo: true };
-      this.say(nt('saved'));
-    } catch (err) {
-      this.say(describeError(err));
-    }
-  }
-
-  private async dropLogo(): Promise<void> {
-    try {
-      await removeCompanyLogo();
-      if (this.s) this.s = { ...this.s, company_logo: false };
-    } catch (err) {
-      this.say(describeError(err));
-    }
   }
 
   // ---------------------------------------------------------------- boards list
@@ -343,8 +323,34 @@ export class SystemNotices extends LitElement {
       ${this.boards.map((b) => html`<tr class="go" tabindex="0" data-board=${b.slug} @click=${() => this.goBoard(b)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.goBoard(b)}>
         <td>${this.seenBadge(b)}</td><td><span class="t1">${b.name}</span><span class="t2">${this.summary(b)}</span></td>
         <td class="ltr mut">/b/${b.slug}</td><td class="num">${b.item_count ?? 0}</td><td class="num mut">${agoText(b.last_seen_at, Date.now())}</td>
-        <td class="act"><sw-button size="sm" @click=${(e: Event) => { e.stopPropagation(); this.goBoard(b); }}>${nt('open')}</sw-button></td></tr>`)}
+        <td class="act">${this.rowActions(b)}</td></tr>`)}
       </tbody></table>`;
+  }
+
+  /** NOTICEPOLISH-295: a row's actions - "הפעלה" for a disabled board, "העתקת קישור" for a system administrator, "פתיחה". */
+  private rowActions(b: Board) {
+    const stop = (fn: () => void) => (e: Event) => { e.stopPropagation(); fn(); };
+    return html`${!b.enabled ? html`<sw-button size="sm" data-activate @click=${stop(() => void this.activate(b))}>${nt('activate')}</sw-button>` : nothing}
+      ${this.canCopyLink() ? html`<sw-button size="sm" data-copy-link @click=${stop(() => (this.confirmRotate = { board: b, copy: true }))}>${nt('copyLink')}</sw-button>` : nothing}
+      <sw-button size="sm" @click=${stop(() => this.goBoard(b))}>${nt('open')}</sw-button>`;
+  }
+
+  /** The TV link is stored only as a SHA-256, so it cannot be read back: "copy" issues a new link after a confirmation. Offered to a
+   * system administrator (system.configure) who also holds the boards right; nobody else is shown it. */
+  private canCopyLink(): boolean {
+    const can = this.s?.can;
+    return !!(can?.configure && can.boards);
+  }
+
+  private async activate(b: Board): Promise<void> {
+    try {
+      await patchBoard(b.id, { enabled: true });
+      await this.loadBoards();
+      if (this.detail?.board.id === b.id) this.detail = { ...this.detail, board: { ...this.detail.board, enabled: true } };
+      this.say(nt('saved'));
+    } catch (e) {
+      this.say(describeError(e));
+    }
   }
 
   private boardCard(b: Board) {
@@ -425,8 +431,9 @@ export class SystemNotices extends LitElement {
     return html`
       <div class="top"><div><h1>${b.name}</h1><p class="sub"><a href=${NOTICES_SETTINGS_HREF}>${nt('back')}</a> · <span class="ltr">/b/${b.slug}</span> · ${agoText(b.last_seen_at, Date.now())}</p></div><span class="sp"></span>
         <div class="meta">
-          <sw-button icon="eye" @click=${() => window.open(this.previewSrc(false), '_blank', 'noopener')}>${nt('openTv')}</sw-button>
-          <sw-button icon="refresh" data-rotate @click=${() => this.rotate()}>${nt('newLink')}</sw-button>
+          <sw-button icon="eye" data-tv-open @click=${() => window.open(this.previewSrc(false), '_blank', 'noopener')}>${nt('openTv')}</sw-button>
+          ${this.canCopyLink() ? html`<sw-button icon="copy" data-copy-link @click=${() => (this.confirmRotate = { board: b, copy: true })}>${nt('copyLink')}</sw-button>` : nothing}
+          <sw-button icon="refresh" data-rotate @click=${() => (this.confirmRotate = { board: b, copy: false })}>${nt('newLink')}</sw-button>
           <sw-toggle .checked=${b.enabled} label=${nt('boardEnabled')} @change=${(e: CustomEvent<{ checked: boolean }>) => this.saveBoard({ enabled: e.detail.checked })}></sw-toggle>
         </div></div>
       <sw-tabs .items=${tabs} active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id as BoardTab)}></sw-tabs>
@@ -441,7 +448,7 @@ export class SystemNotices extends LitElement {
         <div class="form">
           <div class="r"><div class="fld"><label for="bg-name">${nt('bName')}</label><input id="bg-name" class="inp" maxlength="60" .value=${this.nameDraft} @input=${(e: Event) => (this.nameDraft = (e.target as HTMLInputElement).value)}></div>
             <div class="fld"><label for="bg-slug">${nt('bSlug')}</label><input id="bg-slug" class="inp ltr" .value=${b.slug} disabled></div></div>
-          <div class="r"><div class="fld"><label for="bg-place">${nt('place')}</label><input id="bg-place" class="inp" maxlength="60" .value=${d.place} @input=${(e: Event) => this.setD({ place: (e.target as HTMLInputElement).value })}></div>
+          <div class="r">${this.placeField(d.place)}
             <div class="fld"><label for="bg-lang">${nt('lang')}</label><select id="bg-lang" class="inp" data-v=${d.lang} @change=${(e: Event) => this.setD({ lang: (e.target as HTMLSelectElement).value as 'he' | 'en' })}><option value="he">עברית</option><option value="en">English</option></select></div></div>
           <dl class="kv"><dt>${nt('kvTemplate')}</dt><dd>${this.summary(b)}</dd><dt>${nt('bItems')}</dt><dd class="num">${this.detail!.notices.length}</dd>
             <dt>${nt('kvSeen')}</dt><dd>${agoText(b.last_seen_at, Date.now())}</dd><dt>${nt('kvCreated')}</dt><dd class="num">${(b.created_at || '').slice(0, 10)}</dd>
@@ -451,8 +458,26 @@ export class SystemNotices extends LitElement {
       <div class="panel"><div class="hd"><h2>${nt('bAddress')}</h2></div>
         <div class="link"><code class="ltr">${this.linkUrl(b, '••••••••••••••••••••••••••••••••')}</code></div>
         <p class="hint">${nt('linkOnce')} ${nt('linkHint')}</p>
-        <div class="ctl"><sw-button icon="refresh" @click=${() => this.rotate()}>${nt('newLink')}</sw-button></div></div>
+        <div class="ctl"><sw-button icon="refresh" @click=${() => (this.confirmRotate = { board: b, copy: false })}>${nt('newLink')}</sw-button></div></div>
     </div>`;
+  }
+
+  /** NOTICEPOLISH-295: the board's place as a choice of the installation's floors (when they are known), with "אחר..." for free text; the
+   * stored value stays the same text field of the display settings, and a value that is not a preset stays editable. */
+  private placeField(place: string) {
+    const presets = placePresets(this.floors);
+    if (!presets.length) {
+      return html`<div class="fld"><label for="bg-place">${nt('place')}</label><input id="bg-place" class="inp" maxlength="60" .value=${place} @input=${(e: Event) => this.setD({ place: (e.target as HTMLInputElement).value })}></div>`;
+    }
+    const custom = !!place && !presets.includes(place);
+    const pick = this.placeOther || custom ? '__other' : place;
+    return html`<div class="fld"><label for="bg-place">${nt('place')}</label>
+      <select id="bg-place" class="inp" data-place-select data-v=${pick} @change=${(e: Event) => {
+        const v = (e.target as HTMLSelectElement).value;
+        this.placeOther = v === '__other';
+        if (!this.placeOther) this.setD({ place: v });
+      }}><option value="">-</option>${presets.map((p) => html`<option value=${p}>${p}</option>`)}<option value="__other">${nt('placeOther')}</option></select>
+      ${pick === '__other' ? html`<input class="inp" data-place-text maxlength="60" aria-label=${nt('place')} .value=${place} @input=${(e: Event) => this.setD({ place: (e.target as HTMLInputElement).value })}>` : nothing}</div>`;
   }
 
   private setD(p: Partial<Display>): void {
@@ -621,15 +646,25 @@ export class SystemNotices extends LitElement {
     await this.saveBoard(body);
   }
 
-  private async rotate(): Promise<void> {
-    if (!this.detail) return;
+  private async rotate(board: Board, copy: boolean): Promise<void> {
     try {
-      const r = await rotateBoardToken(this.detail.board.id);
+      const r = await rotateBoardToken(board.id);
       this.link = { board: r.board, token: r.token, rotated: true };
-      this.detail = { ...this.detail, board: r.board };
+      if (this.detail?.board.id === r.board.id) this.detail = { ...this.detail, board: r.board };
+      void this.loadBoards();
+      if (copy) void navigator.clipboard?.writeText(this.linkUrl(r.board, r.token)).then(() => this.say(nt('copied')), () => undefined);
     } catch (e) {
       this.say(describeError(e));
     }
+  }
+
+  /** The confirmation before a link is re-issued (the previous link stops working at once). */
+  private rotateDialog() {
+    const c = this.confirmRotate;
+    return html`<sw-dialog ?open=${!!c} heading=${c ? nt('copyAsk', { name: c.board.name }) : ''} @close=${() => (this.confirmRotate = null)} data-rotate-confirm>
+      <p>${nt('copyAskBody')}</p>
+      <sw-button slot="footer" @click=${() => (this.confirmRotate = null)}>${nt('cancel')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-rotate-go @click=${() => { const x = this.confirmRotate; this.confirmRotate = null; if (x) void this.rotate(x.board, x.copy); }}>${nt('copyAsk2')}</sw-button></sw-dialog>`;
   }
 
   private deleteDialog() {
