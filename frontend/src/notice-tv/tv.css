@@ -304,7 +304,10 @@ body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var
 #cv.portrait .hd { min-block-size: 64px; }
 #cv.portrait .lg.company { block-size: calc(64px * var(--lg, 1)); }
 #cv.portrait .lg.company svg { inline-size: 280px; }
-#cv.portrait .lg.product { block-size: calc(36px * var(--lg, 1)); inline-size: calc(170px * var(--lg, 1)); }
+/* R2160B: the box keeps the approved mock-up's footprint (132 x 36): a wider box left the status chips of the portrait footer too little room, so the fit logic dropped the last one
+   (the parking chip). The picture is wider than its box (it carries clear space) and overflows it evenly. */
+#cv.portrait .lg.product { block-size: calc(36px * var(--lg, 1)); inline-size: calc(132px * var(--lg, 1)); justify-content: center; }
+#cv.portrait .lg.product img { inline-size: calc(170px * var(--lg, 1)); max-inline-size: none; }
 #cv.portrait .lg.product svg { inline-size: 132px; }
 #cv.portrait .welcome b { font-size: calc(84px * var(--fs)); }
 #cv.portrait .clock .t { font-size: calc(248px * var(--fs)); }
