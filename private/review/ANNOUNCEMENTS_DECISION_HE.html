@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>החלטה: הכרזות ברמקולים ובמסכים</title>
+<style>
+:root{--bg:#eef2f9;--card:#fff;--ink:#0e3054;--mut:#5b6b80;--line:#d6deea;--acc:#0062ff;--ok:#0a7d4f;--warn:#8a5a00;--bad:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1623;--card:#122236;--ink:#e8eef7;--mut:#9fb0c6;--line:#243a55;--ok:#4ad39a;--warn:#f0b955;--bad:#ff8a7a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Heebo",system-ui,"Segoe UI",Arial,sans-serif;padding:16px 16px 40px;max-width:900px;margin-inline:auto}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:18px;margin:26px 0 8px}
+h3{font-size:16px;margin:14px 0 4px}
+.sub{color:var(--mut);margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:0 0 12px}
+.card.rec{border-color:var(--ok);box-shadow:0 0 0 2px color-mix(in srgb,var(--ok) 25%,transparent)}
+.tag{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:1px 10px;color:var(--mut);margin-inline-start:6px}
+.tag.ok{border-color:var(--ok);color:var(--ok)}
+.tag.warn{border-color:var(--warn);color:var(--warn)}
+.tag.bad{border-color:var(--bad);color:var(--bad)}
+ul{margin:4px 0 4px;padding-inline-start:20px}
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:start;vertical-align:top}
+th{color:var(--mut);font-weight:600}
+.scroll{overflow-x:auto}
+.q{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:0 0 10px}
+.q .qt{font-weight:600;margin-bottom:6px}
+.opts{display:flex;flex-direction:column;gap:5px}
+.opts label{cursor:pointer;border:1px solid var(--line);border-radius:10px;padding:6px 12px;display:block}
+.opts input{position:absolute;opacity:0;pointer-events:none}
+.opts label:has(input:checked){background:var(--acc);color:#fff;border-color:var(--acc)}
+.opts label:focus-within{outline:2px solid var(--acc)}
+button{font:inherit;background:var(--acc);color:#fff;border:0;border-radius:10px;padding: 9px 16px;cursor:pointer}
+button.g{background:transparent;color:var(--ink);border:1px solid var(--line)}
+textarea{width:100%;height:150px;direction:rtl;margin-top:10px;display:none;font:13px/1.5 ui-monospace,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px}
+textarea.note{display:block;height:70px;font-family:inherit;font-size:14px}
+.note-box{background:color-mix(in srgb,var(--warn) 10%,var(--card));border:1px solid var(--warn);border-radius:12px;padding:10px 14px;margin:0 0 12px;font-size:14px}
+</style>
+</head>
+<body>
+<h1>החלטה: הכרזות ברמקולים ובמסכי המולטימדיה בבניין</h1>
+<p class="sub">הכרזה של הודעות חירום או הודעות לדיירים דרך רמקולים ומסכים. המסמך מסכם מה כבר קיים, שלוש דרכים להמשיך, ושאלות שרק אתה יכול להכריע. הערכות השעות הן טווחי עבודה גסים ולא התחייבות.</p>
+
+<h2>1. מה כבר קיים היום</h2>
+<div class="card">
+<ul>
+<li><b>הכרזה קולית ברמקולים</b> נבנתה ושוחררה (שורה מוקלדת עד 200 תווים, מוקראת על ידי מנוע הדיבור של התשתית). מנהל מאשר אילו רמקולים מורשים להכריז, "חדר" פירושו הרמקולים המורשים בו, יש הגבלת קצב, ויומן של כל ניסיון (גם נדחים).</li>
+<li><b>תוספות שנבנו:</b> עוצמה לכל הכרזה והחזרתה אחר כך, השהיית מוזיקה בזמן ההכרזה, שעות שקט (לא להכריז או להנמיך), והכרזה אוטומטית מהתראות לפי חומרה וקטגוריה. <b>הכרזה קריטית נשמעת גם בשעות שקט.</b></li>
+<li><b>הכרזה מתוך חוקים:</b> פעולת "הכרזה" קיימת בחוקי האוטומציה. הוידג'ט והנוסח של הודעת חירום בדלתות קיימים אך <b>ריקים וכבויים</b>.</li>
+<li><b>דלתות ותחנות כניסה:</b> אפשר להקריא הודעה ברמקול של תחנת כניסה דרך WisKey (המנוע הוא מנוע הדיבור של התשתית, ויומן הביקורת שומר רק את המעטפת ולא את הטקסט). זה מוגבל למי שמורשה לענות לשיחות באותה תחנה.</li>
+<li><b>מסכי מולטימדיה:</b> היום אפשר לשלוט בהם (הפעלה, מקור, עוצמה, הקלדת טקסט עד 200 תווים לשלט) ולשדר אליהם <b>מצלמה</b>. לא מצאתי במאגר יכולת שמציגה <b>הודעת טקסט או באנר</b> על המסך.</li>
+<li><b>מודול הודעות לדיירים (לוח מודעות):</b> חיפשתי ולא מצאתי מודול כזה. יש התראות פנימיות, וואטסאפ בבקשות שירות והתראות לנייד בפיתוח, אבל לא "הודעת בניין" כישות.</li>
+</ul>
+</div>
+<div class="note-box"><b>מה לא הוכח:</b> שום חלק מההכרזות לא נבדק מול <b>רמקול אמיתי</b>. כל הבדיקות היו מול דמויות. גם שידור מצלמה למסך אמיתי לא נבדק. הכרזות כבויות כברירת מחדל.</div>
+<div class="note-box"><b>חשוב:</b> המערכת הזאת אינה מחליפה מערכת התראת אש או פינוי מוסמכת. אני לא יועץ בטיחות או משפטי. אם הדרישה היא הכרזת חירום שמחייבת תקן או רישוי, צריך לברר אותה מול יועץ בטיחות לפני שנסמוך על זה.</div>
+
+<h2>2. שלוש האפשרויות</h2>
+
+<div class="card">
+<h3>אפשרות א: רמקולים בלבד, להשלים ולהוכיח את הקיים <span class="tag ok">מומלץ להתחלה</span></h3>
+<ul>
+<li><b>מה מקבלים:</b> הכרזה אחת לכל הרמקולים המורשים בבניין או בקומה, הודעות מוכנות מראש (חירום, פינוי, תקלה, הודעה כללית), כפתור הכרזת חירום עם אישור, ותיעוד מי הכריז מה ומתי. הכל על התשתית שכבר קיימת.</li>
+<li><b>מה צריך לבנות:</b> ספריית נוסחים מוכנים, בחירת היקף (בניין / קומה / חדר), כפתור חירום עם אישור ותרגול, חיבור הנוסחים לחוקים ולהתראות, ובדיקה פיזית ראשונה מול רמקול אמיתי עם מנוע דיבור בעברית.</li>
+<li><b>תלות בציוד:</b> רמקולים שהתשתית רואה כנגנים, ומנוע דיבור בעברית (מנוע ענן שולח את הטקסט החוצה מהבניין; מנוע מקומי לא).</li>
+<li><b>תלות בחוזה האודיו של WisKey:</b> אין. הרמקולים עוברים דרך התשתית, לא דרך WisKey.</li>
+<li><b>סיכונים:</b> איכות הקראה בעברית לא ידועה; רמקול שמנגן מוזיקה או כבוי; השהיה בין לחיצה לשמיעה; הבדלי עוצמה בין רמקולים; הכרזה בטעות (לכן אישור לפני שליחה).</li>
+<li><b>מאמץ:</b> בערך 12 עד 24 שעות עבודה, כולל בדיקות מול דמויות. הבדיקה הפיזית נוספת וצריכה אותך נוכח.</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>אפשרות ב: רמקולים ומסכים (הודעה גם כתובה על המסך)</h3>
+<ul>
+<li><b>מה מקבלים:</b> כל מה שבאפשרות א, ובנוסף הודעה כתובה על מסכי הטלוויזיה המאושרים, בגדול, למשך זמן קבוע, ואז חזרה למה שהיה.</li>
+<li><b>מה צריך לבנות:</b> אפשרות א, ועוד: יצירת תמונת הודעה בעברית (RTL) והצגתה על המסך דרך מנגנון השידור הקיים, או דרך יכולת הטקסט של כל סוג מסך אם קיימת; שמירה והחזרה של מה שהמסך הציג קודם; מצב "הכרזה בעדיפות" שגובר על שידור מצלמה.</li>
+<li><b>תלות בציוד:</b> מסכים שמקבלים שידור תמונה ברשת המקומית. כל סוג מסך מתנהג אחרת, ולכן סביר שכל דגם יצריך בדיקה. מה שיעבוד באחד לא בהכרח יעבוד בשני.</li>
+<li><b>תלות בחוזה האודיו של WisKey:</b> אין, כל עוד לא נוגעים במסכי התחנות.</li>
+<li><b>סיכונים:</b> שידור למסך אמיתי עדיין לא נבדק בכלל, ולכן זו החוליה החלשה; מסך כבוי או במקור אחר; תוכן שנשאר על מסך ציבורי אחרי שהסתיים; מסכים ציבוריים דורשים הרשאה נפרדת (כבר קיימת בשידור מצלמה).</li>
+<li><b>מאמץ:</b> בערך 40 עד 80 שעות עבודה, לא כולל בדיקות פיזיות מול כל דגם מסך.</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>אפשרות ג: מערכת הכרזות מלאה לבניין (כולל תחנות הכניסה ואישור קבלה)</h3>
+<ul>
+<li><b>מה מקבלים:</b> כל מה שבאפשרות ב, ובנוסף הכרזה ברמקולי תחנות הכניסה, מעקב איזו הכרזה נשמעה היכן, אישור קבלה מצד מנהל משמרת, לוח זמנים להכרזות קבועות, ונוסחים בכמה שפות.</li>
+<li><b>מה צריך לבנות:</b> אפשרות ב, ועוד: ערוץ הכרזה לתחנות, מסך מעקב חי, אישור קבלה, תזמון, שפות, ודוח הכרזות.</li>
+<li><b>תלות בציוד:</b> כמו אפשרות ב, ובנוסף תחנות כניסה עם רמקול שעונה לפקודת הקראה.</li>
+<li><b>תלות בחוזה האודיו של WisKey:</b> <b>כן.</b> חוזה הוידאו והדיבור של WisKey (דיבור דו־כיווני לתחנה) נבנה אצלנו מול דמויות בלבד, כבוי כברירת מחדל, ולא נבדק מול תחנה אמיתית. הוא נועד לשיחה של מפעיל עם תחנה, לא להכרזה מרוכזת. אם רוצים הכרזה לקבוצת תחנות, צריך להסכים עם WisKey מה הפקודה, מה הסמכות ומה הגבלת הקצב.</li>
+<li><b>סיכונים:</b> תלות בצוות חיצוני ובלוח הזמנים שלו; שליחה במקביל לתחנות רבות; קושי להבטיח מה שנשמע בפועל (אין הוכחה פיזית ששמעו); כל תקלה בהכרזת חירום היא חמורה יותר מתקלה אחרת.</li>
+<li><b>מאמץ:</b> בערך 90 עד 160 שעות עבודה, לא כולל זמן המתנה ל-WisKey ובדיקות פיזיות.</li>
+</ul>
+</div>
+
+<div class="scroll"><table>
+<tr><th></th><th>א: רמקולים</th><th>ב: רמקולים + מסכים</th><th>ג: מלא</th></tr>
+<tr><td>שעות עבודה (הערכה)</td><td>12 עד 24</td><td>40 עד 80</td><td>90 עד 160</td></tr>
+<tr><td>תלות ב-WisKey</td><td>אין</td><td>אין</td><td>כן</td></tr>
+<tr><td>דורש בדיקה פיזית</td><td>רמקול אחד</td><td>רמקול ומסך מכל דגם</td><td>הכל, כולל תחנה</td></tr>
+<tr><td>עלות ציוד או רישוי</td><td>יתומחר, אם חסר ציוד</td><td>יתומחר</td><td>יתומחר</td></tr>
+<tr><td>אפשר להתחיל בשבוע הקרוב</td><td>כן, אחרי החלטה</td><td>רק אחרי בדיקת שידור למסך</td><td>לא, תלוי ב-WisKey</td></tr>
+</table></div>
+
+<h2>3. ההמלצה שלי</h2>
+<div class="card rec">
+<p><b>להתחיל באפשרות א, ולהחליט על ב אחרי שיש תוצאת בדיקה אמיתית.</b></p>
+<ul>
+<li>הרמקולים כבר בנויים, ולכן אפשרות א היא ההתקדמות הקטנה ביותר שמעבירה אותנו מ"נבנה על דמויות" ל"עובד ושמעו".</li>
+<li>כל עוד לא נבדק פעם אחת מול רמקול אמיתי, כל השקעה נוספת מבוססת על הנחה. הבדיקה הראשונה מלמדת על איכות ההקראה בעברית והשהיה, ואלה מה שיקבע אם שווה להמשיך.</li>
+<li>המסכים (ב) תלויים בשידור שעוד לא נבדק פיזית. עדיף להוכיח שידור מצלמה למסך ואז להרחיב אותו להודעות.</li>
+<li>אפשרות ג תלויה בצוות חיצוני, ויש בה סיכון גבוה למי שיסתמך עליה בחירום. לא כדאי להתחיל בה לפני שהיסודות הוכחו.</li>
+<li>הכרזת חירום אמיתית שמחויבת בתקן צריכה להישאר במערכת מוסמכת נפרדת. את המערכת שלנו כדאי להציג כערוץ הודעות נוסף ולא כתחליף.</li>
+</ul>
+</div>
+
+<h2>4. שאלות להחלטה</h2>
+<div id="qs"></div>
+<textarea id="gen" class="note" placeholder="הערה כללית (אופציונלי)"></textarea>
+<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+<button id="copy">העתק את התשובות</button>
+<button class="g" id="reset">נקה</button>
+</div>
+<textarea id="out" readonly></textarea>
+
+<script>
+var Q=[
+ {t:"איזו אפשרות להתחיל?",o:["א: רמקולים בלבד (מומלץ)","ב: רמקולים ומסכים","ג: מערכת מלאה","לא עכשיו"]},
+ {t:"מה השימוש הראשון שחשוב לך?",o:["הודעות חירום","הודעות כלליות לדיירים (תחזוקה, הפסקות)","שניהם","אחר (כתוב בהערה)"]},
+ {t:"בדיקה פיזית ראשונה ברמקול אמיתי: מתי ואיפה?",o:["השבוע, ברמקול שאני אבחר ואהיה נוכח","בשבוע הבא","אין לי רמקול לבדיקה כרגע, צריך להשיג","לא להתחיל בדיקה בינתיים"]},
+ {t:"מי רשאי להכריז?",o:["כמו היום: מנהל אתר ומנהל מערכת","להוסיף תפקיד ייעודי להכרזות","רק מנהל מערכת"]},
+ {t:"נוסח ההודעות",o:["נוסחים מוכנים בלבד, בלי טקסט חופשי בחירום","מוכנים וגם טקסט חופשי","טקסט חופשי בלבד"]},
+ {t:"מנוע הדיבור",o:["מקומי בלבד (הטקסט לא יוצא מהבניין)","מותר מנוע ענן אם האיכות בעברית טובה יותר","לבדוק את שניהם ולהחליט אחרי"]},
+ {t:"שפות",o:["עברית בלבד","עברית ואנגלית","עברית, אנגלית ורוסית"]},
+ {t:"הכרזה לא קריטית בשעות שקט",o:["לא להכריז","להנמיך עוצמה","תלוי בלקוח (הגדרה)"]},
+ {t:"הכרזת חירום: אישור לפני שליחה?",o:["כן, אישור כפול לפני כל הכרזת חירום","לחיצה אחת עם תיעוד","אישור רק בתרגול"]}
+];
+var KEY="ann-decision-v1", S={}, N="";
+try{S=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){S={}}
+try{N=localStorage.getItem(KEY+"-n")||""}catch(e){N=""}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem(KEY+"-n",N)}catch(e){}}
+var L="אבגדהוזחט";
+function render(){
+ var h="";
+ Q.forEach(function(q,i){
+  h+='<div class="q"><div class="qt">'+(i+1)+'. '+q.t+'</div><div class="opts">';
+  q.o.forEach(function(o,j){
+   h+='<label><input type="radio" name="q'+i+'" value="'+j+'"'+(S[i]===j?' checked':'')+'> '+L[j]+'. '+o+'</label>';
+  });
+  h+='</div></div>';
+ });
+ document.getElementById("qs").innerHTML=h;
+ Array.prototype.forEach.call(document.querySelectorAll(".opts input"),function(el){
+  el.addEventListener("change",function(){S[+el.name.slice(1)]=+el.value;save()});
+ });
+}
+var gen=document.getElementById("gen");gen.value=N;
+gen.addEventListener("input",function(){N=gen.value;save()});
+function text(){
+ var r=["החלטות: הכרזות ברמקולים ובמסכים"];
+ Q.forEach(function(q,i){r.push((i+1)+". "+q.t+" -> "+(S[i]==null?"(לא נבחר)":L[S[i]]+". "+q.o[S[i]]))});
+ if(N)r.push("הערה: "+N);
+ return r.join("\n");
+}
+document.getElementById("copy").onclick=function(){var o=document.getElementById("out");o.value=text();o.style.display="block";o.select();try{navigator.clipboard.writeText(o.value)}catch(e){}};
+document.getElementById("reset").onclick=function(){S={};N="";gen.value="";save();render();document.getElementById("out").style.display="none"};
+render();
+</script>
+</body>
+</html>
