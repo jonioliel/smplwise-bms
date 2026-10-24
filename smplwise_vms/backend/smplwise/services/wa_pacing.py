@@ -410,7 +410,7 @@ PACING_ACCOUNTS_MAX = 128
 # why a read yields no usable envelope (every account is then UNKNOWN, never zero)
 CLOSED_REASONS = ("discovery_unknown", "api_incompatible", "pacing_route_not_listed", "route_error", "envelope_invalid",
                   "schema_version_missing", "schema_version_misplaced", "schema_version_unsupported", "accounts_over_limit",
-                  "coverage_inconsistent", "not_read", "stale")
+                  "coverage_inconsistent", "not_read", "stale", "producer_over_limit")
 
 
 def is_schema_v1(value: Any) -> bool:

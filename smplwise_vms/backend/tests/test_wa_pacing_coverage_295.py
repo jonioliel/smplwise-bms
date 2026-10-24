@@ -72,9 +72,9 @@ def test_the_pacing_channel_carries_only_the_pacing_route():
 
 
 class FakeSync:
-    def __init__(self, commands, answer=None, state="ready"):
+    def __init__(self, commands, answer=None, state="ready", last_error=None):
         self.facts = {"version": "x", "min_client": None, "commands": commands}
-        self.answer, self.state, self.calls = answer, state, []
+        self.answer, self.state, self.calls, self.last_error = answer, state, [], last_error
 
     def api_facts(self, _settings):
         return dict(self.facts) if self.facts is not None else None
@@ -90,7 +90,7 @@ class FakeSync:
         result = asyncio.run(send(call))
         self.frames = frames
         if self.state != "ready":
-            return {"state": self.state, key: None}
+            return {"state": self.state, key: None, **({"last_error": self.last_error} if self.last_error else {})}
         return {"state": "ready", key: project(result)}
 
 
@@ -266,3 +266,16 @@ def test_a_configured_account_beyond_the_cut_is_not_covered_not_missing():
     status = {"accounts": [{"id": f"a{i:02d}"} for i in range(10)], "accounts_truncated": True}
     assert adapter.MessagingAdapter.account_for(status, "a11") == (None, "account_not_covered")
     assert adapter.MessagingAdapter.account_for({**status, "accounts_truncated": False}, "a11") == (None, "account_missing")
+
+
+@pytest.mark.parametrize("last_error,reason", [
+    ("request_too_large", "producer_over_limit"),  # WisKey's producer refused the request as too large: its own closed reason
+    ("timeout", "route_error"), ("unauthorized", "route_error"), (None, "route_error"),
+])
+def test_producer_over_limit_has_its_own_closed_reason(monkeypatch, last_error, reason):
+    fake = FakeSync(["whatsapp/pacing_status_v1"], answer=envelope([account()]), state="error", last_error=last_error)
+    monkeypatch.setattr(adapter.intercom_sync, "SYNC", fake)
+    a = adapter.MessagingAdapter()
+    assert a.refresh_pacing(object(), "u") == reason
+    assert dict(a.cached_pacing()) == {} and a.cached_pacing().closed_reason == reason  # every sender stays unknown, never zero
+    assert reason in wp.CLOSED_REASONS and "producer_over_limit" in wp.CLOSED_REASONS

@@ -17,9 +17,12 @@ WHAT IS BUILT (all pure or injectable; no route, no screen):
   2026-10-23): envelope exactly `{id, type, template}`, template exactly `{schema_version: 1, request_id, operation_id, recipient_ref,
   account, template_name, language, parameters}` with WisKey's bounds (ids 1..128 without control characters, name
   `[a-z][a-z0-9_]{0,127}`, <= 20 parameters of 1..1024 characters without characters below U+0020, descriptor <= 32768 bytes).
-- the ANSWER states: `accepted` -> sent, `not_sent` (only with a code that provably comes before the provider call), `unknown`
-  (anything else: a timeout, a malformed answer, a code not proven pre-send). A v1 result (`schema_version` present) is read strictly:
-  exactly its six keys and one of its five combinations, else unknown. An unknown outcome is NEVER retried by Arx.
+- the ANSWER states: `accepted` -> sent (the provider's ACK only, delivery stays unknown), `not_sent` (only a closed result of the
+  matching version, on the original request's context), `unknown` (anything else: a timeout, a disconnect, an HA error code, a bridge
+  marker alone, a malformed answer, an answer of another version). Each command version has its OWN explicit reader: `read_v1`
+  (`schema_version` 1, six keys; request of eight) and `read_v2` (`schema_version` 2, six keys; WisKey's autofill request of ten).
+  A v2 result is never relabelled v1 and the version is kept on the answer. There is no reader for an answer without a
+  `schema_version` (owner decision 413/A): it is `unknown`. An unknown outcome is NEVER retried and never refunded by Arx.
 - the TRANSPORT is a Protocol. The only implementations here are `UnwiredTransport` (what production gets: it refuses, nothing left)
   and `FakeTemplateTransport` (tests). No live transport exists (WisKey's execution source and queue are NOT_INSTALLED); the HA error
   envelope mapping belongs to that future transport.
@@ -58,6 +61,19 @@ V1_COMBOS = {
     ("unknown", "operation_pending_or_unknown", None): "unknown",
     ("unknown", "provider_outcome_unknown", None): "unknown",
 }
+# template_send_v2 (WisKey autofill: it fills the parameters from its own source). Arx has NO v2 transport or request builder (not
+# flipped, not wired); these constants only let the result be read by its own version if a v2 answer ever arrives.
+SCHEMA_VERSION_V2 = 2
+V2_REQUEST_KEYS = frozenset({"schema_version", "request_id", "operation_id", "recipient_ref", "expected_person_revision", "account",
+                             "template_name", "language", "template_ref", "expected_template_revision"})
+V2_RESULT_KEYS = frozenset({"schema_version", "state", "code", "provider_accepted", "delivery", "retry_permitted"})
+V2_COMBOS = {
+    ("accepted", "provider_accepted", True): "accepted",
+    ("not_sent", "template_mismatch", False): "not_sent",
+    ("not_sent", "source_or_admission_refused", False): "not_sent",
+    ("unknown", "operation_pending_or_unknown", None): "unknown",
+    ("unknown", "provider_outcome_unknown", None): "unknown",
+}
 REGISTRY_MAX = 20
 SLOTS = ("name", "organization", "link", "days")
 PURPOSES = ("consent_request", "notice")
@@ -68,12 +84,6 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,31}$")
 WIRE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$")  # person id / account / request id as they travel: no spaces, no control characters
 KLASS = wa_pacing.CLASS_TICKET  # "a normal class": the people-screen messages' class, no special one
 
-# a failure that provably comes BEFORE the provider call (proposal: WisKey must confirm each one - open question 4)
-PRE_SEND_CODES = frozenset({
-    "template_unsupported", "template_not_found", "template_not_approved", "template_params_mismatch", "invalid_fields",
-    "whatsapp_unavailable", "whatsapp_invalid_phone", "user_not_found", "unauthorized", "api_incompatible", "unknown_command",
-    "rate_limited", "pair_rate_limited", "pacing_expired", "window_open",
-})
 OUTCOMES = ("sent", "not_sent", "unknown")
 
 
@@ -205,11 +215,13 @@ def wire_problem(request: TemplateRequest) -> str | None:
 
 @dataclass(frozen=True)
 class TransportAnswer:
-    """What the transport knows: `state` accepted | not_sent | unknown, WisKey's `code`, and `retry_after_s`/`scope` for a rate answer."""
+    """What the transport knows: `state` accepted | not_sent | unknown, WisKey's `code`, and `version`, the result version that was read
+    (1 or 2; None when no closed result of the expected version was read). `retry_after_s`/`scope` stay None: no closed result has them."""
     state: str
     code: str | None = None
     retry_after_s: int | None = None
     scope: str | None = None
+    version: int | None = None
 
 
 class TemplateTransport(Protocol):
@@ -223,11 +235,17 @@ class UnwiredTransport:
         return {"state": "not_sent", "code": "template_unsupported"}
 
 
+def closed_result(version: int, state: str, code: str, provider_accepted: bool | None) -> dict[str, Any]:
+    """A closed six-key result of `version` (tests and fakes)."""
+    return {"schema_version": version, "state": state, "code": code, "provider_accepted": provider_accepted, "delivery": "unknown",
+            "retry_permitted": False}
+
+
 class FakeTemplateTransport:
     """Tests only. Records the wire form of each request (never a real call); `answers` are consumed in order, then `default`."""
 
     def __init__(self, *answers: Any, default: Any = None) -> None:
-        self.answers, self.default, self.requests = list(answers), default if default is not None else {"state": "accepted"}, []
+        self.answers, self.default, self.requests = list(answers), default if default is not None else closed_result(SCHEMA_VERSION, "accepted", "provider_accepted", True), []
 
     def send_template(self, request: TemplateRequest) -> Any:
         self.requests.append(request.wire())
@@ -237,29 +255,43 @@ class FakeTemplateTransport:
         return nxt
 
 
-def read_answer(raw: Any) -> TransportAnswer:
-    """The closed reading of a transport answer. `accepted` needs state == accepted exactly; `not_sent` needs a code in PRE_SEND_CODES;
-    everything else - a timeout-shaped, malformed or unproven answer - is `unknown`."""
-    if not isinstance(raw, Mapping):
+def _read_closed(raw: Any, version: int, keys: frozenset[str], combos: Mapping[tuple[Any, Any, Any], str]) -> TransportAnswer:
+    """One closed result of exactly `version`: exactly `keys`, `schema_version == version` (a real int), delivery unknown, no retry, and
+    one of the closed (state, code, provider_accepted) combinations. Anything else is `unknown`."""
+    if not isinstance(raw, Mapping) or set(raw) != keys:
         return TransportAnswer("unknown", "invalid_response")
-    if "schema_version" in raw:  # a template_send_v1 result: exactly six keys and one of the five combinations, else unknown
-        pa = raw.get("provider_accepted")
-        ok = (set(raw) == V1_RESULT_KEYS and type(raw.get("schema_version")) is int and raw.get("schema_version") == SCHEMA_VERSION
-              and raw.get("delivery") == "unknown" and raw.get("retry_permitted") is False and (pa is None or type(pa) is bool))
-        st = V1_COMBOS.get((raw.get("state"), raw.get("code"), pa)) if ok and isinstance(raw.get("state"), str) and isinstance(raw.get("code"), str) else None
-        if st is None:
-            return TransportAnswer("unknown", "invalid_response")
-        return TransportAnswer(st, None if st == "accepted" else str(raw["code"]))
+    pa = raw.get("provider_accepted")
+    ok = (type(raw.get("schema_version")) is int and raw.get("schema_version") == version and raw.get("delivery") == "unknown"
+          and raw.get("retry_permitted") is False and (pa is None or type(pa) is bool))
     state, code = raw.get("state"), raw.get("code")
-    code = code if isinstance(code, str) and 0 < len(code) <= 64 else None
-    retry = raw.get("retry_after_s")
-    retry = retry if isinstance(retry, int) and not isinstance(retry, bool) and 0 < retry <= 86400 else None
-    scope = raw.get("scope") if raw.get("scope") in ("burst", "account", "pair") else None
-    if state == "accepted":
-        return TransportAnswer("accepted")
-    if state == "not_sent" and code in PRE_SEND_CODES:
-        return TransportAnswer("not_sent", code, retry, scope)
-    return TransportAnswer("unknown", code or "status_unknown")
+    st = combos.get((state, code, pa)) if ok and isinstance(state, str) and isinstance(code, str) else None
+    if st is None:
+        return TransportAnswer("unknown", "invalid_response")
+    return TransportAnswer(st, None if st == "accepted" else str(code), version=version)
+
+
+def read_v1(raw: Any) -> TransportAnswer:
+    """The reader of a `template_send_v1` result (`schema_version` 1, six keys). A result of another version is `unknown`."""
+    return _read_closed(raw, SCHEMA_VERSION, V1_RESULT_KEYS, V1_COMBOS)
+
+
+def read_v2(raw: Any) -> TransportAnswer:
+    """The reader of a `template_send_v2` (autofill) result (`schema_version` 2, six keys). Its own function, never the v1 one."""
+    return _read_closed(raw, SCHEMA_VERSION_V2, V2_RESULT_KEYS, V2_COMBOS)
+
+
+READERS: Mapping[int, Callable[[Any], TransportAnswer]] = {SCHEMA_VERSION: read_v1, SCHEMA_VERSION_V2: read_v2}
+
+
+def read_answer(raw: Any, *, version: int = SCHEMA_VERSION) -> TransportAnswer:
+    """The closed reading of a transport answer, by the version of the command that was SENT (default v1). `accepted` is the provider's ACK
+    only; `not_sent` only a closed result of that same version; everything else - a timeout, a disconnect, an HA error code
+    (`operation_conflict`, `template_source_unavailable`, ...), a `bridge_schema` marker alone, a malformed answer, an answer without
+    a `schema_version` (the former legacy branch, removed) or of the other version - is `unknown`: no refund, no retry, no pacer credit."""
+    reader = READERS.get(version) if type(version) is int else None
+    if reader is None:
+        return TransportAnswer("unknown", "invalid_response")
+    return reader(raw)
 
 
 # ---------------------------------------------------------------- the window
@@ -292,6 +324,7 @@ class TemplateResult:
     retry_after_s: int | None = None
     scope: str | None = None
     wait_until: dt.datetime | None = None
+    result_version: int | None = None  # the template_send result version that was read (1 or 2); None when none was
 
     def as_send_result(self) -> Any:
         from .intercom_messaging_adapter import SendResult
@@ -345,6 +378,8 @@ class TemplateSender:
             return refused or _refuse("template_unsupported")
         if not needs_template(window) and tpl.purpose != "consent_request":  # F3C TP-04
             return _refuse("window_open")  # the caller should have chosen free text; a template inside the window is not Arx's decision to make here
+        if isinstance(self.transport, UnwiredTransport):
+            return _refuse("template_unsupported")  # nothing is wired: refused before any hand-over (there is no answer to read)
         now = self._clock()
         req = TemplateRequest(request_id, account, person_id, tpl.name, tpl.language, tuple(values[s] for s in tpl.params), now + dt.timedelta(seconds=15),
                               operation_id=operation_id)
@@ -355,10 +390,10 @@ class TemplateSender:
         except Exception as exc:  # noqa: BLE001 - an exception after the hand-over may have left: unknown, never retried
             log.warning("template send: the transport failed after the hand-over (%s)", type(exc).__name__)
             raw = {"state": "unknown", "code": "transport_error"}
-        ans = read_answer(raw)
+        ans = read_answer(raw, version=SCHEMA_VERSION)  # the request built above is template_send_v1
         outcome = {"accepted": "sent", "not_sent": "not_sent"}.get(ans.state, "unknown")
         if self._pacer is not None:
             self._pacer.on_result(account_key=account_key, recipient_key=recipient_key, klass=KLASS, outcome=outcome, outcome_code=ans.code, now=now)
         if outcome == "sent":
-            return TemplateResult("sent")
-        return TemplateResult(outcome, code=ans.code, retry_after_s=ans.retry_after_s, scope=ans.scope)
+            return TemplateResult("sent", result_version=ans.version)
+        return TemplateResult(outcome, code=ans.code, retry_after_s=ans.retry_after_s, scope=ans.scope, result_version=ans.version)
