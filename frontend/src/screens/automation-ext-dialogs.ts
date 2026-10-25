@@ -219,18 +219,18 @@ declare global {
 export const extDialogStyles = css`
   .kav-foot { display: flex; align-items: center; gap: 8px; padding-block-start: 12px; flex-wrap: wrap; }
   .kav-foot .sp { flex: 1; }
-  .kav-step { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; padding: 10px; border-radius: 14px; border: 1px solid var(--dv-border); }
+  .kav-step { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; padding: 10px; border-radius: var(--sw-r-lg); border: 1px solid var(--dv-border); }
   .kav-step .sn { inline-size: 26px; block-size: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--dv-surface-3); font-weight: 700; font-size: var(--sw-fs-sm); }
-  .kav-step.done .sn { background: var(--dv-success, #16a34a); color: #fff; }
+  .kav-step.done .sn { background: var(--dv-success-soft); color: var(--sw-success-text); }
   .kav-step.error { border-color: color-mix(in srgb, var(--dv-danger) 50%, transparent); }
   .kav-step > div { display: flex; flex-direction: column; min-inline-size: 0; }
   .kav-step .s { font-size: var(--sw-fs-sm); color: var(--dv-text-2); }
-  .kav-mt { display: grid; grid-template-columns: minmax(90px, 0.8fr) 1fr 1fr; gap: 0; border: 1px solid var(--dv-border); border-radius: 14px; overflow: hidden; font-size: var(--sw-fs-sm); }
+  .kav-mt { display: grid; grid-template-columns: minmax(90px, 0.8fr) 1fr 1fr; gap: 0; border: 1px solid var(--dv-border); border-radius: var(--sw-r-lg); overflow: hidden; font-size: var(--sw-fs-sm); }
   .kav-mt > div { padding: 8px 10px; border-block-end: 1px solid var(--dv-border); }
   .kav-mt .h { font-weight: 700; color: var(--dv-text-2); background: var(--dv-surface-3); }
   .kav-mt .f { font-weight: 600; display: flex; flex-direction: column; }
-  .kav-mt .f small { font-weight: 400; color: var(--dv-warning, #b45309); }
-  .kav-mt .cf { background: color-mix(in srgb, var(--dv-warning, #f59e0b) 10%, transparent); }
+  .kav-mt .f small { font-weight: 400; color: var(--sw-warning-text); }
+  .kav-mt .cf { background: color-mix(in srgb, var(--dv-warning) 10%, transparent); }
   .kav-mt .same { color: var(--dv-text-2); }
   .kav-opt { display: flex; gap: 6px; align-items: center; cursor: pointer; }
   .kav-opt.pick { font-weight: 700; color: var(--dv-accent); }

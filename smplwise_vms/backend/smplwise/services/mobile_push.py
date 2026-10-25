@@ -50,7 +50,7 @@ TEST_BURST, TEST_PER_MIN = 3, 3.0
 TRANSPORT: httpx.BaseTransport | None = None
 STATS: dict[str, Any] = {"sent": 0, "gone": 0, "failed": 0, "retried": 0, "skipped_unconfigured": 0, "last_error": None, "last_sent_at": None}
 
-CATEGORY_NAMES_HE: dict[str, str] = {"safety": "בטיחות", "alerts": "התראות", "doors": "דלתות וחלונות", "device_faults": "תקלות בהתקנים", "automations": "אוטומציות", "system": "מערכת", "security": "אבטחה וכניסות", "maintenance": "תחזוקה ובקרה"}
+CATEGORY_NAMES_HE: dict[str, str] = {"safety": "בטיחות", "alerts": "התראות", "doors": "דלתות וחלונות", "device_faults": "תקלות בהתקנים", "automations": "אוטומציות", "system": "מערכת", "security": "אבטחה וכניסות", "maintenance": "תחזוקה ובקרה", "building": "הודעות לבניין"}  # building: NOTICEPUSH-295 (the notice board)
 CRITICAL_CATEGORIES = ("safety",)
 
 

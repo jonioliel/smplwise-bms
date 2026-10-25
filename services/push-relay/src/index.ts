@@ -22,7 +22,7 @@ import { parseServiceAccount, sendFcm, type FcmConfig } from './fcm';
 import { derivedRelayToken, sha256Hex, timingSafeEqual } from './crypto';
 
 const MAX_BODY = 2048;
-const CATEGORIES = new Set(['safety', 'alerts', 'doors', 'device_faults', 'automations', 'system', 'security', 'tickets', 'maintenance']); // tickets: CR-038; maintenance: CR-MAINT215 (each needs a redeploy of the Worker)
+const CATEGORIES = new Set(['safety', 'alerts', 'doors', 'device_faults', 'automations', 'system', 'security', 'tickets', 'maintenance', 'building']); // tickets: CR-038; maintenance: CR-MAINT215; building: NOTICEPUSH-295 (each needs a redeploy of the Worker)
 const TOKEN_TTL_S = 180 * 24 * 3600; // a registration nobody pushed to or refreshed for 180 days expires
 const LIMITS = { registerPerHour: 60, pushPerMinute: 60, pushPerDay: 500, serverPerHour: 6000, unknownPerHour: 200 } as const;
 const REFRESH_AFTER_S = 24 * 3600; // a registration is rewritten (TTL refreshed) at most once a day: KV writes are the scarce free-plan resource

@@ -513,7 +513,9 @@ export class SwApp extends LitElement {
     .brand-tile[data-demo] {
       background: repeating-linear-gradient(135deg, var(--sw-warning) 0 6px, var(--sw-warning-text) 6px 12px);
     }
-    /* LOGOS-295: the SmplWise mark (a bundle file) replaces the blue "S" tile; the artwork is its own colour, no tile behind it */
+    /* LOGOS-295: the SmplWise mark (a bundle file) replaces the blue "S" tile; the artwork is its own colour, no tile behind it.
+       FIX2180-295: Domus and Crystal paint this tile in the accent gradient (skins/domus.ts, skins/crystal.ts), so the rail mark is
+       drawn in the white tone there (.scheme='dark' on its <sw-brand>); every other skin and the dark scheme keep the default. */
     .brand-tile {
       display: grid;
       place-items: center;
@@ -3009,7 +3011,7 @@ export class SwApp extends LitElement {
     const rowMode = this.rowModeProps(area, rowStyle);
     return html`
       <nav class="rail" aria-label="ניווט ראשי">
-        <span class="brand-tile" aria-hidden="true" data-brand-tile ?data-demo=${this.session.me?.demo?.active === true}><sw-brand kind="product" mark decorative .h=${15} .maxw=${38} .previewSize=${'m'}></sw-brand></span>
+        <span class="brand-tile" aria-hidden="true" data-brand-tile ?data-demo=${this.session.me?.demo?.active === true}><sw-brand kind="product" mark decorative .h=${15} .maxw=${38} .previewSize=${'m'} .scheme=${this.skin === 'domus' || this.skin === 'crystal' ? 'dark' : 'auto'}></sw-brand></span>
         ${areas.map(
           (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}>
             <sw-icon .name=${n.icon} size=${this.nav.icon}></sw-icon><span>${n.label}</span>${this.areaCount(n.id)}

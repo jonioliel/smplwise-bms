@@ -1,2 +1,0 @@
-const e={s:.75,m:1,l:1.25,xl:1.5};function l(t,a,r){if(!t.light&&!t.dark)return null;if(!r)return t.light?{variant:"light",treatment:"plain",file:t.light}:{variant:"dark",treatment:"darkplate",file:t.dark};if(a==="file"&&t.dark)return{variant:"dark",treatment:"plain",file:t.dark};const n=t.light??t.dark;return{variant:t.light?"light":"dark",treatment:a==="invert"?"invert":"plate",file:n}}export{e as L,l as c};
-//# sourceMappingURL=brand-choice-DUwIb2Iu.js.map

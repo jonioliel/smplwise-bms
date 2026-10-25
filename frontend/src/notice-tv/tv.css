@@ -342,9 +342,11 @@ body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var
 #cv.portrait .lg.company { block-size: calc(64px * var(--lg, 1)); }
 #cv.portrait .lg.company svg { inline-size: 280px; }
 /* R2160B: the box keeps the approved mock-up's footprint (132 x 36): a wider box left the status chips of the portrait footer too little room, so the fit logic dropped the last one
-   (the parking chip). The artwork has no clear space of its own now, so it fills the box exactly. */
-#cv.portrait .lg.product { block-size: calc(26px * var(--lg, 1)); justify-content: center; }
-#cv.portrait .lg.product svg { inline-size: auto; }
+   (the parking chip). The artwork has no clear space of its own now, so it fills the box exactly.
+   FIX2180-295: the kit's horizontal artwork (ratio 6.3) at 26 px tall is ~164 px wide and dropped the parking chip again; the box keeps
+   the 132 px footprint and the artwork scales to its width (about 21 px tall). */
+#cv.portrait .lg.product { block-size: calc(26px * var(--lg, 1)); inline-size: calc(132px * var(--lg, 1)); justify-content: center; }
+#cv.portrait .lg.product svg { inline-size: 100%; block-size: auto; }
 #cv.portrait .welcome b { font-size: calc(84px * var(--fs)); }
 #cv.portrait .clock .t { font-size: calc(248px * var(--fs)); }
 #cv.portrait .it h1 { font-size: calc(78px * var(--fs) * var(--k)); }

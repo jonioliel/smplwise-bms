@@ -163,8 +163,9 @@ test('i18n: Hebrew first, every English entry names a Hebrew key, the section la
   expect(mt('pageTags', undefined, 'ar')).toBe(mt('pageTags', undefined, 'he')); // falls back to the Hebrew
 });
 
-test('notifications: a category of its own (owner answer q20), placed last, with its two sources', () => {
-  expect(CATEGORY_ORDER[CATEGORY_ORDER.length - 1]).toBe('maintenance');
+test('notifications: a category of its own (owner answer q20), after tickets, with its two sources', () => {
+  // NOTICEPUSH-295 (2.18.0) appended the notice board's category 'building' after it
+  expect(CATEGORY_ORDER.slice(-3)).toEqual(['tickets', 'maintenance', 'building']);
   expect(CATEGORY_LABEL.maintenance).toBe('תחזוקה ובקרה');
   expect(MAINTENANCE_SOURCES.map((s) => [s.key, s.category, s.severity])).toEqual([['maintenance.due_soon', 'maintenance', 'info'], ['maintenance.overdue', 'maintenance', 'alert']]);
 });

@@ -131,7 +131,7 @@ test('the board page: after "המחלקה" in the requests section, for tickets.
 });
 
 test('the notification category and subject kind of the module (spec 13.4)', () => {
-  expect(CATEGORY_ORDER.at(-2)).toBe('tickets'); // CR-MAINT215: the maintenance category follows
+  expect(CATEGORY_ORDER.at(-3)).toBe('tickets'); // CR-MAINT215: the maintenance category follows, then NOTICEPUSH-295's 'building'
   expect(CATEGORY_LABEL.tickets).toBe(tt('area')); // a getter: the configured plural (whatever the default is)
   setTicketNames({ he: { one: 'פנייה', many: 'פניות', gender: 'f' } });
   expect(CATEGORY_LABEL.tickets).toBe('פניות');

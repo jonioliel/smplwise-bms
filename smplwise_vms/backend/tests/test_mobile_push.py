@@ -81,7 +81,7 @@ def test_push_registration_validation_mutes_and_unregister(w, relay):
     assert w.c.post(f"{API}/notifications/devices", json={"platform": "windows", "relay_token": "rt_0123456789abcdef0123"}, headers=tok).json()["code"] == "invalid_platform"
     assert w.c.post(f"{API}/notifications/devices", json={"platform": "ios", "relay_token": "rt_0123456789abcdef0123"}, headers=as_user("ops2")).status_code == 401  # device token only
     cats = w.c.get(f"{API}/notifications/categories", headers=tok).json()["categories"]
-    assert [c["id"] for c in cats] == ["safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets", "maintenance"] and cats[0] == {"id": "safety", "name": "בטיחות", "critical": True}
+    assert [c["id"] for c in cats] == ["safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets", "maintenance", "building"] and cats[-1]["name"] == "הודעות לבניין" and cats[0] == {"id": "safety", "name": "בטיחות", "critical": True}
     assert w.c.get(f"{API}/notifications/categories", headers=as_user("ops2")).status_code == 200  # a session reads it too (the web app's device card)
     r = w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": ["automations", "system"]}, headers=tok)
     assert r.status_code == 200 and r.json()["push"]["muted"] == ["automations", "system"]
@@ -344,3 +344,19 @@ def test_one_relay_token_is_one_phone_another_device_row_on_this_server_loses_it
     # and the first device can register again with a token of its own without touching the second
     assert w.c.post(f"{API}/notifications/devices", json={"platform": "ios", "relay_token": "rt_aaaaaaaaaaaaaaaaaaaa"}, headers=tok1).json()["push"]["registered"] is True
     assert w.c.get(f"{API}/presence/devices/me", headers=as_user("vera")).json()["devices"][0]["push"]["registered"] is True
+
+
+def test_the_relay_worker_accepts_every_server_category():
+    """FIX2180-295: a category the server sends but the relay Worker does not list is answered 400 there (every such app push fails and
+    counts toward the drop). services/push-relay/src/index.ts must list each category of notify_policy.CATEGORIES."""
+    import re
+    from pathlib import Path
+
+    from smplwise.services.notify_policy import CATEGORIES
+
+    src = (Path(__file__).resolve().parents[3] / "services" / "push-relay" / "src" / "index.ts").read_text(encoding="utf-8")
+    m = re.search(r"const CATEGORIES = new Set\(\[([^\]]*)\]\)", src)
+    assert m, "the relay's CATEGORIES set was not found"
+    relay = set(re.findall(r"'([a-z_]+)'", m.group(1)))
+    assert set(CATEGORIES) == relay
+    assert set(CATEGORIES) - {"tickets"} <= set(svc.CATEGORY_NAMES_HE)  # tickets: the module's configured plural

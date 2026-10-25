@@ -232,8 +232,8 @@ export class ScheduleEditor extends LitElement {
 
   static styles = [...devicesStyleTokens, mediaGlassKnobs, mediaBubbleKnobs, css`
     /* KAV079-295: the conflict box of the schedule editor (mockup r079 state 7) */
-    .kav-vbox { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; margin-block-end: 10px;
-      background: color-mix(in srgb, var(--dv-warning, #f59e0b) 10%, transparent); border: 1px solid color-mix(in srgb, var(--dv-warning, #f59e0b) 35%, transparent); }
+    .kav-vbox { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--sw-r-lg); margin-block-end: 10px;
+      background: color-mix(in srgb, var(--dv-warning) 10%, transparent); border: 1px solid color-mix(in srgb, var(--dv-warning) 35%, transparent); }
     .kav-vbox > b { display: flex; gap: 8px; align-items: center; }
     .kav-vbox > b small { font-weight: 400; color: var(--dv-text-2, var(--sw-text-2)); }
     .kav-iss { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
