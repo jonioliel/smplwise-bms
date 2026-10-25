@@ -74,3 +74,23 @@ All are mounted under `/api`.
 - WKF01F02-295, CAPMAP-295, WKVEC-295: none
 
 `app.openapi()` after the merges: 1243 paths, 1551 operations, no duplicate operationId and no duplicate-operation warning.
+
+## Second round (2.20.0 release prep)
+
+Merged on top of `47ca1a2c0` with `--no-ff`, one commit each:
+
+| # | Branch | Tip | Result |
+|---|--------|-----|--------|
+| 9 | `pilot/LOGOSIDE-295` | `94c62e2de` | clean (auto-merged `sw-app.ts`) |
+| 10 | `pilot/NOTICEDEL-295` | `66a28bda8` | 2 conflicts, resolved |
+| 11 | `pilot/NOTICERSS-295` | `5a7f2d196` | 2 conflicts, resolved |
+| 12 | `pilot/POLISH-295` | `c3f56b000` | clean; only the polish commit is new (its base `5f981a341` is in main) |
+
+- NOTICEDEL `frontend/src/screens/system-notices.ts`: the NOTICECAPS connection-caps row is kept and the places-tree checkbox follows it.
+- NOTICEDEL `tests/test_wiskey_door_path.py`: the per-user door-grant list keeps `security_manager` (EMROLE) and `announcer` (ANNOUNCE) and adds `notices_delete`.
+- NOTICERSS `frontend/src/api/notices.ts`: `NoticesSettings` keeps `conn_total` / `conn_per_address` and types `news_sources` as `NewsSource[]`, with the NOTICERSS interfaces after it.
+- NOTICERSS `frontend/src/i18n/notices.ts`: the caps labels and the news-source strings are both kept.
+
+No branch of this round adds a migration; the chain still ends at 0177. The devices tab row stays `building`, `automations`, `announce`; the notice board stays on the rail.
+
+`pilot/PEERQUERY-295`, `pilot/CAPEMERGENCY-295`, `pilot/SXFIX-295` and `pilot/LEGALPACK-295` are NOT merged (later versions).
