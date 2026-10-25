@@ -12,7 +12,7 @@ export function canManageGrants(em: Pick<EmergencyState, 'can'> | null | undefin
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** `YYYY-MM-DDTHH:mm` in the browser's local time, the value an `<input type="datetime-local">` takes. */
+/** `YYYY-MM-DDTHH:mm` in the browser's local time, the value a datetime-local input takes. */
 export function localInputValue(at: Date): string {
   return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`;
 }
