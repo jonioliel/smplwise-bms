@@ -347,7 +347,9 @@ def talk_stop(request: Request, principal: Principal = Depends(current_principal
 
 
 class TalkLease(CameraLease):
-    """A talk session keeps going only while its user holds `access.call` on the station and the setting is `video_talk`."""
+    """A talk session keeps going only while its user still sees the station (`access.read` on its chain), holds `access.call` on it
+    and the setting is `video_talk` - the same scope `talk_start` admitted (W031-295: the socket that sends `media/talk_open` re-decided
+    `access.call` alone)."""
 
     def __init__(self, db: Database, principal: Principal, station_id: str) -> None:
         super().__init__(db, principal, station_id, CALL)
@@ -355,7 +357,8 @@ class TalkLease(CameraLease):
 
     def allowed_now(self) -> bool:
         with self.db.connection(mode="read", label=f"lease talk {self.station_id}") as conn:
-            return ia.Authority(conn, self.principal).station(CALL, self.station_id) and im.media_mode(conn) == "video_talk"
+            auth = ia.Authority(conn, self.principal)
+            return auth.station(READ, self.station_id) and auth.station(CALL, self.station_id) and im.media_mode(conn) == "video_talk"
 
 
 CLOSE_CODES = {"expired": 4408, "access_lost": 4403, "upstream_unavailable": 4503, "busy": 4423, "upstream_closed": 1000, "stopped": 1000, "ended": 1000}
