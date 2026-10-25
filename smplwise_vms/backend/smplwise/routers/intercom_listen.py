@@ -197,8 +197,21 @@ async def _pump(websocket: WebSocket, s: il.ListenSession, channel: adapter.List
     """The downlink's frames -> the browser (newest wins); the browser may only stop; the session's watch runs every second."""
 
     async def to_browser() -> str:
-        # the frames end when the channel ends (the one rule of ListenChannel.frames): everything it still holds goes out first
+        # the frames end when the channel ends (the one rule of ListenChannel.frames): everything it still holds goes out first.
+        # ADOPTR6-295 (W-001/M5, WMR6-DOWNLINK-02): a natural end keeps the admitted tail, so the natural end is NOT a security fence. Every
+        # frame - the tail included - is published only after the CURRENT admission: the lease's awaited `confirm` (a moved access
+        # generation is re-checked, fail closed), then with no await before the publication the session expiry, a stop and the lease.
+        # A refusal returns its reason; `listen_ws` then calls the channel's explicit `close(outcome)` (fence, drain, join the producer).
         async for frame in channel.frames():
+            confirm = getattr(lease, "confirm", None)
+            if confirm is not None and not await confirm():
+                return "access_lost"
+            if time.time() >= s.expires_at:
+                return "expired"
+            if s.stop_requested:
+                return s.stop_requested
+            if lease.should_stop():
+                return "access_lost"
             s.frames += 1
             await websocket.send_bytes(frame)
         reason = await channel.wait_closed()

@@ -425,6 +425,20 @@ class DirectJoin:
 
         return self.template_transport if self.selected(V2_COMMAND) else None
 
+    # -- ADOPTR6-295 (W-010): the ONE selection point of the two WK4ADOPT live peer reads (no scheduler, no switch of their own) ----------
+    def registry_or_none(self) -> Any:
+        """The dedicated `peer_bindings/get` transport, only while this connection selects that command now; else None (nothing sent)."""
+        from .wiskey_peer_registry import LiveRegistryTransport
+
+        return self.registry_transport if self.selected(LiveRegistryTransport.COMMAND) else None
+
+    def resolve_or_none(self) -> Any:
+        """The dedicated `peer_receipts/resolve` transport, only while this connection selects that command now; else None (nothing sent).
+        No Arx route or job calls it in this build: the recovery caller of an UNKNOWN intent is not built (no new scheduler here)."""
+        from .wiskey_intents import LiveResolveTransport
+
+        return self.resolve_transport if self.selected(LiveResolveTransport.COMMAND) else None
+
     # -- WKR5-295 unit B: the six features and the emergency v2 engine, BUILT on the capture port (registered, not installed) ---------
     def features_or_none(self) -> Any:
         """The `FeatureAdapters` of the six features over this join's direct port, only while `features/start` is selected. No Arx
