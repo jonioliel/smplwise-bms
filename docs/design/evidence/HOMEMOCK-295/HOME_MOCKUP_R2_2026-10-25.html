@@ -584,7 +584,7 @@ table.cx td code{font-size:var(--sw-fs-xs);color:var(--sw-text-3)}
 .swlogo{display:block;inline-size:auto;flex:none}
 .co{display:inline-flex;align-items:center;flex:none}
 .co svg{display:block;inline-size:auto}
-.co.plate{background:#ffffff;border-radius:var(--sw-r-sm);padding:2px 8px}
+.co.plate{background:#ffffff;border-radius:var(--sw-r-sm);padding:2px 8px}.co.invert svg{filter:invert(1) hue-rotate(180deg)}
 .rail .logo{margin-bottom:14px;display:grid;place-items:center;block-size:24px}
 .hbrand{display:flex;align-items:center;block-size:38px;flex:none}
 .hbrand .sp{flex:1}
@@ -596,6 +596,29 @@ table.cx td code{font-size:var(--sw-fs-xs);color:var(--sw-text-3)}
 .vp-n .fcards{gap:10px}.vp-n .fcard{padding:12px 12px 10px}.vp-n .fcard .ft{padding-top:6px}.vp-n .arow{block-size:42px}
 .vp-n .tr{block-size:30px}
 .vp-n .ambient .seg.shab{display:none}.vp-n .fcard .fh2 .mchip:nth-child(n+4){display:none}.vp-n .at .qb{padding:0 8px;gap:4px}.vp-n .drawer{position:absolute;inset-block:0;inset-inline-end:0;z-index:6;box-shadow:var(--sw-shadow-3)}.vp-m .alerts~.media,.vp-m .conn~.media{display:none}
+
+/* ROUND 2c: the logos settings card */
+.lpage{flex:1;min-block-size:0;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.crumbs{font-size:var(--sw-fs-sm);color:var(--sw-text-3)}
+.lcard{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.lh{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.lh h2{margin:0;font-size:var(--sw-fs-xl);color:var(--sw-heading)}.lh .meta{font-size:var(--sw-fs-sm);color:var(--sw-text-3)}
+.lgrid{display:grid;grid-template-columns:1.1fr 1fr;gap:18px}
+.lfields{display:flex;flex-direction:column;gap:12px}
+.lf{display:flex;flex-direction:column;gap:6px}.lf .k,.lprevs .k{font-size:var(--sw-fs-sm);font-weight:700;color:var(--sw-text-2)}
+.lopts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.lopt{display:flex;flex-direction:column;gap:4px;text-align:start;padding:8px 10px;border-radius:var(--sw-r-sm);border:1px solid var(--sw-border-strong);background:var(--sw-surface);font-size:var(--sw-fs-xs);color:var(--sw-text-2)}
+.lopt b{font-size:var(--sw-fs-sm);color:var(--sw-heading);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lopt[aria-pressed="true"]{border-color:var(--sw-accent);box-shadow:inset 0 0 0 1px var(--sw-accent)}
+.lprevs{display:flex;flex-direction:column;gap:8px}
+.lprev{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--sw-r-md);border:1px solid var(--sw-border)}
+.lprev.light{background:#f5f7fb}.lprev.dark{background:#0d1220;border-color:#232e45}
+.lprev.light .pillrow{background:#fff;border-color:#e7ebf2}.lprev.dark .pillrow{background:#151c2c;border-color:#232e45}
+.lprev.light .bsep{background:#e1e6ef}.lprev.dark .bsep{background:#2f3c58}
+.lnote{font-size:var(--sw-fs-xs);color:var(--sw-text-3)}
+.lft{display:flex;justify-content:flex-start}
+.vp-tp .lgrid,.vp-m .lgrid{grid-template-columns:1fr}
+.vp-m .lopts{grid-template-columns:1fr}
+.vp-m .lpage{overflow:auto}.top{gap:12px}.vp-tl .top .ambient .seg:nth-child(2),.editing .top .ambient,.vp-n .top.lead .ambient .seg:nth-child(2),.vp-tp .top.lead .ambient .seg.shab{display:none}.vp-m .lcard{padding:12px;gap:10px}.vp-m .lcard .segc{flex-wrap:wrap}
 /* phone: area as a full screen (the alternative to the sheet) */
 .mfull{position:absolute;inset:0 0 62px 0;z-index:4;background:var(--sw-bg);display:flex;flex-direction:column;gap:10px;padding:12px 14px}
 </style>
@@ -615,6 +638,8 @@ table.cx td code{font-size:var(--sw-fs-xs);color:var(--sw-text-3)}
     <div class="grp"><span class="lbl">תריסים באריח</span><div class="segc sm" id="c-bl"></div></div>
     <div class="grp"><span class="lbl">מיזוג באריח</span><div class="segc sm" id="c-ac"></div></div>
     <div class="grp"><span class="lbl">אזור בטלפון</span><div class="segc sm" id="c-pa"></div></div>
+    <div class="grp"><span class="lbl">לוגו לקוח בכהה (הגדרה כללית)</span><div class="segc sm" id="c-dm"></div></div>
+    <div class="grp"><span class="lbl">מיקום לוגו הלקוח (הגדרה כללית)</span><div class="segc sm" id="c-side"></div></div>
   </div>
 
   <div class="stage" id="stage"></div>
@@ -719,20 +744,31 @@ const SW_WORD_D='M 252.616 204.128 C 251.058 202.406 250.947 197.659 251.231 144
    brand.dark_mode = plate puts the light file on a white plate (components/sw-brand.ts). Sizes as sw-app.ts: corner 34 / 32, phone 32 / 34. */
 const SW_L={horizontal:{w:1369,h:217,symbol:[0,0,1],wordmark:[514,11,1]},symbol:{w:484,h:178,symbol:[0,0,1]}};
 function swLogo(layout,h){
+ h=Math.round(h*(layout==='symbol'?1:SIZE_SCALE[BRAND.size]));
  const l=SW_L[layout];const dark=S.theme==='dark';const cs=dark?'#ffffff':'#0062ff',cw=dark?'#ffffff':'#0e3054';
  const part=(t,d,fill)=>t?'<path fill="'+fill+'" fill-rule="evenodd" d="'+d+'" transform="translate('+t[0]+' '+t[1]+') scale('+t[2]+')"/>':'';
  return '<svg class="swlogo" viewBox="0 0 '+l.w+' '+l.h+'" style="block-size:'+h+'px" role="img" aria-label="SmplWise Arx">'+part(l.symbol,SW_SYMBOL_D,cs)+part(l.wordmark,SW_WORD_D,cw)+'</svg>';
 }
+/* ROUND 2c (owner): the logos are ONE global system setting - הגדרות › כללי › מראה המערכת › לוגו ושם המערכת (screens/system-brand-logos.ts,
+   design/brand-logo.ts). Every screen and state reads this object; no screen has a logo option of its own. Values = the owner's live
+   installation (company logo beside the SmplWise logo); the product default for a new installation is side = start. */
+const BRAND={companyName:'נווה',files:{light:'demo-company.svg',dark:null},size:'m',companySize:'same',side:'end',darkMode:'plate'};
+const SIZE_SCALE={s:0.8,m:1,l:1.2,xl:1.4};
 function companyLogo(h,maxw){
- const dark=S.theme==='dark';const ih=dark?h-6:h;
+ if(!BRAND.files.light&&!BRAND.files.dark)return '';
+ h=Math.round(h*SIZE_SCALE[BRAND.companySize==='same'?BRAND.size:BRAND.companySize]);
+ const dark=S.theme==='dark';
+ /* the product's choice (chooseCompanyLogo): dark + plate, or dark + file with no dark file yet = the light file on a white plate; invert = a colour invert */
+ const treat=!dark?'file':BRAND.darkMode==='invert'?'invert':(BRAND.darkMode==='file'&&BRAND.files.dark)?'darkfile':'plate';
+ const ih=treat==='plate'?h-6:h;
  const svg='<svg viewBox="0 0 300 100" style="block-size:'+ih+'px;max-inline-size:'+maxw+'px" role="img" aria-label="נווה"><rect width="300" height="100" rx="14" fill="#1e2e47"/><text x="150" y="62" font-size="40" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif">NAVE</text></svg>';
- return '<span class="co'+(dark?' plate':'')+'" data-brand-treatment="'+(dark?'plate':'file')+'">'+svg+'</span>';
+ return '<span class="co'+(treat==='plate'?' plate':treat==='invert'?' invert':'')+'" data-brand-treatment="'+treat+'">'+svg+'</span>';
 }
 function brandCluster(o){
  const dot=o.off?'bad':o.state==='loading'?'off':'';
- return '<div class="bcl">'+companyLogo(34,190)+'<div class="pillrow"><span class="sysdot '+dot+'" title="מצב המערכת"></span><button class="press" aria-label="חיפוש">'+I('search',16)+'</button></div><span class="bsep"></span>'+swLogo('horizontal',32)+'</div>';
+ return '<div class="bcl">'+(BRAND.side==='end'?companyLogo(34,190):'')+'<div class="pillrow"><span class="sysdot '+dot+'" title="מצב המערכת"></span><button class="press" aria-label="חיפוש">'+I('search',16)+'</button></div><span class="bsep"></span>'+swLogo('horizontal',32)+'</div>';
 }
-const PENDING={on:true,text:'סבב 2 אושר. זה סבב 2ב: נוספו הלוגואים (SmplWise ולוגו הלקוח) בכל המצבים, ונוסף מסך 1366×768. ייתכן שיגיעו ממך הערות נוספות; הן ייכנסו לכאן (קובץ אחד, אותו קישור), והסימן יוסר כשתאשר שאין עוד.'};
+const PENDING={on:true,text:'סבב 2 אושר. סבב 2ג: הלוגואים מגיעים מהגדרה כללית אחת (הכרטיס הקיים, מצב "הגדרת לוגו"). סבב 2ב: נוספו הלוגואים (SmplWise ולוגו הלקוח) בכל המצבים, ונוסף מסך 1366×768. ייתכן שיגיעו ממך הערות נוספות; הן ייכנסו לכאן (קובץ אחד, אותו קישור), והסימן יוסר כשתאשר שאין עוד.'};
 
 /* ------------------------------------------------ demo site (same as round 1) ------------------------------------------------ */
 const SITE={
@@ -752,7 +788,7 @@ const SITE={
  unassigned:3
 };
 const MODE_LABEL={cards:'כרטיסים',tiles:'אריחים',both:'זה לצד זה'};
-const ST_LABEL={normal:'רגיל',area:'אזור פתוח',tree:'קומה נבחרת',unassigned:'ללא שיוך',alarm:'התראות',offline:'אין חיבור',loading:'טוען',empty:'ריק',edit:'עריכת המסך',board:'לוח רכיבים'};
+const ST_LABEL={logos:'הגדרת לוגו',normal:'רגיל',area:'אזור פתוח',tree:'קומה נבחרת',unassigned:'ללא שיוך',alarm:'התראות',offline:'אין חיבור',loading:'טוען',empty:'ריק',edit:'עריכת המסך',board:'לוח רכיבים'};
 const VPS={d:{w:1440,h:900,n:'מחשב 1440'},n:{w:1366,h:768,n:'מחשב 1366'},tl:{w:1180,h:820,n:'טאבלט 1180'},tp:{w:820,h:1180,n:'טאבלט אנכי 820'},m:{w:390,h:844,n:'טלפון 390'}};
 
 /* ------------------------------------------------ shared pieces ------------------------------------------------ */
@@ -761,7 +797,7 @@ const NAV=[['home','ראשי'],['shield','אבטחה'],['map','מפה'],['media'
 function rail(){return `<nav class="rail"><div class="logo">${swLogo('symbol',16)}</div>${NAV.map(([i,l],k)=>`<a class="it"${k===0?' aria-current="page"':''}>${I(i,21)}${l}</a>`).join('')}<div class="sp"></div><div class="avatar">יו</div></nav>`}
 function bnav(){return `<nav class="bnav">${NAV.map(([i,l],k)=>`<a class="it"${k===0?' aria-current="page"':''}>${I(i,20)}${l}</a>`).join('')}</nav>`}
 function ambient(o){
- const al=o.alarm?`<span class="alarm" data-tone="danger">${I('shield',15)} אזעקה הופעלה · חצר</span>`:`<span class="alarm">${I('shield',15)} דרוכה (חוץ)</span>`;
+ const al=o.alarm?`<span class="alarm" data-tone="danger">${I('shield',15)} אזעקה הופעלה</span>`:`<span class="alarm">${I('shield',15)} דרוכה (חוץ)</span>`;
  return `<div class="ambient"><span class="seg">${I('clock',15)}<b>${N('12:00')}</b> יום ו׳ ${N('23.10')}</span><span class="seg">${I('cloud',15)}<b>${N('28°C')}</b> מעונן חלקית</span><span class="seg shab">${I('candle',15)}כניסת שבת <b>${N('17:34')}</b> · צאת <b>${N('18:29')}</b></span><span class="seg">${al}</span></div>`;
 }
 /* the info row as CARDS (ui.home_info = cards; the owner's live screen) */
@@ -776,7 +812,7 @@ function infoCards(o){
 }
 function topBar(o){
  const amb=o.info==='bar'?ambient(o):`<span class="meta" style="color:var(--sw-text-3);font-size:var(--sw-fs-sm)">${N(3)} קומות · ${N(8)} אזורים · ${N(136)} התקנים</span>`;
- return `<div class="top"><h1>ראשי</h1>${seg([['ov','מבט על'],['cap','קברניט']],'ov')}${amb}<div class="grow"></div>${brandCluster(o)}</div>`;
+ return `<div class="top${BRAND.side==='start'?' lead':''}">${BRAND.side==='start'?companyLogo(34,190):''}<h1>ראשי</h1>${seg([['ov','מבט על'],['cap','קברניט']],'ov')}${amb}<div class="grow"></div>${brandCluster(o)}</div>`;
 }
 function media(o){
  if(o.empty) return '';
@@ -992,6 +1028,23 @@ function editDrawer(o){
  </aside>`;
 }
 
+
+/* ROUND 2c: where the global logo setting lives - the existing card, tab "גודל ורקע כהה" (labels from i18n/he.ts brandLogos) */
+function logoSettings(o){
+ const opt=(on,t,d,rec)=>'<button class="lopt press" aria-pressed="'+on+'"><b>'+t+(rec?' <span class="chip ok">מומלץ</span>':'')+'</b><span>'+d+'</span></button>';
+ const prev=(theme)=>{const keep=S.theme;S.theme=theme;const strip='<div class="lprev '+theme+'"><div class="bcl">'+(BRAND.side==='end'?companyLogo(34,190):'')+'<div class="pillrow"><span class="sysdot"></span></div><span class="bsep"></span>'+swLogo('horizontal',32)+'</div>'+(BRAND.side==='start'?'<span style="margin-inline-start:auto">'+companyLogo(34,190)+'</span>':'')+'</div>';S.theme=keep;return strip};
+ const card='<section class="card lcard"><div class="lh"><h2>לוגו ושם המערכת</h2><span class="meta">לוגו היזם או חברת הניהול מוצג ליד הלוגו של SmplWise</span><span class="chip mo" style="margin-inline-start:auto">הגדרה כללית · כל המסכים</span></div>'
+  +seg([['files','לוגואים'],['look','גודל ורקע כהה'],['title','שמות וכותרת'],['prev','תצוגה']],'look','sm')
+  +'<div class="lgrid"><div class="lfields">'
+  +'<div class="lf"><span class="k">גודל הלוגו</span>'+seg([['s','קטן'],['m','בינוני'],['l','גדול'],['xl','גדול מאוד']],BRAND.size,'sm')+'</div>'
+  +'<div class="lf"><span class="k">גודל לוגו היזם</span>'+seg([['same','כמו הגודל הכללי'],['s','קטן'],['m','בינוני'],['l','גדול']],BRAND.companySize,'sm')+'</div>'
+  +'<div class="lf"><span class="k">מיקום לוגו היזם והמתקין</span>'+seg([['start','בתחילת הכותרת (ימין)'],['end','ליד לוגו SmplWise (שמאל)']],BRAND.side,'sm')+'</div>'
+  +'<div class="lf"><span class="k">לוגו על רקע כהה</span><div class="lopts">'+opt(BRAND.darkMode==='plate','לוחית בהירה קטנה','הלוגו נשאר כמו שהוא על לוחית לבנה קטנה.',1)+opt(BRAND.darkMode==='file','קובץ כהה נוסף','עד שתועלה גרסה כהה מוצגת לוחית בהירה.')+opt(BRAND.darkMode==='invert','היפוך צבעים אוטומטי','הצבעים משתנים ויכולים להשתבש.')+'</div></div>'
+  +'</div><div class="lprevs"><div class="k">כך זה ייראה</div>'+prev('light')+prev('dark')+'<div class="lnote">לוגו SmplWise עובר לגרסת הלילה (לבן) לבד בכהה · מופיע בכל המסכים, בכניסה, בלוחות המודעות ובדוחות</div></div></div>'
+  +'<div class="lft"><button class="abtn pri press">שמירה</button></div></section>';
+ const crumbs='<div class="crumbs">הגדרות › כללי › מראה המערכת</div>';
+ return '<div class="lpage">'+crumbs+card+'</div>';
+}
 /* ------------------------------------------------ screens ------------------------------------------------ */
 function opts(mode,vp,state){return {mode,vp,state,m:vp==='m',alarm:state==='alarm',off:state==='offline',empty:state==='empty',info:S.info==='auto'?(mode==='cards'?'cards':'bar'):S.info,bl:S.bl,ac:S.ac,pa:S.pa}}
 function screen(mode,vp,state){
@@ -999,6 +1052,7 @@ function screen(mode,vp,state){
  if(o.m) return phone(state,o);
  const head=topBar(o)+(o.info==='cards'&&state!=='empty'?infoCards(o):'');
  if(state==='loading') return `<div class="app vp-${vp}">${rail()}<main class="page">${topBar(o)}${skeleton(o)}</main></div>`;
+ if(state==='logos') return `<div class="app vp-${vp}">${rail()}<main class="page">${topBar(o).replace('<h1>ראשי</h1>','<h1>הגדרות</h1>').replace(/<div class="segc[^]*?<\/div>/,'')}${logoSettings(o)}</main></div>`;
  if(state==='empty') return `<div class="app vp-${vp}">${rail()}<main class="page">${topBar(o)}<div class="body"><aside class="card tree"><button class="tr fl" aria-current="true">${I('building',16)}<span class="nm">כל המבנה</span></button><button class="tr un">${I('help',16)}<span class="nm">ללא שיוך</span><span class="cnt">${N(14)} התקנים</span></button></aside>${emptyState(o)}</div></main></div>`;
  const banner=o.alarm?alerts(o):o.off?conn(o):state==='edit'?`<div class="editbar">${I('edit',16)}עריכת המסך הראשי<span class="gx"><button class="abtn press">ביטול</button><button class="abtn pri press">שמירה</button></span></div>`:'';
  const fl=mode==='cards'?floorsCards:floorsTiles;
@@ -1031,6 +1085,7 @@ function phone(state,o){
  const flsel=(on)=>`<div class="mfl"><button class="treebtn press">${I('tree',16)}עץ</button>${seg([['g','קרקע'],['f1','קומה 1'],['yd','חצר']],on,'sm full')}</div>`;
  let inner='';
  if(state==='loading') inner=skeleton(o);
+ else if(state==='logos') inner=logoSettings(o);
  else if(state==='empty') inner=emptyState(o);
  else if(state==='unassigned') inner=`${flsel('')}${unassignedPanel(o).replace('class="apg"','class="apg" style="grid-template-columns:1fr"')}`;
  else{
@@ -1041,7 +1096,7 @@ function phone(state,o){
  let over='';
  if(state==='area') over=phoneArea(o,o.pa==='full');
  if(state==='tree') over=`<div class="scrim"></div><div class="sheet"><div class="grab"></div><div style="display:flex;align-items:center;gap:8px"><b style="font-size:var(--sw-fs-lg);color:var(--sw-heading)">קומות ואזורים</b><button class="ib press" style="margin-inline-start:auto" aria-label="סגירה">${I('x',15)}</button></div>${tree(o,'f1',['yd']).replace('class="card tree"','class="tree" style="--sw-tree-w:100%;padding:0"')}</div>`;
- return `<div class="app vp-m${state==='edit'?' editing':''}" style="position:relative"><main class="page"><div class="hbrand">${companyLogo(32,150)}<span class="sp"></span>${swLogo('horizontal',30)}</div>${head}${state==='loading'||state==='empty'?'':view}${inner}</main>${bnav()}${over}</div>`;
+ return `<div class="app vp-m${state==='edit'?' editing':''}" style="position:relative"><main class="page">${state==='logos'?'':`<div class="hbrand">${companyLogo(32,150)}<span class="sp"></span>${swLogo('horizontal',30)}</div>`}${state==='logos'?head.replace('<h1>ראשי</h1>','<h1>הגדרות</h1>'):head}${state==='loading'||state==='empty'||state==='logos'?'':view}${inner}</main>${bnav()}${over}</div>`;
 }
 
 /* ------------------------------------------------ component board ------------------------------------------------ */
@@ -1106,6 +1161,7 @@ const NOTES=[
  ['עריכת המסך','כל ההגדרות החדשות במקום אחד, בפאנל עריכת המסך: אריחי הסיכום, פעולות מהירות לאזור, תריסים, מיזוג, אזור בטלפון ושורת המידע. כל כרטיס מקבל מסגרת מקווקוות בזמן העריכה.'],
  ['כרטיס קומה נבחרת','כשבוחרים קומה, הכרטיס מתרחב לכל הרוחב, השורות בשתי עמודות, והכפתור בתחתית הוא "כל המבנה".'],
  ['לוגואים (סבב 2ב)','כמו במסך החי במחשב ובטאבלט: בפינה לוגו הלקוח, הגלולה עם נקודת המצב והחיפוש, קו דק, ולוגו SmplWise בסוף. בטלפון שורת לוגואים בראש המסך הראשי בלבד: הלקוח בהתחלה, SmplWise בסוף. בסרגל הצד סמל SmplWise. לוגו SmplWise הוא הלוגו המאושר מערכת הלוגו של המפתח, בגוון המותג בבהיר ובלבן בכהה (גרסת הלילה האוטומטית). לוגו הלקוח הוא קובץ הדוגמה מבדיקות המוצר (NAVE), כי הלוגו האמיתי שלך הועלה במתקן ואינו במאגר. בכהה הוא על לוח לבן, ברירת המחדל של המוצר. נקודת המצב ירוקה, אדומה כשאין חיבור ואפורה בטעינה.'],
+ ['לוגואים: הגדרה כללית אחת (סבב 2ג)','הלוגואים אינם הגדרה של מסך. כל מסך וכל מצב מציירים אותם מאותה הגדרה כללית: הגדרות › כללי › מראה המערכת › לוגו ושם המערכת (הכרטיס הקיים, מצב "הגדרת לוגו" בבורר). אין שום אפשרות לוגו בעריכת המסך הראשי. שני הבוררים "הגדרה כללית" למעלה משנים את ההגדרה האחת, וכל המסגרות מתעדכנות יחד. הערכים בהדמיה הם של המתקן שלך (לוגו הלקוח ליד SmplWise); במתקן חדש ברירת המחדל היא תחילת הכותרת.'],
  ['מסך 1366×768','נוסף מסך מחשב נייד 1366×768. אין גלילה בשום מצב, בכרטיסים ובאריחים. כשיש שורת התראה או אין חיבור, כרטיס המולטימדיה מתקפל, כמו בטאבלט.'],
  ['שם המצב בתפריט','בתפריט "תצוגה" כתוב היום כרטיסים / אריחים / תוכנית. בהודעה נכתב "ארכיון"; הנחתי שהכוונה לאריחים. מצב התוכנית לא נכלל בסבב הזה.']
 ];
@@ -1116,6 +1172,7 @@ const SETTINGS=[
  ['תריסים על האריח','אחוז (לחיצה פותחת פתח/עצור/סגור) / שני כפתורים פתח וסגור','אחוז','עריכת המסך הראשי › הגדרות האריח','system.configure','home.tile_blinds'],
  ['מיזוג על האריח','יעד + חדר / רק יעד / רק חדר','יעד + חדר','עריכת המסך הראשי › הגדרות האריח','system.configure','home.tile_climate'],
  ['אזור בטלפון','גיליון מלמטה / מסך מלא','גיליון','החשבון שלי › המסך שלי (גם ברירת מחדל לאתר בעריכת המסך)','אישי: screen.personalize; אתר: system.configure','home.phone_area'],
+ ['לוגואים: SmplWise, לוגו הלקוח, גרסת הלילה (קיים, כללי)','קבצים בהיר/כהה, גודל, גודל לוגו היזם, מיקום, רקע כהה: לוחית / קובץ כהה / היפוך','לוחית; מיקום: תחילת הכותרת','הגדרות › כללי › מראה המערכת › לוגו ושם המערכת. אחת לכל המערכת, לא לכל מסך','system.configure','brand.* (קיים)'],
  ['תצוגת המסך הראשי (קיים)','כרטיסים / אריחים / תוכנית','הקיים היום','תפריט המשתמש › תצוגה','כל משתמש','קיים'],
  ['שורת המידע (קיים)','כרטיסים / פס','הקיים היום','עריכת המסך הראשי','system.configure','ui.home_info']
 ];
@@ -1186,7 +1243,7 @@ function renderQs(){
 
 /* ------------------------------------------------ controller ------------------------------------------------ */
 const qp=new URLSearchParams(location.search);
-let S={mode:qp.get('m')||'cards',state:qp.get('s')||'normal',theme:qp.get('t')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'),vp:qp.get('v')||'tl',bl:qp.get('bl')||'pct',ac:qp.get('ac')||'both',pa:qp.get('pa')||'sheet',info:qp.get('info')||'auto',bare:qp.has('bare')};
+let S={mode:qp.get('m')||'cards',state:qp.get('s')||'normal',theme:qp.get('t')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'),vp:qp.get('v')||'tl',bl:qp.get('bl')||'pct',ac:qp.get('ac')||'both',pa:qp.get('pa')||'sheet',dm:qp.get('dm')||'plate',side:qp.get('side')||'end',info:qp.get('info')||'auto',bare:qp.has('bare')};
 function ctlSeg(id,items,key){const el=document.getElementById(id);el.innerHTML=items.map(([k,l])=>`<button class="press" data-k="${k}" aria-pressed="${S[key]===k}">${l}</button>`).join('');el.onclick=e=>{const b=e.target.closest('button');if(!b)return;S[key]=b.dataset.k;render()}}
 function frameHtml(mode,i){return `<div class="pcol">${S.mode==='both'?`<div class="plab">${MODE_LABEL[mode]}</div>`:''}<div class="frame-wrap" data-fw="${i}"><div class="frame" data-fr="${i}">${screen(mode,S.vp,S.state)}</div></div></div>`}
 function fit(){
@@ -1207,6 +1264,9 @@ function render(){
  ctlSeg('c-bl',[['pct','אחוז'],['btn','שני כפתורים']],'bl');
  ctlSeg('c-ac',[['both','יעד + חדר'],['sp','רק יעד'],['room','רק חדר']],'ac');
  ctlSeg('c-pa',[['sheet','גיליון'],['full','מסך מלא']],'pa');
+ BRAND.darkMode=S.dm;BRAND.side=S.side;
+ ctlSeg('c-dm',[['plate','לוחית'],['file','קובץ כהה'],['invert','היפוך']],'dm');
+ ctlSeg('c-side',[['end','ליד SmplWise'],['start','תחילת הכותרת']],'side');
  const stage=document.getElementById('stage');
  if(S.state==='board'){stage.innerHTML=`<div id="frame">${board()}</div>`}
  else{const modes=S.mode==='both'?['tiles','cards']:[S.mode];stage.innerHTML=`<div class="pairs" id="fw">${modes.map(frameHtml).join('')}</div>`}
@@ -1225,7 +1285,7 @@ document.getElementById('applied').innerHTML='<tr><th>שאלה מסבב 1</th><t
 document.getElementById('settings').innerHTML='<tr><th>הגדרה</th><th>אפשרויות</th><th>ברירת מחדל</th><th>איפה עורכים</th><th>הרשאה</th><th>מפתח מוצע</th></tr>'+SETTINGS.map(r=>`<tr><td class="k">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td><code>${r[5]}</code></td></tr>`).join('');
 const SHOT_STATES=['normal','area','tree','unassigned','alarm','offline','loading','empty','edit'];
 const SHOTS=[];['cards','tiles'].forEach(m=>['light','dark'].forEach(t=>['tl','n','d','tp','m'].forEach(v=>SHOT_STATES.forEach(s=>SHOTS.push([`${m}-${s}-${t}-${v}.png`,`${MODE_LABEL[m]} · ${ST_LABEL[s]} · ${t==='dark'?'כהה':'בהיר'} · ${VPS[v].n}`])))));
-SHOTS.push(['both-normal-light-n.png','זה לצד זה · רגיל · בהיר · מחשב 1366'],['both-normal-light-tl.png','זה לצד זה · רגיל · בהיר · טאבלט 1180'],['both-normal-dark-d.png','זה לצד זה · רגיל · כהה · מחשב'],['cards-area-full-light-m.png','כרטיסים · אזור במסך מלא · טלפון'],['board-light.png','לוח רכיבים · בהיר'],['board-dark.png','לוח רכיבים · כהה']);
+SHOTS.push(['cards-logos-light-n.png','הגדרת לוגו · בהיר · מחשב 1366'],['cards-logos-dark-n.png','הגדרת לוגו · כהה · מחשב 1366'],['cards-logos-light-m.png','הגדרת לוגו · טלפון'],['cards-normal-dark-n-invert.png','כרטיסים · כהה · היפוך צבעים (הגדרה כללית)'],['tiles-normal-light-tl-start.png','אריחים · לוגו הלקוח בתחילת הכותרת (הגדרה כללית)'],['both-normal-light-n.png','זה לצד זה · רגיל · בהיר · מחשב 1366'],['both-normal-light-tl.png','זה לצד זה · רגיל · בהיר · טאבלט 1180'],['both-normal-dark-d.png','זה לצד זה · רגיל · כהה · מחשב'],['cards-area-full-light-m.png','כרטיסים · אזור במסך מלא · טלפון'],['board-light.png','לוח רכיבים · בהיר'],['board-dark.png','לוח רכיבים · כהה']);
 document.getElementById('shots').innerHTML=SHOTS.map(([f,c])=>`<a href="HOME_MOCKUP_R2_2026-10-25_shots/${f}" target="_blank" rel="noopener"><img src="HOME_MOCKUP_R2_2026-10-25_shots/${f}" alt="${c}" loading="lazy" onerror="this.style.display='none'">${c}</a>`).join('');
 renderQs();
 if(S.bare)document.querySelectorAll('.rv > *:not(#stage)').forEach(e=>e.style.display='none');
