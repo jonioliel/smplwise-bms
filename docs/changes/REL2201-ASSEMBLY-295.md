@@ -29,3 +29,7 @@ only the version line changed).
 Not merged (later versions): `pilot/PEERQUERY-295`, `pilot/CAPEMERGENCY-295`, `pilot/LEGALPACK-295`.
 
 TODO for the lead (runner): `www` / `www-public` rebuild, the full gate, browser and pixel specs, tag.
+
+## Addendum (release/2201b)
+
+Base `release/2201` @ `8aa101a4d`, then `--no-ff`: `pilot/FIX2200-295` @ `8b35e887f` (first, owner order), `pilot/QUARANTINE-295` @ `d2b780b22`. Both merged without conflicts; no migration added. `pilot/LOGOFIX-295` was not on origin and is not included.
