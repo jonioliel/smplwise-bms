@@ -280,6 +280,29 @@ def _storage_report_cache_is_per_test():
     storage.invalidate()
 
 
+def _pristine_ha_link() -> dict:
+    from smplwise.services import ha_sync
+
+    return {k: ha_sync.STATE.__dict__.get(k) for k in ("connected", "disconnected_since")}
+
+
+_HA_LINK_AT_IMPORT = _pristine_ha_link()
+
+
+@pytest.fixture(autouse=True)
+def _ha_sync_link_is_per_test():
+    """`ha_sync.STATE` is process-wide and the socket thread never runs in tests, so the link is down unless a test says otherwise.
+    About twenty fixtures set `STATE.connected = True` and never undo it; without this, every later test of the same worker saw a
+    connected mirror (e.g. `test_notices_info_295` read a generator chip as "ok" instead of the honest "off" after `test_alarm`).
+    The flag and its `disconnected_since` stamp are put back to their import-time values (bypassing `__setattr__`, which would
+    stamp a fresh "just lost" instant) before and after each test; a test that needs the link up still sets it itself."""
+    from smplwise.services import ha_sync
+
+    ha_sync.STATE.__dict__.update(_HA_LINK_AT_IMPORT)
+    yield
+    ha_sync.STATE.__dict__.update(_HA_LINK_AT_IMPORT)
+
+
 # ---------------------------------------------------------------- SW_DB_IO_GUARD=1: I/O under the SQLite write lock
 
 if os.environ.get("SW_DB_IO_GUARD") == "1":
