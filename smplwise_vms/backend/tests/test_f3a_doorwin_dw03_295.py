@@ -204,6 +204,25 @@ def test_the_in_flight_cap_refuses_to_send_rather_than_queue(monkeypatch):
     assert de.call_with_deadline(lambda: dwe.DoorOutcome("acknowledged", ""), 1).state == "acknowledged", "the slot is freed when the hung call ends"
 
 
+def test_a_late_hung_call_frees_the_slot_it_took_not_the_current_cap(monkeypatch):
+    """QUARANTINE-295: the hung call of the test above ends after its gate is set - on a busy runner during the next test, which
+    had swapped the cap for a 1-slot one. The late call released the NEW cap (the module global read at release time), so the
+    next call was sent instead of refused `not_sent:lane_full`. A call frees exactly the slot it took."""
+    first = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(de, "_INFLIGHT", first)
+    gate = threading.Event()
+    assert de.call_with_deadline(lambda: gate.wait(10), 0.05).code == "deadline"  # holds the only slot of `first`
+    second = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(de, "_INFLIGHT", second)
+    assert second.acquire(blocking=False)  # the current cap is full
+    gate.set()
+    end, freed = time.monotonic() + 5, False
+    while not freed and time.monotonic() < end:  # waits for the late call's release (event-driven: ends the moment it lands)
+        freed = first.acquire(blocking=False) or time.sleep(0.01) or False
+    assert freed, "the late call freed the slot of the cap it took"
+    assert not second.acquire(blocking=False), "and not a slot of the cap it never took"
+
+
 def test_the_live_transport_timeout_is_inside_the_seam_deadline_and_nothing_was_enabled():
     assert 0 < dwe.WiskeyEmergencyEngine.transport_timeout_s < de.ENGINE_DEADLINE_S
     src = Path(dwe.__file__).read_text(encoding="utf-8")

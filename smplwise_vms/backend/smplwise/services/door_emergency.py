@@ -579,7 +579,8 @@ _INFLIGHT = threading.BoundedSemaphore(INFLIGHT_MAX)
 def call_with_deadline(fn: Any, deadline_s: float) -> dwe.DoorOutcome:
     """DW-03 (3): run one engine call on its own daemon thread and wait at most `deadline_s`. A call that has not answered is UNKNOWN
     `deadline` (never refused, never acknowledged); its late answer is discarded. An exception of the call is raised to the caller."""
-    if not _INFLIGHT.acquire(blocking=False):
+    slots = _INFLIGHT  # the call frees the slot it took, even when the module's cap was replaced meanwhile (a late hung call)
+    if not slots.acquire(blocking=False):
         return dwe.DoorOutcome("unknown", "not_sent:lane_full")
     box: dict[str, Any] = {}
     done = threading.Event()
@@ -590,7 +591,7 @@ def call_with_deadline(fn: Any, deadline_s: float) -> dwe.DoorOutcome:
         except BaseException as exc:  # noqa: BLE001 - handed to the waiting caller
             box["exc"] = exc
         finally:
-            _INFLIGHT.release()
+            slots.release()
             done.set()
 
     threading.Thread(target=run, name="door-emergency-call", daemon=True).start()

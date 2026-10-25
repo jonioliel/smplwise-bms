@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CHROME_SCREENS, openChrome } from './bubble-chrome-screens';
+import { CHROME_SCREENS, gotoChrome, openChrome } from './bubble-chrome-screens';
 
 // 0.1.157 (TASK_QUEUE item 4): the bubble CHROME on the security, device-list, automations-list and settings screens.
 //   1. evidence shots of every screen in tests/bubble-chrome-screens.ts at 390 / 820 / 1440, light and dark, demo mode
@@ -87,8 +87,10 @@ test.describe('bubble lists and chrome', () => {
     expect(await layouts.evaluate((el) => getComputedStyle(el).borderRadius)).toBe('999px');
     const first = layouts.locator('button').first();
     expect(await first.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(38);
-    for (const s of CHROME_SCREENS.filter((x) => x.group !== 'settings')) {
-      await openChrome(page, s, 'light');
+    // one load in the light scheme, then the screens by their route (a reload per screen was 8-11 s each on the dev server)
+    const screens = CHROME_SCREENS.filter((x) => x.group !== 'settings');
+    for (const [k, s] of screens.entries()) {
+      await (k === 0 ? openChrome(page, s, 'light') : gotoChrome(page, s));
       const blurred = await app(page, s.outer).evaluate((host) => {
         const out: string[] = [];
         const walk = (root: ShadowRoot | Element) => {

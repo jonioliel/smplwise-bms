@@ -594,22 +594,28 @@ test.describe('CR-020 S2c hundreds of cameras (mocked backend)', () => {
     await shot(page, 'batch-18-hundreds-confirm');
     await dlg.locator('[data-nvr-confirm]').click();
     const prog = page.locator(PROG);
-    await expect(prog).toHaveAttribute('heading', `0 מתוך ${n}`, { timeout: 20_000 });
+    // QUARANTINE-295: these waits read the attribute (expect.poll + getAttribute) instead of retrying expect(locator).toHaveAttribute.
+    // Playwright 1.63 takes an aria snapshot on EVERY failing retry of a locator assertion, of the whole document.body when the target
+    // host has no box (the sw-dialog host): ~36,000 elements in ~1,900 shadow roots here, 2-5 s of the page's main thread per retry.
+    // The page's own progress poll (a fetch every 1.5 s) could not run in between, so the wait starved the very update it waited for
+    // (measured: page main thread blocked 2-5 s per retry while asserting, never while idle; 6 of 6 local repeats failed).
+    const attr = (l: Locator, name: string, value: string, opts = POLL) => expect.poll(() => l.getAttribute(name), opts).toBe(value);
+    await attr(prog, 'heading', `0 מתוך ${n}`, { timeout: 20_000 });
     expect(batchCalls(bm, 'POST')[0].body.targets).toHaveLength(n);
     const rows = await page.locator(`${PROG} [data-nvr-batch-item]`).count();
     expect(rows).toBeLessThan(40);
     d.run(150);
-    await expect(prog).toHaveAttribute('heading', `150 מתוך ${n}`, POLL);
+    await attr(prog, 'heading', `150 מתוך ${n}`);
     expect(bm.pages).toContain('100,100'); // paged reads: offset 0, 100, 200 (the mock caps the page at 100)
     expect(bm.pages).toContain('200,100');
     // the list follows the camera in flight (a window far below the start)
-    await expect(item(page, 150)).toBeAttached();
+    await expect.poll(() => item(page, 150).count(), POLL).toBe(1);
     d.step('failed'); // camera #151 fails: the list scrolls to it and the header names it
-    await expect(prog).toHaveAttribute('data-state', 'failed', POLL);
-    await expect(item(page, 150)).toBeAttached();
-    await expect(item(page, 150)).toHaveAttribute('data-status', 'refused');
+    await attr(prog, 'data-state', 'failed');
+    await expect.poll(() => item(page, 150).count(), POLL).toBe(1);
+    await attr(item(page, 150), 'data-status', 'refused');
     expect(await page.locator(`${PROG} [data-nvr-batch-item]`).count()).toBeLessThan(40);
-    await expect(prog).toHaveAttribute('subheading', `נשמר ב־150 מצלמות · נכשל במצלמה אחת · לא בוצע ב־${n - 151} מצלמות`);
+    await attr(prog, 'subheading', `נשמר ב־150 מצלמות · נכשל במצלמה אחת · לא בוצע ב־${n - 151} מצלמות`);
     await shot(page, 'batch-19-hundreds-failed');
   });
 });
