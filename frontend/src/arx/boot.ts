@@ -4,7 +4,8 @@
  * shell exactly as under Ingress (same API, same principal model, same screens).
  */
 import { setUnauthorizedHandler } from '../api/client';
-import { ArxAuthError, dropOrphanSeed, loadRemoteConfig, refreshNow, remoteConfig, resume, startBackground, takeSignOutReason } from './auth';
+import { ArxAuthError, dropOrphanSeed, loadRemoteConfig, nativeReasonOf, refreshNow, remoteConfig, resume, startBackground, takeSignOutReason } from './auth';
+import { notifyNativeSignedOut } from './native-app';
 import { mountShell } from './pre-gate';
 import { inAndroidApp } from './android-app';
 import { localMe, welcomeToken } from './local-auth';
@@ -31,7 +32,10 @@ async function startApp(): Promise<void> {
     if (!ok) window.location.reload();
     return ok;
   });
-  startBackground(() => window.location.reload());
+  startBackground((reason) => {
+    notifyNativeSignedOut(nativeReasonOf(reason)); // SX-10: a no-op when logout() already told the shell
+    window.location.reload();
+  });
   mountShell();
 }
 

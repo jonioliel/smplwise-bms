@@ -354,8 +354,12 @@ def session_redeem(request: Request, code: str = Query("", max_length=100)) -> R
     if svc.client_blocked(key):
         raise _too_many()
     failed = Response(status_code=303, headers={**headers, "Location": home + "?app_session=failed"})
-    if (request.headers.get("sec-fetch-site") or "").lower() in CROSS_SITE:  # login CSRF / session fixation from another page
+    site = (request.headers.get("sec-fetch-site") or "").lower()
+    if site in CROSS_SITE:  # login CSRF / session fixation from another page
         svc.failed(key)
+        # SX-27: audited (`auth.app_session.redeem` denied, reason `cross_site`); the answer and the code's state are unchanged
+        with _db(request).connection(label="app_session.redeem_cross_site") as conn:
+            xs.refuse_cross_site(conn, code, site=site, request_id=_rid(request))
         return failed
     with _db(request).connection(label="app_session.redeem") as conn:
         out = xs.redeem(conn, code, origin=_origin(request), meta=hua.request_meta(request), request_id=_rid(request))

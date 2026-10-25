@@ -1,0 +1,43 @@
+{
+  "description": "403 csrf_refused: the native client sent the WebView's session cookie without an Origin; refused by the remote channel before the route (nothing spent; correlation_id empty, no X-Correlation-Id header). Fix the client: no shared cookie store.",
+  "name": "exchange_csrf_refused",
+  "request": {
+    "body": {
+      "device_id": "<DEVICE_ID>",
+      "install_id": "<INSTALL_ID>",
+      "proof": {
+        "nonce": "<NONCE>",
+        "sig": "<SIGNATURE>",
+        "ts": "<UNIX_SECONDS>"
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer <ACCESS_TOKEN>",
+      "Content-Type": "application/json",
+      "Cookie": "arx_session=<SESSION_COOKIE>",
+      "X-Correlation-Id": "0123456789abcdef0123456789abcdef"
+    },
+    "method": "POST",
+    "path": "/arx/api/v1/auth/app/session"
+  },
+  "response": {
+    "body": {
+      "code": "csrf_refused",
+      "correlation_id": "",
+      "details": {
+        "reason": "missing_origin",
+        "required": {
+          "alternative": "Sec-Fetch-Site: same-origin",
+          "header": "Origin",
+          "value": "<scheme>://<host[:port]> of this server, no path"
+        }
+      },
+      "retryable": false,
+      "user_message": "הבקשה נדחתה: היא לא הגיעה מדף של SmplWise Arx."
+    },
+    "headers": {
+      "content-type": "application/json"
+    },
+    "status": 403
+  }
+}

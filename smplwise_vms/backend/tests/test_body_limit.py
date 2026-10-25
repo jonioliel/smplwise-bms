@@ -131,10 +131,10 @@ def _reader(record: dict):
 def test_an_oversized_content_length_is_refused_before_any_byte_is_read(settings):
     record: dict = {}
     mw = bl.BodyLimit(_reader(record), settings)
-    sent, pulled = _run(mw, {"headers": [(b"content-length", str(MiB + 1).encode()), (b"x-correlation-id", b"abc")]}, [b"x" * (MiB + 1)])
+    sent, pulled = _run(mw, {"headers": [(b"content-length", str(MiB + 1).encode()), (b"x-correlation-id", b"abc12345")]}, [b"x" * (MiB + 1)])
     assert _status(sent) == 413 and pulled["n"] == 0 and "called" not in record
     body = _json(sent)
-    assert body == {"code": "payload_too_large", "user_message": body["user_message"], "retryable": False, "correlation_id": "abc",
+    assert body == {"code": "payload_too_large", "user_message": body["user_message"], "retryable": False, "correlation_id": "abc12345",
                     "details": {"max_bytes": MiB, "stage": "request_body", "rule": "default"}}
     assert "1 MB" in body["user_message"]
     headers = dict(sent[0]["headers"])

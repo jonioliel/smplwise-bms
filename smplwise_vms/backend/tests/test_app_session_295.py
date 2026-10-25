@@ -262,6 +262,31 @@ def test_a_cross_site_navigation_cannot_redeem_a_code(rx):
     assert r.headers["location"] == "/arx/" and r.headers.get("set-cookie")
 
 
+def test_sx27_a_cross_site_redeem_refusal_is_audited_without_the_code(rx):
+    dev, out, key = started(rx)
+    code = exchange(rx, out["access_token"], dev["device_id"], sproof(rx, key, dev["device_id"], out["access_token"])).json()["code"]
+    r = redeem(rx, code, headers={"sec-fetch-site": "cross-site", "X-Correlation-Id": "0123456789abcdef"})
+    assert r.status_code == 303 and r.headers["location"] == "/arx/?app_session=failed" and "set-cookie" not in r.headers
+    rows = [a for a in audit_rows(rx, "auth.app_session.redeem") if a["reason"] == "cross_site"]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["decision"] == "denied" and row["resource_type"] == "mobile_device" and row["resource_id"] == dev["device_id"]
+    assert row["request_id"] == "0123456789abcdef"  # linkable to the app's own diagnostic record (SX-25 / SX-17)
+    assert json.loads(row["details_json"]) == {"family": out["family_id"], "sec_fetch_site": "cross-site", "code_known": True}
+    # same-site, an unknown code, and a malformed correlation id (never reflected into the row)
+    redeem(rx, code, headers={"sec-fetch-site": "same-site"})
+    redeem(rx, "arxc_" + "q" * 43, headers={"sec-fetch-site": "cross-site", "X-Correlation-Id": "bad id; x"})
+    rows = [a for a in audit_rows(rx, "auth.app_session.redeem") if a["reason"] == "cross_site"]
+    assert [json.loads(a["details_json"])["sec_fetch_site"] for a in rows] == ["cross-site", "same-site", "cross-site"]
+    anon = rows[-1]
+    assert anon["resource_type"] == "installation" and json.loads(anon["details_json"]) == {"sec_fetch_site": "cross-site", "code_known": False}
+    assert anon["request_id"] != "bad id; x" and len(anon["request_id"]) == 12
+    # the refusal did not spend the code: the app's own navigation still redeems it (behaviour unchanged)
+    ok = redeem(rx, code, headers={"sec-fetch-site": "none"})
+    assert ok.headers["location"] == "/arx/" and ok.headers.get("set-cookie")
+    assert_nothing_leaked(rx)
+
+
 def test_a_code_is_bound_to_the_family_key_and_dies_with_the_family(rx):
     dev, out, key = started(rx)
     code = exchange(rx, out["access_token"], dev["device_id"], sproof(rx, key, dev["device_id"], out["access_token"])).json()["code"]

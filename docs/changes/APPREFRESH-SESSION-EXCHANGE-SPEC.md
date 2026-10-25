@@ -376,6 +376,7 @@ test_the_release_numbers_are_contiguous_and_final` is expected to fail until the
 | X3 inventory and docs: API inventory regeneration, contract v2.2 text in `docs/api/mobile-presence-contract.md`, device-key spec rev 3 | NOT DONE (the client contract is in the handoff package) |
 | X4 security review of the built code | REQUIRED before any switch ON - NOT DONE |
 | X5 frontend bridge hook (`signedIn` / `signedOut`) | separate task |
+| SXFIX-295 (additive): `signedOut({reason})` closed vocabulary, strict `X-Correlation-Id`, official fixtures `contracts/fixtures/app_session/`, audit of a cross-site redeem refusal | built on `pilot/SXFIX-295`; client text in `docs/api/mobile-presence-contract.md` section 10 |
 
 Tests: `smplwise_vms/backend/tests/test_app_session_295.py`.
 

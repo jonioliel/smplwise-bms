@@ -1,0 +1,24 @@
+{
+  "description": "303 to <remote_path>/?app_session=failed, no cookie: the code was spent / expired / unknown or a binding failed (here: a replay). The reason is only in the server audit (linked by X-Correlation-Id). Do not retry in a loop.",
+  "name": "redeem_refused",
+  "request": {
+    "headers": {
+      "Sec-Fetch-Site": "none",
+      "X-Correlation-Id": "0123456789abcdef0123456789abcdef"
+    },
+    "method": "GET",
+    "path": "/arx/api/v1/auth/app/session/redeem",
+    "query": {
+      "code": "<CODE>"
+    }
+  },
+  "response": {
+    "body": null,
+    "headers": {
+      "cache-control": "no-store",
+      "location": "/arx/?app_session=failed",
+      "x-correlation-id": "0123456789abcdef0123456789abcdef"
+    },
+    "status": 303
+  }
+}

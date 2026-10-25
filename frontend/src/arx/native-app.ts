@@ -69,13 +69,45 @@ export function callNative(fn: string, ...args: unknown[]): unknown {
 
 // ---------------------------------------------------------------- sign-in state (a hint to the shell)
 
+/**
+ * SX-09 / SX-10: why the page says nobody is signed in - `signedOut({reason})`. A CLOSED vocabulary (client contract v2.2):
+ * - `user`    the user's own sign-out; sent only after `DELETE /auth/session` answered 2xx or 401;
+ * - `expired` the server said the session is gone (`401 remote_login_required`) without any sign-out intent - the only reason
+ *             that permits the shell's single silent re-exchange;
+ * - `revoked` the sign-in was ended on purpose elsewhere (`401 remote_session_revoked`, the sessions list, an administrator, the
+ *             remote-access policy) - no silent re-exchange;
+ * - `idle`    the page's own idle lock ended the session - no silent re-exchange (it would defeat the lock);
+ * - `unknown` anything else (a failed or unanswered sign-out request included) - no silent re-exchange.
+ * A shell must treat an absent argument, an absent `reason`, or a value outside this list as `unknown`.
+ */
+export type NativeSignOutReason = 'user' | 'expired' | 'revoked' | 'idle' | 'unknown';
+export const NATIVE_SIGN_OUT_REASONS: readonly NativeSignOutReason[] = ['user', 'expired', 'revoked', 'idle', 'unknown'];
+
+/** Pure: the value itself when it is in the closed vocabulary, else `unknown`. */
+export function nativeSignOutReason(v: unknown): NativeSignOutReason {
+  return NATIVE_SIGN_OUT_REASONS.includes(v as NativeSignOutReason) ? (v as NativeSignOutReason) : 'unknown';
+}
+
 let lastSent: string | null | undefined;
+let held = false;
+
+function sendSignedOut(b: NativeBridge, reason: NativeSignOutReason): void {
+  const fn = b.signedOut as Fn;
+  try {
+    fn.call(b, { reason });
+  } catch {
+    // an older shell whose bridge function takes no argument and refuses one (a strict-arity native bridge): call it as before
+    fn.call(b);
+  }
+}
 
 /**
- * Tells the shell who is signed in (`signedIn({user_id})`) or that nobody is (`signedOut()`), once per change. The value
- * is a hint: the shell verifies the identity with the server itself.
+ * Tells the shell who is signed in (`signedIn({user_id})`) or that nobody is (`signedOut({reason})`), once per change. The value
+ * is a hint: the shell verifies the identity with the server itself. While a sign-out is in flight (`holdNativeSession`) nothing
+ * is sent, so a background 401 can never reach the shell as `expired` before the user's own `user`.
  */
-export function syncNativeSession(userId: string | null, w: BridgeHost | null = here()): void {
+export function syncNativeSession(userId: string | null, w: BridgeHost | null = here(), reason: NativeSignOutReason = 'unknown'): void {
+  if (held) return;
   const b = nativeBridge(w);
   if (!b) return;
   if (userId === lastSent) return;
@@ -85,7 +117,7 @@ export function syncNativeSession(userId: string | null, w: BridgeHost | null = 
       (b.signedIn as Fn).call(b, { user_id: userId });
     } else {
       if (!hasFunction(b, 'signedOut')) return;
-      (b.signedOut as Fn).call(b);
+      sendSignedOut(b, nativeSignOutReason(reason));
     }
     lastSent = userId;
   } catch {
@@ -93,9 +125,26 @@ export function syncNativeSession(userId: string | null, w: BridgeHost | null = 
   }
 }
 
+/** `signedOut({reason})` once (no-op when the shell was already told nobody is signed in). */
+export function notifyNativeSignedOut(reason: NativeSignOutReason, w: BridgeHost | null = here()): void {
+  syncNativeSession(null, w, reason);
+}
+
+/** A sign-out started: hold every bridge sign-in hint until `releaseNativeSession` reports its outcome. */
+export function holdNativeSession(): void {
+  held = true;
+}
+
+/** The sign-out finished: tell the shell, with the reason its outcome supports. */
+export function releaseNativeSession(reason: NativeSignOutReason, w: BridgeHost | null = here()): void {
+  held = false;
+  notifyNativeSignedOut(reason, w);
+}
+
 /** Tests only. */
 export function resetNativeSessionForTests(): void {
   lastSent = undefined;
+  held = false;
 }
 
 // ---------------------------------------------------------------- device status

@@ -308,6 +308,26 @@ class Redeemed:
     count_failure: bool = False  # an unknown / spent / lapsed code counts on the client's failure tier
 
 
+CROSS_SITE_VALUES = ("cross-site", "same-site")
+
+
+def refuse_cross_site(conn: sqlite3.Connection, code: str, *, site: str, request_id: str | None) -> None:
+    """SX-27: the audit row of a redeem refused because `Sec-Fetch-Site` was `cross-site` / `same-site` (the 303 to
+    `?app_session=failed` and the code's state are unchanged: a cross-site page neither redeems nor spends it, so the app's own
+    navigation still can). A known code attributes the row to its user / device / family; an unknown or malformed one is recorded
+    against the installation. The row never carries the code, its hash or any header value other than the closed `sec_fetch_site`."""
+    site = site if site in CROSS_SITE_VALUES else "other"
+    row = conn.execute("SELECT user_id, device_id, family_id FROM app_session_codes WHERE code_hash = ?", (code_hash(code),)).fetchone() \
+        if is_code(code) else None
+    if row is not None:
+        audit(conn, actor=ar._system(row["user_id"]), action="auth.app_session.redeem", decision="denied", resource_type="mobile_device",
+              resource_id=row["device_id"], reason="cross_site", request_id=request_id,
+              details={"family": row["family_id"], "sec_fetch_site": site, "code_known": True})
+        return
+    audit(conn, actor=None, action="auth.app_session.redeem", decision="denied", resource_type="installation", resource_id="app_session",
+          reason="cross_site", request_id=request_id, details={"sec_fetch_site": site, "code_known": False})
+
+
 def redeem(conn: sqlite3.Connection, code: str, *, origin: str, meta: dict[str, str], request_id: str | None) -> Redeemed:
     """Spec section 5a, steps 4-9, on a write connection. Never raises for a refusal: the spend of the code must commit."""
     now = _now()

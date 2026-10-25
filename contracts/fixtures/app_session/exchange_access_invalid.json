@@ -1,0 +1,37 @@
+{
+  "description": "401 app_access_invalid: unknown or expired access token - refresh, then exchange ONCE more.",
+  "name": "exchange_access_invalid",
+  "request": {
+    "body": {
+      "device_id": "<DEVICE_ID>",
+      "install_id": "<INSTALL_ID>",
+      "proof": {
+        "nonce": "<NONCE>",
+        "sig": "<SIGNATURE>",
+        "ts": "<UNIX_SECONDS>"
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer <ACCESS_TOKEN>",
+      "Content-Type": "application/json",
+      "X-Correlation-Id": "0123456789abcdef0123456789abcdef"
+    },
+    "method": "POST",
+    "path": "/arx/api/v1/auth/app/session"
+  },
+  "response": {
+    "body": {
+      "code": "app_access_invalid",
+      "correlation_id": "0123456789abcdef0123456789abcdef",
+      "details": {},
+      "retryable": false,
+      "user_message": "הכניסה השמורה באפליקציה אינה תקפה. יש להיכנס מחדש."
+    },
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json",
+      "x-correlation-id": "0123456789abcdef0123456789abcdef"
+    },
+    "status": 401
+  }
+}
