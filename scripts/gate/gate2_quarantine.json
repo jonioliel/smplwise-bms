@@ -1,0 +1,4 @@
+{
+ "_comment": "Gate 2 managed quarantine (GATE2-295, docs/release/GATE_V2.md section 5). A quarantined test ALWAYS runs; when every FAIL of a gate-2 run matches an active entry, release_gate2.sh re-runs only those tests once on the same sha, and a second red is a real FAIL. Each entry: match (substring of the report item id), category (backend|preview|dev|pixel|fixture|*), ticket, owner, added, expires (at most 21 days after added), reason. Candidates: gate2_verdict.py propose. Entries are added by the lead with a ticket; the list starts empty on purpose.",
+ "entries": []
+}
