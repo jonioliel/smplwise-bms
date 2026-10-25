@@ -20,8 +20,8 @@ import './tv.css';
 import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo (developer kit artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
-  AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, HEADERS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlan, gridPlanExtra, headerOf, heldIndex, logoLayoutOf, netOf, nightDim,
-  nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, updatedOf, weatherDaysOf, whenText,
+  AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, HEADERS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlanExtra, headerOf, heldIndex, logoLayoutOf, netOf, nightDim,
+  nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, tickerItemHtml, timeText, tokenFrom, tx, updatedOf, weatherDaysOf, whenText,
   type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type HeaderLayout, type Item, type LogoLayout, type NetState, type Saver, type UpdatedLine,
 } from './tv-logic';
 
