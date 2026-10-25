@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { INFO_STYLE_DEFAULT, PAGE_SIZE_DEFAULT, SCHEDULES_VIEW_DEFAULT, clampPage, pageCount, pageSizeKey, pageSlice, screenDisplayOf } from '../src/api/screen-display';
+import { INFO_STYLE_DEFAULT, PAGE_SIZE_DEFAULT, SCHEDULES_VIEW_DEFAULT, clampPage, fittedPageSize, pageCount, pageSizeKey, pageSlice, screenDisplayOf } from '../src/api/screen-display';
 import { PL_KEYS, PL_TABLES, pl } from '../src/i18n/polish';
 
 // POLISH-295 (owner approval 2026-10-25): the display choices of the polished control screens and the pages of the long lists.
@@ -41,6 +41,13 @@ test('pages: the count, the page clamped into range (a page that vanished falls 
   expect(pageSlice(items, 3, 10)).toEqual([21, 22, 23]);
   expect(pageSlice(items, 9, 10)).toEqual([21, 22, 23]); // after a filter shrank the list
   expect(pageSlice([], 1, 10)).toEqual([]);
+});
+
+test('NOSCROLL-295: the page size setting is the maximum; what fits the screen lowers it, never raises it', () => {
+  expect(fittedPageSize(10, null)).toBe(10); // not measured yet
+  expect(fittedPageSize(10, 6)).toBe(6); // 1366x768: six rows fit
+  expect(fittedPageSize(10, 40)).toBe(10); // a tall window: the setting
+  expect(fittedPageSize(7, 0)).toBe(1); // never an empty page
 });
 
 test('the words: Hebrew, English, Arabic and Russian carry every key; the holes are filled', () => {

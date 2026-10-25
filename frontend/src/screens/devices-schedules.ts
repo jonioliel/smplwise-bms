@@ -6,7 +6,7 @@ import '../components/sw-dialog';
 import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
 import '../components/sw-pager';
-import { PAGE_SIZE_DEFAULT, PAGE_SIZE_MIN, clampPage, loadScreenDisplay, pageCount, pageSlice } from '../api/screen-display';
+import { PAGE_SIZE_DEFAULT, clampPage, fittedPageSize, loadScreenDisplay, measureFitItems, pageCount, pageSlice } from '../api/screen-display';
 import { pl } from '../i18n/polish';
 import './schedule-drawer';
 import type { ScheduleActions } from './schedule-drawer';
@@ -165,7 +165,7 @@ export class DevicesSchedules extends LitElement {
   @state() private defaultView: ListView = 'rows';
   @state() private perPage = PAGE_SIZE_DEFAULT.schedules;
   @state() private page = 1;
-  /** FIX2200: the rows that fit the screen's height in the rows view (null: not measured). The page size setting stays the maximum;
+  /** FIX2200: the schedules that fit the screen's height in the rows view (NOSCROLL-295: and the table and cards views; null: not measured). The page size setting stays the maximum;
    * a shorter window (1366x768, a tablet) takes fewer rows a page instead of scrolling (owner rule: control screens never scroll). */
   @state() private fitRows: number | null = null;
   /** POLISH-295: the selection boxes show only in selection mode (the user menu's "בחירה מרובה") or while something is picked. */
@@ -1153,24 +1153,13 @@ export class DevicesSchedules extends LitElement {
     }
   }
 
-  /** FIX2200: how many rows fit between the top of the rows list and the bottom of the screen, less the pager's band. The list's top
-   * does not depend on how many rows are shown, so the measure is stable (no feedback loop). Only the ungrouped rows view. */
+  /** FIX2200: how many schedules fit between the top of the list and the bottom of the screen, less the pager's band (measureFitItems).
+   * NOSCROLL-295: the rows, the table and the cards views alike (a grid takes whole rows of cards); the ungrouped list only. */
   private measureFit(): void {
-    const list = this.view === 'rows' && !this.filters.group && !this.sub ? this.renderRoot.querySelector<HTMLElement>('[data-sched-rows]') : null;
-    const rows = list ? list.querySelectorAll<HTMLElement>('[data-schedule]') : null;
-    if (!list || !rows || !rows.length || !this.clientHeight) return;
-    const top = list.getBoundingClientRect().top + this.scrollTop;
-    const first = rows[0].getBoundingClientRect();
-    const pitch = rows.length > 1 ? rows[1].getBoundingClientRect().top - first.top : first.height;
-    if (pitch <= 0) return;
-    const chrome = list.getBoundingClientRect().height - rows.length * pitch; // the list's own padding and border
-    const pagerEl = this.renderRoot.querySelector<HTMLElement>('[data-sched-pager]');
-    const pager = pagerEl ? pagerEl.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom : 44;
-    const pageEl = this.renderRoot.querySelector<HTMLElement>('.page');
-    const pad = (pageEl ? parseFloat(getComputedStyle(pageEl).paddingBlockEnd) || 0 : 0) + (parseFloat(getComputedStyle(this).paddingBlockEnd) || 0);
-    const avail = this.getBoundingClientRect().top + this.clientHeight - top - chrome - pager - pad;
-    const fit = Math.max(PAGE_SIZE_MIN, Math.floor(avail / pitch));
-    if (fit !== this.fitRows) this.fitRows = fit;
+    const sel = this.view === 'rows' ? '[data-sched-rows]' : this.view === 'table' ? '[data-sched-table]' : this.view === 'cards' ? '[data-sched-grid]' : '';
+    const list = sel && !this.filters.group && !this.sub ? this.renderRoot.querySelector<HTMLElement>(sel) : null;
+    const fit = measureFitItems({ host: this, list, itemSelector: '[data-schedule]', pager: this.renderRoot.querySelector<HTMLElement>('[data-sched-pager]'), padded: [this.renderRoot.querySelector<HTMLElement>('.page')] });
+    if (fit !== null && (this.fitRows === null || fit < this.fitRows)) this.fitRows = fit; // only ever smaller until a reset (no oscillation)
   }
 
   private onResize = () => {
@@ -1451,6 +1440,7 @@ export class DevicesSchedules extends LitElement {
   private setView(v: ListView) {
     this.view = v;
     this.page = 1;
+    this.fitRows = null; // NOSCROLL-295: each view has its own item height
     writeStored(VIEW_KEY, v);
     this.syncUrl();
   }
@@ -1807,8 +1797,8 @@ export class DevicesSchedules extends LitElement {
     // POLISH-295: one page at a time (control screens never scroll): the sorted list is cut to the page, then grouped
     const sorted = sortSchedules(rows, this.filters.sort);
     const setting = this.phone ? this.perPage.phone : this.perPage.wide;
-    // FIX2200: the rows view takes no more rows than fit the screen's height (measureFit); the setting is the maximum
-    const per = this.view === 'rows' && !this.filters.group && this.fitRows !== null ? Math.min(setting, this.fitRows) : setting;
+    // FIX2200 / NOSCROLL-295: the rows, table and cards views take no more than fit the screen's height (measureFit); the setting is the maximum
+    const per = !this.filters.group ? fittedPageSize(setting, this.fitRows) : setting;
     const pages = pageCount(sorted.length, per);
     const page = clampPage(this.page, sorted.length, per);
     const groups = groupSchedules(pageSlice(sorted, page, per), this.filters.group);

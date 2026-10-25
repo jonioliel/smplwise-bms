@@ -54,7 +54,7 @@ async function open(page: Page, hash: string, size: Size = '1440', control: Cont
     }
   }, control.view ?? 'cards');
   await page.goto('about:blank');
-  await page.goto(`/?design=a#${hash}`);
+  await page.goto(`/?design=a&fit=off#${hash}`);
   await page.waitForSelector('sw-app');
 }
 
@@ -996,7 +996,7 @@ async function openApi(page: Page, hash: string, size: Size = '1440') {
     }
   });
   await page.goto('about:blank');
-  await page.goto(`/?design=a#${hash}`);
+  await page.goto(`/?design=a&fit=off#${hash}`);
   await page.waitForSelector('sw-app');
   await page.waitForTimeout(600);
 }
