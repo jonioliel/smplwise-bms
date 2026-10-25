@@ -58,6 +58,10 @@ test.describe('the plan in the map band of a portrait wall (mocked backend)', ()
         await expect(stills(page)).toHaveCount(1);
         await expect(band(page).locator('sw-plan-3d')).toHaveCount(0);
       } else {
+        // QUARANTINE-295: the band draws sw-plan-3d only once its lazy module (three.js with it, fetched when a live view is wanted)
+        // has loaded; until then it shows the stills. A cold chunk in a fresh browser on a busy runner took longer than the default
+        // 5 s of the count below. Wait for exactly that precondition (the element's definition, event-driven), then the count holds.
+        await page.evaluate(() => customElements.whenDefined('sw-plan-3d'));
         await expect(live(page)).toHaveCount(1);
         await expect(live(page)).toHaveAttribute('data-ready', '', { timeout: 30_000 });
       }

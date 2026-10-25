@@ -122,8 +122,17 @@ test('the level-3 graph is deterministic after a full rebuild from an equal desc
   const a = await graph(el);
   const pixels = await el.evaluate((n) => (n as unknown as Probe).capture());
   const builds = await el.evaluate((n) => (n as unknown as Probe).view.buildCount);
-  await setDescription(el, JSON.parse(JSON.stringify(desc)) as SceneDescription);
-  await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.buildCount)).toBeGreaterThan(builds);
+  // QUARANTINE-295: the rebuild runs synchronously inside the element's update (scene-three setDescription counts it first), and the
+  // level-3 graph plus its first SwiftShader frame keep the page's main thread busy for seconds on a loaded machine - a polled read
+  // of buildCount waited behind that work (one read took 6.7 s, past the poll's 5 s) although the count had already moved. Read it
+  // when the update the new description started has completed: no clock in the way.
+  const rebuilt = await el.evaluate(async (n, d) => {
+    const e = n as unknown as Probe & { updateComplete: Promise<boolean> };
+    e.description = d;
+    await e.updateComplete;
+    return e.view.buildCount;
+  }, JSON.parse(JSON.stringify(desc)) as SceneDescription);
+  expect(rebuilt).toBeGreaterThan(builds);
   await page.waitForTimeout(600);
   const b = await graph(el);
   expect(b.length).toBe(a.length);

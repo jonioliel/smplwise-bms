@@ -27,6 +27,16 @@ from ..config import Settings
 from ..errors import ApiError
 
 log = logging.getLogger("smplwise.go2rtc")
+
+
+def _verify():
+    """httpx's default verification, built once and shared with the NVR client (nvr._ssl_context): a client built without it
+    loads the CA bundle again (QUARANTINE-295: 1.4 s per client under load, two clients per health probe of go2rtc)."""
+    from .nvr import _ssl_context
+
+    return _ssl_context()
+
+
 STREAM_PREFIX = "smplwise_"
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
@@ -170,7 +180,7 @@ class Go2rtc:
         self.auth = (settings.go2rtc_user, settings.go2rtc_password) if settings.go2rtc_user else None
 
     def _client(self) -> httpx.Client:
-        return httpx.Client(base_url=self.base, auth=self.auth, timeout=6.0)
+        return httpx.Client(base_url=self.base, auth=self.auth, timeout=6.0, verify=_verify())
 
     def _wrap(self, exc: httpx.HTTPError, what: str) -> ApiError:
         return ApiError(503, "media_unavailable", "go2rtc אינו זמין כרגע.", retryable=True, details={"op": what, "error": type(exc).__name__})
@@ -247,7 +257,7 @@ class Go2rtc:
         body = bytearray()
         too_large = False
         try:
-            with httpx.Client(base_url=self.base, auth=self.auth, timeout=20.0) as c:
+            with httpx.Client(base_url=self.base, auth=self.auth, timeout=20.0, verify=_verify()) as c:
                 with c.stream("GET", "/api/frame.jpeg", params=params) as r:
                     status = r.status_code
                     if status == 200:

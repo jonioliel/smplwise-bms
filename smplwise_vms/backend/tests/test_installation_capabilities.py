@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 
 from smplwise import capabilities as capmod
 from smplwise.db import now_iso
-from smplwise.main import create_app
+from smplwise.main import create_app, warm_route_tables
 from smplwise.mode import FULL, HA_ONLY, installation_mode
 from smplwise.services import autosync, bridge_install, ha_sync
 from smplwise.services import setup_wizard as wizard
@@ -292,6 +292,10 @@ def _expect(combo: str, needs: tuple[str, ...]) -> str | None:
 def test_route_sweep(combo, settings, monkeypatch, fake):
     app = create_app(combo_settings(settings, combo, "up", monkeypatch))
     leftover_camera(app)
+    # QUARANTINE-295: FastAPI builds each included router's route table on the first request that walks past it; /health was
+    # the first request past most of the ~1570 routes and paid that whole one-time build (2.3 s on the runner). The product
+    # warms the tables before it listens (python -m smplwise); the sweep does the same, so it times the route, not the framework.
+    warm_route_tables(app)
     c = TestClient(app)
     c.get("/api/v1/me")  # the first request of a fresh app (bootstrap grant) is not what is measured
     for method, path, body, needs in ROUTES:
