@@ -281,6 +281,7 @@ class _Registry:
         self.epoch_lease: dict[str, int] = {}
         self.live: dict[str, LiveLease] = {}
         self.ended: dict[str, float] = {}  # lease ref -> monotonic time Arx ended it (bounded; review M2)
+        self.emergency_done: set[str] = set()  # incident ids whose emergency revoke was already queued (CAPEMERGENCY-295)
         self.triggers: "queue.SimpleQueue[Trigger]" = queue.SimpleQueue()
         self.wake: Callable[[], None] = lambda: None  # set by the lease worker
 
@@ -326,6 +327,7 @@ class _Registry:
             self.epoch_lease.clear()
             self.live.clear()
             self.ended.clear()
+            self.emergency_done.clear()
             self.triggers = queue.SimpleQueue()
 
 
@@ -421,6 +423,40 @@ def on_authority_change(reason: str, *, user_ids: Iterable[str] | None = None, s
             GUARDS.degraded = True
         except Exception:  # noqa: BLE001
             pass
+        return 0
+
+
+EMERGENCY_AUDIT = "intercom.capture_lease.emergency_cancel"
+
+
+def on_emergency_open(conn: sqlite3.Connection, incident_id: str) -> int:
+    """CAPEMERGENCY-295 (trigger T10 of CR-WISKEY-LEASE-REVOCATION-EVENT): a real (not drill) emergency OPEN incident revokes every
+    live capture lease with the reason `emergency`, scope `all` - a card capture never continues through an evacuation.
+
+    Behind the existing capture flags: while the lease route is off (`access.capture_lease` off, no go-live permit, no bridge that
+    offers `lease_event`) it does nothing at all. Idempotent per incident (in memory, and the audit row survives a restart): a
+    second call for the same incident queues nothing. With no live lease nothing is sent and nothing is audited; the epochs still
+    move, so a capture start decided before the incident can no longer be issued. Never raises: a failure here must never delay or
+    block the emergency open (the caller calls it after the open is committed and submitted). Returns the triggers queued."""
+    try:
+        if not isinstance(incident_id, str) or not incident_id:
+            return 0
+        if not route_on(conn):
+            return 0
+        resource = f"emergency:{incident_id}"
+        with REG.lock:
+            if incident_id in REG.emergency_done:
+                return 0
+            REG.emergency_done.add(incident_id)
+        if conn.execute("SELECT 1 FROM audit_log WHERE action = ? AND resource_id = ? LIMIT 1", (EMERGENCY_AUDIT, resource)).fetchone():
+            return 0
+        live = len(live_refs())
+        queued = on_authority_change("emergency", all=True)
+        if queued:
+            _audit(conn, EMERGENCY_AUDIT, resource, {"incident_id": incident_id, "live_leases": live, "scope": "all", "triggers": queued}, reason="emergency")
+        return queued
+    except Exception:  # noqa: BLE001 - the emergency open never waits for, or fails with, the lease route
+        log.exception("capture lease: the emergency revoke for incident %s failed; the lease worker reconciles on its next tick", incident_id)
         return 0
 
 

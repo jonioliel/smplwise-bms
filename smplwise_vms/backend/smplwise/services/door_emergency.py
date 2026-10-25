@@ -802,6 +802,23 @@ def _notify_released(conn: sqlite3.Connection, incident_id: str) -> None:
                                     params=_params(conn, row), origin={"incident_id": incident_id}))
 
 
+def cancel_capture_leases(db: Database, incident_id: str) -> int:
+    """CAPEMERGENCY-295: after a real emergency OPEN is committed and submitted, every live door-station card-capture lease is revoked
+    with the reason `emergency` (capture_lease.on_emergency_open: behind the capture flags, idempotent per incident, audited). A drill or a
+    LOCK never reaches it. Never raises - a failure here never blocks or undoes the open. Returns the lease triggers queued."""
+    try:
+        from . import capture_lease as cl
+
+        with db.connection() as conn:
+            row = incident_row(conn, incident_id)
+            if row is None or row["drill"] or row["kind"] != "open":
+                return 0
+            return cl.on_emergency_open(conn, incident_id)
+    except Exception:  # noqa: BLE001 - the open has already gone out; the lease route reconciles on its own
+        log.exception("door emergency: the capture-lease cancel for incident %s failed", incident_id)
+        return 0
+
+
 def pause_windows_for_lock(db: Database, settings: Any, incident_id: str) -> None:
     """A LOCK also pauses every Arx program of its doors (until the release): the close direction, through the window engine."""
     with db.connection(mode="read") as conn:
