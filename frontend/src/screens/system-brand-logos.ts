@@ -12,6 +12,10 @@ import {
   DARK_MODES,
   LOGO_SCALE,
   LOGO_SIZES,
+  LOGO_SIDES,
+  COMPANY_SIZES,
+  type LogoSide,
+  type CompanySize,
   TITLE_MODES,
   brandFromView,
   brandLogo,
@@ -33,6 +37,8 @@ const ACCEPT = 'image/png,image/svg+xml,image/webp,image/jpeg,.png,.svg,.webp,.j
 /** The values an administrator edits before saving (the logo FILES are saved the moment they are uploaded). */
 interface Draft {
   size: LogoSize;
+  logoSide: LogoSide;
+  companySize: CompanySize;
   darkMode: DarkMode;
   companyName: string;
   kind: CompanyKind;
@@ -41,7 +47,7 @@ interface Draft {
   titleMode: TitleMode;
 }
 
-const draftOf = (b: BrandLogoState): Draft => ({ size: b.size, darkMode: b.darkMode, companyName: b.companyName, kind: b.kind, projectName: b.projectName, titlePrefix: b.titlePrefix, titleMode: b.titleMode });
+const draftOf = (b: BrandLogoState): Draft => ({ size: b.size, logoSide: b.logoSide, companySize: b.companySize, darkMode: b.darkMode, companyName: b.companyName, kind: b.kind, projectName: b.projectName, titlePrefix: b.titlePrefix, titleMode: b.titleMode });
 
 /**
  * הגדרות › כללי › מראה המערכת › לוגו ושם המערכת (CR-LOGOS295, the approved mockup v3.1). One tabbed card that never scrolls inside:
@@ -412,8 +418,20 @@ export class SystemBrandLogos extends LitElement {
       background: #151c2c;
       border: 1px solid #232e45;
     }
+    /* LOGOSIDE-295: the stub stands for the page title: side start = the logos take the start of the row before the title, side end = the title
+       takes the start and the logos sit beside the SmplWise logo */
+    .mini .ttl {
+      flex: none;
+      inline-size: 34px;
+      block-size: 8px;
+      border-radius: var(--sw-r-pill);
+      background: #8896af;
+      opacity: 0.45;
+    }
+    .mini .sp {
+      flex: 1;
+    }
     .mini .pill {
-      margin-inline-start: auto;
       inline-size: 44px;
       block-size: 20px;
       border-radius: var(--sw-r-pill);
@@ -500,7 +518,7 @@ export class SystemBrandLogos extends LitElement {
 
   /** the draft as the placements draw it (the unsaved choice; the files are the saved ones) */
   private get previewState(): Partial<BrandLogoState> {
-    return { companyName: this.draft.companyName, size: this.draft.size, darkMode: this.draft.darkMode, files: this.saved.files };
+    return { companyName: this.draft.companyName, size: this.draft.size, companySize: this.draft.companySize, darkMode: this.draft.darkMode, files: this.saved.files };
   }
 
   private async save() {
@@ -509,11 +527,11 @@ export class SystemBrandLogos extends LitElement {
     try {
       if (isApi()) {
         const d = this.draft;
-        const r = await putBrand({ company_name: d.companyName, company_kind: d.kind, logo_size: d.size, dark_mode: d.darkMode, title_prefix: d.titlePrefix, title_mode: d.titleMode, project_name: d.projectName });
+        const r = await putBrand({ company_name: d.companyName, company_kind: d.kind, logo_size: d.size, logo_side: d.logoSide, company_logo_size: d.companySize, dark_mode: d.darkMode, title_prefix: d.titlePrefix, title_mode: d.titleMode, project_name: d.projectName });
         this.adopt(r);
       } else {
         this.saved = { ...this.saved, ...this.draft };
-        setBrandView({ company: { name: this.saved.companyName, kind: this.saved.kind, logo: this.saved.files, logo_file: this.saved.files }, size: this.saved.size, dark_mode: this.saved.darkMode, title: { prefix: this.saved.titlePrefix, mode: this.saved.titleMode }, project: { name: this.saved.projectName } });
+        setBrandView({ company: { name: this.saved.companyName, kind: this.saved.kind, logo: this.saved.files, logo_file: this.saved.files }, size: this.saved.size, logo_side: this.saved.logoSide, company_logo_size: this.saved.companySize, dark_mode: this.saved.darkMode, title: { prefix: this.saved.titlePrefix, mode: this.saved.titleMode }, project: { name: this.saved.projectName } });
       }
       this.flash(t('brandLogos.saved'));
     } catch (err) {
@@ -584,7 +602,7 @@ export class SystemBrandLogos extends LitElement {
       <span class="muted">${t(dark ? 'brandLogos.darkRules' : 'brandLogos.rules')}</span>
       ${meta && stored
         ? html`<div class=${`tile ${dark ? 'dark' : 'light'}`} data-logo-preview=${variant}>
-              <sw-brand kind="company" .h=${48} .maxw=${220} scheme=${dark ? 'dark' : 'light'} .previewMode=${dark ? 'file' : 'plate'} .previewState=${{ files: dark ? { light: null, dark: stored } : { light: stored, dark: null }, companyName: this.draft.companyName }} .previewSize=${'m'}></sw-brand>
+              <sw-brand kind="company" .h=${48} .maxw=${220} scheme=${dark ? 'dark' : 'light'} .previewMode=${dark ? 'file' : 'plate'} .previewState=${{ files: dark ? { light: null, dark: stored } : { light: stored, dark: null }, companyName: this.draft.companyName, companySize: 'same' }} .previewSize=${'m'}></sw-brand>
             </div>
             <div class="meta"><span class="ltr">${meta.mime === 'image/svg+xml' ? 'SVG' : 'PNG'} · ${Math.max(1, Math.round(meta.bytes / 1024))} KB · ${meta.width}×${meta.height}</span>${meta.uploaded_by ? html`<span>· ${t('brandLogos.uploadedBy')} ${meta.uploaded_by}</span>` : nothing}</div>`
         : html`<div class=${`drop ${this.dragOver === variant ? 'over' : ''}`} data-logo-drop=${variant} tabindex=${this.canEdit ? 0 : -1}
@@ -609,6 +627,7 @@ export class SystemBrandLogos extends LitElement {
   private renderLook() {
     const d = this.draft;
     const sc = LOGO_SCALE[d.size];
+    const csc = LOGO_SCALE[d.companySize === 'same' ? d.size : d.companySize];
     const noDark = d.darkMode === 'file' && !this.saved.files.dark;
     return html`<div class="fld"><span class="lbl">${t('brandLogos.sizeLabel')}<span class="muted">${t('brandLogos.sizeHint')}</span></span>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -617,10 +636,21 @@ export class SystemBrandLogos extends LitElement {
           </span>
           <span class="muted ltr" data-logo-size-px>${Math.round(36 * sc)}px · ${Math.round(28 * sc)}px</span>
         </div></div>
+      <div class="fld"><span class="lbl">${t('brandLogos.companySizeLabel')}<span class="muted">${t('brandLogos.companySizeHint')}</span></span>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span class="seg" role="group" aria-label=${t('brandLogos.companySizeLabel')} data-logo-company-size>
+            ${COMPANY_SIZES.map((s) => html`<button type="button" aria-pressed=${d.companySize === s ? 'true' : 'false'} data-company-size=${s} ?disabled=${!this.canEdit} @click=${() => this.set('companySize', s)}>${t(s === 'same' ? 'brandLogos.csize_same' : (`brandLogos.size_${s}` as I18nKey))}</button>`)}
+          </span>
+          <span class="muted ltr" data-logo-company-size-px>${Math.round(34 * csc)}px</span>
+        </div></div>
+      <div class="fld"><span class="lbl">${t('brandLogos.sideLabel')}<span class="muted">${t('brandLogos.sideHint')}</span></span>
+        <span class="seg" role="group" aria-label=${t('brandLogos.sideLabel')} data-logo-side>
+          ${LOGO_SIDES.map((s) => html`<button type="button" aria-pressed=${d.logoSide === s ? 'true' : 'false'} data-side=${s} ?disabled=${!this.canEdit} @click=${() => this.set('logoSide', s)}>${t(`brandLogos.side_${s}` as I18nKey)}</button>`)}
+        </span></div>
       <div class="fld"><span class="lbl">${t('brandLogos.darkLabel')}<span class="muted">${t('brandLogos.darkHint')}</span></span>
         <div class="opts" role="group" aria-label=${t('brandLogos.darkLabel')} data-logo-darkmode>
           ${DARK_MODES.map((m) => html`<button type="button" class="opt" aria-pressed=${d.darkMode === m ? 'true' : 'false'} data-dark-mode=${m} ?disabled=${!this.canEdit} @click=${() => this.set('darkMode', m)}>
-            <span class="tile dark"><sw-brand kind="company" .h=${26} .maxw=${150} scheme="dark" .previewMode=${m} .previewSize=${'m'} .previewState=${{ files: this.saved.files, companyName: d.companyName }}></sw-brand></span>
+            <span class="tile dark"><sw-brand kind="company" .h=${26} .maxw=${150} scheme="dark" .previewMode=${m} .previewSize=${'m'} .previewState=${{ files: this.saved.files, companyName: d.companyName, companySize: 'same' }}></sw-brand></span>
             <b>${t(`brandLogos.mode_${m}` as I18nKey)}${m === 'plate' ? html`<span class="chip ok">${t('brandLogos.recommended')}</span>` : nothing}</b>
             <span class="d">${t(`brandLogos.mode_${m}_d` as I18nKey)}</span></button>`)}
         </div>
@@ -654,9 +684,11 @@ export class SystemBrandLogos extends LitElement {
 
   private renderMini(scheme: 'light' | 'dark') {
     const cls = scheme === 'light' ? 'l' : 'd';
-    return html`<div><div class=${`mini ${cls}`} data-logo-mini=${scheme}><div class="bar">
-        <sw-brand kind="company" .h=${20} .maxw=${120} scheme=${scheme} decorative .previewMode=${this.draft.darkMode} .previewSize=${this.draft.size} .previewState=${this.previewState}></sw-brand>
-        <span class="pill"></span><sw-brand kind="product" .h=${24} scheme=${scheme} decorative .previewSize=${this.draft.size}></sw-brand></div>
+    const company = html`<sw-brand kind="company" .h=${20} .maxw=${64} scheme=${scheme} decorative .previewMode=${this.draft.darkMode} .previewSize=${this.draft.size} .previewState=${this.previewState}></sw-brand>`;
+    const start = this.draft.logoSide === 'start';
+    return html`<div><div class=${`mini ${cls}`} data-logo-mini=${scheme}><div class="bar" data-side=${this.draft.logoSide}>
+        ${start ? html`${company}<i class="ttl"></i><span class="sp"></span>` : html`<i class="ttl"></i><span class="sp"></span>${company}`}
+        <span class="pill"></span><sw-brand kind="product" .h=${18} scheme=${scheme} decorative .previewSize=${this.draft.size}></sw-brand></div>
         <div class="body"><i></i><i></i><i></i></div></div>
       <span class="cap">${t(scheme === 'light' ? 'brandLogos.previewLightCap' : 'brandLogos.previewDarkCap')}</span></div>`;
   }

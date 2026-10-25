@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { customElement, property, state } from 'lit/decorators.js';
 import { onDesign, resolvedTheme } from '../design/apply';
-import { brandLogo, chooseCompanyLogo, companyLogoUrl, installerLogoUrl, logoScale, onBrandLogo, type BrandLogoState, type DarkMode, type LogoSize } from '../design/brand-logo';
+import { brandLogo, chooseCompanyLogo, companyLogoUrl, installerLogoUrl, companyScale, logoScale, onBrandLogo, type BrandLogoState, type DarkMode, type LogoSize } from '../design/brand-logo';
 import { swLogoSvg, type SwLayout } from '../design/sw-logo-art';
 import { t } from '../i18n/he';
 
@@ -107,7 +107,9 @@ export class SwBrand extends LitElement {
 
   render() {
     const b: BrandLogoState = { ...this.brand, ...(this.previewState ?? {}) };
-    const scale = logoScale(this.previewSize ?? b.size);
+    // LOGOSIDE-295: the company / installer logo may carry its own scale (`companySize`); the SmplWise logo always follows the general one
+    const general = this.previewSize ?? b.size;
+    const scale = this.kind === 'product' ? logoScale(general) : companyScale(general, b.companySize);
     const h = Math.round(this.h * scale * 10) / 10;
     const style = `--_h:${h}px;${this.maxw ? `--_w:${Math.round(this.maxw * scale)}px` : ''}`;
     const dark = (this.scheme === 'auto' ? this.theme : this.scheme) === 'dark';

@@ -3,7 +3,8 @@ the dark-background behaviour and the browser-tab title (הגדרות › כלל
 
 Two kinds of data live here:
 - `brand.*` settings (rows of `settings`, carried by the project backup): company name / kind, the stamps of the stored logos,
-  `brand.logo_size` (s | m | l | xl), `brand.dark_mode` (plate | file | invert), `brand.title.prefix`, `brand.title.mode`
+  `brand.logo_size` (s | m | l | xl), `brand.company_logo_size` (same | s | m | l | xl: the company / installer logo's own scale), `brand.logo_side` (start | end: which side of the top header
+  the company / installer logos take), `brand.dark_mode` (plate | file | invert), `brand.title.prefix`, `brand.title.mode`
   (both | dev | project) and `brand.project.name`;
 - the `brand_assets` table (migration 0166): the normalised image of each (kind, variant) as base64 text, so the
   backup carries it too.
@@ -36,6 +37,8 @@ OUT_MAX_PX = 1200
 ASPECT_WARN = 6.0
 SIZES = ("s", "m", "l", "xl")
 SCALE = {"s": 0.75, "m": 1.0, "l": 1.25, "xl": 1.5}
+COMPANY_SIZES = ("same",) + SIZES  # LOGOSIDE-295: the company (and installer) logo's own scale; "same" = follow logo_size
+SIDES = ("start", "end")  # LOGOSIDE-295: start = the inline-start of the header (right in RTL), end = beside the SmplWise logo in the corner
 DARK_MODES = ("plate", "file", "invert")
 TITLE_MODES = ("both", "dev", "project")
 COMPANY_KINDS = ("developer", "management", "other")
@@ -46,6 +49,8 @@ K_NAME = "brand.company.name"
 K_KIND = "brand.company.kind"
 K_LOGO = "brand.company.logo"
 K_SIZE = "brand.logo_size"
+K_SIDE = "brand.logo_side"
+K_CSIZE = "brand.company_logo_size"
 K_DARK = "brand.dark_mode"
 K_PREFIX = "brand.title.prefix"
 K_MODE = "brand.title.mode"
@@ -56,6 +61,8 @@ DEFAULTS: dict[str, str] = {
     K_KIND: "developer",
     K_LOGO: '{"light":null,"dark":null}',
     K_SIZE: "m",
+    K_SIDE: "start",
+    K_CSIZE: "same",
     K_DARK: "plate",
     K_PREFIX: "Smplwise Arx",
     K_MODE: "both",
@@ -185,6 +192,14 @@ def normalise_setting(key: str, value: Any) -> str:
         if value not in SIZES:
             raise ValueError("size")
         return str(value)
+    if key == K_CSIZE:
+        if value not in COMPANY_SIZES:
+            raise ValueError("company_size")
+        return str(value)
+    if key == K_SIDE:
+        if value not in SIDES:
+            raise ValueError("side")
+        return str(value)
     if key == K_DARK:
         if value not in DARK_MODES:
             raise ValueError("dark_mode")
@@ -283,6 +298,8 @@ def full_view(conn: sqlite3.Connection) -> dict[str, Any]:
         "installer": white_label.public_view(conn),
         "company": {"name": _stored(conn, K_NAME), "kind": _stored(conn, K_KIND, COMPANY_KINDS), "logo": st, "logo_file": logo_files(conn)},
         "size": _stored(conn, K_SIZE, SIZES),
+        "logo_side": _stored(conn, K_SIDE, SIDES),
+        "company_logo_size": _stored(conn, K_CSIZE, COMPANY_SIZES),
         "dark_mode": _stored(conn, K_DARK, DARK_MODES),
         "title": {"prefix": _stored(conn, K_PREFIX) or DEFAULTS[K_PREFIX], "mode": _stored(conn, K_MODE, TITLE_MODES)},
         "project": {"name": _stored(conn, K_PROJECT)},

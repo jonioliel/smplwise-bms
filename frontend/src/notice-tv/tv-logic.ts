@@ -78,7 +78,7 @@ export const CYCLE_WASH_MS = 600_000;
 export const AMBIENT_SPOTS: readonly (readonly [number, number])[] = [[10, 14], [52, 8], [62, 46], [36, 62], [12, 40], [48, 26], [24, 64], [58, 20]];
 
 export interface Feed {
-  board: { name: string; slug: string; version: number; display: Display; building: string; tz: string; logos: { company?: string; company_dark?: string }; /** CR-LOGOS295: how the TV draws the company logo (absent without one) */ brand?: { size: 's' | 'm' | 'l' | 'xl'; dark_mode: 'plate' | 'file' | 'invert'; name: string } };
+  board: { name: string; slug: string; version: number; display: Display; building: string; tz: string; logos: { company?: string; company_dark?: string }; /** CR-LOGOS295: how the TV draws the company logo (absent without one) */ brand?: { size: 's' | 'm' | 'l' | 'xl'; company_size?: 's' | 'm' | 'l' | 'xl'; dark_mode: 'plate' | 'file' | 'invert'; name: string } };
   now: string;
   notices: FeedNotice[];
   weather?: { now: { t: number; condition: string; text: string }; hours: { at: string; t: number; condition: string }[] };

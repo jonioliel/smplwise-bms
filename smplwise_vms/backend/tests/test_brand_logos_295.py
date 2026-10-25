@@ -192,19 +192,40 @@ def test_defaults_then_settings_validation_and_audit(settings):
                        "installer": {"enabled": False}}  # WHITELABEL097-295: the installer profile is off by default
         full = c.get("/api/v1/brand").json()
         assert full["title"] == {"prefix": "Smplwise Arx", "mode": "both"} and full["company"]["kind"] == "developer" and full["project"] == {"name": ""}
+        assert full["company_logo_size"] == "same", "LOGOSIDE-295: the company logo follows the general scale unless chosen"
+        assert full["logo_side"] == "start", "LOGOSIDE-295: the company / installer logos default to the start of the header"
         r = c.put("/api/v1/brand", json={"company_name": "  נווה   הירדן ", "company_kind": "management", "logo_size": "xl", "dark_mode": "file", "title_prefix": "Arx",
                                          "title_mode": "dev", "project_name": "מגדל A"})
         assert r.status_code == 200, r.text
         v = r.json()
         assert v["company"]["name"] == "נווה הירדן" and v["company"]["kind"] == "management" and v["size"] == "xl" and v["dark_mode"] == "file"
         assert v["title"] == {"prefix": "Arx", "mode": "dev"} and v["project"]["name"] == "מגדל A"
-        for bad in ({"logo_size": "xxl"}, {"dark_mode": "neon"}, {"title_mode": "none"}, {"company_kind": "x"}, {"company_name": "x" * 61}, {"title_prefix": "  "},
+        for bad in ({"logo_size": "xxl"}, {"logo_side": "left"}, {"company_logo_size": "xxl"}, {"company_logo_size": ""}, {"logo_side": ""}, {"dark_mode": "neon"}, {"title_mode": "none"}, {"company_kind": "x"}, {"company_name": "x" * 61}, {"title_prefix": "  "},
                     {"project_name": "a\nb"}, {"nope": 1}):
             assert c.put("/api/v1/brand", json=bad).status_code == 422, bad
         assert c.get("/api/v1/brand").json()["size"] == "xl", "a refused value changes nothing"
         with app.state.db.connection() as conn:
             acts = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'brand.%' AND decision = 'allowed'").fetchall()]
         assert "brand.company.update" in acts
+
+
+def test_logo_side_setting_roundtrip_me_and_corrupt_value(settings):
+    """LOGOSIDE-295: brand.logo_side is start | end, in GET /brand and /me.brand; a corrupt stored value reads as the default."""
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/me").json()["brand"]["logo_side"] == "start"
+        r = c.put("/api/v1/brand", json={"logo_side": "end"})
+        assert r.status_code == 200 and r.json()["logo_side"] == "end" and r.json()["size"] == "m", "only the sent field changes"
+        assert c.get("/api/v1/me").json()["brand"]["logo_side"] == "end"
+        assert c.put("/api/v1/brand", json={"logo_side": "middle"}).status_code == 422
+        r = c.put("/api/v1/brand", json={"company_logo_size": "xl"})
+        assert r.status_code == 200 and r.json()["company_logo_size"] == "xl" and r.json()["size"] == "m"
+        assert c.get("/api/v1/me").json()["brand"]["company_logo_size"] == "xl"
+        assert c.put("/api/v1/brand", json={"company_logo_size": "same"}).json()["company_logo_size"] == "same"
+        assert c.get("/api/v1/brand").json()["logo_side"] == "end", "a refused value changes nothing"
+        with app.state.db.connection() as conn:
+            conn.execute("INSERT INTO settings(key, value) VALUES ('brand.logo_side', 'sideways') ON CONFLICT(key) DO UPDATE SET value = 'sideways'")
+        assert c.get("/api/v1/brand").json()["logo_side"] == "start"
 
 
 def test_corrupt_stored_values_read_as_defaults(settings):
@@ -287,6 +308,8 @@ def test_permissions_write_needs_system_configure_read_is_for_every_session(sett
             h = as_user(user)
             assert c.get("/api/v1/brand", headers=h).status_code == 200
             assert c.put("/api/v1/brand", json={"logo_size": "l"}, headers=h).status_code == 403
+            assert c.put("/api/v1/brand", json={"logo_side": "end"}, headers=h).status_code == 403
+            assert c.put("/api/v1/brand", json={"company_logo_size": "s"}, headers=h).status_code == 403
             assert _up(c, "light", png(), headers=h).status_code == 403
             assert c.delete("/api/v1/brand/company-logo/light", headers=h).status_code == 403
         assert c.get("/api/v1/brand").json()["size"] == "m"

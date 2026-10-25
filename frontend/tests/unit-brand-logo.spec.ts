@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { LOGO_SCALE, brandFromView, chooseCompanyLogo, composeTitle, EMPTY_BRAND, type DarkMode } from '../src/design/brand-logo';
+import { LOGO_SCALE, brandFromView, chooseCompanyLogo, composeTitle, EMPTY_BRAND, companyScale, type DarkMode } from '../src/design/brand-logo';
 
 // CR-LOGOS295: the pure rules of the logo placements - size scale, which file a surface draws and on what, the tab-title composition.
 //   npx playwright test tests/unit-brand-logo.spec.ts --project=desktop
@@ -55,7 +55,7 @@ test('title: empty names are left out; no name at all gives the prefix alone; an
 
 test('a server block becomes state; anything unknown reads as the default (a corrupt value never reaches the page)', () => {
   const s = brandFromView({ company: { name: 'נווה', kind: 'management', logo: { light: null, dark: null }, logo_file: { light: L, dark: 'not-a-file' } }, size: 'xl', dark_mode: 'file', title: { prefix: 'Arx', mode: 'dev' }, project: { name: 'P' } });
-  expect(s).toEqual({ companyName: 'נווה', kind: 'management', files: { light: L, dark: null }, size: 'xl', darkMode: 'file', titlePrefix: 'Arx', titleMode: 'dev', projectName: 'P',
+  expect(s).toEqual({ companyName: 'נווה', kind: 'management', files: { light: L, dark: null }, size: 'xl', logoSide: 'start', companySize: 'same', darkMode: 'file', titlePrefix: 'Arx', titleMode: 'dev', projectName: 'P',
     // WL: the server block now carries the white-label object; this server block has none, so it reads as the disabled default
     wl: { enabled: false, name: '', contact: '', accent: 'default', files: { light: null, dark: null } } });
   const bad = brandFromView({ company: { name: 'x', kind: 'nope' as never, logo: { light: null, dark: null }, logo_file: { light: '../../etc/passwd', dark: 'x.png' } }, size: 'huge' as never, dark_mode: 'neon' as never, title: { prefix: '   ', mode: 'none' as never } });
@@ -66,4 +66,24 @@ test('a server block becomes state; anything unknown reads as the default (a cor
   expect(bad.titlePrefix).toBe(EMPTY_BRAND.titlePrefix);
   expect(bad.titleMode).toBe('both');
   expect(brandFromView(null)).toEqual(EMPTY_BRAND);
+});
+
+// LOGOSIDE-295: the side of the developer / installer logos and their own size scale
+test('logo side: start (the right in RTL) is the default; only start | end are accepted, anything else reads as the default or the last known', () => {
+  expect(EMPTY_BRAND.logoSide).toBe('start');
+  expect(brandFromView({ logo_side: 'end' }).logoSide).toBe('end');
+  expect(brandFromView({ logo_side: 'start' }, { ...EMPTY_BRAND, logoSide: 'end' }).logoSide).toBe('start');
+  expect(brandFromView({ logo_side: 'left' as never }).logoSide).toBe('start');
+  expect(brandFromView({ logo_side: 'left' as never }, { ...EMPTY_BRAND, logoSide: 'end' }).logoSide).toBe('end');
+  expect(brandFromView({ size: 'l' }).logoSide).toBe('start'); // a block without the field keeps the default
+});
+
+test('company logo size: "same" follows the general scale; s | m | l | xl give the company / installer logos their own; unknown reads as same', () => {
+  expect(EMPTY_BRAND.companySize).toBe('same');
+  expect(brandFromView({ company_logo_size: 'xl' }).companySize).toBe('xl');
+  expect(brandFromView({ company_logo_size: 'huge' as never }).companySize).toBe('same');
+  expect(companyScale('l', 'same')).toBe(LOGO_SCALE.l); // follows
+  expect(companyScale('l', 's')).toBe(LOGO_SCALE.s); // its own scale replaces the general one, it does not multiply it
+  expect(companyScale('s', 'xl')).toBe(LOGO_SCALE.xl);
+  expect(companyScale('m', 'same')).toBe(1);
 });

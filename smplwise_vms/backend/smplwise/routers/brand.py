@@ -4,7 +4,7 @@
 |---|---|
 | `GET /brand/public` | nobody (the sign-in page, before a session): the company name, the two logo stamps, the size and dark-background choices |
 | `GET /brand` | any session: the full view (kind, title prefix / mode, project name) and the facts of the stored files |
-| `PUT /brand` | system.configure: name, kind, logo size, dark-background mode, title prefix / mode, project name |
+| `PUT /brand` | system.configure: name, kind, logo size, logo side (start | end), dark-background mode, title prefix / mode, project name |
 | `POST /brand/company-logo/{variant}` | system.configure: multipart `file`; PNG / SVG / WebP / JPEG by content, <= 2 MB |
 | `DELETE /brand/company-logo/{variant}` | system.configure |
 | `GET /brand/company-logo/{variant}/{stamp}.{png,svg}` | nobody: the stamped image, immutable (a replaced logo is a new stamp) |
@@ -75,15 +75,17 @@ class BrandBody(BaseModel):
     company_name: str | None = Field(default=None, max_length=200)
     company_kind: str | None = Field(default=None, max_length=20)
     logo_size: str | None = Field(default=None, max_length=8)
+    logo_side: str | None = Field(default=None, max_length=8)
+    company_logo_size: str | None = Field(default=None, max_length=8)
     dark_mode: str | None = Field(default=None, max_length=8)
     title_prefix: str | None = Field(default=None, max_length=200)
     title_mode: str | None = Field(default=None, max_length=8)
     project_name: str | None = Field(default=None, max_length=200)
 
 
-_FIELD_KEY = {"company_name": ba.K_NAME, "company_kind": ba.K_KIND, "logo_size": ba.K_SIZE, "dark_mode": ba.K_DARK, "title_prefix": ba.K_PREFIX,
+_FIELD_KEY = {"company_name": ba.K_NAME, "company_kind": ba.K_KIND, "logo_size": ba.K_SIZE, "logo_side": ba.K_SIDE, "company_logo_size": ba.K_CSIZE, "dark_mode": ba.K_DARK, "title_prefix": ba.K_PREFIX,
               "title_mode": ba.K_MODE, "project_name": ba.K_PROJECT}
-_FIELD_TEXT = {"company_name": "שם היזם / החברה", "company_kind": "סוג", "logo_size": "גודל הלוגו", "dark_mode": "טיפול ברקע כהה", "title_prefix": "קידומת הכותרת",
+_FIELD_TEXT = {"company_name": "שם היזם / החברה", "company_kind": "סוג", "logo_size": "גודל הלוגו", "logo_side": "צד הלוגואים", "company_logo_size": "גודל לוגו היזם", "dark_mode": "טיפול ברקע כהה", "title_prefix": "קידומת הכותרת",
                "title_mode": "תוכן הכותרת", "project_name": "שם הפרויקט"}
 
 

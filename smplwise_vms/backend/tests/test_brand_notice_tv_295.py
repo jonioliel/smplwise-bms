@@ -57,6 +57,10 @@ def test_light_and_dark_files_size_and_mode_reach_the_feed_and_the_version_moves
     doc2 = _feed(client, token).json()
     assert doc2["board"]["logos"]["company_dark"].endswith(f"variant=dark&v={ds}")
     assert doc2["board"]["brand"] == {"size": "xl", "dark_mode": "file", "name": "נווה"}
+    assert client.put(f"{API}/brand", json={"company_logo_size": "s"}).status_code == 200  # LOGOSIDE-295: the company logo's own scale rides the feed
+    assert _feed(client, token).json()["board"]["brand"]["company_size"] == "s"
+    assert client.put(f"{API}/brand", json={"company_logo_size": "same"}).status_code == 200
+    assert "company_size" not in _feed(client, token).json()["board"]["brand"]
     assert doc2["board"]["version"] != v1, "a TV that polls the version picks the new logo / size up"
 
 

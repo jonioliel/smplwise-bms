@@ -16,10 +16,16 @@ export { LOGO_SCALE, chooseCompanyLogo };
 export type { DarkMode, LogoDraw, LogoSize, LogoVariant };
 import { brandColors, normalizeBrand, setBrandColors } from './brand';
 
+/** LOGOSIDE-295: which side of the top header the company / installer logos take - `start` (the right in RTL) or `end` (beside the SmplWise logo in the corner). */
+export type LogoSide = 'start' | 'end';
+/** LOGOSIDE-295: the company / installer logo's own scale; `same` follows the general scale. */
+export type CompanySize = 'same' | LogoSize;
 export type TitleMode = 'both' | 'dev' | 'project';
 export type CompanyKind = 'developer' | 'management' | 'other';
 
 export const LOGO_SIZES: readonly LogoSize[] = ['s', 'm', 'l', 'xl'];
+export const LOGO_SIDES: readonly LogoSide[] = ['start', 'end'];
+export const COMPANY_SIZES: readonly CompanySize[] = ['same', 's', 'm', 'l', 'xl'];
 export const DARK_MODES: readonly DarkMode[] = ['plate', 'file', 'invert'];
 export const TITLE_MODES: readonly TitleMode[] = ['both', 'dev', 'project'];
 export const COMPANY_KINDS: readonly CompanyKind[] = ['developer', 'management', 'other'];
@@ -29,6 +35,8 @@ export const TITLE_PREFIX_DEFAULT = 'Smplwise Arx';
 export interface BrandView {
   company: { name: string; kind?: CompanyKind; logo: Record<LogoVariant, string | null>; logo_file?: Record<LogoVariant, string | null> };
   size: LogoSize;
+  logo_side?: LogoSide;
+  company_logo_size?: CompanySize;
   dark_mode: DarkMode;
   title?: { prefix: string; mode: TitleMode };
   project?: { name: string };
@@ -52,6 +60,8 @@ export interface BrandLogoState {
   /** the stamped file name of each variant (`<stamp>.png` / `.svg`), null = none uploaded */
   files: Record<LogoVariant, string | null>;
   size: LogoSize;
+  logoSide: LogoSide;
+  companySize: CompanySize;
   darkMode: DarkMode;
   titlePrefix: string;
   titleMode: TitleMode;
@@ -68,6 +78,8 @@ export const EMPTY_BRAND: BrandLogoState = {
   kind: 'developer',
   files: { light: null, dark: null },
   size: 'm',
+  logoSide: 'start',
+  companySize: 'same',
   darkMode: 'plate',
   titlePrefix: TITLE_PREFIX_DEFAULT,
   titleMode: 'both',
@@ -102,6 +114,8 @@ export function brandFromView(v: Partial<BrandView> | null | undefined, base: Br
     kind: oneOf(COMPANY_KINDS, v.company?.kind, base.kind),
     files: { light: file(lf?.light), dark: file(lf?.dark) },
     size: oneOf(LOGO_SIZES, v.size, base.size),
+    logoSide: oneOf(LOGO_SIDES, v.logo_side, base.logoSide),
+    companySize: oneOf(COMPANY_SIZES, v.company_logo_size, base.companySize),
     darkMode: oneOf(DARK_MODES, v.dark_mode, base.darkMode),
     titlePrefix: typeof v.title?.prefix === 'string' && v.title.prefix.trim() ? v.title.prefix : base.titlePrefix,
     titleMode: oneOf(TITLE_MODES, v.title?.mode, base.titleMode),
@@ -124,6 +138,8 @@ const listeners = new Set<() => void>();
 
 export const brandLogo = (): BrandLogoState => state;
 export const logoScale = (s: LogoSize = state.size): number => LOGO_SCALE[s];
+/** LOGOSIDE-295: the multiplier of the company / installer logo boxes - the general scale unless the administrator gave the company logo its own. */
+export const companyScale = (general: LogoSize = state.size, own: CompanySize = state.companySize): number => LOGO_SCALE[own === 'same' ? general : own];
 
 export function onBrandLogo(fn: () => void): () => void {
   listeners.add(fn);
@@ -139,7 +155,7 @@ export function setBrandView(view: Partial<BrandView> | null | undefined, opts: 
   }
   state = next;
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ company: { name: next.companyName, kind: next.kind, logo_file: next.files, logo: next.files }, size: next.size, dark_mode: next.darkMode, title: { prefix: next.titlePrefix, mode: next.titleMode }, project: { name: next.projectName }, installer: { enabled: next.wl.enabled, name: next.wl.name, contact: next.wl.contact, accent: next.wl.accent, logo_file: next.wl.files } }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ company: { name: next.companyName, kind: next.kind, logo_file: next.files, logo: next.files }, size: next.size, logo_side: next.logoSide, company_logo_size: next.companySize, dark_mode: next.darkMode, title: { prefix: next.titlePrefix, mode: next.titleMode }, project: { name: next.projectName }, installer: { enabled: next.wl.enabled, name: next.wl.name, contact: next.wl.contact, accent: next.wl.accent, logo_file: next.wl.files } }));
   } catch {
     /* private window / blocked storage: the cache is a convenience */
   }
