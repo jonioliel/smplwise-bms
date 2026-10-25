@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-drawer';
 import { ApiError, describeError } from '../api/client';
-import { dayTimeText } from '../api/day-format';
+import { dateInputLang, dayTimeText } from '../api/day-format';
 import { getEmergencyGrants, grantEmergencyOpen, revokeEmergencyGrant, type GrantsView } from '../api/door-windows';
 import { DWT_KEYS, dwt, type DwtKey } from '../i18n/door-windows';
 import { defaultExpiryValue, expiryToUtc, grantProblem } from './grants-logic';
@@ -112,7 +112,7 @@ export class DoorEmergencyGrants extends LitElement {
             <select id="dwg-place" data-dw-grant-place @change=${(e: Event) => (this.place = (e.target as HTMLSelectElement).value)}>
               ${v.scopes.map((s) => html`<option value=${`${s.scope_type}:${s.scope_id}`} ?selected=${`${s.scope_type}:${s.scope_id}` === this.place}>${s.name}</option>`)}</select></div>` : nothing}
           <div class="field"><label for="dwg-expiry">${dwt('grExpiry')}</label>
-            <input id="dwg-expiry" type="datetime-local" data-dw-grant-expiry .value=${this.expiry} ?disabled=${this.noExpiry}
+            <input id="dwg-expiry" type="datetime-local" lang=${dateInputLang()} data-dw-grant-expiry .value=${this.expiry} ?disabled=${this.noExpiry}
               @input=${(e: Event) => (this.expiry = (e.target as HTMLInputElement).value)}></div>
           ${v.can_no_expiry ? html`<label class="occ"><input type="checkbox" data-dw-grant-noexpiry .checked=${this.noExpiry}
             @change=${(e: Event) => (this.noExpiry = (e.target as HTMLInputElement).checked)}> ${dwt('grNoExpiry')}</label>` : nothing}

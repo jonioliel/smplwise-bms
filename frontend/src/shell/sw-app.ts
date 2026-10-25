@@ -560,14 +560,19 @@ export class SwApp extends LitElement {
       max-inline-size: 46%;
       pointer-events: none;
     }
+    .leadbrand,
     .leadbrand sw-brand {
       min-inline-size: 0;
       transition: opacity var(--sw-t-fast) var(--sw-ease), visibility 0s linear var(--sw-t-fast);
     }
+    /* FIX2200: the row itself fades too, not only its logos - an empty 34 px box stayed over the page's sticky tab row once the content
+       scrolled (the 2.20.0 layout guard: "div.leadbrand covers" a settings tab) */
+    :host([data-scrolled]) .leadbrand,
     :host([data-scrolled]) .leadbrand sw-brand {
       opacity: 0;
       visibility: hidden;
     }
+    :host(:not([data-scrolled])) .leadbrand,
     :host(:not([data-scrolled])) .leadbrand sw-brand {
       transition-delay: 0s;
     }
