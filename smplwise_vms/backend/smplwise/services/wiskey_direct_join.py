@@ -45,9 +45,11 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any, Mapping
 
+from . import wiskey_direct_catalog as catalog
 from . import wiskey_media_bridge as bridge
 from .wiskey_capture_port import PortError, PortIdentity
-from .wiskey_command_port import NOT_SENT, PEER_QUERY_COMMANDS, REFUSED, UNKNOWN, WiskeyCommandError
+from .wiskey_command_port import NOT_SENT, REFUSED, UNKNOWN, WiskeyCommandError
+from .wiskey_direct_discovery import CAPABILITIES, TIME, DirectDiscovery
 
 log = logging.getLogger("smplwise.wiskey.direct_join")
 
@@ -55,10 +57,14 @@ DEFAULT_TIMEOUT_S = 10.0
 RUN_MARGIN_S = 5.0  # the sync wait above the request's own timeout (the request ends itself first; this only bounds a stuck loop)
 MEDIA_PATH_PREFIX = "/api/hikvision_intercom/arx_bridge/v1/media/"
 MEDIA_INGRESS_COMMAND = "features/media_ingress_v1"
+DISCOVERY_TIMEOUT_S = 6.0
+DISCOVERY_COMMANDS = frozenset({CAPABILITIES, TIME})
 
 
 def envelope_kind(command: str) -> str:
-    return bridge.PEER_QUERY_KIND if command in PEER_QUERY_COMMANDS else bridge.KIND
+    """WKR5-295: the signed bridge.kind per command from the catalog row (W5-API-01), never from capabilities' `envelope`. A command
+    whose catalog wire is not the direct envelope never gets here (`catalog.direct_refusal`)."""
+    return catalog.envelope_for(command) or bridge.KIND
 
 
 # ---------------------------------------------------------------- the shared session
@@ -79,6 +85,11 @@ class DirectCommandSession:
         self._down_until = 0.0
         self.last_error: str | None = None
         self.media_opener = media_opener
+        # WKR5-295: direct/capabilities + direct/time of the CURRENT connection. With `require_discovery` (set by DirectJoin) a command
+        # is written only when this connection's discovery lists it and the clock observation admits Arx's signing window.
+        self.discovery = DirectDiscovery()
+        self.require_discovery = False
+        self._discovery_lock: asyncio.Lock | None = None
 
     def __repr__(self) -> str:
         return f"DirectCommandSession(connected={self.connected})"
@@ -126,7 +137,15 @@ class DirectCommandSession:
         """One request on the session loop. MediaBridgeError with outcome not_sent | refused | unknown (`closed` never escapes)."""
         if not isinstance(parameters, Mapping):
             raise bridge.MediaBridgeError("invalid_parameters", "not_sent")
+        refusal = catalog.direct_refusal(command)  # HA-body audio commands and the owner-excluded job-approval writes: never written
+        if refusal is not None:
+            raise bridge.MediaBridgeError(refusal, "not_sent")
         link = await self.link()
+        if self.require_discovery and command not in DISCOVERY_COMMANDS:
+            await self.discover(link)
+            refusal = self.discovery.transport_refusal(link.connection_ref, command)
+            if refusal is not None:
+                raise bridge.MediaBridgeError(refusal, "not_sent")
         try:
             return await link.call_command(command, dict(parameters), kind=envelope_kind(command), timeout=timeout)
         except bridge.MediaBridgeError as exc:
@@ -135,6 +154,36 @@ class DirectCommandSession:
             raise bridge.MediaBridgeError(exc.code, "unknown") from None
         except asyncio.CancelledError:
             raise bridge.MediaBridgeError("cancelled", "unknown") from None
+
+    async def discover(self, link: bridge.DirectLink | None = None) -> None:
+        """Read direct/capabilities + direct/time on `link` (the current connection) when this connection has no document yet or the
+        time observation is stale. Session loop only, between requests; never raises (a failure leaves the direct path unselected)."""
+        if self._discovery_lock is None:
+            self._discovery_lock = asyncio.Lock()
+        async with self._discovery_lock:
+            if link is None:
+                try:
+                    link = await self.link()
+                except bridge.MediaBridgeError:
+                    return
+            if link.closed:
+                return
+
+            async def read(command: str, parameters: Mapping[str, Any]) -> Any:
+                return await link.call_command(command, dict(parameters), kind=bridge.KIND, timeout=DISCOVERY_TIMEOUT_S)
+
+            await self.discovery.refresh(link.connection_ref, read)
+
+    def transport_refusal(self, command: str | None = None) -> str | None:
+        """Why the direct path may not carry `command` on the current connection now (None = it may). No I/O."""
+        link = self._link
+        if link is None or link.closed:
+            return "wiskey_direct_not_connected"
+        if command is not None and catalog.direct_refusal(command) is not None:
+            return catalog.direct_refusal(command)
+        if not self.require_discovery:
+            return None
+        return self.discovery.transport_refusal(link.connection_ref, command)
 
     # -- bridging --------------------------------------------------------------------------------------------------------------------
     async def run_async(self, coro: Awaitable[Any]) -> Any:
@@ -153,19 +202,40 @@ class DirectCommandSession:
             raise bridge.MediaBridgeError("wrong_thread", "not_sent")
         return self.runner.run(coro, timeout)
 
-    def connect_ready(self, timeout: float = DEFAULT_TIMEOUT_S) -> bool:
-        """Selection rule part (3): the socket is (or now becomes) authenticated. Respects the 60 s back-off; never raises."""
-        if self.connected:
-            return True
-        if self._clock() < self._down_until:
-            return False
-        try:
-            if self.on_loop():
+    def connect_ready(self, timeout: float = DEFAULT_TIMEOUT_S, command: str | None = None) -> bool:
+        """Selection rule part (3): the socket is (or now becomes) authenticated - and, with `require_discovery` (WKR5-295, part (4)),
+        this connection's discovery lists `command` (when given) and its time observation admits Arx's signing window. Respects the
+        60 s back-off; never raises."""
+        if not self.connected:
+            if self._clock() < self._down_until:
                 return False
-            self.run_sync(self.link(), timeout + RUN_MARGIN_S)
-        except Exception:  # noqa: BLE001 - any failure is "not selected"
+            try:
+                if self.on_loop():
+                    return False
+                self.run_sync(self.link(), timeout + RUN_MARGIN_S)
+            except Exception:  # noqa: BLE001 - any failure is "not selected"
+                return False
+            if not self.connected:
+                return False
+        if self.require_discovery and not self.on_loop() and self.discovery_due():
+            try:
+                self.run_sync(self.discover(), 2 * DISCOVERY_TIMEOUT_S + RUN_MARGIN_S)
+            except Exception:  # noqa: BLE001
+                return False
+        return self.connected and self.transport_refusal(command) is None
+
+    def discovery_due(self) -> bool:
+        """This connection has no discovery yet (and none failed on it), or its time observation is stale (re-read as an observation;
+        it renews nothing)."""
+        link = self._link
+        if link is None or link.closed:
             return False
-        return self.connected
+        d = self.discovery
+        if d.failed_ref == link.connection_ref:
+            return False
+        if d.capabilities is None or d.time is None or d.capabilities.connection_ref != link.connection_ref:
+            return True
+        return d.stale()
 
     def identity(self) -> PortIdentity:
         link = self._link
@@ -293,14 +363,18 @@ class SelectingLeaseTransport:
     def __init__(self, join: "DirectJoin", direct: Any, fallback: Any) -> None:
         self.join, self.direct, self.fallback = join, direct, fallback
 
-    def _pick(self) -> Any:
-        return self.direct if self.join.selected() else self.fallback
+    def _pick(self, command: str) -> Any:
+        return self.direct if self.join.selected(command) else self.fallback
 
     def event(self, settings: Any, text: str) -> Any:
-        return self._pick().event(settings, text)
+        from .wiskey_capture_direct import EVENT_COMMAND
+
+        return self._pick(EVENT_COMMAND).event(settings, text)
 
     def request(self, settings: Any, action: str, text: str) -> Any:
-        return self._pick().request(settings, action, text)
+        from .wiskey_capture_direct import REQUEST_COMMAND
+
+        return self._pick(REQUEST_COMMAND).request(settings, action, text)
 
 
 class DirectJoin:
@@ -309,8 +383,9 @@ class DirectJoin:
     PROVIDER_TTL_S = 30.0
 
     def __init__(self, session: DirectCommandSession, *, provider_ok: Callable[[], bool], key_ok: Callable[[], bool],
-                 lineage: Any = None, audit_for: Callable[[Any, Any], Any] | None = None) -> None:
+                 lineage: Any = None, audit_for: Callable[[Any, Any], Any] | None = None, require_discovery: bool = True) -> None:
         self.session = session
+        session.require_discovery = require_discovery  # WKR5-295: the join writes only commands this connection's discovery lists
         self.command_port = DirectCommandPort(session)
         self.capture_port = DirectCapturePort(session)
         self._provider_ok = provider_ok
@@ -329,17 +404,58 @@ class DirectJoin:
     def __repr__(self) -> str:
         return f"DirectJoin(session={self.session!r})"
 
-    def selected(self) -> bool:
-        """The selection rule, evaluated now. Never raises."""
+    def selected(self, command: str | None = None) -> bool:
+        """The selection rule, evaluated now: (1) auto, (2) the key signs, (3) the socket authenticates, (4) WKR5-295: this connection's
+        direct/capabilities lists `command` (when given) and direct/time admits Arx's signing window. Never raises."""
         try:
             if not self._provider_ok() or not self._key_ok():
                 return False
         except Exception:  # noqa: BLE001
             return False
-        return self.session.connect_ready()
+        return self.session.connect_ready(command=command)
 
     def template_or_none(self) -> Any:
-        return self.template_transport if self.selected() else None
+        from .wiskey_template_direct import V1_COMMAND
+
+        return self.template_transport if self.selected(V1_COMMAND) else None
+
+    def template_v2_or_none(self) -> Any:
+        """WKR5-295 unit D: the transport of the v2 (autofill) template send, only while `whatsapp/template_send_v2` is selected."""
+        from .wiskey_template_direct import V2_COMMAND
+
+        return self.template_transport if self.selected(V2_COMMAND) else None
+
+    # -- WKR5-295 unit B: the six features and the emergency v2 engine, BUILT on the capture port (registered, not installed) ---------
+    def features_or_none(self) -> Any:
+        """The `FeatureAdapters` of the six features over this join's direct port, only while `features/start` is selected. No Arx
+        route calls it yet (each feature's own switch / permit decides that separately)."""
+        if not self.selected("features/start"):
+            return None
+        if self._features is None:
+            from .wiskey_feature_direct import DirectFeatureClient, FeatureAdapters
+
+            self._features = FeatureAdapters(DirectFeatureClient(self.capture_port), self.capture_port)
+        return self._features
+
+    _features: Any = None
+
+    def people_csv_or_none(self) -> Any:
+        """WKR5ADOPT-295 (W-006): the `FeatureAdapters` for the people CSV preview + start, only while BOTH `features/people_csv_preview`
+        and `features/start` are selected on the current connection (direct/capabilities lists them). None otherwise; never raises."""
+        from .wiskey_people_csv import COMMAND as preview_command
+
+        if not self.selected(preview_command) or not self.selected("features/start"):
+            return None
+        return self.features_or_none()
+
+    def emergency_engine(self, connect: Callable[[], Any]) -> Any:
+        """A `DirectEmergencyEngine` (wiskey-emergency-event.v2) over this join's features. NOT installed here: making it the process's
+        emergency engine (`wiskey_emergency_direct.install`) and any real door action are the owner's separate instruction."""
+        from .wiskey_emergency_direct import DirectEmergencyEngine
+        from .wiskey_feature_direct import DirectFeatureClient, FeatureAdapters
+
+        adapters = self._features or FeatureAdapters(DirectFeatureClient(self.capture_port), self.capture_port)
+        return DirectEmergencyEngine(adapters, connect)
 
     # -- people writes (NativePeopleWriter) ------------------------------------------------------------------------------------------
     async def _ensure_recovered(self, writer: Any) -> None:
@@ -394,6 +510,64 @@ class DirectJoin:
 
         return await self.session.run_async(go())
 
+    # -- WKR5-295 unit C / F: the lineage's administration and the original receipt readers ---------------------------------------
+    def lineage_view(self) -> dict[str, Any]:
+        """What an administrator may see: status, counts per state, the OPEN operations (refs, command, state, code, times). Never the
+        sealed original, a name, a PIN or a card."""
+        lin = self.lineage
+        if lin is None:
+            return {"installed": True, "lineage": None}
+        counts: dict[str, int] = {}
+        for state, n in lin.db.execute("SELECT state, COUNT(*) FROM intents GROUP BY state").fetchall():
+            counts[state] = n
+        open_ops = [{"operation_id": i.operation_id, "kind": i.kind, "command": i.command, "state": i.state, "code": i.outcome_code,
+                     "target_ref": i.target_ref, "created_at": i.created_at, "send_started_at": i.send_started_at}
+                    for i in lin.open_intents()]
+        return {"installed": True, "lineage": {"status": lin.status, "writable": lin.writable(), "counts": counts, "open": open_ops},
+                "discovery": self.session.discovery.snapshot()}
+
+    async def resolve(self, operation_id: str) -> Any:
+        """The ORIGINAL reader of one UNKNOWN operation, chosen by its kind: a peer write -> `peer_receipts/resolve` with a CURRENT read
+        binding and the stored full original7 (never rebuilt from refs or the current state); a name_ref apply -> `users/bulk_receipt`
+        by the same pairing-service actor. A read only: the mutation is never sent again. Runs on the session loop."""
+        from .wiskey_native_write import NativePeopleWriter
+
+        lin = self.lineage
+        if lin is None:
+            from .wiskey_native_write import NativeWriteError
+
+            raise NativeWriteError("lineage_unavailable")
+        intent = lin.get(operation_id)
+
+        async def go() -> Any:
+            writer = NativePeopleWriter(self.command_port, lin)
+            return await (writer.resolve_name_ref(operation_id) if intent.kind == "name_ref" else writer.resolve(operation_id))
+
+        return await self.session.run_async(go())
+
+    def close_unknown(self, operation_id: str, *, actor_ref: str, code: str) -> None:
+        if self.lineage is None:
+            raise ValueError("lineage_unavailable")
+        self.lineage.close_unknown(operation_id, actor_ref=actor_ref, code=code)
+
+    def reinitialise(self, *, actor_ref: str) -> None:
+        if self.lineage is None:
+            raise ValueError("lineage_unavailable")
+        self.lineage.reinitialise(actor_ref=actor_ref)
+
+    PURGE_EVERY_S = 3600.0
+    _purged_at = -1e18
+
+    def purge_due(self, now: float | None = None) -> int | None:
+        """The 30-day retention of ENDED operations (open unknowns are never purged), at most once an hour. None when not run now."""
+        if self.lineage is None:
+            return None
+        t = time.monotonic() if now is None else now
+        if t - self._purged_at < self.PURGE_EVERY_S:
+            return None
+        self._purged_at = t
+        return self.lineage.purge()
+
     def close(self) -> None:
         if self.lineage is not None:
             try:
@@ -430,6 +604,14 @@ def installed() -> DirectJoin | None:
     return JOIN
 
 
+def janitor() -> int | None:
+    """WKR5-295 unit C: the hourly lineage retention step of the main janitor (nothing when the join is not installed)."""
+    join = JOIN
+    if join is None:
+        return None
+    return join.purge_due()
+
+
 def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, Any], *, targets: list[tuple[str, str]],
                 create_origin_ref: str | None = None) -> Callable[[Any], Awaitable[Any]] | None:
     """For the people-write routes: the `send(call)` coroutine function of a NATIVE write when the direct path is selected now, else
@@ -437,7 +619,7 @@ def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, 
     outcome onto what intercom_sync already understands: committed -> the ACK's result (projected as before), not_sent ->
     `intercom_sync.NotSent`, a pre-effect refusal -> `IntercomError(code)`, unknown -> `UnclearAnswer(code)` (never re-sent)."""
     join = JOIN
-    if join is None or join.lineage is None or not join.selected():
+    if join is None or join.lineage is None or not join.selected(command):
         return None
     from . import intercom_client, intercom_sync
     from . import intercom_writes as iw
@@ -543,6 +725,7 @@ def startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | No
     join.resolve_transport = LiveResolveTransport(join.capture_port)
     lease_events.set_transport(join.lease_transport)
     wts.TRANSPORT_PROVIDER = join.template_or_none
+    wts.TRANSPORT_V2_PROVIDER = join.template_v2_or_none
     JOIN = join
     log.info("wiskey direct join installed (%s = auto, key signs); the direct path is used while its socket authenticates", PROVIDER_KEY)
     return join
@@ -561,4 +744,6 @@ def shutdown() -> None:
         lease_events.set_transport(None)
     if wts.TRANSPORT_PROVIDER == join.template_or_none:
         wts.TRANSPORT_PROVIDER = None
+    if wts.TRANSPORT_V2_PROVIDER == join.template_v2_or_none:
+        wts.TRANSPORT_V2_PROVIDER = None
     join.close()

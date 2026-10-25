@@ -676,30 +676,49 @@ def dispatch(db: Database, settings: Any, incident_id: str, phase: str, confirme
                     results.append((d["station_id"], d["relay"], dwe.DoorOutcome("unknown", "deadline")))
         finally:
             ex.shutdown(wait=False, cancel_futures=True)
-    _settle(db, settings, row, phase, results, sent_ms, first_dispatch=confirmed_at is not None)
+    _settle(db, settings, row, phase, results, sent_ms, first_dispatch=confirmed_at is not None, engine=engine)
 
 
-def _retryable(row: sqlite3.Row, phase: str) -> bool:
+def v2_new_attempts(engine: Any) -> bool:
+    """WKR5-295 unit E: True only for an engine that turns every retry into a NEW wiskey-emergency-event.v2 attempt (a new Request and
+    operation on the same event fence, `retry_of` = the UNKNOWN attempt; a live attempt is never retried; a durable release wins) -
+    `wiskey_emergency_direct.DirectEmergencyEngine`. The owner approved developing that new OPEN attempt after UNKNOWN (hand-off R5 unit E);
+    it does not need DW09_OPEN_RETRY_AFTER_UNKNOWN, which describes the OTHER retry: the same request_id resent (v1)."""
+    return getattr(engine, "new_request_per_attempt", False) is True and getattr(engine, "simulated", True) is False
+
+
+def _live_engine_v2() -> bool:
+    try:
+        return v2_new_attempts(dwe.emergency_engine(None))
+    except Exception:  # noqa: BLE001 - an engine that cannot be built is not a v2 engine
+        return False
+
+
+def _retryable(row: sqlite3.Row, phase: str, engine: Any = None) -> bool:
     """Which unknown outcomes may be retried (bounded): LOCK apply (the close direction) and the release of an OPEN (the close direction).
-    An OPEN apply (E-1) only while DW09_OPEN_RETRY_AFTER_UNKNOWN is True - OFF until the four WisKey DW-09 conditions are proven.
+    An OPEN apply (E-1) only while DW09_OPEN_RETRY_AFTER_UNKNOWN is True - OFF until the four WisKey DW-09 conditions are proven - OR
+    (WKR5-295) when the engine is the v2 engine whose every retry is a new attempt on the same fence (`v2_new_attempts`).
     Never the release of a LOCK (it re-activates schedules)."""
     # E-04 (Fable review 2, owner decision 2026-10-21 option C: "in an emergency we always open"): the E-1 retry is bounded (3 attempts, 10 s apart) and EVERY
     # attempt carries the SAME per-door request_id. Owner decision 2026-10-23 (WisKey DW-09): that retry stays OFF until WisKey's de-duplication, hold,
-    # release-beats-stale-apply and duplicate contract are proven jointly (see DW09_OPEN_RETRY_AFTER_UNKNOWN).
+    # release-beats-stale-apply and duplicate contract are proven jointly (see DW09_OPEN_RETRY_AFTER_UNKNOWN). With the v2 engine the dispatcher's
+    # per-door request_id is only the event key: the engine sends a fresh Request/op with retry_of, never the same request again.
     if phase == "apply":
-        return row["kind"] != "open" or DW09_OPEN_RETRY_AFTER_UNKNOWN is True
+        if row["kind"] != "open" or DW09_OPEN_RETRY_AFTER_UNKNOWN is True:
+            return True
+        return v2_new_attempts(engine) if engine is not None else _live_engine_v2()
     return phase == "release" and row["kind"] == "open"
 
 
 def _settle(db: Database, settings: Any, row: sqlite3.Row, phase: str, results: list[tuple[str, int, dwe.DoorOutcome]], sent_ms: list[int],
-            *, first_dispatch: bool) -> None:
+            *, first_dispatch: bool, engine: Any = None) -> None:
     now = now_utc()
     at = dw.iso(now)
     with db.connection() as conn:
         for station_id, relay, out in results:
             attempts = conn.execute("SELECT attempts FROM door_emergency_doors WHERE incident_id = ? AND station_id = ? AND relay = ? AND phase = ?",
                                     (row["id"], station_id, relay, phase)).fetchone()["attempts"] + 1
-            retry = out.state == "unknown" and attempts < MAX_ATTEMPTS and _retryable(row, phase) and not row["drill"]
+            retry = out.state == "unknown" and attempts < MAX_ATTEMPTS and _retryable(row, phase, engine) and not row["drill"]
             conn.execute("""UPDATE door_emergency_doors SET state = ?, code = ?, attempts = ?, last_at = ?, next_at = ?, settled_at = ?
                             WHERE incident_id = ? AND station_id = ? AND relay = ? AND phase = ?""",
                          (out.state, out.code or None, attempts, at, dw.iso(now + dt.timedelta(seconds=RETRY_GAP_S)) if retry else None,

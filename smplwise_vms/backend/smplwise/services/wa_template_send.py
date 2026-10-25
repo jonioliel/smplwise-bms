@@ -312,6 +312,9 @@ class UnwiredTransport:
 # before. services/wiskey_direct_join.py installs a provider that returns its `DirectTemplateTransport` only while the direct path is
 # selected (else None). The switch / permit gates above it (TEMPLATE_SEND_SUPPORTED) are untouched.
 TRANSPORT_PROVIDER: Callable[[], "TemplateTransport | None"] | None = None
+# WKR5-295 unit D: the same for the v2 (autofill) command - the join returns its DirectTemplateTransport only while
+# `whatsapp/template_send_v2` is selected (discovered on the current direct connection). None: `send_v2` refuses before any hand-over.
+TRANSPORT_V2_PROVIDER: Callable[[], Any] | None = None
 
 
 def installed_transport() -> "TemplateTransport":
@@ -491,23 +494,40 @@ class TemplateSender:
             return TemplateResult("sent", result_version=ans.version)
         return TemplateResult(outcome, code=ans.code, retry_after_s=ans.retry_after_s, scope=ans.scope, result_version=ans.version)
 
-    def send_v2(self, *, template_id: str, account: str, account_key: str, person_id: str, person_revision: int, recipient_key: str,
-                request_id: str, operation_id: str, window: str = "unknown") -> TemplateResult:
-        """WK4ADOPT-295 (W-013): one `template_send_v2` send, once. WisKey fills the parameters from its own native person (PIN only
-        when its private template declares it); Arx passes references and revisions only. Same gates as `send` (switch + permit, the
-        reference, the shared budget, the window), plus the WisKey template pair on the reference and the transport's `send_v2`.
+    def send_v2(self, *, template_id: str, account: str, account_key: str, person_id: str, recipient_key: str, request_id: str,
+                operation_id: str, person_revision: int | None = None, expected_person_revision: int | None = None,
+                template_ref: str | None = None, expected_template_revision: int | None = None, window: str = "unknown") -> TemplateResult:
+        """One `whatsapp/template_send_v2` send (WisKey AUTOFILL), once. REL2210: the one implementation of WK4ADOPT-295 (W-013) and
+        WKR5-295 unit D. WisKey fills the parameters from its own native person (PIN only when its private template declares it); Arx
+        passes references and revisions only: no name, PIN or card value.
+
+        - the person revision is `person_revision` (W-013) or `expected_person_revision` (unit D); both given must agree.
+        - the WisKey template pair is the explicit `template_ref` + `expected_template_revision` (unit D) or else the pair stored on
+          the reference (`TemplateRef.wiskey_ref` / `.wiskey_revision`, W-013); without either: `template_v2_unbound`.
+        - same admission as `send` (switch + permit, the reference, the shared budget, the window).
+        - the transport: the explicit one (W-013), else the v2 provider of the direct join while `template_send_v2` is selected
+          (`TRANSPORT_V2_PROVIDER`, unit D; set but answering None refuses, with no fallback), else the installed transport. It must
+          offer `send_v2`, else refused before any hand-over.
         `accepted` is the provider's acceptance only (delivery unknown); anything but a closed v2 result is UNKNOWN, never retried."""
-        if not all(isinstance(v, str) and WIRE_ID_RE.fullmatch(v) for v in (person_id, account, request_id, operation_id)):
+        if person_revision is not None and expected_person_revision is not None and person_revision != expected_person_revision:
             return _refuse("invalid_reference")
-        if not _v2_rev_ok(person_revision):
+        revision = person_revision if person_revision is not None else expected_person_revision
+        ids = (person_id, account, request_id, operation_id) + ((template_ref,) if template_ref is not None else ())
+        if not all(isinstance(v, str) and WIRE_ID_RE.fullmatch(v) for v in ids):
             return _refuse("invalid_reference")
+        if not _v2_rev_ok(revision):
+            return _refuse("invalid_reference")
+        if (template_ref is None) != (expected_template_revision is None) or (
+                expected_template_revision is not None and not _v2_rev_ok(expected_template_revision)):
+            return _refuse("invalid_fields")
         if not self._switch() or not self._permit():
             return _refuse("template_unsupported")
         tpl = next((t for t in self._registry() if t.id == template_id), None)
         if tpl is None:
             return _refuse("template_not_found")
-        if tpl.wiskey_ref is None or tpl.wiskey_revision is None:
-            return _refuse("template_v2_unbound")  # no WisKey template pair on this reference: nothing to name
+        wref, wrev = (template_ref, expected_template_revision) if template_ref is not None else (tpl.wiskey_ref, tpl.wiskey_revision)
+        if wref is None or wrev is None:
+            return _refuse("template_v2_unbound")  # no WisKey template pair: nothing to name
         if self._pacer is None or self._pacing_for is None:
             return _refuse("paced_unavailable")
         now = self._clock()
@@ -519,12 +539,11 @@ class TemplateSender:
                                   wait_until=d.not_before)
         if not needs_template(window) and tpl.purpose != "consent_request":
             return _refuse("window_open")
-        transport = self.transport if self._explicit else installed_transport()
+        transport = self._v2_transport()
         send_v2 = getattr(transport, "send_v2", None)
-        if isinstance(transport, UnwiredTransport) or send_v2 is None:
-            return _refuse("template_unsupported")
-        req = TemplateRequestV2(request_id, operation_id, person_id, person_revision, account, tpl.name, tpl.language, tpl.wiskey_ref,
-                                tpl.wiskey_revision)
+        if transport is None or isinstance(transport, UnwiredTransport) or not callable(send_v2):
+            return _refuse("template_unsupported")  # no v2 path: nothing is handed over
+        req = TemplateRequestV2(request_id, operation_id, person_id, revision, account, tpl.name, tpl.language, wref, wrev)
         if wire_problem_v2(req) is not None:
             return _refuse("invalid_fields")
         try:
@@ -537,4 +556,15 @@ class TemplateSender:
         self._pacer.on_result(account_key=account_key, recipient_key=recipient_key, klass=KLASS, outcome=outcome, outcome_code=ans.code, now=now)
         if outcome == "sent":
             return TemplateResult("sent", result_version=ans.version)
-        return TemplateResult(outcome, code=ans.code, result_version=ans.version)
+        return TemplateResult(outcome, code=ans.code, retry_after_s=ans.retry_after_s, scope=ans.scope, result_version=ans.version)
+
+    def _v2_transport(self) -> Any:
+        if self._explicit:
+            return self.transport
+        provider = TRANSPORT_V2_PROVIDER
+        if provider is not None:
+            try:
+                return provider()
+            except Exception:  # noqa: BLE001 - no selected v2 path
+                return None
+        return installed_transport()

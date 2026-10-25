@@ -186,6 +186,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  "access.external.redecide_cursor",
                  # CR-BULKPEOPLE-295: the bulk people switch is security policy too - never switched on by an archive
                  "access.bulk_people",
+                # WKR5ADOPT-295 (W-006): the WisKey-verified people CSV preview switch and its authority binding - never from an archive
+                "access.people_csv_preview", "access.people_csv_binding",
                  # STATIONPERM-295: the per-station permission switch is security policy - never changed by an archive
                  "access.station_permissions",
                  # COMPLY108-295: the compliance export switch is security policy - never switched on by an archive

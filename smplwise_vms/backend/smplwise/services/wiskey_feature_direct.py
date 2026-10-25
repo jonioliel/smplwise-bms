@@ -405,7 +405,7 @@ class FeatureAdapters:
                 scope_ref: str, parameter_reference: str, params: dict[str, Any], now: datetime, source_epoch: str, actor_session_active: bool,
                 targets: Iterable[tuple[str, int]] | None = None, rows: Iterable[RowGrantInput] = (), private_input: Mapping[str, Any] | None = None,
                 execution_expires_at: datetime | None = None, ttl_s: int = fx.DEFAULT_TTL_S, request_id: str | None = None,
-                operation_id: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+                operation_id: str | None = None, allow_empty_rows: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
         spec = SPECS.get(feature)
         if spec is None:
             raise FeatureWireError("unknown_feature", "not_sent")
@@ -416,7 +416,7 @@ class FeatureAdapters:
         else:
             tgt = []
         rows = tuple(rows)
-        if spec.needs_rows and not rows:
+        if spec.needs_rows and not rows and not allow_empty_rows:  # WKR5ADOPT-295: only the people_csv PREVIEW has no rows yet (WisKey returns them)
             raise FeatureWireError("row_grants_missing", "not_sent")
         if not spec.needs_rows and rows:
             raise FeatureWireError("invalid_fields", "not_sent")
