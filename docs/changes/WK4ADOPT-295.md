@@ -103,3 +103,18 @@ Receipts (tests): found -> committed once; `unknown` result, a verified refusal,
 never never_committed, the intent is never sendable again (no replay), each read is sent once. Vectors stay W-008.
 Missing on WisKey's side: nothing for the direct path per the contract; whether the owner pins a binding whose `query_owner_id` is the
 direct subject is an owner/WisKey bootstrap step (`peer_bindings/get {initialize: true, expected_revision: 0}` is NOT called by Arx).
+
+## W-013 - the numbered `template_send_v2` contract and the installer read point
+
+Contract: `W013_TEMPLATE_SEND_V2.json` items 1-9 (CODE 924df3e9; WisKey `whatsapp_template_api_v2.send_v2`). TPLWIRE-295 had stopped
+because no command existed; this is that wiring against the original source.
+- `wa_template_send.TemplateRequestV2` + `wire_problem_v2`: the closed ten keys and WisKey's `descriptor_v2` bounds. No parameters,
+  phone, PIN or body; the `{{i}}` order is WisKey's private `ApprovedTextTemplate.parameter_fields`.
+- `TemplateRef.wiskey_ref / wiskey_revision` (stored as `template_ref` / `template_revision`, both or neither).
+- `TemplateSender.send_v2`: switch + permit, reference with the WisKey pair, the shared budget, the window, then ONE call of
+  `DirectTemplateTransport.send_v2` (signed `wiskey-bridge-command.v1` on the direct join's verified connection) read by `read_v2` only.
+  `accepted` = provider acceptance (delivery unknown); a v1 result, an error frame, a disconnect -> UNKNOWN, never not_sent, never resent.
+- Installer read point (WisKey-side, documented constants only): `__init__.async_setup -> setup_native_template_installation(hass,
+  config[DOMAIN]["native_whatsapp_templates_v1"])`. Arx writes no configuration and activates no installer.
+- `TEMPLATE_SEND_SUPPORTED` stays False: production refuses `template_unsupported` before any hand-over (test). The fake-sender tests
+  open the permit inside the test only. No WhatsApp message was sent. TP-02 (no consent gate) unchanged.

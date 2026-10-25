@@ -29,7 +29,19 @@ WHAT IS BUILT (all pure or injectable; no route, no screen):
 - the 24-hour WINDOW is a Protocol (`WindowProbe`): Arx has no inbound messages, so it cannot know the window; `unknown` is treated
   as closed (a template is what Meta accepts either way) and only an explicit `open` lets a caller prefer free text.
 
-Audit and logs carry ids, codes and counts only - never a number, a parameter value, the link or a name."""
+Audit and logs carry ids, codes and counts only - never a number, a parameter value, the link or a name.
+
+WK4ADOPT-295 (W-013, WisKey `whatsapp/template_send_v2` contract revision 2, CODE 924df3e9, numbered contract items 1-9): the v2
+REQUEST is built here (`TemplateRequestV2`, the closed ten keys with WisKey's `descriptor_v2` bounds) and sent by
+`TemplateSender.send_v2` through `wiskey_template_direct.DirectTemplateTransport.send_v2` (the signed `wiskey-bridge-command.v1` of
+the original pairing principal on the direct join's verified connection). Arx supplies ONLY fresh request/operation ids, the recipient
+reference and its observed person revision, the account / template name / language and WisKey's exact private template reference +
+revision (`TemplateRef.wiskey_ref` / `.wiskey_revision`): NO parameters, phone, PIN or body. The {{i}} order is WisKey's private
+`ApprovedTextTemplate.parameter_fields`; WisKey's `send_v2` fills the values from its native person and its NativeTemplateSendHostV1
+re-checks source and PIN policy before dispatch. The answer is read by `read_v2` only. The private installer read point is WisKey's
+(`__init__.async_setup` -> `setup_native_template_installation(hass, config[DOMAIN][native_whatsapp_templates_v1])`, `NATIVE_INSTALLER_*`
+below): Arx never writes that configuration. `TEMPLATE_SEND_SUPPORTED` stays False: production refuses every v2 send before any
+hand-over; only tests open the permit, against a fake sender. Owner decision TP-02 (no recipient-consent gate) is unchanged."""
 from __future__ import annotations
 
 import datetime as dt
@@ -61,8 +73,8 @@ V1_COMBOS = {
     ("unknown", "operation_pending_or_unknown", None): "unknown",
     ("unknown", "provider_outcome_unknown", None): "unknown",
 }
-# template_send_v2 (WisKey autofill: it fills the parameters from its own source). Arx has NO v2 transport or request builder (not
-# flipped, not wired); these constants only let the result be read by its own version if a v2 answer ever arrives.
+# template_send_v2 (WisKey autofill: it fills the parameters from its own source). WK4ADOPT-295: the request builder is
+# `TemplateRequestV2` and the sender `TemplateSender.send_v2` (permit still False in production).
 SCHEMA_VERSION_V2 = 2
 V2_REQUEST_KEYS = frozenset({"schema_version", "request_id", "operation_id", "recipient_ref", "expected_person_revision", "account",
                              "template_name", "language", "template_ref", "expected_template_revision"})
@@ -74,6 +86,13 @@ V2_COMBOS = {
     ("unknown", "operation_pending_or_unknown", None): "unknown",
     ("unknown", "provider_outcome_unknown", None): "unknown",
 }
+# WisKey's private installer read point (W013_TEMPLATE_SEND_V2.json item 7) - documentation constants; Arx never writes or reads it.
+NATIVE_INSTALLER_CONFIG_KEY = "native_whatsapp_templates_v1"
+NATIVE_INSTALLER_SETUP = "custom_components/hikvision_intercom/__init__.py:async_setup -> setup_native_template_installation"
+NATIVE_INSTALLER_CONSUMED_KEYS = ("schema_version", "station_id", "bridge_entry_id", "accounts", "templates")
+NATIVE_PARAMETER_FIELDS = ("display_name", "employee_no", "pin", "valid_from", "valid_until")  # WisKey-side only; never on Arx's wire
+V2_REF_MAX_BYTES = 128
+V2_REVISION_MAX = 2 ** 53 - 1
 REGISTRY_MAX = 20
 SLOTS = ("name", "organization", "link", "days")
 PURPOSES = ("consent_request", "notice")
@@ -96,6 +115,17 @@ class TemplateRef:
     language: str
     params: tuple[str, ...]
     purpose: str
+    wiskey_ref: str | None = None  # WK4ADOPT-295: WisKey's exact private template reference (template_send_v2 `template_ref`)
+    wiskey_revision: int | None = None  # ... and the revision Arx observed (`expected_template_revision`)
+
+
+def _v2_ref_ok(value: Any) -> bool:
+    return (isinstance(value, str) and 1 <= len(value.encode("utf-8")) <= V2_REF_MAX_BYTES
+            and not any(ord(c) < 32 or ord(c) == 127 for c in value))
+
+
+def _v2_rev_ok(value: Any) -> bool:
+    return type(value) is int and 1 <= value <= V2_REVISION_MAX
 
 
 def parse_ref(raw: Any) -> TemplateRef | None:
@@ -108,7 +138,10 @@ def parse_ref(raw: Any) -> TemplateRef | None:
         return None
     if not (isinstance(params, list) and len(params) <= 8 and all(p in SLOTS for p in params)):
         return None
-    return TemplateRef(rid, name, lang, tuple(params), str(purpose))
+    wref, wrev = raw.get("template_ref"), raw.get("template_revision")
+    if (wref is None) != (wrev is None) or (wref is not None and not (_v2_ref_ok(wref) and _v2_rev_ok(wrev))):
+        return None  # both or neither (the v2 pair), never half of it
+    return TemplateRef(rid, name, lang, tuple(params), str(purpose), wref, wrev)
 
 
 def validate_registry(raw: Any) -> tuple[list[TemplateRef], list[dict[str, str]]]:
@@ -141,7 +174,8 @@ def load_registry(conn: sqlite3.Connection) -> list[TemplateRef]:
 
 
 def store_registry(conn: sqlite3.Connection, refs: list[TemplateRef]) -> None:
-    doc = [{"id": r.id, "name": r.name, "language": r.language, "params": list(r.params), "purpose": r.purpose} for r in refs]
+    doc = [{"id": r.id, "name": r.name, "language": r.language, "params": list(r.params), "purpose": r.purpose,
+            **({"template_ref": r.wiskey_ref, "template_revision": r.wiskey_revision} if r.wiskey_ref is not None else {})} for r in refs]
     conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                  (REGISTRY_KEY, json.dumps(doc, separators=(",", ":"))))
 
@@ -208,6 +242,44 @@ def wire_problem(request: TemplateRequest) -> str | None:
     ps = w["parameters"]
     if len(ps) > WIRE_PARAMS_MAX or any(not isinstance(p, str) or not 1 <= len(p) <= PARAM_MAX or any(ord(c) < 0x20 for c in p) for p in ps):
         return "parameters"
+    if len(json.dumps(w, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")) > DESCRIPTOR_MAX:
+        return "too_large"
+    return None
+
+
+@dataclass(frozen=True)
+class TemplateRequestV2:
+    """One WisKey `template_send_v2` request (W-013 item 2): exactly ten closed keys, no parameters / phone / PIN / body."""
+    request_id: str
+    operation_id: str
+    recipient_ref: str
+    expected_person_revision: int
+    account: str
+    template_name: str
+    language: str
+    template_ref: str
+    expected_template_revision: int
+
+    def wire(self) -> dict[str, Any]:
+        return {"schema_version": SCHEMA_VERSION_V2, "request_id": self.request_id, "operation_id": self.operation_id,
+                "recipient_ref": self.recipient_ref, "expected_person_revision": self.expected_person_revision, "account": self.account,
+                "template_name": self.template_name, "language": self.language, "template_ref": self.template_ref,
+                "expected_template_revision": self.expected_template_revision}
+
+
+def wire_problem_v2(request: TemplateRequestV2) -> str | None:
+    """None when the object meets WisKey's `descriptor_v2` bounds (closed keys, revisions 1..2^53-1, references <= 128 UTF-8 bytes
+    without control characters, the v1 name / language rules, <= 32768 bytes), else a short reason. Checked BEFORE the hand-over."""
+    w = request.wire()
+    if set(w) != V2_REQUEST_KEYS:
+        return "fields"
+    if not (_v2_rev_ok(w["expected_person_revision"]) and _v2_rev_ok(w["expected_template_revision"])):
+        return "revision"
+    for key in ("template_ref", "request_id", "operation_id", "recipient_ref", "account"):
+        if not _v2_ref_ok(w[key]):
+            return key
+    if not WIRE_NAME_RE.fullmatch(w["template_name"]) or not LANG_RE.fullmatch(w["language"]):
+        return "template"
     if len(json.dumps(w, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")) > DESCRIPTOR_MAX:
         return "too_large"
     return None
@@ -418,3 +490,51 @@ class TemplateSender:
         if outcome == "sent":
             return TemplateResult("sent", result_version=ans.version)
         return TemplateResult(outcome, code=ans.code, retry_after_s=ans.retry_after_s, scope=ans.scope, result_version=ans.version)
+
+    def send_v2(self, *, template_id: str, account: str, account_key: str, person_id: str, person_revision: int, recipient_key: str,
+                request_id: str, operation_id: str, window: str = "unknown") -> TemplateResult:
+        """WK4ADOPT-295 (W-013): one `template_send_v2` send, once. WisKey fills the parameters from its own native person (PIN only
+        when its private template declares it); Arx passes references and revisions only. Same gates as `send` (switch + permit, the
+        reference, the shared budget, the window), plus the WisKey template pair on the reference and the transport's `send_v2`.
+        `accepted` is the provider's acceptance only (delivery unknown); anything but a closed v2 result is UNKNOWN, never retried."""
+        if not all(isinstance(v, str) and WIRE_ID_RE.fullmatch(v) for v in (person_id, account, request_id, operation_id)):
+            return _refuse("invalid_reference")
+        if not _v2_rev_ok(person_revision):
+            return _refuse("invalid_reference")
+        if not self._switch() or not self._permit():
+            return _refuse("template_unsupported")
+        tpl = next((t for t in self._registry() if t.id == template_id), None)
+        if tpl is None:
+            return _refuse("template_not_found")
+        if tpl.wiskey_ref is None or tpl.wiskey_revision is None:
+            return _refuse("template_v2_unbound")  # no WisKey template pair on this reference: nothing to name
+        if self._pacer is None or self._pacing_for is None:
+            return _refuse("paced_unavailable")
+        now = self._clock()
+        d = self._pacer.check(account_key=account_key, pacing=self._pacing_for(account_key), recipient_key=recipient_key, klass=KLASS,
+                              ref=request_id, now=now)
+        if not d.allowed:
+            reason = "pacing_expired" if d.expired else "paced"
+            return TemplateResult("not_sent", code=reason, reason=reason, retry_after_s=max(1, int((d.not_before - now).total_seconds())),
+                                  wait_until=d.not_before)
+        if not needs_template(window) and tpl.purpose != "consent_request":
+            return _refuse("window_open")
+        transport = self.transport if self._explicit else installed_transport()
+        send_v2 = getattr(transport, "send_v2", None)
+        if isinstance(transport, UnwiredTransport) or send_v2 is None:
+            return _refuse("template_unsupported")
+        req = TemplateRequestV2(request_id, operation_id, person_id, person_revision, account, tpl.name, tpl.language, tpl.wiskey_ref,
+                                tpl.wiskey_revision)
+        if wire_problem_v2(req) is not None:
+            return _refuse("invalid_fields")
+        try:
+            raw = send_v2(req.wire())
+        except Exception as exc:  # noqa: BLE001 - after the hand-over: unknown, never retried
+            log.warning("template send v2: the transport failed after the hand-over (%s)", type(exc).__name__)
+            raw = {"state": "unknown", "code": "transport_error"}
+        ans = read_answer(raw, version=SCHEMA_VERSION_V2)
+        outcome = {"accepted": "sent", "not_sent": "not_sent"}.get(ans.state, "unknown")
+        self._pacer.on_result(account_key=account_key, recipient_key=recipient_key, klass=KLASS, outcome=outcome, outcome_code=ans.code, now=now)
+        if outcome == "sent":
+            return TemplateResult("sent", result_version=ans.version)
+        return TemplateResult(outcome, code=ans.code, result_version=ans.version)

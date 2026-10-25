@@ -710,3 +710,82 @@ def test_w010_the_direct_join_owns_both_dedicated_transports(monkeypatch):
     finally:
         join.shutdown()
         lease_events.TRANSPORT, wts.TRANSPORT_PROVIDER = saved
+
+
+# ================================================================ W-013: template_send_v2 wired to the original source, fake sender only
+
+import datetime as _dt  # noqa: E402
+
+from smplwise.services import intercom_messaging_adapter as _adapter  # noqa: E402
+from smplwise.services import messaging_accounts as _ma  # noqa: E402
+from smplwise.services import wa_pacing as _wpace  # noqa: E402
+from smplwise.services import wa_template_send as T  # noqa: E402
+from smplwise.services import wiskey_template_direct as wtd  # noqa: E402
+
+T_NOW = _dt.datetime(2026, 10, 25, 9, 0, 0, tzinfo=_dt.timezone.utc)
+T_REF = T.TemplateRef("access", "synthetic_access", "he", ("name",), "notice", "synthetic-template", 3)
+
+
+def _v2_sender(transport: Any, *, permit: bool) -> T.TemplateSender:
+    pacer = _wpace.WaPacer(_ma.MemorySendLedger(), _wpace.MemoryPacerStore(), config=lambda: _wpace.PacerConfig(mode="off"))
+    return T.TemplateSender(transport, registry=lambda: [T_REF], switch=lambda: True, permit_fn=lambda: permit, pacer=pacer,
+                            pacing_for=lambda _k: _ma.Pacing(), clock=lambda: T_NOW)
+
+
+def _send(sender: T.TemplateSender, **kw: Any) -> T.TemplateResult:
+    args = dict(template_id="access", account="synthetic-account", account_key="entry:acc", person_id="synthetic-person-25",
+                person_revision=7, recipient_key="p25", request_id="synthetic-request-25", operation_id="synthetic-operation-25")
+    return sender.send_v2(**{**args, **kw})
+
+
+def test_w013_the_permit_stays_false_and_production_refuses_before_any_hand_over(peer_env):
+    assert _adapter.TEMPLATE_SEND_SUPPORTED is False and T.permit() is False
+    transport = wtd.DirectTemplateTransport(peer_env.port, timeout_s=0.5)
+    r = _send(T.TemplateSender(transport, registry=lambda: [T_REF], switch=lambda: True))  # the REAL permit
+    assert (r.outcome, r.code) == ("not_sent", "template_unsupported")
+    assert not [c for c, _k, _p in peer_env.server.received if c.startswith("whatsapp/")], "no WhatsApp request left Arx"
+
+
+def test_w013_the_v2_request_is_exactly_the_numbered_contract_and_carries_no_value(peer_env):
+    peer_env.server.script["whatsapp/template_send_v2"] = {"result": T.closed_result(2, "accepted", "provider_accepted", True)}
+    r = _send(_v2_sender(wtd.DirectTemplateTransport(peer_env.port, timeout_s=0.5), permit=True))  # TEST permit, fake sender
+    assert (r.outcome, r.result_version) == ("sent", 2), "accepted = the provider's acceptance only; delivery stays unknown"
+    (command, kind, params), = [x for x in peer_env.server.received if x[0].startswith("whatsapp/")]
+    assert command == "whatsapp/template_send_v2" and kind == "wiskey-bridge-command.v1"
+    assert params == {"schema_version": 2, "request_id": "synthetic-request-25", "operation_id": "synthetic-operation-25",
+                      "recipient_ref": "synthetic-person-25", "expected_person_revision": 7, "account": "synthetic-account",
+                      "template_name": "synthetic_access", "language": "he", "template_ref": "synthetic-template",
+                      "expected_template_revision": 3}
+    assert set(params) == T.V2_REQUEST_KEYS == wtd.V2_FIELDS
+    for forbidden in ("parameters", "pin", "phone", "body", "consent", *T.NATIVE_PARAMETER_FIELDS):
+        assert forbidden not in params
+
+
+@pytest.mark.parametrize("act, outcome, code", [
+    ({"result": T.closed_result(2, "not_sent", "template_mismatch", False)}, "not_sent", "template_mismatch"),
+    ({"result": T.closed_result(2, "unknown", "provider_outcome_unknown", None)}, "unknown", "provider_outcome_unknown"),
+    ({"result": T.closed_result(1, "accepted", "provider_accepted", True)}, "unknown", "invalid_response"),
+    ({"error": "revision_conflict"}, "unknown", "invalid_response"),
+    ({"error": "template_outcome_unknown"}, "unknown", "invalid_response"),
+    ("close", "unknown", "invalid_response"),
+])
+def test_w013_only_a_closed_v2_result_is_read_and_unknown_is_never_not_sent_or_resent(peer_env, act, outcome, code):
+    peer_env.server.script["whatsapp/template_send_v2"] = act
+    r = _send(_v2_sender(wtd.DirectTemplateTransport(peer_env.port, timeout_s=0.5), permit=True))
+    assert (r.outcome, r.code) == (outcome, code)
+    assert len([c for c, _k, _p in peer_env.server.received if c == "whatsapp/template_send_v2"]) == 1, "never retried"
+
+
+def test_w013_a_reference_without_the_wiskey_pair_or_outside_the_bounds_is_refused_locally():
+    fake = T.FakeTemplateTransport()
+    fake.send_v2 = lambda w: (_ for _ in ()).throw(AssertionError("must not be called"))  # type: ignore[attr-defined]
+    unbound = T.TemplateSender(fake, registry=lambda: [T.TemplateRef("access", "synthetic_access", "he", ("name",), "notice")],
+                               switch=lambda: True, permit_fn=lambda: True,
+                               pacer=_wpace.WaPacer(_ma.MemorySendLedger(), _wpace.MemoryPacerStore(), config=lambda: _wpace.PacerConfig(mode="off")),
+                               pacing_for=lambda _k: _ma.Pacing(), clock=lambda: T_NOW)
+    assert _send(unbound).code == "template_v2_unbound"
+    assert _send(_v2_sender(fake, permit=True), person_revision=0).code == "invalid_reference"
+    assert T.parse_ref({"id": "a", "name": "n", "language": "he", "params": [], "purpose": "notice", "template_ref": "t"}) is None, "half a pair"
+    ok = T.parse_ref({"id": "a", "name": "n", "language": "he", "params": [], "purpose": "notice", "template_ref": "t", "template_revision": 2})
+    assert ok is not None and (ok.wiskey_ref, ok.wiskey_revision) == ("t", 2)
+    assert T.NATIVE_INSTALLER_CONFIG_KEY == "native_whatsapp_templates_v1"
