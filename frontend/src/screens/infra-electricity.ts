@@ -14,6 +14,7 @@ import { clearPairChip, publishPairChip, type PairChip } from '../shell/tab-pair
 import { infraPagesAsChip, infraPagesChip } from '../shell/infra-pages';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { leadReserveStyles } from '../styles/lead-reserve'; // LOGOFIX-295: the page row keeps the developer / installer logos' room free
 import { srHeading, srHeadingCss } from '../components/sr-heading';
 
 // Every screen file of the module registers itself: `screens/electricity/page-*.ts` (pages) and `settings-*.ts` (settings sections). A file added by
@@ -55,7 +56,7 @@ export class InfraElectricity extends LitElement {
   /** The page row as the shell's second chip (the dropdown form), published after each render; null = drawn here as a tab row. */
   private pagesChip: PairChip | null = null;
 
-  static styles = [srHeadingCss, css`
+  static styles = [srHeadingCss, leadReserveStyles, css`
     :host {
       display: flex;
       flex-direction: column;
@@ -118,7 +119,7 @@ export class InfraElectricity extends LitElement {
     this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/electricity/${id}`)) : null;
     const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.electricity')} data-infra-pages></sw-tabs>`;
     // UXFIX-NAV-295: the page carries one (visually hidden) h1, the navigation label of the area
-    return html`${srHeading(INFRA_TABS.find((x) => x.id === 'electricity')?.label ?? 'מוני חשמל')}<div class="rows" data-elec-shell>${l1}${row}</div><div class="body" data-page=${page}>${body}</div>`;
+    return html`${srHeading(INFRA_TABS.find((x) => x.id === 'electricity')?.label ?? 'מוני חשמל')}<div class="rows lead-head" data-elec-shell>${l1}${row}</div><div class="body" data-page=${page}>${body}</div>`;
   }
 
   protected updated() {
