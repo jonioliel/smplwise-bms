@@ -133,6 +133,22 @@ export class TicketsList extends LitElement {
       z-index: 40;
       box-shadow: var(--dv-shadow-2);
     }
+    /* FIX2180-295: on a tablet the header keeps clear of the floating corner and its logos (--sw-float-reserve = the pill + the
+       measured logo width), so with the drawer open the state filter's six buttons no longer fit one row (768-820 px): it becomes
+       the phone's two rows of three, a whole row of its own, instead of spilling out of its track */
+    @media (min-width: 768px) and (max-width: 1023px) {
+      .dh-det .stf {
+        order: 1;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        inline-size: 100%;
+        box-sizing: border-box;
+        border-radius: var(--sw-r-xl);
+      }
+      .dh-det .stf button {
+        padding-inline: 6px;
+      }
+    }
     @media (max-width: 767px) {
       .dh-row {
         grid-template-areas: 't .' 'r r';
