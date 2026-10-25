@@ -106,3 +106,76 @@ export function pageSlice<T>(items: readonly T[], page: number, perPage: number)
   const p = clampPage(page, items.length, perPage);
   return items.slice((p - 1) * perPage, p * perPage);
 }
+
+/** The page size a paged list uses: the setting is the maximum; `fit` (what fits the screen's height, null = not measured) lowers it. */
+export const fittedPageSize = (setting: number, fit: number | null): number => (fit === null ? setting : Math.max(1, Math.min(setting, fit)));
+
+/** NOSCROLL-295: `?fit=off` in the address turns the fit off for this page (the page size setting alone decides) - for the evidence specs
+ * that read every item on one page (`page_size=50`) or a whole page of the setting at a viewport the cards do not fit. */
+export function fitDisabled(): boolean {
+  try {
+    return new URLSearchParams(location.search).get('fit') === 'off';
+  } catch {
+    return false;
+  }
+}
+
+export interface FitTarget {
+  /** The screen element that scrolls (its bottom is the bottom of the screen). */
+  host: HTMLElement;
+  /** The list (rows, a table or a grid of cards) holding the items. */
+  list: HTMLElement | null;
+  /** The items inside the list. */
+  itemSelector: string;
+  /** The pager band under the list, when it is shown (otherwise a 44 px band is kept for it). */
+  pager?: HTMLElement | null;
+  /** Elements whose block-end padding sits under the list (the page wrapper). */
+  padded?: readonly (HTMLElement | null)[];
+}
+
+/**
+ * FIX2200 (generalised by NOSCROLL-295; owner rule 2026-10-24: control screens never scroll, sized for 1366x768): how many items of a paged
+ * list fit between the top of the list and the bottom of the screen, less the pager's band - a whole number of rows times the columns of a
+ * grid of cards (one column for rows and tables). The callers take a new fit only when it is smaller than the one in force (or none is),
+ * and reset it to none on a resize or a change of view, so cards of different heights cannot make it oscillate. Null when nothing can be measured (no list, no items, a hidden screen). Never less than one row (a phone may fit one tall card; the page size setting's own minimum, PAGE_SIZE_MIN, bounds the setting, not the fit).
+ */
+export function measureFitItems(t: FitTarget): number | null {
+  if (fitDisabled()) return null;
+  const { host, list } = t;
+  const items = list ? list.querySelectorAll<HTMLElement>(t.itemSelector) : null;
+  if (!list || !items || !items.length || !host.clientHeight) return null;
+  const lr = list.getBoundingClientRect();
+  const r0 = items[0].getBoundingClientRect();
+  if (r0.height <= 0) return null;
+  const cs = getComputedStyle(list);
+  const tracks = cs.display.includes('grid') ? cs.gridTemplateColumns.split(' ').filter((x) => x && x !== 'none').length : 0;
+  const sameRow = [...items].filter((el) => Math.abs(el.getBoundingClientRect().top - r0.top) < 2).length;
+  const cols = Math.max(1, tracks || sameRow);
+  const next = [...items].find((el) => el.getBoundingClientRect().top > r0.top + 2);
+  const pitch = next ? next.getBoundingClientRect().top - r0.top : r0.height + (parseFloat(cs.rowGap) || 0);
+  if (pitch <= 0) return null;
+  // NOSCROLL-295: cards differ in height, so the rows are counted where they are (their bottoms against the screen's bottom), not as
+  // `list height / pitch` - that ratio moves with the cards shown and the fit flipped between two values without end
+  const bottoms: number[] = []; // the bottom of each row of items, top to bottom
+  let rowTop = -Infinity;
+  for (const r of [...items].map((el) => el.getBoundingClientRect()).sort((a, b) => a.top - b.top)) {
+    if (r.top > rowTop + 2) {
+      rowTop = r.top;
+      bottoms.push(r.bottom);
+    } else bottoms[bottoms.length - 1] = Math.max(bottoms[bottoms.length - 1], r.bottom);
+  }
+  const last = bottoms[bottoms.length - 1];
+  const tail = lr.bottom - last; // the list's own padding and border under the last row
+  const pager = t.pager ? t.pager.getBoundingClientRect().bottom - lr.bottom : 44;
+  const pad = [...(t.padded ?? []), host].reduce((n, el) => n + (el ? parseFloat(getComputedStyle(el).paddingBlockEnd) || 0 : 0), 0);
+  const limit = host.getBoundingClientRect().top + host.clientHeight - tail - pager - pad; // with the screen scrolled to its top
+  const scrolled = host.scrollTop;
+  let rows = 0;
+  for (const b of bottoms) {
+    if (b + scrolled > limit) break;
+    rows++;
+  }
+  // every row shown fits: as many more as the pitch allows below the last one
+  if (rows === bottoms.length) rows += Math.max(0, Math.floor((limit - (last + scrolled)) / pitch));
+  return Math.max(1, rows) * cols;
+}

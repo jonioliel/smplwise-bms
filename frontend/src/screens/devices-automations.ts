@@ -8,7 +8,7 @@ import '../components/sw-dialog';
 import '../components/sw-automation-card';
 import '../components/sw-automation-row';
 import '../components/sw-pager';
-import { AUTOMATIONS_VIEW_DEFAULT, PAGE_SIZE_DEFAULT, clampPage, loadScreenDisplay, pageCount, pageSlice, type AutomationsView } from '../api/screen-display';
+import { AUTOMATIONS_VIEW_DEFAULT, PAGE_SIZE_DEFAULT, clampPage, fittedPageSize, loadScreenDisplay, measureFitItems, pageCount, pageSlice, type AutomationsView } from '../api/screen-display';
 import { pl } from '../i18n/polish';
 import './automation-drawer';
 import './scenes-panel';
@@ -127,6 +127,8 @@ export class DevicesAutomations extends LitElement {
   /** POLISH2-295: the rows and the cards have their own page sizes (ui.page_size.automations* / automations_cards*). */
   @state() private perPage = { rows: PAGE_SIZE_DEFAULT.automations, cards: PAGE_SIZE_DEFAULT.automations_cards };
   @state() private page = 1;
+  /** NOSCROLL-295: the automations that fit the screen's height (null: not measured); the page size setting stays the maximum. */
+  @state() private fitRows: number | null = null;
 
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
@@ -326,6 +328,7 @@ export class DevicesAutomations extends LitElement {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
+    window.addEventListener('resize', this.onResize);
     this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offEdit = registerScreenEdit({ id: 'automations-trash', label: 'סל מחזור', icon: 'trash', can: () => !!(this.status?.can.manage || this.status?.can.scene_manage || this.status?.can.script_manage), run: () => pushRoute(trashPath()) });
     this.offRoute = onRouteChange((r) => this.onRoute(r));
@@ -350,6 +353,7 @@ export class DevicesAutomations extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
+    window.removeEventListener('resize', this.onResize);
     this.removeEventListener('scroll', this.onScroll);
     this.offRoute?.();
     this.offPush?.();
@@ -363,6 +367,7 @@ export class DevicesAutomations extends LitElement {
 
   protected updated(c: PropertyValues) {
     measureHeaderBar(this.renderRoot, this.phone);
+    this.measureFit();
     const t = this.renderRoot.querySelector<HTMLElement>('.toast[popover]');
     if (t) {
       try { if (!t.matches(':popover-open')) t.showPopover(); } catch { /* no popover support: the note stays in the page */ }
@@ -372,6 +377,28 @@ export class DevicesAutomations extends LitElement {
       this.setAttribute('data-sens', this.status.ui.sensitive_chip === 'red' ? 'red' : 'amber');
     }
   }
+
+  /** NOSCROLL-295 (the FIX2200 mechanism of the schedules list): the automations that fit between the top of the list and the bottom of
+   * the screen, less the pager's band, in the rows and the cards views alike (a grid takes whole rows of cards). */
+  private measureFit(): void {
+    const seg = this.scenView ? '' : this.segment();
+    const scripts = seg === 'scripts' ? this.renderRoot.querySelector<HTMLElement & { updateComplete: Promise<unknown> }>('scripts-panel') : null;
+    const list = seg === 'automations' ? this.renderRoot.querySelector<HTMLElement>('[data-auto-grid]') : null;
+    // the rows / cards (and the scripts panel) are elements of their own: measure once they have drawn
+    const kids = scripts ? [scripts] : list ? ([...list.children].slice(0, 2) as unknown as { updateComplete?: Promise<unknown> }[]) : [];
+    if (!kids.length) return;
+    void Promise.all(kids.map((k) => k.updateComplete)).then(() => {
+      const target = scripts ? scripts.shadowRoot?.querySelector<HTMLElement>('[data-scripts-panel]') ?? null : list;
+      if (!target?.isConnected) return;
+      const fit = measureFitItems({ host: this, list: target, itemSelector: scripts ? ':scope > *' : ':scope > automation-row, :scope > automation-card', pager: this.renderRoot.querySelector<HTMLElement>('[data-auto-pager]'), padded: [this.renderRoot.querySelector<HTMLElement>('.page')] });
+      if (fit !== null && (this.fitRows === null || fit < this.fitRows)) this.fitRows = fit; // only ever smaller until a reset (no oscillation)
+    });
+  }
+
+  private onResize = () => {
+    this.fitRows = null;
+    this.requestUpdate();
+  };
 
   private onScroll = () => {
     const compact = this.scrollTop > 40;
@@ -439,6 +466,7 @@ export class DevicesAutomations extends LitElement {
     if (s === this.segment() && !this.route.id) return;
     this.filters = { ...this.filters, state: 'all', floor: '' };
     this.page = 1;
+    this.fitRows = null; // NOSCROLL-295: another list, another item height
     this.filtersOpen = false;
     this.go(itemPath(s));
   }
@@ -732,6 +760,7 @@ export class DevicesAutomations extends LitElement {
     if (v === this.view) return;
     this.view = v;
     this.page = 1;
+    this.fitRows = null; // NOSCROLL-295: a card is taller than a row
     writeView(v);
   }
 
@@ -771,12 +800,20 @@ export class DevicesAutomations extends LitElement {
       content = html`<scenes-panel .items=${rows} .hiddenItems=${hiddenScenes(this.items ?? [])} .status=${this.status} .now=${this.now} .sceneId=${this.route.segment === 'scenes' ? this.route.id : ''} @result=${this.onResult} @changed=${this.onChanged}
         @open-scene=${(e: CustomEvent<{ id: string }>) => this.go(itemPath('scenes', e.detail.id))} @close-scene=${() => this.go(itemPath('scenes'))}></scenes-panel>`;
     } else if (seg === 'scripts') {
-      content = html`<scripts-panel .items=${rows} .status=${this.status} .now=${this.now} .withFields=${this.fieldScripts} .sensitiveWarning=${this.status?.ui.sensitive_warning !== false} .hrefOf=${(id: string) => this.hrefOf('scripts', id)}
-        @result=${this.onResult} @changed=${this.onChanged} @open-script=${(e: CustomEvent<{ id: string }>) => this.go(itemPath('scripts', e.detail.id))}></scripts-panel>`;
+      // NOSCROLL-295: the scripts take no more than fit the screen's height (measureFit), the rest behind the pager (no page size setting:
+      // until measured, all of them)
+      const per = fittedPageSize(Math.max(1, rows.length), this.fitRows);
+      const pages = pageCount(rows.length, per);
+      const page = clampPage(this.page, rows.length, per);
+      const shownScripts = pageSlice(rows, page, per);
+      const pager = pages > 1 ? html`<div class="lfoot" data-auto-pager><sw-pager .page=${page} .pages=${pages} @page-change=${(e: CustomEvent<{ page: number }>) => (this.page = e.detail.page)}></sw-pager></div>` : nothing;
+      content = html`<div class="lwrap"><scripts-panel .items=${shownScripts} .status=${this.status} .now=${this.now} .withFields=${this.fieldScripts} .sensitiveWarning=${this.status?.ui.sensitive_warning !== false} .hrefOf=${(id: string) => this.hrefOf('scripts', id)}
+        @result=${this.onResult} @changed=${this.onChanged} @open-script=${(e: CustomEvent<{ id: string }>) => this.go(itemPath('scripts', e.detail.id))}></scripts-panel>${pager}</div>`;
     } else {
       // POLISH-295: one page at a time (control screens never scroll); rows by default (the approved preview), cards by this browser's choice
+      // NOSCROLL-295: no more than fit the screen's height (measureFit); the page size setting is the maximum
       const sizes = this.view === 'cards' ? this.perPage.cards : this.perPage.rows;
-      const per = this.phone ? sizes.phone : sizes.wide;
+      const per = fittedPageSize(this.phone ? sizes.phone : sizes.wide, this.fitRows);
       const pages = pageCount(rows.length, per);
       const page = clampPage(this.page, rows.length, per);
       const shown = pageSlice(rows, page, per);

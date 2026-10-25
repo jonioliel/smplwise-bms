@@ -56,7 +56,7 @@ async function open(page: Page, hash: string, size: Size = '1440', control: Cont
   await page.goto('about:blank');
   // POLISH2-295: the cards have their own page size (6 / 1 by default); these card specs keep the earlier one-page-of-12 / 9 reading
   const knob = (control.view ?? 'cards') === 'cards' ? `&page_size=${perPage(size)}` : '';
-  await page.goto(`/?design=a${knob}#${hash}`);
+  await page.goto(`/?design=a&fit=off${knob}#${hash}`);
   await page.waitForSelector('sw-app');
 }
 
@@ -999,7 +999,7 @@ async function openApi(page: Page, hash: string, size: Size = '1440') {
     }
   });
   await page.goto('about:blank');
-  await page.goto(`/?design=a#${hash}`);
+  await page.goto(`/?design=a&fit=off#${hash}`);
   await page.waitForSelector('sw-app');
   await page.waitForTimeout(600);
 }
