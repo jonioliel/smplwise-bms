@@ -7,9 +7,8 @@ Why
   origin ref, operation-binding ref, peer binding ref + revision, writer epoch) - never by name, employee number, PIN, card, policy
   similarity or "the newest person". `wiskey_fence_intents` (migration 0145, built as provisional 0137) holds those references immutably; only the
   state columns move, only forward, and exactly one terminal fact is ever accepted for an intent.
-- `verify_receipt` (wiskey_peer.py) judges updates; it never proves a create (`proves_create` False). The create has its own verifier
-  here: `verify_create_resolution` accepts a `committed` answer only when it names the SAME origin ref and operation and carries the
-  created person's id and revision, and Arx then records that id from the verified answer alone.
+- A receipt never proves a create (`proves_create` False). A create intent settles only through `settle_resolution` (below), which
+  records the created person's id from the verified peer_receipts/resolve answer alone.
 - No replay: nothing in this module sends anything. A mutation is sent once; a resolution is a READ of the original; the intent table
   refuses a second admission of the same operation / request / origin (unique keys) and a second terminal fact.
 
@@ -17,8 +16,10 @@ Status
 - WKADAPT-295 (WisKey round 2, 2026-10-23): the REAL read is `hikvision_intercom/peer_receipts/resolve` (wiskey_peer.RESOLVE_COMMAND,
   `resolve_parameters` / `verify_resolution`), settled here by `settle_resolution`: `found` -> committed, everything else stays UNKNOWN
   and open. It never writes never_committed and an UNKNOWN never makes an intent sendable again (no replay, no re-create).
-- HISTORICAL: `PROPOSED_CREATE_COMMAND` / `verify_create_resolution` / `ExactOriginal.as_request` were Arx's PROPOSAL
-  (`wiskey-create-resolution-draft1`); WisKey says it is not an alias of peer_receipts/resolve and never shipped it. No caller.
+- REMOVED (PERSONWRITES-CLEANUP-295, W-026): Arx's never-shipped draft1 create-resolution proposal (`PROPOSED_CREATE_*`,
+  `CREATE_*`, `CreateExpectation`, `CreateVerdict`,
+  `verify_create_resolution`, `settle_create`, `ExactOriginal.as_request`). It had no caller. The table `wiskey_fence_intents`
+  (migration 0145) is unchanged; see docs/changes/PERSONWRITES-CLEANUP-295.md.
 - The live read is NOT built (`LiveResolveTransport` refuses `not_built`): the signed peer_query client, the pairing-key source and the
   W1 descriptor + descriptor_epoch Arx would have to store per write are not available yet. `query_owner_ref` is an opaque ref: an HA user id, or the agreed bridge service type once
   the joint pin names it - this module never fabricates either."""
@@ -32,15 +33,6 @@ from typing import Any
 from . import wiskey_peer as wp
 
 RESOLVE_COMMAND = wp.RESOLVE_COMMAND  # the real receipt read (peer_receipts/resolve)
-# HISTORICAL (WKADAPT-295): never shipped by WisKey and not an alias of RESOLVE_COMMAND; kept only for the old fake tests, never wired
-PROPOSED_CREATE_COMMAND = "hikvision_intercom/person_writes/resolve_create"
-PROPOSED_CREATE_CAPABILITY = "person_create_resolution_v1"
-CREATE_PROTOCOL = "wiskey-create-resolution-draft1"
-CREATE_SCOPE = "central_person_create"
-CREATE_KEYS = frozenset({
-    "schema_version", "protocol", "repository_id", "observed_epoch", "query_owner_id", "peer_binding_ref", "peer_binding_revision",
-    "request_id", "operation_id", "operation_binding_ref", "origin_ref", "exclusive_writer_established", "state", "terminal", "created",
-    "reason_code", "error_code", "scope", "device_state"})
 STATES = ("intent", "sent", "committed", "never_committed", "unknown")
 TERMINAL = ("committed", "never_committed")
 
@@ -71,13 +63,6 @@ class ExactOriginal:
     is_create: bool
     user_id: str | None
     revision_before: int | None
-
-    def as_request(self) -> dict[str, Any]:
-        """HISTORICAL refs-only request of the never-shipped proposal; NOT the peer_receipts/resolve wire (that needs the full
-        seven-field original: wiskey_peer.ResolveOriginal + resolve_parameters). No name / PIN / card / policy field exists."""
-        return {"repository_id": self.repository_id, "operation_id": self.operation_id, "request_id": self.request_id,
-                "origin_ref": self.origin_ref, "operation_binding_ref": self.operation_binding_ref,
-                "peer_binding_ref": self.peer_binding_ref, "peer_binding_revision": self.peer_binding_revision}
 
 
 def _row_original(r: sqlite3.Row | tuple[Any, ...]) -> ExactOriginal:
@@ -165,7 +150,8 @@ def _terminal(conn: sqlite3.Connection, o: ExactOriginal, new_state: str, reason
 
 
 def settle_update(conn: sqlite3.Connection, o: ExactOriginal, verdict: wp.ReceiptVerdict, now: str | None = None) -> str:
-    """Settle an UPDATE intent from a verified receipt verdict (`wiskey_peer.verify_receipt`). Only a settling verdict moves it."""
+    """Settle an UPDATE intent from a receipt verdict (`wiskey_peer.ReceiptVerdict`). Only a settling verdict moves it. A create
+    intent is refused (it settles only through `settle_resolution`); the refusal code is unchanged."""
     if o.is_create:
         raise IntentError("create_needs_create_resolution")
     if not verdict.settles:
@@ -174,105 +160,6 @@ def settle_update(conn: sqlite3.Connection, o: ExactOriginal, verdict: wp.Receip
         return "open"
     if verdict.state == "committed" and verdict.commit is not None:
         return _terminal(conn, o, "committed", None, None, verdict.commit["revision_after"], now)
-    return _terminal(conn, o, "never_committed", verdict.code, None, None, now)
-
-
-# ---------------------------------------------------------------- the exact-original create resolution
-
-@dataclass(frozen=True)
-class CreateExpectation:
-    """Built from a stored create intent and the verified peer: the only references an answer may carry."""
-
-    original: ExactOriginal
-    peer: wp.VerifiedPeerRef
-
-    def __post_init__(self) -> None:
-        wp.as_peer_binding(self.peer)
-        o = self.original
-        if not o.is_create or (o.repository_id, o.query_owner_ref, o.peer_binding_ref, o.peer_binding_revision) != (
-                self.peer.repository_id, self.peer.query_owner_id, self.peer.peer_binding_ref, self.peer.peer_binding_revision):
-            raise IntentError("invalid_expectation")
-
-
-@dataclass(frozen=True)
-class CreateVerdict:
-    state: str  # committed | never_committed | in_flight | unknown
-    settles: bool
-    code: str
-    created: dict[str, Any] | None = None
-
-
-def _unknown(code: str) -> CreateVerdict:
-    return CreateVerdict("unknown", False, code)
-
-
-def verify_create_resolution(frame: Any, expect: CreateExpectation, *, context: wp.FenceContext | None = None) -> CreateVerdict:
-    """Strict, byte-exact. A `committed` answer must carry the SAME origin ref / operation / request / binding and the created person's
-    id + revision; anything missing, extra, mistyped, contradictory, an error envelope, a timeout or another version is UNKNOWN.
-    `never_committed` by `recovered_uncommitted` additionally needs a fresh fence context proving the exclusive writer."""
-    res = wp._result_of(frame)  # noqa: SLF001 - the same envelope rule as the receipt verifier
-    if isinstance(res, wp.ReceiptVerdict):
-        return _unknown(res.code)
-    o, peer = expect.original, expect.peer
-    if set(res) != CREATE_KEYS:
-        return _unknown("fields")
-    if not (wp.is_pos_int(res["schema_version"]) and res["schema_version"] == 1 and res["protocol"] == CREATE_PROTOCOL):
-        return _unknown("unsupported_version")
-    if res["scope"] != CREATE_SCOPE or res["device_state"] != "not_attested":
-        return _unknown("scope")
-    for key, want in (("repository_id", o.repository_id), ("query_owner_id", o.query_owner_ref), ("peer_binding_ref", o.peer_binding_ref),
-                      ("request_id", o.request_id), ("operation_id", o.operation_id), ("operation_binding_ref", o.operation_binding_ref),
-                      ("origin_ref", o.origin_ref)):
-        got = res[key]
-        if not isinstance(got, str) or got != want:
-            return _unknown(f"mismatch:{key}")
-    if not wp.is_pos_int(res["peer_binding_revision"]) or res["peer_binding_revision"] != o.peer_binding_revision:
-        return _unknown("mismatch:peer_binding_revision")
-    if not wp.is_pos_int(res["observed_epoch"]):
-        return _unknown("malformed:observed_epoch")
-    if res["observed_epoch"] < o.issued_epoch:
-        return _unknown("epoch_regressed")
-    st, terminal, created, reason, error = res["state"], res["terminal"], res["created"], res["reason_code"], res["error_code"]
-    exclusive = res["exclusive_writer_established"]
-    if st not in wp.STATES or not isinstance(terminal, bool) or not isinstance(exclusive, bool):
-        return _unknown("malformed:state")
-    if error is not None and not wp.is_ref(error):
-        return _unknown("malformed:error_code")
-    if st == "in_flight":
-        ok = terminal is False and created is None and reason == "handler_active" and error is None
-        return CreateVerdict("in_flight", False, "in_flight") if ok else _unknown("contradiction")
-    if st == "unknown":
-        ok = terminal is False and created is None and reason in wp.UNKNOWN_REASONS and error is None
-        return _unknown(f"remote:{reason}" if ok else "contradiction")
-    if terminal is not True or exclusive is not True:
-        return _unknown("contradiction")
-    if st == "committed":
-        if reason is not None or error is not None or not isinstance(created, dict) or set(created) != {"user_id", "revision_after"}:
-            return _unknown("contradiction")
-        if not wp.is_ref(created["user_id"]) or not wp.is_pos_int(created["revision_after"]):
-            return _unknown("malformed:created")
-        return CreateVerdict("committed", True, "committed", {"user_id": created["user_id"], "revision_after": created["revision_after"]})
-    if created is not None or reason not in wp.NEVER_REASONS:
-        return _unknown("contradiction")
-    if reason == "pre_effect_refused":
-        return CreateVerdict("never_committed", True, "pre_effect_refused") if error is not None else _unknown("contradiction")
-    if error is not None:
-        return _unknown("contradiction")
-    if (context is None or context.exclusive_writer_established is not True or context.repository_id != o.repository_id
-            or context.writer_epoch != res["observed_epoch"] or context.owner_id != peer.query_owner_id):
-        return _unknown("ownership_unproven")
-    return CreateVerdict("never_committed", True, "recovered_uncommitted")
-
-
-def settle_create(conn: sqlite3.Connection, expect: CreateExpectation, verdict: CreateVerdict, now: str | None = None) -> str:
-    """Record the verified exact-original resolution of a create: the created person's id is stored from this verdict ALONE."""
-    o = expect.original
-    if not verdict.settles:
-        if verdict.state == "unknown":
-            mark_unknown(conn, o, verdict.code, now)
-        return "open"
-    if verdict.state == "committed" and verdict.created is not None:
-        return _terminal(conn, o, "committed", None, verdict.created["user_id"], verdict.created["revision_after"], now)
     return _terminal(conn, o, "never_committed", verdict.code, None, None, now)
 
 

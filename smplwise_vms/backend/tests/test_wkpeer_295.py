@@ -2,8 +2,8 @@
 R11-I1-03 / R11-I1-04 / R11-I3-01..04). Fakes only (tests/fake_wiskey_peer.py): no WisKey, Home Assistant, station, reader or door.
 
 (1) typed seam      `wiskey_peer`: VerifiedPeerRef / TransportAttestation are sealed types; act.principal, request_id, op_id, a
-                    local signature (or any string / dict / Principal) is never a peer binding; the shared receipt is verified strictly
-                    against the exact original references; one central commit per original operation (OneCommitLedger)
+                    local signature (or any string / dict / Principal) is never a peer binding. (The historical draft1 receipt
+                    verifier and OneCommitLedger were removed by PERSONWRITES-CLEANUP-295; the real read is in test_wkadapt_resolve_295.)
 (2) registry client `wiskey_peer_registry`: binds verified_peer_ref to the dedicated query owner (owner pin) with peer_binding_ref /
                     revision / repository_id; revocation, rotation (never followed automatically), historical-read permission
 (4) ACR5-01..04     `wiskey_acr5`: strict frozen-v1 consumers behind their own OFF switches; revision-bound revocation verdict;
@@ -20,15 +20,12 @@ from typing import Any
 import pytest
 from fake_wiskey_peer import (
     BINDING,
-    OPERATION_BINDING,
-    OPERATION_ID,
     OTHER_OWNER,
     OTHER_REPO,
     OWNER,
     PEER,
     PERSON,
     REPO,
-    REQUEST_ID,
     ROW,
     SCHEDULE,
     FakeNormalizer,
@@ -39,7 +36,6 @@ from fake_wiskey_peer import (
     failure,
     normalize_frame,
     plan,
-    receipt_frame,
 )
 
 from smplwise.services import access_grants, capture_lease, service_identity
@@ -80,13 +76,6 @@ def _peer(reg: FakeRegistry | None = None) -> wp.VerifiedPeerRef:
     verdict = _client(reg).current()
     assert verdict.ok, verdict.code
     return verdict.peer
-
-
-def _expect(peer: wp.VerifiedPeerRef | None = None, **over: Any) -> wp.ReceiptExpectation:
-    base: dict[str, Any] = {"repository_id": REPO, "writer_epoch": 8, "peer": peer or _peer(), "request_id": REQUEST_ID,
-                            "operation_id": OPERATION_ID, "operation_binding_ref": OPERATION_BINDING, "person_id": PERSON, "revision_before": 4}
-    base.update(over)
-    return wp.ReceiptExpectation(**base)
 
 
 # ------------------------------------------------------------------ everything is OFF
@@ -267,132 +256,6 @@ def test_no_product_path_presents_a_local_identifier_as_a_peer():
         assert "verified_peer_ref" not in text and "wiskey_peer" not in text, rel
 
 
-# ------------------------------------------------------------------ (1) the shared receipt
-
-def test_a_committed_receipt_with_every_exact_reference_settles():
-    v = wp.verify_receipt(receipt_frame(), _expect())
-    assert (v.state, v.settles, v.code) == ("committed", True, "committed")
-    assert v.commit == {"user_id": PERSON, "revision_before": 4, "revision_after": 5}
-    assert v.proves_create is False and v.device_attested is False
-
-
-@pytest.mark.parametrize("field,value", [
-    ("request_id", REQUEST_ID + " "),  # trailing space: exact matching, no strip
-    ("request_id", REQUEST_ID.upper()),  # no case folding
-    ("operation_id", "capture-operation-fixture-9"),
-    ("operation_binding_ref", "capture-binding-fixture-9"),
-    ("repository_id", OTHER_REPO),
-    ("repository_id", " " + REPO),  # leading space: no strip
-    ("query_owner_id", OTHER_OWNER),
-    ("peer_binding_ref", "peer-binding-fixture-9"),
-    ("peer_binding_revision", 3),
-    ("observed_epoch", 7),  # older than the epoch the intent was issued at: rollback suspicion
-])
-def test_any_reference_mismatch_is_unknown(field, value):
-    v = wp.verify_receipt(receipt_frame(**{field: value}), _expect())
-    assert v.state == "unknown" and v.settles is False
-
-
-@pytest.mark.parametrize("over", [
-    {"schema_version": 2}, {"schema_version": True}, {"protocol": "wiskey-signed-person-completion-draft2"},
-    {"scope": "central_repository_mutation"}, {"device_state": "attested"}, {"peer_binding_revision": True},
-    {"observed_epoch": 0}, {"observed_epoch": True}, {"exclusive_writer_established": "true"}, {"terminal": 1},
-    {"commit": {"user_id": PERSON, "revision_before": 4, "revision_after": 4}},  # no advance
-    {"commit": {"user_id": PERSON, "revision_before": 3, "revision_after": 5}},  # not the revision the intent wrote against
-    {"commit": {"user_id": "55555555-5555-4555-8555-555555555555", "revision_before": 4, "revision_after": 5}},
-    {"commit": {"user_id": PERSON, "revision_before": 4, "revision_after": True}},
-    {"commit": {"user_id": PERSON, "revision_before": 4, "revision_after": 5, "created": True}},
-    {"commit": None}, {"terminal": False}, {"reason_code": "handler_active"}, {"error_code": "x"},
-    {"exclusive_writer_established": False},  # a terminal fact without an established writer is never authoritative
-    {"extra_field": 1},
-])
-def test_malformed_or_contradictory_committed_receipts_are_unknown(over):
-    v = wp.verify_receipt(receipt_frame(**over), _expect())
-    assert v.state == "unknown" and v.settles is False, over
-
-
-def test_a_missing_required_key_is_unknown():
-    for key in list(receipt_frame()["result"]):
-        frame = receipt_frame()
-        del frame["result"][key]
-        assert wp.verify_receipt(frame, _expect()).state == "unknown", key
-
-
-@pytest.mark.parametrize("frame", [
-    failure("unauthorized"), failure("binding_revision_conflict"), failure("fence_unavailable"),
-    {"id": 41, "type": "result", "success": "true", "result": {}}, {"id": True, "type": "result", "success": True, "result": {}},
-    {"id": 41, "type": "event", "success": True}, None, [], "committed",
-])
-def test_errors_and_broken_envelopes_are_unknown_never_terminal(frame):
-    v = wp.verify_receipt(frame, _expect())
-    assert v.state == "unknown" and v.settles is False
-
-
-def test_in_flight_and_unknown_never_settle():
-    for state in ("in_flight", "unknown"):
-        v = wp.verify_receipt(receipt_frame(state), _expect())
-        assert v.state == state and v.settles is False
-    assert wp.verify_receipt(receipt_frame("unknown", reason_code="handler_active"), _expect()).state == "unknown"
-    assert wp.verify_receipt(receipt_frame("in_flight", terminal=True), _expect()).state == "unknown"
-
-
-def test_pre_effect_refusal_settles_only_with_its_stable_error_code():
-    v = wp.verify_receipt(receipt_frame("never_committed"), _expect())
-    assert (v.state, v.settles) == ("never_committed", True)
-    assert wp.verify_receipt(receipt_frame("never_committed", error_code=None), _expect()).state == "unknown"
-
-
-def test_recovered_uncommitted_needs_a_fresh_matching_exclusive_context():
-    frame = receipt_frame("never_committed", reason_code="recovered_uncommitted", error_code=None)
-    assert wp.verify_receipt(frame, _expect()).state == "unknown"  # no context: no ownership proof
-    good = wp.FenceContext(repository_id=REPO, writer_epoch=8, owner_id=OWNER, exclusive_writer_established=True)
-    assert wp.verify_receipt(frame, _expect(), context=good).settles is True
-    for bad in (wp.FenceContext(repository_id=REPO, writer_epoch=8, owner_id=OWNER, exclusive_writer_established=False),
-                wp.FenceContext(repository_id=REPO, writer_epoch=9, owner_id=OWNER, exclusive_writer_established=True),
-                wp.FenceContext(repository_id=OTHER_REPO, writer_epoch=8, owner_id=OWNER, exclusive_writer_established=True),
-                wp.FenceContext(repository_id=REPO, writer_epoch=8, owner_id=OTHER_OWNER, exclusive_writer_established=True)):
-        assert wp.verify_receipt(frame, _expect(), context=bad).state == "unknown", bad
-
-
-def test_the_expectation_itself_only_takes_a_sealed_peer():
-    with pytest.raises(wp.PeerSeamError):
-        _expect(peer="vpr-arx-fixture-1")  # type: ignore[arg-type]
-    with pytest.raises(wp.PeerSeamError):
-        _expect(request_id="")
-
-
-# ------------------------------------------------------------------ (1) one central commit
-
-def test_one_central_commit_per_original_operation():
-    ledger = wp.OneCommitLedger()
-    e = _expect()
-    assert ledger.record(e, wp.verify_receipt(receipt_frame(), e)) == "settled"
-    assert ledger.record(e, wp.verify_receipt(receipt_frame(), e)) == "duplicate"  # the same fact again is idempotent
-    other = wp.verify_receipt(receipt_frame(commit={"user_id": PERSON, "revision_before": 4, "revision_after": 6}), e)
-    assert other.settles is True
-    assert ledger.record(e, other) == "conflict"  # a second, different central commit for the same original operation
-    assert ledger.conflicts == 1
-
-
-def test_two_operations_cannot_claim_the_same_central_transition():
-    ledger = wp.OneCommitLedger()
-    e1 = _expect()
-    e2 = _expect(request_id="capture-request-fixture-9", operation_id="capture-operation-fixture-9",
-                 operation_binding_ref="capture-binding-fixture-9")
-    assert ledger.record(e1, wp.verify_receipt(receipt_frame(), e1)) == "settled"
-    r2 = receipt_frame(request_id="capture-request-fixture-9", operation_id="capture-operation-fixture-9",
-                       operation_binding_ref="capture-binding-fixture-9")
-    assert ledger.record(e2, wp.verify_receipt(r2, e2)) == "conflict"
-
-
-def test_a_terminal_operation_is_never_reopened_by_a_later_non_terminal_answer():
-    ledger = wp.OneCommitLedger()
-    e = _expect()
-    assert ledger.record(e, wp.verify_receipt(receipt_frame(), e)) == "settled"
-    assert ledger.record(e, wp.verify_receipt(receipt_frame("in_flight"), e)) == "conflict"
-    assert ledger.record(_expect(request_id="r2"), wp.verify_receipt(receipt_frame("unknown"), _expect(request_id="r2"))) == "open"
-
-
 # ------------------------------------------------------------------ (2) the registry client
 
 def test_current_binding_resolves_to_the_pinned_dedicated_owner():
@@ -468,8 +331,6 @@ def test_rotation_is_never_followed_automatically_and_the_old_receipt_needs_hist
     reg.put(binding_row(2, state="rotated", active=False, historical_read=True, successor={"peer_binding_ref": BINDING, "peer_binding_revision": 3}))
     hist = client.for_receipt(BINDING, 2)
     assert hist.ok and hist.historical is True and hist.peer.peer_binding_revision == 2
-    v = wp.verify_receipt(receipt_frame(), _expect(peer=hist.peer))
-    assert v.settles is True
 
 
 def test_revoked_binding_blocks_new_queries_and_historical_reads_need_permission():
@@ -499,13 +360,11 @@ def test_historical_reads_cannot_reach_a_revision_newer_than_the_pin_or_another_
     assert client.for_receipt(BINDING, 2).ok is True and client.for_receipt(BINDING, 2).historical is False
 
 
-def test_a_receipt_from_a_rotated_binding_never_verifies_against_the_current_peer():
+def test_after_rotation_the_current_peer_is_the_new_revision_never_the_rotated_one():
     reg = FakeRegistry(binding_row(2, state="rotated", active=False, historical_read=True,
                                    successor={"peer_binding_ref": BINDING, "peer_binding_revision": 3}), binding_row(3))
     current = _client(reg, pin=_pin(peer_binding_revision=3)).current()
-    assert current.ok
-    v = wp.verify_receipt(receipt_frame(peer_binding_revision=2), _expect(peer=current.peer))
-    assert v.state == "unknown"
+    assert current.ok and current.peer.peer_binding_revision == 3
 
 
 # ------------------------------------------------------------------ (4) ACR5-01 users/access_state

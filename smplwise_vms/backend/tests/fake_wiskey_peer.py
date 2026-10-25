@@ -3,7 +3,6 @@ a station, a reader or a door. Every identifier is fictional (the fixture values
 
 - `FakeRegistry`: the WisKey half of the peer-binding registry as Arx's PROPOSED read (`peer_bindings/get`) would see it - a table of
   binding revisions, each with its query owner, repository, state, historical-read permission and successor. Calls are counted.
-- `receipt_frame(...)`: a `signed_person_writes/status` success frame (WisKey draft1 shape, ARX_REPLY8_SIGNED_HOOK_FIELDS_AND_EXAMPLES).
 - `access_state_frame(...)`, `normalize_frame(...)`, `plan(...)`: the frozen v1 ACR5 shapes (ARX_REPLY6_WIRE_SHAPES_V1) and the ACR5-04
   draft-plan result."""
 from __future__ import annotations
@@ -18,9 +17,6 @@ OTHER_OWNER = "99999999999949998999999999999999"
 PERSON = "44444444-4444-4444-8444-444444444444"
 PEER = "vpr-arx-fixture-1"
 BINDING = "peer-binding-fixture-8"
-REQUEST_ID = "capture-request-fixture-8"
-OPERATION_ID = "capture-operation-fixture-8"
-OPERATION_BINDING = "capture-binding-fixture-8"
 
 
 def binding_row(revision: int = 2, **over: Any) -> dict[str, Any]:
@@ -60,30 +56,6 @@ class FakeRegistry:
         if row is None:
             return {"id": 7, "type": "result", "success": False, "error": {"code": "binding_not_found", "message": "unavailable"}}
         return {"id": 7, "type": "result", "success": True, "result": copy.deepcopy(row)}
-
-
-def receipt_result(state: str = "committed", **over: Any) -> dict[str, Any]:
-    base: dict[str, Any] = {
-        "schema_version": 1, "protocol": "wiskey-signed-person-completion-draft1", "repository_id": REPO, "observed_epoch": 8,
-        "query_owner_id": OWNER, "peer_binding_ref": BINDING, "peer_binding_revision": 2, "request_id": REQUEST_ID,
-        "operation_id": OPERATION_ID, "operation_binding_ref": OPERATION_BINDING, "exclusive_writer_established": True,
-        "state": state, "terminal": state in ("committed", "never_committed"), "commit": None, "reason_code": None, "error_code": None,
-        "scope": "central_capture_person_commit", "device_state": "not_attested"}
-    if state == "committed":
-        base["commit"] = {"user_id": PERSON, "revision_before": 4, "revision_after": 5}
-    elif state == "never_committed":
-        base["reason_code"] = "pre_effect_refused"
-        base["error_code"] = "binding_denied"
-    elif state == "in_flight":
-        base["reason_code"] = "handler_active"
-    elif state == "unknown":
-        base["reason_code"] = "not_tracked"
-    base.update(over)
-    return base
-
-
-def receipt_frame(state: str = "committed", **over: Any) -> dict[str, Any]:
-    return {"id": 41, "type": "result", "success": True, "result": receipt_result(state, **over)}
 
 
 def failure(code: str, message: str = "unavailable") -> dict[str, Any]:
