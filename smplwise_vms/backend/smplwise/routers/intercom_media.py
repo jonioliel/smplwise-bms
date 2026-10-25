@@ -429,6 +429,11 @@ async def _pump(websocket: WebSocket, t: im.TalkSession, channel: im.TalkChannel
         await downlink.open()
         try:
             async for packet in downlink.frames():
+                # ASGI-295 F3: a moved access generation (a revoke during talk_open, say) is re-checked and AWAITED before a packet is
+                # published (fail closed); a lease without `confirm` (a duck-typed double) keeps the synchronous check below
+                confirm = getattr(lease, "confirm", None)
+                if confirm is not None and not await confirm():
+                    return "access_lost"
                 # no await between the check of the session / the permission and the publication of a packet
                 if time.time() >= t.expires_at:
                     return "expired"

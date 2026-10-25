@@ -826,6 +826,42 @@ def test_a_revoke_while_the_talk_open_awaits_wiskey_never_publishes_a_packet_and
     assert world.station.by_command(w10.TALK_CLOSE) and not world.station.talks, "the talk opened during the revoke was closed at WisKey"
 
 
+def test_the_lease_confirm_awaits_a_moved_generation_and_fails_closed_on_an_error(monkeypatch):
+    """Unit (F3): `CameraLease.confirm` answers on a COMPLETED re-check when the access generation moved; an error of that re-check is
+    a lost lease (fail closed); an unchanged, recently checked lease answers without awaiting anything."""
+    from smplwise.services import revocation
+
+    answers: list[Any] = []
+
+    class Lease(leases.CameraLease):
+        def allowed_now(self) -> bool:
+            value = answers.pop(0)
+            if isinstance(value, Exception):
+                raise value
+            return value
+
+    principal = rbac.Principal(user_id="u-confirm", username="u", display_name="u", source="dev")
+
+    async def scenario() -> list[Any]:
+        out: list[Any] = []
+        lease = Lease(None, principal, "entry-a", "access.call")
+        out.append(await lease.confirm())  # nothing moved: no re-check at all
+        revocation.changed(["u-confirm"])
+        answers.append(True)
+        out.append(await lease.confirm())  # moved: re-checked (allowed)
+        revocation.changed(["u-confirm"])
+        answers.append(False)
+        out.append(await lease.confirm())  # moved: re-checked (revoked)
+        failing = Lease(None, principal, "entry-a", "access.call")
+        revocation.changed(["u-confirm"])
+        answers.append(RuntimeError("database is locked"))
+        out.append((await failing.confirm(), failing.lost))
+        return out
+
+    assert run(scenario()) == [True, True, False, (False, True)]
+    assert answers == []
+
+
 def test_a_binding_that_expires_during_the_talk_ends_it_through_the_lease_recheck(world, app):
     """A binding with `expires_at` a few seconds ahead: nobody revokes it, the lease re-check (leases.RECHECK_S) finds it gone and the talk
     ends `access_lost` while it is open."""
