@@ -5,6 +5,9 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
+import '../components/sw-pager';
+import { PAGE_SIZE_DEFAULT, clampPage, loadScreenDisplay, pageCount, pageSlice } from '../api/screen-display';
+import { pl } from '../i18n/polish';
 import './schedule-drawer';
 import type { ScheduleActions } from './schedule-drawer';
 import type { DropdownItem } from '../components/sw-dropdown';
@@ -92,8 +95,14 @@ interface Note {
   action?: { label: string; run: () => void };
 }
 
-const VIEW_ICON: Record<ListView, AutomationIconName> = { cards: 'grid', table: 'list', week: 'calendar' };
-const VIEW_LABEL: Record<ListView, string> = { cards: 'כרטיסים', table: 'טבלה', week: 'שבוע' };
+const VIEW_ICON: Record<ListView, AutomationIconName> = { rows: 'rows', cards: 'grid', table: 'list', week: 'calendar' };
+const VIEW_LABEL: Record<ListView, () => string> = { rows: () => pl('rows'), cards: () => 'כרטיסים', table: () => 'טבלה', week: () => 'שבוע' };
+const VIEWS: ListView[] = ['rows', 'cards', 'table', 'week'];
+
+/** POLISH-295: the minutes since local midnight of an instant, as a share of the day (the "today" timeline). */
+function dayShare(d: Date): number {
+  return Math.min(1, Math.max(0, (d.getHours() * 60 + d.getMinutes()) / 1440));
+}
 
 function store(): Storage | null {
   try {
@@ -151,7 +160,13 @@ export class DevicesSchedules extends LitElement {
   @state() private failed = '';
   @state() private noView = false;
   @state() private filters: ListFilters = { ...NO_FILTERS };
-  @state() private view: ListView = 'cards';
+  @state() private view: ListView = 'rows';
+  /** POLISH-295: the view an address without one opens (ui.schedules_view, rows by default), and the rows per page (ui.page_size.*). */
+  @state() private defaultView: ListView = 'rows';
+  @state() private perPage = PAGE_SIZE_DEFAULT.schedules;
+  @state() private page = 1;
+  /** POLISH-295: the selection boxes show only in selection mode (the user menu's "בחירה מרובה") or while something is picked. */
+  @state() private selecting = false;
   @state() private filtersOpen = false;
   @state() private selected = new Set<string>();
   @state() private sub = '';
@@ -173,6 +188,7 @@ export class DevicesSchedules extends LitElement {
   private onPhone = () => (this.phone = this.phoneMq.matches);
   private offRoute: (() => void) | null = null;
   private offEdit: (() => void) | null = null;
+  private offSelect: (() => void) | null = null;
   private stopWs: (() => void) | null = null;
   private lastWritten = '';
   private urlTimer = 0;
@@ -189,9 +205,17 @@ export class DevicesSchedules extends LitElement {
     .dh-det .grow {
       min-inline-size: 0;
     }
+    /* POLISH-295: narrow enough that the review chip, the filter, the search and "חדש" stay on the toolbar row at 1440 */
     .search {
-      min-inline-size: 200px;
-      flex: 0 1 260px;
+      min-inline-size: 150px;
+      flex: 1 1 150px;
+      max-inline-size: 260px;
+    }
+    /* POLISH-295: below a wide desktop the filter button is its icon (and its count), so the toolbar stays one row */
+    @media (min-width: 768px) and (max-width: 1600px) {
+      .foldbtn .lbl {
+        display: none;
+      }
     }
     .newbtn[disabled] {
       opacity: 0.5;
@@ -263,7 +287,7 @@ export class DevicesSchedules extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px 14px;
-      padding: 10px 16px;
+      padding: 8px 16px;
       flex-wrap: wrap;
     }
     .upnext::-webkit-scrollbar {
@@ -481,6 +505,266 @@ export class DevicesSchedules extends LitElement {
     .run b {
       color: var(--dv-text);
       font-weight: 600;
+    }
+    /* ---- POLISH-295: the rows view (the approved preview): one 54 px row per schedule, the whole row opens the drawer ---- */
+    .rlist {
+      padding: 0;
+      overflow: visible;
+    }
+    .lr {
+      position: relative;
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 40px;
+      align-items: center;
+      gap: var(--sw-s-3);
+      min-block-size: 54px;
+      padding-inline: var(--sw-s-4);
+      border-block-end: 1px solid var(--dv-border);
+      font-size: var(--sw-fs-base);
+      transition: background-color var(--mm-motion) var(--mm-ease);
+    }
+    .rlist.picking .lr {
+      grid-template-columns: 32px 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 40px;
+    }
+    .lr:last-child {
+      border-block-end: 0;
+    }
+    .lr[data-picked] {
+      background: var(--dv-accent-soft);
+    }
+    .lr[data-menu] {
+      z-index: 20;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .lr:hover {
+        background: var(--dv-surface-2);
+      }
+      .lr[data-picked]:hover {
+        background: var(--dv-accent-soft);
+      }
+    }
+    .lr .name {
+      display: block;
+      font-weight: 600;
+      font-size: var(--sw-fs-md);
+      color: var(--dv-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .lr .name::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+    }
+    .lr .name:focus-visible::after {
+      outline: var(--sw-focus-w) solid var(--dv-focus);
+      outline-offset: -2px;
+    }
+    .lname {
+      min-inline-size: 0;
+    }
+    .lname .sub {
+      display: block;
+      font-size: var(--sw-fs-sm);
+      color: var(--dv-text-2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .lname .sub b {
+      color: var(--dv-text);
+      font-weight: 600;
+    }
+    .lsel,
+    .ltog,
+    .lops {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+    }
+    .lops {
+      justify-content: flex-end;
+    }
+    .lops .pop {
+      background: var(--sw-menu-surface);
+      inset-block-start: 42px;
+      inset-inline-end: 0;
+      min-inline-size: 190px;
+    }
+    .lsel .pick {
+      margin: 0;
+    }
+    .lr.off .name,
+    .lr.off .ldays,
+    .lr.off .lbar {
+      opacity: 0.5;
+    }
+    .lr.off .name {
+      color: var(--dv-text-2);
+    }
+    .lbar {
+      min-inline-size: 0;
+    }
+    .lnext {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-inline-size: 0;
+      font-size: var(--sw-fs-sm);
+      color: var(--dv-text-2);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lnext b {
+      color: var(--dv-text);
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lnext.warn {
+      color: var(--sw-warning-text);
+      font-weight: 600;
+    }
+    /* the pager sits close under its page (the groups' 30 px gap is for groups), so a page of rows fits 1440x900 */
+    .lfoot {
+      display: flex;
+      justify-content: flex-end;
+      margin-block-start: calc(var(--sw-s-6) * -1);
+    }
+    /* the review chip beside the state filter (an administrator's; it replaced the banner) */
+    .rc.attn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .rc.attn small {
+      font-weight: 700;
+      color: var(--sw-warning-text);
+    }
+    .wdot {
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--dv-warning);
+      flex: none;
+    }
+    /* "today" as a 24-hour timeline (LTR like every time bar of the product) */
+    .upnext .tl {
+      position: relative;
+      flex: 1 1 260px;
+      min-inline-size: 160px;
+      block-size: 30px;
+      direction: ltr;
+    }
+    .upnext .track {
+      position: absolute;
+      inset-inline: 0;
+      inset-block-start: 6px;
+      block-size: 6px;
+      border-radius: var(--sw-r-2xs);
+      background: var(--dv-surface-3);
+      overflow: hidden;
+    }
+    .upnext .past {
+      position: absolute;
+      inset-block: 0;
+      left: 0;
+      background: var(--dv-border-strong);
+    }
+    .upnext .now {
+      position: absolute;
+      inset-block-start: 1px;
+      block-size: 16px;
+      inline-size: 2px;
+      margin-inline-start: -1px;
+      background: var(--dv-accent);
+      border-radius: 1px;
+    }
+    .upnext .hr {
+      position: absolute;
+      inset-block-start: 15px;
+      transform: translateX(-50%);
+      font-size: var(--sw-fs-2xs);
+      color: var(--dv-text-3);
+      font-variant-numeric: tabular-nums;
+    }
+    .upnext .hr.h0 {
+      transform: none;
+    }
+    .upnext .hr.h24 {
+      transform: translateX(-100%);
+    }
+    .upnext .tdot {
+      position: absolute;
+      inset-block-start: 9px;
+      inline-size: 10px;
+      block-size: 10px;
+      margin: -5px 0 0 -5px;
+      border-radius: 50%;
+      background: var(--c);
+      box-shadow: 0 0 0 2px var(--dv-surface);
+      transition: transform var(--mm-motion) var(--mm-ease);
+    }
+    .upnext .tdot.nx {
+      inline-size: 12px;
+      block-size: 12px;
+      margin: -6px 0 0 -6px;
+    }
+    a.up {
+      color: inherit;
+      text-decoration: none;
+      min-block-size: 32px;
+    }
+    @media (pointer: coarse), (max-width: 767px) {
+      a.up {
+        min-block-size: 44px;
+      }
+    }
+    a.up:focus-visible {
+      outline: var(--sw-focus-w) solid var(--dv-focus);
+      outline-offset: 2px;
+      border-radius: var(--sw-r-xs);
+    }
+    .upnext .up .nm {
+      max-inline-size: 22ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    @media (max-width: 1100px) and (min-width: 768px) {
+      .lr {
+        grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(130px, 1fr) 40px;
+      }
+      .rlist.picking .lr {
+        grid-template-columns: 32px 44px minmax(0, 1.6fr) auto minmax(130px, 1fr) 40px;
+      }
+      .lr > .lbar {
+        display: none;
+      }
+    }
+    @media (max-width: 767px) {
+      .lr {
+        grid-template-columns: 44px minmax(0, 1fr) auto 36px;
+        gap: var(--sw-s-2);
+        padding-inline: var(--sw-s-3);
+      }
+      .rlist.picking .lr {
+        grid-template-columns: 28px 44px minmax(0, 1fr) auto 36px;
+      }
+      .lr > .ldays,
+      .lr > .lbar {
+        display: none;
+      }
+      .lnext {
+        max-inline-size: 38vw;
+      }
+      .upnext .tl {
+        flex-basis: 100%;
+        order: 2;
+      }
     }
     /* ---- the table ---- */
     .tbl {
@@ -752,7 +1036,8 @@ export class DevicesSchedules extends LitElement {
         min-inline-size: 0;
       }
       .dh-det .foldbtn,
-      .dh-det .newbtn {
+      .dh-det .newbtn,
+      .dh-det .rc.attn {
         order: 3;
       }
       .more {
@@ -815,11 +1100,20 @@ export class DevicesSchedules extends LitElement {
     // the trash is in the user menu, as on the automations screen (screen-edit.ts)
     this.offEdit = registerScreenEdit({ id: 'schedules-trash', label: 'סל מחזור', icon: 'trash', can: () => screenState(this.status).kind === 'ready' && this.sub !== 'trash', run: () => this.go('trash') });
     const stored = readStored<Partial<ListFilters>>(FILTERS_KEY);
-    const storedView = parseView(store()?.getItem(VIEW_KEY) ?? null);
+    // POLISH-295: the choice is written as JSON (writeStored); reading it raw never matched, so the browser's view was never remembered
+    const storedView = parseView(readStored<string>(VIEW_KEY)) ?? parseView(store()?.getItem(VIEW_KEY) ?? null);
     const params = parseRoute().params;
     // the address carries the state (a link keeps it); without one, this browser's last choice
     this.filters = params.toString() ? parseFilters(params) : stored ? parseFilters(filtersToParams({ ...NO_FILTERS, ...stored })) : { ...NO_FILTERS };
-    this.view = parseView(params.get('view')) ?? storedView ?? 'cards';
+    this.view = parseView(params.get('view')) ?? storedView ?? this.defaultView;
+    // POLISH-295: the installation's default view (when neither the address nor this browser chose) and the rows per page
+    const urlView = !!parseView(params.get('view'));
+    void loadScreenDisplay().then((d) => {
+      this.defaultView = d.schedulesView;
+      this.perPage = d.pageSize.schedules;
+      if (!urlView && !storedView) this.view = d.schedulesView;
+    });
+    this.offSelect = registerScreenEdit({ id: 'schedules-select', label: pl('select'), icon: 'check', can: () => screenState(this.status).kind === 'ready' && !this.sub && this.view !== 'week' && !this.selecting, run: () => (this.selecting = true) });
     this.filtersOpen = extraFilterCount(this.filters) > 0;
     this.offRoute = onRouteChange((r) => this.onRoute(r));
     void this.load();
@@ -835,6 +1129,7 @@ export class DevicesSchedules extends LitElement {
     window.removeEventListener('keydown', this.onKey);
     this.offRoute?.();
     this.offEdit?.();
+    this.offSelect?.();
     this.stopWs?.();
     window.clearTimeout(this.urlTimer);
     window.clearTimeout(this.noteTimer);
@@ -905,7 +1200,7 @@ export class DevicesSchedules extends LitElement {
   }
 
   private params(): URLSearchParams {
-    return filtersToParams(this.filters, this.view);
+    return filtersToParams(this.filters, this.view, this.defaultView);
   }
 
   /** Change the sub-route (the drawer, the trash, the review, or back to the list): a history entry. */
@@ -1112,16 +1407,19 @@ export class DevicesSchedules extends LitElement {
 
   private setFilter(patch: Partial<ListFilters>, delay = 0) {
     this.filters = { ...this.filters, ...patch };
+    this.page = 1;
     this.syncUrl(delay);
   }
 
   private clearFilters() {
     this.filters = { ...NO_FILTERS, sort: this.filters.sort, group: this.filters.group };
+    this.page = 1;
     this.syncUrl();
   }
 
   private setView(v: ListView) {
     this.view = v;
+    this.page = 1;
     writeStored(VIEW_KEY, v);
     this.syncUrl();
   }
@@ -1241,6 +1539,8 @@ export class DevicesSchedules extends LitElement {
     const manage = !!this.status?.can.manage;
     const extra = extraFilterCount(f);
     const sc = stateCounts(all);
+    // POLISH-295: "דורשים בדיקה" is a quiet chip beside the state filter (an administrator's), not a banner across the screen
+    const attention = scr.admin ? this.status?.counts.attention ?? 0 : 0;
     return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-sched-header>
       <div class="dh-row">
         <h1 data-sched-title>תזמונים</h1>
@@ -1253,7 +1553,8 @@ export class DevicesSchedules extends LitElement {
       ${tools ? html`<div class="dh-det" data-sched-toolbar>
         ${this.renderSegments()}
         ${all.length ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_SEGMENTS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
-        ${all.length ? html`<button type="button" class="btn foldbtn" data-filters-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}<span class="lbl">סינון</span>${extra ? html`<small>${extra}</small>` : nothing}</button>` : nothing}
+        ${attention ? html`<button type="button" class="rc attn" data-open-review data-sched-attention @click=${() => this.go('review')}><i class="wdot" aria-hidden="true"></i>${pl('review')}<small>${attention}</small></button>` : nothing}
+        ${all.length ? html`<button type="button" class="btn foldbtn" data-filters-toggle aria-label="סינון" title="סינון" aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}<span class="lbl">סינון</span>${extra ? html`<small>${extra}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>
         ${all.length && this.phone ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}
         ${all.length ? html`<label class="search">${aIcon('search')}<span class="sr-only">חיפוש</span><input type="search" data-filter="q" placeholder=${this.phone ? 'חיפוש' : 'חיפוש תזמון, התקן או תג'} .value=${live(f.q)} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></label>` : nothing}
@@ -1265,7 +1566,7 @@ export class DevicesSchedules extends LitElement {
 
   /** Cards · table · week: the view switch sits where the media pages keep their floor menu (the end of the title row). */
   private viewSwitch(): TemplateResult {
-    return html`<div class="seg sm views" role="group" aria-label="תצוגה">${(['cards', 'table', 'week'] as ListView[]).map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${String(this.view === v)} aria-label=${VIEW_LABEL[v]} title=${VIEW_LABEL[v]} @click=${() => this.setView(v)}>${aIcon(VIEW_ICON[v])}</button>`)}</div>`;
+    return html`<div class="seg sm views" role="group" aria-label="תצוגה">${VIEWS.map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${String(this.view === v)} aria-label=${VIEW_LABEL[v]()} title=${VIEW_LABEL[v]()} @click=${() => this.setView(v)}>${aIcon(VIEW_ICON[v])}</button>`)}</div>`;
   }
 
   /** The strip of "קברניט": תזמונים (this screen) first, then the automations screen's segments. Shown only when there is a second segment to go to. */
@@ -1319,21 +1620,34 @@ export class DevicesSchedules extends LitElement {
   }
 
   private bannerRow(st: ReturnType<typeof screenState>): TemplateResult | typeof nothing {
-    const attention = st.admin ? this.status?.counts.attention ?? 0 : 0;
-    // a viewer sees no banner (the automations screen does the same): the screen simply offers nothing to change
+    // a viewer sees no banner (the automations screen does the same): the screen simply offers nothing to change. POLISH-295: the
+    // review count moved to a chip of the header's filter row (clean operator screens: no banner for a to-do)
     const blocked = st.readOnly && !!this.status?.can.manage;
-    if (!st.stale && !blocked && !attention) return nothing;
+    if (!st.stale && !blocked) return nothing;
     return html`<div class="stack">
       ${st.stale ? html`<div class="banner warn" role="status" data-sched-stale>${aIcon('wifiOff')}<div>${STALE_TEXT}</div><button type="button" class="btn sm" data-banner-retry @click=${() => void this.refresh(true)}>${aIcon('refresh')}נסו שוב</button></div>` : nothing}
       ${blocked ? html`<div class="banner info" role="status" data-sched-readonly>${aIcon('lock')}<div>${st.readOnlyText}</div></div>` : nothing}
-      ${attention ? html`<div class="banner warn" role="status" data-sched-attention>${aIcon('warning')}<div><b>${attention} דורשים בדיקה</b></div><button type="button" class="btn sm" data-open-review @click=${() => this.go('review')}>לבדיקה</button></div>` : nothing}
     </div>`;
   }
 
+  /** POLISH-295: "today" as one 24-hour timeline - the past shaded, a line at now, a dot per run still to come today, and only the next
+   * run named (a link into it); the dots are a picture of the day (their times are each one's tooltip). */
   private renderUpcoming(items: Schedule[]): TemplateResult | typeof nothing {
-    const ups = upcomingToday(items);
+    const ups = upcomingToday(items, new Date(), 48);
     if (!ups.length) return nothing;
-    return html`<div class="upnext glass" data-sched-upnext role="list" aria-label="ההרצות הבאות היום"><b>היום</b>${ups.map((u) => html`<span class="up" role="listitem" data-upcoming=${u.scheduleId}><time class="n">${u.time}</time><span>${bidi(u.name)}</span>${u.conditional ? html`<span class="what">· בתנאי</span>` : nothing}<i style=${`--c:${toneColor(u.tone)}`}></i></span>`)}</div>`;
+    const now = dayShare(new Date());
+    const next = ups[0];
+    const hours = [0, 6, 12, 18, 24];
+    return html`<div class="upnext glass" data-sched-upnext role="group" aria-label="ההרצות הבאות היום">
+      <b>היום</b>
+      <div class="tl">
+        <span class="track" aria-hidden="true"><span class="past" style=${`inline-size:${(now * 100).toFixed(2)}%`}></span></span>
+        <span class="now" aria-hidden="true" style=${`left:${(now * 100).toFixed(2)}%`}></span>
+        ${hours.map((h) => html`<span class=${`hr${h === 0 ? ' h0' : h === 24 ? ' h24' : ''}`} aria-hidden="true" style=${`left:${(h / 24) * 100}%`}>${String(h).padStart(2, '0')}</span>`)}
+        ${ups.map((u) => html`<span class=${`tdot${u === next ? ' nx' : ''}`} aria-hidden="true" data-upcoming=${u.scheduleId} style=${`left:${(dayShare(new Date(u.at)) * 100).toFixed(2)}%;--c:${toneColor(u.tone)}`} title=${`${u.time} · ${u.name}${u.conditional ? ' · בתנאי' : ''}`}></span>`)}
+      </div>
+      <a class="up" href=${this.href(next.scheduleId)} data-upcoming-next=${next.scheduleId}><time class="n">${next.time}</time><span class="nm">${bidi(next.name)}</span>${next.conditional ? html`<span class="what">· בתנאי</span>` : nothing}</a>
+    </div>`;
   }
 
   // ---------------------------------------------------------------------------- render: the cards
@@ -1421,25 +1735,68 @@ export class DevicesSchedules extends LitElement {
     </div>`;
   }
 
+  // ---------------------------------------------------------------------------- render: the rows (POLISH-295)
+
+  /** Why a row's next run is amber: a device that is not there, an action no longer valid, a script not approved. */
+  private rowIssue(s: Schedule): string {
+    if (s.enabled && s.state === 'unavailable') return STATE_LABEL.unavailable;
+    if (s.slots.some((sl) => sl.actions.some((a) => a.invalid))) return 'פעולה לא תקפה';
+    if (s.slots.some((sl) => sl.actions.some((a) => a.blocked))) return 'סקריפט לא מאושר';
+    return '';
+  }
+
+  /** One schedule as a 54 px row (the approved preview): the switch, the name and where, the days as small letters, a thin 24-hour bar,
+   * the next run (amber when something needs a look), the "⋯" menu. The selection box shows only in selection mode. */
+  private renderSchedRow(s: Schedule, picking: boolean) {
+    const floor = floorOf(s);
+    const hasMenu = s.can.edit || s.can.run || s.can.copy || s.can.delete;
+    const open = this.menuFor === s.id;
+    const issue = this.rowIssue(s);
+    const sun = isApi() ? null : DEMO_SUN;
+    return html`<div class=${`lr${s.enabled ? '' : ' off'}`} role="row" data-schedule=${s.id} data-enabled=${s.enabled} ?data-picked=${this.selected.has(s.id)} ?data-menu=${open}>
+      ${picking ? html`<span class="lsel" role="cell"><label class="pick" title="בחירה"><input type="checkbox" data-select=${s.id} aria-label=${`בחירת ${s.display_name}`} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></label></span>` : nothing}
+      <span class="ltog" role="cell">${this.switchOf(s)}</span>
+      <span class="lname" role="cell"><a class="name" href=${this.href(s.id)} data-row-open>${bidi(s.display_name)}</a><span class="sub">${floor ? html`<b>${bidi(floor)}</b> · ` : nothing}${bidi(devicesLine(s))}</span></span>
+      <span class="ldays" role="cell"><sw-day-chips .days=${s.days} compact></sw-day-chips></span>
+      <span class="lbar" role="cell"><sw-schedule-bar compact .slots=${s.slots} .sun=${sun}></sw-schedule-bar></span>
+      <span class=${`lnext${issue ? ' warn' : ''}`} role="cell" data-row-next title=${issue}>${issue ? html`${aIcon('warning')}${issue}` : html`<i class=${`dot ${s.enabled && s.next_run ? 'ok' : ''}`}></i><b data-next-run>${nextRunText(s)}</b>`}</span>
+      <span class="lops" role="cell">${hasMenu ? html`<button type="button" class="more-btn" aria-haspopup="menu" aria-expanded=${String(open)} aria-label=${`עוד · ${s.display_name}`} data-card-menu @click=${() => (this.menuFor = open ? '' : s.id)}>${aIcon('dots')}</button>` : nothing}${open ? this.menu(s) : nothing}</span>
+    </div>`;
+  }
+
+  private renderRows(items: Schedule[]) {
+    const picking = this.selecting || this.selected.size > 0;
+    return html`<div class=${`rlist glass${picking ? ' picking' : ''}`} role="table" aria-label="תזמונים" data-sched-rows>${repeat(items, (s) => s.id, (s) => this.renderSchedRow(s, picking))}</div>`;
+  }
+
   private renderList(rows: Schedule[]) {
     if (this.view === 'week') {
       return html`<schedules-week-view .schedules=${rows} .sun=${isApi() ? null : DEMO_SUN} .snap=${this.status?.settings.snap_minutes ?? 15} @open-schedule=${(e: CustomEvent<{ id: string }>) => this.go(e.detail.id)}></schedules-week-view>`;
     }
-    const groups = groupSchedules(sortSchedules(rows, this.filters.sort), this.filters.group);
-    const body = (items: Schedule[]) => (this.view === 'table' ? this.renderTable(items) : html`<div class="cgrid" data-sched-grid>${repeat(items, (s) => s.id, (s) => this.renderCard(s))}</div>`);
-    if (!this.filters.group) return html`<div class="groups"><section class="fsec group" data-group="">${body(groups[0].items)}</section></div>`;
-    return html`<div class="groups">${groups.map((g) => html`<section class="fsec group" data-group=${g.key}><header class="sh"><h2>${bidi(g.label)}</h2></header>${body(g.items)}</section>`)}</div>`;
+    // POLISH-295: one page at a time (control screens never scroll): the sorted list is cut to the page, then grouped
+    const sorted = sortSchedules(rows, this.filters.sort);
+    const per = this.phone ? this.perPage.phone : this.perPage.wide;
+    const pages = pageCount(sorted.length, per);
+    const page = clampPage(this.page, sorted.length, per);
+    const groups = groupSchedules(pageSlice(sorted, page, per), this.filters.group);
+    const body = (items: Schedule[]) => (this.view === 'table' ? this.renderTable(items) : this.view === 'rows' ? this.renderRows(items) : html`<div class="cgrid" data-sched-grid>${repeat(items, (s) => s.id, (s) => this.renderCard(s))}</div>`);
+    const pager = pages > 1 ? html`<div class="lfoot" data-sched-pager><sw-pager .page=${page} .pages=${pages} @page-change=${(e: CustomEvent<{ page: number }>) => { this.page = e.detail.page; this.menuFor = ''; }}></sw-pager></div>` : nothing;
+    if (!this.filters.group) return html`<div class="groups"><section class="fsec group" data-group="">${body(groups[0]?.items ?? [])}</section>${pager}</div>`;
+    return html`<div class="groups">${groups.map((g) => html`<section class="fsec group" data-group=${g.key}><header class="sh"><h2>${bidi(g.label)}</h2></header>${body(g.items)}</section>`)}${pager}</div>`;
   }
 
   private renderBulk() {
     const n = this.selected.size;
+    if (this.selecting && !n && this.view !== 'week') {
+      return html`<div class="editbar bulk" role="region" aria-label=${pl('select')} data-bulk-bar="empty"><span class="t">${aIcon('check')}0 נבחרו</span><span class="grow"></span><button type="button" class="btn sm quiet" data-select-done @click=${() => (this.selecting = false)}>${pl('selectDone')}</button></div>`;
+    }
     if (!n || this.view === 'week') return nothing;
     const can = !!this.status?.can.manage && !!this.status?.writable;
     return html`<div class="editbar bulk" role="region" aria-label="פעולות על הבחירה" data-bulk-bar>
       <span class="t">${aIcon('check')}${n} נבחרו</span>
       <span class="grow"></span>
       ${can ? html`<button type="button" class="btn sm" data-bulk-enable ?disabled=${this.busy} @click=${() => void this.bulk('enable')}>${aIcon('play')}הפעלה</button><button type="button" class="btn sm" data-bulk-disable ?disabled=${this.busy} @click=${() => void this.bulk('disable')}>${aIcon('stop')}השבתה</button>` : nothing}
-      <button type="button" class="btn sm quiet" data-bulk-clear @click=${() => (this.selected = new Set())}>ביטול בחירה</button>
+      <button type="button" class="btn sm quiet" data-bulk-clear @click=${() => { this.selected = new Set(); this.selecting = false; }}>ביטול בחירה</button>
     </div>`;
   }
 

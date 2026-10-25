@@ -25,7 +25,8 @@ import {
 
 // ------------------------------------------------------------------------------------------------ filters (§3.2, §10.2)
 
-export type ListView = 'cards' | 'table' | 'week';
+/** POLISH-295: ows (one 54 px row per schedule, the installation default ui.schedules_view) joins the cards, the table and the week. */
+export type ListView = 'rows' | 'cards' | 'table' | 'week';
 export type ListGroup = '' | 'area' | 'floor' | 'tag' | 'state';
 export type ListSort = 'next_run' | 'name' | 'order' | 'updated';
 export type StateFilter = '' | 'enabled' | 'disabled' | 'triggered' | 'completed' | 'unavailable';
@@ -48,7 +49,7 @@ export interface ListFilters {
 
 export const NO_FILTERS: ListFilters = { q: '', floor: '', area: '', day: '', state: '', tag: '', condition: '', preset: '', hasConditions: false, sort: 'next_run', group: '' };
 
-const VIEWS: ListView[] = ['cards', 'table', 'week'];
+const VIEWS: ListView[] = ['rows', 'cards', 'table', 'week'];
 const GROUPS: ListGroup[] = ['', 'area', 'floor', 'tag', 'state'];
 const SORTS: ListSort[] = ['next_run', 'name', 'order', 'updated'];
 const STATES: StateFilter[] = ['', 'enabled', 'disabled', 'triggered', 'completed', 'unavailable'];
@@ -77,10 +78,11 @@ export function parseFilters(params: URLSearchParams): ListFilters {
   };
 }
 
-/** The address query of a filter set (defaults left out), in a stable order. */
-export function filtersToParams(f: ListFilters, view: ListView | null = null): URLSearchParams {
+/** The address query of a filter set (defaults left out), in a stable order. defaultView is the view an address without one opens
+ * (the installation's ui.schedules_view): it is left out. */
+export function filtersToParams(f: ListFilters, view: ListView | null = null, defaultView: ListView = 'cards'): URLSearchParams {
   const p = new URLSearchParams();
-  if (view && view !== 'cards') p.set('view', view);
+  if (view && view !== defaultView) p.set('view', view);
   if (f.q.trim()) p.set('q', f.q.trim());
   if (f.floor) p.set('floor', f.floor);
   if (f.area) p.set('area', f.area);

@@ -114,7 +114,8 @@ function apply() {
   const { palette, tokens: pt } = activePaletteTokens(skin, theme);
   // 2.4.4: the installation's brand colours (accent, switch on) ride the same inline layer, after the palette, so they win over it and
   // over every skin; one owner of the inline properties keeps a skin / palette switch from dropping them (design/brand.ts)
-  const bt = brandTokens(brandColors(), theme);
+  // POLISH-295: the hover moves away from the label the skin / palette writes on the accent (white in the classic look)
+  const bt = brandTokens(brandColors(), theme, pt?.['--sw-text-inverse'] ?? t['--sw-text-inverse']?.[theme] ?? '#ffffff');
   syncPalette(root, pt || Object.keys(bt).length ? { ...(pt ?? {}), ...bt } : null);
   const model = sheetModelOf((n) => pt?.[n] ?? t[n]?.[theme] ?? '');
   // a palette also carries its own minimum glass opacity (high-contrast: 88 %); the computed floor never goes below it

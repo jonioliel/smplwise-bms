@@ -68,9 +68,10 @@ export class SwKpi extends LitElement {
       background: var(--sw-stale-soft);
       color: var(--sw-stale);
     }
+    /* POLISH-295: a screen may colour a counter that has something on by its kind (--sw-kpi-on-bg / --sw-kpi-on-fg, tokens only) */
     :host([tone='live']) .icon {
-      background: var(--sw-live-soft);
-      color: var(--sw-success-text);
+      background: var(--sw-kpi-on-bg, var(--sw-live-soft));
+      color: var(--sw-kpi-on-fg, var(--sw-success-text));
     }
     .txt {
       min-inline-size: 0;

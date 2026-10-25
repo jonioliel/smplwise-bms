@@ -17,7 +17,7 @@ const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 async function open(page: Page, hash: string, query = '') {
   await page.clock.setFixedTime(new Date(BV1_NOW));
   await page.goto('about:blank');
-  await page.goto(`/?design=a${query}#${hash}`);
+  await page.goto(`/?design=a&home_info=cards${query}#${hash}`); // POLISH-295: these specs read the widget cards (the default is the thin header bar)
   await page.waitForSelector('sw-app');
   await page.waitForTimeout(900);
   await page.evaluate(() => document.fonts.ready);

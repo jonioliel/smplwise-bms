@@ -9,6 +9,7 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import './automation-drawer';
 import './scenario-settings';
+import '../components/sw-list-display-settings';
 import { ApiError } from '../api/client';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
@@ -565,7 +566,7 @@ export class SystemAutomations extends LitElement {
     if (this.phase === 'forbidden') return html`<sw-page crumbs="הגדרות" heading="אוטומציות"><sw-state-panel state="forbidden" heading="אין הרשאה" data-automations-settings-forbidden></sw-state-panel></sw-page>`;
     return html`<sw-page crumbs="הגדרות" heading="אוטומציות" subheading="כל אפשרות של האוטומציות, הסצנות והסקריפטים נמצאת כאן בלבד." wide data-automations-settings>
       <div class="cols">
-        <div class="col">${this.wallButtons()}${this.codeView()}${this.who()}${this.retention()}${this.display()}${this.platform()}</div>
+        <div class="col">${this.wallButtons()}${this.codeView()}${this.who()}${this.retention()}${this.display()}<sw-list-display-settings list="automations"></sw-list-display-settings>${this.platform()}</div>
         <div class="col">${this.prechecks()}${this.compatCard()}${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}${isApi() ? html`<scenario-settings></scenario-settings>` : nothing}</div>
       </div>
       ${this.dirty || this.note || this.error

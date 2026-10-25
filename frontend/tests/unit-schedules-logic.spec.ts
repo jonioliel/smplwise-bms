@@ -80,7 +80,11 @@ test('filters round-trip through the address query; unknown values are ignored',
   expect(p.toString()).toBe(new URLSearchParams({ view: 'table', q: 'תריס', area: 'gym', day: 'sat', state: 'enabled', tag: 'חוץ', preset: 'only_holy_days', has_conditions: '1', sort: 'name', group: 'tag' }).toString());
   expect(parseFilters(p)).toEqual({ ...f, q: 'תריס' });
   expect(filtersToParams(NO_FILTERS).toString()).toBe('');
-  expect(filtersToParams(NO_FILTERS, 'cards').toString()).toBe(''); // cards is the default view
+  expect(filtersToParams(NO_FILTERS, 'cards').toString()).toBe(''); // cards is the default view when none is named
+  // POLISH-295: the installation's default view (ui.schedules_view, rows unless changed) is the one left out
+  expect(filtersToParams(NO_FILTERS, 'rows', 'rows').toString()).toBe('');
+  expect(filtersToParams(NO_FILTERS, 'cards', 'rows').toString()).toBe('view=cards');
+  expect(parseView('rows')).toBe('rows');
   expect(parseFilters(new URLSearchParams('day=xyz&state=nope&sort=bad&group=bad&preset=bad'))).toEqual(NO_FILTERS);
   expect(parseView('week')).toBe('week');
   expect(parseView('grid')).toBeNull();

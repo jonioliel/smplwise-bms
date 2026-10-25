@@ -6,6 +6,11 @@ import { keyed } from 'lit/directives/keyed.js';
 import './automation-editors';
 import '../components/sw-dialog';
 import '../components/sw-automation-card';
+import '../components/sw-automation-row';
+import '../components/sw-pager';
+import { PAGE_SIZE_DEFAULT, clampPage, loadScreenDisplay, pageCount, pageSlice } from '../api/screen-display';
+import { registerScreenView } from '../shell/screen-view';
+import { pl } from '../i18n/polish';
 import './automation-drawer';
 import './scenes-panel';
 import './scripts-panel';
@@ -41,6 +46,16 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** 0.1.154: the schedules screen, the first segment of "קברניט" (its address is unchanged). */
 const SCHEDULES_PATH = '/devices/schedules';
+/** POLISH-295: this browser's choice of rows (the default, the approved preview) or cards for the automations list (the user menu's "תצוגה"). */
+const VIEW_KEY = 'sw.automations.view';
+type AutoView = 'rows' | 'cards';
+function readView(): AutoView {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'cards' ? 'cards' : 'rows';
+  } catch {
+    return 'rows';
+  }
+}
 
 interface Note { text: string; tone: 'ok' | 'error'; action?: { label: string; run: () => void } }
 
@@ -88,6 +103,11 @@ export class DevicesAutomations extends LitElement {
   @state() private rawParams = new URLSearchParams();
   /** A gallery template the editor route named (`?template= `): its draft once loaded, null while loading or when unknown. */
   @state() private tplDraft: { id: string; draft: AnyDraft | null; done: boolean } | null = null;
+  /** POLISH-295: rows or cards, the rows per page (ui.page_size.automations*) and the page shown (control screens never scroll). */
+  @state() private view: AutoView = readView();
+  @state() private perPage = PAGE_SIZE_DEFAULT.automations;
+  @state() private page = 1;
+  private offView: (() => void) | null = null;
 
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
@@ -131,6 +151,20 @@ export class DevicesAutomations extends LitElement {
     }
     .tools {
       display: contents;
+    }
+    /* POLISH-295: the rows list (the approved preview) and its pager */
+    .rlist {
+      padding: 0;
+      overflow: visible;
+    }
+    .lwrap {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-s-2);
+    }
+    .lfoot {
+      display: flex;
+      justify-content: flex-end;
     }
     .foldbtn {
       display: none;
@@ -248,6 +282,23 @@ export class DevicesAutomations extends LitElement {
     this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offEdit = registerScreenEdit({ id: 'automations-trash', label: 'סל מחזור', icon: 'trash', can: () => !!(this.status?.can.manage || this.status?.can.scene_manage || this.status?.can.script_manage), run: () => pushRoute(trashPath()) });
     this.offRoute = onRouteChange((r) => this.onRoute(r));
+    void loadScreenDisplay().then((d) => (this.perPage = d.pageSize.automations));
+    this.offView = registerScreenView({
+      id: 'automations-view',
+      label: 'תצוגה',
+      options: [{ value: 'rows', label: pl('rows') }, { value: 'cards', label: 'כרטיסים' }],
+      value: () => this.view,
+      set: (v) => {
+        this.view = v === 'cards' ? 'cards' : 'rows';
+        this.page = 1;
+        try {
+          localStorage.setItem(VIEW_KEY, this.view);
+        } catch {
+          /* storage unavailable: the choice lasts for this page */
+        }
+      },
+      can: () => !this.scenView && this.segment() === 'automations',
+    });
     void this.load();
     // CLOCK-293: "next run" / "last run" labels age while the page stays open (the demo clock is fixed and is read through autoNow)
     this.offClock = subscribeClock(() => (this.now = autoNow()));
@@ -269,6 +320,7 @@ export class DevicesAutomations extends LitElement {
     this.offClock?.();
     this.offClock = null;
     this.offEdit?.();
+    this.offView?.();
     window.clearTimeout(this.noteTimer);
     window.clearTimeout(this.urlTimer);
     window.clearTimeout(this.pushTimer);
@@ -345,11 +397,13 @@ export class DevicesAutomations extends LitElement {
   }
   private setFilter(patch: Partial<ListFilters>, delay = 0) {
     this.filters = { ...this.filters, ...patch };
+    this.page = 1;
     this.syncUrl(delay);
   }
   private setSegment(s: Segment) {
     if (s === this.segment() && !this.route.id) return;
     this.filters = { ...this.filters, state: 'all', floor: '' };
+    this.page = 1;
     this.filtersOpen = false;
     this.go(itemPath(s));
   }
@@ -662,8 +716,17 @@ export class DevicesAutomations extends LitElement {
       content = html`<scripts-panel .items=${rows} .status=${this.status} .now=${this.now} .withFields=${this.fieldScripts} .sensitiveWarning=${this.status?.ui.sensitive_warning !== false} .hrefOf=${(id: string) => this.hrefOf('scripts', id)}
         @result=${this.onResult} @changed=${this.onChanged} @open-script=${(e: CustomEvent<{ id: string }>) => this.go(itemPath('scripts', e.detail.id))}></scripts-panel>`;
     } else {
-      content = html`<div class="cgrid" data-auto-grid>${repeat(rows, (i) => i.id, (i) => html`<automation-card .item=${i} .now=${this.now} .href=${this.hrefOf('automations', i.id)} .traceHref=${this.hrefOf('automations', i.id, { view: 'trace' })}
-        .sensitiveWarning=${this.status?.ui.sensitive_warning !== false} .busy=${this.toggling.has(i.id)} @toggle=${(e: CustomEvent<{ item: Item; enabled: boolean }>) => void this.toggle(e.detail.item, e.detail.enabled)} @action=${this.onAction}></automation-card>`)}</div>`;
+      // POLISH-295: one page at a time (control screens never scroll); rows by default (the approved preview), cards by this browser's choice
+      const per = this.phone ? this.perPage.phone : this.perPage.wide;
+      const pages = pageCount(rows.length, per);
+      const page = clampPage(this.page, rows.length, per);
+      const shown = pageSlice(rows, page, per);
+      const onToggle = (e: CustomEvent<{ item: Item; enabled: boolean }>) => void this.toggle(e.detail.item, e.detail.enabled);
+      const list = this.view === 'cards'
+        ? html`<div class="cgrid" data-auto-grid>${repeat(shown, (i) => i.id, (i) => html`<automation-card .item=${i} .now=${this.now} .href=${this.hrefOf('automations', i.id)} .traceHref=${this.hrefOf('automations', i.id, { view: 'trace' })}
+            .sensitiveWarning=${this.status?.ui.sensitive_warning !== false} .busy=${this.toggling.has(i.id)} @toggle=${onToggle} @action=${this.onAction}></automation-card>`)}</div>`
+        : html`<div class="rlist glass" role="table" aria-label=${def.label} data-auto-grid data-auto-rows>${repeat(shown, (i) => i.id, (i) => html`<automation-row .item=${i} .now=${this.now} .href=${this.hrefOf('automations', i.id)} .busy=${this.toggling.has(i.id)} @toggle=${onToggle} @action=${this.onAction}></automation-row>`)}</div>`;
+      content = html`<div class="lwrap">${list}${pages > 1 ? html`<div class="lfoot" data-auto-pager><sw-pager .page=${page} .pages=${pages} @page-change=${(e: CustomEvent<{ page: number }>) => (this.page = e.detail.page)}></sw-pager></div>` : nothing}</div>`;
     }
     return html`${this.bannerRow(seg)}${content}`;
   }

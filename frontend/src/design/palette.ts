@@ -346,7 +346,9 @@ export function paletteTokens(pal: Palette, scheme: Scheme): Record<string, stri
   t['--sw-nav'] = s.accent;
   t['--sw-focus'] = s.accent;
   t['--sw-toggle-on'] = s.state.on;
-  t['--sw-accent-hover'] = toHex(mix(accent, C('text'), 0.12));
+  // POLISH-295: the hover moves away from the label on the accent (toward the text colour only when the label is dark), so a light
+  // label never loses contrast on hover in the dark scheme
+  t['--sw-accent-hover'] = toHex(mix(accent, lum(C('accentContrast')) > 0.4 ? [0, 0, 0, 1] : C('text'), 0.12));
   t['--sw-accent-soft'] = rgbaStr(accent, dark ? 0.26 : 0.14);
   t['--sw-accent-text'] = s.accentText;
   t['--sw-recorded'] = s.accent;
