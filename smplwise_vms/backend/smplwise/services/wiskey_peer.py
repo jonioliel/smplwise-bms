@@ -8,7 +8,8 @@ What this module is
   connection whose `TransportAttestation` says it was authenticated as the dedicated query principal.
 - `TransportAttestation` is the transport-boundary half: the HA user id the WebSocket connection was AUTHENTICATED as (the
   transport's own answer, e.g. its `auth/current_user` reply), never an actor field of a request. Only the transport layer may call
-  `attest_transport`; no product module does today (test-enforced) because nothing is wired.
+  `attest_transport`: the peer_query boundary (services/wiskey_peer_query.py, PEERQUERY-295, default OFF) is the one product module
+  that does (test-enforced), with the service subject of the authenticated direct link.
 - The REAL receipt read (WKADAPT-295, WisKey round 2 2026-10-23, PEER_QUERY_V1_SPEC section 9 + T05_EXACT_ORIGINAL_AND_WRITER):
   `hikvision_intercom/peer_receipts/resolve`, parameters exactly `{peer_binding_ref, peer_binding_revision, original}` where
   `original` is the closed seven-field dict of `ResolveOriginal` (the inner `original` is the full W1 `Request.descriptor` as WisKey
@@ -53,9 +54,6 @@ FORBIDDEN_PEER_SOURCES = frozenset({
 
 REF_RE = re.compile(r"[^\x00-\x1f]{1,128}")  # 1..128 code points, no C0 control (the WisKey reference syntax)
 HA_USER_ID_RE = re.compile(r"[0-9a-f]{32}")
-# WK4ADOPT-295 (W-010): the direct API's server-issued pairing-service subject (`direct/connect` -> query_owner_id). WisKey's peer server
-# binds the peer reads to `proof.query_owner_id`, which on the direct path is this subject, never an HA user.
-SERVICE_OWNER_RE = re.compile(r"arx-service:[A-Za-z0-9_.-]{1,96}")
 UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")  # canonical lowercase only
 
 
@@ -89,17 +87,31 @@ def is_pos_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= MAX_JSON_INT
 
 
-def is_query_owner_id(value: Any) -> bool:
-    """The dedicated query owner of a peer read: an HA user id (the HA WebSocket path) or the direct pairing-service subject."""
-    return is_ha_user_id(value) or (isinstance(value, str) and SERVICE_OWNER_RE.fullmatch(value) is not None)
-
-
 def is_uuid(value: Any) -> bool:
     return isinstance(value, str) and UUID_RE.fullmatch(value) is not None
 
 
 def is_ha_user_id(value: Any) -> bool:
     return isinstance(value, str) and HA_USER_ID_RE.fullmatch(value) is not None
+
+
+# PEERQUERY-295: over the direct API (DIRECT_API_V1.md, services/wiskey_media_bridge.py) the query owner of every signed
+# `wiskey-peer-query.v1` read is the server-issued service subject `arx-service:<entry>` (never a Home Assistant user), and WisKey's
+# registry binds the read binding to exactly that subject (`peer_bridge_api.PeerQueryBridge._binding_ref`). The dedicated HA user form
+# stays valid for the HA WebSocket / HTTP peer transport. Printable ASCII without space, 128 code points at most (WisKey `reference`).
+# REL2210: the one rule for both PEERQUERY-295 and WK4ADOPT-295 (W-010, whose `direct/connect` subject WisKey's peer server binds the
+# peer reads to as `proof.query_owner_id`); WK4ADOPT's narrower duplicate pattern was folded into this one.
+SERVICE_OWNER_PREFIX = "arx-service:"
+SERVICE_OWNER_RE = re.compile(r"arx-service:[!-~]{1,116}")
+
+
+def is_service_owner_id(value: Any) -> bool:
+    return isinstance(value, str) and SERVICE_OWNER_RE.fullmatch(value) is not None
+
+
+def is_query_owner_id(value: Any) -> bool:
+    """A dedicated query owner: an HA user id (32 lowercase hex) or the direct service subject `arx-service:<entry>`."""
+    return is_ha_user_id(value) or is_service_owner_id(value)
 
 
 class _Sealed:
@@ -168,8 +180,10 @@ class VerifiedPeerRef(_Sealed):
 
 
 def attest_transport(*, authenticated_user_id: Any, connection_ref: Any) -> TransportAttestation:
-    """The transport boundary ONLY: called with the user id the authenticated connection itself reported. Not called anywhere in
-    the product today (nothing is wired)."""
+    """The transport boundary ONLY: called with the query owner the authenticated connection itself reported (an HA user id, or the
+    direct service subject `direct/connect` issued). The product callers are the peer_query transport boundary
+    (services/wiskey_peer_query.py, PEERQUERY-295, default OFF) and `attest_port` (WK4ADOPT-295 W-010 live reads), both with the
+    identity of the authenticated direct link."""
     if not is_query_owner_id(authenticated_user_id) or not is_ref(connection_ref):
         raise PeerSeamError("invalid_attestation")
     return TransportAttestation(_seal=_SEAL, query_owner_id=authenticated_user_id, connection_ref=connection_ref)
