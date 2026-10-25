@@ -174,26 +174,11 @@ class World:
         api.pop("_note", None)
         self.overview["api"] = api  # WisKey's discovery lists the six W10 commands (served through the real feed)
         self.settings = replace(settings, nvr_host=None, ha_url=HA_URL, ha_token="t", ha_core_url=CORE_URL, go2rtc_url=GO2RTC)
-        self.adapt_discovery = True
 
     # -- install every fake and guard
     def install(self) -> None:
         mp = self.monkeypatch
         world = self
-        real_discovery = im._feed_discovery
-
-        def discovery(settings: Any) -> Any:
-            """FINDING ASGI-295-F1 (a real product defect, pinned red by
-            test_wiskeys_discovery_from_the_real_feed_selects_the_signed_provider): the feed keeps `api.commands` as a frozenset
-            (intercom_adapter.project_api) while w10.listed accepts a list only, so the signed provider is never selected from the real
-            feed. Until that is fixed in the product, every OTHER scenario reads the real feed's facts with `commands` as a sorted list -
-            the same data, only the container type - so the rest of the path can be qualified. Nothing else is adapted."""
-            facts = real_discovery(settings)
-            if world.adapt_discovery and isinstance(facts, dict) and isinstance(facts.get("commands"), (set, frozenset)):
-                facts = {**facts, "commands": sorted(facts["commands"])}
-            return facts
-
-        mp.setattr(im, "_feed_discovery", discovery)
         mp.setattr(intercom_sync, "RETRY_S", 0.05)
         mp.setattr(intercom_sync, "RETRY_MAX_S", 0.2)
         mp.delenv(im.FAKE_ENV, raising=False)
@@ -629,10 +614,9 @@ def test_the_application_shutdown_leaves_no_asyncio_task(world, app):
 
 
 def test_wiskeys_discovery_from_the_real_feed_selects_the_signed_provider(world, app):
-    """FINDING ASGI-295-F1 pinned (no adapter): WisKey lists the six W10 commands in its overview, the feed serves them, the installation
-    chose `auto` and the pairing key signs - the drawer must then be served by WisKey's signed provider. Fails while
-    `intercom_adapter.project_api` keeps `commands` as a frozenset and `wiskey_media_contract.listed` requires a list."""
-    world.adapt_discovery = False
+    """ASGI-295 F1 (fixed): WisKey lists the six W10 commands in its overview, the feed serves them (as the frozenset
+    `intercom_adapter.project_api` makes), the installation chose `auto` and the pairing key signs - the drawer is then served by
+    WisKey's signed provider. Every scenario of this module reads the real feed's facts unchanged."""
 
     async def scenario() -> dict[str, Any]:
         a = Asgi(app)
@@ -649,6 +633,25 @@ def test_wiskeys_discovery_from_the_real_feed_selects_the_signed_provider(world,
 
     out = run(scenario())
     assert out["listed"][0] is True and out["state"] == "ready" and out["provider"] == "WiskeyBridgeProvider", out
+    assert out["facts_type"] == "frozenset", "the real projected type reached the selection"
+
+
+@pytest.mark.parametrize("container", [list, tuple, set, frozenset])
+def test_listed_reads_the_feeds_projected_commands_in_any_collection(container):
+    """Unit (F1): `w10.listed` on what `intercom_adapter.project_api` really projects (a frozenset), and the same names in any other
+    collection, gives the same answer as a list; a string, a mapping or None stays `commands_unknown`."""
+    from smplwise.services import intercom_adapter
+
+    names = ["overview", *w10.VIDEO_COMMANDS, *w10.TALK_COMMANDS]
+    projected = intercom_adapter.project_api({"version": 1, "min_client": 1, "commands": names})
+    assert isinstance(projected["commands"], frozenset)
+    assert w10.listed(projected) == (True, True, None)
+    assert w10.listed({**projected, "commands": container(names)}) == w10.listed({**projected, "commands": list(names)}) == (True, True, None)
+    video_only = container(["overview", *w10.VIDEO_COMMANDS])
+    assert w10.listed({"min_client": 1, "commands": video_only}) == (True, False, None)
+    assert w10.listed({"min_client": 1, "commands": container(["overview"])}) == (False, False, "not_listed")
+    for bad in ("media/station_descriptor media/stream_lease", {"media/station_descriptor": 1}, None):
+        assert w10.listed({"min_client": 1, "commands": bad}) == (False, False, "commands_unknown")
 
 
 # ================================================================ 2. RBAC per role and the station scope
@@ -832,11 +835,12 @@ def test_a_binding_that_expires_during_the_talk_ends_it_through_the_lease_rechec
         try:
             await wait_feed_ready()
             await configure(a)
-            until_iso = (datetime.now(timezone.utc) + timedelta(seconds=2.5)).isoformat()
+            until_iso = (datetime.now(timezone.utc) + timedelta(seconds=6)).isoformat()
             await grant(a, "eli", "operator", expires_at=until_iso)
             _t, talk = await open_talk(a, "eli")
             expires = datetime.fromisoformat(until_iso).timestamp()
-            code = await talk.closed(8)
+            assert time.time() < expires - 1, "the talk opened well before the binding's end"
+            code = await talk.closed(12)
             closed_at = next(t for t, m in talk.events if m["type"] == "websocket.close")
             return {"code": code, "late": closed_at - expires, "texts": talk.texts()}
         finally:
