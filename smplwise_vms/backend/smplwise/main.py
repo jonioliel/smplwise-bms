@@ -1041,10 +1041,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         await _stop_in_thread(tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
         await _stop_in_thread(tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
-        for name in ("janitor", "remote_revalidation", "backup_drill_task", "bridge_rotation_task", "fleet_report_task", "partner_webhooks_task"):
+        # ASGI-295 F2: the daily backup loop is cancelled too, and every cancelled task is awaited (bounded; their own errors are not raised)
+        stopping = []
+        for name in ("janitor", "remote_revalidation", "backup_drill_task", "bridge_rotation_task", "fleet_report_task", "partner_webhooks_task",
+                     "backup_task"):
             task = getattr(app.state, name, None)
-            if task:
+            if task and not task.done():
                 task.cancel()
+                stopping.append(task)
+        if stopping:
+            await asyncio.wait(stopping, timeout=5)
         try:  # SEC3 (review L4): the last sign-in counters reach the database before the process ends
             from .services import ha_user_auth as hua_svc
 
