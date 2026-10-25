@@ -2842,7 +2842,10 @@ export class DevicesBuilding extends LitElement {
     // keeps every card: that is where they are switched on, sized and ordered). HOME-295 (owner answer 5): `auto` = the cards in the
     // cards view, the bar in tiles.
     const bar = infoStyleFor(this.lay.editing && this.screenDraft ? this.screenDraft.info : this.infoStyle, this.layout) === 'bar' && !this.lay.editing;
-    const cardItems = (bar ? items.filter((i) => !AMBIENT_WIDGETS.includes(i.id)) : items).filter((i) => !(dropQuick && i.id === 'quick'));
+    // (the mockup: with an alert row or the no-connection row on a tablet / 1366 screen, the multimedia card folds so nothing scrolls)
+    const banner = !this.lay.editing && (this.offline || homeAlerts(t).some((x) => !this.acked.includes(`${x.scope}:${x.id}`)));
+    const dropMedia = banner && window.innerWidth <= 1366;
+    const cardItems = (bar ? items.filter((i) => !AMBIENT_WIDGETS.includes(i.id)) : items).filter((i) => !(dropQuick && i.id === 'quick') && !(dropMedia && i.id === 'media'));
     const ambient = bar ? items.filter((i) => AMBIENT_WIDGETS.includes(i.id) && i.avail === 'ok') : [];
     const widgets = this.renderWidgets(t, h, cardItems, layout);
     const sideLayout = layout === 'side' && cardItems.length > 0;

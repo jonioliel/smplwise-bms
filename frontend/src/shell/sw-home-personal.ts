@@ -21,6 +21,8 @@ import { effectiveRows, loadPersonalRow, personalDiff, savePersonalRow, type Are
 import { productSettings } from '../api/prefs';
 import { devicesPrefsOf } from '../screens/devices-style';
 import '../screens/area-row-editor';
+import { HOME_SCREEN_DEFAULT, homeScreenOf, SUMMARY_KINDS, type HomeScreenOptions, type PersonalScreen, type SummaryKind } from '../api/home-screen';
+import { hs } from '../i18n/home-screen';
 import type { AreaRowChange } from '../screens/area-row-editor';
 
 
@@ -51,6 +53,8 @@ export class SwHomePersonal extends LitElement {
   @state() private doors = false;
   /** NOTICEPAGE-295: whether this user is offered the notices widget (false = not offered here at all). */
   @state() private notices = false;
+  /** HOME-295: the installation's home screen options (whether users may choose their own summary tiles). */
+  @state() private screenSite: HomeScreenOptions = HOME_SCREEN_DEFAULT;
 
   static styles = css`
     :host {
@@ -153,6 +157,7 @@ export class SwHomePersonal extends LitElement {
     super.connectedCallback();
     void Promise.all([loadPersonal(), loadHomeSettings(true), loadPersonalRow(), productSettings().catch(() => null)]).then(([p, h, r, s]) => {
       this.personal = p;
+      this.screenSite = homeScreenOf((s as unknown as Record<string, unknown> | null)?.['home.screen']);
       this.base = { direction: h.direction, config: h.config };
       this.row = r;
       this.rowBase = devicesPrefsOf(s);
@@ -199,6 +204,40 @@ export class SwHomePersonal extends LitElement {
           }} />${e.name}</label>`;
         })}
       </div>`;
+  }
+
+  /** HOME-295: the user's own phone area (sheet / full screen) and - only while the installation lets users choose - his summary tiles. */
+  private setScreen(patch: Partial<PersonalScreen>) {
+    const next: PersonalScreen = { ...(this.personal.screen ?? {}), ...patch };
+    for (const k of Object.keys(next) as (keyof PersonalScreen)[]) if (next[k] === undefined) delete next[k];
+    this.commit({ ...this.personal, screen: next });
+  }
+
+  private screenChoices() {
+    const own = this.personal.screen ?? {};
+    const site = this.screenSite;
+    const tiles = own.summary_tiles ?? null;
+    const toggle = (k: SummaryKind) => {
+      const cur = tiles ?? site.summary_tiles ?? [...SUMMARY_KINDS];
+      const next = cur.includes(k) ? cur.filter((x) => x !== k) : SUMMARY_KINDS.filter((x) => x === k || cur.includes(x));
+      this.setScreen({ summary_tiles: next });
+    };
+    return html`<div class="row" data-home-personal-phone-area>
+        <span class="lbl" id="hp-parea">${hs('phoneArea')}</span>
+        <span class="seg" role="group" aria-labelledby="hp-parea">
+          <button type="button" data-home-personal-phone-area="" aria-pressed=${String(!own.phone_area)} ?disabled=${this.busy} @click=${() => this.setScreen({ phone_area: undefined })}>ברירת מחדל</button>
+          ${(['sheet', 'full'] as const).map((v) => html`<button type="button" data-home-personal-phone-area=${v} aria-pressed=${String(own.phone_area === v)} ?disabled=${this.busy} @click=${() => this.setScreen({ phone_area: v })}>${hs(`area_${v}`)}</button>`)}
+        </span>
+      </div>
+      ${site.summary_chooser === 'user'
+        ? html`<div class="row" data-home-personal-tiles>
+            <span class="lbl">${hs('personalTiles')}</span>
+            <span class="seg" role="group" aria-label=${hs('personalTiles')}>
+              <button type="button" data-home-personal-tile="" aria-pressed=${String(tiles === null)} ?disabled=${this.busy} @click=${() => this.setScreen({ summary_tiles: undefined })}>${hs('personalFollow')}</button>
+              ${SUMMARY_KINDS.map((k) => html`<button type="button" data-home-personal-tile=${k} aria-pressed=${String(tiles !== null && tiles.includes(k))} ?disabled=${this.busy} @click=${() => toggle(k)}>${hs(`k_${k}`)}</button>`)}
+            </span>
+          </div>`
+        : nothing}`;
   }
 
   /** The direction that ends up shown, and the order the widgets are listed in. */
@@ -300,6 +339,7 @@ export class SwHomePersonal extends LitElement {
           ${DIRECTIONS.map((x) => html`<button type="button" data-home-personal-dir=${x} aria-pressed=${String(this.personal.direction === x)} ?disabled=${this.busy} title=${DIRECTION_LABEL[x]} @click=${() => this.setDirection(x)}>${DIRECTION_LETTER[x]} · ${DIRECTION_LABEL[x]}</button>`)}
         </span>
       </div>
+      ${this.screenChoices()}
       <div class="row" data-home-personal-phone>
         <span class="lbl" id="hp-phone">בנייד</span>
         <span class="seg" role="group" aria-labelledby="hp-phone">

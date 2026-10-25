@@ -224,6 +224,20 @@ export const HOME_SCREEN_CSS = css`
     font-size: var(--sw-fs-xs);
     font-weight: var(--sw-fw-bold);
   }
+  /* a landscape tablet: the row keeps the name and the actions (the mockup drops the temperature there) */
+  @media (min-width: 900px) and (max-width: 1180px) {
+    .arow-q .arow .tm,
+    .arow-q .arow .btx {
+      display: none;
+    }
+    .arow-q .arow {
+      padding-inline: 6px;
+      gap: 6px;
+    }
+  }
+  .arow-q .arow .nm {
+    min-inline-size: 3.5em;
+  }
   .arow-q[data-lit] {
     background: linear-gradient(270deg, var(--sw-lit-soft), transparent 70%);
   }
