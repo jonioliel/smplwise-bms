@@ -6,6 +6,8 @@ import type { Page } from '@playwright/test';
  * answer, a lazily imported chunk, a web font or a Lit update is still on its way differs from the baseline - on a busy runner
  * the old fixed waits (400 / 500 / 900 ms) were simply too short.
  *
+ * Before waiting, the font selection is re-resolved once (see the comment inside): a line's metrics must not depend on the order
+ * the web-font subsets happened to arrive in.
  * Settled means, for `quietMs` of consecutive animation frames: fonts loaded, no image still loading, no Lit element with a pending
  * update (shadow roots included), no finite animation or transition running, and the element count / document height unchanged.
  * The quiet window restarts whenever any of that moves, so it adapts to the load; `timeout` only bounds a page that never settles.
@@ -36,6 +38,18 @@ export async function settlePage(page: Page, opts: { quietMs?: number; timeout?:
         const animating = document.getAnimations().filter((a) => a.playState === 'running' && Number.isFinite(a.effect?.getTiming().iterations ?? 1)).length;
         return JSON.stringify([els.length, pending, loading, animating, document.documentElement.scrollHeight, document.fonts.status]);
       };
+      // Re-resolve every font once all faces are in. Heebo ships as two unicode-range faces per weight (Hebrew, Latin) with
+      // font-display: swap, and the order in which they arrive differs from one page load to the next. Text laid out before a face
+      // arrived can keep the line metrics it was given then, so a line of Latin text (e.g. the "conflicts/list" caption on the
+      // access-control status page) was painted 1 px higher or lower on about half of the loads - same layout boxes, same glyphs,
+      // different baseline; the page then stays that way, so the screenshot retries never converge. Adding (and removing) a face
+      // to document.fonts invalidates the font selection of the whole document, shadow roots included, and the next layout
+      // measures every line with the faces that are now loaded - the same result whatever order they came in.
+      if (document.fonts.status === 'loaded') {
+        const nudge = new FontFace('sw-settle-font-nudge', 'local("sw-settle-font-nudge")');
+        document.fonts.add(nudge);
+        document.fonts.delete(nudge);
+      }
       const start = performance.now();
       let last = '';
       let since = performance.now();
