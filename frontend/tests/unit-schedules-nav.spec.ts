@@ -47,13 +47,13 @@ test.afterEach(() => {
 test('the home area has one tab array; its hrefs and the section registry', () => {
   expect(AREA_TABS.devices).toBe(DEVICES_TABS);
   // 0.1.154: two tabs, "מבט על" and "קברניט" (id `automations`, whose first segment is the schedules); the tab opens on the schedules by default
-  // NOTICEADD-295: לוח הודעות left this row for the rail (NOTICES_AREA, owner decision 2026-10-24)
-  expect(DEVICES_TABS.map((t) => t.href)).toEqual(['#/devices/building', SCHEDULES_HREF]);
-  expect(DEVICES_TABS.map((t) => t.label)).toEqual(['מבט על', 'קברניט']);
+  // NOTICEADD-295: לוח הודעות left this row for the rail (NOTICES_AREA, owner decision 2026-10-24); ANNOUNCE-295: + הכרזות (media.announce)
+  expect(DEVICES_TABS.map((t) => t.href)).toEqual(['#/devices/building', SCHEDULES_HREF, '#/devices/announce']);
+  expect(DEVICES_TABS.map((t) => t.label)).toEqual(['מבט על', 'קברניט', 'הכרזות']);
   expect(sectionIdOf(DEVICES_TABS)).toBe('devices');
   const def = TAB_SECTIONS.find((s) => s.id === 'devices');
   expect(def?.label).toBe('ראשי');
-  expect(ids(def!.tabs())).toEqual(['building', 'automations']);
+  expect(ids(def!.tabs())).toEqual(['building', 'automations', 'announce']);
   expect(ids(AREA_TABS.system)).toContain('schedules'); // the settings page keeps its own tab
 });
 
@@ -82,7 +82,7 @@ test('the schedules segment needs schedule.view or schedule.manage at any scope;
 });
 
 test('the static demo shows every tab whatever the permissions', () => {
-  expect(ids(visibleTabs(DEVICES_TABS, false))).toEqual(['building', 'automations']);
+  expect(ids(visibleTabs(DEVICES_TABS, false))).toEqual(['building', 'automations', 'announce']);
 });
 
 test('a user without schedule or automation rights sees one tab (so no tab row): the home screen exactly as before', () => {

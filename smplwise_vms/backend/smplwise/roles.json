@@ -519,6 +519,14 @@
       "permissions": [
         "notices.boards"
       ]
+    },
+    {
+      "id": "announcer",
+      "name_he": "מכריז: הכרזות קוליות",
+      "permissions": [
+        "devices.read",
+        "media.announce"
+      ]
     }
   ],
   "sensitive_permissions_not_implied": [

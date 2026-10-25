@@ -14,6 +14,7 @@ import { ct } from '../tickets/cost-text'; // TK258: the vendors account tab's l
 import { rt } from '../tickets/rfq-text'; // TKRFQ2: the requests-for-quotation tab's label
 import { xt } from '../i18n/access-external'; // SHAREDID-293: the external-access tab's label
 import { dwt } from '../i18n/door-windows'; // CR-039 DOORWIN-295: the door-windows tab's label
+import { announceText } from '../i18n/announce'; // ANNOUNCE-295: the announce tab's label
 import { tst } from '../i18n/tab-sections'; // TABSET-293: the names of the tab registry's sections (he / en / ar / ru)
 import { he } from '../i18n/he'; // TABSET-293: the generator's page names (the registry's `infra.generator` section)
 import { mt } from '../i18n/maintenance'; // CR-MAINT215 slice 2: the maintenance section's label
@@ -676,6 +677,8 @@ const EXPLORE_TABS: TabItem[] = [
 /** WHOIN034-295: the "who is in the building" screen. */
 export const PRESENCE_HREF = '#/explore/presence';
 
+/** ANNOUNCE-295 (stage A): the announce screen for the built-in `announcer` role and every other holder of media.announce. */
+export const ANNOUNCE_HREF = '#/devices/announce';
 /** The home area's tabs (`ui.tabs` (section `devices`) and the phone bottom bar follow). "מבט על" is the home screen as it always was (the
  * building tree, `#/devices/building`; an area screen is a drill-down of it, #/devices/areas/<id>, not a tab). "קברניט" (0.1.154, owner
  * 2026-10-02; the tab id stays `automations`, so route ids are untouched) holds the segments תזמונים · אוטומציות · סצנות · סקריפטים: the
@@ -688,6 +691,8 @@ export const DEVICES_TABS: TabItem[] = [
   { id: 'building', label: 'מבט על', href: '#/devices/building' },
   { id: 'automations', label: 'קברניט', href: SCHEDULES_HREF },
   // CR-NOTICE106 put לוח הודעות here; NOTICEADD-295 (owner decision 2026-10-24) moved it to the rail (NOTICES_AREA)
+  // ANNOUNCE-295: הכרזות - offered to holders of media.announce (TAB_PERMISSIONS); the screen itself says when the feature is off
+  { id: 'announce', get label() { return announceText().title; }, href: ANNOUNCE_HREF },
 ];
 
 /** CR-NOTICE106: the notice board page (readers and managers) and its settings page (the switch, the defaults, the TV boards). */
@@ -1414,6 +1419,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // CR-NOTICE106: the notice board page needs no entry (every signed-in user reads the notices of his audience; the server decides),
   // its settings page: the module switch and defaults need system.configure, the TV boards notices.boards (each part by its own right)
   [NOTICES_SETTINGS_HREF]: ['system.configure', 'notices.boards'],
+  [ANNOUNCE_HREF]: ['media.announce'], // ANNOUNCE-295: POST announcements needs it (installation scope on the server)
   // CR-036 S10: access.admin.read at ANY scope (a station-scoped administrator sees the status of their stations; the server narrows every read)
   [ACCESS_CONTROL_SETTINGS_HREF]: ['access.admin.read'],
   // CR-017, owner decision 1b (2026-10-01, no view-only access): automation.manage, a script run (script.run / script.manage) or a scene activation

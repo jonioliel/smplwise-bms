@@ -435,7 +435,8 @@ SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directo
 # DOORWIN2-295 (CR-039 7.2): door_windows_guard (end a running window) is delegable by default; door_windows_manager, emergency_lock and emergency_open are NOT
 # (a delegated administrator cannot hand out building-wide hold-open or emergency rights unless the owner adds them to `rbac.delegable_roles`).
 DEFAULT_DELEGABLE = ["viewer", "operator", "tickets_view", "tickets_create", "tickets_manage", "door_windows_guard",  # CR-038 8.2: the three plain ticket grants
-                     "notices_manage", "notices_push", "notices_boards"]  # CR-NOTICE106 section 6: the notice board's grants are delegable
+                     "notices_manage", "notices_push", "notices_boards",  # CR-NOTICE106 section 6: the notice board's grants are delegable
+                     "announcer"]  # ANNOUNCE-295 (owner 2026-10-25): easy to hand out; every announcement is audited
 NEVER_DELEGABLE = {"system_admin", "site_admin"}
 SENSITIVE: list[str] = list(json.loads((Path(__file__).resolve().parents[1] / "roles.json").read_text(encoding="utf-8")).get("sensitive_permissions_not_implied", []))
 SCOPE_TABLES = {"site": "sites", "building": "buildings", "floor": "floors"}

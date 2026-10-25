@@ -4,9 +4,10 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-state-panel';
+import './system-announce-templates';
 import {
-  ANNOUNCE_CATEGORIES, announceAreas, announceConfig, announcePutConfig, announceSpeak, announceTest,
-  type AnnounceArea, type AnnounceConfigAnswer, type AnnounceConfigPatch, type AnnounceSpeaker,
+  ANNOUNCE_CATEGORIES, ANNOUNCE_LANGS, ANNOUNCE_QUIET_MODES, announceAreas, announceConfig, announcePutConfig, announceSpeak, announceTest,
+  type AnnounceArea, type AnnounceConfigAnswer, type AnnounceConfigPatch, type AnnounceLang, type AnnounceQuietMode, type AnnounceSpeaker,
 } from '../api/announcements';
 import { describeError } from '../api/client';
 import { can, isApi, onRemote } from '../api/session';
@@ -126,6 +127,13 @@ export class SystemAnnouncements extends LitElement {
     return v === '' ? null : Number(v);
   }
 
+  /** The emergency languages after ticking / unticking `l`: the canonical order, never empty (the last one stays). */
+  private emergencyLangs(l: AnnounceLang, on: boolean): AnnounceLang[] {
+    const cur = this.data?.config.emergency_languages ?? [];
+    const next = ANNOUNCE_LANGS.filter((x) => (x === l ? on : cur.includes(x)));
+    return next.length ? next : [...cur];
+  }
+
   private routeAreas(): { id: string; name: string }[] {
     const seen = new Map<string, string>();
     for (const s of this.data?.speakers ?? []) if (s.allowed && s.area_id) seen.set(s.area_id, [s.floor_name, s.area_name].filter(Boolean).join(' · ') || s.area_id);
@@ -145,8 +153,8 @@ export class SystemAnnouncements extends LitElement {
         <div class="row"><span class="lbl">${t.to}</span>
           <input type="time" lang=${dateInputLang()} data-announce-quiet-to .value=${q.to} @change=${(e: Event) => void this.save({ quiet: { to: (e.target as HTMLInputElement).value } })} /></div>
         <div class="row"><span class="lbl">${t.mode}</span>
-          <select data-announce-quiet-mode aria-label=${t.mode} @change=${(e: Event) => void this.save({ quiet: { mode: (e.target as HTMLSelectElement).value as 'suppress' | 'lower' } })}>
-            <option value="suppress" ?selected=${q.mode === 'suppress'}>${t.modeSuppress}</option><option value="lower" ?selected=${q.mode === 'lower'}>${t.modeLower}</option></select></div>
+          <select data-announce-quiet-mode aria-label=${t.mode} @change=${(e: Event) => void this.save({ quiet: { mode: (e.target as HTMLSelectElement).value as AnnounceQuietMode } })}>
+            ${ANNOUNCE_QUIET_MODES.map((m) => html`<option value=${m} ?selected=${q.mode === m}>${{ suppress: t.modeSuppress, lower: t.modeLower, queue: t.modeQueue, allow: t.modeAllow }[m]}</option>`)}</select></div>
         ${q.mode === 'lower' ? html`<div class="row"><span class="lbl">${t.nightVolume}</span>
           <input type="number" min="0" max="100" data-announce-night-volume .value=${q.night_volume === null ? '' : String(q.night_volume)} @change=${(e: Event) => void this.save({ quiet: { night_volume: this.pct(e) } })} /></div>` : nothing}
       </sw-card>
@@ -214,10 +222,13 @@ export class SystemAnnouncements extends LitElement {
       <sw-card heading=${t.general}>
         <div class="row"><span class="lbl">${t.enabled}<span class="muted">${t.enabledHint}</span></span>
           <sw-toggle label=${t.enabled} labelHidden .checked=${cf.enabled} data-announce-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ enabled: e.detail.checked })}></sw-toggle></div>
-        <div class="row"><span class="lbl">${t.engine}<span class="muted">${t.engineHint}</span></span>
-          <span class="inl"><input type="text" data-ltr data-announce-engine list="announce-engines" .value=${cf.engine} placeholder="tts.…"
-            @change=${(e: Event) => void this.save({ engine: (e.target as HTMLInputElement).value.trim() })} />
-          <datalist id="announce-engines">${d.engines.map((x) => html`<option value=${x}></option>`)}</datalist></span></div>
+        <div class="row"><span class="lbl">${t.engine}<span class="muted">${t.engineHint}</span>${(d.engine_info ?? []).some((x) => x.entity_id === cf.engine && x.cloud) ? html`<span class="muted" data-announce-cloud-warn>${t.engineCloudWarn}</span>` : nothing}</span>
+          <select data-ltr data-announce-engine aria-label=${t.engine} @change=${(e: Event) => void this.save({ engine: (e.target as HTMLSelectElement).value })}>
+            <option value="" ?selected=${cf.engine === ''}>—</option>
+            ${[...new Set([...d.engines, ...(cf.engine ? [cf.engine] : [])])].map((x) => html`<option value=${x} ?selected=${x === cf.engine}>${(d.engine_info ?? []).find((i) => i.entity_id === x)?.name ?? x}</option>`)}</select></div>
+        <div class="row"><span class="lbl">${t.emergencyLangs}</span>
+          <span class="inl">${ANNOUNCE_LANGS.map((l) => html`<label class="pick"><input type="checkbox" data-announce-emergency-lang=${l} .checked=${(cf.emergency_languages ?? []).includes(l)}
+            @change=${(e: Event) => void this.save({ emergency_languages: this.emergencyLangs(l, (e.target as HTMLInputElement).checked) })} />${t.langName[l]}</label>`)}</span></div>
         <div class="row"><span class="lbl">${t.language}</span>
           <input type="text" data-ltr data-announce-language style="inline-size:100px" .value=${cf.language} @change=${(e: Event) => void this.save({ language: (e.target as HTMLInputElement).value.trim() })} /></div>
         <div class="row"><span class="lbl">${t.limit}</span>
@@ -228,6 +239,7 @@ export class SystemAnnouncements extends LitElement {
           <sw-toggle label=${t.pause} labelHidden .checked=${cf.pause_music} data-announce-pause @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ pause_music: e.detail.checked })}></sw-toggle></div>
       </sw-card>
       ${this.extraCards(t, cf)}
+      <system-announce-templates .templates=${d.templates ?? []} @saved=${(e: CustomEvent<{ templates: AnnounceConfigAnswer['templates'] }>) => { if (this.data) this.data = { ...this.data, templates: e.detail.templates }; this.note(announceText().saved); }}></system-announce-templates>
       <sw-card heading=${t.speakers} subheading=${t.speakersHint}>${this.speakerRows(t)}</sw-card>
       ${this.areas.length ? html`<sw-card heading=${t.say} data-announce-now>
         <div class="row">

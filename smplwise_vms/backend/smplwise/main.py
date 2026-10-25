@@ -85,6 +85,7 @@ def janitor_tick(db: Database, settings: Settings) -> None:
 
         with db.connection(label="announce.prune") as conn:
             announcements_svc.prune(conn)
+        announcements_svc.release_queued(db, settings)  # ANNOUNCE-295: announcements held in the quiet hours are spoken once the window ended
     except Exception:  # noqa: BLE001
         log.warning("announcements janitor failed", exc_info=True)
     try:  # CR-023 P2: automatic electricity bills at the end of each period (throttled to every 5 minutes; idempotent)

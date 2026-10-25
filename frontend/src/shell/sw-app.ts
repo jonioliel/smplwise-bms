@@ -86,6 +86,7 @@ import '../screens/kiosk-wall';
 import '../screens/system-wall';
 import '../screens/system-notices'; // CR-NOTICE106: הגדרות › לוח הודעות
 import '../screens/devices-notices'; // CR-NOTICE106: ראשי › לוח הודעות
+import '../screens/devices-announce'; // ANNOUNCE-295: ראשי › הכרזות
 import '../screens/system-access-control'; // CR-036 S10: הגדרות › בקרת כניסה
 import { classifyDevice, readDeviceEnv, wallModeFor } from '../wall/device-class';
 import '../screens/investigate-playback';
@@ -2663,6 +2664,7 @@ export class SwApp extends LitElement {
         // the routes `.../<id>/edit` and `.../new/edit?kind=&template=` open S4's editor sheet (<automation-builder> / <script-editor> / <scene-editor>) over
         // the list, which stays mounted underneath (closing the sheet returns to the item's drawer or the list without a reload).
         if (s[1] === 'notices') return html`<devices-notices></devices-notices>`; // CR-NOTICE106: לוח הודעות (the screen checks the module and the rights)
+        if (s[1] === 'announce') return html`<devices-announce></devices-announce>`; // ANNOUNCE-295: הכרזות (the screen checks the right and the switch)
         if (s[1] === 'automations') return html`<devices-automations .kavarnit=${kavarnitSegments(this.session.mode === 'api', canNav)}></devices-automations>`;
         return html`<devices-building></devices-building>`;
       case 'infra':

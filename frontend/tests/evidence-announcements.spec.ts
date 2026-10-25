@@ -26,7 +26,7 @@ async function setup(page: Page, perms: string[] = [...PERMS.admin, 'media.annou
   await installCastMock(page, { perms });
   const m: Mock = { calls: [] };
   const state = {
-    config: { enabled: false, engine: '', language: 'he', devices: [] as string[], max_per_minute: 6, max_text: 200, cooldown_s: 5,
+    config: { enabled: false, engine: '', engine_kind: 'local', cloud_enabled: false, cloud_key_set: false, emergency_languages: ['he', 'en', 'ru'], language: 'he', devices: [] as string[], max_per_minute: 6, max_text: 200, cooldown_s: 5,
       volume: null as number | null, pause_music: false,
       quiet: { enabled: false, from: '22:00', to: '07:00', days: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'], mode: 'suppress', night_volume: null as number | null },
       notify: { enabled: false, scope: 'area', ref: '', categories: [] as string[], min_severity: 'alert' },
@@ -37,7 +37,7 @@ async function setup(page: Page, perms: string[] = [...PERMS.admin, 'media.annou
     ],
     history: [] as Record<string, unknown>[],
   };
-  const answer = () => ({ config: { ...state.config }, speakers: state.speakers.map((s) => ({ ...s, allowed: state.config.devices.includes(s.key) })), engines: ['tts.demo_engine'], history: state.history });
+  const answer = () => ({ config: { ...state.config }, speakers: state.speakers.map((s) => ({ ...s, allowed: state.config.devices.includes(s.key) })), engines: ['tts.demo_engine'], history: state.history, templates: [] });
   await page.route(/\/api\/v1\/announcements(\/|\?|$)/, async (route) => {
     const req = route.request();
     const p = new URL(req.url()).pathname.replace(/^.*\/api\/v1\/announcements\/?/, '');

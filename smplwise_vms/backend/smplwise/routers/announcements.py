@@ -1,16 +1,21 @@
 """MU2 voice announcements (הכרזות קוליות; services/announcements.py holds the rules). All under /api/v1/announcements.
 
-Speaking (`media.announce`, sensitive, installation scope):
-  GET  areas            the rooms that have an allowed speaker, with their speakers (the announce form)
-  POST /                `{scope: area | device, ref, text}` speak now (200), 429 over the rate limit, 409 not configured, 404 off / no allowed speaker
+Speaking (`media.announce`, sensitive, installation scope; the built-in `announcer` role holds only this):
+  GET  areas            the rooms that have an allowed speaker, with their speakers, the templates and the languages (the announce form)
+  POST /                `{scope: area | device | all, ref, text | texts[{language, text}], language?, template_id?}` speak now (200; `status: queued`
+                        in quiet hours mode `queue`), 429 over the rate limit, 409 not configured / quiet hours, 404 off / no allowed speaker
+  POST emergency        `{template_id}` the ONE-CLICK emergency announcement (a template of kind emergency, every allowed speaker, no confirmation,
+                        no quiet hours, no rate limit); audited as `media.announce.emergency` (who, when, text, languages, targets - no audio)
 Administration (`system.configure`):
   GET / PUT config      the switch, the speech engine, the language, the allowed speakers, the per-minute limit, the default volume,
                         pause-music, the quiet hours (suppress | lower) and the notification routing (ANN2)
-  POST test             `{scope, ref}` the fixed test sentence (source `test`), same checks and same limits
+  GET / PUT templates   the ready-made message templates (routine and emergency; he / en / ru): read by an announcer, edited by system.configure
+  POST test             `{scope, ref, language}` the fixed test sentence (source `test`), same checks and same limits
   GET history           the last attempts (a person, a rule or a test; spoken, failed, limited or refused)
 Every attempt is audited as `media.announce`; the setup as `media.announce.config`."""
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Any, Literal
 
@@ -19,8 +24,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
+from ..db import set_setting as put_setting
 from ..db import unlocked
 from ..rbac import INSTALLATION, Principal, require
+from ..services import announce_templates as tpl
 from ..services import announcements as svc
 
 router = APIRouter()
@@ -30,18 +37,37 @@ class _Body(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class SpeakBody(_Body):
-    scope: Literal["area", "device"]
-    ref: str = Field(min_length=1, max_length=64)
+class PartBody(_Body):
+    language: Literal["he", "en", "ru", "ar"]
     text: str = Field(min_length=1, max_length=400)
+
+
+class SpeakBody(_Body):
+    scope: Literal["area", "device", "all"]
+    ref: str = Field(min_length=1, max_length=64)  # `*` for scope all
+    text: str | None = Field(default=None, min_length=1, max_length=400)
+    language: Literal["he", "en", "ru", "ar"] | None = None  # the language of `text`; default = the configured one
+    texts: list[PartBody] | None = Field(default=None, min_length=1, max_length=4)  # several languages, spoken one after the other
+    template_id: str | None = Field(default=None, max_length=32)  # the template it came from (a record only; the text is what is spoken)
     volume: int | float | None = None  # percent, clamped to 0-100 by the service; None = the configured default
     critical: bool = False  # exempt from the quiet hours (the same permission, installation scope)
 
 
 class TestBody(_Body):
-    scope: Literal["area", "device"]
+    scope: Literal["area", "device", "all"]
     ref: str = Field(min_length=1, max_length=64)
-    language: Literal["he", "en"] = "he"
+    language: Literal["he", "en", "ru", "ar"] = "he"
+
+
+class EmergencyBody(_Body):
+    template_id: str | None = Field(default=None, min_length=1, max_length=32)  # an emergency template, or free text (text / texts), exactly one
+    text: str | None = Field(default=None, min_length=1, max_length=400)
+    language: Literal["he", "en", "ru", "ar"] | None = None
+    texts: list[PartBody] | None = Field(default=None, min_length=1, max_length=4)
+
+
+class TemplatesBody(_Body):
+    templates: list[dict[str, Any]] = Field(max_length=tpl.MAX_TEMPLATES)
 
 
 def _rid(request: Request) -> str | None:
@@ -52,20 +78,37 @@ def _rid(request: Request) -> str | None:
 def get_areas(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.PERM, INSTALLATION)
     cfg = svc.config(conn)
-    return {"enabled": bool(cfg["enabled"] and cfg["engine"]), "areas": svc.areas(conn) if cfg["enabled"] else [], "max_text": svc.MAX_TEXT}
+    return {"enabled": bool(cfg["enabled"] and svc.engine_ready(cfg)), "areas": svc.areas(conn) if cfg["enabled"] else [], "max_text": svc.MAX_TEXT,
+            "templates": tpl.load(conn), "languages": list(svc.LANGUAGES), "default_language": cfg["language"] if cfg["language"] in svc.LANGUAGES else "he",
+            "emergency_languages": cfg["emergency_languages"], "quiet_mode": cfg["quiet"]["mode"]}
 
 
 @router.post("/announcements")
 def speak(body: SpeakBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.PERM, INSTALLATION)
-    return svc.announce(conn, settings_of(request), principal, _rid(request), source="manual", scope=body.scope, ref=body.ref, text=body.text, volume=body.volume, critical=body.critical, unlock=lambda: unlocked(conn))
+    if (body.text is None) == (body.texts is None):
+        raise svc.err(422, "validation", fields=["text"])
+    return svc.announce(conn, settings_of(request), principal, _rid(request), source="manual", scope=body.scope, ref=body.ref, text=body.text, language=body.language,
+                        texts=[(p.language, p.text) for p in body.texts] if body.texts is not None else None, template_id=body.template_id,
+                        volume=body.volume, critical=body.critical, unlock=lambda: unlocked(conn))
+
+
+@router.post("/announcements/emergency")
+def emergency(body: EmergencyBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, svc.PERM, INSTALLATION)  # one click: no confirmation step, the permission is the whole gate
+    if sum(x is not None for x in (body.template_id, body.text, body.texts)) != 1:
+        raise svc.err(422, "validation", fields=["template_id"])
+    return svc.emergency(conn, settings_of(request), principal, _rid(request), body.template_id, unlock=lambda: unlocked(conn), text=body.text, language=body.language,
+                         texts=[(p.language, p.text) for p in body.texts] if body.texts is not None else None)
 
 
 @router.get("/announcements/config")
 def get_config(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
-    engines = [r[0] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE entity_id LIKE 'tts.%' ORDER BY entity_id LIMIT 50").fetchall()]
-    return {"config": svc.config(conn), "speakers": svc.admin_targets(conn), "engines": engines, "history": svc.history(conn, 10)}
+    info = [{"entity_id": r[0], "name": r[1] or r[0], "platform": r[2] or "", "cloud": (r[2] or "") in svc.CLOUD_PLATFORMS}
+            for r in conn.execute("SELECT entity_id, name, platform FROM ha_entities WHERE entity_id LIKE 'tts.%' AND disabled = 0 AND removed_at IS NULL ORDER BY entity_id LIMIT 50").fetchall()]
+    engines = [i["entity_id"] for i in info]  # the speech engines the home system exposes (read from it, never typed)
+    return {"config": svc.config(conn), "speakers": svc.admin_targets(conn), "engines": engines, "engine_info": info, "history": svc.history(conn, 10), "templates": tpl.load(conn)}
 
 
 @router.put("/announcements/config")
@@ -74,14 +117,36 @@ def put_config(body: dict[str, Any], request: Request, principal: Principal = De
     changed = svc.update_config(conn, body)
     if changed:
         audit(conn, actor=principal, action="media.announce.config", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
-              details={"changed": changed, **{k: v for k, v in body.items() if k in changed and k in ("enabled", "language", "max_per_minute", "volume", "pause_music")}, **({"quiet": body["quiet"]} if "quiet" in changed else {}), **({"notify": {k: v for k, v in body["notify"].items() if k != "ref"}} if "notify" in changed else {}), **({"devices": len(body["devices"])} if "devices" in changed else {})})
+              details={"changed": changed, **{k: v for k, v in body.items() if k in changed and k in ("enabled", "language", "max_per_minute", "volume", "pause_music", "engine_kind", "cloud_enabled", "emergency_languages")}, **({"quiet": body["quiet"]} if "quiet" in changed else {}), **({"notify": {k: v for k, v in body["notify"].items() if k != "ref"}} if "notify" in changed else {}), **({"devices": len(body["devices"])} if "devices" in changed else {})})
     return {"changed": changed, **get_config(principal, conn)}
+
+
+@router.get("/announcements/templates")
+def get_templates(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, svc.PERM, INSTALLATION)
+    return {"templates": tpl.load(conn), "languages": list(tpl.LANGUAGES)}
+
+
+@router.put("/announcements/templates")
+def put_templates(body: TemplatesBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, svc.CONFIGURE, INSTALLATION)
+    try:
+        clean = tpl.validate(body.templates)
+    except tpl.TemplateInvalid as exc:
+        raise svc.err(422, "validation", fields=[exc.field]) from None
+    before = tpl.load(conn)
+    put_setting(conn, tpl.K_TEMPLATES, json.dumps(clean, ensure_ascii=False))
+    if clean != before:
+        audit(conn, actor=principal, action="media.announce.config", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+              details={"changed": ["templates"], "templates": [{"id": t["id"], "kind": t["kind"]} for t in clean],
+                       "added": sorted({t["id"] for t in clean} - {t["id"] for t in before}), "removed": sorted({t["id"] for t in before} - {t["id"] for t in clean})})
+    return {"templates": tpl.load(conn)}
 
 
 @router.post("/announcements/test")
 def test_announcement(body: TestBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
-    return svc.announce(conn, settings_of(request), principal, _rid(request), source="test", scope=body.scope, ref=body.ref, text=svc.TEST_TEXT[body.language], unlock=lambda: unlocked(conn))
+    return svc.announce(conn, settings_of(request), principal, _rid(request), source="test", scope=body.scope, ref=body.ref, text=svc.TEST_TEXT[body.language], language=body.language, unlock=lambda: unlocked(conn))
 
 
 @router.get("/announcements/history")

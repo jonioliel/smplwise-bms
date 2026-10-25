@@ -52,6 +52,9 @@ SPECS: tuple[SecretSpec, ...] = (
     SecretSpec("wiskey_background_token", "wiskey_background_token", "WISKEY_BACKGROUND_TOKEN", "אסימון חשבון הרקע של WisKey", "WisKey background account token", True, None),
     SecretSpec("openai_api_key", "openai_api_key", "OPENAI_API_KEY", "מפתח ה־API של OpenAI (עורות קומה)", "OpenAI API key (floor skins)", False, None),
     SecretSpec("push_relay_key", None, "SW_PUSH_RELAY_KEY", "מפתח ממסר ה־Push (אפליקציית הנייד)", "Push relay key (phone app)", False, None),
+    # ANNOUNCE-295: the optional CLOUD speech engine's API key (Settings > Multimedia > announcements > engine). Store-only: it never was an add-on
+    # option. announce_engine reads it per announcement; the cloud engine is OFF by default and the key is never a plain setting.
+    SecretSpec("announce_cloud_key", None, "SW_ANNOUNCE_CLOUD_KEY", "מפתח שירות הדיבור בענן (הכרזות קוליות)", "Cloud speech service key (voice announcements)", False, None),
     # USR1-263: the optional home-system ADMINISTRATOR token of הגדרות › משתמשים והרשאות › משתמשי מערכת הבית (routers/ha_users.py reads it
     # from the store per request). Store-only: it never was an add-on option, so it is not in config.LEGACY_SECRET_OPTIONS.
     SecretSpec("ha_users_token", "ha_users_token", "HA_USERS_TOKEN", "אסימון מנהל לניהול משתמשי מערכת הבית", "Home-system users administrator token", False, None),
