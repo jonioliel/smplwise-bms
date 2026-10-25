@@ -1,5 +1,21 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.18.0 (pilot) — Notice board overhaul, approved logo kit, solid dialogs, screen saver, permanent TV link, Kavarnit leftovers
+**After installing:** two new database migrations, additive only (0172 `notice_slides`, 0173 `notice_board_token_sealed`). Nothing else is switched on by this version. The push relay (the SmplWise phone-push Worker) must be redeployed before notice-board pushes reach the phone app; until then those pushes are refused by the relay.
+- **עברית:** אחרי ההתקנה: שתי מיגרציות חדשות, הוספה בלבד (0172 `notice_slides`, 0173 `notice_board_token_sealed`). שום דבר אחר לא מופעל על ידי הגרסה הזאת. יש לפרוס מחדש את ממסר הדחיפה לטלפון לפני שדחיפות של לוח ההודעות יגיעו לאפליקציה; עד אז הממסר דוחה אותן.
+
+### What was added - מה נוסף
+- **English:** Notice board: places tree, who-read sheet, home widget with an empty-state setting (NOTICEPAGE-295); push on publish (NOTICEPUSH-295); permanent TV link, wash default and chips switch (NOTICEPERM-295); promo slides and a building photo (NOTICESLIDES-295); screen saver (NOTICESAVER-295); security of the board listener.
+- **עברית:** לוח הודעות: עץ מקומות, גיליון "מי קרא", ווידג'ט בבית עם הגדרת מצב ריק; דחיפה בעת פרסום; קישור קבוע לטלוויזיה, ברירת מחדל של שטיפה ומתג שבבים; שקופיות פרסום ותמונת הבניין; שומר מסך; הקשחת מאזין הלוח.
+- **English:** The approved SmplWise logo kit on every surface, transparent on dark; the tab icon stays the Arx icon (LOGOKIT-295, LOGOFIT-295). In the Domus and Crystal skins the rail mark is drawn in white so it stays visible on the accent tile.
+- **עברית:** ערכת הלוגו המאושרת בכל המסכים, שקופה על רקע כהה; סמל הלשונית נשאר סמל Arx. בסקינים Domus ו-Crystal הסמל בשורת הצד מצויר בלבן כדי שיישאר גלוי על האריח הצבעוני.
+- **English:** Solid dialogs (DIALOGSOLID-295); Kavarnit leftovers: dry-run button, conflict mark, move-slot (KAVLEFT-295, KAV079-295); Frigate permissions (FRIGPERM-295); admin-only settings dot, search off by default, camera search needs video.live (TOPPILL-295).
+- **עברית:** חלונות אטומים; שאריות הקברניט: כפתור הרצה יבשה, סימון התנגשות והעברת משבצת; הרשאות Frigate; נקודת הגדרות למנהלים בלבד, חיפוש כבוי כברירת מחדל, וחיפוש מצלמות דורש video.live.
+
+### Fixed - תוקן
+- **English:** The portrait TV footer dropped the parking chip after the new logo kit; the logo width is back to 132 px. The tickets state filter spilled out at tablet widths with a ticket open; it now wraps like the phone layout. The push relay did not know the notice-board category and refused every notice push (needs the relay redeploy above). Stale tests, token-lint and RTL separator violations from the Kavarnit code were fixed.
+- **עברית:** כותרת התחתונה של הטלוויזיה האנכית איבדה את שבב החניה אחרי ערכת הלוגו החדשה; רוחב הלוגו הוחזר ל-132 פיקסלים. מסנן מצבי הפניות גלש בטאבלט כשפנייה פתוחה; עכשיו הוא עובר לשורות כמו בטלפון. ממסר הדחיפה לא הכיר את קטגוריית לוח ההודעות ודחה כל דחיפה (נדרשת פריסה מחדש של הממסר). תוקנו בדיקות מיושנות והפרות של כללי הטוקנים והמפריד ב-RTL בקוד הקברניט.
+
 ## 2.17.0 (pilot) — The WisKey integration: direct connection, write path and capture, tested on fakes only
 **After installing:** no database migration is added. Nothing is switched on by this version; the bridge stays at 0.9.9. Everything below was tested against test doubles only, never against a real WisKey, station, Home Assistant installation or go2rtc.
 - **עברית:** אחרי ההתקנה: לא נוספת מיגרציה. שום דבר לא מופעל על ידי הגרסה הזאת; הגשר נשאר 0.9.9. כל מה שלמטה נבדק מול דמויות בלבד, לא מול WisKey, עמדה, התקנה או go2rtc אמיתיים.
