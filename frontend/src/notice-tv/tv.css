@@ -441,3 +441,22 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 /* NOTICESLIDES-295: a slide's picture fills the mock-up's picture box; the building photo is the mock-up's .photo .img (background set through the CSSOM) */
 .it.promo .pic { overflow: hidden; }
 .it.promo .pic img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+
+/* ANNOUNCEB-295: a voice announcement addressed to this board is drawn over the whole page (its text, every language, one block each); it hides itself when its time ends */
+.ann { position: absolute; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; padding: 72px 96px; box-sizing: border-box; overflow: hidden; color: #f6eee8; background: radial-gradient(120% 90% at 85% 10%, #1d2a44 0%, #121a2c 55%, #0a101d 100%); }
+#cv[data-ann="1"] .ann { display: flex; }
+#cv[data-ann="crit"] .ann { display: flex; background: radial-gradient(120% 90% at 85% 10%, #5a1515 0%, #3a0d0d 50%, #220808 100%); }
+.ann .ann-in { display: flex; flex-direction: column; gap: 40px; max-inline-size: 1560px; max-block-size: 100%; min-inline-size: 0; }
+#cv.portrait .ann .ann-in { max-inline-size: 880px; }
+.ann .ann-tag { align-self: flex-start; padding: 8px 26px; border-radius: 999px; font-size: 30px; font-weight: 600; letter-spacing: .04em; background: rgba(246, 238, 232, .14); }
+.ann .ann-body { display: flex; flex-direction: column; gap: 36px; min-block-size: 0; }
+.ann .ann-t { margin: 0; font-weight: 500; line-height: 1.22; overflow-wrap: anywhere; text-wrap: balance; }
+.ann [data-size="xl"] .ann-t { font-size: 150px; font-weight: 600; }
+.ann [data-size="l"] .ann-t { font-size: 92px; }
+.ann [data-size="m"] .ann-t { font-size: 64px; }
+.ann [data-size="s"] .ann-t { font-size: 44px; }
+#cv.portrait .ann [data-size="xl"] .ann-t { font-size: 112px; }
+#cv.portrait .ann [data-size="l"] .ann-t { font-size: 76px; }
+#cv.portrait .ann [data-size="m"] .ann-t { font-size: 54px; }
+#cv.portrait .ann [data-size="s"] .ann-t { font-size: 40px; }
+.ann .ann-t + .ann-t { padding-block-start: 32px; border-block-start: 1px solid rgba(246, 238, 232, .22); }

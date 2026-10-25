@@ -36,6 +36,7 @@ from ..config import Settings
 from ..db import get_setting, new_id, now_iso, set_setting, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
+from . import announce_screens as screens
 from . import media_model as mm
 from . import media_store as store
 from .timeutil import iso_utc
@@ -160,7 +161,7 @@ def config(conn: sqlite3.Connection) -> dict[str, Any]:
             "cloud_key_set": eng.key_is_set(conn, _SETTINGS[0] if _SETTINGS else None), "emergency_languages": tpl.emergency_languages(conn),
             "max_per_minute": per_min, "max_text": MAX_TEXT, "cooldown_s": COOLDOWN_S,
             "volume": _vol_or_none(get_setting(conn, K_VOLUME)), "pause_music": g(K_PAUSE) == "true",
-            "quiet": _load_quiet(get_setting(conn, K_QUIET)), "notify": _load_notify(get_setting(conn, K_NOTIFY))}
+            "quiet": _load_quiet(get_setting(conn, K_QUIET)), "notify": _load_notify(get_setting(conn, K_NOTIFY)), "screens": screens.config(conn)}
 
 
 def engine_ready(cfg: dict[str, Any]) -> bool:
@@ -224,7 +225,7 @@ def quiet_active(conn: sqlite3.Connection, now: dt.datetime, cfg: dict[str, Any]
 
 def update_config(conn: sqlite3.Connection, body: dict[str, Any]) -> list[str]:
     """PUT config (system.configure): every key optional, strict; returns the changed keys."""
-    allowed = {"enabled", "engine", "language", "devices", "max_per_minute", "volume", "pause_music", "quiet", "notify", "engine_kind", "cloud_enabled", "emergency_languages"}
+    allowed = {"enabled", "engine", "language", "devices", "max_per_minute", "volume", "pause_music", "quiet", "notify", "engine_kind", "cloud_enabled", "emergency_languages", "screens"}
     if not isinstance(body, dict) or set(body) - allowed:
         raise err(422, "validation", fields=sorted(set(body) - allowed) if isinstance(body, dict) else ["body"])
     before = config(conn)
@@ -257,6 +258,11 @@ def update_config(conn: sqlite3.Connection, body: dict[str, Any]) -> list[str]:
             out[K_QUIET] = json.dumps(_merge_quiet(before["quiet"], value))
         elif name == "notify" and isinstance(value, dict):
             out[K_NOTIFY] = json.dumps(_merge_notify(before["notify"], value))
+        elif name == "screens":  # ANNOUNCEB-295: the screens switch, durations, poll interval and the allowed screens
+            try:
+                out.update(screens.merge(conn, value))
+            except ValueError as exc:
+                raise err(422, "validation", fields=[str(exc)]) from None
         elif name == "devices" and isinstance(value, list) and len(value) <= 200 and all(isinstance(v, str) and 0 < len(v) <= 64 for v in value):
             known = {r["device_key"] for r in conn.execute("SELECT device_key FROM media_devices WHERE removed_at IS NULL AND kind != 'screen'").fetchall()}
             if any(v not in known for v in value):
@@ -342,6 +348,11 @@ def areas(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             continue
         row = by_area.setdefault(a["area_id"], {"area_id": a["area_id"], "name": a["area_name"] or a["area_id"], "floor_name": a["floor_name"], "devices": []})
         row["devices"].append({"key": item.key, "name": item.name})
+    for sa in screens.areas(conn):  # ANNOUNCEB-295: a room with an allowed screen is addressable even without a speaker
+        row = by_area.setdefault(sa["area_id"], {"area_id": sa["area_id"], "name": sa["name"], "floor_name": sa["floor_name"], "devices": []})
+        row["screens"] = sa["screens"]
+    for row in by_area.values():
+        row.setdefault("screens", 0)
     return sorted(by_area.values(), key=lambda r: (r["floor_name"] or "", r["name"]))
 
 
@@ -578,14 +589,17 @@ def _parts(text: Any, texts: Any, language: Any, cfg: dict[str, Any]) -> list[tu
 def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal | None, request_id: str | None, *, source: str, scope: str, ref: str, text: Any = None,
              rule_id: str | None = None, now: dt.datetime | None = None, unlock: Any = None, volume: Any = None, critical: bool = False,
              notification_id: str | None = None, language: str | None = None, texts: Any = None, template_id: str | None = None,
-             queued_row: str | None = None) -> dict[str, Any]:
+             queued_row: str | None = None, audio: bool = True, on_screens: bool | None = None) -> dict[str, Any]:
     """Check, record, speak, record the outcome. `unlock` is a context-manager factory (db.unlocked bound to the request's connection) that
     releases the write lock around the speak call; None (a test) calls it directly. A refusal is logged and audited first, then
     raised as an ApiError (the request still commits it). `volume` is a whole percent (clamped); `critical` is exempt from the quiet hours.
     ANNOUNCE-295: `texts` speaks several languages one after the other; `scope` may be `all`; source `emergency` is critical by definition, is not
     rate limited and audits who / when / text / languages / targets under `media.announce.emergency`; in quiet hours mode `queue` a non-critical
     announcement is held (`queued_row` is the held row being released, which skips the quiet check and updates that row).
-    Returns `{id, status: "sent", targets: n}` (status `queued` + `release_at` when held)."""
+    ANNOUNCEB-295 (stage B): `audio` False = screens only (no speaker, no engine needed); `on_screens` None = the configured default (`announce.screens.default_on`),
+    True / False = asked for / not; the text is shown for `announce.screens.seconds` (`critical_seconds` for a critical / emergency one) on the allowed screens the
+    same scope reaches, under the same switch, quiet hours, limits and audit as the speech.
+    Returns `{id, status: "sent", targets: n, screens: m}` (status `queued` + `release_at` when held)."""
     if principal is not None and principal.source == "local":
         # USR2-FIX F4 (CR-USR2 §1a.5): an Arx-only identity has no infrastructure identity; this call would run on the add-on's own
         # token, so until phase 3 (the service identity with its per-feature allow-list) it is refused - fail closed, audited
@@ -600,6 +614,9 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
     critical = bool(critical or emergency)
     cfg = config(conn)
     now = now or _now()
+    show = cfg["screens"]["default_on"] if on_screens is None else bool(on_screens)
+    if not audio and not show:
+        raise err(422, "validation", fields=["screens"])
 
     def rec(keys: list[str], t: str, status: str, error: str | None, parts: list[tuple[str, str]] | None = None, release_at: str | None = None) -> str:
         return _record(conn, principal, source, rule_id, scope, ref, keys, t, status, error, now, notification_id, parts=parts, template_id=template_id, critical=critical,
@@ -622,15 +639,16 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
     kind = cfg["engine_kind"]
     engine = None
     code = "feature_disabled" if not cfg["enabled"] else None
-    if code is None and kind == "cloud" and not cfg["cloud_enabled"]:
+    if code is None and audio and kind == "cloud" and not cfg["cloud_enabled"]:
         code = "cloud_off"  # the text only leaves the building while the administrator's switch is on
-    if code is None:
+    if code is None and audio:
         from . import announce_engine as eng
 
         engine = eng.build(kind, conn, settings, cfg["engine"])
         code = None if engine is not None else "not_configured"
-    pairs = resolve(conn, scope, ref) if code is None else []
-    if code is None and not pairs:
+    pairs = resolve(conn, scope, ref) if code is None and audio else []
+    shown = screens.resolve(conn, scope, ref) if code is None and show else []
+    if code is None and not pairs and not shown:
         code = "no_targets"
     if code is not None:
         rec([], t, "refused", code, parts)
@@ -655,6 +673,8 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
 
             release = iso_utc(ns.morning_after(cfg["quiet"], now, read_settings(conn)["time.zone"]))
             aid = rec(keys, t, "queued", None, parts, release)
+            if shown:  # the intent is kept on the held row (never shown before it is released): the screens it will reach
+                conn.execute("UPDATE announcements SET screens_json = ? WHERE id = ?", (json.dumps(shown), aid))
             aud(keys, "queued", None, length, parts, {"release_at": release})
             return {"id": aid, "status": "queued", "targets": len(keys), "release_at": release}
         if mode == "lower":
@@ -669,10 +689,18 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
             aud(keys, "limited", why, length, parts)
             raise ApiError(429, "rate_limited", MESSAGES["rate_limited"]["he"], retryable=True, details={"limit": why, "message_en": MESSAGES["rate_limited"]["en"]})
     aid = rec(keys, t, "pending", None, parts)
+    if shown:  # ANNOUNCEB-295: the text appears on the allowed screens at the same moment the speech starts
+        screens.mark(conn, aid, shown, now, critical)
+    elif queued_row:
+        conn.execute("UPDATE announcements SET screens_json = '[]', screen_until = NULL WHERE id = ?", (aid,))
+    if not pairs and audio:
+        notes.append("no_speakers")
     level = effective_volume(cfg, volume, lowered)
     problem: str | None = None
     try:
-        if unlock is not None:
+        if not pairs:
+            pass  # screens only (or no allowed speaker in this room): nothing to speak
+        elif unlock is not None:
             with unlock():
                 _play(settings, cfg, engine, pairs, parts, level, notes)
         else:
@@ -684,11 +712,11 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
     status = "failed" if problem else "sent"
     conn.execute("UPDATE announcements SET status = ?, error = ?, notes_json = ? WHERE id = ?", (status, problem, json.dumps(notes[:40]), aid))
     aud(keys, status, problem, length, parts,
-        {"volume": level, "pause_music": cfg["pause_music"], "critical": critical, "engine": kind, **({"notes": notes[:40]} if notes else {}),
+        {"volume": level, "pause_music": cfg["pause_music"], "critical": critical, "engine": kind, **({"screens": len(shown)} if shown else {}), **({"notes": notes[:40]} if notes else {}),
          **({"notification_id": notification_id} if notification_id else {})})
     if problem:
         raise ApiError(502, "speak_failed", MESSAGES["speak_failed"]["he"], retryable=True, details={"error": problem, "message_en": MESSAGES["speak_failed"]["en"]})
-    return {"id": aid, "status": status, "targets": len(keys)}
+    return {"id": aid, "status": status, "targets": len(keys), **({"screens": len(shown)} if shown else {})}
 
 
 def emergency(conn: sqlite3.Connection, settings: Settings, principal: Principal, request_id: str | None, template_id: str | None, *, unlock: Any = None,
@@ -698,12 +726,12 @@ def emergency(conn: sqlite3.Connection, settings: Settings, principal: Principal
     from . import announce_templates as tpl
 
     if template_id is None:  # free text (owner 2026-10-25): the same one-click flow, the same audit
-        return announce(conn, settings, principal, request_id, source="emergency", scope="all", ref="*", text=text, language=language, texts=texts, critical=True, unlock=unlock)
+        return announce(conn, settings, principal, request_id, source="emergency", scope="all", ref="*", text=text, language=language, texts=texts, critical=True, unlock=unlock, on_screens=True)
     t = tpl.by_id(conn, template_id) if isinstance(template_id, str) else None
     if t is None or t["kind"] != "emergency":
         raise err(404, "template_unknown")
     parts = tpl.pairs(t, tpl.emergency_languages(conn)) or tpl.pairs(t, list(tpl.LANGUAGES))
-    return announce(conn, settings, principal, request_id, source="emergency", scope="all", ref="*", texts=parts, template_id=t["id"], critical=True, unlock=unlock)
+    return announce(conn, settings, principal, request_id, source="emergency", scope="all", ref="*", texts=parts, template_id=t["id"], critical=True, unlock=unlock, on_screens=True)
 
 
 def release_queued(db: Any, settings: Settings, now: dt.datetime | None = None) -> int:
@@ -729,9 +757,10 @@ def release_queued(db: Any, settings: Settings, now: dt.datetime | None = None) 
                     _drop(conn, row, "not_permitted")
                     continue
                 parts = [(p[0], p[1]) for p in json.loads(row["texts_json"] or "[]")]
+                wants_screens = bool(json.loads(row["screens_json"] or "[]"))  # the intent kept when it was held
                 announce(conn, settings, author, None, source=row["source"], scope=row["scope"], ref=row["scope_ref"], texts=parts, rule_id=row["rule_id"],
                          critical=bool(row["critical"]), template_id=row["template_id"], notification_id=row["notification_id"], queued_row=row["id"], now=now,
-                         unlock=lambda: unlocked(conn))
+                         unlock=lambda: unlocked(conn), audio=bool(json.loads(row["targets_json"] or "[]")) or not wants_screens, on_screens=wants_screens)
                 spoken += 1
             except ApiError:
                 continue  # the refusal / failure is already on the row and in the audit
@@ -755,9 +784,10 @@ def _drop(conn: sqlite3.Connection, row: sqlite3.Row, why: str) -> None:
 
 
 def history(conn: sqlite3.Connection, limit: int = 20) -> list[dict[str, Any]]:
-    rows = conn.execute("SELECT id, at, source, username, rule_id, scope, scope_ref, targets_json, message, status, error, notes_json, languages_json, template_id, critical, release_at FROM announcements ORDER BY at DESC, rowid DESC LIMIT ?", (max(1, min(limit, 100)),)).fetchall()
+    rows = conn.execute("SELECT id, at, source, username, rule_id, scope, scope_ref, targets_json, message, status, error, notes_json, languages_json, template_id, critical, release_at, screens_json, screen_until FROM announcements ORDER BY at DESC, rowid DESC LIMIT ?", (max(1, min(limit, 100)),)).fetchall()
     return [{**{k: r[k] for k in ("id", "at", "source", "username", "rule_id", "scope", "scope_ref", "message", "status", "error", "template_id", "release_at")}, "targets": len(json.loads(r["targets_json"] or "[]")),
-             "notes": _notes(r["notes_json"]), "languages": _notes(r["languages_json"]), "critical": bool(r["critical"])} for r in rows]
+             "notes": _notes(r["notes_json"]), "languages": _notes(r["languages_json"]), "critical": bool(r["critical"]),
+             "screens": len(_notes(r["screens_json"])), "screen_until": r["screen_until"]} for r in rows]
 
 
 def _notes(raw: Any) -> list[str]:

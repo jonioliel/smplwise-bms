@@ -3,6 +3,7 @@
  * grid plan, the automatic day / night switch, the late-night dim, the window wording, the network state machine (live / stale /
  * offline / gone) and the UI strings. The rules are the approved mock-up's (docs/design/mockups/notice-106/tv.html), unchanged.
  */
+import type { ScreenAnnouncement } from '../announce/screen-overlay';
 
 export type Severity = 'info' | 'alert' | 'critical';
 export type Mode = 'rotation' | 'all' | 'focus';
@@ -78,7 +79,7 @@ export const CYCLE_WASH_MS = 600_000;
 export const AMBIENT_SPOTS: readonly (readonly [number, number])[] = [[10, 14], [52, 8], [62, 46], [36, 62], [12, 40], [48, 26], [24, 64], [58, 20]];
 
 export interface Feed {
-  board: { name: string; slug: string; version: number; display: Display; building: string; tz: string; logos: { company?: string; company_dark?: string }; /** CR-LOGOS295: how the TV draws the company logo (absent without one) */ brand?: { size: 's' | 'm' | 'l' | 'xl'; company_size?: 's' | 'm' | 'l' | 'xl'; dark_mode: 'plate' | 'file' | 'invert'; name: string } };
+  board: { name: string; slug: string; version: number; /** ANNOUNCEB-295: seconds between polls while this board is an announcement screen */ announce_poll_s?: number; display: Display; building: string; tz: string; logos: { company?: string; company_dark?: string }; /** CR-LOGOS295: how the TV draws the company logo (absent without one) */ brand?: { size: 's' | 'm' | 'l' | 'xl'; company_size?: 's' | 'm' | 'l' | 'xl'; dark_mode: 'plate' | 'file' | 'invert'; name: string } };
   now: string;
   notices: FeedNotice[];
   weather?: { now: { t: number; condition: string; text: string }; hours: { at: string; t: number; condition: string }[] };
@@ -88,6 +89,8 @@ export interface Feed {
   news?: { source: string; title: string; /** NOTICERSS-295: the source's logo (a URL read with the board token) */ logo?: string }[];
   sun?: { rise: string; set: string; candles?: string };
   control?: { seq: number; cmd: 'next' | 'prev' | 'pause' | 'play' };
+  /** ANNOUNCEB-295: a voice announcement addressed to this board right now (text only), drawn over the page until `until` */
+  announcement?: ScreenAnnouncement;
 }
 
 export const SIZES: Record<Display['font_size'], number> = { s: 0.78, m: 0.9, l: 1 };

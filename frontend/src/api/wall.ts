@@ -97,6 +97,8 @@ export interface WallAlert {
   camera_id: string | null;
 }
 export const getWallAlerts = () => get<{ alerts: WallAlert[] }>('wall/alerts');
+/** ANNOUNCEB-295: the voice announcement this wall display shows right now (text only), and how often to ask (0 = this display is not an announcement screen). */
+export const getWallAnnouncement = () => get<{ poll_s: number; announcement: import('../announce/screen-overlay').ScreenAnnouncement | null }>('wall/announcement');
 export const ackWallAlert = (id: string) => post<{ acknowledged: boolean }>(`wall/alerts/${encodeURIComponent(id)}/ack`);
 export const getFrameList = () => get<{ photos: { id: string; w: number; h: number }[] }>('wall/frame/list');
 export const frameUrl = (id: string) => apiUrl(`wall/frame/${encodeURIComponent(id)}`);

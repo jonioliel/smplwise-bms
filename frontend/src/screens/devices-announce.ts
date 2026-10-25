@@ -6,7 +6,7 @@ import '../components/sw-state-panel';
 import { ANNOUNCE_LANGS, announceAreas, announceEmergency, announceSpeak, type AnnounceForm, type AnnounceLang } from '../api/announcements';
 import { describeError } from '../api/client';
 import { can, isApi } from '../api/session';
-import { ALL_ROOMS, applyTemplate, canSend, emergencyTemplates, partsOf, routineTemplates, spokenLangOf, templateName, toggleLang, type Texts } from '../announce/model';
+import { ALL_ROOMS, applyTemplate, canSend, channelFlags, emergencyTemplates, hasChannel, partsOf, routineTemplates, spokenLangOf, templateName, toggleLang, type Texts } from '../announce/model';
 import { announceText, announceUiLang } from '../i18n/announce';
 
 const flash = (ms = 3500) => new Promise((r) => setTimeout(r, ms));
@@ -26,6 +26,9 @@ export class DevicesAnnounce extends LitElement {
   @state() private langs: AnnounceLang[] = ['he'];
   @state() private texts: Texts = {};
   @state() private tpl = '';
+  /** ANNOUNCEB-295: where it goes - the speakers and / or the allowed screens (screens are offered only while the server says they are on) */
+  @state() private viaSpeakers = true;
+  @state() private viaScreens = true;
   @state() private busy = '';
   @state() private note = '';
 
@@ -73,6 +76,7 @@ export class DevicesAnnounce extends LitElement {
       }
       const first = spokenLangOf(announceUiLang());
       this.langs = f.languages.includes(first) ? [first] : ['he'];
+      this.viaScreens = f.screens_default_on !== false;
       this.phase = 'ready';
     } catch (err) {
       this.err = describeError(err);
@@ -106,7 +110,8 @@ export class DevicesAnnounce extends LitElement {
     this.err = '';
     try {
       const area = this.room === ALL_ROOMS;
-      const r = await announceSpeak({ scope: area ? 'all' : 'area', ref: this.room, texts: partsOf(this.texts, this.langs), ...(this.tpl ? { template_id: this.tpl } : {}) });
+      const r = await announceSpeak({ scope: area ? 'all' : 'area', ref: this.room, texts: partsOf(this.texts, this.langs), ...(this.tpl ? { template_id: this.tpl } : {}),
+        ...channelFlags(this.viaSpeakers, this.viaScreens, !!this.form?.screens_enabled) });
       this.say(r.status === 'queued' ? t.sentQueued : t.sent);
       this.texts = {};
       this.tpl = '';
@@ -145,7 +150,8 @@ export class DevicesAnnounce extends LitElement {
     if (!f) return html`<sw-page heading=${t.title}><sw-state-panel icon="bell" state="empty" heading=${t.noTargets}></sw-state-panel></sw-page>`;
     const routine = routineTemplates(f.templates);
     const emergency = emergencyTemplates(f.templates);
-    const ok = canSend(this.room, this.texts, this.langs) && this.busy === '';
+    const offered = !!f.screens_enabled;
+    const ok = canSend(this.room, this.texts, this.langs) && hasChannel(this.viaSpeakers, this.viaScreens, offered) && this.busy === '';
     return html`<sw-page heading=${t.title} data-announce-screen>
       <div class="grid">
         <div class="panel" data-announce-form>
@@ -154,6 +160,9 @@ export class DevicesAnnounce extends LitElement {
               <option value=${ALL_ROOMS} ?selected=${this.room === ALL_ROOMS}>${t.wholeBuilding}</option>
               ${f.areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.room}>${[a.floor_name, a.name].filter(Boolean).join(' · ')}</option>`)}
             </select></div>
+          ${offered ? html`<div class="row"><span class="lbl">${t.channels}</span>
+            <button class="chip" type="button" data-announce-via="speakers" aria-pressed=${String(this.viaSpeakers)} @click=${() => (this.viaSpeakers = !this.viaSpeakers)}>${t.channelSpeakers}</button>
+            <button class="chip" type="button" data-announce-via="screens" aria-pressed=${String(this.viaScreens)} @click=${() => (this.viaScreens = !this.viaScreens)}>${t.channelScreens}</button></div>` : nothing}
           <div class="row"><span class="lbl">${t.languages}</span>
             ${ANNOUNCE_LANGS.map((l) => html`<button class="chip" type="button" data-announce-lang=${l} aria-pressed=${String(this.langs.includes(l))} @click=${() => this.setLang(l)}>${t.langName[l]}</button>`)}</div>
           <div class="row"><span class="lbl">${t.template}</span>

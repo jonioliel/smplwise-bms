@@ -207,6 +207,15 @@ def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime
         ctl = {}
     if ctl.get("cmd") and (model.parse_iso(ctl.get("until")) or now) > now:
         doc["control"] = {"seq": int(ctl.get("seq") or 0), "cmd": ctl["cmd"]}
+    # ANNOUNCEB-295: a voice announcement addressed to this board (stage B) is drawn over the page; the board asks faster while it is an announcement screen
+    from .. import announce_screens
+
+    ann = announce_screens.active_for(conn, f"board:{board['id']}", now)
+    if announce_screens.feature_on(conn) and any(t["key"] == f"board:{board['id']}" for t in announce_screens.config(conn)["targets"]):
+        doc["board"]["announce_poll_s"] = announce_screens.config(conn)["poll_s"]
+    if ann:
+        doc["announcement"] = {"id": ann["id"], "critical": ann["critical"], "until": ann["until"], "texts": ann["texts"]}
+        stamps.append(_stamp(ann["at"]))
     payload = json.dumps({k: v for k, v in doc.items() if k != "now"}, ensure_ascii=False, sort_keys=True)
     doc["board"]["version"] = int(hashlib.sha256(f"{max(stamps)}|{payload}".encode()).hexdigest()[:12], 16)
     return doc

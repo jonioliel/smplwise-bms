@@ -6,7 +6,7 @@ import '../components/sw-toggle';
 import '../components/sw-state-panel';
 import './system-announce-templates';
 import {
-  ANNOUNCE_CATEGORIES, ANNOUNCE_LANGS, ANNOUNCE_QUIET_MODES, announceAreas, announceConfig, announcePutConfig, announceSpeak, announceTest,
+  ANNOUNCE_CATEGORIES, ANNOUNCE_LANGS, ANNOUNCE_QUIET_MODES, ANNOUNCE_SCREEN_RANGE, announceAreas, announceConfig, announcePutConfig, announceSpeak, announceTest,
   type AnnounceArea, type AnnounceConfigAnswer, type AnnounceConfigPatch, type AnnounceLang, type AnnounceQuietMode, type AnnounceSpeaker,
 } from '../api/announcements';
 import { describeError } from '../api/client';
@@ -14,6 +14,7 @@ import { can, isApi, onRemote } from '../api/session';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { announceLang, announceText } from '../i18n/announce';
+import { clampScreenNumber, patchScreen, screenTargets, type ScreenNumberField } from '../announce/model';
 import { dateInputLang } from '../api/day-format';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
@@ -174,6 +175,52 @@ export class SystemAnnouncements extends LitElement {
       </sw-card>`;
   }
 
+  private screenAreas(): { id: string; name: string }[] {
+    const seen = new Map<string, string>();
+    for (const s of this.data?.speakers ?? []) if (s.area_id) seen.set(s.area_id, [s.floor_name, s.area_name].filter(Boolean).join(' · ') || s.area_id);
+    for (const o of this.data?.screen_options?.screens ?? []) if (o.area_id && !seen.has(o.area_id)) seen.set(o.area_id, o.area_id);
+    return [...seen].map(([id, name]) => ({ id, name }));
+  }
+
+  private screenNumber(field: ScreenNumberField, e: Event) {
+    const v = clampScreenNumber(field, (e.target as HTMLInputElement).value);
+    if (v === null) return;
+    void this.save({ screens: { [field]: v } });
+  }
+
+  /** ANNOUNCEB-295 (stage B): the screens card - the switch, the defaults and times, and the screens allowed to show the text (a display board or a wall display, its room, the media screen it stands for). */
+  private screensCard(t: ReturnType<typeof announceText>, d: AnnounceConfigAnswer) {
+    const sc = d.config.screens ?? { enabled: false, default_on: true, seconds: 30, critical_seconds: 180, poll_s: 5, targets: [] };
+    const opts = d.screen_options?.screens ?? [];
+    const devices = d.screen_options?.devices ?? [];
+    const rooms = this.screenAreas();
+    const apply = (key: string, patch: Parameters<typeof patchScreen>[2]) => void this.save({ screens: { targets: screenTargets(patchScreen(opts, key, patch)) } });
+    return html`<sw-card heading=${t.screens} subheading=${t.screensHint} data-announce-screens>
+      <div class="row"><span class="lbl">${t.screensEnabled}<span class="muted">${t.screensEnabledHint}</span></span>
+        <sw-toggle label=${t.screensEnabled} labelHidden .checked=${sc.enabled} data-announce-screens-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ screens: { enabled: e.detail.checked } })}></sw-toggle></div>
+      <div class="row"><span class="lbl">${t.screensDefault}</span>
+        <sw-toggle label=${t.screensDefault} labelHidden .checked=${sc.default_on} data-announce-screens-default @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ screens: { default_on: e.detail.checked } })}></sw-toggle></div>
+      <div class="row"><span class="lbl">${t.screensSeconds}</span>
+        <input type="number" min=${ANNOUNCE_SCREEN_RANGE.seconds[0]} max=${ANNOUNCE_SCREEN_RANGE.seconds[1]} data-announce-screens-seconds aria-label=${t.screensSeconds} .value=${String(sc.seconds)} @change=${(e: Event) => this.screenNumber('seconds', e)} /></div>
+      <div class="row"><span class="lbl">${t.screensCriticalSeconds}</span>
+        <input type="number" min=${ANNOUNCE_SCREEN_RANGE.critical_seconds[0]} max=${ANNOUNCE_SCREEN_RANGE.critical_seconds[1]} data-announce-screens-critical aria-label=${t.screensCriticalSeconds} .value=${String(sc.critical_seconds)} @change=${(e: Event) => this.screenNumber('critical_seconds', e)} /></div>
+      <div class="row"><span class="lbl">${t.screensPoll}</span>
+        <input type="number" min=${ANNOUNCE_SCREEN_RANGE.poll_s[0]} max=${ANNOUNCE_SCREEN_RANGE.poll_s[1]} data-announce-screens-poll aria-label=${t.screensPoll} .value=${String(sc.poll_s)} @change=${(e: Event) => this.screenNumber('poll_s', e)} /></div>
+      <div class="area">${t.screensList}</div>
+      ${opts.length ? opts.map((o) => html`<div class="row" data-announce-screen=${o.key}>
+        <label class="pick"><input type="checkbox" .checked=${o.allowed} data-announce-screen-allow @change=${(e: Event) => apply(o.key, { allowed: (e.target as HTMLInputElement).checked })} />${o.name}
+          <span class="muted">${o.kind === 'board' ? t.screensKindBoard : t.screensKindWall}</span></label>
+        <span class="inl">
+          <select data-announce-screen-area aria-label=${t.screensArea} ?disabled=${!o.allowed} @change=${(e: Event) => apply(o.key, { area_id: (e.target as HTMLSelectElement).value || null })}>
+            <option value="" ?selected=${!o.area_id}>${t.screensNoArea}</option>
+            ${rooms.map((r) => html`<option value=${r.id} ?selected=${r.id === o.area_id}>${r.name}</option>`)}</select>
+          <select data-announce-screen-device aria-label=${t.screensDevice} ?disabled=${!o.allowed} @change=${(e: Event) => apply(o.key, { device_key: (e.target as HTMLSelectElement).value || null })}>
+            <option value="" ?selected=${!o.device_key}>${t.screensNoDevice}</option>
+            ${devices.map((x) => html`<option value=${x.key} ?selected=${x.key === o.device_key}>${x.name}</option>`)}</select>
+        </span></div>`) : html`<div class="muted" data-announce-screens-none>${t.screensNone}</div>`}
+    </sw-card>`;
+  }
+
   private async run(id: string, fn: () => Promise<unknown>) {
     this.busy = id;
     this.err = '';
@@ -239,6 +286,7 @@ export class SystemAnnouncements extends LitElement {
           <sw-toggle label=${t.pause} labelHidden .checked=${cf.pause_music} data-announce-pause @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ pause_music: e.detail.checked })}></sw-toggle></div>
       </sw-card>
       ${this.extraCards(t, cf)}
+      ${this.screensCard(t, d)}
       <system-announce-templates .templates=${d.templates ?? []} @saved=${(e: CustomEvent<{ templates: AnnounceConfigAnswer['templates'] }>) => { if (this.data) this.data = { ...this.data, templates: e.detail.templates }; this.note(announceText().saved); }}></system-announce-templates>
       <sw-card heading=${t.speakers} subheading=${t.speakersHint}>${this.speakerRows(t)}</sw-card>
       ${this.areas.length ? html`<sw-card heading=${t.say} data-announce-now>
