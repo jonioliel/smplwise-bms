@@ -5,7 +5,7 @@ import { aLaw, Downsampler, FramePacker, muLaw, to16 } from '../src/wiskey/g711'
 import { MicFailure, type MicHandle } from '../src/wiskey/talk-mic';
 import { IDLE_END_MS, outcomeOfClose, problemOfOutcome, startProblem, TalkSession, type SocketLike, type TalkDeps } from '../src/wiskey/talk-session';
 
-// CR-036 slice S18: the pure parts of a station's live video and push-to-talk - the G.711 encoder, the frame packer, the player
+// CR-036 slice S18: the pure parts of a station's live video and two-way talk - the G.711 encoder, the frame packer, the player
 // mode per profile, the setting, and the talk state machine with injected effects (no browser, no microphone, no socket).
 //   npx playwright test tests/unit-wiskey-station-media.spec.ts --project=desktop
 
@@ -149,10 +149,10 @@ function rig(o: { start?: () => Promise<TalkStartReply>; mic?: () => Promise<Mic
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-test.describe('push-to-talk session', () => {
-  test('one press: microphone, ONE start, the socket; frames only while held; later presses reuse the session', async () => {
+test.describe('two-way talk session (full duplex, owner 25.10)', () => {
+  test('one start: microphone, ONE start, the socket; the microphone opens with the session; mute / unmute; explicit end', async () => {
     const { session, log, frame } = rig();
-    void session.press();
+    void session.start();
     await flush();
     expect(session.phase).toBe('starting');
     expect(log.starts).toEqual(['gate:ptt-1']);
@@ -162,21 +162,24 @@ test.describe('push-to-talk session', () => {
     frame();
     expect(ws.frames()).toBe(0); // not open yet
     ws.server({ type: 'talk/state', value: 'open' });
-    expect(session.phase).toBe('talking'); // still held: the floor is taken at once
+    expect(session.phase).toBe('talking'); // no button to hold: the microphone is open for the whole session
     expect(ws.texts()).toEqual([{ type: 'talk/ptt', value: 'down' }]);
     frame();
     frame();
     expect(ws.frames()).toBe(2);
-    session.release();
+    session.toggleMute();
     expect(session.phase).toBe('open');
+    expect(session.muted).toBe(true);
     frame();
-    expect(ws.frames()).toBe(2); // released: nothing leaves
+    expect(ws.frames()).toBe(2); // muted: nothing leaves
     expect(log.micOn).toEqual([true, false]);
-    void session.press();
+    session.toggleMute();
     expect(session.phase).toBe('talking');
     expect(log.starts).toHaveLength(1); // the same session
-    session.release();
-    expect(log.floors).toEqual([true, false, true, false]);
+    expect(ws.texts().map((m) => m.value)).toEqual(['down', 'up', 'down']);
+    expect(log.floors).toEqual([true]); // the live view stays muted for the whole talk, not per mute
+    void session.start();
+    expect(log.starts).toHaveLength(1); // a second start while open does nothing
     expect(session.secondsLeft()).toBe(120);
     session.end();
     expect(ws.texts().at(-1)).toEqual({ type: 'talk/stop' });
@@ -184,25 +187,26 @@ test.describe('push-to-talk session', () => {
     expect(session.outcome).toBe('ended');
     expect(session.problem).toBeNull();
     expect(log.micStopped).toBe(1);
+    expect(log.floors).toEqual([true, false]);
     expect(ws.closed).toBe(true);
   });
 
-  test('a refused start is shown, never retried; the next press is a new request', async () => {
+  test('a refused start is shown, never retried; the next start is a new request', async () => {
     const { session, log } = rig({ start: () => Promise.reject(new ApiError(409, { code: 'intercom_talk_busy', user_message: 'x', retryable: true, correlation_id: '', details: {} })) });
-    await session.press();
+    await session.start();
     expect(session.phase).toBe('idle');
     expect(session.problem).toBe('busy');
     expect(log.starts).toHaveLength(1);
     expect(log.micStopped).toBe(1); // the microphone is released at once
     await flush();
     expect(log.starts).toHaveLength(1);
-    await session.press();
+    await session.start();
     expect(log.starts).toHaveLength(2);
   });
 
   test('a blocked microphone stops before anything is reserved', async () => {
     const { session, log } = rig({ mic: () => Promise.reject(new MicFailure('denied')) });
-    await session.press();
+    await session.start();
     expect(session.problem).toBe('denied');
     expect(log.starts).toHaveLength(0);
   });
@@ -210,27 +214,27 @@ test.describe('push-to-talk session', () => {
   test('the server ends a session: expiry, a lost permission, a closed channel', async () => {
     for (const [how, problem] of [[4408, 'expired'], [4403, 'access_lost'], [4503, 'upstream'], [4423, 'busy'], [1006, 'network']] as const) {
       const { session, log } = rig();
-      void session.press();
+      void session.start();
       await flush();
       log.sockets[0].server({ type: 'talk/state', value: 'open' });
       log.sockets[0].drop(how);
       expect(session.phase).toBe('idle');
       expect(session.problem).toBe(problem);
-      expect(log.floors.at(-1)).toBe(false); // the station's sound comes back
+      expect(log.floors.at(-1)).toBe(false); // the station's sound comes back to the live view
     }
     const { session, log } = rig();
-    void session.press();
+    void session.start();
     await flush();
     log.sockets[0].server({ type: 'talk/state', value: 'open' });
     log.sockets[0].server({ type: 'talk/closed', value: 'upstream_closed' });
     expect(session.problem).toBe('upstream');
   });
 
-  test('released before the session opened: no floor; nobody presses for a while: the session ends', async () => {
+  test('muted before the session opened: no frame, no floor; a muted session nobody hears for a while ends', async () => {
     const { session, log } = rig();
-    void session.press();
-    session.release();
+    void session.start();
     await flush();
+    session.setMuted(true);
     log.sockets[0].server({ type: 'talk/state', value: 'open' });
     expect(session.phase).toBe('open');
     expect(log.sockets[0].texts()).toEqual([]);
@@ -244,7 +248,7 @@ test.describe('push-to-talk session', () => {
   test('ended while opening: the reserved slot is released, nothing is left open', async () => {
     let resolve: (r: TalkStartReply) => void = () => undefined;
     const { session, log } = rig({ start: () => new Promise((r) => (resolve = r)) });
-    void session.press();
+    void session.start();
     await flush();
     session.end();
     resolve(REPLY);

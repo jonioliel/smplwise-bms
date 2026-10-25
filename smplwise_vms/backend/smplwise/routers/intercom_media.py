@@ -12,9 +12,13 @@ Endpoints (all behind the administrator setting `access.station_media`, OFF by d
 - `POST /access-control/stations/{id}/talk` (`access.call` on the station chain - the owner: the call permission covers
   talk): reserves the station's single talker slot and the caller's single session, audited (`intercom.talk.start`).
 - `WS /access-control/talk/{session}/ws`: the session's audio - G.711 frames (20 ms, 8 kHz) from the browser's microphone,
-  sent only while the push-to-talk button is held - forwarded to the provider's talk channel. Ends on the browser's close
+  forwarded to the provider's talk channel only while the floor is held (`talk/ptt` down .. up). WKF01F02-295 (owner 25.10):
+  the browser now holds the floor for the whole session (full duplex, the microphone open) and releases it only while the
+  operator mutes; the server side is unchanged. Ends on the browser's close
   or stop, the session's expiry, a lost permission (re-checked like a camera lease), the setting turned off, or the upstream
-  closing; one end row (`intercom.talk.end`: outcome, duration, frame count - never audio content).
+  closing; one end row (`intercom.talk.end`: outcome, duration, frame count - never audio content). WKF01F02-295: when WisKey opened
+  the talk with the station's sound (`arx.station_talk_audio.v1`), the same socket carries it back to the browser as binary messages
+  (800-byte PCMU packets) - two-way talk; the session and the permission are checked before every packet.
 - `POST /access-control/talk/{session}/stop`: ends the caller's own session (idempotent).
 """
 from __future__ import annotations
@@ -44,6 +48,7 @@ from ..services import intercom_authority as ia
 from ..services import intercom_media as im
 from ..services import intercom_sync
 from ..services.leases import CameraLease
+from ..services.wiskey_listen_adapter import ReceiveDownlink
 from . import media
 from .settings import read_settings
 
@@ -413,18 +418,51 @@ async def _pump(websocket: WebSocket, t: im.TalkSession, channel: im.TalkChannel
             if lease.should_stop():
                 return "access_lost"
 
-    tasks = [asyncio.create_task(from_browser()), asyncio.create_task(upstream()), asyncio.create_task(watch())]
-    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-    for task in pending:
-        task.cancel()
-        with contextlib.suppress(BaseException):
-            await task
-    for task in done:
-        if task.exception() is not None:
-            log.warning("talk session %s ended by an error: %s", t.ref, type(task.exception()).__name__)
-            return "upstream_closed"
-        return task.result()
-    return "ended"
+    async def from_station() -> str:
+        """WKF01F02-295 (F02): the station's sound of a two-way talk, through the one downlink adapter (`ReceiveDownlink.for_talk` around the
+        channel's `receive_audio`) to the browser as binary messages. A channel without the station's sound (a talk WisKey opened without
+        `listen`, a provider that has none) waits here for ever: the talk itself goes on unchanged."""
+        receive = getattr(channel, "receive_audio", None)
+        if receive is None or getattr(channel, "listening", True) is False:
+            await asyncio.Future()
+        downlink = ReceiveDownlink.for_talk(receive)
+        await downlink.open()
+        try:
+            async for packet in downlink.frames():
+                # no await between the check of the session / the permission and the publication of a packet
+                if time.time() >= t.expires_at:
+                    return "expired"
+                if t.stop_requested:
+                    return t.stop_requested
+                if lease.should_stop():
+                    return "access_lost"
+                await websocket.send_bytes(packet)
+            return "upstream_closed"  # the station's sound ended (its connection is gone): the talk is over too
+        finally:
+            await downlink.close("ended")
+
+    tasks = [asyncio.create_task(from_browser()), asyncio.create_task(upstream()),
+             asyncio.create_task(watch()), asyncio.create_task(from_station())]
+    try:
+        done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in done:
+            if task.exception() is not None:
+                log.warning("talk session %s ended by an error: %s", t.ref, type(task.exception()).__name__)
+                return "upstream_closed"
+        return next(iter(done)).result() if done else "ended"
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        joined = asyncio.gather(*tasks, return_exceptions=True)
+        cancelled = False
+        while not joined.done():
+            try:
+                await asyncio.shield(joined)
+            except asyncio.CancelledError:
+                cancelled = True
+        if cancelled:
+            raise asyncio.CancelledError
 
 
 @router.websocket("/access-control/talk/{session_id}/ws")

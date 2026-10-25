@@ -54,20 +54,27 @@ class ListenChannel(Protocol):
     async def close(self, reason: str) -> None: ...
 
 
-def split_frames(packet: bytes) -> list[bytes]:
+def split_frames(packet: bytes, frame_bytes: int = FRAME_BYTES, max_packet_bytes: int = MAX_PACKET_BYTES) -> list[bytes]:
     """A packet as whole frames. An empty packet (a timeout) is nothing; an oversize one is dropped; a partial tail is dropped."""
-    if not packet or len(packet) > MAX_PACKET_BYTES:
+    if not packet or len(packet) > max_packet_bytes:
         return []
-    whole = len(packet) // FRAME_BYTES
-    return [bytes(packet[i * FRAME_BYTES:(i + 1) * FRAME_BYTES]) for i in range(whole)]
+    whole = len(packet) // frame_bytes
+    return [bytes(packet[i * frame_bytes:(i + 1) * frame_bytes]) for i in range(whole)]
+
+
+# WKF01F02-295 (F02): the station's sound inside a talk (`arx.station_talk_audio.v1`, Mac delta be2c1c05): WisKey's native 100 ms packets of
+# 800 bytes PCMU are passed whole (the talk screen's player takes exactly that packet), at most 3 waiting (300 ms, WisKey's MAX_PACKET_AGE).
+TALK_PACKET_BYTES = 800
+TALK_QUEUE_PACKETS = 3
 
 
 class _Downlink:
     """Shared plumbing: a bounded drop-oldest frame queue and the one end reason (`wait_closed`)."""
 
-    def __init__(self) -> None:
+    def __init__(self, queue_frames: int = QUEUE_FRAMES) -> None:
         self._queue: asyncio.Queue[bytes | None] = asyncio.Queue()
         self._closed: asyncio.Future[str] | None = None
+        self._queue_frames = queue_frames
         self.dropped_frames = 0
         self.received_frames = 0
 
@@ -78,7 +85,7 @@ class _Downlink:
 
     def _offer(self, frame: bytes) -> None:
         self.received_frames += 1
-        while self._queue.qsize() >= QUEUE_FRAMES:
+        while self._queue.qsize() >= self._queue_frames:
             try:
                 self._queue.get_nowait()
             except asyncio.QueueEmpty:  # pragma: no cover - single loop
@@ -153,13 +160,24 @@ class ReceiveDownlink(_Downlink):
 
     `b""` is silence (kept reading); an exception whose text is `audio_connection_lost` is an upstream end; any other exception is an end
     with `upstream_closed` (its text is never kept). Used with `SyntheticReceiver` in tests; the real receiver is WisKey's, over the
-    signed link, joined in `WiskeyDownlinkChannel` when the contract is published."""
+    signed link, joined in `WiskeyDownlinkChannel` when the contract is published.
 
-    def __init__(self, receive: Callable[[], Awaitable[bytes]], on_close: Callable[[str], object] | None = None) -> None:
-        super().__init__()
+    WKF01F02-295 (F02): also the one adapter of the station's sound INSIDE a talk - `for_talk(channel.receive_audio)` (routers/intercom_media.py
+    `_pump`): whole 800-byte packets, three waiting at most."""
+
+    def __init__(self, receive: Callable[[], Awaitable[bytes]], on_close: Callable[[str], object] | None = None, *,
+                 frame_bytes: int = FRAME_BYTES, max_packet_bytes: int = MAX_PACKET_BYTES, queue_frames: int = QUEUE_FRAMES) -> None:
+        super().__init__(queue_frames)
         self._receive = receive
         self._on_close = on_close
+        self._frame_bytes = frame_bytes
+        self._max_packet_bytes = max_packet_bytes
         self._task: asyncio.Task[None] | None = None
+
+    @classmethod
+    def for_talk(cls, receive: Callable[[], Awaitable[bytes]]) -> "ReceiveDownlink":
+        """The station's sound of one talk (`arx.station_talk_audio.v1`): 800-byte packets passed whole, newest wins (3 waiting)."""
+        return cls(receive, frame_bytes=TALK_PACKET_BYTES, max_packet_bytes=TALK_PACKET_BYTES, queue_frames=TALK_QUEUE_PACKETS)
 
     async def open(self) -> None:
         self._future()
@@ -169,7 +187,7 @@ class ReceiveDownlink(_Downlink):
         try:
             while True:
                 packet = await self._receive()
-                for frame in split_frames(bytes(packet)):
+                for frame in split_frames(bytes(packet), self._frame_bytes, self._max_packet_bytes):
                     self._offer(frame)
         except asyncio.CancelledError:
             raise
@@ -191,9 +209,13 @@ class ReceiveDownlink(_Downlink):
 
 
 class WiskeyDownlinkChannel:
-    """PENDING (CONTRACT_STATE): the real downlink over WisKey's signed direct link. It does not exist yet: opening it answers
-    `downlink_pending`, so a real station can never be listened to through a guess. When WisKey publishes the contract this class opens
-    the command, wraps its `receive` in `ReceiveDownlink` and nothing else in Arx changes."""
+    """PENDING (CONTRACT_STATE): the LISTEN-ONLY downlink (no microphone) over WisKey's signed direct link. Opening it answers
+    `downlink_pending`, so a real station can never be listened to through a guess.
+
+    WKF01F02-295: the station's sound now arrives INSIDE a two-way talk (`talk_open(listen=true)`, `arx.station_talk_audio.v1`,
+    `WiskeyBridgeTalkChannel.receive_audio` wrapped in `ReceiveDownlink.for_talk`). Whether the same `talk_open(listen=true)` may serve a
+    listener without floor, frames or microphone, whether it takes the station's single talk slot, and what it answers while another talk is
+    active are WisKey's open answers (Arx reply section 8, addendum F02 item 2); until they come this listen-only channel stays refused."""
 
     def __init__(self, *_args: object, **_kwargs: object) -> None:
         self._unused = _Downlink()

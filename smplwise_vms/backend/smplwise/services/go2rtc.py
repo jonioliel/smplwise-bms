@@ -228,14 +228,20 @@ class Go2rtc:
         log.info("go2rtc stream %s %s (%s)", name, "updated" if existing else "created", redact_source(name, src))
         return "updated" if existing else "created"
 
-    def delete_stream(self, name: str) -> None:
+    def delete_stream(self, name: str, *, strict: bool = False) -> None:
+        """Delete one of our streams. `strict` (WKF01F02-295, the leased station streams): a status go2rtc answers other than 200 / 204 /
+        404 (404: it no longer knows the stream) is a refused delete - `ApiError` - so the caller keeps its record instead of forgetting a
+        stream that may still hold a private source. The other callers keep the lenient behaviour (only a transport failure raises)."""
         if not name.startswith(STREAM_PREFIX):
             raise ValueError("refusing to delete a stream outside the smplwise_ namespace")
         with self._client() as c:
             try:
-                c.delete("/api/streams", params={"src": name})
+                response = c.delete("/api/streams", params={"src": name})
             except httpx.HTTPError as exc:
                 raise self._wrap(exc, "delete") from exc
+        status = getattr(response, "status_code", None)
+        if strict and status not in (200, 204, 404):
+            raise ApiError(503, "media_unavailable", "go2rtc לא אישר סגירת שידור.", details={"op": "delete", "status": status})
 
     def _grab(self, params: dict[str, str]) -> tuple[int, bytes, bool]:
         body = bytearray()
@@ -289,18 +295,25 @@ class Go2rtc:
         status, body, too_large = self._grab({"src": name})
         return self._frame(status, body, too_large)
 
-    def discard_leased_stream(self, name: str) -> None:
-        """WKLIVE-295: delete a leased station stream (`smplwise_wiskey_<station>`, never a probe, never another namespace) and forget its
-        registration, so the private lease source does not outlive its viewers inside go2rtc's memory. The caller decides that no viewer is
-        left; a failure is logged (never the source) and swallowed - the stream is in-memory only and goes at the next go2rtc restart."""
+    def discard_leased_stream(self, name: str, digest: str | None = None) -> bool:
+        """WKLIVE-295: delete a leased station stream (`smplwise_wiskey_<station>...`, never a probe, never another namespace) so the private
+        lease source does not outlive its viewers inside go2rtc's memory. The caller decides that no viewer is left.
+
+        WKF01F02-295 (the Mac lease lifecycle, merged): the delete is strict and its outcome is returned. True: go2rtc confirmed it (or no
+        longer knew the stream) and the registration is forgotten - only when it is still `digest` (None: whatever it is), so a newer
+        registration of the same name is never dropped. False: go2rtc did not confirm; the registration is KEPT, so the caller keeps its
+        record (quarantine) instead of forgetting a stream that may still hold the source. A failure is logged by rule only, never a source."""
         if not name.startswith(f"{STREAM_PREFIX}wiskey_") or name.startswith(f"{STREAM_PREFIX}wiskey_probe_") or not NAME_RE.match(name):
             raise ValueError("refusing to delete a stream that is not a leased station stream")
-        with _REGISTERED_LOCK:
-            _REGISTERED.pop(name, None)
         try:
-            self.delete_stream(name)
-        except ApiError:
-            log.warning("leased stream %s not deleted", name)
+            self.delete_stream(name, strict=True)
+        except ApiError as exc:
+            log.warning("leased stream %s not deleted (%s)", name, exc.code)
+            return False
+        with _REGISTERED_LOCK:
+            if digest is None or _REGISTERED.get(name) == digest:
+                _REGISTERED.pop(name, None)
+        return True
 
     def discard_probe_stream(self, name: str) -> None:
         """Delete a throwaway probe stream and forget its registration; a failure is logged (never the source) and swallowed - the

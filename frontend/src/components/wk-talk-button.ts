@@ -8,14 +8,16 @@ import { micPermission, openMic } from '../wiskey/talk-mic';
 import { TalkSession, type TalkDeps, type TalkProblem } from '../wiskey/talk-session';
 
 /**
- * Push-to-talk with a station (CR-036 slice S18), the native replacement of "talk in the classic panel" when the station's media
- * descriptor offers a talk transport. Press and hold (mouse, touch, or Space / Enter on the focused button) to talk; release to
- * listen. The first press asks for the microphone and opens the session (wiskey/talk-session.ts: one start request, never
- * retried); later presses reuse it until "end", the server's time limit, or IDLE_END_MS without a press. A half-duplex station
- * mutes its own sound meanwhile: the `talk-floor` event ({held}) tells the live view.
+ * Two-way talk with a station (CR-036 slice S18; WKF01F02-295, owner 25.10: full duplex, the microphone open for the whole session,
+ * not push-to-talk), the native replacement of "talk in the classic panel" when the station's media descriptor offers a talk
+ * transport. One click starts the talk: the microphone is asked for and the session opens (wiskey/talk-session.ts: one start request,
+ * never retried); the microphone then stays open and the station's sound plays. The same button mutes / unmutes the microphone
+ * (visible state, `data-muted`); "end" closes the session explicitly. The live view mutes its own sound for the whole talk (the
+ * `talk-floor` event, {held}), so the station is heard once and the video's sound never feeds the microphone.
  *
- * States shown (a short line, no paragraphs): ready / opening / talking with the time left; the microphone blocked, missing,
- * busy, or unavailable on a plain-HTTP page; another operator talking (who is never said); every way a session ends.
+ * States shown (a short line, no paragraphs): start / opening / microphone open or muted with the time left; a headset hint when the
+ * browser did not apply echo cancellation; the microphone blocked, missing, busy, or unavailable on a plain-HTTP page; another
+ * operator talking (who is never said); every way a session ends.
  */
 @customElement('wk-talk-button')
 export class WkTalkButton extends LitElement {
@@ -195,23 +197,11 @@ export class WkTalkButton extends LitElement {
     return null;
   }
 
-  private down = (e: PointerEvent): void => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    void this.ensure().press();
-  };
-
-  private up = (): void => {
-    this.session?.release();
-  };
-
-  private key = (e: KeyboardEvent): void => {
-    if (e.key !== ' ' && e.key !== 'Enter') return;
-    e.preventDefault();
-    if (e.type === 'keydown') {
-      if (!e.repeat) void this.ensure().press();
-    } else this.session?.release();
+  /** One button: idle -> start the talk; open session -> mute / unmute the microphone (click, Enter or Space). */
+  private activate = (): void => {
+    const s = this.ensure();
+    if (s.phase === 'idle') void s.start();
+    else if (s.phase === 'open' || s.phase === 'talking') s.toggleMute();
   };
 
   private end(): void {
@@ -227,7 +217,9 @@ export class WkTalkButton extends LitElement {
     const disabled = !this.live || (phase === 'idle' && (busy || !!blocked));
     const left = s?.secondsLeft() ?? null;
     void this.tick;
-    const label = phase === 'talking' ? t.talking : phase === 'starting' ? t.starting : phase === 'open' ? t.open : t.hold;
+    const active = phase === 'open' || phase === 'talking';
+    const label = phase === 'talking' ? t.talking : phase === 'starting' ? t.starting : phase === 'open' ? t.muted : t.start;
+    const aria = phase === 'talking' ? t.mute : phase === 'open' ? t.unmute : t.start;
     const problem = s?.problem ?? (phase === 'idle' ? blocked : null);
     const line = problem
       ? { tone: problem === 'busy' || problem === 'expired' ? 'warn' : 'error', text: t.problems[problem] }
@@ -235,25 +227,21 @@ export class WkTalkButton extends LitElement {
         ? { tone: 'warn', text: t.busy }
         : phase === 'idle' && s?.outcome
           ? { tone: '', text: t.ended }
-          : null;
+          : active && s?.echoCancelled === false
+            ? { tone: 'warn', text: t.headset }
+            : null;
     return html`<button
         type="button"
         class="ptt"
         data-wk-ptt
         data-phase=${phase}
-        aria-pressed=${String(phase === 'talking')}
-        aria-label=${t.hold}
+        data-muted=${active ? String(phase === 'open') : nothing}
+        aria-pressed=${active ? String(phase === 'open') : nothing}
+        aria-label=${aria}
         ?disabled=${disabled}
-        @pointerdown=${this.down}
-        @pointerup=${this.up}
-        @pointercancel=${this.up}
-        @lostpointercapture=${this.up}
-        @keydown=${this.key}
-        @keyup=${this.key}
-        @blur=${this.up}
-        @contextmenu=${(e: Event) => e.preventDefault()}
+        @click=${this.activate}
       >
-        ${phase === 'talking' ? html`<i class="dot" aria-hidden="true"></i>` : html`<sw-icon name="mic" size=${18}></sw-icon>`}<span>${label}</span>
+        ${phase === 'talking' ? html`<i class="dot" aria-hidden="true"></i>` : html`<sw-icon name=${phase === 'open' ? 'micOff' : 'mic'} size=${18}></sw-icon>`}<span>${label}</span>
       </button>
       ${line || phase === 'open' || phase === 'talking'
         ? html`<div class="row">

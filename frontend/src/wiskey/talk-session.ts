@@ -1,14 +1,17 @@
 /**
- * One push-to-talk session with a station (CR-036 slice S18), as a small state machine with injected effects (the API, the
- * socket, the microphone, the clock), so it is unit-tested without a browser (tests/unit-wiskey-station-media.spec.ts).
+ * One two-way talk session with a station (CR-036 slice S18; WKF01F02-295 owner decision 25.10: full duplex, the microphone open
+ * for the whole session - no push-to-talk), as a small state machine with injected effects (the API, the socket, the microphone,
+ * the clock), so it is unit-tested without a browser (tests/unit-wiskey-station-media.spec.ts, tests/unit-wkf01f02-295.spec.ts).
  *
- *   idle --press--> starting (microphone, then ONE start request, then the session socket) --"open"--> open <--> talking
+ *   idle --start--> starting (microphone, then ONE start request, then the session socket) --"open"--> talking <--mute--> open
  *   any --end / expiry / refusal / lost permission / upstream closed--> idle (+ `outcome`, `problem`)
  *
- * Rules: the microphone is asked for on the first press (the permission prompt belongs to the operator's gesture); the start
- * request is sent once per press and never retried; frames leave only while the button is held (`talk/ptt` down .. up) and
- * the server drops anything else anyway; a session left open without a press for IDLE_END_MS is ended; nothing is queued for
- * later - a press while the session is still opening simply takes the floor once it opens, if the button is still held.
+ * `talking` = the microphone is open and frames leave; `open` = the operator muted it (the session and the station's sound go on).
+ * Rules: the microphone is asked for on the start (the permission prompt belongs to the operator's gesture); the start request is
+ * sent once and never retried; frames leave only while the microphone is open and unmuted (`talk/ptt` down = open, up = muted; the
+ * server drops anything else anyway); the station's sound (binary socket messages) plays through the talk's own audio context;
+ * a MUTED session with no sound from the station for IDLE_END_MS is ended (the station's sound re-arms that timer); the session
+ * always has an explicit end (`end`), the server's hard limit, and every server-side end.
  */
 import { ApiError } from '../api/client';
 import type { TalkStartReply } from '../api/station-media';
@@ -58,7 +61,7 @@ export interface TalkDeps {
   floor?(held: boolean): void;
 }
 
-/** A session nobody presses for this long is ended (the microphone is released). */
+/** A MUTED session with no sound from the station for this long is ended (the microphone is released). */
 export const IDLE_END_MS = 30_000;
 
 const START_PROBLEMS: Record<string, TalkProblem> = {
@@ -122,9 +125,10 @@ export class TalkSession {
   outcome: string | null = null;
   /** The session's hard end (epoch ms, from the server's limit), 0 when none is open. */
   endsAt = 0;
-  /** Requests sent this life (a test reads it: one per press, never a retry). */
+  /** Requests sent this life (a test reads it: one per start, never a retry). */
   starts = 0;
-  private held = false;
+  /** The operator muted the microphone (the session and the station's sound go on). Kept across the opening. */
+  muted = false;
   private gen = 0;
   private reply: TalkStartReply | null = null;
   private ws: SocketLike | null = null;
@@ -144,19 +148,16 @@ export class TalkSession {
     return this.phase === 'open' || this.phase === 'talking' ? Math.max(0, Math.ceil((this.endsAt - this.deps.now()) / 1000)) : null;
   }
 
-  get pressed(): boolean {
-    return this.held;
+  /** Whether the browser applied echo cancellation to the open microphone (null: unknown / no microphone open). */
+  get echoCancelled(): boolean | null {
+    return this.micHandle?.echoCancellation ?? null;
   }
 
-  /** The button went down (pointer or keyboard). */
-  async press(): Promise<void> {
-    this.held = true;
-    if (this.phase === 'open') {
-      this.takeFloor();
-      return;
-    }
+  /** The operator starts a talk (click or keyboard). Ignored while a session is starting or open. */
+  async start(): Promise<void> {
     if (this.phase !== 'idle') return;
     this.problem = null;
+    this.muted = false;
     this.phase = 'starting';
     const gen = ++this.gen;
     this.deps.changed();
@@ -197,7 +198,15 @@ export class TalkSession {
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
     ws.onmessage = (ev) => {
-      if (gen !== this.gen || typeof ev.data !== 'string') return;
+      if (gen !== this.gen) return;
+      if (ev.data instanceof ArrayBuffer) {
+        if (this.phase === 'open' || this.phase === 'talking') {
+          this.micHandle?.play?.(new Uint8Array(ev.data));
+          if (this.phase === 'open') this.armIdle(); // owner 25.10: the station's sound keeps a muted session alive
+        }
+        return;
+      }
+      if (typeof ev.data !== 'string') return;
       let msg: { type?: string; value?: string };
       try {
         msg = JSON.parse(ev.data);
@@ -206,7 +215,10 @@ export class TalkSession {
       }
       if (msg.type === 'talk/state' && msg.value === 'open' && this.phase === 'starting') {
         this.phase = 'open';
-        if (this.held) this.takeFloor();
+        // the talk holds the station's sound for the whole session: the live view mutes its own copy (no double sound, no echo path)
+        this.floorHeld = true;
+        this.deps.floor?.(true);
+        if (!this.muted) this.openMic();
         else this.armIdle();
         this.deps.changed();
       } else if (msg.type === 'talk/closed') {
@@ -222,10 +234,17 @@ export class TalkSession {
     };
   }
 
-  /** The button came up. */
-  release(): void {
-    this.held = false;
-    if (this.phase === 'talking') this.dropFloor();
+  /** Mute (true) or open (false) the microphone; the session and the station's sound go on. Remembered while the session opens. */
+  setMuted(on: boolean): void {
+    if (this.phase === 'idle') return;
+    this.muted = on;
+    if (on && this.phase === 'talking') this.muteMic();
+    else if (!on && this.phase === 'open') this.openMic();
+    else this.deps.changed();
+  }
+
+  toggleMute(): void {
+    this.setMuted(!this.muted);
   }
 
   /** The operator ends the session (or the drawer closes). */
@@ -239,29 +258,26 @@ export class TalkSession {
   }
 
   dispose(): void {
-    this.held = false;
     this.end();
   }
 
-  private takeFloor(): void {
+  /** The microphone opens: frames leave (`talk/ptt` down - the server's floor) until muted or the end. */
+  private openMic(): void {
     const ws = this.ws;
     if (!ws || ws.readyState !== 1 || !this.micHandle) return;
     this.deps.cancel(this.idleTimer);
     this.micHandle.setActive(true);
     ws.send(JSON.stringify({ type: 'talk/ptt', value: 'down' }));
     this.phase = 'talking';
-    this.floorHeld = true;
-    this.deps.floor?.(true);
     this.deps.changed();
   }
 
-  private dropFloor(): void {
+  /** Muted: no frame leaves (`talk/ptt` up); the station's sound still plays; the idle timer runs. */
+  private muteMic(): void {
     this.micHandle?.setActive(false);
     const ws = this.ws;
     if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'talk/ptt', value: 'up' }));
     this.phase = 'open';
-    if (this.floorHeld) this.deps.floor?.(false);
-    this.floorHeld = false;
     this.armIdle();
     this.deps.changed();
   }

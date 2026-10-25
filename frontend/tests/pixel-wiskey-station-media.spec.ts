@@ -57,9 +57,9 @@ test.describe('pixel: station live video and push-to-talk', () => {
     const box = (await btn.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
+    await page.mouse.up(); // WKF01F02-295: one click opens a full-duplex talk (no press-and-hold)
     await expect(btn).toHaveAttribute('data-phase', 'talking', { timeout: 10_000 });
     await shoot(page, info, 'station-media-classic-talking');
-    await page.mouse.up();
     await page.goto('about:blank');
     await toDrawer(page, 'classic', { busy: true });
     await playing(page);

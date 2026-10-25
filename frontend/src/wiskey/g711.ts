@@ -94,3 +94,18 @@ export class FramePacker {
     this.buf = [];
   }
 }
+
+/** The inverse of the original G.711 encoders for the native incoming talk packets. */
+export function g711Sample(byte: number, codec: 'pcmu' | 'pcma'): number {
+  if (codec === 'pcmu') {
+    const v = (~byte) & 255;
+    const sample = (((v & 15) << 3) + 0x84) << ((v >> 4) & 7);
+    return ((v & 128) ? 0x84 - sample : sample - 0x84) / 32768;
+  }
+  const v = byte ^ 0x55;
+  const exponent = (v >> 4) & 7;
+  let sample = (v & 15) << 4;
+  sample += exponent === 0 ? 8 : 0x108;
+  if (exponent > 1) sample <<= exponent - 1;
+  return ((v & 128) ? sample : -sample) / 32768;
+}

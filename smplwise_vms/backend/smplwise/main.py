@@ -1110,6 +1110,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import notify_sources
 
         await _in_thread(notify_sources.shutdown)
+        from .services import intercom_media as _station_media
+
+        # WKF01F02-295 (F01): the signed station-media provider's leased streams leave go2rtc and their timers are joined; never raises
+        await _in_thread(_station_media.shutdown_bridge)
         from .services import recorder_health
 
         await _in_thread(recorder_health.POLLER.shutdown)

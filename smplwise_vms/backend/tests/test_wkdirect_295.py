@@ -445,7 +445,7 @@ def direct():
 def test_video_reads_the_descriptor_and_the_lease_as_arx_on_one_direct_connection_and_registers_the_source_in_memory(direct, media_settings, registered, caplog):
     with caplog.at_level(logging.DEBUG):
         name = direct.provider.video_stream(None, media_settings, STATION, "main", actor=w10.Actor("someone-else", "Someone Else"))
-    assert name == "smplwise_wiskey_entry-a" and len(registered) == 1 and registered[0][0] == name
+    assert name.startswith("smplwise_wiskey_entry-a.w10.") and len(registered) == 1 and registered[0][0] == name
     describe, lease = direct.station.by_command(w10.DESCRIBE)[0], direct.station.by_command(w10.STREAM_LEASE)[0]
     assert describe.conn == lease.conn and len(direct.server.connections) == 1, "descriptor and lease on one direct connection"
     assert describe.params["actor"] == lease.params["actor"] == {"id": "arx", "display_name": "Arx"}, "the video actor is Arx, never the operator"
@@ -460,7 +460,7 @@ def test_a_reopened_direct_connection_adopts_nothing_old_and_costs_one_fresh_des
     run_on.run(first.sock.close(), 5)  # WisKey drops the socket (stop, pairing replacement, 24 h expiry)
     time.sleep(0.05)
     name = direct.provider.video_stream(None, media_settings, STATION, "main")
-    assert name == "smplwise_wiskey_entry-a" and len(direct.server.connections) == 2
+    assert name.startswith("smplwise_wiskey_entry-a.w10.") and len(direct.server.connections) == 2
     second = direct.server.connections[1]
     assert second.challenge != first.challenge, "a new challenge, a new connection_ref, a new resource owner"
     leases = direct.station.by_command(w10.STREAM_LEASE)

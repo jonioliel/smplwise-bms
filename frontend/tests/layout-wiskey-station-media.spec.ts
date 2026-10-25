@@ -48,7 +48,7 @@ test.describe('station media layout guard', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
   test.describe.configure({ timeout: 30 * 60_000 });
 
-  test('drawer: live video, push-to-talk idle / talking / refused, the classic link - skins x themes x widths', async ({ page }) => {
+  test('drawer: live video, two-way talk idle / talking / refused, the classic link - skins x themes x widths', async ({ page }) => {
     test.skip(test.info().project.name !== 'desktop', 'one project runs the whole sweep');
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const errors: string[] = [];
@@ -84,10 +84,10 @@ test.describe('station media layout guard', () => {
           const box = (await btn.boundingBox())!;
           await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
           await page.mouse.down();
+          await page.mouse.up(); // WKF01F02-295: one click opens a full-duplex talk (no press-and-hold)
           await expect(btn).toHaveAttribute('data-phase', 'talking', { timeout: 10_000 });
           await settle(page);
           await check(`${ctx} talking`);
-          await page.mouse.up();
           await drawer('wk-station-live wk-talk-button [data-wk-talk-end]').click();
           await expect(btn).toHaveAttribute('data-phase', 'idle');
           await page.keyboard.press('Escape');

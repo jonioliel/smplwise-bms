@@ -655,6 +655,22 @@ def settings(settings):
     return replace(settings, go2rtc_url="http://go2rtc.invalid:1984")
 
 
+@pytest.fixture(autouse=True)
+def _leased_streams_stay_in_memory(monkeypatch):
+    """WKF01F02-295: the leased-stream lifecycle deletes through `Go2rtc.delete_stream` (strict) when a provider's video channel closes; no
+    real go2rtc exists here, so a delete is a no-op that go2rtc "confirms" unless a test installs its own. Each test starts and ends with an
+    empty lease registry and no live lease timer."""
+    monkeypatch.setattr(g2.Go2rtc, "delete_stream", lambda self, name, **_kw: None)
+    im._LEASED.clear()
+    yield
+    with im._LEASE_LOCK:
+        rows = list(im._LEASED.values())
+        im._LEASED.clear()
+    for rec in rows:
+        for timer in rec.timers:
+            timer.cancel()
+
+
 @pytest.fixture()
 def registered(monkeypatch):
     calls: list[tuple[str, str]] = []
@@ -716,7 +732,8 @@ def test_talk_stays_in_the_classic_panel_while_the_four_talk_commands_are_not_al
 def test_the_lease_comes_from_the_same_connection_and_actor_and_the_source_is_registered_in_memory_and_never_shown(provider, station_fake, settings, registered, caplog):
     with caplog.at_level(logging.DEBUG):
         name = provider.video_stream(None, settings, STATION, "main", actor=w10.Actor("someone-else", "Someone Else"))
-    assert name == "smplwise_wiskey_entry-a" and len(registered) == 1 and registered[0][0] == name
+    # WKF01F02-295: a name of the lease's own owner (`.w10.<random>`), never the stills' `smplwise_wiskey_<station>` stream
+    assert name.startswith("smplwise_wiskey_entry-a.w10.") and len(registered) == 1 and registered[0][0] == name
     describe, lease = station_fake.by_command(w10.DESCRIBE)[0], station_fake.by_command(w10.STREAM_LEASE)[0]
     assert describe.conn == lease.conn == 1, "descriptor and lease travel on one connection"
     assert lease.params["actor"] == describe.params["actor"] == {"id": "arx", "display_name": "Arx"}, "the video actor is Arx, never the operator"
@@ -737,7 +754,7 @@ def test_a_reopened_connection_costs_one_fresh_descriptor_and_one_more_lease_nev
     provider.video_stream(None, settings, STATION, "main")
     station_fake.conns[0].drop()  # the shared connection goes away; the cached descriptor belonged to it
     name = provider.video_stream(None, settings, STATION, "main")
-    assert name == "smplwise_wiskey_entry-a" and len(station_fake.conns) == 2
+    assert name.startswith("smplwise_wiskey_entry-a.w10.") and len(station_fake.conns) == 2
     leases = station_fake.by_command(w10.STREAM_LEASE)
     assert [r.conn for r in leases] == [1, 2, 2], "the old descriptor is refused once on the new connection, then one fresh descriptor and one more lease"
     assert [r.conn for r in station_fake.by_command(w10.DESCRIBE)] == [1, 2]
@@ -1033,7 +1050,7 @@ def test_the_key_is_read_through_a_short_cache_and_never_shown():
 def deleted(monkeypatch):
     """Records the stream names go2rtc is asked to delete (the Go2rtc client is never really called)."""
     names: list[str] = []
-    monkeypatch.setattr(g2.Go2rtc, "delete_stream", lambda self, name: names.append(name))
+    monkeypatch.setattr(g2.Go2rtc, "delete_stream", lambda self, name, **_kw: names.append(name))
     im._LEASED.clear()
     yield names
     im._LEASED.clear()
@@ -1056,16 +1073,16 @@ def test_the_last_viewer_leaving_removes_the_leased_stream_from_go2rtc(provider,
 
 def test_an_old_lease_is_swept_by_the_next_one_unless_its_station_has_a_viewer(provider, station_fake, settings, registered, deleted):
     old = time.time() - im.LEASE_GRACE_S - 5
-    im._LEASED["smplwise_wiskey_entry-b"] = ("entry-b", old)
-    im._LEASED["smplwise_wiskey_entry-c"] = ("entry-c", old)
-    im._LEASED["smplwise_wiskey_entry-d"] = ("entry-d", time.time())
+    im._LEASED["smplwise_wiskey_entry-b"] = im._Lease("entry-b", old)
+    im._LEASED["smplwise_wiskey_entry-c"] = im._Lease("entry-c", old)
+    im._LEASED["smplwise_wiskey_entry-d"] = im._Lease("entry-d", time.time())
     im.MEDIA.add_viewer("entry-c", "vc", 4)
     try:
-        provider.video_stream(None, settings, STATION, "main")
+        name = provider.video_stream(None, settings, STATION, "main")
     finally:
         im.MEDIA.drop_viewer("entry-c", "vc")
     assert deleted == ["smplwise_wiskey_entry-b"], "only the old lease without a viewer goes; a fresh lease and a watched one stay"
-    assert set(im._LEASED) == {"smplwise_wiskey_entry-a", "smplwise_wiskey_entry-c", "smplwise_wiskey_entry-d"}
+    assert set(im._LEASED) == {name, "smplwise_wiskey_entry-c", "smplwise_wiskey_entry-d"}
 
 
 def test_only_a_leased_station_stream_of_ours_can_be_deleted(settings, deleted):
@@ -1081,9 +1098,12 @@ def test_only_a_leased_station_stream_of_ours_can_be_deleted(settings, deleted):
 def test_a_failing_delete_never_breaks_the_end_of_a_viewer(provider, station_fake, settings, registered, deleted, monkeypatch):
     name = provider.video_stream(None, settings, STATION, "main")
 
-    def boom(self, stream):
+    def boom(self, stream, **_kw):
         raise ApiError(503, "media_error", "x")
 
     monkeypatch.setattr(g2.Go2rtc, "delete_stream", boom)
-    assert im.release_leased_streams(settings, "entry-a") == [name], "the stream is forgotten here even if go2rtc could not delete it"
-    assert name not in im._LEASED
+    # WKF01F02-295 (F01 rule 3): an unconfirmed delete is no longer forgotten - the record and go2rtc's registration stay (quarantined)
+    assert im.release_leased_streams(settings, "entry-a") == [], "never raises, and an unconfirmed delete is not reported as removed"
+    assert name in im._LEASED and im._LEASED[name].quarantined and name in g2._REGISTERED
+    monkeypatch.setattr(g2.Go2rtc, "delete_stream", lambda self, stream, **_kw: deleted.append(stream))
+    assert im.release_leased_streams(settings, "entry-a") == [name] and deleted == [name], "the next explicit release tries once more"
