@@ -16,7 +16,7 @@ from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from . import ui_background
-from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, intercom_authority, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors
+from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, home_screen_options, intercom_authority, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors
 
 router = APIRouter()
 
@@ -321,8 +321,12 @@ DEFAULTS: dict[str, str] = {
     "home.direction": "a",
     "home.side": "end",
     # POLISH-295 (owner approval 2026-10-25): the clock, the weather, Shabbat and the alarm as a thin bar in the header (bar, the
-    # default) or as the large widget cards (cards).
-    "home.info_style": "bar",
+    # default before 2.22.0) or as the large widget cards (cards). HOME-295 (owner answers round 2, item 5): auto, the new default = the
+    # cards in the cards view and the thin bar in the tiles view.
+    "home.info_style": "auto",
+    # HOME-295 (owner answers on the home mockup round 2, 2026-10-25): the home screen's display options, one JSON object read back as an
+    # object with every key (services/home_screen_options.py); "" = never saved = the defaults.
+    "home.screen": "",
     "home.widgets": "",
     # CR-008 SmplWise Arx remote access (owner decisions 2026-09-29, CR-008 §3f / §7). The channel itself is the add-on
     # option remote_access; these shape who may use it and how the browser keeps its sign-in.
@@ -531,6 +535,7 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
             del out[key]
     out["plan.bakes"] = plan_bakes.stored_setting(out["plan.bakes"])
     out["home.widgets"] = home_screen.effective_config(conn)
+    out["home.screen"] = home_screen_options.stored(out["home.screen"])
     out["multimedia.remote_default"] = _stored_remote_default(out["multimedia.remote_default"])
     out["multimedia.favourites"] = _stored_favourites(conn)
     for key in (*automation_settings.JSON_KEYS, *automation_settings.ENUM_KEYS):
@@ -846,7 +851,8 @@ class SettingsPatch(BaseModel):
     home_jewish_date: str | None = Field(default=None, pattern=r"^(|sensor\.[a-z0-9_]{1,100})$", alias="home.jewish_date")
     home_direction: str | None = Field(default=None, pattern="^(a|b|c)$", alias="home.direction")
     home_side: str | None = Field(default=None, pattern="^(start|end)$", alias="home.side")
-    home_info_style: str | None = Field(default=None, pattern="^(bar|cards)$", alias="home.info_style")
+    home_info_style: str | None = Field(default=None, pattern="^(auto|bar|cards)$", alias="home.info_style")  # HOME-295: auto = by the view
+    home_screen: dict[str, Any] | None = Field(default=None, alias="home.screen")  # HOME-295: a partial update, validated in full by services/home_screen_options.py
     home_widgets: dict[str, Any] | None = Field(default=None, alias="home.widgets")  # validated in full by services/home_config.py
     remote_policy: str | None = Field(default=None, pattern="^(flag|any_role)$", alias="remote.policy")
     remote_admins_default: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.admins_default")
@@ -1067,6 +1073,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["devices.floor_row"] = area_row.normalize_floor(changes["devices.floor_row"])
         except ValueError as exc:
             raise ApiError(422, "validation", "מה מוצג בכותרת הקומה: ערך לא תקין.", details={"devices.floor_row": str(exc)})
+    if "home.screen" in changes:
+        try:  # HOME-295: a partial update over the stored options (the defaults when nothing was saved)
+            changes["home.screen"] = home_screen_options.normalize(changes["home.screen"], home_screen_options.stored(get_setting(conn, "home.screen", "")))
+        except ValueError as exc:
+            raise ApiError(422, "validation", "אפשרויות המסך הראשי: ערך לא תקין.", details={"home.screen": str(exc)})
     if "plan.surfaces" in changes:
         bad = [c for c in changes["plan.surfaces"] if c not in PLAN_SURFACES]
         if bad:
@@ -1308,7 +1319,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "plan.surfaces", "plan.view", "plan.bakes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "plan.surfaces", "plan.view", "plan.bakes", "devices.area_row", "devices.floor_row", "home.screen", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if "schedules.classes" in changes:
         set_setting(conn, CLASSES_REV_KEY, "2")  # from now on the list is read as saved (the 2026-10-04 classes can be switched off)
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now

@@ -188,7 +188,7 @@ def test_defaults_then_settings_validation_and_audit(settings):
     with TestClient(app) as c:
         pub = c.get("/api/v1/brand/public").json()
         none = {"light": None, "dark": None}
-        assert pub == {"company": {"name": "", "logo": none, "logo_file": none}, "size": "m", "dark_mode": "plate",
+        assert pub == {"company": {"name": "", "logo": none, "logo_file": none}, "size": "m", "dark_mode": "invert",  # HOME-295: invert by default
                        "installer": {"enabled": False}}  # WHITELABEL097-295: the installer profile is off by default
         full = c.get("/api/v1/brand").json()
         assert full["title"] == {"prefix": "Smplwise Arx", "mode": "both"} and full["company"]["kind"] == "developer" and full["project"] == {"name": ""}
@@ -320,7 +320,7 @@ def test_me_carries_the_brand_block(settings):
     with TestClient(create_app(settings)) as c:
         assert c.put("/api/v1/brand", json={"company_name": "חברה", "title_mode": "project", "project_name": "פרויקט"}).status_code == 200
         b = c.get("/api/v1/me").json()["brand"]
-        assert b["company"]["name"] == "חברה" and b["title"]["mode"] == "project" and b["project"]["name"] == "פרויקט" and b["dark_mode"] == "plate"
+        assert b["company"]["name"] == "חברה" and b["title"]["mode"] == "project" and b["project"]["name"] == "פרויקט" and b["dark_mode"] == "invert"
 
 
 def test_a_damaged_row_is_never_served(settings):

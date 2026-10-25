@@ -1,8 +1,8 @@
 /**
  * POLISH-295 (owner approval 2026-10-25): the installation's display choices of the polished control screens, all product settings
  * (GET /settings, writable with system.configure - keep in step with smplwise_vms/backend/smplwise/routers/settings.py):
- *  - `home.info_style`: the clock, the weather, Shabbat and the alarm on the home screen as a thin bar in the header (`bar`, the
- *    default) or as the large widget cards (`cards`).
+ *  - `home.info_style`: the clock, the weather, Shabbat and the alarm on the home screen as a thin bar in the header (`bar`) or as the
+ *    large widget cards (`cards`); HOME-295: `auto` (the default) = cards in the cards view, the bar in tiles.
  *  - `ui.schedules_view`: the schedules list's view when this browser has not chosen one (`rows`, the default | cards | table | week).
  *  - `ui.page_size.<list>` / `ui.page_size.<list>_phone`: how many rows one page of a long list holds (control screens never scroll:
  *    the rest is behind the pager), on a desktop and on a phone.
@@ -10,9 +10,17 @@
 import { productSettings } from './prefs';
 import { isApi } from './session';
 
-export type InfoStyle = 'bar' | 'cards';
-export const INFO_STYLES: readonly InfoStyle[] = ['bar', 'cards'];
-export const INFO_STYLE_DEFAULT: InfoStyle = 'bar';
+/** HOME-295 (owner answers round 2, item 5): `auto`, the new default = the large cards in the cards view and the thin bar in the tiles
+ * view; `bar` / `cards` pin one style for both views. */
+export type InfoStyle = 'auto' | 'bar' | 'cards';
+export const INFO_STYLES: readonly InfoStyle[] = ['auto', 'bar', 'cards'];
+export const INFO_STYLE_DEFAULT: InfoStyle = 'auto';
+
+/** The style a view draws: `auto` follows the view (cards in cards, the bar in tiles and the plan). */
+export function infoStyleFor(style: InfoStyle, view: string): 'bar' | 'cards' {
+  if (style === 'auto') return view === 'cards' ? 'cards' : 'bar';
+  return style;
+}
 
 export type SchedulesView = 'rows' | 'cards' | 'table' | 'week';
 export const SCHEDULES_VIEWS: readonly SchedulesView[] = ['rows', 'cards', 'table', 'week'];

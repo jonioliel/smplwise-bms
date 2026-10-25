@@ -50,7 +50,7 @@ def test_light_and_dark_files_size_and_mode_reach_the_feed_and_the_version_moves
     ls = _up(client, "light", _png())
     doc = _feed(client, token).json()
     assert doc["board"]["logos"] == {"company": f"api/v1/notices/display/lobby/logo/company?variant=light&v={ls}"}
-    assert doc["board"]["brand"] == {"size": "m", "dark_mode": "plate", "name": ""}
+    assert doc["board"]["brand"] == {"size": "m", "dark_mode": "invert", "name": ""}  # HOME-295: invert by default
     v1 = doc["board"]["version"]
     ds = _up(client, "dark", SVG, "d.svg")
     assert client.put(f"{API}/brand", json={"company_name": "נווה", "logo_size": "xl", "dark_mode": "file"}).status_code == 200

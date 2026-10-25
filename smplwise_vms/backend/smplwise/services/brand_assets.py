@@ -63,7 +63,7 @@ DEFAULTS: dict[str, str] = {
     K_SIZE: "m",
     K_SIDE: "start",
     K_CSIZE: "same",
-    K_DARK: "plate",
+    K_DARK: "invert",  # HOME-295 (owner answers round 2, item 12): invert the colours by default; plate / dark file stay selectable
     K_PREFIX: "Smplwise Arx",
     K_MODE: "both",
     K_PROJECT: "",

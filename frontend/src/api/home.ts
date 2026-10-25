@@ -13,6 +13,7 @@ import { get, patch } from './client';
 import { getMyPrefs, putMyPrefs } from './me-prefs';
 import { invalidateSettings, productSettings } from './prefs';
 import { isApi } from './session';
+import { personalScreenOf, type PersonalScreen } from './home-screen';
 import {
   configBody, configOf, DIRECTION_DEFAULT, DIRECTIONS, ELEVATOR_MODES, PHONE_LAYOUTS, SIDES, SIZES, WIDGET_IDS, elevatorIds, sameConfig, defaultConfig,
   type Direction, type ElevatorMode, type HomeCandidates, type HomeConfig, type PhoneLayout, type Side, type Size, type WidgetId,
@@ -134,6 +135,8 @@ export interface HomePersonal {
   phone_layout: PhoneLayout | null;
   order: WidgetId[] | null;
   widgets: Partial<Record<WidgetId, PersonalWidget>>;
+  /** HOME-295: the user's own summary tiles (honoured while the installation lets users choose) and how an area opens on his phone. */
+  screen?: PersonalScreen;
 }
 /** One widget's personal choice; `mode` / `hidden` exist only for the elevators widget (CR-INFRA-ELEVATORS 2.8.0, owner feedback 2026-10-18). */
 export interface PersonalWidget {
@@ -167,15 +170,19 @@ export function personalOf(raw: unknown): HomePersonal {
     if (Object.keys(entry).length) widgets[id] = entry;
   }
   const order = Array.isArray(o.order) ? (o.order.filter((x) => WIDGET_IDS.includes(x as WidgetId)) as WidgetId[]) : null;
-  return { direction: DIRECTIONS.includes(o.direction as Direction) ? (o.direction as Direction) : null, phone_layout: PHONE_LAYOUTS.includes(o.phone_layout as PhoneLayout) ? (o.phone_layout as PhoneLayout) : null, order: order && order.length ? [...order, ...WIDGET_IDS.filter((i) => !order.includes(i))] : null, widgets };
+  const screen = personalScreenOf(o.screen);
+  return { direction: DIRECTIONS.includes(o.direction as Direction) ? (o.direction as Direction) : null, phone_layout: PHONE_LAYOUTS.includes(o.phone_layout as PhoneLayout) ? (o.phone_layout as PhoneLayout) : null, order: order && order.length ? [...order, ...WIDGET_IDS.filter((i) => !order.includes(i))] : null, widgets, ...(Object.keys(screen).length ? { screen } : {}) };
 }
 
 export function personalIsEmpty(p: HomePersonal): boolean {
-  return !p.direction && !p.phone_layout && !p.order && !Object.keys(p.widgets).length;
+  return !p.direction && !p.phone_layout && !p.order && !Object.keys(p.widgets).length && !Object.keys(p.screen ?? {}).length;
 }
 
 export function personalBody(p: HomePersonal): Record<string, unknown> | null {
-  return personalIsEmpty(p) ? null : { direction: p.direction, phone_layout: p.phone_layout, order: p.order, widgets: p.widgets };
+  if (personalIsEmpty(p)) return null;
+  const body: Record<string, unknown> = { direction: p.direction, phone_layout: p.phone_layout, order: p.order, widgets: p.widgets };
+  if (p.screen && Object.keys(p.screen).length) body.screen = p.screen;
+  return body;
 }
 
 /** This user's stored personal choices (empty when none, or when the server hides them because the permission is missing). */

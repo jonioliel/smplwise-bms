@@ -444,8 +444,15 @@ PERSONAL_ELEVATOR_KEYS = {"mode", "hidden"}
 def normalise_personal(value: Any) -> dict[str, Any]:
     """`home.personal` of /me/prefs: {"direction": a|b|c|null, "order": [ids]|null, "widgets": {id: {"on": bool|null,
     "size": s|m|l|null}}}. Canonical form: entries that say nothing are dropped; ValueError for anything else."""
-    given = _obj(value, "home.personal", {"direction", "order", "widgets", "phone_layout"})
+    given = _obj(value, "home.personal", {"direction", "order", "widgets", "phone_layout", "screen"})
     out: dict[str, Any] = {"direction": None, "order": None, "widgets": {}, "phone_layout": None}
+    if given.get("screen") is not None:
+        # HOME-295: the user's own summary tiles (honoured while home.screen.summary_chooser = user) and how an area opens on his phone
+        from . import home_screen_options
+
+        screen = home_screen_options.normalize_personal(given["screen"])
+        if screen:
+            out["screen"] = screen
     if given.get("phone_layout") is not None:
         out["phone_layout"] = _choice(given["phone_layout"], PHONE_LAYOUTS, "home.personal.phone_layout")
     if given.get("direction") is not None:
@@ -479,7 +486,7 @@ def normalise_personal(value: Any) -> dict[str, Any]:
 
 
 def personal_is_empty(p: dict[str, Any] | None) -> bool:
-    return not p or (p.get("direction") is None and p.get("order") is None and not p.get("widgets") and p.get("phone_layout") is None)
+    return not p or (p.get("direction") is None and p.get("order") is None and not p.get("widgets") and p.get("phone_layout") is None and not p.get("screen"))
 
 
 def apply_personal(cfg: dict[str, Any], direction: str, personal: dict[str, Any] | None) -> tuple[dict[str, Any], str]:
