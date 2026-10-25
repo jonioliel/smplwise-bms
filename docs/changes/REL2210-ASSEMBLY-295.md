@@ -14,6 +14,16 @@ was verified with `git ls-remote` before merging. Merged with `--no-ff`, one mer
 | 6 | `pilot/GENELEV-295` | `8c7c4340679494b494ee15da65a248364619c7cd` | `b6eb212ec` | clean |
 | 7 | `pilot/T06ADMIT-295` | `67a5c40fad75244cbec139cc23362e53645630a0` | `e476e48ae` | clean (test + document only) |
 
+## Second round - `release/2210b` (cut from `release/2210` @ `3dd7b8c46`)
+
+| # | Branch | Tip (ls-remote) | Result |
+|---|--------|-----|--------|
+| 8 | `pilot/FIX2200-295` | `8b35e887f5` (release/2210 had `2087620163`) | clean; 6 newer commits (announcements tab hides while voice announcements are off, logo-card rows, touch-size targets, test fixes) |
+| 9 | `pilot/W031-295` | `dbc361661` | clean (no textual conflict) |
+| 10 | `pilot/ADOPTR6-295` | `2eb5fe864` (cut from `9459502e9`) | clean; `wiskey_direct_join.py`, `wiskey_people_csv.py`, `test_wkr5_csv_295.py` auto-merged |
+
+No migration file and no route decorator changed in the three merges (checked with `git diff 3dd7b8c46 HEAD`), so the chain still ends at `0177` and the API inventory stays at 1578 routes. Checks of this round: see the table at the end.
+
 Not merged (later versions / other trains): `pilot/TVOPT-295`, `pilot/POLISH2-295`, `pilot/HOMEMOCK-295`, `pilot/GATE2-295`,
 `pilot/LEGALPACK-295`.
 
@@ -107,3 +117,13 @@ NOT_RUN: the full backend suite; the other dependents (`test_capture_lease_revie
 browser, evidence and pixel specs; the `www` / `www-public` build; anything on the runner or against a real WisKey / HA / station / door.
 
 TODO for the lead (runner): `www` / `www-public` rebuild, the full gate, browser and pixel specs, tag.
+
+### Checks of the second round (`release/2210b`, local workstation, fakes only)
+
+| Check | Exit |
+|---|---|
+| `tsc --noEmit` (frontend, Node 24) | 0 |
+| `scripts/release_check.py` | 0 except one `[FAIL]`: tag `v2.21.0` not yet created (expected) |
+| pytest per file: `test_adoptr6_295`, `test_announce_stage_a`, `test_remote_access`, `test_w031_295`, `test_wkcap_295`, `test_wkf01f02_295`, `test_wkr5_csv_295`, `test_wkwrite_295`, `test_capture_lease_review_fixes` | 0 each |
+
+NOT_RUN in this round: the API inventory regeneration (no route decorator changed), the other dependents listed above, the frontend unit and Playwright specs touched by FIX2200, pixel baselines (not regenerated), the `www` rebuild, the gate.
