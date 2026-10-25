@@ -10,6 +10,7 @@ import uuid
 from typing import Any
 
 import pytest
+from intercom_station_scope import station_scope  # noqa: F401 - a fixture
 from test_intercom_messaging import API, audits, details, enable, mc, messages, req, rows  # noqa: F401 - `mc` is a fixture
 
 from smplwise.services import intercom_messaging_adapter as adapter
