@@ -23,6 +23,53 @@ import { css } from 'lit';
  *   .seg                 a small segmented control
  *   input[aria-invalid]  a control whose value the screen rejected (+ .field-error under it)
  */
+/** POLISH2-295: the settings pages' segmented control on its own, so a component outside settingsStyles (sw-list-display-settings) shares
+ * it instead of keeping its own look; selected = the accent with the inverse label (AA in both schemes), unselected = text-2 on the track. */
+export const settingsSegStyles = css`
+  .seg {
+    display: inline-flex;
+    /* VISDIFF-246: the track never gives up width to its row: overflow hidden lets a flex item shrink below its buttons, which
+       clipped the last segment ("30 דק׳") of the schedules defaults in the page's 300 px side column at tablet widths */
+    flex: none;
+    max-inline-size: 100%;
+    border: 1px solid var(--sw-seg-border, var(--sw-border-strong));
+    border-radius: var(--sw-seg-radius, var(--sw-r-sm));
+    overflow: hidden;
+    background: var(--sw-seg-track, var(--sw-surface));
+    padding: var(--sw-seg-pad, 0);
+    gap: var(--sw-seg-gap, 0);
+  }
+  /* the knobs --sw-seg-* belong to a glass host (TKUI6: the service-management settings): a pill track with a lifted thumb */
+  .seg button {
+    border: 0;
+    border-radius: var(--sw-seg-btn-radius, 0);
+    background: transparent;
+    padding: 0 14px;
+    min-block-size: var(--sw-seg-h, var(--sw-ctl-h-md));
+    font: inherit;
+    font-size: var(--sw-fs-sm);
+    cursor: pointer;
+    color: var(--sw-text-2);
+  }
+  .seg button + button {
+    border-inline-start: var(--sw-seg-divider, 1px solid var(--sw-border));
+  }
+  .seg button:hover {
+    background: var(--sw-hover-wash);
+    color: var(--sw-text);
+  }
+  .seg button[aria-pressed='true'],
+  .seg button[aria-selected='true'] {
+    background: var(--sw-seg-on-bg, var(--sw-accent));
+    color: var(--sw-seg-on-fg, var(--sw-text-inverse));
+    box-shadow: var(--sw-seg-on-shadow, none);
+  }
+  .seg button:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: -2px;
+  }
+`;
+
 export const settingsStyles = css`
   :host {
     display: block;
@@ -239,48 +286,7 @@ export const settingsStyles = css`
     gap: var(--sw-s-3);
     align-items: start;
   }
-  .seg {
-    display: inline-flex;
-    /* VISDIFF-246: the track never gives up width to its row: overflow hidden lets a flex item shrink below its buttons, which
-       clipped the last segment ("30 דק׳") of the schedules defaults in the page's 300 px side column at tablet widths */
-    flex: none;
-    max-inline-size: 100%;
-    border: 1px solid var(--sw-seg-border, var(--sw-border-strong));
-    border-radius: var(--sw-seg-radius, var(--sw-r-sm));
-    overflow: hidden;
-    background: var(--sw-seg-track, var(--sw-surface));
-    padding: var(--sw-seg-pad, 0);
-    gap: var(--sw-seg-gap, 0);
-  }
-  /* the knobs --sw-seg-* belong to a glass host (TKUI6: the service-management settings): a pill track with a lifted thumb */
-  .seg button {
-    border: 0;
-    border-radius: var(--sw-seg-btn-radius, 0);
-    background: transparent;
-    padding: 0 14px;
-    min-block-size: var(--sw-seg-h, var(--sw-ctl-h-md));
-    font: inherit;
-    font-size: var(--sw-fs-sm);
-    cursor: pointer;
-    color: var(--sw-text-2);
-  }
-  .seg button + button {
-    border-inline-start: var(--sw-seg-divider, 1px solid var(--sw-border));
-  }
-  .seg button:hover {
-    background: var(--sw-hover-wash);
-    color: var(--sw-text);
-  }
-  .seg button[aria-pressed='true'],
-  .seg button[aria-selected='true'] {
-    background: var(--sw-seg-on-bg, var(--sw-accent));
-    color: var(--sw-seg-on-fg, var(--sw-text-inverse));
-    box-shadow: var(--sw-seg-on-shadow, none);
-  }
-  .seg button:focus-visible {
-    outline: var(--sw-focus-w) solid var(--sw-focus);
-    outline-offset: -2px;
-  }
+  ${settingsSegStyles}
   /* a value the control itself rejects (min / max / pattern / required) after the user touched it, or one the screen marked */
   input[aria-invalid='true'],
   select[aria-invalid='true'],

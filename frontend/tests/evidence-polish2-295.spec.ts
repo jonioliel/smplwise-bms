@@ -63,8 +63,10 @@ test.describe('automations: rows or the cards with their sentence', () => {
     await pressed('rows');
     await expect(a.locator('[data-auto-rows] automation-row').first()).toBeVisible();
     await expect(a.locator('automation-card')).toHaveCount(0);
-    if (!phone(info)) expect(await a.evaluate((el) => el.scrollHeight - el.clientHeight), 'rows: no scrolling').toBeLessThanOrEqual(1);
-    else {
+    // no scrolling: 12 rows on the desktop, 7 on the phone (POLISH2-295: 9 scrolled the phone by 81 px)
+    await expect(a.locator('[data-auto-rows] automation-row')).toHaveCount(phone(info) ? 7 : 12);
+    expect(await a.evaluate((el) => el.scrollHeight - el.clientHeight), 'rows: no scrolling').toBeLessThanOrEqual(1);
+    if (phone(info)) {
       // the toggle shares the toolbar row with the search (the header is no taller than without it)
       const t = (await views.boundingBox())!;
       const q = (await a.locator('.dh-det .search').boundingBox())!;
@@ -79,6 +81,10 @@ test.describe('automations: rows or the cards with their sentence', () => {
     await expect(card.locator('[data-card-sentence]')).toContainText('תנועה');
     expect(await page.evaluate(() => localStorage.getItem('sw.automations.view'))).toBe('"cards"');
     expect(await overflowX(page)).toBeLessThanOrEqual(0);
+    // the cards have their own page size (6 on the desktop: two rows of three; 1 on the phone): no scrolling either
+    await expect(a.locator('automation-card')).toHaveCount(phone(info) ? 1 : 6);
+    await expect(a.locator('[data-auto-pager] sw-pager')).toBeVisible();
+    expect(await a.evaluate((el) => el.scrollHeight - el.clientHeight), 'cards: no scrolling').toBeLessThanOrEqual(1);
     await shot(page, 'automations-cards-light', info);
 
     // the choice survives a reload (the same browser)
@@ -115,6 +121,78 @@ test.describe('automations: rows or the cards with their sentence', () => {
   });
 });
 
+// POLISH2-295 (owner: the dark choice buttons were hard to read): every choice button on the touched screens, dark scheme - the label at
+// least 4.5:1 on its own background, chosen or not, and a chosen segment at least 3:1 from its track (WCAG 1.4.3 / 1.4.11). Backgrounds are
+// composited through every ancestor (shadow hosts included); the glass blur is ignored (it only averages what is already counted).
+async function choiceContrast(page: Page) {
+  return page.evaluate(() => {
+    type C = { r: number; g: number; b: number; a: number };
+    const parse = (s: string): C | null => {
+      const m = s.match(/rgba?\(([^)]+)\)/);
+      if (!m) return null;
+      const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number);
+      return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+    };
+    const over = (t: C, b: C): C => {
+      const a = t.a + b.a * (1 - t.a);
+      const mix = (x: number, y: number) => (x * t.a + y * b.a * (1 - t.a)) / a;
+      return { r: mix(t.r, b.r), g: mix(t.g, b.g), b: mix(t.b, b.b), a };
+    };
+    const lum = (c: C) => {
+      const f = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+    };
+    const ratio = (x: C, y: C) => {
+      const [a, b] = [lum(x), lum(y)];
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    };
+    const up = (el: Element): Element | null => el.parentElement ?? ((el.parentNode as ShadowRoot | null)?.host ?? null);
+    const bgOf = (el: Element): C => {
+      const chain: Element[] = [];
+      for (let e: Element | null = el; e; e = up(e)) chain.push(e);
+      let c: C = { r: 0, g: 0, b: 0, a: 1 };
+      for (const e of chain.reverse()) {
+        const x = parse(getComputedStyle(e).backgroundColor);
+        if (x && x.a > 0) c = over(x, c);
+      }
+      return c;
+    };
+    const found: Element[] = [];
+    const walk = (root: Document | ShadowRoot) => {
+      for (const el of root.querySelectorAll('*')) {
+        if (el.shadowRoot) walk(el.shadowRoot);
+        if (el.matches('.seg button, .views button, button.vtog, .rc[aria-pressed]')) found.push(el);
+      }
+    };
+    walk(document);
+    return found
+      .filter((el) => el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== 'hidden')
+      .map((el) => {
+        const chosen = ['aria-pressed', 'aria-checked', 'aria-selected'].some((a) => el.getAttribute(a) === 'true');
+        const bg = bgOf(el);
+        const fg = over(parse(getComputedStyle(el).color)!, bg);
+        return { what: `${(el.getRootNode() as ShadowRoot).host?.tagName.toLowerCase() ?? 'doc'} .${el.parentElement?.className ?? ''} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 16)}"`, chosen, text: ratio(fg, bg), track: ratio(bg, bgOf(up(el)!)) };
+      });
+  });
+}
+
+test.describe('dark scheme: the choice buttons are legible', () => {
+  for (const [name, hash] of [['automations', '/devices/automations'], ['schedules', '/devices/schedules'], ['settings-automations', '/system/automations'], ['settings-schedules', '/system/schedules']] as const) {
+    test(`${name}: every label 4.5:1, a chosen segment 3:1 from its track`, async ({ page }, info) => {
+      await openDemo(page, '', hash, { 'sw.demo.automations': JSON.stringify({ scheme: 'dark' }), 'sw.demo.schedules': JSON.stringify({ persona: 'admin' }) });
+      await dark(page);
+      await page.waitForTimeout(800);
+      const all = await choiceContrast(page);
+      expect(all.length, 'choice buttons found').toBeGreaterThan(0);
+      expect(all.some((x) => x.chosen), 'a chosen one').toBe(true);
+      for (const x of all) {
+        expect(x.text, `label ${x.what} chosen=${x.chosen}`).toBeGreaterThanOrEqual(4.5);
+        if (x.chosen) expect(x.track, `chosen ${x.what} vs its track`).toBeGreaterThanOrEqual(3);
+      }
+      await shot(page, `choices-dark-${name}`, info);
+    });
+  }
+});
 test.describe('home: the media card is as tall as its content', () => {
   test('one header line and one row (the counts inline, the chips beside them); consistent light and dark', async ({ page }, info) => {
     await openDemo(page, '', '/devices/building', { 'sw.devices.layout': 'tiles' });

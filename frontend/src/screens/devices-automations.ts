@@ -124,7 +124,8 @@ export class DevicesAutomations extends LitElement {
   @state() private tplDraft: { id: string; draft: AnyDraft | null; done: boolean } | null = null;
   /** POLISH-295: rows or cards, the rows per page (ui.page_size.automations*) and the page shown (control screens never scroll). */
   @state() private view: AutoView = readView() ?? AUTOMATIONS_VIEW_DEFAULT;
-  @state() private perPage = PAGE_SIZE_DEFAULT.automations;
+  /** POLISH2-295: the rows and the cards have their own page sizes (ui.page_size.automations* / automations_cards*). */
+  @state() private perPage = { rows: PAGE_SIZE_DEFAULT.automations, cards: PAGE_SIZE_DEFAULT.automations_cards };
   @state() private page = 1;
 
   private phoneMq = window.matchMedia('(max-width: 767px)');
@@ -327,7 +328,7 @@ export class DevicesAutomations extends LitElement {
     // POLISH2-295: the installation's default view (when this browser has not chosen) and the rows per page
     const storedView = readView();
     void loadScreenDisplay().then((d) => {
-      this.perPage = d.pageSize.automations;
+      this.perPage = { rows: d.pageSize.automations, cards: d.pageSize.automations_cards };
       if (!storedView) this.view = d.automationsView;
     });
     void this.load();
@@ -770,7 +771,8 @@ export class DevicesAutomations extends LitElement {
         @result=${this.onResult} @changed=${this.onChanged} @open-script=${(e: CustomEvent<{ id: string }>) => this.go(itemPath('scripts', e.detail.id))}></scripts-panel>`;
     } else {
       // POLISH-295: one page at a time (control screens never scroll); rows by default (the approved preview), cards by this browser's choice
-      const per = this.phone ? this.perPage.phone : this.perPage.wide;
+      const sizes = this.view === 'cards' ? this.perPage.cards : this.perPage.rows;
+      const per = this.phone ? sizes.phone : sizes.wide;
       const pages = pageCount(rows.length, per);
       const page = clampPage(this.page, rows.length, per);
       const shown = pageSlice(rows, page, per);

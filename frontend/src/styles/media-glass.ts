@@ -31,7 +31,7 @@ export const MEDIA_KNOBS: Record<string, string> = {
   '--mm-screen-off': 'fill of the screen thumbnail when the screen is off',
   '--mm-sheet-surface': 'the remote panel / dialog / menu surface (more opaque than a card)',
   '--mm-sheet-blur': 'its blur; --mm-sheet-w the remote panel\'s width',
-  '--mm-seg-thumb': 'the selected segment\'s thumb',
+  '--mm-seg-thumb': 'the selected segment\'s thumb; --mm-seg-fg the label of an unselected segment, --mm-seg-fg-on the label on the thumb (POLISH2-295: AA in both schemes, the thumb at least 3:1 against the track)',
   '--mm-key-size': 'the round keys of the remote; --mm-key-bg / --mm-key-fg / --mm-key-shadow their material',
   '--mm-remote-body': 'the remote body\'s glass',
   '--mm-dpad-size': 'the d-pad; --mm-dpad-ring / --mm-dpad-shadow / --mm-dpad-groove / --mm-ok-bg its material',
@@ -57,6 +57,8 @@ export const mediaGlassKnobs = css`
     --mm-sheet-blur: blur(40px) saturate(1.8);
     --mm-sheet-w: 440px;
     --mm-seg-thumb: #ffffff;
+    --mm-seg-fg: var(--dv-text);
+    --mm-seg-fg-on: var(--dv-text);
     --mm-key-size: 52px;
     --mm-key-bg: linear-gradient(180deg, #ffffff, #eef1f6);
     --mm-key-fg: #1c1c1e;
@@ -87,7 +89,12 @@ export const mediaGlassKnobs = css`
     --mm-art-veil: rgba(18, 18, 20, 0.34);
     --mm-screen-off: linear-gradient(155deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025));
     --mm-sheet-surface: rgba(22, 22, 25, 0.84);
-    --mm-seg-thumb: rgba(118, 118, 128, 0.5);
+    /* POLISH2-295 (owner: the dark choice buttons were hard to read): the grey thumb sat 1.8:1 from the track, so the chosen segment
+       barely showed; the thumb is now the light pill the chosen floor chip already uses (#f5f5f7, dark label 15.6:1, 18:1 from the track)
+       and an unselected label is a step quieter (about 8:1 on the track) */
+    --mm-seg-thumb: #f5f5f7;
+    --mm-seg-fg: rgba(235, 235, 245, 0.82);
+    --mm-seg-fg-on: #1c1c1e;
     --mm-key-bg: linear-gradient(180deg, rgba(78, 78, 84, 0.95), rgba(50, 50, 54, 0.95));
     --mm-key-fg: #f5f5f7;
     --mm-key-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 10px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
@@ -276,7 +283,7 @@ export const mediaGlassControls = css`
     padding: 6px 16px;
     font-size: var(--sw-fs-base);
     font-weight: 600;
-    color: var(--dv-text);
+    color: var(--mm-seg-fg, var(--dv-text));
     min-block-size: 32px;
     display: inline-flex;
     align-items: center;
@@ -289,6 +296,7 @@ export const mediaGlassControls = css`
   .seg button[aria-pressed='true'],
   .seg button[aria-checked='true'] {
     background: var(--mm-seg-thumb);
+    color: var(--mm-seg-fg-on, var(--dv-text));
     box-shadow: var(--dv-shadow-control);
   }
   .seg button small {
@@ -300,7 +308,7 @@ export const mediaGlassControls = css`
   .seg button[aria-selected='true'] small,
   .seg button[aria-pressed='true'] small,
   .seg button[aria-checked='true'] small {
-    color: var(--dv-text);
+    color: var(--mm-seg-fg-on, var(--dv-text));
   }
   .seg.sm button {
     padding: 4px 12px;
@@ -451,6 +459,7 @@ export const mediaGlassControls = css`
   }
   .vrock button:hover {
     background: var(--mm-seg-thumb);
+    color: var(--mm-seg-fg-on, var(--dv-text));
     box-shadow: var(--dv-shadow-control);
   }
   .vrock button:active {
@@ -895,6 +904,8 @@ export const mediaBubbleKnobs = css`
     --mm-sheet-surface: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha));
     --mm-sheet-blur: var(--sw-glass-blur-sheet);
     --mm-seg-thumb: var(--sw-surface-solid);
+    --mm-seg-fg: var(--sw-text);
+    --mm-seg-fg-on: var(--sw-text);
     --mm-key-bg: var(--sw-surface-2);
     --mm-key-fg: var(--sw-text);
     --mm-key-shadow: none;
