@@ -369,6 +369,33 @@ const he = {
   noRows: 'אין הודעות בסינון הזה',
   clearFilters: 'ניקוי הסינון',
   dPlacesTree: 'עץ מקומות בדף ההודעות',
+  // TVOPT-295: the one-row header and its companions (the board's תצוגה tab)
+  headerLabel: 'כותרת המסך',
+  header_a: 'לוגו וברכה יחד',
+  header_b: 'ברכה במרכז',
+  header_c: 'כמו היום',
+  updatedLabel: 'שורת "עודכן"',
+  updated_full: 'טקסט מלא',
+  updated_time: 'שעה ונקודה ירוקה',
+  updated_issues: 'רק כשיש תקלה',
+  spaceLabel: 'הגובה שהתפנה',
+  space_bigger: 'שעון, מזג אוויר והודעה גדולים יותר',
+  space_more: 'כרטיס או שורה נוספים',
+  space_mix: 'שילוב',
+  spaceOnlyOneRow: 'בכותרת בשורה אחת בלבד',
+  nightLogoLabel: 'לוגו החברה בלילה',
+  nightLogo_auto: 'לפי הגדרות הלוגו',
+  nightLogo_plate: 'רקע לבן מתחת ללוגו',
+  nightLogo_invert: 'היפוך צבעים כשאפשר',
+  logosOnlyHeaderC: 'בכותרת "כמו היום" בלבד',
+  weatherDaysLabel: 'תחזית מזג האוויר',
+  weatherDays_0: 'כמו היום',
+  weatherDays_1: 'היום בלבד',
+  weatherDays_n: '{n} ימים',
+  tvUseDefault: 'ברירת מחדל',
+  tvDefaultNow: 'לפי ברירת המחדל: {v}',
+  tvDefaultsCard: 'ברירות מחדל למסכי הטלוויזיה',
+  tvDefaultsHint: 'לכל לוח שלא נבחר בו ערך משלו, וללוחות חדשים.',
 };
 
 type Key = keyof typeof he;
@@ -408,6 +435,14 @@ const en: Partial<Record<Key, string>> = {
   delete: 'Delete', delTitle: 'Delete notice', delBody: 'Delete "{title}"? This cannot be undone.', delLiveTick: 'The notice is on air now and will leave every board at once',
   delUrgentTick: 'Urgent notice: I confirm deleting it in an emergency', delConfirm: 'Delete for good', delDone: 'The notice was deleted',
   delRefused: 'You may not delete an urgent notice that is on air', noRows: 'No notices match this filter', clearFilters: 'Clear the filter', dPlacesTree: 'Places tree on the notices page',
+  headerLabel: 'Screen header', header_a: 'Logo and greeting together', header_b: 'Greeting centred', header_c: 'As before',
+  updatedLabel: 'The "updated" line', updated_full: 'Full text', updated_time: 'Time and green dot', updated_issues: 'Only on a problem',
+  spaceLabel: 'The freed height', space_bigger: 'Larger clock, weather and notice', space_more: 'One more card or row', space_mix: 'Both',
+  spaceOnlyOneRow: 'With a one-row header only', nightLogoLabel: 'Company logo at night', nightLogo_auto: 'As the logo settings say',
+  nightLogo_plate: 'White background under the logo', nightLogo_invert: 'Invert the colours when possible', logosOnlyHeaderC: 'With the "As before" header only',
+  weatherDaysLabel: 'Weather forecast', weatherDays_0: 'As before', weatherDays_1: 'Today only', weatherDays_n: '{n} days',
+  tvUseDefault: 'Default', tvDefaultNow: 'Following the default: {v}', tvDefaultsCard: 'TV screen defaults',
+  tvDefaultsHint: 'For every board that has no value of its own, and for new boards.',
 };
 
 export type NtKey = Key;

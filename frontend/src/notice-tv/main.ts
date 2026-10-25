@@ -10,6 +10,9 @@
  * NOTICESAVER-295: the board's screen saver (`display.saver`: off / wash / cycle / wave / ambient, drawn as the mock-up's `#saver` layer),
  * the logo layout (`display.logos`: a / b / c) and the mock-up's drift values. Test hooks `?saver=` and `?logos=` override both.
  *
+ * TVOPT-295: the one-row header (`display.header`: a / b; c = as before), the "updated" line (`display.updated`), what the freed
+ * height goes to (`display.space`) and the company logo on the dark screen (`display.night_logo`). Test hook `?header=`.
+ *
  * Test hooks (never used by a real TV): `?clock=fixed` (09:12 on 23.10.2026 in the board's zone, ticker frozen, no rotation / drift
  * timers), `?now=<ISO>` (a fixed instant).
  */
@@ -17,9 +20,9 @@ import './tv.css';
 import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo (developer kit artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
-  AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlan, heldIndex, logoLayoutOf, netOf, nightDim, onPoll, tickerItemHtml,
-  playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, whenText,
-  type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type Item, type LogoLayout, type NetState, type Saver,
+  AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, HEADERS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlan, gridPlanExtra, headerOf, heldIndex, logoLayoutOf, netOf, nightDim,
+  nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, updatedOf, weatherDaysOf, whenText,
+  type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type HeaderLayout, type Item, type LogoLayout, type NetState, type Saver, type UpdatedLine,
 } from './tv-logic';
 
 const Q = new URLSearchParams(location.search);
@@ -47,6 +50,7 @@ let etag = '';
 let companyUrl: Record<'light' | 'dark', string> = { light: '', dark: '' };
 let companySrc: Record<'light' | 'dark', string> = { light: '', dark: '' }; // blob URLs of the loaded logo files (CR-LOGOS295)
 const hasCompany = (): boolean => !!(companySrc.light || companySrc.dark);
+let companyAlpha = false; // TVOPT-295: the light file has a transparent background (an invert then reads as a logo, not a dark box)
 // NOTICESLIDES-295: the slide pictures and the building photo are read with the board token like the logo, so they live as blob URLs
 const slideSrc = new Map<string, string>(); // feed image URL -> blob URL
 let photoUrl = '';
@@ -74,7 +78,10 @@ function fixedInstant(): Date {
 
 function display(): Display {
   const d = (feed?.board.display ?? {}) as Display;
-  return draftDisplay ? ({ ...d, ...draftDisplay, blocks: { ...d.blocks, ...(draftDisplay.blocks ?? {}) } } as Display) : d;
+  if (!draftDisplay) return d;
+  // TVOPT-295: a null in the draft = "follow the installation default", which the feed (the preview route) already resolved
+  const draft = Object.fromEntries(Object.entries(draftDisplay).filter(([, v]) => v !== null && v !== undefined)) as Partial<Display>;
+  return { ...d, ...draft, blocks: { ...d.blocks, ...(draft.blocks ?? {}) } } as Display;
 }
 
 function lang(): 'he' | 'en' {
@@ -123,7 +130,9 @@ function hebDate(): string {
 function logos(dark: boolean): { co: string; sw: string } {
   const b = feed?.board.brand;
   const name = esc(b?.name || feed?.board.building || '');
-  const pick = hasCompany() ? chooseCompanyLogo({ light: companySrc.light || null, dark: companySrc.dark || null }, b?.dark_mode ?? 'plate', dark) : null;
+  // TVOPT-295: the board's choice for the dark screen (night_logo) over the system logo setting
+  const mode = nightLogoMode(nightLogoOf(display()), b?.dark_mode ?? 'plate', !!companySrc.dark, companyAlpha);
+  const pick = hasCompany() ? chooseCompanyLogo({ light: companySrc.light || null, dark: companySrc.dark || null }, mode, dark) : null;
   const co = pick
     ? '<div class="lg company" data-tr="' + pick.treatment + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></div>'
     : '<div class="lg company"><svg viewBox="0 0 280 64" aria-hidden="true"></svg></div>';
@@ -141,8 +150,29 @@ function clockHtml(): string {
 function wxHtml(): string {
   const w = feed?.weather;
   if (!w) return '<div class="wx"></div>';
-  return '<div class="wx"><div class="now">' + ic(ICON_OF[w.now.condition] || 'cloud') + '<b class="num">' + w.now.t + '°</b><span>' + esc(w.now.text) + '</span></div><div class="hrs">' +
+  const now = '<div class="now">' + ic(ICON_OF[w.now.condition] || 'cloud') + '<b class="num">' + w.now.t + '°</b><span>' + esc(w.now.text) + '</span></div>';
+  // TVOPT-295 weather_days: 0 = the forecast entries as before, 1 = today only (no row), 2..5 = one cell per day (as many as the source has)
+  const n = weatherDaysOf(display());
+  if (n === 1) return '<div class="wx" data-days="1">' + now + '</div>';
+  if (n >= 2) {
+    const days = (w.days ?? []).slice(0, n);
+    return '<div class="wx" data-days="' + n + '">' + now + (days.length > 1 ? '<div class="hrs days">' + days.map((x, k) => '<div><span>' + esc(dayLabel(x.date, k === 0)) + '</span>' + ic(ICON_OF[x.condition] || 'cloud') +
+      '<b class="num">' + x.t + '°</b>' + (typeof x.lo === 'number' ? '<i class="lo num">' + x.lo + '°</i>' : '') + '</div>').join('') + '</div>' : '') + '</div>';
+  }
+  return '<div class="wx">' + now + '<div class="hrs">' +
     w.hours.map((x) => '<div><span class="num">' + esc(x.at) + '</span>' + ic(ICON_OF[x.condition] || 'cloud') + '<b class="num">' + x.t + '°</b></div>').join('') + '</div></div>';
+}
+
+/** The label of a forecast day: "היום" for today, else the short weekday of the board's language (the date is a local calendar day). */
+function dayLabel(date: string, today: boolean): string {
+  if (today) return str(lang(), 'today').replace(/^./, (c) => c.toUpperCase());
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) return '';
+  try {
+    return new Intl.DateTimeFormat(lang() === 'en' ? 'en-GB' : 'he-IL', { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)));
+  } catch {
+    return date.slice(8) + '.' + date.slice(5, 7);
+  }
 }
 
 function chipsHtml(): string {
@@ -217,7 +247,7 @@ function stageHtml(): string {
 }
 
 function othersHtml(): string {
-  const max = 3;
+  const max = othersMax(spaceExtra(headerNow(), spaceOf(display())));
   const rest = state.list.filter((_x, k) => k !== state.i);
   let h = rest.slice(0, max).map((x) => cellHtml(x, false)).join('');
   if (rest.length > max) h += '<div class="more">' + esc(str(lang(), 'more', { n: rest.length - max })) + '</div>';
@@ -241,12 +271,39 @@ function layoutOf(): LogoLayout {
   return q === 'a' || q === 'b' || q === 'c' ? q : logoLayoutOf(display());
 }
 
-function footerHtml(L: { co: string; sw: string }, withChips: boolean, lay: LogoLayout, tpl: number): string {
+/** The header in force: the board's setting, or the `?header=` test hook (TVOPT-295). */
+function headerNow(): HeaderLayout {
+  const q = Q.get('header');
+  return (HEADERS as string[]).includes(q || '') ? (q as HeaderLayout) : headerOf(display());
+}
+
+/** TVOPT-295: the "updated" line - the full text, the time with the dot, or nothing while live (the stale / offline notes stay). */
+function liveHtml(u: UpdatedLine): string {
+  if (u === 'issues') return '';
+  const t = '<span class="num" data-updated>' + updatedText() + '</span>';
+  return '<span class="live"><i></i>' + (u === 'time' ? t : esc(str(lang(), 'updated')) + ' ' + t + ' · ' + esc(feed?.board.name || '')) + '</span>';
+}
+
+/** The network state notes and the "updated" line (the bottom row of the header as before, the header row of a / b). */
+function statusHtml(u: UpdatedLine, sp: boolean): string {
+  return '<span class="offline">' + ic('offline') + esc(str(lang(), 'offline')) + '</span>' + (sp ? '<span class="sp"></span>' : '') + '<span class="stale">' + ic('clock') +
+    '<span data-stale>' + esc(str(lang(), 'staleFrom', { t: updatedText() })) + '</span></span>' + liveHtml(u);
+}
+
+function footerHtml(L: { co: string; sw: string }, withChips: boolean, lay: LogoLayout, tpl: number, u: UpdatedLine): string {
   // a: the v4 layout (template 2 carries the SmplWise mark in its header); b: both logos together at the end of the bottom row;
   // c: both logos are in the header, the bottom row says who runs the board
   const mark = lay === 'b' ? '<span class="lgs">' + L.co + L.sw + '</span>' : lay === 'c' ? '<span class="pwr">' + esc(str(lang(), 'poweredBy')) + '</span>' : tpl === 2 ? '' : L.sw;
-  return '<footer class="ft">' + (withChips ? chipsHtml() : '') + '<span class="offline">' + ic('offline') + esc(str(lang(), 'offline')) + '</span><span class="sp"></span><span class="stale">' + ic('clock') +
-    '<span data-stale>' + esc(str(lang(), 'staleFrom', { t: updatedText() })) + '</span></span><span class="live"><i></i>' + esc(str(lang(), 'updated')) + ' <span class="num" data-updated>' + updatedText() + '</span> · ' + esc(feed?.board.name || '') + '</span>' + mark + '</footer>';
+  return '<footer class="ft">' + (withChips ? chipsHtml() : '') + statusHtml(u, true) + mark + '</footer>';
+}
+
+/** TVOPT-295: the one-row header. a = the company logo, a hairline and the greeting at the inline start, SmplWise and the status at
+ * the end; b = the greeting centred, SmplWise over the status at the end. The logo layout setting (`logos`) applies to the header as
+ * before (c) only. */
+function oneRowHeader(L: { co: string; sw: string }, h: 'a' | 'b', u: UpdatedLine): string {
+  const welcome = '<div class="hw"><small>' + esc(str(lang(), 'welcome')) + '</small><b>' + esc(feed?.board.building || '') + '</b></div>';
+  const st = '<div class="hs">' + L.sw + '<span class="hst">' + statusHtml(u, false) + '</span></div>';
+  return '<header class="hd one" data-h="' + h + '">' + L.co + (h === 'a' ? '<span class="hdv" aria-hidden="true"></span>' : '') + welcome + st + '</header>';
 }
 
 function bandHtml(u: FeedNotice | null): string {
@@ -313,7 +370,7 @@ function render(): void {
   state.list = withSlides(playlist(notices, d), feed.slides, d);
   cv.dataset.empty = state.list.length ? '0' : '1';
   state.held = heldIndex(state.list, d);
-  state.plan = gridPlan(state.list.length, !portrait && tpl !== 2, portrait);
+  state.plan = gridPlanExtra(state.list.length, !portrait && tpl !== 2, portrait, spaceExtra(headerNow(), spaceOf(d)));
   const keep = state.list.findIndex((x) => x.n.id === prevId);
   state.i = state.held >= 0 ? state.held : keep >= 0 ? keep : Math.min(state.i, Math.max(0, state.list.length - 1));
   state.page = state.held >= 0 ? Math.floor(state.held / state.plan.per) : Math.min(state.page, state.plan.pages - 1);
@@ -323,18 +380,34 @@ function render(): void {
   cv.dataset.paused = state.paused ? '1' : '0';
 
   const lay = layoutOf();
-  cv.dataset.logos = lay;
-  const head = lay === 'b' ? '' : L.co + '<span class="mid"></span>' + (tpl === 2 || lay === 'c' ? L.sw : '');
-  let h = '<header class="hd">' + head + '</header>' + bandHtml(band);
-  if (tpl === 1) {
-    h += '<main class="bd"><div class="side">' + welcomeHtml() + clockHtml() + wxHtml() + '</div><div class="vrule"></div>' + (portrait ? '<div class="rule"></div>' : '') + stageHtml() + '</main>';
-  } else if (tpl === 2) {
-    h += '<main class="bd"><div class="side">' + welcomeHtml() + clockHtml() + wxHtml() + '</div><section class="card">' + stageHtml() + chipsHtml() + '</section></main>';
+  const hdr = headerNow();
+  const upd = updatedOf(display());
+  const one = hdr !== 'c';
+  cv.dataset.header = hdr;
+  cv.dataset.updated = upd;
+  cv.dataset.space = one ? spaceOf(d) : 'none';
+  cv.dataset.logos = one ? 'one' : lay; // the logo layout applies to the header as before only
+  let h: string;
+  if (one) {
+    h = oneRowHeader(L, hdr, upd) + bandHtml(band);
   } else {
-    h += '<main class="bd"><div class="top"><div class="name">' + esc(feed.board.building || '') + '<small>' + esc(d.place || '') + '</small></div>' + clockHtml() + '</div><div class="rule"></div>' + stageHtml() + '<div class="rule"></div><div class="bot">' + chipsHtml() + wxHtml() + '</div></main>';
+    const head = lay === 'b' ? '' : L.co + '<span class="mid"></span>' + (tpl === 2 || lay === 'c' ? L.sw : '');
+    h = '<header class="hd">' + head + '</header>' + bandHtml(band);
   }
-  h += tickerHtml() + footerHtml(L, tpl === 1, lay, tpl);
+  const welcome = one ? '' : welcomeHtml(); // the one-row header carries the greeting
+  if (tpl === 1) {
+    h += '<main class="bd"><div class="side">' + welcome + clockHtml() + wxHtml() + '</div><div class="vrule"></div>' + (portrait ? '<div class="rule"></div>' : '') + stageHtml() + '</main>';
+  } else if (tpl === 2) {
+    h += '<main class="bd"><div class="side">' + welcome + clockHtml() + wxHtml() + '</div><section class="card">' + stageHtml() + chipsHtml() + '</section></main>';
+  } else {
+    h += '<main class="bd"><div class="top"><div class="name">' + (one ? '' : esc(feed.board.building || '')) + '<small>' + esc(d.place || '') + '</small></div>' + clockHtml() + '</div><div class="rule"></div>' + stageHtml() + '<div class="rule"></div><div class="bot">' + chipsHtml() + wxHtml() + '</div></main>';
+  }
+  // the one-row header has no bottom row of its own: only template 1's building chips keep one (the status moved up)
+  h += tickerHtml() + (one ? (tpl === 1 && flags.info ? '<footer class="ft">' + chipsHtml() + '</footer>' : '') : footerHtml(L, tpl === 1, lay, tpl, upd));
   pg.innerHTML = h;
+  const grow = spaceGrow(hdr, spaceOf(d));
+  const bd = pg.querySelector('.bd') as HTMLElement | null;
+  if (bd && grow !== 1) bd.style.setProperty('--fs', ((SIZES[d.font_size] ?? SIZES.s) * (d.font_scale || 1) * grow).toFixed(3));
   applyGridVars();
   const D = logos(true);
   const u = urgentNow;
@@ -612,6 +685,7 @@ async function loadCompanyLogo(variant: 'light' | 'dark', url: string | undefine
     if (companySrc[variant]) URL.revokeObjectURL(companySrc[variant]);
     companySrc[variant] = '';
     companyUrl[variant] = '';
+    if (variant === 'light') companyAlpha = false;
     return;
   }
   if (url === companyUrl[variant] && companySrc[variant]) return;
@@ -622,8 +696,40 @@ async function loadCompanyLogo(variant: 'light' | 'dark', url: string | undefine
     if (companySrc[variant]) URL.revokeObjectURL(companySrc[variant]);
     companySrc[variant] = URL.createObjectURL(blob);
     companyUrl[variant] = url;
+    if (variant === 'light') companyAlpha = await transparentEdge(companySrc.light);
   } catch {
     /* the logo is optional: the header keeps its place */
+  }
+}
+
+/** TVOPT-295: does the logo have a transparent background? Its border pixels are read on a small canvas (the file is a same-origin
+ * blob, so the canvas is readable); a quarter of the border at least partly transparent counts. Any failure reads as opaque (the plate). */
+async function transparentEdge(src: string): Promise<boolean> {
+  try {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    const w = 64;
+    const h = Math.max(8, Math.min(64, Math.round((w * (img.naturalHeight || 32)) / (img.naturalWidth || 64))));
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const x = c.getContext('2d');
+    if (!x) return false;
+    x.drawImage(img, 0, 0, w, h);
+    const px = x.getImageData(0, 0, w, h).data;
+    let edge = 0;
+    let clear = 0;
+    for (let yy = 0; yy < h; yy++) {
+      for (let xx = 0; xx < w; xx++) {
+        if (yy !== 0 && yy !== h - 1 && xx !== 0 && xx !== w - 1) continue;
+        edge++;
+        if (px[(yy * w + xx) * 4 + 3] < 250) clear++;
+      }
+    }
+    return edge > 0 && clear / edge >= 0.25;
+  } catch {
+    return false;
   }
 }
 
@@ -723,6 +829,7 @@ function emptyFeed(): Feed {
       template: 1, lang: 'he', theme: 'auto', day_hours: '', layout: 'auto', urgent: 'stage', mode: 'rotation', rotate_s: 12, hold: '', font_size: 's', font_scale: 1, place: '',
       blocks: { clock: true, hebdate: true, welcome: true, weather: false, info: [], promo: false, news: false, company_logo: false },
       weather: { hours: 5 }, news: { feeds: [], speed: 'normal' }, night: { enabled: true, from: '23:00', to: '06:00', dim: 0.5 }, burn_in: { shift: true }, saver: 'off', logos: 'a',
+      header: 'c', updated: 'full', space: 'bigger', night_logo: 'auto', weather_days: 0,
     } },
     now: new Date().toISOString(),
     notices: [],
