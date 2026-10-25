@@ -73,8 +73,7 @@ test.describe('settings: voice announcements', () => {
     const test1 = tab(page).locator('[data-announce-speaker="sp-1"] [data-announce-test]');
     await expect(test1).toHaveAttribute('disabled', '');
     await shot(page, 'announce-off');
-    await tab(page).locator('[data-announce-engine]').fill('tts.demo_engine');
-    await tab(page).locator('[data-announce-engine]').dispatchEvent('change');
+    await tab(page).locator('[data-announce-engine]').selectOption('tts.demo_engine'); // ANNOUNCE-295 owner answers: the engine is a choice of the HA speech engines
     await tab(page).locator('[data-announce-enabled]').click();
     await tab(page).locator('[data-announce-speaker="sp-1"] [data-announce-allow]').check();
     await expect(test1).not.toHaveAttribute('disabled', '');
@@ -89,8 +88,7 @@ test.describe('settings: voice announcements', () => {
   test('announce now: a room and a text, sent once; the button needs a text', async ({ page }) => {
     const m = await setup(page);
     await page.goto('/?design=a#/system/multimedia?tab=announce');
-    await tab(page).locator('[data-announce-engine]').fill('tts.demo_engine');
-    await tab(page).locator('[data-announce-engine]').dispatchEvent('change');
+    await tab(page).locator('[data-announce-engine]').selectOption('tts.demo_engine'); // ANNOUNCE-295 owner answers: the engine is a choice of the HA speech engines
     await tab(page).locator('[data-announce-enabled]').click();
     await tab(page).locator('[data-announce-speaker="sp-1"] [data-announce-allow]').check();
     const send = tab(page).locator('[data-announce-send]');

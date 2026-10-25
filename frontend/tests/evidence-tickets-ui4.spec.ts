@@ -268,7 +268,8 @@ test.describe('tickets list v5 evidence', () => {
     await goList(page, '/tickets/mine');
     await page.waitForSelector(`${L} ticket-card`);
     const clock = page.locator(`${L} ticket-card ticket-elapsed [data-elapsed]`);
-    expect(await clock.count()).toBeGreaterThan(3);
+    // FIX2200: the cards arrive in more than one render - a count taken the moment the first card exists read 3 on the busy runner
+    await expect.poll(() => clock.count()).toBeGreaterThan(3);
     await expect(clock.first()).toHaveText(/(פתוחה|טופלה|פתוח|טופל)/);
     await expect(clock.first()).not.toHaveAttribute('aria-live', /.+/);
     expect(await page.locator(`${L} ticket-card ticket-elapsed [aria-live]`).count()).toBe(0);

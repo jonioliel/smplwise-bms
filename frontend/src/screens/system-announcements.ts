@@ -15,6 +15,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { announceLang, announceText } from '../i18n/announce';
 import { dateInputLang } from '../api/day-format';
+import { applyAnnounceHidden } from '../shell/nav';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 
@@ -105,6 +106,7 @@ export class SystemAnnouncements extends LitElement {
     this.err = '';
     try {
       this.data = await announcePutConfig(patch);
+      applyAnnounceHidden(this.data.config.enabled); // FIX2200: the הכרזות tab follows the switch at once
       if (can('media.announce')) this.areas = (await announceAreas()).areas;
       if (!this.areas.some((x) => x.area_id === this.room)) this.room = this.areas[0]?.area_id ?? '';
       this.note(announceText().saved);

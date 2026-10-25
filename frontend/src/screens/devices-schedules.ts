@@ -6,7 +6,7 @@ import '../components/sw-dialog';
 import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
 import '../components/sw-pager';
-import { PAGE_SIZE_DEFAULT, clampPage, loadScreenDisplay, pageCount, pageSlice } from '../api/screen-display';
+import { PAGE_SIZE_DEFAULT, PAGE_SIZE_MIN, clampPage, loadScreenDisplay, pageCount, pageSlice } from '../api/screen-display';
 import { pl } from '../i18n/polish';
 import './schedule-drawer';
 import type { ScheduleActions } from './schedule-drawer';
@@ -165,6 +165,9 @@ export class DevicesSchedules extends LitElement {
   @state() private defaultView: ListView = 'rows';
   @state() private perPage = PAGE_SIZE_DEFAULT.schedules;
   @state() private page = 1;
+  /** FIX2200: the rows that fit the screen's height in the rows view (null: not measured). The page size setting stays the maximum;
+   * a shorter window (1366x768, a tablet) takes fewer rows a page instead of scrolling (owner rule: control screens never scroll). */
+  @state() private fitRows: number | null = null;
   /** POLISH-295: the selection boxes show only in selection mode (the user menu's "בחירה מרובה") or while something is picked. */
   @state() private selecting = false;
   @state() private filtersOpen = false;
@@ -514,7 +517,7 @@ export class DevicesSchedules extends LitElement {
     .lr {
       position: relative;
       display: grid;
-      grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 40px;
+      grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 44px;
       align-items: center;
       gap: var(--sw-s-3);
       min-block-size: 54px;
@@ -524,7 +527,7 @@ export class DevicesSchedules extends LitElement {
       transition: background-color var(--mm-motion) var(--mm-ease);
     }
     .rlist.picking .lr {
-      grid-template-columns: 32px 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 40px;
+      grid-template-columns: 32px 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 44px;
     }
     .lr:last-child {
       border-block-end: 0;
@@ -586,6 +589,10 @@ export class DevicesSchedules extends LitElement {
     }
     .lops {
       justify-content: flex-end;
+    }
+    /* FIX2200: the menu key keeps its touch size (the column is 44 px; a flex item shrank it to 36-40 px, the 2.20.0 bubble guard) */
+    .lops .more-btn {
+      flex: none;
     }
     .lops .pop {
       background: var(--sw-menu-surface);
@@ -719,6 +726,14 @@ export class DevicesSchedules extends LitElement {
       text-decoration: none;
       min-block-size: 32px;
     }
+    /* FIX2200: the bubble skin's touch dial is the floor of every hit target, the next-run link included (195x32 in the 2.20.0 guard) */
+    :host([data-skin='bubble']) a.up {
+      min-block-size: var(--sw-touch-desktop);
+    }
+    /* FIX2200: the pager's keys meet the touch dial in the bubble skin (30x30 in the 2.20.0 guard) */
+    :host([data-skin='bubble']) sw-pager {
+      --sw-ctl-h-md: var(--sw-touch-desktop);
+    }
     @media (pointer: coarse), (max-width: 767px) {
       a.up {
         min-block-size: 44px;
@@ -736,10 +751,10 @@ export class DevicesSchedules extends LitElement {
     }
     @media (max-width: 1100px) and (min-width: 768px) {
       .lr {
-        grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(130px, 1fr) 40px;
+        grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(130px, 1fr) 44px;
       }
       .rlist.picking .lr {
-        grid-template-columns: 32px 44px minmax(0, 1.6fr) auto minmax(130px, 1fr) 40px;
+        grid-template-columns: 32px 44px minmax(0, 1.6fr) auto minmax(130px, 1fr) 44px;
       }
       .lr > .lbar {
         display: none;
@@ -747,12 +762,12 @@ export class DevicesSchedules extends LitElement {
     }
     @media (max-width: 767px) {
       .lr {
-        grid-template-columns: 44px minmax(0, 1fr) auto 36px;
+        grid-template-columns: 44px minmax(0, 1fr) auto 44px;
         gap: var(--sw-s-2);
         padding-inline: var(--sw-s-3);
       }
       .rlist.picking .lr {
-        grid-template-columns: 28px 44px minmax(0, 1fr) auto 36px;
+        grid-template-columns: 28px 44px minmax(0, 1fr) auto 44px;
       }
       .lr > .ldays,
       .lr > .lbar {
@@ -1094,6 +1109,7 @@ export class DevicesSchedules extends LitElement {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
+    window.addEventListener('resize', this.onResize);
     this.addEventListener('scroll', this.onScroll, { passive: true });
     window.addEventListener('pointerdown', this.onOutside, true);
     window.addEventListener('keydown', this.onKey);
@@ -1124,6 +1140,7 @@ export class DevicesSchedules extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
+    window.removeEventListener('resize', this.onResize);
     this.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('pointerdown', this.onOutside, true);
     window.removeEventListener('keydown', this.onKey);
@@ -1137,6 +1154,7 @@ export class DevicesSchedules extends LitElement {
 
   protected updated(_c: PropertyValues) {
     measureHeaderBar(this.renderRoot, this.phone);
+    this.measureFit();
     const t = this.renderRoot.querySelector<HTMLElement>('.toast[popover]');
     if (t) {
       try {
@@ -1146,6 +1164,31 @@ export class DevicesSchedules extends LitElement {
       }
     }
   }
+
+  /** FIX2200: how many rows fit between the top of the rows list and the bottom of the screen, less the pager's band. The list's top
+   * does not depend on how many rows are shown, so the measure is stable (no feedback loop). Only the ungrouped rows view. */
+  private measureFit(): void {
+    const list = this.view === 'rows' && !this.filters.group && !this.sub ? this.renderRoot.querySelector<HTMLElement>('[data-sched-rows]') : null;
+    const rows = list ? list.querySelectorAll<HTMLElement>('[data-schedule]') : null;
+    if (!list || !rows || !rows.length || !this.clientHeight) return;
+    const top = list.getBoundingClientRect().top + this.scrollTop;
+    const first = rows[0].getBoundingClientRect();
+    const pitch = rows.length > 1 ? rows[1].getBoundingClientRect().top - first.top : first.height;
+    if (pitch <= 0) return;
+    const chrome = list.getBoundingClientRect().height - rows.length * pitch; // the list's own padding and border
+    const pagerEl = this.renderRoot.querySelector<HTMLElement>('[data-sched-pager]');
+    const pager = pagerEl ? pagerEl.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom : 44;
+    const pageEl = this.renderRoot.querySelector<HTMLElement>('.page');
+    const pad = (pageEl ? parseFloat(getComputedStyle(pageEl).paddingBlockEnd) || 0 : 0) + (parseFloat(getComputedStyle(this).paddingBlockEnd) || 0);
+    const avail = this.getBoundingClientRect().top + this.clientHeight - top - chrome - pager - pad;
+    const fit = Math.max(PAGE_SIZE_MIN, Math.floor(avail / pitch));
+    if (fit !== this.fitRows) this.fitRows = fit;
+  }
+
+  private onResize = () => {
+    this.fitRows = null;
+    this.requestUpdate();
+  };
 
   private onScroll = () => {
     const compact = this.scrollTop > 40;
@@ -1775,7 +1818,9 @@ export class DevicesSchedules extends LitElement {
     }
     // POLISH-295: one page at a time (control screens never scroll): the sorted list is cut to the page, then grouped
     const sorted = sortSchedules(rows, this.filters.sort);
-    const per = this.phone ? this.perPage.phone : this.perPage.wide;
+    const setting = this.phone ? this.perPage.phone : this.perPage.wide;
+    // FIX2200: the rows view takes no more rows than fit the screen's height (measureFit); the setting is the maximum
+    const per = this.view === 'rows' && !this.filters.group && this.fitRows !== null ? Math.min(setting, this.fitRows) : setting;
     const pages = pageCount(sorted.length, per);
     const page = clampPage(this.page, sorted.length, per);
     const groups = groupSchedules(pageSlice(sorted, page, per), this.filters.group);

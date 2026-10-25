@@ -713,6 +713,20 @@ export function noticesModuleOn(): boolean {
   return !NOTICES_OFF;
 }
 
+let ANNOUNCE_OFF = true;
+/** FIX2200 (owner 2026-10-25): the הכרזות tab follows the voice announcements switch (/me modules.announce, and at once after a switch in
+ * Settings), as the notice board tab follows its module: hidden while the feature is off (OFF by default, the static demo too). Only the
+ * tab leaves - the address #/devices/announce still opens the screen, which says when the feature is off. Re-applied by the shell after
+ * HIDDEN_HREFS is rebuilt from the product settings. */
+export function applyAnnounceHidden(on: boolean | null | undefined): boolean {
+  ANNOUNCE_OFF = on !== true;
+  const was = HIDDEN_HREFS.has(ANNOUNCE_HREF);
+  if (ANNOUNCE_OFF) HIDDEN_HREFS.add(ANNOUNCE_HREF);
+  else HIDDEN_HREFS.delete(ANNOUNCE_HREF);
+  if (was !== ANNOUNCE_OFF) for (const l of tabsListeners) l();
+  return ANNOUNCE_OFF;
+}
+
 /** 0.1.154: which segments of "קברניט" this user is offered. `schedules`: the feature is on and schedule.view / schedule.manage is held;
  * `automations`: the automations feature is on and one of its rights is held (the scenes and scripts segments follow the automations
  * status inside the screen). Without a backend (the demo) both are offered. */
@@ -1377,7 +1391,8 @@ export const DEMO_ONLY_HREFS = new Set<string>();
 export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Review · חלונות', '#/investigate/playback/sync': 'ניגון מסונכרן' };
 
 /** Tabs the owner hid in the settings (0.1.61: the AI search); filled by the shell once the product settings load. */
-export const HIDDEN_HREFS = new Set<string>(['#/devices/notices']); // CR-NOTICE106: the notice board tab until the session says the module is on
+// CR-NOTICE106: the notice board tab until the session says the module is on; FIX2200: the same for the הכרזות tab (announce.enabled)
+export const HIDDEN_HREFS = new Set<string>(['#/devices/notices', '#/devices/announce']);
 
 /** הגדרות › מסך פתיחה (0.1.68): the route the UI lands on when the address carries none. */
 export const START_ROUTES: Record<string, string> = { explore: '/explore/floors/f0', live: '/live', wall: '/live/wall', events: '/investigate/events', playback: '/investigate/playback', devices: '/devices/building' };
@@ -1548,7 +1563,8 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
   const offered = items === TICKETS_MAINTENANCE_PAGES && (!api || !MAINTENANCE_ON) ? [] : offered0;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
-  if (!api) return offered;
+  // FIX2200: the הכרזות tab follows the announcements switch in the static demo too (OFF there, like the notice board)
+  if (!api) return items === DEVICES_TABS && ANNOUNCE_OFF ? offered.filter((t) => t.href !== ANNOUNCE_HREF) : offered;
   const permitted = permittedTabs(offered, api, can);
   const shown = configureTabs(sectionIdOf(items), permitted);
   // 0.1.154: a stored `ui.tabs` entry that hides the old "אוטומציות" tab must not take the schedules segment away with it
