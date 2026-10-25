@@ -155,6 +155,8 @@ def company_logos(conn: sqlite3.Connection, data_dir: Path | None, slug: str, *,
 def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime, *, data_dir: Path | None = None,
                display: dict[str, Any] | None = None, news: sources.NewsCache | None = None, logo_base: str = "", public: bool = True) -> dict[str, Any]:
     disp = display if display is not None else model.load_display(board["display_json"])
+    # TVOPT-295: the four TV options the board did not choose itself follow the installation defaults
+    disp = model.effective_display(disp, store.settings(conn)["tv_defaults"])
     items = active_items(conn, board["id"], now)
     ids = {n["id"] for n in items}
     if disp.get("hold") and disp["hold"] not in ids:
@@ -183,7 +185,7 @@ def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime
     if sun:
         doc["sun"] = sun
     if disp["blocks"].get("weather") and s["weather_entity"]:
-        w = sources.weather_block(conn, s["weather_entity"], disp["weather"]["hours"], disp["lang"], now)
+        w = sources.weather_block(conn, s["weather_entity"], disp["weather"]["hours"], disp["lang"], now, days=disp["weather_days"])
         if w:
             doc["weather"] = w
     feeds = disp["news"]["feeds"]

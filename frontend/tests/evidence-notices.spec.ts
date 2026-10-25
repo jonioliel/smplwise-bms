@@ -49,6 +49,7 @@ async function install(page: Page, o: { enabled?: boolean; manager?: boolean } =
     if (p === 'notices/module') return json(route, { enabled, can: CAN });
     if (p === 'notices/settings' && method === 'GET') return json(route, { settings: { ...SETTINGS, enabled }, can: manager ? CAN : { ...CAN, boards: false, configure: false }, weather_entities: [{ entity_id: 'weather.home', name: 'בית' }], company_logo: false, listener: true, building_fallback: 'מגדל הים' });
     if (p === 'notices/settings') return json(route, { settings: { ...SETTINGS, ...(body as object) } });
+    if (p === 'notices/tv-defaults' && method === 'PUT') return json(route, { tv_defaults: { header: 'c', updated: 'full', space: 'bigger', night_logo: 'auto', ...(body as object) } });
     if (!enabled) return off();
     if (p === 'notices' && method === 'GET') {
       const scope = new URL(req.url()).searchParams.get('scope');
@@ -176,8 +177,10 @@ test('board page: the display tab previews the real TV page and saves the settin
   await expect.poll(() => (calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body as { display?: { template?: number; mode?: string } } | undefined)?.display).toMatchObject({ template: 3, mode: 'all' });
 });
 
-// TVOPT-295: the four screen choices of the one-row header review in the display tab: the preview follows each one, the freed-height
-// choice waits for a one-row header, the logo layout applies to the header "as before" only, and the save sends all four.
+// TVOPT-295: the four screen choices of the one-row header review in the display tab: a board follows the installation default
+// ("ברירת מחדל", pressed while the board has no own value) until it picks its own; the preview follows each choice, the freed-height
+// choice waits for a one-row header, the logo layout applies to the header "as before" only, and the save sends the own values
+// (null = back to the default).
 test('board page: the header, "updated" line, freed height and night logo choices', async ({ page }) => {
   const calls = await install(page);
   await page.goto('about:blank');
@@ -187,11 +190,15 @@ test('board page: the header, "updated" line, freed height and night logo choice
   const frame = page.frameLocator('sw-app system-notices iframe[data-preview]');
   await expect(frame.locator('#cv')).toHaveAttribute('data-header', 'c');
   const seg = (name: string) => root.locator(`notice-display-layout [data-seg="${name}"]`);
-  for (const name of ['header', 'updated', 'space', 'night-logo']) await expect(seg(name).locator('button')).toHaveCount(3);
-  await expect(seg('header').locator('button[data-v="c"]')).toHaveAttribute('aria-pressed', 'true');
+  for (const name of ['header', 'updated', 'space', 'night-logo']) await expect(seg(name).locator('button')).toHaveCount(4);
+  await expect(seg('weather-days').locator('button')).toHaveCount(7); // default, as before, today only, 2..5 days
+  await expect(seg('weather-days').locator('button[data-v="1"]')).toHaveText('היום בלבד');
+  await expect(seg('header').locator('button[data-v="default"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(root.locator('notice-display-layout [data-default-note]').first()).toContainText('כמו היום');
   await expect(seg('space').locator('button').first()).toBeDisabled(); // only with a one-row header
   await expect(root.locator('notice-display-saver [data-logos-seg] button').first()).toBeEnabled();
   await seg('header').locator('button[data-v="a"]').click();
+  await expect(seg('header').locator('button[data-v="a"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(frame.locator('#cv')).toHaveAttribute('data-header', 'a');
   await expect(frame.locator('.pg .hd.one[data-h="a"]')).toBeVisible();
   await expect(seg('space').locator('button').first()).toBeEnabled();
@@ -202,11 +209,46 @@ test('board page: the header, "updated" line, freed height and night logo choice
   await expect(frame.locator('#cv')).toHaveAttribute('data-space', 'mix');
   await seg('night-logo').locator('button[data-v="invert"]').click();
   await expect(seg('night-logo').locator('button[data-v="invert"]')).toHaveAttribute('aria-pressed', 'true');
+  await seg('weather-days').locator('button[data-v="4"]').click();
+  await expect(frame.locator('#cv')).toHaveAttribute('data-tpl', '1');
+  await seg('updated').locator('button[data-v="default"]').click(); // back to the installation default
+  await expect(seg('updated').locator('button[data-v="default"]')).toHaveAttribute('aria-pressed', 'true');
   await noOverflow(page);
   await shot(page, 'board-display-tvopt');
   await root.locator('[data-save-display]').click();
   await expect.poll(() => (calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body as { display?: object } | undefined)?.display)
-    .toMatchObject({ header: 'a', updated: 'time', space: 'mix', night_logo: 'invert' });
+    .toMatchObject({ header: 'a', updated: null, space: 'mix', night_logo: 'invert', weather_days: 4 });
+});
+
+test('settings: the installation defaults of the TV options (TV boards card)', async ({ page }) => {
+  const calls = await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices'));
+  const card = page.locator('sw-app system-notices [data-tv-defaults-card]');
+  await expect(card).toBeVisible();
+  const seg = (name: string) => card.locator(`notice-display-layout [data-seg="${name}"]`);
+  for (const name of ['header', 'updated', 'space', 'night-logo']) await expect(seg(name).locator('button')).toHaveCount(3); // no "default" button here
+  await expect(seg('weather-days').locator('button')).toHaveCount(6);
+  await expect(seg('weather-days').locator('button[data-v="0"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(seg('header').locator('button[data-v="c"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(seg('night-logo').locator('button[data-v="auto"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(seg('space').locator('button').first()).toBeDisabled();
+  await seg('header').locator('button[data-v="b"]').click();
+  await expect.poll(() => calls.find((c) => c.method === 'PUT' && c.path === 'notices/tv-defaults')?.body).toEqual({ header: 'b' });
+  await expect(seg('header').locator('button[data-v="b"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(seg('space').locator('button').first()).toBeEnabled();
+  await seg('night-logo').locator('button[data-v="plate"]').click();
+  await seg('weather-days').locator('button[data-v="3"]').click();
+  await expect.poll(() => calls.filter((c) => c.method === 'PUT' && c.path === 'notices/tv-defaults').map((c) => c.body)).toEqual([{ header: 'b' }, { night_logo: 'plate' }, { weather_days: 3 }]);
+  await noOverflow(page);
+  await shot(page, 'settings-tv-defaults');
+});
+
+test('settings: the TV defaults card needs the screen settings permission', async ({ page }) => {
+  await install(page, { manager: false });
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices'));
+  await expect(page.locator('sw-app system-notices [data-tv-defaults-card]')).toHaveCount(0);
 });
 
 // NOTICEADD-295: the board's "הודעות" tab writes, edits and archives notices (2.16.0 offered only a picker of existing notices, and nothing

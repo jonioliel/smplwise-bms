@@ -51,11 +51,15 @@ export interface Display {
   /** NOTICESAVER-295: the screen saver and the logo layout (absent on a board saved before 2.17.1 = off / 'a') */
   saver?: Saver;
   logos?: LogoLayout;
-  /** TVOPT-295: the header, the "updated" line, the freed height and the company logo at night (absent on an older board = c / full / bigger / auto) */
-  header?: HeaderLayout;
-  updated?: UpdatedLine;
-  space?: SpaceUse;
-  night_logo?: NightLogo;
+  /** TVOPT-295: the header, the "updated" line, the freed height and the company logo at night. In a board's stored settings a key is
+   * present only when the board chose its own value (absent / null = the installation default); the TV feed always carries the
+   * effective value. */
+  header?: HeaderLayout | null;
+  updated?: UpdatedLine | null;
+  space?: SpaceUse | null;
+  night_logo?: NightLogo | null;
+  /** TVOPT-295 (owner 2026-10-25): the forecast row - 0 = as before (the entity's forecast entries), 1 = today only, 2..5 = days */
+  weather_days?: number | null;
   /** NOTICESLIDES-295: the building photo of template 2 (a URL the feed adds only when one is uploaded) */
   photo?: string;
 }
@@ -89,12 +93,30 @@ export const HEADERS: HeaderLayout[] = ['a', 'b', 'c'];
 export const UPDATED_LINES: UpdatedLine[] = ['full', 'time', 'issues'];
 export const SPACE_USES: SpaceUse[] = ['bigger', 'more', 'mix'];
 export const NIGHT_LOGOS: NightLogo[] = ['auto', 'plate', 'invert'];
+export const WEATHER_DAYS = [0, 1, 2, 3, 4, 5] as const;
 
 const pick = <T extends string>(v: unknown, all: readonly T[], dflt: T): T => (all.includes(v as T) ? (v as T) : dflt);
 export const headerOf = (d: Pick<Display, 'header'>): HeaderLayout => pick(d.header, HEADERS, 'c');
 export const updatedOf = (d: Pick<Display, 'updated'>): UpdatedLine => pick(d.updated, UPDATED_LINES, 'full');
 export const spaceOf = (d: Pick<Display, 'space'>): SpaceUse => pick(d.space, SPACE_USES, 'bigger');
 export const nightLogoOf = (d: Pick<Display, 'night_logo'>): NightLogo => pick(d.night_logo, NIGHT_LOGOS, 'auto');
+export const weatherDaysOf = (d: Pick<Display, 'weather_days'>): number => (typeof d.weather_days === 'number' && (WEATHER_DAYS as readonly number[]).includes(d.weather_days) ? d.weather_days : 0);
+
+/** TVOPT-295: the installation defaults of the four options (`notices.tv.*`); the factory values are the screen as it was. */
+export interface TvDefaults { header: HeaderLayout; updated: UpdatedLine; space: SpaceUse; night_logo: NightLogo; weather_days: number }
+export const TV_FACTORY: TvDefaults = { header: 'c', updated: 'full', space: 'bigger', night_logo: 'auto', weather_days: 0 };
+export const TV_KEYS = ['header', 'updated', 'space', 'night_logo', 'weather_days'] as const;
+
+/** The defaults as the API sent them, each value checked (a missing or unknown one reads as the factory value). */
+export function tvDefaultsOf(raw: Partial<Record<keyof TvDefaults, unknown>> | null | undefined): TvDefaults {
+  const r = raw ?? {};
+  return { header: headerOf({ header: r.header as HeaderLayout }), updated: updatedOf({ updated: r.updated as UpdatedLine }), space: spaceOf({ space: r.space as SpaceUse }), night_logo: nightLogoOf({ night_logo: r.night_logo as NightLogo }), weather_days: weatherDaysOf({ weather_days: r.weather_days as number }) };
+}
+
+/** A board's display with the four options resolved: its own value, else the installation default (the backend's effective_display). */
+export function effectiveTv<D extends Partial<Pick<Display, (typeof TV_KEYS)[number]>>>(d: D, defaults: TvDefaults): Omit<D, (typeof TV_KEYS)[number]> & TvDefaults {
+  return { ...d, header: d.header || defaults.header, updated: d.updated || defaults.updated, space: d.space || defaults.space, night_logo: d.night_logo || defaults.night_logo, weather_days: d.weather_days ?? defaults.weather_days };
+}
 
 /** The text scale of the body (clock, date, weather, notices) under a one-row header: the freed height makes them larger
  * (bigger 1.16, mix 1.08); the header as before (c) and `more` keep the sizes. */
@@ -146,7 +168,8 @@ export interface Feed {
   board: { name: string; slug: string; version: number; display: Display; building: string; tz: string; logos: { company?: string; company_dark?: string }; /** CR-LOGOS295: how the TV draws the company logo (absent without one) */ brand?: { size: 's' | 'm' | 'l' | 'xl'; company_size?: 's' | 'm' | 'l' | 'xl'; dark_mode: 'plate' | 'file' | 'invert'; name: string } };
   now: string;
   notices: FeedNotice[];
-  weather?: { now: { t: number; condition: string; text: string }; hours: { at: string; t: number; condition: string }[] };
+  /** TVOPT-295: days (today first, one per local day, lo when known) only while the board's weather_days is 2..5 */
+  weather?: { now: { t: number; condition: string; text: string }; hours: { at: string; t: number; condition: string }[]; days?: { date: string; t: number; lo?: number; condition: string }[] };
   /** NOTICESLIDES-295: the promo / info slides (only while the board's `promo` block is on and there is at least one) */
   slides?: FeedSlide[];
   info?: { kind: string; label: string; state: 'ok' | 'warn' | 'alarm' | 'off'; text: string }[];

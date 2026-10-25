@@ -20,7 +20,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import Response
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
@@ -264,6 +264,36 @@ def _boards_ro(principal: Principal = Depends(current_principal_ro), conn: sqlit
 def _boards_w(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
     require(conn, principal, PERM_BOARDS, INSTALLATION)
     return principal
+
+
+class TvDefaultsIn(BaseModel):
+    """TVOPT-295: the installation defaults of the four TV options (validated again by model.tv_defaults_values)."""
+    model_config = ConfigDict(extra="forbid")
+    header: str | None = None
+    updated: str | None = None
+    space: str | None = None
+    night_logo: str | None = None
+    weather_days: StrictInt | None = None
+
+
+@router.get("/notices/tv-defaults")
+def get_tv_defaults(principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    return {"tv_defaults": store.settings(conn)["tv_defaults"]}
+
+
+@router.put("/notices/tv-defaults")
+def put_tv_defaults(body: TvDefaultsIn, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """TVOPT-295: the defaults every board follows where it did not choose its own value - the same permission as a board's screen
+    settings (notices.boards)."""
+    try:
+        values = model.tv_defaults_values(body.model_dump(exclude_none=True))
+    except Invalid as exc:
+        raise _invalid(exc)
+    changed = store.write_settings(conn, values)
+    if changed:
+        audit(conn, actor=principal, action="notices.tv_defaults.update", decision="allowed", resource_type="installation", resource_id="notices",
+              request_id=_rid(request), details={"keys": sorted(changed)})
+    return {"tv_defaults": store.settings(conn)["tv_defaults"]}
 
 
 def _board_out(b: dict[str, Any], counts: dict[str, int]) -> dict[str, Any]:

@@ -21,7 +21,7 @@ import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
   AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, HEADERS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlanExtra, headerOf, heldIndex, logoLayoutOf, netOf, nightDim,
-  nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, updatedOf, whenText,
+  nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, updatedOf, weatherDaysOf, whenText,
   type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type HeaderLayout, type Item, type LogoLayout, type NetState, type Saver, type UpdatedLine,
 } from './tv-logic';
 
@@ -78,7 +78,10 @@ function fixedInstant(): Date {
 
 function display(): Display {
   const d = (feed?.board.display ?? {}) as Display;
-  return draftDisplay ? ({ ...d, ...draftDisplay, blocks: { ...d.blocks, ...(draftDisplay.blocks ?? {}) } } as Display) : d;
+  if (!draftDisplay) return d;
+  // TVOPT-295: a null in the draft = "follow the installation default", which the feed (the preview route) already resolved
+  const draft = Object.fromEntries(Object.entries(draftDisplay).filter(([, v]) => v !== null && v !== undefined)) as Partial<Display>;
+  return { ...d, ...draft, blocks: { ...d.blocks, ...(draft.blocks ?? {}) } } as Display;
 }
 
 function lang(): 'he' | 'en' {
@@ -147,8 +150,29 @@ function clockHtml(): string {
 function wxHtml(): string {
   const w = feed?.weather;
   if (!w) return '<div class="wx"></div>';
-  return '<div class="wx"><div class="now">' + ic(ICON_OF[w.now.condition] || 'cloud') + '<b class="num">' + w.now.t + '°</b><span>' + esc(w.now.text) + '</span></div><div class="hrs">' +
+  const now = '<div class="now">' + ic(ICON_OF[w.now.condition] || 'cloud') + '<b class="num">' + w.now.t + '°</b><span>' + esc(w.now.text) + '</span></div>';
+  // TVOPT-295 weather_days: 0 = the forecast entries as before, 1 = today only (no row), 2..5 = one cell per day (as many as the source has)
+  const n = weatherDaysOf(display());
+  if (n === 1) return '<div class="wx" data-days="1">' + now + '</div>';
+  if (n >= 2) {
+    const days = (w.days ?? []).slice(0, n);
+    return '<div class="wx" data-days="' + n + '">' + now + (days.length > 1 ? '<div class="hrs days">' + days.map((x, k) => '<div><span>' + esc(dayLabel(x.date, k === 0)) + '</span>' + ic(ICON_OF[x.condition] || 'cloud') +
+      '<b class="num">' + x.t + '°</b>' + (typeof x.lo === 'number' ? '<i class="lo num">' + x.lo + '°</i>' : '') + '</div>').join('') + '</div>' : '') + '</div>';
+  }
+  return '<div class="wx">' + now + '<div class="hrs">' +
     w.hours.map((x) => '<div><span class="num">' + esc(x.at) + '</span>' + ic(ICON_OF[x.condition] || 'cloud') + '<b class="num">' + x.t + '°</b></div>').join('') + '</div></div>';
+}
+
+/** The label of a forecast day: "היום" for today, else the short weekday of the board's language (the date is a local calendar day). */
+function dayLabel(date: string, today: boolean): string {
+  if (today) return str(lang(), 'today').replace(/^./, (c) => c.toUpperCase());
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) return '';
+  try {
+    return new Intl.DateTimeFormat(lang() === 'en' ? 'en-GB' : 'he-IL', { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)));
+  } catch {
+    return date.slice(8) + '.' + date.slice(5, 7);
+  }
 }
 
 function chipsHtml(): string {
@@ -800,7 +824,7 @@ function emptyFeed(): Feed {
       template: 1, lang: 'he', theme: 'auto', day_hours: '', layout: 'auto', urgent: 'stage', mode: 'rotation', rotate_s: 12, hold: '', font_size: 's', font_scale: 1, place: '',
       blocks: { clock: true, hebdate: true, welcome: true, weather: false, info: [], promo: false, news: false, company_logo: false },
       weather: { hours: 5 }, news: { feeds: [], speed: 'normal' }, night: { enabled: true, from: '23:00', to: '06:00', dim: 0.5 }, burn_in: { shift: true }, saver: 'off', logos: 'a',
-      header: 'c', updated: 'full', space: 'bigger', night_logo: 'auto',
+      header: 'c', updated: 'full', space: 'bigger', night_logo: 'auto', weather_days: 0,
     } },
     now: new Date().toISOString(),
     notices: [],

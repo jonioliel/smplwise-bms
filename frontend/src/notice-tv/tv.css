@@ -477,3 +477,11 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 #cv.portrait .hd.one .offline span, #cv.portrait .hd.one .offline { white-space: normal; max-inline-size: 360px; }
 /* the template-2 photo header: the hairline reads on the photo too */
 #cv[data-tpl="2"] .hd.one { border-block-end-color: var(--line-2); }
+/* TVOPT-295 weather_days: the forecast row as days (today first) - the weekday over the icon, the high, the low under it in the quieter ink */
+.wx .hrs.days div { min-inline-size: calc(84px * var(--fs)); }
+.wx .hrs.days span { white-space: nowrap; }
+.wx .hrs.days i.lo { font-style: normal; font-size: calc(24px * var(--fs)); font-weight: 400; color: var(--ink-3); }
+/* template 3 keeps its one-line weather, so the days sit next to the current conditions instead of under them */
+#cv[data-tpl="3"] .bot .wx .hrs.days { display: flex; }
+#cv[data-tpl="3"]:not(.portrait) .bot .wx:has(.hrs.days) { display: flex; align-items: center; gap: calc(40px * var(--fs)); }
+#cv[data-tpl="3"]:not(.portrait) .bot .wx .hrs.days div { gap: 2px; }

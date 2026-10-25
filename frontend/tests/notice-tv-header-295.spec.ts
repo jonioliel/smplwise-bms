@@ -215,3 +215,43 @@ test('the TV screen carries no hint text for the new choices', async ({ page }) 
   const text = await page.locator('#cv .pg').innerText();
   for (const word of ['כותרת', 'הגובה', 'לפי הגדרות', 'כשאפשר']) expect(text).not.toContain(word);
 });
+
+// TVOPT-295 weather_days (owner 2026-10-25): today only, or today and up to five days; a source with fewer days shows what it has
+const DAYS = [
+  { date: '2026-10-23', t: 26, lo: 17, condition: 'sun' }, { date: '2026-10-24', t: 27, lo: 18, condition: 'cloudsun' }, { date: '2026-10-25', t: 24, condition: 'cloud' },
+  { date: '2026-10-26', t: 23, lo: 15, condition: 'cloud' }, { date: '2026-10-27', t: 25, lo: 16, condition: 'sun' },
+];
+for (const [w, h, name] of [[1920, 1080, 'landscape'], [1080, 1920, 'portrait']] as const) {
+  test(`weather days: as before / today only / N days / fewer days in the source - ${name}`, async ({ page }) => {
+    const withDays = (n: number) => (f: Feed) => { if (f.weather) f.weather.days = DAYS.slice(0, n); };
+    await open(page, { weather_days: 0 }, { w, h, feed: withDays(5) });
+    await expect(page.locator('#cv .wx .hrs:not(.days) > div')).toHaveCount(5); // the hourly row as before
+    await expect(page.locator('#cv .wx .hrs.days')).toHaveCount(0);
+    await open(page, { weather_days: 1 }, { w, h, feed: withDays(5) });
+    await expect(page.locator('#cv .wx .hrs')).toHaveCount(0);
+    await expect(page.locator('#cv .wx .now')).toBeVisible();
+    await open(page, { weather_days: 4 }, { w, h, feed: withDays(5) });
+    const cells = page.locator('#cv .wx .hrs.days > div');
+    await expect(cells).toHaveCount(4);
+    await expect(cells.first().locator('span')).toHaveText('היום');
+    await expect(cells.nth(1).locator('span')).toHaveText(/שבת|ש׳/); // 24.10.2026 is a Saturday
+    await expect(cells.nth(2).locator('i.lo')).toHaveCount(0); // no low in the source: none drawn
+    await expect(cells.first().locator('i.lo')).toHaveText('17°');
+    await open(page, { weather_days: 5 }, { w, h, feed: withDays(2) });
+    await expect(page.locator('#cv .wx .hrs.days > div')).toHaveCount(2);
+    await open(page, { weather_days: 5 }, { w, h, feed: withDays(1) });
+    await expect(page.locator('#cv .wx .hrs')).toHaveCount(0); // only today in the source: no row
+  });
+}
+
+test('weather days on template 3 (landscape) sit next to the current conditions and stay inside the canvas', async ({ page }) => {
+  await open(page, { template: 3, weather_days: 5 }, { feed: (f) => { if (f.weather) f.weather.days = DAYS; } });
+  await expect(page.locator('#cv .bot .wx .hrs.days > div')).toHaveCount(5);
+  await expect(page.locator('#cv .bot .wx .hrs.days')).toBeVisible();
+  const out = await page.evaluate(() => {
+    const cv = (document.getElementById('cv') as HTMLElement).getBoundingClientRect();
+    const r = (document.querySelector('#cv .bot .wx') as HTMLElement).getBoundingClientRect();
+    return r.left < cv.left - 1 || r.right > cv.right + 1 || r.bottom > cv.bottom + 1;
+  });
+  expect(out).toBe(false);
+});

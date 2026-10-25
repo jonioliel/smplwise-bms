@@ -10,10 +10,10 @@ import '../components/sw-state-panel';
 import { qrSvg } from '../components/sw-second-factor';
 import { ApiError, describeError } from '../api/client';
 import {
-  audienceOptions, boardControl, boardLink, createBoard, deleteBoard, getBoard, listBoards, listNotices, noticesSettings, patchBoard, patchNoticesSettings, putBoardItems,
+  audienceOptions, boardControl, boardLink, createBoard, deleteBoard, getBoard, listBoards, listNotices, noticesSettings, patchBoard, patchNoticesSettings, putBoardItems, putTvDefaults,
   getBoardLink, rotateBoardToken, type Board, type Notice, type SettingsResponse,
 } from '../api/notices';
-import type { Display } from '../notice-tv/tv-logic';
+import { effectiveTv, tvDefaultsOf, type Display, type TvDefaults } from '../notice-tv/tv-logic';
 import { nt } from '../i18n/notices';
 import { SEV_KEY, SEV_LOOK, agoText, boardDraft, draftOf, newDraft, placePresets, retentionOptions, seenState, slugOk, suggestSlug, windowText, type Draft } from '../notices/model';
 import '../notices/compose-dialog';
@@ -273,7 +273,30 @@ export class SystemNotices extends LitElement {
           <sw-button variant="primary" icon="plus" data-new-board ?disabled=${this.boards.length >= st.boards_max} @click=${() => this.openCreate()}>${nt('newBoard')}</sw-button></div>
         ${this.boards.length ? html`<div class="scrollx">${this.boardsTable()}</div><div class="cards">${this.boards.map((b) => this.boardCard(b))}</div>`
           : html`<sw-state-panel icon="wall" state="empty" heading=${nt('noBoards')} hint=${nt('boardsEmpty')} actionLabel=${nt('firstBoard')} @action=${() => this.openCreate()}></sw-state-panel>`}
-      </div>` : nothing}`;
+      </div>` : nothing}
+      ${st.enabled && can.boards ? this.tvDefaultsCard() : nothing}`;
+  }
+
+  /** TVOPT-295: the installation defaults of the four TV options (notices.boards, like a board's own screen settings). */
+  private tvDefaults(): TvDefaults {
+    return tvDefaultsOf(this.s?.settings.tv_defaults);
+  }
+
+  private tvDefaultsCard() {
+    return html`<div class="panel" data-tv-defaults-card><div class="hd"><h2>${nt('tvDefaultsCard')}</h2></div><div class="form">
+      <p class="hint">${nt('tvDefaultsHint')}</p>
+      <notice-display-layout mode="defaults" .defaults=${this.tvDefaults()} @defaults-change=${(e: CustomEvent<Partial<TvDefaults>>) => void this.saveTvDefaults(e.detail)}></notice-display-layout>
+    </div></div>`;
+  }
+
+  private async saveTvDefaults(body: Partial<TvDefaults>): Promise<void> {
+    try {
+      const r = await putTvDefaults(body);
+      if (this.s) this.s = { ...this.s, settings: { ...this.s.settings, tv_defaults: r.tv_defaults } };
+      this.say(nt('saved'));
+    } catch (e) {
+      this.say(describeError(e));
+    }
   }
 
   private defaultsCard() {
@@ -568,8 +591,8 @@ export class SystemNotices extends LitElement {
           <div class="chips"><label class="ck"><input type="checkbox" .checked=${d.burn_in.shift} @change=${(e: Event) => this.setD({ burn_in: { shift: (e.target as HTMLInputElement).checked } })}>${nt('burnIn')}</label>
             <label class="ck"><input type="checkbox" .checked=${d.blocks.company_logo} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, company_logo: (e.target as HTMLInputElement).checked } })}>${nt('companyLogo')}</label>
             <label class="ck"><input type="checkbox" checked disabled>${nt('smplwiseLogo')}</label></div>
-          <notice-display-layout .display=${d} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-layout>
-          <notice-display-saver .display=${d} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-saver>
+          <notice-display-layout .display=${d} .defaults=${this.tvDefaults()} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-layout>
+          <notice-display-saver .display=${effectiveTv(d, this.tvDefaults())} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-saver>
         </div></div>
       <div class="panel"><div class="hd"><h2>${nt('whatShown')}</h2><span class="sp"></span><sw-button size="sm" variant="primary" data-save-display ?disabled=${!this.dirty} @click=${() => this.saveAll()}>${nt('save')}</sw-button></div>
         <div class="blocks">

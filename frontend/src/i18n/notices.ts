@@ -351,6 +351,14 @@ const he = {
   nightLogo_plate: 'רקע לבן מתחת ללוגו',
   nightLogo_invert: 'היפוך צבעים כשאפשר',
   logosOnlyHeaderC: 'בכותרת "כמו היום" בלבד',
+  weatherDaysLabel: 'תחזית מזג האוויר',
+  weatherDays_0: 'כמו היום',
+  weatherDays_1: 'היום בלבד',
+  weatherDays_n: '{n} ימים',
+  tvUseDefault: 'ברירת מחדל',
+  tvDefaultNow: 'לפי ברירת המחדל: {v}',
+  tvDefaultsCard: 'ברירות מחדל למסכי הטלוויזיה',
+  tvDefaultsHint: 'לכל לוח שלא נבחר בו ערך משלו, וללוחות חדשים.',
 };
 
 type Key = keyof typeof he;
@@ -386,6 +394,9 @@ const en: Partial<Record<Key, string>> = {
   spaceLabel: 'The freed height', space_bigger: 'Larger clock, weather and notice', space_more: 'One more card or row', space_mix: 'Both',
   spaceOnlyOneRow: 'With a one-row header only', nightLogoLabel: 'Company logo at night', nightLogo_auto: 'As the logo settings say',
   nightLogo_plate: 'White background under the logo', nightLogo_invert: 'Invert the colours when possible', logosOnlyHeaderC: 'With the "As before" header only',
+  weatherDaysLabel: 'Weather forecast', weatherDays_0: 'As before', weatherDays_1: 'Today only', weatherDays_n: '{n} days',
+  tvUseDefault: 'Default', tvDefaultNow: 'Following the default: {v}', tvDefaultsCard: 'TV screen defaults',
+  tvDefaultsHint: 'For every board that has no value of its own, and for new boards.',
 };
 
 export type NtKey = Key;

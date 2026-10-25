@@ -3,7 +3,7 @@
  * The TV page (src/notice-tv/) has its own fetch of the display feed and never imports this file.
  */
 import { api, del, get, patch, post, put } from './client';
-import type { Display } from '../notice-tv/tv-logic';
+import type { Display, TvDefaults } from '../notice-tv/tv-logic';
 
 export type Severity = 'info' | 'alert' | 'critical';
 export type NoticeState = 'draft' | 'scheduled' | 'active' | 'expired' | 'archived';
@@ -87,6 +87,8 @@ export interface NoticesSettings {
   building_name: string;
   boards_origin: string;
   news_sources: { id: string; name: string; url: string }[];
+  /** TVOPT-295: the installation defaults of the four TV options (absent from an older backend) */
+  tv_defaults?: TvDefaults;
 }
 
 export interface SettingsResponse {
@@ -117,7 +119,9 @@ export interface NoticeInput {
 
 export const noticesModule = () => get<{ enabled: boolean; can: NoticesCan }>('notices/module');
 export const noticesSettings = () => get<SettingsResponse>('notices/settings');
-export const patchNoticesSettings = (body: Partial<Omit<NoticesSettings, 'news_sources'>>) => patch<{ settings: NoticesSettings }>('notices/settings', body);
+export const patchNoticesSettings = (body: Partial<Omit<NoticesSettings, 'news_sources' | 'tv_defaults'>>) => patch<{ settings: NoticesSettings }>('notices/settings', body);
+/** TVOPT-295: the installation defaults of the four TV options (notices.boards) */
+export const putTvDefaults = (body: Partial<TvDefaults>) => put<{ tv_defaults: TvDefaults }>('notices/tv-defaults', body);
 export const uploadCompanyLogo = (file: File) => {
   const form = new FormData();
   form.append('file', file);

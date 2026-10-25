@@ -38,6 +38,22 @@ HEADERS = ("a", "b", "c")
 UPDATED_LINES = ("full", "time", "issues")
 SPACE_USES = ("bigger", "more", "mix")
 NIGHT_LOGOS = ("auto", "plate", "invert")
+#  weather_days (owner 2026-10-25): the forecast row of the weather block - 0 = as before (the entity's forecast entries, up to
+#              `weather.hours`; the factory default, so nothing changes), 1 = today only (no forecast row), 2..5 = today and the
+#              next days, one cell per local day (a source with fewer days shows the days it has)
+WEATHER_DAYS = (0, 1, 2, 3, 4, 5)
+# TVOPT-295 (owner 2026-10-25): an installation-wide default for each of these choices (settings `notices.tv.*`, edited with
+# notices.boards). A board's display JSON holds a key only when the board chose its own value; a board without it - every board
+# saved before, every new board - follows the installation default, which starts at c / full / bigger / auto / 0 (the screen as it was).
+TV_CHOICES: dict[str, tuple[Any, ...]] = {"header": HEADERS, "updated": UPDATED_LINES, "space": SPACE_USES, "night_logo": NIGHT_LOGOS, "weather_days": WEATHER_DAYS}
+TV_FACTORY: dict[str, Any] = {"header": "c", "updated": "full", "space": "bigger", "night_logo": "auto", "weather_days": 0}
+TV_SETTING: dict[str, str] = {k: f"notices.tv.{k}" for k in TV_CHOICES}
+
+
+def tv_value_ok(key: str, v: Any) -> bool:
+    """One value of a TV choice: the exact type of its list (no True for 1, no "3" for 3) and inside the list."""
+    allowed = TV_CHOICES[key]
+    return type(v) is type(allowed[0]) and v in allowed
 
 PERM_VIEW, PERM_MANAGE, PERM_PUSH, PERM_BOARDS = "notices.view", "notices.manage", "notices.push", "notices.boards"
 
@@ -67,6 +83,8 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     # the origin the TV links point to: the LAN listener as the owner mapped it (e.g. http://<host>:18094) or the remote address;
     # empty = the address the manager uses (the Settings screen says so)
     "notices.boards.origin": "",
+    # TVOPT-295: the installation defaults of the four TV options (written by PUT /notices/tv-defaults, notices.boards)
+    **{TV_SETTING[k]: str(v) for k, v in TV_FACTORY.items()},
 }
 
 
@@ -154,7 +172,7 @@ DISPLAY_DEFAULTS: dict[str, Any] = {
     "night": {"enabled": True, "from": "23:00", "to": "06:00", "dim": 0.5},
     "burn_in": {"shift": True},
     "saver": "wash", "logos": "a",
-    "header": "c", "updated": "full", "space": "bigger", "night_logo": "auto",
+    # TVOPT-295: header / updated / space / night_logo are absent here on purpose - absent = the installation default (TV_SETTING)
 }
 
 
@@ -225,9 +243,14 @@ def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
     take("saver", v in SAVERS, v)
     v = src.get("logos")
     take("logos", v in LOGO_LAYOUTS, v)
-    for key, allowed in (("header", HEADERS), ("updated", UPDATED_LINES), ("space", SPACE_USES), ("night_logo", NIGHT_LOGOS)):
-        v = src.get(key)
-        take(key, isinstance(v, str) and v in allowed, v)
+    for key, allowed in TV_CHOICES.items():  # TVOPT-295: kept only when the board chose its own value; null = follow the default
+        if key not in src or src[key] is None:
+            continue
+        v = src[key]
+        if tv_value_ok(key, v):
+            d[key] = v
+        elif strict:
+            raise Invalid(f"display.{key}", "ערך לא תקין.")
     v = src.get("place")
     take("place", isinstance(v, str) and len(v.strip()) <= PLACE_MAX and not any(ord(c) < 32 for c in v), v.strip() if isinstance(v, str) else "")
 
@@ -285,6 +308,40 @@ def merge_display(current: dict[str, Any], patch: dict[str, Any]) -> dict[str, A
     return normalize_display(merged, strict=True)
 
 
+def effective_display(disp: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
+    """TVOPT-295: the display the TV draws - the board's own choice of each TV option, else the installation default."""
+    def pick(k: str) -> Any:
+        if disp.get(k) is not None and tv_value_ok(k, disp[k]):
+            return disp[k]
+        v = defaults.get(k)
+        return v if v is not None and tv_value_ok(k, v) else TV_FACTORY[k]
+    return {**disp, **{k: pick(k) for k in TV_CHOICES}}
+
+
+def tv_defaults_doc(get: Any) -> dict[str, Any]:
+    """The installation defaults of the TV options (stored as strings); a stored value outside the list reads as the factory value."""
+    out: dict[str, Any] = {}
+    for k in TV_CHOICES:
+        raw = get(TV_SETTING[k], str(TV_FACTORY[k])) or str(TV_FACTORY[k])
+        v: Any = raw
+        if isinstance(TV_FACTORY[k], int):
+            v = int(raw) if str(raw).isdigit() else None
+        out[k] = v if v is not None and tv_value_ok(k, v) else TV_FACTORY[k]
+    return out
+
+
+def tv_defaults_values(patch: dict[str, Any]) -> dict[str, str]:
+    """A defaults patch -> the stored strings, validated like a board's own value (Invalid on an unknown key or value)."""
+    out: dict[str, str] = {}
+    for k, v in (patch or {}).items():
+        if k not in TV_CHOICES:
+            raise Invalid(k, "הגדרה לא מוכרת.")
+        if not tv_value_ok(k, v):
+            raise Invalid(k, "ערך לא תקין.")
+        out[TV_SETTING[k]] = str(v)
+    return out
+
+
 def load_display(raw_json: str | None) -> dict[str, Any]:
     try:
         raw = json.loads(raw_json or "{}")
@@ -329,6 +386,7 @@ def settings_doc(get: Any) -> dict[str, Any]:
         "building_name": raw["notices.building_name"][:60],
         "boards_origin": raw["notices.boards.origin"],
         "news_sources": CURATED_NEWS,
+        "tv_defaults": tv_defaults_doc(lambda k, dflt: raw.get(k, dflt)),
     }
 
 
