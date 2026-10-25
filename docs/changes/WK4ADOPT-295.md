@@ -79,3 +79,27 @@ Adopted in `services/wiskey_capture_map.py` (CAPMAP, `MAPPING_ENABLED` stays Fal
 - Already true and unchanged: `wiskey_capture_direct.NOT_SENT_CODES` treats `capture_source_unavailable` as not sent - Mac's dispatch
   knowledge confirms it proves no call by THIS invocation only.
 - Not done here (separate 2.21.0 conditions): emergency revoke, card-capture go-live, `capture_lease.GO_LIVE_PERMITTED`.
+
+## W-010 - dedicated LiveRegistryTransport and LiveResolveTransport
+
+Contract: `W010_PEER_QUERY_V1.json` (WisKey `peer_server` / `peer_client` / `direct_dispatch`, CODE 924df3e9). The WisKey-side portable
+transports log in to HA with a user token; Arx's owner of the verified connection is the direct join
+(`services/wiskey_direct_join.py`: `DirectCommandSession` + `DirectCapturePort`, one authenticated `direct/connect` socket, every reply's
+MAC + connection_ref + id verified before `result` is read). WisKey's `direct_dispatch` accepts the four peer commands on that socket
+with `wiskey-peer-query.v1` and binds them to the server-issued subject `arx-service:<entry>`.
+
+Built (fakes only):
+- `wiskey_peer_registry.LiveRegistryTransport(port)` - `peer_bindings/get {peer_binding_ref, peer_binding_revision}`; `attestation()`
+  from the connection's own identity; without a port it still refuses `not_built` (no frame).
+- `wiskey_intents.LiveResolveTransport(port)` - `peer_receipts/resolve` with exactly `wiskey_peer.resolve_parameters` (current read
+  binding + full original); `read()` never raises; `resolve_intent()` settles through `settle_resolution`.
+- `wiskey_peer.peer_read` / `PeerReadReceipt` (result | refused | not_sent | unknown) and `attest_port`.
+- `wiskey_peer.is_query_owner_id`: the query owner may be an HA user id OR the direct subject `arx-service:[A-Za-z0-9_.-]{1,96}`
+  (OwnerPin, attestation, minting and the binding row). Still: the owner pin must match, the attestation comes from the transport only.
+- `DirectJoin.registry_transport` / `.resolve_transport` are built by `startup` on the join's port. Their clients stay behind the
+  existing gates (`wiskey.peer_receipt` switch off by default, owner pin `wiskey.peer_pin`); nothing calls them on a schedule.
+
+Receipts (tests): found -> committed once; `unknown` result, a verified refusal, a disconnect, a timeout, a malformed row -> UNKNOWN,
+never never_committed, the intent is never sendable again (no replay), each read is sent once. Vectors stay W-008.
+Missing on WisKey's side: nothing for the direct path per the contract; whether the owner pins a binding whose `query_owner_id` is the
+direct subject is an owner/WisKey bootstrap step (`peer_bindings/get {initialize: true, expected_revision: 0}` is NOT called by Arx).

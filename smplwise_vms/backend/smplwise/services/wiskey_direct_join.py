@@ -321,6 +321,10 @@ class DirectJoin:
         self._recover_lock = threading.Lock()
         self.lease_transport: Any = None
         self.template_transport: Any = None
+        # WK4ADOPT-295 (W-010): the dedicated live peer reads over this session's verified connection (peer_bindings/get and
+        # peer_receipts/resolve, wiskey-peer-query.v1). Built here, used only by their seam clients (go-live switch + owner pin).
+        self.registry_transport: Any = None
+        self.resolve_transport: Any = None
 
     def __repr__(self) -> str:
         return f"DirectJoin(session={self.session!r})"
@@ -532,6 +536,11 @@ def startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | No
     join.lease_transport = SelectingLeaseTransport(join, wiskey_capture_direct.DirectLeaseTransport(join.capture_port),
                                                    lease_events.BridgeLeaseTransport())
     join.template_transport = wiskey_template_direct.DirectTemplateTransport(join.capture_port)
+    from .wiskey_intents import LiveResolveTransport
+    from .wiskey_peer_registry import LiveRegistryTransport
+
+    join.registry_transport = LiveRegistryTransport(join.capture_port)
+    join.resolve_transport = LiveResolveTransport(join.capture_port)
     lease_events.set_transport(join.lease_transport)
     wts.TRANSPORT_PROVIDER = join.template_or_none
     JOIN = join

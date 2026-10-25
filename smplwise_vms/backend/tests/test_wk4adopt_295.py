@@ -586,3 +586,127 @@ def test_w005_provenance_keeps_where_an_outcome_came_from_and_never_permits_a_re
     assert cm.provenance(("unknown", {"code": "invalid_response"})).phase == "unknown"
     assert cm.provenance(object()).phase == "unknown"
     assert not any(cm.provenance(x).replay_permitted for x in (("sent_unknown", {}), ("unknown", {}), cm.CaptureUnsupported("mapping_disabled")))
+
+
+# ================================================================ W-010: dedicated LiveRegistryTransport / LiveResolveTransport
+
+import sqlite3 as _sqlite3  # noqa: E402
+
+from test_wkjoin_295 import JoinServer  # noqa: E402
+from w10_fake_station import SECRET as _SECRET  # noqa: E402
+
+from smplwise.services import wiskey_direct_join as join  # noqa: E402
+from smplwise.services import wiskey_intents as wi  # noqa: E402
+from smplwise.services import wiskey_peer as wp  # noqa: E402
+from smplwise.services import wiskey_peer_registry as wr  # noqa: E402
+
+P_REPO = "11111111-2222-4333-8444-555555555555"
+P_OWNER = "arx-service:entry-1"  # the JoinServer's server-issued subject
+P_BINDING, P_REV, P_PEER = "bind-1", 2, "peer-arx-1"
+MIG_0145 = BACKEND / "smplwise" / "migrations" / "0145_wiskey_peer_intents_feature_registry.sql"
+
+
+def _row(state: str = "active", **kw: Any) -> dict[str, Any]:
+    row = {"schema_version": 1, "protocol": wr.PROTOCOL, "verified_peer_ref": P_PEER, "peer_binding_ref": P_BINDING,
+           "peer_binding_revision": P_REV, "query_owner_id": P_OWNER, "repository_id": P_REPO, "allowed_read_scope": wr.READ_SCOPE,
+           "state": state, "active": state == "active", "historical_read": False, "successor": None}
+    return {**row, **kw}
+
+
+@pytest.fixture()
+def peer_env() -> Any:
+    server = JoinServer(repository_id=P_REPO)
+    transport = bridge.DirectApiTransport(server.opener, lambda: _SECRET)
+    session = join.DirectCommandSession(transport)
+    port = join.DirectCapturePort(session)
+    yield SimpleNamespace(server=server, session=session, port=port, registry=wr.LiveRegistryTransport(port, timeout_s=0.5),
+                          resolve=wi.LiveResolveTransport(port, timeout_s=0.5))
+    try:
+        session.run_sync(server.stop(), 5)
+    except Exception:  # noqa: BLE001
+        pass
+    session.close()
+
+
+def _client(env: Any) -> wr.RegistryClient:
+    env.session.connect_ready(2)
+    pin = wr.OwnerPin(P_OWNER, P_REPO, P_PEER, P_BINDING, P_REV)
+    return wr.RegistryClient(env.registry, pin, env.registry.attestation())
+
+
+def test_w010_without_a_port_the_live_reads_still_refuse_not_built_and_send_nothing():
+    with pytest.raises(wr.RegistryRefused) as reg:
+        wr.LiveRegistryTransport().peer_binding_get(P_BINDING, P_REV)
+    assert reg.value.code == "not_built"
+    peer = wp._mint_peer(value=P_PEER, peer_binding_ref=P_BINDING, peer_binding_revision=P_REV, repository_id=P_REPO, query_owner_id=P_OWNER)
+    verdict, receipt = wi.LiveResolveTransport().read(peer, wp.ResolveOriginal.of(peer, descriptor_epoch="e1", descriptor={"r": 1}))
+    assert (verdict.state, verdict.code, receipt) == ("unknown", "not_built", None)
+
+
+def test_w010_the_registry_read_goes_signed_over_the_verified_connection_and_a_found_row_mints_the_peer(peer_env):
+    peer_env.server.script["peer_bindings/get"] = {"result": _row()}
+    client = _client(peer_env)
+    assert client.attestation.query_owner_id == P_OWNER, "attested from the connection's own identity"
+    verdict = client.current()
+    assert verdict.ok and verdict.peer.value == P_PEER and verdict.peer.query_owner_id == P_OWNER
+    (command, kind, params), = [r for r in peer_env.server.received if r[0] == "peer_bindings/get"]
+    assert kind == "wiskey-peer-query.v1" and params == {"peer_binding_ref": P_BINDING, "peer_binding_revision": P_REV}
+    assert peer_env.registry.receipts == [wp.PeerReadReceipt("peer_bindings/get", "result")]
+
+
+@pytest.mark.parametrize("act, outcome", [({"error": "binding_denied"}, "refused"), ("close", "unknown"), ("drop", "unknown"),
+                                          ({"result": {"unexpected": True}}, "result")])
+def test_w010_a_refusal_a_disconnect_a_timeout_or_a_malformed_row_is_never_a_binding(peer_env, act, outcome):
+    peer_env.server.script["peer_bindings/get"] = act
+    verdict = _client(peer_env).current()
+    assert verdict.ok is False and verdict.code in ("unknown", "malformed") and verdict.peer is None
+    assert peer_env.registry.receipts[-1].outcome == outcome and not peer_env.registry.receipts[-1].replay_permitted
+    assert len([r for r in peer_env.server.received if r[0] == "peer_bindings/get"]) == 1, "never retried"
+
+
+def _intent(c: _sqlite3.Connection, peer: Any) -> Any:
+    o = wi.admit(c, peer=peer, operation_id="op-1", request_id="req-1", origin_ref="origin-1", operation_binding_ref="obr-1",
+                 issued_epoch=1, command="users/update", user_id="u-1", revision_before=4)
+    wi.mark_sent(c, o)
+    return o
+
+
+@pytest.mark.parametrize("act, settle, state, outcome", [
+    ({"result": {"schema_version": 1, "state": "found", "receipt": {"central_state": "committed", "device_application": "unknown",
+                                                                   "signed_capture_covered": False, "person_revision": 5}}},
+     "settled", "committed", "result"),
+    ({"result": {"schema_version": 1, "state": "unknown", "receipt": None}}, "open", "unknown", "result"),
+    ({"error": "original_reference_mismatch"}, "open", "unknown", "refused"),
+    ("close", "open", "unknown", "unknown"),
+])
+def test_w010_resolve_found_settles_once_and_unknown_refusal_disconnect_stay_open_and_unsendable(peer_env, act, settle, state, outcome):
+    peer_env.server.script["peer_bindings/get"] = {"result": _row()}
+    peer_env.server.script["peer_receipts/resolve"] = act
+    current = _client(peer_env).current().peer
+    c = _sqlite3.connect(":memory:")
+    c.executescript(MIG_0145.read_text(encoding="utf-8"))
+    o = _intent(c, current)
+    original = wp.ResolveOriginal.of(current, descriptor_epoch="epoch-7", descriptor={"request": {"id": "req-1"}, "action": "users/update"})
+    result, verdict, receipt = wi.resolve_intent(c, o, original, current, peer_env.resolve)
+    assert (result, wi.state(c, o), receipt.outcome) == (settle, state, outcome)
+    assert verdict.replay_permitted is False and wi.state(c, o) != "never_committed"
+    with pytest.raises(wi.IntentError):
+        wi.mark_sent(c, o)  # an UNKNOWN (or settled) intent can never be sent again: no replay
+    sent = [p for cmd, _k, p in peer_env.server.received if cmd == "peer_receipts/resolve"]
+    assert len(sent) == 1 and sent[0] == wp.resolve_parameters(current, original), "the exact original, once"
+
+
+def test_w010_the_direct_join_owns_both_dedicated_transports(monkeypatch):
+    monkeypatch.setattr(join, "JOIN", None)
+    from smplwise.services import lease_events
+    from smplwise.services import wa_template_send as wts
+
+    saved = (lease_events.TRANSPORT, wts.TRANSPORT_PROVIDER)
+    try:
+        installed = join.startup(None, SimpleNamespace(), opener=lambda: None, open_lineage=False, provider_reader=lambda: True,
+                                 key_reader=lambda: _SECRET)
+        assert isinstance(installed.registry_transport, wr.LiveRegistryTransport) and installed.registry_transport.port is installed.capture_port
+        assert isinstance(installed.resolve_transport, wi.LiveResolveTransport) and installed.resolve_transport.port is installed.capture_port
+    finally:
+        join.shutdown()
+        lease_events.TRANSPORT, wts.TRANSPORT_PROVIDER = saved

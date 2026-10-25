@@ -72,6 +72,9 @@ FORBIDDEN_PEER_SOURCES = frozenset({
 
 REF_RE = re.compile(r"[^\x00-\x1f]{1,128}")  # 1..128 code points, no C0 control (the WisKey reference syntax)
 HA_USER_ID_RE = re.compile(r"[0-9a-f]{32}")
+# WK4ADOPT-295 (W-010): the direct API's server-issued pairing-service subject (`direct/connect` -> query_owner_id). WisKey's peer server
+# binds the peer reads to `proof.query_owner_id`, which on the direct path is this subject, never an HA user.
+SERVICE_OWNER_RE = re.compile(r"arx-service:[A-Za-z0-9_.-]{1,96}")
 UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")  # canonical lowercase only
 
 
@@ -103,6 +106,11 @@ MAX_JSON_INT = 2 ** 53 - 1  # ECCACT-295 (agreed with WisKey 2026-10-21): every 
 
 def is_pos_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= MAX_JSON_INT
+
+
+def is_query_owner_id(value: Any) -> bool:
+    """The dedicated query owner of a peer read: an HA user id (the HA WebSocket path) or the direct pairing-service subject."""
+    return is_ha_user_id(value) or (isinstance(value, str) and SERVICE_OWNER_RE.fullmatch(value) is not None)
 
 
 def is_uuid(value: Any) -> bool:
@@ -181,7 +189,7 @@ class VerifiedPeerRef(_Sealed):
 def attest_transport(*, authenticated_user_id: Any, connection_ref: Any) -> TransportAttestation:
     """The transport boundary ONLY: called with the user id the authenticated connection itself reported. Not called anywhere in
     the product today (nothing is wired)."""
-    if not is_ha_user_id(authenticated_user_id) or not is_ref(connection_ref):
+    if not is_query_owner_id(authenticated_user_id) or not is_ref(connection_ref):
         raise PeerSeamError("invalid_attestation")
     return TransportAttestation(_seal=_SEAL, query_owner_id=authenticated_user_id, connection_ref=connection_ref)
 
@@ -189,7 +197,7 @@ def attest_transport(*, authenticated_user_id: Any, connection_ref: Any) -> Tran
 def _mint_peer(*, value: str, peer_binding_ref: str, peer_binding_revision: int, repository_id: str, query_owner_id: str) -> VerifiedPeerRef:
     """Registry client only (services/wiskey_peer_registry.py), after a strict registry answer matched the owner pin."""
     if not (is_ref(value) and is_ref(peer_binding_ref) and is_pos_int(peer_binding_revision) and is_uuid(repository_id)
-            and is_ha_user_id(query_owner_id)):
+            and is_query_owner_id(query_owner_id)):
         raise PeerSeamError("invalid_peer")
     return VerifiedPeerRef(_seal=_SEAL, value=value, peer_binding_ref=peer_binding_ref, peer_binding_revision=peer_binding_revision,
                            repository_id=repository_id, query_owner_id=query_owner_id)
@@ -493,6 +501,52 @@ def verify_resolution(frame: Any) -> ResolutionVerdict:
             or receipt.get("signed_capture_covered") is not False):
         return _resolution_unknown("receipt_unverified")
     return ResolutionVerdict("committed", True, "found", json.loads(_canonical(receipt)))
+
+
+# ---------------------------------------------------------------- WK4ADOPT-295 (W-010): the dedicated live peer reads
+
+PEER_READ_TIMEOUT_S = 10.0
+PEER_READ_OUTCOMES = ("result", "refused", "not_sent", "unknown")
+
+
+@dataclass(frozen=True)
+class PeerReadReceipt:
+    """What ONE peer read did on the wire (never a value of it): the command, `outcome` result | refused | not_sent | unknown and a code.
+    `not_sent` only when the transport proved no byte left; a disconnect / timeout / unverifiable frame is `unknown`."""
+
+    command: str
+    outcome: str
+    code: str | None = None
+
+    @property
+    def replay_permitted(self) -> bool:
+        return False
+
+
+def peer_read(port: Any, command: str, parameters: dict[str, Any], *, timeout_s: float = PEER_READ_TIMEOUT_S) -> tuple[dict[str, Any] | None, PeerReadReceipt]:
+    """One signed `wiskey-peer-query.v1` read through the Arx-side owner of the verified connection (`wiskey_direct_join`'s port: the
+    reply's MAC, connection_ref and id are verified there before `result` is read). Returns (frame, receipt): the native result frame
+    `{type, id, success, result|error}` for the verifiers of this module and the registry client, or None when no verified answer
+    exists. Never raises, never retries, never re-sends on another connection."""
+    try:
+        result = port.call(command, parameters, timeout_s=timeout_s)
+    except Exception as exc:  # noqa: BLE001 - PortError carries the outcome; anything else may have left: unknown
+        outcome = getattr(exc, "outcome", "unknown")
+        code = getattr(exc, "code", None) or type(exc).__name__
+        if outcome == "refused":
+            return ({"type": "result", "id": 1, "success": False, "error": {"code": code}},
+                    PeerReadReceipt(command, "refused", code))
+        return None, PeerReadReceipt(command, "not_sent" if outcome == "not_sent" else "unknown", code)
+    if not isinstance(result, dict):
+        return None, PeerReadReceipt(command, "unknown", "invalid_response")
+    return {"type": "result", "id": 1, "success": True, "result": result}, PeerReadReceipt(command, "result")
+
+
+def attest_port(port: Any) -> TransportAttestation:
+    """The attestation of the CURRENT authenticated connection, from the transport's own identity (`direct/connect`), never from a
+    request's actor fields."""
+    ident = port.identity()
+    return attest_transport(authenticated_user_id=getattr(ident, "query_owner_id", None), connection_ref=getattr(ident, "connection_ref", None))
 
 
 class OneCommitLedger:
