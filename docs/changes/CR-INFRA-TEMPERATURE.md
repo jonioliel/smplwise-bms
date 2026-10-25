@@ -202,3 +202,23 @@ the link and hands it on himself. Migrations: none (it uses `outbound_documents`
 The external-backup key export dialog (Settings > Diagnostics > Backup and restore) now states, in he / en / ar / ru, what the key is, that
 without it a backup cannot be restored, that losing it loses the backup, and that it must be stored outside the system, and the export
 button works only after the user ticks the acknowledgement (and types EXPORT, as before). `keyExportReady()` is the gate. The crypto is unchanged.
+
+## 14. WALINK-295: the temporary link sent as a plain-text WhatsApp message (pilot/WALINK-295, on top of TEMPLINK-295)
+
+Section 12 left the hand-over to the creator. This adds one optional step: the creator (or a manager) sends a LIVE link to the recipients the
+installation configured. No new transport and no migration: the send uses the account of the use `infra.temperature.reports`, the shared pacing
+ledger, `WhatsAppChannel` (`whatsapp.send_message`, text only) and `notify_whatsapp.resolve_number` (own opt-in and verification).
+
+* **Settings** (installation, Settings > Infrastructure > Temperatures > "sending the link by WhatsApp"; all editable, OFF by default):
+  `report_link_wa_enabled`, `report_link_wa_recipients` (user ids, at most 30), `report_link_wa_text_he` / `_en` (`{link}` required, `{hours}`
+  optional, at most 300 characters), `report_link_wa_window_h` (session window, 1-72, default 24). The link lifetime stays `report_link_hours`.
+* **Permission** `infra.temperature.report_link_send` (site_admin, system_admin by default; editable per role), in addition to `report_link`.
+* **Gate** (owner decision 25.10: the template-send support flag is NOT required): a recipient is `not_sendable` - typed, audited, never shown as
+  sent - when there is no number (`no_address`), no consent (`no_consent`) or the recipient did not write to us within the session window
+  (`no_session_window`, read from `ticket_inbound` by HMAC of the number). With an open window the plain text is sent. Provider outcomes: `failed`
+  (`provider_refused`, `unknown_outcome` which is never retried, `rate_limited`, `channel_unavailable`, `channel_down`).
+* **API**: `POST /infra/temperature/report/links/{id}/send` (200 with `status` = sent | partial | not_sendable | failed and one typed row per
+  recipient; 409 `report_link_wa_off` / `report_link_wa_none` / `report_link_not_live`; 404 for a link that is not the caller's); `GET .../report/links`
+  gained `whatsapp.available`.
+* **Audit**: `infra.temperature.report.link.send` - counts and per-recipient user id, status and reason code; never a number, the text or the link.
+* **Dialog**: a "send by WhatsApp" button on the link row (only when the server says it is available) and one short status per recipient.

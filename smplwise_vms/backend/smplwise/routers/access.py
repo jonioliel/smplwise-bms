@@ -349,6 +349,8 @@ PERMISSION_LABELS: dict[str, str] = {
     # TEMPLINK-295: create / revoke a temporary download link of a temperature report (site_admin, system_admin; installation scope; the
     # feature itself is OFF until the temperature settings turn it on)
     "infra.temperature.report_link": "טמפרטורות: יצירה וביטול של קישור הורדה זמני לדוח",
+    # WALINK-295: send that link as a plain-text WhatsApp message to the recipients the settings name (site_admin, system_admin; OFF until the settings turn it on)
+    "infra.temperature.report_link_send": "טמפרטורות: שליחת קישור הדוח בוואטסאפ לנמענים שהוגדרו",
     # CR-INSIGHT215 (2.15.0): read-only insights (door openings without an entry event, waste) scoped by the entity they are about; their
     # thresholds and door pairs; the monthly building report (installation). Defaults: site_admin, system_admin. Every part ships OFF.
     "insights.read": "תובנות: פתיחות דלת לא מוסברות וצריכת אנרגיה",

@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
-import { createReportLink, downloadReportPdf, getReportLinks, getReportPreview, revokeReportLink, type ReportLinkCreated, type ReportModel, type ReportParams, type ReportRange, type TempUnit } from '../api/temperature';
+import { createReportLink, downloadReportPdf, getReportLinks, getReportPreview, revokeReportLink, sendReportLink, type LinkSendResponse, type ReportLinkCreated, type ReportModel, type ReportParams, type ReportRange, type TempUnit } from '../api/temperature';
 import { REPORT_RANGES, deg, durationText, eventText, friendlyName, localInput } from './model';
 import { bigChart } from './charts';
 import { tempCss } from './styles';
@@ -31,6 +31,9 @@ export class TempReport extends LitElement {
   /** infra.temperature.report_link: the button shows only when the server also says the feature is on */
   @property({ type: Boolean }) canLink = false;
   @state() private linkOn = false;
+  /** WALINK-295 */
+  @state() private waOn = false;
+  @state() private waSent: LinkSendResponse | null = null;
   @state() private link: ReportLinkCreated | null = null;
   @state() private copied = false;
   @state() private p: ReportParams = { units: [], range: '24h', lang: 'he', chart: true, events: true, signature: true };
@@ -118,7 +121,7 @@ export class TempReport extends LitElement {
     this.p = { ...this.p, units: this.preselect.length ? [...this.preselect] : this.units.slice(0, 1).map((u) => u.id), lang: document.documentElement.lang.startsWith('en') ? 'en' : 'he',
       from: localInput(now - 7 * 86400_000), to: localInput(now) };
     this.refresh();
-    if (this.canLink) void getReportLinks().then((r) => { this.linkOn = r.available; }, () => { this.linkOn = false; });
+    if (this.canLink) void getReportLinks().then((r) => { this.linkOn = r.available; this.waOn = r.available && r.whatsapp?.available === true; }, () => { this.linkOn = false; this.waOn = false; });
   }
 
   disconnectedCallback() {
@@ -203,6 +206,7 @@ export class TempReport extends LitElement {
     this.busy = true;
     this.err = '';
     this.copied = false;
+    this.waSent = null;
     try {
       this.link = await createReportLink(this.params());
     } catch (e) {
@@ -210,6 +214,12 @@ export class TempReport extends LitElement {
     } finally {
       this.busy = false;
     }
+  }
+
+  private waText(status: string, reason: string | null): string {
+    const head = status === 'sent' ? tt('repLinkWaSent') : status === 'not_sendable' ? tt('repLinkWaNotSendable') : tt('repLinkWaFailed');
+    const key = `waR_${reason ?? ''}` as TtKey;
+    return reason ? `${head} - ${tt(key) === key ? reason : tt(key)}` : head;
   }
 
   private async copyLink() {
@@ -221,11 +231,26 @@ export class TempReport extends LitElement {
     }
   }
 
+  /** WALINK-295: the link as a plain-text WhatsApp message to the recipients the settings name; the answer is typed per recipient. */
+  private async sendLink() {
+    if (!this.link) return;
+    this.busy = true;
+    this.err = '';
+    try {
+      this.waSent = await sendReportLink(this.link.id);
+    } catch (e) {
+      this.err = describeError(e);
+    } finally {
+      this.busy = false;
+    }
+  }
+
   private async revokeLink() {
     if (!this.link) return;
     try {
       await revokeReportLink(this.link.id);
       this.link = null;
+      this.waSent = null;
       this.dispatchEvent(new CustomEvent('done', { detail: tt('repLinkRevoked') }));
     } catch (e) {
       this.err = describeError(e);
@@ -321,7 +346,9 @@ export class TempReport extends LitElement {
           <input class="in" dir="ltr" readonly .value=${this.link.url} aria-label=${tt('repLink')} data-rep-link-url @focus=${(e: Event) => (e.target as HTMLInputElement).select()} />
           <button type="button" class="btn sm" data-rep-link-copy @click=${() => this.copyLink()}><sw-icon name="copy" size="14"></sw-icon>${this.copied ? tt('repLinkCopied') : tt('repLinkCopy')}</button>
           <span class="hint">${tt('repLinkUntil', { t: dayTimeText(new Date(this.link.expires_at)) })}</span>
-          <button type="button" class="btn sm ghost" data-rep-link-revoke @click=${() => this.revokeLink()}>${tt('repLinkRevoke')}</button></div>` : nothing}
+          ${this.waOn ? html`<button type="button" class="btn sm" ?disabled=${this.busy} data-rep-link-wa @click=${() => this.sendLink()}><sw-icon name="share" size="14"></sw-icon>${tt('repLinkWa')}</button>` : nothing}
+          <button type="button" class="btn sm ghost" data-rep-link-revoke @click=${() => this.revokeLink()}>${tt('repLinkRevoke')}</button></div>
+          ${this.waSent ? html`<div class="wl" data-rep-link-wa-result>${this.waSent.results.map((x) => html`<span class="hint" data-wa-status=${x.status}>${x.name}: ${this.waText(x.status, x.reason)}</span>`)}</div>` : nothing}` : nothing}
         <div class="wf">
           ${this.canSend ? html`<button type="button" class="btn" ?disabled=${!p.units.length} data-rep-wa @click=${() => this.dispatchEvent(new CustomEvent('whatsapp', { detail: this.params() }))}><sw-icon name="share" size="16"></sw-icon>${tt('repWa')}</button>` : nothing}
           ${this.canLink && this.linkOn ? html`<button type="button" class="btn" ?disabled=${this.busy || !p.units.length} data-rep-link @click=${() => this.makeLink()}><sw-icon name="link" size="16"></sw-icon>${tt('repLink')}</button>` : nothing}

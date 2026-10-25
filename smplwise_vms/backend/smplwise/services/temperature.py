@@ -104,6 +104,13 @@ INSTALLATION: dict[str, tuple[str, Any, float | None, float | None]] = {
     "report_link_hours": ("int", 24, 1, 168),               # a link dies after this many hours
     "report_link_max_opens": ("int", 10, 1, 20),            # ... or after this many downloads, whichever comes first
     "report_link_per_hour": ("int", 10, 1, 200),            # links one user may create per hour
+    # WALINK-295: send the temporary link as a plain-text WhatsApp message to configured recipients (OFF by default). The text carries `{link}`
+    # (required) and `{hours}`; the recipients are system users; the session window is how long after the user's last message to us free text is allowed.
+    "report_link_wa_enabled": ("bool", False, None, None),
+    "report_link_wa_text_he": ("text", "דוח הטמפרטורות מוכן להורדה: {link} (הקישור בתוקף {hours} שעות)", 1, 300),
+    "report_link_wa_text_en": ("text", "The temperature report is ready to download: {link} (the link is valid for {hours} hours)", 1, 300),
+    "report_link_wa_recipients": ("ids", [], None, 30),     # user ids; at most 30
+    "report_link_wa_window_h": ("int", 24, 1, 72),          # the session window a free-text message needs
     # phase 3: the grid grouped by area / floor (idea 7) or flat; every viewer may still collapse groups (kept in his browser)
     "grid_grouping": ("choice", "area", None, None),
     # phase 3: a service ticket from an alarm (idea 11): the department offered first ("" = the person chooses) and the chart picture
@@ -159,6 +166,9 @@ MESSAGES: dict[str, dict[str, str]] = {
     "report_link_rate": {"he": "נוצרו יותר מדי קישורים בשעה האחרונה.", "en": "Too many links were created in the last hour."},
     "report_link_too_large": {"he": "הדוח גדול מדי לקישור; יש לצמצם טווח או יחידות.", "en": "The report is too large for a link; narrow the range or the units."},
     "link_not_found": {"he": "הקישור לא נמצא.", "en": "The link was not found."},
+    "report_link_wa_off": {"he": "שליחת הקישור בוואטסאפ כבויה בהגדרות.", "en": "Sending the link by WhatsApp is turned off in the settings."},
+    "report_link_wa_none": {"he": "לא הוגדרו נמענים לשליחת הקישור.", "en": "No recipients are set for sending the link."},
+    "report_link_not_live": {"he": "הקישור כבר אינו בתוקף.", "en": "The link is no longer valid."},
     "explain_off": {"he": "הסבר החריגות כבוי בהגדרות.", "en": "The excursion explanation is turned off in the settings."},
 }
 
@@ -203,6 +213,17 @@ def _check(key: str, spec: tuple[str, Any, float | None, float | None], v: Any) 
         if v not in CHOICES.get(key, ()):
             raise Invalid("rule_invalid", [f"rules.{key}"])
         return v
+    if typ == "text":  # a short single-line message text; the link placeholder is required where it is used as a message
+        if not isinstance(v, str):
+            raise Invalid("rule_invalid", [f"rules.{key}"])
+        v = " ".join(v.split())
+        if not v or len(v) > (hi or 300) or (key.startswith("report_link_wa_text") and "{link}" not in v):
+            raise Invalid("rule_invalid", [f"rules.{key}"])
+        return v
+    if typ == "ids":  # a list of record ids, no duplicates
+        if not isinstance(v, list) or len(v) > (hi or 30) or any(not isinstance(x, str) or not x or len(x) > 64 or not all(c.isalnum() or c in "-_" for c in x) for x in v):
+            raise Invalid("rule_invalid", [f"rules.{key}"])
+        return list(dict.fromkeys(v))
     if typ == "id":  # a record id (or "" = none); existence is checked where it is used
         if not isinstance(v, str) or len(v) > 64 or (v and not all(c.isalnum() or c in "-_" for c in v)):
             raise Invalid("rule_invalid", [f"rules.{key}"])
@@ -234,7 +255,7 @@ def validate_rules(body: Any, *, installation: bool = False) -> dict[str, Any]:
 
 
 def code_defaults() -> dict[str, Any]:
-    return {k: s[1] for k, s in {**RULES, **INSTALLATION}.items()}
+    return {k: (list(s[1]) if isinstance(s[1], list) else s[1]) for k, s in {**RULES, **INSTALLATION}.items()}
 
 
 def load_defaults(conn: sqlite3.Connection) -> dict[str, Any]:

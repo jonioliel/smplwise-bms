@@ -316,7 +316,7 @@ export interface ManagedUnit {
 }
 
 export interface RuleSpec {
-  type: 'bool' | 'int' | 'float' | 'hhmm' | 'choice' | 'id';
+  type: 'bool' | 'int' | 'float' | 'hhmm' | 'choice' | 'id' | 'text' | 'ids';
   min: number | null;
   max: number | null;
   choices?: string[];
@@ -365,8 +365,8 @@ export interface UnitBody {
 }
 
 export interface SettingsResponse {
-  rules: Record<string, boolean | number | string>;
-  code_defaults: Record<string, boolean | number | string>;
+  rules: Record<string, boolean | number | string | string[]>;
+  code_defaults: Record<string, boolean | number | string | string[]>;
   row_version: number;
   rule_specs: Record<string, RuleSpec>;
 }
@@ -638,7 +638,23 @@ export interface ReportLinksResponse {
   available: boolean;
   hours: number;
   max_opens: number;
+  /** WALINK-295: the plain-text WhatsApp send of a link is offered (setting on, recipients set, and the caller may send) */
+  whatsapp?: { available: boolean };
   links: ReportLink[];
+}
+/** WALINK-295: one recipient's typed result. `not_sendable` is never shown as sent. */
+export interface LinkSendResult {
+  user_id: string;
+  name: string;
+  status: 'sent' | 'not_sendable' | 'failed';
+  reason: string | null;
+}
+export interface LinkSendResponse {
+  status: 'sent' | 'partial' | 'not_sendable' | 'failed';
+  sent: number;
+  not_sendable: number;
+  failed: number;
+  results: LinkSendResult[];
 }
 export type ReportLinkCreated = ReportLink & { url: string };
 
@@ -650,6 +666,7 @@ export function reportLinkBody(p: ReportParams): Record<string, unknown> {
 export const getReportLinks = () => get<ReportLinksResponse>(`${B}/report/links`);
 export const createReportLink = (p: ReportParams) => post<ReportLinkCreated>(`${B}/report/links`, reportLinkBody(p));
 export const revokeReportLink = (id: string) => del(`${B}/report/links/${enc(id)}`);
+export const sendReportLink = (id: string) => post<LinkSendResponse>(`${B}/report/links/${enc(id)}/send`, {});
 
 /** The PDF (the browser's own download). */
 export async function downloadReportPdf(p: ReportParams): Promise<void> {

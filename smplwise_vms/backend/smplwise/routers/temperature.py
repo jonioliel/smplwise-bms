@@ -39,6 +39,7 @@ from ..services.timeutil import iso_utc
 router = APIRouter()
 MANAGE, ACK, CONFIGURE = "infra.temperature.manage", "infra.temperature.ack", "system.configure"
 LINK = "infra.temperature.report_link"  # TEMPLINK-295
+LINK_SEND = "infra.temperature.report_link_send"  # WALINK-295: send the link as a WhatsApp text to the configured recipients
 API = "/infra/temperature"
 
 
@@ -537,9 +538,12 @@ def report_links(principal: Principal = Depends(_link_ro), conn: sqlite3.Connect
     """Whether the dialog offers the link (`available`), its lifetime, and the links this user made (a manager sees all of them)."""
     from ..services import temperature_report_link as rl
 
+    from ..services import temperature_report_link_wa as rwa
+
     now = dt.datetime.fromtimestamp(now_ts(), dt.timezone.utc)
     s = rl.settings(conn)
     return {"available": rl.available(conn), "hours": s["hours"], "max_opens": s["max_opens"],
+            "whatsapp": {"available": rwa.available(conn) and authorize(conn, principal, LINK_SEND, INSTALLATION).allowed},
             "links": rl.listing(conn, principal.user_id, authorize(conn, principal, MANAGE, INSTALLATION).allowed, now)}
 
 
@@ -566,6 +570,20 @@ def report_link_revoke(link_id: str = Path(min_length=1, max_length=64), princip
     try:
         rl.revoke(conn, link_id, principal.user_id, principal, authorize(conn, principal, MANAGE, INSTALLATION).allowed, dt.datetime.fromtimestamp(now_ts(), dt.timezone.utc))
     except rl.LinkRefused as e:
+        raise _link_error(e) from None
+
+
+@router.post(f"{API}/report/links/{{link_id}}/send")
+def report_link_send(request: Request, link_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(_link_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """WALINK-295: send a live link as a plain-text WhatsApp message to the configured recipients (installation settings). The answer is typed per
+    recipient: `sent`, `not_sendable` (no number / no consent / template support off / no session window - never a fake success) or `failed`."""
+    from ..services import temperature_report_link_wa as rwa
+
+    require(conn, principal, LINK_SEND, INSTALLATION)
+    try:
+        return rwa.send(conn, request.app.state.db, link_id, principal.user_id, principal, authorize(conn, principal, MANAGE, INSTALLATION).allowed,
+                        dt.datetime.fromtimestamp(now_ts(), dt.timezone.utc))
+    except rwa.SendRefused as e:
         raise _link_error(e) from None
 
 

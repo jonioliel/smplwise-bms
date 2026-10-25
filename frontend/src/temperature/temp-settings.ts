@@ -2,13 +2,13 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
-import { getAlertSettings, getSettings, putAlertSettings, putSettings, type AlertChannel, type AlertKind, type AlertSettings, type Escalation, type SettingsResponse } from '../api/temperature';
+import { getAlertSettings, getReportRecipients, getSettings, putAlertSettings, putSettings, type AlertChannel, type AlertKind, type AlertSettings, type Escalation, type SettingsResponse } from '../api/temperature';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
 import { ticketsEnabled } from '../tickets/gate';
 import { dateInputLang } from '../api/day-format';
 
-type Val = boolean | number | string;
+type Val = boolean | number | string | string[];
 const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
   { title: 'rulesTitle', keys: [['warn_on_excursion', 'ruleWarnNow'], ['high_alarm', 'ruleHigh'], ['high_alarm_min', 'minutes'], ['low_alarm', 'ruleLow'], ['low_alarm_min', 'minutes'],
     ['door_alarm', 'ruleDoor'], ['door_alarm_min', 'minutes'], ['offline_warn', 'ruleOffline'], ['offline_min', 'minutes'], ['hysteresis', 'hysteresis']] },
@@ -28,6 +28,9 @@ const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
     ['explain_spike_jump', 'explainSpikeJump'], ['explain_neighbor_rise', 'explainNbRise'], ['explain_neighbor_scope', 'explainNbScope'], ['explain_min_score', 'explainMinScore']] },
   // TEMPLINK-295: the temporary report download link (off by default)
   { title: 'setLink', keys: [['report_link_enabled', 'linkEnabled'], ['report_link_hours', 'linkHours'], ['report_link_max_opens', 'linkMaxOpens'], ['report_link_per_hour', 'linkPerHour']] },
+  // WALINK-295: the link as a plain-text WhatsApp message (off by default); the recipients are chosen below it
+  { title: 'setLinkWa', keys: [['report_link_wa_enabled', 'linkWaEnabled'], ['report_link_wa_window_h', 'linkWaWindow'], ['report_link_wa_text_he', 'linkWaTextHe'], ['report_link_wa_text_en', 'linkWaTextEn'],
+    ['report_link_wa_recipients', 'linkWaRecipients']] },
   { title: 'retention', keys: [['retention_days', 'retention']] },
 ];
 const KIND_LABEL: Record<AlertKind, TtKey> = { alarm: 'kindAlarm', warning: 'kindWarning', offline: 'kindOffline', health: 'kindHealth' };
@@ -45,6 +48,8 @@ export class TempSettings extends LitElement {
   @state() private s: SettingsResponse | null = null;
   @state() private draft: Record<string, Val> = {};
   @state() private alerts: AlertSettings | null = null;
+  /** WALINK-295: the users offered as link recipients */
+  @state() private users: { id: string; name: string }[] = [];
   /** phase 3 (idea 4): the escalation chain being edited (saved as a whole) */
   @state() private esc: Escalation | null = null;
   @state() private err = '';
@@ -61,6 +66,8 @@ export class TempSettings extends LitElement {
     .row input[type='checkbox'] { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
     .row select { min-block-size: 30px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 8px; font: inherit; }
     .row input.idin { inline-size: 140px; direction: ltr; }
+    .row input.txtin { inline-size: 100%; min-inline-size: 0; }
+    .row.wide { grid-column: 1 / -1; flex-wrap: wrap; }
     .step { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: var(--sw-fs-sm); }
     .step input[type='number'] { inline-size: 70px; min-block-size: 30px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 8px; font: inherit; }
     h4 { margin: 10px 0 4px; }
@@ -85,6 +92,11 @@ export class TempSettings extends LitElement {
       this.draft = { ...this.s.rules };
     } catch (e) {
       this.err = describeError(e);
+    }
+    try {
+      this.users = (await getReportRecipients()).users.map((u) => ({ id: u.id, name: u.name }));
+    } catch {
+      this.users = [];
     }
     try {
       this.alerts = await getAlertSettings();
@@ -140,7 +152,7 @@ export class TempSettings extends LitElement {
     this.err = '';
     this.ok = '';
     const changed: Record<string, Val> = {};
-    for (const [k, v] of Object.entries(this.draft)) if (v !== this.s.code_defaults[k]) changed[k] = v;
+    for (const [k, v] of Object.entries(this.draft)) if (JSON.stringify(v) !== JSON.stringify(this.s.code_defaults[k])) changed[k] = v;
     try {
       this.s = await putSettings(changed, this.s.row_version);
       this.draft = { ...this.s.rules };
@@ -171,6 +183,15 @@ export class TempSettings extends LitElement {
       return html`<select data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLSelectElement).value }; }}>
         ${(spec.choices ?? []).map((c) => html`<option value=${c} ?selected=${v === c}>${(CHOICE_LABEL[`${key}:${c}`] ?? CHOICE_LABEL[c]) ? tt(CHOICE_LABEL[`${key}:${c}`] ?? CHOICE_LABEL[c]) : c}</option>`)}</select>`;
     }
+    if (spec.type === 'text') {
+      return html`<input type="text" maxlength=${spec.max ?? 300} class="txtin" .value=${String(v ?? '')} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).value.trim() }; }} />`;
+    }
+    if (spec.type === 'ids') {
+      const chosen = Array.isArray(v) ? v : [];
+      const set = (id: string, on: boolean) => { this.draft = { ...this.draft, [key]: on ? [...chosen, id] : chosen.filter((x) => x !== id) }; };
+      return html`<span class="opts" data-set=${key}>${this.users.map((u) => html`<label class="sw"><input type="checkbox" .checked=${chosen.includes(u.id)} data-pick=${u.id}
+        @change=${(e: Event) => set(u.id, (e.target as HTMLInputElement).checked)} />${u.name}</label>`)}</span>`;
+    }
     if (spec.type === 'id') {
       return html`<input type="text" maxlength="64" class="idin" .value=${String(v ?? '')} data-set=${key} @change=${(e: Event) => { this.draft = { ...this.draft, [key]: (e.target as HTMLInputElement).value.trim() }; }} />`;
     }
@@ -182,7 +203,7 @@ export class TempSettings extends LitElement {
     if (!this.s) return this.err ? html`<p class="err">${this.err}</p>` : html`<div class="skl" style="block-size:120px"></div>`;
     const a = this.alerts;
     return html`<div class="panel" data-temp-settings><h3>${tt('setTitle')}</h3><p class="hint">${tt('setIntro')}</p>
-        ${GROUPS.map((g) => html`<h4>${tt(g.title)}</h4><div class="grid">${g.keys.filter(([k]) => ticketsEnabled() || !k.startsWith('ticket_')).map(([k, label]) => html`<div class="row"><span>${tt(label)}${label === 'minutes' ? ` (${k.replace(/_/g, ' ')})` : ''}</span>${this.input(k)}</div>`)}</div>`)}
+        ${GROUPS.map((g) => html`<h4>${tt(g.title)}</h4><div class="grid">${g.keys.filter(([k]) => ticketsEnabled() || !k.startsWith('ticket_')).map(([k, label]) => html`<div class=${k === 'report_link_wa_recipients' || k.startsWith('report_link_wa_text') ? 'row wide' : 'row'}><span>${tt(label)}${label === 'minutes' ? ` (${k.replace(/_/g, ' ')})` : ''}</span>${this.input(k)}</div>`)}</div>`)}
         <div class="bar" style="margin-top:12px"><button type="button" class="btn pri" ?disabled=${this.busy} data-temp-settings-save @click=${() => this.save()}>${tt('save')}</button>
           ${this.err ? html`<span class="err" role="alert">${this.err}</span>` : nothing}${this.ok ? html`<span class="okm" role="status">${this.ok}</span>` : nothing}</div></div>
       ${a ? html`<div class="panel" data-temp-alerts><h3>${tt('alertsTitle')}</h3><p class="hint">${tt('alertsIntro')}${a.can_edit ? '' : ` · ${tt('readOnly')}`}</p>
