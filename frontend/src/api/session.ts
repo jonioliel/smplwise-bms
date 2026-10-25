@@ -25,9 +25,7 @@ export let session: Session = { mode: 'loading', me: null, error: null, capabili
 
 /** SX-10: the native shell's reason for a 401 from the server (the only path that may say `expired`). */
 export function nativeReasonOf401(code: string | undefined): NativeSignOutReason {
-  if (code === 'remote_login_required') return 'expired';
-  if (code === 'remote_session_revoked') return 'revoked';
-  return 'unknown';
+  return code === 'remote_login_required' ? 'expired' : 'unknown'; // remote_session_revoked and the rest: no silent re-exchange
 }
 
 function set(next: Omit<Session, 'capabilities'>, reason: NativeSignOutReason = 'unknown') {

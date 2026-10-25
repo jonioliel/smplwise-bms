@@ -92,9 +92,9 @@ test('SX-09: signedOut carries a reason from the closed vocabulary; anything els
   syncNativeSession('u1', w);
   syncNativeSession(null, w, 'weird' as never);
   expect(got).toEqual([[{ reason: 'expired' }], [{ reason: 'unknown' }], [{ reason: 'unknown' }]]);
-  expect(NATIVE_SIGN_OUT_REASONS).toEqual(['user', 'expired', 'revoked', 'idle', 'unknown']);
+  expect(NATIVE_SIGN_OUT_REASONS).toEqual(['user', 'expired', 'unknown']); // fixed by the shells: nothing else is ever sent
   for (const r of NATIVE_SIGN_OUT_REASONS) expect(nativeSignOutReason(r)).toBe(r);
-  for (const bad of ['', 'USER', 'device_removed', null, undefined, 1, {}]) expect(nativeSignOutReason(bad)).toBe('unknown');
+  for (const bad of ['', 'USER', 'revoked', 'idle', 'device_removed', null, undefined, 1, {}]) expect(nativeSignOutReason(bad)).toBe('unknown');
 });
 
 test('SX-09: a shell that takes no argument still works (an extra argument is ignored; a strict-arity bridge gets the old call)', () => {

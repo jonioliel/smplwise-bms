@@ -136,6 +136,15 @@
       "status": 303
     },
     {
+      "code": null,
+      "file": "redeem_without_marker.json",
+      "location": "/arx/?app_session=failed",
+      "method": "GET",
+      "name": "redeem_without_marker",
+      "path": "/arx/api/v1/auth/app/session/redeem",
+      "status": 303
+    },
+    {
       "code": "not_found",
       "file": "redeem_not_offered.json",
       "location": null,
@@ -162,6 +171,7 @@
     "<ISO_8601_UTC>": "`YYYY-MM-DDTHH:MM:SSZ`",
     "<MAX_AGE_SECONDS>": "a positive integer (at most the web session's absolute lifetime)",
     "<NONCE>": "the challenge nonce, `arxn_` + base64url, single use, 120 s",
+    "<SERVER_CORRELATION_ID>": "the server's own correlation id (12 lowercase hex) when the request carried no acceptable one",
     "<SESSION_COOKIE>": "`a.` + 43 base64url - set by the server, never read or written by the app",
     "<SIGNATURE>": "base64url ES256 signature over the six-line `session` message",
     "<UNIX_SECONDS>": "a JSON integer, Unix seconds (UTC)",

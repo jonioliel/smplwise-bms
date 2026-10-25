@@ -26,12 +26,8 @@ export function nativeReasonOf(reason: SignOutReason): NativeSignOutReason {
       return 'user';
     case 'expired':
       return 'expired';
-    case 'revoked':
-      return 'revoked';
-    case 'idle':
-      return 'idle';
     default:
-      return 'unknown';
+      return 'unknown'; // revoked, idle: no silent re-exchange (the shells' vocabulary is user | expired | unknown)
   }
 }
 const ACTIVITY_KEY = 'arx.activity.v1';
@@ -468,7 +464,7 @@ export async function resume(): Promise<boolean> {
     return true;
   } catch (err) {
     if (err instanceof ArxAuthError && err.status === 403) {
-      await logout('logout', 'revoked'); // no remote access (any more): the stored sign-in is revoked (not the user's intent: SX-09)
+      await logout('logout', 'unknown'); // no remote access (any more): the stored sign-in is revoked (not the user's intent: SX-09)
       throw err;
     }
     if (err instanceof ArxAuthError && err.code === 'second_factor_required') {

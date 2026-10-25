@@ -44,7 +44,8 @@ PLACEHOLDERS = {
     "<CODE>": "`arxc_` + 43 base64url (single use, 60 s)",
     "<ISO_8601_UTC>": "`YYYY-MM-DDTHH:MM:SSZ`",
     "<SESSION_COOKIE>": "`a.` + 43 base64url - set by the server, never read or written by the app",
-    "<MAX_AGE_SECONDS>": "a positive integer (at most the web session's absolute lifetime)",
+    "<SERVER_CORRELATION_ID>": "the server's own correlation id (12 lowercase hex) when the request carried no acceptable one",
+    "<MAX_AGE_SECONDS>":"a positive integer (at most the web session's absolute lifetime)",
 }
 CODE_RE = re.compile(r"^arxc_[A-Za-z0-9_-]{43}$")
 ISO_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
@@ -115,6 +116,10 @@ def fixture(name: str, description: str, method: str, path: str, req_headers: di
     for k in HEADERS_KEPT:
         if k in r.headers:
             headers[k] = _cookie(r.headers[k]) if k == "set-cookie" else r.headers[k]
+    cid = headers.get("x-correlation-id")
+    if cid is not None and cid != CID:  # the request sent none (or an invalid one): the server's own id, 12 lowercase hex
+        assert re.fullmatch(r"[0-9a-f]{12}", cid), "server correlation id format drift"
+        headers["x-correlation-id"] = "<SERVER_CORRELATION_ID>"
     try:
         body: Any = r.json()
     except ValueError:
@@ -330,7 +335,7 @@ def test_redeem_ok(rx):
 def test_redeem_refused(rx):
     dev, out, key = _ready(rx)
     code = _code(rx, dev, out, key)
-    assert webview(rx).get(REDEEM, params={"code": code}, follow_redirects=False).headers["location"] == "/arx/"
+    assert webview(rx).get(REDEEM, params={"code": code}, headers={"X-Correlation-Id": CID}, follow_redirects=False).headers["location"] == "/arx/"
     check(_redeem_case(rx, "redeem_refused", "303 to <remote_path>/?app_session=failed, no cookie: the code was spent / expired / unknown or a "
                        "binding failed (here: a replay). The reason is only in the server audit (linked by X-Correlation-Id). Do not retry in a loop.",
                        code))
@@ -343,6 +348,18 @@ def test_redeem_cross_site(rx):
                        "as auth.app_session.redeem denied, reason cross_site, SX-27); the code is NOT spent.", code, site="cross-site"))
 
 
+def test_redeem_without_marker(rx):
+    dev, out, key = _ready(rx)
+    code = _code(rx, dev, out, key)
+    s = Subs()
+    s.add(code, "<CODE>", CODE_RE.pattern[1:-1])
+    hdr = {"Sec-Fetch-Site": "none"}  # a link opened from SMS / mail / another app: no X-Correlation-Id
+    r = webview(rx).get(REDEEM, params={"code": code}, headers=hdr, follow_redirects=False)
+    check(fixture("redeem_without_marker", "303 to <remote_path>/?app_session=failed: the redeem navigation carried no X-Correlation-Id of 12-32 hex "
+                  "characters (X4 F-1); the code IS spent. The app must send the header on loadUrl(url, headers) / URLRequest.", "GET", REDEEM, hdr,
+                  None, r, s, query={"code": code}))
+
+
 def test_redeem_not_offered(rx):
     keyed(rx)  # the exchange switch off
     check(_redeem_case(rx, "redeem_not_offered", "404 not_found: the switch is off (or an older server).", "arxc_" + "a" * 43))
@@ -352,7 +369,7 @@ def test_redeem_not_offered(rx):
 
 CASES = ("exchange_ok", "exchange_not_offered", "exchange_access_invalid", "exchange_proof_retry_nonce", "exchange_proof_retry_clock",
          "exchange_refresh_invalid", "exchange_refresh_expired", "exchange_key_required", "exchange_mfa_required", "exchange_validation",
-         "exchange_rate_limited", "exchange_csrf_refused", "redeem_ok", "redeem_refused", "redeem_cross_site", "redeem_not_offered")
+         "exchange_rate_limited", "exchange_csrf_refused", "redeem_ok", "redeem_refused", "redeem_cross_site", "redeem_without_marker", "redeem_not_offered")
 
 
 def test_zz_index_lists_exactly_the_fixtures():

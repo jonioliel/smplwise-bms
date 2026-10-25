@@ -252,7 +252,7 @@ def _deny_exchange(conn: sqlite3.Connection, fam: sqlite3.Row, reason: str, requ
 
 
 def exchange(conn: sqlite3.Connection, token: str, device_id: str, install_id: str, proof: dict[str, Any] | None, *, origin: str,
-             remote_path: str, request_id: str | None) -> dict[str, Any]:
+             remote_path: str, request_id: str | None, meta: dict[str, str] | None = None) -> dict[str, Any]:
     """Spec section 5, steps 3 and 5-10, on the request's WRITE connection. Raises Refused / ApiError; every family-ending refusal is
     audited and committed (the connection commits on an ApiError)."""
     from . import ha_user_auth as hua
@@ -293,7 +293,7 @@ def exchange(conn: sqlite3.Connection, token: str, device_id: str, install_id: s
                   iso(now + CODE_TTL_S)))
     audit(conn, actor=ar._system(fam["user_id"]), action="auth.app_session.code_issued", decision="allowed", resource_type="mobile_device",
           resource_id=fam["device_id"], request_id=request_id,
-          details={"family": fam["family_id"], "key_fp": dk.fingerprint_prefix(fam["device_key_fp"]), "channel": "app"})
+          details={"family": fam["family_id"], "key_fp": dk.fingerprint_prefix(fam["device_key_fp"]), "channel": "app", "ip": _ip(meta)})
     return {"code": code, "expires_in": CODE_TTL_S, "expires_at": iso(now + CODE_TTL_S), "redeem_path": remote_path + REDEEM_SUFFIX}
 
 
@@ -311,7 +311,51 @@ class Redeemed:
 CROSS_SITE_VALUES = ("cross-site", "same-site")
 
 
-def refuse_cross_site(conn: sqlite3.Connection, code: str, *, site: str, request_id: str | None) -> None:
+def _ip(meta: dict[str, str] | None) -> str:
+    """X4 F-3: the masked client address the audit rows of this module carry (`ip`, as the local sign-in audit does)."""
+    from .ha_user_auth import mask_address
+
+    return mask_address((meta or {}).get("client_ip", ""))
+
+
+MARKER_RE = re.compile(r"^[0-9A-Fa-f]{12,32}$")
+
+
+def redeem_marker_ok(values: list[str]) -> bool:
+    """X4 F-1 fix 2: the redeem is the app's own navigation only when it carries exactly one `X-Correlation-Id` of 12-32 hex characters
+    (the apps send it on `loadUrl(url, headers)` / `URLRequest`); a link opened from SMS / mail / another app cannot carry a header."""
+    return len(values) == 1 and bool(MARKER_RE.fullmatch(values[0] or ""))
+
+
+def cookie_user(conn: sqlite3.Connection, settings: Any, request: Any) -> str | None:
+    """X4 F-1 fix 1: the user of a LIVE Arx session the request's cookie names (an HA remote session in this process, an Arx-only `l.`
+    session, an app `a.` web session), else None. Read only: nothing is touched, rotated or ended."""
+    import time
+
+    from . import ha_user_auth as hua
+    from . import local_identity as li
+
+    sid = hua.session_id_of(settings, request)
+    if not sid:
+        return None
+    try:
+        if sid.startswith(COOKIE_PREFIX):
+            r = conn.execute("SELECT user_id, expires_at, idle_expires_at FROM app_web_sessions WHERE sid_hash = ? AND revoked_at IS NULL",
+                             (sid_hash_of(sid),)).fetchone()
+            return r["user_id"] if r is not None and min(epoch(r["expires_at"]), epoch(r["idle_expires_at"])) > _now() else None
+        if sid.startswith(li.COOKIE_PREFIX):
+            r = conn.execute("SELECT user_id, expires_at, idle_expires_at FROM auth_local_sessions WHERE sid_hash = ? AND revoked_at IS NULL",
+                             (li.sid_hash_of(sid),)).fetchone()
+            return r["user_id"] if r is not None and min(epoch(r["expires_at"]), epoch(r["idle_expires_at"])) > time.time() else None
+    except sqlite3.OperationalError as exc:
+        if _missing(exc):
+            return None
+        raise
+    s = hua.STORE.peek(sid)
+    return s.principal.user_id if s is not None else None
+
+
+def refuse_cross_site(conn: sqlite3.Connection, code: str, *, site: str, request_id: str | None, meta: dict[str, str] | None = None) -> None:
     """SX-27: the audit row of a redeem refused because `Sec-Fetch-Site` was `cross-site` / `same-site` (the 303 to
     `?app_session=failed` and the code's state are unchanged: a cross-site page neither redeems nor spends it, so the app's own
     navigation still can). A known code attributes the row to its user / device / family; an unknown or malformed one is recorded
@@ -322,36 +366,49 @@ def refuse_cross_site(conn: sqlite3.Connection, code: str, *, site: str, request
     if row is not None:
         audit(conn, actor=ar._system(row["user_id"]), action="auth.app_session.redeem", decision="denied", resource_type="mobile_device",
               resource_id=row["device_id"], reason="cross_site", request_id=request_id,
-              details={"family": row["family_id"], "sec_fetch_site": site, "code_known": True})
+              details={"family": row["family_id"], "sec_fetch_site": site, "code_known": True, "ip": _ip(meta)})
         return
     audit(conn, actor=None, action="auth.app_session.redeem", decision="denied", resource_type="installation", resource_id="app_session",
-          reason="cross_site", request_id=request_id, details={"sec_fetch_site": site, "code_known": False})
+          reason="cross_site", request_id=request_id, details={"sec_fetch_site": site, "code_known": False, "ip": _ip(meta)})
 
 
-def redeem(conn: sqlite3.Connection, code: str, *, origin: str, meta: dict[str, str], request_id: str | None) -> Redeemed:
-    """Spec section 5a, steps 4-9, on a write connection. Never raises for a refusal: the spend of the code must commit."""
+def redeem(conn: sqlite3.Connection, code: str, *, origin: str, meta: dict[str, str], request_id: str | None, marker_ok: bool = True,
+           current_user: str | None = None) -> Redeemed:
+    """Spec section 5a, steps 4-9, on a write connection. Never raises for a refusal: the spend of the code must commit.
+    X4 F-1: `marker_ok` False (no app marker header) or a `current_user` other than the code's (the browser already holds another
+    user's live session) refuses AFTER the code is spent, so a link-borne code dies and an existing session is never replaced.
+    X4 F-3: unknown and lapsed codes are audited too; every row carries the masked client address, never the code or its hash."""
     now = _now()
+    ip = _ip(meta)
     row = conn.execute("SELECT * FROM app_session_codes WHERE code_hash = ?", (code_hash(code),)).fetchone() if is_code(code) else None
     if row is None:
+        audit(conn, actor=None, action="auth.app_session.redeem", decision="denied", resource_type="installation", resource_id="app_session",
+              reason="code_unknown", request_id=request_id, details={"ip": ip})
         return Redeemed(False, "invalid", count_failure=True)
     actor = ar._system(row["user_id"])
     if row["used_at"]:
         audit(conn, actor=actor, action="auth.app_session.code_replayed", decision="denied", resource_type="mobile_device", resource_id=row["device_id"],
-              reason="code_replayed", request_id=request_id, details={"family": row["family_id"]})
+              reason="code_replayed", request_id=request_id, details={"family": row["family_id"], "ip": ip})
         return Redeemed(False, "replayed", count_failure=True)
     lapsed = epoch(row["expires_at"]) <= now
     # single use: spent at the first presentation, also when a check below then refuses it
     conn.execute("UPDATE app_session_codes SET used_at = ?, used_reason = ? WHERE code_hash = ? AND used_at IS NULL",
                  (iso(now), "expired" if lapsed else "redeemed", row["code_hash"]))
     if lapsed:
+        audit(conn, actor=actor, action="auth.app_session.redeem", decision="denied", resource_type="mobile_device", resource_id=row["device_id"],
+              reason="code_expired", request_id=request_id, details={"family": row["family_id"], "ip": ip})
         return Redeemed(False, "expired", count_failure=True)
 
     def deny(reason: str) -> Redeemed:
         conn.execute("UPDATE app_session_codes SET used_reason = ? WHERE code_hash = ?", (reason[:40], row["code_hash"]))
         audit(conn, actor=actor, action="auth.app_session.redeem", decision="denied", resource_type="mobile_device", resource_id=row["device_id"],
-              reason=reason, request_id=request_id, details={"family": row["family_id"]})
+              reason=reason, request_id=request_id, details={"family": row["family_id"], "ip": ip})
         return Redeemed(False, reason)
 
+    if not marker_ok:  # X4 F-1 fix 2: a link opened outside the app (SMS, mail, another app, typed) carries no header
+        return deny("marker_missing")
+    if current_user is not None and current_user != row["user_id"]:  # X4 F-1 fix 1: never replace another user's live session
+        return deny("session_present")
     if not hmac.compare_digest(row["origin_hash"], origin_hash(origin)):
         return deny("origin_mismatch")
     fam = ar.family(conn, row["family_id"])
@@ -384,7 +441,7 @@ def redeem(conn: sqlite3.Connection, code: str, *, origin: str, meta: dict[str, 
     audit(conn, actor=actor, action="auth.app_session.created", decision="allowed", resource_type="mobile_device", resource_id=fam["device_id"],
           request_id=request_id,
           details={"session": pid, "family": fam["family_id"], "key_fp": dk.fingerprint_prefix(fam["device_key_fp"]), "admin_capped": admin,
-                   "ha_mfa": None if _col(fam, "ha_mfa") is None else bool(_col(fam, "ha_mfa")), "gate": _gate(conn, uid), "via": "app"})
+                   "ha_mfa": None if _col(fam, "ha_mfa") is None else bool(_col(fam, "ha_mfa")), "gate": _gate(conn, uid), "via": "app", "ip": ip})
     return Redeemed(True, cookie_value=value, expires_at=expires)
 
 
@@ -809,7 +866,8 @@ def janitor(db: Database) -> dict[str, int]:
 
 # ---------------------------------------------------------------- the access log never carries a code
 
-_CODE_IN_URL = re.compile(r"(code=)[^&\s\"]*")
+# X4 I-2: the parameter name in every spelling Starlette decodes to `code` (`cod%65=`, `%63ode=`, any case), `&` or `;` separated
+_CODE_IN_URL = re.compile(r"(?i)((?<![^?&;\s\"])(?:c|%63)(?:o|%6f)(?:d|%64)(?:e|%65)(?:=|%3d))[^&;\s\"]*")
 
 
 class RedactCode(logging.Filter):

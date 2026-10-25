@@ -74,14 +74,12 @@ export function callNative(fn: string, ...args: unknown[]): unknown {
  * - `user`    the user's own sign-out; sent only after `DELETE /auth/session` answered 2xx or 401;
  * - `expired` the server said the session is gone (`401 remote_login_required`) without any sign-out intent - the only reason
  *             that permits the shell's single silent re-exchange;
- * - `revoked` the sign-in was ended on purpose elsewhere (`401 remote_session_revoked`, the sessions list, an administrator, the
- *             remote-access policy) - no silent re-exchange;
- * - `idle`    the page's own idle lock ended the session - no silent re-exchange (it would defeat the lock);
- * - `unknown` anything else (a failed or unanswered sign-out request included) - no silent re-exchange.
- * A shell must treat an absent argument, an absent `reason`, or a value outside this list as `unknown`.
+ * - `unknown` every other cause (a revoked sign-in, the remote-access policy, the idle lock, a failed or unanswered sign-out
+ *             request) - no silent re-exchange.
+ * The list is fixed by the shells (contract v2.2): nothing else is ever sent. A shell treats an absent argument as `unknown`.
  */
-export type NativeSignOutReason = 'user' | 'expired' | 'revoked' | 'idle' | 'unknown';
-export const NATIVE_SIGN_OUT_REASONS: readonly NativeSignOutReason[] = ['user', 'expired', 'revoked', 'idle', 'unknown'];
+export type NativeSignOutReason = 'user' | 'expired' | 'unknown';
+export const NATIVE_SIGN_OUT_REASONS: readonly NativeSignOutReason[] = ['user', 'expired', 'unknown'];
 
 /** Pure: the value itself when it is in the closed vocabulary, else `unknown`. */
 export function nativeSignOutReason(v: unknown): NativeSignOutReason {

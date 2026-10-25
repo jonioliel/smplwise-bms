@@ -333,7 +333,7 @@ def session_exchange(body: SessionIn, request: Request) -> dict[str, Any]:
     with db.connection(label="app_session.exchange") as conn:
         try:
             return xs.exchange(conn, token, body.device_id, body.install_id, body.proof.model_dump() if body.proof else None, origin=_origin(request),
-                               remote_path=settings_of(request).remote_path, request_id=_rid(request))
+                               remote_path=settings_of(request).remote_path, request_id=_rid(request), meta=hua.request_meta(request))
         except ApiError:
             svc.failed(key)
             raise  # the connection commits (an ended family, a consumed nonce and the audit row are kept)
@@ -359,10 +359,14 @@ def session_redeem(request: Request, code: str = Query("", max_length=100)) -> R
         svc.failed(key)
         # SX-27: audited (`auth.app_session.redeem` denied, reason `cross_site`); the answer and the code's state are unchanged
         with _db(request).connection(label="app_session.redeem_cross_site") as conn:
-            xs.refuse_cross_site(conn, code, site=site, request_id=_rid(request))
+            xs.refuse_cross_site(conn, code, site=site, request_id=_rid(request), meta=hua.request_meta(request))
         return failed
+    # X4 F-1: fix 2 - only the app's own navigation carries the marker header (a link from SMS / mail / another app cannot); fix 1 - a
+    # browser that already holds ANOTHER user's live Arx session is never switched to this code's user. Both refuse after the spend.
+    marker_ok = xs.redeem_marker_ok(request.headers.getlist("x-correlation-id"))
     with _db(request).connection(label="app_session.redeem") as conn:
-        out = xs.redeem(conn, code, origin=_origin(request), meta=hua.request_meta(request), request_id=_rid(request))
+        out = xs.redeem(conn, code, origin=_origin(request), meta=hua.request_meta(request), request_id=_rid(request), marker_ok=marker_ok,
+                        current_user=xs.cookie_user(conn, settings, request))
     if not out.ok:
         if out.count_failure:
             svc.failed(key)
