@@ -80,8 +80,30 @@ No merged branch adds, edits or renames a file under `smplwise_vms/backend/smplw
 Version 2.21.0 (`smplwise_vms/Dockerfile`, `smplwise_vms/config.yaml`, `smplwise/__init__.py`), bilingual `smplwise_vms/CHANGELOG.md`
 entry, `docs/release/2.21.0-RELEASE-NOTES.md`, `contracts/API_INVENTORY.md` regenerated (1578 routes).
 
-## Checks run during assembly (local workstation, not the runner)
+### Post-merge test fix (semantic, not a textual conflict) - `tests/test_t06_admission_295.py`
+T06ADMIT pinned the 2.19.0 signing inventory. On the merged tree 30 of its tests failed: the stub join's `selected()` took no command
+(WKR5 unit A calls `selected(command)`), four new modules match the signing-call pattern (`wiskey_peer.py` W-010, `wiskey_peer_query.py`,
+`wiskey_people_csv.py` W-006, and `wiskey_capture_map.py`, which only names `port.call(` in a docstring), and the new lineage router
+imports `NativeWriteError` from the writer. Fixed in the test (stub takes the command; the caller set, the inventory / table with
+`features/people_csv_preview` under gate `G-PEOPLE-CSV`, and a narrow router-import exception for the error class), with a "REL2210
+addendum" in `docs/changes/T06-ADMISSION-MAPPING-295.md`. No product code changed for it.
 
-Recorded with exit codes in the release notes' verification receipt.
+## Checks run during assembly (local workstation, not the runner; fakes only)
+
+| Check | Exit |
+|---|---|
+| `tsc --noEmit` (frontend, Node 24) | 0 |
+| `scripts/api_inventory.py` (1578 routes) | 0 |
+| `scripts/release_check.py` | 0 (one `[FAIL]`: tag `v2.21.0` not yet created, expected) |
+| pytest, per file at the release head: `test_peerquery_295`, `test_wkpeer_295`, `test_capemergency_295`, `test_capemergency2_295`, `test_elevator_alert_recipients_295`, `test_infra_elevators_280`, `test_wa_template_send_w11`, `test_wkadapt_resolve_295`, `test_wkcap_295`, `test_capmap_295`, `test_wk4adopt_295`, `test_wkjoin_295`, `test_wkr5_295`, `test_wkr5_295_bdg`, `test_wkr5_295_emergency`, `test_wkr5_295_writer`, `test_wkr5_csv_295`, `test_asgi_wiskey_295`, `test_wiskey_door_path` | 0 each |
+| pytest `test_t06_admission_295` | 1 before the test fix above, 0 after |
+| pytest regression (dependents of the touched modules): `test_backup_drill`, `test_bridge_key_pause_295`, `test_bridge_key_rotation_295`, `test_bridge_lease_event`, `test_bridge_lease_lifecycle`, `test_capture_lease_events`, `test_capture_lease_ledger`, `test_capture_lease_local_actor` | 0 each |
+| pytest regression, one run: `test_wkvec_295`, `test_wka_295_lease_port`, `test_smallfixa_wiskey_switches_295`, `test_f3c_tpl_295`, `test_door_emergency`, `test_door_emergency_retry_open_295` | 0 |
+
+NOT_RUN: the full backend suite; the other dependents (`test_capture_lease_review_fixes`, `test_capture_lease_triggers`,
+`test_door_emergency_roles_emrole_295`, `test_doorwin2_review2`, `test_eccact_*`, `test_f3a_doorwin_*`, `test_f3c_e05_295`, `test_f3c_g03_295`,
+`test_intercom_capture_lease`, `test_lease_wire_closed_295`, `test_lookup_scope`, `test_pwclean_295`, `test_smallfixa_lease_hold_295`,
+`test_wiskey_final281`, `test_wkcapwire_295`); frontend unit specs touched by FIX2200 / GENELEV / WKR5ADOPT (`unit-*.spec.ts`), Playwright
+browser, evidence and pixel specs; the `www` / `www-public` build; anything on the runner or against a real WisKey / HA / station / door.
 
 TODO for the lead (runner): `www` / `www-public` rebuild, the full gate, browser and pixel specs, tag.
