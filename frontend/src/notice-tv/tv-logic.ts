@@ -51,6 +51,11 @@ export interface Display {
   /** NOTICESAVER-295: the screen saver and the logo layout (absent on a board saved before 2.17.1 = off / 'a') */
   saver?: Saver;
   logos?: LogoLayout;
+  /** TVOPT-295: the header, the "updated" line, the freed height and the company logo at night (absent on an older board = c / full / bigger / auto) */
+  header?: HeaderLayout;
+  updated?: UpdatedLine;
+  space?: SpaceUse;
+  night_logo?: NightLogo;
   /** NOTICESLIDES-295: the building photo of template 2 (a URL the feed adds only when one is uploaded) */
   photo?: string;
 }
@@ -67,6 +72,66 @@ export function saverOf(d: Pick<Display, 'saver'>): Saver {
 /** The logo layout of a display: an unknown value reads as the v4 layout 'a'. */
 export function logoLayoutOf(d: Pick<Display, 'logos'>): LogoLayout {
   return d.logos === 'b' || d.logos === 'c' ? d.logos : 'a';
+}
+
+// ---------------------------------------------------------------- TVOPT-295: the one-row header and its companions
+
+/** a = the company logo and the greeting together, SmplWise and the status at the other end of the same row; b = the greeting
+ * centred in that row; c = the header as before (the separate bottom row stays). */
+export type HeaderLayout = 'a' | 'b' | 'c';
+/** full = "updated HH:MM · board name"; time = the time and the green dot; issues = nothing while live (the stale / offline notes still show). */
+export type UpdatedLine = 'full' | 'time' | 'issues';
+/** What the height freed by a one-row header goes to. */
+export type SpaceUse = 'bigger' | 'more' | 'mix';
+/** The company logo on a dark surface: auto = the system logo settings, plate = always the white plate, invert = invert when possible. */
+export type NightLogo = 'auto' | 'plate' | 'invert';
+export const HEADERS: HeaderLayout[] = ['a', 'b', 'c'];
+export const UPDATED_LINES: UpdatedLine[] = ['full', 'time', 'issues'];
+export const SPACE_USES: SpaceUse[] = ['bigger', 'more', 'mix'];
+export const NIGHT_LOGOS: NightLogo[] = ['auto', 'plate', 'invert'];
+
+const pick = <T extends string>(v: unknown, all: readonly T[], dflt: T): T => (all.includes(v as T) ? (v as T) : dflt);
+export const headerOf = (d: Pick<Display, 'header'>): HeaderLayout => pick(d.header, HEADERS, 'c');
+export const updatedOf = (d: Pick<Display, 'updated'>): UpdatedLine => pick(d.updated, UPDATED_LINES, 'full');
+export const spaceOf = (d: Pick<Display, 'space'>): SpaceUse => pick(d.space, SPACE_USES, 'bigger');
+export const nightLogoOf = (d: Pick<Display, 'night_logo'>): NightLogo => pick(d.night_logo, NIGHT_LOGOS, 'auto');
+
+/** The text scale of the body (clock, date, weather, notices) under a one-row header: the freed height makes them larger
+ * (bigger 1.16, mix 1.08); the header as before (c) and `more` keep the sizes. */
+export function spaceGrow(header: HeaderLayout, space: SpaceUse): number {
+  if (header === 'c') return 1;
+  return space === 'bigger' ? 1.16 : space === 'mix' ? 1.08 : 1;
+}
+
+/** One more card / row of notices under a one-row header (more, mix); never with the header as before. */
+export function spaceExtra(header: HeaderLayout, space: SpaceUse): boolean {
+  return header !== 'c' && (space === 'more' || space === 'mix');
+}
+
+/** How many other notices the focus mode lists next to the current one (3, one more with the extra card). */
+export function othersMax(extra: boolean): number {
+  return extra ? 4 : 3;
+}
+
+/** The "all together" page plan with the extra row: one more row of cells per page (the columns stay). */
+export function gridPlanExtra(n: number, wide: boolean, portrait: boolean, extra: boolean): { per: number; cols: number; rows: number; pages: number } {
+  const p = gridPlan(n, wide, portrait);
+  if (!extra) return p;
+  const basePer = portrait ? 4 : wide ? 6 : 4;
+  const cap = basePer + p.cols;
+  const per = Math.max(1, Math.min(cap, n));
+  const rows = Math.max(1, Math.ceil(per / p.cols));
+  return { per, cols: p.cols, rows, pages: Math.max(1, Math.ceil(n / per)) };
+}
+
+/** The dark-surface mode the TV hands to chooseCompanyLogo: the board's night_logo over the system logo setting. `invert` uses the
+ * dark file when there is one, else the CSS invert only when the light file has a transparent background (an opaque logo would
+ * become a dark box), else the plate. */
+export function nightLogoMode(choice: NightLogo, system: 'plate' | 'file' | 'invert', hasDark: boolean, lightTransparent: boolean): 'plate' | 'file' | 'invert' {
+  if (choice === 'auto') return system;
+  if (choice === 'plate') return 'plate';
+  if (hasDark) return 'file';
+  return lightTransparent ? 'invert' : 'plate';
 }
 
 /** The burn-in drift (mock-up v4 + saver): 8 positions of at most 12 px, one step per 45 s, eased over 8 s. `cycle` replaces it by a CSS orbit. */

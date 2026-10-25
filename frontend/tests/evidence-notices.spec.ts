@@ -176,6 +176,39 @@ test('board page: the display tab previews the real TV page and saves the settin
   await expect.poll(() => (calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body as { display?: { template?: number; mode?: string } } | undefined)?.display).toMatchObject({ template: 3, mode: 'all' });
 });
 
+// TVOPT-295: the four screen choices of the one-row header review in the display tab: the preview follows each one, the freed-height
+// choice waits for a one-row header, the logo layout applies to the header "as before" only, and the save sends all four.
+test('board page: the header, "updated" line, freed height and night logo choices', async ({ page }) => {
+  const calls = await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices/b1'));
+  const root = page.locator('sw-app system-notices');
+  await root.locator('sw-tabs').getByText('תצוגה').click();
+  const frame = page.frameLocator('sw-app system-notices iframe[data-preview]');
+  await expect(frame.locator('#cv')).toHaveAttribute('data-header', 'c');
+  const seg = (name: string) => root.locator(`notice-display-layout [data-seg="${name}"]`);
+  for (const name of ['header', 'updated', 'space', 'night-logo']) await expect(seg(name).locator('button')).toHaveCount(3);
+  await expect(seg('header').locator('button[data-v="c"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(seg('space').locator('button').first()).toBeDisabled(); // only with a one-row header
+  await expect(root.locator('notice-display-saver [data-logos-seg] button').first()).toBeEnabled();
+  await seg('header').locator('button[data-v="a"]').click();
+  await expect(frame.locator('#cv')).toHaveAttribute('data-header', 'a');
+  await expect(frame.locator('.pg .hd.one[data-h="a"]')).toBeVisible();
+  await expect(seg('space').locator('button').first()).toBeEnabled();
+  await expect(root.locator('notice-display-saver [data-logos-seg] button').first()).toBeDisabled();
+  await seg('updated').locator('button[data-v="time"]').click();
+  await expect(frame.locator('#cv')).toHaveAttribute('data-updated', 'time');
+  await seg('space').locator('button[data-v="mix"]').click();
+  await expect(frame.locator('#cv')).toHaveAttribute('data-space', 'mix');
+  await seg('night-logo').locator('button[data-v="invert"]').click();
+  await expect(seg('night-logo').locator('button[data-v="invert"]')).toHaveAttribute('aria-pressed', 'true');
+  await noOverflow(page);
+  await shot(page, 'board-display-tvopt');
+  await root.locator('[data-save-display]').click();
+  await expect.poll(() => (calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body as { display?: object } | undefined)?.display)
+    .toMatchObject({ header: 'a', updated: 'time', space: 'mix', night_logo: 'invert' });
+});
+
 // NOTICEADD-295: the board's "הודעות" tab writes, edits and archives notices (2.16.0 offered only a picker of existing notices, and nothing
 // at all while there were none); the settings page opens the same dialog; the rail carries "לוח הודעות" while the module is on.
 test('board page: a new notice for the board, edit and archive from the notices tab', async ({ page }) => {

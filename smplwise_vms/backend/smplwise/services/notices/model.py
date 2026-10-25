@@ -23,6 +23,21 @@ NEWS_FEEDS_MAX = 6
 # an old board without the keys reads the defaults (saver wash since NOTICEPERM-295, logos "a" = the v4 layout).
 SAVERS = ("off", "wash", "cycle", "wave", "ambient")
 LOGO_LAYOUTS = ("a", "b", "c")
+# TVOPT-295 (owner decisions on the one-row header preview): four more choices of the board's screen settings, also inside the
+# display JSON (no migration; an old board reads the defaults = the screen as it was).
+#  header:     a = the company logo and the greeting together at the inline start, SmplWise and the status at the end of the same
+#              row; b = the greeting centred in that row; c = the header as before (default; the separate bottom row stays)
+#  updated:    the "updated" status line - full = the time and the board name (default), time = the time with the green dot,
+#              issues = nothing while the board is live (the stale / offline notes still show)
+#  space:      what the height freed by a one-row header (a / b) goes to - bigger = a larger clock, date, weather and notice
+#              (default), more = the sizes stay and one more card / row of notices fits, mix = a little larger and one more card
+#  night_logo: the company logo on a dark surface (the night theme, the urgent take-over) - auto = as the system logo settings say
+#              (default), plate = always the light file on a white plate, invert = the dark file when there is one, else the
+#              inverted light file when it has a transparent background, else the plate
+HEADERS = ("a", "b", "c")
+UPDATED_LINES = ("full", "time", "issues")
+SPACE_USES = ("bigger", "more", "mix")
+NIGHT_LOGOS = ("auto", "plate", "invert")
 
 PERM_VIEW, PERM_MANAGE, PERM_PUSH, PERM_BOARDS = "notices.view", "notices.manage", "notices.push", "notices.boards"
 
@@ -139,6 +154,7 @@ DISPLAY_DEFAULTS: dict[str, Any] = {
     "night": {"enabled": True, "from": "23:00", "to": "06:00", "dim": 0.5},
     "burn_in": {"shift": True},
     "saver": "wash", "logos": "a",
+    "header": "c", "updated": "full", "space": "bigger", "night_logo": "auto",
 }
 
 
@@ -209,6 +225,9 @@ def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
     take("saver", v in SAVERS, v)
     v = src.get("logos")
     take("logos", v in LOGO_LAYOUTS, v)
+    for key, allowed in (("header", HEADERS), ("updated", UPDATED_LINES), ("space", SPACE_USES), ("night_logo", NIGHT_LOGOS)):
+        v = src.get(key)
+        take(key, isinstance(v, str) and v in allowed, v)
     v = src.get("place")
     take("place", isinstance(v, str) and len(v.strip()) <= PLACE_MAX and not any(ord(c) < 32 for c in v), v.strip() if isinstance(v, str) else "")
 

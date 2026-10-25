@@ -332,6 +332,25 @@ const he = {
   dHomeEmpty: 'ווידג׳ט בבית כשאין הודעות',
   dHomeEmptyHide: 'להסתיר את הווידג׳ט',
   dHomeEmptyLine: 'להציג שורה "אין הודעות פעילות"',
+  // TVOPT-295: the one-row header and its companions (the board's תצוגה tab)
+  headerLabel: 'כותרת המסך',
+  header_a: 'לוגו וברכה יחד',
+  header_b: 'ברכה במרכז',
+  header_c: 'כמו היום',
+  updatedLabel: 'שורת "עודכן"',
+  updated_full: 'טקסט מלא',
+  updated_time: 'שעה ונקודה ירוקה',
+  updated_issues: 'רק כשיש תקלה',
+  spaceLabel: 'הגובה שהתפנה',
+  space_bigger: 'שעון, מזג אוויר והודעה גדולים יותר',
+  space_more: 'כרטיס או שורה נוספים',
+  space_mix: 'שילוב',
+  spaceOnlyOneRow: 'בכותרת בשורה אחת בלבד',
+  nightLogoLabel: 'לוגו החברה בלילה',
+  nightLogo_auto: 'לפי הגדרות הלוגו',
+  nightLogo_plate: 'רקע לבן מתחת ללוגו',
+  nightLogo_invert: 'היפוך צבעים כשאפשר',
+  logosOnlyHeaderC: 'בכותרת "כמו היום" בלבד',
 };
 
 type Key = keyof typeof he;
@@ -362,6 +381,11 @@ const en: Partial<Record<Key, string>> = {
   readsLoadError: 'The list could not be loaded', readsNone: 'No recipients', segReadShort: 'Read', segUnreadShort: 'Not read yet',colName: 'Name', colPlace: 'Place', colReadAt: 'Read', widgetAll: 'All', widgetEmpty: 'No active notices',
   widgetNew: 'New', widgetUntil: 'Until {d}',
   dHomeEmpty: 'Home widget with no notices', dHomeEmptyHide: 'Hide the widget', dHomeEmptyLine: 'Show a "No active notices" line',
+  headerLabel: 'Screen header', header_a: 'Logo and greeting together', header_b: 'Greeting centred', header_c: 'As before',
+  updatedLabel: 'The "updated" line', updated_full: 'Full text', updated_time: 'Time and green dot', updated_issues: 'Only on a problem',
+  spaceLabel: 'The freed height', space_bigger: 'Larger clock, weather and notice', space_more: 'One more card or row', space_mix: 'Both',
+  spaceOnlyOneRow: 'With a one-row header only', nightLogoLabel: 'Company logo at night', nightLogo_auto: 'As the logo settings say',
+  nightLogo_plate: 'White background under the logo', nightLogo_invert: 'Invert the colours when possible', logosOnlyHeaderC: 'With the "As before" header only',
 };
 
 export type NtKey = Key;
