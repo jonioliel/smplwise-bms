@@ -580,3 +580,13 @@ def test_all_four_languages_are_spoken_and_the_engines_come_from_the_home_system
     got = w.c.get(f"{API}/config").json()
     info = {i["entity_id"]: i["cloud"] for i in got["engine_info"]}
     assert info == {"tts.piper": False, "tts.google_translate_en_com": True} and set(got["engines"]) == set(info)
+
+
+def test_me_carries_the_announcements_switch_for_the_tab(world):
+    # FIX2200 (owner 2026-10-25): the shell hides the הכרזות tab while announce.enabled is off (OFF by default)
+    assert world.c.get("/api/v1/me").json()["modules"]["announce"] is False
+    enable(world)
+    assert world.c.get("/api/v1/me").json()["modules"]["announce"] is True
+    r = world.c.put(f"{API}/config", json={"enabled": False})
+    assert r.status_code == 200, r.text
+    assert world.c.get("/api/v1/me").json()["modules"]["announce"] is False
