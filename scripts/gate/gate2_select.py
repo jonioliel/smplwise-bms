@@ -179,6 +179,9 @@ def _line_modules(l: str, aliases: dict, mods: dict) -> set[str]:
     return hit
 
 
+PLAIN_IMPORT_RE = re.compile(r"^\s*import\s+[A-Za-z_][\w.]*(\s+as\s+\w+)?(\s*,\s*[A-Za-z_][\w.]*(\s+as\s+\w+)?)*\s*(#.*)?$")
+
+
 def attribute_py_hub(root: Path, base: str, head: str, path: str, mods: dict) -> tuple[set[str], list[str], set[str]]:
     """Modules named in the changed hunks of main.py / body_limit.py / __init__.py, the unattributed hunks (their first code
     line), the API path segments. A hunk counts as attributed when one of its lines names a module or an /api/v1/ path (a call
@@ -187,6 +190,7 @@ def attribute_py_hub(root: Path, base: str, head: str, path: str, mods: dict) ->
     found, orphans, segs = set(), [], set()
     for hunk in changed_hunks(root, base, head, path):
         code = [l for l in _code_lines(hunk) if not (st.VERSION_LINE.search(l) and re.search(r"__version__|version\s*=", l))]
+        code = [l for l in code if not PLAIN_IMPORT_RE.match(l)]   # a bare `import uuid` binds no project module
         if not code:
             continue
         hit, hsegs = set(), set()

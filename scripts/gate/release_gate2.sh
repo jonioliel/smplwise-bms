@@ -62,6 +62,9 @@ fi
 
 # ------------------------------------------------------------------ dry run: no lock, no test, nothing written outside /tmp
 if [ "$DRY" = 1 ]; then
+  # the selector imports select_tests_v1 and the estimate imports release_gate: stage the v1 copies (inside $G2 only; the dry run holds no lock)
+  for f in release_gate.py gate_baselines.json gate_durations.json; do [ -f "$V1/$f" ] && [ ! -f "$G2/$f" ] && cp -p "$V1/$f" "$G2/$f"; done
+  [ -f "$G2/select_tests_v1.py" ] || { [ -f "$V1/select_tests.py" ] && cp -p "$V1/select_tests.py" "$G2/select_tests_v1.py"; }
   TMPW=""
   if [ -z "$ROOT" ]; then
     git -C "$REPO" rev-parse --verify -q "origin/$BR^{commit}" >/dev/null || { echo "origin/$BR not found in $REPO (fetch first)"; exit 2; }
