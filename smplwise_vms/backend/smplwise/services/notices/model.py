@@ -25,6 +25,7 @@ SAVERS = ("off", "wash", "cycle", "wave", "ambient")
 LOGO_LAYOUTS = ("a", "b", "c")
 
 PERM_VIEW, PERM_MANAGE, PERM_PUSH, PERM_BOARDS = "notices.view", "notices.manage", "notices.push", "notices.boards"
+PERM_DELETE = "notices.delete"  # NOTICEDEL-295: real deletion of a published / archived notice (site_admin + system_admin by default)
 
 # Q12 (owner question, provisional until the owner names the list): the curated Israeli general-news RSS feeds the board settings offer.
 CURATED_NEWS: list[dict[str, str]] = [
@@ -42,6 +43,7 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "notices.push_default": "by_severity",
     "notices.reads_names": "true",
     "notices.retention_days": "365",
+    "notices.show_places_tree": "true",  # NOTICEDEL-295: the places tree (and its filter by place) on the notices page; off = a full-width list
     "notices.home_empty": "hide",  # NOTICEPAGE-295: the home widget with no active notice: "hide" (absent) or "line" (one "no active notices" line)
     "notices.boards.remote": "false",
     "notices.boards.max": "10",
@@ -301,6 +303,7 @@ def settings_doc(get: Any) -> dict[str, Any]:
         "push_default": raw["notices.push_default"] if raw["notices.push_default"] in ("by_severity", "always", "never") else "by_severity",
         "reads_names": raw["notices.reads_names"] == "true",
         "retention_days": num("notices.retention_days", 30, 3650),
+        "show_places_tree": raw["notices.show_places_tree"] != "false",
         "home_empty": raw["notices.home_empty"] if raw["notices.home_empty"] in ("hide", "line") else "hide",
         "boards_remote": raw["notices.boards.remote"] == "true",
         "boards_max": num("notices.boards.max", 1, 50),
@@ -316,7 +319,7 @@ def settings_doc(get: Any) -> dict[str, Any]:
 SETTINGS_FIELDS: dict[str, str] = {  # API field -> settings key
     "enabled": "notices.enabled", "default_days": "notices.default_days", "default_severity": "notices.default_severity",
     "push_default": "notices.push_default", "reads_names": "notices.reads_names", "retention_days": "notices.retention_days",
-    "home_empty": "notices.home_empty",
+    "home_empty": "notices.home_empty", "show_places_tree": "notices.show_places_tree",
     "boards_remote": "notices.boards.remote", "boards_max": "notices.boards.max", "weather_entity": "notices.weather_entity",
     "weather_fallback": "notices.weather_fallback", "news_custom": "notices.news_custom", "building_name": "notices.building_name",
     "boards_origin": "notices.boards.origin",
@@ -330,7 +333,7 @@ def settings_values(patch: dict[str, Any]) -> dict[str, str]:
         key = SETTINGS_FIELDS.get(field)
         if key is None:
             raise Invalid(field, "הגדרה לא מוכרת.")
-        if field in ("enabled", "reads_names", "boards_remote", "weather_fallback", "news_custom"):
+        if field in ("enabled", "reads_names", "boards_remote", "weather_fallback", "news_custom", "show_places_tree"):
             if not isinstance(value, bool):
                 raise Invalid(field, "ערך לא תקין.")
             out[key] = "true" if value else "false"

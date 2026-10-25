@@ -45,13 +45,15 @@ export interface NoticesCan {
   push: boolean;
   boards: boolean;
   configure: boolean;
+  /** NOTICEDEL-295: `notices.delete` (absent from older servers) */
+  delete?: boolean;
 }
 
 export interface NoticesList {
   notices: Notice[];
   can: NoticesCan;
   now: string;
-  defaults: { default_days: number; default_severity: 'info' | 'alert'; push_default?: 'by_severity' | 'always' | 'never'; home_empty?: 'hide' | 'line' };
+  defaults: { default_days: number; default_severity: 'info' | 'alert'; push_default?: 'by_severity' | 'always' | 'never'; home_empty?: 'hide' | 'line'; show_places_tree?: boolean };
 }
 
 export interface Board {
@@ -79,6 +81,8 @@ export interface NoticesSettings {
   retention_days: number;
   /** NOTICEPAGE-295: the home widget with no active notice - absent, or one line */
   home_empty: 'hide' | 'line';
+  /** NOTICEDEL-295: the places tree on the notices page (default on) */
+  show_places_tree: boolean;
   boards_remote: boolean;
   boards_max: number;
   weather_entity: string;
@@ -131,7 +135,8 @@ export const patchNotice = (id: string, body: Partial<NoticeInput>) => patch<{ n
 export const publishNotice = (id: string, push?: boolean) =>
   post<{ notice: Notice; push?: { requested: boolean; sent: boolean; recipients: number } }>(`notices/${encodeURIComponent(id)}/publish`, push === undefined ? undefined : { push });
 export const archiveNotice = (id: string) => post<{ notice: Notice }>(`notices/${encodeURIComponent(id)}/archive`);
-export const deleteNotice = (id: string) => del(`notices/${encodeURIComponent(id)}`);
+/** NOTICEDEL-295: `confirmLive` is the extra step for a notice that is on air (the server answers 409 `confirm_live_required` without it). */
+export const deleteNotice = (id: string, confirmLive = false) => del(`notices/${encodeURIComponent(id)}${confirmLive ? '?confirm_live=true' : ''}`);
 export const markRead = (id: string) => post<{ read: boolean }>(`notices/${encodeURIComponent(id)}/read`);
 export const audiencePreview = (audience: Audience) => post<{ users: number; in_scope: boolean }>('notices/audience/preview', { audience });
 export const audienceOptions = () =>

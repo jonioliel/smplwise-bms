@@ -31,7 +31,7 @@ from ..services.notices import audience as aud
 from ..services.notices import display as disp
 from ..services.notices import model, page, store
 from ..services.notices import push as npush
-from ..services.notices.model import PERM_BOARDS, PERM_MANAGE, PERM_PUSH, PERM_VIEW, Invalid
+from ..services.notices.model import PERM_BOARDS, PERM_DELETE, PERM_MANAGE, PERM_PUSH, PERM_VIEW, Invalid
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
 OFF_HE = "לוח ההודעות כבוי בהגדרות המערכת."
@@ -63,6 +63,7 @@ def _can(conn: sqlite3.Connection, principal: Principal) -> dict[str, bool]:
         "manage": PERM_MANAGE in anywhere,
         "manage_all": authorize(conn, principal, PERM_MANAGE, INSTALLATION).allowed,
         "push": PERM_PUSH in anywhere,
+        "delete": PERM_DELETE in anywhere,
         "boards": authorize(conn, principal, PERM_BOARDS, INSTALLATION).allowed,
         "configure": authorize(conn, principal, "system.configure", INSTALLATION).allowed,
     }
@@ -138,6 +139,7 @@ class SettingsIn(BaseModel):
     reads_names: bool | None = None
     retention_days: int | None = None
     home_empty: Literal["hide", "line"] | None = None
+    show_places_tree: bool | None = None  # NOTICEDEL-295
     boards_remote: bool | None = None
     boards_max: int | None = None
     weather_entity: str | None = Field(default=None, max_length=200)
@@ -542,7 +544,7 @@ def list_notices(scope: Literal["mine", "all"] = "mine", principal: Principal = 
     read = store.read_ids(conn, principal.user_id)
     counts = store.read_counts(conn) if scope == "all" else {}
     return {"notices": [_notice_out(n, now, boards[n["id"]], manager=scope == "all", read=n["id"] in read, reads=counts.get(n["id"], 0)) for n in rows],
-            "can": can, "now": model.iso(now), "defaults": {k: store.settings(conn)[k] for k in ("default_days", "default_severity", "push_default", "home_empty")}}
+            "can": can, "now": model.iso(now), "defaults": {k: store.settings(conn)[k] for k in ("default_days", "default_severity", "push_default", "home_empty", "show_places_tree")}}
 
 
 @router.post("/notices/audience/preview")
@@ -723,13 +725,30 @@ def archive(notice_id: str, request: Request, principal: Principal = Depends(cur
     return {"notice": _notice_out(n2, store.utcnow(), store.boards_of(conn, [notice_id])[notice_id], manager=True)}  # type: ignore[arg-type]
 
 
+EMERGENCY_PERM = "emergency.manage"  # NOTICEDEL-295: the building's emergency right; an URGENT notice that is on air is an emergency notice
+
+
 @router.delete("/notices/{notice_id}")
-def delete_notice(notice_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def delete_notice(notice_id: str, request: Request, confirm_live: bool = False, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """NOTICEDEL-295: real deletion. A draft goes as before (`notices.manage` inside the audience scope). A published / archived notice needs
+    `notices.delete` too; one that is on air needs `confirm_live=true` (the screen's extra explicit step); an URGENT one that is on air is
+    refused unless the caller also holds the emergency right (`emergency.manage`). One content-free audit row: who, when, the notice id, its status."""
     n = _managed(conn, principal, notice_id)
+    state = model.effective_state(n, store.utcnow())
     if n["status"] != "draft":
-        raise ApiError(409, "not_draft", "הודעה שפורסמה עוברת לארכיון ואינה נמחקת.")
-    store.delete_draft(conn, notice_id)
-    audit(conn, actor=principal, action="notices.delete", decision="allowed", resource_type="notice", resource_id=notice_id, request_id=_rid(request))
+        if PERM_DELETE not in permissions_anywhere(conn, principal):
+            audit(conn, actor=principal, action=PERM_DELETE, decision="denied", resource_type="notice", resource_id=notice_id, reason="no_binding", request_id=_rid(request))
+            raise ApiError(403, "forbidden", "אין הרשאה למחוק הודעה.", details={"permission": PERM_DELETE})
+        if state == "active" and n["severity"] == "critical" and not authorize(conn, principal, EMERGENCY_PERM, INSTALLATION).allowed:
+            audit(conn, actor=principal, action=PERM_DELETE, decision="denied", resource_type="notice", resource_id=notice_id, reason="emergency_notice", request_id=_rid(request))
+            raise ApiError(403, "emergency_notice", "הודעה דחופה שמוצגת עכשיו נמחקת רק בהרשאת חירום.", details={"permission": EMERGENCY_PERM})
+        if state == "active" and not confirm_live:
+            raise ApiError(409, "confirm_live_required", "ההודעה מוצגת עכשיו. נדרש אישור נוסף למחיקה.")
+    store.delete_notice(conn, notice_id)
+    if n["pushed_at"]:
+        npush.resolve(conn, notice_id, int(n["push_generation"] or 0), "deleted")  # the inbox does not keep a deleted notice as unread
+    audit(conn, actor=principal, action="notices.delete", decision="allowed", resource_type="notice", resource_id=notice_id, request_id=_rid(request),
+          details={"status": n["status"], "state": state})
     return {"deleted": True}
 
 

@@ -332,6 +332,17 @@ const he = {
   dHomeEmpty: 'ווידג׳ט בבית כשאין הודעות',
   dHomeEmptyHide: 'להסתיר את הווידג׳ט',
   dHomeEmptyLine: 'להציג שורה "אין הודעות פעילות"',
+  delete: 'מחיקה',
+  delTitle: 'מחיקת הודעה',
+  delBody: 'למחוק את "{title}"? אי אפשר לשחזר.',
+  delLiveTick: 'ההודעה מוצגת עכשיו, ותוסר מכל הלוחות מיד',
+  delUrgentTick: 'הודעה דחופה: אני מאשר מחיקה במצב חירום',
+  delConfirm: 'מחיקה סופית',
+  delDone: 'ההודעה נמחקה',
+  delRefused: 'אין הרשאה למחוק הודעה דחופה שמוצגת עכשיו',
+  noRows: 'אין הודעות בסינון הזה',
+  clearFilters: 'ניקוי הסינון',
+  dPlacesTree: 'עץ מקומות בדף ההודעות',
 };
 
 type Key = keyof typeof he;
@@ -362,6 +373,9 @@ const en: Partial<Record<Key, string>> = {
   readsLoadError: 'The list could not be loaded', readsNone: 'No recipients', segReadShort: 'Read', segUnreadShort: 'Not read yet',colName: 'Name', colPlace: 'Place', colReadAt: 'Read', widgetAll: 'All', widgetEmpty: 'No active notices',
   widgetNew: 'New', widgetUntil: 'Until {d}',
   dHomeEmpty: 'Home widget with no notices', dHomeEmptyHide: 'Hide the widget', dHomeEmptyLine: 'Show a "No active notices" line',
+  delete: 'Delete', delTitle: 'Delete notice', delBody: 'Delete "{title}"? This cannot be undone.', delLiveTick: 'The notice is on air now and will leave every board at once',
+  delUrgentTick: 'Urgent notice: I confirm deleting it in an emergency', delConfirm: 'Delete for good', delDone: 'The notice was deleted',
+  delRefused: 'You may not delete an urgent notice that is on air', noRows: 'No notices match this filter', clearFilters: 'Clear the filter', dPlacesTree: 'Places tree on the notices page',
 };
 
 export type NtKey = Key;

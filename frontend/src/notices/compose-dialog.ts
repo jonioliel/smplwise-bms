@@ -18,8 +18,8 @@ export interface NoticeSavedDetail {
 /**
  * CR-NOTICE106 / NOTICEADD-295: the compose dialog of a notice (title, text, severity, window, audience, TV boards, pinned, the TV
  * dwell), shared by ראשי › לוח הודעות and a board's "הודעות" tab in הגדרות › לוח הודעות. The screen opens it by setting `.draft`
- * (null = closed) and handles `notice-close` / `notice-saved`. A draft is deleted, a published notice is archived (the server never
- * deletes a published one); both ask once inside the dialog first.
+ * (null = closed) and handles `notice-close` / `notice-saved`. A draft is deleted, a published notice is archived; both ask once inside the
+ * dialog first. NOTICEDEL-295: with `canDelete` a published notice also offers "מחיקה" (event `notice-delete`, the screen's own confirmation).
  */
 @customElement('notice-compose')
 export class NoticeCompose extends LitElement {
@@ -32,6 +32,8 @@ export class NoticeCompose extends LitElement {
   @property({ attribute: false }) roles: { id: string; name: string }[] = [];
   /** NOTICEPUSH-295: the writer holds notices.push (the checkbox can be changed) and the installation's "התראה בפרסום" default. */
   @property({ attribute: false }) canPush = false;
+  /** NOTICEDEL-295: the writer holds notices.delete - a published notice then offers "מחיקה" (the screen asks once more in its own dialog). */
+  @property({ attribute: false }) canDelete = false;
   @property({ attribute: false }) pushDefault: 'by_severity' | 'always' | 'never' = 'by_severity';
   @state() private d: Draft | null = null;
   @state() private err = '';
@@ -207,6 +209,7 @@ export class NoticeCompose extends LitElement {
       ${this.err ? html`<p class="err" role="alert" data-compose-error>${this.err}</p>` : nothing}
       ${d.status === 'new' ? html`<sw-button slot="footer" variant="ghost" @click=${() => this.close()}>${nt('cancel')}</sw-button>` : nothing}
       ${d.id && d.status !== 'archived' ? html`<sw-button slot="footer" variant=${this.confirming ? 'danger' : 'ghost'} ?disabled=${this.busy} data-remove-notice @click=${() => this.removeNotice()}>${this.confirming ? nt(d.status === 'draft' ? 'confirmDelete' : 'confirmArchive') : nt(removeKey)}</sw-button>` : nothing}
+      ${d.id && d.status === 'published' && this.canDelete ? html`<sw-button slot="footer" variant="ghost" ?disabled=${this.busy} data-delete-notice @click=${() => this.dispatchEvent(new CustomEvent('notice-delete', { detail: { id: d.id }, bubbles: true, composed: true }))}>${nt('delete')}</sw-button>` : nothing}
       ${editable ? html`<sw-button slot="footer" ?disabled=${this.busy} data-save-draft @click=${() => this.save(false)}>${nt('saveDraft')}</sw-button>` : nothing}
       ${d.status !== 'archived' ? html`<sw-button slot="footer" variant="primary" ?disabled=${this.busy} data-publish @click=${() => this.save(editable)}>${d.status === 'published' ? nt('save') : nt('publish')}</sw-button>` : nothing}
     </sw-dialog>`;

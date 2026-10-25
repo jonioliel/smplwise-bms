@@ -416,6 +416,8 @@ PERMISSION_LABELS: dict[str, str] = {
     "notices.manage": "לוח הודעות: כתיבה, פרסום וארכוב",
     "notices.push": "לוח הודעות: שליחת התראה לנמענים",
     "notices.boards": "לוח הודעות: לוחות תצוגה (קישורים והגדרות מסך)",
+    # NOTICEDEL-295: real deletion of a published or archived notice (a draft is deleted by its writer). site_admin + system_admin; not delegable by default.
+    "notices.delete": "לוח הודעות: מחיקה סופית של הודעה",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update",
                       "users.ha_manage", "identity.local.manage", "bridge.key.rotate", "partner.manage"}  # rbac.assign is delegable (T082); USR1: users.ha_manage; USR2: identity.local.manage (system_admin only, never in a custom role)
