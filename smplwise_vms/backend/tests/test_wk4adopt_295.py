@@ -251,3 +251,222 @@ def test_frames_queued_when_a_close_arrives_are_dropped():
         assert [f async for f in downlink.frames()] == []
 
     asyncio.run(scenario())
+
+
+# ================================================================ W-002: the native lifetime change and the floor heartbeat, together
+
+import base64  # noqa: E402
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+from test_wkf01f02_295 import ListeningStation, SocketDouble, listen_schema, session, settle, talk_on  # noqa: E402,F401
+from w10_fake_station import FakeConn, FakeStation  # noqa: E402
+
+from smplwise.routers import intercom_media as router_im  # noqa: E402
+from smplwise.services import wiskey_media_contract as w10  # noqa: E402
+
+PACKET = bytes([0x55]) * 800
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class Rev2Station(ListeningStation):
+    """The fake WisKey with the reply-4 operation lifetime (`arx.station_talk_audio.v1` revision 2, CODE 924df3e9), as the review
+    describes it: the command proof of the last signed request lasts `proof_s`; a genuine admitted downlink packet refreshes the 12 s
+    (here `idle_s`) activity clock but never the proof; silence or the signed `expires_at` ends the talk. `terminal_event_after_expiry`
+    False reproduces finding WR4-01 (BridgeTalkSession.run checks the expired proof before `media/talk_closed` and swallows the refusal:
+    the resource ends, NO event reaches the original subscription); True is the behaviour requested from Mac."""
+
+    def __init__(self, *, terminal_event_after_expiry: bool) -> None:
+        super().__init__()
+        self.idle_s = 0.3
+        self.proof_s = 0.1
+        self.terminal_event_after_expiry = terminal_event_after_expiry
+        self.proof_until: dict[str, float] = {}
+        self.ended: list[tuple[str, str, bool]] = []  # (talk_ref, reason, event sent)
+
+    async def handle(self, conn: FakeConn, message: dict[str, Any]) -> dict[str, Any]:
+        reply = await super().handle(conn, message)
+        talk = conn.talk
+        if talk is not None and reply.get("success"):
+            self.proof_until[talk.ref] = self.clock() + self.proof_s  # the proof of THIS signed request; audio never extends it
+        return reply
+
+    def emit_audio(self, ref: str, seq: int, packet: bytes, override: dict[str, Any] | None = None) -> None:
+        talk = self.talks[ref]
+        talk.touched = self.clock()  # a fresh admitted packet: activity only (no proof, no descriptor, no expires_at renewal)
+        super().emit_audio(ref, seq, packet, override)
+
+    def end_by_rule(self, talk: Any, reason: str) -> None:
+        proof_alive = self.clock() < self.proof_until.get(talk.ref, 0.0)
+        event = proof_alive or self.terminal_event_after_expiry
+        self.ended.append((talk.ref, reason, event))
+        if event:
+            self.emit_closed(talk, reason)
+        else:
+            self.end_talk(talk)  # WR4-01: the native resource is cleaned up, the terminal event is swallowed
+
+    async def rules(self, every: float = 0.01) -> None:
+        while True:
+            await asyncio.sleep(every)
+            now = self.clock()
+            for talk in list(self.talks.values()):
+                if now - talk.touched >= self.idle_s:
+                    self.end_by_rule(talk, "idle_timeout")
+                elif _utcnow() >= talk.expires:
+                    self.end_by_rule(talk, "expired")
+
+
+def _signed(station: FakeStation, *commands: str) -> int:
+    return sum(len(station.by_command(c)) for c in commands)
+
+
+def _late_event(ref: str, seq: int) -> dict[str, Any]:
+    return {"type": "media/talk_audio", "schema": "arx.station_talk_audio.v1", "talk_ref": ref, "seq": seq, "codec": "pcmu",
+            "sample_rate": 8000, "channels": 1, "data": base64.b64encode(PACKET).decode()}
+
+
+def test_the_talk_sends_no_periodic_floor_even_when_old_options_ask_for_one(gset, listen_schema):
+    station = ListeningStation()
+
+    async def scenario() -> None:
+        channel = await talk_on(station, gset)  # pump_options carry heartbeat_s=0.2 (the pre-reply-4 setting)
+        await channel.open()
+        assert channel.pump.heartbeat_s == float("inf")
+        await asyncio.sleep(0.7)
+        assert _signed(station, w10.TALK_FLOOR, w10.TALK_FRAME) == 0, "no synthetic floor / frame keeps the talk alive"
+        await channel.floor(True)  # a genuine floor still goes out
+        assert _signed(station, w10.TALK_FLOOR) == 1
+        await channel.close("ended")
+
+    asyncio.run(scenario())
+
+
+async def _rev2_talk(station: Rev2Station, settings: Any, seconds: float) -> tuple[Any, Any, Any, Any, asyncio.Task[str]]:
+    channel = await talk_on(station, settings)
+    await channel.open()
+    t = session(seconds)
+    channel.expires_at = t.expires_at
+    ws = SocketDouble()
+    task = asyncio.create_task(router_im._pump(ws, t, channel, SimpleNamespace(should_stop=lambda: False)))
+    return channel, t, ws, station.talks[channel.ref], task
+
+
+async def _audio_after_the_proof_expired(station: Rev2Station, channel: Any, ws: Any, count: int) -> None:
+    await asyncio.sleep(station.proof_s * 2)  # the admission proof has expired; nothing new is signed
+    for seq in range(count):
+        station.emit_audio(channel.ref, seq, PACKET)
+        await settle(lambda: len(ws.sent_bytes) == seq + 1)
+        await asyncio.sleep(station.idle_s / 3)  # real audio keeps the ORIGINAL operation alive past the idle window
+
+
+def test_wr4_01_consumer_idle_after_proof_expiry_with_the_terminal_event_closes_the_original_channel(gset, listen_schema):
+    """The behaviour requested from Mac: after the short proof expired and genuine audio kept the original talk alive, silence ends it
+    and `media/talk_closed` reaches the ORIGINAL subscription - Arx's waiter ends, the resource is gone, no late audio, no renewal."""
+    station = Rev2Station(terminal_event_after_expiry=True)
+
+    async def scenario() -> None:
+        rules = asyncio.create_task(station.rules())
+        try:
+            channel, _t, ws, talk, task = await _rev2_talk(station, gset, 30)
+            await _audio_after_the_proof_expired(station, channel, ws, 4)
+            outcome = await asyncio.wait_for(task, 3)
+            assert outcome == "upstream_closed" and await channel.wait_closed() == "upstream_closed"
+            assert station.ended == [(channel.ref, "idle_timeout", True)] and talk.closed and channel.ref not in station.talks
+            published = list(ws.sent_bytes)
+            with pytest.raises(KeyError):
+                station.emit_audio(channel.ref, 4, PACKET)  # the native resource is gone: no packet can follow
+            channel._on_event(_late_event(channel.ref, 4))
+            with pytest.raises(bridge.MediaBridgeError):
+                await asyncio.wait_for(channel.receive_audio(), 1)  # a late event is never served
+            await channel.close(outcome)
+            assert ws.sent_bytes == published == [PACKET] * 4
+            assert _signed(station, w10.TALK_OPEN) == 1, "no replay of the open"
+            assert _signed(station, w10.TALK_FLOOR, w10.TALK_FRAME) == 0, "no authority renewal, no keepalive"
+            assert _signed(station, w10.TALK_CLOSE) == 0, "WisKey closed it: nothing more is signed"
+            assert channel.link is None
+        finally:
+            rules.cancel()
+
+    asyncio.run(scenario())
+
+
+def test_wr4_01_consumer_signed_expiry_with_the_terminal_event_closes_the_original_channel(gset, listen_schema):
+    station = Rev2Station(terminal_event_after_expiry=True)
+    station.idle_s = 30.0  # never quiet: the signed deadline ends it
+
+    async def scenario() -> None:
+        rules = asyncio.create_task(station.rules())
+        try:
+            channel = await talk_on(station, gset)
+            await channel.open()
+            talk = station.talks[channel.ref]
+            talk.expires = _utcnow() + timedelta(seconds=0.6)  # the signed expires_at of the original talk_open
+            ws = SocketDouble()
+            task = asyncio.create_task(router_im._pump(ws, session(30), channel, SimpleNamespace(should_stop=lambda: False)))
+            seq = 0
+            while not task.done() and seq < 40:
+                if channel.ref in station.talks:
+                    station.emit_audio(channel.ref, seq, PACKET)
+                    seq += 1
+                await asyncio.sleep(0.05)
+            outcome = await asyncio.wait_for(task, 3)
+            assert outcome == "upstream_closed" and station.ended == [(channel.ref, "expired", True)]
+            await channel.close(outcome)
+            assert 0 < len(ws.sent_bytes) <= seq and _signed(station, w10.TALK_OPEN) == 1
+            assert _signed(station, w10.TALK_FLOOR, w10.TALK_FRAME, w10.TALK_CLOSE) == 0
+            channel._on_event(_late_event(channel.ref, seq))  # an event that arrives after the end
+            with pytest.raises(bridge.MediaBridgeError):
+                await asyncio.wait_for(channel.receive_audio(), 1)  # is never served
+        finally:
+            rules.cancel()
+
+    asyncio.run(scenario())
+
+
+def test_wr4_01_as_delivered_the_event_is_lost_and_only_arxs_own_deadline_ends_the_channel(gset, listen_schema):
+    """WR4-01 on the CURRENT native behaviour: the resource ends silently after proof expiry. Arx's channel does NOT end by an event; it
+    ends at Arx's own session deadline (the router's watch), with ONE talk_close, no late audio, no new open, no renewal. This bounds the
+    effect of the finding; it is not the requested fix (private/planning/wiskey_inbox_2026-10-24/wr4-01-request-to-mac.md)."""
+    station = Rev2Station(terminal_event_after_expiry=False)
+
+    async def scenario() -> None:
+        rules = asyncio.create_task(station.rules())
+        try:
+            channel, _t, ws, talk, task = await _rev2_talk(station, gset, 2.0)
+            await _audio_after_the_proof_expired(station, channel, ws, 2)
+            await settle(lambda: talk.closed, timeout=2)
+            assert station.ended == [(channel.ref, "idle_timeout", False)], "the terminal event was swallowed"
+            assert not task.done() and not channel._future().done(), "the original waiter is still open: the finding"
+            outcome = await asyncio.wait_for(task, 4)
+            assert outcome == "expired", "Arx's own deadline ended it"
+            await channel.close(outcome)
+            assert ws.sent_bytes == [PACKET] * 2
+            assert _signed(station, w10.TALK_OPEN) == 1 and _signed(station, w10.TALK_FLOOR, w10.TALK_FRAME) == 0
+            assert _signed(station, w10.TALK_CLOSE) == 1, "one close for the original ref (answered session_expired), never repeated"
+            assert channel.link is None and channel._incoming.empty()
+        finally:
+            rules.cancel()
+
+    asyncio.run(scenario())
+
+
+def test_rev2_states_a_second_caller_gets_busy_and_mute_keeps_the_downlink(gset, listen_schema):
+    station = ListeningStation()
+
+    async def scenario() -> None:
+        first = await talk_on(station, gset)
+        await first.open()
+        second = await talk_on(station, gset)
+        with pytest.raises(ApiError) as busy:
+            await second.open()
+        assert busy.value.status == 409 and busy.value.code == "intercom_talk_busy", "shared slot: audio_busy, no eviction"
+        assert first.ref in station.talks, "the first talk is not preempted"
+        await first.floor(True)
+        await first.floor(False)  # mute releases the floor ...
+        station.emit_audio(first.ref, 0, PACKET)
+        assert await asyncio.wait_for(first.receive_audio(), 2) == PACKET, "... and the station's sound goes on"
+        await first.close("ended")
+
+    asyncio.run(scenario())

@@ -35,3 +35,22 @@ frames already admitted. `frames()` stops on the sentinel or on the fence.
 
 Tests: `tests/test_wk4adopt_295.py` (W-001 section) plus the existing WKLIVE / WKF01F02 / WKAUDIN / router / app suites (see the
 report for the exact runs and exit codes).
+
+## W-002 - native lifetime (revision 2) and the floor heartbeat, together
+
+- `WiskeyBridgeTalkChannel.open` sets `heartbeat_s = inf` (the reply-4 hunk, exactly): no periodic `talk_floor` while a talk is open;
+  genuine floor, frames and close are unchanged. Taken together with WisKey's `retain_execution` lifetime (CODE `924df3e9`); there is
+  no wire field naming contract revision 2, so the pairing is by WisKey CODE. Against an older WisKey a muted talk ends with
+  `idle_timeout` after 12 s - no authority is extended either way.
+- Arx's separate 30 s idle timer of a muted session (`frontend/src/wiskey/talk-session.ts`, owner decision 25.10) is re-armed only by
+  a verified, current packet: exactly one 800-byte PCMU packet on the open session's socket (the server publishes a packet only after
+  WisKey's event, sequence, age, session and permission checks). Empty / odd binary is neither played nor activity. Native silence
+  still ends the talk at 12 s; nothing in Arx keeps it alive.
+- Standalone listen stays `downlink_pending` (`WiskeyDownlinkChannel`, unchanged).
+- Revision-2 states covered on fakes: mute (floor released, downlink goes on), signed expiry, shared slot / `audio_busy` for a second
+  caller (409 `intercom_talk_busy`, no eviction), idle.
+- WR4-01 (P1, static source finding in WisKey `BridgeTalkSession.run`): the request to Mac is
+  `private/planning/wiskey_inbox_2026-10-24/wr4-01-request-to-mac.md` (owner channel, not committed). Arx consumer tests: with the
+  requested terminal event, idle and signed expiry close the original channel and the resource with no late audio, no renewal, no
+  replay; with today's behaviour the event is lost and only Arx's own session deadline ends the channel (one `talk_close`). W-002's
+  terminal-lifecycle acceptance stays OPEN until Mac returns.

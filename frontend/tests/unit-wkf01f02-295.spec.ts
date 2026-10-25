@@ -150,6 +150,30 @@ test.describe('two-way talk: the station sound on the talk socket (full duplex)'
     expect(ws.texts().at(-1)).toEqual({ type: 'talk/stop' });
   });
 
+  test('WK4ADOPT W-002: only a verified 800-byte packet re-arms the 30 s timer; empty or odd binary is neither played nor activity', async () => {
+    const { session, ws, timers, played } = await opened();
+    session.setMuted(true);
+    const armed = [...timers.keys()][0];
+    for (const size of [0, 1, 160, 799, 801, 1600]) ws.binary(new Uint8Array(size));
+    expect(played).toEqual([]);
+    expect([...timers.keys()]).toEqual([armed]); // the same window: nothing re-armed it
+    ws.binary(new Uint8Array(800));
+    expect(played).toEqual([800]);
+    expect([...timers.keys()][0]).not.toBe(armed);
+    session.end();
+    ws.binary(new Uint8Array(800)); // after the end: no play, no timer
+    expect(played).toEqual([800]);
+    expect(timers.size).toBe(0);
+  });
+
+  test('WK4ADOPT W-002: no artificial keepalive - a muted session sends nothing on its own while the station is heard', async () => {
+    const { session, ws } = await opened();
+    session.setMuted(true);
+    const before = ws.sent.length;
+    for (let i = 0; i < 5; i += 1) ws.binary(new Uint8Array(800));
+    expect(ws.sent.length).toBe(before); // no floor, no frame, no text: the station's sound is not answered with traffic
+  });
+
   test('unmuting cancels the idle timer; mute state is visible and starts fresh with every session', async () => {
     const { session, timers } = await opened();
     session.setMuted(true);

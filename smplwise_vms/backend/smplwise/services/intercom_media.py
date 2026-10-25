@@ -756,7 +756,14 @@ def _valid_request_id(value: str | None) -> bool:
 class WiskeyBridgeTalkChannel:
     """One talk through WisKey's signed bridge (contract v1.1): a DEDICATED connection that lives exactly as long as the talk. On that
     connection and as the operator (one actor) it reads a fresh descriptor, opens the talk, and then the `TalkPump` is the only sender
-    (floor, 5-frame batches, heartbeat, close). Lives on the web server's loop; nothing here keeps audio.
+    (floor, 5-frame batches, close). Lives on the web server's loop; nothing here keeps audio.
+
+    WK4ADOPT-295 (W-002, WisKey `arx.station_talk_audio.v1` contract revision 2, CODE 924df3e9): NO periodic floor heartbeat - WisKey
+    keeps the original signed talk deadline (`retain_execution`) and its own 12 s activity clock is refreshed only by genuine traffic
+    (real uplink frames, an explicit floor change, a fresh admitted downlink packet on this talk's subscription). Taken TOGETHER with that
+    native lifetime change: against an older WisKey a muted talk simply ends with `idle_timeout` after 12 s (no authority is extended
+    either way). There is no wire field naming the revision; the pairing is by WisKey CODE (docs/changes/WK4ADOPT-295.md). Arx's own 30 s
+    idle timer of a muted session (frontend/src/wiskey/talk-session.ts) is separate and is re-armed only by a verified 800-byte packet.
 
     Ends (`wait_closed`) when WisKey closes the talk (`media/talk_closed`), when the connection drops, or when any request is refused, left
     unanswered or answered unexpectedly; nothing is retried. `close` sends `talk_close` once on the same connection; a `cleanup_failed`
@@ -870,7 +877,11 @@ class WiskeyBridgeTalkChannel:
             await self._abandon(opened_ref)
             raise
         self.ref = opened.talk_ref
-        self.pump = TalkPump(link, self.ref, on_end=self._end, **self.provider.pump_options)
+        # Current WisKey retains the original signed talk deadline and origin.
+        # Repeating floor is not caller activity; no synthetic heartbeat frames.
+        options = dict(self.provider.pump_options)
+        options["heartbeat_s"] = float("inf")
+        self.pump = TalkPump(link, self.ref, on_end=self._end, **options)
         self.pump.start()
         pending, self._opening_events = self._opening_events, []
         for event in pending:  # events that arrived between WisKey's answer and the pump: handled now, in order
