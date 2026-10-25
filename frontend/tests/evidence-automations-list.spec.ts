@@ -935,7 +935,7 @@ async function install(page: Page, st: ApiState) {
       st.patches.push(body);
       Object.assign(st.settings, body);
     }
-    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.security_snapshot': 'true', ...st.settings }, can_edit: st.perms.includes('system.configure') });
+    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.security_snapshot': 'true', 'ui.page_size.automations_cards': '12', ...st.settings }, can_edit: st.perms.includes('system.configure') });
     if (p.startsWith('automations')) {
       const body = req.method() === 'GET' ? null : req.postDataJSON();
       st.calls.push({ method: req.method(), path: p + url.search, body });

@@ -37,7 +37,7 @@ async function openDemo(page: Page, query: string, hash: string, init: Record<st
     }
   }, init);
   await page.goto('about:blank');
-  await page.goto(`/?design=a${query}#${hash}`);
+  await page.goto(`/?design=a&fit=off${query}#${hash}`);
   await page.waitForSelector('sw-app');
 }
 
