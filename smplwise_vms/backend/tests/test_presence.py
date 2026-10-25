@@ -75,7 +75,8 @@ def test_presence_permissions_in_every_role_but_kiosk_and_labelled():
         # door_opener (CR-033) and the single-permission ticket grants (CR-038 8.2: tickets_view, tickets_manage ...) are add-on grants
         # next to a person's base role, not roles of their own: no presence.report
         # G2FIX-295: the four single-permission door roles of CR-039 7.2 (DOORWIN2-295) are the same kind of add-on grant: no presence.report
-        assert ("presence.report" in perms) == (role not in ("kiosk", "door_opener", *DOOR_GRANT_ROLES) and not role.startswith(("tickets_", "notices_"))), role  # CR-NOTICE106: notices_* are add-on grants too
+        # ANNOUNCE-295 (REL2200 assembly): the delegable `announcer` role (media.announce + devices.read) is the same kind of add-on grant
+        assert ("presence.report" in perms) == (role not in ("kiosk", "door_opener", "announcer", *DOOR_GRANT_ROLES) and not role.startswith(("tickets_", "notices_"))), role  # CR-NOTICE106: notices_* are add-on grants too
     assert "presence.sensors.view" in ROLES["system_admin"] and "presence.sensors.view" not in ROLES["operator"]
     assert PERMISSION_LABELS["presence.report"] and PERMISSION_LABELS["presence.sensors.view"]
     contract = json.loads((ROOT / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
