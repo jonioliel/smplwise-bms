@@ -568,6 +568,10 @@ class _Lease:
 
 
 _LEASED: dict[str, _Lease] = {}
+# Cleanup handles only, never a second stream registry. Retirement cannot lose
+# an owner or a callback generation still waiting to leave the registry lock.
+_LEASE_TIMERS: list[tuple[Any, Any]] = []
+_LEASE_TIMER_JOIN_S = 5.0
 _LEASE_LOCK = threading.RLock()  # registering and releasing never interleave: a new viewer's stream is not deleted under it
 
 
@@ -591,6 +595,12 @@ def _arm(name: str, rec: _Lease) -> None:
     timer.daemon = True
     rec.timer = timer
     rec.timers.append(timer)
+    # Reap finished generations, retaining every live generation until joined.
+    for who, old in tuple(_LEASE_TIMERS):
+        if not old.is_alive():
+            old.join(0)
+            _LEASE_TIMERS[:] = [(owner, t) for owner, t in _LEASE_TIMERS if t is not old]
+    _LEASE_TIMERS.append((rec.owner, timer))
     timer.start()
 
 
@@ -648,6 +658,8 @@ def _register_lease(settings: Settings, sid: str, profile: str, source: str, exp
     until = expires_at if expires_at is not None else now
     digest = hashlib.sha256(source.encode()).hexdigest()
     with _LEASE_LOCK:
+        if owner is not None and getattr(owner, "closed", False):
+            raise ApiError(503, "intercom_media_unavailable", "בעל השידור נסגר.")
         _sweep_leased(settings, skip_station=sid)
         for name, rec in list(_LEASED.items()):
             if rec.owner is not owner or rec.station != sid or rec.profile != profile:
@@ -716,17 +728,23 @@ def close_leased_streams(owner: Any) -> bool:
     nothing of the owner is left; False when go2rtc did not confirm a delete (that record stays, quarantined)."""
     with _LEASE_LOCK:
         rows = [(name, rec) for name, rec in _LEASED.items() if rec.owner is owner]
-        timers = [timer for _name, rec in rows for timer in rec.timers]
+        timers = [timer for who, timer in _LEASE_TIMERS if who is owner]
         results = [_retire(None, name, rec, force=True) for name, rec in rows]
         for _name, rec in rows:
             if rec.timer is not None:
                 rec.timer.cancel()
     current = threading.current_thread()
+    joined = True
     for timer in timers:
         timer.cancel()
         if timer is not current:
-            timer.join(5)
-    return all(results)
+            timer.join(_LEASE_TIMER_JOIN_S)
+        if timer.is_alive():
+            joined = False
+        else:
+            with _LEASE_LOCK:
+                _LEASE_TIMERS[:] = [(who, t) for who, t in _LEASE_TIMERS if t is not timer]
+    return all(results) and joined
 
 
 # ---------------------------------------------------------------- WisKey's W10 over the signed bridge (W10CLIENT-295)
