@@ -668,8 +668,10 @@ test.describe('automation builder: conflict, validation, templates, the schedule
     await expect(banner).toContainText('הפריט שונה במקום אחר');
     await expect(page.locator(`${tag} dialog.sheet`)).toBeVisible();
     await shot(page, '19-builder-conflict-1440-light');
-    await banner.locator('[data-conflict="compare"]').click();
-    const cmp = page.locator(`${tag} [data-compare]`);
+    // KAV079-295: for an automation the banner's compare became "השוואה ומיזוג" (the manual merge, <kav-merge>); scenes / scripts keep "השווה"
+    await expect(banner.locator('[data-conflict="compare"]')).toHaveCount(0);
+    await banner.locator('[data-conflict="merge"]').click();
+    const cmp = page.locator(`${tag} [data-kav-merge]`);
     await expect(cmp).toContainText('תנועה בפרוזדור (שלי)');
     await expect(cmp).toContainText('(עודכן)');
     await shot(page, '20-builder-conflict-compare-1440-light');

@@ -141,7 +141,7 @@ export class KavButtonForm extends LitElement {
         <div class="kav-press" role="group" aria-label="סוג לחיצה" data-kav-press>${PRESSES.map((p) => html`<button type="button" aria-pressed=${String(p === b.press)} ?disabled=${!offered(b.button, p)} data-kav-press-kind=${p}
           @click=${() => applyChoice(fc, info, b.button, p)}><span class="pi ${p}"><i></i>${p === 'double' ? html`<i></i>` : nothing}</span>${PRESS_WORD[p].replace('לחיצה ', '')}
           <small>${p === 'short' ? 'לחיצה אחת' : p === 'double' ? html`עד <bdi>${timing?.double_ms ?? 400}</bdi> מ״ש בין לחיצות` : html`מעל <bdi>${timing?.long_ms ?? 800}</bdi> מ״ש`}</small></button>`)}</div>
-        <span class="kav-note">הזמנים נקבעים בהגדרות › אוטומציות · <a href="#/system/automations">שינוי</a></span></div>`;
+        <span class="kav-note">הזמנים נקבעים בהגדרות ‹ אוטומציות · <a href="#/system/automations">שינוי</a></span></div>`;
   }
 }
 
@@ -174,7 +174,7 @@ function presenceForm(fc: FormCtx): TemplateResult {
 const SOURCE_WORD: Record<string, string> = { 'sensor.leak': 'הצפה', 'sensor.smoke': 'עשן', 'sensor.gas': 'גז', 'sensor.co': 'פחמן חד־חמצני', 'alarm.triggered': 'אזעקה' };
 export function criticalReason(sources: readonly string[]): string {
   const words = sources.map((s) => SOURCE_WORD[s] ?? s);
-  return words.length ? `מותר כי ״${words.join('״, ״')}״ ${words.length === 1 ? 'מסומנת' : 'מסומנות'} כאירוע בטיחות בהגדרות › התראות.` : 'רק לאירועי בטיחות שהופעלו בהגדרות › התראות.';
+  return words.length ? `מותר כי ״${words.join('״, ״')}״ ${words.length === 1 ? 'מסומנת' : 'מסומנות'} כאירוע בטיחות בהגדרות ‹ התראות.` : 'רק לאירועי בטיחות שהופעלו בהגדרות ‹ התראות.';
 }
 
 function criticalRow(fc: FormCtx): TemplateResult {
@@ -202,18 +202,18 @@ export const extFormStyles = css`
   .kav-tools { display: flex; gap: 8px; align-items: center; }
   .kav-tools .sp { flex: 1; }
   .kav-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-  .kav-btns button { min-inline-size: 52px; min-block-size: 44px; border-radius: 14px; border: 1px solid var(--dv-border-strong); background: var(--dv-surface-2, transparent);
+  .kav-btns button { min-inline-size: 52px; min-block-size: 44px; border-radius: var(--sw-r-lg); border: 1px solid var(--dv-border-strong); background: var(--dv-surface-2, transparent);
     color: var(--dv-text); font: inherit; font-weight: 700; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
-  .kav-btns button small { font-size: var(--sw-fs-xs); font-weight: 500; color: var(--dv-warning, #b45309); }
+  .kav-btns button small { font-size: var(--sw-fs-xs); font-weight: 500; color: var(--sw-warning-text); }
   .kav-btns button[aria-pressed='true'], .kav-press button[aria-pressed='true'] { border-color: var(--dv-accent); background: color-mix(in srgb, var(--dv-accent) 14%, transparent); color: var(--dv-accent); }
   .kav-press { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .kav-press button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 14px; border: 1px solid var(--dv-border-strong);
+  .kav-press button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: var(--sw-r-lg); border: 1px solid var(--dv-border-strong);
     background: var(--dv-surface-2, transparent); color: var(--dv-text); font: inherit; font-weight: 600; cursor: pointer; }
   .kav-press button:disabled { opacity: 0.4; cursor: not-allowed; }
   .kav-press small { font-size: var(--sw-fs-xs); font-weight: 400; color: var(--dv-text-2); }
   .kav-press .pi { display: inline-flex; gap: 3px; block-size: 10px; align-items: center; }
   .kav-press .pi i { inline-size: 10px; block-size: 10px; border-radius: 50%; background: currentColor; }
-  .kav-press .pi.long i { inline-size: 26px; border-radius: 6px; }
+  .kav-press .pi.long i { inline-size: 26px; border-radius: var(--sw-r-xs); }
   .kav-note { font-size: var(--sw-fs-xs); color: var(--dv-text-2); }
   .kav-note a { color: var(--dv-accent); }
   .kav-srcs { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -221,7 +221,7 @@ export const extFormStyles = css`
   .kav-src[aria-pressed='true'] { border-color: var(--dv-accent); color: var(--dv-accent); }
   .kav-src[aria-disabled='true'] { opacity: 0.55; }
   .kav-src small { font-size: var(--sw-fs-xs); color: var(--dv-text-2); }
-  .kav-swrow { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--dv-border); }
+  .kav-swrow { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--sw-r-lg); border: 1px solid var(--dv-border); }
   .kav-swrow > .ic { color: var(--dv-danger); }
   .kav-swrow .t { flex: 1; display: flex; flex-direction: column; font-weight: 600; }
   .kav-swrow .t small { font-weight: 400; font-size: var(--sw-fs-xs); color: var(--dv-text-2); }

@@ -624,6 +624,7 @@ test.describe('notifications client: scope-aware visibility', () => {
       elevator: 'devices.read', // CR-INFRA-ELEVATORS 2.8.0
       temperature: 'devices.read', // CR-INFRA-TEMPERATURE 2.9.1
       maintenance: 'maintenance.view', // CR-MAINT215
+      notice: null, // NOTICEPUSH-295: the server filters by the notice's audience; the client trusts its rows
     });
     const v = viewerWith({ 'events.read': ['parking'], 'devices.read': ['kitchen'], 'alarm.view': '*' });
     expect(canSeeNotification(subj('camera', 'parking'), v)).toBe(true);

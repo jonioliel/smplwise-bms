@@ -141,7 +141,7 @@ const he = {
   logoUpload: 'העלאת לוגו',
   logoRemove: 'הסרה',
   logoNone: 'אין לוגו',
-  logoWhere: 'הגדרות › כללי › מראה המערכת',
+  logoWhere: 'הגדרות ‹ כללי ‹ מראה המערכת',
   activate: 'הפעלה',
   copyAsk: 'העתקת הקישור של "{name}"',
   copyAskBody: 'יונפק קישור חדש והקישור הקודם יפסיק לעבוד מיד.',

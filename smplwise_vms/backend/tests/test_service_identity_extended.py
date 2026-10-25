@@ -333,7 +333,7 @@ def test_never_lists_and_extended_tables_are_identical_on_both_sides():
         for svc, items in d.items():
             assert not any(si.never_local(svc, i, True) for i in items), k
     # SVCIDENT3: the run fences ship in 0.9.2; EXTID-295 (Fable review 4): the V-01 fix and the policy report ship in 0.9.6
-    assert si.BRIDGE_EXTENDED_REQUIRED == "0.9.6" and load("const").VERSION >= "0.9.6"
+    assert si.BRIDGE_EXTENDED_REQUIRED == "0.9.6" and si._version_tuple(load("const").VERSION) >= si._version_tuple("0.9.6")  # numeric, not string order (0.10.0 > 0.9.6)
 
 
 # ---------------------------------------------------------------- 4. through the routes: the user's own permission still decides
