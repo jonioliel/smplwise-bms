@@ -12,7 +12,9 @@ Endpoints (all behind the administrator setting `access.station_media`, OFF by d
 - `POST /access-control/stations/{id}/talk` (`access.call` on the station chain - the owner: the call permission covers
   talk): reserves the station's single talker slot and the caller's single session, audited (`intercom.talk.start`).
 - `WS /access-control/talk/{session}/ws`: the session's audio - G.711 frames (20 ms, 8 kHz) from the browser's microphone,
-  sent only while the push-to-talk button is held - forwarded to the provider's talk channel. Ends on the browser's close
+  forwarded to the provider's talk channel only while the floor is held (`talk/ptt` down .. up). WKF01F02-295 (owner 25.10):
+  the browser now holds the floor for the whole session (full duplex, the microphone open) and releases it only while the
+  operator mutes; the server side is unchanged. Ends on the browser's close
   or stop, the session's expiry, a lost permission (re-checked like a camera lease), the setting turned off, or the upstream
   closing; one end row (`intercom.talk.end`: outcome, duration, frame count - never audio content). WKF01F02-295: when WisKey opened
   the talk with the station's sound (`arx.station_talk_audio.v1`), the same socket carries it back to the browser as binary messages

@@ -6,14 +6,14 @@ import { SKIN_IDS } from '../src/design/skins';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
 import { installStationMediaMock, newMediaMock, type StationMediaMock } from './wiskey-station-media-mocks';
 
-// CR-036 slice S18 - a station's live video and push-to-talk in the stations screen's drawer, behind the real shell, against a
+// CR-036 slice S18 - a station's live video and two-way talk in the stations screen's drawer, behind the real shell, against a
 // MOCKED backend (tests/wiskey-stations-mocks.ts + tests/wiskey-station-media-mocks.ts: invented stations, a drawn canvas for the
 // live picture, a fake microphone; no station, no intercom, no go2rtc). Desktop / tablet / phone. What it pins:
 //   - OFF by default (`access.station_media`): the drawer is exactly S6's - the still, the classic panel - and no media read is made;
 //   - `video`: the live player on the station's relay path, the sub profile WebRTC first, the main profile MSE, the quality choice;
 //     talk stays the classic-panel link;
-//   - `video_talk` with a talk transport: press and hold to talk (pointer and keyboard), ONE start request per press, frames only
-//     while held, release / end / the server's own end; busy, a blocked microphone, a refused start, a station without talk (the
+//   - `video_talk` with a talk transport: one click starts a full-duplex talk (microphone open for the session), ONE start request,
+//     mute / unmute (pointer and keyboard), end / the server's own end; busy, a blocked microphone, a refused start, a station without talk (the
 //     classic link comes back), a caller without the call permission (no talk control), video not allowed (the poster + talk);
 //   - a card in a call offers "talk" that opens the drawer; no platform name in the drawer.
 // Evidence images: docs/design/evidence/wiskey-station-media/ (every skin, light and dark, desktop and phone).
@@ -45,14 +45,6 @@ async function openDrawer(page: Page, id: string) {
 }
 
 const sockets = (page: Page) => page.evaluate(() => (window as unknown as { __liveSockets: { url: string; kind: string }[] }).__liveSockets);
-
-async function holdAndRelease(page: Page, during: () => Promise<void>) {
-  const box = (await ptt(page).boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await during();
-  await page.mouse.up();
-}
 
 async function shot(page: Page, info: TestInfo, name: string) {
   fs.mkdirSync(OUT, { recursive: true });
@@ -117,37 +109,37 @@ test.describe('station media: live video', () => {
   });
 });
 
-test.describe('station media: push-to-talk', () => {
+test.describe('station media: two-way talk (full duplex, WKF01F02-295)', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
-  test('press and hold: one start, the floor while held, frames only then; release; end', async ({ page }, info) => {
+  test('one click: one start, the microphone open for the whole session, frames; mute / unmute; explicit end', async ({ page }, info) => {
     const { mm } = await boot(page, { mode: 'video_talk' });
     await openDrawer(page, 'gate');
     await expect(ptt(page)).toBeVisible();
     await expect(inDrawer(page, 'wk-station-live [data-wk-talk="classic"]')).toHaveCount(0);
     await expect(inDrawer(page, '[data-wk-talk="classic"]')).toHaveCount(0); // the call section's classic link too (gate is ringing)
     await shot(page, info, 'talk-ready-light');
-    await holdAndRelease(page, async () => {
-      await expect(ptt(page)).toHaveAttribute('data-phase', 'talking', { timeout: 10_000 });
-      await expect.poll(() => mm.talkText.filter((m) => m.type === 'talk/ptt').map((m) => m.value)).toEqual(['down']);
-      await expect(talkLine(page)).toContainText('נותרו');
-      await shot(page, info, 'talk-talking-light');
-      await expect.poll(() => mm.frames.length, { timeout: 5_000 }).toBeGreaterThan(0);
-    });
+    await ptt(page).click();
+    await expect(ptt(page)).toHaveAttribute('data-phase', 'talking', { timeout: 10_000 });
+    await expect(ptt(page)).toHaveAttribute('data-muted', 'false');
+    await expect.poll(() => mm.talkText.filter((m) => m.type === 'talk/ptt').map((m) => m.value)).toEqual(['down']);
+    await expect(talkLine(page)).toContainText('נותרו');
+    await shot(page, info, 'talk-talking-light');
+    await expect.poll(() => mm.frames.length, { timeout: 5_000 }).toBeGreaterThan(0);
+    await ptt(page).click(); // mute
     await expect(ptt(page)).toHaveAttribute('data-phase', 'open');
+    await expect(ptt(page)).toHaveAttribute('data-muted', 'true');
     await expect.poll(() => mm.talkText.filter((m) => m.type === 'talk/ptt').map((m) => m.value)).toEqual(['down', 'up']);
     const after = mm.frames.length;
     await page.waitForTimeout(400);
-    expect(mm.frames.length).toBeLessThanOrEqual(after + 1); // at most one in flight when released
+    expect(mm.frames.length).toBeLessThanOrEqual(after + 1); // at most one in flight when muted
     expect(mm.frames.every((n) => n === 160)).toBe(true);
     expect(mm.starts).toHaveLength(1);
     expect(String(mm.starts[0].body.client_request_id)).toMatch(/^ptt-[0-9a-f]{24}$/);
-    // the keyboard: Space held on the focused button is the same press, on the same session
+    // the keyboard: Enter on the focused button unmutes, on the same session
     await ptt(page).focus();
-    await page.keyboard.down('Space');
+    await page.keyboard.press('Enter');
     await expect(ptt(page)).toHaveAttribute('data-phase', 'talking');
-    await page.keyboard.up('Space');
-    await expect(ptt(page)).toHaveAttribute('data-phase', 'open');
     expect(mm.starts).toHaveLength(1);
     await inDrawer(page, 'wk-station-live wk-talk-button [data-wk-talk-end]').click();
     await expect(ptt(page)).toHaveAttribute('data-phase', 'idle');
@@ -158,9 +150,8 @@ test.describe('station media: push-to-talk', () => {
   test('the server ends the session: the time is over', async ({ page }) => {
     const { mm } = await boot(page, { mode: 'video_talk' });
     await openDrawer(page, 'gate');
-    await holdAndRelease(page, async () => {
-      await expect(ptt(page)).toHaveAttribute('data-phase', 'talking', { timeout: 10_000 });
-    });
+    await ptt(page).click();
+    await expect(ptt(page)).toHaveAttribute('data-phase', 'talking', { timeout: 10_000 });
     mm.serverEnd('expired', 4408);
     await expect(ptt(page)).toHaveAttribute('data-phase', 'idle');
     await expect(talkLine(page)).toHaveAttribute('data-problem', 'expired');
@@ -181,9 +172,8 @@ test.describe('station media: push-to-talk', () => {
     await page.goto('about:blank');
     const { mm } = await boot(page, { mode: 'video_talk', startFail: { status: 409, code: 'intercom_talk_user_busy' } });
     await openDrawer(page, 'gate');
-    await holdAndRelease(page, async () => {
-      await expect(talkLine(page)).toHaveAttribute('data-problem', 'user_busy');
-    });
+    await ptt(page).click();
+    await expect(talkLine(page)).toHaveAttribute('data-problem', 'user_busy');
     expect(mm.starts).toHaveLength(1);
     expect(mm.talkSockets).toHaveLength(0);
     await page.waitForTimeout(500);
@@ -203,7 +193,7 @@ test.describe('station media: push-to-talk', () => {
     await expect(inDrawer(page, '[data-wk-talk]')).toHaveCount(0);
   });
 
-  test('video not allowed but talk is: the poster and the push-to-talk', async ({ page }) => {
+  test('video not allowed but talk is: the poster and the talk control', async ({ page }) => {
     await boot(page, { mode: 'video_talk', liveAllowed: false });
     await openDrawer(page, 'gate');
     await expect(inDrawer(page, 'wk-station-live [data-wk-live-frame] img')).toBeVisible();
@@ -211,7 +201,7 @@ test.describe('station media: push-to-talk', () => {
     await expect(ptt(page)).toBeVisible();
   });
 
-  test('a card in a call offers talk, which opens the drawer with the push-to-talk', async ({ page }) => {
+  test('a card in a call offers talk, which opens the drawer with the talk control', async ({ page }) => {
     await boot(page, { mode: 'video_talk' });
     const btn = page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="lab"] [data-wk-talk="drawer"]`);
     await expect(btn).toBeVisible();
@@ -226,7 +216,7 @@ test.describe('station media: every skin (evidence images)', () => {
 
   for (const skin of SKIN_IDS) {
     for (const scheme of ['light', 'dark'] as const) {
-      test(`${skin} ${scheme}: live video and push-to-talk in the drawer`, async ({ page }, info) => {
+      test(`${skin} ${scheme}: live video and talk in the drawer`, async ({ page }, info) => {
         test.skip(info.project.name === 'tablet', 'desktop and phone');
         await boot(page, { mode: 'video_talk' }, {}, { skin, scheme });
         await openDrawer(page, 'gate');

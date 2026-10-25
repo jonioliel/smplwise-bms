@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { TalkStartReply } from '../src/api/station-media';
 import { aLaw, g711Sample, muLaw } from '../src/wiskey/g711';
-import type { MicHandle } from '../src/wiskey/talk-mic';
+import { MIC_CONSTRAINTS, type MicHandle } from '../src/wiskey/talk-mic';
 import { TalkSession, type SocketLike, type TalkDeps } from '../src/wiskey/talk-session';
 
 // WKF01F02-295 (F02): the station's sound inside a two-way talk - WisKey's 800-byte PCMU packets arrive on the talk socket as binary
@@ -39,6 +39,9 @@ class FakeSocket implements SocketLike {
     this.readyState = 1;
     this.onmessage?.({ data: JSON.stringify(msg) } as MessageEvent);
   }
+  texts() {
+    return this.sent.filter((x): x is string => typeof x === 'string').map((x) => JSON.parse(x));
+  }
   binary(bytes: Uint8Array) {
     this.onmessage?.({ data: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) } as MessageEvent);
   }
@@ -58,14 +61,17 @@ const REPLY: TalkStartReply = {
   request_id: 'ptt-1',
 };
 
-function rig() {
+function rig(echo: boolean | null = true) {
   const played: number[] = [];
   const sockets: FakeSocket[] = [];
+  const timers = new Map<number, () => void>();
+  let id = 0;
   let stopped = 0;
   const mic: MicHandle = {
     setActive: () => undefined,
     stop: () => (stopped += 1),
     play: (packet) => played.push(packet.byteLength),
+    echoCancellation: echo,
   };
   const deps: TalkDeps = {
     start: async () => REPLY,
@@ -78,30 +84,42 @@ function rig() {
     mic: async () => mic,
     requestId: () => 'ptt-1',
     now: () => 1_000_000,
-    after: () => 1,
-    cancel: () => undefined,
+    after: (fn) => {
+      id += 1;
+      timers.set(id, fn);
+      return id;
+    },
+    cancel: (t) => timers.delete(t),
     changed: () => undefined,
   };
-  return { session: new TalkSession('gate', 'pcmu', 160, deps), played, sockets, stopped: () => stopped };
+  return { session: new TalkSession('gate', 'pcmu', 160, deps), played, sockets, timers, stopped: () => stopped };
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-test.describe('two-way talk: the station sound on the talk socket', () => {
-  test('binary packets play only while the session is open or talking, never before open or after the end', async () => {
+async function opened(echo: boolean | null = true) {
+  const r = rig(echo);
+  void r.session.start();
+  await flush();
+  r.sockets[0].server({ type: 'talk/state', value: 'open' });
+  return { ...r, ws: r.sockets[0] };
+}
+
+test.describe('two-way talk: the station sound on the talk socket (full duplex)', () => {
+  test('binary packets play while the microphone is open AND while muted, never before open or after the end', async () => {
     const { session, played, sockets, stopped } = rig();
-    void session.press();
+    void session.start();
     await flush();
     const ws = sockets[0];
     expect(ws.binaryType).toBe('arraybuffer');
     ws.binary(new Uint8Array(800));
     expect(played).toEqual([]); // still starting: nothing plays
     ws.server({ type: 'talk/state', value: 'open' });
-    expect(session.phase).toBe('talking');
-    ws.binary(new Uint8Array(800)); // while the operator holds the button (the microphone is open)
-    session.release();
+    expect(session.phase).toBe('talking'); // the microphone is open for the whole session
+    ws.binary(new Uint8Array(800)); // both directions at once
+    session.setMuted(true);
     expect(session.phase).toBe('open');
-    ws.binary(new Uint8Array(800)); // listening between presses
+    ws.binary(new Uint8Array(800)); // muted: the station is still heard
     expect(played).toEqual([800, 800]);
     expect(ws.sent.filter((x) => typeof x !== 'string')).toHaveLength(0); // nothing of the station's sound is echoed back
     session.end();
@@ -111,14 +129,47 @@ test.describe('two-way talk: the station sound on the talk socket', () => {
   });
 
   test('a text message still drives the state machine next to binary packets', async () => {
-    const { session, sockets } = rig();
-    void session.press();
-    await flush();
-    const ws = sockets[0];
-    ws.server({ type: 'talk/state', value: 'open' });
+    const { session, ws } = await opened();
     ws.binary(new Uint8Array(800));
     ws.server({ type: 'talk/closed', value: 'expired' });
     expect(session.phase).toBe('idle');
     expect(session.outcome).toBe('expired');
+  });
+
+  test('owner 25.10: the station sound re-arms the 30 s idle timer of a muted session; silence ends it', async () => {
+    const { session, ws, timers } = await opened();
+    expect(timers.size).toBe(0); // microphone open: no idle end (the server's hard limit applies)
+    session.setMuted(true);
+    expect(timers.size).toBe(1);
+    const first = [...timers.keys()][0];
+    ws.binary(new Uint8Array(800));
+    expect(timers.size).toBe(1);
+    expect([...timers.keys()][0]).not.toBe(first); // a fresh 30 s window
+    [...timers.values()][0](); // IDLE_END_MS of silence later
+    expect(session.phase).toBe('idle');
+    expect(ws.texts().at(-1)).toEqual({ type: 'talk/stop' });
+  });
+
+  test('unmuting cancels the idle timer; mute state is visible and starts fresh with every session', async () => {
+    const { session, timers } = await opened();
+    session.setMuted(true);
+    expect(session.muted).toBe(true);
+    session.setMuted(false);
+    expect(session.phase).toBe('talking');
+    expect(timers.size).toBe(0);
+    session.toggleMute();
+    session.end();
+    expect(session.phase).toBe('idle');
+    void session.start();
+    expect(session.muted).toBe(false);
+    session.end();
+  });
+
+  test('echo cancellation: requested from the browser, and what it applied is reported to the screen', async () => {
+    expect((MIC_CONSTRAINTS.audio as MediaTrackConstraints).echoCancellation).toBe(true);
+    expect(MIC_CONSTRAINTS.video).toBe(false);
+    expect((await opened(true)).session.echoCancelled).toBe(true);
+    expect((await opened(false)).session.echoCancelled).toBe(false); // the talk screen shows the headset hint
+    expect((await opened(null)).session.echoCancelled).toBeNull();
   });
 });

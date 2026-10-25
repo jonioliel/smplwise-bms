@@ -538,3 +538,76 @@ def test_the_downlink_adapter_for_a_talk_passes_whole_packets_and_keeps_only_thr
         await downlink.close("ended")
 
     asyncio.run(scenario())
+
+
+# ================================================================ owner 25.10: full duplex; the talk permission is enough for the station's sound
+
+def test_full_duplex_frames_flow_for_the_whole_open_session_while_the_station_sound_plays():
+    """The microphone opens with the session (one `talk/ptt down`) and frames keep flowing while station packets arrive."""
+    async def scenario() -> None:
+        ws, ch, t = SocketDouble(), ChannelDouble(), session()
+        task = asyncio.create_task(router_im._pump(ws, t, ch, SimpleNamespace(should_stop=lambda: False)))
+        ws.inbox.put_nowait({"type": "websocket.receive", "text": json.dumps({"type": "talk/ptt", "value": "down"})})
+        for i in range(20):
+            ws.inbox.put_nowait({"type": "websocket.receive", "bytes": bytes([i]) * 160})
+            if i % 5 == 0:
+                ch.audio.put_nowait(bytes([i]) * 800)
+        await settle(lambda: len(ch.frames) == 20 and len(ws.sent_bytes) >= 1)
+        ws.inbox.put_nowait({"type": "websocket.receive", "text": json.dumps({"type": "talk/ptt", "value": "up"})})  # mute
+        ws.inbox.put_nowait({"type": "websocket.receive", "bytes": bytes(160)})
+        ch.audio.put_nowait(bytes([99]) * 800)
+        await settle(lambda: ws.sent_bytes and ws.sent_bytes[-1][0] == 99)
+        assert len(ch.frames) == 20 and ch.floors == [True, False], "muted: no frame reaches the station, its sound still plays"
+        ws.inbox.put_nowait({"type": "websocket.disconnect"})
+        assert await asyncio.wait_for(task, 3) == "ended"
+
+    asyncio.run(scenario())
+
+
+def test_the_stations_sound_in_a_talk_never_consults_the_separate_listen_setting(monkeypatch):
+    """Owner 25.10: `access.call` (the talk permission) is enough; `access.station_listen` is not read on the talk path."""
+    from smplwise.services import intercom_listen
+
+    def forbidden(*_a: Any, **_k: Any) -> str:
+        raise AssertionError("the talk path read access.station_listen")
+
+    monkeypatch.setattr(intercom_listen, "listen_mode", forbidden)
+
+    async def scenario() -> None:
+        ws, ch, t = SocketDouble(), ChannelDouble(), session()
+        task = asyncio.create_task(router_im._pump(ws, t, ch, SimpleNamespace(should_stop=lambda: False)))
+        ch.audio.put_nowait(bytes([5]) * 800)
+        await settle(lambda: ws.sent_bytes)
+        ws.inbox.put_nowait({"type": "websocket.disconnect"})
+        assert await asyncio.wait_for(task, 3) == "ended"
+
+    asyncio.run(scenario())
+
+
+def test_the_talk_lease_checks_only_the_call_permission_and_the_media_setting(monkeypatch):
+    from contextlib import contextmanager
+
+    from smplwise.services import intercom_authority as ia
+    from smplwise.services import intercom_listen
+
+    seen: list[tuple[str, str]] = []
+
+    class Auth:
+        def __init__(self, conn: Any, principal: Any) -> None:
+            pass
+
+        def station(self, permission: str, station_id: str) -> bool:
+            seen.append((permission, station_id))
+            return permission == ia.CALL
+
+    @contextmanager
+    def connection(**_kw: Any) -> Any:
+        yield object()
+
+    monkeypatch.setattr(router_im.ia, "Authority", Auth)
+    monkeypatch.setattr(router_im.im, "media_mode", lambda conn: "video_talk")
+    monkeypatch.setattr(intercom_listen, "listen_mode", lambda conn: (_ for _ in ()).throw(AssertionError("listen setting read")))
+    lease = router_im.TalkLease.__new__(router_im.TalkLease)
+    lease.db, lease.station_id = SimpleNamespace(connection=connection), "entry-a"
+    lease.principal = SimpleNamespace(user_id="u1")
+    assert lease.allowed_now() is True and seen == [(ia.CALL, "entry-a")]

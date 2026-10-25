@@ -1,5 +1,5 @@
 /**
- * Strings of a station's live video and push-to-talk in the stations screen's drawer (CR-036 slice S18), Hebrew (the product
+ * Strings of a station's live video and two-way talk in the stations screen's drawer (CR-036 slice S18), Hebrew (the product
  * language) and English, switched by the document's `lang` like i18n/wiskey-stations.ts. UI_COPY_RULES: an operator screen never
  * names the platform or a protocol and never shows an internal code; short words, no explanatory paragraphs.
  */
@@ -13,11 +13,13 @@ const he = {
   },
   talk: {
     label: 'דיבור',
-    hold: 'לחץ והחזק לדיבור',
-    holdShort: 'החזק לדיבור',
+    start: 'פתח דיבור',
     starting: 'פותח דיבור…',
-    open: 'מוכן · לחץ והחזק',
-    talking: 'מדבר…',
+    muted: 'מיקרופון מושתק',
+    talking: 'מיקרופון פתוח',
+    mute: 'השתק',
+    unmute: 'בטל השתקה',
+    headset: 'מומלץ להשתמש באוזניות',
     end: 'סיום דיבור',
     left: 'נותרו {t}',
     openDrawer: 'דיבור',
@@ -57,11 +59,13 @@ const en: StationMediaText = {
   },
   talk: {
     label: 'Talk',
-    hold: 'Press and hold to talk',
-    holdShort: 'Hold to talk',
+    start: 'Start talk',
     starting: 'Opening talk…',
-    open: 'Ready · press and hold',
-    talking: 'Talking…',
+    muted: 'Microphone muted',
+    talking: 'Microphone open',
+    mute: 'Mute',
+    unmute: 'Unmute',
+    headset: 'A headset is recommended',
     end: 'End talk',
     left: '{t} left',
     openDrawer: 'Talk',
