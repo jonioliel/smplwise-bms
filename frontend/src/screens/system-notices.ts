@@ -11,7 +11,7 @@ import { qrSvg } from '../components/sw-second-factor';
 import { ApiError, describeError } from '../api/client';
 import {
   audienceOptions, boardControl, boardLink, createBoard, deleteBoard, getBoard, listBoards, listNotices, noticesSettings, patchBoard, patchNoticesSettings, putBoardItems,
-  getBoardLink, rotateBoardToken, type Board, type Notice, type SettingsResponse,
+  getBoardLink, rotateBoardToken, type Board, type NewsSource, type Notice, type SettingsResponse,
 } from '../api/notices';
 import type { Display } from '../notice-tv/tv-logic';
 import { nt } from '../i18n/notices';
@@ -20,6 +20,8 @@ import '../notices/compose-dialog';
 import '../notices/display-saver';
 import '../notices/display-info';
 import '../notices/display-slides';
+import '../notices/news-sources';
+import { feedView, shortName } from '../notices/news-model';
 import type { NoticeSavedDetail } from '../notices/compose-dialog';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_HREF, NOTICES_SETTINGS_HREF, applyNoticesHidden } from '../shell/nav';
@@ -64,6 +66,7 @@ export class SystemNotices extends LitElement {
       .blk:last-child { border-block-end: 0; padding-block-end: 0; }
       .blk .sub { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-inline-start: 22px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
       .feed { display: flex; gap: 8px; align-items: center; font-size: var(--sw-fs-sm); }
+      .feed .flg { inline-size: 36px; block-size: 22px; object-fit: contain; background: #fff; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm, 4px); padding: 1px 3px; box-sizing: border-box; }
       .feed .u { color: var(--sw-text-3); font-size: var(--sw-fs-xs); direction: ltr; unicode-bidi: isolate; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-inline-size: 260px; }
       .link { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); border: 1px solid var(--sw-border); }
       .link code { flex: 1; min-inline-size: 0; overflow-wrap: anywhere; direction: ltr; text-align: left; font-size: var(--sw-fs-xs); color: var(--sw-text); }
@@ -266,6 +269,8 @@ export class SystemNotices extends LitElement {
             <dt>${nt('kvBoards')}</dt><dd>${nt('kvBoardsV')} <span class="mut ltr">(notices.boards)</span></dd></dl></div>
         ${can.configure ? this.defaultsCard() : nothing}
       </div>
+      ${can.configure ? html`<notice-news-sources .sources=${st.news_sources} @ns-message=${(e: CustomEvent<string>) => this.say(e.detail)}
+        @news-sources-change=${(e: CustomEvent<NewsSource[]>) => (this.s = { ...this.s!, settings: { ...this.s!.settings, news_sources: e.detail } })}></notice-news-sources>` : nothing}
       ${st.enabled && can.boards ? html`<div class="panel flush" data-boards-card>
         <div class="toolbar"><h2>${nt('boardsCard')}</h2><span class="chip num">${nt('boardsCount', { n: this.boards.length, m: st.boards_max })}</span><span class="sp"></span>
           ${can.configure ? html`<label class="ck"><input type="checkbox" .checked=${st.boards_remote} @change=${(e: Event) => this.patchSettings({ boards_remote: (e.target as HTMLInputElement).checked })}>${nt('dRemote')}</label>` : nothing}
@@ -578,10 +583,10 @@ export class SystemNotices extends LitElement {
             <div class="sub">${s.weather_entity ? html`<span class="ltr mut">${s.weather_entity}</span>` : html`<span class="mut">${nt('blkWeatherNoEntity')}</span>`}
               <span>${nt('hoursAhead')}</span><select class="inp short" data-v=${String(d.weather.hours)} @change=${(e: Event) => this.setD({ weather: { hours: Number((e.target as HTMLSelectElement).value) } })}>${[3, 5, 8].map((h) => html`<option value=${String(h)}>${h}</option>`)}</select></div></div>
           <div class="blk"><label class="ck"><input type="checkbox" .checked=${d.blocks.news} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, news: (e.target as HTMLInputElement).checked } })}>${nt('blkNews')}</label>
-            <div class="sub">${d.news.feeds.map((f, i) => html`<div class="feed"><sw-icon name="link" size="12"></sw-icon><b>${f.name}</b><span class="u">${f.url}</span>
-                <sw-button size="sm" variant="ghost" @click=${() => this.setD({ news: { ...d.news, feeds: d.news.feeds.filter((_x, k) => k !== i) } })}>${nt('remove')}</sw-button></div>`)}
+            <div class="sub">${d.news.feeds.map((f, i) => { const v = feedView(f, s.news_sources); return html`<div class="feed" data-feed=${f.url}>${v.logo ? html`<img class="flg" alt="" src=${v.logo}>` : html`<sw-icon name="link" size="12"></sw-icon>`}<b>${shortName(v.name)}</b>${v.known ? nothing : html`<span class="chip">${nt('nsCustomTag')}</span>`}
+                <sw-button size="sm" variant="ghost" @click=${() => this.setD({ news: { ...d.news, feeds: d.news.feeds.filter((_x, k) => k !== i) } })}>${nt('remove')}</sw-button></div>`; })}
               <select class="inp short" data-v=${this.feedPick} @change=${(e: Event) => (this.feedPick = (e.target as HTMLSelectElement).value)}><option value="">${nt('feedPick')}</option>
-                ${s.news_sources.map((f) => html`<option value=${f.url}>${f.name}</option>`)}${s.news_custom ? html`<option value="custom">${nt('feedCustom')}</option>` : nothing}</select>
+                ${s.news_sources.filter((f) => f.enabled !== false).map((f) => html`<option value=${f.url}>${f.name}${f.custom ? ' · ' + nt('nsCustomTag') : ''}</option>`)}${s.news_custom ? html`<option value="custom">${nt('feedCustom')}</option>` : nothing}</select>
               ${this.feedPick === 'custom' ? html`<input class="inp ltr" placeholder="https://" .value=${this.feedUrl} @input=${(e: Event) => (this.feedUrl = (e.target as HTMLInputElement).value)}>` : nothing}
               <sw-button size="sm" icon="plus" ?disabled=${!this.feedPick || d.news.feeds.length >= 6} @click=${() => this.addFeed()}>${nt('add')}</sw-button>
               <span>${nt('speed')}</span><div class="seg">${(['slow', 'normal', 'fast'] as const).map((sp) => html`<button aria-pressed=${String(d.news.speed === sp)} @click=${() => this.setD({ news: { ...d.news, speed: sp } })}>${nt(sp === 'slow' ? 'spSlow' : sp === 'normal' ? 'spNormal' : 'spFast')}</button>`)}</div></div></div>
@@ -605,7 +610,7 @@ export class SystemNotices extends LitElement {
     if (!d) return;
     const pick = this.feedPick;
     const src = this.s!.settings.news_sources.find((f) => f.url === pick);
-    const feed = src ? { name: src.name, url: src.url } : pick === 'custom' && this.feedUrl.startsWith('https://') ? { name: new URL(this.feedUrl).hostname, url: this.feedUrl } : null;
+    const feed = src ? { id: src.id, name: src.name, url: src.url } : pick === 'custom' && this.feedUrl.startsWith('https://') ? { name: new URL(this.feedUrl).hostname, url: this.feedUrl } : null;
     if (!feed || d.news.feeds.some((f) => f.url === feed.url)) return;
     this.setD({ news: { ...d.news, feeds: [...d.news.feeds, feed] }, blocks: { ...d.blocks, news: true } });
     this.feedPick = '';

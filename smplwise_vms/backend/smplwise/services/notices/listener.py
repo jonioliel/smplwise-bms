@@ -41,6 +41,8 @@ def route(svc: DisplayService, www_dir: Any, method: str, path: str, headers: di
             return svc.image(req, "photo")
         if len(parts) == 7 and parts[5] == "slide":
             return svc.image(req, "slide", parts[6])
+        if len(parts) == 7 and parts[5] == "news-logo":  # NOTICERSS-295
+            return svc.news_logo(req, parts[6])
     return not_found()
 
 

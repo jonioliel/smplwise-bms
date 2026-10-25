@@ -45,7 +45,7 @@ export interface Display {
   place: string;
   blocks: { clock: boolean; hebdate: boolean; welcome: boolean; weather: boolean; info: string[]; info_show?: boolean; promo: boolean; news: boolean; company_logo: boolean };
   weather: { hours: number };
-  news: { feeds: { name: string; url: string }[]; speed: 'slow' | 'normal' | 'fast' };
+  news: { feeds: { id?: string; name: string; url: string }[]; speed: 'slow' | 'normal' | 'fast' };
   night: { enabled: boolean; from: string; to: string; dim: number };
   burn_in: { shift: boolean };
   /** NOTICESAVER-295: the screen saver and the logo layout (absent on a board saved before 2.17.1 = off / 'a') */
@@ -85,7 +85,7 @@ export interface Feed {
   /** NOTICESLIDES-295: the promo / info slides (only while the board's `promo` block is on and there is at least one) */
   slides?: FeedSlide[];
   info?: { kind: string; label: string; state: 'ok' | 'warn' | 'alarm' | 'off'; text: string }[];
-  news?: { source: string; title: string }[];
+  news?: { source: string; title: string; /** NOTICERSS-295: the source's logo (a URL read with the board token) */ logo?: string }[];
   sun?: { rise: string; set: string; candles?: string };
   control?: { seq: number; cmd: 'next' | 'prev' | 'pause' | 'play' };
 }
@@ -324,6 +324,17 @@ export function onPoll(s: NetState, status: number, nowMs: number): NetState {
 
 export function esc(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * NOTICERSS-295: one ticker item - the headline, then the source: its logo (a light chip behind it, so a dark logo reads on the dark theme
+ * too) and its NAME, never the address. `logoSrc` is the blob URL the page loaded for `n.logo` ('' = not loaded / no logo: the name alone,
+ * exactly the markup of 2.19.0). The name is cut by CSS (`max-inline-size`, ellipsis) and isolated (`dir="auto"`) so an Arabic / Hebrew /
+ * Latin name does not reorder the headline next to it.
+ */
+export function tickerItemHtml(n: { source: string; title: string; logo?: string }, logoSrc: string): string {
+  const lg = n.logo && logoSrc ? '<span class="slg" aria-hidden="true"><img alt="" src="' + esc(logoSrc) + '"></span>' : '';
+  return '<span class="h" dir="rtl">' + tx(n.title) + '</span>' + lg + '<em dir="auto" title="' + esc(n.source) + '">' + esc(n.source) + '</em><i class="sep" aria-hidden="true"></i>';
 }
 
 /** A numeric range ('10:00–12:00', '02.11 – 05.11') becomes one left-to-right run inside the Hebrew line. */

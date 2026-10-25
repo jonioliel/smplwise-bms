@@ -86,7 +86,24 @@ export interface NoticesSettings {
   news_custom: boolean;
   building_name: string;
   boards_origin: string;
-  news_sources: { id: string; name: string; url: string }[];
+  news_sources: NewsSource[];
+}
+
+/** NOTICERSS-295: one entry of the installation's editable list of news sources (`custom` = a raw URL a board stored, not yet in the list). */
+export interface NewsSource {
+  id: string;
+  name: string;
+  url: string;
+  enabled?: boolean;
+  has_logo?: boolean;
+  /** a stamped relative URL of the signed-in logo route ('' without a logo) */
+  logo_url?: string;
+  custom?: boolean;
+}
+export interface NewsSourcesAnswer {
+  sources: NewsSource[];
+  max: number;
+  name_max: number;
 }
 
 export interface SettingsResponse {
@@ -118,6 +135,15 @@ export interface NoticeInput {
 export const noticesModule = () => get<{ enabled: boolean; can: NoticesCan }>('notices/module');
 export const noticesSettings = () => get<SettingsResponse>('notices/settings');
 export const patchNoticesSettings = (body: Partial<Omit<NoticesSettings, 'news_sources'>>) => patch<{ settings: NoticesSettings }>('notices/settings', body);
+export const getNewsSources = () => get<NewsSourcesAnswer>('notices/news-sources');
+/** the whole list in the order shown; a source without an id is new */
+export const putNewsSources = (sources: { id?: string; name: string; url: string; enabled: boolean }[]) => put<NewsSourcesAnswer>('notices/news-sources', { sources });
+export const uploadNewsLogo = (id: string, file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api<NewsSourcesAnswer>(`notices/news-sources/${encodeURIComponent(id)}/logo`, { method: 'PUT', body: form });
+};
+export const removeNewsLogo = (id: string) => api<NewsSourcesAnswer>(`notices/news-sources/${encodeURIComponent(id)}/logo`, { method: 'DELETE' });
 export const uploadCompanyLogo = (file: File) => {
   const form = new FormData();
   form.append('file', file);

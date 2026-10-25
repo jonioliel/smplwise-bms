@@ -237,6 +237,11 @@ body.box #host { background: #000; }
 .tk .track { position: absolute; left: 0; top: 50%; white-space: nowrap; font-size: calc(34px * var(--fs)); font-weight: 400; color: var(--ink); direction: rtl; unicode-bidi: isolate; animation: tick var(--dur, 60s) linear infinite; transform: translate(-100%, -50%); }
 .tk .track .h, .tk .track em { unicode-bidi: isolate; }
 .tk .track em { font-style: normal; font-weight: 400; color: var(--ink-3); font-size: .76em; margin-right: 18px; }
+/* NOTICERSS-295: the source = its logo on a light chip (readable on the dark theme too) + its name, cut with an ellipsis, never the address */
+.tk .track .slg { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 18px; padding: calc(4px * var(--fs)) calc(10px * var(--fs)); border-radius: 10px; background: #fff; box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent); unicode-bidi: isolate; }
+.tk .track .slg img { display: block; block-size: calc(34px * var(--fs)); inline-size: auto; max-inline-size: 150px; object-fit: contain; }
+.tk .track .slg + em { margin-right: 12px; }
+.tk .track em { display: inline-block; max-inline-size: 16ch; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 .tk .track .sep { display: inline-block; inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--accent); opacity: .7; margin-inline: 44px; vertical-align: middle; }
 @keyframes tick { from { transform: translate(-100%, -50%); } to { transform: translate(var(--winw, 1600px), -50%); } }
 body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var(--dur, 60s) * -0.42); }

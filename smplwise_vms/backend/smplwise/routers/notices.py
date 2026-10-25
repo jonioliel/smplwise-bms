@@ -29,7 +29,7 @@ from ..rbac import INSTALLATION, Principal, authorize, has_any_binding, permissi
 from ..services import connection_store as cstore
 from ..services.notices import audience as aud
 from ..services.notices import display as disp
-from ..services.notices import model, page, store
+from ..services.notices import model, news_sources, page, store
 from ..services.notices import push as npush
 from ..services.notices.model import PERM_BOARDS, PERM_MANAGE, PERM_PUSH, PERM_VIEW, Invalid
 
@@ -225,6 +225,92 @@ def get_logo(request: Request, principal: Principal = Depends(current_principal_
     return Response(path.read_bytes(), media_type="image/png", headers={"Cache-Control": "private, max-age=60"})
 
 
+# ---------------------------------------------------------------- NOTICERSS-295: the editable news (RSS) sources
+# The permission is the settings' (`system.configure`), exactly like the module settings; read-only for notices.boards (the board editor's picker).
+
+class NewsSourceIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str | None = Field(default=None, max_length=24)
+    name: str = Field(max_length=200)
+    url: str = Field(max_length=2048)
+    enabled: bool = Field(default=True, strict=True)
+
+
+class NewsSourcesIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sources: list[NewsSourceIn] = Field(max_length=50)
+
+
+def _news_out(conn: sqlite3.Connection) -> dict[str, Any]:
+    return {"sources": news_sources.listing(conn), "max": news_sources.SOURCES_MAX, "name_max": news_sources.NAME_MAX}
+
+
+@open_router.get("/notices/news-sources")
+def get_news_sources(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    can = _can(conn, principal)
+    if not (can["configure"] or can["boards"]):
+        require(conn, principal, "system.configure", INSTALLATION)
+    return _news_out(conn)
+
+
+@open_router.put("/notices/news-sources")
+def put_news_sources(body: NewsSourcesIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The whole list at once (the order sent is the order shown). A raw-URL feed of a board that is sent here is adopted under its name."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    try:
+        items = news_sources.replace(conn, [x.model_dump() for x in body.sources])
+    except Invalid as exc:
+        raise _invalid(exc)
+    conn.execute("UPDATE notice_boards SET updated_at = ? WHERE deleted_at IS NULL", (model.iso(store.utcnow()),))
+    audit(conn, actor=principal, action="notices.news_sources.update", decision="allowed", resource_type="installation", resource_id="notices",
+          request_id=_rid(request), details={"count": len(items), "enabled": sum(1 for s in items if s["enabled"])})
+    return _news_out(conn)
+
+
+@open_router.put("/notices/news-sources/{source_id}/logo")
+async def put_news_logo(source_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "system.configure", INSTALLATION)
+    from ..services.bill_pdf_logo import LogoError
+
+    data = await file.read(news_sources.LOGO_UPLOAD_BYTES + 1)
+    try:
+        news_sources.put_logo(conn, source_id, data)
+    except KeyError:
+        raise ApiError(404, "not_found", "המקור לא נמצא.")
+    except LogoError as exc:
+        raise ApiError(422, "logo_refused", "הלוגו: PNG או JPEG עד 300KB.", details={"reason": str(exc)})
+    conn.execute("UPDATE notice_boards SET updated_at = ? WHERE deleted_at IS NULL", (model.iso(store.utcnow()),))
+    audit(conn, actor=principal, action="notices.news_logo.update", decision="allowed", resource_type="installation", resource_id="notices", request_id=_rid(request))
+    return _news_out(conn)
+
+
+@open_router.delete("/notices/news-sources/{source_id}/logo")
+def delete_news_logo(source_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "system.configure", INSTALLATION)
+    try:
+        news_sources.remove_logo(conn, source_id)
+    except KeyError:
+        raise ApiError(404, "not_found", "המקור לא נמצא.")
+    conn.execute("UPDATE notice_boards SET updated_at = ? WHERE deleted_at IS NULL", (model.iso(store.utcnow()),))
+    audit(conn, actor=principal, action="notices.news_logo.delete", decision="allowed", resource_type="installation", resource_id="notices", request_id=_rid(request))
+    return _news_out(conn)
+
+
+@open_router.get("/notices/news-sources/{source_id}/logo")
+def get_news_logo(source_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+    _need_reader(conn, principal)
+    got = news_sources.read_logo(conn, source_id)
+    if got is None:
+        raise ApiError(404, "not_found", "אין לוגו.")
+    return Response(got[1], media_type=got[0], headers={"Cache-Control": "private, max-age=60"})
+
+
+@display_router.get("/notices/display/{slug}/news-logo/{source_id}")
+def display_news_logo(slug: str, source_id: str, request: Request) -> Response:
+    req = disp.Request(slug=slug, token=request.headers.get("x-board-token"), client=_client(request), remote=_is_remote(request))
+    return _respond(_display_service(request).news_logo(req, source_id))
+
+
 # ---------------------------------------------------------------- boards (notices.boards) - before /notices/{notice_id}
 
 class BoardIn(BaseModel):
@@ -332,7 +418,7 @@ def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Pr
             if d["hold"] and not conn.execute("SELECT 1 FROM notice_board_items WHERE board_id = ? AND notice_id = ?", (b["id"], d["hold"])).fetchone():
                 raise Invalid("display.hold", "ההשהיה: הודעה שאינה בלוח.")
             if not store.settings(conn)["news_custom"]:
-                curated = {f["url"] for f in model.CURATED_NEWS}
+                curated = news_sources.allowed_urls(conn)  # NOTICERSS-295: the editable list (the curated seed until it is first saved)
                 if any(f["url"] not in curated for f in d["news"]["feeds"]):
                     raise Invalid("display.news.feeds", "רק מקורות מהרשימה.")
             cols["display"] = d
@@ -343,7 +429,7 @@ def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Pr
     details: dict[str, Any] = {"keys": sorted(k for k in cols)}
     if body.display is not None:
         old = {f["url"] for f in model.load_display(b["display_json"])["news"]["feeds"]}
-        curated = {f["url"] for f in model.CURATED_NEWS}
+        curated = news_sources.allowed_urls(conn)
         details["custom_feeds_added"] = len([f for f in cols["display"]["news"]["feeds"] if f["url"] not in old and f["url"] not in curated])
     audit(conn, actor=principal, action=action, decision="allowed", resource_type="notice_board", resource_id=b["id"], request_id=_rid(request), details=details)
     return {"board": _board_out(nb, store.item_counts(conn))}
