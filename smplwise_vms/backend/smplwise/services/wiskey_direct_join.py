@@ -435,6 +435,15 @@ class DirectJoin:
 
     _features: Any = None
 
+    def people_csv_or_none(self) -> Any:
+        """WKR5ADOPT-295 (W-006): the `FeatureAdapters` for the people CSV preview + start, only while BOTH `features/people_csv_preview`
+        and `features/start` are selected on the current connection (direct/capabilities lists them). None otherwise; never raises."""
+        from .wiskey_people_csv import COMMAND as preview_command
+
+        if not self.selected(preview_command) or not self.selected("features/start"):
+            return None
+        return self.features_or_none()
+
     def emergency_engine(self, connect: Callable[[], Any]) -> Any:
         """A `DirectEmergencyEngine` (wiskey-emergency-event.v2) over this join's features. NOT installed here: making it the process's
         emergency engine (`wiskey_emergency_direct.install`) and any real door action are the owner's separate instruction."""
