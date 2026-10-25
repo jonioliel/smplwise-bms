@@ -13,3 +13,12 @@ synthetic and not a live request.
 
 These are consumed by `tests/test_wkcapwire_295.py`. The all-families and DIRECT_ONLY corpus is NOT_PRODUCED by WisKey; do not add
 runtime-built messages here as if they were a corpus.
+
+## WKVEC-295 additions (Mac owner continuation, 2026-10-25)
+
+| file | sha256 of this copy | note |
+|---|---|---|
+| `wiskey_native_family_vectors_v1.json` | `4cf8ff6b12ace8478e6759e2b7eb4d9375b40e6ec67e066b36a547be8213c448` | byte-identical; 47 family vectors, 43 families, public key `synthetic-round4-direct-pairing`; ids inside are generated synthetic ULIDs, not lab identifiers |
+| `wiskey_direct_simulator.py` | `fb552ccc3b1622fe6af78914b6c4640aaf453f56a6d277cf346b622a6832b2d2` | byte-identical stdlib loopback server (`SyntheticDirectServer`); loaded by path, never installed or started outside a test |
+
+Consumed by `tests/test_wkvec_295.py` (per-vector results are the parametrised test ids).

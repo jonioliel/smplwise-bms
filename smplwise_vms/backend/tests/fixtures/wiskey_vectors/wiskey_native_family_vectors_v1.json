@@ -1,0 +1,5214 @@
+{
+  "kind": "SYNTHETIC_NATIVE_FAMILY_VECTORS_V1",
+  "CODE": "55c156285ed6a3f20cc30e38272affb78db21e29",
+  "key_class": "PUBLIC_TEST_KEY_NEVER_PRODUCTION",
+  "public_test_key": "synthetic-round4-direct-pairing",
+  "catalog_sha256": "a11c235144170c88a2122ff4dbc8fa106e94e260dc0338c5aeff15ed925b78a7",
+  "catalog_families": [
+    "acceptance",
+    "appearance",
+    "audio",
+    "audit",
+    "authorization",
+    "backups",
+    "capture",
+    "cards",
+    "clock",
+    "conflicts",
+    "direct",
+    "events",
+    "features",
+    "fleet",
+    "guest_templates",
+    "health",
+    "investigations",
+    "jobs",
+    "media",
+    "operations",
+    "overview",
+    "peer_bindings",
+    "peer_identity",
+    "peer_protocol",
+    "peer_receipts",
+    "peer_writes",
+    "permissions",
+    "platform",
+    "profiles",
+    "renewal",
+    "schedules",
+    "search",
+    "security",
+    "stations",
+    "subscribe",
+    "support",
+    "sync",
+    "tts",
+    "upgrade",
+    "users",
+    "visits",
+    "whatsapp",
+    "workflows"
+  ],
+  "signer_source": {
+    "path": "tools/wiskey_peer_transport.py",
+    "symbol": "signed_payload",
+    "sha256": "ce65a9c50ff5c0623b08b88a7aa77252f93bbd9ef23e1602a0dd5e3710ca49e6"
+  },
+  "vectors": [
+    {
+      "id": "acceptance_get",
+      "family": "acceptance",
+      "command": "acceptance/get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/acceptance/get",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "acceptance/get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.197799+00:00",
+          "expires_at": "2026-10-24T19:44:56.197799+00:00",
+          "parameters": {
+            "station_id": "01M5QQ36F7P5XY6T1764QDKJ3R"
+          },
+          "ts": 1792871081,
+          "nonce": "12ac1bc6ebed44faadcf5dab37747f5c",
+          "sig": "f0cdce8ddd7ba583feb01aee54abda3fdae4fef465c1e2d0642967f5b3b58578"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "station_id": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "station_id"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "af69603cfe716e40d99cc9a820066e46e94246ccd7febd817074aa600fdfa82b",
+      "canonical_body_sha256": "cd33d2ac8431e319e6f8dc2948883dd6350e76f571d7b8505c22dff5b288e8e7",
+      "parameters_sha256": "bf537b0a38ce9c1c8d36ee57bbfe0eda0c80bff6967cb411235d9fb1a3fd867f",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "revision": {
+            "type": "int"
+          },
+          "steps": {
+            "type": "array"
+          },
+          "results": {},
+          "basis": {
+            "type": "str"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "appearance_settings_get",
+      "family": "appearance",
+      "command": "appearance/settings_get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/appearance/settings_get",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "appearance/settings_get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.261944+00:00",
+          "expires_at": "2026-10-24T19:44:56.261944+00:00",
+          "parameters": {},
+          "ts": 1792871081,
+          "nonce": "856e5242e91e499c93ef65cba96fe01b",
+          "sig": "6b0879f2161193cacdd85f442badc7cb3823f2e7e271dab197078b00d8faef3a"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "6eb37826f6d00537e8b468f5b2fa4613b010c71511127bef58922567768104c1",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "revision": {
+            "type": "int"
+          },
+          "default": {
+            "type": "str"
+          },
+          "accent": {
+            "type": "str"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "audio_diagnostics",
+      "family": "audio",
+      "command": "audio/diagnostics",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/audio/diagnostics",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "audio/diagnostics",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.310516+00:00",
+          "expires_at": "2026-10-24T19:44:56.310516+00:00",
+          "parameters": {
+            "token": "synthetic-unissued-audio-token"
+          },
+          "ts": 1792871081,
+          "nonce": "59f7312cde8e4938941fb2a85ec4aca1",
+          "sig": "884d4b111f28e6263cb9906c1cc0485a3678144bc7e74ce17c6d46e34bbfa865"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "92465435ac2b3419ee452a69850f301a431b859e78a5d608427a5fcd32e7086d",
+      "canonical_body_sha256": "d938e95f7cea3e5f38e8f66c3831aed76919d9ad773961aa2eab66677fae6326",
+      "parameters_sha256": "a92c685e5690bf3166cc0275d35adc52f0f1ed435877d90cd0700370e8bf24be",
+      "expected": {
+        "success": false,
+        "error_codes": [
+          "command_unavailable"
+        ],
+        "classification": "EXPECTED_ORIGINAL_REFUSAL",
+        "result_shape": null
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.audio_api",
+          "symbol": "packet_handler.<locals>.handle"
+        },
+        "dispatch_available": false,
+        "observed_success": false,
+        "observed_error_code": "command_unavailable",
+        "matches_expected": true,
+        "signature_verifier_exercised": false,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/audio_api.py": "6d10a8bff2f20a7ab038d7983eeb6cdd9c4c76f6dc9ef962ee39df0ed93ab607"
+        }
+      }
+    },
+    {
+      "id": "audit_list",
+      "family": "audit",
+      "command": "audit/list",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/audit/list",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "audit/list",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.314742+00:00",
+          "expires_at": "2026-10-24T19:44:56.314742+00:00",
+          "parameters": {
+            "filters": {}
+          },
+          "ts": 1792871081,
+          "nonce": "d6ceda0e980a4d8ba0bf4b77fcbb1fbc",
+          "sig": "49e9b9e162c12bf217d8bc17193d574e8cb7e01a66e46f4824df76e8b4f135e3"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "filters": {
+            "type": "object"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filters"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "896122bccea7ac05046c734ab476637a496e158f37f6bb4698337ea859f60ef1",
+      "canonical_body_sha256": "6bb1a322a933fdb0846e8b5a99ccb587007dff35aa7c94c0b3bea1b2abc3323f",
+      "parameters_sha256": "c75966b2403b0433db40c05898902c770a510d4961bc52dbdbca2885fc7e9d9d",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "records": {
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": "NoneType"
+          },
+          "total": {
+            "type": "int"
+          },
+          "retention_days": {
+            "type": "int"
+          },
+          "retention_limit": {
+            "type": "int"
+          },
+          "actors": {}
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "authorization_session",
+      "family": "authorization",
+      "command": "authorization/session",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/authorization/session",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "authorization/session",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.365514+00:00",
+          "expires_at": "2026-10-24T19:44:56.365514+00:00",
+          "parameters": {},
+          "ts": 1792871081,
+          "nonce": "d13a09f2ccde491db056bfc3a997aaab",
+          "sig": "d07fc367256135b007b56d9a1962b4159cd0473baa92d3f2def688a9c983b0f5"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "c6824396f001b056969310e94fefef24643f511dd4928ce04311cde7af989e77",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "allowed": {
+            "type": "bool"
+          },
+          "is_admin": {
+            "type": "bool"
+          },
+          "bridge_full_scope": {
+            "type": "bool"
+          },
+          "areas": {
+            "overview": {
+              "type": "str"
+            },
+            "users": {
+              "type": "str"
+            },
+            "events": {
+              "type": "str"
+            },
+            "stations": {
+              "type": "str"
+            },
+            "management": {
+              "type": "str"
+            }
+          },
+          "station_ids": {
+            "type": "NoneType"
+          },
+          "fields": {
+            "phone": {
+              "type": "str"
+            },
+            "photo": {
+              "type": "str"
+            },
+            "credentials": {
+              "type": "str"
+            },
+            "profile": {
+              "type": "str"
+            },
+            "access": {
+              "type": "str"
+            }
+          },
+          "revision": {
+            "type": "int"
+          },
+          "personal_renewal": {
+            "type": "bool"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "backups_export",
+      "family": "backups",
+      "command": "backups/export",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/backups/export",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "backups/export",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.414170+00:00",
+          "expires_at": "2026-10-24T19:44:56.414170+00:00",
+          "parameters": {
+            "passphrase": "public-synthetic-vector-passphrase-not-production"
+          },
+          "ts": 1792871081,
+          "nonce": "7986f9de2e594b61b1858bba22667e8c",
+          "sig": "55c9248fa11b159f56f75026ba6e8cbe67b5dc5fcdf4e1977ce938249edd45ce"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "passphrase": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "passphrase"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "bc287fa10baddeeb4449b925d2887139b3f6734c3aadbc14aba11d1b8bb98f83",
+      "canonical_body_sha256": "6c13bbfb19dc6a49c17b475f6e3899b9501e1ee29f3c312cac00af56c0941a75",
+      "parameters_sha256": "3c966e9ad7d198cc1cf709cbb431a2dd1f949028b39fe8402a11b1f45c83a29b",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "content": {
+            "type": "str"
+          },
+          "filename": {
+            "type": "str"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "capture_lease_request",
+      "family": "capture",
+      "command": "capture/lease_request",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/capture/lease_request",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "capture/lease_request",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.655805+00:00",
+          "expires_at": "2026-10-24T19:44:56.655805+00:00",
+          "parameters": {
+            "signed_message_json": ""
+          },
+          "ts": 1792871081,
+          "nonce": "8d9725327bc34b53ba8b166b2b3d5f01",
+          "sig": "dad1229c72609aa792a390015449af8a82b9f3960902ddbd89d25804f1071fd0"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "signed_message_json": {
+            "type": "string",
+            "x-utf8MaxBytes": 8192
+          }
+        },
+        "required": [
+          "signed_message_json"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "8cbf36fef954c67ce8c6f0b1a407b90b4ff7279171ec3a8945ba4c5999844811",
+      "canonical_body_sha256": "029e6ae9a9d8e44bcff21d00baab113343b23acadd38f06609e1135a94f69f84",
+      "parameters_sha256": "ff55c0745e301e5ee61ac9f04a476a8703a5804d16987403de0be0f697417366",
+      "expected": {
+        "success": false,
+        "error_codes": [
+          "capture_source_unavailable"
+        ],
+        "classification": "EXPECTED_ORIGINAL_REFUSAL",
+        "result_shape": null
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.capture_native_api",
+          "symbol": "_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": false,
+        "observed_error_code": "capture_source_unavailable",
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/capture_native_api.py": "d5c08e332cfdfcee1dbc8e6edeef036355b2c974c0d76685572636bf3d6ce8c4"
+        }
+      }
+    },
+    {
+      "id": "cards_reader_capabilities",
+      "family": "cards",
+      "command": "cards/reader_capabilities",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/cards/reader_capabilities",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "cards/reader_capabilities",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.702586+00:00",
+          "expires_at": "2026-10-24T19:44:56.702586+00:00",
+          "parameters": {
+            "station_id": "01M5QQ36F7P5XY6T1764QDKJ3R"
+          },
+          "ts": 1792871081,
+          "nonce": "cd7889c4e8a446b0be248f05fb725a87",
+          "sig": "36e4f6b40408d2e67932b8ae790dc0b83b2de97a658e19a8af9f0cb06758a399"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "station_id": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "station_id"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "af69603cfe716e40d99cc9a820066e46e94246ccd7febd817074aa600fdfa82b",
+      "canonical_body_sha256": "ce207f2622c5a579b88f342b7bcedc325c2638fdca014d1c820a9cbc3d984646",
+      "parameters_sha256": "bf537b0a38ce9c1c8d36ee57bbfe0eda0c80bff6967cb411235d9fb1a3fd867f",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "readers": {
+            "type": "array"
+          },
+          "card_min": {
+            "type": "int"
+          },
+          "card_max": {
+            "type": "int"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "clock_settings_get",
+      "family": "clock",
+      "command": "clock/settings_get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/clock/settings_get",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "clock/settings_get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.752190+00:00",
+          "expires_at": "2026-10-24T19:44:56.752190+00:00",
+          "parameters": {},
+          "ts": 1792871081,
+          "nonce": "c2787d4ffca7462484fda4ea18946d4a",
+          "sig": "1b19bd22205c21f564d8c8c56bf8f9021fb4f11e3a28c97c1c737f3c5b16b432"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "641de73ee97b02729f8ec6ce74043c6653f1305acf2f5beac076f3bda5c093e8",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "revision": {
+            "type": "int"
+          },
+          "server": {
+            "type": "str"
+          },
+          "port": {
+            "type": "int"
+          },
+          "interval": {
+            "type": "int"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "conflicts_list",
+      "family": "conflicts",
+      "command": "conflicts/list",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/conflicts/list",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "conflicts/list",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.804510+00:00",
+          "expires_at": "2026-10-24T19:44:56.804510+00:00",
+          "parameters": {},
+          "ts": 1792871081,
+          "nonce": "1b1584f589194e56a738ff32ba029296",
+          "sig": "4153f101313b7363acb6f5eca17bc3ffbe0544784985f86c8da6283014f9b636"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "c863602f451c9256de21c5ef9d06d67fe52c52b74627678d87f12bd0d279b38a",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "users": {
+            "type": "array"
+          },
+          "tombstones": {
+            "type": "array"
+          },
+          "revocations": {
+            "type": "array"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "events_list",
+      "family": "events",
+      "command": "events/list",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/events/list",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "events/list",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.853883+00:00",
+          "expires_at": "2026-10-24T19:44:56.853883+00:00",
+          "parameters": {
+            "filters": {}
+          },
+          "ts": 1792871081,
+          "nonce": "5ded2d1ef1c441ad8122030227223183",
+          "sig": "8ed40b5d883c87c619ecb24b8f26664bbff2d2e53958ffb980fb3afaaddf0e10"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "filters": {
+            "type": "object"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filters"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "896122bccea7ac05046c734ab476637a496e158f37f6bb4698337ea859f60ef1",
+      "canonical_body_sha256": "a5b04cff71309323bf4e8cb1aaf5188d623d91773609f6af4a4ca5f8f03fc93f",
+      "parameters_sha256": "c75966b2403b0433db40c05898902c770a510d4961bc52dbdbca2885fc7e9d9d",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "records": {
+            "type": "array"
+          },
+          "next": {
+            "type": "NoneType"
+          },
+          "retention_days": {
+            "type": "int"
+          },
+          "capacity": {
+            "type": "int"
+          },
+          "membership_basis": {
+            "type": "NoneType"
+          },
+          "storage_failed": {
+            "type": "bool"
+          },
+          "stations": {
+            "01M5QQ36F7P5XY6T1764QDKJ3R": {
+              "stream": {
+                "type": "str"
+              },
+              "history": {
+                "type": "str"
+              },
+              "reconnects": {
+                "type": "int"
+              },
+              "last_frame_at": {
+                "type": "NoneType"
+              },
+              "telemetry": {
+                "started_at": {
+                  "type": "str"
+                },
+                "transport_gaps": {
+                  "count": {
+                    "type": "int"
+                  },
+                  "disconnected_seconds": {
+                    "type": "float"
+                  },
+                  "open": {
+                    "type": "bool"
+                  },
+                  "lost_event_count": {
+                    "type": "NoneType"
+                  },
+                  "basis": {
+                    "type": "str"
+                  }
+                },
+                "seen": {
+                  "type": "int"
+                },
+                "accepted": {
+                  "type": "int"
+                },
+                "duplicates": {
+                  "type": "int"
+                },
+                "origins": {},
+                "identities": {},
+                "last_received": {
+                  "type": "NoneType"
+                },
+                "last_live": {
+                  "type": "NoneType"
+                },
+                "stream_arrival_delay": {
+                  "samples": {
+                    "type": "int"
+                  },
+                  "min": {
+                    "type": "NoneType"
+                  },
+                  "max": {
+                    "type": "NoneType"
+                  },
+                  "median": {
+                    "type": "NoneType"
+                  },
+                  "p95": {
+                    "type": "NoneType"
+                  }
+                }
+              },
+              "recovered_until": {
+                "type": "NoneType"
+              }
+            }
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "features_status",
+      "family": "features",
+      "command": "features/status",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/features/status",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "features/status",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.904832+00:00",
+          "expires_at": "2026-10-24T19:44:56.904832+00:00",
+          "parameters": {},
+          "ts": 1792871081,
+          "nonce": "d18cad0cd8e34ad380f20334c819a2f5",
+          "sig": "da3b7625a4454c0d77598d22378a251629e676af0c4f6631e891390d78722bec"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f",
+      "canonical_body_sha256": "7d7ecef48b11eb393aece986f233d8f26071be3a10fe60ba24ec975703fa5bbb",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "schema_version": {
+            "type": "int"
+          },
+          "host_registered": {
+            "type": "bool"
+          },
+          "current_source_available": {
+            "type": "bool"
+          },
+          "features": {
+            "door_windows": {
+              "implementation": {
+                "type": "str"
+              },
+              "build_enabled": {
+                "type": "bool"
+              },
+              "execution_available": {
+                "type": "bool"
+              },
+              "blocker": {
+                "type": "str"
+              }
+            },
+            "emergency_buttons": {
+              "implementation": {
+                "type": "str"
+              },
+              "build_enabled": {
+                "type": "bool"
+              },
+              "execution_available": {
+                "type": "bool"
+              },
+              "blocker": {
+                "type": "str"
+              }
+            },
+            "door_automations": {
+              "implementation": {
+                "type": "str"
+              },
+              "build_enabled": {
+                "type": "bool"
+              },
+              "execution_available": {
+                "type": "bool"
+              },
+              "blocker": {
+                "type": "str"
+              }
+            },
+            "people_csv": {
+              "implementation": {
+                "type": "str"
+              },
+              "build_enabled": {
+                "type": "bool"
+              },
+              "execution_available": {
+                "type": "bool"
+              },
+              "blocker": {
+                "type": "str"
+              }
+            },
+            "live_media": {
+              "implementation": {
+                "type": "str"
+              },
+              "build_enabled": {
+                "type": "bool"
+              },
+              "execution_available": {
+                "type": "bool"
+              },
+              "blocker": {
+                "type": "str"
+              }
+            },
+            "live_validation": {
+              "implementation": {
+                "type": "str"
+              },
+              "build_enabled": {
+                "type": "bool"
+              },
+              "execution_available": {
+                "type": "bool"
+              },
+              "blocker": {
+                "type": "str"
+              }
+            }
+          },
+          "physical_result": {
+            "type": "str"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.arx_feature_api",
+          "symbol": "_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/arx_feature_api.py": "e74ebf7356483fc89211bc828b1c5ae2fcc6ea2b9f9183a4c48237e752751980",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee"
+        }
+      }
+    },
+    {
+      "id": "fleet_alerts",
+      "family": "fleet",
+      "command": "fleet/alerts",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/fleet/alerts",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "fleet/alerts",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:41.959807+00:00",
+          "expires_at": "2026-10-24T19:44:56.959807+00:00",
+          "parameters": {
+            "include_suppressed": false,
+            "kind": "",
+            "limit": 20,
+            "offset": 0,
+            "station_id": "01M5QQ36F7P5XY6T1764QDKJ3R"
+          },
+          "ts": 1792871081,
+          "nonce": "b12757d5502d4ef4aeea4478bc5ba66f",
+          "sig": "e38da74365c72fb6325fb626efa2d9a9e71fd2bdaa346e487259afc032ba4d29"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "station_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "include_suppressed": {
+            "type": "boolean"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "include_suppressed",
+          "kind",
+          "limit",
+          "offset",
+          "station_id"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "788144418c809fd249243e7c792d330dfb566565e09d74404508d7a659227346",
+      "canonical_body_sha256": "7e378a3301b7558d1afe2acea07855a4cec1da7488b2b92b736102f0a22c160d",
+      "parameters_sha256": "b37257da5bdae97598c77e9f4a5672e8cc427de2a78e050cdd3b83ee3b177d20",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "revision": {
+            "type": "int"
+          },
+          "generated_at": {
+            "type": "str"
+          },
+          "items": {
+            "type": "array"
+          },
+          "total": {
+            "type": "int"
+          },
+          "offset": {
+            "type": "int"
+          },
+          "next_offset": {
+            "type": "NoneType"
+          },
+          "active_count": {
+            "type": "int"
+          },
+          "suppressed_count": {
+            "type": "int"
+          },
+          "suppressions": {
+            "type": "array"
+          },
+          "thresholds_seconds": {
+            "offline": {
+              "type": "int"
+            },
+            "sync_stalled": {
+              "type": "int"
+            },
+            "event_gap": {
+              "type": "int"
+            }
+          },
+          "evidence_scope": {
+            "type": "str"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "guest_templates_get",
+      "family": "guest_templates",
+      "command": "guest_templates/get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/guest_templates/get",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "guest_templates/get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.008959+00:00",
+          "expires_at": "2026-10-24T19:44:57.008959+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "a54a825180ca49a9a8f547f98ea59b51",
+          "sig": "6df14bdb6939453e1a2b7ccbab6d209842354c9ada8e1ce7ef5bcb6bdda62d5d"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "63b527e2b247372107c52065bfe5186541ce966abc2e4ed8b2c537509d3a0880",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "revision": {
+            "type": "int"
+          },
+          "items": {
+            "type": "array"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "health_get",
+      "family": "health",
+      "command": "health/get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/health/get",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "health/get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.059318+00:00",
+          "expires_at": "2026-10-24T19:44:57.059318+00:00",
+          "parameters": {
+            "station_id": "01M5QQ36F7P5XY6T1764QDKJ3R"
+          },
+          "ts": 1792871082,
+          "nonce": "7e6a1df079a5465f879305f4877990f9",
+          "sig": "f3356857da2c22f649f1e10573b8954e1ca4136ec5e7481fc954d661e8ce25a5"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "station_id": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "station_id"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "af69603cfe716e40d99cc9a820066e46e94246ccd7febd817074aa600fdfa82b",
+      "canonical_body_sha256": "a95bd23ef334819a727e4b96b1ebaccc7553bc393fa49beccf2f3ffdf721360e",
+      "parameters_sha256": "bf537b0a38ce9c1c8d36ee57bbfe0eda0c80bff6967cb411235d9fb1a3fd867f",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "integration_version": {
+            "type": "str"
+          },
+          "loaded": {
+            "type": "bool"
+          },
+          "config_schema": {
+            "version": {
+              "type": "int"
+            },
+            "minor_version": {
+              "type": "int"
+            }
+          },
+          "model": {
+            "type": "str"
+          },
+          "firmware": {
+            "type": "str"
+          },
+          "camera": {
+            "snapshot": {
+              "type": "bool"
+            },
+            "stream": {
+              "type": "bool"
+            }
+          },
+          "managed_locks": {
+            "type": "array"
+          },
+          "api_door_ids": {
+            "type": "array"
+          },
+          "call_states": {
+            "type": "array"
+          },
+          "online": {
+            "type": "bool"
+          },
+          "consecutive_poll_failures": {
+            "type": "int"
+          },
+          "requests": {
+            "requests": {
+              "type": "int"
+            },
+            "failures": {
+              "type": "int"
+            },
+            "sample_count": {
+              "type": "int"
+            },
+            "last_ms": {
+              "type": "NoneType"
+            },
+            "p95_ms": {
+              "type": "NoneType"
+            }
+          },
+          "quality": {
+            "requests": {
+              "requests": {
+                "type": "int"
+              },
+              "failures": {
+                "type": "int"
+              },
+              "sample_count": {
+                "type": "int"
+              },
+              "last_ms": {
+                "type": "NoneType"
+              },
+              "p95_ms": {
+                "type": "NoneType"
+              },
+              "basis": {
+                "type": "str"
+              },
+              "failure_percent": {
+                "type": "NoneType"
+              },
+              "window_failure_percent": {
+                "type": "NoneType"
+              },
+              "baseline_samples": {
+                "type": "int"
+              },
+              "baseline_p95_ms": {
+                "type": "NoneType"
+              },
+              "comparison_samples": {
+                "type": "int"
+              },
+              "comparison_p95_ms": {
+                "type": "NoneType"
+              },
+              "p95_delta_ms": {
+                "type": "NoneType"
+              }
+            },
+            "door_commands": {
+              "requests": {
+                "type": "int"
+              },
+              "failures": {
+                "type": "int"
+              },
+              "sample_count": {
+                "type": "int"
+              },
+              "last_ms": {
+                "type": "NoneType"
+              },
+              "p95_ms": {
+                "type": "NoneType"
+              },
+              "basis": {
+                "type": "str"
+              },
+              "failure_percent": {
+                "type": "NoneType"
+              },
+              "window_failure_percent": {
+                "type": "NoneType"
+              },
+              "baseline_samples": {
+                "type": "int"
+              },
+              "baseline_p95_ms": {
+                "type": "NoneType"
+              },
+              "comparison_samples": {
+                "type": "int"
+              },
+              "comparison_p95_ms": {
+                "type": "NoneType"
+              },
+              "p95_delta_ms": {
+                "type": "NoneType"
+              },
+              "physical_result": {
+                "type": "str"
+              }
+            },
+            "synchronization": {
+              "requests": {
+                "type": "int"
+              },
+              "failures": {
+                "type": "int"
+              },
+              "sample_count": {
+                "type": "int"
+              },
+              "last_ms": {
+                "type": "NoneType"
+              },
+              "p95_ms": {
+                "type": "NoneType"
+              },
+              "basis": {
+                "type": "str"
+              },
+              "failure_percent": {
+                "type": "NoneType"
+              },
+              "window_failure_percent": {
+                "type": "NoneType"
+              },
+              "baseline_samples": {
+                "type": "int"
+              },
+              "baseline_p95_ms": {
+                "type": "NoneType"
+              },
+              "comparison_samples": {
+                "type": "int"
+              },
+              "comparison_p95_ms": {
+                "type": "NoneType"
+              },
+              "p95_delta_ms": {
+                "type": "NoneType"
+              },
+              "repeat_attempts_after_failure": {
+                "type": "int"
+              },
+              "scope": {
+                "type": "str"
+              }
+            }
+          },
+          "access": {
+            "sync_state": {
+              "type": "str"
+            },
+            "last_error": {
+              "type": "NoneType"
+            },
+            "pending_request": {
+              "type": "bool"
+            },
+            "worker_active": {
+              "type": "bool"
+            },
+            "queue_depth": {
+              "type": "int"
+            },
+            "assignment_states": {},
+            "errors": {},
+            "users": {
+              "type": "int"
+            },
+            "cards": {
+              "type": "int"
+            },
+            "capabilities": {
+              "max_users": {
+                "type": "int"
+              },
+              "max_cards": {
+                "type": "int"
+              },
+              "cards_per_person": {
+                "type": "int"
+              },
+              "pin_writable": {
+                "type": "bool"
+              },
+              "pin_min": {
+                "type": "int"
+              },
+              "pin_max": {
+                "type": "int"
+              }
+            }
+          },
+          "sync_diagnostics": {
+            "retention": {
+              "type": "str"
+            },
+            "recent": {
+              "type": "array"
+            }
+          },
+          "events": {
+            "stream": {
+              "type": "str"
+            },
+            "history": {
+              "type": "str"
+            },
+            "reconnects": {
+              "type": "int"
+            },
+            "last_frame_at": {
+              "type": "NoneType"
+            },
+            "telemetry": {
+              "started_at": {
+                "type": "str"
+              },
+              "transport_gaps": {
+                "count": {
+                  "type": "int"
+                },
+                "disconnected_seconds": {
+                  "type": "float"
+                },
+                "open": {
+                  "type": "bool"
+                },
+                "lost_event_count": {
+                  "type": "NoneType"
+                },
+                "basis": {
+                  "type": "str"
+                }
+              },
+              "seen": {
+                "type": "int"
+              },
+              "accepted": {
+                "type": "int"
+              },
+              "duplicates": {
+                "type": "int"
+              },
+              "origins": {},
+              "identities": {},
+              "last_received": {
+                "type": "NoneType"
+              },
+              "last_live": {
+                "type": "NoneType"
+              },
+              "stream_arrival_delay": {
+                "samples": {
+                  "type": "int"
+                },
+                "min": {
+                  "type": "NoneType"
+                },
+                "max": {
+                  "type": "NoneType"
+                },
+                "median": {
+                  "type": "NoneType"
+                },
+                "p95": {
+                  "type": "NoneType"
+                }
+              }
+            },
+            "cached_records": {
+              "type": "int"
+            },
+            "storage_failed": {
+              "type": "bool"
+            }
+          },
+          "clock": {
+            "source": {
+              "type": "str"
+            },
+            "zone": {
+              "kind": {
+                "type": "str"
+              },
+              "name": {
+                "type": "str"
+              }
+            },
+            "device_zone": {
+              "kind": {
+                "type": "str"
+              },
+              "name": {
+                "type": "str"
+              }
+            },
+            "status": {
+              "type": "str"
+            },
+            "checked_at": {
+              "type": "str"
+            },
+            "skew_seconds": {
+              "type": "int"
+            },
+            "error": {
+              "type": "NoneType"
+            },
+            "measurement": {
+              "type": "NoneType"
+            },
+            "next_transition": {
+              "type": "NoneType"
+            },
+            "drift_state": {
+              "type": "str"
+            },
+            "time_mode": {
+              "type": "str"
+            }
+          },
+          "media": {
+            "type": "NoneType"
+          },
+          "audio": {
+            "active": {
+              "type": "bool"
+            },
+            "source": {
+              "type": "NoneType"
+            },
+            "last_result": {
+              "type": "NoneType"
+            }
+          },
+          "generated_at": {
+            "type": "str"
+          },
+          "format": {
+            "type": "str"
+          },
+          "evidence_scope": {
+            "type": "str"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "investigations_query",
+      "family": "investigations",
+      "command": "investigations/query",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/investigations/query",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "investigations/query",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.108038+00:00",
+          "expires_at": "2026-10-24T19:44:57.108038+00:00",
+          "parameters": {
+            "filters": {},
+            "limit": 20,
+            "offset": 0,
+            "snapshot": ""
+          },
+          "ts": 1792871082,
+          "nonce": "5ce4ca69211d49149e9a467db7747b7b",
+          "sig": "e86e57e4bb2594aa06e1507f7b4639f316b350e09b1afa1da8ed3e1bdaddc680"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "filters": {
+            "type": "object"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "snapshot": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filters",
+          "limit",
+          "offset",
+          "snapshot"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "3b1bd994d90b4fcfe173abe3e122efb058fab8612b50e8ce45a4866e3c055817",
+      "canonical_body_sha256": "48b695dd46581e5cf8b8aabca87473faada32f2cd5eb3ba03cbae0365952a2cb",
+      "parameters_sha256": "1772a50fe667e8ad619acc41bad74699b3c4a2d7068fed88ca89dadefdf5ce42",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "records": {
+            "type": "array"
+          },
+          "total": {
+            "type": "int"
+          },
+          "offset": {
+            "type": "int"
+          },
+          "limit": {
+            "type": "int"
+          },
+          "next_offset": {
+            "type": "NoneType"
+          },
+          "previous_offset": {
+            "type": "NoneType"
+          },
+          "snapshot": {
+            "type": "str"
+          },
+          "stale": {
+            "type": "bool"
+          },
+          "summary": {
+            "change": {
+              "type": "int"
+            },
+            "sync": {
+              "type": "int"
+            },
+            "access": {
+              "type": "int"
+            }
+          },
+          "generated_at": {
+            "type": "str"
+          },
+          "retention": {
+            "access_days": {
+              "type": "int"
+            },
+            "change_days": {
+              "type": "int"
+            },
+            "sync": {
+              "type": "str"
+            }
+          },
+          "correlation": {
+            "type": "str"
+          },
+          "sources": {
+            "access_available": {
+              "type": "bool"
+            },
+            "access_storage_failed": {
+              "type": "bool"
+            }
+          },
+          "actors": {}
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "jobs_list",
+      "family": "jobs",
+      "command": "jobs/list",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/jobs/list",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "jobs/list",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.162029+00:00",
+          "expires_at": "2026-10-24T19:44:57.162029+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "08ee8474e9af4ba2880fc208a80d53e6",
+          "sig": "57367ed9e2b38bf98e5b269d02c2c4c8016bb4d6a1c65b5de51732d007069b9c"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "c0a095ac5f9419385ba6dce6a30d4816447f13ed24c6e010a1a40126d044bfc9",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "records": {
+            "type": "array"
+          },
+          "reviews": {
+            "type": "array"
+          },
+          "dual_approval": {
+            "type": "bool"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "media_settings_get",
+      "family": "media",
+      "command": "media/settings_get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/media/settings_get",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "media/settings_get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.212521+00:00",
+          "expires_at": "2026-10-24T19:44:57.212521+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "5a588cc28926449eb2f8c9851d6e4000",
+          "sig": "f5d439dcd92ce56f3c812bfd02845e32cbc9f59727788586ee12fb1ffc77fe83"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "2111bd9641ade515b18c0a89bef7299007b5720638376706505721de03bad437",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "revision": {
+            "type": "int"
+          },
+          "transport": {
+            "type": "str"
+          },
+          "webrtc_mode": {
+            "type": "str"
+          },
+          "fallback_hls": {
+            "type": "bool"
+          },
+          "go2rtc_url": {
+            "type": "str"
+          },
+          "overview_preview_mode": {
+            "type": "str"
+          },
+          "talk_mode": {
+            "type": "str"
+          },
+          "tts_engine_id": {
+            "type": "str"
+          },
+          "tts_language": {
+            "type": "str"
+          },
+          "tts_phrases": {
+            "type": "array"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "operations_query",
+      "family": "operations",
+      "command": "operations/query",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/operations/query",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "operations/query",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.261862+00:00",
+          "expires_at": "2026-10-24T19:44:57.261862+00:00",
+          "parameters": {
+            "filters": {},
+            "limit": 20,
+            "offset": 0,
+            "snapshot": ""
+          },
+          "ts": 1792871082,
+          "nonce": "3e4afd5a229645d0b178f349e6788ff4",
+          "sig": "7dbb472ae689cae3d87f44ffeed7765647fcdc638d5a5e38e26b9aba0aa8d374"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "filters": {
+            "type": "object"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "snapshot": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filters",
+          "limit",
+          "offset",
+          "snapshot"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "3b1bd994d90b4fcfe173abe3e122efb058fab8612b50e8ce45a4866e3c055817",
+      "canonical_body_sha256": "4493bfe9aa5575db1073fe18fc9c294d218f8426e110256d44b140ded60d4bad",
+      "parameters_sha256": "1772a50fe667e8ad619acc41bad74699b3c4a2d7068fed88ca89dadefdf5ce42",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "records": {
+            "type": "array"
+          },
+          "total": {
+            "type": "int"
+          },
+          "offset": {
+            "type": "int"
+          },
+          "limit": {
+            "type": "int"
+          },
+          "next_offset": {
+            "type": "NoneType"
+          },
+          "previous_offset": {
+            "type": "NoneType"
+          },
+          "snapshot": {
+            "type": "str"
+          },
+          "stale": {
+            "type": "bool"
+          },
+          "summary": {
+            "pending": {
+              "type": "int"
+            },
+            "failed": {
+              "type": "int"
+            },
+            "verified": {
+              "type": "int"
+            },
+            "settled": {
+              "type": "int"
+            },
+            "saved": {
+              "type": "int"
+            }
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "overview",
+      "family": "overview",
+      "command": "overview",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/overview",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "overview",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.312164+00:00",
+          "expires_at": "2026-10-24T19:44:57.312164+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "935b39b2c9494d9ab3985ad9a3cf7176",
+          "sig": "c213f26ff09def055392a4bdb6e97ccd9dbb8ce6c54805c9273c9b60fda7bd2b"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "dc950086588e1527e906ad874378a58c7f1c1899f3ebe73886223bb09471be20",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "users": {
+            "type": "array"
+          },
+          "sync_operations": {
+            "type": "array"
+          },
+          "revocations": {
+            "type": "array"
+          },
+          "card_removals": {
+            "type": "array"
+          },
+          "pin_removals": {
+            "type": "array"
+          },
+          "tombstones": {
+            "type": "array"
+          },
+          "stations": {
+            "type": "array"
+          },
+          "appearance_settings": {
+            "revision": {
+              "type": "int"
+            },
+            "default": {
+              "type": "str"
+            },
+            "accent": {
+              "type": "str"
+            }
+          },
+          "default_zone": {
+            "kind": {
+              "type": "str"
+            },
+            "name": {
+              "type": "str"
+            }
+          },
+          "media_settings": {
+            "revision": {
+              "type": "int"
+            },
+            "transport": {
+              "type": "str"
+            },
+            "webrtc_mode": {
+              "type": "str"
+            },
+            "fallback_hls": {
+              "type": "bool"
+            },
+            "go2rtc_url": {
+              "type": "str"
+            },
+            "overview_preview_mode": {
+              "type": "str"
+            },
+            "talk_mode": {
+              "type": "str"
+            },
+            "tts_engine_id": {
+              "type": "str"
+            },
+            "tts_language": {
+              "type": "str"
+            },
+            "tts_phrases": {
+              "type": "array"
+            }
+          },
+          "profile_settings": {
+            "revision": {
+              "type": "int"
+            },
+            "photo_enabled": {
+              "type": "bool"
+            },
+            "fields": {
+              "type": "array"
+            },
+            "groups": {
+              "type": "array"
+            },
+            "templates": {
+              "type": "array"
+            }
+          },
+          "access": {
+            "allowed": {
+              "type": "bool"
+            },
+            "is_admin": {
+              "type": "bool"
+            },
+            "bridge_full_scope": {
+              "type": "bool"
+            },
+            "areas": {
+              "overview": {
+                "type": "str"
+              },
+              "users": {
+                "type": "str"
+              },
+              "events": {
+                "type": "str"
+              },
+              "stations": {
+                "type": "str"
+              },
+              "management": {
+                "type": "str"
+              }
+            },
+            "station_ids": {
+              "type": "NoneType"
+            },
+            "fields": {
+              "phone": {
+                "type": "str"
+              },
+              "photo": {
+                "type": "str"
+              },
+              "credentials": {
+                "type": "str"
+              },
+              "profile": {
+                "type": "str"
+              },
+              "access": {
+                "type": "str"
+              }
+            },
+            "revision": {
+              "type": "int"
+            }
+          },
+          "user_count": {
+            "type": "int"
+          },
+          "api": {
+            "version": {
+              "type": "int"
+            },
+            "min_client": {
+              "type": "int"
+            },
+            "capabilities": {
+              "type": "array"
+            },
+            "commands": {
+              "type": "array"
+            }
+          },
+          "version": {
+            "type": "str"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "peer_bindings_get",
+      "family": "peer_bindings",
+      "command": "peer_bindings/get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/peer_bindings/get",
+        "bridge": {
+          "kind": "wiskey-peer-query.v1",
+          "command": "peer_bindings/get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.382241+00:00",
+          "expires_at": "2026-10-24T19:44:57.382241+00:00",
+          "parameters": {
+            "initialize": true,
+            "expected_revision": 0
+          },
+          "ts": 1792871082,
+          "nonce": "17fdcc76059540ca997c253e007ef241",
+          "sig": "9c7141035e73dbc372fcc20b8899833064b5e477cca0fabe8822d3d2514fa3fe"
+        }
+      },
+      "parameters_schema": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "initialize": {
+                "const": true
+              },
+              "expected_revision": {
+                "type": "integer",
+                "const": 0
+              }
+            },
+            "required": [
+              "expected_revision",
+              "initialize"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "peer_binding_ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "peer_binding_revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "peer_binding_ref",
+              "peer_binding_revision"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "schema_sha256": "8962564d14ac8a22a8e908f33d938ba2fd5df146dc33ebff525b8821f9a54c33",
+      "canonical_body_sha256": "e5aaf0f73e98131a87da60e9449c760303562a975a001b3b8ac692e9b69978f1",
+      "parameters_sha256": "56f96854061429857da5027d2f64b791448ed4142e08f860ba28495fa19fb8f4",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "schema_version": {
+            "type": "int"
+          },
+          "protocol": {
+            "type": "str"
+          },
+          "verified_peer_ref": {
+            "type": "str"
+          },
+          "peer_binding_ref": {
+            "type": "str"
+          },
+          "peer_binding_revision": {
+            "type": "int"
+          },
+          "query_owner_id": {
+            "type": "str"
+          },
+          "repository_id": {
+            "type": "str"
+          },
+          "allowed_read_scope": {
+            "type": "str"
+          },
+          "state": {
+            "type": "str"
+          },
+          "active": {
+            "type": "bool"
+          },
+          "historical_read": {
+            "type": "bool"
+          },
+          "successor": {
+            "type": "NoneType"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.peer_bridge_api",
+          "symbol": "register_peer_bridge.<locals>.make_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/peer_bridge_api.py": "8d7663c997de6c30d6894ca8275eca7affb90189f7fe8898c199d8f85294f984"
+        }
+      }
+    },
+    {
+      "id": "peer_protocol_get",
+      "family": "peer_protocol",
+      "command": "peer_protocol/get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/peer_protocol/get",
+        "bridge": {
+          "kind": "wiskey-peer-query.v1",
+          "command": "peer_protocol/get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.464485+00:00",
+          "expires_at": "2026-10-24T19:44:57.464485+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "99d69ee648694c28ac5c149801fe5d35",
+          "sig": "6c27ca3d8a6d174a73a49d4dc76fae91f2d908fa4cc1c10e8c3c3e4cefe211ba"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f",
+      "canonical_body_sha256": "e4444576592702fecc45286f25ab142e1ff25b4349f51981c99cee6632d770d1",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "schema_version": {
+            "type": "int"
+          },
+          "protocol": {
+            "type": "str"
+          },
+          "commands": {
+            "type": "array"
+          },
+          "readback_v2": {
+            "schema_version": {
+              "type": "int"
+            },
+            "closed": {
+              "type": "bool"
+            },
+            "max_revision": {
+              "type": "int"
+            },
+            "max_assignments": {
+              "type": "int"
+            },
+            "max_queue_ids": {
+              "type": "int"
+            },
+            "max_envelope_bytes": {
+              "type": "int"
+            }
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.peer_bridge_api",
+          "symbol": "register_peer_bridge.<locals>.make_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/peer_bridge_api.py": "8d7663c997de6c30d6894ca8275eca7affb90189f7fe8898c199d8f85294f984"
+        }
+      }
+    },
+    {
+      "id": "peer_receipts_resolve",
+      "family": "peer_receipts",
+      "command": "peer_receipts/resolve",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/peer_receipts/resolve",
+        "bridge": {
+          "kind": "wiskey-peer-query.v1",
+          "command": "peer_receipts/resolve",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.470932+00:00",
+          "expires_at": "2026-10-24T19:44:57.470932+00:00",
+          "parameters": {
+            "peer_binding_ref": "bridge:01M5QQ394PAAF9QEVJGPAH6FFT:arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+            "peer_binding_revision": 1,
+            "original": {
+              "repository_id": "6b0f0012-2a0c-4aad-a77a-6102e860bd4b",
+              "verified_peer_ref": "smplwise_bridge:01M5QQ394PAAF9QEVJGPAH6FFT",
+              "peer_binding_ref": "bridge:01M5QQ394PAAF9QEVJGPAH6FFT:arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+              "peer_binding_revision": 1,
+              "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+              "descriptor_epoch": "synthetic-vector-epoch",
+              "original": {
+                "contract_version": "wiskey-arx-generalized-w1-draft.3",
+                "request_id": "00000000-0000-0000-0000-000000000001",
+                "actor": {
+                  "kind": "human",
+                  "user_id": "synthetic-actor"
+                },
+                "action": "users/create",
+                "channel": "interactive",
+                "target": {
+                  "logical_target_id": "synthetic-target",
+                  "binding_revision": 1
+                },
+                "grant": {
+                  "grant_id": "synthetic-grant",
+                  "grant_revision": 1,
+                  "permission_revision": 1,
+                  "decision_id": "decision-1"
+                },
+                "operation_id": "op-1",
+                "operation_binding_ref": "binding-1",
+                "issued_at": "2026-10-20T16:00:00+00:00",
+                "request_expires_at": "2026-10-20T16:00:15+00:00",
+                "selection_revision": "rev1",
+                "operation": {
+                  "request_schema_id": "synthetic-schema",
+                  "request_schema_revision": "1",
+                  "parameter_reference": "parameters-1",
+                  "public_descriptor_revision": 1,
+                  "permission_revision": 1,
+                  "selection_revision": "rev1",
+                  "parameter_transport": "closed_public_parameters"
+                },
+                "decision": {
+                  "decision_id": "decision-1",
+                  "grant_revision": 1,
+                  "permission_revision": 1,
+                  "binding_revision": 1,
+                  "selection_revision": "rev1",
+                  "decided_at": "2026-10-20T16:00:00+00:00",
+                  "request_id": "00000000-0000-0000-0000-000000000001",
+                  "operation_id": "op-1",
+                  "operation_binding_ref": "binding-1",
+                  "request_schema_id": "synthetic-schema",
+                  "request_schema_revision": "1"
+                }
+              }
+            }
+          },
+          "ts": 1792871082,
+          "nonce": "92e2c2cf56024212b58e0e436f334115",
+          "sig": "9b326cbdeb809811c433959f97127baf63de94bd7dcb9cd6409a7b6a8b407ce0"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "peer_binding_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "peer_binding_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "original": {
+            "type": "object",
+            "properties": {
+              "repository_id": {
+                "type": "string"
+              },
+              "verified_peer_ref": {
+                "type": "string"
+              },
+              "peer_binding_ref": {
+                "type": "string"
+              },
+              "query_owner_id": {
+                "type": "string"
+              },
+              "descriptor_epoch": {
+                "type": "string"
+              },
+              "peer_binding_revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "original": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "descriptor_epoch",
+              "original",
+              "peer_binding_ref",
+              "peer_binding_revision",
+              "query_owner_id",
+              "repository_id",
+              "verified_peer_ref"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "original",
+          "peer_binding_ref",
+          "peer_binding_revision"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "516040f0a803fe0b034421cb7155d9b2a02d5ea2df77768c2440f5c6e5244763",
+      "canonical_body_sha256": "c9eb1f2a7567288fdd5c6e8a206f8fb3f5586ccea590d3c68243919c80adc015",
+      "parameters_sha256": "5d5231f14d26bcc005cd6e528d39b5923b1ffe43845e9c579c3bff64f258a8c0",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "schema_version": {
+            "type": "int"
+          },
+          "state": {
+            "type": "str"
+          },
+          "receipt": {
+            "type": "NoneType"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.peer_bridge_api",
+          "symbol": "register_peer_bridge.<locals>.make_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/peer_bridge_api.py": "8d7663c997de6c30d6894ca8275eca7affb90189f7fe8898c199d8f85294f984"
+        }
+      }
+    },
+    {
+      "id": "peer_writes_source_v1",
+      "family": "peer_writes",
+      "command": "peer_writes/source_v1",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/peer_writes/source_v1",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "peer_writes/source_v1",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.482986+00:00",
+          "expires_at": "2026-10-24T19:44:57.482986+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "7c3c78cd3b7f484f860ea7f5e9777dce",
+          "sig": "54e81e5335a1cec679ab4984f84a50eddf7206f7d43bd880e0c1eab4e6027314"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f",
+      "canonical_body_sha256": "818a766c2c7029adb453778af2735e3197899b02bb4d99ff220c060e97b58d71",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "schema_version": {
+            "type": "int"
+          },
+          "contract": {
+            "type": "str"
+          },
+          "repository_id": {
+            "type": "str"
+          },
+          "verified_peer_ref": {
+            "type": "str"
+          },
+          "peer_binding_ref": {
+            "type": "str"
+          },
+          "peer_binding_revision": {
+            "type": "int"
+          },
+          "query_owner_id": {
+            "type": "str"
+          },
+          "descriptor_epoch": {
+            "type": "str"
+          },
+          "commands": {
+            "type": "array"
+          },
+          "request_schema_prefix": {
+            "type": "str"
+          },
+          "request_schema_revision": {
+            "type": "str"
+          },
+          "delete_person_revision": {
+            "type": "str"
+          },
+          "replay_available": {
+            "type": "bool"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.native_peer_write_api",
+          "symbol": "source_handler"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/native_peer_write_api.py": "6dcb3b228097c0fd98cb75cd43e8157ce1a984cc88c3dd5ac596c6068596d2e7"
+        }
+      }
+    },
+    {
+      "id": "permissions_directory",
+      "family": "permissions",
+      "command": "permissions/directory",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/permissions/directory",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "permissions/directory",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.609028+00:00",
+          "expires_at": "2026-10-24T19:44:57.609028+00:00",
+          "parameters": {
+            "filters": {}
+          },
+          "ts": 1792871082,
+          "nonce": "385b9778bd0d4020af9ca2c812372bad",
+          "sig": "2e9b9eebc2f8614d6a16a95653df91aac0e39d5ac880956fc25068604707e2d0"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "filters": {
+            "type": "object"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filters"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "896122bccea7ac05046c734ab476637a496e158f37f6bb4698337ea859f60ef1",
+      "canonical_body_sha256": "768a1cdeae30af32224e2b4b8145db0279c0e94d5e05caf73f08adb8b62778bc",
+      "parameters_sha256": "c75966b2403b0433db40c05898902c770a510d4961bc52dbdbca2885fc7e9d9d",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "rows": {
+            "type": "array"
+          },
+          "total": {
+            "type": "int"
+          },
+          "offset": {
+            "type": "int"
+          },
+          "limit": {
+            "type": "int"
+          },
+          "generated_at": {
+            "type": "str"
+          },
+          "source": {
+            "type": "str"
+          },
+          "device_writes": {
+            "type": "int"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "platform_get",
+      "family": "platform",
+      "command": "platform/get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/platform/get",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "platform/get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.661173+00:00",
+          "expires_at": "2026-10-24T19:44:57.661173+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "0563ea1f26f34bdb8e6dc1035431d59a",
+          "sig": "9941e3580764627ebbc6c0fc5b6b4efdaca3223a69be1ff2b3a1fdc16636b387"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "5d0bbef53423eab49e5d70312ebcdddfa3a25af1c12c4b0b052b8f5518e62805",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "schema": {
+            "type": "int"
+          },
+          "revision": {
+            "type": "int"
+          },
+          "retention": {
+            "days": {
+              "type": "int"
+            },
+            "count": {
+              "type": "int"
+            },
+            "bytes": {
+              "type": "int"
+            }
+          },
+          "stations": {},
+          "templates": {},
+          "door_presets": {},
+          "views": {},
+          "reports": {},
+          "journal": {
+            "type": "array"
+          },
+          "observations": {
+            "type": "array"
+          },
+          "report_runs": {
+            "type": "array"
+          },
+          "receipts": {
+            "type": "array"
+          },
+          "webhook": {
+            "enabled": {
+              "type": "bool"
+            },
+            "url": {
+              "type": "str"
+            },
+            "kinds": {
+              "type": "array"
+            }
+          },
+          "event_usage": {
+            "records": {
+              "type": "int"
+            },
+            "bytes": {
+              "type": "int"
+            },
+            "days": {
+              "type": "int"
+            },
+            "count_limit": {
+              "type": "int"
+            },
+            "byte_limit": {
+              "type": "NoneType"
+            },
+            "observed_records_per_day": {
+              "type": "NoneType"
+            },
+            "count_horizon_days": {
+              "type": "NoneType"
+            },
+            "forecast_basis": {
+              "type": "str"
+            },
+            "storage_failed": {
+              "type": "bool"
+            }
+          },
+          "catalog": {
+            "01M5QQ36F7P5XY6T1764QDKJ3R": {
+              "type": "str"
+            }
+          },
+          "capabilities": {
+            "type": "array"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "profiles_settings_get",
+      "family": "profiles",
+      "command": "profiles/settings_get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/profiles/settings_get",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "profiles/settings_get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.718456+00:00",
+          "expires_at": "2026-10-24T19:44:57.718456+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "0d2d3ca871aa43d5a45d544d09dfccfd",
+          "sig": "7a15bb9387bf888e6543c4b5f2a805d805943f4d001be15ec3f39a53d5c4f25b"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "a4f2918801d2dba441459b4e7d0e07e87265c8a92319c4940486a098068c0e5d",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "revision": {
+            "type": "int"
+          },
+          "photo_enabled": {
+            "type": "bool"
+          },
+          "fields": {
+            "type": "array"
+          },
+          "groups": {
+            "type": "array"
+          },
+          "templates": {
+            "type": "array"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "renewal_bindings",
+      "family": "renewal",
+      "command": "renewal/bindings",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/renewal/bindings",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "renewal/bindings",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.767752+00:00",
+          "expires_at": "2026-10-24T19:44:57.767752+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "645b30a7684941b58ac87ac08c0b8a9b",
+          "sig": "d15f401d17a11bef9e0dfc713257b8c803f27b27edf0937e9fc7f09f6bb10cb4"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "4cb6f92f476836d211221256af1a26ae7c90cc9754009aa9aa450f9526d0f861",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "revision": {
+            "type": "int"
+          },
+          "bindings": {},
+          "directory": {
+            "type": "array"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "schedules_list",
+      "family": "schedules",
+      "command": "schedules/list",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/schedules/list",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "schedules/list",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.815835+00:00",
+          "expires_at": "2026-10-24T19:44:57.815835+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "696810124cdd43eaa3e2f84bc43af35a",
+          "sig": "0af05b35effc27062cdc838acfcc24876ad2c1902695cc3a40b0371599d4ab4d"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "e3ae9a65251246a9022d725cacaec29485b87ad25b2d497f109fbf616ab80b50",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "type": "array"
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "search_query",
+      "family": "search",
+      "command": "search/query",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/search/query",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "search/query",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.864853+00:00",
+          "expires_at": "2026-10-24T19:44:57.864853+00:00",
+          "parameters": {
+            "kind": "all",
+            "limit": 20,
+            "offset": 0,
+            "query": "synthetic",
+            "snapshot": ""
+          },
+          "ts": 1792871082,
+          "nonce": "747fcd37ab2a450e8073353e759c347b",
+          "sig": "eac24a7914e6c235f180b6ff4c8db40ecd125d435f452ececa21a327fb5e1e9d"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "snapshot": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "limit",
+          "offset",
+          "query",
+          "snapshot"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "0d7bb80eccd318f42f0af19d11331fe658569f79a1e105e650e32f6c88f89c98",
+      "canonical_body_sha256": "efd229c697f4ce91aa34d1c200d0cdb73aef15ee4a4eb367fd92aa9f3e1d9ae9",
+      "parameters_sha256": "d798512fa1e8125d1480028b0c686b68aa1194ac1fe04b1b0ff53907dd40950f",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "query": {
+            "type": "str"
+          },
+          "kind": {
+            "type": "str"
+          },
+          "offset": {
+            "type": "int"
+          },
+          "limit": {
+            "type": "int"
+          },
+          "snapshot": {
+            "type": "str"
+          },
+          "stale": {
+            "type": "bool"
+          },
+          "sections": {
+            "people": {
+              "available": {
+                "type": "bool"
+              },
+              "total": {
+                "type": "int"
+              },
+              "records": {
+                "type": "array"
+              },
+              "next_offset": {
+                "type": "NoneType"
+              },
+              "previous_offset": {
+                "type": "NoneType"
+              }
+            },
+            "events": {
+              "available": {
+                "type": "bool"
+              },
+              "total": {
+                "type": "int"
+              },
+              "records": {
+                "type": "array"
+              },
+              "next_offset": {
+                "type": "NoneType"
+              },
+              "previous_offset": {
+                "type": "NoneType"
+              }
+            },
+            "actions": {
+              "available": {
+                "type": "bool"
+              },
+              "total": {
+                "type": "int"
+              },
+              "records": {
+                "type": "array"
+              },
+              "next_offset": {
+                "type": "NoneType"
+              },
+              "previous_offset": {
+                "type": "NoneType"
+              }
+            }
+          },
+          "api_contract": {
+            "type": "int"
+          },
+          "coverage": {
+            "basis": {
+              "type": "str"
+            },
+            "event_retention_days": {
+              "type": "int"
+            },
+            "event_storage_failed": {
+              "type": "bool"
+            },
+            "action_retention_days": {
+              "type": "int"
+            }
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "security_session",
+      "family": "security",
+      "command": "security/session",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/security/session",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "security/session",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.919408+00:00",
+          "expires_at": "2026-10-24T19:44:57.919408+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "c40cda12ae1b49ad8e2b102e35122290",
+          "sig": "9430879f28c15e86a069ed0e959033342dd72569db861b2f5196fa120a5275ba"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "3b08dd4d3df4708e5e315898145a650f571a05b9338a3f78751022caaa7a8c56",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "locked": {
+            "type": "bool"
+          },
+          "idle_minutes": {
+            "type": "int"
+          },
+          "reauth_sensitive": {
+            "type": "bool"
+          },
+          "elevated": {
+            "type": "bool"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "stations_list",
+      "family": "stations",
+      "command": "stations/list",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/stations/list",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "stations/list",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:42.951271+00:00",
+          "expires_at": "2026-10-24T19:44:57.951271+00:00",
+          "parameters": {},
+          "ts": 1792871082,
+          "nonce": "fc1208213b57471abbfd0e8105564820",
+          "sig": "9ad9e2550c306ae8577c58d9e489d3dca6dd15d9c52bf2c8c9770b93e2789ed7"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "338ef19f8b1c734ab28c579b58d44d271bb31f5231994ab1e82a023bc04b6d23",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "type": "array"
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "subscribe",
+      "family": "subscribe",
+      "command": "subscribe",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/subscribe",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "subscribe",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.020085+00:00",
+          "expires_at": "2026-10-24T19:44:58.020085+00:00",
+          "parameters": {
+            "expires_at": "2026-10-24T19:44:48.020066+00:00"
+          },
+          "ts": 1792871083,
+          "nonce": "4dcad2f14fb343c587f1135ebacec795",
+          "sig": "4a8f2b70251d5b35033546174aeb461b35049463116a702497461cb832db0fc8"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "expires_at"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "9faac322a85f1b71615f91843822951132ddfbb1963d087e4601d396d804d269",
+      "canonical_body_sha256": "fb7920504b23bc60ab80b4b35c633b9cdba435f1a2acded7bf091efc89b1a7b5",
+      "parameters_sha256": "2119113b0c8b92d69013745f78e5d901ffb9d2f625d8f71bd41c980e073e5a59",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "kind": {
+            "type": "str"
+          },
+          "schema_version": {
+            "type": "int"
+          },
+          "expires_at": {
+            "type": "str"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "subscribe"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "support_bundle",
+      "family": "support",
+      "command": "support/bundle",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/support/bundle",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "support/bundle",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.067489+00:00",
+          "expires_at": "2026-10-24T19:44:58.067489+00:00",
+          "parameters": {},
+          "ts": 1792871083,
+          "nonce": "5d2ed41ce812446abc8990ce9620baf7",
+          "sig": "839e23dc87535dd4d6f2a478b8ef5ca13c3a13af6a4989c8d1f7f0d51487ce27"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "10f334559d22cd92c0aa46a1fb78394e2f44f7f3ff17cc5df133c99d40da08f2",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "format": {
+            "type": "str"
+          },
+          "generated_at": {
+            "type": "str"
+          },
+          "integration_version": {
+            "type": "str"
+          },
+          "home_assistant": {
+            "version": {
+              "type": "str"
+            },
+            "time_zone": {
+              "type": "str"
+            }
+          },
+          "scope": {
+            "type": "str"
+          },
+          "privacy": {
+            "type": "str"
+          },
+          "stations": {
+            "type": "array"
+          },
+          "sync": {
+            "stations": {
+              "type": "array"
+            },
+            "retention": {
+              "type": "str"
+            },
+            "recent": {
+              "type": "array"
+            }
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "sync_status",
+      "family": "sync",
+      "command": "sync/status",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/sync/status",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "sync/status",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.117580+00:00",
+          "expires_at": "2026-10-24T19:44:58.117580+00:00",
+          "parameters": {},
+          "ts": 1792871083,
+          "nonce": "aa3b33428b524a578d23be0bebfb3225",
+          "sig": "7723bb21861fd16b6bd30b5899ee5b16ee30b44a87a8b9c01bffffd38a1a3283"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "fe4404fa5d84d2934a7c3e9cb20e7793a99001e97e98d98840108fcfe19dba89",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "users": {
+            "type": "array"
+          },
+          "sync_operations": {
+            "type": "array"
+          },
+          "revocations": {
+            "type": "array"
+          },
+          "card_removals": {
+            "type": "array"
+          },
+          "pin_removals": {
+            "type": "array"
+          },
+          "tombstones": {
+            "type": "array"
+          },
+          "stations": {
+            "type": "array"
+          },
+          "appearance_settings": {
+            "revision": {
+              "type": "int"
+            },
+            "default": {
+              "type": "str"
+            },
+            "accent": {
+              "type": "str"
+            }
+          },
+          "default_zone": {
+            "kind": {
+              "type": "str"
+            },
+            "name": {
+              "type": "str"
+            }
+          },
+          "media_settings": {
+            "revision": {
+              "type": "int"
+            },
+            "transport": {
+              "type": "str"
+            },
+            "webrtc_mode": {
+              "type": "str"
+            },
+            "fallback_hls": {
+              "type": "bool"
+            },
+            "go2rtc_url": {
+              "type": "str"
+            },
+            "overview_preview_mode": {
+              "type": "str"
+            },
+            "talk_mode": {
+              "type": "str"
+            },
+            "tts_engine_id": {
+              "type": "str"
+            },
+            "tts_language": {
+              "type": "str"
+            },
+            "tts_phrases": {
+              "type": "array"
+            }
+          },
+          "profile_settings": {
+            "revision": {
+              "type": "int"
+            },
+            "photo_enabled": {
+              "type": "bool"
+            },
+            "fields": {
+              "type": "array"
+            },
+            "groups": {
+              "type": "array"
+            },
+            "templates": {
+              "type": "array"
+            }
+          },
+          "access": {
+            "allowed": {
+              "type": "bool"
+            },
+            "is_admin": {
+              "type": "bool"
+            },
+            "bridge_full_scope": {
+              "type": "bool"
+            },
+            "areas": {
+              "overview": {
+                "type": "str"
+              },
+              "users": {
+                "type": "str"
+              },
+              "events": {
+                "type": "str"
+              },
+              "stations": {
+                "type": "str"
+              },
+              "management": {
+                "type": "str"
+              }
+            },
+            "station_ids": {
+              "type": "NoneType"
+            },
+            "fields": {
+              "phone": {
+                "type": "str"
+              },
+              "photo": {
+                "type": "str"
+              },
+              "credentials": {
+                "type": "str"
+              },
+              "profile": {
+                "type": "str"
+              },
+              "access": {
+                "type": "str"
+              }
+            },
+            "revision": {
+              "type": "int"
+            }
+          },
+          "user_count": {
+            "type": "int"
+          },
+          "api": {
+            "version": {
+              "type": "int"
+            },
+            "min_client": {
+              "type": "int"
+            },
+            "capabilities": {
+              "type": "array"
+            },
+            "commands": {
+              "type": "array"
+            }
+          },
+          "version": {
+            "type": "str"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "tts_engines",
+      "family": "tts",
+      "command": "tts/engines",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/tts/engines",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "tts/engines",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.189133+00:00",
+          "expires_at": "2026-10-24T19:44:58.189133+00:00",
+          "parameters": {},
+          "ts": 1792871083,
+          "nonce": "fda68ac96b4f406eae94be6e34ea1282",
+          "sig": "e91c9bbfe95ea5dbbade4d94845e504e41f94adcc3355e43043d0bbeac275e6a"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f",
+      "canonical_body_sha256": "2a4e08b0008dc4af779f61fbab99d915311615e42dbc9f38d29abb2396792478",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "default": {
+            "type": "NoneType"
+          },
+          "engines": {
+            "type": "array"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.audio_tts",
+          "symbol": "engines"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/audio_tts.py": "83bf931f1cec4fe4e994cf222a280d4869caaeb53b3a7b68803a6ee63dce669d"
+        }
+      }
+    },
+    {
+      "id": "upgrade_readiness",
+      "family": "upgrade",
+      "command": "upgrade/readiness",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/upgrade/readiness",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "upgrade/readiness",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.254173+00:00",
+          "expires_at": "2026-10-24T19:44:58.254173+00:00",
+          "parameters": {},
+          "ts": 1792871083,
+          "nonce": "9852fad82229465ba46cabb928489752",
+          "sig": "2a8066dd3124a3faf80af8c719d9a0717cd0c8fa0b56b1bc37855ff4116d357e"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "162872a4b14ef6b725f368985bfeec427fa7e778b38c6da42a9fc2af690a5868",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "format": {
+            "type": "str"
+          },
+          "generated_at": {
+            "type": "str"
+          },
+          "integration_version": {
+            "type": "str"
+          },
+          "scope": {
+            "type": "str"
+          },
+          "ready": {
+            "type": "bool"
+          },
+          "blockers": {
+            "type": "array"
+          },
+          "warnings": {
+            "type": "array"
+          },
+          "checks": {
+            "type": "array"
+          },
+          "summary": {
+            "stations": {
+              "type": "int"
+            },
+            "entries": {
+              "type": "int"
+            }
+          },
+          "actions": {
+            "type": "array"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "users_list",
+      "family": "users",
+      "command": "users/list",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/users/list",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "users/list",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.303366+00:00",
+          "expires_at": "2026-10-24T19:44:58.303366+00:00",
+          "parameters": {},
+          "ts": 1792871083,
+          "nonce": "f10f402ea822425581643bb7a0030592",
+          "sig": "733a06f203fd8e1ffe64f61cde8b670459a8f573824be613155a61318ce9d96a"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "66f9fd5869d2dc97d82540b85d6728f5299e9b8ef1ced759cadbdfe637748ca2",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "type": "array"
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "visits_list",
+      "family": "visits",
+      "command": "visits/list",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/visits/list",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "visits/list",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.352377+00:00",
+          "expires_at": "2026-10-24T19:44:58.352377+00:00",
+          "parameters": {
+            "limit": 20,
+            "offset": 0
+          },
+          "ts": 1792871083,
+          "nonce": "704d4d2e827a45a7aec21ed67e846424",
+          "sig": "15d4f97f8d4363cffa25a0d3c264f6defffbbf43dae12698c62c8a17ab41265f"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          },
+          "filters": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "limit",
+          "offset"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e66e4fbb24676442efab1d90b536123e6e0cc0e12992746f88eb79d6e978455a",
+      "canonical_body_sha256": "127c8cfd524cf347743988ccaa330c91229a59deaf87ef91e7fc677ec398cacf",
+      "parameters_sha256": "989f4edccf4f1e659d2ac7f56027b4f1b84995d4e5dee6d1ce5963e947efba68",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "revision": {
+            "type": "int"
+          },
+          "items": {
+            "type": "array"
+          },
+          "total": {
+            "type": "int"
+          },
+          "offset": {
+            "type": "int"
+          },
+          "next_offset": {
+            "type": "NoneType"
+          },
+          "filters": {
+            "status": {
+              "type": "str"
+            },
+            "scope": {
+              "type": "str"
+            },
+            "query": {
+              "type": "str"
+            }
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "whatsapp_status",
+      "family": "whatsapp",
+      "command": "whatsapp/status",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/whatsapp/status",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "whatsapp/status",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.406804+00:00",
+          "expires_at": "2026-10-24T19:44:58.406804+00:00",
+          "parameters": {},
+          "ts": 1792871083,
+          "nonce": "d0c55921a9d64f15b4f8a283fed64bb8",
+          "sig": "5f5a54174f6a2772e818964001f5fd340b0f43a637d2e96e5f5102a64233a713"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e08cb4c4e03c25c09bc35cb2559cefe24bb36cc1aa6f78a666412291d2c7c995",
+      "canonical_body_sha256": "d7a5f02a3806871fbae651d199c1f4e12b90dd0439aafd36db021e3a6893fa67",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "available": {
+            "type": "bool"
+          },
+          "history": {
+            "type": "bool"
+          },
+          "accounts": {
+            "type": "array"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "workflows_get",
+      "family": "workflows",
+      "command": "workflows/get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/workflows/get",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "workflows/get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.458335+00:00",
+          "expires_at": "2026-10-24T19:44:58.458335+00:00",
+          "parameters": {
+            "days": 20
+          },
+          "ts": 1792871083,
+          "nonce": "21c7e8dfe186444fb877c92de8e48b92",
+          "sig": "8f98ef41f2370fc3b7750f89be6fbb4e3aed0ea8587604752f6abc9a956988e1"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "integer"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "0d56749b91847cc34922d330f38f9c51047ba927f2b61cf993b7e6afb8b65946",
+      "canonical_body_sha256": "48827afaf1557b5e3c02ef883679747418b3405c787f3a2f0f1944780aef925c",
+      "parameters_sha256": "bc201cfbb4b11274a48a5c1643719dbb6c82f22c3c3d09550383290132319b1d",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "settings": {
+            "revision": {
+              "type": "int"
+            },
+            "dual_approval": {
+              "type": "bool"
+            },
+            "idle_minutes": {
+              "type": "int"
+            },
+            "reauth_sensitive": {
+              "type": "bool"
+            }
+          },
+          "approvals": {
+            "type": "array"
+          },
+          "transfers": {
+            "type": "array"
+          },
+          "inventory": {
+            "type": "array"
+          },
+          "templates": {
+            "type": "array"
+          },
+          "reminders": {
+            "type": "array"
+          },
+          "renewals": {
+            "type": "array"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "peer_identity_get",
+      "family": "peer_identity",
+      "command": "peer_identity/get",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/peer_identity/get",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "peer_identity/get",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.507045+00:00",
+          "expires_at": "2026-10-24T19:44:58.507045+00:00",
+          "parameters": {},
+          "ts": 1792871083,
+          "nonce": "3a22de7b2732409280426f8a7d2720b4",
+          "sig": "d739dd683a0ffd6dcf72e79ab0274ca1a83c40937893848b7cc47b407771a3e1"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f",
+      "canonical_body_sha256": "ff6a7b8c07d186148a173cd92e334dfc4d4a566b8891b22e82420be551651d03",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "protocol": {
+            "type": "str"
+          },
+          "query_owner_id": {
+            "type": "str"
+          },
+          "principal_kind": {
+            "type": "str"
+          },
+          "connection_ref": {
+            "type": "str"
+          },
+          "repository_id": {
+            "type": "str"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.direct_bridge_api",
+          "symbol": "DirectBridgeServer.dispatch"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee"
+        }
+      }
+    },
+    {
+      "id": "direct_capabilities",
+      "family": "direct",
+      "command": "direct/capabilities",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/direct/capabilities",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "direct/capabilities",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.555678+00:00",
+          "expires_at": "2026-10-24T19:44:58.555678+00:00",
+          "parameters": {},
+          "ts": 1792871083,
+          "nonce": "bb579b8ba21a440b93e84f67d395b13c",
+          "sig": "0e6c260c609bbb38a5720192cf2f51244a6b506eb7c6a6ea15456645bdf07421"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f",
+      "canonical_body_sha256": "c361d45cbb47fe8c8499ee2e25c09fd911656b62136b0992e9bb0ab1ade683eb",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "schema_version": {
+            "type": "int"
+          },
+          "protocol": {
+            "type": "str"
+          },
+          "families": {
+            "type": "array"
+          },
+          "commands": {
+            "type": "array"
+          },
+          "limits": {
+            "max_frame_bytes": {
+              "type": "int"
+            },
+            "max_connect_bytes": {
+              "type": "int"
+            },
+            "max_connections_including_preparing": {
+              "type": "int"
+            },
+            "max_audio_sessions_including_legacy_and_TTS": {
+              "type": "int"
+            },
+            "nonce_capacity": {
+              "type": "int"
+            },
+            "nonce_window_seconds": {
+              "type": "int"
+            },
+            "nonce_scope": {
+              "type": "str"
+            },
+            "nonce_expiry": {
+              "type": "str"
+            },
+            "talk_batch_sizes": {
+              "type": "array"
+            },
+            "audio_frame_bytes": {
+              "type": "int"
+            },
+            "talk_idle_seconds": {
+              "type": "int"
+            },
+            "max_command_ttl_seconds": {
+              "type": "int"
+            },
+            "hello_timeout_seconds": {
+              "type": "int"
+            }
+          },
+          "station_media_contract": {
+            "type": "str"
+          },
+          "station_talk_audio": {
+            "schema": {
+              "type": "str"
+            },
+            "transport": {
+              "type": "str"
+            },
+            "opt_in": {
+              "type": "str"
+            },
+            "default": {
+              "type": "bool"
+            }
+          },
+          "stations": {
+            "type": "array"
+          },
+          "resources": {
+            "template_installation": {
+              "schema_version": {
+                "type": "int"
+              },
+              "state": {
+                "type": "str"
+              },
+              "configuration_key": {
+                "type": "str"
+              },
+              "required_fields": {
+                "type": "array"
+              },
+              "provider_tokens_exposed": {
+                "type": "bool"
+              },
+              "configured_accounts": {
+                "type": "int"
+              },
+              "configured_templates": {
+                "type": "int"
+              }
+            },
+            "features": {
+              "schema_version": {
+                "type": "int"
+              },
+              "host_registered": {
+                "type": "bool"
+              },
+              "current_source_available": {
+                "type": "bool"
+              },
+              "features": {
+                "door_windows": {
+                  "implementation": {
+                    "type": "str"
+                  },
+                  "build_enabled": {
+                    "type": "bool"
+                  },
+                  "execution_available": {
+                    "type": "bool"
+                  },
+                  "blocker": {
+                    "type": "str"
+                  }
+                },
+                "emergency_buttons": {
+                  "implementation": {
+                    "type": "str"
+                  },
+                  "build_enabled": {
+                    "type": "bool"
+                  },
+                  "execution_available": {
+                    "type": "bool"
+                  },
+                  "blocker": {
+                    "type": "str"
+                  }
+                },
+                "door_automations": {
+                  "implementation": {
+                    "type": "str"
+                  },
+                  "build_enabled": {
+                    "type": "bool"
+                  },
+                  "execution_available": {
+                    "type": "bool"
+                  },
+                  "blocker": {
+                    "type": "str"
+                  }
+                },
+                "people_csv": {
+                  "implementation": {
+                    "type": "str"
+                  },
+                  "build_enabled": {
+                    "type": "bool"
+                  },
+                  "execution_available": {
+                    "type": "bool"
+                  },
+                  "blocker": {
+                    "type": "str"
+                  }
+                },
+                "live_media": {
+                  "implementation": {
+                    "type": "str"
+                  },
+                  "build_enabled": {
+                    "type": "bool"
+                  },
+                  "execution_available": {
+                    "type": "bool"
+                  },
+                  "blocker": {
+                    "type": "str"
+                  }
+                },
+                "live_validation": {
+                  "implementation": {
+                    "type": "str"
+                  },
+                  "build_enabled": {
+                    "type": "bool"
+                  },
+                  "execution_available": {
+                    "type": "bool"
+                  },
+                  "blocker": {
+                    "type": "str"
+                  }
+                }
+              },
+              "physical_result": {
+                "type": "str"
+              }
+            },
+            "template_host_bound": {
+              "type": "bool"
+            },
+            "template_cleanup_blocker": {
+              "type": "NoneType"
+            },
+            "native_peer_registry_present": {
+              "type": "bool"
+            }
+          },
+          "lifecycle": {
+            "pairing_rotation": {
+              "type": "str"
+            },
+            "kid_in_v1": {
+              "type": "bool"
+            },
+            "event_cursor_resume": {
+              "type": "bool"
+            },
+            "reconnect_adopts_old_resources": {
+              "type": "bool"
+            }
+          },
+          "physical_result": {
+            "type": "str"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.direct_bridge_api",
+          "symbol": "DirectBridgeServer.dispatch"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee"
+        }
+      }
+    },
+    {
+      "id": "direct_time",
+      "family": "direct",
+      "command": "direct/time",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/direct/time",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "direct/time",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.613990+00:00",
+          "expires_at": "2026-10-24T19:44:58.613990+00:00",
+          "parameters": {},
+          "ts": 1792871083,
+          "nonce": "551b46a3af6c4bba928c4a74d156d845",
+          "sig": "5da0ae2ca97012d98b2c234e1c1c2fdeffa5ebb6986f57c516601407b14b1030"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "schema_sha256": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f",
+      "canonical_body_sha256": "fd9cee9227e8572924074641ca3b5f5cdcb5b22315fe8cc01258f069d101ffd1",
+      "parameters_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "expected": {
+        "success": true,
+        "error_codes": [],
+        "classification": "ACCEPTED_NATIVE_REPRESENTATIVE",
+        "result_shape": {
+          "schema_version": {
+            "type": "int"
+          },
+          "server_utc": {
+            "type": "str"
+          },
+          "max_ts_skew_seconds": {
+            "type": "int"
+          },
+          "max_issued_future_seconds": {
+            "type": "int"
+          },
+          "max_command_ttl_seconds": {
+            "type": "int"
+          }
+        }
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.direct_bridge_api",
+          "symbol": "DirectBridgeServer.dispatch"
+        },
+        "dispatch_available": true,
+        "observed_success": true,
+        "observed_error_code": null,
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee"
+        }
+      }
+    },
+    {
+      "id": "jobs_approval_decide",
+      "family": "jobs",
+      "command": "jobs/approval_decide",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/jobs/approval_decide",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "jobs/approval_decide",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.666603+00:00",
+          "expires_at": "2026-10-24T19:44:58.666603+00:00",
+          "parameters": {
+            "approve": false,
+            "confirmed": false,
+            "job_id": "",
+            "review_id": "",
+            "revision": 0
+          },
+          "ts": 1792871083,
+          "nonce": "cd3433c9bd964477b3d592e1d4a86770",
+          "sig": "4893c1dafa56f037db91632fba8fb2a0dad69c00bdcdb7678d4e42b536adfe34"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "review_id": {
+            "type": "string"
+          },
+          "approve": {
+            "type": "boolean"
+          },
+          "confirmed": {
+            "type": "boolean"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "approve",
+          "confirmed",
+          "job_id",
+          "review_id",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "999ce38b3d9242c042357b464bad53a3afb92d2237ecf7030e1673665842f937",
+      "canonical_body_sha256": "c9e089d74c95fc68ef3d9be8b541cd99bb331adeaa597974a1c616a844a23312",
+      "parameters_sha256": "2a4a55b34b68cf5ec79ab2dd1d295b38d79aac998e73066a24031eebc1778ec1",
+      "expected": {
+        "success": false,
+        "error_codes": [
+          "command_unavailable"
+        ],
+        "classification": "EXPECTED_ORIGINAL_REFUSAL",
+        "result_shape": null
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": false,
+        "observed_success": false,
+        "observed_error_code": "command_unavailable",
+        "matches_expected": true,
+        "signature_verifier_exercised": false,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "jobs_approval_request",
+      "family": "jobs",
+      "command": "jobs/approval_request",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/jobs/approval_request",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "jobs/approval_request",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.671205+00:00",
+          "expires_at": "2026-10-24T19:44:58.671205+00:00",
+          "parameters": {
+            "action": "",
+            "confirmed": false,
+            "job_id": "",
+            "revision": 0
+          },
+          "ts": 1792871083,
+          "nonce": "4fde02a8966840daade6f3c22a7c846e",
+          "sig": "331de47b02f6df87ec8522235b0fdab7fbb5b855b05f59ee8445e9f210cf6c64"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "action": {
+            "type": "string"
+          },
+          "confirmed": {
+            "type": "boolean"
+          },
+          "actor": {
+            "$ref": "CATALOG_DEFINITIONS.json#/$defs/BridgeActor"
+          },
+          "api_contract": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "confirmed",
+          "job_id",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "schema_sha256": "e0297d1f4b384c33c9ec9818599cfc605ef786b8a5af4f33b2d38e5906a14d2b",
+      "canonical_body_sha256": "efc903104de6b00add3e0d8beca012751407bd7349e083c9b9d10656076ae2c7",
+      "parameters_sha256": "6d2d8e9612f3dcc4ea8e61cf4b5eee8dd41be598ddd27e95f5f52d030a90b964",
+      "expected": {
+        "success": false,
+        "error_codes": [
+          "command_unavailable"
+        ],
+        "classification": "EXPECTED_ORIGINAL_REFUSAL",
+        "result_shape": null
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.websocket",
+          "symbol": "_command_handler.<locals>.handle"
+        },
+        "dispatch_available": false,
+        "observed_success": false,
+        "observed_error_code": "command_unavailable",
+        "matches_expected": true,
+        "signature_verifier_exercised": false,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/websocket.py": "0c41dc27d987fdb0b8ec855e1a3a24805ca8fc1aedb5fc73548940ad7ee722a5",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58"
+        }
+      }
+    },
+    {
+      "id": "whatsapp_template_send_v1",
+      "family": "whatsapp",
+      "command": "whatsapp/template_send_v1",
+      "synthetic_only": true,
+      "request": {
+        "type": "hikvision_intercom/whatsapp/template_send_v1",
+        "bridge": {
+          "kind": "wiskey-bridge-command.v1",
+          "command": "whatsapp/template_send_v1",
+          "query_owner_id": "arx-service:01M5QQ394PAAF9QEVJGPAH6FFT",
+          "issued_at": "2026-10-24T19:44:43.675530+00:00",
+          "expires_at": "2026-10-24T19:44:58.675530+00:00",
+          "parameters": {
+            "schema_version": 1,
+            "request_id": "synthetic-vector-request",
+            "operation_id": "synthetic-vector-operation",
+            "recipient_ref": "synthetic-recipient",
+            "account": "synthetic-account",
+            "template_name": "synthetic_template",
+            "language": "en",
+            "parameters": []
+          },
+          "ts": 1792871083,
+          "nonce": "715bb5d25e7c400a9d530255765899c6",
+          "sig": "7015bae12ef4f7dd9aad41f3f16a1bb724e92a78ba5f6f9c3c4643ace71f5c8d"
+        }
+      },
+      "parameters_schema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "operation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "recipient_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "account": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "schema_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "template_name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,127}$"
+          },
+          "language": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}(?:_[A-Z]{2})?$"
+          },
+          "parameters": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "pattern": "^[^\\u0000-\\u001f]+$"
+            }
+          }
+        },
+        "required": [
+          "account",
+          "language",
+          "operation_id",
+          "parameters",
+          "recipient_ref",
+          "request_id",
+          "schema_version",
+          "template_name"
+        ],
+        "additionalProperties": false,
+        "x-canonicalMaxBytes": 32768
+      },
+      "schema_sha256": "7bbf22a80a88e667d9a8ff183c135d434a6915d3753f05827c5722a28f9dc58a",
+      "canonical_body_sha256": "2aa897b9ecfe3c90eb611ed95f71510f823c5ae3b82ee284a183dfbf2e6b3268",
+      "parameters_sha256": "f577dd877ff6aa3a8c8b1153e643188a85890d2e8b7a19298f68d0a694d4cabc",
+      "expected": {
+        "success": false,
+        "error_codes": [
+          "template_source_not_installed"
+        ],
+        "classification": "EXPECTED_ORIGINAL_REFUSAL",
+        "result_shape": null
+      },
+      "native_validator": {
+        "signature": "ExistingBridgeAuthenticator.verify/canonical_body",
+        "route": {
+          "module": "custom_components.hikvision_intercom.whatsapp_template_api_v1",
+          "symbol": "_handle"
+        },
+        "dispatch_available": true,
+        "observed_success": false,
+        "observed_error_code": "template_source_not_installed",
+        "matches_expected": true,
+        "signature_verifier_exercised": true,
+        "source_hashes": {
+          "custom_components/hikvision_intercom/trusted_actions/existing_bridge_auth.py": "a10e605f47cff7f215adcbd36a3ba0a07776bf1572c6c66cbe583fcf5aaddc58",
+          "custom_components/hikvision_intercom/direct_bridge_api.py": "427514a18cad7523c8882e83b2c1a6a8617b0c768b9d84521717a2bf098ec3ee",
+          "custom_components/hikvision_intercom/whatsapp_template_api_v1.py": "33c9c035a553148d1d2fa0404a67ee96a9ab754f4a7b7fc324cc542d234b2060"
+        }
+      }
+    }
+  ],
+  "native_validation": "REAL_HA_DIRECT_AUTH_AND_DOMAIN_DISPATCH_WITH_SYNTHETIC_INPUTS",
+  "installation": "NOT_PERFORMED",
+  "live": "NOT_MEASURED"
+}
