@@ -18,5 +18,5 @@ None added by any merged branch. Chain ends at `0177_announce_stage_a.sql`.
 
 - `tsc --noEmit`: clean. `vite build` (add-on and public config): built. `scripts/release_check.py`: all ok except the tag (and `www`/`www-public` are the 2.20.1 builds: rebuild on the runner).
 - Playwright (desktop project, local preview): unit-screen-display, unit-tvopt-295, unit-notice-tv-logic, unit-automations-list, unit-noticepolish-295, unit-schedules-nav, evidence-noscroll-295, evidence-polish2-295, evidence-automations-list, notice-tv-header-295, pixel-notice-tv-mock: passed after the spec fixups above.
-- Backend: see the report of the assembler (test_notice_tvopt_295, test_polish_display_settings, test_announce_stage_a, test_remote_access, test_no_ip_literals, test_notices_106, test_source_policy).
+- Backend (pytest, local venv): test_notice_tvopt_295, test_polish_display_settings, test_announce_stage_a, test_remote_access, test_no_ip_literals, test_notices_106, test_source_policy: all passed (exit 0).
 - NOT_RUN: full gate, tablet and mobile Playwright projects, other pixel specs, evidence-schedules-list. Pixel baselines were not regenerated; none of the pixel specs run moved.
