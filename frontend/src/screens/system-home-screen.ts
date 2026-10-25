@@ -8,8 +8,12 @@ import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import { DIRECTION_DEFAULT, DIRECTION_LABEL, DIRECTION_LETTER, DIRECTIONS, homeSettingsOf, SIDE_LABEL, SIDES, type Direction, type Side } from '../api/home';
 import { SkinController } from '../design/skin';
-import { INFO_STYLES, screenDisplayOf, type InfoStyle } from '../api/screen-display';
-import { pl } from '../i18n/polish';
+import { screenDisplayOf, type InfoStyle } from '../api/screen-display';
+import { demoScreenOverrides, homeScreenOf, screenFormBody } from '../api/home-screen';
+import { getDevicesTree } from '../api/devices';
+import { hs } from '../i18n/home-screen';
+import './home-screen-options';
+import type { HomeScreenForm, OptionsArea } from './home-screen-options';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** A schematic of each direction (the mockup's three layouts): the widgets in the accent colour, the summary tiles, the floors. */
@@ -43,8 +47,10 @@ export class SystemHomeScreen extends LitElement {
   readonly bubbleSkin = new SkinController(this);
   @state() private direction: Direction = DIRECTION_DEFAULT;
   @state() private side: Side = 'end';
-  /** POLISH-295: the clock, the weather and Shabbat as a thin header bar (default) or as large cards. */
-  @state() private info: InfoStyle = 'bar';
+  /** HOME-295: every display choice of the home screen (home.screen, the info row home.info_style, the view devices.default_view). */
+  @state() private form: HomeScreenForm = { screen: homeScreenOf(isApi() ? null : demoScreenOverrides()), info: 'auto', view: 'cards' };
+  /** The areas for the per-area quick actions (the tree this user may read; none = the editor is not shown). */
+  @state() private areas: OptionsArea[] = [];
   @state() private canEdit = false;
   @state() private busy = false;
   @state() private message = '';
@@ -156,6 +162,11 @@ export class SystemHomeScreen extends LitElement {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-sm);
     }
+    .hs-h {
+      margin: 18px 0 8px;
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading);
+    }
   `, bubbleChrome];
 
   connectedCallback() {
@@ -167,24 +178,26 @@ export class SystemHomeScreen extends LitElement {
         const h = homeSettingsOf(r.settings as unknown as Record<string, unknown>);
         this.direction = h.direction;
         this.side = h.side;
-        this.info = screenDisplayOf(r.settings as unknown as Record<string, unknown>).infoStyle;
+        const raw = r.settings as unknown as Record<string, unknown>;
+        this.form = { screen: homeScreenOf(raw['home.screen']), info: screenDisplayOf(raw).infoStyle, view: raw['devices.default_view'] === 'tiles' ? 'tiles' : 'cards' };
       })
       .catch(() => undefined);
+    void getDevicesTree()
+      .then((t) => (this.areas = t.floors.flatMap((f) => f.areas.map((a) => ({ id: a.area_id, name: a.name, floor: f.name, counts: a.counts })))))
+      .catch(() => (this.areas = []));
   }
 
   private async save(change: { direction?: Direction; side?: Side; info?: InfoStyle }) {
     if (!this.canEdit || this.busy) return;
-    const before = { direction: this.direction, side: this.side, info: this.info };
+    const before = { direction: this.direction, side: this.side };
     this.direction = change.direction ?? this.direction;
     this.side = change.side ?? this.side;
-    this.info = change.info ?? this.info;
     this.busy = true;
     this.error = '';
     try {
       const body: Record<string, string> = {};
       if (change.direction) body['home.direction'] = change.direction;
       if (change.side) body['home.side'] = change.side;
-      if (change.info) body['home.info_style'] = change.info;
       await patch('settings', body);
       invalidateSettings();
       this.message = 'המסך הראשי נשמר';
@@ -192,7 +205,29 @@ export class SystemHomeScreen extends LitElement {
     } catch (err) {
       this.direction = before.direction;
       this.side = before.side;
-      this.info = before.info;
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** HOME-295: one change of the options form, saved at once (only the keys that changed). */
+  private async saveForm(next: HomeScreenForm) {
+    if (!this.canEdit || this.busy || !isApi()) return;
+    const before = this.form;
+    const body = screenFormBody(before, next);
+    if (!Object.keys(body).length) return;
+    this.form = next;
+    this.busy = true;
+    this.error = '';
+    try {
+      const r = await patch<{ settings: Record<string, unknown> }>('settings', body);
+      invalidateSettings();
+      if (r?.settings?.['home.screen']) this.form = { ...next, screen: homeScreenOf(r.settings['home.screen']) };
+      this.message = hs('saved');
+      setTimeout(() => (this.message = ''), 2500);
+    } catch (err) {
+      this.form = before;
       this.error = describeError(err);
     } finally {
       this.busy = false;
@@ -213,7 +248,8 @@ export class SystemHomeScreen extends LitElement {
       ${this.direction === 'b'
         ? html`<div class="row"><span>צד הלוח</span><span class="seg" role="group" aria-label="צד הלוח">${SIDES.map((s) => html`<button type="button" data-home-side-option=${s} aria-pressed=${String(this.side === s)} ?disabled=${ro || this.busy} @click=${() => void this.save({ side: s })}>${SIDE_LABEL[s]}</button>`)}</span></div>`
         : nothing}
-      <div class="row"><span>${pl('infoHeading')}</span><span class="seg" role="group" aria-label=${pl('infoHeading')}>${INFO_STYLES.map((s) => html`<button type="button" data-home-info-option=${s} aria-pressed=${String(this.info === s)} ?disabled=${ro || this.busy} @click=${() => void this.save({ info: s })}>${s === 'bar' ? pl('infoBar') : pl('infoCards')}</button>`)}</span></div>
+      <h3 class="hs-h" data-home-screen-options-heading>${hs('heading')}</h3>
+      <home-screen-options .value=${this.form} .areas=${this.areas} ?editable=${!ro && !this.busy} @hs-change=${(e: CustomEvent<HomeScreenForm>) => void this.saveForm(e.detail)}></home-screen-options>
       <div class="row">
         <sw-button size="sm" icon="edit" data-home-edit-link @click=${() => (location.hash = '#/devices/building?edit=1')} ?disabled=${ro}>עריכת המסך הראשי</sw-button>
         ${this.message ? html`<span class="ok" role="status" data-home-message>${this.message}</span>` : nothing}
