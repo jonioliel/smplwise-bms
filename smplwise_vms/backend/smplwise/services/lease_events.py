@@ -265,6 +265,7 @@ class LeaseWorker:
         if self.db is None:
             return
         with self._lock:
+            cl.emergency_sweep(self.db)  # CAPEMERGENCY2-295: a lease live while an emergency OPEN holds is revoked (never raises)
             self._apply_triggers()
             if self.reset_requested is not None:
                 reason, had_live = self.reset_requested

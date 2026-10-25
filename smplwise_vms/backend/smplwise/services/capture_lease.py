@@ -198,12 +198,54 @@ def unavailable(code: str = "capture_lease_unavailable", text: str = UNAVAILABLE
     return ApiError(503, code, text, details={"outcome": "not_sent"})
 
 
+EMERGENCY_CODE = "capture_lease_emergency"
+EMERGENCY_TEXT = "קריאת כרטיס חסומה בזמן פתיחת חירום של הדלתות"
+EMERGENCY_REFUSE_AUDIT = "intercom.capture_lease.emergency_refuse"
+
+
+def emergency_open_in_effect(conn: sqlite3.Connection) -> str | None:
+    """CAPEMERGENCY2-295: the id of a real (not drill) emergency OPEN incident that is in effect, else None. "In effect" is the
+    incident's own state, nothing else: the states in which its apply phase holds (door_emergency.PHASE_STATES["apply"]:
+    `applying`, `in_effect`, `in_effect_partial`). From `releasing` on, the OPEN is being undone and no longer holds. A read error
+    raises (the caller fails closed)."""
+    from .door_emergency import PHASE_STATES
+
+    states = PHASE_STATES["apply"]
+    row = conn.execute(f"""SELECT id FROM door_emergency_incidents WHERE kind = 'open' AND drill = 0 AND state IN ({','.join('?' * len(states))})
+                           ORDER BY requested_at DESC LIMIT 1""", states).fetchone()
+    return row[0] if row is not None else None
+
+
+def _emergency_refusal(conn: sqlite3.Connection) -> ApiError | None:
+    """While a real emergency OPEN is in effect no new lease is issued: the closed refusal 409 `capture_lease_emergency`, audited
+    (ids only). A read error fails closed to the plain 503 `capture_lease_unavailable`."""
+    try:
+        incident_id = emergency_open_in_effect(conn)
+    except Exception:  # noqa: BLE001 - the incident state could not be read: no lease (fail closed)
+        log.warning("capture lease: the emergency state could not be read; a lease start is refused")
+        return unavailable()
+    if incident_id is None:
+        return None
+    try:
+        _audit(conn, EMERGENCY_REFUSE_AUDIT, f"emergency:{incident_id}", {"incident_id": incident_id}, decision="denied", reason="emergency")
+    except Exception:  # noqa: BLE001 - the refusal stands even when its extra audit row cannot be written
+        log.warning("capture lease: the emergency refusal for incident %s could not be audited", incident_id)
+    return ApiError(409, EMERGENCY_CODE, EMERGENCY_TEXT, details={"outcome": "not_sent"})
+
+
 def ensure_issuable(conn: sqlite3.Connection) -> None:
-    """F2: no lease while the route is off, the ledger is degraded or the clock is not trusted - before anything is signed."""
+    """F2: no lease while the route is off, the ledger is degraded or the clock is not trusted - before anything is signed.
+    CAPEMERGENCY2-295: and none while a real emergency OPEN incident is in effect (checked only while the route is on, so the
+    shipped behavior is unchanged). `issue` calls this again inside its write transaction, so an incident committed before the
+    ledger insert refuses it; a lease whose insert precedes the incident's commit is live when the incident's cancel runs and is
+    revoked by it (and by `emergency_sweep`)."""
     if not route_on(conn) or GUARDS.degraded or GUARDS.ledger_busy:
         raise unavailable()
     if GUARDS.clock_untrusted:
         raise unavailable("capture_lease_clock_invalid", CLOCK_TEXT)
+    refusal = _emergency_refusal(conn)
+    if refusal is not None:
+        raise refusal
 
 
 def clock_trusted_again(source: str) -> None:
@@ -429,9 +471,14 @@ def on_authority_change(reason: str, *, user_ids: Iterable[str] | None = None, s
 EMERGENCY_AUDIT = "intercom.capture_lease.emergency_cancel"
 
 
-def on_emergency_open(conn: sqlite3.Connection, incident_id: str) -> int:
-    """CAPEMERGENCY-295 (trigger T10 of CR-WISKEY-LEASE-REVOCATION-EVENT): a real (not drill) emergency OPEN incident revokes every
-    live capture lease with the reason `emergency`, scope `all` - a card capture never continues through an evacuation.
+EMERGENCY_KINDS = ("open", "lock_secure")
+EMERGENCY_SWEEP_AUDIT = "intercom.capture_lease.emergency_gap_cancel"
+
+
+def on_emergency_open(conn: sqlite3.Connection, incident_id: str, kind: str = "open") -> int:
+    """CAPEMERGENCY-295 (trigger T10 of CR-WISKEY-LEASE-REVOCATION-EVENT): a real (not drill) emergency incident - an OPEN, and since
+    CAPEMERGENCY2-295 also a LOCK (`lock_secure`) - revokes every live capture lease with the reason `emergency`, scope `all`: a card
+    capture never continues through an evacuation or a lockdown. `kind` is recorded in the audit row only.
 
     Behind the existing capture flags: while the lease route is off (`access.capture_lease` off, no go-live permit, no bridge that
     offers `lease_event`) it does nothing at all. Idempotent per incident (in memory, and the audit row survives a restart): a
@@ -439,7 +486,7 @@ def on_emergency_open(conn: sqlite3.Connection, incident_id: str) -> int:
     move, so a capture start decided before the incident can no longer be issued. Never raises: a failure here must never delay or
     block the emergency open (the caller calls it after the open is committed and submitted). Returns the triggers queued."""
     try:
-        if not isinstance(incident_id, str) or not incident_id:
+        if not isinstance(incident_id, str) or not incident_id or kind not in EMERGENCY_KINDS:
             return 0
         if not route_on(conn):
             return 0
@@ -453,10 +500,40 @@ def on_emergency_open(conn: sqlite3.Connection, incident_id: str) -> int:
         live = len(live_refs())
         queued = on_authority_change("emergency", all=True)
         if queued:
-            _audit(conn, EMERGENCY_AUDIT, resource, {"incident_id": incident_id, "live_leases": live, "scope": "all", "triggers": queued}, reason="emergency")
+            _audit(conn, EMERGENCY_AUDIT, resource, {"incident_id": incident_id, "kind": kind, "live_leases": live, "scope": "all", "triggers": queued},
+                   reason="emergency")
         return queued
     except Exception:  # noqa: BLE001 - the emergency open never waits for, or fails with, the lease route
         log.exception("capture lease: the emergency revoke for incident %s failed; the lease worker reconciles on its next tick", incident_id)
+        return 0
+
+
+def emergency_sweep(db: Database) -> int:
+    """CAPEMERGENCY2-295, the gap closer (one call per lease-worker round): while a real emergency OPEN is in effect, a lease that is
+    still usable - one that became live in the gap between the incident's creation and its cancel, or one the cancel missed because
+    the cancel itself failed - is revoked with the reason `emergency`, scope `all`, and audited (`emergency_gap_cancel`, ids only).
+    Idempotent: after the epoch moves no lease is usable any more, so the next round finds nothing. Costs nothing with no live lease
+    (no database access). Behind the same flags (route_on). Never raises. Returns the triggers queued."""
+    try:
+        if not has_live():
+            return 0
+        with db.connection(mode="read", label="capture_lease.emergency_sweep") as conn:
+            if not route_on(conn):
+                return 0
+            incident_id = emergency_open_in_effect(conn)
+        if incident_id is None:
+            return 0
+        refs = sorted(ref for ref in live_refs() if usable(ref))
+        if not refs:
+            return 0
+        queued = on_authority_change("emergency", all=True)
+        if queued:
+            with db.write_aside(label="capture_lease.emergency_sweep") as conn:
+                _audit(conn, EMERGENCY_SWEEP_AUDIT, f"emergency:{incident_id}", {"incident_id": incident_id, "lease_refs": refs, "scope": "all", "triggers": queued},
+                       reason="emergency")
+        return queued
+    except Exception:  # noqa: BLE001 - the worker round goes on; the next round tries again
+        log.exception("capture lease: the emergency sweep failed")
         return 0
 
 

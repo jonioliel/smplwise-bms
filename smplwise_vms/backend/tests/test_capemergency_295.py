@@ -3,8 +3,6 @@ lease with the reason `emergency`, behind the existing capture flags. Each path 
 against fakes only: the scripted emergency engine, the fake lease bridge and the fake WisKey host. Nothing reaches a door, a reader or WisKey."""
 from __future__ import annotations
 
-import datetime as dt
-
 import pytest
 from fake_doorwin_adapters import ProductWorld
 from lease_fixtures import lease_world  # noqa: F401  (fixture)
@@ -101,15 +99,13 @@ def test_idempotent_a_second_cancel_for_the_same_incident_does_nothing(both):
     assert len(_emergency_revokes(w)) == 1 and len(_cancel_audit(w)) == 1
 
 
-def test_a_lock_or_a_drill_never_cancels_a_lease(both):
+def test_a_drill_never_cancels_a_lease(both):
+    """CAPEMERGENCY2-295: a real LOCK now cancels too (tests/test_capemergency2_295.py); drills of either kind never do."""
     w, pw = both
     lease = w.issue()
     drill = pw.press("open", drill=True)
     assert drill.status_code == 201, drill.text
-    assert de.cancel_capture_leases(w.db, drill.json()["incident"]["id"]) == 0
-    pw.t[0] += dt.timedelta(seconds=11)
-    lock = pw.press("lock_secure")
-    assert lock.status_code == 201, lock.text
+    assert de.cancel_capture_leases(w.db, drill.json()["incident"]["id"]) == 0  # a drill LOCK: test_capemergency2_295
     w.step(0.25)
     assert w.row(lease.lease_ref)["state"] == "active" and not _emergency_revokes(w) and not _cancel_audit(w)
 
