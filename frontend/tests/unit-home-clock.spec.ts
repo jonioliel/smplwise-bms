@@ -4,7 +4,7 @@ import { test, expect, type Page } from '@playwright/test';
 // nothing listens on), Playwright's fake clock (page.clock) for the time. The bug: the widget re-armed its own 10 s timer after EVERY render,
 // so on a live installation - where the data is replaced all the time - the timer never fired and the clock stayed at the load time.
 
-const HOME = '/?design=a#/devices/building';
+const HOME = '/?design=a&home_info=cards#/devices/building'; // POLISH-295: the cards (the product default is the thin header bar)
 const W = 'devices-building home-widgets';
 
 /** Load the page on the fake clock (a cold dev server can take longer than any fixed pause time), then put the wall clock at `startAt` and

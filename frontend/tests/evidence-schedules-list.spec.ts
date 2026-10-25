@@ -102,7 +102,7 @@ async function open(page: Page, hash: string, control: Control = {}) {
     }
   }, control);
   await page.goto('about:blank');
-  await page.goto(`/?design=a#${hash}`);
+  await page.goto(`/?design=a&sched_view=cards&page_size=50#${hash}`); // POLISH-295: these specs read every card on one page; the product default is rows, 10 / 7 a page (evidence-polish-295)
   await page.waitForSelector('sw-app');
 }
 
@@ -610,7 +610,7 @@ async function install(page: Page, st: ApiState) {
       const { 'schedules.shabbat_sensor_force': _force, ...stored } = body;
       Object.assign(st.settings, stored);
     }
-    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.security_snapshot': 'true', ...st.settings }, can_edit: st.perms.includes('system.configure') });
+    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.security_snapshot': 'true', 'ui.schedules_view': 'cards', 'ui.page_size.schedules': 50, 'ui.page_size.schedules_phone': 50, ...st.settings }, can_edit: st.perms.includes('system.configure') });
     if (p.startsWith('schedules')) {
       const body = req.method() === 'GET' ? null : req.postDataJSON();
       st.calls.push({ method: req.method(), path: p + url.search, body });
@@ -650,7 +650,7 @@ async function install(page: Page, st: ApiState) {
 async function openApi(page: Page, hash: string) {
   await pinClock(page);
   await page.goto('about:blank');
-  await page.goto(`/?design=a#${hash}`);
+  await page.goto(`/?design=a&sched_view=cards&page_size=50#${hash}`); // POLISH-295: these specs read every card on one page; the product default is rows, 10 / 7 a page (evidence-polish-295)
   await page.waitForSelector('sw-app');
   await page.waitForTimeout(600);
 }

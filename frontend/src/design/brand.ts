@@ -60,20 +60,50 @@ export function contrastOnWhite(hex: string): number {
   return 1.05 / (l + 0.05);
 }
 
-/** The tokens one choice writes for a scheme ({} when both are "default"). */
-export function brandTokens(c: BrandColors, theme: 'light' | 'dark'): Record<string, string> {
+/** WCAG relative luminance of a #rrggbb colour. */
+export function luminance(hex: string): number {
+  const ch = (i: number) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * ch(1) + 0.7152 * ch(3) + 0.0722 * ch(5);
+}
+
+/** WCAG contrast of two #rrggbb colours. */
+export function contrastOf(a: string, b: string): number {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+
+/** `hex` moved `t` (0..1) toward `to`, in sRGB, as #rrggbb. */
+export function mixHex(hex: string, to: string, t: number): string {
+  const c = (s: string, i: number) => parseInt(s.slice(i, i + 2), 16);
+  const one = (i: number) => Math.round(c(hex, i) + (c(to, i) - c(hex, i)) * t).toString(16).padStart(2, '0');
+  return `#${one(1)}${one(3)}${one(5)}`;
+}
+
+/** POLISH-295: the hover of a primary button moves AWAY from its label colour, so the label never reads worse on hover than at rest.
+ * The earlier dark-scheme rule lightened the accent toward white under a white label (white on the hovered system blue: about 3.4:1,
+ * below the 4.5:1 a label needs); a light label now darkens the fill, a dark label (a skin whose dark scheme writes dark text on the
+ * accent) lightens it. */
+export function accentHoverOf(accent: string, label = '#ffffff'): string {
+  return luminance(label) > 0.4 ? mixHex(accent, '#000000', 0.14) : mixHex(accent, '#ffffff', 0.2);
+}
+
+/** The tokens one choice writes for a scheme ({} when both are "default"). `label` is the colour the scheme writes on the accent
+ * (`--sw-text-inverse` of the skin or palette in use; white when unknown). */
+export function brandTokens(c: BrandColors, theme: 'light' | 'dark', label = '#ffffff'): Record<string, string> {
   const out: Record<string, string> = {};
   const a = brandHex(c.accent);
   if (a) {
     out['--sw-accent'] = a;
     out['--sw-nav'] = a;
+    out['--sw-accent-hover'] = accentHoverOf(a, HEX.test(label) ? label : '#ffffff');
     if (theme === 'light') {
-      out['--sw-accent-hover'] = `color-mix(in srgb, ${a} 86%, #000000)`;
       out['--sw-accent-soft'] = `color-mix(in srgb, ${a} 10%, #ffffff)`;
       out['--sw-accent-text'] = `color-mix(in srgb, ${a} 82%, #000000)`;
       out['--sw-focus'] = a;
     } else {
-      out['--sw-accent-hover'] = `color-mix(in srgb, ${a} 80%, #ffffff)`;
       out['--sw-accent-soft'] = `color-mix(in srgb, ${a} 18%, transparent)`;
       out['--sw-accent-text'] = `color-mix(in srgb, ${a} 62%, #ffffff)`;
       out['--sw-focus'] = `color-mix(in srgb, ${a} 72%, #ffffff)`;

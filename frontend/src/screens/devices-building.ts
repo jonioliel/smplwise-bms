@@ -47,6 +47,9 @@ import { onRouteChange, parseRoute, pushRoute, replaceRoute } from '../router';
 import { phoneRestricted } from '../shell/phone';
 import { notifyScreenViews, registerScreenView } from '../shell/screen-view';
 import './home-widgets';
+import './home-ambient-bar';
+import { AMBIENT_WIDGETS } from './home-ambient-bar';
+import { loadScreenDisplay, INFO_STYLE_DEFAULT, type InfoStyle } from '../api/screen-display';
 import './home-edit-panel';
 import type { QuickInfo } from './home-widgets';
 import {
@@ -729,6 +732,27 @@ const HOME_LAYOUT = css`
     gap: 6px;
     flex-wrap: nowrap;
   }
+  /* POLISH-295: the info bar sits first in the header row and gives way (it clips its own text) before the refresh icon does */
+  .hdr home-ambient-bar {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+  }
+  /* POLISH-295: a counter that has something on takes its kind's colour (sw-kpi --sw-kpi-on-*): light, switches and screens warm,
+     cooling cool, heating amber; covers and locks keep the live green */
+  sw-kpi[data-tile-kind='lights'],
+  sw-kpi[data-tile-kind='switches'],
+  sw-kpi[data-tile-kind='media'] {
+    --sw-kpi-on-bg: var(--sw-lit-soft);
+    --sw-kpi-on-fg: var(--sw-warning-text);
+  }
+  sw-kpi[data-tile-kind='climate'] {
+    --sw-kpi-on-bg: var(--sw-accent-soft);
+    --sw-kpi-on-fg: var(--sw-accent-text);
+  }
+  sw-kpi[data-tile-kind='heating'] {
+    --sw-kpi-on-bg: var(--sw-warning-soft);
+    --sw-kpi-on-fg: var(--sw-warning-text);
+  }
   /* the widgets (home redesign): direction a puts the band above the summary tiles, c a compact row, b a column beside the
      floors (the tree becomes a floor filter in the toolbar row); a phone gets a snap row above the tiles */
   .page-body {
@@ -1034,6 +1058,8 @@ export class DevicesBuilding extends LitElement {
   private layoutChosen = readLayout() !== null;
   /** CR-007 6a: style, density, sensors count, climate strip (הגדרות › חשמל והתקנים). */
   @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
+  /** POLISH-295: the clock, the weather, Shabbat and the alarm as a thin header bar (default) or as the large cards (home.info_style). */
+  @state() private infoStyle: InfoStyle = INFO_STYLE_DEFAULT;
   /** K88 plan view: the plan floors of the catalogue (the map's floors, not the platform's), the chosen one, and the
    * area summary opened by a room tap. */
   @state() private planFloors: PlanFloor[] = [];
@@ -2490,6 +2516,9 @@ export class DevicesBuilding extends LitElement {
       loadPersonalRow().then((p) => {
         this.personalRow = Object.keys(p).length ? p : null;
       }),
+      loadScreenDisplay().then((d) => {
+        this.infoStyle = d.infoStyle;
+      }),
     ]).then(() => undefined);
     window.addEventListener('resize', this.onResize);
     window.addEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
@@ -2668,9 +2697,7 @@ export class DevicesBuilding extends LitElement {
         ? html`<sw-state-panel data-devices-state="load_error" state="error" heading="לא ניתן לטעון את עץ המבנה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>`
         : this.renderSkeleton()}</sw-page>`;
     }
-    const floors = t.floors.filter((f) => f.floor_id !== 'none').length;
-    const areas = t.floors.reduce((n, f) => n + f.areas.length, 0);
-    const sub = `${floors} קומות · ${areas} אזורים · ${t.building.entities} התקנים${!isApi() ? ' · נתוני הדגמה' : ''}`;
+    // POLISH-295 (owner approval 2026-10-25): no technical line under the title (floors · areas · devices · demo data) - clean operator screen
     const connected = this.sync?.connected ?? false;
     this.lay.prepare(this.layGrids(t));
     // home redesign: the direction (a / b / c) and the widgets, from the server's block (the caller's personal override already
@@ -2680,8 +2707,13 @@ export class DevicesBuilding extends LitElement {
     const layout = this.widgetLayout(h.direction, h.config);
     const quickShown = items.some((i) => i.id === 'quick' && i.avail === 'ok');
     const alarmShown = items.some((i) => i.id === 'alarm' && i.avail === 'ok');
-    const widgets = this.renderWidgets(t, h, items, layout);
-    const sideLayout = layout === 'side';
+    // POLISH-295: in the thin-bar style the clock, the weather, Shabbat and the alarm leave the card band for the header (edit mode
+    // keeps every card: that is where they are switched on, sized and ordered)
+    const bar = this.infoStyle === 'bar' && !this.lay.editing;
+    const cardItems = bar ? items.filter((i) => !AMBIENT_WIDGETS.includes(i.id)) : items;
+    const ambient = bar ? items.filter((i) => AMBIENT_WIDGETS.includes(i.id) && i.avail === 'ok') : [];
+    const widgets = this.renderWidgets(t, h, cardItems, layout);
+    const sideLayout = layout === 'side' && cardItems.length > 0;
     const body = html`${!t.floors.length
         ? html`<sw-state-panel icon="building" data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים'} hint=${t.scoped ? 'מוצגות רק הקומות שבהרשאתך.' : 'המבנה יופיע כאן כשיוגדרו קומות ואזורים.'}></sw-state-panel>`
         : nothing}
@@ -2689,8 +2721,9 @@ export class DevicesBuilding extends LitElement {
       ${this.layout === 'cards' ? this.renderCards(t, sideLayout) : this.layout === 'plan' ? this.renderPlan(t, sideLayout) : this.renderTiles(t, sideLayout)}`;
     // owner notes 2026-09-30: no "ערוך פריסה" button here (the user menu's "עריכת המסך הראשי" opens `?edit=1`); the header
     // row carries only a "not synced" chip when the state is NOT fine, and a small refresh icon
-    return html`<sw-page heading=${heading} subheading=${sub} wide @bulk-request=${this.onBulkRequest}>
+    return html`<sw-page heading=${heading} wide @bulk-request=${this.onBulkRequest}>
       <div slot="actions" class="hdr">
+        ${ambient.length ? html`<home-ambient-bar .items=${ambient} .config=${h.config} .data=${h.data} .zone=${h.time_zone}></home-ambient-bar>` : nothing}
         ${t.scoped ? html`<sw-badge kind="partial" label="לפי הקומות שלך"></sw-badge>` : nothing}
         ${isApi() && !connected ? html`<sw-badge data-devices-sync kind="stale" label="לא מסונכרן"></sw-badge>` : nothing}
         ${isApi() ? this.renderRefresh() : nothing}
@@ -3024,10 +3057,12 @@ export class DevicesBuilding extends LitElement {
     const layout = effectiveTileSetting() === 'cards' ? 'cards' : 'compact';
     const open = (kind: TileKind) => () => this.openPanel(kind);
     // owner feedback 2026-09-29: a domain the installation has nothing of is not a counter at all (no "0/0 אין במבנה")
+    // POLISH-295: "5 / 12" reads as a count of a total (spaced, tabular), and a counter that has something on takes its kind's colour -
+    // light, switches and screens warm, cooling cool, heating amber; everything else keeps the live green
     const kpi = (label: string, on: number, total: number, icon: IconName, kind: TileKind, warm = true) =>
       !total
         ? nothing
-        : html`<sw-kpi data-kpi=${label} data-tile-kind=${kind} data-value=${`${on}/${total}`} label=${label} value=${`${on}/${total}`} .icon=${icon} tone=${warm && on > 0 ? 'live' : 'neutral'} layout=${layout} icon-end action ?expanded=${this.isOpen(kind)} hint="הצג ושלוט" @click=${open(kind)}></sw-kpi>`;
+        : html`<sw-kpi data-kpi=${label} data-tile-kind=${kind} data-value=${`${on}/${total}`} label=${label} value=${`${on} / ${total}`} .icon=${icon} tone=${warm && on > 0 ? 'live' : 'neutral'} layout=${layout} icon-end action ?expanded=${this.isOpen(kind)} hint="הצג ושלוט" @click=${open(kind)}></sw-kpi>`;
     return html`<div class="kpis" data-kpis>
       ${kpi('תאורה דולקת', c.lights_on, c.lights, 'light', 'lights')}
       ${kpi('מתגים פעילים', c.switches_on, c.switches, 'bolt', 'switches')}
@@ -3035,7 +3070,7 @@ export class DevicesBuilding extends LitElement {
       ${kpi('מיזוג פעיל', c.climate_active, c.climate, 'snow', 'climate')}
       ${kpi('חימום פעיל', c.heating_active, c.heating, 'flame', 'heating')}
       ${kpi('מסכים דולקים', c.media_on, c.media, 'play', 'media')}
-      ${c.locks ? html`<sw-kpi data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked}/${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>` : nothing}
+      ${c.locks ? html`<sw-kpi data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked} / ${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>` : nothing}
       ${c.alarm && !hideAlarm ? html`<sw-kpi data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing}
     </div>`;
   }

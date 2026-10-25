@@ -91,7 +91,7 @@ export async function installBv1Mock(page: Page, opts: { perms?: string[]; look?
     const req = route.request();
     const p = new URL(req.url()).pathname.replace(/^.*\/api\/v1\//, '');
     if (p === 'devices/tree') return json(route, { ...tree(), home });
-    if (p === 'settings') return json(route, { settings: { 'ui.design': 'a', 'ui.skin': 'bubble', 'ui.scheme': 'light', 'ui.look': st.look, 'devices.style': 'smplwise', 'devices.area_design': 'tiles', 'home.direction': 'a', 'home.side': 'end', 'home.title': '', 'home.floor_order': '[]', 'home.widgets': config }, can_edit: true });
+    if (p === 'settings') return json(route, { settings: { 'ui.design': 'a', 'ui.skin': 'bubble', 'ui.scheme': 'light', 'ui.look': st.look, 'devices.style': 'smplwise', 'devices.area_design': 'tiles', 'home.direction': 'a', 'home.side': 'end', 'home.title': '', 'home.floor_order': '[]', 'home.widgets': config, 'home.info_style': 'cards' /* POLISH-295: these specs read the widget cards */ }, can_edit: true });
     if (p === 'devices/home-candidates') {
       return json(route, {
         weather: [{ entity_id: 'weather.home_wx', name: 'תחזית הבית', state: 'partlycloudy', values: data.weather.values, forecast: data.weather.forecast, forecast_len: 5, offers: data.weather.offers }],

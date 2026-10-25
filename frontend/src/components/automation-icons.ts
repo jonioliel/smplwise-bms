@@ -70,6 +70,8 @@ const ICONS = {
   arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
   grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  /* POLISH-295: the rows view of the schedules list */
+  rows: '<rect x="3.5" y="4" width="17" height="4.5" rx="1.2"/><rect x="3.5" y="10" width="17" height="4" rx="1.2"/><rect x="3.5" y="15.5" width="17" height="4.5" rx="1.2"/>',
 } as const;
 
 export type AutomationIconName = keyof typeof ICONS;

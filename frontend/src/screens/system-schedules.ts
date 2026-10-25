@@ -10,6 +10,7 @@ import '../components/sw-icon';
 import '../components/sw-toggle';
 import '../components/sw-badge';
 import '../components/sw-state-panel';
+import '../components/sw-list-display-settings';
 import { ApiError, patch } from '../api/client';
 import { isApi } from '../api/session';
 import { invalidateSettings, productSettings } from '../api/prefs';
@@ -537,7 +538,7 @@ export class SystemSchedules extends LitElement {
         : nothing}
       <div class="cols">
         <div class="col">${this.renderConnection(s)}${this.renderOperation()}${this.renderClasses()}${this.renderDisarm()}${this.renderScripts()}</div>
-        <div class="col">${this.renderDefaults()}${this.renderRoles()}</div>
+        <div class="col">${this.renderDefaults()}<sw-list-display-settings list="schedules"></sw-list-display-settings>${this.renderRoles()}</div>
       </div>
       ${this.dirty || this.note || this.error
         ? html`<div class="savebar" data-settings-bar>

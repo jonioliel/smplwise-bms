@@ -31,6 +31,8 @@ interface Control {
   scheme?: 'light' | 'dark';
   phoneFilter?: 'fold' | 'rows';
   sensitiveChip?: 'amber' | 'red';
+  /** POLISH-295: the list's presentation (this browser's choice, sw.automations.view); the card specs below pin 'cards', rows is the product default. */
+  view?: 'rows' | 'cards';
 }
 
 async function open(page: Page, hash: string, size: Size = '1440', control: Control = {}) {
@@ -44,12 +46,21 @@ async function open(page: Page, hash: string, size: Size = '1440', control: Cont
       /* storage unavailable */
     }
   }, control);
+  await page.addInitScript((v) => {
+    try {
+      localStorage.setItem('sw.automations.view', v);
+    } catch {
+      /* storage unavailable */
+    }
+  }, control.view ?? 'cards');
   await page.goto('about:blank');
   await page.goto(`/?design=a#${hash}`);
   await page.waitForSelector('sw-app');
 }
 
 const scr = (page: Page) => page.locator('sw-app devices-automations');
+/** POLISH-295: one page of the list holds 12 automations on a desktop and 9 on a phone (ui.page_size.automations*, the defaults). */
+const perPage = (size: Size) => (size === '390' ? 9 : 12);
 const cards = (page: Page) => scr(page).locator('automation-card');
 const card = (page: Page, name: string) => scr(page).locator('automation-card', { hasText: name });
 const drawer = (page: Page) => scr(page).locator('automation-drawer');
@@ -70,7 +81,7 @@ test.describe('the list (installer)', () => {
     for (const size of ['1440', '820', '390'] as const) {
       await open(page, '/devices/automations', size);
       await ready(page);
-      await expect(cards(page)).toHaveCount(12);
+      await expect(cards(page)).toHaveCount(perPage(size));
       await shot(page, '01-list', size);
     }
     await open(page, '/devices/automations');
@@ -106,6 +117,42 @@ test.describe('the list (installer)', () => {
     const t = await hall.locator('h3').boundingBox();
     const g = await hall.locator('[data-card-toggle]').boundingBox();
     expect(t!.x).toBeGreaterThan(g!.x);
+  });
+
+  test('POLISH-295 rows (the default): one 52 px row per automation, the sentence on one line, a chip only for a real fault, every row on one screen', async ({ page }) => {
+    for (const size of ['1440', '390'] as const) {
+      await open(page, '/devices/automations', size, { view: 'rows' });
+      await ready(page);
+      const rows = scr(page).locator('[data-auto-rows] automation-row');
+      await expect(rows).toHaveCount(size === '1440' ? 12 : 9); // the default page sizes: 12 on a desktop, 9 on a phone
+      await expect(cards(page)).toHaveCount(0);
+      const row = (name: string) => scr(page).locator('automation-row', { hasText: name });
+      if (size === '1440') {
+        await expect(row('תנועה בפרוזדור').locator('[data-card-sentence]')).toContainText('תנועה');
+        await expect(row('תנועה בפרוזדור').locator('[data-card-toggle]')).toHaveAttribute('aria-checked', 'true');
+        await expect(row('דוד שמש בבוקר').locator('[data-chip="missing"]')).toHaveText('מכשיר חסר');
+        // sensitive, locked parts, view-only and changed-outside moved to the drawer: no chip on the row
+        await expect(row('כולם יצאו').locator('[data-chip="sensitive"]')).toHaveCount(0);
+        await expect(row('כפתורי מפסק סלון').locator('[data-chip="locked"]')).toHaveCount(0);
+        await expect(row('השקיה בשבת').locator('[data-chip="read_only"]')).toHaveCount(0);
+        await expect(scr(page).locator('[data-card-why]')).toHaveCount(0);
+        const h = await row('תנועה בפרוזדור').evaluate((el) => el.getBoundingClientRect().height);
+        expect(h).toBeGreaterThanOrEqual(52);
+        expect(h).toBeLessThanOrEqual(54);
+        // a control screen does not scroll: the whole page fits the viewport
+        expect(await scr(page).evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
+      } else {
+        await expect(scr(page).locator('[data-auto-pager] sw-pager')).toBeVisible();
+        await scr(page).locator('[data-auto-pager] sw-pager').locator('[data-pager-next]').click();
+        await expect(rows).toHaveCount(3);
+      }
+      await shot(page, '01b-rows', size);
+    }
+    // the row opens the drawer
+    await open(page, '/devices/automations', '1440', { view: 'rows' });
+    await ready(page);
+    await scr(page).locator('automation-row', { hasText: 'תנועה בפרוזדור' }).locator('a.name').click();
+    await expect(drawer(page).locator('[data-drawer-detail]')).toBeVisible();
   });
 
   test('dark scheme (devices.scheme): the same screen, dark glass', async ({ page }) => {
@@ -378,17 +425,20 @@ test.describe('the detail drawer', () => {
     await d.locator('[data-drawer-copy]').click();
     await expect(d.locator('[data-copy-name]')).toHaveValue('תנועה בפרוזדור (עותק)');
     await d.locator('[data-dialog="copy"] [data-dialog-ok]').click();
-    await expect(cards(page)).toHaveCount(13);
-    await expect(card(page, 'תנועה בפרוזדור (עותק)')).toBeVisible();
+    // POLISH-295: 13 automations are two pages of 12 (the default page size on a desktop): the count and the pager say so
+    await expect(scr(page).locator('button[data-segment="automations"]')).toContainText('13');
+    await expect(scr(page).locator('[data-auto-pager] sw-pager')).toBeVisible();
+    await expect(cards(page)).toHaveCount(12);
     // delete the copy: it goes to the trash, the toast offers the undo
     await expect(d.locator('[data-drawer-detail]')).toBeVisible();
     await d.locator('[data-drawer-delete]').click();
     await shot(page, '50-delete-confirm', '1440');
     await d.locator('[data-dialog="delete"] [data-dialog-ok]').click();
-    await expect(cards(page)).toHaveCount(12);
+    await expect(scr(page).locator('button[data-segment="automations"]')).toContainText('12');
+    await expect(scr(page).locator('[data-auto-pager]')).toHaveCount(0);
     await expect(scr(page).locator('[data-auto-note]')).toContainText('נמחק');
     await scr(page).locator('[data-note-action]').click();
-    await expect(cards(page)).toHaveCount(13);
+    await expect(scr(page).locator('button[data-segment="automations"]')).toContainText('13');
     // the trash: two items from before; the user menu opens it
     await page.locator('sw-app [data-profile-menu]').click();
     await page.locator('sw-app sw-user-menu [data-menu-screen-edit="automations-trash"]').click();
@@ -727,7 +777,7 @@ test.describe('states', () => {
     }
     await page.evaluate(() => localStorage.setItem('sw.demo.automations', '{}'));
     await scr(page).locator('[data-auto-retry]').click();
-    await expect(cards(page)).toHaveCount(12);
+    await expect(cards(page)).toHaveCount(perPage('390')) // POLISH-295: the last size opened was the phone;
   });
 
   test('no permission, switched off, not configured', async ({ page }) => {
@@ -748,7 +798,7 @@ test.describe('states', () => {
       await open(page, '/devices/automations', size, { offline: true });
       await ready(page);
       await expect(scr(page).locator('[data-auto-banner="offline"]')).toContainText('תשתית המערכת אינה זמינה כרגע');
-      await expect(cards(page)).toHaveCount(12);
+      await expect(cards(page)).toHaveCount(perPage(size));
       await shot(page, '94-state-offline', size);
     }
     await open(page, '/devices/automations', '1440', { available: 'config_api_unavailable' });
@@ -938,6 +988,13 @@ async function install(page: Page, st: ApiState) {
 
 async function openApi(page: Page, hash: string, size: Size = '1440') {
   await page.setViewportSize(SIZES[size]);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('sw.automations.view', 'cards'); // POLISH-295: these specs read the cards; rows is the product default
+    } catch {
+      /* storage unavailable */
+    }
+  });
   await page.goto('about:blank');
   await page.goto(`/?design=a#${hash}`);
   await page.waitForSelector('sw-app');
@@ -1137,7 +1194,7 @@ test.describe('the editors over the list (S3 x S4 wiring)', () => {
     await expect(scr(page).locator('[data-auto-note]')).toContainText('נשמר');
     await expect(drawer(page)).toContainText('תאורה בשקיעה · חדשה');
     await expect(drawer(page).locator('[data-drawer-detail]')).toContainText('בשקיעה');
-    await expect(cards(page)).toHaveCount(13);
+    await expect(scr(page).locator('button[data-segment="automations"]')).toContainText('13'); // POLISH-295: 13 are two pages of 12
     await shot(page, '113-saved-into-drawer', '1440');
   });
 
@@ -1158,7 +1215,7 @@ test.describe('evidence matrix: the three kinds and the settings tab at 1440 / 8
       for (const size of ['1440', '820', '390'] as const) {
         await open(page, '/devices/automations', size, { scheme });
         await ready(page);
-        await expect(cards(page)).toHaveCount(12);
+        await expect(cards(page)).toHaveCount(perPage(size));
         expect(await scr(page).innerText()).not.toMatch(BRANDS);
         await shot(page, '120-matrix-automations', size, scheme);
         await open(page, '/devices/automations/scenes', size, { scheme });

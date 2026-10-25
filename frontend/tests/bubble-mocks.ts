@@ -148,7 +148,8 @@ export async function installBubbleMock(page: Page, opts: { perms?: string[]; lo
       if (req.method() === 'PUT') return json(route, { prefs: req.postDataJSON() ?? {}, stored: Object.keys(req.postDataJSON() ?? {}) });
       return json(route, { prefs: {}, stored: [] });
     }
-    if (p === 'settings') return json(route, { settings: { 'ui.design': 'a', 'ui.skin': 'bubble', 'ui.scheme': 'light', 'ui.look': st.look, 'devices.style': 'smplwise', 'devices.area_design': 'tiles' }, can_edit: false });
+    // POLISH-295: these specs read the home widgets as cards; the product default is the thin header bar (home.info_style = bar)
+    if (p === 'settings') return json(route, { settings: { 'ui.design': 'a', 'ui.skin': 'bubble', 'ui.scheme': 'light', 'ui.look': st.look, 'devices.style': 'smplwise', 'devices.area_design': 'tiles', 'home.info_style': 'cards' }, can_edit: false });
     if (p === 'devices/tree') return json(route, tree());
     const area = /^devices\/areas\/([^/]+)$/.exec(p);
     if (area) return area[1] === 'living' ? json(route, areaDetail()) : json(route, NOT_FOUND, 404);

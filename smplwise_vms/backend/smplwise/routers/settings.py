@@ -61,6 +61,13 @@ DEFAULTS: dict[str, str] = {
     # auto (compact under 600 px wide, cards above) | cards (tall, icon above) | compact (a rectangle, icon beside the
     # value). Per installation; a browser may override it for itself (frontend/src/api/tile-layout.ts).
     "ui.tile_layout": "auto",
+    # POLISH-295 (owner approval 2026-10-25): control screens never scroll - a long list shows one page at a time, this many rows per
+    # page on a desktop and on a phone (frontend/src/api/screen-display.ts); the schedules list opens in rows unless the browser chose.
+    "ui.page_size.schedules": "10",
+    "ui.page_size.schedules_phone": "7",
+    "ui.page_size.automations": "12",
+    "ui.page_size.automations_phone": "9",
+    "ui.schedules_view": "rows",  # rows | cards | table | week
     # Design foundation (2026-10-01): the installation's skin (classic = today's look | domus | tesla; frontend/src/design/skins)
     # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
     "ui.skin": "classic",
@@ -313,6 +320,9 @@ DEFAULTS: dict[str, str] = {
     # own direction and widget choices (screen.personalize) live in /me/prefs `home.personal`, never here.
     "home.direction": "a",
     "home.side": "end",
+    # POLISH-295 (owner approval 2026-10-25): the clock, the weather, Shabbat and the alarm as a thin bar in the header (bar, the
+    # default) or as the large widget cards (cards).
+    "home.info_style": "bar",
     "home.widgets": "",
     # CR-008 SmplWise Arx remote access (owner decisions 2026-09-29, CR-008 §3f / §7). The channel itself is the add-on
     # option remote_access; these shape who may use it and how the browser keeps its sign-in.
@@ -463,7 +473,7 @@ LOCAL_PURGE_WORD = "מחיקה לצמיתות"  # REL2140 M-1: typed to switch t
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", *automation_settings.INT_KEYS)
+INT_KEYS = ("privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", *automation_settings.INT_KEYS)
 
 
 PRIVATE_KEYS = ("site.latitude", "site.longitude")  # SEC247 I3: the manual site position - administrators (system.configure) only
@@ -723,6 +733,11 @@ class SettingsPatch(BaseModel):
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
     ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
+    ui_page_size_schedules: int | None = Field(default=None, ge=3, le=50, alias="ui.page_size.schedules")
+    ui_page_size_schedules_phone: int | None = Field(default=None, ge=3, le=50, alias="ui.page_size.schedules_phone")
+    ui_page_size_automations: int | None = Field(default=None, ge=3, le=50, alias="ui.page_size.automations")
+    ui_page_size_automations_phone: int | None = Field(default=None, ge=3, le=50, alias="ui.page_size.automations_phone")
+    ui_schedules_view: str | None = Field(default=None, pattern="^(rows|cards|table|week)$", alias="ui.schedules_view")
     ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble|crystal)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
     ui_accent: str | None = Field(default=None, max_length=16, alias="ui.accent")  # 2.4.4: validated by services/brand_colors.py
@@ -831,6 +846,7 @@ class SettingsPatch(BaseModel):
     home_jewish_date: str | None = Field(default=None, pattern=r"^(|sensor\.[a-z0-9_]{1,100})$", alias="home.jewish_date")
     home_direction: str | None = Field(default=None, pattern="^(a|b|c)$", alias="home.direction")
     home_side: str | None = Field(default=None, pattern="^(start|end)$", alias="home.side")
+    home_info_style: str | None = Field(default=None, pattern="^(bar|cards)$", alias="home.info_style")
     home_widgets: dict[str, Any] | None = Field(default=None, alias="home.widgets")  # validated in full by services/home_config.py
     remote_policy: str | None = Field(default=None, pattern="^(flag|any_role)$", alias="remote.policy")
     remote_admins_default: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.admins_default")

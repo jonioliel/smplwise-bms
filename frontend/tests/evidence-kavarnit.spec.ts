@@ -24,7 +24,7 @@ async function openDemo(page: Page, hash: string) {
     }
   });
   await page.goto('about:blank');
-  await page.goto(`/?design=a#${hash}`);
+  await page.goto(`/?design=a&sched_view=cards&page_size=50#${hash}`); // POLISH-295: these specs read every card on one page; the product default is rows, 10 / 7 a page (evidence-polish-295)
   await page.waitForSelector('sw-app');
 }
 
@@ -133,7 +133,7 @@ async function install(page: Page, st: ApiState) {
       });
     }
     if (p === 'me/prefs') return json({ prefs: { 'nav.order': ['devices', 'security', 'explore', 'wiskey'] }, stored: [], updated_at: null });
-    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.security_snapshot': 'true', ...st.settings }, can_edit: false });
+    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.security_snapshot': 'true', 'ui.schedules_view': 'cards', 'ui.page_size.schedules': 50, 'ui.page_size.schedules_phone': 50, ...st.settings }, can_edit: false });
     if (p === 'schedules/status') return st.perms.includes('schedule.view') ? json(await st.store.status()) : err(403, 'forbidden', 'אין הרשאה לפעולה זו בהיקף המבוקש.');
     if (p === 'schedules' && req.method() === 'GET') return json(await st.store.list({ limit: 500 }));
     if (p.startsWith('schedules/condition-candidates')) return json(await st.store.conditionCandidates({}));
@@ -147,7 +147,7 @@ async function install(page: Page, st: ApiState) {
 
 async function openApi(page: Page, hash: string) {
   await page.goto('about:blank');
-  await page.goto(`/?design=a#${hash}`);
+  await page.goto(`/?design=a&sched_view=cards&page_size=50#${hash}`); // POLISH-295: these specs read every card on one page; the product default is rows, 10 / 7 a page (evidence-polish-295)
   await page.waitForSelector('sw-app');
   await page.waitForTimeout(600);
 }

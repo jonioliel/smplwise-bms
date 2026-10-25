@@ -76,6 +76,8 @@ add(HOLIDAY, null, 'שמחת תורה', { friendly_name: 'חג' }, 'jewish_calen
 add(ISSUR, null, 'off', { friendly_name: 'איסור מלאכה' }, 'jewish_calendar');
 
 const RESET = {
+  // POLISH-295: these specs read the widget cards; the product default is the thin header bar (unit-screen-display, evidence-polish-295)
+  'home.info_style': 'cards',
   'home.title': '',
   'home.floor_order': '[]',
   'home.direction': 'a',

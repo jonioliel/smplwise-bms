@@ -88,7 +88,7 @@ async function openCase(page: Page, c: Case, skin: string, theme: string, empty 
     }
   }, empty);
   await page.goto('about:blank');
-  await page.goto(`/?design=a&skin=${skin}&scheme=${theme}#${c.hash}`);
+  await page.goto(`/?design=a&skin=${skin}&scheme=${theme}&sched_view=cards&page_size=50#${c.hash}`); // POLISH-295: the cards on one page (the product default is rows)
   await page.waitForSelector('sw-app');
   const outer = c.root ?? 'devices-schedules';
   await page.waitForFunction((o) => {

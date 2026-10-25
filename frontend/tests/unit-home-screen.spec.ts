@@ -24,7 +24,7 @@ async function open(page: Page, hash: string, layout: 'cards' | 'tiles' = 'tiles
     }
   }, layout);
   await page.goto('about:blank'); // a second goto that only changes the hash is not a navigation
-  await page.goto(`/?design=a#${hash}`);
+  await page.goto(`/?design=a&home_info=cards#${hash}`); // POLISH-295: these specs read the widget cards; the default is the thin header bar
   await page.waitForSelector('devices-building sw-kpi');
   await page.waitForTimeout(800);
 }
