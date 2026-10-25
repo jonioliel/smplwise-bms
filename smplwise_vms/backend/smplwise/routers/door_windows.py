@@ -26,8 +26,10 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, get_read_conn, settings_of
 from ..db import commit_now, rollback_and_restart
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require, is_system_admin
+from ..remote_channel import is_remote
+from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import door_emergency as de
+from ..services import door_emergency_grants as deg
 from ..services import door_window_triggers as dwt
 from ..services import door_windows as dw
 from ..services import door_windows_engine as dwe
@@ -506,7 +508,7 @@ def emergency_state(request: Request, principal: Principal = Depends(current_pri
     """The visible state (CR-039 8.1): the active incident (the red strip) for everyone who sees doors, and - for the holders of an
     emergency permission - the switches, the scopes they may press in and the recent history."""
     perms = permissions_anywhere(conn, principal)
-    if "access.read" not in perms and de.LOCK not in perms and de.OPEN not in perms:
+    if "access.read" not in perms and de.LOCK not in perms and de.OPEN not in perms and deg.GRANT not in perms:
         raise ApiError(403, "forbidden", "אין הרשאה.")
     settings = settings_of(request)
     can_lock, can_open = de.LOCK in perms, de.OPEN in perms
@@ -515,10 +517,10 @@ def emergency_state(request: Request, principal: Principal = Depends(current_pri
     out: dict[str, Any] = {
         "enabled": de.enabled(conn), "open_enabled": de.open_enabled(conn, settings), "hold_ms": int(de.setting(conn, de.HOLD_MS)),
         "home_widget": de.setting(conn, de.HOME_WIDGET) == "on",  # DOORWIN2-295: the optional home-screen entry (off by default)
-        "can": {"lock": can_lock, "open": can_open},
+        "can": {"lock": can_lock, "open": can_open, "grant": deg.grant_basis(conn, principal) is not None},  # EMROLE-295: the holders panel
         "active": de.incident_view(conn, active, with_doors=can_lock or can_open) | {"can_release": authorize(conn, principal, de.PERMISSION[active["kind"]],
                                                                                                                 de.scope_target(active["scope_type"], active["scope_id"])).allowed,
-                                                              "can_retry_open": active["kind"] == "open" and not active["drill"] and is_system_admin(conn, principal.user_id)}
+                                                              "can_retry_open": active["kind"] == "open" and not active["drill"] and de.retry_open_basis(conn, principal) is not None}
         if active is not None else None,
     }
     if can_lock or can_open:
@@ -622,6 +624,41 @@ def emergency_retry_open(body: RetryOpenBody, request: Request, incident_id: str
     de.submit(db, settings, incident_id, "apply")
     with db.connection(mode="read") as rconn:
         return {"incident": de.incident_view(rconn, de.incident_row(rconn, incident_id))}
+
+
+class GrantBody(BaseModel):
+    user_id: str = Field(min_length=1, max_length=200)
+    scope_type: Literal["installation", "site", "building", "access_control_station"] = "installation"
+    scope_id: str = Field(default="*", min_length=1, max_length=200)
+    expires_at: str | None = Field(default=None, max_length=40)
+    no_expiry: bool = False
+    confirmed: Any = None
+
+
+class RevokeGrantBody(BaseModel):
+    confirmed: Any = None
+
+
+@router.get("/doors/emergency/grants")
+def emergency_grants(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """EMROLE-295: who holds the emergency-open role, and the people / places a grant may name (system administrators and security managers)."""
+    return deg.view(conn, principal)
+
+
+@router.post("/doors/emergency/grants", status_code=201)
+def emergency_grant(body: GrantBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """EMROLE-295: give the built-in emergency-open role to one person, with an expiry (default from the settings)."""
+    _confirmed(body.confirmed)
+    out = deg.grant(conn, request, principal, user_id=body.user_id, scope_type=body.scope_type, scope_id=body.scope_id, expires_at=body.expires_at, no_expiry=body.no_expiry,
+                    now=now_utc(), dev_mode=_dev(request), remote=is_remote(request))
+    return {"grant": out}
+
+
+@router.post("/doors/emergency/grants/{binding_id}/revoke")
+def emergency_grant_revoke(body: RevokeGrantBody, request: Request, binding_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
+                           conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _confirmed(body.confirmed)
+    return deg.revoke(conn, settings_of(request), request, principal, binding_id, dev_mode=_dev(request))
 
 
 @router.get("/doors/emergency/incidents/{incident_id}")

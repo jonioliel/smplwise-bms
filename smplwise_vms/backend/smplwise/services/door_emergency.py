@@ -43,7 +43,7 @@ from typing import Any
 from ..audit import audit
 from ..db import Database, get_setting, new_id, set_setting
 from ..errors import ApiError
-from ..rbac import INSTALLATION, STATION, Principal, authorize, is_system_admin, scope_name, station_chain
+from ..rbac import INSTALLATION, STATION, Principal, authorize, is_system_admin, permissions_anywhere, scope_name, station_chain
 from . import door_windows as dw
 from . import door_windows_engine as dwe
 
@@ -65,6 +65,15 @@ PENDING_MAX_S = 30        # E-03: a door row still `pending` this long after its
 ANNOUNCE_PHRASE = "doors.emergency.announce_phrase"
 HOME_WIDGET = "doors.emergency.home_widget"
 PHRASE_MAX = 120
+# EMROLE-295 (owner decisions 2026-10-24): the built-in `emergency_open` role may be given to people who are not system administrators.
+GRANT_DEFAULT_H = "doors.emergency.grant.default_hours"        # the expiry offered when a grant names none (0 = none offered; a security manager is then held to the maximum)
+GRANT_MAX_H = "doors.emergency.grant.max_hours"                # the longest expiry a security manager may give
+GRANT_BY_MANAGER = "doors.emergency.grant.by_security_manager"  # whether holders of the security_manager role may grant (system administrators always may)
+RETRY_BY_HOLDERS = "doors.emergency.retry_open.by_holders"      # whether holders of the emergency-open permission may start the explicit retry (administrators always may)
+
+
+def _hours_ok(low: int):
+    return lambda v: v.isdigit() and low <= int(v) <= 8760
 
 
 def _phrase_ok(value: str) -> bool:
@@ -80,6 +89,10 @@ SETTINGS: dict[str, tuple[str, Any]] = {
     OPEN_ENABLED: ("off", lambda v: v in ("off", "on")),
     AUTOMATIONS: ("off", lambda v: v in ("off", "on")),
     HOLD_MS: ("1500", lambda v: v.isdigit() and 1000 <= int(v) <= 3000),
+    GRANT_DEFAULT_H: ("24", _hours_ok(0)),
+    GRANT_MAX_H: ("168", _hours_ok(1)),
+    GRANT_BY_MANAGER: ("on", lambda v: v in ("off", "on")),
+    RETRY_BY_HOLDERS: ("on", lambda v: v in ("off", "on")),
 }
 
 CONFIRM_TTL_S = 20
@@ -154,6 +167,9 @@ def update_settings(conn: sqlite3.Connection, settings: Any, changes: dict[str, 
     for key, value in changes.items():
         if key not in SETTINGS or not isinstance(value, str) or not SETTINGS[key][1](value):
             raise ApiError(422, "invalid_setting", "ערך לא תקין להגדרה.", details={"key": str(key)[:64]})
+    default_h, max_h = int(changes.get(GRANT_DEFAULT_H, setting(conn, GRANT_DEFAULT_H))), int(changes.get(GRANT_MAX_H, setting(conn, GRANT_MAX_H)))
+    if (GRANT_DEFAULT_H in changes or GRANT_MAX_H in changes) and default_h > max_h:
+        raise ApiError(422, "invalid_setting", "ברירת המחדל לתוקף גדולה מהתוקף המרבי.", details={"key": GRANT_DEFAULT_H})
     if changes.get(ENABLED) == "on" and not dwe.go_live_permitted():
         raise ApiError(409, "go_live_not_permitted", "הפעלה אמיתית של לחצני החירום אינה מאושרת בגרסה זו. תרגילים זמינים.")
     if changes.get(ENABLED) == "on" and not live_ok():  # DW-01: the permit alone is not enough - the live engine must exist
@@ -474,6 +490,24 @@ def release(conn: sqlite3.Connection, settings: Any, principal: Principal, *, to
     return row["id"]
 
 
+def retry_open_basis(conn: sqlite3.Connection, principal: Principal) -> str | None:
+    """EMROLE-295: why this person may start the explicit retry - "system_admin", or "emergency_open_holder" (an active, unexpired grant of the emergency-open
+    permission, while `doors.emergency.retry_open.by_holders` is on; the expiry is judged by the binding query at THIS moment) - else None."""
+    if is_system_admin(conn, principal.user_id):
+        return "system_admin"
+    if setting(conn, RETRY_BY_HOLDERS) == "on" and OPEN in permissions_anywhere(conn, principal):
+        return "emergency_open_holder"
+    return None
+
+
+def role_snapshot(conn: sqlite3.Connection, principal: Principal, basis: str) -> dict[str, Any]:
+    """EMROLE-295: who holds which role at the moment of an audited emergency action - the actor's active roles (id, scope, expiry) and every active holder of the
+    emergency_open role (ids only, capped), so a later reader sees the grants in force without reconstructing them."""
+    from . import door_emergency_grants as deg
+
+    return {"actor_basis": basis, "actor_roles": deg.roles_of(conn, principal.user_id), "emergency_open_holders": deg.holders_brief(conn)}
+
+
 def retry_open(conn: sqlite3.Connection, settings: Any, principal: Principal, *, incident_id: str, station_id: str, relay: int, confirm_door: Any,
                now: dt.datetime, actor_kind: str = "person", dev_mode: bool = False) -> dict[str, Any]:
     """WKOPENUNK-295 (WisKey emergency-event v2, P0-4): an EXPLICIT new OPEN attempt for one door whose OPEN apply ended UNKNOWN. It is the replacement for the automatic
@@ -484,8 +518,9 @@ def retry_open(conn: sqlite3.Connection, settings: Any, principal: Principal, *,
     and a drill, a released incident or a LOCK never reaches this path. The caller commits, then `submit`s the apply phase (only this door's row is `pending`)."""
     audit_action = "door.emergency.retry_open"
     check_actor(conn, principal, actor_kind, audit_action, dev_mode=dev_mode)
-    if not is_system_admin(conn, principal.user_id):
-        raise _refuse(conn, principal, audit_action, 403, "admin_only", "רק מנהל מערכת רשאי לנסות שוב פתיחת חירום.")
+    basis = retry_open_basis(conn, principal)
+    if basis is None:
+        raise _refuse(conn, principal, audit_action, 403, "retry_not_allowed", "אין הרשאה לנסות שוב פתיחת חירום.")
     if not enabled(conn):
         raise _refuse(conn, principal, audit_action, 409, "emergency_off", "לחצני החירום כבויים.")
     if not open_enabled(conn, settings):
@@ -496,6 +531,9 @@ def retry_open(conn: sqlite3.Connection, settings: Any, principal: Principal, *,
     door = dw.doors_by_key(conn).get(dw.door_key(station_id, relay))
     if door is None:
         raise _refuse(conn, principal, audit_action, 404, "door_not_found", "הדלת לא נמצאה.")
+    if basis != "system_admin" and not (authorize(conn, principal, OPEN, scope_target(row["scope_type"], row["scope_id"])).allowed
+                                        and authorize(conn, principal, OPEN, (STATION, station_id)).allowed):  # a holder acts only where the role holds, deny wins
+        raise _refuse(conn, principal, audit_action, 403, "retry_not_allowed", "אין הרשאה לנסות שוב פתיחת חירום.", door=door.key)
     given = confirm_door.strip() if isinstance(confirm_door, str) else ""
     if not given or given not in (door.name, door.key):
         raise _refuse(conn, principal, audit_action, 409, "confirm_door_required", "יש לאשר בשם הדלת.", door=door.key)
@@ -513,7 +551,8 @@ def retry_open(conn: sqlite3.Connection, settings: Any, principal: Principal, *,
     if changed != 1:
         raise _refuse(conn, principal, audit_action, 409, "door_not_unknown", "רק דלת בתוצאה לא ידועה ניתנת לניסיון חוזר.")
     audit(conn, actor=principal, action=audit_action, decision="allowed", resource_type="door", resource_id=door.key, reason="explicit_new_attempt",
-          details={"incident_id": incident_id, "earlier_outcome": "unknown", "earlier_code": d["code"], "earlier_attempts": d["attempts"], "earlier_at": d["last_at"]})
+          details={"incident_id": incident_id, "earlier_outcome": "unknown", "earlier_code": d["code"], "earlier_attempts": d["attempts"], "earlier_at": d["last_at"],
+                   **role_snapshot(conn, principal, basis)})
     return {"incident_id": incident_id, "door": door.key, "state": "pending"}
 
 

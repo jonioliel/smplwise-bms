@@ -67,7 +67,7 @@ STATUS_ON = {"location_auth": "always", "precise": True, "sharing": True, "senso
 
 # ---------------------------------------------------------------- roles and labels
 
-DOOR_GRANT_ROLES = ("door_windows_manager", "door_windows_guard", "emergency_lock", "emergency_open")  # CR-039 7.2: exactly one permission + two reads
+DOOR_GRANT_ROLES = ("door_windows_manager", "door_windows_guard", "emergency_lock", "emergency_open", "security_manager")  # CR-039 7.2: exactly one permission + two reads
 
 
 def test_presence_permissions_in_every_role_but_kiosk_and_labelled():

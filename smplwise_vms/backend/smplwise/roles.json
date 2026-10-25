@@ -225,6 +225,7 @@
         "access.windows.cancel",
         "access.emergency.lock",
         "access.emergency.open",
+        "emergency.open.grant",
         "access.admin.read",
         "access.schedules.manage",
         "access.stations.manage",
@@ -485,6 +486,15 @@
       ]
     },
     {
+      "id": "security_manager",
+      "name_he": "אחראי ביטחון",
+      "permissions": [
+        "access.read",
+        "access.stations.read",
+        "emergency.open.grant"
+      ]
+    },
+    {
       "id": "notices_manage",
       "name_he": "לוח הודעות: כתיבה",
       "permissions": [
@@ -530,6 +540,7 @@
     "access.windows.cancel",
     "access.emergency.lock",
     "access.emergency.open",
+    "emergency.open.grant",
     "access.schedules.manage",
     "access.stations.manage",
     "access.groups.manage",

@@ -301,6 +301,10 @@ PERMISSION_LABELS: dict[str, str] = {
     "access.windows.cancel": "בקרת כניסה: הפסקת חלון פתיחה פעיל ואימות ידני שהדלת חזרה למצב רגיל",
     "access.emergency.lock": "בקרת כניסה: נעילת חירום של כל הדלתות בהיקף",
     "access.emergency.open": "בקרת כניסה: פתיחת חירום של כל הדלתות בהיקף (פינוי)",
+    # EMROLE-295 (owner decisions 2026-10-24): who may give the built-in emergency_open role to a person (guard, temporary guard, reception), with an expiry.
+    # System administrators always; the built-in security_manager role (this permission alone) while the setting doors.emergency.grant.by_security_manager is on.
+    # Sensitive, never implied, never delegable: it grants the single emergency_open role and nothing else (no rbac.assign, no other role).
+    "emergency.open.grant": "מתן תפקיד פתיחת חירום לאנשים (עם תוקף) וביטולו",
     # CR-023 (electricity meters and bills; owner decision 2026-10-04: three permissions only). energy.view: meters, kWh and
     # account status without money (operator and above). energy.bills: money (prices, amounts, bills, PDFs), customer
     # contact fields, and every bill act - draft, issue, mark sent/paid, correct, cancel (site_admin, system_admin; SENSITIVE,
@@ -1056,8 +1060,10 @@ def local_binding_check(conn: sqlite3.Connection, principal: Principal, user_id:
         audit(conn, actor=principal, action="rbac.bind", decision="denied", resource_type="user", resource_id=user_id, reason="local_admin_target_remote",
               details={"role_id": role_id})
         raise ApiError(404, "not_found", "Not found")
-    existing = conn.execute(_active_bindings_sql("AND subject_kind = 'user' AND subject_id = ?"), (now_iso(), user_id)).fetchone()
-    if existing:
+    # EMROLE-295 (owner answer 2026-10-25): the emergency_open grant (always expiry-bound, audited, through /doors/emergency/grants) is the one exception to
+    # "one binding": it neither counts as the person's role nor is refused for already holding one.
+    existing = conn.execute(_active_bindings_sql("AND subject_kind = 'user' AND subject_id = ? AND role_id != 'emergency_open'"), (now_iso(), user_id)).fetchone()
+    if existing and role_id != "emergency_open":
         raise refuse("local_user_one_binding", LOCAL_ONE_BINDING_HE, 409)
 
 

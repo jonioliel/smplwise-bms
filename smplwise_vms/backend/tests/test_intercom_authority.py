@@ -32,7 +32,7 @@ CONTRACT = json.loads((ROOT / "contracts" / "examples" / "role-catalog.design.js
 
 DEFAULTS = {
     # G2FIX-295: CR-039 7.2 (DOORWIN2-295) - the four single-permission door roles hold access.read + access.stations.read to see what they act on
-    "access.stations.read": {"operator", "site_admin", "system_admin", "door_windows_manager", "door_windows_guard", "emergency_lock", "emergency_open"},
+    "access.stations.read": {"operator", "site_admin", "system_admin", "door_windows_manager", "door_windows_guard", "emergency_lock", "emergency_open", "security_manager"},
     "access.events.read": {"operator", "site_admin", "system_admin"},
     "access.events.export": {"site_admin", "system_admin"},
     "access.people.read": {"operator", "site_admin", "system_admin"},

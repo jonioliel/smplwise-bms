@@ -375,7 +375,7 @@ def _user_row(conn: sqlite3.Connection, user_id: str, *, include_deleted: bool =
 
 def _binding(conn: sqlite3.Connection, user_id: str) -> sqlite3.Row | None:
     return conn.execute("""SELECT * FROM bindings WHERE subject_kind = 'user' AND subject_id = ? AND revoked_at IS NULL
-                           AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC LIMIT 1""", (user_id, now_iso())).fetchone()
+                           AND role_id != 'emergency_open' AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC LIMIT 1""", (user_id, now_iso())).fetchone()  # EMROLE-295: the temporary emergency_open grant is not the person's role
 
 
 def _status(row: sqlite3.Row) -> str:
@@ -689,7 +689,7 @@ def change_local_role(user_id: str, body: RoleBody, request: Request, principal:
     conn.execute("SAVEPOINT usr2_role")
     try:
         # every active binding of the user ends (normally exactly one; a row written behind the routes' back too)
-        for b in conn.execute("SELECT * FROM bindings WHERE subject_kind = 'user' AND subject_id = ? AND revoked_at IS NULL", (user_id,)).fetchall():
+        for b in conn.execute("SELECT * FROM bindings WHERE subject_kind = 'user' AND subject_id = ? AND revoked_at IS NULL AND role_id != 'emergency_open'", (user_id,)).fetchall():
             revoke_one(conn, principal, request, b)
         bid = _bind(conn, principal, request, user_id, body.role_id, scope)
         reset_switched = False
