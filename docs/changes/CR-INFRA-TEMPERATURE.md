@@ -213,11 +213,10 @@ ledger, `WhatsAppChannel` (`whatsapp.send_message`, text only) and `notify_whats
   `report_link_wa_enabled`, `report_link_wa_recipients` (user ids, at most 30), `report_link_wa_text_he` / `_en` (`{link}` required, `{hours}`
   optional, at most 300 characters), `report_link_wa_window_h` (session window, 1-72, default 24). The link lifetime stays `report_link_hours`.
 * **Permission** `infra.temperature.report_link_send` (site_admin, system_admin by default; editable per role), in addition to `report_link`.
-* **Gate** (free text is not a template): a recipient is `not_sendable` - typed, audited, never shown as sent - when there is no number
-  (`no_address`), no consent (`no_consent`), the template-send support flag is off (`template_unsupported`) or the recipient did not write to us
-  within the session window (`no_session_window`, read from `ticket_inbound` by HMAC of the number). While the support flag is off (today) every
-  send therefore answers `not_sendable`; this is deliberate and fail-closed. Provider outcomes: `failed` (`provider_refused`, `unknown_outcome`
-  which is never retried, `rate_limited`, `channel_unavailable`, `channel_down`).
+* **Gate** (owner decision 25.10: the template-send support flag is NOT required): a recipient is `not_sendable` - typed, audited, never shown as
+  sent - when there is no number (`no_address`), no consent (`no_consent`) or the recipient did not write to us within the session window
+  (`no_session_window`, read from `ticket_inbound` by HMAC of the number). With an open window the plain text is sent. Provider outcomes: `failed`
+  (`provider_refused`, `unknown_outcome` which is never retried, `rate_limited`, `channel_unavailable`, `channel_down`).
 * **API**: `POST /infra/temperature/report/links/{id}/send` (200 with `status` = sent | partial | not_sendable | failed and one typed row per
   recipient; 409 `report_link_wa_off` / `report_link_wa_none` / `report_link_not_live`; 404 for a link that is not the caller's); `GET .../report/links`
   gained `whatsapp.available`.

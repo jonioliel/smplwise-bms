@@ -5,12 +5,11 @@ account of the use `infra.temperature.reports` (it inherits the notifications ac
 (`whatsapp.send_message`, text only) over `notify_whatsapp.transport()`, and the recipient's number and CONSENT from
 `notify_whatsapp.resolve_number` (a system user is messaged only on the number they opted in for themselves).
 
-A free-text message is not a template, so it is gated before anything leaves. A recipient is `not_sendable` (typed, recorded, never a fake
+A free-text message is not a template (owner decision 25.10: the template-send support flag is NOT required), so it is gated by the
+session window before anything leaves. A recipient is `not_sendable` (typed, recorded, never a fake
 `sent`) when ANY of these holds - the first reason found is reported:
 * `no_address`      the user has no WhatsApp number;
 * `no_consent`      the number is not opted in / verified for notifications;
-* `template_unsupported`  the system's template-send support flag is off (`intercom_messaging.template_send_supported()`): the free text is
-                    sent only where the system can also fall back to a template, so with the flag off the whole send fails closed;
 * `no_session_window`     the recipient did not write to us within the configured session window (`report_link_wa_window_h`, default 24 h;
                     read from `ticket_inbound`, keyed by HMAC of the number under the module key - no number is ever compared in clear).
 Other outcomes: `sent`; `failed` with `provider_refused` / `unknown_outcome` (it may have left: never retried) / `channel_unavailable` /
@@ -89,7 +88,6 @@ def session_open(conn: sqlite3.Connection, digits: str, window_h: int, now: dt.d
 
 def gate(conn: sqlite3.Connection, user_id: str, window_h: int, now: dt.datetime) -> tuple[Any | None, str | None]:
     """(resolved number, None) when a free-text message may go to this user, else (None, the not_sendable reason)."""
-    from .intercom_messaging import template_send_supported
     from .notify_whatsapp import raw_number, resolve_number
 
     if raw_number(conn, user_id) is None:
@@ -97,8 +95,6 @@ def gate(conn: sqlite3.Connection, user_id: str, window_h: int, now: dt.datetime
     found = resolve_number(conn, user_id)
     if found is None or found.consent != "granted":
         return None, "no_consent"
-    if not template_send_supported():
-        return None, "template_unsupported"
     if not session_open(conn, found.digits, window_h, now):
         return None, "no_session_window"
     return found, None

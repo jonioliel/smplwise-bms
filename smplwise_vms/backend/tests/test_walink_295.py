@@ -158,13 +158,11 @@ def test_the_text_and_the_language_are_settings(wl):
 
 # ---------------------------------------------------------------- not_sendable: typed, recorded, never a fake success
 
-def test_template_support_off_is_not_sendable(wl, monkeypatch):
+def test_the_template_support_flag_is_not_required(wl, monkeypatch):
     link = ready(wl)
-    monkeypatch.setattr(im, "template_send_supported", lambda: False)
+    monkeypatch.setattr(im, "template_send_supported", lambda: False)  # owner 25.10: an open session window is enough
     body = send(wl, link["id"]).json()
-    assert body["status"] == "not_sendable" and body["sent"] == 0 and body["not_sendable"] == 1
-    assert body["results"][0]["status"] == "not_sendable" and body["results"][0]["reason"] == "template_unsupported"
-    assert wl["fake"].calls == []
+    assert body["status"] == "sent" and body["results"][0]["status"] == "sent" and len(wl["fake"].sent_texts()) == 1
 
 
 def test_no_session_window_is_not_sendable(wl):
@@ -226,10 +224,11 @@ def test_a_non_manager_sends_only_his_own_link(wl):
 
 # ---------------------------------------------------------------- the record
 
-def test_the_audit_row_is_content_free_for_sent_and_not_sendable(wl, monkeypatch):
+def test_the_audit_row_is_content_free_for_sent_and_not_sendable(wl):
     link = ready(wl)
     send(wl, link["id"])
-    monkeypatch.setattr(im, "template_send_supported", lambda: False)
+    with wl["db"].connection() as conn:
+        conn.execute("DELETE FROM ticket_inbound")  # the window closes
     send(wl, link["id"])
     rows = audit_rows(wl)
     assert len(rows) == 2
