@@ -623,6 +623,34 @@ export const createSchedule = (body: { units: string[]; range: ReportRange; lang
   post<Schedule>(`${B}/report/schedules`, body);
 export const deleteSchedule = (id: string) => del(`${B}/report/schedules/${enc(id)}`);
 
+/** TEMPLINK-295: the temporary download link of a report (infra.temperature.report_link; off until the settings turn it on). */
+export interface ReportLink {
+  id: string;
+  filename: string;
+  created_at: string;
+  expires_at: string;
+  opens: number;
+  max_opens: number;
+  state: 'live' | 'expired' | 'revoked' | 'used';
+  created_by: string | null;
+}
+export interface ReportLinksResponse {
+  available: boolean;
+  hours: number;
+  max_opens: number;
+  links: ReportLink[];
+}
+export type ReportLinkCreated = ReportLink & { url: string };
+
+/** The create body: the same choices as the PDF; dates travel only with a custom range. */
+export function reportLinkBody(p: ReportParams): Record<string, unknown> {
+  return { units: p.units, range: p.range, lang: p.lang, chart: p.chart !== false, events: p.events !== false, signature: p.signature !== false,
+    layout: p.layout === 'haccp' ? 'haccp' : 'standard', samples: p.samples === true, ...(p.range === 'custom' ? { from: p.from, to: p.to } : {}) };
+}
+export const getReportLinks = () => get<ReportLinksResponse>(`${B}/report/links`);
+export const createReportLink = (p: ReportParams) => post<ReportLinkCreated>(`${B}/report/links`, reportLinkBody(p));
+export const revokeReportLink = (id: string) => del(`${B}/report/links/${enc(id)}`);
+
 /** The PDF (the browser's own download). */
 export async function downloadReportPdf(p: ReportParams): Promise<void> {
   const res = await fetch(apiUrl(`${B}/report.pdf${reportQs(p)}`), { credentials: 'same-origin' });

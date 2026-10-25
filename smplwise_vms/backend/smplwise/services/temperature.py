@@ -98,6 +98,12 @@ INSTALLATION: dict[str, tuple[str, Any, float | None, float | None]] = {
     # phase 2 (owner TODO): what a WhatsApp report carries besides its text summary. Only "none" until a transport can send a document
     # (services/temperature_whatsapp.ATTACHMENT_MODES / attachment_for); "link" = a vendor gets the PDF by a temporary link (TEMPVENDOR-295); future: "pdf" | "html"
     "report_attachment": ("choice", "none", None, None),
+    # TEMPLINK-295: the report as a temporary download link made by a user (OFF by default; it also needs the tickets service module's
+    # `reports.documents` switch, whose public listener serves the file). Lifetime and limits are the installation's to change.
+    "report_link_enabled": ("bool", False, None, None),
+    "report_link_hours": ("int", 24, 1, 168),               # a link dies after this many hours
+    "report_link_max_opens": ("int", 10, 1, 20),            # ... or after this many downloads, whichever comes first
+    "report_link_per_hour": ("int", 10, 1, 200),            # links one user may create per hour
     # phase 3: the grid grouped by area / floor (idea 7) or flat; every viewer may still collapse groups (kept in his browser)
     "grid_grouping": ("choice", "area", None, None),
     # phase 3: a service ticket from an alarm (idea 11): the department offered first ("" = the person chooses) and the chart picture
@@ -148,6 +154,11 @@ MESSAGES: dict[str, dict[str, str]] = {
     "not_in_maintenance": {"he": "היחידה לא בתחזוקה.", "en": "The unit is not in maintenance."},
     "tickets_unavailable": {"he": "מודול ניהול השירות לא פעיל.", "en": "The service module is not active."},
     "event_not_found": {"he": "האירוע לא נמצא.", "en": "The event was not found."},
+    "report_link_off": {"he": "קישור להורדת הדוח כבוי בהגדרות.", "en": "The report download link is turned off in the settings."},
+    "report_link_unavailable": {"he": "לא ניתן ליצור קישור כרגע; יש לבדוק את הגדרות הקישורים החיצוניים.", "en": "A link cannot be created now; check the external links settings."},
+    "report_link_rate": {"he": "נוצרו יותר מדי קישורים בשעה האחרונה.", "en": "Too many links were created in the last hour."},
+    "report_link_too_large": {"he": "הדוח גדול מדי לקישור; יש לצמצם טווח או יחידות.", "en": "The report is too large for a link; narrow the range or the units."},
+    "link_not_found": {"he": "הקישור לא נמצא.", "en": "The link was not found."},
     "explain_off": {"he": "הסבר החריגות כבוי בהגדרות.", "en": "The excursion explanation is turned off in the settings."},
 }
 

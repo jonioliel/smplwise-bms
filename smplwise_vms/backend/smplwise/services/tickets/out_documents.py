@@ -130,16 +130,22 @@ def _check_content(media_type: str, content: bytes) -> None:
 
 
 def mint(conn: sqlite3.Connection, *, module: str, source_id: str | None, recipient_kind: str, recipient_id: str, media_type: str, filename: str,
-         content: bytes, created_by: str | None, now: dt.datetime) -> dict[str, Any]:
+         content: bytes, created_by: str | None, now: dt.datetime, hours: int | None = None, max_opens: int | None = None) -> dict[str, Any]:
     """Store one document under the current module key and return its row WITHOUT the content (the caller holds the write transaction).
     Refusals (stable codes): documents_off, document_page_missing, document_module, document_recipient, document_type, document_filename,
-    document_empty, document_too_large, document_type_mismatch, document_html_unsafe, document_store_full, public_link_unavailable."""
+    document_empty, document_too_large, document_type_mismatch, document_html_unsafe, document_store_full, public_link_unavailable.
+    TEMPLINK-295: a consumer with its own lifetime setting passes `hours` / `max_opens` (clamped to HOURS_CEILING and the table's 1..20); the
+    others keep the `reports.*` values."""
     from .keyring import KEYS
     from .module_key import ModuleKeyError
 
     cfg = config(conn)
     if not cfg["enabled"]:
         raise DocumentRefused("documents_off")
+    if hours is not None:
+        cfg["hours"] = max(1, min(int(hours), HOURS_CEILING))
+    if max_opens is not None:
+        cfg["max_opens"] = max(1, min(int(max_opens), 20))
     if not PAGE_READY:
         raise DocumentRefused("document_page_missing")
     if not isinstance(module, str) or not _MODULE.fullmatch(module):

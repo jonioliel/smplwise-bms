@@ -173,3 +173,32 @@ Not built / deferred in phase 3:
 * signal strength is shown, never alerted; a climate unit's reading is never judged "frozen" (whole-degree steps);
 * the chart picture uses Pillow's built-in font (numbers and times only; the words are in the ticket's description);
 * personal choices of the temperatures widget are honoured, but the personal screen offers only on / size for it (not mode / hidden).
+
+## 12. TEMPLINK-295: the report as a temporary download link (pilot/TEMPLINK-295)
+
+Section 9 item 1 is answered for a USER-made link, not for WhatsApp: no document is sent anywhere (no file contract exists); the creator copies
+the link and hands it on himself. Migrations: none (it uses `outbound_documents`, migration 0128, and `infra_temp_settings.rules_json`).
+
+* **Reuse**: the PDF is the report dialog's own PDF (`_render_pdf`, shared with `GET /report.pdf`, scoped to the units the user may see). The link
+  is `services/tickets/out_documents.py` (`mint(recipient_kind='user')`): a derived token, only `sha256(token)` stored, the public listener's
+  `/t/api/doc` and `/t/api/doc/file` (no account; per-token, per-network and installation-wide rate limits; the uniform 404 for unknown, expired,
+  revoked or used-up). `mint` gained optional `hours` / `max_opens` so this consumer has its own lifetime.
+* **Settings** (installation, Settings > Infrastructure > Temperatures > "temporary report download link"): `report_link_enabled` (OFF),
+  `report_link_hours` (24; 1-168), `report_link_max_opens` (10; 1-20), `report_link_per_hour` (10; per user). The tickets service module's
+  `reports.documents` must ALSO be on (it is the public listener's switch); otherwise creation answers 409 `report_link_unavailable`.
+* **Permission** `infra.temperature.report_link` (site_admin, system_admin by default; editable per role). A manager (`infra.temperature.manage`)
+  sees and revokes every link; anyone else only his own.
+* **API**: `GET /report/links` (availability, lifetime, the user's links - never a token or URL), `POST /report/links` (201, the URL once),
+  `DELETE /report/links/{id}` (204, idempotent).
+* **Audit**: `infra.temperature.report.link.create` / `.revoke` (actor, time, document id, unit COUNT) plus out_documents' `report.document.mint`
+  and `report.document.open`. No readings, no PDF, no token.
+* **Dialog**: a "temporary download link" button in the report dialog (visible only with the permission AND the feature available) and, after
+  creation, one row: the link, copy, validity, revoke.
+* **Limits**: the file is a snapshot taken at creation (a later alert or reading does not change it); a link is revoked at once when the module
+  key is rotated (out_documents rule); the public page's separate review (VENDORQ-294) still applies before `reports.documents` is switched on.
+
+## 13. Key export wording (external backup, same branch)
+
+The external-backup key export dialog (Settings > Diagnostics > Backup and restore) now states, in he / en / ar / ru, what the key is, that
+without it a backup cannot be restored, that losing it loses the backup, and that it must be stored outside the system, and the export
+button works only after the user ticks the acknowledgement (and types EXPORT, as before). `keyExportReady()` is the gate. The crypto is unchanged.

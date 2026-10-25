@@ -21,7 +21,7 @@ import sqlite3
 import time
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -38,6 +38,7 @@ from ..services.timeutil import iso_utc
 
 router = APIRouter()
 MANAGE, ACK, CONFIGURE = "infra.temperature.manage", "infra.temperature.ack", "system.configure"
+LINK = "infra.temperature.report_link"  # TEMPLINK-295
 API = "/infra/temperature"
 
 
@@ -468,13 +469,9 @@ def report_preview(units: str = Query(..., max_length=2000), range: str = Query(
     return {**rep.preview_trim(model), "range_text": rep.range_text(model), "text_summary": rep.text_summary(model, external=bool(external)), "filename": rep.filename(model)}
 
 
-@router.get(f"{API}/report.pdf")
-def report_pdf(units: str = Query(..., max_length=2000), range: str = Query("24h", max_length=12), start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
-               end: str | None = Query(None, alias="to", max_length=40), lang: Literal["he", "en"] = "he", chart: int = Query(1, ge=0, le=1),
-               events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1), layout: Literal["standard", "haccp"] = "standard",
-               samples: int = Query(0, ge=0, le=1), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
-    """The audit PDF of one or more units (a page per unit): presets or a custom range, Hebrew or English, chart / events / signature LINE
-    (owner decision 4: a line only; the model keeps room for a future electronic signature). Rendered in the isolated child process."""
+def _render_pdf(conn: sqlite3.Connection, principal: Principal, units: str, range: str, start: str | None, end: str | None, lang: str, chart: int,  # noqa: A002
+                events: int, signature: int, layout: str, samples: int) -> tuple[bytes, dict[str, Any], list[sqlite3.Row]]:
+    """One report PDF of the units the principal may see (shared by the download and by the temporary link)."""
     from ..services import temperature_pdf, temperature_report as rep
 
     ts = now_ts()
@@ -487,10 +484,89 @@ def report_pdf(units: str = Query(..., max_length=2000), range: str = Query("24h
         status = 422 if e.code in ("pdf_page_limit", "pdf_too_large") else 503
         raise ApiError(status, e.code, "לא ניתן להפיק את הדוח כרגע." if status == 503 else "הדוח גדול מדי; יש לצמצם טווח או יחידות.",
                        details={"message_en": "The report cannot be produced now." if status == 503 else "The report is too large; narrow the range or the units."}) from None
+    return content, model, rows
+
+
+@router.get(f"{API}/report.pdf")
+def report_pdf(units: str = Query(..., max_length=2000), range: str = Query("24h", max_length=12), start: str | None = Query(None, alias="from", max_length=40),  # noqa: A002
+               end: str | None = Query(None, alias="to", max_length=40), lang: Literal["he", "en"] = "he", chart: int = Query(1, ge=0, le=1),
+               events: int = Query(1, ge=0, le=1), signature: int = Query(1, ge=0, le=1), layout: Literal["standard", "haccp"] = "standard",
+               samples: int = Query(0, ge=0, le=1), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+    """The audit PDF of one or more units (a page per unit): presets or a custom range, Hebrew or English, chart / events / signature LINE
+    (owner decision 4: a line only; the model keeps room for a future electronic signature). Rendered in the isolated child process."""
+    from ..services import temperature_report as rep
+
+    content, model, rows = _render_pdf(conn, principal, units, range, start, end, lang, chart, events, signature, layout, samples)
     audit(conn, actor=principal, action="infra.temperature.report", decision="allowed", resource_type="infra_temp_unit",
           details={"units": len(rows), "digest": model["digest"][:16], "layout": layout, "samples": bool(samples)})
     return Response(content=content, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{rep.filename(model)}"', "Cache-Control": "private, no-store", "X-Report-Digest": model["digest"]})
+
+
+# ---------------------------------------------------------------- TEMPLINK-295: the report as a temporary download link
+
+class ReportLinkIn(_Body):
+    units: list[str] = Field(min_length=1, max_length=30)
+    range: str = Field(default="24h", max_length=12)
+    start: str | None = Field(default=None, alias="from", max_length=40)
+    end: str | None = Field(default=None, alias="to", max_length=40)
+    lang: Literal["he", "en"] = "he"
+    chart: bool = True
+    events: bool = True
+    signature: bool = True
+    layout: Literal["standard", "haccp"] = "standard"
+    samples: bool = False
+
+
+def _link_ro(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    require(conn, principal, LINK, INSTALLATION)
+    return principal
+
+
+def _link_w(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+    require(conn, principal, LINK, INSTALLATION)
+    return principal
+
+
+def _link_error(e: Any) -> ApiError:
+    return _err(e.status, e.code)
+
+
+@router.get(f"{API}/report/links")
+def report_links(principal: Principal = Depends(_link_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Whether the dialog offers the link (`available`), its lifetime, and the links this user made (a manager sees all of them)."""
+    from ..services import temperature_report_link as rl
+
+    now = dt.datetime.fromtimestamp(now_ts(), dt.timezone.utc)
+    s = rl.settings(conn)
+    return {"available": rl.available(conn), "hours": s["hours"], "max_opens": s["max_opens"],
+            "links": rl.listing(conn, principal.user_id, authorize(conn, principal, MANAGE, INSTALLATION).allowed, now)}
+
+
+@router.post(f"{API}/report/links", status_code=201)
+def report_link_create(body: ReportLinkIn, principal: Principal = Depends(_link_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Render the report (the same units the user may download) and make a temporary link to that one file. The URL is returned once."""
+    from ..services import temperature_report as rep
+    from ..services import temperature_report_link as rl
+
+    if not rl.settings(conn)["enabled"]:
+        raise _err(409, "report_link_off")
+    content, model, rows = _render_pdf(conn, principal, ",".join(body.units), body.range, body.start, body.end, body.lang, int(body.chart), int(body.events),
+                                       int(body.signature), body.layout, int(body.samples))
+    try:
+        return rl.create(conn, principal.user_id, principal, content, rep.filename(model), len(rows), dt.datetime.fromtimestamp(now_ts(), dt.timezone.utc))
+    except rl.LinkRefused as e:
+        raise _link_error(e) from None
+
+
+@router.delete(f"{API}/report/links/{{link_id}}", status_code=204)
+def report_link_revoke(link_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(_link_w), conn: sqlite3.Connection = Depends(get_conn)) -> None:
+    from ..services import temperature_report_link as rl
+
+    try:
+        rl.revoke(conn, link_id, principal.user_id, principal, authorize(conn, principal, MANAGE, INSTALLATION).allowed, dt.datetime.fromtimestamp(now_ts(), dt.timezone.utc))
+    except rl.LinkRefused as e:
+        raise _link_error(e) from None
 
 
 @router.get(f"{API}/report/recipients")

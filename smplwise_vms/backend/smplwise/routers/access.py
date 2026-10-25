@@ -346,6 +346,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # sensors, thresholds, rules, the installation defaults and the learned defrost windows (site_admin, system_admin; installation scope).
     "infra.temperature.ack": "טמפרטורות: אישור התראות והשתקת אזהרות",
     "infra.temperature.manage": "ניהול טמפרטורות: יחידות, חיישנים, ספים וכללים",
+    # TEMPLINK-295: create / revoke a temporary download link of a temperature report (site_admin, system_admin; installation scope; the
+    # feature itself is OFF until the temperature settings turn it on)
+    "infra.temperature.report_link": "טמפרטורות: יצירה וביטול של קישור הורדה זמני לדוח",
     # CR-INSIGHT215 (2.15.0): read-only insights (door openings without an entry event, waste) scoped by the entity they are about; their
     # thresholds and door pairs; the monthly building report (installation). Defaults: site_admin, system_admin. Every part ships OFF.
     "insights.read": "תובנות: פתיחות דלת לא מוסברות וצריכת אנרגיה",
