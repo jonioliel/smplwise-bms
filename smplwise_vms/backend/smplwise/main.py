@@ -295,6 +295,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         intercom_consent.tick(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("intercom consent janitor failed", exc_info=True)
+    try:  # WKR5-295: the WisKey people-write lineage keeps ENDED operations 30 days (open unknowns never purged); hourly inside; no-op uninstalled
+        from .services import wiskey_direct_join
+
+        wiskey_direct_join.janitor()
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("wiskey lineage janitor failed", exc_info=True)
     try:  # CR-038 S5b: the ticket outbox (90 days) and inbound (30 days) retention, hourly inside
         from .services.tickets.messaging import RUNTIME as tickets_messaging
 
@@ -518,6 +524,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_control_writes  # CR-036 S11: the person writes added to the editor's (its own line, like S4's)
 
     app.include_router(access_control_writes.router, prefix=api, tags=["access-control"])
+    from .routers import wiskey_lineage as wiskey_lineage_router  # WKR5-295: the WisKey people-write lineage administration (its own line)
+
+    app.include_router(wiskey_lineage_router.router, prefix=api, tags=["access-control"])
     from .routers import access_control_messaging  # CR-036 WA: WhatsApp from the people screen (its own file and its own line)
 
     app.include_router(access_control_messaging.router, prefix=api, tags=["access-control"])

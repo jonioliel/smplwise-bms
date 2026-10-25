@@ -240,6 +240,9 @@ class UnwiredTransport:
 # before. services/wiskey_direct_join.py installs a provider that returns its `DirectTemplateTransport` only while the direct path is
 # selected (else None). The switch / permit gates above it (TEMPLATE_SEND_SUPPORTED) are untouched.
 TRANSPORT_PROVIDER: Callable[[], "TemplateTransport | None"] | None = None
+# WKR5-295 unit D: the same for the v2 (autofill) command - the join returns its DirectTemplateTransport only while
+# `whatsapp/template_send_v2` is selected (discovered on the current direct connection). None: `send_v2` refuses before any hand-over.
+TRANSPORT_V2_PROVIDER: Callable[[], Any] | None = None
 
 
 def installed_transport() -> "TemplateTransport":
@@ -418,3 +421,48 @@ class TemplateSender:
         if outcome == "sent":
             return TemplateResult("sent", result_version=ans.version)
         return TemplateResult(outcome, code=ans.code, retry_after_s=ans.retry_after_s, scope=ans.scope, result_version=ans.version)
+
+    def send_v2(self, *, template_id: str, account: str, account_key: str, person_id: str, expected_person_revision: int,
+                recipient_key: str, template_ref: str, expected_template_revision: int, request_id: str, operation_id: str) -> TemplateResult:
+        """WKR5-295 unit D: `whatsapp/template_send_v2` - WisKey's AUTOFILL send. Arx sends ids and revisions only: no name, PIN or card
+        value (WisKey fills them from its own native source under its original PIN policy). Same admission as v1 (switch + permit, the
+        reference, the shared pacing budget); the transport must be the direct one AND the v2 command selected now (discovered), else
+        refused before any hand-over. The answer is read by `read_v2` only: `accepted` is the provider's ACK, never delivery; UNKNOWN /
+        possible dispatch is never not_sent, retried or refunded."""
+        if not all(isinstance(v, str) and WIRE_ID_RE.fullmatch(v) for v in (person_id, account, request_id, operation_id, template_ref)):
+            return _refuse("invalid_reference")
+        if not all(type(v) is int and 1 <= v <= 2 ** 53 - 1 for v in (expected_person_revision, expected_template_revision)):
+            return _refuse("invalid_fields")
+        tpl, refused = self.admit(template_id=template_id, values={s: "x" for s in self._slots(template_id)}, account_key=account_key,
+                                  recipient_key=recipient_key, ref=request_id)
+        if refused is not None or tpl is None:
+            return refused or _refuse("template_unsupported")
+        provider = TRANSPORT_V2_PROVIDER
+        transport = None
+        if provider is not None:
+            try:
+                transport = provider()
+            except Exception:  # noqa: BLE001
+                transport = None
+        if transport is None or not callable(getattr(transport, "send_v2", None)):
+            return _refuse("template_unsupported")  # no direct v2 path selected: nothing is handed over
+        params = {"schema_version": SCHEMA_VERSION_V2, "request_id": request_id, "operation_id": operation_id, "recipient_ref": person_id,
+                  "expected_person_revision": expected_person_revision, "account": account, "template_name": tpl.name,
+                  "language": tpl.language, "template_ref": template_ref, "expected_template_revision": expected_template_revision}
+        now = self._clock()
+        try:
+            raw = transport.send_v2(params)
+        except Exception as exc:  # noqa: BLE001 - after the hand-over: unknown, never retried
+            log.warning("template send v2: the transport failed after the hand-over (%s)", type(exc).__name__)
+            raw = {"state": "unknown", "code": "transport_error"}
+        ans = read_answer(raw, version=SCHEMA_VERSION_V2)
+        outcome = {"accepted": "sent", "not_sent": "not_sent"}.get(ans.state, "unknown")
+        if self._pacer is not None:
+            self._pacer.on_result(account_key=account_key, recipient_key=recipient_key, klass=KLASS, outcome=outcome, outcome_code=ans.code, now=now)
+        if outcome == "sent":
+            return TemplateResult("sent", result_version=ans.version)
+        return TemplateResult(outcome, code=ans.code, retry_after_s=ans.retry_after_s, scope=ans.scope, result_version=ans.version)
+
+    def _slots(self, template_id: str) -> tuple[str, ...]:
+        tpl = next((t for t in self._registry() if t.id == template_id), None)
+        return tuple(tpl.params) if tpl is not None else ()
