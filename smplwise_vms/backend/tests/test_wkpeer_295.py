@@ -251,7 +251,7 @@ def test_only_the_seam_modules_mint_sealed_values():
     """No product module outside wiskey_peer*.py calls attest_transport or passes the seal: the seam has no other door."""
     offenders = []
     for path in PKG.rglob("*.py"):
-        if path.name in ("wiskey_peer.py", "wiskey_peer_registry.py"):
+        if path.name in ("wiskey_peer.py", "wiskey_peer_registry.py", "wiskey_peer_query.py"):  # PEERQUERY-295: the transport boundary
             continue
         text = path.read_text(encoding="utf-8")
         if re.search(r"attest_transport\(|_SEAL\b|_mint_peer\(", text):
