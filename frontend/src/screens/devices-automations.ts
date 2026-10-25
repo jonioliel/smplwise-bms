@@ -8,8 +8,7 @@ import '../components/sw-dialog';
 import '../components/sw-automation-card';
 import '../components/sw-automation-row';
 import '../components/sw-pager';
-import { PAGE_SIZE_DEFAULT, clampPage, loadScreenDisplay, pageCount, pageSlice } from '../api/screen-display';
-import { registerScreenView } from '../shell/screen-view';
+import { AUTOMATIONS_VIEW_DEFAULT, PAGE_SIZE_DEFAULT, clampPage, loadScreenDisplay, pageCount, pageSlice, type AutomationsView } from '../api/screen-display';
 import { pl } from '../i18n/polish';
 import './automation-drawer';
 import './scenes-panel';
@@ -46,14 +45,34 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** 0.1.154: the schedules screen, the first segment of "קברניט" (its address is unchanged). */
 const SCHEDULES_PATH = '/devices/schedules';
-/** POLISH-295: this browser's choice of rows (the default, the approved preview) or cards for the automations list (the user menu's "תצוגה"). */
+/** POLISH-295 / POLISH2-295 (owner feedback 2026-10-25): this browser's choice of rows or the cards with their explanatory sentence, kept
+ * the way the schedules keep theirs (JSON in localStorage, the view switch at the end of the title row); without a choice the
+ * installation's default (`ui.automations_view`, הגדרות › אוטומציות; rows unless changed). */
 const VIEW_KEY = 'sw.automations.view';
-type AutoView = 'rows' | 'cards';
-function readView(): AutoView {
+type AutoView = AutomationsView;
+const VIEWS: AutoView[] = ['rows', 'cards'];
+const VIEW_ICON: Record<AutoView, 'rows' | 'grid'> = { rows: 'rows', cards: 'grid' };
+const VIEW_LABEL: Record<AutoView, () => string> = { rows: () => pl('rows'), cards: () => 'כרטיסים' };
+const parseView = (v: unknown): AutoView | null => (v === 'rows' || v === 'cards' ? v : null);
+/** The stored choice, read as JSON (the way it is written) or raw (the first POLISH-295 build wrote it raw); null when none. */
+function readView(): AutoView | null {
   try {
-    return localStorage.getItem(VIEW_KEY) === 'cards' ? 'cards' : 'rows';
+    const raw = localStorage.getItem(VIEW_KEY);
+    if (!raw) return null;
+    try {
+      return parseView(JSON.parse(raw)) ?? parseView(raw);
+    } catch {
+      return parseView(raw);
+    }
   } catch {
-    return 'rows';
+    return null;
+  }
+}
+function writeView(v: AutoView) {
+  try {
+    localStorage.setItem(VIEW_KEY, JSON.stringify(v));
+  } catch {
+    /* storage unavailable: the choice lasts for this page */
   }
 }
 
@@ -104,10 +123,10 @@ export class DevicesAutomations extends LitElement {
   /** A gallery template the editor route named (`?template= `): its draft once loaded, null while loading or when unknown. */
   @state() private tplDraft: { id: string; draft: AnyDraft | null; done: boolean } | null = null;
   /** POLISH-295: rows or cards, the rows per page (ui.page_size.automations*) and the page shown (control screens never scroll). */
-  @state() private view: AutoView = readView();
-  @state() private perPage = PAGE_SIZE_DEFAULT.automations;
+  @state() private view: AutoView = readView() ?? AUTOMATIONS_VIEW_DEFAULT;
+  /** POLISH2-295: the rows and the cards have their own page sizes (ui.page_size.automations* / automations_cards*). */
+  @state() private perPage = { rows: PAGE_SIZE_DEFAULT.automations, cards: PAGE_SIZE_DEFAULT.automations_cards };
   @state() private page = 1;
-  private offView: (() => void) | null = null;
 
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
@@ -173,6 +192,22 @@ export class DevicesAutomations extends LitElement {
     .foldbtn {
       display: none;
     }
+    /* POLISH2-295: the view switch, as on the schedules screen */
+    .vwrap {
+      flex: none;
+    }
+    .views button {
+      padding-inline: 12px;
+      min-inline-size: 40px;
+    }
+    .views .ic {
+      font-size: var(--sw-fs-lg);
+    }
+    @media (pointer: coarse), (max-width: 1100px) {
+      .views button {
+        min-inline-size: 44px;
+      }
+    }
     .stack {
       display: flex;
       flex-direction: column;
@@ -230,6 +265,14 @@ export class DevicesAutomations extends LitElement {
         grid-template-areas: 't .' 'r r';
         grid-template-columns: minmax(0, 1fr) var(--sw-float-reserve, 0px);
       }
+      /* POLISH2-295: on a phone the view is one icon button in the toolbar row (no extra row on a screen that must not scroll) */
+      .dh-det .vtog {
+        order: 3;
+        flex: none;
+        inline-size: 44px;
+        padding: 0;
+        justify-content: center;
+      }
       .dh-det {
         gap: 10px;
       }
@@ -286,22 +329,11 @@ export class DevicesAutomations extends LitElement {
     this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offEdit = registerScreenEdit({ id: 'automations-trash', label: 'סל מחזור', icon: 'trash', can: () => !!(this.status?.can.manage || this.status?.can.scene_manage || this.status?.can.script_manage), run: () => pushRoute(trashPath()) });
     this.offRoute = onRouteChange((r) => this.onRoute(r));
-    void loadScreenDisplay().then((d) => (this.perPage = d.pageSize.automations));
-    this.offView = registerScreenView({
-      id: 'automations-view',
-      label: 'תצוגה',
-      options: [{ value: 'rows', label: pl('rows') }, { value: 'cards', label: 'כרטיסים' }],
-      value: () => this.view,
-      set: (v) => {
-        this.view = v === 'cards' ? 'cards' : 'rows';
-        this.page = 1;
-        try {
-          localStorage.setItem(VIEW_KEY, this.view);
-        } catch {
-          /* storage unavailable: the choice lasts for this page */
-        }
-      },
-      can: () => !this.scenView && this.segment() === 'automations',
+    // POLISH2-295: the installation's default view (when this browser has not chosen) and the rows per page
+    const storedView = readView();
+    void loadScreenDisplay().then((d) => {
+      this.perPage = { rows: d.pageSize.automations, cards: d.pageSize.automations_cards };
+      if (!storedView) this.view = d.automationsView;
     });
     void this.load();
     // CLOCK-293: "next run" / "last run" labels age while the page stays open (the demo clock is fixed and is read through autoNow)
@@ -324,7 +356,6 @@ export class DevicesAutomations extends LitElement {
     this.offClock?.();
     this.offClock = null;
     this.offEdit?.();
-    this.offView?.();
     window.clearTimeout(this.noteTimer);
     window.clearTimeout(this.urlTimer);
     window.clearTimeout(this.pushTimer);
@@ -662,6 +693,8 @@ export class DevicesAutomations extends LitElement {
     const tools = this.items !== null && !this.failed && !this.noPerm && !!this.status && this.status.available !== 'feature_disabled' && this.status.available !== 'not_configured';
     const scenOk = !!this.scen?.enabled && this.scen.can.view;
     const sv = this.scenView;
+    // POLISH2-295: rows · cards, where the schedules keep their view switch (the end of the title row; on a phone, in the toolbar)
+    const showViews = tools && !sv && def.kind === 'automation' && all.length > 0;
     return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-auto-header>
       <div class="dh-row">
         <h1 data-auto-title>${sv ? sct('title') : def.label}</h1>
@@ -669,16 +702,37 @@ export class DevicesAutomations extends LitElement {
           <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>הכל</button>
           ${floors.map((x) => html`<button type="button" class="rc" aria-pressed=${String(f.floor === x.id)} data-floor=${x.id} @click=${() => this.setFilter({ floor: x.id })}>${bidi(x.name)}</button>`)}
         </div>` : html`<span class="grow"></span>`}
+        ${showViews && !this.phone ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}
       </div>
       ${tools || (sv && scenOk) ? html`<div class="dh-det">
         ${kinds.length > 1 || scenOk || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label="סוג">${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>תזמונים${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id && !sv)} data-segment=${s.id} @click=${() => (sv ? navigate(itemPath(s.id)) : this.setSegment(s.id))}>${s.label} <small>${counts[s.kind]}</small></button>`)}${scenOk ? html`<button type="button" role="tab" aria-selected=${String(sv)} data-segment="scenarios" @click=${() => navigate('/devices/automations/scenarios')}>${sct('tab')}</button>` : nothing}</div>` : nothing}
         ${def.kind === 'automation' && all.length && !sv ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_FILTERS_OF(extFlags(this.status?.ui ?? null).precheck).map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
         ${def.kind === 'automation' && all.length && !sv ? html`<button type="button" class="btn foldbtn" data-fold-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}סינון${active ? html` <small>${active}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>
+        ${showViews && this.phone ? this.viewToggle() : nothing}
         ${sv ? (this.scen?.can.manage ? html`<button type="button" class="btn primary newbtn" data-scen-new @click=${() => navigate('/devices/automations/scenarios/new')}>${aIcon('plus')}${sct('new')}</button>` : nothing) : html`<label class="search">${aIcon('search')}<span class="sr-only">חיפוש</span><input type="search" data-search placeholder=${this.phone ? 'חיפוש' : def.searchLabel} .value=${f.q} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></label>
         ${nb.shown ? html`<button type="button" class="btn primary newbtn" data-auto-new ?disabled=${nb.disabled} title=${nb.reason} @click=${() => this.newItem()}>${aIcon(seg === 'scenes' ? 'camera' : 'plus')}${def.newLabel}</button>` : nothing}`}
       </div>` : nothing}
     </header>`;
+  }
+
+  /** POLISH2-295: rows · cards (the cards carry the explanatory sentence); the same segmented icons as the schedules' view switch. */
+  private viewSwitch(): TemplateResult {
+    return html`<div class="seg sm views" role="group" aria-label="תצוגה" data-auto-views>${VIEWS.map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${String(this.view === v)} aria-label=${VIEW_LABEL[v]()} title=${VIEW_LABEL[v]()} @click=${() => this.setView(v)}>${aIcon(VIEW_ICON[v])}</button>`)}</div>`;
+  }
+
+  /** On a phone one button in the toolbar row (it shows the other view's icon) - the segmented switch would add a row to a screen
+   * that must not scroll. */
+  private viewToggle(): TemplateResult {
+    const other: AutoView = this.view === 'rows' ? 'cards' : 'rows';
+    return html`<button type="button" class="btn vtog" data-auto-views data-view-btn=${other} aria-label=${VIEW_LABEL[other]()} title=${VIEW_LABEL[other]()} @click=${() => this.setView(other)}>${aIcon(VIEW_ICON[other])}</button>`;
+  }
+
+  private setView(v: AutoView) {
+    if (v === this.view) return;
+    this.view = v;
+    this.page = 1;
+    writeView(v);
   }
 
   private skeleton(): TemplateResult {
@@ -721,7 +775,8 @@ export class DevicesAutomations extends LitElement {
         @result=${this.onResult} @changed=${this.onChanged} @open-script=${(e: CustomEvent<{ id: string }>) => this.go(itemPath('scripts', e.detail.id))}></scripts-panel>`;
     } else {
       // POLISH-295: one page at a time (control screens never scroll); rows by default (the approved preview), cards by this browser's choice
-      const per = this.phone ? this.perPage.phone : this.perPage.wide;
+      const sizes = this.view === 'cards' ? this.perPage.cards : this.perPage.rows;
+      const per = this.phone ? sizes.phone : sizes.wide;
       const pages = pageCount(rows.length, per);
       const page = clampPage(this.page, rows.length, per);
       const shown = pageSlice(rows, page, per);
