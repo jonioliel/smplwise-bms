@@ -98,6 +98,76 @@ def test_verdict_classification_and_exit_codes(tmp_path):
     assert (tmp_path / "gate_release-x_s.gate2.md").exists()
 
 
+def test_replay_r3_repo_lint_is_core():
+    assert "test_no_ip_literals.py" in g.CORE_BACKEND
+    assert g.REPO_SCAN_BE_RE.search("subprocess.run(['git', 'ls-files'], ...)")
+
+
+def test_replay_r2_tree_scanner_detection():
+    assert g.TREE_SCAN_FE_RE.search("for (const f of readdirSync(path.join(HERE, '../src'), { recursive: true }))")
+    assert not g.TREE_SCAN_FE_RE.search("await page.goto('/'); expect(1).toBe(1)")
+
+
+def test_replay_r4_esbuild_string_imports_are_resolved(tmp_path):
+    fe = tmp_path / "frontend"
+    (fe / "src" / "arx").mkdir(parents=True)
+    (fe / "src" / "design").mkdir(parents=True)
+    (fe / "tests").mkdir(parents=True)
+    (fe / "src" / "arx" / "arx-login.ts").write_text("export const x = 1;\n")
+    (fe / "src" / "arx" / "auth.ts").write_text("export const y = 1;\n")
+    (fe / "src" / "design" / "boot.ts").write_text("export {};\n")
+    spec = fe / "tests" / "unit-brand-login.spec.ts"
+    spec.write_text(
+        "import { build } from 'esbuild';\n"
+        "const r = await build({ stdin: { contents: \"import '../design/boot';\\nimport './arx-login';\\n\", "
+        "resolveDir: path.join(HERE, '../src/arx'), loader: 'ts' }, bundle: true });\n"
+        "const s = await build({ entryPoints: [path.join(HERE, '../src/arx/auth.ts')], bundle: true });\n")
+    deps = {p.name for p in g.esbuild_deps(spec, fe)}
+    assert deps == {"arx-login.ts", "boot.ts", "auth.ts"}
+    plain = fe / "tests" / "x.spec.ts"
+    plain.write_text("import { test } from '@playwright/test';\n")
+    assert g.esbuild_deps(plain, fe) == set()
+
+
+def _repo(tmp_path):
+    import subprocess
+    r = tmp_path / "repo"
+    for d in ("smplwise_vms/backend/smplwise", "smplwise_vms/backend/tests", "frontend/src", "frontend/tests"):
+        (r / d).mkdir(parents=True)
+    (r / "smplwise_vms/backend/smplwise/x.py").write_text("X = 1\n")
+    (r / "smplwise_vms/backend/tests/test_x.py").write_text("from smplwise import x\n")
+    (r / "frontend/src/a.ts").write_text("export const a = 1;\n")
+    (r / "frontend/vite.config.ts").write_text("export default {};\n")
+    (r / "frontend/tests/unit-a.spec.ts").write_text("import { a } from '../src/a';\n")
+    (r / "frontend/tests/layout-heavy.spec.ts").write_text("import { test } from '@playwright/test';\n")
+    (r / "frontend/tests/unit-scan.spec.ts").write_text("readdirSync(path.join(HERE, '../src'))\n")
+
+    def git(*a):
+        subprocess.run(["git", "-C", str(r), "-c", "user.email=t@t", "-c", "user.name=t", *a], check=True, capture_output=True)
+    git("init", "-q"); git("add", "-A"); git("commit", "-q", "-m", "base"); git("tag", "base")
+    return r, git
+
+
+def test_unit_spec_reached_by_the_closure_is_kept_and_tree_scanner_runs(tmp_path):
+    r, git = _repo(tmp_path)
+    (r / "frontend/src/a.ts").write_text("export const a = 2;\n")
+    git("commit", "-q", "-am", "change")
+    sel = g.select_gate2(r, "base", "HEAD", costs={"seconds": {"layout-heavy.spec.ts": 5000}})
+    f = sel["frontend"]
+    assert "unit-a.spec.ts" in f["selected"] and f["why"]["unit-a.spec.ts"] == "imports a changed file"
+    assert "unit-scan.spec.ts" in f["selected"]          # R2
+    assert "layout-heavy.spec.ts" not in f["selected"] and "layout-heavy.spec.ts" not in sel["deferred_to_nightly"]
+
+
+def test_r1_no_heavy_deferral_on_a_full_tier_side(tmp_path):
+    r, git = _repo(tmp_path)
+    (r / "frontend/vite.config.ts").write_text("export default { x: 1 };\n")
+    git("commit", "-q", "-am", "config")
+    sel = g.select_gate2(r, "base", "HEAD", costs={"seconds": {"layout-heavy.spec.ts": 5000}})
+    assert sel["full"]["frontend"] and sel["deferred_to_nightly"] == {}
+    assert "layout-heavy.spec.ts" in sel["frontend"]["selected"]
+
+
 def test_cost_seed_is_tracked_and_has_both_sides():
     c = g.load_costs(None)
     assert len(c.get("seconds", {})) > 100 and len(c.get("backend_seconds", {})) > 100

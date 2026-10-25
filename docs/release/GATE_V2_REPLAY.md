@@ -1,6 +1,10 @@
 # Gate v2 retrospective replay (GATE2-295)
 
-Status: analysis only. **No test was run.** The gate-2 selector (`scripts/gate/gate2_select.py` at `1530a6f17`) was run in select mode
+**Update 2026-10-25 (second replay, section 7): rules R1-R4 are implemented, plus one selector bug the replay exposed (the
+unit-* smoke set masked closure hits). Re-run on the same 10 gates: 0 of 138 failing files escape (was 15).** Sections 1-6 below
+describe the FIRST replay, at `1530a6f17`, and are kept unchanged as the record.
+
+Status (first replay): analysis only. **No test was run.** The gate-2 selector (`scripts/gate/gate2_select.py` at `1530a6f17`) was run in select mode
 (it reads git and source files and starts nothing) once per historical red gate. The only runner contact was reading the gate
 reports (`~/smplwise-results/gate_release-*.json`) through `rr.py`; the runner's lock and any gate were not touched. One deviation
 to disclose: the command that printed the report summaries wrote one small read-only helper script to the runner's `/tmp`; no
@@ -376,3 +380,62 @@ Reports: `~/smplwise-results/gate_release-{2100_fef91ec0c,2101_3370bd704,2111_5c
 For each: checkout the sha, then `py -3.12 scripts/gate/gate2_select.py select --root <checkout> --base <tag> --head <sha> --json out.json`
 and compare `out.json` (`backend.selected`, `frontend.selected`, `deferred_to_nightly`) with the report's `FAIL` items. The driver used
 here imported `select_gate2` directly with the same arguments. Not run: any test, the real gate-2 run on the runner, the `--after` path.
+
+## 7. Second replay after R1-R4 (2026-10-25)
+
+Same method, same 11 reports (local copies of the runner reports, read earlier; the runner was not contacted for this replay),
+same bases, same scratch worktree, one gate per process. The selector is the one on `pilot/GATE2-295` after the change.
+
+### Changes in `scripts/gate/gate2_select.py`
+| # | Change | How it is verified |
+|---|---|---|
+| R1 | No heavy deferral on a side whose `full[side]` is set (a kept full-tier trigger fired). | replay: all 13 deferred escapes selected ("full tier"); unit test `test_r1_no_heavy_deferral_on_a_full_tier_side` |
+| R2 | Specs whose text contains `readdirSync` or `ls-files` (source-tree scanners) run whenever any `frontend/src` file changed, and are never deferred. 23 specs on 2.20.0. | replay: `unit-date-format-module` (2.15.0) selected, why "reads the frontend/src tree"; unit tests |
+| R3 | `test_no_ip_literals.py` in `CORE_BACKEND`; any backend test containing `ls-files` is core. | replay: selected on 2.17.0W, why "gate2 core"; unit test |
+| R4 | `esbuild` specs: the `import '...'` specifiers inside the stdin `contents` (resolved against `resolveDir: path.join(HERE, ...)`) and `entryPoints: [path.join(HERE, '...ts')]` become graph edges of the spec (4 specs). | unit test on a synthetic tree; on the 2.17.1 tree the edge `sw-brand.ts -> arx-login.ts -> unit-brand-login.spec.ts` is reached at closure level 2 (checked with a debug script) |
+| fix | **Selector bug found while checking R4**: select_tests' `SMOKE_FRONTEND_GLOBS` (every `unit-*` spec) tagged each `unit-*` spec "smoke" BEFORE the mapping ran. Gate 2 then removed the "smoke" specs that are not in its own core, so every `unit-*` spec reached ONLY by the closure, a tag or a name rule was silently dropped. Gate 2 now runs the mapping without that smoke set. | unit test `test_unit_spec_reached_by_the_closure_is_kept_and_tree_scanner_runs`; frontend selection per gate grew by 10-166 specs (table below) |
+
+### Result
+| Gate | Failing files | Escaped before | Escaped now | Frontend selected before -> now |
+|---|---|---|---|---|
+| 2.10.0 | 29 | 3 | 0 | 650 -> 671/671 (no deferral on the full side) |
+| 2.10.1 | 1 | 0 | 0 | 303 -> 373/676 |
+| 2.11.1 cand | 10 | 0 | 0 | 421 -> 505/689 |
+| 2.12.0b | 4 | 0 | 0 | 83 -> 116/695 |
+| 2.14.0 | 6 | 0 | 0 | 404 -> 591/705 |
+| 2.15.0 #1 | 16 | 1 | 0 | 468 -> 583/718 |
+| 2.16.0B #1 | 45 | 9 | 0 | 727 -> 748/748 |
+| 2.17.0W | 3 | 1 | 0 | 374 -> 493/751 |
+| 2.18.0 | 21 | 1 | 0 | 747 -> 767/767 |
+| 2.19.0 | 3 | 0 | 0 | 403 -> 503/770 |
+| **Total (10 gates)** | **138** | **15** | **0** | |
+| 2.17.1 (starved, excluded) | 9 | 5 | 4 | 300 -> 328/753 |
+
+**Escape rate on the 10 gates: 0 of 138 failing files (0 of 624 failing cases); 0 of 10 gates miss a failure.**
+
+2.17.1 (budget-starved tier-M run, excluded as before): `unit-brand-login` is now selected. The reason recorded is
+"security/permission suite" (its name contains `login`); before the fix that rule's hit was overwritten by the smoke tag and
+dropped. The R4 edge reaches it too. Four files stay unselected, and none of them is a verified failure: each failed only in the
+starved run, without the retry alone ("no time left to retry"):
+- `evidence-nvr-connection` and `evidence-setup-wizard`: timeouts (60 s test, 20 s click);
+- `evidence-tickets-device`: `ENOENT` on a `test-results` file of the run itself;
+- `unit-plan-3d-realistic`: a 5 s predicate timeout. It is a known flaky spec (FLAKY in the 2.19.0 gate).
+
+The 26-file diff (notices screens, `sw-brand.ts`, nav) reaches none of them through imports, tags or names. Load or
+infrastructure errors in a starved run are not something a selector can or should chase. If any of them is real, the nightly
+full run shows it.
+
+### What the result does and does not prove
+- It proves the 15 known escapes and their classes are closed, and that the fix did not drop any previously selected failure.
+- It is fitted to these 10 gates: the rules were written after looking at these failures, so 0 here is an upper bound on
+  quality, not a measurement on unseen data. The next real gates and `select_tests.py audit` on the nightlies are the test.
+- 7 of 10 gates had at least one full side, so most selections on this history are still trivial.
+
+### Cost of the new rules (estimates recomputed, `GATE_V2.md` section 3)
+The extra specs are mostly cheap `unit-*` specs. Wall-time estimates barely move:
+- 2.20.0 train: 96-117 -> 95-116 min;
+- 2.19.0: 83-101 -> 81-98 min;
+- core only: 27-31 min (76 backend files, 24 specs).
+
+R1 has its real cost on releases whose FRONTEND is full-tier (`vite.config.ts`, `index.html`, shared fixtures): there the heavy
+sweeps (about 460 worker-min) run again, and that side costs as much as today's gate.

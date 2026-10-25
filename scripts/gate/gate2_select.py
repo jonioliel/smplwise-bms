@@ -54,7 +54,13 @@ CORE_BACKEND = [
     "test_docs_config_consistency.py", "test_release_notes_marker.py", "test_gate_hygiene.py", "test_installation_capabilities.py",
     "test_api_inventory.py", "test_gate_speed.py", "test_select_tests.py", "test_gate2_select.py",
 ]
+CORE_BACKEND += ["test_no_ip_literals.py"]          # replay R3 (2.17.0W): a repo-wide lint, reached by no mapping
 CORE_BACKEND_GLOBS = ["test_migration*.py", "test_*upgrade*.py", "test_roles*.py", "test_rbac*.py"]
+# replay R3: any backend test that scans the whole repository (git ls-files) is core, whatever its name
+REPO_SCAN_BE_RE = re.compile(r"ls-files")
+# replay R2 (2.15.0 unit-date-format-module): a spec that reads the source tree itself (readdirSync / git ls-files) sees every
+# frontend/src file, so it runs whenever any frontend/src file changed
+TREE_SCAN_FE_RE = re.compile(r"readdirSync|ls-files")
 # Frontend: every unit-* spec is NOT core in gate 2 (334 files, ~350 worker-min); the core is the shell, navigation, login and
 # the cheap structural guards. Heavy files are still deferred unless they changed.
 CORE_FRONTEND_GLOBS = ["evidence-nav*.spec.ts", "layout-shell*.spec.ts", "unit-nav*.spec.ts", "unit-shell*.spec.ts",
@@ -298,6 +304,46 @@ def failed_files(report: Path) -> dict[str, set[str]]:
     return out
 
 
+ESB_RESOLVE_RE = re.compile(r"""resolveDir\s*:\s*path\.(?:join|resolve)\(\s*HERE\s*,\s*['"]([^'"]+)['"]\s*\)""")
+ESB_CONTENTS_RE = re.compile(r"""contents\s*:\s*(['"`])((?:\\.|(?!\1).)*)\1""", re.S)
+ESB_ENTRY_RE = re.compile(r"""path\.(?:join|resolve)\(\s*HERE\s*,\s*['"]([^'"]+\.ts)['"]\s*\)""")
+ESB_IMPORT_RE = re.compile(r"""import\s+(?:[^'"]*?\s+from\s+)?['"]([./][^'"]+)['"]""")
+
+
+def esbuild_deps(spec: Path, fe: Path) -> set[Path]:
+    """Replay R4 (2.17.1 unit-brand-login): specs that bundle their subject with esbuild name it in a STRING (stdin contents with
+    a resolveDir, or entryPoints). Those imports are invisible to the static graph; resolve them here."""
+    text = _read(spec)
+    if "esbuild" not in text:
+        return set()
+    out = set()
+    rd = ESB_RESOLVE_RE.search(text)
+    rdir = (spec.parent / rd.group(1)).resolve() if rd else None
+    if rdir:
+        for m in ESB_CONTENTS_RE.finditer(text):
+            body = m.group(2).encode().decode("unicode_escape", errors="ignore")
+            for s in ESB_IMPORT_RE.findall(body):
+                r = st.ts_resolve(rdir / "x.ts", s, fe)
+                if r:
+                    out.add(r)
+    for rel in ESB_ENTRY_RE.findall(text):
+        p = (spec.parent / rel).resolve()
+        if p.is_file() and p.is_relative_to(fe.resolve() / "src"):
+            out.add(p)
+    return out
+
+
+def _graph_with_esbuild(orig):
+    def g(fe):
+        graph = orig(fe)
+        for sp in (fe / "tests").glob("*.spec.ts"):
+            extra = esbuild_deps(sp, fe)
+            if extra:
+                graph.setdefault(sp.resolve(), set()).update(extra)
+        return graph
+    return g
+
+
 def rerun_only_selection(root: Path, after: dict) -> dict:
     """Only the failed files of a red gate (the automatic re-run of quarantined failures on the same sha): no core, no mapping."""
     root = Path(root).resolve()
@@ -451,15 +497,22 @@ def select_gate2(root: Path, base: str, head: str = "HEAD", after: dict | None =
         derived.append((s, p))
     # ---- the select_tests mapping on everything that is not a narrowed hub
     sub_root_changes = sorted(set(derived))
-    saved = (st.FULL_BOTH, st.FULL_BACKEND, st.FULL_FRONTEND, st.MAX_FILES, st.py_reverse_closure, st.ts_reverse_closure)
+    saved = (st.FULL_BOTH, st.FULL_BACKEND, st.FULL_FRONTEND, st.MAX_FILES, st.py_reverse_closure, st.ts_reverse_closure, st.ts_graph,
+             st.SMOKE_FRONTEND_GLOBS)
+    ts_graph = _graph_with_esbuild(saved[6])
     try:   # select_tests' own triggers are replaced by gate 2's (KEEP_FULL_*), evaluated above; the closures get a depth
         st.FULL_BOTH, st.FULL_BACKEND, st.FULL_FRONTEND, st.MAX_FILES = [], [], [], 10 ** 9
+        # no unit-* smoke set: it would claim every unit-* spec as "smoke" BEFORE the mapping runs, and gate 2 does not keep that
+        # set, so a unit-* spec reached by the closure was lost (replay finding, unit-brand-login on 2.17.1)
+        st.SMOKE_FRONTEND_GLOBS = []
         st.py_reverse_closure = _limited(saved[4], depth)
         st.ts_reverse_closure = _limited(saved[5], depth)
+        st.ts_graph = ts_graph
         res = st.select(root, sub_root_changes)
         ts_closure = st.ts_reverse_closure
     finally:
-        st.FULL_BOTH, st.FULL_BACKEND, st.FULL_FRONTEND, st.MAX_FILES, st.py_reverse_closure, st.ts_reverse_closure = saved
+        (st.FULL_BOTH, st.FULL_BACKEND, st.FULL_FRONTEND, st.MAX_FILES, st.py_reverse_closure, st.ts_reverse_closure,
+         st.ts_graph, st.SMOKE_FRONTEND_GLOBS) = saved
     all_tests = res["backend"]["selected"] + res["backend"]["dropped"]
     all_specs = res["frontend"]["selected"] + res["frontend"]["dropped"]
     bsel, bwhy = set(res["backend"]["selected"]), dict(res["backend"]["why"])
@@ -489,11 +542,18 @@ def select_gate2(root: Path, base: str, head: str = "HEAD", after: dict | None =
             fadd(n, "gate2 core")
     for n, why in extra_fe.items():
         fadd(n, why)
+    for n in all_tests:                                   # R3: repo-wide scanners
+        if REPO_SCAN_BE_RE.search(_read(be / "tests" / n)):
+            badd(n, "gate2 core (scans the whole repository)")
+    tree_scanners = {n for n in all_specs if TREE_SCAN_FE_RE.search(_read(fe / "tests" / n))}
+    if fe_src_changed:                                    # R2: source-tree scanners see every frontend/src change
+        for n in sorted(tree_scanners):
+            fadd(n, "reads the frontend/src tree (a frontend/src file changed)")
     # ---- frontend: shell / design / i18n-derived src files, mapped through the closure without the hub stop
     hub_src = {(root / p).resolve() for s, p in passthrough if (root / p).suffix == ".ts" and (root / p).exists()}
     shell_src = {h for h in hub_src if "shell" in h.parts}
     if hub_src or extra_src:
-        g = st.ts_graph(fe)
+        g = ts_graph(fe)
         rev: dict = {}
         for f, deps in g.items():
             for d in deps:
@@ -556,10 +616,12 @@ def select_gate2(root: Path, base: str, head: str = "HEAD", after: dict | None =
         fsel, fwhy = set(all_specs), {n: "full tier" for n in all_specs}
     # ---- heavy sweeps -> the nightly
     deferred = {}
-    if defer_heavy and costs:
+    # R1 (replay: 13 of 15 escapes): no deferral on a side that already runs the full tier - a hub change is exactly when the
+    # heavy layout sweeps find something
+    if defer_heavy and costs and not full["frontend"]:
         sec = costs.get("seconds", {})
         changed_specs = {Path(p).name for s, p in changes if re.match(rf"^{FE}/tests/[^/]+\.spec\.ts$", p) and s != "D"}
-        pinned = changed_specs | set((after or {}).get("frontend", ()))
+        pinned = changed_specs | set((after or {}).get("frontend", ())) | (tree_scanners if fe_src_changed else set())
         for n in sorted(fsel):
             if sec.get(n, 0) > HEAVY_SECS and n not in pinned:
                 deferred[n] = round(sec[n] / 60, 1)

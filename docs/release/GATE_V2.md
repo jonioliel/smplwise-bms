@@ -1,6 +1,8 @@
 # Release gate v2 (GATE2-295): change-impact selection on top of the v2 schedule
 
-Status: design + implementation on `pilot/GATE2-295`, 2026-10-25. Only dry-runs were run. **The real gate-2 run on the runner is
+Status: design + implementation on `pilot/GATE2-295`, 2026-10-25, revised the same day after the retrospective replay
+(`GATE_V2_REPLAY.md`): rules R1-R4 added and a smoke-masking bug fixed; the replay escape rate went from 15/138 failing files to
+0/138 on the last 10 red gates. Only dry-runs and replays were run. **The real gate-2 run on the runner is
 NOT_RUN.** The runner was not locked or loaded: one read-only inspection (`rr.py`) and one `release_gate.py --seed-from` (it prints
 JSON and starts no test). The existing gate (`~/release_gate.sh`, v1 and `--schedule v2`) is unchanged and stays the default.
 
@@ -51,7 +53,10 @@ The mapping is the GATESPEED-293 `select_tests.py` mapping, reused, with a diffe
 
 | Rule | select_tests (today, opt-in) | gate 2 |
 |---|---|---|
-| Always-run core | smoke + security suites + every `unit-*` spec (334 files) | **hard-coded CORE**: backend migrations/upgrade/db/backup/health/release-check/docs/version/route-sweep/roles/rbac/gate tests + every security/permission suite; frontend nav/shell/login/i18n/router/perm specs. Core alone: 74 backend files (59 shard-min) + 13 specs (47 worker-min), **~27-31 min** |
+| Always-run core | smoke + security suites + every `unit-*` spec (334 files) | **hard-coded CORE**: backend migrations/upgrade/db/backup/health/release-check/docs/version/route-sweep/roles/rbac/gate tests + every security/permission suite; frontend nav/shell/login/i18n/router/perm specs; **R3** `test_no_ip_literals.py` and any backend test that runs `git ls-files` (repo-wide lints). Core alone: 76 backend files (60 shard-min) + 24 specs (40 worker-min), **~27-31 min** |
+| Source-tree scanners (**R2**) | - | specs containing `readdirSync` / `ls-files` (23) run whenever any `frontend/src` file changed; never deferred |
+| Specs that bundle with esbuild (**R4**) | invisible | the `import '...'` strings of the esbuild stdin `contents` (with `resolveDir`) and `entryPoints` are graph edges of the spec (4 specs) |
+| `unit-*` specs reached by the mapping | tagged "smoke" first | **bug fixed after the replay**: the smoke tag hid closure/tag/name hits and gate 2 then dropped them; the mapping now runs without that smoke set |
 | Tests changed in the diff | always | always (a heavy changed spec too) |
 | Import closure | unlimited | **depth 2** (`GATE2_CLOSURE_DEPTH`; measured: depth 1/2/unlimited select 600/624/638 backend files on 2.20.0, so the depth is not the lever) |
 | `main.py`, `body_limit.py`, `__init__.py` | full backend | each changed hunk is attributed to the modules it names (import aliases) and the `/api/v1/` paths it contains; an unattributable hunk -> full backend |
@@ -70,7 +75,8 @@ All of them run when the design/styles layer changed. With no frontend change, n
 ### 2.3 Heavy sweeps to the nightly
 A spec whose recorded cost is above `GATE2_HEAVY_SECS` (900 worker-seconds) and that did not change is **deferred** to the
 nightly. These are the layout sweeps above, 16-19 files and about 460 worker-min. Every report lists them. `--keep-heavy`
-runs them.
+runs them. **R1 (replay: 13 of the 15 escapes)**: no deferral on a frontend side that is already full-tier. A hub change is
+exactly when these sweeps find layout breakage. Source-tree scanners are never deferred.
 
 ### 2.4 Sharding and parallelism that fit the runner
 One CPU budget of 18 units (`GATE2_CPU_UNITS`, measured safe in 2.19.0: 12 slots + 6 shards, min 1.5 GB free). For each run
@@ -104,30 +110,41 @@ Calibration: the planner gives 137 min for the full tier of the 2.19.0 tree (12 
 
 | Diff | Changed files | Full side | Backend selected | Frontend selected | Deferred heavy | Estimate | Full tier, same tree |
 |---|---|---|---|---|---|---|---|
-| `release/2200` vs `v2.19.0` (2.20.0 train, 13 branches) | 188 | none | 624/716 files, 565 of 591 shard-min | 506/779 specs, 1156 of 1589 worker-min (13 pixel) | 19 specs, 458 worker-min | **96-117 min** (longest job 73 min: `layout-schedules-parity` changed by one line, so it is pinned) | 126-154 (actual 2.19.0: 152) |
-| `v2.19.0` vs `v2.18.0` (previous release) | 218 | backend (`auth.py`) | 705/705 (587 shard-min) | 403/770 specs, 869 worker-min (10 of 14 pixel) | 16 specs, 460 worker-min | **83-101 min** | 126-154 |
-| core only (no diff) | 0 | none | 74 files, 59 shard-min | 13 specs, 47 worker-min | 0 | **27-31 min** | |
+Recomputed after R1-R4 and the smoke fix (each estimate in its own process; the first numbers are kept in brackets):
 
-Per branch of the 2.20.0 train (each merge's own diff, i.e. a release of one branch; 10 of 13 evaluated, 3 NOT_RUN because
-the workstation ran out of memory in the batch):
+| Diff | Changed files | Full side | Backend selected | Frontend selected | Deferred heavy | Estimate | Full tier, same tree |
+|---|---|---|---|---|---|---|---|
+| `release/2200` + this branch vs `v2.19.0` (2.20.0 train, 13 branches) | 197 | none | 626/717 files, 565 shard-min | 581/779 specs, 1142 worker-min | 19 specs, 458 worker-min | **95-116 min** [96-117] (longest job 73 min: `layout-schedules-parity` changed by one line, so it is pinned) | 126-154 (actual 2.19.0: 152) |
+| `v2.19.0` vs `v2.18.0` (previous release) | 215 | backend (`auth.py`) | 705/705 (587 shard-min) | 503/770 specs, 797 worker-min | 16 specs, 460 worker-min | **81-98 min** [83-101] | 126-154 |
+| a release whose FRONTEND is full-tier (`vite.config.ts`, `index.html`, shared fixtures; 2.10.0, 2.16.0, 2.18.0) | - | frontend (+ backend) | - | all, no deferral (R1) | 0 | **about the full tier, 126-154 min** | - |
+| core only (no diff) | 0 | none | 76 files, 60 shard-min | 24 specs, 40 worker-min | 0 | **27-31 min** | |
 
-| Branch | Files | Backend | Frontend | Estimate |
-|---|---|---|---|---|
-| WKVEC | 4 | 75 files | 13 specs | 27-31 min |
-| CAPMAP | 4 | 206 | 13 | 27-31 |
-| main v2.19.0 merge-back | 49 | 76 | 23 | 30-34 |
-| NOTICERSS | 19 | 282 | 54 | 35-41 |
-| LOGOSIDE | 20 | 212 | 164 | 35-41 |
-| NOTICEDEL | 17 | 433 | 84 | 43-51 |
-| NOTICECAPS | 9 | 503 | 46 | 49-58 |
-| ANNOUNCE | 29 | 527 | 328 | 74-90 |
-| POLISH | 46 | 495 | 161 (73-min spec changed) | 72-87 |
-| WKF01F02 | 22 | 353 | 384 | 82-99 |
-| WALINK, TEMPLINK, EMROLE | - | - | - | NOT_RUN |
+Per branch of the 2.20.0 train (each merge's own diff, i.e. a release of one branch; all 13 evaluated, one process each,
+current rules):
+
+| Branch | Files | Backend | Frontend | Deferred | Estimate |
+|---|---|---|---|---|---|
+| WKVEC | 4 | 77 files | 24 specs | 0 | 27-31 min |
+| CAPMAP | 4 | 208 | 24 | 0 | 27-31 |
+| NOTICERSS | 19 | 284 | 104 | 4 | 35-41 |
+| LOGOSIDE | 20 | 214 | 203 | 9 | 35-42 |
+| NOTICEDEL | 17 | 435 | 121 | 4 | 43-51 |
+| WALINK | 12 | 436 | 140 | 6 | 43-52 |
+| EMROLE | 19 | 437 | 152 | 6 | 43-52 |
+| NOTICECAPS | 9 | 505 | 96 | 4 | 49-58 |
+| TEMPLINK | 19 | 537 | 195 | 9 | 55-66 |
+| ANNOUNCE | 29 | 529 | 356 | 13 | 72-87 |
+| POLISH | 46 | 497 | 217 (73-min spec changed) | 9 | 72-87 |
+| WKF01F02 | 22 | 355 | 492 | 21 | 76-92 |
+
+(The merge-back of `main` v2.19.0 into the train, 30-34 min in the first pass, is not a branch release and was not recomputed.)
 
 ### Honest range
-- **A release of 1-3 ordinary branches: about 27-60 min** (7 of the 10 measured branches). That meets the target.
-- **A train like 2.20.0 or 2.19.0: about 85-115 min**, against 152 today, so it saves 35-65 min. It does NOT meet the 45-60 min
+- **A release of 1-3 ordinary branches: about 27-66 min.** 8 of the 12 branches land at 27-58 min, which meets the target;
+  TEMPLINK 55-66; three big branches 72-92. Two or three of the small ones together stay near the largest member plus a few
+  minutes of backend, because the core and the closure overlap. That combination is an inference, not measured.
+- **A release with a full-tier frontend: about the full tier (126-154 min)**, because R1 brings the heavy sweeps back on purpose.
+- **A train like 2.20.0 or 2.19.0: about 81-116 min**, against 152 today, so it saves 35-70 min. It does NOT meet the 45-60 min
   target. Selection over a 13-branch train still reaches most of the backend, because the import closure of shared services
   (access, ha_sync, ha_bridge, backup, tickets) covers most API tests.
 - To reach 45-60 for a typical release: **release smaller, more often** (the owner's continuous-pipeline rule), and do the
@@ -142,7 +159,8 @@ the workstation ran out of memory in the batch):
 | Narrowed hubs (main/body_limit/migration/roles/i18n/shell/design) | an effect outside the attributed modules, e.g. a migration that changes a table read by code that does not name it, or a shell change felt by a screen that never names the shell's elements | unattributable hunks fall back to full; nightly |
 | Security core stays full | none added; `rbac/auth/capabilities/mode` keep the full backend | - |
 | Pixel only for UI changes | a backend change that alters rendered data in a screenshot (demo data is frontend-side, so low risk) | nightly pixel group |
-| Heavy sweeps deferred | a layout regression on the screens those sweeps cover, shipped until the next nightly | nightly; `--keep-heavy` for releases that touch layout broadly |
+| Heavy sweeps deferred (only on a change-impact frontend side, R1) | a layout regression on the screens those sweeps cover, shipped until the next nightly | nightly; `--keep-heavy` for releases that touch layout broadly |
+| Selection fitted to history | the replay (0/138 escapes) was run on the same 10 gates the rules were derived from; unseen failure classes can still escape | nightly + `select_tests.py audit`; any audit hit is added as a rule and to the replay |
 | Targeted re-run after red | an interaction between the fix and an untouched area | the fix diff is mapped like any change; nightly |
 | Quarantine | a real regression inside a quarantined test is retried once more before it counts | it still fails twice -> FAIL; entries expire in 21 days and need a ticket |
 | Higher shard count when Playwright is light | memory: 10 shards are not measured | engine memory guard on the pool; the report's resources line; set `GATE_BACKEND_SHARDS` lower |
@@ -160,7 +178,10 @@ Two such incidents in 30 days move gate 2 back to `--full` until the mapping is 
 - `scripts/gate/gate2_verdict.py`: gate-2 summary `gate_<b>_<sha>.gate2.md`, quarantine, the next-step command, `propose`.
 - `scripts/gate/gate2_quarantine.json`: empty managed list. `scripts/gate/gate2_costs.json`: cost seed from the 2.19.0 gate
   (file names and seconds only).
-- `smplwise_vms/backend/tests/test_gate2_select.py`: 10 unit tests (aliases, hunk attribution helpers, migration tables,
+- `docs/release/GATE_V2_REPLAY.md`: the retrospective replay on the last 10 red gates (first pass 15/138 escapes, after
+  R1-R4 0/138).
+- `smplwise_vms/backend/tests/test_gate2_select.py`: 15 unit tests, including R2/R3/R4, the smoke-masking fix and R1 on
+  synthetic git repositories; the original 10 cover (aliases, hunk attribution helpers, migration tables,
   roles parsing, re-run selection, failed-file extraction, quarantine rules, verdict exit codes, seed, estimate range).
 
 ## 6. Structural follow-ups (not in this branch, each a ticket)
@@ -208,7 +229,10 @@ into `~/gate2/`. The v1 install is never written.
    and as the rollback.
 
 ## 8. Verification status
-- Unit tests `tests/test_gate2_select.py`: **10 passed** (workstation, repo venv, pytest 9.1.1). The full backend suite: NOT_RUN.
+- Unit tests `tests/test_gate2_select.py`: **15 passed** (workstation, repo venv, pytest 9.1.1). The full backend suite: NOT_RUN.
+- Replay of the selector on the last 10 red gates (local report copies, no runner contact): **0 of 138 failing files escape**
+  (`GATE_V2_REPLAY.md` section 7). In the excluded, budget-starved 2.17.1 run, 4 unverified timeouts or infrastructure errors
+  stay unselected.
 - `bash -n release_gate2.sh`: OK. `release_gate2.sh --dry-run --root <checkout>` on the workstation: OK (output in section 3).
 - Dry-run ON the runner, real gate-2 run, shadow run, canary, the quarantine re-run path, 10 shards / 8 slots under load:
   **NOT_RUN** (the runner held `~/.smplwise-tests.lock`, and a 2.20.0 gate is due).
