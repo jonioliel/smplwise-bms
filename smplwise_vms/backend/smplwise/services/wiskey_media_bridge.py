@@ -960,12 +960,16 @@ class LoopThread:
     so the shared video connection lives on one loop whatever thread asks. Started on first use; `stop()` ends it."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
+        self._stopped = False
+        self._shutdown = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
 
     def _ensure(self) -> asyncio.AbstractEventLoop:
         with self._lock:
+            if self._stopped:
+                raise MediaBridgeError('connection_closed', 'closed')
             if self._loop is None or self._loop.is_closed():
                 loop = asyncio.new_event_loop()
                 thread = threading.Thread(target=loop.run_forever, name="wiskey-media-bridge", daemon=True)
@@ -974,22 +978,54 @@ class LoopThread:
             return self._loop
 
     def run(self, coro: Awaitable[Any], timeout: float) -> Any:
-        future = asyncio.run_coroutine_threadsafe(coro, self._ensure())  # type: ignore[arg-type]
+        try:
+            with self._lock:
+                future = asyncio.run_coroutine_threadsafe(coro, self._ensure())
+        except BaseException:
+            close = getattr(coro, "close", None)
+            if close is not None:
+                close()
+            raise
         try:
             return future.result(timeout)
         except TimeoutError:
             future.cancel()
             raise MediaBridgeError("media_outcome_unknown", "unknown") from None
 
+    async def _finish(self) -> None:
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
     def stop(self) -> None:
         with self._lock:
+            self._stopped = True  # terminal even when cleanup remains unresolved
             loop, thread = self._loop, self._thread
-            self._loop = self._thread = None
-        if loop is not None:
+            if loop is None:
+                return
+            if thread is threading.current_thread():
+                raise MediaBridgeError("media_cleanup_failed", "unknown")
+            if self._shutdown is None and loop.is_running():
+                self._shutdown = asyncio.run_coroutine_threadsafe(self._finish(), loop)
+            shutdown = self._shutdown
+        if shutdown is not None:
+            try:
+                shutdown.result(5)
+            except Exception:
+                # Keep the loop/task handles; a later close can finish joining.
+                raise MediaBridgeError("media_cleanup_failed", "unknown") from None
+        if loop.is_running():
             loop.call_soon_threadsafe(loop.stop)
-            if thread is not None:
-                thread.join(timeout=5)
+        if thread is not None:
+            thread.join(5)
+            if thread.is_alive():
+                raise MediaBridgeError("media_cleanup_failed", "unknown")
+        if not loop.is_closed():
             loop.close()
+        with self._lock:
+            self._loop = self._thread = None
 
 
 class VideoChannel:
@@ -1004,14 +1040,33 @@ class VideoChannel:
         self.runner = runner or LoopThread()
         self._link: MediaLink | None = None
         self._connect_lock: asyncio.Lock | None = None
+        self._lifecycle_lock = threading.RLock()
+        self._close_lock = threading.Lock()
+        self._closed = False
+
+    @property
+    def closed(self) -> bool:
+        with self._lifecycle_lock:
+            return self._closed
 
     async def _get(self) -> MediaLink:
+        if self.closed:
+            raise MediaBridgeError("connection_closed", "closed")
         if self._connect_lock is None:
             self._connect_lock = asyncio.Lock()
         async with self._connect_lock:
+            if self.closed:
+                raise MediaBridgeError("connection_closed", "closed")
             link = self._link
             if link is None or link.closed:
-                self._link = link = await self.transport.connect(PURPOSE_VIDEO)
+                link = await self.transport.connect(PURPOSE_VIDEO)
+                with self._lifecycle_lock:
+                    closed = self._closed
+                    if not closed:
+                        self._link = link
+                if closed:
+                    await link.close()
+                    raise MediaBridgeError("connection_closed", "closed")
             return link
 
     async def _call(self, command: str, parameters: dict[str, Any]) -> dict[str, Any]:
@@ -1030,17 +1085,19 @@ class VideoChannel:
         return self.runner.run(self._call(w10.STREAM_LEASE, w10.lease_params(session, actor, request_id)), self.CALL_TIMEOUT_S + 15)
 
     def close(self) -> None:
-        """Closes the shared connection. WKF01F02-295 (Mac delta): first the leased streams this channel obtained leave go2rtc and their
-        timers are joined (`intercom_media.close_leased_streams`); when go2rtc did not confirm a delete, `media_cleanup_failed` is raised
-        BEFORE the connection goes, so the exact owner stays (its records are quarantined, not forgotten)."""
+        """Terminal owner fence precedes registry cleanup; failed DELETE retains ownership."""
         from .intercom_media import close_leased_streams
 
-        if not close_leased_streams(self):
-            raise MediaBridgeError("media_cleanup_failed", "unknown")
-        link, self._link = self._link, None
-        if link is not None:
-            try:
-                self.runner.run(link.close(), 10)
-            except Exception:  # noqa: BLE001
-                pass
-        self.runner.stop()
+        with self._close_lock:
+            with self._lifecycle_lock:
+                self._closed = True
+            if not close_leased_streams(self):
+                raise MediaBridgeError("media_cleanup_failed", "unknown")
+            link, self._link = self._link, None
+            if link is not None:
+                try:
+                    self.runner.run(link.close(), 10)
+                except Exception:
+                    # stop joins pending loop tasks and reports unresolved cleanup.
+                    pass
+            self.runner.stop()

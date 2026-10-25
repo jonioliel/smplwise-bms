@@ -3,6 +3,7 @@ two-layer vectors with their PUBLIC test key, the real bridge receiver modules l
 port. Nothing reaches a network, WisKey, Home Assistant, a station, a reader or a door."""
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import sys
@@ -73,8 +74,9 @@ def _epoch(s: str) -> int:
 
 def test_the_mapping_flag_is_off_in_this_build_and_cannot_be_on_without_macs_table():
     assert cm.MAPPING_ENABLED is False and cm.enabled() is False
-    assert cm.confirmed() is False, "no Mac symbol is in the table yet"
+    assert cm.confirmed() is True, "WK4ADOPT-295: Mac's reviewed table (W005_CAPTURE_MAP.json) fills every row"
     assert not cm.MAPPING_ENABLED or cm.confirmed(), "the flag may only be flipped together with Mac's reviewed table"
+    assert cm.MAC_CODE == "924df3e9366c262c165fddf31d04dad5e9cb4ede"
 
 
 def test_the_go_live_permit_and_the_lease_route_are_untouched():
@@ -85,7 +87,7 @@ def test_the_go_live_permit_and_the_lease_route_are_untouched():
 
 def test_state_is_honest():
     s = cm.state(ANNOUNCED)
-    assert s == {"state": "disabled", "receiver_symbol": cm.RECEIVER_SYMBOL, "mac_mapping": "PENDING_MAC",
+    assert s == {"state": "disabled", "receiver_symbol": cm.RECEIVER_SYMBOL, "mac_mapping": "REVIEWED",
                  "installation": "NOT_PERFORMED", "live": "NOT_MEASURED"}
 
 
@@ -93,7 +95,9 @@ def test_state_when_enabled_is_unsupported_without_the_announcement_and_unverifi
     monkeypatch.setattr(cm, "MAPPING_ENABLED", True)
     assert cm.state(None)["state"] == "unsupported"
     assert cm.state({cd.EVENT_COMMAND})["state"] == "unsupported"
-    assert cm.state(ANNOUNCED)["state"] == "mapped_unverified", "never 'mapped' while Mac's column is empty"
+    assert cm.state(ANNOUNCED)["state"] == "mapped", "enabled only in this test: the reviewed table reads mapped"
+    monkeypatch.setattr(cm, "MAP", tuple(dataclasses.replace(r, mac_symbol=None) if i == 0 else r for i, r in enumerate(cm.MAP)))
+    assert cm.state(ANNOUNCED)["state"] == "mapped_unverified", "never 'mapped' while a row of Mac's column is empty"
 
 
 # ---------------------------------------------------------------- the table
@@ -107,7 +111,8 @@ def test_the_table_covers_the_seven_actions_on_the_existing_commands_and_service
         else:
             assert (r.kind, r.direct_command, r.bridge_service) == ("request", cd.REQUEST_COMMAND, "smplwise_bridge." + bconst.SERVICE_LEASE_REQUEST)
         assert r.receiver_symbol == cm.RECEIVER_SYMBOL
-        assert r.mac_symbol is None and r.mac_sha256 is None
+        symbol, (file, sha), keys = cm.MAC_TABLE[r.action]
+        assert (r.mac_symbol, r.mac_file, r.mac_sha256, r.params_keys) == (symbol, file, sha, frozenset(keys)), "Mac's column, verbatim"
         assert blc.KIND_OF[r.action] == r.kind, "the receiver's own kind table agrees"
 
 

@@ -61,8 +61,12 @@ export interface TalkDeps {
   floor?(held: boolean): void;
 }
 
-/** A MUTED session with no sound from the station for this long is ended (the microphone is released). */
+/** A MUTED session with no sound from the station for this long is ended (the microphone is released). Separate from WisKey's own
+ *  12 s activity clock: when the station is quiet WisKey may end the talk first (`talk/closed`), and nothing here keeps it alive. */
 export const IDLE_END_MS = 30_000;
+
+/** The one packet size of the station's sound inside a talk (WisKey `arx.station_talk_audio.v1`: 100 ms of 8 kHz PCMU). */
+export const TALK_PACKET_BYTES = 800;
 
 const START_PROBLEMS: Record<string, TalkProblem> = {
   intercom_talk_busy: 'busy',
@@ -200,6 +204,10 @@ export class TalkSession {
     ws.onmessage = (ev) => {
       if (gen !== this.gen) return;
       if (ev.data instanceof ArrayBuffer) {
+        // WK4ADOPT-295 (W-002): only a verified, current packet of this session counts - exactly one 800-byte PCMU packet of the
+        // station's sound (`arx.station_talk_audio.v1`; the server forwards a packet only after WisKey's event, its sequence and the
+        // session / permission checks passed). Anything else is neither played nor activity.
+        if (ev.data.byteLength !== TALK_PACKET_BYTES) return;
         if (this.phase === 'open' || this.phase === 'talking') {
           this.micHandle?.play?.(new Uint8Array(ev.data));
           if (this.phase === 'open') this.armIdle(); // owner 25.10: the station's sound keeps a muted session alive

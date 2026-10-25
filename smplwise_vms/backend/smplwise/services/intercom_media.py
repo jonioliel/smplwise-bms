@@ -568,6 +568,10 @@ class _Lease:
 
 
 _LEASED: dict[str, _Lease] = {}
+# Cleanup handles only, never a second stream registry. Retirement cannot lose
+# an owner or a callback generation still waiting to leave the registry lock.
+_LEASE_TIMERS: list[tuple[Any, Any]] = []
+_LEASE_TIMER_JOIN_S = 5.0
 _LEASE_LOCK = threading.RLock()  # registering and releasing never interleave: a new viewer's stream is not deleted under it
 
 
@@ -591,6 +595,12 @@ def _arm(name: str, rec: _Lease) -> None:
     timer.daemon = True
     rec.timer = timer
     rec.timers.append(timer)
+    # Reap finished generations, retaining every live generation until joined.
+    for who, old in tuple(_LEASE_TIMERS):
+        if not old.is_alive():
+            old.join(0)
+            _LEASE_TIMERS[:] = [(owner, t) for owner, t in _LEASE_TIMERS if t is not old]
+    _LEASE_TIMERS.append((rec.owner, timer))
     timer.start()
 
 
@@ -648,6 +658,8 @@ def _register_lease(settings: Settings, sid: str, profile: str, source: str, exp
     until = expires_at if expires_at is not None else now
     digest = hashlib.sha256(source.encode()).hexdigest()
     with _LEASE_LOCK:
+        if owner is not None and getattr(owner, "closed", False):
+            raise ApiError(503, "intercom_media_unavailable", "בעל השידור נסגר.")
         _sweep_leased(settings, skip_station=sid)
         for name, rec in list(_LEASED.items()):
             if rec.owner is not owner or rec.station != sid or rec.profile != profile:
@@ -716,17 +728,23 @@ def close_leased_streams(owner: Any) -> bool:
     nothing of the owner is left; False when go2rtc did not confirm a delete (that record stays, quarantined)."""
     with _LEASE_LOCK:
         rows = [(name, rec) for name, rec in _LEASED.items() if rec.owner is owner]
-        timers = [timer for _name, rec in rows for timer in rec.timers]
+        timers = [timer for who, timer in _LEASE_TIMERS if who is owner]
         results = [_retire(None, name, rec, force=True) for name, rec in rows]
         for _name, rec in rows:
             if rec.timer is not None:
                 rec.timer.cancel()
     current = threading.current_thread()
+    joined = True
     for timer in timers:
         timer.cancel()
         if timer is not current:
-            timer.join(5)
-    return all(results)
+            timer.join(_LEASE_TIMER_JOIN_S)
+        if timer.is_alive():
+            joined = False
+        else:
+            with _LEASE_LOCK:
+                _LEASE_TIMERS[:] = [(who, t) for who, t in _LEASE_TIMERS if t is not timer]
+    return all(results) and joined
 
 
 # ---------------------------------------------------------------- WisKey's W10 over the signed bridge (W10CLIENT-295)
@@ -738,7 +756,14 @@ def _valid_request_id(value: str | None) -> bool:
 class WiskeyBridgeTalkChannel:
     """One talk through WisKey's signed bridge (contract v1.1): a DEDICATED connection that lives exactly as long as the talk. On that
     connection and as the operator (one actor) it reads a fresh descriptor, opens the talk, and then the `TalkPump` is the only sender
-    (floor, 5-frame batches, heartbeat, close). Lives on the web server's loop; nothing here keeps audio.
+    (floor, 5-frame batches, close). Lives on the web server's loop; nothing here keeps audio.
+
+    WK4ADOPT-295 (W-002, WisKey `arx.station_talk_audio.v1` contract revision 2, CODE 924df3e9): NO periodic floor heartbeat - WisKey
+    keeps the original signed talk deadline (`retain_execution`) and its own 12 s activity clock is refreshed only by genuine traffic
+    (real uplink frames, an explicit floor change, a fresh admitted downlink packet on this talk's subscription). Taken TOGETHER with that
+    native lifetime change: against an older WisKey a muted talk simply ends with `idle_timeout` after 12 s (no authority is extended
+    either way). There is no wire field naming the revision; the pairing is by WisKey CODE (docs/changes/WK4ADOPT-295.md). Arx's own 30 s
+    idle timer of a muted session (frontend/src/wiskey/talk-session.ts) is separate and is re-armed only by a verified 800-byte packet.
 
     Ends (`wait_closed`) when WisKey closes the talk (`media/talk_closed`), when the connection drops, or when any request is refused, left
     unanswered or answered unexpectedly; nothing is retried. `close` sends `talk_close` once on the same connection; a `cleanup_failed`
@@ -852,7 +877,11 @@ class WiskeyBridgeTalkChannel:
             await self._abandon(opened_ref)
             raise
         self.ref = opened.talk_ref
-        self.pump = TalkPump(link, self.ref, on_end=self._end, **self.provider.pump_options)
+        # Current WisKey retains the original signed talk deadline and origin.
+        # Repeating floor is not caller activity; no synthetic heartbeat frames.
+        options = dict(self.provider.pump_options)
+        options["heartbeat_s"] = float("inf")
+        self.pump = TalkPump(link, self.ref, on_end=self._end, **options)
         self.pump.start()
         pending, self._opening_events = self._opening_events, []
         for event in pending:  # events that arrived between WisKey's answer and the pump: handled now, in order

@@ -429,6 +429,11 @@ async def _pump(websocket: WebSocket, t: im.TalkSession, channel: im.TalkChannel
         await downlink.open()
         try:
             async for packet in downlink.frames():
+                # ASGI-295 F3: a moved access generation (a revoke during talk_open, say) is re-checked and AWAITED before a packet is
+                # published (fail closed); a lease without `confirm` (a duck-typed double) keeps the synchronous check below
+                confirm = getattr(lease, "confirm", None)
+                if confirm is not None and not await confirm():
+                    return "access_lost"
                 # no await between the check of the session / the permission and the publication of a packet
                 if time.time() >= t.expires_at:
                     return "expired"
@@ -526,7 +531,7 @@ async def talk_ws(websocket: WebSocket, session_id: str) -> None:
     try:
         channel = await run_in_threadpool(_channel)
         await channel.open()
-        t.opened_at = time.time()
+        t.opened_at, outcome = time.time(), "ended"  # ASGI-295: a server cancel after the open ends `ended`, not `upstream_unavailable`
         await websocket.send_text(json.dumps({"type": "talk/state", "value": "open", "expires_at": im.iso(t.expires_at), "seconds": int(t.expires_at - time.time())}))
         outcome = await _pump(websocket, t, channel, lease)
     except (ApiError, im.Unavailable) as exc:
