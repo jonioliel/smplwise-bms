@@ -871,7 +871,8 @@ def open_door(act: _Action, station_id: str, lock: int, entry_point: str, not_af
 
 # the add-on's own call to the bridge failed before anything could reach it: nothing was sent
 _NOT_SENT_CODES = {"ha_not_configured", "service_not_found", "ha_forbidden", "bridge_not_paired",
-                    "wiskey_direct_not_connected", "capture_source_unavailable"}  # WKCAP-295: the direct capture transport (services/wiskey_capture_direct.py)
+                    "wiskey_direct_not_connected", "capture_source_unavailable",  # WKCAP-295: the direct capture transport (services/wiskey_capture_direct.py)
+                    "capture_receiver_unsupported", "capture_dto9_unmappable"}  # CAPMAP-295: the disabled DTO9 pre-flight (services/wiskey_capture_map.py)
 _NOT_SENT_ERRORS = {"ConnectError", "ConnectTimeout"}
 
 
