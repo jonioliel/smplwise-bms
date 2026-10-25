@@ -216,7 +216,7 @@ def test_a_revoke_during_a_talk_closes_the_downlink_explicitly_and_publishes_not
             lease.confirm_denied = True  # the access generation moved; the awaited re-check says no
         else:
             lease.denied = True
-        if how == "revoke_before_publish":
+        if how != "revoke_by_watch":  # revoke_by_watch: no packet follows, the session's 1 s watch ends it
             for _ in range(3):
                 ch.audio.put_nowait(PACKET)  # admitted by the producer AFTER the revoke: never published
         outcome = await asyncio.wait_for(task, 3)
