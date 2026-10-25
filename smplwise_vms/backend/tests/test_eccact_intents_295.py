@@ -1,8 +1,8 @@
-"""ECCACT-295 stage 2 (FAKES ONLY): the durable WisKey fence intents and the exact-original create resolution.
-Nothing contacts WisKey or Home Assistant; the answers are hand-built frames following the PROPOSED create-resolution shape."""
+"""ECCACT-295 stage 2 (FAKES ONLY): the durable WisKey fence intents (migration 0145) and their state machine.
+Nothing contacts WisKey or Home Assistant. The never-shipped create-resolution proposal (`person_writes/resolve_create`) and its tests
+were removed by PERSONWRITES-CLEANUP-295; a create intent settles through the real peer_receipts/resolve verdict here."""
 from __future__ import annotations
 
-import copy
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -38,14 +38,11 @@ def admit_update(conn, n: int = 1, **over: Any) -> wi.ExactOriginal:
     return wi.admit(conn, **kw)
 
 
-def answer(o: wi.ExactOriginal, **over: Any) -> dict[str, Any]:
-    res = {"schema_version": 1, "protocol": wi.CREATE_PROTOCOL, "repository_id": o.repository_id, "observed_epoch": 7, "query_owner_id": o.query_owner_ref,
-           "peer_binding_ref": o.peer_binding_ref, "peer_binding_revision": o.peer_binding_revision, "request_id": o.request_id,
-           "operation_id": o.operation_id, "operation_binding_ref": o.operation_binding_ref, "origin_ref": o.origin_ref,
-           "exclusive_writer_established": True, "state": "committed", "terminal": True, "created": {"user_id": "person-new", "revision_after": 1},
-           "reason_code": None, "error_code": None, "scope": wi.CREATE_SCOPE, "device_state": "not_attested"}
-    res.update(over)
-    return {"id": 9, "type": "result", "success": True, "result": res}
+def found_create(user_id: str = "person-new") -> wp.ResolutionVerdict:
+    """A verified peer_receipts/resolve `found` for a create: the created person and its first revision."""
+    receipt = {"central_state": "committed", "device_application": "unknown", "signed_capture_covered": False, "person_revision": 1,
+               "user_id": user_id}
+    return wp.verify_resolution({"id": 9, "type": "result", "success": True, "result": {"schema_version": 1, "state": "found", "receipt": receipt}})
 
 
 # ---------------------------------------------------------------- admission and the state machine
@@ -79,97 +76,18 @@ def test_the_open_worklist_is_intent_sent_and_unknown_only(conn):
     a, b, c = admit_create(conn, 1), admit_create(conn, 2), admit_create(conn, 3)
     wi.mark_sent(conn, b); wi.mark_sent(conn, c); wi.mark_unknown(conn, c, "timeout")
     assert {o.operation_id for o in wi.open_intents(conn)} == {"op-1", "op-2", "op-3"}
-    exp = wi.CreateExpectation(c, PEER)
-    wi.settle_create(conn, exp, wi.verify_create_resolution(answer(c), exp))
+    assert wi.settle_resolution(conn, c, found_create()) == "settled"
     assert {o.operation_id for o in wi.open_intents(conn)} == {"op-1", "op-2"} and a.operation_id == "op-1"
 
 
-# ---------------------------------------------------------------- exact-original create resolution
-
-def test_a_valid_committed_answer_settles_once_and_records_the_created_person(conn):
-    o = admit_create(conn); wi.mark_sent(conn, o); wi.mark_unknown(conn, o, "timeout")
-    exp = wi.CreateExpectation(o, PEER)
-    v = wi.verify_create_resolution(answer(o), exp)
-    assert (v.state, v.settles, v.created) == ("committed", True, {"user_id": "person-new", "revision_after": 1})
-    assert wi.settle_create(conn, exp, v) == "settled" and wi.state(conn, o) == "committed"
-    assert wi.settle_create(conn, exp, v) == "duplicate"
-    other = wi.verify_create_resolution(answer(o, state="never_committed", created=None, reason_code="pre_effect_refused", error_code="refused"), exp)
-    assert wi.settle_create(conn, exp, other) == "conflict" and wi.state(conn, o) == "committed"
-    row = conn.execute("SELECT created_user_id, revision_after FROM wiskey_fence_intents").fetchone()
-    assert row == ("person-new", 1)
-
+# ---------------------------------------------------------------- one created person per create (migration 0145 unique index)
 
 def test_two_creates_can_never_claim_the_same_person(conn):
     a, b = admit_create(conn, 1), admit_create(conn, 2)
-    ea, eb = wi.CreateExpectation(a, PEER), wi.CreateExpectation(b, PEER)
-    assert wi.settle_create(conn, ea, wi.verify_create_resolution(answer(a), ea)) == "settled"
-    assert wi.settle_create(conn, eb, wi.verify_create_resolution(answer(b), eb)) == "conflict"
+    assert wi.settle_resolution(conn, a, found_create()) == "settled"
+    assert wi.settle_resolution(conn, b, found_create()) == "conflict"
     assert wi.state(conn, b) == "intent"
-
-
-@pytest.mark.parametrize("key", ["repository_id", "query_owner_id", "peer_binding_ref", "request_id", "operation_id", "operation_binding_ref", "origin_ref"])
-def test_every_exact_reference_must_match_byte_for_byte(conn, key):
-    o = admit_create(conn); exp = wi.CreateExpectation(o, PEER)
-    for wrong in (answer(o)["result"][key].upper() + "x", " " + answer(o)["result"][key], ""):
-        v = wi.verify_create_resolution(answer(o, **{key: wrong}), exp)
-        assert v.state == "unknown" and not v.settles and v.code == f"mismatch:{key}"
-
-
-def test_an_answer_for_another_create_or_the_same_person_by_similarity_is_not_accepted(conn):
-    a, b = admit_create(conn, 1), admit_create(conn, 2)
-    exp = wi.CreateExpectation(a, PEER)
-    assert not wi.verify_create_resolution(answer(b), exp).settles  # b's references, asked about a
-
-
-@pytest.mark.parametrize("mut", [
-    lambda r: r.pop("origin_ref"), lambda r: r.update(extra=1), lambda r: r.update(schema_version=2), lambda r: r.update(protocol="x"),
-    lambda r: r.update(scope="central_capture_person_commit"), lambda r: r.update(device_state="applied"), lambda r: r.update(observed_epoch=True),
-    lambda r: r.update(observed_epoch=6), lambda r: r.update(peer_binding_revision=2 ** 53), lambda r: r.update(created=None),
-    lambda r: r.update(created={"user_id": "p", "revision_after": 0}), lambda r: r.update(created={"user_id": "p"}),
-    lambda r: r.update(terminal=False), lambda r: r.update(exclusive_writer_established=False), lambda r: r.update(reason_code="x"),
-    lambda r: r.update(state="weird"), lambda r: r.update(error_code=5)])
-def test_anything_off_contract_is_unknown(conn, mut):
-    o = admit_create(conn); exp = wi.CreateExpectation(o, PEER)
-    frame = copy.deepcopy(answer(o)); mut(frame["result"])
-    v = wi.verify_create_resolution(frame, exp)
-    assert v.state == "unknown" and not v.settles
-
-
-def test_envelopes_errors_and_in_flight_never_settle(conn):
-    o = admit_create(conn); exp = wi.CreateExpectation(o, PEER)
-    for frame in (None, {}, {"id": 1, "type": "result", "success": False, "error": {"code": "unauthorized"}}, {"id": 1, "type": "result", "success": 1, "result": {}}):
-        assert not wi.verify_create_resolution(frame, exp).settles
-    flight = answer(o, state="in_flight", terminal=False, created=None, reason_code="handler_active", exclusive_writer_established=False)
-    v = wi.verify_create_resolution(flight, exp)
-    assert v.state == "in_flight" and not v.settles
-    assert wi.settle_create(conn, exp, v) == "open" and wi.state(conn, o) == "intent"
-
-
-def test_recovered_uncommitted_needs_a_fresh_exclusive_writer_context(conn):
-    o = admit_create(conn); exp = wi.CreateExpectation(o, PEER)
-    frame = answer(o, state="never_committed", created=None, reason_code="recovered_uncommitted")
-    assert wi.verify_create_resolution(frame, exp).code == "ownership_unproven"
-    ctx = wp.FenceContext(repository_id=REPO, writer_epoch=7, owner_id=OWNER, exclusive_writer_established=True)
-    v = wi.verify_create_resolution(frame, exp, context=ctx)
-    assert (v.state, v.settles, v.code) == ("never_committed", True, "recovered_uncommitted")
-    assert wi.verify_create_resolution(frame, exp, context=wp.FenceContext(REPO, 8, OWNER, True)).code == "ownership_unproven"
-
-
-def test_the_expectation_refuses_an_update_intent_or_another_peer(conn):
-    u = admit_update(conn)
-    with pytest.raises(wi.IntentError):
-        wi.CreateExpectation(u, PEER)
-    o = admit_create(conn)
-    other = wp._mint_peer(value="peer-1", peer_binding_ref="bind-1", peer_binding_revision=4, repository_id=REPO, query_owner_id=OWNER)
-    with pytest.raises(wi.IntentError):
-        wi.CreateExpectation(o, other)
-
-
-def test_the_resolve_request_carries_only_the_original_references(conn):
-    req = admit_create(conn).as_request()
-    assert set(req) == {"repository_id", "operation_id", "request_id", "origin_ref", "operation_binding_ref", "peer_binding_ref", "peer_binding_revision"}
-    text = repr(req).lower()
-    assert not any(w in text for w in ("pin", "card", "name", "employee", "phone"))
+    assert conn.execute("SELECT created_user_id, revision_after FROM wiskey_fence_intents WHERE operation_id='op-1'").fetchone() == ("person-new", 1)
 
 
 def test_the_live_resolve_transport_is_not_built(conn):

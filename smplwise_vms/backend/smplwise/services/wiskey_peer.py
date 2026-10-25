@@ -17,18 +17,12 @@ What this module is
   missing receipt, an error envelope (e.g. `original_reference_mismatch`) or anything malformed is UNKNOWN. There is NO
   `never_committed` from this route and an UNKNOWN is NEVER a licence to replay or re-create (owner decision 2026-10-23). The
   signed `bridge` envelope around the parameters belongs to the peer_query client (not built here).
-- HISTORICAL (kept only because tests pin its strictness; no caller): `verify_receipt` and the `RECEIPT_*` constants target
-  `signed_person_writes/status` / `wiskey-signed-person-completion-draft1`, a contract WisKey never shipped. Do not wire it.
-  It read the WisKey `signed_person_writes/status` result (draft1,
-  ARX_REPLY8_SIGNED_HOOK_FIELDS_AND_EXAMPLES) checked against the exact original references of ONE durable Arx intent
-  (`ReceiptExpectation`): repository, writer epoch, the verified peer binding (ref + revision + dedicated query owner), request_id,
-  operation_id, operation_binding_ref, the person and the revision the write was admitted against. Byte-exact comparison (no strip,
-  no case folding, no normalisation). Every required key including nulls; anything missing, extra, mistyped, contradictory, an error
-  envelope, a timeout or an unsupported version is UNKNOWN and never settles.
-- `OneCommitLedger`: the Arx side of "one central commit": one original operation settles once; a second different terminal fact for
-  the same original reference, a later non-terminal answer for a settled one, or two operations claiming the same central person
-  transition (repository, person, revision_before) is a CONFLICT (never settled, counted). In memory here; the durable form belongs to
-  the intent table of CR-ACR7-FENCE-02 (docs/changes/CR-ACR7-FENCE-02.md) and needs a migration that is NOT part of this branch.
+- REMOVED (PERSONWRITES-CLEANUP-295, W-026): the historical draft1 receipt verifier (`verify_receipt`, `ReceiptExpectation`,
+  `FenceContext`, the `RECEIPT_*` constants, `OneCommitLedger`) for WisKey's draft1 signed person-completion status read, a contract
+  WisKey never shipped (its command name is recorded only in the change document). It had no caller. The one-central-commit rule lives on
+  durably in migration 0145's unique indexes and `wiskey_intents._terminal`. See docs/changes/PERSONWRITES-CLEANUP-295.md.
+- `ReceiptVerdict` and `_result_of` stay: `verify_resolution` reads every envelope through `_result_of` (its refusal codes
+  `malformed_envelope`, `error:<code>`, `error` are unchanged) and `wiskey_intents.settle_update` takes a `ReceiptVerdict`.
 
 What it is not
 - Not wired: no route, worker, journal or sync path imports it (test-enforced). `GO_LIVE_PERMITTED` is a build constant that is False,
@@ -51,19 +45,6 @@ SIGNED_CAPTURE_COVERED = False  # stays False until both halves exist and are re
 WISKEY_HALF_REVIEWED = False  # WisKey's verifier/transport seam + shared receipt: not delivered / not reviewed by Arx
 FLAG_KEY = "wiskey.peer_receipt"
 FLAG_VALUES = ("off", "on")
-
-# HISTORICAL (WKADAPT-295): the draft1 receipt contract below was never shipped by WisKey; the real read is RESOLVE_COMMAND further down.
-RECEIPT_PROTOCOL = "wiskey-signed-person-completion-draft1"
-RECEIPT_COMMAND = "hikvision_intercom/signed_person_writes/status"
-RECEIPT_CAPABILITY = "signed_person_completion_read_v1"
-RECEIPT_SCOPE = "central_capture_person_commit"
-RECEIPT_KEYS = frozenset({
-    "schema_version", "protocol", "repository_id", "observed_epoch", "query_owner_id", "peer_binding_ref", "peer_binding_revision",
-    "request_id", "operation_id", "operation_binding_ref", "exclusive_writer_established", "state", "terminal", "commit", "reason_code",
-    "error_code", "scope", "device_state"})
-STATES = ("in_flight", "committed", "never_committed", "unknown")
-NEVER_REASONS = ("pre_effect_refused", "recovered_uncommitted")
-UNKNOWN_REASONS = ("not_tracked", "history_untrusted", "storage_ambiguous", "writer_unproven")
 
 # the names of values that are NEVER a peer binding (R9-A01 / R11-I4-02); `refuse_as_peer` refuses every one of them by name
 FORBIDDEN_PEER_SOURCES = frozenset({
@@ -238,43 +219,13 @@ def signed_capture_covered() -> bool:
     return SIGNED_CAPTURE_COVERED is True and WISKEY_HALF_REVIEWED is True and go_live_permitted()
 
 
-# ---------------------------------------------------------------- the shared receipt
-
-@dataclass(frozen=True)
-class ReceiptExpectation:
-    """The exact original references of ONE durable Arx intent, recorded before the operation was sent."""
-
-    repository_id: str
-    writer_epoch: int
-    peer: VerifiedPeerRef
-    request_id: str
-    operation_id: str
-    operation_binding_ref: str
-    person_id: str
-    revision_before: int
-
-    def __post_init__(self) -> None:
-        as_peer_binding(self.peer)
-        if not (is_uuid(self.repository_id) and is_pos_int(self.writer_epoch) and is_ref(self.request_id) and is_ref(self.operation_id)
-                and is_ref(self.operation_binding_ref) and is_ref(self.person_id) and is_pos_int(self.revision_before)):
-            raise PeerSeamError("invalid_expectation")
-        if self.peer.repository_id != self.repository_id:
-            raise PeerSeamError("invalid_expectation")
-
-
-@dataclass(frozen=True)
-class FenceContext:
-    """A FRESH WisKey context observation (repository, writer epoch, the authenticated owner, exclusive writer). Needed before a
-    `recovered_uncommitted` receipt is trusted."""
-
-    repository_id: str
-    writer_epoch: int
-    owner_id: str
-    exclusive_writer_established: bool
-
+# ---------------------------------------------------------------- the envelope verdict (shared by verify_resolution)
 
 @dataclass(frozen=True)
 class ReceiptVerdict:
+    """An envelope / update verdict. Built by `_result_of` for a broken or error envelope (read by `verify_resolution`) and taken by
+    `wiskey_intents.settle_update`."""
+
     state: str  # committed | never_committed | in_flight | unknown
     settles: bool  # True only for a verified terminal fact of THIS intent
     code: str
@@ -303,71 +254,6 @@ def _result_of(frame: Any) -> dict[str, Any] | ReceiptVerdict:
     if frame.get("success") is not True or not isinstance(frame.get("result"), dict):
         return _unknown("malformed_envelope")
     return frame["result"]
-
-
-def verify_receipt(frame: Any, expect: ReceiptExpectation, *, context: FenceContext | None = None) -> ReceiptVerdict:
-    """HISTORICAL - targets `signed_person_writes/status`, which WisKey never shipped; use `verify_resolution` (peer_receipts/resolve).
-    Strict: every required key (nulls included), no extra key, exact references; everything else is UNKNOWN."""
-    as_peer_binding(expect.peer)
-    res = _result_of(frame)
-    if isinstance(res, ReceiptVerdict):
-        return res
-    if set(res) != RECEIPT_KEYS:
-        return _unknown("fields")
-    if not (is_pos_int(res["schema_version"]) and res["schema_version"] == 1 and res["protocol"] == RECEIPT_PROTOCOL):
-        return _unknown("unsupported_version")
-    if res["scope"] != RECEIPT_SCOPE or res["device_state"] != "not_attested":
-        return _unknown("scope")
-    peer = expect.peer
-    exact = (("repository_id", expect.repository_id), ("query_owner_id", peer.query_owner_id), ("peer_binding_ref", peer.peer_binding_ref),
-             ("request_id", expect.request_id), ("operation_id", expect.operation_id), ("operation_binding_ref", expect.operation_binding_ref))
-    for key, want in exact:
-        got = res[key]
-        if not isinstance(got, str) or got != want:  # byte-exact: no strip, no case folding
-            return _unknown(f"mismatch:{key}")
-    if not is_pos_int(res["peer_binding_revision"]) or res["peer_binding_revision"] != peer.peer_binding_revision:
-        return _unknown("mismatch:peer_binding_revision")
-    if not is_pos_int(res["observed_epoch"]):
-        return _unknown("malformed:observed_epoch")
-    if res["observed_epoch"] < expect.writer_epoch:
-        return _unknown("epoch_regressed")
-    state, terminal, commit, reason, error = res["state"], res["terminal"], res["commit"], res["reason_code"], res["error_code"]
-    exclusive = res["exclusive_writer_established"]
-    if state not in STATES or not isinstance(terminal, bool) or not isinstance(exclusive, bool):
-        return _unknown("malformed:state")
-    if error is not None and not is_ref(error):
-        return _unknown("malformed:error_code")
-    if state == "in_flight":
-        ok = terminal is False and commit is None and reason == "handler_active" and error is None
-        return ReceiptVerdict("in_flight", False, "in_flight") if ok else _unknown("contradiction")
-    if state == "unknown":
-        ok = terminal is False and commit is None and reason in UNKNOWN_REASONS and error is None
-        return _unknown(f"remote:{reason}" if ok else "contradiction")
-    # terminal states: an authoritative terminal fact needs an established exclusive writer
-    if terminal is not True or exclusive is not True:
-        return _unknown("contradiction")
-    if state == "committed":
-        if reason is not None or error is not None or not isinstance(commit, dict) or set(commit) != {"user_id", "revision_before", "revision_after"}:
-            return _unknown("contradiction")
-        if commit["user_id"] != expect.person_id or not isinstance(commit["user_id"], str):
-            return _unknown("mismatch:commit.user_id")
-        before, after = commit["revision_before"], commit["revision_after"]
-        if not (is_pos_int(before) and is_pos_int(after)) or before != expect.revision_before or after <= before:
-            return _unknown("mismatch:commit.revision")
-        return ReceiptVerdict("committed", True, "committed", {"user_id": commit["user_id"], "revision_before": before, "revision_after": after})
-    # never_committed
-    if commit is not None or reason not in NEVER_REASONS:
-        return _unknown("contradiction")
-    if reason == "pre_effect_refused":
-        if error is None:
-            return _unknown("contradiction")  # a proved pre-effect refusal keeps its stable code
-        return ReceiptVerdict("never_committed", True, "pre_effect_refused")
-    if error is not None:
-        return _unknown("contradiction")
-    if (context is None or context.exclusive_writer_established is not True or context.repository_id != expect.repository_id
-            or context.writer_epoch != res["observed_epoch"] or context.owner_id != peer.query_owner_id):
-        return _unknown("ownership_unproven")
-    return ReceiptVerdict("never_committed", True, "recovered_uncommitted")
 
 
 # ---------------------------------------------------------------- the REAL receipt read: peer_receipts/resolve (WKADAPT-295)
@@ -493,37 +379,3 @@ def verify_resolution(frame: Any) -> ResolutionVerdict:
             or receipt.get("signed_capture_covered") is not False):
         return _resolution_unknown("receipt_unverified")
     return ResolutionVerdict("committed", True, "found", json.loads(_canonical(receipt)))
-
-
-class OneCommitLedger:
-    """One central commit per original operation (in memory; the durable form is the CR-ACR7-FENCE-02 intent table)."""
-
-    def __init__(self) -> None:
-        self._terminal: dict[tuple[str, ...], tuple[Any, ...]] = {}
-        self._transitions: dict[tuple[Any, ...], tuple[str, ...]] = {}
-        self.conflicts = 0
-
-    @staticmethod
-    def key(expect: ReceiptExpectation) -> tuple[str, ...]:
-        return (expect.repository_id, expect.peer.value, expect.request_id, expect.operation_id, expect.operation_binding_ref)
-
-    def _conflict(self) -> str:
-        self.conflicts += 1
-        return "conflict"
-
-    def record(self, expect: ReceiptExpectation, verdict: ReceiptVerdict) -> str:
-        """`settled` (first terminal fact), `duplicate` (the same fact again), `open` (not terminal yet) or `conflict`."""
-        key = self.key(expect)
-        if not verdict.settles:
-            return self._conflict() if key in self._terminal else "open"
-        fact = (verdict.state, verdict.code, tuple(sorted((verdict.commit or {}).items())))
-        if key in self._terminal:
-            return "duplicate" if self._terminal[key] == fact else self._conflict()
-        if verdict.state == "committed" and verdict.commit is not None:
-            transition = (expect.repository_id, verdict.commit["user_id"], verdict.commit["revision_before"])
-            owner = self._transitions.get(transition)
-            if owner is not None and owner != key:
-                return self._conflict()
-            self._transitions[transition] = key
-        self._terminal[key] = fact
-        return "settled"

@@ -44,6 +44,9 @@ branch `codex/wiskey-ecc-activation-directive-2026-10-21`, pinned commit `c74107
 2. **Durable intents and the exact-original create resolution** (`wiskey_intents`, migration 0145): one immutable intent per people write
    written before the frame leaves; one terminal fact; one central transition per person revision; a created person's id is recorded only
    from a verified exact-original answer (`verify_create_resolution`, PROPOSED protocol `wiskey-create-resolution-draft1`); no replay.
+   SUPERSEDED (PERSONWRITES-CLEANUP-295): the proposal `person_writes/resolve_create` was never shipped by WisKey and its verifier
+   (`verify_create_resolution`, `settle_create`, `CreateExpectation`, `ExactOriginal.as_request`) was removed; a create intent now settles
+   only through `settle_resolution` (peer_receipts/resolve). The table and migration 0145 are unchanged.
 3. **Feature execution, Arx half** (`wiskey_feature_exec`, migration 0145): the strict `wiskey-arx-feature-execution.v1` request builder for the six
    adapters (compared field by field with the Mac source), the CURRENT POLICY from Arx RBAC (station chain, deny wins, creator AND approver for
    automations) plus the explicit relay map, the durable no-replay attempt, and an honest `status` that never says active from a switch.
