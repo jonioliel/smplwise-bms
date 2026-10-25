@@ -470,3 +470,119 @@ def test_rev2_states_a_second_caller_gets_busy_and_mute_keeps_the_downlink(gset,
         await first.close("ended")
 
     asyncio.run(scenario())
+
+
+# ================================================================ W-005: the five mapping artifacts and seven actions (card capture)
+
+import json as _json  # noqa: E402
+
+from smplwise.services import lease_answers as la  # noqa: E402
+from smplwise.services import lease_events as le  # noqa: E402
+from smplwise.services import wiskey_capture_direct as cd  # noqa: E402
+from smplwise.services import wiskey_capture_map as cm  # noqa: E402
+from smplwise.services.wiskey_capture_port import PortError  # noqa: E402
+
+REPO = BACKEND.parents[1]
+VECTORS = _json.loads((BACKEND / "tests/fixtures/wiskey_vectors/wiskey_capture_two_layer_vectors_v1.json").read_text(encoding="utf-8"))
+# W005_CAPTURE_MAP.json `chain`: the Arx files Mac mapped against, by file sha256 (Arx CODE fe213bd7 / e476e48a)
+MAC_PINNED_ARX = {
+    "custom_components/smplwise_bridge/lease_service.py": "3872e87c892d004b6f35e2ccde3cb792f38cc39bc426073ee10b30a7194b9b9b",
+    "custom_components/smplwise_bridge/lease_contract.py": "16b2e9eb91c46f7d9833525ab182df495d70cb84ba532ecede333712118d9a01",
+    "smplwise_vms/backend/smplwise/services/wiskey_capture_direct.py": "7b6a62ae0fb5bb0f8c56126a6263d7355aae07496c816c23df2649683e316fd1",
+}
+# W005_CAPTURE_REFUSALS.json `closed_native_tables.refused` (WisKey CAPTURE_ANSWER_CODES.json sha256 624383ca...), verbatim
+MAC_REFUSED = {
+    "capture_start": ["capture_station_busy", "capture_limit", "revision_conflict", "lease_gone", "binding_denied", "capture_unsupported",
+                      "capture_reader_invalid", "capture_failed"],
+    "capture_status": ["capture_not_found", "lease_gone", "binding_denied", "capture_operation_busy"],
+    "capture_confirm": ["capture_not_ready", "invalid_text", "capture_operation_busy", "capture_not_found", "lease_gone", "binding_denied",
+                        "card_conflict", "revision_conflict"],
+    "capture_cancel": ["capture_not_found", "lease_gone", "binding_denied", "capture_applying"],
+}
+MAC_SESSION_UNCHANGED = {"capture_applying", "capture_not_ready", "capture_operation_busy", "invalid_text"}
+
+
+class _Inner:
+    def __init__(self) -> None:
+        self.calls: list[Any] = []
+
+    def event(self, settings: Any, text: str) -> Any:
+        self.calls.append(("event", text))
+        return {"result": "host"}
+
+    def request(self, settings: Any, action: str, text: str) -> Any:
+        self.calls.append((action, text))
+        return {"result": "host"}
+
+
+def _vector(action: str) -> dict[str, Any]:
+    return next(r for r in VECTORS["vectors"] if _json.loads(r["signed_message_json"])["action"] == action)
+
+
+def _with_params(text: str, mutate: Any) -> str:
+    m = _json.loads(text)
+    mutate(m["params"])
+    return _json.dumps(m, separators=(",", ":"))
+
+
+def test_w005_the_arx_receiver_chain_is_the_one_mac_mapped_against():
+    for rel, want in MAC_PINNED_ARX.items():
+        assert hashlib.sha256((REPO / rel).read_bytes()).hexdigest() == want, rel
+
+
+def test_w005_seven_actions_two_commands_and_the_closed_params_keys_agree_with_arxs_own_messages():
+    assert [r.action for r in cm.MAP] == list(le.ALL_ACTIONS) and cm.confirmed()
+    for r in cm.MAP:
+        assert r.direct_command == (cd.EVENT_COMMAND if r.action in le.EVENT_ACTIONS else cd.REQUEST_COMMAND)
+        assert r.mac_file.startswith("custom_components/hikvision_intercom/") and len(r.mac_sha256) == 64
+    seen = set()
+    for row in VECTORS["vectors"]:
+        m = _json.loads(row["signed_message_json"])
+        if m["action"] in cm.ROW_OF and "kid" not in m and set(m) == cm.WIRE_KEYS:
+            assert set(m["params"]) == cm.ROW_OF[m["action"]].params_keys, m["action"]
+            seen.add(m["action"])
+    assert seen, "at least the vector actions agree with Mac's keys"
+    assert cm.enabled() is False, "CAPMAP stays disabled"
+
+
+def test_w005_the_closed_inner_tables_are_macs_and_there_is_no_outer_enum():
+    assert {a: list(v) for a, v in la.REFUSED.items()} == MAC_REFUSED
+    assert set(la.SESSION_UNCHANGED) == MAC_SESSION_UNCHANGED
+
+
+def test_w005_an_added_or_missing_params_key_and_a_non_null_binding_revision_are_refused_before_any_call():
+    inner = _Inner()
+    t = cm.MappedLeaseTransport(inner, lambda: {cd.EVENT_COMMAND, cd.REQUEST_COMMAND}, is_enabled=lambda: True)
+    start = _vector("capture_start")["signed_message_json"]
+    for mutate, reason in ((lambda p: p.update(extra=1), "params_mismatch"), (lambda p: p.pop("lease"), "params_mismatch"),
+                           (lambda p: p["lease"].update(binding_revision="b1"), "binding_revision_unsupported")):
+        with pytest.raises(cm.CaptureProjectionError) as refused:
+            t.request(None, "capture_start", _with_params(start, mutate))
+        assert refused.value.reason == reason and refused.value.details["outcome"] == "not_sent"
+    assert inner.calls == [], "nothing was handed to the transport"
+
+
+def test_w005_the_announcement_prefers_the_current_direct_capabilities_and_ignores_api_contract_null():
+    caps = {"commands": [cd.REQUEST_COMMAND, cd.EVENT_COMMAND], "api_contract": {cd.REQUEST_COMMAND: None}}
+    overview = {"commands": ["something/else"]}
+    assert cm.announced_commands(caps, overview) == (frozenset(caps["commands"]), "direct_capabilities")
+    assert cm.announced_commands(None, {"commands": [cd.EVENT_COMMAND], "api_contract": None}) == (frozenset({cd.EVENT_COMMAND}), "overview_api")
+    assert cm.announced_commands({"commands": "x"}, {}) == (None, "unknown"), "unreadable is unknown, not unsupported"
+
+
+def test_w005_provenance_keeps_where_an_outcome_came_from_and_never_permits_a_replay():
+    pre = cm.provenance(cm.CaptureUnsupported("mapping_disabled"))
+    assert (pre.phase, pre.not_sent_proven) == ("local_preflight", True)
+    not_sent = cm.provenance(cd._api_error(PortError("wiskey_direct_not_connected", "not_sent")))
+    assert (not_sent.phase, not_sent.not_sent_proven) == ("transport_not_sent", True)
+    for code in ("Unauthorized", "invalid_fields"):  # may come before OR after dispatch: the code alone proves nothing
+        p = cm.provenance(cd._api_error(PortError(code, "refused")))
+        assert p.not_sent_proven is False and p.code == code
+    unknown = cm.provenance(cd._api_error(PortError("capture_outcome_unknown", "unknown")))
+    assert (unknown.phase, unknown.not_sent_proven) == ("unknown", False)
+    assert cm.provenance(("rejected", {"code": "time/expired"})) == cm.Provenance("remote_rejected", "time/expired", False)
+    assert cm.provenance(("refused", {"code": "lease_gone"})).not_sent_proven is False
+    assert cm.provenance(("sent_unknown", {})).phase == "sent_unknown"
+    assert cm.provenance(("unknown", {"code": "invalid_response"})).phase == "unknown"
+    assert cm.provenance(object()).phase == "unknown"
+    assert not any(cm.provenance(x).replay_permitted for x in (("sent_unknown", {}), ("unknown", {}), cm.CaptureUnsupported("mapping_disabled")))

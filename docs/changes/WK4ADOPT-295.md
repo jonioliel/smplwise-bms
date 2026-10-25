@@ -54,3 +54,28 @@ report for the exact runs and exit codes).
   requested terminal event, idle and signed expiry close the original channel and the resource with no late audio, no renewal, no
   replay; with today's behaviour the event is lost and only Arx's own session deadline ends the channel (one `talk_close`). W-002's
   terminal-lifecycle acceptance stays OPEN until Mac returns.
+
+## W-005 - the five mapping artifacts and seven actions (card capture at a door-station reader)
+
+Reviewed: `W005_CAPTURE_MAP.json` (seven actions, chain, preflight, projection, actor/CAS/join, flags) and
+`W005_CAPTURE_REFUSALS.json` (closed native tables, dispatch knowledge, outer alphabet gap), with their schema / answer-code
+identities. The Arx files Mac mapped against (`lease_service.py` `3872e87c...`, `lease_contract.py` `16b2e9eb...`,
+`wiskey_capture_direct.py` `7b6a62ae...`) are byte-identical on this branch (test-pinned).
+
+Adopted in `services/wiskey_capture_map.py` (CAPMAP, `MAPPING_ENABLED` stays False, no transport selection change):
+- `MAC_TABLE` / `MapRow.mac_symbol, mac_file, mac_sha256, params_keys`: four request actions -> `capture/lease_request`
+  (`NativeCaptureComposition.start/status/confirm`, `ExperimentalLeaseHost.step`), three events -> `capture/lease_event`
+  (`CaptureLeaseHost.event`); `confirmed()` is now True (a source-mapping fact; `state()` says `mac_mapping: REVIEWED`, still
+  `disabled`, `NOT_PERFORMED`, `NOT_MEASURED`).
+- The projection refuses (local pre-flight, `not_sent`) params whose keys differ from Mac's closed set and a `capture_start` whose
+  `binding_revision` is not null (unsupported on the native path; refused, not adopted). No new wire field.
+- `announced_commands(direct_capabilities, overview_api)`: the current direct connection's `capabilities.commands` first, the authorized
+  `overview.api.commands` second; `api_contract: null` is ignored (not a support verdict); unreadable = `capabilities_unknown`.
+- `provenance(outcome)`: keeps the phase of every outcome (local pre-flight, transport not_sent, remote rejected / refused,
+  sent_unknown, unknown). Only the local pre-flight or a transport refusal before any byte proves "not sent"; `Unauthorized` /
+  `invalid_fields` / any code alone never does; `replay_permitted` is always False.
+- The closed inner tables in `lease_answers.py` equal Mac's `CAPTURE_ANSWER_CODES` refused / session-unchanged sets (test-pinned).
+  There is no outer enum; an unlisted / malformed / missing answer stays UNKNOWN.
+- Already true and unchanged: `wiskey_capture_direct.NOT_SENT_CODES` treats `capture_source_unavailable` as not sent - Mac's dispatch
+  knowledge confirms it proves no call by THIS invocation only.
+- Not done here (separate 2.21.0 conditions): emergency revoke, card-capture go-live, `capture_lease.GO_LIVE_PERMITTED`.
