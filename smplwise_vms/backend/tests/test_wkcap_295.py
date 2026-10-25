@@ -243,7 +243,7 @@ def test_an_incomplete_or_empty_policy_stops_before_anything_is_stored_or_sent(e
     port = FakeDirectPort()
     plain = env.principal("plain")
     with pytest.raises(fd.FeatureWireError) as e:
-        prep(env, port, "door_windows", principals=[plain])
+        prep(env, port, "door_windows", actor=fx.human_actor(plain.user_id), principals=[plain])  # W031-295: the actor is the judged principal
     assert e.value.code == "policy_incomplete" and e.value.outcome == "not_sent"
     with env.db.connection() as conn:
         fx.set_relay_map(conn, station_id="st-zzz", api_relay=2, physical_relay=1, confirmed_by=env.admin.user_id, expected_revision=0, active=False)
