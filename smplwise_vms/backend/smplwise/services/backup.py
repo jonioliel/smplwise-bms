@@ -227,6 +227,9 @@ _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|
 # the same way - a restore can never allow a remote demo on a box that did not allow it (stricter than CR-READY96's first note, recorded
 # in docs/changes/READYFLEET-295.md). PARTNERAPI113-295: `partner.*` (the partner switches and limits) are this installation's policy.
 SETTINGS_KEEP_PREFIXES = ("nvr.batch.", "doors.", "fleet.", "demo.", "partner.")
+# GDRIVEBK-295: the Google Drive backup destination (its switch, thresholds, folder id and last results) describes THIS installation's
+# connection - an archive never carries it and a restore never switches it on (its refresh token lives in app_secrets, never exported)
+SETTINGS_KEEP_PREFIXES = SETTINGS_KEEP_PREFIXES + ("backup.gdrive.",)
 # SAFE2-295 (2.10.0 release notes, open items): the external-grant card switch (GRANTS3-295 X5, `access.external.cards`) is security policy
 # like its siblings above (WISKEYID) - never exported, never taken from an archive, so a restore can never switch card grants on.
 SETTINGS_KEEP = SETTINGS_KEEP | {"access.external.cards", "privacy.local_purge", "privacy.local_purge_days", "privacy.personal_export"}  # IDENT146: purge / export policy of THIS installation

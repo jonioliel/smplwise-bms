@@ -572,6 +572,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import backup_offbox as backup_offbox_router
 
     app.include_router(backup_offbox_router.router, prefix=api, tags=["backup"])  # DATASTORE-295 phase 2: before /backups/{name}
+    from .routers import backup_gdrive as backup_gdrive_router
+
+    app.include_router(backup_gdrive_router.router, prefix=api, tags=["backup"])  # GDRIVEBK-295 scaffold (off by default): before /backups/{name}
     app.include_router(backup.router, prefix=api, tags=["backup"])
     app.include_router(system_update.router, prefix=api, tags=["system-update"])  # CR-021 S1: self-update check and settings (system.update)
     app.include_router(frames.router, prefix=api, tags=["recordings"])
