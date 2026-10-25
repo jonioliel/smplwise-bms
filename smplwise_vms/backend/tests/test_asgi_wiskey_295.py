@@ -1009,6 +1009,7 @@ def test_a_server_cancel_in_the_middle_of_the_pump_joins_every_subtask_and_relea
     assert not world.station.talks and not world.station.station_talk, "the cancelled talk does not keep the station at WisKey"
     rows = audit_rows(world, "intercom.talk.end")
     assert rows, "the cancelled talk still writes its end row"
+    assert json.loads(rows[0]["details_json"])["outcome"] == "ended", "a server cancel after the open is not an upstream failure"
 
 
 def test_one_talker_per_station_and_a_second_talk_after_the_first_joins_cleanly(world, app):

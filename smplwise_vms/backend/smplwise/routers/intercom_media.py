@@ -531,7 +531,7 @@ async def talk_ws(websocket: WebSocket, session_id: str) -> None:
     try:
         channel = await run_in_threadpool(_channel)
         await channel.open()
-        t.opened_at = time.time()
+        t.opened_at, outcome = time.time(), "ended"  # ASGI-295: a server cancel after the open ends `ended`, not `upstream_unavailable`
         await websocket.send_text(json.dumps({"type": "talk/state", "value": "open", "expires_at": im.iso(t.expires_at), "seconds": int(t.expires_at - time.time())}))
         outcome = await _pump(websocket, t, channel, lease)
     except (ApiError, im.Unavailable) as exc:
