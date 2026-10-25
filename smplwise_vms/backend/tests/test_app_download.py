@@ -133,6 +133,15 @@ def test_download_headers_body_and_etag(bundled):
     assert rng.status_code == 206 and rng.content == APK_BYTES[:10]
 
 
+def test_file_route_has_unique_openapi_operation_ids(bundled):
+    """Regression: the GET+HEAD api_route registered one operationId twice (FastAPI 'Duplicate Operation ID' warning)."""
+    import warnings
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        bundled.app.openapi()
+    assert [str(w.message) for w in caught if "Duplicate Operation ID" in str(w.message)] == []
+
+
 def test_local_channel_has_no_file_route(bundled):
     assert TestClient(bundled.app).get("/api/v1/auth/app-download/file").status_code == 404
 

@@ -84,7 +84,8 @@ def app_download_offer(request: Request) -> JSONResponse:
 FILE_LIMITS: list[tuple[float, int]] = [(60.0, 6), (3600.0, 30)]  # per client address; the APK is tens of MB
 
 
-@router.api_route("/auth/app-download/file", methods=["GET", "HEAD"])
+@router.get("/auth/app-download/file")
+@router.head("/auth/app-download/file", include_in_schema=False)  # one route per method: a GET+HEAD api_route gave both the same operationId
 def app_download_file(request: Request) -> Response:
     """Public (no identity), remote channel only: the signed release APK bundled in the add-on image. The path is fixed (no
     caller input reaches the file system); 404 when no valid bundled file exists."""
