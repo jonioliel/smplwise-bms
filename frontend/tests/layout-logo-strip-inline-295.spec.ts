@@ -15,8 +15,9 @@ const LIGHT = 'aaaaaaaaaaaaaaaa.svg';
 const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100"><rect width="300" height="100" rx="14" fill="#1e2e47"/><text x="150" y="62" font-size="40" text-anchor="middle" fill="#fff">NAVE</text></svg>`;
 
 async function boot(page: Page, hash: string, skin: string, company: boolean) {
+  // LOGOSIDE-295: this spec is about the corner-row layout (side end); the default side is start (tests/layout-logo-side-295.spec.ts)
   await page.route('**/api/v1/brand/company-logo/**', (r) => (r.request().method() === 'GET' ? r.fulfill({ status: 200, contentType: 'image/svg+xml', body: SVG }) : r.fallback()));
-  const cache = { company: { name: 'נווה הירדן', kind: 'management', logo: {}, logo_file: { light: company ? LIGHT : null, dark: null } }, size: 'm', dark_mode: 'plate', title: { prefix: 'Smplwise Arx', mode: 'both' }, project: { name: 'Tower A' } };
+  const cache = { company: { name: 'נווה הירדן', kind: 'management', logo: {}, logo_file: { light: company ? LIGHT : null, dark: null } }, size: 'm', logo_side: 'end', dark_mode: 'plate', title: { prefix: 'Smplwise Arx', mode: 'both' }, project: { name: 'Tower A' } };
   await page.addInitScript((c) => {
     try {
       localStorage.setItem('sw.ui.brandlogo', JSON.stringify(c));

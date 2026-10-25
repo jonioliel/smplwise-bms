@@ -100,7 +100,7 @@ body.box #host { background: #000; }
 .hd { grid-area: hd; display: flex; align-items: center; justify-content: space-between; gap: 40px; min-block-size: 72px; }
 .lg { flex: none; display: flex; align-items: center; }
 .lg svg { block-size: 100%; inline-size: auto; }
-.lg.company { block-size: calc(72px * var(--lg, 1)); }
+.lg.company { block-size: calc(72px * var(--lgco, var(--lg, 1))); }
 .lg.company svg { inline-size: 315px; }
 .lg.product { block-size: calc(30px * var(--lg, 1)); opacity: .92; }
 .lg.product svg { inline-size: auto; }
@@ -247,7 +247,7 @@ body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var
 /* NOTICESAVER-295 logo layouts: b = both logos together at the end of the bottom row (no header row); c = both in the header, a small line below */
 #cv[data-logos="b"] .hd { display: none; }
 .ft .lgs { flex: none; display: inline-flex; align-items: center; gap: 40px; }
-.ft .lg.company { block-size: calc(48px * var(--lg, 1)); }
+.ft .lg.company { block-size: calc(48px * var(--lgco, var(--lg, 1))); }
 .ft .lg.company svg { inline-size: 210px; }
 .ft .lg.company img { max-inline-size: 210px; }
 .ft .pwr { flex: none; font-size: calc(22px * var(--fs)); color: var(--ink-3); white-space: nowrap; letter-spacing: .04em; }
@@ -339,7 +339,7 @@ body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var
 
 /* ===== PORTRAIT compositions (1080 x 1920) ===== */
 #cv.portrait .hd { min-block-size: 64px; }
-#cv.portrait .lg.company { block-size: calc(64px * var(--lg, 1)); }
+#cv.portrait .lg.company { block-size: calc(64px * var(--lgco, var(--lg, 1))); }
 #cv.portrait .lg.company svg { inline-size: 280px; }
 /* R2160B: the box keeps the approved mock-up's footprint (132 x 36): a wider box left the status chips of the portrait footer too little room, so the fit logic dropped the last one
    (the parking chip). The artwork has no clear space of its own now, so it fills the box exactly.
@@ -404,7 +404,7 @@ body.frozen .tk .track { animation-play-state: paused; animation-delay: calc(var
 .take::after { content: ""; position: absolute; inset: 0; opacity: .08; mix-blend-mode: screen; pointer-events: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
 #cv[data-urgent="full"] .take { display: grid; }
 .take .top { display: flex; align-items: center; justify-content: space-between; gap: 36px; }
-.take .top .lg.company { block-size: calc(72px * var(--lg, 1)); padding: 12px 22px; border-radius: 12px; background: #f6eee8; box-sizing: border-box; }
+.take .top .lg.company { block-size: calc(72px * var(--lgco, var(--lg, 1))); padding: 12px 22px; border-radius: 12px; background: #f6eee8; box-sizing: border-box; }
 .take .top .lg.company[data-tr="plain"], .take .top .lg.company[data-tr="invert"] { background: transparent; padding: 0; }
 .take .top .lg.company[data-tr="darkplate"] { background: #0d1220; }
 .take .top .tclk { font-size: calc(72px * var(--fs)); font-weight: 200; letter-spacing: -0.03em; line-height: 1; }

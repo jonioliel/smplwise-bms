@@ -53,12 +53,12 @@ test.describe('LOGOS-295 placements', () => {
     await boot(page, '/system/diagnostics');
     const strip = page.locator('sw-app [data-brand-strip]');
     await expect(strip).toBeVisible();
-    const company = page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] img');
+    const company = page.locator('sw-app :is([data-brand-strip], [data-lead-brand]) sw-brand[kind="company"] img');
     const product = page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] [data-brand-img="product"]');
     await expect(company).toBeVisible();
     await expect(company).toHaveAttribute('alt', 'נווה הירדן');
     await expect(product).toBeVisible();
-    const c = await box(page, 'sw-app [data-brand-strip] sw-brand[kind="company"] img');
+    const c = await box(page, 'sw-app :is([data-brand-strip], [data-lead-brand]) sw-brand[kind="company"] img');
     const p = await box(page, 'sw-app [data-brand-strip] sw-brand[kind="product"] [data-brand-img="product"]');
     const search = await box(page, 'sw-app [data-search-open]');
     expect(c.x).toBeGreaterThan(p.x); // RTL: the company logo is on the right (inline start), SmplWise on the far left
@@ -74,24 +74,24 @@ test.describe('LOGOS-295 placements', () => {
   test('without a company logo the company slot collapses and nothing else moves', async ({ page }, info) => {
     test.skip(info.project.name === 'mobile', 'desktop / tablet');
     await boot(page, '/system/diagnostics', { company: false });
-    await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] img')).toHaveCount(0);
+    await expect(page.locator('sw-app :is([data-brand-strip], [data-lead-brand]) sw-brand[kind="company"] img')).toHaveCount(0);
     await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] [data-brand-img="product"]')).toBeVisible();
   });
 
   test('the size scale multiplies the strip: very large is taller than medium', async ({ page }, info) => {
     test.skip(info.project.name === 'mobile', 'desktop / tablet');
     await boot(page, '/system/diagnostics', { size: 'm' });
-    const m = (await box(page, 'sw-app [data-brand-strip] sw-brand[kind="company"] img')).height;
+    const m = (await box(page, 'sw-app :is([data-brand-strip], [data-lead-brand]) sw-brand[kind="company"] img')).height;
     await boot(page, '/system/diagnostics', { size: 'xl' });
-    const xl = (await box(page, 'sw-app [data-brand-strip] sw-brand[kind="company"] img')).height;
+    const xl = (await box(page, 'sw-app :is([data-brand-strip], [data-lead-brand]) sw-brand[kind="company"] img')).height;
     expect(xl / m).toBeGreaterThan(1.4);
     expect(xl / m).toBeLessThan(1.6);
   });
 
   test('dark scheme: plate (default), the dark file in file mode, the chosen invert; a dark surface never shows an empty slot', async ({ page }, info) => {
     test.skip(info.project.name === 'mobile', 'desktop / tablet');
-    const treatment = () => page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] [data-brand-treatment]').getAttribute('data-brand-treatment');
-    const variant = () => page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] img').getAttribute('data-brand-variant');
+    const treatment = () => page.locator('sw-app :is([data-brand-strip], [data-lead-brand]) sw-brand[kind="company"] [data-brand-treatment]').getAttribute('data-brand-treatment');
+    const variant = () => page.locator('sw-app :is([data-brand-strip], [data-lead-brand]) sw-brand[kind="company"] img').getAttribute('data-brand-variant');
     await boot(page, '/system/diagnostics', { mode: 'plate', dark: true }, '&scheme=dark');
     expect(await treatment()).toBe('plate');
     await boot(page, '/system/diagnostics', { mode: 'file', dark: true }, '&scheme=dark');
@@ -149,7 +149,7 @@ test.describe('LOGOS-295 settings card', () => {
     await expect(card(page).locator('[data-logo-save]')).not.toHaveAttribute('disabled', '');
     // a draft: the shell strip has not changed yet
     // LOGOFIT-295: the logos sit in the corner's row (no strip height any more): the company logo is 34 px at the medium size; the phone has no strip
-    const coH = () => page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] img').first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
+    const coH = () => page.locator('sw-app :is([data-brand-strip], [data-lead-brand]) sw-brand[kind="company"] img').first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
     if (info.project.name !== 'mobile') expect(await coH()).toBe(34);
     await card(page).locator('[data-logo-save]').click();
     await expect(card(page).locator('[data-logo-message]')).toBeVisible();
@@ -194,7 +194,7 @@ test.describe('LOGOS-295 settings card', () => {
       const main = document.querySelector('sw-app')!.shadowRoot!.querySelector('main');
       if (main) main.scrollTop = 0;
     });
-    if (info.project.name !== 'mobile') await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="company"] img')).toBeVisible();
+    if (info.project.name !== 'mobile') await expect(page.locator('sw-app :is([data-brand-strip], [data-lead-brand]) sw-brand[kind="company"] img')).toBeVisible();
   });
 
   test('"file" without a dark file warns and offers the upload tab', async ({ page }, info) => {

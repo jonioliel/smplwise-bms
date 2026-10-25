@@ -543,6 +543,32 @@ export class SwApp extends LitElement {
       align-items: center;
       gap: 14px;
     }
+    /* LOGOSIDE-295: with the setting brand.logo_side = start the developer / installer logos leave the corner row and sit at the START of
+       the page's top row (RTL: the right, beside the rail), exactly where the page title begins; the pages keep their first row's start
+       side clear of them through --sw-lead-reserve (the measured width, --sw-lead-brand). The same fade-on-scroll and no-hit-target rules. */
+    .leadbrand {
+      position: absolute;
+      inset-block-start: calc(var(--sw-banner-h, 0px) + var(--sw-safe-top, 0px) + 8px);
+      inset-inline-start: calc(var(--sw-rail-w, 0px) + 22px);
+      z-index: var(--sw-z-topbar);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-block-size: 34px;
+      max-inline-size: 46%;
+      pointer-events: none;
+    }
+    .leadbrand sw-brand {
+      min-inline-size: 0;
+      transition: opacity var(--sw-t-fast) var(--sw-ease), visibility 0s linear var(--sw-t-fast);
+    }
+    :host([data-scrolled]) .leadbrand sw-brand {
+      opacity: 0;
+      visibility: hidden;
+    }
+    :host(:not([data-scrolled])) .leadbrand sw-brand {
+      transition-delay: 0s;
+    }
     .float .cornerrow sw-brand[kind='product'] {
       color: var(--sw-text-3); /* "Smpl" of the wordmark, as the mockup's strip (.strip .sw) */
     }
@@ -566,6 +592,7 @@ export class SwApp extends LitElement {
     }
     @media (prefers-reduced-motion: reduce) {
       .float .cornerrow sw-brand,
+      .leadbrand sw-brand,
       .float .cornerrow .bsep {
         transition: none;
       }
@@ -573,7 +600,9 @@ export class SwApp extends LitElement {
     /* the tablet widths: the logos give the page title its room */
     @media (max-width: 1099px) {
       .float .cornerrow sw-brand[kind='company'],
-      .float .cornerrow sw-brand[kind='installer'] {
+      .float .cornerrow sw-brand[kind='installer'],
+      .leadbrand sw-brand[kind='company'],
+      .leadbrand sw-brand[kind='installer'] {
         max-inline-size: 130px;
       }
       .float .cornerrow sw-brand[kind='product'] {
@@ -597,6 +626,7 @@ export class SwApp extends LitElement {
     @media print {
       .float .cornerrow sw-brand,
       .float .cornerrow .bsep,
+      .leadbrand,
       .homebrand {
         display: none;
       }
@@ -901,6 +931,28 @@ export class SwApp extends LitElement {
     /* the first rows of the content (setup hint, restart banner) keep clear of the corner's logos too */
     :host([data-brandstrip]) {
       --sw-corner-extra: var(--sw-corner-brand-w, 160px);
+    }
+    /* LOGOSIDE-295 (side = start): the page's first row keeps the logos' measured width free at its start. With a tab row above the page the
+       row itself keeps it; in the dropdown placements 2-4 (>= 1100 px) the chips hang on the page's first row, so the header keeps it
+       (placement 4 adds it to the chips' own reserve, below). */
+    :host([data-design='a'][data-brandside='start'][data-brandstrip][data-top='page']) {
+      --sw-lead-reserve: var(--sw-lead-brand, 0px);
+    }
+    @media (min-width: 768px) {
+      :host([data-design='a'][data-brandside='start'][data-brandstrip][data-top='tabs']:not([data-dd-head])) .subnav,
+      :host([data-design='a'][data-brandside='start'][data-brandstrip][data-top='tabs'][data-dd-place='1']) .subnav {
+        padding-inline-start: calc(30px + var(--sw-lead-brand, 0px));
+      }
+      :host([data-design='a'][data-brandside='start'][data-brandstrip][data-top='secrow']:not([data-dd-head])) .tabpair,
+      :host([data-design='a'][data-brandside='start'][data-brandstrip][data-top='secrow'][data-dd-place='1']) .tabpair {
+        padding-inline-start: calc(12px + var(--sw-lead-brand, 0px));
+      }
+    }
+    @media (min-width: 1100px) {
+      :host([data-design='a'][data-brandside='start'][data-brandstrip][data-dd-head][data-dd-place='2']),
+      :host([data-design='a'][data-brandside='start'][data-brandstrip][data-dd-head][data-dd-place='3']) {
+        --sw-lead-reserve: var(--sw-lead-brand, 0px);
+      }
     }
     @media (min-width: 768px) {
       :host([data-design='a'][data-brandstrip]) .tabpair,
@@ -1356,7 +1408,7 @@ export class SwApp extends LitElement {
       :host([data-design='a'][data-dd-head][data-dd-place='4']) .subnav[data-tabstyle='dropdown'],
       :host([data-design='a'][data-dd-head][data-dd-place='4']) .tabpair:not(.single) {
         justify-content: flex-start;
-        padding-inline: 30px 84px;
+        padding-inline: calc(30px + var(--sw-lead-brand, 0px)) 84px;
       }
       :host([data-design='a'][data-dd-head][data-dd-place='4']) .subnav[data-tabstyle='dropdown'] sw-tabs,
       :host([data-design='a'][data-dd-head][data-dd-place='4']) .tabpair > sw-tabs,
@@ -1366,10 +1418,10 @@ export class SwApp extends LitElement {
         max-inline-size: 190px;
       }
       :host([data-design='a'][data-dd-head='1'][data-dd-place='4']) {
-        --sw-lead-reserve: 204px;
+        --sw-lead-reserve: calc(204px + var(--sw-lead-brand, 0px));
       }
       :host([data-design='a'][data-dd-head='2'][data-dd-place='4']) {
-        --sw-lead-reserve: 440px;
+        --sw-lead-reserve: calc(440px + var(--sw-lead-brand, 0px));
       }
       /* 3 and 4: the row no longer holds the floating corner's reserve, so the page's first row keeps clear of it */
       :host([data-design='a'][data-dd-head][data-dd-place='3']),
@@ -2070,23 +2122,36 @@ export class SwApp extends LitElement {
    * keep at their end side (--sw-corner-brand-w). A ResizeObserver re-measures when a logo file arrives or the size changes. */
   private brandRowObs: ResizeObserver | null = null;
   private observedBrandRow: HTMLElement | null = null;
+  private observedLead: HTMLElement | null = null;
   private syncBrandStrip() {
     const row = this.renderRoot.querySelector<HTMLElement>('[data-brand-strip]');
+    const lead = this.renderRoot.querySelector<HTMLElement>('[data-lead-brand]');
     this.toggleAttribute('data-brandstrip', !!row);
-    if (row !== this.observedBrandRow) {
+    // LOGOSIDE-295: the developer / installer logos at the start of the top row: the host says so, and their measured width (+ a gap)
+    // is what the page's first row keeps free at its start (--sw-lead-brand; 0 while no logo is drawn)
+    if (lead) this.setAttribute('data-brandside', 'start');
+    else this.removeAttribute('data-brandside');
+    if (row !== this.observedBrandRow || lead !== this.observedLead) {
       this.brandRowObs?.disconnect();
       this.brandRowObs = null;
       this.observedBrandRow = row;
+      this.observedLead = lead;
       if (row) {
         const measure = () => {
           const pill = row.querySelector<HTMLElement>('.pillrow');
           const w = Math.max(0, Math.round(row.offsetWidth - (pill?.offsetWidth ?? 0)));
           if (row.offsetWidth > 0 && this.style.getPropertyValue('--sw-corner-brand-w') !== `${w}px`) this.style.setProperty('--sw-corner-brand-w', `${w}px`);
+          if (lead) {
+            const lw = lead.offsetWidth > 0 ? lead.offsetWidth + 14 : 0;
+            if (this.style.getPropertyValue('--sw-lead-brand') !== `${lw}px`) this.style.setProperty('--sw-lead-brand', `${lw}px`);
+          }
         };
         this.brandRowObs = new ResizeObserver(measure);
         this.brandRowObs.observe(row);
+        if (lead) this.brandRowObs.observe(lead);
         measure();
       } else this.style.removeProperty('--sw-corner-brand-w');
+      if (!lead) this.style.removeProperty('--sw-lead-brand');
     }
   }
 
@@ -2472,16 +2537,17 @@ export class SwApp extends LitElement {
       ? html`<a class="evpill" data-incident-pill href=${incidents === 1 && latest ? `#/investigate/incidents/${encodeURIComponent(latest)}` : '#/investigate/incidents'}
           aria-label=${incidents === 1 ? incText('activeAria', { title: incidentState().latest_title ?? '' }) : incText('activePillN', { n: incidents })}><i aria-hidden="true"></i><span>${incidents === 1 ? incText('activePill') : incText('activePillN', { n: incidents })}</span></a>`
       : nothing;
-    return html`<div class="float" data-float>
+    // LOGOSIDE-295: where the developer / installer logos go - the start of the page's top row (default) or the corner row beside the SmplWise logo
+    const lead = brand && brandLogo().logoSide === 'start';
+    const companyLogos = html`<sw-brand kind="company" .h=${34} .maxw=${190}></sw-brand><sw-brand kind="installer" .h=${34} .maxw=${190} data-installer-logo></sw-brand>`;
+    return html`${lead ? html`<div class="leadbrand" data-lead-brand>${companyLogos}</div>` : nothing}<div class="float" data-float>
         ${pill}
         <div class="cornerrow" ?data-brand-strip=${brand}>
-          ${brand
-            ? html`<sw-brand kind="company" .h=${34} .maxw=${190}></sw-brand><sw-brand kind="installer" .h=${34} .maxw=${190} data-installer-logo></sw-brand>`
-            : nothing}
+          ${brand && !lead ? companyLogos : nothing}
           ${dot === nothing && !canSearch
             ? nothing
             : html`<div class="pillrow">${this.session.mode === 'api' && !this.gated ? html`<sw-cast-pill data-cast-slot ?remote=${onRemote()}></sw-cast-pill>` : nothing}${dot}${canSearch ? html`<button type="button" data-search-open aria-label=${t('app.search')} title=${t('app.search')} aria-haspopup="dialog" aria-expanded=${this.searchPanel ? 'true' : 'false'} @click=${() => (this.searchPanel ? this.closeSearchPanel(false) : this.openSearch())}><sw-icon name="search" size=${16}></sw-icon></button>` : nothing}</div>`}
-          ${brand ? html`${this.hasCompanyLogo() ? html`<span class="bsep" aria-hidden="true"></span>` : nothing}<sw-brand kind="product" decorative .h=${32} data-brand-product></sw-brand>` : nothing}
+          ${brand ? html`${!lead && this.hasCompanyLogo() ? html`<span class="bsep" aria-hidden="true"></span>` : nothing}<sw-brand kind="product" decorative .h=${32} data-brand-product></sw-brand>` : nothing}
         </div>
         ${this.searchPanel
           ? html`<div class="searchpanel" data-search-panel role="dialog" aria-label="חיפוש">

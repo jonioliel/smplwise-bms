@@ -33,12 +33,12 @@ test.describe('WHITELABEL-097 shell strip', () => {
   test('ON: the installer logo sits in the strip beside the company slot, SmplWise stays; OFF: nothing', async ({ page }, info) => {
     test.skip(info.project.name === 'mobile', 'the strip is desktop / tablet only');
     await boot(page, { enabled: true, name: 'מתקין', contact: '03-1234567', accent: 'default', logo_file: { light: INST, dark: null } });
-    const logo = page.locator('sw-app [data-brand-strip] sw-brand[kind="installer"] img');
+    const logo = page.locator('sw-app :is([data-brand-strip], [data-lead-brand]) sw-brand[kind="installer"] img');
     await expect(logo).toBeVisible();
     await expect(logo).toHaveAttribute('alt', 'מתקין');
     await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] [data-brand-img="product"]')).toBeVisible();
     await boot(page, { enabled: false });
-    await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="installer"] img')).toHaveCount(0);
+    await expect(page.locator('sw-app :is([data-brand-strip], [data-lead-brand]) sw-brand[kind="installer"] img')).toHaveCount(0);
     await expect(page.locator('sw-app [data-brand-strip] sw-brand[kind="product"] [data-brand-img="product"]')).toBeVisible();
   });
 

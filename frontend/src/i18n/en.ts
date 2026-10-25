@@ -91,6 +91,16 @@ export const en = {
     readOnly: 'View only - changing it needs the system-administration permission',
     alt: 'Installer logo',
   },
+  brandLogos: {
+    sizeHint: 'The general size: the SmplWise logo and the developer / installer logos, in the shell, sign-in and TVs',
+    companySizeLabel: 'Developer logo size',
+    companySizeHint: 'The developer and installer logos only · default: same as the general size',
+    csize_same: 'Same as the general size',
+    sideLabel: 'Developer and installer logo placement',
+    sideHint: 'In the top header on desktop and tablet · the SmplWise logo stays in the corner',
+    side_start: 'Start of the header',
+    side_end: 'Beside the SmplWise logo',
+  },
   brandColors: {
     heading: 'Brand colours',
     subheading: 'The accent colour and the colour of a switch that is on, for every user and every style',

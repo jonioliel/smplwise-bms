@@ -141,7 +141,11 @@ def company_logos(conn: sqlite3.Connection, data_dir: Path | None, slug: str, *,
             stamp = name.split(".")[0]
             logos[key] = (f"{logo_base}api/v1/notices/display/{slug}/logo/company?variant={variant}&v={stamp}" if public
                           else f"api/v1/brand/company-logo/{variant}/{name}")
-        return logos, {"size": view["size"], "dark_mode": view["dark_mode"], "name": view["company"]["name"]}
+        brand: dict[str, Any] = {"size": view["size"], "dark_mode": view["dark_mode"], "name": view["company"]["name"]}
+        csize = brand_assets.full_view(conn)["company_logo_size"]
+        if csize != "same":
+            brand["company_size"] = csize  # LOGOSIDE-295: the company logo's own scale (absent = it follows `size`)
+        return logos, brand
     if has_company_logo(data_dir):
         logos["company"] = f"{logo_base}api/v1/notices/display/{slug}/logo/company" if public else "api/v1/notices/settings/logo"
         return logos, {"size": "m", "dark_mode": "plate", "name": ""}

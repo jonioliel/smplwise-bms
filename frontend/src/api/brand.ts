@@ -22,6 +22,8 @@ export interface BrandPatch {
   company_name?: string;
   company_kind?: string;
   logo_size?: string;
+  logo_side?: string;
+  company_logo_size?: string;
   dark_mode?: string;
   title_prefix?: string;
   title_mode?: string;

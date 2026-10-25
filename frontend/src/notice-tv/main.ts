@@ -305,6 +305,9 @@ function render(): void {
   cv.style.setProperty('--fs', ((SIZES[d.font_size] ?? SIZES.s) * (d.font_scale || 1)).toFixed(3));
   cv.dataset.size = d.font_size;
   cv.style.setProperty('--lg', String(LOGO_SCALE[feed.board.brand?.size ?? 'm'] ?? 1)); // the administrator's logo size scale
+  const own = feed.board.brand?.company_size; // LOGOSIDE-295: the company logo's own scale (absent = it follows the general one)
+  if (own && LOGO_SCALE[own]) cv.style.setProperty('--lgco', String(LOGO_SCALE[own]));
+  else cv.style.removeProperty('--lgco');
 
   const prevId = state.currentId;
   state.list = withSlides(playlist(notices, d), feed.slides, d);
