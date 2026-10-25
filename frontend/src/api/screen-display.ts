@@ -4,6 +4,7 @@
  *  - `home.info_style`: the clock, the weather, Shabbat and the alarm on the home screen as a thin bar in the header (`bar`, the
  *    default) or as the large widget cards (`cards`).
  *  - `ui.schedules_view`: the schedules list's view when this browser has not chosen one (`rows`, the default | cards | table | week).
+ *  - `ui.automations_view`: the same for the automations list (`rows`, the default | `cards`) - POLISH2-295.
  *  - `ui.page_size.<list>` / `ui.page_size.<list>_phone`: how many rows one page of a long list holds (control screens never scroll:
  *    the rest is behind the pager), on a desktop and on a phone.
  */
@@ -18,6 +19,12 @@ export type SchedulesView = 'rows' | 'cards' | 'table' | 'week';
 export const SCHEDULES_VIEWS: readonly SchedulesView[] = ['rows', 'cards', 'table', 'week'];
 export const SCHEDULES_VIEW_DEFAULT: SchedulesView = 'rows';
 
+/** POLISH2-295 (owner feedback 2026-10-25): the automations list keeps its cards (with the explanatory sentence) as a choice beside the
+ * rows; `ui.automations_view` is the installation's default when this browser has not chosen one. */
+export type AutomationsView = 'rows' | 'cards';
+export const AUTOMATIONS_VIEWS: readonly AutomationsView[] = ['rows', 'cards'];
+export const AUTOMATIONS_VIEW_DEFAULT: AutomationsView = 'rows';
+
 export type PagedList = 'schedules' | 'automations';
 /** The approved previews: 10 schedules / 12 automations on a 1440x900 desktop, 7 / 9 on a phone. */
 export const PAGE_SIZE_DEFAULT: Record<PagedList, { wide: number; phone: number }> = { schedules: { wide: 10, phone: 7 }, automations: { wide: 12, phone: 9 } };
@@ -29,6 +36,7 @@ export const pageSizeKey = (list: PagedList, phone: boolean): string => `ui.page
 export interface ScreenDisplay {
   infoStyle: InfoStyle;
   schedulesView: SchedulesView;
+  automationsView: AutomationsView;
   pageSize: Record<PagedList, { wide: number; phone: number }>;
 }
 
@@ -46,11 +54,12 @@ export function screenDisplayOf(raw: Record<string, unknown> | null | undefined)
   return {
     infoStyle: pick(s['home.info_style'], INFO_STYLES, INFO_STYLE_DEFAULT),
     schedulesView: pick(s['ui.schedules_view'], SCHEDULES_VIEWS, SCHEDULES_VIEW_DEFAULT),
+    automationsView: pick(s['ui.automations_view'], AUTOMATIONS_VIEWS, AUTOMATIONS_VIEW_DEFAULT),
     pageSize: { schedules: ps('schedules'), automations: ps('automations') },
   };
 }
 
-/** The demo (no backend) takes the defaults; `?home_info=cards|bar`, `?sched_view=` and `?page_size=<n>` (every list, desktop and phone)
+/** The demo (no backend) takes the defaults; `?home_info=cards|bar`, `?sched_view=`, `?auto_view=` and `?page_size=<n>` (every list, desktop and phone)
  * in the address choose for a demo page. */
 function demoOverrides(): Record<string, unknown> {
   try {
@@ -58,6 +67,7 @@ function demoOverrides(): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     if (q.get('home_info')) out['home.info_style'] = q.get('home_info');
     if (q.get('sched_view')) out['ui.schedules_view'] = q.get('sched_view');
+    if (q.get('auto_view')) out['ui.automations_view'] = q.get('auto_view');
     const ps = q.get('page_size');
     if (ps) for (const l of ['schedules', 'automations'] as const) for (const phone of [false, true]) out[pageSizeKey(l, phone)] = ps;
     return out;

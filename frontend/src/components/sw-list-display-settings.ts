@@ -5,7 +5,7 @@ import { describeError, patch } from '../api/client';
 import { getSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
-import { PAGE_SIZE_MAX, PAGE_SIZE_MIN, SCHEDULES_VIEWS, pageSizeKey, screenDisplayOf, type PagedList, type SchedulesView } from '../api/screen-display';
+import { AUTOMATIONS_VIEWS, PAGE_SIZE_MAX, PAGE_SIZE_MIN, SCHEDULES_VIEWS, pageSizeKey, screenDisplayOf, type PagedList, type SchedulesView } from '../api/screen-display';
 import { pl } from '../i18n/polish';
 
 const VIEW_NAME: Record<SchedulesView, () => string> = { rows: () => pl('rows'), cards: () => 'כרטיסים', table: () => 'טבלה', week: () => 'שבוע' };
@@ -13,7 +13,8 @@ const VIEW_NAME: Record<SchedulesView, () => string> = { rows: () => pl('rows'),
 /**
  * POLISH-295 `<sw-list-display-settings list="schedules|automations">` (owner approval 2026-10-25: long lists use pages, with a
  * setting for how many items a page holds; the schedules list opens in rows by default): the card of הגדרות › תזמונים / אוטומציות
- * that edits `ui.page_size.<list>` (desktop), `ui.page_size.<list>_phone` and, for the schedules, `ui.schedules_view`. Saved at once
+ * that edits `ui.page_size.<list>` (desktop), `ui.page_size.<list>_phone` and the list's default view (`ui.schedules_view` /
+ * `ui.automations_view`, POLISH2-295). Saved at once
  * (PATCH /settings: system.configure, audited); read-only for anyone else.
  */
 @customElement('sw-list-display-settings')
@@ -117,7 +118,7 @@ export class SwListDisplaySettings extends LitElement {
         const s = screenDisplayOf(r.settings as unknown as Record<string, unknown>);
         this.wide = s.pageSize[this.list].wide;
         this.phone = s.pageSize[this.list].phone;
-        this.view = s.schedulesView;
+        this.view = this.list === 'automations' ? s.automationsView : s.schedulesView;
       })
       .catch(() => undefined);
   }
@@ -162,7 +163,7 @@ export class SwListDisplaySettings extends LitElement {
     if (v === this.view) return;
     const before = this.view;
     this.view = v;
-    void this.save({ 'ui.schedules_view': v }, () => (this.view = before));
+    void this.save({ [this.list === 'automations' ? 'ui.automations_view' : 'ui.schedules_view']: v }, () => (this.view = before));
   }
 
   render() {
@@ -170,9 +171,7 @@ export class SwListDisplaySettings extends LitElement {
     const size = (phone: boolean) => html`<input type="number" inputmode="numeric" min=${PAGE_SIZE_MIN} max=${PAGE_SIZE_MAX} step="1" .value=${String(phone ? this.phone : this.wide)} ?disabled=${ro}
       aria-label=${phone ? pl('perPagePhone') : pl('perPageWide')} data-page-size=${phone ? 'phone' : 'wide'} @change=${(e: Event) => this.setSize(phone, (e.target as HTMLInputElement).value)} />`;
     return html`<sw-card heading=${pl('listsHeading')} data-list-display=${this.list}>
-      ${this.list === 'schedules'
-        ? html`<div class="row"><span>${pl('defaultView')}</span><span class="seg" role="group" aria-label=${pl('defaultView')}>${SCHEDULES_VIEWS.map((v) => html`<button type="button" data-default-view=${v} aria-pressed=${String(this.view === v)} ?disabled=${ro} @click=${() => this.setView(v)}>${VIEW_NAME[v]()}</button>`)}</span></div>`
-        : nothing}
+      <div class="row"><span>${pl('defaultView')}</span><span class="seg" role="group" aria-label=${pl('defaultView')}>${((this.list === 'automations' ? AUTOMATIONS_VIEWS : SCHEDULES_VIEWS) as readonly SchedulesView[]).map((v) => html`<button type="button" data-default-view=${v} aria-pressed=${String(this.view === v)} ?disabled=${ro} @click=${() => this.setView(v)}>${VIEW_NAME[v]()}</button>`)}</span></div>
       <div class="row"><span>${pl('perPageWide')}</span>${size(false)}</div>
       <div class="row"><span>${pl('perPagePhone')}</span>${size(true)}</div>
       <div class="foot">
