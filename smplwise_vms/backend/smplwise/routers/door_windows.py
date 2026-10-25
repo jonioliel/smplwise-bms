@@ -579,7 +579,7 @@ def emergency_start(body: StartBody, request: Request, principal: Principal = De
     db = request.app.state.db
     de.submit(db, settings, iid, "apply")
     de.pause_windows_for_lock(db, settings, iid)
-    de.cancel_capture_leases(db, iid)  # CAPEMERGENCY-295: after the open is out; never raises
+    de.cancel_capture_leases(db, iid)  # CAPEMERGENCY-295 / CAPEMERGENCY2-295: OPEN or LOCK, after the door action is out; never raises
     with db.connection(mode="read") as rconn:
         return {"incident": de.incident_view(rconn, de.incident_row(rconn, iid))}
 
