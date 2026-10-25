@@ -147,6 +147,27 @@ test.describe('station media: two-way talk (full duplex, WKF01F02-295)', () => {
     await expect(talkLine(page)).toHaveText('הדיבור הסתיים');
   });
 
+  // 2.19.0 gate (release/2190-fix): listening (WKAUDIN-295) is off here; its host stayed a grid item of the drawer and added an empty
+  // row + gap under the push-to-talk. "No trace while off" means no box at all; when the server offers it, the button is there.
+  test('listening not offered: no trace in the drawer, not even a gap; offered: the listen button under the push-to-talk', async ({ page }) => {
+    await boot(page, { mode: 'video_talk' });
+    await openDrawer(page, 'gate');
+    await expect(ptt(page)).toBeVisible();
+    const host = inDrawer(page, 'wk-station-live wk-listen-button');
+    await expect(host).toHaveAttribute('hidden', '');
+    expect(await host.boundingBox()).toBeNull();
+    await page.route('**/api/v1/access-control/stations/*/listen', (route) =>
+      route.request().method() === 'GET'
+        ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ station_id: 'lobby', available: true, reason: null, codec: 'pcmu', sample_rate: 8000, frame_ms: 20, max_seconds: 120 }) })
+        : route.fallback(),
+    );
+    await page.keyboard.press('Escape');
+    await openDrawer(page, 'lobby');
+    const offered = inDrawer(page, 'wk-station-live wk-listen-button');
+    await expect(offered.locator('[data-wk-listen-toggle]')).toBeVisible();
+    await expect(offered).not.toHaveAttribute('hidden', '');
+  });
+
   test('the server ends the session: the time is over', async ({ page }) => {
     const { mm } = await boot(page, { mode: 'video_talk' });
     await openDrawer(page, 'gate');

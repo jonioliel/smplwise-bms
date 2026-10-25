@@ -33,6 +33,10 @@ export class WkListenButton extends LitElement {
       gap: var(--sw-s-2);
       min-inline-size: 0;
     }
+    /* nothing offered: no box at all, so the drawer's grid keeps no empty row and no gap for it */
+    :host([hidden]) {
+      display: none;
+    }
     .row {
       display: flex;
       align-items: center;
@@ -141,6 +145,18 @@ export class WkListenButton extends LitElement {
     this.timer = 0;
   }
 
+  /** Whether anything is shown (the render below); while nothing is, the host is hidden and takes no row or gap in the drawer. */
+  private get offered(): boolean {
+    const s = this.session;
+    const active = s !== null && s.phase !== 'idle';
+    return this.live && (active || !!s?.problem || !!this.capability?.available);
+  }
+
+  protected updated(changed: PropertyValues<this>): void {
+    super.updated(changed);
+    this.toggleAttribute('hidden', !this.offered);
+  }
+
   private toggle(): void {
     const s = this.ensureSession();
     if (s.phase === 'idle') void s.start();
@@ -149,9 +165,7 @@ export class WkListenButton extends LitElement {
 
   render() {
     const s = this.session;
-    const active = s !== null && s.phase !== 'idle';
-    if (!this.live) return nothing;
-    if (!active && !s?.problem && !this.capability?.available) return nothing;
+    if (!this.offered) return nothing;
     const t = slt();
     const phase = s?.phase ?? 'idle';
     const left = s?.secondsLeft();

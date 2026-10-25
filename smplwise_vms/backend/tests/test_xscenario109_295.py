@@ -236,13 +236,19 @@ def test_enable_needs_a_dry_run_of_this_version(w):
 
 def test_simulate_runs_no_action_and_writes_nothing(w):
     w.on("set_flag", "notify")
-    r = w.c.post(f"{API}/simulate", json={"definition": cold_room(), "overrides": {"when.items[0]": 9.5, "when.items[1]": True}})
+    # every leaf simulated: the unsaved definition is evaluated on the real clock, so an unsimulated time.after_hours made this
+    # test depend on the hour it ran (FALSE inside the Sunday-Thursday working window - the 2.19.0 gate ran on Sunday 11:00 site time)
+    over = {"when.items[0]": 9.5, "when.items[1]": True, "when.items[2]": True}
+    r = w.c.post(f"{API}/simulate", json={"definition": cold_room(), "overrides": over})
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["result"] == "TRUE" and body["would_fire"] is True and body["simulated"] is True
     assert w.flag("cold_alarm") is None and not w.notices("scenario.fired")
     bad = w.c.post(f"{API}/simulate", json={"definition": cold_room(), "overrides": {"when.items[9]": 1}})
     assert bad.status_code == 422
+    # and the clock leaf really is what decides: inside working hours the same simulation is FALSE and would not fire
+    r = w.c.post(f"{API}/simulate", json={"definition": cold_room(), "overrides": {**over, "when.items[2]": False}})
+    assert r.status_code == 200 and r.json()["result"] == "FALSE" and r.json()["would_fire"] is False, r.text
 
 
 def test_version_conflict(w):
