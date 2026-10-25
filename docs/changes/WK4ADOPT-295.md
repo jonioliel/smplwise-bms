@@ -118,3 +118,7 @@ because no command existed; this is that wiring against the original source.
   config[DOMAIN]["native_whatsapp_templates_v1"])`. Arx writes no configuration and activates no installer.
 - `TEMPLATE_SEND_SUPPORTED` stays False: production refuses `template_unsupported` before any hand-over (test). The fake-sender tests
   open the permit inside the test only. No WhatsApp message was sent. TP-02 (no consent gate) unchanged.
+
+## WR6-01 (Windows review of 002eec7b9) - the receipt of a resolve read belongs to that read
+
+LiveResolveTransport.read returned self.receipts[-1] when resolve_parameters refused locally after an earlier read had appended a receipt (a stale receipt; the verdict was already UNKNOWN). The call now returns its own receipt (_once); a local refusal before any frame returns None and appends nothing. Test: test_wr6_01_a_local_refusal_after_a_successful_read_returns_no_receipt_and_sends_nothing (fails on the old code, passes on the fix).

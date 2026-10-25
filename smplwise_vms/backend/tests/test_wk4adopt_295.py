@@ -696,6 +696,29 @@ def test_w010_resolve_found_settles_once_and_unknown_refusal_disconnect_stay_ope
     assert len(sent) == 1 and sent[0] == wp.resolve_parameters(current, original), "the exact original, once"
 
 
+def test_wr6_01_a_local_refusal_after_a_successful_read_returns_no_receipt_and_sends_nothing(peer_env):
+    """WR6-01: the receipt of a read belongs to THAT read. A success first, then `resolve_parameters` refusing locally
+    (original_reference_mismatch): no frame leaves, the verdict is UNKNOWN and the returned receipt is None - never the earlier one."""
+    peer_env.server.script["peer_bindings/get"] = {"result": _row()}
+    peer_env.server.script["peer_receipts/resolve"] = {"result": {"schema_version": 1, "state": "unknown", "receipt": None}}
+    current = _client(peer_env).current().peer
+    original = wp.ResolveOriginal.of(current, descriptor_epoch="epoch-7", descriptor={"request": {"id": "req-1"}})
+    first, first_receipt = peer_env.resolve.read(current, original)
+    assert first_receipt == wp.PeerReadReceipt("peer_receipts/resolve", "result") and first.state == "unknown"
+    other = wp._mint_peer(value="peer-other", peer_binding_ref=P_BINDING, peer_binding_revision=P_REV, repository_id=P_REPO,
+                          query_owner_id=P_OWNER)
+    foreign = wp.ResolveOriginal.of(other, descriptor_epoch="epoch-7", descriptor={"request": {"id": "req-2"}})
+    sent_before = len([c for c, _k, _p in peer_env.server.received if c == "peer_receipts/resolve"])
+    verdict, receipt = peer_env.resolve.read(current, foreign)
+    assert (verdict.state, verdict.settles, verdict.code) == ("unknown", False, "original_reference_mismatch")
+    assert receipt is None, "no stale receipt of the earlier read"
+    assert len([c for c, _k, _p in peer_env.server.received if c == "peer_receipts/resolve"]) == sent_before, "no frame was sent"
+    assert peer_env.resolve.receipts == [first_receipt], "the history holds only the read that happened"
+    with pytest.raises(wp.PeerSeamError) as refused:
+        peer_env.resolve.resolve(current, foreign)
+    assert refused.value.code == "original_reference_mismatch"
+
+
 def test_w010_the_direct_join_owns_both_dedicated_transports(monkeypatch):
     monkeypatch.setattr(join, "JOIN", None)
     from smplwise.services import lease_events

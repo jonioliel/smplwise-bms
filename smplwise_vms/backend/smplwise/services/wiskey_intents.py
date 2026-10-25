@@ -322,24 +322,36 @@ class LiveResolveTransport:
     def __repr__(self) -> str:
         return f"LiveResolveTransport(wired={self.port is not None})"
 
+    def _once(self, current: wp.VerifiedPeerRef, original: wp.ResolveOriginal) -> tuple[Any, wp.PeerReadReceipt | None, str | None]:
+        """ONE call: (frame | None, the receipt of THIS call | None, refusal code | None). The receipt is returned by the call itself,
+        never read back from `self.receipts` (WR6-01): a local refusal before any frame (no port, `resolve_parameters` refusing) has
+        no receipt at all."""
+        if self.port is None:
+            return None, None, "not_built"
+        try:
+            params = wp.resolve_parameters(current, original)  # refuses (nothing sent) a mismatched current binding
+        except wp.PeerSeamError as exc:
+            return None, None, exc.code
+        frame, receipt = wp.peer_read(self.port, self.COMMAND, params, timeout_s=self.timeout_s)
+        self.receipts.append(receipt)  # the history; never the source of a call's own receipt
+        if frame is None:
+            return None, receipt, receipt.code or receipt.outcome
+        return frame, receipt, None
+
     def resolve(self, current: wp.VerifiedPeerRef, original: wp.ResolveOriginal) -> Any:
         """The native frame of one read (for `wiskey_peer.verify_resolution`); raises PeerSeamError when no verified answer exists."""
-        if self.port is None:
-            raise wp.PeerSeamError("not_built")
-        params = wp.resolve_parameters(current, original)  # refuses (nothing sent) a mismatched current binding
-        frame, receipt = wp.peer_read(self.port, self.COMMAND, params, timeout_s=self.timeout_s)
-        self.receipts.append(receipt)
+        frame, _receipt, code = self._once(current, original)
         if frame is None:
-            raise wp.PeerSeamError(receipt.code or receipt.outcome)
+            raise wp.PeerSeamError(code or "unknown")
         return frame
 
     def read(self, current: wp.VerifiedPeerRef, original: wp.ResolveOriginal) -> tuple[wp.ResolutionVerdict, wp.PeerReadReceipt | None]:
-        """(verdict, receipt): never raises; anything but a verified `found` is an UNKNOWN verdict."""
-        try:
-            frame = self.resolve(current, original)
-        except wp.PeerSeamError as exc:
-            return wp.ResolutionVerdict("unknown", False, exc.code), (self.receipts[-1] if self.receipts and self.port is not None else None)
-        return wp.verify_resolution(frame), self.receipts[-1]
+        """(verdict, the receipt of THIS read or None when nothing was sent): never raises; anything but a verified `found` is an
+        UNKNOWN verdict."""
+        frame, receipt, code = self._once(current, original)
+        if frame is None:
+            return wp.ResolutionVerdict("unknown", False, code or "unknown"), receipt
+        return wp.verify_resolution(frame), receipt
 
 
 def resolve_intent(conn: sqlite3.Connection, o: ExactOriginal, original: wp.ResolveOriginal, current: wp.VerifiedPeerRef,
