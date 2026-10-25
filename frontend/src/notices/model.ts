@@ -4,6 +4,7 @@
  */
 import type { Audience, Board, Notice, NoticeInput, Severity } from '../api/notices';
 import { nt, type NtKey } from '../i18n/notices';
+import { inPlace, type AreaOpt, type FloorOpt } from './places-model';
 
 export type Kpi = 'all' | 'urgent' | 'scheduled' | 'expired' | 'drafts' | 'unread';
 export type Seg = 'all' | 'mine' | 'tv';
@@ -36,6 +37,14 @@ export function matches(n: Notice, kpi: Kpi, seg: Seg, q: string, manager: boole
   if (seg === 'mine' && n.audience && !n.audience.everyone && !Object.keys(n.audience).length) return false;
   const s = q.trim().toLowerCase();
   return !s || n.title.toLowerCase().includes(s) || n.body.toLowerCase().includes(s);
+}
+
+export interface ListFilter { kpi: Kpi; seg: Seg; q: string; manager: boolean; place: string; floors: readonly FloorOpt[]; areas: readonly AreaOpt[] }
+
+/** NOTICEDEL-295: the rows of the table - the KPI tile, the segment, the search and the place together. The tile counts ignore the place, the
+ * segment and the search, so a count above 0 beside an empty table means one of those three is narrowing the list (the page then says so). */
+export function listRows(all: readonly Notice[], f: ListFilter): Notice[] {
+  return all.filter((n) => matches(n, f.kpi, f.seg, f.q, f.manager) && inPlace(n, f.place, f.floors, f.areas));
 }
 
 const two = (x: number) => ('0' + x).slice(-2);

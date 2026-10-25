@@ -194,7 +194,8 @@
         "tickets.costs.view",
         "notices.view",
         "notices.manage",
-        "notices.push"
+        "notices.push",
+        "notices.delete"
       ]
     },
     {
@@ -351,7 +352,8 @@
         "notices.view",
         "notices.manage",
         "notices.push",
-        "notices.boards"
+        "notices.boards",
+        "notices.delete"
       ]
     },
     {
@@ -511,6 +513,15 @@
       "name_he": "לוח הודעות: שליחת התראה",
       "permissions": [
         "notices.push"
+      ]
+    },
+    {
+      "id": "notices_delete",
+      "name_he": "לוח הודעות: מחיקה",
+      "permissions": [
+        "notices.view",
+        "notices.manage",
+        "notices.delete"
       ]
     },
     {

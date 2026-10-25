@@ -8,12 +8,14 @@ import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
 import { archiveNotice, audienceOptions, listBoards, listNotices, markRead, type Board, type Notice, type NoticesList } from '../api/notices';
 import { nt } from '../i18n/notices';
-import { SEV_KEY, SEV_LOOK, STATE_KEY, audienceText, draftOf, kpiCounts, matches, newDraft, windowText, type Draft, type Kpi, type Seg } from '../notices/model';
+import { SEV_KEY, SEV_LOOK, STATE_KEY, audienceText, draftOf, kpiCounts, listRows, matches, newDraft, windowText, type Draft, type Kpi, type Seg } from '../notices/model';
 import '../notices/compose-dialog';
 import type { NoticeSavedDetail } from '../notices/compose-dialog';
 import '../notices/places-tree';
 import '../notices/reads-sheet';
-import { PLACE_ALL, buildPlaces, inPlace, placesCss, placesSelect, type AreaOpt } from '../notices/places-tree';
+import '../notices/delete-dialog';
+import { canDeleteRow, type DeleteTarget } from '../notices/delete-model';
+import { PLACE_ALL, buildPlaces, placesCss, placesSelect, type AreaOpt } from '../notices/places-tree';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_SETTINGS_HREF } from '../shell/nav';
 
@@ -43,6 +45,7 @@ export class DevicesNotices extends LitElement {
   @state() private place = PLACE_ALL; // NOTICEPAGE-295: the places tree's choice
   @state() private readsFor: Notice | null = null; // NOTICEPAGE-295: the "מי קרא" sheet
   @state() private draft: Draft | null = null;
+  @state() private deleting: DeleteTarget | null = null; // NOTICEDEL-295: the notice whose deletion is being confirmed
   @state() private reading: Notice | null = null;
   @state() private toast = '';
   private toastTimer = 0;
@@ -109,9 +112,10 @@ export class DevicesNotices extends LitElement {
     if (!this.data) return html`<sw-page heading=${nt('title')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const all = this.data.notices;
     const counts = kpiCounts(all);
-    const tree = this.manager && this.floors.length ? buildPlaces(all.filter((n) => matches(n, 'all', 'all', '', true)), this.floors, this.areas) : [];
+    const showTree = this.data.defaults.show_places_tree !== false; // NOTICEDEL-295: the installation's setting (default on)
+    const tree = showTree && this.manager && this.floors.length ? buildPlaces(all.filter((n) => matches(n, 'all', 'all', '', true)), this.floors, this.areas) : [];
     const place = tree.some((p) => p.id === this.place) ? this.place : PLACE_ALL;
-    const rows = all.filter((n) => matches(n, this.kpi, this.seg, this.q, this.manager) && inPlace(n, place, this.floors, this.areas));
+    const rows = listRows(all, { kpi: this.kpi, seg: this.seg, q: this.q, manager: this.manager, place, floors: this.floors, areas: this.areas });
     const sub = this.manager ? nt('subtitleMgr', { n: counts.all, s: counts.scheduled, d: counts.drafts }) : nt('subtitle', { n: counts.all });
     return html`
       <sw-page heading="" data-notices-page>
@@ -132,10 +136,11 @@ export class DevicesNotices extends LitElement {
                 <label class="search"><sw-icon name="search" size="14"></sw-icon><input type="search" placeholder=${nt('search')} aria-label=${nt('search')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)}></label>
               </div>
               <div class="scrollx">${this.table(rows)}</div>
-              <div class="cards">${rows.map((n) => this.card(n))}</div>
+              <div class="cards">${rows.length ? rows.map((n) => this.card(n)) : html`<div class="card" data-no-rows><span class="mut">${nt('noRows')}</span> <button type="button" class="pick" data-clear-filters @click=${() => this.clearFilters()}>${nt('clearFilters')}</button></div>`}</div>
             </div></div>`}
       </sw-page>
       ${this.composeDialog()} ${this.readDialog()}
+      <notice-delete .notice=${this.deleting} @notice-delete-close=${() => (this.deleting = null)} @notice-deleted=${() => this.deleted()}></notice-delete>
       <notice-reads .notice=${this.readsFor} @reads-close=${() => (this.readsFor = null)}></notice-reads>
       ${this.toast ? html`<div class="toast" role="status">${this.toast}</div>` : nothing}`;
   }
@@ -168,6 +173,7 @@ export class DevicesNotices extends LitElement {
     const floors = Object.fromEntries(this.floors.map((f) => [f.id, f.name]));
     return html`<table class="t"><thead><tr><th>${nt('colState')}</th><th>${nt('colNotice')}</th>${this.manager ? html`<th>${nt('colAudience')}</th><th>${nt('colBoards')}</th>` : nothing}
       <th>${nt('colWindow')}</th>${this.manager ? html`<th>${nt('colReads')}</th><th></th>` : nothing}</tr></thead><tbody>
+ ${rows.length ? nothing : html`<tr data-no-rows><td colspan=${this.manager ? 7 : 3}><span class="mut">${nt('noRows')}</span> <button type="button" class="pick" data-clear-filters @click=${() => this.clearFilters()}>${nt('clearFilters')}</button></td></tr>`}
       ${rows.map((n) => html`<tr class="go" tabindex="0" data-notice=${n.id} data-look=${this.look(n)} @click=${() => this.open(n)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.open(n)}>
         <td>${this.badge(n)}</td>
         <td><span class="t1">${n.title}${n.read === false && n.state === 'active' && !this.manager ? html`<span class="new" aria-label="new"></span>` : nothing}</span><span class="t2">${n.body.split('\n')[0]}</span></td>
@@ -193,9 +199,34 @@ export class DevicesNotices extends LitElement {
   }
 
   private actions(n: Notice) {
-    if (n.state === 'archived') return nothing;
+    const del = this.manager && canDeleteRow(n, this.data?.can.delete ?? false)
+      ? html`<sw-button size="sm" variant="ghost" data-delete @click=${() => this.askDelete(n.id)}>${nt('delete')}</sw-button>` : nothing;
+    if (n.state === 'archived') return del;
     return html`${n.state !== 'expired' ? html`<sw-button size="sm" variant=${n.state === 'draft' ? 'primary' : 'secondary'} @click=${() => this.open(n)}>${nt(n.state === 'draft' ? 'continueEdit' : 'edit')}</sw-button>` : nothing}
-      ${n.state !== 'draft' ? html`<sw-button size="sm" data-archive @click=${() => this.archive(n)}>${nt('archive')}</sw-button>` : nothing}`;
+      ${n.state !== 'draft' ? html`<sw-button size="sm" data-archive @click=${() => this.archive(n)}>${nt('archive')}</sw-button>` : nothing}${del}`;
+  }
+
+  /** NOTICEDEL-295: opens the confirmation (and closes the compose dialog when the request came from it). */
+  private askDelete(id: string): void {
+    const n = this.data?.notices.find((x) => x.id === id);
+    if (!n) return;
+    this.draft = null;
+    this.deleting = { id: n.id, title: n.title, state: n.state, severity: n.severity };
+  }
+
+  /** Back to the unfiltered list (the KPI tile, the segment, the search and the place). */
+  private clearFilters(): void {
+    this.kpi = 'all';
+    this.seg = 'all';
+    this.q = '';
+    this.place = PLACE_ALL;
+  }
+
+  private async deleted(): Promise<void> {
+    this.deleting = null;
+    this.draft = null;
+    this.say(nt('delDone'));
+    await this.load();
   }
 
   private open(n: Notice): void {
@@ -244,8 +275,8 @@ export class DevicesNotices extends LitElement {
   }
 
   private composeDialog() {
-    return html`<notice-compose .draft=${this.draft} .canPush=${this.data?.can.push ?? false} .pushDefault=${this.data?.defaults.push_default ?? 'by_severity'} .boards=${this.boards} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
-      @notice-close=${() => (this.draft = null)} @notice-saved=${(e: CustomEvent<NoticeSavedDetail>) => this.saved(e)}></notice-compose>`;
+    return html`<notice-compose .draft=${this.draft} .canDelete=${this.data?.can.delete ?? false} .canPush=${this.data?.can.push ?? false} .pushDefault=${this.data?.defaults.push_default ?? 'by_severity'} .boards=${this.boards} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
+      @notice-close=${() => (this.draft = null)} @notice-delete=${(e: CustomEvent<{ id: string }>) => this.askDelete(e.detail.id)} @notice-saved=${(e: CustomEvent<NoticeSavedDetail>) => this.saved(e)}></notice-compose>`;
   }
 }
 

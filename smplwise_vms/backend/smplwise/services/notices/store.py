@@ -135,6 +135,22 @@ def delete_draft(conn: sqlite3.Connection, notice_id: str) -> None:
     conn.execute("DELETE FROM notices WHERE id = ? AND status = 'draft'", (notice_id,))
 
 
+def delete_notice(conn: sqlite3.Connection, notice_id: str) -> None:
+    """NOTICEDEL-295: the real deletion of a notice of any status. The boards that carried it are touched FIRST (their `updated_at` is part of
+    the feed's version, so the TVs refresh at once), a hold on it ends (as in archive), then its board links, its read marks and the notice
+    row go. Nothing else keys on a notice id except the open notification of its push, which the caller resolves (services/notices/push.py)."""
+    now = now_iso()
+    touch_boards_of(conn, notice_id)
+    for b in conn.execute("SELECT id, display_json FROM notice_boards WHERE deleted_at IS NULL").fetchall():
+        d = model.load_display(b["display_json"])
+        if d.get("hold") == notice_id:
+            d["hold"] = ""
+            conn.execute("UPDATE notice_boards SET display_json = ?, updated_at = ? WHERE id = ?", (json.dumps(d, ensure_ascii=False), now, b["id"]))
+    conn.execute("DELETE FROM notice_board_items WHERE notice_id = ?", (notice_id,))
+    conn.execute("DELETE FROM notice_reads WHERE notice_id = ?", (notice_id,))
+    conn.execute("DELETE FROM notices WHERE id = ?", (notice_id,))
+
+
 def mark_read(conn: sqlite3.Connection, notice_id: str, user_id: str) -> None:
     conn.execute("INSERT OR IGNORE INTO notice_reads(notice_id, user_id, read_at) VALUES (?, ?, ?)", (notice_id, user_id, now_iso()))
 
