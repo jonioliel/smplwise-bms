@@ -1,0 +1,24 @@
+{
+  "description": "303 to <remote_path>/?app_session=failed: Sec-Fetch-Site cross-site / same-site is refused (audited as auth.app_session.redeem denied, reason cross_site, SX-27); the code is NOT spent.",
+  "name": "redeem_cross_site",
+  "request": {
+    "headers": {
+      "Sec-Fetch-Site": "cross-site",
+      "X-Correlation-Id": "0123456789abcdef0123456789abcdef"
+    },
+    "method": "GET",
+    "path": "/arx/api/v1/auth/app/session/redeem",
+    "query": {
+      "code": "<CODE>"
+    }
+  },
+  "response": {
+    "body": null,
+    "headers": {
+      "cache-control": "no-store",
+      "location": "/arx/?app_session=failed",
+      "x-correlation-id": "0123456789abcdef0123456789abcdef"
+    },
+    "status": 303
+  }
+}

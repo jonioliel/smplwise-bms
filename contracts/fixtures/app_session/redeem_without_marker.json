@@ -1,0 +1,23 @@
+{
+  "description": "303 to <remote_path>/?app_session=failed: the redeem navigation carried no X-Correlation-Id of 12-32 hex characters (X4 F-1); the code IS spent. The app must send the header on loadUrl(url, headers) / URLRequest.",
+  "name": "redeem_without_marker",
+  "request": {
+    "headers": {
+      "Sec-Fetch-Site": "none"
+    },
+    "method": "GET",
+    "path": "/arx/api/v1/auth/app/session/redeem",
+    "query": {
+      "code": "<CODE>"
+    }
+  },
+  "response": {
+    "body": null,
+    "headers": {
+      "cache-control": "no-store",
+      "location": "/arx/?app_session=failed",
+      "x-correlation-id": "<SERVER_CORRELATION_ID>"
+    },
+    "status": 303
+  }
+}

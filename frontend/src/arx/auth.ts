@@ -10,13 +10,26 @@
  */
 import { clientId, redirectUri } from './channel';
 import { clearHassTokens, readHassTokens, seedHassTokens } from './hass-tokens';
-import { syncNativeSession } from './native-app';
+import { holdNativeSession, releaseNativeSession, type NativeSignOutReason } from './native-app';
 
 export const TOKENS_KEY = 'arx.auth.v1';
 
 /** Why the Arx sign-in ended (the sign-in page says so once). CR-008 P2: `everywhere` = the user's "sign out everywhere",
  * `revoked` = this sign-in was ended from the sessions list (by the user elsewhere or by an administrator). */
 export type SignOutReason = 'expired' | 'idle' | 'logout' | 'everywhere' | 'revoked';
+
+/** SX-09: the native shell's closed reason for a page sign-out reason (`logout` / `everywhere` are the user's own). */
+export function nativeReasonOf(reason: SignOutReason): NativeSignOutReason {
+  switch (reason) {
+    case 'logout':
+    case 'everywhere':
+      return 'user';
+    case 'expired':
+      return 'expired';
+    default:
+      return 'unknown'; // revoked, idle: no silent re-exchange (the shells' vocabulary is user | expired | unknown)
+  }
+}
 const ACTIVITY_KEY = 'arx.activity.v1';
 const REFRESH_BEFORE_MS = 5 * 60_000;
 
@@ -451,7 +464,7 @@ export async function resume(): Promise<boolean> {
     return true;
   } catch (err) {
     if (err instanceof ArxAuthError && err.status === 403) {
-      await logout('logout'); // no remote access (any more): the stored sign-in is revoked
+      await logout('logout', 'unknown'); // no remote access (any more): the stored sign-in is revoked (not the user's intent: SX-09)
       throw err;
     }
     if (err instanceof ArxAuthError && err.code === 'second_factor_required') {
@@ -527,17 +540,25 @@ async function revoke(refreshToken: string): Promise<void> {
 }
 
 /** Revoke the refresh token at HA, end the Arx session, clear both storages (ours and HA's seed when it is ours). */
-export async function logout(reason: SignOutReason = 'logout'): Promise<void> {
-  syncNativeSession(null); // MOBILE214: the native app stops its background work at once (idle, expired and revoked paths end here too)
+export async function logout(reason: SignOutReason = 'logout', native: NativeSignOutReason = nativeReasonOf(reason)): Promise<void> {
+  // MOBILE214 + SX-09: the native app is told once the outcome is known - `user` only after the server ended the session (2xx or
+  // 401); until then no other hint (a background 401) may reach it first
+  holdNativeSession();
+  let ended = false;
   const t = currentTokens();
   window.clearTimeout(refreshTimer);
   window.clearInterval(idleTimer);
   idleTimer = 0;
-  if (t) await revoke(t.refresh_token);
   try {
-    await fetch('api/v1/auth/session', { method: 'DELETE', credentials: 'same-origin' });
-  } catch {
-    /* the cookie ends with its access token anyway */
+    if (t) await revoke(t.refresh_token);
+    try {
+      const res = await fetch('api/v1/auth/session', { method: 'DELETE', credentials: 'same-origin' });
+      ended = res.ok || res.status === 401;
+    } catch {
+      /* the cookie ends with its access token anyway */
+    }
+  } finally {
+    releaseNativeSession(native === 'user' && !ended ? 'unknown' : native);
   }
   clearTokens();
   clearHassTokens(clientId(), t?.refresh_token);

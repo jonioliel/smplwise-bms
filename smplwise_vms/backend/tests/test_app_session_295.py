@@ -76,9 +76,12 @@ def webview(rx) -> TestClient:
     return TestClient(rx.app)
 
 
+MARK = {"X-Correlation-Id": "0123456789abcdef"}  # X4 F-1 fix 2: the app's own redeem navigation carries it (loadUrl headers / URLRequest)
+
+
 def redeem(rx, code: str, wv: TestClient | None = None, headers: dict | None = None):
     wv = wv or webview(rx)
-    r = wv.get(REDEEM, params={"code": code}, headers=headers or {}, follow_redirects=False)
+    r = wv.get(REDEEM, params={"code": code}, headers={**MARK, **(headers or {})}, follow_redirects=False)
     if r.status_code == 303 and r.headers.get("set-cookie"):
         rx.seen.append(r.headers["set-cookie"].split(";")[0].split("=", 1)[1])
     return r
@@ -260,6 +263,35 @@ def test_a_cross_site_navigation_cannot_redeem_a_code(rx):
         assert r.headers["location"].endswith("?app_session=failed") and "set-cookie" not in r.headers
     r = redeem(rx, code, headers={"sec-fetch-site": "none"})  # the app's own top-level navigation
     assert r.headers["location"] == "/arx/" and r.headers.get("set-cookie")
+
+
+def test_sx27_a_cross_site_redeem_refusal_is_audited_without_the_code(rx):
+    dev, out, key = started(rx)
+    code = exchange(rx, out["access_token"], dev["device_id"], sproof(rx, key, dev["device_id"], out["access_token"])).json()["code"]
+    r = redeem(rx, code, headers={"sec-fetch-site": "cross-site", "X-Correlation-Id": "0123456789abcdef"})
+    assert r.status_code == 303 and r.headers["location"] == "/arx/?app_session=failed" and "set-cookie" not in r.headers
+    rows = [a for a in audit_rows(rx, "auth.app_session.redeem") if a["reason"] == "cross_site"]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["decision"] == "denied" and row["resource_type"] == "mobile_device" and row["resource_id"] == dev["device_id"]
+    assert row["request_id"] == "0123456789abcdef"  # linkable to the app's own diagnostic record (SX-25 / SX-17)
+    det = json.loads(row["details_json"])
+    assert {k: det[k] for k in ("family", "sec_fetch_site", "code_known")} == {"family": out["family_id"], "sec_fetch_site": "cross-site", "code_known": True}
+    assert set(det) == {"family", "sec_fetch_site", "code_known", "ip"}
+    # same-site, an unknown code, and a malformed correlation id (never reflected into the row)
+    redeem(rx, code, headers={"sec-fetch-site": "same-site"})
+    redeem(rx, "arxc_" + "q" * 43, headers={"sec-fetch-site": "cross-site", "X-Correlation-Id": "bad id; x"})
+    rows = [a for a in audit_rows(rx, "auth.app_session.redeem") if a["reason"] == "cross_site"]
+    assert [json.loads(a["details_json"])["sec_fetch_site"] for a in rows] == ["cross-site", "same-site", "cross-site"]
+    anon = rows[-1]
+    anon_d = json.loads(anon["details_json"])
+    assert anon["resource_type"] == "installation" and anon_d["sec_fetch_site"] == "cross-site" and anon_d["code_known"] is False
+    assert set(anon_d) == {"sec_fetch_site", "code_known", "ip"}
+    assert anon["request_id"] != "bad id; x" and len(anon["request_id"]) == 12
+    # the refusal did not spend the code: the app's own navigation still redeems it (behaviour unchanged)
+    ok = redeem(rx, code, headers={"sec-fetch-site": "none"})
+    assert ok.headers["location"] == "/arx/" and ok.headers.get("set-cookie")
+    assert_nothing_leaked(rx)
 
 
 def test_a_code_is_bound_to_the_family_key_and_dies_with_the_family(rx):
@@ -617,3 +649,84 @@ def test_the_access_log_line_of_the_redeem_path_is_redacted():
     line = rec.getMessage()
     assert "arxc_" not in line and "code=REDACTED&x=1" in line
     assert xs._FILTER in logging.getLogger("uvicorn.access").filters
+
+
+# ---------------------------------------------------------------- X4 review (2026-10-25): F-1, F-2, F-3, I-2
+
+def test_x4_f1_a_redeem_without_the_app_marker_is_refused_and_spends_the_code(rx):
+    dev, out, key = started(rx)
+    for marker in (None, "short", "0123456789abcdefg", "0123456789ab0123456789ab0123456789", "0123-4567-89ab"):  # 5 = the family bucket
+        code = exchange(rx, out["access_token"], dev["device_id"], sproof(rx, key, dev["device_id"], out["access_token"])).json()["code"]
+        hdr = {"sec-fetch-site": "none"} if marker is None else {"sec-fetch-site": "none", "X-Correlation-Id": marker}
+        r = webview(rx).get(REDEEM, params={"code": code}, headers=hdr, follow_redirects=False)  # a link tapped in SMS / mail: no header
+        assert r.headers["location"] == "/arx/?app_session=failed" and "set-cookie" not in r.headers, marker
+        assert redeem(rx, code).headers["location"].endswith("?app_session=failed")  # spent: the app cannot use it afterwards either
+    assert sum(1 for a in audit_rows(rx, "auth.app_session.redeem") if a["reason"] == "marker_missing") == 5
+    assert web_rows(rx) == []
+    svc.reset_limits()  # a fresh per-family exchange bucket
+    # 12 and 32 hex (any case) are the app's marker
+    for marker in ("0123456789AB", "0123456789abcdef0123456789abcdef"):
+        code = exchange(rx, out["access_token"], dev["device_id"], sproof(rx, key, dev["device_id"], out["access_token"])).json()["code"]
+        assert redeem(rx, code, headers={"X-Correlation-Id": marker}).headers["location"] == "/arx/", marker
+
+
+def test_x4_f1_a_code_never_replaces_another_users_live_session(rx):
+    dev, out, key = started(rx)
+    victim = rx.user("vera")  # vera's browser, signed in (an HA remote session cookie)
+    assert victim.get(f"{ARX}/me").json()["user"]["id"] == "u-vera"
+    code = exchange(rx, out["access_token"], dev["device_id"], sproof(rx, key, dev["device_id"], out["access_token"])).json()["code"]
+    r = victim.get(REDEEM, params={"code": code}, headers={**MARK, "sec-fetch-site": "none"}, follow_redirects=False)
+    assert r.headers["location"] == "/arx/?app_session=failed" and "set-cookie" not in r.headers
+    assert victim.get(f"{ARX}/me").json()["user"]["id"] == "u-vera"  # still vera, nothing replaced
+    assert any(a["reason"] == "session_present" for a in audit_rows(rx, "auth.app_session.redeem"))
+    assert redeem(rx, code).headers["location"].endswith("?app_session=failed")  # the code was spent
+    # the SAME user's live web session is replaced as before (the app's cold-start exchange)
+    wv = webview(rx)
+    first = exchange(rx, out["access_token"], dev["device_id"], sproof(rx, key, dev["device_id"], out["access_token"])).json()["code"]
+    assert redeem(rx, first, wv).headers["location"] == "/arx/"
+    second = exchange(rx, out["access_token"], dev["device_id"], sproof(rx, key, dev["device_id"], out["access_token"])).json()["code"]
+    assert redeem(rx, second, wv).headers["location"] == "/arx/" and me(wv).json()["user"]["id"] == "u-viewer"
+
+
+def test_x4_f2_a_web_session_cannot_register_a_device(rx):
+    dev, out, key, wv = signed_in(rx)
+    with rx.db.connection(mode="read") as conn:
+        before = conn.execute("SELECT COUNT(*) FROM mobile_devices").fetchone()[0]
+    body = {"name": "טלפון אחר", "platform": "android", "install_id": "99999999-8888-7777-6666-555555555555", "app_version": "1.0.0"}
+    r = wv.post(f"{ARX}/presence/devices", json=body, headers=ORIGIN)
+    assert r.status_code == 403 and r.json()["code"] == "sign_in_not_anchorable" and "device_token" not in r.text
+    with rx.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM mobile_devices").fetchone()[0] == before
+    rows = audit_rows(rx, "presence.device.register")
+    assert rows[-1]["decision"] == "denied" and rows[-1]["reason"] == "sign_in_not_anchorable"
+    # an ordinary sign-in still registers
+    assert register(rx, "dana", install_id="99999999-8888-7777-6666-555555555555", name="טלפון אחר")["device_token"]
+
+
+def test_x4_f3_unknown_and_expired_codes_are_audited_with_the_masked_address_only(rx):
+    dev, out, key = started(rx)
+    redeem(rx, "arxc_" + "u" * 43)
+    code = exchange(rx, out["access_token"], dev["device_id"], sproof(rx, key, dev["device_id"], out["access_token"])).json()["code"]
+    later(rx, 61)
+    redeem(rx, code)
+    rows = {a["reason"]: a for a in audit_rows(rx, "auth.app_session.redeem")}
+    assert rows["code_unknown"]["resource_type"] == "installation" and set(json.loads(rows["code_unknown"]["details_json"])) == {"ip"}
+    exp = json.loads(rows["code_expired"]["details_json"])
+    assert rows["code_expired"]["resource_id"] == dev["device_id"] and exp["family"] == out["family_id"] and "ip" in exp
+    issued = json.loads(audit_rows(rx, "auth.app_session.code_issued")[-1]["details_json"])
+    assert "ip" in issued
+    for a in audit_rows(rx, "auth.app_session.%"):
+        assert a["request_id"] in ("0123456789abcdef", None) or len(a["request_id"]) == 12  # a validated id or a server one
+    assert_nothing_leaked(rx)
+
+
+def test_x4_i2_the_redeem_access_log_is_redacted_in_every_spelling_of_code():
+    for q in ("cod%65=arxc_SECRETSECRETSECRETSECRETSECRETSECRETSECR", "%63ODE=arxc_SECRETSECRETSECRETSECRETSECRETSECRETSECR",
+              "x=1;Code=arxc_SECRETSECRETSECRETSECRETSECRETSECRETSECR", "code%3Darxc_SECRETSECRETSECRETSECRETSECRETSECRETSECR"):
+        rec = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 1, '%s - "%s %s HTTP/%s" %d',
+                                ("1.2.3.4:5", "GET", "/arx/api/v1/auth/app/session/redeem?" + q, "1.1", 303), None)
+        assert xs.RedactCode().filter(rec) is True
+        assert "SECRET" not in rec.getMessage(), q
+    rec = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 1, '%s', ("/arx/api/v1/auth/app/session/redeem?zipcode=1&x=2",), None)
+    xs.RedactCode().filter(rec)
+    assert rec.getMessage().endswith("zipcode=1&x=2")  # another parameter whose name ends in `code` is not touched

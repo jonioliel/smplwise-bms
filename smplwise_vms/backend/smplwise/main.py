@@ -7,7 +7,6 @@ import logging
 import os
 import mimetypes
 import threading
-import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -16,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import __version__
+from . import __version__, correlation_id
 from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
@@ -460,7 +459,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.middleware("http")
     async def correlation(request: Request, call_next):
-        request.state.correlation_id = request.headers.get("x-correlation-id") or uuid.uuid4().hex[:12]
+        # SX-17: a client id is used only when it is one well-formed value (8-64 of [A-Za-z0-9_-]); never reflected otherwise
+        request.state.correlation_id = correlation_id.resolve(request.headers.getlist(correlation_id.HEADER))
         response = await call_next(request)
         response.headers["X-Correlation-Id"] = request.state.correlation_id
         return response

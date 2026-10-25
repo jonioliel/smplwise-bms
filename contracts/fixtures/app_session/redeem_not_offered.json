@@ -1,0 +1,30 @@
+{
+  "description": "404 not_found: the switch is off (or an older server).",
+  "name": "redeem_not_offered",
+  "request": {
+    "headers": {
+      "Sec-Fetch-Site": "none",
+      "X-Correlation-Id": "0123456789abcdef0123456789abcdef"
+    },
+    "method": "GET",
+    "path": "/arx/api/v1/auth/app/session/redeem",
+    "query": {
+      "code": "<CODE>"
+    }
+  },
+  "response": {
+    "body": {
+      "code": "not_found",
+      "correlation_id": "0123456789abcdef0123456789abcdef",
+      "details": {},
+      "retryable": false,
+      "user_message": "Not found"
+    },
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json",
+      "x-correlation-id": "0123456789abcdef0123456789abcdef"
+    },
+    "status": 404
+  }
+}
