@@ -173,7 +173,11 @@ def _feed(raw: Any) -> dict[str, str] | None:
     name = str(raw.get("name") or "").strip()[:40]
     if not url.startswith("https://") or len(url) > 400 or any(c.isspace() or ord(c) < 33 for c in url) or "@" in url.split("/", 3)[2]:
         return None  # https only, and no credentials in the URL
-    return {"name": name or url[8:40], "url": url}
+    out = {"name": name or url[8:40], "url": url}
+    sid = raw.get("id")
+    if isinstance(sid, str) and re.fullmatch(r"[a-z][a-z0-9-]{0,23}", sid):
+        out["id"] = sid  # NOTICERSS-295: the editable source list's id (the TV shows that source's current name and logo)
+    return out
 
 
 def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:

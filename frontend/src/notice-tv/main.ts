@@ -17,7 +17,7 @@ import './tv.css';
 import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo (developer kit artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
-  AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlan, heldIndex, logoLayoutOf, netOf, nightDim, onPoll,
+  AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlan, heldIndex, logoLayoutOf, netOf, nightDim, onPoll, tickerItemHtml,
   playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, whenText,
   type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type Item, type LogoLayout, type NetState, type Saver,
 } from './tv-logic';
@@ -227,7 +227,7 @@ function othersHtml(): string {
 function tickerHtml(): string {
   const items = feed?.news ?? [];
   return '<div class="tk"><span class="lbl">' + ic('rss') + esc(str(lang(), 'news')) + '</span><div class="win"><div class="track">' +
-    items.map((n) => '<span class="h" dir="rtl">' + tx(n.title) + '</span><em dir="auto">' + esc(n.source) + '</em><i class="sep" aria-hidden="true"></i>').join('') + '</div></div></div>';
+    items.map((n) => tickerItemHtml(n, n.logo ? slideSrc.get(n.logo) || '' : '')).join('') + '</div></div></div>';
 }
 
 function updatedText(): string {
@@ -418,6 +418,10 @@ function layoutAfter(): void {
     const speed = NEWS_SPEED[display().news?.speed ?? 'normal'] || 120;
     tr.style.setProperty('--winw', ww + 'px');
     tr.style.setProperty('--dur', Math.max(20, Math.round((ww + tw) / speed)) + 's');
+    // NOTICERSS-295: a source logo that decodes after this measure changes the track width: measure once more when it has loaded
+    tr.querySelectorAll('img').forEach((im) => {
+      if (!im.complete) im.addEventListener('load', () => tr.style.setProperty('--dur', Math.max(20, Math.round((ww + tr.scrollWidth) / speed)) + 's'), { once: true });
+    });
   }
 }
 
@@ -634,7 +638,8 @@ async function fetchBlob(url: string): Promise<string> {
 }
 
 async function loadMedia(doc: Feed): Promise<void> {
-  const want = new Set((doc.slides ?? []).map((s) => s.image).filter((u): u is string => !!u));
+  // slide pictures and (NOTICERSS-295) the news sources' logos: both are read with the board token, once per URL
+  const want = new Set([...(doc.slides ?? []).map((s) => s.image), ...(doc.news ?? []).map((n) => n.logo)].filter((u): u is string => !!u));
   for (const [url, blob] of slideSrc) {
     if (!want.has(url)) {
       URL.revokeObjectURL(blob);

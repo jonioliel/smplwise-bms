@@ -25,7 +25,7 @@ from typing import Any, Callable
 from .. import brand_assets
 from ..ha_user_auth import RateLimiter
 from . import audience as aud
-from . import info, model, slides, sources, store
+from . import info, model, news_sources, slides, sources, store
 
 SLUG_PATH = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
@@ -186,10 +186,9 @@ def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime
         w = sources.weather_block(conn, s["weather_entity"], disp["weather"]["hours"], disp["lang"], now)
         if w:
             doc["weather"] = w
-    feeds = disp["news"]["feeds"]
-    if not s["news_custom"]:  # custom feeds switched off (the default): a board saved earlier with one never fetches it
-        curated = {f["url"] for f in model.CURATED_NEWS}
-        feeds = [f for f in feeds if f["url"] in curated]
+    # NOTICERSS-295: the board's feeds resolved against the editable source list (current name + logo, disabled skipped); a raw URL
+    # that is not in the list stays out while custom feeds are switched off (the default), as before
+    feeds = news_sources.resolve_board_feeds(conn, disp["news"]["feeds"], allow_custom=s["news_custom"], slug=board["slug"], logo_base=logo_base, public=public)
     if disp["blocks"].get("news") and feeds:
         doc["news"] = sources.news_block(feeds, news)
     chips = info.build(conn, (disp["blocks"].get("info") or []) if disp["blocks"].get("info_show", True) else [], disp["lang"])
@@ -286,6 +285,18 @@ class DisplayService:
             if slide_id is not None and not ID_RE.match(slide_id):
                 return not_found()
             got = slides.image_of(conn, board["id"], slide_id, kind)
+        if got is None:
+            return not_found()
+        mime, data, stamp = got
+        return Reply(200, data, mime, headers=[("Cache-Control", "private, max-age=3600"), ("ETag", f'"{stamp}"')])
+
+    def news_logo(self, req: Request, source_id: str) -> Reply:
+        """NOTICERSS-295: a news source's logo, through the board token like the company logo (never an external address)."""
+        with self.open_conn() as conn:
+            board, refusal = self.resolve(conn, req)
+            if refusal is not None:
+                return refusal
+            got = news_sources.read_logo(conn, source_id)
         if got is None:
             return not_found()
         mime, data, stamp = got

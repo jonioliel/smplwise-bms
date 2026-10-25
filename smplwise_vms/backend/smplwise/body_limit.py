@@ -146,6 +146,13 @@ def _notice_slide_image(_s: Settings) -> int:
     return slides.SLIDE_IMAGE_BYTES + MULTIPART_SLACK
 
 
+def _notice_news_logo(_s: Settings) -> int:
+    """NOTICERSS-295: the logo of a notice-board news source (services/notices/news_sources.LOGO_UPLOAD_BYTES)."""
+    from .services.notices import news_sources
+
+    return news_sources.LOGO_UPLOAD_BYTES + MULTIPART_SLACK
+
+
 def _notice_photo(_s: Settings) -> int:
     """NOTICESLIDES-295: the building photo of a notice board (2 MB, services/notices/slides.PHOTO_IMAGE_BYTES)."""
     from .services.notices import slides
@@ -216,6 +223,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"POST"}), re.compile(r"/api/v1/brand/white-label/pack"), _brand_pack, "brand_pack"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/promo-slides/{_ID}/image"), _notice_slide_image, "notice_slide_image"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/boards/{_ID}/photo"), _notice_photo, "notice_photo"),
+    (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/news-sources/{_ID}/logo"), _notice_news_logo, "notice_news_logo"),
     (frozenset({"POST"}), re.compile(r"/api/v1/backups/upload"), _backup_upload, "backup_upload"),
     (frozenset({"POST"}), re.compile(r"/api/v1/cases/bundles/(verify|import)"), lambda _s: _cases_ceiling(), "evidence_bundle"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/plan-versions/{_ID}/geometry"), _const(LARGE_JSON_MAX), "geometry_document"),

@@ -367,12 +367,13 @@ NEWS = NewsCache()
 
 
 def news_block(feeds: list[dict[str, str]], cache: NewsCache | None = None) -> list[dict[str, str]]:
+    """The ticker items: `{source, title}` and, when the source has a logo, `logo` (a URL the TV reads with the board token)."""
     cache = cache or NEWS
-    per = [(f["name"], cache.titles(f["url"])) for f in feeds]
+    per = [(f["name"], f.get("logo", ""), cache.titles(f["url"])) for f in feeds]
     out: list[dict[str, str]] = []
     # interleave the feeds so one busy source does not fill the line
     for i in range(NEWS_ITEMS_PER_FEED):
-        for name, titles in per:
+        for name, logo, titles in per:
             if i < len(titles):
-                out.append({"source": name, "title": titles[i]})
+                out.append({"source": name, "title": titles[i], **({"logo": logo} if logo else {})})
     return out[:24]

@@ -21,7 +21,11 @@ def utcnow() -> dt.datetime:
 
 
 def settings(conn: sqlite3.Connection) -> dict[str, Any]:
-    return model.settings_doc(lambda k, d: get_setting(conn, k, d))
+    doc = model.settings_doc(lambda k, d: get_setting(conn, k, d))
+    from . import news_sources  # NOTICERSS-295: the editable list (the curated seed until the first save) + the boards' unadopted raw URLs
+
+    doc["news_sources"] = news_sources.listing(conn)
+    return doc
 
 
 def module_on(conn: sqlite3.Connection) -> bool:
