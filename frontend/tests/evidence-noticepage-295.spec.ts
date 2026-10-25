@@ -32,7 +32,7 @@ const READS = {
   unread: [{ user_id: 'u3', name: 'אבי שמעוני', place: 'ועד הבית' }],
 };
 
-async function install(page: Page, o: { enabled?: boolean; manager?: boolean; names?: boolean; empty?: boolean; homeEmpty?: 'hide' | 'line' } = {}): Promise<string[]> {
+async function install(page: Page, o: { enabled?: boolean; manager?: boolean; names?: boolean; empty?: boolean; homeEmpty?: 'hide' | 'line'; cards?: boolean } = {}): Promise<string[]> {
   const enabled = o.enabled ?? true;
   const manager = o.manager ?? true;
   const perms = manager ? ['devices.read', 'notices.view', 'notices.manage', 'notices.push', 'notices.boards', 'system.configure'] : ['devices.read', 'notices.view'];
@@ -60,6 +60,11 @@ async function install(page: Page, o: { enabled?: boolean; manager?: boolean; na
   // the home screen: the tree answer carries the widget configuration (a later page.route wins over the mock's empty tree)
   const home = { direction: 'a', side: 'end', time_zone: 'Asia/Jerusalem', personalize: false, config: { notices: { on: true } }, data: {} };
   await page.route('**/api/v1/devices/tree', (route) => json(route, { ...tree(), home }));
+  // POLISH-295: the clock / weather / Shabbat / alarm cards moved into the thin header bar by default; the specs that wait for a
+  // widget card to know the home grid rendered pin the large cards (home.info_style = cards), as the other card-reading specs do
+  if (o.cards) {
+    await page.route((u) => u.pathname.endsWith('/api/v1/settings'), (route) => json(route, { settings: { 'ui.design': 'a', 'home.info_style': 'cards' }, can_edit: false }));
+  }
   return calls;
 }
 
@@ -203,7 +208,7 @@ test('home widget: up to three notices, urgent first, an unread dot, the link to
 });
 
 test('home widget: absent while the module is off', async ({ page }) => {
-  const calls = await install(page, { enabled: false });
+  const calls = await install(page, { enabled: false, cards: true });
   await page.goto('about:blank');
   await page.goto(url('/devices/building'));
   await expect(page.locator(`${W} [data-home-widget]`).first()).toBeAttached({ timeout: 30_000 });
@@ -212,7 +217,7 @@ test('home widget: absent while the module is off', async ({ page }) => {
 });
 
 test('home widget: no active notice - hidden by default, one line when the board setting asks for it', async ({ page }) => {
-  await install(page, { empty: true });
+  await install(page, { empty: true, cards: true });
   await page.goto('about:blank');
   await page.goto(url('/devices/building'));
   await expect(page.locator(`${W} [data-home-widget]`).first()).toBeAttached({ timeout: 30_000 });

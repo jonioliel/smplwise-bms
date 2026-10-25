@@ -33,7 +33,9 @@ async function openDemo(page: Page, hash: string) {
 test.describe('קברניט (demo mode)', () => {
   test('the home tabs are מבט על | קברניט and the tab opens on the schedules, the first segment', async ({ page }) => {
     await openDemo(page, '/devices/building');
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (it is a rail entry now)
+    // NOTICEADD-295: the notice board left the home tab row (it is a rail entry now); ANNOUNCE-295: הכרזות joined it for media.announce
+    // holders - the static demo has no gates, so it shows (the mocked sessions below hold no media.announce and keep two tabs)
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט', 'הכרזות']);
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect.poll(() => hashOf(page)).toBe('#/devices/schedules');
     await expect(page.locator('sw-app devices-schedules')).toHaveCount(1);
