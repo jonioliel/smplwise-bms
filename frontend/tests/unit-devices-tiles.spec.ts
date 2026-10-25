@@ -135,7 +135,8 @@ test.describe('overview tiles (demo data)', () => {
     await expect(tile).toBeVisible();
     const hit = tile.locator('button.hit');
     await expect(hit).toHaveAttribute('aria-expanded', 'false');
-    await expect(hit).toHaveAttribute('aria-label', /3\/9 תאורה דולקת/);
+    // POLISH-295 (owner-approved): the counter reads "3 / 9"
+    await expect(hit).toHaveAttribute('aria-label', /3 \/ 9 תאורה דולקת/);
     await hit.click();
     const panel = b.locator('devices-tiles-panel');
     await expect(panel).toHaveAttribute('open', '');
@@ -338,11 +339,18 @@ test.describe('overview tiles (demo data)', () => {
     expect(dlg.sw).toBeLessThanOrEqual(dlg.cw);
     if (testInfo.project.name === 'mobile') expect(Math.round(dlg.bottom)).toBe(page.viewportSize()!.height); // a bottom sheet
     // the dark device scheme keeps the panel readable (solid surface, light text)
-    await page.locator('devices-building').evaluate((h) => {
+    // set and read in one task: the screen's own style load (demo: a failed settings request) may re-apply the resolved
+    // scheme between two evaluate() calls, which made this read the light panel now and then
+    const colours = await page.locator('devices-building').evaluate((h) => {
       h.setAttribute('data-devices-style', 'glass');
       h.setAttribute('data-devices-scheme', 'dark');
-    });
-    const colours = await page.locator('devices-building devices-tiles-panel sw-drawer').evaluate((d) => {
+      const deep = (root: ParentNode, sel: string): Element | null => {
+        const hit = root.querySelector(sel);
+        if (hit) return hit;
+        for (const e of root.querySelectorAll('*')) if (e.shadowRoot) { const f = deep(e.shadowRoot, sel); if (f) return f; }
+        return null;
+      };
+      const d = deep(deep(h.shadowRoot!, 'devices-tiles-panel')!.shadowRoot!, 'sw-drawer')!;
       const el = d.shadowRoot!.querySelector('dialog')!;
       return { bg: getComputedStyle(el).backgroundColor, fg: getComputedStyle(el).color };
     });

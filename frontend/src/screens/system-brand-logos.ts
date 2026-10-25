@@ -212,6 +212,9 @@ export class SystemBrandLogos extends LitElement {
     .seg {
       display: inline-flex;
       flex-wrap: wrap;
+      /* FIX2200: the padding counts inside the width, so a wrapped row (the five company sizes on a phone) never pokes 8 px past the card */
+      box-sizing: border-box;
+      max-inline-size: 100%;
       padding: 3px;
       gap: 2px;
       background: var(--sw-surface-3);

@@ -46,7 +46,8 @@ const ALLOW_HEX: Record<string, string> = {
   'components/sw-brand.ts': 'LOGOS295: the logo plate - a company logo is drawn for a white (or a dark) ground in both schemes, so the plate is a fixed colour, not a themed surface',
   'screens/system-brand-logos.ts': 'LOGOS295: the Settings card previews of the light and the dark strip / notice board side by side, whatever scheme the page is in (static swatches)',
   'screens/system-brand-installer.ts': 'WHITELABEL097: the installer card previews of the light and the dark strip side by side, and the white switch knob (static swatches)',
-  'screens/investigate-incidents.ts': 'LIVEEVENT100: the amber cap chip over a camera tile keeps dark ink in both schemes (the on-video HUD family; the warning fill does not change with the scheme)',
+  'screens/system-notices.ts': 'NOTICERSS: the news-feed logo plate - a publisher logo is drawn for a white ground in both schemes (the same reason as the sw-brand plate)',
+  'screens/investigate-incidents.ts':'LIVEEVENT100: the amber cap chip over a camera tile keeps dark ink in both schemes (the on-video HUD family; the warning fill does not change with the scheme)',
 };
 
 function walk(dir: string, out: string[] = []): string[] {

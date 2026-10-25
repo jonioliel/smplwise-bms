@@ -40,7 +40,7 @@ export interface Me {
   /** CR-READY96: the last RECORDED readiness score (system.configure holders only; null until the first check) and the demo-mode state every signed-in user is told. */
   readiness?: { score: number; level: 'building' | 'almost' | 'ready'; at: string } | null;
   demo?: import('./readiness').DemoState;
-  modules?: { tickets: boolean; notices?: boolean /* CR-NOTICE106 */; tickets_name?: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>>; tickets_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */; incidents?: boolean /* CR-LIVEEVENT100: the live event mode switch (OFF by default) */ };
+  modules?: { tickets: boolean; notices?: boolean /* CR-NOTICE106 */; tickets_name?: Partial<Record<import('../tickets/naming').TicketLang, import('../tickets/naming').TicketName>>; tickets_long_press?: 'sheet' | 'menu' /* D17 (slice 3) */; incidents?: boolean /* CR-LIVEEVENT100: the live event mode switch (OFF by default) */; announce?: boolean /* FIX2200: announce.enabled - the הכרזות tab */ };
 }
 
 export interface Site {

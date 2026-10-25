@@ -141,7 +141,7 @@ test.describe('the schedules list (demo mode)', () => {
   test('cards: the header (title, floors, state filter with counts), "today", one card per schedule; the home tabs', async ({ page }, info) => {
     await open(page, '/devices/schedules');
     await ready(page);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (it is a rail entry now) (unit-schedules-nav)
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
     await expect(cardsOf(page)).toHaveCount(14);
     await expect(scr(page).locator('h1[data-sched-title]')).toHaveText('תזמונים');
@@ -487,7 +487,7 @@ test.describe('the home tabs and the settings page (demo mode)', () => {
   test('"מבט על" is the home screen as it was, the first of two tabs (the layout editor\'s row rule is under "with a session")', async ({ page }, info) => {
     await open(page, '/devices/building');
     await expect(page.locator('sw-app devices-building')).toHaveCount(1);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (it is a rail entry now) (unit-schedules-nav)
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('מבט על');
     await shot(page, '20-home-overview-tab', info);
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();

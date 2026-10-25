@@ -86,7 +86,7 @@ test.describe('the list (installer)', () => {
     }
     await open(page, '/devices/automations');
     await ready(page);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (it is a rail entry now) (unit-schedules-nav)
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
     await expect(scr(page).locator('[data-auto-title]')).toHaveText('אוטומציות');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');

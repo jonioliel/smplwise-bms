@@ -21,6 +21,8 @@ smplwise_vms/backend/tests/test_tickets_public_app.py         # public-app clien
 smplwise_vms/backend/tests/test_client_ip_trusted_proxy.py    # PUB-01: a LAN peer outside the hassio network must not choose its address (integ/2100)
 smplwise_vms/backend/tests/test_tickets_s4_wiring.py          # client-address and SSRF cases
 frontend/tests/unit-video-conn-test.spec.ts                   # address-class unit test (private/cgnat/link-local)
+frontend/tests/unit-noticerss-295.spec.ts                     # NOTICERSS: the news-feed address guard must refuse private-range hosts (SSRF)
+smplwise_vms/backend/tests/test_notice_rss_sources_295.py      # NOTICERSS: the server-side news-feed address guard, the same private-range cases
 
 # --- Fixtures that must look like a LAN/link-local address for a guard under test ---
 frontend/tests/fixtures/media_fake_ha.py                      # fake music server must resolve to a private LAN address (ma_direct LAN-only check)
