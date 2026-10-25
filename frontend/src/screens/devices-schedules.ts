@@ -517,7 +517,7 @@ export class DevicesSchedules extends LitElement {
     .lr {
       position: relative;
       display: grid;
-      grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 40px;
+      grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 44px;
       align-items: center;
       gap: var(--sw-s-3);
       min-block-size: 54px;
@@ -527,7 +527,7 @@ export class DevicesSchedules extends LitElement {
       transition: background-color var(--mm-motion) var(--mm-ease);
     }
     .rlist.picking .lr {
-      grid-template-columns: 32px 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 40px;
+      grid-template-columns: 32px 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 44px;
     }
     .lr:last-child {
       border-block-end: 0;
@@ -589,6 +589,10 @@ export class DevicesSchedules extends LitElement {
     }
     .lops {
       justify-content: flex-end;
+    }
+    /* FIX2200: the menu key keeps its touch size (the column is 44 px; a flex item shrank it to 36-40 px, the 2.20.0 bubble guard) */
+    .lops .more-btn {
+      flex: none;
     }
     .lops .pop {
       background: var(--sw-menu-surface);
@@ -722,6 +726,14 @@ export class DevicesSchedules extends LitElement {
       text-decoration: none;
       min-block-size: 32px;
     }
+    /* FIX2200: the bubble skin's touch dial is the floor of every hit target, the next-run link included (195x32 in the 2.20.0 guard) */
+    :host([data-skin='bubble']) a.up {
+      min-block-size: var(--sw-touch-desktop);
+    }
+    /* FIX2200: the pager's keys meet the touch dial in the bubble skin (30x30 in the 2.20.0 guard) */
+    :host([data-skin='bubble']) sw-pager {
+      --sw-ctl-h-md: var(--sw-touch-desktop);
+    }
     @media (pointer: coarse), (max-width: 767px) {
       a.up {
         min-block-size: 44px;
@@ -739,10 +751,10 @@ export class DevicesSchedules extends LitElement {
     }
     @media (max-width: 1100px) and (min-width: 768px) {
       .lr {
-        grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(130px, 1fr) 40px;
+        grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(130px, 1fr) 44px;
       }
       .rlist.picking .lr {
-        grid-template-columns: 32px 44px minmax(0, 1.6fr) auto minmax(130px, 1fr) 40px;
+        grid-template-columns: 32px 44px minmax(0, 1.6fr) auto minmax(130px, 1fr) 44px;
       }
       .lr > .lbar {
         display: none;
@@ -750,12 +762,12 @@ export class DevicesSchedules extends LitElement {
     }
     @media (max-width: 767px) {
       .lr {
-        grid-template-columns: 44px minmax(0, 1fr) auto 36px;
+        grid-template-columns: 44px minmax(0, 1fr) auto 44px;
         gap: var(--sw-s-2);
         padding-inline: var(--sw-s-3);
       }
       .rlist.picking .lr {
-        grid-template-columns: 28px 44px minmax(0, 1fr) auto 36px;
+        grid-template-columns: 28px 44px minmax(0, 1fr) auto 44px;
       }
       .lr > .ldays,
       .lr > .lbar {

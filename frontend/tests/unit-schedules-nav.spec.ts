@@ -9,6 +9,7 @@ import {
   SCHEDULES_SETTINGS_HREF,
   TAB_SECTIONS,
   activeAreaTab,
+  applyAnnounceHidden,
   applySchedulesHidden,
   applyTabsConfig,
   crumbsOf,
@@ -81,8 +82,18 @@ test('the schedules segment needs schedule.view or schedule.manage at any scope;
   expect(settingsEntry(true, only('schedule.manage'))).toBeNull();
 });
 
-test('the static demo shows every tab whatever the permissions', () => {
-  expect(ids(visibleTabs(DEVICES_TABS, false))).toEqual(['building', 'automations', 'announce']);
+test('the static demo shows every tab whatever the permissions (הכרזות only while the announcements switch is on)', () => {
+  // FIX2200 (owner 2026-10-25): הכרזות follows announce.enabled, OFF by default (the demo too)
+  expect(ids(visibleTabs(DEVICES_TABS, false))).toEqual(['building', 'automations']);
+  try {
+    applyAnnounceHidden(true);
+    expect(ids(visibleTabs(DEVICES_TABS, false))).toEqual(['building', 'automations', 'announce']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.view', 'media.announce')))).toEqual(['building', 'automations', 'announce']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.view')))).toEqual(['building', 'automations']); // the switch on is not the right
+  } finally {
+    applyAnnounceHidden(false);
+  }
+  expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.view', 'media.announce')))).toEqual(['building', 'automations']);
 });
 
 test('a user without schedule or automation rights sees one tab (so no tab row): the home screen exactly as before', () => {

@@ -122,6 +122,10 @@ export class DevicesAutomations extends LitElement {
   private fieldsFor = '';
 
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
+    /* FIX2200: the pager's keys meet the touch dial in the bubble skin (30x30 in the 2.20.0 bubble guard) */
+    :host([data-skin='bubble']) sw-pager {
+      --sw-ctl-h-md: var(--sw-touch-desktop);
+    }
     sw-dialog {
       --sw-surface: var(--mm-sheet-surface);
       --sw-glass-blur: var(--mm-sheet-blur);

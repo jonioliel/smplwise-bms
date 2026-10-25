@@ -33,9 +33,9 @@ async function openDemo(page: Page, hash: string) {
 test.describe('קברניט (demo mode)', () => {
   test('the home tabs are מבט על | קברניט and the tab opens on the schedules, the first segment', async ({ page }) => {
     await openDemo(page, '/devices/building');
-    // NOTICEADD-295: the notice board left the home tab row (it is a rail entry now); ANNOUNCE-295: הכרזות joined it for media.announce
-    // holders - the static demo has no gates, so it shows (the mocked sessions below hold no media.announce and keep two tabs)
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט', 'הכרזות']);
+    // NOTICEADD-295: the notice board left the home tab row (it is a rail entry now); FIX2200: הכרזות hides while announce.enabled is off -
+    // OFF by default, the static demo too (the feature-on case is under "with a session")
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']);
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect.poll(() => hashOf(page)).toBe('#/devices/schedules');
     await expect(page.locator('sw-app devices-schedules')).toHaveCount(1);
@@ -116,6 +116,8 @@ interface ApiState {
   perms: string[];
   settings: Record<string, unknown>;
   store: ScheduleDemoStore;
+  /** FIX2200: /me modules.announce (announce.enabled); absent = off */
+  announce?: boolean;
 }
 
 async function install(page: Page, st: ApiState) {
@@ -132,6 +134,7 @@ async function install(page: Page, st: ApiState) {
         active: true, bindings: [{ id: 'b1', role_id: 'r', role_name: 'בדיקה', scope_type: 'installation', scope_id: '*', scope_name: 'כל ההתקנה', effect: 'allow' }],
         permissions_installation: st.perms, permissions_any: st.perms, has_access: true, permission_revision: 1,
         permissions_fingerprint: 'fp', permissions_changed: false, bootstrap_state: 'done', mode: 'full',
+        modules: { tickets: false, ...(st.announce !== undefined ? { announce: st.announce } : {}) },
       });
     }
     if (p === 'me/prefs') return json({ prefs: { 'nav.order': ['devices', 'security', 'explore', 'wiskey'] }, stored: [], updated_at: null });
@@ -197,6 +200,35 @@ test.describe('קברניט with a session: the gates and a stored ui.tabs', () 
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect(page.locator('sw-app devices-schedules [data-sched-grid]')).toBeVisible();
     await expect(page.locator('sw-app devices-schedules [data-kavarnit-segments]')).toHaveCount(0);
+  });
+
+  // FIX2200 (owner 2026-10-25): הכרזות follows the announcements switch, as the notice board tab follows its module
+  test('announcements on and media.announce held: הכרזות joins the tab row, on the home screen and on the schedules / automations screens', async ({ page }) => {
+    st.perms = [...st.perms, 'media.announce'];
+    st.announce = true;
+    await openApi(page, '/devices/building');
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט', 'הכרזות']);
+    await openApi(page, '/devices/schedules');
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט', 'הכרזות']);
+    await openApi(page, '/devices/automations');
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט', 'הכרזות']);
+  });
+
+  test('announcements off: no הכרזות tab even for a media.announce holder; the address still opens the screen', async ({ page }) => {
+    st.perms = [...st.perms, 'media.announce'];
+    st.announce = false;
+    await openApi(page, '/devices/building');
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await openApi(page, '/devices/schedules');
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await openApi(page, '/devices/announce');
+    await expect(page.locator('sw-app devices-announce')).toHaveCount(1);
+  });
+
+  test('announcements on without media.announce: no הכרזות tab', async ({ page }) => {
+    st.announce = true;
+    await openApi(page, '/devices/building');
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
   });
 
   test('neither right: no קברניט tab and no tab row', async ({ page }) => {

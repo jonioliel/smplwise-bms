@@ -521,6 +521,8 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("GET", "/api/v1/notices/display/{slug}"), ("GET", "/api/v1/notices/display/{slug}/logo/company"), ("GET", "/api/v1/b/{slug}"),
                      # NOTICESLIDES-295: the slide pictures and the building photo are read with the board token, like the logo
                      ("GET", "/api/v1/notices/display/{slug}/slide/{slide_id}"), ("GET", "/api/v1/notices/display/{slug}/photo"),
+                     # NOTICERSS-295: a news source's logo on the board, read with the board token like the other display pictures
+                     ("GET", "/api/v1/notices/display/{slug}/news-logo/{source_id}"),
                      # CR-022 section 10: the NVR connection, its test and the restart are local-only
                      ("GET", "/api/v1/nvr/vendors"), ("GET", "/api/v1/nvr/connection"), ("PUT", "/api/v1/nvr/connection"), ("DELETE", "/api/v1/nvr/connection"),
                      ("POST", "/api/v1/nvr/connection/test"), ("POST", "/api/v1/system/restart"),
