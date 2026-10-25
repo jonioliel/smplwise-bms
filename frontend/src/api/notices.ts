@@ -86,6 +86,9 @@ export interface NoticesSettings {
   news_custom: boolean;
   building_name: string;
   boards_origin: string;
+  /** NOTICECAPS-295: the TV listener's connection caps (total 4..256, per address 1..64) */
+  conn_total: number;
+  conn_per_address: number;
   news_sources: { id: string; name: string; url: string }[];
 }
 

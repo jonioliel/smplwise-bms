@@ -328,8 +328,7 @@ def test_connections_over_the_cap_are_closed_without_a_thread():
         for h in held:
             h.close()
         time.sleep(0.5)  # the slots come back
-        assert server._slots.acquire(blocking=False)
-        server._slots.release()
+        assert server._total == 0 and not server._by_addr
     finally:
         server.shutdown()
         server.server_close()
