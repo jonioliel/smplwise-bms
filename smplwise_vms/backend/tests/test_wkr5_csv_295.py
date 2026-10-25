@@ -48,17 +48,27 @@ class CsvPort(wf.FakeDirectPort):
             return nxt
         req, snap = self._check_binding(parameters)
         private = snap["private_input"]
-        assert req["feature"] == "people_csv" and snap["rows"] == [] and private["kind"] == "csv" and private["mode"] == "create"
+        assert req["feature"] == "people_csv" and snap["rows"] == [] and private["kind"] == "csv" and private["mode"] in wpc.MODES
         assert set(private) == {"kind", "content", "mode", "column_map"} and snap["permissions"] == ["people/write"]
-        lines = [ln for ln in private["content"].splitlines()[1:] if ln.strip()]
+        # like the native parse_csv (ADOPTR6-295 answer 9): source_line = reader.line_num AFTER the whole record (its physical END line)
+        reader = csv.reader(io.StringIO(private["content"].removeprefix("﻿"), newline=""), strict=True)
+        headers = [private["column_map"][h] for h in next(reader)]
         rows = []
-        for i, ln in enumerate(lines, start=2):
-            rows.append({"grant_id": f"row-{i}", "source_line": i, "user_id": None, "revision": None, "origin_ref": f"origin-{i}-{self.stamp}",
-                         "change_digest": hashlib.sha256(ln.encode()).hexdigest()})
+        for record in reader:
+            if not record or not any(record):
+                continue
+            i = reader.line_num
+            values = dict(zip(headers, record))
+            existing = self.existing.get(values.get("employee_no", ""))
+            if existing is not None and private["mode"] == "create":
+                raise PortError("employee_exists", "refused")
+            uid, rev = (existing if private["mode"] == "upsert" and existing is not None else (None, None))
+            rows.append({"grant_id": f"row-{i}", "source_line": i, "user_id": uid, "revision": rev, "origin_ref": f"origin-{i}-{self.stamp}",
+                         "change_digest": hashlib.sha256(json.dumps(record).encode()).hexdigest()})
         start_snap = copy.deepcopy(snap)
         start_snap["rows"] = [dict(r) for r in rows]
         start_snap["grant_ids"] = [g for g in snap["grant_ids"]] + [r["grant_id"] for r in rows]
-        answer = {"schema": "wiskey-people-csv-preview.v1", "review_token": f"token-{len(self.previews)}", "review_stamp": self.stamp, "rules_stamp": self.rules,
+        answer = {"schema": wpc.SCHEMA, "review_token": f"token-{len(self.previews)}", "review_stamp": self.stamp, "rules_stamp": self.rules,
                   "rows": [{**r, "grants": {"permission": "people/write", "scope_ref": req["scope_ref"], "station_grant_ids": []}} for r in rows],
                   "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=120)).strftime("%Y-%m-%dT%H:%M:%SZ"),
                   "start": {"request": copy.deepcopy(req), "policy_snapshot": start_snap}}
@@ -70,10 +80,17 @@ class CsvPort(wf.FakeDirectPort):
             return super()._result(params)
         op = params["operation_ref"]
         rec = self.ops[op]
+        # the native finished.receipt (ADOPTR6-295 answer 8): CheckpointJobs.public + source_binding + device_application 'unknown'
+        rows = {str(n): {"user_id": f"user-{n}", "person_revision": 1, "source_line": n + 1, "origin_ref": f"origin-{n + 1}",
+                         "state": "central_committed"} for n in range(1, self.saved_rows + 1)}
         return {"schema_version": 1, "operation_ref": op, "state": "finished", "replay_available": False,
-                "receipt": {"state": "completed", "saved": self.saved_rows}}
+                "receipt": {"id": "job-1", "kind": "import", "state": "completed", "revision": 3, "created_at": "2026-10-25T12:00:00Z",
+                            "updated_at": "2026-10-25T12:00:05Z", "approval": None, "total": self.saved_rows, "saved": self.saved_rows,
+                            "failed": 0, "pending": 0, "errors": [], "device_application": "unknown",
+                            "source_binding": {"schema": "wiskey-arx-native-row-receipt.v1", "rows": rows}}}
 
     saved_rows = 2
+    existing: dict[str, tuple[str, int]] = {}  # employee_no -> (user_id, revision) already at WisKey
 
 
 @pytest.fixture()
@@ -226,7 +243,7 @@ def test_a_refusal_and_a_lost_answer_are_reported_as_what_they_are(csvw):
 
 def test_the_closed_reader_rejects_every_other_shape():
     req = {"request_id": "r1"}
-    good = {"schema": "s", "review_token": "t", "review_stamp": "a", "rules_stamp": "b", "expires_at": "2037-01-01T00:00:00Z",
+    good = {"schema": wpc.SCHEMA, "review_token": "t", "review_stamp": "a", "rules_stamp": "b", "expires_at": "2037-01-01T00:00:00Z",
             "rows": [{"grant_id": "g", "source_line": 2, "user_id": None, "revision": None, "origin_ref": "o", "change_digest": "d",
                       "grants": {"permission": "people/write", "scope_ref": "s", "station_grant_ids": []}}],
             "start": {"request": req, "policy_snapshot": {"rows": [{}]}}}
@@ -241,7 +258,9 @@ def test_the_closed_reader_rejects_every_other_shape():
                    lambda v: v["rows"][0]["grants"].update(permission="people/read"), lambda v: v["rows"][0].update(source_line=0),
                    lambda v: v["rows"][0].update(revision=0), lambda v: v["rows"].append(copy.deepcopy(v["rows"][0])),
                    lambda v: v["start"].update(subscription=1), lambda v: v["start"]["policy_snapshot"].update(rows=[]),
-                   lambda v: v.update(review_stamp=5), lambda v: v.update(expires_at="not a time")):
+                   lambda v: v.update(review_stamp=5), lambda v: v.update(expires_at="not a time"),
+                   lambda v: v.update(schema="wiskey-people-csv-preview.v1"), lambda v: v["rows"][0].update(user_id="u-1"),
+                   lambda v: v["rows"][0].update(revision=3)):
         with pytest.raises(wpc.CsvError) as err:
             wpc.read_preview(broken(mutate), req, now=NOW)
         assert err.value.outcome == "unknown" and err.value.code == "invalid_response"
@@ -307,7 +326,9 @@ def test_confirm_takes_a_fresh_preview_compares_it_and_starts_it_unchanged_throu
     assert [c for c, _ in w.port.calls].count("features/start") == 1
     # the completion read
     res = w.c.get(f"{API}/jobs/{job['id']}/wiskey-result", headers=as_user("root"))
-    assert res.status_code == 200 and res.json()["operation"] == {"state": "finished", "saved": 2, "replay_available": False}
+    op = res.json()["operation"]
+    assert res.status_code == 200 and (op["state"], op["saved"], op["replay_available"]) == ("finished", 2, False)
+    assert op["device_application"] == "unknown" and op["central_committed_lines"] == [2, 3] and op["job_state"] == "completed"
     assert [c for c, _ in w.port.calls].count("features/result") == 1
 
 

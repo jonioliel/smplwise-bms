@@ -26,7 +26,7 @@ import sqlite3
 import time
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Header, Path, Request
+from fastapi import APIRouter, Depends, Header, Path, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -315,12 +315,12 @@ def _preview_view(preview: wpc.Preview, job: dict[str, Any]) -> dict[str, Any]:
     creates = sum(1 for r in preview.rows if r.op == "create")
     return {"preview_digest": preview.digest, "expires_at": preview.expires_at.strftime("%Y-%m-%dT%H:%M:%SZ"), "writes": len(preview.rows),
             "creates": creates, "updates": len(preview.rows) - creates, "skipped": counts.get("skip", 0), "errors": counts.get("error", 0),
-            "rows": [{"source_line": r.source_line, "op": r.op} for r in preview.rows]}
+            "rows": [{"source_line": r.source_line, "row": r.row, "op": r.op} for r in preview.rows]}
 
 
 @router.post(f"{BASE}/jobs/{{job_id}}/wiskey-preview")
 def wiskey_preview(request: Request, job_id: str = Path(pattern=_JOB), auth: ia.Authority = Depends(_gate(ia.PEOPLE_MANAGE)),
-                   data: bytes = Depends(_file_body)) -> dict[str, Any]:
+                   data: bytes = Depends(_file_body), mode: str = Query(default=wpc.MODE_CREATE, pattern="^(create|upsert)$")) -> dict[str, Any]:
     """WisKey's own verified preview of the file the job was staged from (the same bytes: their SHA-256 must equal the job's). A READ -
     nothing is stored at WisKey, nothing is written, no intent is logged. The text is held in memory for the confirm step only."""
     principal = auth.principal
@@ -333,10 +333,11 @@ def wiskey_preview(request: Request, job_id: str = Path(pattern=_JOB), auth: ia.
             raise ApiError(403, "bulk_interactive_only", "אימות מול בקרת הכניסה זמין רק בהפעלה אינטראקטיבית של אדם (דפדפן).")
         rows = json.loads(job["rows_json"] or "[]")
         try:
-            preview = wpc.request_preview(conn, principal, wpc.adapters_provider(), data=data, rows=rows, job_id=job_id, session_active=True)
+            preview = wpc.request_preview(conn, principal, wpc.adapters_provider(), data=data, rows=rows, job_id=job_id, session_active=True,
+                                          mode=mode)
         except wpc.CsvError as exc:
             raise _csv_error(exc) from None
-    wpc.hold(job_id, wpc.Held(principal.user_id, data, rows, preview.digest, len(preview.rows), time.monotonic() + wpc.STORE_TTL_S))
+    wpc.hold(job_id, wpc.Held(principal.user_id, data, rows, preview.digest, len(preview.rows), time.monotonic() + wpc.STORE_TTL_S, mode))
     view = _preview_view(preview, job)
     with db.connection(label="bulk_people.wiskey_preview.audit") as conn:
         audit(conn, actor=principal, action="access.bulk.wiskey_preview", decision="allowed", resource_type="access_bulk_job", resource_id=job_id,
@@ -384,7 +385,8 @@ def wiskey_confirm(body: WiskeyConfirmIn, request: Request, job_id: str = Path(p
             raise deny(conn, "csv_already_started", "הייבוא של משימה זו כבר נשלח. לא נשלח שוב.")
         try:
             adapters = wpc.adapters_provider()
-            fresh = wpc.request_preview(conn, principal, adapters, data=hold.data, rows=hold.rows, job_id=job_id, session_active=True)
+            fresh = wpc.request_preview(conn, principal, adapters, data=hold.data, rows=hold.rows, job_id=job_id, session_active=True,
+                                        mode=hold.mode)
         except wpc.CsvError as exc:
             raise _csv_error(exc) from None
         if fresh.digest != hold.shown_digest:
