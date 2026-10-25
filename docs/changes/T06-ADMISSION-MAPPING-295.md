@@ -126,3 +126,19 @@ workstation, fakes only (nothing on the Ubuntu runner): 58 passed, 5 xfailed (th
 NOT_RUN: anything against a real WisKey / Home Assistant / station; the live video socket (`/live/ws`) and the talk / listen WebSockets (covered by
 `tests/test_intercom_media.py` and `tests/test_wkaudin_295.py`, not re-run here); a physical door OPEN (S8 owner session); the full backend suite (no product
 code changed); the EMROLE exception (not in this candidate).
+
+## REL2210 addendum (2.21.0 assembly, release/2210)
+
+Merging T06 next to WK4ADOPT-295, WKR5ADOPT-295 (with WKR5-295) and PEERQUERY-295 added signing callers and one signed command that the
+2.19.0 inventory did not have. The test now pins them on purpose (`test_every_signed_command_in_the_code_has_a_row_and_a_documented_gate`,
+`test_the_only_modules_that_reach_a_signing_call_are_the_known_ones`, `test_no_router_reaches_a_writer_or_an_adapter_except_through_the_join`):
+
+| Command | Gate | Arx permission | Scope | Module |
+|---|---|---|---|---|
+| `features/people_csv_preview` | G-PEOPLE-CSV | `access.people.manage` for the preview and the result read (interactive session); system administrator for the confirm (interactive, typed line count); switch `access.people_csv_preview` (default off) and the owner binding `access.people_csv_binding` | the installation (WisKey permission `people/write`) | `wiskey_people_csv.py` (WKR5ADOPT W-006) |
+| `peer_bindings/get` (also) | G-PEER-QUERY | `system.configure` at the installation; switch `wiskey.peer_query` (default off); owner pin `wiskey.peer_pin` | the pinned binding | `wiskey_peer_query.py` (PEERQUERY-295) |
+| `peer_bindings/get`, `peer_receipts/resolve` (also) | G-WRITER-INTERNAL | none of its own: the dedicated live reads behind `wiskey.peer_receipt` (default off) + owner pin | the pinned binding / the stored original | `wiskey_peer.py` `peer_read` (WK4ADOPT W-010) |
+
+`wiskey_capture_map.py` only names `port.call(` in its docstring (no call). The lineage admin router `routers/wiskey_lineage.py` (WKR5 unit C) imports
+the writer's error class `NativeWriteError` only; its resolve / close / reinitialise go through the installed join. The test stub join takes the
+per-command `selected(command)` of WKR5 unit A.
