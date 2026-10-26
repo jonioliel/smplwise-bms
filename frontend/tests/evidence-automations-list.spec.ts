@@ -54,12 +54,14 @@ async function open(page: Page, hash: string, size: Size = '1440', control: Cont
     }
   }, control.view ?? 'cards');
   await page.goto('about:blank');
-  await page.goto(`/?design=a#${hash}`);
+  // POLISH2-295: the cards have their own page size (6 / 1 by default); these card specs keep the earlier one-page-of-12 / 9 reading
+  const knob = (control.view ?? 'cards') === 'cards' ? `&page_size=${perPage(size)}` : '';
+  await page.goto(`/?design=a&fit=off${knob}#${hash}`);
   await page.waitForSelector('sw-app');
 }
 
 const scr = (page: Page) => page.locator('sw-app devices-automations');
-/** POLISH-295: one page of the list holds 12 automations on a desktop and 9 on a phone (ui.page_size.automations*, the defaults). */
+/** The cards these specs read on one page: 12 on a desktop, 9 on a phone (pinned with ?page_size=; the product defaults are rows 12 / 7 and cards 6 / 1). */
 const perPage = (size: Size) => (size === '390' ? 9 : 12);
 const cards = (page: Page) => scr(page).locator('automation-card');
 const card = (page: Page, name: string) => scr(page).locator('automation-card', { hasText: name });
@@ -124,7 +126,7 @@ test.describe('the list (installer)', () => {
       await open(page, '/devices/automations', size, { view: 'rows' });
       await ready(page);
       const rows = scr(page).locator('[data-auto-rows] automation-row');
-      await expect(rows).toHaveCount(size === '1440' ? 12 : 9); // the default page sizes: 12 on a desktop, 9 on a phone
+      await expect(rows).toHaveCount(size === '1440' ? 12 : 7); // the default page sizes: 12 on a desktop, 7 on a phone (POLISH2-295)
       await expect(cards(page)).toHaveCount(0);
       const row = (name: string) => scr(page).locator('automation-row', { hasText: name });
       if (size === '1440') {
@@ -143,8 +145,9 @@ test.describe('the list (installer)', () => {
         expect(await scr(page).evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
       } else {
         await expect(scr(page).locator('[data-auto-pager] sw-pager')).toBeVisible();
+        expect(await scr(page).evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1); // POLISH2-295: 7 rows and the pager fit the phone
         await scr(page).locator('[data-auto-pager] sw-pager').locator('[data-pager-next]').click();
-        await expect(rows).toHaveCount(3);
+        await expect(rows).toHaveCount(5);
       }
       await shot(page, '01b-rows', size);
     }
@@ -932,7 +935,7 @@ async function install(page: Page, st: ApiState) {
       st.patches.push(body);
       Object.assign(st.settings, body);
     }
-    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.security_snapshot': 'true', ...st.settings }, can_edit: st.perms.includes('system.configure') });
+    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.security_snapshot': 'true', 'ui.page_size.automations_cards': '12', ...st.settings }, can_edit: st.perms.includes('system.configure') });
     if (p.startsWith('automations')) {
       const body = req.method() === 'GET' ? null : req.postDataJSON();
       st.calls.push({ method: req.method(), path: p + url.search, body });
@@ -996,7 +999,7 @@ async function openApi(page: Page, hash: string, size: Size = '1440') {
     }
   });
   await page.goto('about:blank');
-  await page.goto(`/?design=a#${hash}`);
+  await page.goto(`/?design=a&fit=off#${hash}`);
   await page.waitForSelector('sw-app');
   await page.waitForTimeout(600);
 }

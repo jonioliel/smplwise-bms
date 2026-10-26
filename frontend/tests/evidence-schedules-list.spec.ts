@@ -102,7 +102,7 @@ async function open(page: Page, hash: string, control: Control = {}) {
     }
   }, control);
   await page.goto('about:blank');
-  await page.goto(`/?design=a&sched_view=cards&page_size=50#${hash}`); // POLISH-295: these specs read every card on one page; the product default is rows, 10 / 7 a page (evidence-polish-295)
+  await page.goto(`/?design=a&sched_view=cards&page_size=50&fit=off#${hash}`); // POLISH-295: these specs read every card on one page; the product default is rows, 10 / 7 a page (evidence-polish-295)
   await page.waitForSelector('sw-app');
 }
 
@@ -650,7 +650,7 @@ async function install(page: Page, st: ApiState) {
 async function openApi(page: Page, hash: string) {
   await pinClock(page);
   await page.goto('about:blank');
-  await page.goto(`/?design=a&sched_view=cards&page_size=50#${hash}`); // POLISH-295: these specs read every card on one page; the product default is rows, 10 / 7 a page (evidence-polish-295)
+  await page.goto(`/?design=a&sched_view=cards&page_size=50&fit=off#${hash}`); // POLISH-295: these specs read every card on one page; the product default is rows, 10 / 7 a page (evidence-polish-295)
   await page.waitForSelector('sw-app');
   await page.waitForTimeout(600);
 }

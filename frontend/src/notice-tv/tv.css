@@ -441,3 +441,52 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 /* NOTICESLIDES-295: a slide's picture fills the mock-up's picture box; the building photo is the mock-up's .photo .img (background set through the CSSOM) */
 .it.promo .pic { overflow: hidden; }
 .it.promo .pic img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+
+/* ===== TVOPT-295: the one-row header (display.header a / b) and the "updated" line (display.updated) =====
+   a: the company logo, a hairline and the greeting at the inline start; SmplWise and the status at the inline end of the same row.
+   b: the greeting centred; SmplWise over the status at the end. The separate bottom row goes away (template 1 keeps it only for the
+   building chips), so the body gets the height. */
+.hd.one { gap: 32px; padding-block-end: 24px; border-block-end: 1px solid var(--line); min-block-size: 0; }
+.hd.one .hdv { flex: none; inline-size: 2px; block-size: 56px; background: var(--line-2); }
+.hd.one .hw { display: flex; align-items: baseline; gap: 26px; min-inline-size: 0; white-space: nowrap; }
+.hd.one .hw small { flex: none; font-size: calc(32px * var(--fs)); font-weight: 400; letter-spacing: .12em; color: var(--accent); }
+.hd.one .hw b { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; font-size: calc(80px * var(--fs)); font-weight: 500; line-height: 1.05; letter-spacing: -0.015em; color: var(--ink); }
+#cv[data-welcome="0"] .hd.one .hw small { display: none; }
+.hd.one[data-h="a"] .hw { flex: 1; }
+.hd.one .hs { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.hd.one[data-h="a"] .hs { flex-direction: row-reverse; align-items: center; gap: 24px; }
+.hd.one .hst { display: inline-flex; align-items: center; gap: 18px; white-space: nowrap; }
+.hd.one .hst:empty { display: none; }
+.hd.one .live, .hd.one .stale { font-size: calc(28px * var(--fs)); }
+.hd.one .offline { font-size: calc(28px * var(--fs)); }
+.hd.one .lg.product { block-size: calc(34px * var(--lg, 1)); }
+#cv[data-company="0"] .hd.one[data-h="a"] .lg.company, #cv[data-company="0"] .hd.one[data-h="a"] .hdv { display: none; }
+/* b: three columns so the greeting is centred on the screen, whatever the widths of the two ends */
+.hd.one[data-h="b"] { display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr); }
+.hd.one[data-h="b"] .lg.company { justify-self: start; }
+.hd.one[data-h="b"] .hw { justify-self: center; }
+.hd.one[data-h="b"] .hs { justify-self: end; }
+/* the greeting left the side column: the clock opens the column, the weather closes it */
+#cv[data-header="a"][data-tpl="1"] .side .clock, #cv[data-header="b"][data-tpl="1"] .side .clock { margin-block-start: 0; }
+#cv[data-header="a"] .ft:empty, #cv[data-header="b"] .ft:empty { display: none; }
+#cv[data-header="a"] .pg .ft, #cv[data-header="b"] .pg .ft { margin-block-start: 18px; }
+/* portrait (1080 wide): the greeting is shorter, SmplWise stands over the status in both; b stacks the greeting under its caption */
+#cv.portrait .hd.one { gap: 26px; padding-block-end: 22px; }
+#cv.portrait .hd.one .hw b { font-size: calc(64px * var(--fs)); }
+#cv.portrait .hd.one .hw small { font-size: calc(28px * var(--fs)); }
+#cv.portrait .hd.one[data-h="a"] .hs { flex-direction: column; align-items: flex-end; gap: 8px; }
+#cv.portrait .hd.one[data-h="b"] { display: flex; }
+#cv.portrait .hd.one[data-h="b"] .hw { flex: 1; flex-direction: column; align-items: flex-start; gap: 2px; }
+#cv.portrait .hd.one[data-h="b"] .hw b { font-size: calc(72px * var(--fs)); max-inline-size: 100%; }
+#cv.portrait .hd.one .live, #cv.portrait .hd.one .stale, #cv.portrait .hd.one .offline { font-size: calc(26px * var(--fs)); }
+#cv.portrait .hd.one .offline span, #cv.portrait .hd.one .offline { white-space: normal; max-inline-size: 360px; }
+/* the template-2 photo header: the hairline reads on the photo too */
+#cv[data-tpl="2"] .hd.one { border-block-end-color: var(--line-2); }
+/* TVOPT-295 weather_days: the forecast row as days (today first) - the weekday over the icon, the high, the low under it in the quieter ink */
+.wx .hrs.days div { min-inline-size: calc(84px * var(--fs)); }
+.wx .hrs.days span { white-space: nowrap; }
+.wx .hrs.days i.lo { font-style: normal; font-size: calc(24px * var(--fs)); font-weight: 400; color: var(--ink-3); }
+/* template 3 keeps its one-line weather, so the days sit next to the current conditions instead of under them */
+#cv[data-tpl="3"] .bot .wx .hrs.days { display: flex; }
+#cv[data-tpl="3"]:not(.portrait) .bot .wx:has(.hrs.days) { display: flex; align-items: center; gap: calc(40px * var(--fs)); }
+#cv[data-tpl="3"]:not(.portrait) .bot .wx .hrs.days div { gap: 2px; }

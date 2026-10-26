@@ -66,8 +66,12 @@ DEFAULTS: dict[str, str] = {
     "ui.page_size.schedules": "10",
     "ui.page_size.schedules_phone": "7",
     "ui.page_size.automations": "12",
-    "ui.page_size.automations_phone": "9",
+    "ui.page_size.automations_phone": "7",  # POLISH2-295: 9 rows scrolled a 390x844 phone
+    # POLISH2-295: the automations cards' own page sizes (a card is about four rows tall); 1 a page is allowed for the cards only
+    "ui.page_size.automations_cards": "6",
+    "ui.page_size.automations_cards_phone": "1",
     "ui.schedules_view": "rows",  # rows | cards | table | week
+    "ui.automations_view": "rows",  # rows | cards (POLISH2-295: the cards with their sentence stay a choice; a browser may keep its own)
     # Design foundation (2026-10-01): the installation's skin (classic = today's look | domus | tesla; frontend/src/design/skins)
     # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
     "ui.skin": "classic",
@@ -473,7 +477,7 @@ LOCAL_PURGE_WORD = "מחיקה לצמיתות"  # REL2140 M-1: typed to switch t
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", *automation_settings.INT_KEYS)
+INT_KEYS = ("privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
 
 
 PRIVATE_KEYS = ("site.latitude", "site.longitude")  # SEC247 I3: the manual site position - administrators (system.configure) only
@@ -737,7 +741,10 @@ class SettingsPatch(BaseModel):
     ui_page_size_schedules_phone: int | None = Field(default=None, ge=3, le=50, alias="ui.page_size.schedules_phone")
     ui_page_size_automations: int | None = Field(default=None, ge=3, le=50, alias="ui.page_size.automations")
     ui_page_size_automations_phone: int | None = Field(default=None, ge=3, le=50, alias="ui.page_size.automations_phone")
+    ui_page_size_automations_cards: int | None = Field(default=None, ge=1, le=50, alias="ui.page_size.automations_cards")
+    ui_page_size_automations_cards_phone: int | None = Field(default=None, ge=1, le=50, alias="ui.page_size.automations_cards_phone")
     ui_schedules_view: str | None = Field(default=None, pattern="^(rows|cards|table|week)$", alias="ui.schedules_view")
+    ui_automations_view: str | None = Field(default=None, pattern="^(rows|cards)$", alias="ui.automations_view")
     ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble|crystal)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
     ui_accent: str | None = Field(default=None, max_length=16, alias="ui.accent")  # 2.4.4: validated by services/brand_colors.py
