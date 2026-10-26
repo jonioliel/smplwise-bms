@@ -133,7 +133,7 @@ import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../a
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
 import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, isTicketsEntryAddress, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, applyNoticesHidden, applyAnnounceHidden, areaDot, incidentsOpen, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
 import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
-import { DD_CHIPS, DD_COLLIDE_MS, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
+import { DD_CHIPS, DD_COLLIDE_MS, DD_FIT_FRAMES, DD_FIT_STABLE, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
@@ -1400,6 +1400,14 @@ export class SwApp extends LitElement {
         inset-block-start: 14px;
         align-self: flex-start;
       }
+      /* FIX2231C-295: placements 2 and 3 are measured; until the shell's first clear measurement (data-dd-fit, written by fitDd) the chips
+         keep their box but are not painted, so they never show at the default place and then jump */
+      :host([data-design='a'][data-dd-head][data-dd-place='2']:not([data-dd-fit])) .subnav[data-tabstyle='dropdown'] > *,
+      :host([data-design='a'][data-dd-head][data-dd-place='2']:not([data-dd-fit])) .tabpair:not(.single) > *,
+      :host([data-design='a'][data-dd-head][data-dd-place='3']:not([data-dd-fit])) .subnav[data-tabstyle='dropdown'] > *,
+      :host([data-design='a'][data-dd-head][data-dd-place='3']:not([data-dd-fit])) .tabpair:not(.single) > * {
+        visibility: hidden;
+      }
       /* 2: far end of the title row, clear of the floating corner (--sw-dd-float-end: the corner's measured far-end extent + a gap); the
          pages keep their end side free through --sw-float-reserve, the chips' measured extent (--sw-dd-end) */
       :host([data-design='a'][data-dd-head][data-dd-place='2']) .subnav[data-tabstyle='dropdown'],
@@ -2047,6 +2055,37 @@ export class SwApp extends LitElement {
   private ddRoute = '';
   private ddTimer = 0;
 
+  /** FIX2231C-295: first paint of the hanging chips. Placements 2 and 3 are MEASURED (the floating corner's extent, the title's far edge), so
+   * the first frame after a route / placement change used to draw the chips at the CSS defaults and the next frame moved them (a visible
+   * jump, over the title on the way). Until a measurement came out clear (data-dd-fit), the CSS keeps those chips invisible (visibility:
+   * hidden - they keep their box, so nothing else moves and the content is not delayed). updated() measures once synchronously (before
+   * paint: enough for placement 2, which needs only the shell's own pieces) and then every frame for DD_FIT_FRAMES (placement 3 waits for the
+   * screen's heading and follows it while its data loads); when the burst ends the chips are shown in any case. */
+  private ddFitKey = '';
+  private ddFitFrames = 0;
+  private ddFitPump = 0;
+  private ddFitOffset = -2;
+  private ddFitStable = 0;
+  private markDdFitted(): void {
+    if (!this.hasAttribute('data-dd-fit')) this.setAttribute('data-dd-fit', '');
+  }
+  private startDdFit(): void {
+    this.removeAttribute('data-dd-fit');
+    this.ddFitFrames = DD_FIT_FRAMES;
+    this.ddFitOffset = -2;
+    this.ddFitStable = 0;
+    this.fitDd();
+    if (this.ddFitPump) return;
+    const step = () => {
+      this.ddFitPump = 0;
+      if (!this.isConnected) return;
+      this.fitDd();
+      if (--this.ddFitFrames > 0) this.ddFitPump = requestAnimationFrame(step);
+      else this.markDdFitted();
+    };
+    this.ddFitPump = requestAnimationFrame(step);
+  }
+
   /** Placements 2-4 put the chips on the page's first row. fitDd measures that row (the title as a text range, and every control of the
    * screen's top rows: buttons, links, fields, selectors, tabs, headings, through the shadow roots - ddHeader) and the floating corner:
    *   - 2: publishes the corner's extent (--sw-dd-float-end) and the chips' own (--sw-dd-end, read as the pages' --sw-float-reserve);
@@ -2084,6 +2123,7 @@ export class SwApp extends LitElement {
     }
     const band = Math.max(...chips.map((c) => c.bottom)) + 8;
     const { title, obstacles } = ddHeader(screen, band);
+    let offset = -1; // placement 3: where the chips were put this pass
     if (place === '3' && title && title.top < band) {
       // the title, together with a control that wraps or overlaps it (the devices area selector draws the area name as its heading)
       const box = { left: title.left, right: title.right };
@@ -2103,6 +2143,7 @@ export class SwApp extends LitElement {
         at = Math.max(...hit.map((o) => fromStart(rtl ? o.left : o.right))) + DD_GAP;
       }
       set('--sw-dd-title-offset', at);
+      offset = Math.round(at);
       chips = measure();
     }
     const covers = (c: DOMRect, o: DdBox) => c.left < o.right - 0.5 && c.right > o.left + 0.5 && c.top < o.bottom - 0.5 && c.bottom > o.top + 0.5;
@@ -2112,6 +2153,14 @@ export class SwApp extends LitElement {
     const hit = offPage || (place === '3' && (!title || title.top >= band)) || chips.some((c) => blocked.some((o) => covers(c, o)));
     if (!hit) {
       this.ddMissSince = 0;
+      // measured, clear of everything: the chips may be painted now. Placement 3 follows the heading, which is swapped while its data loads:
+      // it waits until the same place came out DD_FIT_STABLE passes in a row
+      if (place !== '3') this.markDdFitted();
+      else {
+        this.ddFitStable = offset === this.ddFitOffset ? this.ddFitStable + 1 : 0;
+        this.ddFitOffset = offset;
+        if (this.ddFitStable >= DD_FIT_STABLE) this.markDdFitted();
+      }
       return;
     }
     const now = performance.now();
@@ -2230,6 +2279,11 @@ export class SwApp extends LitElement {
     if (this.getAttribute('data-dd-fallback') !== fallback) {
       if (fallback) this.setAttribute('data-dd-fallback', fallback);
       else this.removeAttribute('data-dd-fallback');
+    }
+    const fitKey = `${route}|${place}|${dd ?? ''}`;
+    if (fitKey !== this.ddFitKey) {
+      this.ddFitKey = fitKey;
+      this.startDdFit();
     }
     requestAnimationFrame(() => this.fitDd());
     const banner = this.renderRoot.querySelector<HTMLElement>('[data-sys-banner]');

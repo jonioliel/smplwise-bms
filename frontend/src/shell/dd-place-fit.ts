@@ -12,6 +12,12 @@ export const DD_CHIPS = '.subnav[data-tabstyle="dropdown"] > sw-tabs, .tabpair:n
 /** The gap kept between a chip and its neighbour (the title, a control, the floating corner). */
 export const DD_GAP = 12;
 
+/** FIX2231C-295: how many animation frames after a route / placement change the shell keeps measuring the header on every frame (about 1.5 s at 60 Hz), with the measured chips hidden until a clear measurement. */
+export const DD_FIT_FRAMES = 90;
+
+/** Placement 3 shows its chips once the measured place was the same for this many passes in a row (about 0.15 s at 60 Hz). */
+export const DD_FIT_STABLE = 8;
+
 /** How long a measured collision must persist before the route falls back to placement 1 (a loading screen draws a provisional header). */
 export const DD_COLLIDE_MS = 900;
 
