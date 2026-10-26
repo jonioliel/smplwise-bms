@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { setLook } from './bubble-chrome-screens';
-import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
+import { SKINS_UNDER_TEST as SKIN_IDS, skipIfFrozen } from './helpers/frozen-skins';
 
 // Owner 2026-10-04: the schedules screen is designed exactly like the automations and scenes screens (docs/design/schedules-parity.md).
 // The layout guard (tests/layout-guard.ts) over every state of it - the list as cards, table and week, "סינון" open, the drawer,
@@ -136,6 +136,7 @@ test.describe('layout guard: the schedules screen in the automations screen\'s d
   });
 
   test('bubble skin: every state, every class, light and dark', async ({ page }) => {
+    skipIfFrozen('bubble'); // BUBBLE-FREEZE-295: ?skin=bubble now reads as domus, which does not carry the bubble dial's 44 px contract
     test.skip(test.info().project.name !== 'desktop', 'one project runs the sweep');
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));

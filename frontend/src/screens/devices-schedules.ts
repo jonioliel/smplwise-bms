@@ -738,6 +738,11 @@ export class DevicesSchedules extends LitElement {
       a.up {
         min-block-size: 44px;
       }
+      /* FIX2232B: the pager's keys are 44 px touch targets at a phone width too (30x30 in the 2.23.2 guard since the cards view pages) */
+      sw-pager {
+        --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px));
+        --sw-ctl-h-lg: max(44px, var(--sw-touch-desktop, 44px));
+      }
     }
     a.up:focus-visible {
       outline: var(--sw-focus-w) solid var(--dv-focus);
