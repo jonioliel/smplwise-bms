@@ -259,6 +259,9 @@ def delete_board(conn: sqlite3.Connection, board_id: str, actor: str) -> None:
 
 def set_board_items(conn: sqlite3.Connection, board_id: str, notice_ids: list[str]) -> None:
     known = {r[0] for r in conn.execute("SELECT id FROM notices WHERE deleted_at IS NULL AND status != 'archived'").fetchall()}
+    # NOTICEREMOVE-295: archive leaves the board link in place, so an archived notice that is already on this board is still part of the
+    # list the screen sends back; it is kept (or dropped) like any other id. Only NEW archived/unknown ids are refused.
+    known |= {r[0] for r in conn.execute("SELECT i.notice_id FROM notice_board_items i JOIN notices n ON n.id = i.notice_id WHERE i.board_id = ? AND n.deleted_at IS NULL", (board_id,)).fetchall()}
     if any(n not in known for n in notice_ids):
         raise Invalid("notice_ids", "הודעה לא נמצאה.")
     conn.execute("DELETE FROM notice_board_items WHERE board_id = ?", (board_id,))
