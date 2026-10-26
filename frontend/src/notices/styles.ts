@@ -15,7 +15,11 @@ export const noticesCss = css`
   [data-look='unk'] { --c: var(--sw-unknown); --c-text: var(--sw-unknown-text); --c-soft: var(--sw-unknown-soft); }
   .num { font-variant-numeric: tabular-nums; }
   .ltr { direction: ltr; unicode-bidi: isolate; }
-  .top { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-block-end: 14px; }
+  /* HDRFIX-295: this row is the page's own header (the <sw-page> above it is drawn without a heading), so it keeps what the shell reserves
+     for the page's first row, as <sw-page>'s own header does: the developer / installer logos at the start (--sw-lead-reserve) and the
+     floating corner at the end (--sw-float-reserve) - the title was drawn over the logos and the action button hung under the corner */
+  .top { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-block-end: 14px;
+    padding-inline-start: var(--sw-lead-reserve, 0px); padding-inline-end: var(--sw-float-reserve, 0px); }
   .top h1 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
   .top .sub { margin: 2px 0 0; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
   .top .sp { flex: 1; }

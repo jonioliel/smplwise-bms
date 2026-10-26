@@ -157,7 +157,7 @@ export class InfraGenerator extends LitElement {
 
   /** UXFIX-NAV-295: one h1 on every state of the page (visually hidden; the navigation label names the page). */
   render() {
-    return html`${srHeading(G.tab)}${this.renderPage()}`;
+    return html`${srHeading(G.tab, true)}${this.renderPage()}`;
   }
 
   private renderPage() {

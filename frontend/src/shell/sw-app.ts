@@ -1339,6 +1339,10 @@ export class SwApp extends LitElement {
         padding: 14px 30px 0;
         padding-inline-end: 84px;
       }
+      /* HDRFIX-295: a pair with no chip in it (one section, one page) is no row: it takes no height above the page title */
+      :host([data-design='a']) .tabpair:not(:has(> *)) {
+        display: none;
+      }
       :host([data-design='a']) .tabpair > sw-tabs,
       :host([data-design='a']) .tabpair > sw-dropdown {
         flex: 0 1 auto;
@@ -2199,7 +2203,10 @@ export class SwApp extends LitElement {
     this.syncBrandStrip();
     // what the floating corner (search, status) sits above: the phone's sticky section row, a tab / section row, or
     // the page's own header (sw-page reads --sw-float-reserve to keep its actions clear)
-    const top = this.renderRoot.querySelector('nav.secrow, nav.sectabs.phone, .tabpair') ? 'secrow' :this.renderRoot.querySelector('.subnav > *') ? 'tabs' : 'page';
+    // HDRFIX-295: a row counts only when it holds something. The security area draws its `.tabpair` even when the section and page chips are
+    // not offered (one section, one page: the NVR-less sensor events); the empty pair made the shell believe a row sat between the logos and
+    // the page title, so the title kept no room free of the developer / installer logos (--sw-lead-reserve) and was drawn over them.
+    const top = this.renderRoot.querySelector('nav.secrow, nav.sectabs.phone, .tabpair > *') ? 'secrow' : this.renderRoot.querySelector('.subnav > *') ? 'tabs' : 'page';
     if (this.getAttribute('data-top') !== top) this.setAttribute('data-top', top);
     // the dropdown form's chips share the page title's row on a wide screen (CSS, min-width 1100): how many chips hang there, and where
     const chips = this.renderRoot.querySelectorAll('.subnav[data-tabstyle="dropdown"] > sw-tabs, .tabpair:not(.single) > sw-tabs, .tabpair:not(.single) > sw-dropdown').length;

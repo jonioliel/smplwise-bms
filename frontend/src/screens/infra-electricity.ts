@@ -119,7 +119,7 @@ export class InfraElectricity extends LitElement {
     this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/electricity/${id}`)) : null;
     const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.electricity')} data-infra-pages></sw-tabs>`;
     // UXFIX-NAV-295: the page carries one (visually hidden) h1, the navigation label of the area
-    return html`${srHeading(INFRA_TABS.find((x) => x.id === 'electricity')?.label ?? 'מוני חשמל')}<div class="rows lead-head" data-elec-shell>${l1}${row}</div><div class="body" data-page=${page}>${body}</div>`;
+    return html`${srHeading(INFRA_TABS.find((x) => x.id === 'electricity')?.label ?? 'מוני חשמל', true)}<div class="rows lead-head" data-elec-shell>${l1}${row}</div><div class="body" data-page=${page}>${body}</div>`;
   }
 
   protected updated() {
