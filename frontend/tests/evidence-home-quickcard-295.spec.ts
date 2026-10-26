@@ -31,7 +31,7 @@ async function open(page: Page, vp: Vp, quickCard: 'show' | 'hide') {
     if (p === 'notices') return json(route, { notices: [NOTICE], can: CAN, now: '2026-10-23T09:00:00Z', defaults: { default_days: 7, default_severity: 'info', home_empty: 'hide' } });
     return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'not_found', user_message: 'לא נמצא', retryable: false, correlation_id: 'mock', details: {} }) });
   });
-  const home = { direction: 'a', side: 'end', time_zone: 'Asia/Jerusalem', personalize: false, config: { notices: { on: true }, quick: { on: true } }, data: {} };
+  const home = { direction: 'a', side: 'end', time_zone: 'Asia/Jerusalem', personalize: false, config: { phone_layout: 'two', notices: { on: true }, quick: { on: true } }, data: {} };
   await page.route('**/api/v1/devices/tree', (route) => json(route, { ...tree(), home }));
   await page.route((u) => u.pathname.endsWith('/api/v1/settings'), (route) => json(route, { settings: { 'ui.design': 'a', 'ui.skin': 'bubble', 'home.info_style': 'cards', 'home.screen': { quick_card: quickCard } }, can_edit: false }));
   await page.addInitScript(() => {

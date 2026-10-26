@@ -1572,7 +1572,7 @@ export class DevicesBuilding extends LitElement {
 
   private renderWidgets(t: DeviceTree, h: HomeView, items: WidgetItem[], layout: 'hero' | 'side' | 'row' | 'snap' | 'stack' | 'two') {
     if (!items.length) return nothing;
-    return html`<home-widgets layout=${layout} .items=${items} .config=${h.config} .data=${h.data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')}
+    return html`<home-widgets layout=${layout} ?quick-hidden=${!this.lay.editing && this.screen.quick_card === 'hide'} .items=${items} .config=${h.config} .data=${h.data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')}
       .elevators=${this.elevators ?? []} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .doors=${this.doorsData} .notices=${this.noticesData} .failed=${this.failedWidgets}
       @home-widget-retry=${this.onWidgetRetry} @home-widget-size=${this.onWidgetSize} @home-widget-toggle=${this.onWidgetToggle} @home-widget-move=${this.onWidgetMove} @home-widget-edit=${this.onWidgetEdit} @home-quick=${this.onQuick}></home-widgets>`;
   }

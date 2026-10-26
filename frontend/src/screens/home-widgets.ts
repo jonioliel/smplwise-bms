@@ -248,6 +248,8 @@ export class HomeWidgetsView extends LitElement {
   /** BV1: the launcher's in-flight / just-done buttons and its one-line feedback. */
   private launchSt: LaunchState = { busy: new Set(), done: new Set() };
   @state() private launchNote = '';
+  /** QUICKHIDE-295: the quick-actions card is switched off in the home settings - the notices card takes the room it left (no hole in the row). */
+  @property({ type: Boolean, reflect: true, attribute: 'quick-hidden' }) quickHidden = false;
 
   static styles = [css`
     :host {
@@ -990,6 +992,10 @@ export class HomeWidgetsView extends LitElement {
       color: var(--sw-text);
       font-weight: var(--sw-fw-semibold);
       box-shadow: var(--sw-shadow-1);
+    }
+    /* QUICKHIDE-295: with the quick actions hidden by the setting the notices card is not held to its natural width: it takes the rest of its row */
+    :host([quick-hidden]) .wg.wg-notices {
+      max-inline-size: none;
     }
     /* ================= directions ================= */
     /* a: control centre - a hero band */
