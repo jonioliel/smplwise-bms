@@ -19,7 +19,7 @@ FRONT = Path(__file__).resolve().parents[3] / "frontend" / "src" / "api" / "home
 def test_defaults_are_the_owners_answers():
     d = hso.default()
     assert d == {"summary_tiles": None, "summary_chooser": "admin", "area_quick": {}, "row_actions": "quick", "tile_blinds": "pct", "tile_climate": "both",
-                 "phone_area": "sheet", "floor_off": "menu", "many_floors": "more", "building_off_tablet": "hide", "quick_card": "show"}
+                 "phone_area": "sheet", "floor_off": "menu", "many_floors": "more", "building_off_tablet": "hide", "quick_card": "show", "phone_floors": "selector"}
     assert hso.stored("") == d and hso.stored(None) == d and hso.stored("{not json") == d and hso.stored('{"floor_off": "neon"}') == d
 
 
@@ -119,3 +119,13 @@ def test_quick_card_round_trip(settings):
         r = c.patch("/api/v1/settings", json={"home.screen": {"quick_card": "hide"}})
         assert r.status_code == 200, r.text
         assert c.get("/api/v1/settings").json()["settings"]["home.screen"]["quick_card"] == "hide"
+def test_phone_floors_option_round_trip(settings):
+    """FIX2232A-295: phone_floors = selector (default) | all; a bad value is refused; a partial patch keeps the others."""
+    assert hso.default()["phone_floors"] == "selector" and hso.CHOICES["phone_floors"] == ("selector", "all")
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["home.screen"]["phone_floors"] == "selector"
+        assert c.patch("/api/v1/settings", json={"home.screen": {"phone_floors": "all"}}).status_code == 200
+        got = c.get("/api/v1/settings").json()["settings"]["home.screen"]
+        assert got["phone_floors"] == "all" and got["floor_off"] == "menu"
+        assert c.patch("/api/v1/settings", json={"home.screen": {"phone_floors": "neon"}}).status_code == 422

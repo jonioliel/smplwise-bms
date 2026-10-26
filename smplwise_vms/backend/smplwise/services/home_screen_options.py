@@ -20,6 +20,8 @@ present). Every choice the owner answered is only the DEFAULT; each one is a key
                     | keep
   quick_card        show (default: the home's "quick actions" widget - the lights-off / all-off pills - is drawn) | hide (the widget is
                     absent; the summary tiles and the floor menu carry the same actions and the next card takes the whole row)
+  phone_floors      selector (default: a phone shows one floor at a time, with the floor switch and the tree button) | all (every floor
+                    card stacked one after another down the page; no switch, no tree button). Tablet and desktop are unchanged
 
 The view (cards / tiles) stays `devices.default_view` (default cards), the info row `home.info_style` (auto: cards in cards mode,
 a thin bar in tiles mode) and the customer logo on dark `brand.dark_mode` (default invert): one key per choice, no duplicates.
@@ -47,6 +49,7 @@ CHOICES: dict[str, tuple[str, ...]] = {
     "many_floors": ("more", "tree_scroll"),
     "building_off_tablet": ("hide", "keep"),
     "quick_card": ("show", "hide"),
+    "phone_floors": ("selector", "all"),
 }
 
 DEFAULT: dict[str, Any] = {
@@ -61,6 +64,7 @@ DEFAULT: dict[str, Any] = {
     "many_floors": "more",
     "building_off_tablet": "hide",
     "quick_card": "show",
+    "phone_floors": "selector",
 }
 KEYS: tuple[str, ...] = tuple(DEFAULT)
 

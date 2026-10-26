@@ -32,6 +32,7 @@ export type FloorOff = 'menu' | 'buttons';
 export type ManyFloors = 'more' | 'tree_scroll';
 export type BuildingOffTablet = 'hide' | 'keep';
 export type QuickCard = 'show' | 'hide';
+export type PhoneFloors = 'selector' | 'all';
 
 /** The single-choice options: every value, in the order the settings show them (the first is not necessarily the default). */
 export const CHOICES = {
@@ -44,6 +45,7 @@ export const CHOICES = {
   many_floors: ['more', 'tree_scroll'],
   building_off_tablet: ['hide', 'keep'],
   quick_card: ['show', 'hide'],
+  phone_floors: ['selector', 'all'],
 } as const;
 export type ChoiceKey = keyof typeof CHOICES;
 export const CHOICE_KEYS = Object.keys(CHOICES) as ChoiceKey[];
@@ -59,6 +61,7 @@ export const CHOICE_DEFAULTS = {
   many_floors: 'more',
   building_off_tablet: 'hide',
   quick_card: 'show',
+  phone_floors: 'selector',
 } as const;
 
 export interface HomeScreenOptions {
@@ -76,6 +79,8 @@ export interface HomeScreenOptions {
   building_off_tablet: BuildingOffTablet;
   /** QUICKHIDE-295: whether the home's quick-actions widget (lights off / all off pills) is drawn. */
   quick_card: QuickCard;
+  /** FIX2232A-295: a phone shows one floor with the floor switch + tree button (selector) or every floor stacked down the page (all). */
+  phone_floors: PhoneFloors;
 }
 
 export const HOME_SCREEN_DEFAULT: HomeScreenOptions = { summary_tiles: null, area_quick: {}, ...CHOICE_DEFAULTS };
