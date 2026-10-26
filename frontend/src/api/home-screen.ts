@@ -31,6 +31,7 @@ export type PhoneArea = 'sheet' | 'full';
 export type FloorOff = 'menu' | 'buttons';
 export type ManyFloors = 'more' | 'tree_scroll';
 export type BuildingOffTablet = 'hide' | 'keep';
+export type PhoneFloors = 'selector' | 'all';
 
 /** The single-choice options: every value, in the order the settings show them (the first is not necessarily the default). */
 export const CHOICES = {
@@ -42,6 +43,7 @@ export const CHOICES = {
   floor_off: ['menu', 'buttons'],
   many_floors: ['more', 'tree_scroll'],
   building_off_tablet: ['hide', 'keep'],
+  phone_floors: ['selector', 'all'],
 } as const;
 export type ChoiceKey = keyof typeof CHOICES;
 export const CHOICE_KEYS = Object.keys(CHOICES) as ChoiceKey[];
@@ -56,6 +58,7 @@ export const CHOICE_DEFAULTS = {
   floor_off: 'menu',
   many_floors: 'more',
   building_off_tablet: 'hide',
+  phone_floors: 'selector',
 } as const;
 
 export interface HomeScreenOptions {
@@ -71,6 +74,8 @@ export interface HomeScreenOptions {
   floor_off: FloorOff;
   many_floors: ManyFloors;
   building_off_tablet: BuildingOffTablet;
+  /** FIX2232A-295: a phone shows one floor with the floor switch + tree button (selector) or every floor stacked down the page (all). */
+  phone_floors: PhoneFloors;
 }
 
 export const HOME_SCREEN_DEFAULT: HomeScreenOptions = { summary_tiles: null, area_quick: {}, ...CHOICE_DEFAULTS };

@@ -1561,6 +1561,11 @@ export class DevicesBuilding extends LitElement {
     return window.innerWidth <= PHONE_MAX_WIDTH;
   }
 
+  /** FIX2232A-295 (setting home.screen.phone_floors = all): a phone shows every floor stacked down the page - no floor switch, no tree button. */
+  private get phoneAll(): boolean {
+    return this.isPhone && !this.lay.editing && this.screen.phone_floors === 'all';
+  }
+
   /** Where the widgets sit: a phone gets the presentation chosen for it (a snap row, one under the other, two per row), a tablet
    * the band (direction b has no room for its column), a desktop the direction's own place. */
   private widgetLayout(direction: Direction, config: HomeSettings['config']): 'hero' | 'side' | 'row' | 'snap' | 'stack' | 'two' {
@@ -2916,7 +2921,7 @@ export class DevicesBuilding extends LitElement {
         ${this.renderBanner(t)}
         ${sideLayout ? nothing : widgets}
         ${this.renderKpis(t.building, alarmShown)}
-        ${this.isPhone && !this.lay.editing && this.layout !== 'plan' ? this.renderPhoneFloors(t) : nothing}
+        ${this.isPhone && !this.lay.editing && !this.phoneAll && this.layout !== 'plan' ? this.renderPhoneFloors(t) : nothing}
         ${sideLayout
           ? html`<div class="bgrid" data-side=${h.side} data-fit=${this.fit} data-bgrid>
               <div class="bmain">${this.renderToolbar(t, !quickShown, true)}${body}</div>
@@ -3004,7 +3009,7 @@ export class DevicesBuilding extends LitElement {
     if (!t.floors.length && !t.unassigned.counts.entities) return nothing;
     const all = this.floorsOf(t);
     const shown = this.selected === 'all' ? all : all.filter((f) => f.floor_id === this.selected);
-    const phoneOne = this.isPhone && !this.lay.editing; // HOME-295: a phone shows one floor at a time (the floor switch, the tree sheet)
+    const phoneOne = this.isPhone && !this.lay.editing && !this.phoneAll; // HOME-295: a phone shows one floor at a time (the floor switch, the tree sheet)
     const floors = phoneOne ? [this.phoneFloorOf(all)].filter((f): f is DeviceFloor => !!f) : shown.length ? shown : all; // a floor that vanished from the tree: back to everything
     const loose = !phoneOne && (this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped);
     return html`<div class="split" data-layout-view="tiles" data-fit=${this.fit} ?data-no-tree=${noTree}>
@@ -3031,7 +3036,8 @@ export class DevicesBuilding extends LitElement {
     // the tree ("עוד קומות", or the scrolling tree - many_floors); a phone shows one floor at a time (renderPhoneFloors)
     const max = floorCardsMax(window.innerWidth);
     let cols = '';
-    if (this.isPhone && !this.lay.editing) floors = [this.phoneFloorOf(all)].filter((f): f is DeviceFloor => !!f);
+    if (this.phoneAll) floors = all;
+    else if (this.isPhone && !this.lay.editing) floors = [this.phoneFloorOf(all)].filter((f): f is DeviceFloor => !!f);
     else if (!this.lay.editing && !this.gridAttrs('fcards').on && this.selected === 'all' && window.innerWidth >= 900) {
       // the floors share ONE row (the mockup: three floors = three columns), at most `max` of them
       floors = floorCardsSplit(all, 'all', max).shown;
