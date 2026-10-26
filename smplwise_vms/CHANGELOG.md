@@ -1,5 +1,17 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.23.2 (pilot) — The "bubble" skin is frozen (anyone on it sees domus), show every floor on the phone home screen (setting)
+**After installing:** no database migration (the chain still ends at 0179). The "bubble" skin is no longer offered; an installation that had it selected reads as the "domus" skin (the stored value is kept). One new setting, off by default: Settings > Electricity and devices > Home screen > floors on a phone.
+- **עברית:** אחרי ההתקנה: אין מיגרציה (השרשרת נשארת 0179). סקין "bubble" כבר לא מוצע; התקנה שהייתה עליו נראית בסקין "domus" (הערך השמור נשמר). הגדרה חדשה אחת, כבויה כברירת מחדל: הגדרות › חשמל והתקנים › מסך הבית › קומות בטלפון.
+
+### What was changed - מה שונה
+- **English:** The "bubble" skin is frozen: it is not selectable, writing it is refused, and a stored "bubble" is shown as "domus". The code and styles are kept in the product so it can be brought back.
+- **עברית:** סקין "bubble" הוקפא: אי אפשר לבחור בו, כתיבה שלו נדחית, וערך "bubble" שמור מוצג כ"domus". הקוד והעיצוב נשמרים במערכת כדי שאפשר יהיה להחזיר אותו.
+
+### What was added - מה נוסף
+- **English:** Settings > Electricity and devices > Home screen: "floors on a phone" - one floor with the floor switch and tree (default), or every floor one after another in a scroll with no switch. Tablet and desktop are unchanged.
+- **עברית:** הגדרות › חשמל והתקנים › מסך הבית: "קומות בטלפון" - קומה אחת עם בורר קומות ועץ (ברירת מחדל), או כל הקומות בזו אחר זו בגלילה בלי בורר. טאבלט ומחשב לא משתנים.
+
 ## 2.23.1 (pilot) — Notice-board bus panel no longer collides with the weather, hide the quick off buttons on the home screen, header dropdown no longer jumps on page entry
 **After installing:** no database migration (the chain still ends at 0179). One new setting, shown by default: Settings > Electricity and devices > Home screen > quick off buttons.
 - **עברית:** אחרי ההתקנה: אין מיגרציה (השרשרת נשארת 0179). הגדרה חדשה אחת, מוצגת כברירת מחדל: הגדרות › חשמל והתקנים › מסך הבית › כפתורי כיבוי מהיר.
