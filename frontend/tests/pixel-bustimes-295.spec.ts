@@ -33,18 +33,18 @@ async function shot(page: Page, layout: 'side' | 'strip' | 'slide', theme: 'day'
 
 for (const layout of ['side', 'strip', 'slide'] as const) {
   for (const theme of ['day', 'night'] as const) {
-    test(`bus times ${layout} ${theme} 1920x1080`, async ({ page }) => {
+    test(`bus times pixel-stable ${layout} ${theme} 1920x1080`, async ({ page }) => {
       await shot(page, layout, theme, 1920, 1080);
       await expect(page).toHaveScreenshot(`bus-${layout}-${theme}-1920.png`, { maxDiffPixelRatio: 0.005, animations: 'disabled' });
     });
   }
-  test(`bus times ${layout} night portrait`, async ({ page }) => {
+  test(`bus times pixel-stable ${layout} night portrait`, async ({ page }) => {
     await shot(page, layout, 'night', 1080, 1920);
     await expect(page).toHaveScreenshot(`bus-${layout}-night-portrait.png`, { maxDiffPixelRatio: 0.005, animations: 'disabled' });
   });
 }
 
-test('bus times states: cached (side), expired (side), no buses (strip)', async ({ page }) => {
+test('bus times pixel-stable states: cached (side), expired (side), no buses (strip)', async ({ page }) => {
   await shot(page, 'side', 'day', 1920, 1080, { state: 'cached', updated_hm: '08:53', age_s: 900 });
   await expect(page).toHaveScreenshot('bus-side-cached-day.png', { maxDiffPixelRatio: 0.005, animations: 'disabled' });
   await shot(page, 'side', 'night', 1920, 1080, { state: 'expired', items: [], overflow: 0, age_s: 4000 });
