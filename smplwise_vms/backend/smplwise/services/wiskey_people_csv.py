@@ -20,10 +20,24 @@ What Arx does and does not do
   stamps as the one the person saw (`preview_changed` otherwise, nothing sent). The fresh `start` is passed on unchanged.
 - The CSV text is kept only in this process's memory (bounded, 15 minutes), never in the database, a log, an audit row or a response.
 
-NOT_IDENTIFIED (documented in docs/changes/WKR5ADOPT-295.md, to be answered by Mac): the value of `schema`; the `mode` vocabulary beyond
-`create`; the WisKey field names behind the `column_map` beyond `employee_no` / `display_name`; what `authority_ref`, `authority_revision`,
-`scope_ref` and `source_epoch` WisKey checks for an Arx service subject (here: an owner-set binding, see `binding`); the meaning of `preview_ref`
-and the two policy refs; whether the preview `start` stays valid longer than the request's 15 s window; the receipt shape beyond `state` and `saved`."""
+ADOPTR6-295: the nine answers of the Mac reply-6 delivery (M3_PEOPLE_CSV_NINE_ANSWERS.json, native CODE 6a8a0a2c) replace the earlier
+NOT_IDENTIFIED list (docs/changes/ADOPTR6-295-ADOPTION-RECEIPT.md section M3):
+1. the answer's `schema` is exactly `arx.people_csv.preview.v1`; a native create row has `user_id` and `revision` both null, an update both set;
+2. the mode is exactly `create` or `upsert` (upsert creates absent employees and updates existing ones by employee_no; there is no delete /
+   sync / replace). Arx's own person-id compare-and-set rows are not expressible in either mode and are refused locally;
+3. `column_map` maps EVERY original header (exactly as the native reader sees it) to a native field name; targets are unique and include
+   employee_no and display_name; the native parser limits (262144 UTF-8 bytes, 32 headers of 1..128 characters, 500 non-empty records) are
+   checked here first so nothing is sent for a file the native reader refuses anyway;
+4. authority_ref / authority_revision / scope_ref / source_epoch have NO universal value: they come from the owner-set binding (`binding`) and
+   the original signed current policy; nothing is invented here;
+5. `preview_ref`, `ownership_policy_ref`, `revision_policy_ref` are intent METADATA (1..128 characters, no C0 controls) - never authority;
+6. the returned `start` carries the ORIGINAL request, valid only inside its own <= 15 s window: Arx passes a FRESH preview's start unchanged,
+   and refuses locally (nothing sent, nothing edited or extended) when that window has already passed (`start`);
+7. review_stamp / rules_stamp / change_digest are deterministic under the documented conditions; grant ids and origin refs are not, so the
+   shown/fresh comparison (`Preview.digest`) uses only the former;
+8. `features/result` finished.receipt is the native CheckpointJobs.public + source_binding + device_application='unknown': a central commit
+   per saved row, never a device-delivery proof (`read_result`);
+9. `source_line` is the PHYSICAL line on which a record ENDS (csv line_num after the record); `source_lines` maps it to Arx's record number."""
 from __future__ import annotations
 
 import hashlib
@@ -46,12 +60,27 @@ FEATURE = "people_csv"
 FLAG_KEY = "access.people_csv_preview"  # off | on - system administrator; default off
 BINDING_KEY = "access.people_csv_binding"  # JSON {authority_ref, authority_revision, scope_ref, source_epoch}; owner-set; absent = blocked
 PERMISSION = "people/write"
-MODE_CREATE = "create"  # the only mode the producer's evidence names
-# The Arx canonical columns Arx may hand to WisKey's column_map. Only employee_no / display_name are evidenced by the producer's test;
-# the other four are the same names Arx already uses for `users/create` (NOT_IDENTIFIED as csv fields). Anything else is refused whole.
-MAPPED_FIELDS = ("employee_no", "display_name", "phone", "access_category", "responsible_person", "access_purpose")
-OWNERSHIP_POLICY_REF = "arx-explicit-person-id"  # NOT_IDENTIFIED: the value WisKey expects
-REVISION_POLICY_REF = "arx-revision-compare-and-set"  # NOT_IDENTIFIED
+SCHEMA = "arx.people_csv.preview.v1"  # answer 1 (arx_people_preview.prepare_people_csv)
+MODE_CREATE = "create"
+MODE_UPSERT = "upsert"
+MODES = (MODE_CREATE, MODE_UPSERT)  # answer 2: exactly these two
+# Answer 3: the native import field names (csv_transfer.IMPORT_COLUMNS; `profile:<id>` is native too but its id grammar is not Arx's to
+# guess, so Arx never maps to it). Arx maps a header only to a native name that IS the same Arx canonical column; anything else is refused.
+NATIVE_FIELDS = frozenset({"employee_no", "display_name", "active", "valid_from", "valid_until", "stations", "phone", "access_category",
+                           "responsible_person", "access_purpose", "pin", "cards", "group_ids", "permission_overrides", "access_timing_policy"})
+NATIVE_REQUIRED = ("employee_no", "display_name")
+MAPPED_FIELDS = ("employee_no", "display_name", "active", "valid_from", "valid_until", "phone", "access_category", "responsible_person",
+                 "access_purpose")  # Arx canonical columns whose name is the native field (row formats stay native validation)
+NATIVE_MAX_BYTES = 262_144
+NATIVE_MAX_HEADERS = 32
+NATIVE_MAX_HEADER_CHARS = 128
+NATIVE_MAX_RECORDS = 500
+OWNERSHIP_POLICY_REF = "arx-explicit-person-id"  # answer 5: intent metadata only (1..128 chars, no C0); grants nothing
+REVISION_POLICY_REF = "arx-revision-compare-and-set"  # answer 5: intent metadata only
+RECEIPT_PUBLIC_KEYS = frozenset({"id", "kind", "state", "revision", "created_at", "updated_at", "approval", "total", "saved", "failed", "pending",
+                                 "errors"})
+RECEIPT_KEYS = RECEIPT_PUBLIC_KEYS | {"source_binding", "device_application"}  # answer 8
+JOB_STATES = ("paused", "running", "completed", "completed_with_errors", "cancelled")
 EXEC_WINDOW_S = 180
 REQUEST_TTL_S = fx.MAX_TTL_S
 CALL_TIMEOUT_S = 8.0
@@ -136,7 +165,7 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
         except Exception:  # noqa: BLE001
             blockers.append("direct_not_selected")
     return {"enabled": "on" if enabled(conn) else "off", "available": not blockers, "blockers": blockers, "mode": MODE_CREATE,
-            "fields": list(MAPPED_FIELDS)}
+            "modes": list(MODES), "fields": list(MAPPED_FIELDS)}
 
 
 # ---------------------------------------------------------------- the closed reader of WisKey's answer
@@ -149,10 +178,11 @@ _START_KEYS = {"request", "policy_snapshot"}
 
 @dataclass(frozen=True)
 class PreviewRow:
-    source_line: int
+    source_line: int  # WisKey's: the PHYSICAL line the record ends on (answer 9)
     user_id: str | None
     revision: int | None
     change_digest: str
+    row: int | None = None  # Arx's record number of that line (bulk_people's `row`), when the file was given
 
     @property
     def op(self) -> str:
@@ -178,15 +208,16 @@ class Preview:
         return hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
-def read_preview(raw: Any, request: Mapping[str, Any], *, now: datetime) -> Preview:
+def read_preview(raw: Any, request: Mapping[str, Any], *, now: datetime, lines: Mapping[int, int] | None = None) -> Preview:
     """The closed `features/people_csv_preview` answer, else CsvError(invalid_response, unknown) - an answer that is not this shape is not a
-    preview, and nothing is started from it."""
+    preview, and nothing is started from it. `lines` (physical end line -> Arx record number, from `source_lines`): every row WisKey names
+    must be a record of the file Arx sent, else `preview_line_unknown` (unknown)."""
     def bad() -> CsvError:
         return CsvError("invalid_response", "unknown")
 
     if not isinstance(raw, Mapping) or set(raw) != _ANSWER_KEYS:
         raise bad()
-    if not (isinstance(raw["schema"], str) and 1 <= len(raw["schema"]) <= 128):
+    if raw["schema"] != SCHEMA:
         raise bad()
     for name in ("review_token", "review_stamp", "rules_stamp"):
         if not wp.is_ref(raw[name]):
@@ -202,12 +233,14 @@ def read_preview(raw: Any, request: Mapping[str, Any], *, now: datetime) -> Prev
         line, uid, rev = item["source_line"], item["user_id"], item["revision"]
         grants = item["grants"]
         if not (type(line) is int and line > last and wp.is_ref(item["grant_id"]) and wp.is_ref(item["origin_ref"]) and wp.is_ref(item["change_digest"])
-                and (uid is None or wp.is_ref(uid)) and (rev is None or wp.is_pos_int(rev))
+                and (uid is None or wp.is_ref(uid)) and (rev is None or wp.is_pos_int(rev)) and (uid is None) == (rev is None)
                 and isinstance(grants, Mapping) and set(grants) == _GRANT_KEYS and grants["permission"] == PERMISSION and wp.is_ref(grants["scope_ref"])
                 and isinstance(grants["station_grant_ids"], list)):
-            raise bad()
+            raise bad()  # answer 1: a native create has user_id AND revision null; an update has both
+        if lines is not None and line not in lines:
+            raise CsvError("preview_line_unknown", "unknown")  # WisKey names a line that does not end a record of this file
         last = line
-        rows.append(PreviewRow(line, uid, rev, item["change_digest"]))
+        rows.append(PreviewRow(line, uid, rev, item["change_digest"], lines.get(line) if lines is not None else None))
     try:
         expires = fx.absolute_time(raw["expires_at"])
     except fx.FeatureError:
@@ -233,26 +266,78 @@ def _csv_text(data: bytes) -> str:
     return bp._decode(data)
 
 
-def column_map(data: bytes) -> dict[str, str]:
-    """header cell -> canonical column, for the columns Arx may map; a file with any other column is refused (names only)."""
+def _native_reader(text: str) -> tuple[Any, list[str]]:
+    """The file as the native reader sees it (csv_transfer._reader): BOM removed, strict quoting, the header limits. Refusals are local:
+    nothing is sent for a file the native side refuses anyway."""
     import csv
     import io
 
+    if len(text.encode("utf-8")) > NATIVE_MAX_BYTES:
+        raise CsvError("csv_too_large", "local")
+    if "\x00" in text or "�" in text:
+        raise CsvError("csv_invalid_encoding", "local")
+    reader = csv.reader(io.StringIO(text.removeprefix("﻿"), newline=""), strict=True)
+    try:
+        headers = next(reader)
+    except (csv.Error, StopIteration):
+        raise CsvError("csv_invalid_format", "local") from None
+    if (not headers or len(headers) > NATIVE_MAX_HEADERS or len(set(headers)) != len(headers)
+            or any(not h or len(h) > NATIVE_MAX_HEADER_CHARS for h in headers)):
+        raise CsvError("csv_invalid_headers", "local")
+    return reader, headers
+
+
+def source_lines(data: bytes) -> dict[int, int]:
+    """Answer 9: {physical END line of a record -> Arx's record number}. The native parser reports `reader.line_num` after consuming the
+    whole record (a quoted value over lines 2-3 is line 3), skips empty records while line_num still advances. Arx's bulk_people numbers
+    the records after the header 1, 2, ... (blank ones counted, then skipped): the same records in the same order."""
+    import csv
+
+    reader, _headers = _native_reader(_csv_text(data))
+    out: dict[int, int] = {}
+    try:
+        for number, row in enumerate(reader, start=1):
+            if not row or not any(row):
+                continue
+            out[reader.line_num] = number
+            if len(out) > NATIVE_MAX_RECORDS:
+                raise CsvError("csv_too_many_rows", "local")
+    except csv.Error:
+        raise CsvError("csv_invalid_format", "local") from None
+    if not out:
+        raise CsvError("csv_nothing_to_preview", "local")
+    return out
+
+
+def column_map(data: bytes) -> dict[str, str]:
+    """Answer 3: EVERY original header (exactly as the native reader sees it - no strip, BOM removed) -> its native field name. A header Arx
+    cannot map to a native name of the same meaning refuses the file (names only); targets are unique and include the two required ones."""
     from . import bulk_people as bp
 
-    reader = csv.reader(io.StringIO(_csv_text(data), newline=""))
-    header = next(reader, [])
+    _reader, header = _native_reader(_csv_text(data))
     columns = bp.header_columns(header)
     extra = tuple(c for c in columns if c not in MAPPED_FIELDS)
     if extra:
         raise CsvError("csv_columns_not_identified", "local", extra)
-    return {h.strip(): c for h, c in zip(header, columns)}
+    cmap = dict(zip(header, columns))
+    targets = [t for t in cmap.values() if t]
+    if (len(cmap) != len(header) or len(set(targets)) != len(targets) or not set(NATIVE_REQUIRED) <= set(targets)
+            or any(t not in NATIVE_FIELDS for t in targets)):
+        raise CsvError("csv_invalid_headers", "local", tuple(sorted(set(NATIVE_REQUIRED) - set(targets))))
+    return cmap
+
+
+def _metadata_ref_ok(value: Any) -> bool:
+    """Answer 5: a nonempty string of 1..128 characters without C0 controls - a label, never a permission."""
+    return isinstance(value, str) and 1 <= len(value) <= 128 and not any(ord(ch) < 0x20 for ch in value)
 
 
 def request_preview(conn: sqlite3.Connection, principal: Principal, adapters: Any, *, data: bytes, rows: list[dict[str, Any]], job_id: str,
-                    session_active: bool, now: datetime | None = None) -> Preview:
+                    session_active: bool, now: datetime | None = None, mode: str = MODE_CREATE) -> Preview:
     """Ask WisKey for the verified preview of `data` as `principal`. A READ: no intent is stored. Raises CsvError with nothing sent when Arx
-    refuses first (no binding, not all rows are creates, an unmapped column, policy incomplete)."""
+    refuses first (no binding, an unknown mode, a person-id row, an unmapped column, a file over the native limits, policy incomplete).
+    `mode`: `create` (an existing employee_no is refused by WisKey) or `upsert` (WisKey creates the absent and updates the existing ones by
+    employee_no; its rows then carry user_id + revision)."""
     from .wiskey_feature_direct import FeatureWireError, START_TIMEOUT_S
 
     now = now or datetime.now(timezone.utc)
@@ -261,17 +346,23 @@ def request_preview(conn: sqlite3.Connection, principal: Principal, adapters: An
         raise CsvError("binding_not_configured", "not_sent")
     if adapters is None:
         raise CsvError("direct_not_selected", "not_sent")
+    if mode not in MODES:
+        raise CsvError("csv_mode_not_identified", "local")
     if not rows:
         raise CsvError("csv_nothing_to_preview", "local")
     if any(r.get("op") != "create" for r in rows):
-        raise CsvError("csv_mode_not_identified", "local")  # only mode "create" is evidenced; updates by person id are not previewed through WisKey
+        # Arx's own person-id + revision rows (compare-and-set) are not a native mode: upsert keys by employee_no
+        raise CsvError("csv_mode_not_identified", "local")
     stray = tuple(sorted({k for r in rows for k in r.get("set", {}) if k not in MAPPED_FIELDS}))
     if stray:
         raise CsvError("csv_columns_not_identified", "local", stray)
     cmap = column_map(data)
-    private = {"kind": "csv", "content": _csv_text(data), "mode": MODE_CREATE, "column_map": cmap}
+    lines = source_lines(data)
+    private = {"kind": "csv", "content": _csv_text(data), "mode": mode, "column_map": cmap}
     params = {"preview_ref": "csv-" + hashlib.sha256(data).hexdigest()[:40], "ownership_policy_ref": OWNERSHIP_POLICY_REF,
               "revision_policy_ref": REVISION_POLICY_REF}
+    if not all(_metadata_ref_ok(v) for v in params.values()):
+        raise CsvError("invalid_fields", "local")
     try:
         body, snapshot = adapters.prepare(
             conn, feature=FEATURE, actor=fx.human_actor(principal.user_id), principals=[principal], authority_ref=bind.authority_ref,
@@ -286,15 +377,30 @@ def request_preview(conn: sqlite3.Connection, principal: Principal, adapters: An
         raw = adapters.port.call(COMMAND, {"request": body, "policy_snapshot": snapshot}, timeout_s=min(START_TIMEOUT_S, CALL_TIMEOUT_S))
     except PortError as exc:
         raise CsvError(exc.code, exc.outcome) from None
-    return read_preview(raw, body, now=datetime.now(timezone.utc))
+    return read_preview(raw, body, now=datetime.now(timezone.utc), lines=lines)
 
 
-def start(conn: sqlite3.Connection, adapters: Any, fresh: Preview) -> str:
+def start_window_open(request: Mapping[str, Any], now: datetime) -> bool:
+    """Answer 6: the returned start carries the ORIGINAL request, valid only while now < request_expires_at (<= 15 s after issued_at) and
+    now < execution_expires_at. Arx never edits, extends or re-signs it: a passed window means a fresh preview, nothing else."""
+    try:
+        req_end = fx.absolute_time(request["request_expires_at"])
+        exec_end = fx.absolute_time(request["execution_expires_at"])
+    except (KeyError, TypeError, fx.FeatureError):
+        return False
+    now = now.astimezone(timezone.utc)
+    return now < req_end and now < exec_end
+
+
+def start(conn: sqlite3.Connection, adapters: Any, fresh: Preview, *, now: datetime | None = None) -> str:
     """`features/start` with the FRESH preview's start, unchanged, through the durable intent log. Returns the operation_ref. A start that is
-    refused / lost raises CsvError(outcome refused | unknown | not_sent); nothing is ever re-sent."""
+    refused / lost raises CsvError(outcome refused | unknown | not_sent); nothing is ever re-sent. A fresh start whose own request window has
+    already passed is refused locally (`preview_window_passed`, not_sent): nothing is stored, sent, edited or extended."""
     from .wiskey_feature_direct import FeatureWireError
 
     request, snapshot = fresh.start["request"], fresh.start["policy_snapshot"]
+    if not start_window_open(request, now or datetime.now(timezone.utc)):
+        raise CsvError("preview_window_passed", "not_sent")
     try:
         outcome = adapters.client.start(conn, dict(request), dict(snapshot))
     except fx.FeatureError as exc:
@@ -306,20 +412,55 @@ def start(conn: sqlite3.Connection, adapters: Any, fresh: Preview) -> str:
     return outcome.operation_ref
 
 
+def _count(value: Any) -> int | None:
+    return value if type(value) is int and 0 <= value <= MAX_ROWS else None
+
+
+def read_receipt(receipt: Any) -> dict[str, Any] | None:
+    """Answer 8: the closed reader of `finished.receipt` = CheckpointJobs.public + source_binding + device_application ('unknown'). Returns
+    counts, the job state, the error codes per physical line and the lines WisKey records as `central_committed` - a CENTRAL commit only:
+    `device_application` is always 'unknown' (no device-delivery proof exists in this receipt). Any other shape -> None (unreadable)."""
+    if not isinstance(receipt, Mapping) or set(receipt) != RECEIPT_KEYS or receipt["device_application"] != "unknown":
+        return None
+    if receipt["state"] not in JOB_STATES:
+        return None
+    counts = {k: _count(receipt[k]) for k in ("total", "saved", "failed", "pending")}
+    if None in counts.values():
+        return None
+    errors = receipt["errors"]
+    if not isinstance(errors, list) or any(not isinstance(e, Mapping) or set(e) != {"row", "code"} or type(e["row"]) is not int
+                                           or not isinstance(e["code"], str) for e in errors):
+        return None
+    binding_ = receipt["source_binding"]
+    rows = binding_.get("rows") if isinstance(binding_, Mapping) else None
+    if not isinstance(rows, Mapping):
+        return None
+    committed: list[int] = []
+    for item in rows.values():
+        if not isinstance(item, Mapping) or type(item.get("source_line")) is not int:
+            return None
+        if item.get("state") == "central_committed":
+            committed.append(item["source_line"])
+    return {**counts, "job_state": receipt["state"], "errors": [{"line": e["row"], "code": str(e["code"])[:64]} for e in errors],
+            "central_committed_lines": sorted(committed), "device_application": "unknown"}
+
+
 def read_result(adapters: Any, operation_ref: str) -> dict[str, Any]:
-    """The original completion read, projected to what the screen shows: state, and for a finished receipt only `saved` (a count) when it is an
-    int. A missing or failed read is `unknown` - it is not a not-sent proof and nothing is replayed."""
+    """The original completion read, projected to what the screen shows: state, and for a finished receipt the closed `read_receipt`
+    projection (`saved` stays the count it always was). A missing or failed read is `unknown` - it is not a not-sent proof and nothing is
+    replayed; an unreadable receipt keeps `saved` None and says so."""
     from .wiskey_feature_direct import FeatureWireError
 
     try:
         res = adapters.client.result(operation_ref)
     except FeatureWireError:
         return {"state": "unknown", "saved": None}
-    saved = None
-    if res.receipt is not None:
-        value = res.receipt.get("saved")
-        saved = value if type(value) is int and 0 <= value <= MAX_ROWS else None
-    return {"state": res.state, "saved": saved}
+    if res.receipt is None:
+        return {"state": res.state, "saved": None}
+    projected = read_receipt(res.receipt)
+    if projected is None:
+        return {"state": res.state, "saved": None, "receipt": "unreadable"}
+    return {"state": res.state, **projected}
 
 
 # ---------------------------------------------------------------- the in-memory hold (the CSV never touches the disk)
@@ -332,6 +473,7 @@ class Held:
     shown_digest: str
     writes: int
     expires: float
+    mode: str = MODE_CREATE  # the mode the person previewed; the fresh preview at confirm uses the same one
 
 
 _LOCK = threading.Lock()

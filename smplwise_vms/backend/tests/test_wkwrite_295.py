@@ -486,10 +486,10 @@ def test_retention_is_thirty_days_after_the_operation_ended(env):
 def test_name_ref_rename_happy_path_and_lost_ack_resolved_by_the_same_actor(env):
     fake = env["fake"]
     fake.seed_user("u-n", revision=5)
-    out = run(env["writer"].rename(person_ref="u-n", expected_person_revision=5, display_name="Dana", actor=ACTOR))
+    out = run(env["writer"].rename(person_ref="u-n", expected_person_revision=5, display_name="Dana", actor=ACTOR, decision=decision()))
     assert (out.state, out.person_revision) == ("committed", 6) and fake.s["users"]["u-n"]["display_name"] == "Dana"
     fake.faults["users/name_ref_apply_v1"] = ["commit_then_lose_ack"]
-    out = run(env["writer"].rename(person_ref="u-n", expected_person_revision=6, display_name="Dana B", actor=ACTOR))
+    out = run(env["writer"].rename(person_ref="u-n", expected_person_revision=6, display_name="Dana B", actor=ACTOR, decision=decision()))
     assert out.state == "unknown"
     res = run(env["writer"].resolve_name_ref(out.operation_id))
     assert (res.state, res.person_revision) == ("committed", 7)
@@ -502,17 +502,17 @@ def test_name_ref_failures(env):
     fake = env["fake"]
     fake.seed_user("u-n", revision=5)
     fake.faults["users/name_ref_prepare_v1"] = ["lost_before_commit"]
-    out = run(env["writer"].rename(person_ref="u-n", expected_person_revision=5, display_name="Dana", actor=ACTOR))
+    out = run(env["writer"].rename(person_ref="u-n", expected_person_revision=5, display_name="Dana", actor=ACTOR, decision=decision()))
     assert (out.state, out.code) == ("not_sent", "prepare:timeout")  # a carrier nobody holds the ref of can never be applied
     fake.faults["users/name_ref_apply_v1"] = ["lost_before_commit"]
-    out = run(env["writer"].rename(person_ref="u-n", expected_person_revision=5, display_name="Dana", actor=ACTOR))
+    out = run(env["writer"].rename(person_ref="u-n", expected_person_revision=5, display_name="Dana", actor=ACTOR, decision=decision()))
     res = run(env["writer"].resolve_name_ref(out.operation_id))
     assert (res.state, res.code) == ("unknown", "bulk_receipt:operation_not_found")  # not found is NOT never-committed
     fake.faults["users/name_ref_apply_v1"] = ["refuse:name_ref_consumed"]
-    out = run(env["writer"].rename(person_ref="u-n", expected_person_revision=5, display_name="Dana", actor=ACTOR))
+    out = run(env["writer"].rename(person_ref="u-n", expected_person_revision=5, display_name="Dana", actor=ACTOR, decision=decision()))
     assert out.state == "unknown"
     with pytest.raises(nw.NativeWriteError):
-        run(env["writer"].rename(person_ref="u-n", expected_person_revision=5, display_name="x" * 33, actor=ACTOR))
+        run(env["writer"].rename(person_ref="u-n", expected_person_revision=5, display_name="x" * 33, actor=ACTOR, decision=decision()))
 
 
 # ---------------------------------------------------------------- raw values never reach a sink
@@ -534,7 +534,7 @@ def test_raw_name_pin_and_card_only_in_the_signed_input(env, caplog):
     run(writer.resolve(out2.operation_id))
     run(writer.write("users/update", {"user_id": uid, "revision": 2, "data": {"pin": PIN_MARK}}, actor=ACTOR, decision=decision()))
     fake.faults["users/name_ref_apply_v1"] = ["commit_then_lose_ack"]
-    out3 = run(writer.rename(person_ref=uid, expected_person_revision=3, display_name=NAME_MARK, actor=ACTOR))
+    out3 = run(writer.rename(person_ref=uid, expected_person_revision=3, display_name=NAME_MARK, actor=ACTOR, decision=decision()))
     run(writer.resolve_name_ref(out3.operation_id))
     # the values DID travel, inside the signed inputs that need them (and only there)
     arrived = json.dumps(fake.sent)

@@ -36,7 +36,8 @@ export function lobbyFeed(p: Partial<Display> = {}, notices: FeedNotice[] = LOBB
   return {
     board: { name: 'לוח הלובי', slug: 'lobby', version: 17, display: display(p), building: 'מגדל הים', tz: 'Asia/Jerusalem', logos: {} },
     now: '2026-10-23T06:12:00Z',
-    notices,
+    // a copy: a spec that replaces an entry (evidence-brand-tv's take-over) must not change LOBBY_NOTICES for the next spec of the worker
+    notices: notices.slice(),
     weather: { now: { t: 24, condition: 'sun', text: 'בהיר · רוח קלה מערבית' }, hours: [{ at: '12:00', t: 26, condition: 'sun' }, { at: '14:00', t: 27, condition: 'cloudsun' }, { at: '16:00', t: 25, condition: 'cloudsun' }, { at: '18:00', t: 22, condition: 'cloud' }, { at: '20:00', t: 20, condition: 'moon' }] },
     info: [{ kind: 'elevator', label: 'מעלית צפונית', text: 'פועלת', state: 'ok' }, { kind: 'elevator', label: 'מעלית דרומית', text: 'בטיפול', state: 'warn' }, { kind: 'generator', label: 'גנרטור', text: 'מוכן', state: 'ok' }, { kind: 'parking', label: 'חניה', text: '42 פנויות', state: 'ok' }],
     news: [{ source: 'ynet', title: 'התחממות קלה צפויה לקראת סוף השבוע' }, { source: 'גלובס', title: 'שינויים בקווי האוטובוס במרכז העיר החל מיום ראשון' }, { source: 'ynet', title: 'מדד המחירים לחודש ספטמבר פורסם הבוקר' }, { source: 'גלובס', title: 'רשות החשמל מעדכנת את תעריפי הלילה' }],

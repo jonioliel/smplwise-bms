@@ -609,9 +609,15 @@ class NativePeopleWriter:
 
     # -------------------------------------------------------------- name_ref (item 16)
 
-    async def rename(self, *, person_ref: str, expected_person_revision: int, display_name: str, actor: WriteActor) -> WriteOutcome:
-        """Change a person's display name through the original 60 s name_ref carrier. The name is in the prepare parameters ONLY."""
+    async def rename(self, *, person_ref: str, expected_person_revision: int, display_name: str, actor: WriteActor,
+                     decision: ArxDecision) -> WriteOutcome:
+        """Change a person's display name through the original 60 s name_ref carrier. The name is in the prepare parameters ONLY.
+        W031-295: admitted like every other native people write - the operator's fresh Arx RBAC decision (`arx_decision`, at most
+        DECISION_MAX_AGE old, never from the future) is required; it is checked here and adds nothing to the wire."""
         actor.check()
+        decision.check()
+        if not timedelta(0) <= self.clock() - decision.decided_at <= DECISION_MAX_AGE:
+            raise NativeWriteError("decision_stale")
         if not (is_ref(person_ref) and is_count(expected_person_revision) and expected_person_revision < 2 ** 53 - 1):
             raise NativeWriteError("invalid_parameters")
         if not isinstance(display_name, str) or not 1 <= len(display_name) <= NAME_MAX:

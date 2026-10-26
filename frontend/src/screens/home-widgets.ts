@@ -811,6 +811,48 @@ export class HomeWidgetsView extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    /* POLISH2-295 (owner feedback 2026-10-25): medium and large are one header line and one row - the counts inline, the chips
+       beside them on the same row (a narrow card puts the chips under the counts, still one row of them); the card is as tall as its
+       content, not the band's fixed minimum (a card beside it in the band still stretches it to the band's height) */
+    .wg-media .mrow {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 20px;
+    }
+    .wg-media .mrow .mts {
+      flex: none;
+      align-items: center;
+      flex-wrap: nowrap;
+      gap: 18px;
+    }
+    .wg-media .mrow .mt {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .wg-media .mrow .mt b {
+      font-size: var(--mn, 22px);
+      line-height: 1;
+    }
+    .wg-media .mrow .mt span {
+      font-size: var(--sw-fs-sm);
+    }
+    .wg-media .mrow .mchips {
+      flex: 1 1 180px;
+      flex-wrap: nowrap;
+      justify-content: flex-end;
+      overflow: hidden;
+    }
+    .wg-media .mrow .mchip {
+      flex: 0 1 auto;
+      min-inline-size: 0;
+      min-block-size: 32px;
+    }
+    .wg-media .mrow .mchip.more {
+      flex: none;
+    }
     .mchip:focus-visible,
     .qbtn:focus-visible,
     .gbtn:focus-visible,
@@ -1312,6 +1354,13 @@ export class HomeWidgetsView extends LitElement {
     :host(:is([layout='snap'], [layout='stack'], [layout='two'])[editing]) .wg:not(.ghost) {
       padding-block-end: 52px;
     }
+    /* POLISH2-295: the media card's height is its content (one header line and one row), in every direction and on a phone; kept last
+       so it outranks the band's per-size minimums above (a card beside it in the same band still stretches it) */
+    :host([layout]) .wg.wg-media[data-size='m'],
+    :host([layout]) .wg.wg-media[data-size='l'] {
+      min-block-size: 0;
+      gap: 8px;
+    }
     @media (prefers-reduced-motion: reduce) {
       .wrap {
         scroll-behavior: auto;
@@ -1623,7 +1672,9 @@ export class HomeWidgetsView extends LitElement {
       this.remoteKind = spk.find((x) => x.key === key)?.kind ?? 'screen';
       this.remoteOpen = true;
     };
-    const cap = it.size === 'l' ? 6 : 3;
+    // POLISH2-295: the chips share one row with the counts; a phone's card (one under the other / two / snap) has room for two readable names
+    const narrow = this.layout === 'stack' || this.layout === 'two' || this.layout === 'snap';
+    const cap = narrow ? 2 : it.size === 'l' ? 6 : 3;
     // the chips are shared: the players that play keep at least one place (up to half of them), the screens fill the rest
     const pMax = Math.min(playing.length, Math.max(1, Math.floor(cap / 2)));
     const sCount = Math.min(on.length, cap - pMax);
@@ -1640,8 +1691,10 @@ export class HomeWidgetsView extends LitElement {
         <div class="mts">${counts('')}</div>
         ${first ? html`<button type="button" class="mchip" style="margin-inline-start:auto" data-home-media-chip=${first.key} aria-label=${`שלט: ${first.name}`} ?disabled=${this.editing} @click=${() => open(first.key)}>${all.length ? 'שלט' : 'נגן'}</button>` : nothing}`);
     }
+    // POLISH2-295 (owner feedback 2026-10-25): the card was too tall - the counts read inline ("5 מסכים פועלים") and the chips share their
+    // one row (nowrap, a long name shrinks to an ellipsis, the rest is "+N"); no chips row at all when nothing is on
     return this.shell(it, 'wg-media', {}, html`${this.head(it, icon, total)}
-      <div class="wg-b"><div class="mts">${counts('--mn:28px')}</div>
+      <div class="wg-b mrow" data-home-media-row><div class="mts">${counts('')}</div>
         ${chips.length ? html`<div class="mchips" data-home-media-chips>${chips.map(chip)}${rest > 0 ? html`<span class="mchip more">${ltrNum(`+${rest}`)}</span>` : nothing}</div>` : nothing}</div>`);
   }
 

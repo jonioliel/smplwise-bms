@@ -584,7 +584,8 @@ def test_the_stations_sound_in_a_talk_never_consults_the_separate_listen_setting
     asyncio.run(scenario())
 
 
-def test_the_talk_lease_checks_only_the_call_permission_and_the_media_setting(monkeypatch):
+def test_the_talk_lease_checks_the_talk_scope_and_the_media_setting_never_the_listen_setting(monkeypatch):
+    """W031-295: the talk scope is what talk_start admitted - access.read AND access.call on the station (it was access.call alone)."""
     from contextlib import contextmanager
 
     from smplwise.services import intercom_authority as ia
@@ -598,7 +599,7 @@ def test_the_talk_lease_checks_only_the_call_permission_and_the_media_setting(mo
 
         def station(self, permission: str, station_id: str) -> bool:
             seen.append((permission, station_id))
-            return permission == ia.CALL
+            return permission in (ia.READ, ia.CALL)
 
     @contextmanager
     def connection(**_kw: Any) -> Any:
@@ -610,4 +611,4 @@ def test_the_talk_lease_checks_only_the_call_permission_and_the_media_setting(mo
     lease = router_im.TalkLease.__new__(router_im.TalkLease)
     lease.db, lease.station_id = SimpleNamespace(connection=connection), "entry-a"
     lease.principal = SimpleNamespace(user_id="u1")
-    assert lease.allowed_now() is True and seen == [(ia.CALL, "entry-a")]
+    assert lease.allowed_now() is True and seen == [(ia.READ, "entry-a"), (ia.CALL, "entry-a")]

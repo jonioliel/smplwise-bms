@@ -106,7 +106,43 @@ def sun_block(conn, now: dt.datetime) -> dict[str, Any] | None:
     return out
 
 
-def weather_block(conn, entity_id: str, hours: int, lang: str, now: dt.datetime) -> dict[str, Any] | None:
+def forecast_days(fc: Any, tz: ZoneInfo, now: dt.datetime, days: int) -> list[dict[str, Any]]:
+    """TVOPT-295 (weather_days): today and the next days, one cell per LOCAL day of the installation, from the entity's own forecast
+    entries - daily or hourly alike: the day's high (the largest temperature), its low (`templow`, else the smallest temperature of an
+    hourly day; absent for a daily entry without one) and the condition nearest to noon. Days before today are skipped; a source with
+    fewer days gives fewer cells (never invented ones)."""
+    if not isinstance(fc, list) or days < 1:
+        return []
+    today = now.astimezone(tz).date()
+    by_day: dict[dt.date, list[tuple[dt.datetime, dict[str, Any]]]] = {}
+    for f in fc:
+        if not isinstance(f, dict) or not isinstance(f.get("temperature"), (int, float)) or isinstance(f.get("temperature"), bool):
+            continue
+        try:
+            when = dt.datetime.fromisoformat(str(f.get("datetime")).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=dt.timezone.utc)
+        local = when.astimezone(tz)
+        if local.date() < today:
+            continue
+        by_day.setdefault(local.date(), []).append((local, f))
+    out: list[dict[str, Any]] = []
+    for day in sorted(by_day)[:days]:
+        entries = by_day[day]
+        temps = [float(f["temperature"]) for _w, f in entries]
+        lows = [float(f["templow"]) for _w, f in entries if isinstance(f.get("templow"), (int, float)) and not isinstance(f.get("templow"), bool)]
+        noon = min(entries, key=lambda e: abs((e[0].hour + e[0].minute / 60) - 12))[1]
+        cell: dict[str, Any] = {"date": day.isoformat(), "t": round(max(temps)), "condition": CONDITIONS.get(str(noon.get("condition")), "cloud")}
+        low = min(lows) if lows else (min(temps) if len(entries) > 1 else None)
+        if low is not None:
+            cell["lo"] = round(low)
+        out.append(cell)
+    return out
+
+
+def weather_block(conn, entity_id: str, hours: int, lang: str, now: dt.datetime, days: int = 0) -> dict[str, Any] | None:
     if not entity_id:
         return None
     row = conn.execute("SELECT state, attributes_json, available FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
@@ -141,6 +177,8 @@ def weather_block(conn, entity_id: str, hours: int, lang: str, now: dt.datetime)
             out["hours"].append({"at": when.astimezone(tz).strftime("%H:%M"), "t": round(float(t)), "condition": CONDITIONS.get(str(f.get("condition")), "cloud")})
             if len(out["hours"]) >= hours:
                 break
+    if days >= 2:  # TVOPT-295: the days row (weather_days 2..5); 0 / 1 keep the feed as it was
+        out["days"] = forecast_days(fc, tz, now, days)
     return out
 
 

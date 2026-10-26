@@ -391,6 +391,20 @@ SPECS: dict[str, FeatureSpec] = {
 assert set(SPECS) == set(fx.FEATURES)
 
 
+def _judged_is_actor(actor: Mapping[str, Any], principals: list[Principal]) -> bool:
+    """W031-295: the Arx principals whose permissions bind the request are exactly the actor the request names - the human alone; for an
+    automation its creator and its approver (the same user may be both). Never a different or an extra principal."""
+    ids = [getattr(p, "user_id", None) for p in principals]
+    if not ids or any(not isinstance(i, str) or not i for i in ids):
+        return False
+    kind = actor.get("kind")
+    if kind == "human":
+        return set(ids) == {actor.get("user_id")}
+    if kind == "automation":
+        return set(ids) == {actor.get("creator_user_id"), actor.get("approver_user_id")}
+    return False
+
+
 class FeatureAdapters:
     """Builds the request + current policy + snapshot of any of the six features from Arx's own records and sends it through `DirectFeatureClient`.
 
@@ -411,6 +425,9 @@ class FeatureAdapters:
             raise FeatureWireError("unknown_feature", "not_sent")
         if actor.get("kind") not in spec.actors:
             raise FeatureWireError("Unauthorized", "not_sent")
+        principals = list(principals)
+        if not _judged_is_actor(actor, principals):
+            raise FeatureWireError("Unauthorized", "not_sent")  # W031-295: the policy is judged for exactly the actor the wire names
         if spec.needs_targets:
             tgt = list(targets) if targets is not None else ([(params["station_id"], params["relay"])] if "relay" in params else [])
         else:
@@ -427,7 +444,7 @@ class FeatureAdapters:
         except fx.FeatureError as exc:
             raise FeatureWireError(exc.code, "not_sent") from None
         try:
-            doc = fx.resolve_policy(conn, list(principals), feature=feature, targets=tgt)
+            doc = fx.resolve_policy(conn, principals, feature=feature, targets=tgt)
         except fx.FeatureError as exc:
             raise FeatureWireError(exc.code, "not_sent") from None
         snapshot = build_policy_snapshot(identity=self.port.identity(), request=body, doc=doc, source_epoch=source_epoch, now=now,

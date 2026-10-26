@@ -926,6 +926,8 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | notices | DELETE | `/api/v1/notices/settings/logo` |  |
 | notices | GET | `/api/v1/notices/settings/logo` |  |
 | notices | PUT | `/api/v1/notices/settings/logo` | The developer / management-company logo of the TV boards (CR-LOGOS295 is not in this build: the boards keep their own copy). |
+| notices | GET | `/api/v1/notices/tv-defaults` |  |
+| notices | PUT | `/api/v1/notices/tv-defaults` | TVOPT-295: the defaults every board follows where it did not choose its own value - the same permission as a board's screen |
 | notices | DELETE | `/api/v1/notices/{notice_id}` | NOTICEDEL-295: real deletion. A draft goes as before (`notices.manage` inside the audience scope). A published / archived notice needs |
 | notices | GET | `/api/v1/notices/{notice_id}` |  |
 | notices | PATCH | `/api/v1/notices/{notice_id}` |  |

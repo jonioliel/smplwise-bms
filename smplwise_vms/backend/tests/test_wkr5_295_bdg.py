@@ -5,6 +5,7 @@ tests/test_wkjoin_295.py; nothing reaches a network, Home Assistant, a station, 
 from __future__ import annotations
 
 import datetime as dt
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -138,8 +139,8 @@ def test_after_a_pairing_replacement_the_reconnect_is_a_new_owner_and_adopts_not
     old_ref = old.connection_ref
     env.server.secret = env.key["k"] = "z" * 32  # WisKey replaced the pairing; the old connection is invalidated
     env.session.run_sync(env.server.connections[0].sock.close(), 5)
-    deadline = dt.datetime.now() + dt.timedelta(seconds=3)
-    while not old.closed and dt.datetime.now() < deadline:
+    deadline = time.monotonic() + 3
+    while not old.closed and time.monotonic() < deadline:
         pass
     assert env.join.selected("users/create")
     new = env.session._link
