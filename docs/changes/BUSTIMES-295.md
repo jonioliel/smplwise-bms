@@ -45,6 +45,19 @@ Owner answers 1-12 and where they land:
    unusable; the settings tab shows last success, data age, error count, last error. NO service-ticket action (a test pins that the module never
    imports the tickets code).
 
+## Real-time contract (owner update 2026-10-26; the engine itself is pilot/BUSRT-295)
+The serving layer is ready for real-time; nothing real-time is built here.
+- `services/transit/provider.py`: `ArrivalProvider.arrivals(stop_code, window_start, window_end) -> list[Arrival]`. An Arrival has `line, dest, agency, ride`,
+  `at` (SCHEDULED, UTC `...Z`), `est` (ESTIMATED, nullable) and `est_age_s` (age of the estimate when the provider answered). `ScheduledProvider` (Open Bus Stride
+  GTFS) is today's only provider and never returns an estimate. The poller takes a provider (`POLLER.start(db, settings, provider)` / `poll_once(db, provider, now)`);
+  a bare Stride fetch callable is wrapped as the scheduled provider. A provider raises `StrideError` when its source fails (breaker) or `UnknownStop`.
+- Digest row (`services/transit/digest.py`): `scheduled_time`, `estimated_time` (nullable), `quality` = `realtime` (an estimate no older than 90 s at the moment of
+  the digest, source answering) | `scheduled` (no estimate) | `stale` (an estimate too old, or the source is down: the schedule is shown), `age_seconds`
+  (of the estimate, else of the cache) and `at` = the instant the minutes count to (the estimate when `realtime`, else the schedule). Sorting, the window, the
+  rows and the `next` bus use that instant. Top level `realtime` is true when any shown row is real-time.
+- TV: a `realtime` row gets the small accent broadcast icon, any other row the grey clock; the footer legend lists "real time" only while a row is live and
+  "scheduled" always. While the source is down (`cached` / `expired`) nothing is drawn as live. Pinned by tests with a fake real-time provider.
+
 ## Data
 Migration `0179_transit_bus_times.sql` (additive: `transit_stops`, `transit_cache`). **Number 0179 is PROVISIONAL (next free after 0178): it is renumbered after 2.22.0
 (TPLV2 may take 0179)** (origin/main has 0177 as its highest; 0178 is taken by another branch). The content does not depend on the

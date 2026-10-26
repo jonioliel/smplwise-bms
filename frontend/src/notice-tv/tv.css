@@ -576,3 +576,19 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 @media (prefers-reduced-motion: reduce) { .bus .liveic, .bus .eta b.w { animation: none; } }
 
 .bus [hidden] { display: none !important; }
+/* narrow slide columns (2 to 4 stops side by side): the destination goes under the badge + time instead of squeezing to nothing */
+.it.transit .cols:not([data-n="1"]) .bus { padding: 18px 18px 12px; --rowh: 128px; }
+.it.transit .cols:not([data-n="1"]) .bus .brow { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "ln eta" "dest dest"; gap: 2px 12px; align-content: center; }
+.it.transit .cols:not([data-n="1"]) .bus .brow .ln { grid-area: ln; min-inline-size: calc(84px * var(--bk)); }
+.it.transit .cols:not([data-n="1"]) .bus .brow .eta { grid-area: eta; }
+.it.transit .cols:not([data-n="1"]) .bus .brow .dest { grid-area: dest; }
+.it.transit .cols:not([data-n="1"]) .bus .eta b { font-size: calc(56px * var(--bk)); }
+.it.transit .cols:not([data-n="1"]) .bus .eta b.cl { font-size: calc(46px * var(--bk)); }
+.it.transit .cols:not([data-n="1"]) .bus .dest b { font-size: calc(32px * var(--bk)); }
+#cv.portrait .it.transit .cols:not([data-n="1"]) .bus .brow { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: none; }
+#cv.portrait .it.transit .cols:not([data-n="1"]) .bus .brow .ln, #cv.portrait .it.transit .cols:not([data-n="1"]) .bus .brow .eta, #cv.portrait .it.transit .cols:not([data-n="1"]) .bus .brow .dest { grid-area: auto; }
+#cv.portrait .it.transit .cols:not([data-n="1"]) .bus { --rowh: 84px; }
+.it.transit .cols[data-n="3"] .bus .eta .mk, .it.transit .cols[data-n="4"] .bus .eta .mk { display: none; }
+.it.transit .cols[data-n="3"] .bus .eta b, .it.transit .cols[data-n="4"] .bus .eta b { font-size: calc(46px * var(--bk)); }
+.it.transit .cols[data-n="3"] .bus .eta b.cl, .it.transit .cols[data-n="4"] .bus .eta b.cl { font-size: calc(40px * var(--bk)); }
+.it.transit .cols:not([data-n="1"]) .bus .eta { min-inline-size: 0; justify-self: end; }
