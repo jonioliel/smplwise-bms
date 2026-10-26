@@ -29,6 +29,7 @@ const LABEL_KEY: Record<ChoiceKey, HsKey> = {
   floor_off: 'floorOff',
   many_floors: 'manyFloors',
   building_off_tablet: 'buildingOff',
+  quick_card: 'quickCard',
 };
 const VALUE_PREFIX: Record<ChoiceKey, string> = {
   summary_chooser: 'chooser_',
@@ -39,6 +40,7 @@ const VALUE_PREFIX: Record<ChoiceKey, string> = {
   floor_off: 'off_',
   many_floors: 'floors_',
   building_off_tablet: 'bo_',
+  quick_card: 'qc_',
 };
 const QUICK_LABEL: Record<QuickKind, HsKey> = { lights: 'qLights', climate: 'qClimate', covers: 'qCovers', switches: 'qSwitches' };
 const QUICK_ICON: Record<QuickKind, string> = { lights: 'light', climate: 'snow', covers: 'layers', switches: 'bolt' };
@@ -254,6 +256,7 @@ export class HomeScreenOptionsForm extends LitElement {
       ${this.choice('floor_off')}
       ${this.choice('many_floors')}
       ${this.choice('building_off_tablet')}
+      ${this.choice('quick_card')}
       ${this.choice('phone_area')}
     </div>`;
   }

@@ -2881,7 +2881,7 @@ export class DevicesBuilding extends LitElement {
     // HOME-295: the info row of the new home (`auto`, the cards view) is the approved mockup's compact row of cards, not the tall band
     if (!this.lay.editing && this.infoStyle === 'auto' && layout === 'hero' && window.innerWidth >= FIT_MIN_WIDTH) layout = 'row';
     // HOME-295 (owner answer 8): on a landscape tablet the "כיבוי במבנה" card drops (the action stays in the floor menu) - a setting
-    const dropQuick = !this.lay.editing && this.screen.building_off_tablet === 'hide' && isTabletLandscape(window.innerWidth, window.innerHeight);
+    const dropQuick = !this.lay.editing && (this.screen.quick_card === 'hide' || (this.screen.building_off_tablet === 'hide' && isTabletLandscape(window.innerWidth, window.innerHeight)));
     const quickShown = dropQuick || items.some((i) => i.id === 'quick' && i.avail === 'ok');
     const alarmShown = items.some((i) => i.id === 'alarm' && i.avail === 'ok');
     // POLISH-295: in the thin-bar style the clock, the weather, Shabbat and the alarm leave the card band for the header (edit mode

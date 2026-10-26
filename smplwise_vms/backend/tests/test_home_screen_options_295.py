@@ -19,7 +19,7 @@ FRONT = Path(__file__).resolve().parents[3] / "frontend" / "src" / "api" / "home
 def test_defaults_are_the_owners_answers():
     d = hso.default()
     assert d == {"summary_tiles": None, "summary_chooser": "admin", "area_quick": {}, "row_actions": "quick", "tile_blinds": "pct", "tile_climate": "both",
-                 "phone_area": "sheet", "floor_off": "menu", "many_floors": "more", "building_off_tablet": "hide"}
+                 "phone_area": "sheet", "floor_off": "menu", "many_floors": "more", "building_off_tablet": "hide", "quick_card": "show"}
     assert hso.stored("") == d and hso.stored(None) == d and hso.stored("{not json") == d and hso.stored('{"floor_off": "neon"}') == d
 
 
@@ -100,3 +100,22 @@ def test_personal_screen_needs_the_permission(settings):
         assert r.status_code == 200, r.text
         assert r.json()["prefs"]["home.personal"]["screen"] == {"phone_area": "full", "summary_tiles": ["lights", "locks"]}
         assert c.put("/api/v1/me/prefs", json={"home.personal": {"screen": {"phone_area": "half"}}}).status_code == 422
+
+
+def test_quick_card_choice():
+    base = hso.default()
+    assert base["quick_card"] == "show"
+    assert hso.normalize({"quick_card": "hide"}, base)["quick_card"] == "hide"
+    assert hso.stored('{"quick_card": "hide"}')["quick_card"] == "hide" and hso.stored('{"quick_card": "x"}')["quick_card"] == "show"
+    for bad in ({"quick_card": "no"}, {"quick_card": True}, {"quick_card": None}):
+        with pytest.raises(ValueError):
+            hso.normalize(bad, base)
+
+
+def test_quick_card_round_trip(settings):
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["home.screen"]["quick_card"] == "show"
+        r = c.patch("/api/v1/settings", json={"home.screen": {"quick_card": "hide"}})
+        assert r.status_code == 200, r.text
+        assert c.get("/api/v1/settings").json()["settings"]["home.screen"]["quick_card"] == "hide"
