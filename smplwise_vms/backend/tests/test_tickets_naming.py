@@ -124,7 +124,7 @@ def test_saving_the_name_needs_the_module_settings_permission_and_is_audited(c, 
 def test_the_name_reaches_me_the_module_state_role_names_and_permission_labels(c, settings):
     assert c.put(f"{API}/tickets/name", json={"revision": 0, "he": NAME}).status_code == 200
     me = c.get(f"{API}/me").json()
-    assert me["modules"] == {"notices": False, "tickets": True, "tickets_name": {**{k: naming.DEFAULTS[k] for k in naming.LANGS}, "he": NAME_STORED}, "tickets_long_press": "sheet", "incidents": False}  # CR-LIVEEVENT100: the live event switch (OFF)
+    assert me["modules"] == {"notices": False, "tickets": True, "tickets_name": {**{k: naming.DEFAULTS[k] for k in naming.LANGS}, "he": NAME_STORED}, "tickets_long_press": "sheet", "incidents": False, "announce": False}  # CR-LIVEEVENT100: the live event switch (OFF); FIX2200: the announcements switch (OFF)
     module = c.get(f"{API}/tickets/module").json()
     assert module["name"]["he"] == NAME_STORED and module["name_revision"] == 1, "the revision the settings editor sends back with a rename"
     roles = c.get(f"{API}/access/roles").json()
