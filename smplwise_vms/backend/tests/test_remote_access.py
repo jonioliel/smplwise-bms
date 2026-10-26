@@ -523,6 +523,8 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("GET", "/api/v1/notices/display/{slug}/slide/{slide_id}"), ("GET", "/api/v1/notices/display/{slug}/photo"),
                      # NOTICERSS-295: a news source's logo on the board, read with the board token like the other display pictures
                      ("GET", "/api/v1/notices/display/{slug}/news-logo/{source_id}"),
+                     # BUSTIMES-295: the board's bus-times feed is read with the board token like the other display routes (uniform 404 on remote)
+                     ("GET", "/api/v1/notices/display/{slug}/transit"),
                      # CR-022 section 10: the NVR connection, its test and the restart are local-only
                      ("GET", "/api/v1/nvr/vendors"), ("GET", "/api/v1/nvr/connection"), ("PUT", "/api/v1/nvr/connection"), ("DELETE", "/api/v1/nvr/connection"),
                      ("POST", "/api/v1/nvr/connection/test"), ("POST", "/api/v1/system/restart"),
