@@ -79,6 +79,8 @@ export const MENU_SURFACES: readonly MenuSurface[] = [
   { file: 'components/device-activity.ts', selector: '.menu', what: 'the activity row context menu' },
   { file: 'screens/devices-area-nav.ts', selector: '.menu', what: 'the floor / area picker list (a popover, a bottom sheet on a phone)' },
   { file: 'screens/devices-bulk.ts', selector: '.panel', what: 'the bulk menu / the area summary popover of a tree row or tile' },
+  { file: 'screens/home-screen-css.ts', selector: '.cmenu', what: 'the home quick actions: the blinds open / stop / close popover beside the count button (HOME-295)' },
+  { file: 'screens/home-screen-css.ts', selector: '.hsheet', what: 'the home phone sheets: the floor tree and the area sheet (HOME-295)' },
   { file: 'screens/scenario-recipients.ts', selector: '.pop', what: 'the recipient picker list that opens under the chip box (scenario settings and the scenario editor)' },
   { file: 'water/ui.ts', selector: '.menu', what: 'the water pages row menu (the snooze / actions menu, fixed to its button)' },
   { file: 'screens/media-admin-list.ts', selector: '.colspanel', what: 'the column chooser' },

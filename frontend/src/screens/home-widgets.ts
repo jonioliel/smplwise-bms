@@ -1363,6 +1363,57 @@ export class HomeWidgetsView extends LitElement {
     :host([layout]) .wg.wg-media[data-size='l'] {
       min-block-size: 0;
       gap: 8px;
+      /* FIX2220: the chips sit beside the counts (POLISH2), so the HOMEINFO natural-width cap of the other cards is not this card's */
+      max-inline-size: none;
+    }
+    /* FIX2220: since HOME-295 the cards are the info row of the cards view by default, five on one row: at 1440 the clock card is
+       ~290 px and the weather card cuts its forecast, at the 1024 tablet the cards are 150-195 px. Each card answers its OWN width
+       (a container query): the clock puts its date under the time, the weather drops the forecast and then the facts, the media card
+       stacks its two counts; a line that is still too long ends in an ellipsis instead of being cut at the card's edge. */
+    :host([layout='row']) .wg {
+      container: wg / inline-size;
+    }
+    :host([layout='row']) .wg-b {
+      min-inline-size: 0;
+    }
+    :host([layout='row']) .wg-clock .d1,
+    :host([layout='row']) .wg-clock .d2 {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    @container wg (max-width: 340px) {
+      /* (a container query adds no specificity: the row layout's own .wg-b rule is outranked by naming the host the same way) */
+      :host([layout='row']) .wg-clock .wg-b {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+      }
+      :host([layout='row']) .wg-clock .dts {
+        align-self: stretch;
+      }
+      .wg-weather .wx-fc {
+        display: none;
+      }
+    }
+    @container wg (max-width: 250px) {
+      .wg-weather .wx-m {
+        display: none;
+      }
+      .wg-media .mrow .mts {
+        flex: 0 1 auto;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        max-inline-size: 100%;
+      }
+      .wg-media .mrow .mt {
+        max-inline-size: 100%;
+      }
+      .wg-media .mrow .mt span {
+        min-inline-size: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
     }
     @media (prefers-reduced-motion: reduce) {
       .wrap {

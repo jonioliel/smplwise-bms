@@ -51,6 +51,14 @@ test.describe('the area row against demo data', () => {
     await page.goto('/?design=a#/devices/building');
     const b = page.locator('devices-building');
     await expect(b.locator('section[data-floor-card]').first()).toBeVisible({ timeout: 30000 });
+    // HOME-295 (owner answer 2): by default the cards-mode row carries the area's quick actions (home.screen.row_actions = quick);
+    // the 0.1.149 indicator row below is the `indicators` choice
+    await expect(b.locator('[data-area-quick-row]').first()).toBeAttached();
+    await b.evaluate((el) => {
+      const h = el as HTMLElement & { screenSite: Record<string, unknown> };
+      h.screenSite = { ...h.screenSite, row_actions: 'indicators' };
+    });
+    await expect(b.locator('[data-area-quick-row]')).toHaveCount(0);
     await expect(b.locator('[data-climate-strip]')).toHaveCount(0);
     await expect(b.getByText('מזגני הקומה')).toHaveCount(0);
     await expect(b.getByText('מזגנים בבניין')).toHaveCount(0);
@@ -60,15 +68,23 @@ test.describe('the area row against demo data', () => {
     await expect(ind).toHaveCount(1);
     await expect(ind).toContainText('24.5°');
     await expect(ind.locator('sw-icon')).toHaveAttribute('name', 'snow');
-    // the office has two A/C, one heating: still ONE indicator (a flame, with the number working)
-    const office = b.locator('a.arow[data-area-row="office"]');
-    await expect(office.locator('[data-ind="climate"]')).toHaveCount(1);
-    await expect(office.locator('[data-ind="climate"] sw-icon')).toHaveAttribute('name', 'flame');
     // an area without an A/C has none, and a zero counter is not drawn
     await expect(b.locator('a.arow[data-area-row="kitchen"]').locator('[data-ind="climate"]')).toHaveCount(0);
     await expect(b.locator('a.arow[data-area-row="kitchen"]').locator('[data-ind="switches"]')).toHaveCount(0);
+    const rowHeights = () => b.locator('a.arow').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    const heights = await rowHeights();
+    // the office has two A/C, one heating: still ONE indicator (a flame, with the number working)
+    // (HOME-295: a phone shows one floor at a time - its floor switch brings the office's floor)
+    const office = b.locator('a.arow[data-area-row="office"]');
+    const floors = b.locator('[data-phone-floor]');
+    for (let i = 0; !(await office.count()) && i < (await floors.count()); i++) {
+      await floors.nth(i).click();
+      await page.waitForTimeout(300);
+    }
+    if (heights.length < 3) heights.push(...(await rowHeights()));
+    await expect(office.locator('[data-ind="climate"]')).toHaveCount(1);
+    await expect(office.locator('[data-ind="climate"] sw-icon')).toHaveAttribute('name', 'flame');
     // one line per row: every row is a single-line height
-    const heights = await b.locator('a.arow').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
     expect(heights.length).toBeGreaterThan(2);
     expect(Math.max(...heights)).toBeLessThan(Math.min(...heights) * 1.4) // a wrapped row would be twice as tall;
     expect(await noSidewaysScroll(page)).toEqual([]);
