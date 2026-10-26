@@ -669,7 +669,8 @@ changed; nothing imports the new modules (test-enforced). `GO_LIVE_PERMITTED` is
   one intent's exact references (byte-exact, every key, strict types, state/terminal/commit/reason consistency, epoch not regressed,
   `recovered_uncommitted` only with a fresh matching exclusive context). `OneCommitLedger`: one terminal fact per original operation,
   a conflicting second commit or two operations claiming one central transition is a conflict (in memory; durable form = the intent
-  table of CR-ACR7-FENCE-02, not built).
+  table of CR-ACR7-FENCE-02, not built). SUPERSEDED: `verify_receipt` and `OneCommitLedger` were removed by
+  PERSONWRITES-CLEANUP-295 (WisKey never shipped that read); the real read is `peer_receipts/resolve`.
 - **ARX-N02 registry client - BUILT (OFF).** `services/wiskey_peer_registry.py`: owner pin (`wiskey.peer_pin`), dedicated-owner check
   before any lookup, no automatic rebind, revocation stops new queries, rotation is never followed automatically, historical read only
   with `historical_read` on an older revision of the same pinned binding. The wire read `peer_bindings/get` is an Arx PROPOSAL.

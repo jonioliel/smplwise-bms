@@ -1166,6 +1166,17 @@ export class HomeWidgetsView extends LitElement {
       --als: 16px;
       flex-grow: 1.4;
     }
+    /* HOME-295: the new home's info row packs tighter with the fit steps (a control screen never scrolls) */
+    :host([layout='row'][data-fit='1']) .wg,
+    :host([layout='row'][data-fit='2']) .wg {
+      --wh: 72px;
+      padding-block: 8px;
+    }
+    :host([layout='row'][data-fit='2']) .wx-fc,
+    :host([layout='row'][data-fit='2']) .cd,
+    :host([layout='row'][data-fit='2']) .q-x {
+      display: none;
+    }
     :host([layout='row']) .wg-weather .wx-m {
       flex-direction: column;
       gap: 2px;

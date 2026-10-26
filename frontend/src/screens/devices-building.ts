@@ -49,11 +49,20 @@ import { notifyScreenViews, registerScreenView } from '../shell/screen-view';
 import './home-widgets';
 import './home-ambient-bar';
 import { AMBIENT_WIDGETS } from './home-ambient-bar';
-import { loadScreenDisplay, INFO_STYLE_DEFAULT, type InfoStyle } from '../api/screen-display';
+import { infoStyleFor, loadScreenDisplay, INFO_STYLE_DEFAULT, type InfoStyle } from '../api/screen-display';
+import {
+  areaQuick, climateQuick, effectiveScreen, floorCardsMax, floorCardsSplit, HOME_SCREEN_DEFAULT, homeAlerts, isTabletLandscape, loadHomeScreen, rowQuickMax,
+  screenFormBody, showRoomTemp, summaryKindsShown, tileQuickMax, type HomeScreenForm, type HomeScreenOptions, type PersonalScreen, type QuickKind, type SummaryKind,
+} from '../api/home-screen';
+import { hs } from '../i18n/home-screen';
+import { HOME_SCREEN_CSS } from './home-screen-css';
+import './home-screen-options'; // (the phone's area sheet draws <devices-area>, defined by the shell's route table - no import here: it imports this module)
+import { patch as patchApi } from '../api/client';
+import { invalidateSettings } from '../api/prefs';
 import './home-edit-panel';
 import type { QuickInfo } from './home-widgets';
 import {
-  getHomeCandidates, HOME_DEFAULT, HOME_PERSONAL_EVENT, HOME_TITLE_DEFAULT, homeViewOf, loadHomeSettings, moveWidget, NO_DATA, orderFloors, previewData, PHONE_MAX_WIDTH, resolveWidgets, saveHomeSettings, suggestConfig, widgetOn,
+  getHomeCandidates, HOME_DEFAULT, HOME_PERSONAL_EVENT, HOME_TITLE_DEFAULT, homeViewOf, loadHomeSettings, loadPersonal, moveWidget, NO_DATA, orderFloors, previewData, PHONE_MAX_WIDTH, resolveWidgets, saveHomeSettings, suggestConfig, widgetOn,
   type Direction, type HomeCandidates, type HomeSettings, type HomeView, type QuickAction, type WidgetId, type WidgetItem,
 } from '../api/home';
 import { demoHome } from './home-demo';
@@ -203,6 +212,49 @@ export const DEMO_DEVICES_TREE: DeviceTree = {
   scoped: false,
   sync: { connected: false, last_snapshot_at: null, last_event_at: null, last_registry_at: null, last_error: null, reconnects: 0, sequence: 0, entities: 20, started_at: null, ha_version: null },
 };
+
+const ZERO: DeviceCounts = { entities: 0, lights: 0, lights_on: 0, switches: 0, switches_on: 0, covers: 0, covers_open: 0, climate: 0, climate_active: 0, heating: 0, heating_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 };
+function sumCounts(list: DeviceCounts[]): DeviceCounts {
+  const out: DeviceCounts = { ...ZERO };
+  for (const c of list) {
+    for (const k of Object.keys(ZERO) as (keyof DeviceCounts)[]) if (k !== 'alarm') (out[k] as number) += c[k] as number;
+    if (c.alarm === 'triggered' || (c.alarm && !out.alarm)) out.alarm = c.alarm;
+  }
+  return out;
+}
+
+/** HOME-295: the approved mockup's demo site (3 floors, 8 areas) for `?hs_state=` in demo mode - the evidence specs' states: `site`
+ * (normal), `alarm` (the garden's alarm triggered), `offline` (no connection), `empty` (no floors yet), `many` (six floors). The plain
+ * demo (no hs_state) keeps DEMO_DEVICES_TREE, which older specs and baselines read. */
+export function demoTreeFor(state: string): DeviceTree {
+  if (!state) return DEMO_DEVICES_TREE;
+  if (state === 'empty') return { ...DEMO_DEVICES_TREE, floors: [], unassigned: { area_id: 'unassigned', name: 'ללא שיוך', counts: { ...ZERO, entities: 14, switches: 14 } }, building: { ...ZERO }, building_climate: [] };
+  const alarm = state === 'alarm';
+  const cl = (id: string, name: string, mode: string, target: number, cur: number) => ({ entity_id: `climate.${id}`, name, area_name: name, hvac_mode: mode, hvac_action: mode === 'off' ? 'off' : mode === 'heat' ? 'heating' : 'cooling', current_temperature: cur, target_temperature: mode === 'off' ? null : target, unit: '°C', available: true });
+  const area = (floor: string, id: string, name: string, t: number, c: Partial<DeviceCounts>, climate: ReturnType<typeof cl>[] = []): DeviceArea =>
+    ({ area_id: id, name, icon: null, floor_id: floor, has_camera: false, can_bulk: true, counts: { ...ZERO, ...c, entities: 6 }, climate, temperature: t, open_count: 0 });
+  const floor = (id: string, name: string, level: number, areas: DeviceArea[]): DeviceFloor => ({ floor_id: id, name, level, icon: null, areas, counts: sumCounts(areas.map((a) => a.counts)), climate: areas.flatMap((a) => a.climate ?? []), can_bulk: true });
+  const floors: DeviceFloor[] = [
+    floor('g', 'קרקע', 0, [
+      area('g', 'lobby', 'לובי', 24.5, { lights: 4, lights_on: 3, climate: 1, climate_active: 1, covers: 1, covers_open: 1, locks: 1, locks_locked: 1, sensors: 3 }, [cl('lobby', 'מזגן לובי', 'cool', 23, 24.5)]),
+      area('g', 'living', 'סלון', 25.5, { lights: 4, lights_on: 2, climate: 1, climate_active: 1, covers: 3, covers_open: 1, media: 2, media_on: 1, sensors: 6, cameras: 2 }, [cl('living', 'מזגן סלון', 'cool', 22, 25.5)]),
+      area('g', 'kitchen', 'מטבח', 23.1, { lights: 3, switches: 2, switches_on: 1, sensors: 2 }),
+      area('g', 'study', 'חדר עבודה', 26, { lights: 2, climate: 1, covers: 1, sensors: 1 }, [cl('study', 'מזגן חדר עבודה', 'off', 24, 26)]),
+    ]),
+    floor('f1', 'קומה 1', 1, [
+      area('f1', 'office', 'משרד', 20.5, { lights: 2, lights_on: 1, climate: 1, climate_active: 1, covers: 1, covers_open: 1, locks: 1, locks_locked: 1 }, [cl('office', 'מזגן משרד', 'heat', 22, 20.5)]),
+      area('f1', 'bed', 'חדר שינה', 23.4, { lights: 3, climate: 1, covers: 1, locks: 1, locks_locked: 1 }, [cl('bed', 'מזגן חדר שינה', 'off', 23, 23.4)]),
+      area('f1', 'kids', 'חדר ילדים', 24, { lights: 2, climate: 1, climate_active: 1, covers: 1, covers_open: 1 }, [cl('kids', 'מזגן ילדים', 'cool', 24, 24)]),
+    ]),
+    floor('yd', 'חצר', 2, [area('yd', 'garden', 'גינה', 28, { lights: 6, lights_on: 2, switches: 1, locks: 1, locks_locked: 1, cameras: 2, alarm: alarm ? 'triggered' : 'armed_away' })]),
+  ];
+  if (state === 'many') {
+    for (const [i, n] of ['קומה 2', 'קומה 3', 'גג'].entries()) floors.push(floor(`m${i}`, n, 3 + i, [area(`m${i}`, `m${i}a`, `משרד ${i + 2}`, 22 + i, { lights: 3, lights_on: i, climate: 1, covers: 2 }, [cl(`m${i}`, `מזגן ${i + 2}`, 'off', 23, 22)])]));
+  }
+  const building = sumCounts(floors.map((f) => f.counts));
+  building.alarm = alarm ? 'triggered' : 'armed_home';
+  return { ...DEMO_DEVICES_TREE, floors, unassigned: { area_id: 'unassigned', name: 'ללא שיוך', counts: { ...ZERO, entities: 3, lights: 1, switches: 1, sensors: 1 } }, building, building_climate: floors.flatMap((f) => f.climate), can_bulk: true };
+}
 
 /** The Bubble skin (phase C, 2026-10-02; the approved board docs/design/mockups/bubble-taste/home.html): the floor cards are bare
  * groups under a separator title, every area row a pill with a hue ring, the area tiles pills too, the tree rows carry the ring;
@@ -1110,6 +1162,37 @@ export class DevicesBuilding extends LitElement {
   /** The widget whose settings are open in edit mode (a card's "הגדרות" button, or its row). */
   @state() private openWidget: WidgetId | '' = '';
 
+  // ---------------------------------------------------------------------------------- HOME-295 (owner answers on the home mockup round 2)
+  /** The installation's display options (home.screen) and this user's own (home.personal.screen, screen.personalize). */
+  @state() private screenSite: HomeScreenOptions = HOME_SCREEN_DEFAULT;
+  @state() private screenPersonal: PersonalScreen = {};
+  /** The screen editor's draft of the options (saved with "שמור", like the rest of the editor). */
+  @state() private screenDraft: HomeScreenForm | null = null;
+  private screenBase: HomeScreenForm | null = null;
+  /** Phone: the floor tree in a bottom sheet; the area opened as a sheet / full screen (home.screen.phone_area). */
+  @state() private treeSheet = false;
+  @state() private sheetArea: { id: string; name: string } | null = null;
+  /** The alert rows the viewer confirmed ("אישור"): hidden until the alarm clears and triggers again. */
+  @state() private acked: string[] = [];
+  /** The area whose blinds' open / stop / close choice is open (tile_blinds = pct). */
+  @state() private coverMenu = '';
+  /** The tree's "more floors" list is open (many_floors = more). */
+  @state() private treeMore = false;
+  /** Demo only (`?hs_state=alarm|offline|empty|many`): the states of the approved mockup without a backend, for the evidence specs. */
+  private demoState = '';
+
+  /** The options this viewer sees: the editor's draft while editing, else the installation's with his own laid over them. */
+  private get screen(): HomeScreenOptions {
+    if (this.lay.editing && this.screenDraft) return this.screenDraft.screen;
+    return effectiveScreen(this.screenSite, this.screenPersonal);
+  }
+
+  /** No connection: the server cannot be read, or Home Assistant is disconnected (the values on screen are the last ones, grey). */
+  private get offline(): boolean {
+    if (!isApi()) return this.demoState === 'offline';
+    return this.treeFailed || this.sync?.connected === false;
+  }
+
   /** CR-007 6b: the building screen's layout (one per installation: floor cards and area tiles; system.configure edits). */
   private lay = new DevicesLayoutController(this, {
     scope: 'building',
@@ -1128,6 +1211,7 @@ export class DevicesBuilding extends LitElement {
       save: () => this.saveHome(),
       discard: () => {
         this.homeDraft = null;
+        this.screenDraft = null;
       },
     },
   });
@@ -1268,7 +1352,8 @@ export class DevicesBuilding extends LitElement {
 
   /** Edit mode's own edits (title, direction, widgets, floor order) differ from what the session started with. */
   private get homeDirty(): boolean {
-    return !!this.homeDraft && JSON.stringify(this.homeDraft) !== JSON.stringify(this.homeBase);
+    const screenDirty = !!this.screenDraft && !!this.screenBase && Object.keys(screenFormBody(this.screenBase, this.screenDraft)).length > 0;
+    return screenDirty || (!!this.homeDraft && JSON.stringify(this.homeDraft) !== JSON.stringify(this.homeBase));
   }
 
   /** The layout editor opened: the draft starts from the saved settings, with the floor order as the screen shows it now. */
@@ -1276,6 +1361,9 @@ export class DevicesBuilding extends LitElement {
     const order = this.tree ? this.tree.floors.map((f) => f.floor_id) : this.homeSaved.floorOrder;
     this.homeBase = { ...this.homeSaved, floorOrder: order };
     this.homeDraft = JSON.parse(JSON.stringify(this.homeBase)) as HomeSettings;
+    // HOME-295: the display options are edited here too (the summary tiles, the quick actions per area, ...)
+    this.screenBase = { screen: this.screenSite, info: this.infoStyle, view: this.prefs.defaultView === 'tiles' ? 'tiles' : 'cards' };
+    this.screenDraft = JSON.parse(JSON.stringify(this.screenBase)) as HomeScreenForm;
     this.candidates = null;
     this.candidatesError = '';
     this.openWidget = '';
@@ -1292,6 +1380,20 @@ export class DevicesBuilding extends LitElement {
   /** "שמור" in edit mode: the changed keys go to PATCH /settings (system.configure, audited); the tree is refetched so the
    * order and the widgets are the server's. A floor order equal to the one the session started with is not written. */
   private async saveHome(): Promise<void> {
+    // HOME-295: the display options first (their own keys; system.configure, audited)
+    const sd = this.screenDraft;
+    const sb = this.screenBase;
+    if (sd && sb) {
+      const body = screenFormBody(sb, sd);
+      if (Object.keys(body).length) {
+        await patchApi('settings', body);
+        invalidateSettings();
+        this.screenSite = sd.screen;
+        this.infoStyle = sd.info;
+        this.prefs = { ...this.prefs, defaultView: sd.view };
+        this.screenBase = JSON.parse(JSON.stringify(sd)) as HomeScreenForm;
+      }
+    }
     const d = this.homeDraft;
     if (!d) return;
     const orderChanged = JSON.stringify(d.floorOrder) !== JSON.stringify(this.homeBase.floorOrder);
@@ -1510,8 +1612,13 @@ export class DevicesBuilding extends LitElement {
     if (!d) return nothing;
     const names = new Map(t.floors.map((f) => [f.floor_id, f.name]));
     const floors = this.floorsOf(t).map((f) => ({ id: f.floor_id, name: names.get(f.floor_id) ?? f.floor_id }));
+    const areas = this.floorsOf(t).flatMap((f) => f.areas.map((a) => ({ id: a.area_id, name: a.name, floor: f.name, counts: a.counts })));
     return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())}
-      @home-draft=${this.onDraft} @home-reset=${this.onHomeReset} @home-edit-open=${(e: CustomEvent<{ id: WidgetId | '' }>) => (this.openWidget = e.detail.id)}></home-edit-panel>`;
+      @home-draft=${this.onDraft} @home-reset=${this.onHomeReset} @home-edit-open=${(e: CustomEvent<{ id: WidgetId | '' }>) => (this.openWidget = e.detail.id)}></home-edit-panel>
+      ${this.screenDraft
+        ? html`<section class="hs-edit" data-home-screen-edit aria-label=${hs('heading')}><h3>${hs('heading')}</h3>
+            <home-screen-options editable .value=${this.screenDraft} .areas=${areas} @hs-change=${(e: CustomEvent<HomeScreenForm>) => (this.screenDraft = e.detail)}></home-screen-options></section>`
+        : nothing}`;
   }
 
   // ---------------------------------------------------------------------------------- edit by address, and the fit
@@ -1578,6 +1685,9 @@ export class DevicesBuilding extends LitElement {
   /** The user's own home screen changed (החשבון שלי › המסך שלי): fetch the tree again, the server applies it. */
   private onPersonal = () => {
     void this.load();
+    void loadPersonal().then((p) => {
+      this.screenPersonal = p.screen ?? {};
+    });
     void loadPersonalRow().then((p) => {
       this.personalRow = Object.keys(p).length ? p : null;
     });
@@ -1615,6 +1725,15 @@ export class DevicesBuilding extends LitElement {
 
   protected updated() {
     this.syncEditFromRoute();
+    // HOME-295: no connection greys the last values (CSS keys on the host); the scrolling tree takes exactly the height that is left
+    this.toggleAttribute('data-offline', this.offline);
+    // (a control screen never scrolls: on a wide screen the tree - every floor with tree_scroll, the first ones with "more" - scrolls inside
+    // the height that is left under the summary)
+    const tree = this.renderRoot.querySelector<HTMLElement>('.split > nav.tree');
+    if (tree && window.innerWidth >= FIT_MIN_WIDTH && !this.lay.editing) {
+      const top = tree.getBoundingClientRect().top + (scrollParentOf(this)?.scrollTop ?? 0);
+      tree.style.maxBlockSize = `${Math.max(160, Math.floor(window.innerHeight - top - 28))}px`;
+    } else tree?.style.removeProperty('max-block-size');
     const vk = `${this.layout}|${this.lay.editing}`;
     if (vk !== this.viewKey) {
       this.viewKey = vk;
@@ -2500,7 +2619,7 @@ export class DevicesBuilding extends LitElement {
         padding-inline: 10px;
       }
     }
-  `, BUILDING_GLASS, TILE_LAYOUT, HOME_LAYOUT, BUILDING_BUBBLE];
+  `, BUILDING_GLASS, TILE_LAYOUT, HOME_LAYOUT, BUILDING_BUBBLE, HOME_SCREEN_CSS];
 
   connectedCallback() {
     super.connectedCallback();
@@ -2518,6 +2637,13 @@ export class DevicesBuilding extends LitElement {
       }),
       loadScreenDisplay().then((d) => {
         this.infoStyle = d.infoStyle;
+      }),
+      // HOME-295: the display options and the user's own (his summary tiles / phone area)
+      loadHomeScreen().then((s) => {
+        if (!this.lay.editing) this.screenSite = s;
+      }),
+      loadPersonal().then((p) => {
+        this.screenPersonal = p.screen ?? {};
       }),
     ]).then(() => undefined);
     window.addEventListener('resize', this.onResize);
@@ -2550,7 +2676,8 @@ export class DevicesBuilding extends LitElement {
       this.panel = { ...want, name: this.scopeName(want.scope, want.id) };
     });
     if (!isApi()) {
-      this.tree = { ...DEMO_DEVICES_TREE, home: demoHome() };
+      this.demoState = new URLSearchParams(location.search).get('hs_state') ?? '';
+      this.tree = { ...demoTreeFor(this.demoState), home: demoHome() };
       this.sync = DEMO_DEVICES_TREE.sync;
       return;
     }
@@ -2704,13 +2831,21 @@ export class DevicesBuilding extends LitElement {
     // applied there) or, while editing, from the draft
     const h = this.homeOf(t);
     const items = this.widgetItems(t, h);
-    const layout = this.widgetLayout(h.direction, h.config);
-    const quickShown = items.some((i) => i.id === 'quick' && i.avail === 'ok');
+    let layout = this.widgetLayout(h.direction, h.config);
+    // HOME-295: the info row of the new home (`auto`, the cards view) is the approved mockup's compact row of cards, not the tall band
+    if (!this.lay.editing && this.infoStyle === 'auto' && layout === 'hero' && window.innerWidth >= FIT_MIN_WIDTH) layout = 'row';
+    // HOME-295 (owner answer 8): on a landscape tablet the "כיבוי במבנה" card drops (the action stays in the floor menu) - a setting
+    const dropQuick = !this.lay.editing && this.screen.building_off_tablet === 'hide' && isTabletLandscape(window.innerWidth, window.innerHeight);
+    const quickShown = dropQuick || items.some((i) => i.id === 'quick' && i.avail === 'ok');
     const alarmShown = items.some((i) => i.id === 'alarm' && i.avail === 'ok');
     // POLISH-295: in the thin-bar style the clock, the weather, Shabbat and the alarm leave the card band for the header (edit mode
-    // keeps every card: that is where they are switched on, sized and ordered)
-    const bar = this.infoStyle === 'bar' && !this.lay.editing;
-    const cardItems = bar ? items.filter((i) => !AMBIENT_WIDGETS.includes(i.id)) : items;
+    // keeps every card: that is where they are switched on, sized and ordered). HOME-295 (owner answer 5): `auto` = the cards in the
+    // cards view, the bar in tiles.
+    const bar = infoStyleFor(this.lay.editing && this.screenDraft ? this.screenDraft.info : this.infoStyle, this.layout) === 'bar' && !this.lay.editing;
+    // (the mockup: with an alert row or the no-connection row on a tablet / 1366 screen, the multimedia card folds so nothing scrolls)
+    const banner = !this.lay.editing && (this.offline || homeAlerts(t).some((x) => !this.acked.includes(`${x.scope}:${x.id}`)));
+    const dropMedia = banner && window.innerWidth <= 1366;
+    const cardItems = (bar ? items.filter((i) => !AMBIENT_WIDGETS.includes(i.id)) : items).filter((i) => !(dropQuick && i.id === 'quick') && !(dropMedia && i.id === 'media'));
     const ambient = bar ? items.filter((i) => AMBIENT_WIDGETS.includes(i.id) && i.avail === 'ok') : [];
     const widgets = this.renderWidgets(t, h, cardItems, layout);
     const sideLayout = layout === 'side' && cardItems.length > 0;
@@ -2725,14 +2860,16 @@ export class DevicesBuilding extends LitElement {
       <div slot="actions" class="hdr">
         ${ambient.length ? html`<home-ambient-bar .items=${ambient} .config=${h.config} .data=${h.data} .zone=${h.time_zone}></home-ambient-bar>` : nothing}
         ${t.scoped ? html`<sw-badge kind="partial" label="לפי הקומות שלך"></sw-badge>` : nothing}
-        ${isApi() && !connected ? html`<sw-badge data-devices-sync kind="stale" label="לא מסונכרן"></sw-badge>` : nothing}
+        ${isApi() && !connected && !this.offline ? html`<sw-badge data-devices-sync kind="stale" label="לא מסונכרן"></sw-badge>` : nothing}
         ${isApi() ? this.renderRefresh() : nothing}
       </div>
-      ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
+      ${this.error && !this.offline ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       <div class="page-body" data-home-direction=${h.direction} data-home-layout=${layout} data-fit=${this.fit}>
         ${this.lay.renderBar()}
+        ${this.renderBanner(t)}
         ${sideLayout ? nothing : widgets}
         ${this.renderKpis(t.building, alarmShown)}
+        ${this.isPhone && !this.lay.editing && this.layout !== 'plan' ? this.renderPhoneFloors(t) : nothing}
         ${sideLayout
           ? html`<div class="bgrid" data-side=${h.side} data-fit=${this.fit} data-bgrid>
               <div class="bmain">${this.renderToolbar(t, !quickShown, true)}${body}</div>
@@ -2742,6 +2879,7 @@ export class DevicesBuilding extends LitElement {
       </div>
       ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.lay.renderPanel()}
+      ${this.renderSheets(t)}
       <devices-tiles-panel ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
     </sw-page>`;
   }
@@ -2819,8 +2957,9 @@ export class DevicesBuilding extends LitElement {
     if (!t.floors.length && !t.unassigned.counts.entities) return nothing;
     const all = this.floorsOf(t);
     const shown = this.selected === 'all' ? all : all.filter((f) => f.floor_id === this.selected);
-    const floors = shown.length ? shown : all; // a floor that vanished from the tree: back to everything
-    const loose = (this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped);
+    const phoneOne = this.isPhone && !this.lay.editing; // HOME-295: a phone shows one floor at a time (the floor switch, the tree sheet)
+    const floors = phoneOne ? [this.phoneFloorOf(all)].filter((f): f is DeviceFloor => !!f) : shown.length ? shown : all; // a floor that vanished from the tree: back to everything
+    const loose = !phoneOne && (this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped);
     return html`<div class="split" data-layout-view="tiles" data-fit=${this.fit} ?data-no-tree=${noTree}>
       ${noTree ? nothing : this.renderTreePanel(t)}
       <div class="floors" data-floors>
@@ -2840,12 +2979,24 @@ export class DevicesBuilding extends LitElement {
     if (!t.floors.length && !t.unassigned.counts.entities) return nothing;
     const all = this.floorsOf(t);
     const shown = this.selected === 'all' ? all : all.filter((f) => f.floor_id === this.selected);
-    const floors = shown.length ? shown : all; // a floor that vanished from the tree: back to everything
+    let floors = shown.length ? shown : all; // a floor that vanished from the tree: back to everything
+    // HOME-295 (owner answer 7): more floors than one row holds - four cards on a desktop (three on a landscape tablet), the rest through
+    // the tree ("עוד קומות", or the scrolling tree - many_floors); a phone shows one floor at a time (renderPhoneFloors)
+    const max = floorCardsMax(window.innerWidth);
+    let cols = '';
+    if (this.isPhone && !this.lay.editing) floors = [this.phoneFloorOf(all)].filter((f): f is DeviceFloor => !!f);
+    else if (!this.lay.editing && !this.gridAttrs('fcards').on && this.selected === 'all' && window.innerWidth >= 900) {
+      // the floors share ONE row (the mockup: three floors = three columns), at most `max` of them
+      floors = floorCardsSplit(all, 'all', max).shown;
+      cols = String(Math.max(1, Math.min(all.length, max)));
+    }
+    // HOME-295: "ללא שיוך" sits at the foot of the tree (the mockup); its own card only where no tree is drawn (a portrait tablet)
+    const loose = (this.selected === 'all' || !shown.length) && !this.isPhone && window.innerWidth < 900 && (t.unassigned.counts.entities || !t.scoped) && !cols;
     return html`<div class="split" data-layout-view="cards" data-fit=${this.fit} ?data-no-tree=${noTree}>
       ${noTree ? nothing : this.renderTreePanel(t)}
-      <div class=${classMap({ fcards: true, 'lay-grid': this.gridAttrs('fcards').on })} data-lay-grid="fcards" data-lay-cols=${this.gridAttrs('fcards').cols} ?data-lay-phone-preview=${this.gridAttrs('fcards').phone}>
+      <div class=${classMap({ fcards: true, 'lay-grid': this.gridAttrs('fcards').on })} data-lay-grid="fcards" data-lay-cols=${this.gridAttrs('fcards').cols} ?data-lay-phone-preview=${this.gridAttrs('fcards').phone} data-cols=${cols || nothing} data-floor-count=${all.length}>
         ${repeat(floors, (f) => f.floor_id, (f) => this.lay.wrap(`floor:${f.floor_id}`, this.renderFloorCard(f)))}
-        ${(this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped)
+        ${loose || (this.lay.editing && (t.unassigned.counts.entities || !t.scoped))
           ? this.lay.wrap('floor:unassigned', html`<section class="fcard loose" data-floor-card="unassigned" data-lay-key="floor:unassigned">
               <header><h2>ללא שיוך</h2><span class="lit">${t.unassigned.counts.entities} התקנים שאינם משויכים לאזור</span></header>
               <div class="rows">${this.renderAreaRow({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, 'card', true)}</div>
@@ -2943,7 +3094,16 @@ export class DevicesBuilding extends LitElement {
     // owner 2026-10-01: each floor folds its area rows (a chevron at the start of its row, apart from the select button);
     // the same column beside "כל המבנה" carries the fold-all / unfold-all toggle
     const chev = (folded: boolean) => html`<sw-icon class=${classMap({ chev: true, folded })} name="chevronDown" size=${14}></sw-icon>`;
-    return html`<nav class="tree" aria-label="עץ המבנה" data-devices-tree>
+    // HOME-295 (owner answer 7): more floors than the cards hold - `more` lists the first ones in full and the rest behind "עוד N קומות";
+    // `tree_scroll` lists every floor and the tree scrolls inside its own panel (the page itself never scrolls)
+    const max = floorCardsMax(window.innerWidth);
+    const many = this.layout === 'cards' && !this.lay.editing && floors.length > max;
+    const scrollTree = many && this.screen.many_floors === 'tree_scroll';
+    const hideRest = many && !scrollTree && !this.treeMore && !this.treeSheet;
+    const rest = hideRest ? floors.slice(max).filter((f) => f.floor_id !== this.selected) : [];
+    const listed = hideRest ? floors.filter((f) => !rest.includes(f)) : floors;
+    const loose = t.unassigned.counts.entities > 0 && (this.layout === 'cards' || this.treeSheet);
+    return html`<nav class="tree" aria-label="עץ המבנה" data-devices-tree ?data-tree-scroll=${scrollTree}>
       <div class="tree-floor tree-all">
         ${foldable.length > 1
           ? html`<button type="button" class="tfold" data-tree-fold-all aria-label=${allFolded ? 'הרחב הכל' : 'כווץ הכל'} title=${allFolded ? 'הרחב הכל' : 'כווץ הכל'} @click=${() => this.toggleAllFloors(floors)}>${chev(allFolded)}</button>`
@@ -2953,7 +3113,7 @@ export class DevicesBuilding extends LitElement {
         </button>
       </div>
       ${repeat(
-        floors,
+        listed,
         (f) => f.floor_id,
         (f) => {
           const folded = f.areas.length > 0 && this.collapsed.has(f.floor_id);
@@ -2973,6 +3133,10 @@ export class DevicesBuilding extends LitElement {
         </div>`;
         },
       )}
+      ${rest.length ? html`<button type="button" class="tree-more" data-tree-more=${rest.length} aria-expanded="false" @click=${() => (this.treeMore = true)}><sw-icon name="floor" size=${14}></sw-icon>${hs('moreFloors', { n: rest.length })}</button>` : nothing}
+      ${loose
+        ? html`<a class="tree-row tree-loose" data-tree-unassigned href="#/devices/areas/unassigned" @click=${(e: MouseEvent) => this.onAreaLink(e, 'unassigned', t.unassigned.name)}><sw-icon name="help" size=${15}></sw-icon><span class="nm">${t.unassigned.name}</span><span class="lit">${ltrNum(t.unassigned.counts.entities)}</span></a>`
+        : nothing}
     </nav>`;
   }
 
@@ -2984,9 +3148,7 @@ export class DevicesBuilding extends LitElement {
         <div class="fh-top">
           ${it?.icon ? html`<sw-icon class="lay-title-icon" .name=${it.icon} size=${16}></sw-icon>` : nothing}
           <h2><button type="button" class="ftitle" data-floor-title=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} title="פתח קומה" @click=${() => (this.selected = f.floor_id)}>${bidi(titleOf(it, f.name))}</button></h2>
-          ${this.bulkAllowed && f.can_bulk
-            ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${c} variant="menu" triggerLabel="כבה קומה" data-floor-menu=${f.floor_id}></devices-bulk-menu>`
-            : nothing}
+          ${this.bulkAllowed && f.can_bulk ? this.renderFloorOff(f) : nothing}
         </div>
         <div class="fh-chips">
           ${c.lights && this.hasFloorItem('lights') ? html`<button type="button" class=${classMap({ lit: true, chip: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on} data-floor-chip="lights" aria-haspopup="dialog" aria-expanded=${String(this.isOpen('lights', 'floor', f.floor_id))} title=${`תאורה · ${f.name}`} @click=${() => this.openPanel('lights', 'floor', f.floor_id)}><sw-icon name="light" size=${13}></sw-icon>${ltrNum(c.lights_on)} דולקות מתוך ${ltrNum(c.lights)}</button>` : nothing}
@@ -3027,18 +3189,34 @@ export class DevicesBuilding extends LitElement {
     const it = bubble ? this.lay.item(`area:${a.area_id}`) : undefined;
     const dot = html`<span class=${classMap({ sdot: true, on })}>${bubble ? html`<sw-icon .name=${it?.icon ?? (unassigned ? 'help' : 'home')} size=${where === 'tree' ? 12 : 18}></sw-icon>` : nothing}</span>`;
     const hueStyle = bubble && !unassigned ? `--h:var(--sw-hue-${hueOf(a.area_id)})` : '';
+    // HOME-295 (owner answer 2): the cards-mode row carries the area's first two quick actions (row_actions = quick) - the room
+    // temperature, the alarm text or the time of the last values before them; `indicators` keeps the row of 0.1.149
+    const quickRow = where === 'card' && !unassigned && this.screen.row_actions === 'quick';
+    const bad = !unassigned && c.alarm === 'triggered';
+    const mid = bad
+      ? html`<span class="btx" data-area-alert>${hs('alarmTriggered')}</span>`
+      : this.offline
+        ? html`<span class="tm" data-area-stale>${this.lastOkTime()}</span>`
+        : showRoomTemp(a, this.screen.tile_climate)
+          ? html`<span class="tm" data-area-temp>${ltrNum(`${(a.temperature as number).toFixed(1)}°`)}</span>`
+          : nothing;
     const body =
       where === 'tree'
         ? html`${dot}<span class="nm" title=${a.name}>${bidi(a.name)}</span>${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`}`
-        : html`${dot}<span class="nm" title=${a.name}>${bidi(a.name)}</span>${this.renderIndicators(a)}`;
+        : quickRow
+          ? html`${dot}<span class="nm" title=${a.name}>${bidi(a.name)}</span>${mid}`
+          : html`${dot}<span class="nm" title=${a.name}>${bidi(a.name)}</span>${this.renderIndicators(a)}`;
     const attrs = { area: a.area_id, on: String(on), counts: countsAttr(pills) };
     if (unassigned) {
       return html`<a class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style="text-decoration:none">${body}</a>`;
     }
     const menu = html`<devices-bulk-menu block hover scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} mapHref=${mapHrefForArea(a.map) ?? ''} label="סיכום האזור"
         data-tree-area=${where === 'tree' ? a.area_id : nothing} data-card-area=${where === 'card' ? a.area_id : nothing}>
-        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} aria-label=${`${a.name} · ${c.entities} התקנים · כניסה לאזור`}>${body}</a>
+        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} aria-label=${`${a.name} · ${c.entities} התקנים · כניסה לאזור`} @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id, a.name)}>${body}</a>
       </devices-bulk-menu>`;
+    if (quickRow) {
+      return html`<div class="arow-q" data-area-quick-row=${a.area_id} ?data-lit=${on && !this.offline && !bad} ?data-bad=${bad}>${menu}${this.renderQuick(a, rowQuickMax(window.innerWidth), true)}</div>`;
+    }
     if (where === 'card') return menu;
     return html`<div class="tree-area">
       ${menu}
@@ -3059,20 +3237,31 @@ export class DevicesBuilding extends LitElement {
     // owner feedback 2026-09-29: a domain the installation has nothing of is not a counter at all (no "0/0 אין במבנה")
     // POLISH-295: "5 / 12" reads as a count of a total (spaced, tabular), and a counter that has something on takes its kind's colour -
     // light, switches and screens warm, cooling cool, heating amber; everything else keeps the live green
+    const stale = this.offline; // HOME-295: no connection - the counters show a dash, never an old number as if current
     const kpi = (label: string, on: number, total: number, icon: IconName, kind: TileKind, warm = true) =>
       !total
         ? nothing
-        : html`<sw-kpi data-kpi=${label} data-tile-kind=${kind} data-value=${`${on}/${total}`} label=${label} value=${`${on} / ${total}`} .icon=${icon} tone=${warm && on > 0 ? 'live' : 'neutral'} layout=${layout} icon-end action ?expanded=${this.isOpen(kind)} hint="הצג ושלוט" @click=${open(kind)}></sw-kpi>`;
-    return html`<div class="kpis" data-kpis>
-      ${kpi('תאורה דולקת', c.lights_on, c.lights, 'light', 'lights')}
-      ${kpi('מתגים פעילים', c.switches_on, c.switches, 'bolt', 'switches')}
-      ${kpi('תריסים פתוחים', c.covers_open, c.covers, 'layers', 'covers')}
-      ${kpi('מיזוג פעיל', c.climate_active, c.climate, 'snow', 'climate')}
-      ${kpi('חימום פעיל', c.heating_active, c.heating, 'flame', 'heating')}
-      ${kpi('מסכים דולקים', c.media_on, c.media, 'play', 'media')}
-      ${c.locks ? html`<sw-kpi data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked} / ${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>` : nothing}
-      ${c.alarm && !hideAlarm ? html`<sw-kpi data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing}
-    </div>`;
+        : html`<sw-kpi data-kpi=${label} data-tile-kind=${kind} data-value=${`${on}/${total}`} label=${label} value=${stale ? '–' : `${on} / ${total}`} .icon=${icon} tone=${warm && on > 0 && !stale ? 'live' : 'neutral'} layout=${layout} icon-end action ?expanded=${this.isOpen(kind)} hint="הצג ושלוט" @click=${open(kind)}></sw-kpi>`;
+    // HOME-295 (owner answer 3): the tiles shown are the administrator's choice (or the user's, when the installation lets users choose),
+    // in the chosen order; every kind the site has by default. Sensors and cameras are counts (no panel behind them).
+    const off = this.offline;
+    const count = (label: string, total: number, icon: IconName, kind: string) =>
+      html`<sw-kpi data-kpi=${label} data-tile-kind=${kind} data-value=${String(total)} label=${label} value=${off ? '–' : String(total)} .icon=${icon} tone="neutral" layout=${layout} icon-end></sw-kpi>`;
+    const one: Record<SummaryKind, () => unknown> = {
+      lights: () => kpi('תאורה דולקת', c.lights_on, c.lights, 'light', 'lights'),
+      switches: () => kpi('מתגים פעילים', c.switches_on, c.switches, 'bolt', 'switches'),
+      covers: () => kpi('תריסים פתוחים', c.covers_open, c.covers, 'layers', 'covers'),
+      climate: () => kpi('מיזוג פעיל', c.climate_active, c.climate, 'snow', 'climate'),
+      heating: () => kpi('חימום פעיל', c.heating_active, c.heating, 'flame', 'heating'),
+      media: () => kpi('מסכים דולקים', c.media_on, c.media, 'play', 'media'),
+      locks: () => html`<sw-kpi data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked} / ${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>`,
+      sensors: () => count('חיישנים', c.sensors, 'sensor', 'sensors'),
+      cameras: () => count('מצלמות', c.cameras, 'camera', 'cameras'),
+      alarm: () => (c.alarm && !hideAlarm ? html`<sw-kpi data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing),
+    };
+    const kinds = summaryKindsShown(this.screen, c);
+    // (one row on a control screen: the chosen tiles share it - the mockup)
+    return html`<div class="kpis" data-kpis data-summary=${kinds.join(' ')} style=${`--kn:${Math.max(1, kinds.length)}`}>${kinds.map((k) => one[k]())}</div>`;
   }
 
   /** A floor's count pills as buttons (owner 2026-09-29): each opens the tiles' panel for its kind on that floor;
@@ -3110,30 +3299,195 @@ export class DevicesBuilding extends LitElement {
     return html`<div class=${classMap({ areas: true, 'lay-grid': g.on })} data-lay-grid=${id} data-lay-cols=${g.cols} ?data-lay-phone-preview=${g.phone}>${content}</div>`;
   }
 
+  // ---------------------------------------------------------------------------------- HOME-295: the new pieces of the approved mockup
+
+  /** When the values on screen were last read (the live controller's last good read, else the last HA event), as HH:MM. */
+  private lastOkTime(): string {
+    if (!isApi()) return timeText(new Date(Date.now() - 4 * 60_000));
+    const at = this.live.lastOkAt() ?? (this.sync?.last_event_at ? new Date(this.sync.last_event_at).getTime() : null);
+    return at ? timeText(new Date(at)) : '–';
+  }
+
+  /** An area link: on a phone with phone_area = sheet the area opens in a sheet over the home screen; otherwise the link navigates. */
+  private onAreaLink(e: MouseEvent, id: string, name: string) {
+    if (!this.isPhone || this.lay.editing || this.screen.phone_area !== 'sheet' || e.defaultPrevented || e.metaKey || e.ctrlKey || e.button !== 0) return;
+    e.preventDefault();
+    this.treeSheet = false;
+    this.sheetArea = { id, name };
+  }
+
+  private openArea(a: { area_id: string; name: string }) {
+    if (this.isPhone && this.screen.phone_area === 'sheet') this.sheetArea = { id: a.area_id, name: a.name };
+    else location.hash = `#/devices/areas/${encodeURIComponent(a.area_id)}`;
+  }
+
+  /** A quick action pressed: a bulk action through the confirmation dialog (the server authorises it again) - or, for a viewer without
+   * the bulk permission there / an action that has no bulk form (turning an air conditioner on), the area itself. */
+  private onQuickAct(e: Event, a: DeviceArea, kind: BulkKind | null) {
+    e.preventDefault();
+    e.stopPropagation();
+    this.coverMenu = '';
+    if (this.lay.editing || this.offline) return;
+    if (kind && this.bulkAllowed && a.can_bulk === true) void this.dialog?.show({ scope: 'area', id: a.area_id, name: a.name, kind });
+    else this.openArea(a);
+  }
+
+  /** The quick actions of one area: ONE builder for the tile (tiles view) and the row (cards view, `small`). */
+  private renderQuick(a: DeviceArea, max: number, small: boolean) {
+    const kinds = areaQuick(this.screen, a, max);
+    if (!kinds.length) return nothing;
+    return html`<span class=${classMap({ qa: true, sm: small })} data-quick=${a.area_id} data-quick-kinds=${kinds.join(' ')}>${kinds.map((k) => this.quickButton(a, k, small))}</span>`;
+  }
+
+  private quickButton(a: DeviceArea, k: QuickKind, small: boolean) {
+    const c = a.counts;
+    const sz = small ? 13 : 15;
+    const off = this.offline;
+    const label = (what: string) => `${what} · ${a.name}`;
+    if (k === 'lights') {
+      const on = c.lights_on > 0;
+      return html`<button type="button" class="qb l" data-quick-kind="lights" aria-pressed=${String(on && !off)} ?disabled=${off} aria-label=${label(hs('qLights'))} title=${label(hs('qLights'))} @click=${(e: Event) => this.onQuickAct(e, a, on ? 'lights_off' : 'lights_on')}><sw-icon name="light" size=${sz}></sw-icon>${ltrNum(`${c.lights_on}/${c.lights}`)}</button>`;
+    }
+    if (k === 'switches') {
+      const on = c.switches_on > 0;
+      return html`<button type="button" class="qb s" data-quick-kind="switches" aria-pressed=${String(on && !off)} ?disabled=${off} aria-label=${label(hs('qSwitches'))} title=${label(hs('qSwitches'))} @click=${(e: Event) => this.onQuickAct(e, a, on ? 'switches_off' : 'switches_on')}><sw-icon name="bolt" size=${sz}></sw-icon>${ltrNum(`${c.switches_on}/${c.switches}`)}</button>`;
+    }
+    if (k === 'climate') {
+      const q = climateQuick(a, this.screen.tile_climate);
+      const text = q.label === 'off' ? hs('climateOff') : q.label === 'on' ? hs('climateOn') : ltrNum(`${Math.round(q.target as number)}°`);
+      return html`<button type="button" class=${classMap({ qb: true, c: !q.heat, h: q.heat })} data-quick-kind="climate" aria-pressed=${String(q.on && !off)} ?disabled=${off} aria-label=${label(hs('qClimate'))} title=${label(hs('qClimate'))} @click=${(e: Event) => this.onQuickAct(e, a, q.on ? 'climate_off' : null)}><sw-icon name=${q.heat ? 'flame' : 'snow'} size=${sz}></sw-icon>${text}</button>`;
+    }
+    // covers: a count that offers open / stop / close (pct), or the two direct buttons (buttons)
+    if (this.screen.tile_blinds === 'buttons') {
+      return html`<button type="button" class="qb ico" data-quick-kind="covers_open" ?disabled=${off} aria-label=${label(hs('openBlinds'))} title=${label(hs('openBlinds'))} @click=${(e: Event) => this.onQuickAct(e, a, 'covers_open')}><sw-icon name="arrowUp" size=${sz}></sw-icon></button><button type="button" class="qb ico" data-quick-kind="covers_close" ?disabled=${off} aria-label=${label(hs('closeBlinds'))} title=${label(hs('closeBlinds'))} @click=${(e: Event) => this.onQuickAct(e, a, 'covers_close')}><sw-icon name="arrowDown" size=${sz}></sw-icon></button>`;
+    }
+    const open = this.coverMenu === a.area_id;
+    return html`<button type="button" class="qb" data-quick-kind="covers" aria-expanded=${String(open)} ?disabled=${off} aria-label=${label(hs('qCovers'))} title=${label(hs('qCovers'))} @click=${(e: Event) => { e.preventDefault(); e.stopPropagation(); this.coverMenu = open ? '' : a.area_id; }}><sw-icon name="layers" size=${sz}></sw-icon>${ltrNum(`${c.covers_open}/${c.covers}`)}</button>${open
+      ? html`<span class="cmenu" role="group" data-cover-menu=${a.area_id} aria-label=${label(hs('qCovers'))}>
+          <button type="button" class="qb ico" data-cover="open" aria-label=${hs('coversOpen')} title=${hs('coversOpen')} @click=${(e: Event) => this.onQuickAct(e, a, 'covers_open')}><sw-icon name="arrowUp" size=${sz}></sw-icon></button>
+          <button type="button" class="qb ico" data-cover="stop" aria-label=${hs('coversStop')} title=${hs('coversStop')} @click=${(e: Event) => this.onQuickAct(e, a, 'covers_stop')}><sw-icon name="stopSquare" size=${sz - 2}></sw-icon></button>
+          <button type="button" class="qb ico" data-cover="close" aria-label=${hs('coversClose')} title=${hs('coversClose')} @click=${(e: Event) => this.onQuickAct(e, a, 'covers_close')}><sw-icon name="arrowDown" size=${sz}></sw-icon></button>
+        </span>`
+      : nothing}`;
+  }
+
+  /** The floor card's "turn off" control (owner answer 6): one button with a menu (default) or two direct buttons - lights / all. */
+  private renderFloorOff(f: DeviceFloor) {
+    if (this.screen.floor_off === 'buttons') {
+      const off = this.offline;
+      return html`<span class="foff" data-floor-off=${f.floor_id}>
+        <button type="button" data-floor-off-kind="lights_off" ?disabled=${off} title=${hs('offFloorLights')} aria-label=${`${hs('offFloorLights')} · ${f.name}`} @click=${() => void this.dialog?.show({ scope: 'floor', id: f.floor_id, name: f.name, kind: 'lights_off' })}><sw-icon name="light" size=${14}></sw-icon>${hs('offLights')}</button>
+        <button type="button" class="danger" data-floor-off-kind="all_off" ?disabled=${off} title=${hs('offFloorAll')} aria-label=${`${hs('offFloorAll')} · ${f.name}`} @click=${() => void this.dialog?.show({ scope: 'floor', id: f.floor_id, name: f.name, kind: 'all_off' })}><sw-icon name="bolt" size=${14}></sw-icon>${hs('offAll')}</button>
+      </span>`;
+    }
+    return html`<devices-bulk-menu class=${this.offline ? 'off-dim' : ''} scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" triggerLabel="כבה קומה" data-floor-menu=${f.floor_id}></devices-bulk-menu>`;
+  }
+
+  /** The rows above the summary (owner: one row per alert, at most three; no paragraphs): the triggered alarms, or "no connection". */
+  private renderBanner(t: DeviceTree) {
+    if (this.lay.editing) return nothing;
+    if (this.offline) {
+      return html`<div class="conn" role="status" data-home-offline><sw-icon name="offline" size=${17}></sw-icon><b>${hs('offline')}</b>${this.isPhone ? nothing : html`<span class="w">${hs('valuesFrom', { t: this.lastOkTime() })}</span>`}
+        <span class="gx"><span class="spin" aria-hidden="true"></span>${this.isPhone ? nothing : html`<span class="w">${hs('reconnecting')}</span>`}<button type="button" class="abtn" data-home-retry @click=${() => { this.live.refreshAll([]); void this.load(); }}>${hs('retry')}</button></span></div>`;
+    }
+    const list = homeAlerts(t, this.isPhone ? 2 : 3).filter((x) => !this.acked.includes(`${x.scope}:${x.id}`));
+    if (!list.length) return nothing;
+    return html`<div class="alerts" role="alert" data-home-alerts=${list.length}>${list.map((x) => {
+      const key = `${x.scope}:${x.id}`;
+      const where = x.scope === 'building' ? '' : x.name;
+      const area = x.scope === 'area' ? t.floors.flatMap((f) => f.areas).find((a) => a.area_id === x.id) : undefined;
+      return html`<div class="al" data-home-alert=${key}><sw-icon name="shield" size=${17}></sw-icon><b>${hs('alarmTriggered')}</b>${where ? html`<span class="w">${bidi(where)}</span>` : nothing}
+        <span class="gx">${this.isPhone
+          ? nothing
+          : area
+            ? html`<button type="button" class="abtn" data-alert-open @click=${() => this.openArea(area)}>${hs('openArea')}</button>`
+            : canAnywhere('alarm.view') || !isApi()
+              ? html`<button type="button" class="abtn" data-alert-security @click=${() => (location.hash = '#/security/alarm')}>${hs('toSecurity')}</button>`
+              : nothing}
+          <button type="button" class="abtn" data-alert-ack aria-label=${hs('ack')} @click=${() => (this.acked = [...this.acked, key])}>${hs('ack')}</button></span></div>`;
+    })}</div>`;
+  }
+
+  /** Phone (owner): one floor at a time - the floor switch and the "עץ" button that opens the whole tree in a sheet. */
+  private phoneFloorOf(floors: DeviceFloor[]): DeviceFloor | undefined {
+    return floors.find((f) => f.floor_id === this.selected) ?? floors[0];
+  }
+
+  private renderPhoneFloors(t: DeviceTree) {
+    const floors = this.floorsOf(t);
+    if (!floors.length) return nothing;
+    const cur = this.phoneFloorOf(floors);
+    return html`<div class="pfl" data-phone-floors>
+      <button type="button" class="treebtn" data-phone-tree aria-haspopup="dialog" @click=${() => (this.treeSheet = true)}><sw-icon name="list" size=${16}></sw-icon>${hs('tree')}</button>
+      ${floors.length > 1
+        ? html`<span class="segs" role="group" aria-label=${hs('floorsLabel')}>${floors.map((f) => html`<button type="button" data-phone-floor=${f.floor_id} aria-pressed=${String(f.floor_id === cur?.floor_id)} @click=${() => (this.selected = f.floor_id)}>${bidi(f.name)}</button>`)}</span>`
+        : nothing}
+    </div>`;
+  }
+
+  /** The phone's sheets: the floor tree, and an area opened over the home screen (phone_area = sheet; `full` opens the area's own
+   * full screen - its route - so this draws no sheet then). */
+  private renderSheets(t: DeviceTree) {
+    if (!this.isPhone) return nothing;
+    if (this.treeSheet) {
+      return html`<div class="scrim" @click=${() => (this.treeSheet = false)}></div>
+        <div class="hsheet" role="dialog" aria-modal="true" aria-label=${hs('treeTitle')} data-tree-sheet
+          @click=${(e: Event) => { if ((e.composedPath() as Element[]).some((n) => n instanceof HTMLElement && n.dataset?.treeSelect !== undefined)) this.treeSheet = false; }}>
+          <div class="grab" aria-hidden="true"></div>
+          <div class="sh"><b>${hs('treeTitle')}</b><button type="button" class="x" aria-label=${hs('close')} @click=${() => (this.treeSheet = false)}><sw-icon name="close" size=${15}></sw-icon></button></div>
+          ${this.renderTreePanel(t)}
+        </div>`;
+    }
+    const a = this.sheetArea;
+    if (!a) return nothing;
+    const full = this.screen.phone_area === 'full';
+    return html`${full ? nothing : html`<div class="scrim" @click=${() => (this.sheetArea = null)}></div>`}
+      <div class=${classMap({ hsheet: true, full })} role="dialog" aria-modal="true" aria-label=${a.name} data-area-sheet=${a.id} data-area-sheet-mode=${full ? 'full' : 'sheet'}>
+        ${full ? nothing : html`<div class="grab" aria-hidden="true"></div>`}
+        <div class="sh"><b>${bidi(a.name)}</b><button type="button" class="x" data-area-sheet-close aria-label=${hs('close')} @click=${() => (this.sheetArea = null)}><sw-icon name="close" size=${15}></sw-icon></button></div>
+        <devices-area .areaId=${a.id}></devices-area>
+      </div>`;
+  }
+
   private renderTile(a: DeviceArea, unassigned = false) {
     const c = a.counts;
     const pills = this.pillsShown(c);
-    const on = anythingOn(c);
+    const on = anythingOn(c) && !this.offline;
     const bulk = !unassigned && this.bulkAllowed && a.can_bulk === true;
     const it = this.lay.item(`area:${a.area_id}`); // CR-007 6b: the layout's own title and icon
     const bubble = this.skin.bubble;
-    return html`<div class=${classMap({ 'tile-wrap': true, bulk })} data-lay-key=${`area:${a.area_id}`}><a
+    // HOME-295: the area's quick actions on the bottom line (its own choice, home.screen.area_quick), the room temperature in the head
+    // (tile_climate), the alarm colours the tile, and with no connection the last values are grey with their time
+    const quick = unassigned ? nothing : this.renderQuick(a, tileQuickMax(window.innerWidth), false);
+    const bad = !unassigned && a.counts.alarm === 'triggered';
+    const temp = !unassigned && showRoomTemp(a, this.screen.tile_climate) ? html`<span class="tmp" data-area-temp>${ltrNum(`${(a.temperature as number).toFixed(1)}°`)}</span>` : nothing;
+    const sub = bad
+      ? html`<div class="sub bad" data-area-alert>${hs('alarmTriggered')}</div>`
+      : this.offline && !unassigned
+        ? html`<div class="sub" data-area-stale>${hs('lastUpdate', { t: this.lastOkTime() })}</div>`
+        : quick !== nothing
+          ? nothing // the quick row carries the counts (the mockup: name, temperature, the actions - no second line of counts)
+          : html`<div class="pills">${this.renderIndicators(a)}</div>`;
+    return html`<div class=${classMap({ 'tile-wrap': true, bulk, 'has-qa': quick !== nothing })} data-lay-key=${`area:${a.area_id}`}><a
       class=${classMap({ tile: true, on, empty: c.entities === 0, unassigned })}
       href=${`#/devices/areas/${encodeURIComponent(a.area_id)}`}
       data-area=${a.area_id}
       data-on=${String(on)}
+      ?data-bad=${bad}
       data-counts=${pills.map((p) => `${p.key}:${p.on === null ? p.total : `${p.on}/${p.total}`}`).join(' ')}
       style=${bubble && !unassigned ? `--h:var(--sw-hue-${hueOf(a.area_id)})${on ? ';--sw-m-tone:var(--sw-lit);--sw-m-on:1' : ''}` : nothing}
       aria-label=${`${a.name} · ${c.entities} התקנים`}
+      @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id, a.name)}
     >
       <div class="tile-head">
         ${bubble ? html`<span class="ring"><sw-icon .name=${it?.icon ?? (unassigned ? 'help' : 'home')} size=${18}></sw-icon></span>` : nothing}
-        <sw-icon .name=${it?.icon ?? (unassigned ? 'help' : 'home')} size=${16}></sw-icon>
+        <sw-icon .name=${bad ? 'warning' : it?.icon ?? (unassigned ? 'help' : 'home')} size=${16}></sw-icon>
         <span class="name">${bidi(titleOf(it, a.name))}</span>
+        ${temp}
         ${on ? html`<span class="dot" title="יש התקן פעיל"></span>` : nothing}
       </div>
-      <div class="pills">${this.renderIndicators(a)}</div>
-    </a>${bulk
+      ${sub}
+    </a>${quick}${bulk
       ? html`<devices-bulk-menu scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" label="פעולות לאזור" data-bulk-area=${a.area_id}></devices-bulk-menu>`
       : nothing}</div>`;
   }

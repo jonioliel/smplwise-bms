@@ -18,8 +18,8 @@ SIZES = {"ui.page_size.schedules": 10, "ui.page_size.schedules_phone": 7, "ui.pa
 
 def test_the_frontend_lists_the_same_values_and_defaults():
     src = FRONT.read_text(encoding="utf-8")
-    assert re.search(r"INFO_STYLES: readonly InfoStyle\[\] = \['bar', 'cards'\]", src)
-    assert re.search(r"INFO_STYLE_DEFAULT: InfoStyle = 'bar'", src)
+    assert re.search(r"INFO_STYLES: readonly InfoStyle\[\] = \['auto', 'bar', 'cards'\]", src)  # HOME-295: auto = by the view
+    assert re.search(r"INFO_STYLE_DEFAULT: InfoStyle = 'auto'", src)
     assert re.search(r"SCHEDULES_VIEWS: readonly SchedulesView\[\] = \['rows', 'cards', 'table', 'week'\]", src)
     assert re.search(r"SCHEDULES_VIEW_DEFAULT: SchedulesView = 'rows'", src)
     assert "schedules: { wide: 10, phone: 7 }, automations: { wide: 12, phone: 9 }" in src
@@ -30,7 +30,7 @@ def test_defaults_round_trip_refusals_and_audit(settings):
     app = create_app(settings)
     with TestClient(app) as c:
         s = c.get("/api/v1/settings").json()["settings"]
-        assert s["home.info_style"] == "bar" and s["ui.schedules_view"] == "rows"
+        assert s["home.info_style"] == "auto" and s["ui.schedules_view"] == "rows"  # HOME-295: auto (cards in the cards view, the bar in tiles)
         for key, value in SIZES.items():
             assert s[key] == value, key  # read back as numbers
         r = c.patch("/api/v1/settings", json={"home.info_style": "cards", "ui.schedules_view": "week", "ui.page_size.schedules": 25, "ui.page_size.automations_phone": 3})

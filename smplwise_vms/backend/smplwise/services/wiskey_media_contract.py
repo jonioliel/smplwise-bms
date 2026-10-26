@@ -195,7 +195,8 @@ def listed(api: dict[str, Any] | None) -> tuple[bool, bool, str | None]:
     if isinstance(min_client, int) and not isinstance(min_client, bool) and min_client > API_CONTRACT:
         return False, False, "api_incompatible"
     commands = api.get("commands")
-    if not isinstance(commands, list):
+    # ASGI-295 F1: the feed projects `commands` as a frozenset (intercom_adapter.project_api); any collection of names is accepted
+    if not isinstance(commands, (list, tuple, set, frozenset)):
         return False, False, "commands_unknown"
     names = {c for c in commands if isinstance(c, str)}
     names |= {c[len(DOMAIN) + 1:] for c in names if c.startswith(DOMAIN + "/")}

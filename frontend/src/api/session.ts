@@ -7,7 +7,7 @@ import { ApiError, apiUrl, get } from './client';
 import { ALL_CAPABILITIES, resolveCapabilities, type Capabilities, type CapabilityName } from './capabilities';
 import type { Me } from './types';
 import { isRemoteChannel } from '../arx/channel';
-import { syncNativeSession } from '../arx/native-app';
+import { syncNativeSession, type NativeSignOutReason } from '../arx/native-app';
 import { setBrandView } from '../design/brand-logo';
 
 export type SessionMode = 'loading' | 'api' | 'demo' | 'unauthenticated' | 'no_access';
@@ -23,11 +23,16 @@ export interface Session {
 const listeners = new Set<(s: Session) => void>();
 export let session: Session = { mode: 'loading', me: null, error: null, capabilities: ALL_CAPABILITIES };
 
-function set(next: Omit<Session, 'capabilities'>) {
+/** SX-10: the native shell's reason for a 401 from the server (the only path that may say `expired`). */
+export function nativeReasonOf401(code: string | undefined): NativeSignOutReason {
+  return code === 'remote_login_required' ? 'expired' : 'unknown'; // remote_session_revoked and the rest: no silent re-exchange
+}
+
+function set(next: Omit<Session, 'capabilities'>, reason: NativeSignOutReason = 'unknown') {
   session = { ...next, capabilities: resolveCapabilities(next.me) };
   // MOBILE214: a hint to the native app (it verifies the identity itself); only a verified, allowed session counts as signed in
   if (next.mode === 'api' && next.me) syncNativeSession(next.me.user.id);
-  else if (next.mode === 'unauthenticated') syncNativeSession(null);
+  else if (next.mode === 'unauthenticated') syncNativeSession(null, undefined, reason);
   listeners.forEach((fn) => fn(session));
 }
 
@@ -43,7 +48,7 @@ export async function loadSession(): Promise<Session> {
     setBrandView(me.brand); // LOGOS-295: the company logo, its size / dark-background mode and the tab title come with /me
     set({ mode: me.has_access ? 'api' : 'no_access', me, error: null });
   } catch (err) {
-    if (err instanceof ApiError && err.status === 401) set({ mode: 'unauthenticated', me: null, error: err.body.user_message });
+    if (err instanceof ApiError && err.status === 401) set({ mode: 'unauthenticated', me: null, error: err.body.user_message }, nativeReasonOf401(err.body.code));
     else if (err instanceof ApiError) set({ mode: 'demo', me: null, error: err.body.user_message });
     else set({ mode: 'demo', me: null, error: null }); // no backend behind this page: static preview
   }

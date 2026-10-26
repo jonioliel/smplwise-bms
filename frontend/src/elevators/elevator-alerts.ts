@@ -3,17 +3,17 @@ import { customElement, state } from 'lit/decorators.js';
 import { describeError } from '../api/client';
 import { getAlertSettings, putAlertSettings, type AlertChannel, type AlertSettings, type AlertSettingsBody, type AlertState, type AlertStateSettings } from '../api/elevators';
 import { listGroups, listUsers, type AccessGroup, type DirectoryUser } from '../api/access';
-import { alertActive, chipOf, recipientChoices, toggled } from './model';
+import { alertActive, chipOf, recipientChoices, toggled, whatsappLocked } from './model';
 import { elevatorCss, stateBadge } from './styles';
 import { elt, type EltKey } from '../i18n/elevators';
 import { elecCss } from '../electricity/styles';
 
-const CHANNEL_KEY: Record<AlertChannel, EltKey> = { push: 'chPush', app: 'chApp' };
+const CHANNEL_KEY: Record<AlertChannel, EltKey> = { push: 'chPush', app: 'chApp', whatsapp: 'chWhatsapp' };
 
 /**
  * הגדרות › תשתיות › מעליות › התראות מעליות (CR-INFRA-ELEVATORS 2.8.0, owner decision 2026-10-18): the master switch "שליחת התראות מעליות" and,
  * per state (fire service / fault / shutdown), its own switch, its recipients - roles, named users, groups (the generator's routing pattern; none
- * chosen = nobody) - and its extra channels (push, phone app; the inbox always; no e-mail / WhatsApp). Everything defaults OFF. Each change is
+ * chosen = nobody) - and its extra channels (push, phone app, WhatsApp; the inbox always; no e-mail). Everything defaults OFF. Each change is
  * saved at once (PUT /infra/elevators/alerts, system.configure, revision-guarded); without that permission the card is read-only.
  */
 @customElement('elevator-alerts')
@@ -100,7 +100,7 @@ export class ElevatorAlerts extends LitElement {
               <div class="opts scroll">${users.map((u) => this.check(u.name || u.username, rec.users.includes(u.id), `${st}:user:${u.id}`, (on) => this.patchState(st, { recipients: { ...rec, users: toggled(rec.users, u.id, on) } }), ro))}</div></div>`
           : rec.users.length ? html`<div class="grp"><span>${elt('recUsers')}</span><div class="opts">${rec.users.map((u) => html`<span>${known.get(u) ?? u}</span>`)}</div></div>` : nothing}
         <div class="grp"><span>${elt('channels')}</span><div class="opts"><label class="row"><input type="checkbox" checked disabled /> ${elt('chInbox')}</label>
-          ${s.channels.map((c) => this.check(elt(CHANNEL_KEY[c]), cfg.channels.includes(c), `${st}:channel:${c}`, (on) => this.patchState(st, { channels: toggled(cfg.channels, c, on) }), ro))}</div>
+          ${s.channels.map((c) => this.check(elt(CHANNEL_KEY[c]), cfg.channels.includes(c), `${st}:channel:${c}`, (on) => this.patchState(st, { channels: toggled(cfg.channels, c, on) }), ro || whatsappLocked(s, cfg, c)))}</div>
           <span class="mut">${elt('chNote')}</span></div>
       </div>
     </div>`;

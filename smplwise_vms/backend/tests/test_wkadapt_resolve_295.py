@@ -152,9 +152,14 @@ def test_error_envelopes_and_malformed_frames_are_unknown(bad):
         assert v.code == f"error:{bad['error']['code']}", "a refusal (e.g. original_reference_mismatch) is UNKNOWN, never not-committed"
 
 
-def test_the_old_draft_contract_is_not_the_resolve_contract():
-    """The historical verifier targeted signed_person_writes/status: a real resolve result is never accepted by it."""
-    assert wp.RECEIPT_COMMAND != wp.RESOLVE_COMMAND and wi.PROPOSED_CREATE_COMMAND != wi.RESOLVE_COMMAND == wp.RESOLVE_COMMAND
+def test_the_old_draft_contracts_are_gone_and_resolve_is_the_only_receipt_read():
+    """PERSONWRITES-CLEANUP-295 (W-026): the never-shipped draft1 reads (signed_person_writes/status, person_writes/resolve_create)
+    were removed; peer_receipts/resolve is the one receipt read and never answers never_committed."""
+    for gone in ("RECEIPT_COMMAND", "RECEIPT_PROTOCOL", "verify_receipt", "ReceiptExpectation", "OneCommitLedger", "FenceContext"):
+        assert not hasattr(wp, gone), gone
+    for gone in ("PROPOSED_CREATE_COMMAND", "CREATE_PROTOCOL", "verify_create_resolution", "settle_create", "CreateExpectation"):
+        assert not hasattr(wi, gone), gone
+    assert wi.RESOLVE_COMMAND == wp.RESOLVE_COMMAND == "hikvision_intercom/peer_receipts/resolve"
     assert "never_committed" not in {wp.verify_resolution(found()).state}
 
 

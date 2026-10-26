@@ -133,6 +133,10 @@ class DirectEmergencyEngine:
     simulated = False
     open_supported = True  # hold_open / release exist in v2; `lock_secure` does not
     transport_timeout_s = 6.0  # < door_emergency.ENGINE_DEADLINE_S (8 s)
+    # WKR5-295 unit E: every call after an UNKNOWN attempt is a NEW attempt (new Request + operation, retry_of, same event fence); a live
+    # attempt answers `attempt_live` and sends nothing; a durable release wins. door_emergency.v2_new_attempts reads this flag to let
+    # the dispatcher's bounded OPEN retry run through this engine (owner approval, hand-off R5 unit E).
+    new_request_per_attempt = True
 
     def __init__(self, adapters: FeatureAdapters, connect: Connect, context: ContextResolver = incident_context, *,
                  clock: Callable[[], datetime] | None = None, sleep: Callable[[float], None] = time.sleep, polls: int = 6, poll_gap_s: float = 0.5) -> None:

@@ -9,19 +9,26 @@ import {
   bulkSettings,
   cancelJob,
   confirmJob,
+  confirmVerified,
   dryRun,
   exportPeopleCsv,
   idempotencyKey,
   setBulkEnabled,
+  setWiskeyCsvEnabled,
   stageEdit,
   stageImport,
   templateCsv,
+  verifiedResult,
+  verifyImport,
   type BulkJob,
   type BulkSettings,
+  type CsvOperation,
   type DryRunRow,
+  type VerifiedPreview,
 } from '../api/bulk-people';
+import { blockerKey, canConfirm, expiryText, pageCount, pageOf, resultWords, shouldPoll, verifyMode, POLL_MS } from '../access-control/people-csv-verify-logic';
 import { attention, codesText, editRequest, EMPTY_EDIT, precheckFile, previewCounts, shouldContinue, stepOf, valueText, type EditForm } from '../access-control/bulk-people-logic';
-import { bt, btDynamic } from '../i18n/bulk-people';
+import { bt, btDynamic, btLang } from '../i18n/bulk-people';
 import { dateInputLang } from '../api/day-format';
 
 export interface BulkStation {
@@ -54,6 +61,12 @@ export class SwBulkPeopleDialog extends LitElement {
   @state() private form: EditForm = { ...EMPTY_EDIT };
   @state() private addStation = '';
   @state() private addRelays: number[] = [1];
+  // WKR5ADOPT-295: the verified preview (the file stays in memory here only to be shown to the server again; it is never stored)
+  private file: File | null = null;
+  @state() private vp: VerifiedPreview | null = null;
+  @state() private op: CsvOperation | null = null;
+  @state() private vpage = 0;
+  @state() private vtyped = '';
 
   static styles = css`
     :host {
@@ -147,6 +160,26 @@ export class SwBulkPeopleDialog extends LitElement {
     progress {
       inline-size: 100%;
     }
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .vlist {
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+    }
+    .vrow {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 10px;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .vrow:last-child {
+      border-block-end: 0;
+    }
   `;
 
   protected updated(changed: Map<string, unknown>): void {
@@ -159,6 +192,11 @@ export class SwBulkPeopleDialog extends LitElement {
     this.error = '';
     this.note = '';
     this.typed = '';
+    this.file = null;
+    this.vp = null;
+    this.op = null;
+    this.vpage = 0;
+    this.vtyped = '';
     this.form = { ...EMPTY_EDIT };
     try {
       this.settings = await bulkSettings();
@@ -210,7 +248,51 @@ export class SwBulkPeopleDialog extends LitElement {
       return;
     }
     const out = await this.run(() => stageImport(file, idempotencyKey()));
-    if (out) this.job = out.job;
+    if (out) {
+      this.job = out.job;
+      this.file = file;
+    }
+  }
+
+  // ---- WKR5ADOPT-295 (W-006): WisKey's verified preview -> the typed count -> start -> the completion read. Every refusal is the server's.
+  private async verify(): Promise<void> {
+    if (!this.job || !this.file) return;
+    const file = this.file;
+    const out = await this.run(() => verifyImport(this.job!.id, file));
+    if (out) {
+      this.job = out.job;
+      this.vp = out.preview;
+      this.vpage = 0;
+      this.vtyped = '';
+    }
+  }
+
+  private async confirmVerifiedStep(): Promise<void> {
+    if (!this.job || !this.vp || !canConfirm(this.vp, this.vtyped, Date.now())) return;
+    const id = this.job.id;
+    const out = await this.run(() => confirmVerified(id, this.vp!.preview_digest, this.vtyped));
+    if (!out) return;
+    this.op = out.operation;
+    this.vp = null;
+    this.vtyped = '';
+    await this.pollResult(id);
+  }
+
+  private async pollResult(id: string): Promise<void> {
+    let polls = 0;
+    while (this.open && shouldPoll(this.op, polls)) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+      polls += 1;
+      const out = await this.run(() => verifiedResult(id));
+      if (!out) return;
+      this.op = out.operation;
+    }
+    if (this.op?.state === 'finished') this.dispatchEvent(new CustomEvent('changed', { bubbles: true, composed: true }));
+  }
+
+  private async enableVerify(): Promise<void> {
+    const out = await this.run(() => setWiskeyCsvEnabled('on'));
+    if (out && this.settings) this.settings = { ...this.settings, wiskey_csv: out };
   }
 
   private async stageEdit(): Promise<void> {
@@ -257,6 +339,9 @@ export class SwBulkPeopleDialog extends LitElement {
     const out = await this.run(() => cancelJob(this.job!.id));
     if (out) this.job = null;
     this.rows = [];
+    this.vp = null;
+    this.op = null;
+    this.file = null;
   }
 
   private async exportFile(): Promise<void> {
@@ -307,7 +392,8 @@ export class SwBulkPeopleDialog extends LitElement {
           <sw-button variant="ghost" icon="download" data-bulk-template ?disabled=${this.busy} @click=${() => void this.template()}>${bt('template')}</sw-button>
           <label class="file"><span>${bt('choose_file')}</span><input type="file" accept=".csv,text/csv" data-bulk-file ?disabled=${this.busy} @change=${(e: Event) => void this.onFile(e)}></label>
         </div>
-        <div class="muted">${bt('file_hint', { rows: s.limits.max_rows, kb: Math.round(s.limits.max_file_bytes / 1024) })}</div>` : nothing}
+        <div class="muted">${bt('file_hint', { rows: s.limits.max_rows, kb: Math.round(s.limits.max_file_bytes / 1024) })}</div>
+        ${s.system_admin && s.wiskey_csv && s.wiskey_csv.enabled !== 'on' ? html`<div class="actions"><sw-button variant="ghost" data-verify-enable ?disabled=${this.busy} @click=${() => void this.enableVerify()}>${bt('v_enable')}</sw-button></div>` : nothing}` : nothing}
       ${this.busy ? html`<div class="muted" role="status">${bt('uploading')}</div>` : nothing}`;
   }
 
@@ -318,8 +404,7 @@ export class SwBulkPeopleDialog extends LitElement {
       return html`<strong>${bt('report_title')}</strong>
         <div class="chips" data-bulk-report><span class="chip">${bt('report_ok', { n: job.counts.ok })}</span><span class="chip">${bt('report_skip', { n: job.counts.skip })}</span><span class="chip">${bt('report_error', { n: job.counts.error })}</span></div>
         ${bad.length ? html`<div class="rows">${bad.map((e) => html`<div class="row" data-bulk-row=${e.row}><span>${bt('row', { n: e.row })}</span><span>${codesText(e)}</span></div>`)}</div>` : nothing}
-        <div class="actions"><sw-button variant="primary" data-bulk-dry ?disabled=${this.busy || job.counts.ok === 0} @click=${() => void this.preview()}>${bt('dry_run')}</sw-button>
-          <sw-button variant="ghost" ?disabled=${this.busy} @click=${() => void this.cancel()}>${bt('cancel')}</sw-button></div>`;
+        ${this.verifySection(job)}`;
     }
     if (step === 'preview') {
       const c = previewCounts(this.rows);
@@ -352,6 +437,57 @@ export class SwBulkPeopleDialog extends LitElement {
         ${step === 'apply' ? html`<div class="actions"><sw-button variant="primary" icon="play" data-bulk-apply ?disabled=${this.busy || !job.go_live_permitted} @click=${() => void this.apply()}>${job.state === 'confirmed' ? bt('apply') : bt('resume')}</sw-button></div>` : nothing}`;
     }
     return html`<div class="muted">${bt('code_generic')}</div>`;
+  }
+
+  private verifySection(job: BulkJob): TemplateResult {
+    const mode = verifyMode(this.settings);
+    const cancel = html`<sw-button variant="ghost" ?disabled=${this.busy} @click=${() => void this.cancel()}>${bt('cancel')}</sw-button>`;
+    if (this.op) return this.resultView(this.op);
+    if (mode === 'off') {
+      return html`<div class="actions"><sw-button variant="primary" data-bulk-dry ?disabled=${this.busy || job.counts.ok === 0} @click=${() => void this.preview()}>${bt('dry_run')}</sw-button>${cancel}</div>`;
+    }
+    if (mode === 'blocked') {
+      return html`<div class="chips" data-verify-blockers>${(this.settings?.wiskey_csv?.blockers ?? []).map((c) => html`<span class="chip">${bt(blockerKey(c))}</span>`)}</div><div class="actions">${cancel}</div>`;
+    }
+    const vp = this.vp;
+    if (!vp) {
+      return html`<strong>${bt('v_title')}</strong>
+        <div class="actions"><sw-button variant="primary" data-verify-run ?disabled=${this.busy || job.counts.ok === 0 || !this.file} @click=${() => void this.verify()}>${this.busy ? bt('v_running') : bt('v_btn')}</sw-button>${cancel}</div>`;
+    }
+    const pages = pageCount(vp.rows.length);
+    const at = Math.min(this.vpage, pages - 1);
+    return html`<strong>${bt('v_title')}</strong>
+      <div class="chips" data-verify-preview>
+        <span class="chip">${bt('v_will_write', { n: vp.writes })}</span><span class="chip">${bt('unchanged', { n: vp.skipped })}</span><span class="chip">${bt('errors', { n: vp.errors })}</span>
+        <span class="chip">${bt('v_expires', { t: expiryText(vp.expires_at, btLang()) })}</span></div>
+      <div class="vlist">${pageOf(vp.rows, at).map((r) => html`<div class="vrow" data-verify-row=${r.source_line}><span>${bt('v_line', { n: r.source_line })}</span><span>${r.op === 'create' ? bt('v_op_create') : bt('v_op_update')}</span></div>`)}</div>
+      ${pages > 1 ? html`<div class="pager"><sw-button variant="ghost" data-verify-prev ?disabled=${at === 0} @click=${() => (this.vpage = at - 1)}>${bt('v_prev')}</sw-button>
+        <span class="muted">${bt('v_page', { a: at + 1, b: pages })}</span><sw-button variant="ghost" data-verify-next ?disabled=${at >= pages - 1} @click=${() => (this.vpage = at + 1)}>${bt('v_next')}</sw-button></div>` : nothing}
+      ${vp.writes === 0 ? html`<div class="line" data-verify-none><span>${bt('v_none')}</span></div>`
+        : this.settings?.system_admin
+          ? html`<div>${bt('confirm_text', { n: vp.writes })}</div>
+            <div class="actions"><label><span class="muted">${bt('confirm_label')}</span><input inputmode="numeric" data-verify-typed .value=${this.vtyped} @input=${(e: Event) => (this.vtyped = (e.target as HTMLInputElement).value)}></label>
+              <sw-button variant="primary" data-verify-confirm ?disabled=${this.busy || !canConfirm(vp, this.vtyped, Date.now())} @click=${() => void this.confirmVerifiedStep()}>${bt('v_confirm_btn')}</sw-button></div>`
+          : html`<div class="line" data-verify-admin-only><sw-icon name="clock" size=${16}></sw-icon><span>${bt('v_admin_only')}</span></div>`}
+      <div class="actions"><sw-button variant="ghost" data-verify-again ?disabled=${this.busy} @click=${() => void this.verify()}>${bt('v_btn')}</sw-button>${cancel}</div>`;
+  }
+
+  private resultView(op: CsvOperation): TemplateResult {
+    const w = resultWords(op);
+    return html`<strong>${bt('v_sent')}</strong>
+      <div class="line ${op.state === 'unknown' ? 'warn' : ''}" role="status" data-verify-result=${op.state}><span>${bt(w.key, w.n === undefined ? undefined : { n: w.n })}</span></div>
+      ${op.state === 'running' || op.state === 'unknown'
+        ? html`<div class="actions"><sw-button variant="ghost" data-verify-check ?disabled=${this.busy} @click=${() => void this.recheck()}>${bt('v_check')}</sw-button></div>` : nothing}`;
+  }
+
+  private async recheck(): Promise<void> {
+    if (!this.job) return;
+    const id = this.job.id;
+    const out = await this.run(() => verifiedResult(id));
+    if (out) {
+      this.op = out.operation;
+      await this.pollResult(id);
+    }
   }
 
   private previewRow(r: DryRunRow): TemplateResult {

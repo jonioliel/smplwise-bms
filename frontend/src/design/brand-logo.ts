@@ -80,7 +80,7 @@ export const EMPTY_BRAND: BrandLogoState = {
   size: 'm',
   logoSide: 'start',
   companySize: 'same',
-  darkMode: 'plate',
+  darkMode: 'invert', // HOME-295 (owner answers round 2, item 12): invert by default; plate / dark file selectable
   titlePrefix: TITLE_PREFIX_DEFAULT,
   titleMode: 'both',
   projectName: '',

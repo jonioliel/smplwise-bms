@@ -123,7 +123,7 @@ function hebDate(): string {
 function logos(dark: boolean): { co: string; sw: string } {
   const b = feed?.board.brand;
   const name = esc(b?.name || feed?.board.building || '');
-  const pick = hasCompany() ? chooseCompanyLogo({ light: companySrc.light || null, dark: companySrc.dark || null }, b?.dark_mode ?? 'plate', dark) : null;
+  const pick = hasCompany() ? chooseCompanyLogo({ light: companySrc.light || null, dark: companySrc.dark || null }, b?.dark_mode ?? 'invert', dark) : null;
   const co = pick
     ? '<div class="lg company" data-tr="' + pick.treatment + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></div>'
     : '<div class="lg company"><svg viewBox="0 0 280 64" aria-hidden="true"></svg></div>';

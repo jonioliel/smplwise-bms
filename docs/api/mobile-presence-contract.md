@@ -380,3 +380,71 @@ option change, not an app update. The app uses the relay of the server it is reg
 Error `user_message`s are Hebrew and short (e.g. "רישום המכשיר אינו תקף. יש לרשום את המכשיר מחדש.", "יש לאשר את ההודעה
 לעובדים לפני שליחת נתונים.", "החיישן הזה אינו מאושר בשרת."); the sensor names of `sensors.catalog` are the server's
 Hebrew names - the app's own String Catalog wins on the phone.
+
+## 10. Session exchange - Arx-side additions for contract v2.2 (SXFIX-295, additive)
+
+The session exchange itself (`POST auth/app/session`, the WebView's `GET auth/app/session/redeem`, the one-time code, the 303) is
+specified in `docs/changes/APPREFRESH-SESSION-EXCHANGE-SPEC.md` revision 3 and the client contract delta handed to the app teams on
+2026-10-24. Nothing there changes: the switch `security.app_session_exchange` stays **off** by default, and the client's boundary
+is origin / port / prefix, an exact landing on `<remote_path>/` and one HTTP redirect (the 303 itself is proven only in the
+supervised run, owner decision 2026-10-25). This section adds four things the app teams were promised.
+
+### 10.1 `signedOut({reason})` from the web app (SX-09 / SX-10)
+
+The page calls `ArxApp.signedOut({ reason })` (previously `signedOut()` without an argument), from the top-level page only, once
+per change of the signed-in state. `reason` is one of a **closed** list:
+
+| `reason` | When the page sends it | What the shell does |
+|---|---|---|
+| `user` | the user's own sign-out, only after `DELETE /auth/session` answered 2xx or 401 | cancel pending work, suppress the silent re-exchange; if the saved sign-in is still live, end it with `POST /auth/app/sign-out` |
+| `expired` | the server answered `401 remote_login_required` and no sign-out was in progress | the single silent recovery of the budget (refresh if needed, exchange, redeem) |
+| `unknown` | every other cause: `401 remote_session_revoked`, the remote-access policy, the page's idle lock, a sign-out request that failed or got no answer | no silent recovery |
+
+Rules: the list is fixed by the shells - the page never sends another value, and it always sends a `reason`. A shell treats a
+missing argument (an older web app) as `unknown`. While a sign-out is in flight the page sends nothing, so a background 401 can never
+arrive as `expired` before the user's `user`. A shell whose bridge function takes no argument keeps working: the page retries the
+call without the argument if the call with one throws. Source: `frontend/src/arx/native-app.ts` (`NativeSignOutReason`).
+
+### 10.2 `X-Correlation-Id` (SX-17)
+
+The server accepts a client's `X-Correlation-Id` only when it is **one** header value of **8-64 characters from
+`[A-Za-z0-9_-]`** (the apps send 12-32 hex characters on every exchange POST and on the redeem navigation). Any other value - too
+short or too long, another character, or the header sent twice - is ignored and the server uses its own id (12 lowercase hex).
+The server's id is what comes back in the `X-Correlation-Id` response header and in `correlation_id` of an error body, and what the
+audit rows carry as `request_id`; a refused client value is never echoed, logged or stored. An app that wants to find its request
+in the server audit compares the id it **received**, not the one it sent. Exception: an answer the remote channel gives before the
+application runs (`403 csrf_refused`, the `404` of a path the channel blocks) carries `correlation_id: ""` and no header.
+
+### 10.3 Official JSON fixtures (SX-25)
+
+`contracts/fixtures/app_session/` holds one file per case (`index.json` lists them with status, error code and landing URL, plus the
+placeholder legend): the exchange's `200`, `404 not_found`, `401 app_access_invalid`, `401 app_refresh_proof_retry` (`nonce` and
+`clock`), `401 app_refresh_invalid`, `401 app_refresh_expired`, `403 app_session_key_required`, `403 remote_mfa_required`,
+`422 validation`, `429 rate_limited`, `403 csrf_refused`; the redeem's `303` to `<remote_path>/` (with the `Set-Cookie` shape), `303`
+to `?app_session=failed` (refused, cross-site, and without the app marker), and `404`. Not covered by a file: `403 second_factor_enrollment_required` (same
+envelope as `remote_mfa_required`). The files are produced from the real routes by
+`smplwise_vms/backend/tests/test_app_session_fixtures_sx25.py`, which fails whenever the code and the files drift; credentials
+and per-run values are placeholders. They are **FIXTURES**: a passing client test against them proves the client's parsing, not
+the server, a device or an activation. `user_message` and `details.errors` are for people, never for program logic.
+
+### 10.4 Cross-site redeem refusal in the audit (SX-27)
+
+A redeem navigation with `Sec-Fetch-Site: cross-site` or `same-site` is still answered `303 <remote_path>/?app_session=failed`
+without a cookie, and the code is still **not** spent (the app's own navigation can redeem it). New: the refusal is audited as
+`auth.app_session.redeem`, decision `denied`, reason `cross_site`, `request_id` = the correlation id, details
+`{family, sec_fetch_site, code_known: true}` for a code the server issued (attributed to its user and device), or
+`{sec_fetch_site, code_known: false}` against the installation otherwise. The row never carries the code or its hash. In the
+supervised run this is how a WebView that sends the wrong `Sec-Fetch-Site` is told apart from every other refusal.
+
+### 10.5 Security review X4 (2026-10-25) - what the server now requires and records
+
+- **The redeem navigation MUST carry `X-Correlation-Id`: exactly one value of 12-32 hex characters** (Android
+  `loadUrl(redeemUrl, mapOf("X-Correlation-Id" to id))`, iOS a `URLRequest` with the header). A link opened from SMS, mail or another
+  app cannot carry a header, so a redeem without it is refused (`303 ?app_session=failed`, audited `marker_missing`) and the code is
+  spent (fixture `redeem_without_marker.json`). This was already the contract's instruction (SX-25); it is now enforced.
+- A redeem from a browser that already holds **another user's** live Arx session is refused (`303 ?app_session=failed`, audited
+  `session_present`, the code spent); that session is left untouched. The same user's live web session is replaced as before.
+- A WebView session made by the exchange cannot register a device: `POST presence/devices` answers `403 sign_in_not_anchorable`
+  (audited). The app registers after a full sign-in, as SX-07 says.
+- Unknown and lapsed codes are audited (`code_unknown`, `code_expired`); every `auth.app_session.*` row of the exchange and the
+  redeem carries the masked client address (`ip`), never a code, a token or a hash of either.

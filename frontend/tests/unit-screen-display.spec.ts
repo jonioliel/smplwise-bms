@@ -7,8 +7,8 @@ import { PL_KEYS, PL_TABLES, pl } from '../src/i18n/polish';
 
 test('the defaults are the approved ones: the thin bar, rows, 10 / 7 schedules and 12 / 9 automations a page', () => {
   const d = screenDisplayOf(null);
-  expect(d.infoStyle).toBe('bar');
-  expect(INFO_STYLE_DEFAULT).toBe('bar');
+  expect(d.infoStyle).toBe('auto'); // HOME-295 (owner answers round 2): cards in the cards view, the bar in tiles
+  expect(INFO_STYLE_DEFAULT).toBe('auto');
   expect(d.schedulesView).toBe('rows');
   expect(SCHEDULES_VIEW_DEFAULT).toBe('rows');
   expect(d.pageSize).toEqual({ schedules: { wide: 10, phone: 7 }, automations: { wide: 12, phone: 9 } });
@@ -24,7 +24,7 @@ test('what the server sent is read tolerantly: a foreign or out-of-range value t
   expect(d.pageSize.schedules).toEqual({ wide: 25, phone: 5 });
   expect(d.pageSize.automations).toEqual({ wide: 12, phone: 9 });
   const bad = screenDisplayOf({ 'home.info_style': 'chips', 'ui.schedules_view': 'grid', 'ui.page_size.schedules': 'ten', 'ui.page_size.schedules_phone': 7.5 });
-  expect(bad.infoStyle).toBe('bar');
+  expect(bad.infoStyle).toBe('auto');
   expect(bad.schedulesView).toBe('rows');
   expect(bad.pageSize.schedules).toEqual({ wide: 10, phone: 7 });
 });

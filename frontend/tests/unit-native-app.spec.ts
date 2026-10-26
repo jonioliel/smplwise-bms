@@ -2,9 +2,14 @@ import { test, expect } from '@playwright/test';
 import {
   hasCapability,
   hasFunction,
+  holdNativeSession,
+  NATIVE_SIGN_OUT_REASONS,
   nativeBridge,
+  nativeSignOutReason,
   normalizeDeviceStatus,
+  notifyNativeSignedOut,
   readDeviceStatus,
+  releaseNativeSession,
   resetNativeSessionForTests,
   syncNativeSession,
 } from '../src/arx/native-app';
@@ -75,6 +80,51 @@ test('signedIn and signedOut are sent once per change, with the user id as a hin
   syncNativeSession(null, w);
   syncNativeSession(null, w);
   expect(calls).toEqual(['in:u1', 'in:u2', 'out']);
+});
+
+test('SX-09: signedOut carries a reason from the closed vocabulary; anything else is unknown', () => {
+  const got: unknown[] = [];
+  const w = top({ platform: 'android', signedIn: () => undefined, signedOut: (...a: unknown[]) => got.push(a) });
+  syncNativeSession('u1', w);
+  syncNativeSession(null, w, 'expired');
+  syncNativeSession('u1', w);
+  syncNativeSession(null, w); // no reason given: unknown
+  syncNativeSession('u1', w);
+  syncNativeSession(null, w, 'weird' as never);
+  expect(got).toEqual([[{ reason: 'expired' }], [{ reason: 'unknown' }], [{ reason: 'unknown' }]]);
+  expect(NATIVE_SIGN_OUT_REASONS).toEqual(['user', 'expired', 'unknown']); // fixed by the shells: nothing else is ever sent
+  for (const r of NATIVE_SIGN_OUT_REASONS) expect(nativeSignOutReason(r)).toBe(r);
+  for (const bad of ['', 'USER', 'revoked', 'idle', 'device_removed', null, undefined, 1, {}]) expect(nativeSignOutReason(bad)).toBe('unknown');
+});
+
+test('SX-09: a shell that takes no argument still works (an extra argument is ignored; a strict-arity bridge gets the old call)', () => {
+  let plain = 0;
+  syncNativeSession(null, top({ platform: 'ios', signedOut: () => void plain++ }), 'user');
+  expect(plain).toBe(1);
+  resetNativeSessionForTests();
+  const arity: unknown[][] = [];
+  const strict = top({
+    platform: 'android',
+    signedOut: (...a: unknown[]) => {
+      if (a.length) throw new Error('Method not found');
+      arity.push(a);
+    },
+  });
+  syncNativeSession(null, strict, 'user');
+  expect(arity).toEqual([[]]);
+});
+
+test('SX-09: while a sign-out is held nothing reaches the shell; the release sends its own reason once', () => {
+  const got: unknown[] = [];
+  const w = top({ platform: 'ios', signedIn: () => undefined, signedOut: (a: unknown) => got.push(a) });
+  syncNativeSession('u1', w);
+  holdNativeSession();
+  syncNativeSession(null, w, 'expired'); // a background 401 during the user's sign-out
+  notifyNativeSignedOut('expired', w);
+  expect(got).toEqual([]);
+  releaseNativeSession('user', w);
+  notifyNativeSignedOut('expired', w); // the reload path afterwards: already told
+  expect(got).toEqual([{ reason: 'user' }]);
 });
 
 test('a shell without the functions, a frame, or a throwing shell causes no error and no call', () => {

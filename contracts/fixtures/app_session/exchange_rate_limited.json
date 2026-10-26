@@ -1,0 +1,39 @@
+{
+  "description": "429 rate_limited: more than 5 in a burst / 30 per hour per saved sign-in - wait details.retry_after_s; never in parallel.",
+  "name": "exchange_rate_limited",
+  "request": {
+    "body": {
+      "device_id": "<DEVICE_ID>",
+      "install_id": "<INSTALL_ID>",
+      "proof": {
+        "nonce": "<NONCE>",
+        "sig": "<SIGNATURE>",
+        "ts": "<UNIX_SECONDS>"
+      }
+    },
+    "headers": {
+      "Authorization": "Bearer <ACCESS_TOKEN>",
+      "Content-Type": "application/json",
+      "X-Correlation-Id": "0123456789abcdef0123456789abcdef"
+    },
+    "method": "POST",
+    "path": "/arx/api/v1/auth/app/session"
+  },
+  "response": {
+    "body": {
+      "code": "rate_limited",
+      "correlation_id": "0123456789abcdef0123456789abcdef",
+      "details": {
+        "retry_after_s": 60
+      },
+      "retryable": true,
+      "user_message": "יותר מדי ניסיונות. נסו שוב בעוד דקה."
+    },
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json",
+      "x-correlation-id": "0123456789abcdef0123456789abcdef"
+    },
+    "status": 429
+  }
+}

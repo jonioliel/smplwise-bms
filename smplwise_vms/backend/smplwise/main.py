@@ -7,7 +7,6 @@ import logging
 import os
 import mimetypes
 import threading
-import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -16,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import __version__
+from . import __version__, correlation_id
 from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
@@ -296,6 +295,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         intercom_consent.tick(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("intercom consent janitor failed", exc_info=True)
+    try:  # WKR5-295: the WisKey people-write lineage keeps ENDED operations 30 days (open unknowns never purged); hourly inside; no-op uninstalled
+        from .services import wiskey_direct_join
+
+        wiskey_direct_join.janitor()
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("wiskey lineage janitor failed", exc_info=True)
     try:  # CR-038 S5b: the ticket outbox (90 days) and inbound (30 days) retention, hourly inside
         from .services.tickets.messaging import RUNTIME as tickets_messaging
 
@@ -460,7 +465,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.middleware("http")
     async def correlation(request: Request, call_next):
-        request.state.correlation_id = request.headers.get("x-correlation-id") or uuid.uuid4().hex[:12]
+        # SX-17: a client id is used only when it is one well-formed value (8-64 of [A-Za-z0-9_-]); never reflected otherwise
+        request.state.correlation_id = correlation_id.resolve(request.headers.getlist(correlation_id.HEADER))
         response = await call_next(request)
         response.headers["X-Correlation-Id"] = request.state.correlation_id
         return response
@@ -519,6 +525,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_control_writes  # CR-036 S11: the person writes added to the editor's (its own line, like S4's)
 
     app.include_router(access_control_writes.router, prefix=api, tags=["access-control"])
+    from .routers import wiskey_lineage as wiskey_lineage_router  # WKR5-295: the WisKey people-write lineage administration (its own line)
+
+    app.include_router(wiskey_lineage_router.router, prefix=api, tags=["access-control"])
     from .routers import access_control_messaging  # CR-036 WA: WhatsApp from the people screen (its own file and its own line)
 
     app.include_router(access_control_messaging.router, prefix=api, tags=["access-control"])
@@ -1041,10 +1050,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         await _stop_in_thread(tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
         await _stop_in_thread(tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
-        for name in ("janitor", "remote_revalidation", "backup_drill_task", "bridge_rotation_task", "fleet_report_task", "partner_webhooks_task"):
+        # ASGI-295 F2: the daily backup loop is cancelled too, and every cancelled task is awaited (bounded; their own errors are not raised)
+        stopping = []
+        for name in ("janitor", "remote_revalidation", "backup_drill_task", "bridge_rotation_task", "fleet_report_task", "partner_webhooks_task",
+                     "backup_task"):
             task = getattr(app.state, name, None)
-            if task:
+            if task and not task.done():
                 task.cancel()
+                stopping.append(task)
+        if stopping:
+            await asyncio.wait(stopping, timeout=5)
         try:  # SEC3 (review L4): the last sign-in counters reach the database before the process ends
             from .services import ha_user_auth as hua_svc
 

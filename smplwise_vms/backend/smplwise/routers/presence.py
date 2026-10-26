@@ -35,6 +35,7 @@ REPORT = "presence.report"
 VIEW = "presence.sensors.view"
 PEOPLE_VIEW = people_svc.VIEW  # WHOIN034-295: "who is in the building" (sensitive, system_admin by default)
 CONFIGURE = "system.configure"
+REGISTER_NEEDS_SIGN_IN_HE = "רישום המכשיר דורש כניסה מלאה באפליקציה."
 
 
 def _rid(request: Request) -> str | None:
@@ -175,7 +176,16 @@ class BreakGlassIn(BaseModel):
 def register_device(body: RegisterIn, request: Request, response: Response, caller: Caller = Depends(session_caller)) -> dict[str, Any]:
     """Register this phone for the signed-in user (presence.report, any scope): 201 with the device token shown ONCE; 200 when the
     same install registers again (the token is rotated). The name is unique among the user's devices (409 `device_name_taken`
-    with a suggestion)."""
+    with a suggestion). X4 F-2: never from an app WebView session made by the session exchange - a device token would outlive that
+    session and its saved sign-in; the app registers after a full sign-in (SX-07)."""
+    from ..services import app_session as xs
+    from ..services import ha_user_auth as hua
+
+    if xs.is_app_session(hua.session_of(request)):
+        with _db(request).connection(label="presence.register") as conn:
+            audit(conn, actor=caller.principal, action="presence.device.register", decision="denied", resource_type="mobile_device",
+                  reason="sign_in_not_anchorable", request_id=_rid(request), details={"anchor": "web_session"})
+        raise ApiError(403, "sign_in_not_anchorable", REGISTER_NEEDS_SIGN_IN_HE)
     with _db(request).connection(label="presence.register") as conn:
         touch_user(conn, caller.principal)
         _require_anywhere(conn, caller.principal, REPORT, request)

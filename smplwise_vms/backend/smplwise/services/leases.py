@@ -55,6 +55,35 @@ class CameraLease:
             log.info("lease on camera %s lost for user %s", self.camera_id, self.principal.user_id)
         self._pending = None
 
+    async def confirm(self) -> bool:
+        """ASGI-295 F3: True only when the permission is CONFIRMED for a publication now. When the user's access generation moved, a
+        re-check is pending or one is due, the re-check is AWAITED (not merely scheduled); any re-check error fails closed (`lost`).
+        Returns with nothing awaited after the last generation read, so a caller that publishes right after it publishes on a
+        confirmed state. A generation that keeps moving during three re-checks in a row also fails closed (False)."""
+        for _ in range(3):
+            if self.lost or (self.extra_stop is not None and self.extra_stop()):
+                return False
+            pending = self._pending
+            if pending is not None:
+                await asyncio.shield(pending)  # the scheduled re-check answers first; then the generation is read again
+                continue
+            gen = revocation.generation(self.principal.user_id)
+            if gen == self.generation and time.time() - self.checked_at < RECHECK_S:
+                return True
+            self.generation = gen
+            try:
+                ok = await run_in_threadpool(self.allowed_now)
+            except Exception as exc:  # noqa: BLE001 - fail closed: nothing is published on an unconfirmed permission
+                log.warning("lease confirm for camera %s failed: %s", self.camera_id, type(exc).__name__)
+                self.lost = True
+                return False
+            self.checked_at = time.time()
+            if not ok:
+                self.lost = True
+                log.info("lease on camera %s lost for user %s", self.camera_id, self.principal.user_id)
+                return False
+        return not self.lost and revocation.generation(self.principal.user_id) == self.generation and self._pending is None
+
     def should_stop(self) -> bool:
         if self.lost:
             return True

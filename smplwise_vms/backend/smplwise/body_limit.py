@@ -39,11 +39,11 @@ from __future__ import annotations
 
 import json
 import re
-import uuid
 from functools import lru_cache
 from typing import Any, Callable
 from urllib.parse import unquote
 
+from . import correlation_id
 from .config import Settings
 from .remote_channel import CHANNEL_KEY, REMOTE
 
@@ -328,10 +328,7 @@ def _size(n: int) -> str:
 
 
 def _correlation(headers: list[tuple[bytes, bytes]]) -> str:
-    for k, v in headers:
-        if k.lower() == b"x-correlation-id":
-            return v.decode("latin-1")[:64]
-    return uuid.uuid4().hex[:12]
+    return correlation_id.from_asgi_headers(headers)  # SX-17: the FastAPI middleware's validation; never the raw client value
 
 
 async def refuse(send, scope: dict[str, Any], limit: int, rule: str) -> None:

@@ -22,7 +22,20 @@ Rules this client enforces (every refusal is a verdict with `ok=False`; nothing 
 - STRICT PARSE. Every key exactly once, strict types (bool is not an int), the read scope constant, state/active/successor consistent;
   any error envelope, transport exception or malformed answer is UNKNOWN (`unknown` / `malformed`).
 
-`client_for` answers None in this build (`wiskey_peer.enabled` is False: the go-live constant). `LiveRegistryTransport` refuses."""
+`client_for` answers None unless the seam switch is on, the go-live permit holds and the owner pinned a binding.
+
+WK4ADOPT-295 (W-010): `LiveRegistryTransport(port)` is the DEDICATED live read `peer_bindings/get` (WisKey `peer_server` /
+`W010_PEER_QUERY_V1.json`, CODE 924df3e9) over the Arx-side owner of the verified connection - the direct join's port
+(`wiskey_direct_join.DirectJoin.capture_port`, `wiskey-peer-query.v1` envelope, reply MAC + connection_ref + id checked before the
+result is read). Without a port it still refuses `not_built` (no frame). Every read leaves a `wiskey_peer.PeerReadReceipt`
+(result | refused | not_sent | unknown); a refusal is answered as a verified error frame (the client reads it as UNKNOWN), a
+disconnect / timeout raises (UNKNOWN). The generic signer alone is not this wiring.
+
+PEERQUERY-295: the proposed read is now the catalogued WisKey command (round-4 COMMAND_CATALOG `peer_bindings/get`, transport mode
+`original_peer_read_transport`, envelope `wiskey-peer-query.v1`, lookup parameters exactly {peer_binding_ref, peer_binding_revision},
+result = this draft1 row). Its wired transport is `wiskey_peer_query.DirectRegistryTransport` (over the direct link, default OFF
+behind `wiskey.peer_query`); it hands over a `VerifiedResult` or raises a classified `TransportFailure`. The query owner may be the
+direct service subject (`wiskey_peer.is_query_owner_id`)."""
 from __future__ import annotations
 
 import json
@@ -54,17 +67,64 @@ class RegistryRefused(Exception):
 
 class RegistryTransport(Protocol):
     def peer_binding_get(self, peer_binding_ref: str, peer_binding_revision: int) -> Any:
-        """One read over the connection authenticated as the dedicated principal; returns the native frame."""
+        """One read over the connection authenticated as the dedicated principal; returns the native frame, or a `VerifiedResult`
+        when the transport has already verified the reply (MAC + correlation) and kept only its `result`."""
         ...
 
 
+@dataclass(frozen=True)
+class VerifiedResult:
+    """PEERQUERY-295: the `result` object of a reply whose MAC, connection_ref and id the transport verified BEFORE handing it on
+    (the direct link, services/wiskey_media_bridge.DirectLink.call_command). Read exactly like the `result` of a success frame."""
+    result: Any
+
+
+TRANSPORT_FAILURES = ("not_sent", "refused", "timeout", "transport_error")
+
+
+class TransportFailure(Exception):
+    """PEERQUERY-295: a transport that classifies its own failure. `code` is one of TRANSPORT_FAILURES; `detail` is a short machine
+    code (WisKey's own error code for `refused`). Every one is a verdict with ok=False: no binding is ever inferred from a failure."""
+
+    def __init__(self, code: str, detail: str | None = None) -> None:
+        if code not in TRANSPORT_FAILURES:
+            code = "transport_error"
+        super().__init__(code)
+        self.code = code
+        self.detail = detail if isinstance(detail, str) and 0 < len(detail) <= 64 else None
+
+
 class LiveRegistryTransport:
-    """The live transport is not built: it refuses (no frame is sent)."""
+    """The dedicated live `peer_bindings/get` over the verified connection's port (see the module docstring)."""
+
+    COMMAND = "peer_bindings/get"
+
+    def __init__(self, port: Any = None, *, timeout_s: float = wp.PEER_READ_TIMEOUT_S) -> None:
+        self.port = port
+        self.timeout_s = timeout_s
+        self.receipts: list[wp.PeerReadReceipt] = []
+
+    def __repr__(self) -> str:
+        return f"LiveRegistryTransport(wired={self.port is not None})"
+
+    def attestation(self) -> wp.TransportAttestation:
+        if self.port is None:
+            raise RegistryRefused("not_built")
+        return wp.attest_port(self.port)
 
     def peer_binding_get(self, peer_binding_ref: str, peer_binding_revision: int) -> Any:
         if GO_LIVE_PERMITTED is not True or not wp.go_live_permitted():
             raise RegistryRefused("not_permitted")
-        raise RegistryRefused("not_built")
+        if self.port is None:
+            raise RegistryRefused("not_built")
+        if not (wp.is_ref(peer_binding_ref) and wp.is_pos_int(peer_binding_revision)):
+            raise RegistryRefused("invalid_reference")  # refused before anything is signed
+        frame, receipt = wp.peer_read(self.port, self.COMMAND, {"peer_binding_ref": peer_binding_ref,
+                                                                 "peer_binding_revision": peer_binding_revision}, timeout_s=self.timeout_s)
+        self.receipts.append(receipt)
+        if frame is None:
+            raise RegistryRefused(receipt.code or receipt.outcome)  # not_sent / unknown: the client reads UNKNOWN, never a binding
+        return frame
 
 
 @dataclass(frozen=True)
@@ -76,7 +136,7 @@ class OwnerPin:
     peer_binding_revision: int
 
     def __post_init__(self) -> None:
-        if not (wp.is_ha_user_id(self.query_owner_id) and wp.is_uuid(self.repository_id) and wp.is_ref(self.verified_peer_ref)
+        if not (wp.is_query_owner_id(self.query_owner_id) and wp.is_uuid(self.repository_id) and wp.is_ref(self.verified_peer_ref)
                 and wp.is_ref(self.peer_binding_ref) and wp.is_pos_int(self.peer_binding_revision)):
             raise ValueError("invalid owner pin")
 
@@ -113,6 +173,7 @@ class BindingVerdict:
     code: str
     peer: wp.VerifiedPeerRef | None = None
     historical: bool = False
+    detail: str | None = None  # PEERQUERY-295: WisKey's refusal code for `refused`, the transport's short code otherwise
 
 
 def _no(code: str) -> BindingVerdict:
@@ -128,7 +189,7 @@ def parse_binding(row: Any, peer_binding_ref: str, peer_binding_revision: int) -
     if not (wp.is_pos_int(row["peer_binding_revision"]) and row["peer_binding_ref"] == peer_binding_ref
             and row["peer_binding_revision"] == peer_binding_revision):
         return None
-    if not (wp.is_ref(row["verified_peer_ref"]) and wp.is_ha_user_id(row["query_owner_id"]) and wp.is_uuid(row["repository_id"])):
+    if not (wp.is_ref(row["verified_peer_ref"]) and wp.is_query_owner_id(row["query_owner_id"]) and wp.is_uuid(row["repository_id"])):
         return None
     if row["allowed_read_scope"] != READ_SCOPE or row["state"] not in BINDING_STATES:
         return None
@@ -161,8 +222,15 @@ class RegistryClient:
     def _fetch(self, ref: str, revision: int) -> dict[str, Any] | BindingVerdict:
         try:
             frame = self.transport.peer_binding_get(ref, revision)
+        except TransportFailure as exc:  # a classified failure (PEERQUERY-295): still never a binding
+            return BindingVerdict(False, exc.code, detail=exc.detail)
         except Exception:  # noqa: BLE001 - a transport loss / timeout is UNKNOWN, never a binding
             return _no("unknown")
+        if isinstance(frame, VerifiedResult):
+            if not isinstance(frame.result, dict):
+                return _no("malformed")
+            row = parse_binding(frame.result, ref, revision)
+            return row if row is not None else _no("malformed")
         if (not isinstance(frame, dict) or frame.get("type") != "result" or not wp.is_pos_int(frame.get("id"))
                 or frame.get("success") is not True or not isinstance(frame.get("result"), dict)):
             return _no("unknown")

@@ -5,6 +5,12 @@ Branch: `pilot/WKPEER-295`. No product behaviour changes with this document: not
 `GO_LIVE_PERMITTED` stays False everywhere, `signed_capture_covered` stays false. No HA user, group, token or flag is created or
 changed by Arx, ever. Runtime status: NOT_RUN against any WisKey, Home Assistant, station or door.
 
+> SUPERSEDED in part (PERSONWRITES-CLEANUP-295, W-026, 2026-10-25): WisKey never shipped `signed_person_writes/status`; the Arx
+> verifier for it (`verify_receipt`, `ReceiptExpectation`, `FenceContext`, `RECEIPT_*`, `OneCommitLedger`) was removed. The real
+> receipt read is `peer_receipts/resolve` (WKADAPT-295). The `person_writes/context|submit|resolve` fence of this draft was never
+> built in Arx (no code to remove); WisKey confirmation that it was never shipped is not recorded. The text below is the historical
+> design record and is kept as is. See docs/changes/PERSONWRITES-CLEANUP-295.md.
+
 Inputs: WisKey `ARX_REPLY9_REMOTE_COMPLETION_FENCE.draft1.r9` (ACR7-FENCE-01, the native fence: `person_writes/context|submit|resolve`,
 capability `person_write_fence_v1`, build flag `ARX_PERSON_WRITE_FENCE_V1=False`), `ARX_REPLY8_SIGNED_CAPTURE_COMPLETION_HOOK.draft1`
 (ACR8-SIGNED-HOOK-01, the signed sidecar `signed_person_writes/status`), `ARX_CHANGE_REQUESTS_R7/R8` (the ACR7-FENCE-02 request),
@@ -134,6 +140,7 @@ sender can bypass the receipt. Signed paths keep their signed route.
 
 - `services/wiskey_peer.py` - the typed seam (`VerifiedPeerRef`, `TransportAttestation`, sealed), the strict shared-receipt verifier
   (`verify_receipt`, `ReceiptExpectation`, `FenceContext`) and the in-memory one-central-commit rule (`OneCommitLedger`).
+  REMOVED by PERSONWRITES-CLEANUP-295 (never-shipped draft1 contract, no caller); the seam types stay.
 - `services/wiskey_peer_registry.py` - the registry client (`RegistryClient`, `OwnerPin`, the PROPOSED read
   `hikvision_intercom/peer_bindings/get`), revocation / rotation / historical-read rules.
 - `services/wiskey_acr5.py` - the ACR5-01..04 consumers (see the module docstring).

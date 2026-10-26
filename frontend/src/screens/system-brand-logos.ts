@@ -654,7 +654,7 @@ export class SystemBrandLogos extends LitElement {
         <div class="opts" role="group" aria-label=${t('brandLogos.darkLabel')} data-logo-darkmode>
           ${DARK_MODES.map((m) => html`<button type="button" class="opt" aria-pressed=${d.darkMode === m ? 'true' : 'false'} data-dark-mode=${m} ?disabled=${!this.canEdit} @click=${() => this.set('darkMode', m)}>
             <span class="tile dark"><sw-brand kind="company" .h=${26} .maxw=${150} scheme="dark" .previewMode=${m} .previewSize=${'m'} .previewState=${{ files: this.saved.files, companyName: d.companyName, companySize: 'same' }}></sw-brand></span>
-            <b>${t(`brandLogos.mode_${m}` as I18nKey)}${m === 'plate' ? html`<span class="chip ok">${t('brandLogos.recommended')}</span>` : nothing}</b>
+            <b>${t(`brandLogos.mode_${m}` as I18nKey)}${m === 'invert' ? html`<span class="chip ok">${t('brandLogos.recommended')}</span>` : nothing}</b>
             <span class="d">${t(`brandLogos.mode_${m}_d` as I18nKey)}</span></button>`)}
         </div>
         ${noDark ? html`<span class="warn" role="status" data-logo-nodark><sw-icon name="warning" size=${14}></sw-icon>${t('brandLogos.noDarkFile')}<sw-button size="sm" variant="ghost" @click=${() => (this.tab = 'files')}>${t('brandLogos.toUpload')}</sw-button></span>` : nothing}

@@ -1,0 +1,181 @@
+{
+  "cases": [
+    {
+      "code": null,
+      "file": "exchange_ok.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_ok",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 200
+    },
+    {
+      "code": "not_found",
+      "file": "exchange_not_offered.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_not_offered",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 404
+    },
+    {
+      "code": "app_access_invalid",
+      "file": "exchange_access_invalid.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_access_invalid",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 401
+    },
+    {
+      "code": "app_refresh_proof_retry",
+      "file": "exchange_proof_retry_nonce.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_proof_retry_nonce",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 401
+    },
+    {
+      "code": "app_refresh_proof_retry",
+      "file": "exchange_proof_retry_clock.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_proof_retry_clock",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 401
+    },
+    {
+      "code": "app_refresh_invalid",
+      "file": "exchange_refresh_invalid.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_refresh_invalid",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 401
+    },
+    {
+      "code": "app_refresh_expired",
+      "file": "exchange_refresh_expired.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_refresh_expired",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 401
+    },
+    {
+      "code": "app_session_key_required",
+      "file": "exchange_key_required.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_key_required",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 403
+    },
+    {
+      "code": "remote_mfa_required",
+      "file": "exchange_mfa_required.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_mfa_required",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 403
+    },
+    {
+      "code": "validation",
+      "file": "exchange_validation.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_validation",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 422
+    },
+    {
+      "code": "rate_limited",
+      "file": "exchange_rate_limited.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_rate_limited",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 429
+    },
+    {
+      "code": "csrf_refused",
+      "file": "exchange_csrf_refused.json",
+      "location": null,
+      "method": "POST",
+      "name": "exchange_csrf_refused",
+      "path": "/arx/api/v1/auth/app/session",
+      "status": 403
+    },
+    {
+      "code": null,
+      "file": "redeem_ok.json",
+      "location": "/arx/",
+      "method": "GET",
+      "name": "redeem_ok",
+      "path": "/arx/api/v1/auth/app/session/redeem",
+      "status": 303
+    },
+    {
+      "code": null,
+      "file": "redeem_refused.json",
+      "location": "/arx/?app_session=failed",
+      "method": "GET",
+      "name": "redeem_refused",
+      "path": "/arx/api/v1/auth/app/session/redeem",
+      "status": 303
+    },
+    {
+      "code": null,
+      "file": "redeem_cross_site.json",
+      "location": "/arx/?app_session=failed",
+      "method": "GET",
+      "name": "redeem_cross_site",
+      "path": "/arx/api/v1/auth/app/session/redeem",
+      "status": 303
+    },
+    {
+      "code": null,
+      "file": "redeem_without_marker.json",
+      "location": "/arx/?app_session=failed",
+      "method": "GET",
+      "name": "redeem_without_marker",
+      "path": "/arx/api/v1/auth/app/session/redeem",
+      "status": 303
+    },
+    {
+      "code": "not_found",
+      "file": "redeem_not_offered.json",
+      "location": null,
+      "method": "GET",
+      "name": "redeem_not_offered",
+      "path": "/arx/api/v1/auth/app/session/redeem",
+      "status": 404
+    }
+  ],
+  "contract": "SmplWise Arx - WebView session exchange, client contract v2.2 (docs/api/mobile-presence-contract.md section 10; docs/changes/APPREFRESH-SESSION-EXCHANGE-SPEC.md revision 3)",
+  "error_envelope": [
+    "code",
+    "user_message",
+    "retryable",
+    "correlation_id",
+    "details"
+  ],
+  "generated_by": "smplwise_vms/backend/tests/test_app_session_fixtures_sx25.py (the real routes; a drift fails that test)",
+  "placeholders": {
+    "<ACCESS_TOKEN>": "the live access token, `arxa_` + base64url (never logged)",
+    "<CODE>": "`arxc_` + 43 base64url (single use, 60 s)",
+    "<DEVICE_ID>": "`dev_` + 16 lowercase hex",
+    "<INSTALL_ID>": "the install id the registration holds (8-64 characters)",
+    "<ISO_8601_UTC>": "`YYYY-MM-DDTHH:MM:SSZ`",
+    "<MAX_AGE_SECONDS>": "a positive integer (at most the web session's absolute lifetime)",
+    "<NONCE>": "the challenge nonce, `arxn_` + base64url, single use, 120 s",
+    "<SERVER_CORRELATION_ID>": "the server's own correlation id (12 lowercase hex) when the request carried no acceptable one",
+    "<SESSION_COOKIE>": "`a.` + 43 base64url - set by the server, never read or written by the app",
+    "<SIGNATURE>": "base64url ES256 signature over the six-line `session` message",
+    "<UNIX_SECONDS>": "a JSON integer, Unix seconds (UTC)",
+    "<UNIX_SECONDS_AS_STRING>": "the same number sent as a JSON string (refused: 422)"
+  },
+  "status": "FIXTURE - produced by the server's test backend, not by a device or an installation; not an activation approval"
+}

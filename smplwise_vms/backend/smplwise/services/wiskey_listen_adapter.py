@@ -84,6 +84,8 @@ class _Downlink:
         return self._closed
 
     def _offer(self, frame: bytes) -> None:
+        if self._future().done():
+            return
         self.received_frames += 1
         while self._queue.qsize() >= self._queue_frames:
             try:
@@ -93,7 +95,23 @@ class _Downlink:
             self.dropped_frames += 1
         self._queue.put_nowait(frame)
 
+    _fenced = False
+
     def _end(self, reason: str) -> None:
+        """The producer's own end (upstream gone): nothing new is offered; frames ALREADY admitted while current still play, then the
+        sentinel. WK4ADOPT-295 identified merge of reply4 R04: the drain moved to `_fence` (the close path), because draining here too
+        dropped admitted frames on a natural upstream end (tests/test_wkaudin_295.py on the combined tree)."""
+        fut = self._future()
+        if fut.done():
+            return
+        fut.set_result(reason)
+        self._queue.put_nowait(None)
+
+    def _fence(self, reason: str) -> None:
+        """A close: publication stops synchronously - the queue is drained and no frame is yielded after this (reply4 R04)."""
+        self._fenced = True
+        while not self._queue.empty():
+            self._queue.get_nowait()
         fut = self._future()
         if not fut.done():
             fut.set_result(reason)
@@ -102,15 +120,15 @@ class _Downlink:
     async def frames(self) -> AsyncIterator[bytes]:
         while True:
             frame = await self._queue.get()
-            if frame is None:
+            if frame is None or self._fenced:
                 return
             yield frame
 
     async def wait_closed(self) -> str:
-        return await self._future()
+        return await asyncio.shield(self._future())
 
     async def close(self, reason: str) -> None:
-        self._end(reason)
+        self._fence(reason)
 
 
 class SyntheticDownlink(_Downlink):
@@ -124,11 +142,13 @@ class SyntheticDownlink(_Downlink):
         self._end_reason = end_reason
         self._fail_open = fail_open
         self._task: asyncio.Task[None] | None = None
+        self._close_task: asyncio.Task[None] | None = None
         self.opened = 0
         self.closed_with: list[str] = []
 
     async def open(self) -> None:
-        self._future()
+        if self._future().done() or self._task is not None:
+            raise ListenUnavailable('downlink_closed')
         if self._fail_open:
             raise ListenUnavailable("downlink_failed")
         self.opened += 1
@@ -149,10 +169,7 @@ class SyntheticDownlink(_Downlink):
 
     async def close(self, reason: str) -> None:
         self.closed_with.append(reason)
-        task, self._task = self._task, None
-        if task is not None and not task.done():
-            task.cancel()
-        await super().close(reason)
+        await _join_downlink(self, reason)
 
 
 class ReceiveDownlink(_Downlink):
@@ -173,6 +190,7 @@ class ReceiveDownlink(_Downlink):
         self._frame_bytes = frame_bytes
         self._max_packet_bytes = max_packet_bytes
         self._task: asyncio.Task[None] | None = None
+        self._close_task: asyncio.Task[None] | None = None
 
     @classmethod
     def for_talk(cls, receive: Callable[[], Awaitable[bytes]]) -> "ReceiveDownlink":
@@ -180,13 +198,16 @@ class ReceiveDownlink(_Downlink):
         return cls(receive, frame_bytes=TALK_PACKET_BYTES, max_packet_bytes=TALK_PACKET_BYTES, queue_frames=TALK_QUEUE_PACKETS)
 
     async def open(self) -> None:
-        self._future()
+        if self._future().done() or self._task is not None:
+            raise ListenUnavailable("downlink_closed")
         self._task = asyncio.get_running_loop().create_task(self._pump())
 
     async def _pump(self) -> None:
         try:
-            while True:
+            while not self._future().done():
                 packet = await self._receive()
+                if self._future().done():
+                    return
                 for frame in split_frames(bytes(packet), self._frame_bytes, self._max_packet_bytes):
                     self._offer(frame)
         except asyncio.CancelledError:
@@ -195,17 +216,39 @@ class ReceiveDownlink(_Downlink):
             self._end("upstream_closed")
 
     async def close(self, reason: str) -> None:
-        task, self._task = self._task, None
-        if task is not None and not task.done():
-            task.cancel()
-        if self._on_close is not None:
-            try:
-                result = self._on_close(reason)
+        await _join_downlink(self, reason)
+
+
+async def _join_downlink(channel: _Downlink, reason: str) -> None:
+    """Fence publication synchronously, then join the producer and close hook.
+
+    A cancelled close caller still owns and awaits the same cleanup task. A
+    receive callback must not recursively close its own producer.
+    """
+    channel._fence(reason)
+    task = channel._task
+    if task is asyncio.current_task():
+        raise RuntimeError("downlink_self_join")
+    if channel._close_task is None:
+        async def finish() -> None:
+            if task is not None:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+            hook = getattr(channel, "_on_close", None)
+            if hook is not None:
+                result = hook(reason)
                 if asyncio.iscoroutine(result):
                     await result
-            except Exception:  # noqa: BLE001
-                log.warning("listen: the downlink close handler failed")
-        await super().close(reason)
+        channel._close_task = asyncio.create_task(finish())
+    cancelled = False
+    while not channel._close_task.done():
+        try:
+            await asyncio.shield(channel._close_task)
+        except asyncio.CancelledError:
+            cancelled = True
+    channel._close_task.result()
+    if cancelled:
+        raise asyncio.CancelledError
 
 
 class WiskeyDownlinkChannel:

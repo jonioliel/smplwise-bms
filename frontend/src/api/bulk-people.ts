@@ -9,6 +9,11 @@
  *   POST jobs/{id}/confirm        a system administrator, bound to the plan digest and the typed row count
  *   POST jobs/{id}/apply          the next bounded batch (refused while the owner's go-live permit is not in the build)
  *   POST jobs/{id}/cancel         stop the job and purge its row data
+ * WKR5ADOPT-295 (W-006), default off:
+ *   PUT  wiskey-csv/settings      the switch (system administrator)
+ *   POST jobs/{id}/wiskey-preview the SAME file again: WisKey's verified preview (a read; nothing is written)
+ *   POST jobs/{id}/wiskey-confirm the typed row count (system administrator): fresh preview, compare, start
+ *   GET  jobs/{id}/wiskey-result  the started operation's completion read (never a replay)
  */
 import { ApiError, api, apiUrl, get, post, put } from './client';
 
@@ -19,9 +24,42 @@ export interface BulkSettings {
   go_live_permitted: boolean;
   limits: { max_file_bytes: number; max_rows: number; max_edit_people: number; batch: number; export_rows: number; job_hours: number };
   columns: string[];
+  /** WKR5ADOPT-295: the WisKey-verified preview of a people CSV (default off; the server names what blocks it). */
+  wiskey_csv?: WiskeyCsvStatus;
   system_admin?: boolean;
   may_import?: boolean;
   may_export?: boolean;
+}
+
+export interface WiskeyCsvStatus {
+  enabled: 'off' | 'on';
+  available: boolean;
+  /** switch_off | bulk_people_off | binding_not_configured | direct_not_installed | direct_not_selected */
+  blockers: string[];
+  mode: string;
+  fields: string[];
+}
+
+/** WisKey's verified preview as the screen gets it: lines and operations only - never a cell value, a token, a stamp or the start. */
+export interface VerifiedPreview {
+  preview_digest: string;
+  expires_at: string;
+  writes: number;
+  creates: number;
+  updates: number;
+  skipped: number;
+  errors: number;
+  rows: { source_line: number; op: 'create' | 'update' }[];
+}
+
+export type CsvOperationState = 'not_started' | 'running' | 'finished' | 'cancelled' | 'unknown';
+
+export interface CsvOperation {
+  state: CsvOperationState;
+  saved?: number | null;
+  code?: string;
+  /** always false: an unknown outcome is never replayed */
+  replay_available: false;
 }
 
 export interface ReportEntry {
@@ -145,3 +183,14 @@ async function fileOf(path: string): Promise<{ blob: Blob; rows: number | null }
 
 export const exportPeopleCsv = () => fileOf(`${BASE}/export.csv`);
 export const templateCsv = () => fileOf(`${BASE}/template.csv`);
+
+export const setWiskeyCsvEnabled = (enabled: 'off' | 'on') => put<WiskeyCsvStatus>(`${BASE}/wiskey-csv/settings`, { enabled });
+
+export function verifyImport(id: string, file: Blob): Promise<{ job: BulkJob; preview: VerifiedPreview }> {
+  return api(`${BASE}/jobs/${encodeURIComponent(id)}/wiskey-preview`, { method: 'POST', body: file, headers: { 'Content-Type': 'text/csv' } });
+}
+
+export const confirmVerified = (id: string, previewDigest: string, typed: string) =>
+  post<{ job: BulkJob; operation: CsvOperation }>(`${BASE}/jobs/${encodeURIComponent(id)}/wiskey-confirm`, { preview_digest: previewDigest, confirm: typed });
+
+export const verifiedResult = (id: string) => get<{ operation: CsvOperation }>(`${BASE}/jobs/${encodeURIComponent(id)}/wiskey-result`);

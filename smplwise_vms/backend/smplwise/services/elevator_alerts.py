@@ -2,7 +2,9 @@
 
 Owner decision: elevator alerts never start by themselves. Everything defaults OFF; recipients are chosen now (roles, named users, groups -
 nothing selected = nobody is notified); per state the channels the notification pipeline already offers for a module (the inbox always;
-push and the phone app on request; e-mail and WhatsApp are NOT offered for elevators). Changing it needs system.configure.
+push, the phone app and - GENELEV-295, owner brief 2026-10-24 - WhatsApp on request; e-mail is NOT offered for elevators). WhatsApp is an external, budget-limited
+channel shared with the tickets module: it is off by default, and adding it or changing who it reaches also needs notify.manage (as for the generator).
+Changing the settings needs system.configure.
 
 This reuses the generator's routing pattern (services/generator_alerts.py): the choices live in their own table
 (`infra_elevator_alert_settings`, migration 0119) and are MIRRORED onto the CR-018 policy of each source (`elevator.<state>`): enabled =
@@ -32,7 +34,7 @@ SOURCE_PREFIX = "elevator."
 # the roles that may receive elevator alerts: the holders of devices.read (a kiosk is a screen, not a person)
 ROUTABLE_ROLES: tuple[str, ...] = ("viewer", "operator", "site_admin", "system_admin")
 ROLE_LABELS: dict[str, str] = {"viewer": "צופים", "operator": "מפעילים", "site_admin": "מנהלי אתר", "system_admin": "מנהלי מערכת"}
-CHANNELS: tuple[str, ...] = ("push", "app")  # the inbox is always on; e-mail and WhatsApp are not offered for elevators
+CHANNELS: tuple[str, ...] = ("push", "app", "whatsapp")  # the inbox is always on; e-mail is not offered for elevators; whatsapp needs notify.manage to add (GENELEV-295)
 USERS_MAX, GROUPS_MAX = 100, 20
 DISABLED_TEXT = "התראות המעליות כובו"
 
@@ -138,7 +140,7 @@ def _bridge(conn: sqlite3.Connection, settings: dict[str, Any]) -> None:
         src = SOURCE_PREFIX + role
         st = settings["states"][role]
         base = notify_policy.default_row(notify_policy.BY_KEY[src])
-        ch = {"inbox": True, "webpush": "push" in st["channels"], "email": False, "app": "app" in st["channels"], "announce": False, "ha_mobile": False, "whatsapp": False}
+        ch = {"inbox": True, "webpush": "push" in st["channels"], "email": False, "app": "app" in st["channels"], "announce": False, "ha_mobile": False, "whatsapp": "whatsapp" in st["channels"]}
         conn.execute(
             """INSERT INTO notify_policies(source, enabled, severity, category, after_s, dedupe_window_s, resolve_notice, recipients_json, channels_json, revision, updated_at)
                VALUES (?,?,?,?,?,?,?,?,?,1,?)
@@ -146,6 +148,29 @@ def _bridge(conn: sqlite3.Connection, settings: dict[str, Any]) -> None:
                  revision = revision + 1, updated_at = excluded.updated_at""",
             (src, int(is_on(settings, role)), base["severity"], base["category"], base["after_s"], base["dedupe_window_s"], int(base["resolve_notice"]),
              json.dumps({"rule": "elevator"}), json.dumps(ch), now_iso()))
+
+
+def whatsapp_change(cur: dict[str, Any], body: dict[str, Any]) -> bool:
+    """True when the save would add WhatsApp to a state, or change who / whether WhatsApp reaches on a state that carries it after the save (its
+    switch, its recipients, or the master switch). Such a save also needs notify.manage; other edits, and removing WhatsApp, do not. `body` is the raw PUT body."""
+    master_changed = "enabled" in body and body["enabled"] != cur["enabled"]
+    states = body.get("states") if isinstance(body.get("states"), dict) else {}
+    for role in el.ALERT_ROLES:
+        before = cur["states"][role]
+        s = states.get(role) if isinstance(states.get(role), dict) else {}
+        channels = s["channels"] if isinstance(s.get("channels"), list) else before["channels"]
+        if "whatsapp" not in channels:
+            continue
+        if "whatsapp" not in before["channels"] or master_changed:
+            return True
+        if "enabled" in s and s["enabled"] != before["enabled"]:
+            return True
+        rec = s.get("recipients")
+        if isinstance(rec, dict):
+            for k in ("roles", "users", "groups"):
+                if k in rec and sorted(x for x in rec[k] if isinstance(x, str)) != sorted(before["recipients"][k]):
+                    return True
+    return False
 
 
 def close_open(conn: sqlite3.Connection, roles: list[str]) -> int:
@@ -180,7 +205,9 @@ def save(conn: sqlite3.Connection, principal: Any, body: dict[str, Any]) -> dict
     _bridge(conn, new)
     closed = close_open(conn, turned_off)
     audit(conn, actor=principal, action="infra.elevator.alerts.update", decision="allowed", resource_type="infra_elevator_alerts", resource_id="settings",
-          details={"enabled": new["enabled"], "states_on": [r for r in el.ALERT_ROLES if is_on(new, r)], "closed": closed})
+          details={"enabled": new["enabled"], "states_on": [r for r in el.ALERT_ROLES if is_on(new, r)], "closed": closed,
+                    "channels": {r: new["states"][r]["channels"] for r in el.ALERT_ROLES},
+                    "recipient_counts": {r: {k: len(v) for k, v in new["states"][r]["recipients"].items()} for r in el.ALERT_ROLES}})
     return view(conn)
 
 

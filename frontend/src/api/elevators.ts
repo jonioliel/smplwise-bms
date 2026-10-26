@@ -76,7 +76,7 @@ export interface ElevatorBody {
 /** 2.8.0 (owner decision 2026-10-18): the elevator alert settings - everything OFF by default; recipients chosen per state (roles, users,
  * groups; none = nobody); extra channels push / app (the inbox always). Read: elevator managers and system configurators; write: system.configure. */
 export type AlertState = 'fire_service' | 'fault' | 'out_of_service';
-export type AlertChannel = 'push' | 'app';
+export type AlertChannel = 'push' | 'app' | 'whatsapp';
 export interface AlertRecipients {
   roles: string[];
   users: string[];
@@ -95,6 +95,8 @@ export interface AlertSettings {
   channels: AlertChannel[];
   states_order: AlertState[];
   can_edit: boolean;
+  /** GENELEV-295: the viewer may add WhatsApp / change who it reaches (notify.manage); without it the WhatsApp box is read-only. */
+  can_whatsapp?: boolean;
 }
 export interface AlertSettingsBody {
   enabled?: boolean;
