@@ -2,6 +2,10 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { skipIfFrozen } from './helpers/frozen-skins';
+
+// BUBBLE-FREEZE-295: this whole file exercises the frozen bubble skin; it skips itself while the skin is frozen (baselines/PNGs stay).
+skipIfFrozen('bubble');
 
 // Bubble foundation, phase B (owner 2026-10-02): the components' demo page (#/styleguide/bubble) and הגדרות › כללי › מראה.
 //   1. the evidence shots: demo page and the settings section at 390 / 820 / 1440, light and dark -> docs/design/evidence/bubble-foundation/

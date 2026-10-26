@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // CR-030 v2 (WDM) evidence: the wall display and its settings screen against a mocked backend. Wall mode is chosen by the
 // detection rule of section 3.2.1 (init script below fakes the physical device: touch pointer, screen size, mobile token), so the
@@ -152,7 +153,7 @@ test.describe('CR-030 wall display (mocked backend)', () => {
     await expect(page.locator('sw-wall')).toHaveCount(0);
   });
 
-  for (const skin of ['classic', 'bubble'] as const) {
+  for (const skin of skinsUnderTest(['classic', 'bubble'] as const)) {
     for (const scheme of ['light', 'dark'] as const) {
       for (const [dname, dev, preset] of [['landscape', TABLET_L, 'tablet-landscape'], ['portrait', TABLET_P, 'tablet-portrait']] as const) {
         test(`base layout: ${dname} ${skin} ${scheme}, 4 cameras`, async ({ page }) => {

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inPageCheck, summarize } from './layout-guard';
 import { installFrigate, newFrigateMock, openApp, type FrigateMock } from './frigate-mocks';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // NN5-F1B: the review screen ("סקירה") of a Frigate recorder - cards, layers, filters, per-user reviewed state with bulk marking and
 // keys, the drawer and the recording action, paging, the motion layer, and every state (loading, empty, all reviewed, offline, error,

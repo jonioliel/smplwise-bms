@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Page, Route, WebSocketRoute } from '@playwright/test';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-036 S8 / S10: the mock layer of the access-control Playwright specs. The whole app runs against it through page.route:
 // `/me` carries the permissions, so the navigation, the screens and the hiding are the real ones; the typed reads

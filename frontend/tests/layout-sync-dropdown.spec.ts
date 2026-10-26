@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { mock } from './playback-stall-mock';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // 2.0.1 (owner approval 2026-10-05): the layout guard (tests/layout-guard.ts) over the synchronized-playback screen's camera picker -
 // closed with four picks, open at the limit (disabled options, the foot with the count / "נקה" / "סיום") - in all four skins x light

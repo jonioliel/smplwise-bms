@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Locator, type APIRequestContext } from '@playwright/test';
+import { skipIfFrozen } from './helpers/frozen-skins';
 
 // DEVHIST-JOIN (CR-032, 2026-10-05): the device activity popup against the REAL backend, no mocks. The fixture backend
 // (tests/fixtures/devhist_fixture_backend.py) is the real SmplWise Arx backend whose only fake is Home Assistant: a seeded state stream goes through
@@ -220,6 +221,7 @@ test.describe('device activity popup against the real backend', () => {
   });
 
   test('the bubble skin: pills open the popup by a long press and still tap', async ({ page }) => {
+    skipIfFrozen('bubble'); // BUBBLE-FREEZE-295
     await open(page, '&skin=bubble&scheme=light');
     const actions: string[] = [];
     page.on('request', (r) => r.method() === 'POST' && /\/actions/.test(r.url()) && actions.push(r.url()));

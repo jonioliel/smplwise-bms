@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { install, newMock, type PeopleMock } from './wiskey-people-mock';
 import { settlePage } from './pixel-settle';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // CR-036 WA: the people screen's WhatsApp - the real dialog (bulk with ONE confirmation, a stop button, a per-recipient result table, the
 // rate and error states, the uncertain outcome) and the person's page "הודעות" tab (the message history and the "asked not to be messaged"
@@ -14,7 +15,7 @@ import { settlePage } from './pixel-settle';
 //   npx playwright test tests/evidence-wiskey-messaging.spec.ts --project=desktop --workers=1
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EVIDENCE = path.resolve(HERE, '..', '..', 'docs', 'design', 'evidence', 'CR-036-WA');
-const SKINS = ['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const;
+const SKINS = skinsUnderTest(['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const);
 const SCREEN = 'wiskey-people';
 const NOW = '2026-10-12T10:00:00Z';
 

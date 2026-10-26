@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS, skipIfFrozen } from './helpers/frozen-skins';
 
 // Owner decision 2026-10-03: how a dropdown opens on a PHONE - the regular small list under the field (default, owner 2026-10-05) or a bottom sheet.
 // `ui.dd_phone` (sheet | list): the installation's default (admins) and the user's own choice (null = follow), one global value.
@@ -274,6 +274,7 @@ test.describe('what the setting does at phone, tablet and desktop widths', () =>
   });
 
   test('the Bubble popup dial still refines the sheet (centred / inline), while `list` ignores it', async ({ page }) => {
+    skipIfFrozen('bubble'); // BUBBLE-FREEZE-295
     await stage(page, fresh('sheet'), { width: 390, skin: 'bubble' });
     await mount(page, ['auto']);
     await page.evaluate(() => document.documentElement.setAttribute('data-bubble-popup', 'centred'));

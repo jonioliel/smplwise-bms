@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { skinsUnderTest, skipIfFrozen } from './helpers/frozen-skins';
 
 // 0.1.157 round B (DD3): what the approved mockups show and round A skipped, plus the test gaps the review found.
 //  - the search field of a long list (8+ options) and the phone sheet / centred / inline presentation (Bubble `popup` dial);
@@ -139,7 +140,7 @@ test.describe('the search field of a long list (mockups: 8+ options)', () => {
   });
 
   test('the field is in every style and every skin that draws a list (a long list keeps its search while scrolling)', async ({ page }) => {
-    for (const skin of ['classic', 'bubble']) {
+    for (const skin of skinsUnderTest(['classic', 'bubble'])) {
       await stage(page, skin);
       await mount(page, STYLES, 13);
       for (const s of STYLES) {
@@ -197,6 +198,7 @@ test.describe('the phone: sheet / centred / inline (the Bubble popup dial), a po
   });
 
   test('the popup dial: centred sits in the middle, inline opens in the flow; a wide screen and `auto` keep the popover', async ({ page }) => {
+    skipIfFrozen('bubble'); // BUBBLE-FREEZE-295
     await stage(page, 'bubble', 390);
     await useSheet(page);
     await mount(page, ['pill', 'auto'], 6);
@@ -294,7 +296,7 @@ const COLOR_JS = `
 `;
 
 test.describe('dark rendering of the six styles (bubble and classic)', () => {
-  for (const skin of ['bubble', 'classic']) {
+  for (const skin of skinsUnderTest(['bubble', 'classic'])) {
     test(`skin ${skin}, dark: every style has a readable chip and a readable open list`, async ({ page }) => {
       await stage(page, skin, 1280, 'dark');
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -358,6 +360,7 @@ test.describe('the mockups\' per-skin notes', () => {
   }
 
   test('Tesla: the pill carries a hairline; classic keeps it borderless; Bubble: the field is rounded to r-md', async ({ page }) => {
+    skipIfFrozen('bubble'); // BUBBLE-FREEZE-295
     await stage(page, 'tesla');
     await mount(page, ['pill', 'field']);
     const tesla = await pill(page, 'pill');
@@ -372,7 +375,7 @@ test.describe('the mockups\' per-skin notes', () => {
   });
 
   test('the list surface: opaque in EVERY skin (owner 2026-10-13: a list is a menu, never see-through - Domus used to be an 84 % glass sheet), nothing blurred behind it; the text style opens a list at least 240 px wide', async ({ page }) => {
-    for (const skin of ['classic', 'tesla', 'domus', 'bubble', 'crystal']) {
+    for (const skin of skinsUnderTest(['classic', 'tesla', 'domus', 'bubble', 'crystal'])) {
       await stage(page, skin);
       await mount(page, ['pill', 'text']);
       await chip(page, 'pill').click();

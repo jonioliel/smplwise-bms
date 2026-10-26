@@ -6,6 +6,7 @@ import { buildScene, type Catalog3DLookup, type SceneDescription } from '../src/
 import type { GeometryDoc } from '../src/map/geometry';
 import { inPageCheck } from './layout-guard';
 import { camera, wall, walkDoc, walkInput } from './walk-fixtures';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // Plan Studio 6, slice S5-A (CR-029 sections 4.2 / 8, the touch half of the walk) in the real element on the style guide's 3D
 // card, on the dist preview (npm run build; the runner's preview lane). The description is built in node with the walk world
@@ -294,7 +295,7 @@ test.describe('the touch walk', () => {
 test.describe('the walk bar and the bottom sheet', () => {
   test('every control is at least 44 px, in the five skins', async ({ page }, info) => {
     test.setTimeout(300_000);
-    for (const skin of ['classic', 'domus', 'tesla', 'bubble', 'crystal']) {
+    for (const skin of skinsUnderTest(['classic', 'domus', 'tesla', 'bubble', 'crystal'])) {
       const el = await open(page, descLow, skin);
       await walkAt(el, 3.5, 5.0, 0);
       const phone = info.project.name === 'mobile';

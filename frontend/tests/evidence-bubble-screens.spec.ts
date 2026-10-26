@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installBubbleMock, type BubbleMockState } from './bubble-mocks';
+import { skipIfFrozen } from './helpers/frozen-skins';
+
+// BUBBLE-FREEZE-295: this whole file exercises the frozen bubble skin; it skips itself while the skin is frozen (baselines/PNGs stay).
+skipIfFrozen('bubble');
 
 // Bubble phase C (owner 2026-10-02): the real screens in the bubble skin.
 //   1. the evidence shots: the home (cards + tiles), the area (+ the light / climate / cover sheets), the players page (+ the volume

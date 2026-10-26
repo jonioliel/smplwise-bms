@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { install, newMock } from './nvr-cameras-write-mock';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // CR-020 S2 phase B: the layout guard (tests/layout-guard.ts) over the cameras screen WITH its write controls - the table / cards
 // with the SVC switch and the pencil, the ONE confirmation, the editor drawer - across widths 320..1440 x light / dark. FAILS on
@@ -12,7 +13,7 @@ const WIDTHS = [320, 360, 390, 480, 600, 768, 820, 1024, 1100, 1280, 1440];
 const THEMES = ['light', 'dark'] as const;
 // bubble: the guard's own skin (its touch dial makes 44 px controls); classic: the guard's overflow / escape / clipped classes only
 // (classic components are 26-32 px by design, so "target" is judged in bubble and on the screen's own controls below)
-const SKINS = ['bubble', 'classic'] as const;
+const SKINS = skinsUnderTest(['bubble', 'classic'] as const);
 const PAGE = 'sw-app system-security system-security-cameras';
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));

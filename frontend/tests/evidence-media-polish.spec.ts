@@ -35,7 +35,7 @@ async function noOverflow(page: Page, where: string) {
   expect(over, `horizontal overflow on ${where}`).toBeLessThanOrEqual(1);
 }
 
-const MATRIX: [Skin, Scheme][] = [['classic', 'light'], ['classic', 'dark'], ['domus', 'light'], ['domus', 'dark'], ['tesla', 'light'], ['bubble', 'dark'], ['crystal', 'light'], ['crystal', 'dark']];
+const MATRIX: [Skin, Scheme][] = [['classic', 'light'], ['classic', 'dark'], ['domus', 'light'], ['domus', 'dark'], ['tesla', 'light'], ['crystal', 'light'], ['crystal', 'dark']];
 
 test.describe('media-polish evidence', () => {
   test.skip(process.env.SW_LIVE === '1', 'demo-mode spec');

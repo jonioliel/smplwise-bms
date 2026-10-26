@@ -349,11 +349,18 @@ def test_ui_skin_and_scheme_settings(settings):
     m = re.search(r"export const SKIN_IDS = \[([^\]]*)\]", front)
     assert m, "SKIN_IDS not found in design/skins/index.ts"
     assert tuple(re.findall(r"'([a-z]+)'", m.group(1))) == ("classic", "domus", "tesla", "bubble", "crystal")
+    # BUBBLE-FREEZE-295: the frozen list and the fallback are the same on both sides
+    fm = re.search(r"export const FROZEN_SKINS: readonly SkinId\[\] = \[([^\]]*)\]", front)
+    assert fm and tuple(re.findall(r"'([a-z]+)'", fm.group(1))) == ("bubble",)
+    from smplwise.routers import settings as settings_router
+
+    assert settings_router.FROZEN_SKINS == ("bubble",) and settings_router.FROZEN_FALLBACK_SKIN == "domus"
+    assert "FROZEN_FALLBACK_SKIN: SkinId = 'domus'" in front
     app = create_app(settings)
     with TestClient(app) as c:
         s = c.get("/api/v1/settings").json()["settings"]
         assert s["ui.skin"] == "classic" and s["ui.scheme"] == "light"
-        for skin in ("domus", "tesla", "bubble", "crystal", "classic"):
+        for skin in ("domus", "tesla", "crystal", "classic"):
             r = c.patch("/api/v1/settings", json={"ui.skin": skin})
             assert r.status_code == 200, (skin, r.text)
             assert r.json()["settings"]["ui.skin"] == skin
@@ -363,6 +370,9 @@ def test_ui_skin_and_scheme_settings(settings):
             assert r.json()["settings"]["ui.scheme"] == scheme
         for bad in ("ios", "Domus", "", "domus ", "glass", "Bubble", "Crystal"):
             assert c.patch("/api/v1/settings", json={"ui.skin": bad}).status_code == 422, bad
+        # BUBBLE-FREEZE-295: the frozen skin is refused with a clear message and the stored value does not change
+        frozen = c.patch("/api/v1/settings", json={"ui.skin": "bubble"})
+        assert frozen.status_code == 422 and "frozen" in frozen.text, frozen.text
         for bad in ("night", "Dark", "", "dark "):
             assert c.patch("/api/v1/settings", json={"ui.scheme": bad}).status_code == 422, bad
         assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == "classic"
@@ -375,6 +385,20 @@ def test_ui_skin_and_scheme_settings(settings):
         assert seen.status_code == 200 and seen.json()["settings"]["ui.skin"] == "tesla"
         assert c.patch("/api/v1/settings", json={"ui.skin": "domus"}, headers=as_user("dana")).status_code == 403
         assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == "tesla"
+
+
+def test_stored_frozen_skin_reads_as_domus(settings):
+    """BUBBLE-FREEZE-295: an installation that already stored the frozen 'bubble' skin is read as 'domus' (no migration: the row stays)."""
+    from smplwise.db import set_setting
+
+    app = create_app(settings)
+    with TestClient(app) as c:
+        with app.state.db.connection() as conn:
+            set_setting(conn, "ui.skin", "bubble")
+            conn.commit()
+        assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == "domus"
+        with app.state.db.connection() as conn:
+            assert conn.execute("SELECT value FROM settings WHERE key = 'ui.skin'").fetchone()[0] == "bubble"
 
 
 def test_security_snapshot_defaults_to_shown_round_trips_and_needs_system_configure(settings):

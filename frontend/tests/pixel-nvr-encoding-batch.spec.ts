@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { newMock } from './nvr-cameras-write-mock';
 import { settlePage } from './pixel-settle';
 import { batchCameras, installBatch, newBatchMock } from './nvr-batch-mock';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-020 phase D pixel baselines: the bulk encoding change's two dialog phases - the target settings form and the preview - in the skins
 // (SKIN_IDS), desktop 1440 and phone 390, against the mocked backend (deterministic data, fixed clock, performance:full).

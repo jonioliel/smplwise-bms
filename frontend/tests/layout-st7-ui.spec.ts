@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { freshMock, mockSt7Backend, openSt7, settle, waitEditor } from './st7-ui-mocks';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-029 ST7 UI: the layout guard (tests/layout-guard.ts) over the new Studio 6 cards, in every registered skin (SKIN_IDS; crystal since 2.4.7)
 // x light / dark x widths 320..1440, over the mocked backend (tests/st7-ui-mocks.ts): the realistic-3D settings card (both targets)

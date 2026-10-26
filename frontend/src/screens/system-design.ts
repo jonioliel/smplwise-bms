@@ -7,7 +7,7 @@ import { describeError } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
-import { SKIN_IDS, SKINS, type SkinId } from '../design/skins';
+import { SELECTABLE_SKIN_IDS, SKINS, type SkinId } from '../design/skins';
 import { skinTable } from '../design/css';
 import { SCHEMES, installationDesign, onDesign, ownSchemeChoice, saveDemoDesign, setInstallationDesign, setOwnScheme, type Scheme, type Theme } from '../design/apply';
 import { SkinController } from '../design/skin';
@@ -89,14 +89,14 @@ export class SystemDesign extends LitElement {
       gap: 12px;
       align-items: start;
     }
-    /* VISDIFF-246: five skins in a row that held four left the fifth alone on a second line (a 25 % card and a hole beside it):
-       where the card is wide enough all five sit in one row */
+    /* VISDIFF-246: skins in a row that held one fewer left the last alone on a second line (a 25 % card and a hole beside it):
+       where the card is wide enough all of them sit in one row. BUBBLE-FREEZE-295: four selectable skins now (the bubble skin is frozen) */
     .skinrow {
       container-type: inline-size;
     }
     @container (min-width: 740px) {
       .skins {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
     }
     .skin {
@@ -479,7 +479,7 @@ export class SystemDesign extends LitElement {
       <div class="row col skinrow">
         <span class="lbl">סגנון<span class="muted">אותו מבנה בכל הסגנונות; ההבדל הוא בחומרים, בצורות ובצבעים</span></span>
         <div class="skins" role="group" aria-label="סגנון">
-          ${SKIN_IDS.map(
+          ${SELECTABLE_SKIN_IDS.map(
             (id) => html`<button type="button" class="skin" data-skin-option=${id} aria-pressed=${this.draftSkin === id ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftSkin = id)}>
               ${this.swatch(id, preview)}
               <span class="nm">${SKINS[id].nameHe}${cur.skin === id ? html`<span class="cur" data-skin-current>נוכחי</span>` : nothing}</span>

@@ -1,6 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installBubbleMock } from './bubble-mocks';
+import { skipIfFrozen } from './helpers/frozen-skins';
+
+// BUBBLE-FREEZE-295: this whole file exercises the frozen bubble skin; it skips itself while the skin is frozen (baselines/PNGs stay).
+skipIfFrozen('bubble');
 
 // MD1 material dials (owner 2026-10-03): the layout guard (tests/layout-guard.ts) over the real home and area and the components'
 // demo page under every material preset x depth / tint strong x scheme x width x performance tier, and under every ready palette

@@ -1,12 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // CAMHEALTH091 camera image health: the compact card + picture column on בריאות מצלמות (#/investigate/health) and the settings card in
 // הגדרות › בריאות ועבודות. Against a MOCKED backend (page.route on api/v1); every value is fake. The layout guard (tests/layout-guard.ts)
 // FAILS on escape / overflow / floating / clipped / target. Run with the preview:
 //   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/layout-camera-image-health.spec.ts --project=desktop --workers=1
 const WIDTHS = [320, 390, 820, 1440];
-const SKINS = ['classic', 'bubble'];
+const SKINS = skinsUnderTest(['classic', 'bubble']);
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const ADMIN = ['video.live', 'video.playback', 'map.read', 'events.read', 'devices.read', 'system.configure', 'rbac.assign', 'sources.configure', 'notify.manage'];
 const SKIP = '.skl, sw-icon, svg';

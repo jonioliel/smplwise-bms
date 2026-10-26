@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 import { band, install, newMock, open, stills, type Dev } from './wall-plan-mocks';
 
 // Plan Studio 6, slice S5-B: the layout guard (tests/layout-guard.ts) over the two surfaces this slice drew, against the mocked backend

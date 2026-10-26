@@ -12,7 +12,7 @@
  * document stylesheet cannot reach). Replacing that sheet's text re-skins every live component without re-rendering.
  */
 import { ReactiveElement } from 'lit';
-import { DEFAULT_SKIN, SKIN_IDS, SKINS, isSkinId, type SkinId } from './skins';
+import { DEFAULT_SKIN, SKIN_IDS, SKINS, isSkinId, resolveSkin, type SkinId } from './skins';
 import { skinRules, skinTable, tokensCss } from './css';
 import { alphaFloor, liteAlpha, sheetModelOf, washCap, washModelOf } from './contrast';
 import { bootLook, onLook, setAlphaFloor, setLiteAlpha, setWashCap } from './look';
@@ -60,7 +60,7 @@ const listeners = new Set<() => void>();
 function loadStored() {
   try {
     const c = JSON.parse(read(CACHE_KEY) ?? 'null') as Partial<Installation> | null;
-    if (c && isSkinId(c.skin)) installation.skin = c.skin;
+    if (c && isSkinId(c.skin)) installation.skin = resolveSkin(c.skin) ?? DEFAULT_SKIN; // a frozen skin reads as the fallback (skins/index.ts)
     if (c && isScheme(c.scheme)) installation.scheme = c.scheme;
   } catch {
     /* a corrupt cache reads as the defaults */
@@ -71,7 +71,7 @@ function loadStored() {
     const q = new URLSearchParams(window.location.search);
     const s = q.get('skin');
     const m = q.get('scheme');
-    queryOverride = { skin: isSkinId(s) ? s : null, scheme: isScheme(m) ? m : null };
+    queryOverride = { skin: resolveSkin(s), scheme: isScheme(m) ? m : null };
   } catch {
     /* no location */
   }
@@ -135,7 +135,7 @@ export function onDesign(fn: () => void): () => void {
 
 /** The installation's `ui.skin` / `ui.scheme` as the product settings carry them (unknown values keep the current ones). */
 export function setInstallationDesign(skin: unknown, scheme: unknown) {
-  const next: Installation = { skin: isSkinId(skin) ? skin : installation.skin, scheme: isScheme(scheme) ? scheme : installation.scheme };
+  const next: Installation = { skin: resolveSkin(skin) ?? installation.skin, scheme: isScheme(scheme) ? scheme : installation.scheme };
   if (next.skin === installation.skin && next.scheme === installation.scheme) return;
   installation = next;
   write(CACHE_KEY, JSON.stringify(installation));
@@ -144,7 +144,7 @@ export function setInstallationDesign(skin: unknown, scheme: unknown) {
 
 /** The static demo (no backend) keeps "the installation's" choice in this browser: same cache, same effect. */
 export function saveDemoDesign(skin: SkinId, scheme: Scheme) {
-  installation = { skin, scheme };
+  installation = { skin: resolveSkin(skin) ?? DEFAULT_SKIN, scheme };
   write(CACHE_KEY, JSON.stringify(installation));
   apply();
 }

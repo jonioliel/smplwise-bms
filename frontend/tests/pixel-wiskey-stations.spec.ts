@@ -1,6 +1,6 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 import { settlePage } from './pixel-settle';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
 

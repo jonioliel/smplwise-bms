@@ -2,7 +2,7 @@ import { test, expect, type APIRequestContext, type Locator, type Page } from '@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // Window walls (glass curtain walls, document 2.1) against a running backend: draw one with the kind choice, convert a
 // wall to glass and back in one click, edit the glazing (panel width, an opening panel, the bulk equal division) with

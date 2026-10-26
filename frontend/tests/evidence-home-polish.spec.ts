@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { settlePage } from './pixel-settle';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // HOME polish (2026-10-10): the evidence matrix of the home screen (cards and tiles views), the area screen and the tiles panel,
 // across the four skins x light / dark at 1440, the classic skin at 1024 and 390, plus the non-ready states (loading, error, an

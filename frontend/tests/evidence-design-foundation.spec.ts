@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { settlePage } from './pixel-settle';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // Design foundation (owner 2026-10-01): one shared structure, skins = tokens + a bounded rule set, light / dark for the whole shell.
 //   1. `classic` (the default, today's look) is pixel-stable: toHaveScreenshot against the baselines captured from the build

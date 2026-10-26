@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { settlePage } from './pixel-settle';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // SEC screens polish (2026-10-10): the evidence matrix of the security area - the alarm (state card, zones, the keypad), the live
 // overview, the wall, one camera, the saved views, the events centre (table + drawer), camera health, the notification centre

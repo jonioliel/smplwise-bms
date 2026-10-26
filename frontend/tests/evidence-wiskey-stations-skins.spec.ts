@@ -2,7 +2,7 @@ import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
 
 // CR-036 slice S6: the native stations and doors screen in every skin the build has (the skin list is read from the registry, so a

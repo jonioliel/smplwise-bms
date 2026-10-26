@@ -2,6 +2,10 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { skipIfFrozen } from './helpers/frozen-skins';
+
+// BUBBLE-FREEZE-295: this whole file exercises the frozen bubble skin; it skips itself while the skin is frozen (baselines/PNGs stay).
+skipIfFrozen('bubble');
 
 // Release 0.1.155: the palette loader and the editor in הגדרות › כללי › מראה (static demo mode; the backend side is test_palettes.py).
 //   1. the palette dial belongs to the installation's system administrator only: a ready palette chosen there (saved with the button) is in

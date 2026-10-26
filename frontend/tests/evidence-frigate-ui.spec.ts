@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inPageCheck, summarize } from './layout-guard';
 import { ADMIN, installFrigate, newControlMock, newFrigateMock, openApp, type FrigateControlMock, type FrigateMock } from './frigate-mocks';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // FRGD (owner 2026-10-07): the Frigate user interface, polished and completed - the restyled review screen (cards AND a table view, the
 // state chips, the keys behind one help button, the drawer with "ייצוא הקטע"), and Settings > the Frigate recorder as one tabbed

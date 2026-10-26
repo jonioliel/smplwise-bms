@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // Unreleased (owner request 2026-10-04): the `capsule` dropdown style and the SIZE dial (dd-size: sm / md / lg).
 //  - the items API: `icon`, `count` and a `divider` item; the other styles ignore icon and divider;

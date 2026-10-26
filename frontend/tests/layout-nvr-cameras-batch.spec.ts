@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { newMock } from './nvr-cameras-write-mock';
 import { batchCameras, installBatch, newBatchMock } from './nvr-batch-mock';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // CR-020 S2 phase C: the layout guard (tests/layout-guard.ts) over the multi-camera change - the SVC dialog with its extra button, the checklist
 // (a list with its own scroll), the ONE confirmation with the names under "פרטים", the progress dialog (running), the strip while the dialog is
@@ -14,7 +15,7 @@ import { batchCameras, installBatch, newBatchMock } from './nvr-batch-mock';
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 390, 800, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1100, 1280, 1440];
 const THEMES = ['light', 'dark'] as const;
-const SKINS = ['bubble', 'classic'] as const;
+const SKINS = skinsUnderTest(['bubble', 'classic'] as const);
 const PAGE = 'sw-app system-security system-security-cameras';
 const B = `${PAGE} nvr-camera-batch`;
 const CONFIRM = 'sw-dialog[open][data-nvr-confirm-dialog]';

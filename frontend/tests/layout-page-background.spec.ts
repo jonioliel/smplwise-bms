@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // BGFIX-293 (owner 2026-10-20): ONE page background on every screen - the shell's skin canvas (sw-app), as the security screen shows it.
 // The bug: the glass screens (חשמל והתקנים with devices.style=glass, schedules, automations, multimedia, tickets, the notification
@@ -12,7 +13,7 @@ import { test, expect, type Page } from '@playwright/test';
 // Without PAGE_BG_FULL=1 one skin with a canvas of its own (domus) is swept in light + dark; with it, every skin.
 
 const FULL = !!process.env.PAGE_BG_FULL;
-const SKINS = FULL ? ['classic', 'domus', 'bubble', 'crystal', 'tesla'] : ['domus'];
+const SKINS = FULL ? skinsUnderTest(['classic', 'domus', 'bubble', 'crystal', 'tesla']) : ['domus'];
 const SCHEMES = ['light', 'dark'] as const;
 
 const ROUTES = [

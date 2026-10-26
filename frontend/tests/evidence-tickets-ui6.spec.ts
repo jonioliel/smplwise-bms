@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installTicketsMock, url } from './tickets-mocks';
 import { installS4Mock, serveBuiltApp, type S4Mock, type S4MockOptions } from './tickets-s4-mocks';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // TKUI6 (release 2.6.0) evidence: the redesigned "מטפלים וספקים" page and the service-management settings, from the REAL build against the
 // mock layer (fake data only). Mock-up v5: the page frame of the automations pages, handler cards with the load counts (department
@@ -14,7 +15,7 @@ const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../do
 const H = 'sw-app tickets-handlers';
 const S = 'sw-app system-tickets';
 const NAME = { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f' };
-const SKINS = ['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const;
+const SKINS = skinsUnderTest(['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const);
 const isPhone = (p: Page) => (p.viewportSize()?.width ?? 1440) < 768;
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
@@ -144,7 +145,7 @@ test.describe('TKUI6: handlers & vendors page and the service-management setting
   });
 
   test('handlers: member cards with the load counts for the department manager, the employees without an account; light / dark x five skins', async ({ page }) => {
-    const runs: [string, 'light' | 'dark'][] = isPhone(page) ? [['classic', 'light'], ['classic', 'dark']] : [...SKINS.map((s) => [s, 'light'] as [string, 'light']), ['classic', 'dark'], ['bubble', 'dark']];
+    const runs: [string, 'light' | 'dark'][] = isPhone(page) ? [['classic', 'light'], ['classic', 'dark']] : [...SKINS.map((s) => [s, 'light'] as [string, 'light']), ['classic', 'dark']];
     for (const [skin, scheme] of runs) {
       await go(page, '/tickets/handlers', {}, scheme, skin);
       await page.waitForSelector(`${H} tickets-handlers-members [data-member="user:u-ronit"]`);
@@ -193,7 +194,7 @@ test.describe('TKUI6: handlers & vendors page and the service-management setting
   });
 
   test('vendors and contacts: vendor cards with the channel selector and the code chip; contact rows; the drawer editor', async ({ page }) => {
-    const runs: [string, 'light' | 'dark'][] = isPhone(page) ? [['classic', 'light'], ['classic', 'dark']] : [['classic', 'light'], ['classic', 'dark'], ['domus', 'light'], ['bubble', 'light']];
+    const runs: [string, 'light' | 'dark'][] = isPhone(page) ? [['classic', 'light'], ['classic', 'dark']] : [['classic', 'light'], ['classic', 'dark'], ['domus', 'light']];
     for (const [skin, scheme] of runs) {
       const mock = await go(page, '/tickets/handlers?seg=vendors', {}, scheme, skin);
       await page.waitForSelector(`${H} tickets-contacts[kind="vendor"] [data-contact-card="c000000000000v01"]`);

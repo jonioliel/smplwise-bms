@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { settlePage } from './pixel-settle';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // LOGOFIT-295 (owner bug report on 2.16.0): the logos (the company logo, the SmplWise logo) share the floating corner's row - the page's own
 // top row - instead of a 48 px strip of their own above every screen that pushed the whole screen down. Measured here, per width and skin:
@@ -118,9 +119,9 @@ async function withoutLogoRow(page: Page) {
 const overlaps = (a: R, b: R) => a.left < b.right - 0.5 && a.right > b.left + 0.5 && a.top < b.bottom - 0.5 && a.bottom > b.top + 0.5;
 
 const CASES: { w: number; h: number; skins: string[] }[] = [
-  { w: 1440, h: 900, skins: ['classic', 'domus', 'bubble', 'crystal', 'tesla'] },
+  { w: 1440, h: 900, skins: skinsUnderTest(['classic', 'domus', 'bubble', 'crystal', 'tesla']) },
   { w: 1366, h: 768, skins: ['classic', 'domus'] },
-  { w: 1024, h: 768, skins: ['classic', 'bubble'] }, // the tablet project's width (landscape)
+  { w: 1024, h: 768, skins: skinsUnderTest(['classic', 'bubble']) }, // the tablet project's width (landscape)
   { w: 820, h: 1180, skins: ['classic', 'domus'] }, // a portrait tablet: the narrow rail
 ];
 const ROUTES = [

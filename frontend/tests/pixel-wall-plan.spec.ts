@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { settlePage } from './pixel-settle';
 import { band, install, newMock, open, stills, live } from './wall-plan-mocks';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // Plan Studio 6, slice S5-B pixel baselines (docs/changes/CR-029-ST7-S5B-NOTES.md): the NEW states only - the plan in the map band of a portrait
 // wall display (the baked stills in the five skins on a dark wall, two on a light wall; the live schematic view on SwiftShader) and the
@@ -10,7 +11,7 @@ import { band, install, newMock, open, stills, live } from './wall-plan-mocks';
 // and text shaping differ): the Linux ones are generated on the runner with `--update-snapshots`; on an OS without a baseline the check is
 // skipped instead of failing on a missing file (the design-foundation rule).
 //   run_smart.py linux-pixel <branch> tests/pixel-wall-plan.spec.ts --project=desktop [--update-snapshots]
-const SKINS = ['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const;
+const SKINS = skinsUnderTest(['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const);
 const NOW = new Date('2026-10-04T09:00:00Z'); // noon in Israel: the day still of every style
 
 /** `--update-snapshots` is "changed" by default in this Playwright ("all" when spelled out): both write the baseline. */
@@ -72,7 +73,7 @@ test.describe('pixel: the settings drawer\'s map section', () => {
     test.skip(info.project.name !== 'desktop', 'one project is enough for the drawer');
   });
 
-  for (const skin of ['classic', 'bubble', 'crystal'] as const) {
+  for (const skin of skinsUnderTest(['classic', 'bubble', 'crystal'] as const)) {
     test(`${skin} is pixel-stable: the map section of the wall drawer`, async ({ page }, info) => {
       await page.clock.setFixedTime(NOW);
       const st = newMock({ admin: true, skin, scheme: 'light', plan: { mode: 'stills', quality: 'schematic', idle_s: 120 } });

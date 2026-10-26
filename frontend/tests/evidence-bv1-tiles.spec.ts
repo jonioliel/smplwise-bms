@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installBv1Mock, bv1Config, BV1_NOW, type Bv1MockState } from './bv1-mocks';
+import { skipIfFrozen } from './helpers/frozen-skins';
+
+// BUBBLE-FREEZE-295: this whole file exercises the frozen bubble skin; it skips itself while the skin is frozen (baselines/PNGs stay).
+skipIfFrozen('bubble');
 
 // BV1 (2026-10-05): the evidence shots of the new Bubble variants and their behaviour against the mocked backend (tests/bv1-mocks.ts).
 //   1. shots -> docs/design/evidence/bv1-tiles/: the home with the clock / weather tiles, the agenda and the launcher at 1440 / 820

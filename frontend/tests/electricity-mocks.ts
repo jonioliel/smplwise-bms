@@ -1,7 +1,7 @@
 import type { Page, Route } from '@playwright/test';
 import { fixtureCandidates, fixtureEpochs, fixtureMeters, fixtureSeries } from '../src/electricity/fixtures';
 import { fixtureReadingLog, type ReadingLog } from '../src/api/electricity-readings';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-023 electricity UI: the mock layer of the Playwright specs. It speaks the WIRE contract of pilot/elec-server
 // (docs/architecture/ELECTRICITY_INTERFACES.md section 3: `items`, `display_name`, `value_kwh`, `state`, candidates with `ref` / `verdict` / `code`, settings
