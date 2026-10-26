@@ -49,6 +49,12 @@ async function check(page: Page, what: string): Promise<void> {
       expect(hit(s, b), `${what}: ${sk} ${JSON.stringify(s)} overlaps ${bk} ${JSON.stringify(b)}`).toBe(false);
     }
   }
+  // the weather stays visible in every layout and orientation
+  expect(Object.keys(side).some((k) => k.startsWith('wx')), what + ': the weather block is visible').toBe(true);
+  // nothing of the bus cards clips (the eta, the line chip and the card itself fit their boxes; the destination ellipsis is by design)
+  const clipped = await page.evaluate(() => [...document.querySelectorAll('#cv .bcard, #cv .bcard .eta, #cv .bcard .eta b, #cv .bcard .ln, #cv .bus .eta, #cv .bus .eta b')]
+    .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && e.scrollWidth > e.clientWidth + 1; }).map((e) => e.className + ':' + e.scrollWidth + '>' + e.clientWidth));
+  expect(clipped, what + ': no clipped card text').toEqual([]);
   // and nothing of the side column hangs out of the page
   const vp = page.viewportSize()!;
   for (const [sk, s] of Object.entries(side)) expect(s.b, `${what}: ${sk} stays inside the viewport`).toBeLessThanOrEqual(vp.height + 1);
