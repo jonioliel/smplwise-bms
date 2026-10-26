@@ -74,7 +74,7 @@ test('finding 14: the infrastructure pages carry one visually hidden h1 named li
   expect(sr).toContain('<h1 class="sr-h1"');
   expect(sr).not.toMatch(/display:\s*none/);
   expect(read('screens/infra-electricity.ts')).toContain('srHeading(');
-  expect(read('screens/infra-generator.ts')).toContain('srHeading(G.tab)');
+  expect(read('screens/infra-generator.ts')).toContain('srHeading(G.tab, true)');
 });
 
 test('finding 8: the settings sub-pages are not named like the settings strip, and follow the tabs mode on every width', () => {
