@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { live } from 'lit/directives/live.js';
 import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-toggle';
@@ -225,7 +226,7 @@ export class SystemTransit extends LitElement {
                    unit: TrKey = 'minutes') {
     const v = this.s!.config[key];
     return html`<div class="fld"><label for=${'tr-' + key}>${tr(label)}</label>
-      <div class="sum"><input id=${'tr-' + key} class="inp short num" type="number" min=${range[0]} max=${range[1]} step="1" .value=${String(v)} ?disabled=${!edit || this.busy} data-field=${key}
+      <div class="sum"><input id=${'tr-' + key} class="inp short num" type="number" min=${range[0]} max=${range[1]} step="1" .value=${live(String(v))} ?disabled=${!edit || this.busy} data-field=${key}
         @change=${(e: Event) => this.saveNumber(key, clampInt((e.target as HTMLInputElement).value, range[0], range[1], v))}><span class="mut">${tr(unit)}</span></div>
       <span class="hint">${tr(hint)}</span></div>`;
   }
@@ -274,7 +275,7 @@ export class SystemTransit extends LitElement {
     const look = h.state === 'ok' ? 'ok' : h.state === 'off' ? 'off' : h.state === 'stale' ? 'warn' : 'alarm';
     const age = h.age_s === null ? tr('never') : tr('ageMin', { n: Math.floor(h.age_s / 60) });
     return html`<div class="panel" data-transit-health><div class="hd"><h2>${tr('healthCard')}</h2><span class="badge state" data-look=${look} data-health=${h.state}>${tr(('st_' + h.state) as TrKey)}</span></div>
-      <dl class="kv"><dt>${tr('lastOk')}</dt><dd class="num ltr">${h.last_ok_at ? h.last_ok_at.replace('T', ' ').replace('Z', '') : tr('never')}</dd>
+      <dl class="kv"><dt>${tr('lastOk')}</dt><dd class=${h.last_ok_at ? 'num ltr' : ''}>${h.last_ok_at ? h.last_ok_at.replace('T', ' ').replace('Z', '') : tr('never')}</dd>
         <dt>${tr('dataAge')}</dt><dd>${age}</dd><dt>${tr('codesInUse')}</dt><dd class="num">${h.codes_in_use}</dd>
         <dt>${tr('errorsCount')}</dt><dd class="num">${h.errors}</dd>
         ${h.last_error ? html`<dt>${tr('lastError')}</dt><dd class="ltr">${h.last_error}</dd>` : nothing}

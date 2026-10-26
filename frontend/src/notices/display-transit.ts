@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { live } from 'lit/directives/live.js';
 import { transitOf, type TransitGroup, type TransitLayout, type TransitScreen } from '../notice-tv/transit-logic';
 import type { Display } from '../notice-tv/tv-logic';
 import { transitSettings, type TransitSettings } from '../api/transit';
@@ -67,7 +68,7 @@ export class NoticeDisplayTransit extends LitElement {
       ${s.enabled && usable ? html`
         <div class="sub" data-transit-stops>
           <span>${tr('scrStops')}</span>
-          ${stops.map((st) => html`<label class="ck"><input type="checkbox" data-transit-stop=${st.code} .checked=${picked.includes(st.code)}
+          ${stops.map((st) => html`<label class="ck"><input type="checkbox" data-transit-stop=${st.code} .checked=${live(picked.includes(st.code))}
             @change=${() => this.emit({ stops: toggleStop(s.stops, st.code, stops.map((x) => x.code)) })}>${st.name || st.catalogue_name || st.code}</label>`)}
           ${s.stops.length === 0 ? html`<span class="hint">${tr('scrStopsAll')}</span>` : nothing}
         </div>
@@ -79,16 +80,16 @@ export class NoticeDisplayTransit extends LitElement {
             this.emit({ window_min: v === 'free' ? 45 : Number(v) });
           }}>${WINDOWS.map((w) => html`<option value=${String(w)} ?selected=${mode === 'list' && s.window_min === w}>${windowLabel(w, lang)}</option>`)}
             <option value="free" ?selected=${mode === 'free'}>${tr('scrWindowFree')}</option></select>
-          ${mode === 'free' ? html`<input class="inp short num" type="number" data-transit-window-free min=${WINDOW_RANGE[0]} max=${WINDOW_RANGE[1]} step="1" .value=${String(s.window_min)}
+          ${mode === 'free' ? html`<input class="inp short num" type="number" data-transit-window-free min=${WINDOW_RANGE[0]} max=${WINDOW_RANGE[1]} step="1" .value=${live(String(s.window_min))}
             title=${tr('scrFree', { a: WINDOW_RANGE[0], b: WINDOW_RANGE[1] })}
             @change=${(e: Event) => this.emit({ window_min: clampInt((e.target as HTMLInputElement).value, WINDOW_RANGE[0], WINDOW_RANGE[1], s.window_min) })}>` : nothing}
         </div>
-        <div class="sub"><span>${tr('scrRows')}</span><input class="inp short num" type="number" data-transit-rows min=${ROWS_RANGE[0]} max=${ROWS_RANGE[1]} step="1" .value=${String(s.rows)}
+        <div class="sub"><span>${tr('scrRows')}</span><input class="inp short num" type="number" data-transit-rows min=${ROWS_RANGE[0]} max=${ROWS_RANGE[1]} step="1" .value=${live(String(s.rows))}
           @change=${(e: Event) => this.emit({ rows: clampInt((e.target as HTMLInputElement).value, ROWS_RANGE[0], ROWS_RANGE[1], s.rows) })}>
           <span>${tr('scrGroup')}</span><select class="inp" data-transit-group .value=${s.group} @change=${(e: Event) => this.emit({ group: (e.target as HTMLSelectElement).value as TransitGroup })}>
             ${groups.map(([k, label]) => html`<option value=${k} ?selected=${s.group === k}>${label}</option>`)}</select></div>
         <div class="sub"><span>${tr('scrRefresh')}</span><input class="inp short num" type="number" data-transit-refresh min=${REFRESH_RANGE[0]} max=${REFRESH_RANGE[1]} step="1"
-          placeholder=${tr('scrRefreshInherit', { n: this.t?.config.refresh_s ?? 20 })} .value=${s.refresh_s == null ? '' : String(s.refresh_s)}
+          placeholder=${tr('scrRefreshInherit', { n: this.t?.config.refresh_s ?? 20 })} .value=${live(s.refresh_s == null ? '' : String(s.refresh_s))}
           @change=${(e: Event) => {
             const raw = (e.target as HTMLInputElement).value.trim();
             this.emit({ refresh_s: raw === '' ? null : clampInt(raw, REFRESH_RANGE[0], REFRESH_RANGE[1], 20) });
@@ -98,7 +99,7 @@ export class NoticeDisplayTransit extends LitElement {
             this.emit({ show_distance: v === 'inherit' ? null : v === 'on' });
           }}>${[['inherit', tr('scrDistInherit')], ['on', tr('scrDistOn')], ['off', tr('scrDistOff')]].map(([k, label]) =>
             html`<option value=${k} ?selected=${(s.show_distance == null ? 'inherit' : s.show_distance ? 'on' : 'off') === k}>${label}</option>`)}</select></div>
-        ${s.layout === 'slide' ? html`<div class="sub"><span>${tr('scrDwell')}</span><input class="inp short num" type="number" data-transit-dwell min=${DWELL_RANGE[0]} max=${DWELL_RANGE[1]} step="1" .value=${String(s.dwell_s)}
+        ${s.layout === 'slide' ? html`<div class="sub"><span>${tr('scrDwell')}</span><input class="inp short num" type="number" data-transit-dwell min=${DWELL_RANGE[0]} max=${DWELL_RANGE[1]} step="1" .value=${live(String(s.dwell_s))}
           @change=${(e: Event) => this.emit({ dwell_s: clampInt((e.target as HTMLInputElement).value, DWELL_RANGE[0], DWELL_RANGE[1], s.dwell_s) })}></div>` : nothing}
       ` : nothing}
     </div>`;
