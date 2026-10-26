@@ -64,8 +64,24 @@ test.describe('automations: rows or the cards with their sentence', () => {
     await expect(a.locator('[data-auto-rows] automation-row').first()).toBeVisible();
     await expect(a.locator('automation-card')).toHaveCount(0);
     // no scrolling: 12 rows on the desktop, 7 on the phone (POLISH2-295: 9 scrolled the phone by 81 px)
-    await expect(a.locator('[data-auto-rows] automation-row')).toHaveCount(phone(info) ? 7 : 12);
-    expect(await a.evaluate((el) => el.scrollHeight - el.clientHeight), 'rows: no scrolling').toBeLessThanOrEqual(1);
+    // fit=off pins the page-size setting (12 rows), which only a tall desktop (900 px) holds; a 768 px tablet shows fewer rows with the
+    // NOSCROLL fit on (below), never a scroll
+    const tall = (page.viewportSize()?.height ?? 0) >= 900;
+    if (phone(info) || tall) {
+      await expect(a.locator('[data-auto-rows] automation-row')).toHaveCount(phone(info) ? 7 : 12);
+      expect(await a.evaluate((el) => el.scrollHeight - el.clientHeight), 'rows: no scrolling').toBeLessThanOrEqual(1);
+    } else {
+      await page.goto('about:blank');
+      await page.goto('/?design=a#/devices/automations'); // the fit on: the product as the owner sees it
+      await page.waitForSelector('sw-app');
+      await expect(a.locator('[data-auto-rows] automation-row').first()).toBeVisible();
+      await expect.poll(() => a.evaluate((el) => el.scrollHeight - el.clientHeight), 'rows: no scrolling (fit on)').toBeLessThanOrEqual(1);
+      expect(await a.locator('[data-auto-rows] automation-row').count()).toBeLessThanOrEqual(12);
+      await page.goto('about:blank');
+      await page.goto('/?design=a&fit=off#/devices/automations');
+      await page.waitForSelector('sw-app');
+      await expect(a.locator('[data-auto-rows] automation-row').first()).toBeVisible();
+    }
     if (phone(info)) {
       // the toggle shares the toolbar row with the search (the header is no taller than without it)
       const t = (await views.boundingBox())!;
@@ -84,7 +100,10 @@ test.describe('automations: rows or the cards with their sentence', () => {
     // the cards have their own page size (6 on the desktop: two rows of three; 1 on the phone): no scrolling either
     await expect(a.locator('automation-card')).toHaveCount(phone(info) ? 1 : 6);
     await expect(a.locator('[data-auto-pager] sw-pager')).toBeVisible();
-    expect(await a.evaluate((el) => el.scrollHeight - el.clientHeight), 'cards: no scrolling').toBeLessThanOrEqual(1);
+    // (fit=off pins the page size; a 768 px tablet scrolls only under that pin - the fit-on no-scroll is evidence-noscroll-295's)
+    if (phone(info) || (page.viewportSize()?.height ?? 0) >= 900) {
+      expect(await a.evaluate((el) => el.scrollHeight - el.clientHeight), 'cards: no scrolling').toBeLessThanOrEqual(1);
+    }
     await shot(page, 'automations-cards-light', info);
 
     // the choice survives a reload (the same browser)
