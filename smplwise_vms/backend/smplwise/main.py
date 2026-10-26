@@ -531,6 +531,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_control_messaging  # CR-036 WA: WhatsApp from the people screen (its own file and its own line)
 
     app.include_router(access_control_messaging.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_template_v2  # TPLV2-295: WhatsApp template send v2 (OFF by default; fake-only)
+
+    app.include_router(access_control_template_v2.router, prefix=api, tags=["access-control"])
     from .routers import bulk_people as bulk_people_router  # CR-BULKPEOPLE-295: bulk edit, CSV import / export of people (its own line)
 
     app.include_router(bulk_people_router.router, prefix=api, tags=["access-control"])
