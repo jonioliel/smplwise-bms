@@ -1,5 +1,17 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.23.1 (pilot) — Notice-board bus panel no longer collides with the weather, hide the quick off buttons on the home screen, header dropdown no longer jumps on page entry
+**After installing:** no database migration (the chain still ends at 0179). One new setting, shown by default: Settings > Electricity and devices > Home screen > quick off buttons.
+- **עברית:** אחרי ההתקנה: אין מיגרציה (השרשרת נשארת 0179). הגדרה חדשה אחת, מוצגת כברירת מחדל: הגדרות › חשמל והתקנים › מסך הבית › כפתורי כיבוי מהיר.
+
+### What was fixed - מה תוקן
+- **English:** The weather no longer runs into the bus panel on the notice board in the strip layout; the weather is visible in all three layouts and clock and date keep one size; strip cards share the width and no longer clip the line number or "עכשיו". The header dropdown (placements 2 and 3) is hidden until it has its final position instead of jumping after the page is entered.
+- **עברית:** מזג האוויר לא נכנס יותר לפאנל האוטובוסים בלוח ההודעות בפריסת השורה; מזג האוויר מוצג בשלוש הפריסות והשעון והתאריך באותו גודל; כרטיסי השורה חולקים את הרוחב ולא חותכים את מספר הקו או את "עכשיו". התפריט הנפתח בכותרת (מיקומים 2 ו-3) מוסתר עד שהוא במקומו הסופי ולא קופץ אחרי הכניסה לדף.
+
+### What was added - מה נוסף
+- **English:** Settings > Electricity and devices > Home screen: "quick off buttons (lights / all)" can be hidden; the notices card then takes the rest of its row.
+- **עברית:** הגדרות › חשמל והתקנים › מסך הבית: "כפתורי כיבוי מהיר (תאורה / הכל)" ניתנים להסתרה; כרטיס ההודעות תופס אז את שאר השורה.
+
 ## 2.23.0 (pilot) — Nearby bus times on the notice board (a labelled estimate with the bus distance, off by default)
 **After installing:** ONE database migration is added: `0179_transit_bus_times.sql` (additive: two tables, `transit_stops` and `transit_cache`); the chain now ends at 0179. Bus times are off by default: Settings > Public transport > module switch, then the board's display tab > "Public transport". The server asks the public Open Bus Stride service (one request per distinct stop, every 30 seconds while a board shows it); screens read only the server's cache. The estimate comes from vehicle positions that are often minutes old, and close to a line's origin there may be none: such rows stay on the schedule.
 - **עברית:** אחרי ההתקנה: נוספת מיגרציה אחת: `0179_transit_bus_times.sql` (תוספתית: שתי טבלאות, `transit_stops` ו-`transit_cache`); השרשרת מסתיימת עכשיו ב-0179. זמני האוטובוס כבויים כברירת מחדל: הגדרות › תחבורה ציבורית › מתג המודול, ואז לשונית התצוגה של הלוח › "תחבורה ציבורית". השרת פונה לשירות הציבורי Open Bus Stride (בקשה אחת לכל תחנה, כל 30 שניות כשלוח מציג אותה); המסכים קוראים רק את העותק בשרת. ההערכה נגזרת ממיקומי כלי רכב שלעיתים בני כמה דקות, ובתחנה קרובה לראש הקו ייתכן שאין מיקום: שורות כאלה נשארות לפי לוח זמנים.
