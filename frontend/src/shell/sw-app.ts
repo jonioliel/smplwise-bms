@@ -944,6 +944,8 @@ export class SwApp extends LitElement {
        (placement 4 adds it to the chips' own reserve, below). */
     :host([data-design='a'][data-brandside='start'][data-brandstrip][data-top='page']) {
       --sw-lead-reserve: var(--sw-lead-brand, 0px);
+      /* LOGOFIX-295: a COLUMN at the page's start (the settings navigation) cannot move sideways, so it keeps the logos' height free instead */
+      --sw-lead-reserve-h: var(--sw-lead-brand-h, 0px);
     }
     @media (min-width: 768px) {
       :host([data-design='a'][data-brandside='start'][data-brandstrip][data-top='tabs']:not([data-dd-head])) .subnav,
@@ -959,6 +961,7 @@ export class SwApp extends LitElement {
       :host([data-design='a'][data-brandside='start'][data-brandstrip][data-dd-head][data-dd-place='2']),
       :host([data-design='a'][data-brandside='start'][data-brandstrip][data-dd-head][data-dd-place='3']) {
         --sw-lead-reserve: var(--sw-lead-brand, 0px);
+        --sw-lead-reserve-h: var(--sw-lead-brand-h, 0px);
       }
     }
     @media (min-width: 768px) {
@@ -2164,6 +2167,9 @@ export class SwApp extends LitElement {
           if (lead) {
             const lw = lead.offsetWidth > 0 ? lead.offsetWidth + 14 : 0;
             if (this.style.getPropertyValue('--sw-lead-brand') !== `${lw}px`) this.style.setProperty('--sw-lead-brand', `${lw}px`);
+            // LOGOFIX-295: and the height they take (the row + its top offset + a gap): the block a column at the page's start keeps free
+            const lh = lead.offsetHeight > 0 ? lead.offsetHeight + 14 : 0;
+            if (this.style.getPropertyValue('--sw-lead-brand-h') !== `${lh}px`) this.style.setProperty('--sw-lead-brand-h', `${lh}px`);
           }
         };
         this.brandRowObs = new ResizeObserver(measure);
@@ -2171,7 +2177,10 @@ export class SwApp extends LitElement {
         if (lead) this.brandRowObs.observe(lead);
         measure();
       } else this.style.removeProperty('--sw-corner-brand-w');
-      if (!lead) this.style.removeProperty('--sw-lead-brand');
+      if (!lead) {
+        this.style.removeProperty('--sw-lead-brand');
+        this.style.removeProperty('--sw-lead-brand-h');
+      }
     }
   }
 
@@ -2558,12 +2567,13 @@ export class SwApp extends LitElement {
           aria-label=${incidents === 1 ? incText('activeAria', { title: incidentState().latest_title ?? '' }) : incText('activePillN', { n: incidents })}><i aria-hidden="true"></i><span>${incidents === 1 ? incText('activePill') : incText('activePillN', { n: incidents })}</span></a>`
       : nothing;
     // LOGOSIDE-295: where the developer / installer logos go - the start of the page's top row (default) or the corner row beside the SmplWise logo
-    const lead = brand && brandLogo().logoSide === 'start';
+    const startSide = brand && brandLogo().logoSide === 'start';
+    const lead = startSide && this.hasCompanyLogo(); // LOGOFIX-295: no logo chosen = no (empty) row over the page
     const companyLogos = html`<sw-brand kind="company" .h=${34} .maxw=${190}></sw-brand><sw-brand kind="installer" .h=${34} .maxw=${190} data-installer-logo></sw-brand>`;
     return html`${lead ? html`<div class="leadbrand" data-lead-brand>${companyLogos}</div>` : nothing}<div class="float" data-float>
         ${pill}
         <div class="cornerrow" ?data-brand-strip=${brand}>
-          ${brand && !lead ? companyLogos : nothing}
+          ${brand && !startSide ? companyLogos : nothing}
           ${dot === nothing && !canSearch
             ? nothing
             : html`<div class="pillrow">${this.session.mode === 'api' && !this.gated ? html`<sw-cast-pill data-cast-slot ?remote=${onRemote()}></sw-cast-pill>` : nothing}${dot}${canSearch ? html`<button type="button" data-search-open aria-label=${t('app.search')} title=${t('app.search')} aria-haspopup="dialog" aria-expanded=${this.searchPanel ? 'true' : 'false'} @click=${() => (this.searchPanel ? this.closeSearchPanel(false) : this.openSearch())}><sw-icon name="search" size=${16}></sw-icon></button>` : nothing}</div>`}

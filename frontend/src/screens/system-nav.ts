@@ -44,6 +44,8 @@ export class SystemNav extends LitElement {
       overflow: auto;
       scrollbar-width: thin;
       padding: 16px 0 24px var(--sw-page-pad);
+      /* LOGOFIX-295: the developer / installer logos at the page's start sit over this column's first rows - it starts below them (0 without logos) */
+      padding-block-start: calc(16px + var(--sw-lead-reserve-h, 0px));
       padding-inline-end: 0;
       padding-inline-start: var(--sw-page-pad);
       color: var(--sw-text);
@@ -275,6 +277,7 @@ export class SystemNav extends LitElement {
       :host {
         gap: var(--sw-s-2);
         padding-block: 10px 10px;
+        padding-block-start: calc(10px + var(--sw-lead-reserve-h, 0px)); /* LOGOFIX-295 */
       }
       nav {
         gap: var(--sw-s-2);
@@ -294,6 +297,7 @@ export class SystemNav extends LitElement {
       :host {
         gap: 6px;
         padding-block: 6px 6px;
+        padding-block-start: calc(6px + var(--sw-lead-reserve-h, 0px)); /* LOGOFIX-295 */
       }
       nav {
         gap: 4px;
@@ -321,6 +325,8 @@ export class SystemNav extends LitElement {
         max-block-size: none;
         overflow: visible;
         padding: 12px var(--sw-page-pad) 0;
+        /* LOGOFIX-295: stacked above the page, the search row is the page's first row: it keeps the logos' width free at its start */
+        padding-inline-start: calc(var(--sw-page-pad) + var(--sw-lead-reserve, 0px));
         gap: 0;
       }
       :host([compact]) {
