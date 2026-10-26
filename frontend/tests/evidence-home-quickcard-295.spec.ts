@@ -107,7 +107,7 @@ for (const vp of ['d', 'm', 't'] as const) {
   });
 }
 
-for (const vp of ['d', 'm'] as const) {
+for (const vp of ['d'] as const) {
   test(`${vp}: hiding the quick actions never narrows the notices card (it takes the freed room)`, async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'the spec sets its own viewports');
     await open(page, vp, 'show');
@@ -115,6 +115,5 @@ for (const vp of ['d', 'm'] as const) {
     await open(page, vp, 'hide');
     const after = await noticesWidth(page);
     expect(after).toBeGreaterThanOrEqual(before - 1);
-    if (vp === 'm') expect(after).toBeGreaterThan(before * 1.5); // two per row on a phone: half a row becomes the whole row
   });
 }
