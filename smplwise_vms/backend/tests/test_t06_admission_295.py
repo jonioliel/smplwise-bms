@@ -870,7 +870,6 @@ def test_http_media_descriptor_is_gated_on_access_read_on_the_station(wx_stub):
 # 7. findings (strict xfail: the day the code closes the gap, the xfail fails and this note + the change document must be updated)
 # ======================================================================================================================================
 
-@pytest.mark.xfail(strict=True, reason="FINDING-1: FeatureAdapters.prepare does not bind the request's actor to the principals whose policy it resolves")
 def test_finding_1_the_feature_actor_must_be_the_principal_whose_permissions_were_judged(fenv):
     e = fenv
     port = FakeDirectPort()
@@ -880,7 +879,6 @@ def test_finding_1_the_feature_actor_must_be_the_principal_whose_permissions_wer
         wk.prep(e, port, "door_windows", actor=fx.human_actor(nobody.user_id), principals=[holder])
 
 
-@pytest.mark.xfail(strict=True, reason="FINDING-2: NativePeopleWriter.rename takes no ArxDecision (no RBAC admission inside; no product caller today)")
 def test_finding_2_rename_carries_an_rbac_decision():
     import inspect
 

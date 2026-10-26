@@ -175,7 +175,8 @@ def test_name_ref_apply_lost_is_read_back_by_the_same_actor_with_bulk_receipt(wo
     async def rename() -> Any:
         writer = nw.NativePeopleWriter(p1.command_port, p1.lineage)
         await p1._ensure_recovered(writer)
-        return await writer.rename(person_ref="u-7", expected_person_revision=4, display_name="Renamed", actor=ACTOR)
+        return await writer.rename(person_ref="u-7", expected_person_revision=4, display_name="Renamed", actor=ACTOR,
+                                    decision=_decision())
 
     out = asyncio.run(p1.session.run_async(rename()))
     assert out.state == "unknown"
