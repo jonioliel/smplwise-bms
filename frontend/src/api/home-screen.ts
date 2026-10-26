@@ -31,6 +31,7 @@ export type PhoneArea = 'sheet' | 'full';
 export type FloorOff = 'menu' | 'buttons';
 export type ManyFloors = 'more' | 'tree_scroll';
 export type BuildingOffTablet = 'hide' | 'keep';
+export type QuickCard = 'show' | 'hide';
 
 /** The single-choice options: every value, in the order the settings show them (the first is not necessarily the default). */
 export const CHOICES = {
@@ -42,6 +43,7 @@ export const CHOICES = {
   floor_off: ['menu', 'buttons'],
   many_floors: ['more', 'tree_scroll'],
   building_off_tablet: ['hide', 'keep'],
+  quick_card: ['show', 'hide'],
 } as const;
 export type ChoiceKey = keyof typeof CHOICES;
 export const CHOICE_KEYS = Object.keys(CHOICES) as ChoiceKey[];
@@ -56,6 +58,7 @@ export const CHOICE_DEFAULTS = {
   floor_off: 'menu',
   many_floors: 'more',
   building_off_tablet: 'hide',
+  quick_card: 'show',
 } as const;
 
 export interface HomeScreenOptions {
@@ -71,6 +74,8 @@ export interface HomeScreenOptions {
   floor_off: FloorOff;
   many_floors: ManyFloors;
   building_off_tablet: BuildingOffTablet;
+  /** QUICKHIDE-295: whether the home's quick-actions widget (lights off / all off pills) is drawn. */
+  quick_card: QuickCard;
 }
 
 export const HOME_SCREEN_DEFAULT: HomeScreenOptions = { summary_tiles: null, area_quick: {}, ...CHOICE_DEFAULTS };
