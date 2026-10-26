@@ -42,7 +42,8 @@ async function boot(page: Page, hash: string, place: '1' | '4'): Promise<boolean
   await settlePage(page);
   const ok = await page.evaluate(async (p) => {
     try {
-      const m = await import(/* @vite-ignore */ '/src/shell/tabs-mode.ts');
+      const url: string = '/src/shell/tabs-mode.ts';
+      const m = await import(/* @vite-ignore */ url);
       m.setInstallationTabsMode({ 'ui.tabs_mode': 'dropdown', 'ui.dd_place': p });
       return true;
     } catch {
