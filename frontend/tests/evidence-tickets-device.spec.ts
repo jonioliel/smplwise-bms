@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { DH_NOW } from './devhist-mocks';
 import { AREA_PERMS } from './bubble-mocks';
 import { installTicketsDeviceMock } from './tickets-device-mocks';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-038 slice 3 (section 12.1, owner decision D17) against the mocked backend (tests/tickets-device-mocks.ts over devhist-mocks.ts):
 //   1. the matrix row by row on the area screen: module off = today; mode "sheet" (default): a tracked device opens its window with the

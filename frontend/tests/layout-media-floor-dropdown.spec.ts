@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // 0.1.164 (DD6): the layout guard (tests/layout-guard.ts) over the media players and media screens pages, whose floor filter is now the shared
 // dropdown, in the four skins x light / dark x widths 320 / 390 / 768 / 1440, with the dropdown closed and open. Static demo, the built app

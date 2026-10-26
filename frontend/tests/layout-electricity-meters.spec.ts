@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installElectricityMock, PERMS, SKINS, url } from './electricity-mocks';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // CR-023 electricity UI: the layout guard (tests/layout-guard.ts) over the meters screens - the meters overview (table, cards, the phone list, the areas tree),
 // the meter card drawer, the add-a-meter dialog, the retention settings and the permission rows - in the four skins, light and dark, across widths. FAILS on
@@ -9,7 +10,7 @@ import { installElectricityMock, PERMS, SKINS, url } from './electricity-mocks';
 // LAYOUT_QUICK=1 sweeps four widths and two skins; without it ten widths and all four skins.
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 390, 820, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440];
-const SKIN_SET = QUICK ? (['classic', 'bubble'] as const) : SKINS;
+const SKIN_SET = QUICK ? (skinsUnderTest(['classic', 'bubble'] as const)) : SKINS;
 const THEMES = QUICK ? (['light'] as const) : (['light', 'dark'] as const);
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 

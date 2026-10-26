@@ -1,6 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { CHROME_SCREENS, openChrome, setLook } from './bubble-chrome-screens';
+import { skipIfFrozen } from './helpers/frozen-skins';
+
+// BUBBLE-FREEZE-295: this whole file exercises the frozen bubble skin; it skips itself while the skin is frozen (baselines/PNGs stay).
+skipIfFrozen('bubble');
 
 // 0.1.157 (TASK_QUEUE item 4): the layout guard (tests/layout-guard.ts) over the screens that got the bubble CHROME - the security
 // area (live overview, wall, saved views, events, cases, rules, exports, the alarm), the device lists (catalogue, cameras, schedules),

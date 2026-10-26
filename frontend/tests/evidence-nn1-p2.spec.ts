@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMBOS, installInstallationMock, type Combo, type HaState } from './nn1-p2-mocks';
 import { inPageCheck, type Finding } from './layout-guard';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // NN1 P2 (docs/architecture/CAPABILITIES.md section 4): the shell reacts to the installation's capabilities. Mocked backend
 // (tests/nn1-p2-mocks.ts), no device, no NVR, no media server, no Home Assistant. Four installations:

@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { ADMIN_PERMS, RUN_ID, freshMock, mockBackend, openUpdate, runView, withUpdate, type UpdateMock } from './update-run-mocks';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-021 S3: the layout guard (tests/layout-guard.ts) over the update and restart screens, with the mocked backend, in every skin
 // (classic, domus, tesla, bubble) x light / dark x widths 320..1440: the page with and without an update, the blocked state, the

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 import { TABLE_MIN } from '../src/screens/wiskey-stations-logic';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';

@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installMulti } from './multi-nvr-mock';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-024 (multi-NVR): the layout guard (tests/layout-guard.ts) over the screens this change touched, with two recorders - the recorders
 // card (list, an open connection form, the add dialog), the camera settings table with its recorder filter, the wall with its recorder

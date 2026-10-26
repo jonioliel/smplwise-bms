@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { setLook } from './bubble-chrome-screens';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // 0.1.162: the layout guard (tests/layout-guard.ts) over the settings lists of screens and speakers / players (הגדרות › מולטימדיה): the compact
 // table, the grouped list, an open form and the open connections - in demo mode (every /api/v1 call is aborted: the demo devices answer).

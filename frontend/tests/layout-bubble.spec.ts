@@ -1,4 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
+import { skipIfFrozen } from './helpers/frozen-skins';
+
+// BUBBLE-FREEZE-295: this whole file exercises the frozen bubble skin; it skips itself while the skin is frozen (baselines/PNGs stay).
+skipIfFrozen('bubble');
 
 // Bubble foundation (owner 2026-10-02): the layout guard, ported from the approved mockup's layout-check.mjs
 // (docs/design/mockups/bubble-taste on pilot/design-bubble-taste) to the real components, through shadow roots.

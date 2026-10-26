@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installMessagingMock, waUrl, type WaMockOptions } from './messaging-mocks';
 

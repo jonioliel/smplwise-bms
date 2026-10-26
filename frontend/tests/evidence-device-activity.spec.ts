@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installDevhistMock, DH_NOW, type FeedMode, type SchedMode } from './devhist-mocks';
+import { skinsUnderTest, skipIfFrozen } from './helpers/frozen-skins';
 
 // DEVHIST (CR-032, 2026-10-05): the device activity popup against the mocked backend (tests/devhist-mocks.ts).
 //   1. shots -> docs/design/evidence/device-activity/: the area with the popup open (activity feed, schedules tab, states, the context
@@ -70,7 +71,7 @@ test.describe('device activity popup', () => {
     const w = info.project.name === 'mobile' ? 390 : info.project.name === 'tablet' ? 1024 : 1440;
     const tag = String(w);
     for (const scheme of ['light', 'dark'] as const) {
-      for (const skin of ['classic', 'bubble'] as const) {
+      for (const skin of skinsUnderTest(['classic', 'bubble'] as const)) {
         const q = `&skin=${skin}&scheme=${scheme}`;
         const st = await installDevhistMock(page);
         await open(page, q);
@@ -164,6 +165,7 @@ test.describe('device activity popup', () => {
   });
 
   test('the bubble pill: a long press opens the popup and sends no command; a tap still toggles', async ({ page }, info) => {
+    skipIfFrozen('bubble'); // BUBBLE-FREEZE-295
     test.skip(info.project.name !== 'desktop', 'the behaviour runs once');
     const st = await installDevhistMock(page);
     await open(page, '&skin=bubble&scheme=light');

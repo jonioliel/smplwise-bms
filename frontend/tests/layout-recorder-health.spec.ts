@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-026 recorder health: the layout guard (tests/layout-guard.ts) over הגדרות › בריאות ועבודות with the per-recorder health cards
 // (one healthy, one with every kind of fault, one not answering, one Hikvision with detail (NN6H), one vendor with reachability only)

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // 0.1.157 (owner decision 2026-10-03: all six dropdown styles approved): the `dd-style` of sw-dropdown / sw-tabs, the resolver
 // (user group > user global > installation group > installation global > auto), every style rendering in every skin, aria and keyboard

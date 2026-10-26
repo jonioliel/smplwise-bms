@@ -2,7 +2,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 import { alphaOf } from './menu-opaque-harness';
 
 // Owner report 2026-10-11: on the floor map with the 3D on screen, the floor switcher showed twice - the large floor strip

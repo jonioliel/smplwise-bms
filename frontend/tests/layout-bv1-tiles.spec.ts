@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installBv1Mock, bv1Config, BV1_NOW, BV1_PERMS } from './bv1-mocks';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS, skipIfFrozen } from './helpers/frozen-skins';
 
 // BV1 (2026-10-05): the layout guard (tests/layout-guard.ts) over the home screen with the new widgets - the clock and weather TILES,
 // the agenda and the launcher grid - in the FOUR skins (classic, domus, tesla, bubble) x light / dark x 10 widths (320 .. 1440);
@@ -121,6 +121,7 @@ test.describe('BV1 layout guard: the tiles, the agenda, the launcher, the vertic
   });
 
   test('bubble: the card style of the clock / weather next to the tiles, and the edit mode with the new bodies', async ({ page }) => {
+    skipIfFrozen('bubble'); // BUBBLE-FREEZE-295
     test.skip(test.info().project.name !== 'desktop', 'one project runs the whole sweep');
     await installBv1Mock(page, { config: bv1Config({ clockStyle: 'card', weatherStyle: 'card' }) });
     const errors: string[] = [];
@@ -157,6 +158,7 @@ test.describe('BV1 layout guard: the tiles, the agenda, the launcher, the vertic
   });
 
   test('bubble: the device sheet with vertical sliders (light, cover with tilt, fan) x surfaces x widths', async ({ page }) => {
+    skipIfFrozen('bubble'); // BUBBLE-FREEZE-295
     test.skip(test.info().project.name !== 'desktop', 'one project runs the whole sweep');
     // without media.read: the area then draws its media rows as plain pills (the multimedia card of the area is not a BV1 element; bubble-mocks leaves it out too)
     await installBv1Mock(page, { perms: BV1_PERMS.filter((p) => p !== 'media.read') });

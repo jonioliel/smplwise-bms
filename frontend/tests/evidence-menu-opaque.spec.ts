@@ -8,6 +8,7 @@ import { MENU_SCHEMES, MENU_SKINS, expectOpaqueMenu, mountDropdowns, openApp, rg
 import { expectOpaqueControl, expectOpaqueHud, whenQuiet } from './hud-opaque-harness';
 import { buildScene, type Catalog3DLookup } from '../src/map/scene-builder';
 import { camera as walkCamera, walkDoc, walkInput } from './walk-fixtures';
+import { skinsUnderTest, skipIfFrozen } from './helpers/frozen-skins';
 
 // Menus are never see-through (owner 2026-10-13: the user menu was half transparent over the building tree in the glass look and the
 // texts overlapped). A menu is opened for real - in every skin x scheme, on the desktop popover and the phone's bottom sheet, inside the glass
@@ -105,7 +106,7 @@ test.describe('menus are opaque in every skin and scheme', () => {
     expect(line).toBe('rgb(223, 225, 230)');
   });
 
-  for (const skin of ['domus', 'bubble', 'crystal'] as const) {
+  for (const skin of skinsUnderTest(['domus', 'bubble', 'crystal'] as const)) {
     test(`the phone's dropdown sheet is opaque, its dim scrim stays translucent: ${skin}`, async ({ page }, info) => {
       test.skip(!isPhone(info), 'the sheet is the phone form');
       await openApp(page, skin, 'light', '/devices/building');
@@ -150,6 +151,7 @@ test.describe('menus keep their opaque surface under every look dial and palette
 
   for (const dial of ['transparency:40', 'performance:lite', 'transparency:40,performance:lite,surface:glass,material:frosted,depth:2,tint:2']) {
     test(`bubble look ${dial}: the user menu and a dropdown list stay opaque`, async ({ page }, info) => {
+      skipIfFrozen('bubble'); // BUBBLE-FREEZE-295
       test.skip(info.project.name !== 'desktop', 'the dials act the same on every width');
       for (const scheme of MENU_SCHEMES) {
         await page.clock.setFixedTime(new Date('2026-10-13T10:00:00Z'));
@@ -171,6 +173,7 @@ test.describe('menus keep their opaque surface under every look dial and palette
 
   for (const id of ['calm-blue', 'sunset', 'high-contrast']) {
     test(`bubble palette ${id}: the menu surface is the palette's elevated surface, opaque, light and dark`, async ({ page }, info) => {
+      skipIfFrozen('bubble'); // BUBBLE-FREEZE-295
       test.skip(info.project.name !== 'desktop', 'the palette acts the same on every width');
       const pal = BUILTIN_PALETTES.find((p) => p.id === id);
       expect(pal, `palette ${id} exists`).toBeTruthy();

@@ -1,9 +1,10 @@
 import { expect, type Locator, type Page } from '@playwright/test';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // Shared helpers of the "no transparency in any menu" specs (owner 2026-10-13): open the app in a skin and a scheme, and read what a menu
 // surface REALLY paints - the computed background colour (its alpha), the blur behind it, and the opacity of it and of everything above it.
 
-export const MENU_SKINS = ['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const;
+export const MENU_SKINS = skinsUnderTest(['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const);
 export const MENU_SCHEMES = ['light', 'dark'] as const;
 export type MenuSkin = (typeof MENU_SKINS)[number];
 export type MenuScheme = (typeof MENU_SCHEMES)[number];

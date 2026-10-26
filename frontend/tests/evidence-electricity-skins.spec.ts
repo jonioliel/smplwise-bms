@@ -1,6 +1,6 @@
 import { test } from '@playwright/test';
 import { EL, open, screen, shot } from './electricity-ui';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // The four skins x light / dark on the main electricity screens (desktop project only): the same screens with the product tokens of every skin.
 // Screenshots under docs/design/evidence/electricity-ui-bills/ (invented data, mock layer). Needs the Vite DEV server.

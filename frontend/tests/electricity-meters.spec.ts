@@ -319,7 +319,7 @@ test.describe('electricity: permission rows', () => {
 test.describe('electricity: layout basics', () => {
   test('RTL, no horizontal overflow, in all five skins and in dark', async ({ page }) => {
     await installElectricityMock(page, { perms: PERMS.bills });
-    for (const [skin, scheme] of [['classic', 'light'], ['domus', 'light'], ['tesla', 'dark'], ['bubble', 'light'], ['classic', 'dark'], ['crystal', 'light'], ['crystal', 'dark']] as const) {
+    for (const [skin, scheme] of [['classic', 'light'], ['domus', 'light'], ['tesla', 'dark'], ['classic', 'dark'], ['crystal', 'light'], ['crystal', 'dark']] as const) {
       await page.goto('about:blank');
       await page.goto(url('/infra/electricity/meters', skin, scheme));
       await ready(page);

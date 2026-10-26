@@ -1,6 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installBubbleMock } from './bubble-mocks';
+import { skipIfFrozen } from './helpers/frozen-skins';
+
+// BUBBLE-FREEZE-295: this whole file exercises the frozen bubble skin; it skips itself while the skin is frozen (baselines/PNGs stay).
+skipIfFrozen('bubble');
 
 // Bubble phase C (owner 2026-10-02): the layout guard (tests/layout-guard.ts) over the REAL screens in the bubble skin - the home
 // (the mocked tree: three floors, eleven areas), the area (the mocked room with every card and control kind, its device sheets

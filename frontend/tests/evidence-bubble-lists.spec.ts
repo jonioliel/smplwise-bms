@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CHROME_SCREENS, gotoChrome, openChrome } from './bubble-chrome-screens';
+import { skipIfFrozen } from './helpers/frozen-skins';
+
+// BUBBLE-FREEZE-295: this whole file exercises the frozen bubble skin; it skips itself while the skin is frozen (baselines/PNGs stay).
+skipIfFrozen('bubble');
 
 // 0.1.157 (TASK_QUEUE item 4): the bubble CHROME on the security, device-list, automations-list and settings screens.
 //   1. evidence shots of every screen in tests/bubble-chrome-screens.ts at 390 / 820 / 1440, light and dark, demo mode

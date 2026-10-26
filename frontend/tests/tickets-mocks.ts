@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-038 slice 1: the mock layer of the tickets specs - the wire contract of routers/tickets.py and tickets_admin.py with fake data only
 // (no real person, phone, address or device). The whole app runs against it through page.route, as a signed-in user of the chosen persona.

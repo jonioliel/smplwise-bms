@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { mock, openAndPlay, overlay, setAdv } from './playback-stall-mock';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // 2.0.0 stall states (docs/changes/PLAYBACK-STALL-RESUME.md): the layout guard (tests/layout-guard.ts) over the recordings screen's stage
 // while it shows "מתחבר מחדש" and "הניגון נעצר" + retry, in all four skins x light and dark x widths 320 / 390 / 1440 (LAYOUT_FULL=1: the

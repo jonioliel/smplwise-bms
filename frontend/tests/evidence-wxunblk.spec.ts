@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installBlocksMock, manyEntities, newBlocksMock, openSetup, siteAdminPerms, ENTITIES, type BlocksMock } from './wxunblk-mocks';
 import { settlePage } from './pixel-settle';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // WXUNBLK (owner 2026-10-13) against the mocked backend (tests/wxunblk-mocks.ts): Settings > חיבורים > "חסימות פתיחת דלתות". Nothing here
 // reaches a Home Assistant, a WisKey, a station or a door. What it pins:
@@ -292,7 +293,7 @@ test.describe('WXUNBLK: the blocks card in Settings', () => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     await installBlocksMock(page, m);
-    for (const skin of ['classic', 'bubble']) {
+    for (const skin of skinsUnderTest(['classic', 'bubble'])) {
       for (const scheme of ['light', 'dark'] as const) {
         await openSetup(page, { skin, scheme });
         await expect(page.locator(CARD)).toBeVisible({ timeout: 30_000 });

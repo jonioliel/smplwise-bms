@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { newMock } from './nvr-cameras-write-mock';
 import { batchCameras, installBatch, newBatchMock } from './nvr-batch-mock';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-020 phase D: the layout guard (tests/layout-guard.ts) over "שינוי קידוד לכמה מצלמות" - the checklist with its filters (a list with its own
 // scroll), the target settings form, the preview (tabs + a list of two-line rows) and the ONE confirmation - across widths 320..1440 x light /

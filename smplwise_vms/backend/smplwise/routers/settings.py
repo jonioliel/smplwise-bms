@@ -8,7 +8,7 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..audit import audit
 from ..auth import current_principal, get_conn
@@ -484,6 +484,19 @@ DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 INT_KEYS = ("privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
 
 
+# BUBBLE-FREEZE-295 (owner 2026-10-26): skins that are frozen - kept in the code, rejected by new writes, and a stored value is read as the fallback.
+# Keep in step with FROZEN_SKINS / FROZEN_FALLBACK_SKIN in frontend/src/design/skins/index.ts. Unfreeze = empty FROZEN_SKINS.
+FROZEN_SKINS = ("bubble",)
+FROZEN_FALLBACK_SKIN = "domus"
+
+
+def stored_skin(raw: Any) -> str:
+    """The installation's skin as the pages draw it: a frozen skin reads as the fallback; an unknown value as the default."""
+    if raw in FROZEN_SKINS:
+        return FROZEN_FALLBACK_SKIN
+    return raw if raw in ("classic", "domus", "tesla", "bubble", "crystal") else DEFAULTS["ui.skin"]
+
+
 PRIVATE_KEYS = ("site.latitude", "site.longitude")  # SEC247 I3: the manual site position - administrators (system.configure) only
 
 
@@ -500,6 +513,7 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     # CR-039 DOORWIN-295: READ-ONLY, derived - whether the door-windows tab is in the navigation (a door feature is switched on). Not in
     # DEFAULTS and not patchable here: the switches themselves live behind /doors/windows/settings and /doors/emergency/settings.
     out["doors.ui.tab"] = "on" if (get_setting(conn, "doors.windows.enabled") == "on" or get_setting(conn, "doors.emergency.enabled") == "on") else "off"
+    out["ui.skin"] = stored_skin(out["ui.skin"])  # BUBBLE-FREEZE-295: a stored frozen skin reads as the fallback (the row is left as it is)
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     if out.get("ui.tickets_section_row") not in ("hide_single", "always"):  # SERVICEIA1-295: a corrupt value reads as the default
         out["ui.tickets_section_row"] = "hide_single"
@@ -752,6 +766,14 @@ class SettingsPatch(BaseModel):
     ui_automations_view: str | None = Field(default=None, pattern="^(rows|cards)$", alias="ui.automations_view")
     ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble|crystal)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
+
+    @field_validator("ui_skin")
+    @classmethod
+    def _skin_not_frozen(cls, v: str | None) -> str | None:
+        if v in FROZEN_SKINS:
+            raise ValueError(f"the '{v}' skin is frozen and can no longer be selected; choose classic, domus, tesla or crystal")
+        return v
+
     ui_accent: str | None = Field(default=None, max_length=16, alias="ui.accent")  # 2.4.4: validated by services/brand_colors.py
     ui_toggle_on: str | None = Field(default=None, max_length=16, alias="ui.toggle_on")
     ui_background: str | None = Field(default=None, pattern="^(builtin|none|custom)$", alias="ui.background")  # CRY: keep in step with BACKGROUND_MODES in frontend/src/design/background.ts

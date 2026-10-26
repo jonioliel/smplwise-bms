@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, type Page } from '@playwright/test';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // Unreleased (owner request 2026-10-04): evidence screenshots of the `capsule` dropdown - closed and open, desktop and phone, light and dark, the
 // three sizes - for the owner's review. SW_SHOTS=<dir> saves them elsewhere (default docs/evidence/dropdown-capsule). One project only: the specs set

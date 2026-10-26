@@ -2,7 +2,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ADMIN, install, newMock, type Mock } from './nvr-cameras-write-mock';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-020 S2 phase B evidence: הגדרות › אבטחה › מצלמות with the write controls - the SVC switch, the ONE confirmation, the undo toast, the
 // editor drawer and every failure line. API mode against a STATEFUL mocked backend (tests/nvr-cameras-write-mock.ts), so each outcome

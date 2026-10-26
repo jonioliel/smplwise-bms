@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { mock, openAndPlay } from './playback-stall-mock';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // 2.0.1 (owner request 2026-10-05): the layout guard (tests/layout-guard.ts) over the recordings screen's comparison picker - closed,
 // open with three picks (the limit reached: disabled options, the foot with the count / "נקה" / "סיום") - in all four skins x light

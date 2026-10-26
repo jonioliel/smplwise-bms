@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { install, newMock, type PeopleMock, type Role } from './wiskey-people-mock';
 import { PIN_SENTINEL, TAKEN_CARD, installWrites, newWrites, type WritesMock } from './wiskey-writes-mock';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // CR-036 S11: evidence for the person WRITES of the native people screen (אנשים) - the "פעולות" dialog of a person's page (switch off /
 // on, end a visitor's access, archive / restore, delete, the cards, the photo) and the editor's new parts (the access category, the
@@ -14,7 +15,7 @@ import { PIN_SENTINEL, TAKEN_CARD, installWrites, newWrites, type WritesMock } f
 // specs run on desktop. Screenshots go to the test's output folder (the pixel baselines are pixel-wiskey-people-writes.spec.ts).
 //   npx playwright test tests/evidence-wiskey-people-writes.spec.ts --workers=1        (against the built preview, or SW_BASE_URL)
 
-const SKINS = ['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const;
+const SKINS = skinsUnderTest(['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const);
 const SCHEMES = ['light', 'dark'] as const;
 const SCREEN = 'wiskey-people';
 const ACTIONS = 'wiskey-person-actions';

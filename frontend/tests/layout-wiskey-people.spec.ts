@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { extraPeople, install, newMock } from './wiskey-people-mock';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // CR-036 S7: the layout guard (tests/layout-guard.ts) over the native people screen - the list / table / cards, the selection bar,
 // the person's page and the message dialog - across widths 320..1440 x light / dark x the guard's own skin (bubble: its touch
@@ -16,7 +17,7 @@ const QUICK = process.env.SW_LAYOUT_QUICK === '1';
 // SW_LAYOUT_WIDTHS=390,1440 and SW_LAYOUT_SKINS=classic narrow the sweep further when a finding is being chased
 const WIDTHS = process.env.SW_LAYOUT_WIDTHS ? process.env.SW_LAYOUT_WIDTHS.split(',').map(Number) : QUICK ? [390, 1024, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1100, 1280, 1440];
 const THEMES = QUICK ? (['light'] as const) : (['light', 'dark'] as const);
-const ALL_SKINS = ['bubble', 'classic'] as const;
+const ALL_SKINS = skinsUnderTest(['bubble', 'classic'] as const);
 const SKINS = process.env.SW_LAYOUT_SKINS ? ALL_SKINS.filter((k) => process.env.SW_LAYOUT_SKINS!.split(',').includes(k)) : ALL_SKINS;
 const NOW = '2026-10-12T10:00:00Z';
 const SCREEN = 'wiskey-people';

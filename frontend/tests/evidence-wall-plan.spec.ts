@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { skinTable } from '../src/design/css';
 import { TABLET_L, band, install, live, newMock, open, stills, type PlanCfg } from './wall-plan-mocks';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // Plan Studio 6, slice S5-B (CR-029 sections 3.3 / 3.4, CR-030 sections 4 / 8; docs/changes/CR-029-ST7-S5B-NOTES.md): the plan in the map
 // band of a portrait wall display, against a mocked backend. The wall user's profile carries the screen's own plan setting; the band
@@ -129,7 +130,7 @@ test.describe('the plan in the map band of a portrait wall (mocked backend)', ()
     await expect(band(page).locator('sw-plan-3d')).toHaveCount(0);
   });
 
-  for (const skin of ['classic', 'bubble'] as const) {
+  for (const skin of skinsUnderTest(['classic', 'bubble'] as const)) {
     for (const [scheme, theme] of [['light', 'dark'], ['dark', 'light'], ['light', 'follow']] as const) {
       test(`the plan takes the wall's theme, not the installation's: ${skin} installation ${scheme}, wall ${theme}`, async ({ page }) => {
         await open(page, newMock({ skin, scheme, theme, plan: { mode: 'stills', quality: 'follow', idle_s: 'follow' } }));

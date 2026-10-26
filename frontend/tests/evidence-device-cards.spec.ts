@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installDevhistMock, DH_NOW } from './devhist-mocks';
+import { isFrozen } from './helpers/frozen-skins';
 
 // CARD1 (2026-10-07): the three equipment cards of the device activity window - water heater (switch.boiler, named as a boiler), tap
 // (switch.irrigation, a relay-wired tap; valve.garden, a valve entity) and robot vacuum (vacuum.robo) - against the mocked backend
@@ -140,7 +141,7 @@ test.describe('device cards: water heater, tap, robot vacuum', () => {
     await shot(page, `vacuum-readonly-${tag}-light`);
     await closeCard(page);
     await page.unrouteAll({ behavior: 'ignoreErrors' });
-    if (info.project.name === 'desktop') {
+    if (info.project.name === 'desktop' && !isFrozen('bubble')) { // BUBBLE-FREEZE-295
       await installDevhistMock(page);
       await open(page, '&skin=bubble&scheme=light');
       await openCard(page, 'switch.boiler', 'bubble');

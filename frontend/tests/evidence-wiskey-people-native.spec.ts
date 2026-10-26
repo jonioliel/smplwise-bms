@@ -1,5 +1,6 @@
 import { test, expect, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { install, newMock, push, type PeopleMock, type Role } from './wiskey-people-mock';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // CR-036 S7: evidence for the NATIVE people screen (אנשים) against a mocked backend that answers like the typed reads of
 // routers/access_control_reads.py - level by level (see tests/wiskey-people-mock.ts). No Home Assistant, no WisKey, no device, no
@@ -9,7 +10,7 @@ import { install, newMock, push, type PeopleMock, type Role } from './wiskey-peo
 // ones on their own project. Screenshots go to the test's output folder (the committed pixel baselines are pixel-wiskey-people.spec.ts).
 //   npx playwright test tests/evidence-wiskey-people-native.spec.ts        (against the built preview, or SW_BASE_URL)
 
-const SKINS = ['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const;
+const SKINS = skinsUnderTest(['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const);
 const SCHEMES = ['light', 'dark'] as const;
 const SCREEN = 'wiskey-people';
 const NOW = '2026-10-12T10:00:00Z';

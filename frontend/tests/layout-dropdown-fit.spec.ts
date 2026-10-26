@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // DROPDOWNFIT-295 (owner, phone, 2026-10-24): the text inside the dropdowns was cut off ("כל ה...", "ע...") and the dropdowns of one screen
 // did not look alike. Guard on the security screen (the camera wall, API mode, capsule dropdown style), crystal and bubble skins, at 320 / 360 /
@@ -11,7 +12,7 @@ import fs from 'node:fs';
 //   3. the page has no horizontal overflow.
 // No backend: the app (dev server or preview), the API answered by page.route. DROPDOWNFIT_SHOT_DIR=<dir> (+ DROPDOWNFIT_SHOT_NAME) also writes a PNG at 411 px; DROPDOWNFIT_SHOT_ONLY=1 only takes it.
 const WIDTHS = [320, 360, 411, 1280];
-const SKINS = ['crystal', 'bubble'];
+const SKINS = skinsUnderTest(['crystal', 'bubble']);
 const GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
 
 async function mock(page: Page, size: string) {

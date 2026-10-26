@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installBubbleMock } from './bubble-mocks';
+import { skipIfFrozen } from './helpers/frozen-skins';
+
+// BUBBLE-FREEZE-295: this whole file exercises the frozen bubble skin; it skips itself while the skin is frozen (baselines/PNGs stay).
+skipIfFrozen('bubble');
 
 // MD1 material dials, phase 2 (owner decision 2026-10-03: build the approved mockups of docs/design/compare/material-dials
 // without the Chalk preset): the `material` presets Frosted / Paper / Neon, the `depth` and `tint` dials of ui.look.

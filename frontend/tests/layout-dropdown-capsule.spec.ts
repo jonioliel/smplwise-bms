@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
-import { SKIN_IDS } from '../src/design/skins';
+import { SKINS_UNDER_TEST as SKIN_IDS, skinsUnderTest } from './helpers/frozen-skins';
 
 // Unreleased (owner request 2026-10-04): the layout guard (tests/layout-guard.ts) over the `capsule` dropdown style in EVERY skin
 // (classic / domus / tesla / bubble), light and dark, every size (sm / md / lg), at a phone and a desktop width, with the 44 and the 32 px
@@ -10,7 +10,7 @@ import { SKIN_IDS } from '../src/design/skins';
 // Needs the Vite DEV server:  ~/run_remote.sh spec <branch> tests/layout-dropdown-capsule.spec.ts --project=desktop
 //   LAYOUT_QUICK=1 sweeps two skins and two widths only.
 const QUICK = !!process.env.LAYOUT_QUICK;
-const SKINS = QUICK ? ['classic', 'bubble'] : SKIN_IDS;
+const SKINS = QUICK ? skinsUnderTest(['classic', 'bubble']) : SKIN_IDS;
 const SCHEMES = ['light', 'dark'] as const;
 const WIDTHS = QUICK ? [390, 1280] : [320, 390, 1280];
 const SIZES = ['sm', 'md', 'lg'] as const;

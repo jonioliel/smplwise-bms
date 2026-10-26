@@ -1,4 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
+import { skipIfFrozen } from './helpers/frozen-skins';
+
+// BUBBLE-FREEZE-295: this whole file exercises the frozen bubble skin; it skips itself while the skin is frozen (baselines/PNGs stay).
+skipIfFrozen('bubble');
 
 // 0.1.157 (integration): the Bubble skin's generic dropdown chip rule must not override the per-style chip rules of sw-dropdown
 // (it used to: `:host(sw-dropdown) .chip` out-ranked the non-auto rules, so `field` lost its border and radius and the per-style

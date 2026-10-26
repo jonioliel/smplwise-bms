@@ -6,6 +6,7 @@ import { buildScene, type Catalog3DLookup, type SceneDescription } from '../src/
 import type { GeometryDoc } from '../src/map/geometry';
 import { settlePage } from './pixel-settle';
 import { camera, walkDoc, walkInput } from './walk-fixtures';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // Plan Studio 6, slice S5-A pixel baselines: the NEW states of the touch walk only - the bottom sheet closed and open in the five
 // skins on a 390 px phone, the joystick under a thumb, and the walk bar of a desktop. Nothing the walk showed before S5-A is
@@ -21,7 +22,7 @@ const catalog: Catalog3DLookup = (id) => {
   const i = items.get(id);
   return i ? ({ shape: i.shape, color_token: i.color_token, role: i.role, mesh: (i.mesh as never) ?? null, walkable: i.walkable } as ReturnType<Catalog3DLookup>) : undefined;
 };
-const SKINS = ['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const;
+const SKINS = skinsUnderTest(['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const);
 
 const doc = (): GeometryDoc =>
   walkDoc({

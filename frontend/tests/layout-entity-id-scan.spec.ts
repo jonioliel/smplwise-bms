@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { areaDetail, installBubbleMock } from './bubble-mocks';
 import { ENTITY_ID_SCAN_RE } from '../src/i18n/entity-label';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // ENTIDSWEEP-295 (owner 2026-10-20): the REAL area screen (mocked backend, synthetic names) renders no Home Assistant entity id in any
 // visible text, title, aria-label, placeholder or alt - even when the server sends a row whose name IS its id or is empty.
@@ -39,7 +40,7 @@ test('area screen: no entity id in text / title / aria, also for rows named by t
     (d.cards.sensors.entities[0] as Record<string, unknown>).device_name = 'חיישן סלון';
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) });
   });
-  for (const skin of ['bubble', 'default']) {
+  for (const skin of skinsUnderTest(['bubble', 'default'])) {
     await page.goto('about:blank');
     await page.goto(`/?design=a&skin=${skin}&scheme=light#/devices/areas/living`);
     await page.waitForFunction(() => !!document.querySelector('sw-app')?.shadowRoot?.querySelector('devices-area')?.shadowRoot?.querySelector('[data-entity]'), undefined, { timeout: 20_000 });

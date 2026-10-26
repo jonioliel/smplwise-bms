@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { summarize, type Finding } from './layout-guard';
 import { install, newMock } from './wiskey-people-mock';
 import { installWrites, newWrites } from './wiskey-writes-mock';
+import { skinsUnderTest } from './helpers/frozen-skins';
 
 // CR-036 S11: the layout guard over the person WRITES of the native people screen - the actions dialog (the menu, a question with a
 // reason, a result, the cards with a removal question and the add form, the photo), the result line under the person's page header,
@@ -15,7 +16,7 @@ import { installWrites, newWrites } from './wiskey-writes-mock';
 const QUICK = process.env.SW_LAYOUT_QUICK === '1';
 const WIDTHS = process.env.SW_LAYOUT_WIDTHS ? process.env.SW_LAYOUT_WIDTHS.split(',').map(Number) : QUICK ? [390, 1024, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1100, 1280, 1440];
 const THEMES = QUICK ? (['light'] as const) : (['light', 'dark'] as const);
-const ALL_SKINS = ['bubble', 'classic'] as const;
+const ALL_SKINS = skinsUnderTest(['bubble', 'classic'] as const);
 const SKINS = process.env.SW_LAYOUT_SKINS ? ALL_SKINS.filter((k) => process.env.SW_LAYOUT_SKINS!.split(',').includes(k)) : ALL_SKINS;
 const NOW = '2026-10-12T10:00:00Z';
 const SCREEN = 'wiskey-people';
