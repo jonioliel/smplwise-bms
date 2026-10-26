@@ -560,7 +560,7 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 #cv[data-bus="side"] .side .clock .t { font-size: calc(124px * var(--fs)); }
 #cv[data-bus="side"] .side .clock .d { font-size: calc(30px * var(--fs)); margin-block-start: 8px; }
 #cv[data-bus="side"] .side .clock .h { display: none; }
-#cv[data-bus="side"] .side .wx { display: none; } /* the panel needs the room (the mock-up moves the weather to the header) */
+#cv[data-bus="side"] .side .wx .hrs { display: none; } /* FIX2231A-295: the weather stays (one line); only the forecast row gives way to the panel */
 #cv[data-bus="side"] .side { gap: 22px; }
 #cv[data-bus="side"] .side .wx .now svg { font-size: calc(44px * var(--fs)); }
 #cv[data-bus="side"] .side .wx .now b { font-size: calc(48px * var(--fs)); }
@@ -678,3 +678,39 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 .bus .dest small.est > span { white-space: nowrap; }
 .it.transit .bus .dest small.est { font-size: calc(24px * var(--bk)); }
 .it.transit .cols:not([data-n="1"]) .bus .dest small.est { font-size: calc(21px * var(--bk)); }
+
+/* ===== FIX2231A-295: bus times next to the weather and the clock =====
+   Owner screenshots 2026-10-26: in the strip layout the temperature sat on top of the strip; in the side layout the weather was gone and the clock
+   was a different size than in the strip. Both layouts now share ONE compact side column (welcome / clock / date / one-line weather), so the column
+   always fits the room the strip leaves it; the strip cards fill the strip and carry larger text. */
+#cv:not(.portrait)[data-bus="strip"] .side { gap: 18px; justify-content: flex-start; }
+#cv:not(.portrait)[data-bus="strip"] .side .welcome b { font-size: calc(60px * var(--fs)); }
+#cv:not(.portrait)[data-bus="strip"] .side .clock { margin-block-start: 0; }
+#cv:not(.portrait)[data-bus="strip"] .side .clock .t { font-size: calc(124px * var(--fs)); }
+#cv:not(.portrait)[data-bus="strip"] .side .clock .d { font-size: calc(30px * var(--fs)); margin-block-start: 8px; }
+#cv:not(.portrait)[data-bus="strip"] .side .clock .h { display: none; }
+#cv:not(.portrait)[data-bus="strip"] .side .wx { margin-block-start: 0; }
+#cv:not(.portrait)[data-bus="strip"] .side .wx .hrs { display: none; }
+#cv:not(.portrait)[data-bus="strip"] .side .wx .now svg { font-size: calc(44px * var(--fs)); }
+#cv:not(.portrait)[data-bus="strip"] .side .wx .now b { font-size: calc(48px * var(--fs)); }
+#cv:not(.portrait)[data-bus="strip"] .side .wx .now span { font-size: calc(26px * var(--fs)); }
+#cv[data-bus="strip"] .side .wx, #cv[data-bus="strip"] .side .clock, #cv[data-bus="strip"] .side .welcome { min-inline-size: 0; flex: none; }
+/* the strip's cards share the strip: they grow to fill it (to a cap), the text is set for TV distance, nothing clips */
+.bus.strip .cards:not(.msg) { align-items: stretch; }
+.bus .bcard { flex: 1 1 250px; min-inline-size: 250px; max-inline-size: 470px; padding: 12px 20px 10px; gap: 6px; }
+.bus .bcard .ct { gap: 14px; }
+.bus .bcard .ct > .ln { flex: none; min-inline-size: 78px; block-size: 52px; font-size: 32px; font-weight: 600; color: var(--accent); overflow: visible; text-overflow: clip; }
+.bus .bcard .ct > .ln.w4 { font-size: 26px; }
+.bus .bcard .ct { align-items: flex-start; }
+.bus .bcard .ct > span:not(.ln) { font-size: 28px; font-weight: 500; line-height: 1.12; color: var(--ink); white-space: normal; overflow: hidden; text-overflow: clip; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+.bus .bcard .eta { flex-wrap: wrap; row-gap: 0; column-gap: 12px; align-self: end; min-inline-size: 0; }
+.bus .bcard .eta b { font-size: 68px; }
+.bus .bcard .eta b.w { font-size: 54px; }
+.bus .bcard .eta b.cl { font-size: 56px; }
+.bus .bcard .eta small { font-size: 28px; }
+.bus .bcard .eta .emore { font-size: 28px; margin-inline-end: 0; }
+.bus.strip .sl b { font-size: 32px; }
+.bus.strip .sl span { font-size: 24px; }
+.bus .bcard.cmore { flex: 0 0 150px; min-inline-size: 150px; }
+#cv.portrait .bus .bcard { flex: none; min-inline-size: 0; max-inline-size: none; }
+#cv:not(.portrait)[data-bus="side"] .side { gap: 14px; }
