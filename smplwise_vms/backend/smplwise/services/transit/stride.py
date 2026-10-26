@@ -95,7 +95,7 @@ def fetch_catalogue(fetch: Fetch, day: dt.date) -> list[dict[str, Any]]:
     out: dict[int, dict[str, Any]] = {}
     for page in range(MAX_PAGES):
         rows = _list(fetch("/gtfs_stops/list", {"date_from": day.isoformat(), "date_to": day.isoformat(), "limit": PAGE, "offset": page * PAGE,
-                                                "order_by": "id asc"}))
+                                                "order_by": "id asc"}))  # the API does not honour order_by (rows come back descending); paging is stable, so every row is still seen once
         for r in rows:
             s = stop_row(r)
             if s is not None and s["code"] not in out:
