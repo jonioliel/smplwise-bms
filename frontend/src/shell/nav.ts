@@ -19,6 +19,7 @@ import { tst } from '../i18n/tab-sections'; // TABSET-293: the names of the tab 
 import { he } from '../i18n/he'; // TABSET-293: the generator's page names (the registry's `infra.generator` section)
 import { mt } from '../i18n/maintenance'; // CR-MAINT215 slice 2: the maintenance section's label
 import { ix } from '../i18n/insights'; // CR-INSIGHT215: the building report page's label
+import { tr as trTab0 } from '../i18n/transit'; // BUSTIMES-295: the public-transport tab's label
 import { pt } from '../i18n/presence'; // WHOIN034-295: the "מי במבנה" tab's label
 import { it as incText } from '../i18n/incidents'; // CR-LIVEEVENT100: the live event tab's label
 
@@ -698,6 +699,7 @@ export const DEVICES_TABS: TabItem[] = [
 /** CR-NOTICE106: the notice board page (readers and managers) and its settings page (the switch, the defaults, the TV boards). */
 export const NOTICES_HREF = '#/devices/notices';
 export const NOTICES_SETTINGS_HREF = '#/system/notices';
+export const TRANSIT_SETTINGS_HREF = '#/system/transit'; // BUSTIMES-295: the installation's bus stops and rules (system.configure; board managers read)
 let NOTICES_OFF = true;
 /** The module switch (/me modules.notices, and at once after a switch in Settings): the tab joins HIDDEN_HREFS while the module is off -
  * hidden by default, so nobody sees it flash. Re-applied by the shell after HIDDEN_HREFS is rebuilt from the product settings. */
@@ -1214,6 +1216,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'wall', label: 'מסכי קיר', href: WALL_SETTINGS_HREF },
     // CR-NOTICE106: the notice board's switch, defaults and TV boards (system.configure / notices.boards)
     { id: 'notices', label: 'לוח הודעות', href: NOTICES_SETTINGS_HREF },
+    // BUSTIMES-295: nearby public-transport times on the notice boards - the module switch, up to four stops and the general rules
+    { id: 'transit', get label() { return trTab0('tab'); }, href: TRANSIT_SETTINGS_HREF },
     // CR-017: every option of the automations, scenes and scripts (system.configure, installation scope)
     { id: 'automations', label: 'אוטומציות', href: AUTOMATIONS_SETTINGS_HREF },
     // CR-015: the screens' approval, connections and the remote's defaults (system.configure, installation scope)
@@ -1434,6 +1438,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // CR-NOTICE106: the notice board page needs no entry (every signed-in user reads the notices of his audience; the server decides),
   // its settings page: the module switch and defaults need system.configure, the TV boards notices.boards (each part by its own right)
   [NOTICES_SETTINGS_HREF]: ['system.configure', 'notices.boards'],
+  [TRANSIT_SETTINGS_HREF]: ['system.configure', 'notices.boards'], // BUSTIMES-295: reading the stops; every write needs system.configure (the server decides)
   [ANNOUNCE_HREF]: ['media.announce'], // ANNOUNCE-295: POST announcements needs it (installation scope on the server)
   // CR-036 S10: access.admin.read at ANY scope (a station-scoped administrator sees the status of their stations; the server narrows every read)
   [ACCESS_CONTROL_SETTINGS_HREF]: ['access.admin.read'],

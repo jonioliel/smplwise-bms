@@ -32,6 +32,8 @@ os.environ.setdefault("SW_RELEASE_MARKER", "0")
 os.environ.setdefault("SW_TICKETS_OUTBOX", "0")
 # CR-ARX-WISKEY-SHARED-IDENTITY: the external-grant worker thread stays off; tests call access_grants.WORKER.run_once explicitly
 os.environ.setdefault("SW_ACCESS_GRANTS_WORKER", "0")
+# BUSTIMES-295: the bus-times poller thread stays off; tests call transit.poller.poll_once / catalogue_pass with a recorded fake
+os.environ.setdefault("SW_TRANSIT", "0")
 # CR-039 DOORWIN-295: the door-windows watchdog thread stays off; tests call door_windows.WORKER.run_once / sync / watch with explicit instants
 os.environ.setdefault("SW_DOORWIN_WORKER", "0")
 

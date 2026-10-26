@@ -24,6 +24,7 @@ from typing import Any, Callable
 
 from .. import brand_assets
 from ..ha_user_auth import RateLimiter
+from ..transit import digest as transit_digest
 from . import audience as aud
 from . import info, model, news_sources, slides, sources, store
 
@@ -302,6 +303,17 @@ class DisplayService:
         mime, data, stamp = got
         return Reply(200, data, mime, headers=[("Cache-Control", "private, max-age=3600"), ("ETag", f'"{stamp}"')])
 
+    def transit(self, req: Request) -> Reply:
+        """BUSTIMES-295: the bus-times digest of the board the token belongs to - a digest of OUR cache (state, age, rows), read-only, no third-party
+        call on this path. A board that does not show transit gets `{"state": "off"}`."""
+        with self.open_conn() as conn:
+            board, refusal = self.resolve(conn, req)
+            if refusal is not None:
+                return refusal
+            assert board is not None
+            doc = preview_transit(conn, board, None, self.clock())
+        return _json(200, doc)
+
     def logo(self, req: Request) -> Reply:
         with self.open_conn() as conn:
             board, refusal = self.resolve(conn, req)
@@ -347,6 +359,12 @@ def preview_feed(conn: sqlite3.Connection, board: dict[str, Any], display: dict[
             doc["board"]["logos"] = logos
             doc["board"]["brand"] = brand
     return doc
+
+
+def preview_transit(conn: sqlite3.Connection, board: dict[str, Any], display: dict[str, Any] | None, now: dt.datetime) -> dict[str, Any]:
+    """The digest for a board's own settings, or (the Settings preview) for a draft `display`."""
+    disp = display if display is not None else model.load_display(board["display_json"])
+    return transit_digest.build(conn, disp.get("transit") or {}, now, sources.installation_tz(conn))
 
 
 def audience_of(n: dict[str, Any]) -> dict[str, Any]:

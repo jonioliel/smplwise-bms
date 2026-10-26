@@ -40,6 +40,8 @@ def route(svc: DisplayService, www_dir: Any, method: str, path: str, headers: di
             return svc.feed(req)
         if parts[5:] == ["logo", "company"]:
             return svc.logo(req)
+        if parts[5:] == ["transit"]:  # BUSTIMES-295
+            return svc.transit(req)
         if parts[5:] == ["photo"]:  # NOTICESLIDES-295
             return svc.image(req, "photo")
         if len(parts) == 7 and parts[5] == "slide":

@@ -441,3 +441,138 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 /* NOTICESLIDES-295: a slide's picture fills the mock-up's picture box; the building photo is the mock-up's .photo .img (background set through the CSSOM) */
 .it.promo .pic { overflow: hidden; }
 .it.promo .pic img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+
+/* ===== BUSTIMES-295: nearby public-transport times (mock-up private/review/BUS_TIMES_MOCKUP_HE_2026-10-26.html, approved with the 2026-10-26 answers) =====
+   Three layouts, all drawn from the TV tokens (day + night), RTL, no scrolling: the fit step in main.ts (fitBus) scales the rows with --bk,
+   then drops trailing rows / cards and counts them ("and N more"). #cv[data-bus] = none | side | strip | slide. */
+.bus { --bk: 1; position: relative; display: flex; flex-direction: column; min-block-size: 0; min-inline-size: 0; border: 1px solid var(--line); border-radius: 22px; background: color-mix(in srgb, var(--ink) 4%, transparent); padding: 22px 28px 14px; color: var(--ink); }
+:root[data-theme="night"] .bus { background: rgba(255,255,255,.04); }
+.bus .bh { display: flex; align-items: center; gap: 16px; padding-block-end: 12px; }
+.bus .bh > svg { font-size: 40px; color: var(--accent); stroke-width: 1.5; }
+.bus .bh .tt { display: grid; gap: 2px; min-inline-size: 0; flex: 1; }
+.bus .bh .tt b { font-size: 32px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bus .bh .tt span { font-size: 23px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bus .bh .win2 { font-size: 23px; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 999px; padding: 3px 16px; white-space: nowrap; }
+.bus .rows { flex: 1; min-block-size: 0; overflow: hidden; }
+.bus .brow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 22px; block-size: calc(var(--rowh, 70px) * var(--bk)); border-block-start: 1px solid var(--line); }
+.bus .ln { display: inline-grid; place-items: center; min-inline-size: calc(92px * var(--bk)); block-size: calc(54px * var(--bk)); padding-inline: 14px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-size: calc(36px * var(--bk)); font-weight: 600; letter-spacing: -.01em; direction: ltr; unicode-bidi: isolate; }
+.bus .ln.w4 { font-size: calc(30px * var(--bk)); }
+.bus .dest { min-inline-size: 0; display: grid; gap: 0; }
+.bus .dest b { font-size: calc(34px * var(--bk)); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bus .dest small { font-size: calc(21px * var(--bk)); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; }
+.bus .eta { display: flex; align-items: center; justify-content: flex-end; gap: 14px; white-space: nowrap; }
+.bus .eta .mk { font-size: 24px; display: inline-flex; }
+.bus .eta .mk.sc { color: var(--ink-4); }
+.bus .eta b { font-size: calc(52px * var(--bk)); font-weight: 500; letter-spacing: -.02em; line-height: 1; }
+.bus .eta b.w { font-size: calc(40px * var(--bk)); font-weight: 600; color: var(--accent); letter-spacing: 0; }
+.bus .eta b.cl { font-size: calc(44px * var(--bk)); font-weight: 400; color: var(--ink-2); }
+.bus .eta small { font-size: 24px; color: var(--ink-3); font-weight: 400; }
+.bus .eta .emore { font-size: 24px; color: var(--ink-3); margin-inline-end: 6px; }
+.bus .brow.far .eta b:not(.w) { color: var(--ink-2); }
+.bus .bmore { font-size: 24px; color: var(--ink-3); padding-block: 4px; }
+.bus .bmore:empty { display: none; }
+.bus .bf { display: flex; align-items: center; gap: 26px; padding-block-start: 10px; border-block-start: 1px solid var(--line); font-size: 21px; color: var(--ink-3); white-space: nowrap; }
+.bus .bf .lg2, .it.transit .bf .lg2 { display: inline-flex; align-items: center; gap: 8px; }
+.bus .bf .lg2 svg { font-size: 21px; }
+.bus .bf .bsp, .it.transit .bf .bsp { flex: 1; }
+.bnote { display: flex; align-items: center; gap: 12px; font-size: 24px; font-weight: 500; color: var(--warn); padding: 8px 16px; border-radius: 12px; background: color-mix(in srgb, var(--warn) 12%, transparent); margin-block-end: 8px; }
+.bnote svg { font-size: 28px; }
+.bus .bmsg { flex: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 12px; border-block-start: 1px solid var(--line); padding-block: 14px; min-block-size: 0; overflow: hidden; }
+.bus .bmsg > svg { font-size: 56px; color: var(--ink-4); stroke-width: 1.3; }
+.bus .bmsg p { margin: 0; font-size: 36px; font-weight: 300; line-height: 1.25; }
+.bus .bmsg span { font-size: 26px; color: var(--ink-3); line-height: 1.3; }
+.bus .bmsg .nx { display: flex; align-items: center; gap: 14px; margin-block-start: 4px; font-size: 26px; color: var(--ink-2); flex-wrap: wrap; }
+.bus .bmsg .nx .ln { min-inline-size: 72px; block-size: 44px; font-size: 28px; }
+.bus .bmsg .nx b { font-weight: 500; }
+@media (prefers-reduced-motion: no-preference) { .bus .eta b.w { animation: busnow 2.6s ease-in-out infinite; } }
+@keyframes busnow { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+
+/* layout side: the panel sits under the clock; the clock and the weather give it room */
+#cv[data-bus="side"] .side .bus { flex: 1; --rowh: 66px; }
+#cv[data-bus="side"] .side .clock { margin-block-start: 0; }
+#cv[data-bus="side"] .side .welcome b { font-size: calc(60px * var(--fs)); }
+#cv[data-bus="side"] .side .clock .t { font-size: calc(124px * var(--fs)); }
+#cv[data-bus="side"] .side .clock .d { font-size: calc(30px * var(--fs)); margin-block-start: 8px; }
+#cv[data-bus="side"] .side .clock .h { display: none; }
+#cv[data-bus="side"] .side .wx { display: none; } /* the panel needs the room (the mock-up moves the weather to the header) */
+#cv[data-bus="side"] .side { gap: 22px; }
+#cv[data-bus="side"] .side .wx .now svg { font-size: calc(44px * var(--fs)); }
+#cv[data-bus="side"] .side .wx .now b { font-size: calc(48px * var(--fs)); }
+#cv[data-bus="side"] .side .wx .now span { font-size: calc(26px * var(--fs)); }
+#cv.portrait[data-bus="side"] .side .bus { flex: none; --rowh: 84px; }
+#cv.portrait[data-bus="side"] .side .bus .rows { flex: none; overflow: visible; }
+#cv.portrait[data-bus="side"] .side .clock .t { font-size: calc(150px * var(--fs)); }
+#cv[data-tpl="2"][data-bus="side"] .side .bus { background: var(--glass); border-color: var(--glass-line); backdrop-filter: blur(14px); }
+
+/* layout strip: cards under the notice, one more row of the page grid */
+.busrow { grid-area: bus; min-block-size: 0; }
+#cv[data-bus="strip"] .pg { grid-template-rows: auto minmax(0, 1fr) auto auto auto; grid-template-areas: 'hd' 'bd' 'bus' 'tk' 'ft'; }
+#cv[data-bus="strip"][data-urgent="band"] .pg { grid-template-rows: auto auto minmax(0, 1fr) auto auto auto; grid-template-areas: 'hd' 'ban' 'bd' 'bus' 'tk' 'ft'; }
+.bus.strip { display: grid; grid-template-columns: 300px minmax(0, 1fr); align-items: stretch; gap: 0 30px; padding: 16px 26px; margin-block-start: 14px; block-size: 216px; }
+.bus.strip .sl { display: flex; flex-direction: column; justify-content: center; gap: 6px; min-inline-size: 0; padding-inline-end: 26px; border-inline-end: 1px solid var(--line); }
+.bus.strip .sl svg { font-size: 40px; color: var(--accent); stroke-width: 1.5; margin-block-end: 4px; }
+.bus.strip .sl b { font-size: 28px; font-weight: 500; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.bus.strip .sl span { font-size: 21px; color: var(--ink-3); }
+.bus.strip .cards { display: flex; gap: 16px; min-inline-size: 0; overflow: hidden; align-content: flex-start; }
+.bus .bcard { flex: 0 0 250px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 4px; padding: 10px 16px 8px; min-block-size: 0; overflow: hidden; border-radius: 16px; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 70%, transparent); min-inline-size: 0; }
+:root[data-theme="night"] .bus .bcard { background: rgba(255,255,255,.03); }
+.bus .bcard .ct { display: flex; align-items: center; gap: 12px; min-inline-size: 0; }
+.bus .bcard .ln { min-inline-size: 74px; block-size: 44px; font-size: 28px; border-radius: 12px; padding-inline: 10px; }
+.bus .bcard .ln.w4 { font-size: 24px; }
+.bus .bcard .ct span { font-size: 22px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-inline-size: 0; }
+.bus .bcard .eta { justify-content: flex-start; align-self: end; }
+.bus .bcard .eta b { font-size: 56px; }
+.bus .bcard .eta b.w { font-size: 46px; }
+.bus .bcard .eta b.cl { font-size: 48px; }
+.bus .bcard.cmore { place-items: center; flex-basis: 150px; }
+.bus .bcard.cmore b { font-size: 28px; color: var(--ink-3); font-weight: 400; }
+.bus.strip .cards.msg { overflow: visible; align-items: center; font-size: 32px; color: var(--ink-2); font-weight: 300; gap: 22px; }
+.bus.strip .cards.msg > svg { font-size: 44px; color: var(--ink-4); stroke-width: 1.3; }
+.bus.strip .cards.msg span { font-size: 24px; color: var(--ink-3); display: block; }
+.bus.strip .stalen { position: absolute; inset-block-start: -17px; inset-inline-end: 28px; margin: 0; padding: 3px 14px; font-size: 20px; background: var(--bg); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
+.bus.strip .stalen svg { font-size: 22px; }
+#cv.portrait .bus.strip { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; gap: 12px 0; block-size: auto; padding: 18px 24px; }
+#cv.portrait .bus.strip .sl { flex-direction: row; align-items: center; gap: 14px; border-inline-end: 0; padding-inline-end: 0; }
+#cv.portrait .bus.strip .sl svg { margin: 0; }
+#cv.portrait .bus.strip .sl b { -webkit-line-clamp: 1; flex: 1; }
+#cv.portrait .bus.strip .cards:not(.msg) { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; overflow: hidden; max-block-size: 330px; }
+#cv.portrait .bus .bcard { flex: none; min-block-size: 130px; }
+
+/* layout slide: its own slide in the rotation, one column per stop */
+.it.transit { justify-content: flex-start; gap: 18px; padding-block-end: 54px; }
+.it.transit .bhead { display: flex; align-items: center; gap: 26px; }
+.it.transit .bhead > svg { font-size: 60px; color: var(--accent); stroke-width: 1.4; }
+.it.transit .bhead .tt { display: grid; gap: 2px; flex: 1; min-inline-size: 0; }
+.it.transit .bhead .tt b { font-size: 64px; font-weight: 500; letter-spacing: -.015em; line-height: 1.05; }
+.it.transit .bhead .tt span { font-size: 28px; color: var(--ink-3); }
+.it.transit .bhead .clk { font-size: 84px; font-weight: 200; letter-spacing: -.03em; direction: ltr; }
+.it.transit > .cols { flex: 1 1 0; flex-shrink: 1; min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 32px; }
+.it.transit .cols[data-n="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.it.transit .cols[data-n="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.it.transit .cols[data-n="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.it.transit .bus { --rowh: 90px; padding: 22px 28px 14px; }
+.it.transit .bus .ln { min-inline-size: calc(110px * var(--bk)); block-size: calc(64px * var(--bk)); font-size: calc(42px * var(--bk)); }
+.it.transit .bus .dest b { font-size: calc(40px * var(--bk)); }
+.it.transit .bus .dest small { font-size: calc(24px * var(--bk)); }
+.it.transit .bus .eta b { font-size: calc(68px * var(--bk)); }
+.it.transit .bus .eta b.w { font-size: calc(50px * var(--bk)); }
+.it.transit .bus .eta b.cl { font-size: calc(54px * var(--bk)); }
+.it.transit .bus .eta small, .it.transit .bus .eta .emore { font-size: 28px; }
+.it.transit .cols[data-n="3"] .bus .dest b, .it.transit .cols[data-n="4"] .bus .dest b { font-size: calc(32px * var(--bk)); }
+.it.transit .cols[data-n="4"] .bus .brow { gap: 14px; }
+.it.transit .cols[data-n="4"] .bus .eta b { font-size: calc(54px * var(--bk)); }
+.it.transit .bf { display: flex; align-items: center; gap: 26px; font-size: 22px; color: var(--ink-3); border-block-start: 1px solid var(--line); padding-block-start: 10px; }
+#cv.portrait .it.transit .cols { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: repeat(var(--n, 2), minmax(0, 1fr)); gap: 22px 0; }
+#cv.portrait .it.transit .bhead .tt b { font-size: 56px; }
+#cv.portrait .it.transit .bhead .clk { font-size: 72px; }
+#cv.portrait .it.transit .bus { --rowh: 84px; }
+
+.bus .bh.col .tt b { font-size: 34px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.15; }
+.it.transit .cols[data-n="1"] .bus .bh.col .tt b, .it.transit .cols[data-n="2"] .bus .bh.col .tt b { font-size: 40px; }
+
+.bus .eta .mk.rt { color: var(--accent); }
+.bus .bf .lg2.rt { color: var(--accent); }
+.bus .liveic { animation: busnow 2.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .bus .liveic, .bus .eta b.w { animation: none; } }
+
+.bus [hidden] { display: none !important; }
