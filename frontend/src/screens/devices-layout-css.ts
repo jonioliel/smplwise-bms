@@ -165,6 +165,14 @@ export const devicesLayoutCss = [
       gap: 6px;
       margin-inline-start: auto;
     }
+    .info-choice {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sw-s-2);
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+      white-space: nowrap;
+    }
     .lay-seg {
       display: inline-flex;
       padding: 3px;

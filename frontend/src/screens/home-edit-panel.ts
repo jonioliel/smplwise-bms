@@ -46,6 +46,7 @@ function optionsOf(list: { entity_id: string; name: string }[], current: string,
 @customElement('home-edit-panel')
 export class HomeEditPanel extends LitElement {
   @property({ attribute: false }) draft!: HomeSettings;
+
   @property({ attribute: false }) candidates: HomeCandidates | null = null;
   @property({ attribute: false }) candidatesError = '';
   @property({ attribute: false }) baseData!: HomeData;
