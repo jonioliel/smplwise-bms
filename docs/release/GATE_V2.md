@@ -98,8 +98,9 @@ existing time-balanced junit-cost split.
 
 ### 2.6 Nightly full tier L (unchanged cron, now a precondition)
 `nightly_tests.sh` at 02:00 on main, full tier, no selection (170 min on 2026-10-25). `release_gate2.sh` checks the newest
-nightly report first (`gate2_select.py nightly`): it must be at most 36 h old, have no engine hard failure, and have run the
-backend. If not, the run falls back to the full tier and says why (`--accept-stale-nightly` overrides). After each gate-2
+nightly report first (`gate2_select.py nightly`): it must be at most 36 h old, have a **pass** verdict, have no engine hard
+failure, and have run the backend. A verdict of "fail" makes the nightly RED (`state: red`, `why` ends the verdict with "(RED)")
+even with 0 hard failures: a red test in the nightly is a red nightly (owner decision, NIGHTLYRED-295). If not, the run falls back to the full tier and says why (`--accept-stale-nightly` overrides). After each gate-2
 release, `select_tests.py audit` on the next nightly lists every nightly red in a file that the selection had dropped. Each
 such red is a missed-selection incident.
 

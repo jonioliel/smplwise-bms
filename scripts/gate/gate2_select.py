@@ -749,9 +749,13 @@ def nightly_health(results_dir: Path, max_age_h: float = 36.0) -> dict:
     hard = [i for i in d.get("items", []) if i.get("category") == "gate" and i.get("status") == "FAIL"]
     c = d.get("counts", {})
     ran_be = (c.get("backend") or {}).get("pass", 0)
-    ok = age <= max_age_h and not hard and ran_be > 0
-    why = f"{p.name}: verdict {d.get('verdict')}, age {age:.0f} h, backend passed {ran_be}, engine hard failures {len(hard)}"
-    return {"ok": ok, "why": why, "report": str(p), "sha": d.get("sha"), "verdict": d.get("verdict")}
+    # NIGHTLYRED-295 (owner decision): the nightly is RED whenever the engine verdict is "fail", even with 0 hard failures
+    # (a red test is a red nightly). Only an explicit "pass" verdict is green.
+    red = d.get("verdict") != "pass"
+    ok = age <= max_age_h and not hard and ran_be > 0 and not red
+    why = f"{p.name}: verdict {d.get('verdict')}{' (RED)' if red else ''}, age {age:.0f} h, backend passed {ran_be}, engine hard failures {len(hard)}"
+    return {"ok": ok, "why": why, "report": str(p), "sha": d.get("sha"), "verdict": d.get("verdict"),
+            "state": "red" if red else ("green" if ok else "stale")}
 
 
 # ---------------------------------------------------------------- CLI

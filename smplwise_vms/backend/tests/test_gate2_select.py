@@ -179,3 +179,21 @@ def test_wall_range_is_ordered_and_includes_fixed_phases():
     lo, hi = g.wall_range(est, full)
     assert 0 < lo <= hi
     assert lo >= (1800 * 0.85) / 60
+
+
+def _nightly(tmp_path, verdict, items=(), age_ok=True):
+    nd = tmp_path / "nightly"
+    nd.mkdir()
+    (nd / "gate_main_abc1234.json").write_text(json.dumps(
+        {"verdict": verdict, "sha": "abc1234", "items": list(items), "counts": {"backend": {"pass": 100}}}), encoding="utf-8")
+    return g.nightly_health(tmp_path)
+
+
+def test_nightly_is_red_on_fail_verdict_even_without_hard_failures(tmp_path):
+    h = _nightly(tmp_path, "fail", [{"category": "backend", "status": "FAIL", "id": "tests/test_x.py::t"}])
+    assert h["ok"] is False and h["state"] == "red" and "(RED)" in h["why"]
+
+
+def test_nightly_is_green_on_pass_verdict(tmp_path):
+    h = _nightly(tmp_path, "pass")
+    assert h["ok"] is True and h["state"] == "green"
