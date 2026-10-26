@@ -245,3 +245,22 @@ def test_the_engine_is_asked_at_the_poll_cadence(client, settings):
     assert fake.count("/siri_vehicle_locations/list") == n0
     poller.poll_once(_db(settings), fake, BASE + dt.timedelta(seconds=40))  # past it: the source is asked again
     assert fake.count("/siri_vehicle_locations/list") == 2 * n0
+
+
+def test_a_null_distance_on_the_first_stop_is_the_origin_not_a_dropped_point():
+    """Live finding: the first stop of a ride has shape_dist_traveled null. Dropping it made a bus 500 m from the origin look ~3 minutes early."""
+    from smplwise.services.transit_realtime.delay import delay_s
+    from smplwise.services.transit_realtime.stride import PlanStore
+
+    t0 = BASE - dt.timedelta(minutes=20)
+    rows = [{"stop_sequence": 1, "arrival_time": Z(t0), "shape_dist_traveled": None, "gtfs_stop__code": 11111, "pickup_type": 0},
+            {"stop_sequence": 2, "arrival_time": Z(t0 + dt.timedelta(minutes=10)), "shape_dist_traveled": 1000, "gtfs_stop__code": 22222, "pickup_type": 0},
+            {"stop_sequence": 3, "arrival_time": Z(t0 + dt.timedelta(minutes=20)), "shape_dist_traveled": 3000, "gtfs_stop__code": 33323, "pickup_type": 0}]
+    plans = PlanStore(lambda path, params: rows)
+    rp = plans.ride(1, 33323)
+    assert rp.plan.dist[0] == 0.0 and rp.plan.dist == (0.0, 1000.0, 3000.0)
+    # a bus 500 m from the origin, on time (planned 5 min after the start): delay 0, not ~-5 min
+    assert abs(delay_s(rp.plan, 500.0, (t0 + dt.timedelta(minutes=5)).timestamp())) < 1
+    # a null on a later stop is still dropped (not invented)
+    rows[1]["shape_dist_traveled"] = None
+    assert PlanStore(lambda path, params: rows).ride(1, 33323).plan.dist == (0.0, 3000.0)

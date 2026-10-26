@@ -85,7 +85,9 @@ class PlanStore:
         if not rows:
             return None
         start = _dt(rows[0]["arrival_time"])
-        plan = Plan.build([(r.get("shape_dist_traveled"), _dt(r["arrival_time"]).timestamp()) for r in rows])
+        # the first stop of a ride carries a null shape_dist_traveled in the feed: it is the origin, 0 m (otherwise Plan.build drops it and a bus
+        # 50-1000 m from the origin is timed against stop 2, up to ~3 minutes early)
+        plan = Plan.build([(0.0 if (r.get("shape_dist_traveled") is None and r is rows[0]) else r.get("shape_dist_traveled"), _dt(r["arrival_time"]).timestamp()) for r in rows])
         at = next((r for r in rows if r.get("gtfs_stop__code") == stop_code and r.get("pickup_type", 0) == 0), None)
         return RidePlan(plan, start, at.get("shape_dist_traveled") if at else None, _dt(at["arrival_time"]) if at else None)
 
