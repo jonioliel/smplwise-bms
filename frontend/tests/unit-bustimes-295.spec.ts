@@ -6,6 +6,8 @@ import { slidePanel, sidePanel, stopsTitle, stripPanel } from '../src/notice-tv/
 import { withTransit, type Item } from '../src/notice-tv/tv-logic';
 import { WINDOWS, canAdd, clampInt, moveStop, screenAfter, stopsBody, toggleStop, windowLabel, windowMode } from '../src/transit/model';
 import { TR_KEYS, tr } from '../src/i18n/transit';
+import { distanceText, refreshMs } from '../src/notice-tv/transit-logic';
+import { estimateLine } from '../src/notice-tv/transit-view';
 import { NOW, columns, digest, item } from './bustimes-fixtures';
 
 // BUSTIMES-295: the bus-times logic of the TV page (transit-logic.ts), its markup (transit-view.ts), the settings screens' model (transit/model.ts)
@@ -247,12 +249,87 @@ test('real time vs scheduled: a live estimate gets the broadcast icon and the le
   const live = sidePanel(digest({ items: [rt, sc, stale], realtime: true }), ctx);
   expect((live.match(/class="mk rt"/g) ?? []).length).toBe(1);
   expect((live.match(/class="mk sc"/g) ?? []).length).toBe(2);
-  expect(live).toContain('בזמן אמת');
+  expect(live).toContain('הערכה');
   const none = sidePanel(digest({ items: [sc], realtime: false }), ctx);
-  expect(none).not.toContain('בזמן אמת');
+  expect(none).not.toContain('הערכה');
   // while the source is down nothing is "live": cached shows clocks and no legend entry
   const cached = sidePanel(digest({ state: 'cached', items: [rt], realtime: true }), ctx);
   expect(cached).not.toContain('class="mk rt"');
-  expect(cached).not.toContain('בזמן אמת');
+  expect(cached).not.toContain('הערכה');
   expect(stripPanel(digest({ items: [rt, sc] }), ctx)).toContain('class="mk rt"');
+});
+
+// ---- the estimate wording: distance first, then the estimate (owner 26.10)
+const est = (mins: number, dist: number, posAge = 60) => item({ line: '25', dest: 'א', mins, dist, posAge });
+
+test('the estimate line is "distance - estimate in N min", distance first, in both languages', () => {
+  const d = digest({ specs: [] });
+  const he = { lang: 'he' as const, nowMs: NOW, elapsedMs: 0 };
+  const en = { lang: 'en' as const, nowMs: NOW, elapsedMs: 0 };
+  const strip = (h: string) => h.replace(/<[^>]+>/g, '');
+  expect(strip(estimateLine(est(3, 800), d, he))).toBe('800 מ׳ מהתחנה · הערכה בעוד 3 דק׳');
+  expect(strip(estimateLine(est(3, 800), d, en))).toBe('800 m away · est. in 3 min');
+  expect(strip(estimateLine(est(3, 1200), d, he))).toBe('1.2 ק״מ מהתחנה · הערכה בעוד 3 דק׳');
+  expect(strip(estimateLine(est(3, 1200), d, en))).toBe('1.2 km away · est. in 3 min');
+  expect(estimateLine(est(3, 800), d, he).indexOf('מהתחנה')).toBeLessThan(estimateLine(est(3, 800), d, he).indexOf('הערכה')); // DOM order = reading order (RTL flows right to left by itself)
+  expect(strip(estimateLine(est(1, 400), d, he))).toBe('400 מ׳ מהתחנה · הערכה: עכשיו');
+});
+
+test('from clock_after_min on the estimate is a clock time', () => {
+  const d = digest({ specs: [], clock_after_min: 60 });
+  const line = estimateLine(est(75, 3000), d, { lang: 'he', nowMs: NOW, elapsedMs: 0 }).replace(/<[^>]+>/g, '');
+  expect(line).toMatch(/^3\.0 ק״מ מהתחנה · הערכה ב-\d\d:\d\d$/);
+  expect(estimateLine(est(75, 3000), d, { lang: 'en', nowMs: NOW }).replace(/<[^>]+>/g, '')).toMatch(/^3\.0 km away · est\. at \d\d:\d\d$/);
+});
+
+test('no distance for a scheduled or stale row, a cached digest, a switched-off screen or an old position', () => {
+  const ctx = { lang: 'he' as const, nowMs: NOW, elapsedMs: 0 };
+  const sched = { ...item({ line: '28', dest: 'ב', mins: 12 }), distance_m: 500, quality: 'scheduled' as const };
+  const stale = { ...est(5, 500), quality: 'stale' as const };
+  expect(estimateLine(sched, digest(), ctx)).toBe('');
+  expect(estimateLine(stale, digest(), ctx)).toBe('');
+  expect(estimateLine(est(5, 500), digest({ state: 'cached' }), ctx)).toBe('');
+  expect(estimateLine(est(5, 500), digest({ show_distance: false }), ctx)).toBe('');
+  // the position keeps ageing on the stopwatch between two fetches: 250 s old + 60 s > the 300 s limit
+  expect(estimateLine(est(5, 500, 250), digest(), { ...ctx, elapsedMs: 60_000 })).toBe('');
+  expect(estimateLine(est(5, 500, 250), digest(), { ...ctx, elapsedMs: 20_000 })).not.toBe('');
+  expect(distanceText('he', { quality: 'realtime', distance_m: 0 }, { state: 'fresh' }, 0)).toBe('');
+});
+
+test('only an estimate row prints the line in the markup; the three layouts carry it and the scheduled rows do not', () => {
+  const ctx = { lang: 'he' as const, nowMs: NOW, elapsedMs: 0 };
+  const specs = [{ line: '25', dest: 'א', mins: 3, dist: 800 }, { line: '28', dest: 'ב', mins: 12 }];
+  const d = digest({ specs });
+  for (const html of [sidePanel(d, ctx), stripPanel(d, ctx)]) {
+    expect((html.match(/class="est"/g) ?? []).length).toBe(1);
+    expect(html).toContain('800 מ׳ מהתחנה');
+    expect(html).toContain('הערכה בעוד 3 דק׳');
+  }
+  const slide = slidePanel(digest({ layout: 'slide', nstops: 2, columns: columns(2).map((c) => ({ ...c, items: [est(3, 800)] })) }), ctx, '<div></div>');
+  expect((slide.match(/800 מ׳ מהתחנה/g) ?? []).length).toBe(2);
+  expect(sidePanel(digest({ show_distance: false, specs }), ctx)).not.toContain('מהתחנה');
+});
+
+test('the screen asks for the digest at the cadence the server gave, 10-120 s, 20 s before the first answer', () => {
+  expect(refreshMs(null)).toBe(20_000);
+  expect(refreshMs(digest({ refresh_s: 30 }))).toBe(30_000);
+  expect(refreshMs(digest({ refresh_s: 3 }))).toBe(10_000);
+  expect(refreshMs(digest({ refresh_s: 999 }))).toBe(120_000);
+});
+
+test('the fresh window follows the poll cadence (fresh_s) when the building is offline', () => {
+  const d = digest({ fresh_s: 360, age_s: 0 });
+  expect(effective(d, 300_000)?.state).toBe('fresh');
+  expect(effective(d, 400_000)?.state).toBe('cached');
+  expect(effective(digest({ age_s: 0 }), 190_000)?.state).toBe('cached');
+});
+
+test('screen block: refresh_s and show_distance default to the installation (null), validated 10-120', () => {
+  expect(TRANSIT_SCREEN_DEFAULTS.refresh_s).toBeNull();
+  expect(TRANSIT_SCREEN_DEFAULTS.show_distance).toBeNull();
+  const cur = transitOf(null);
+  expect(screenAfter(cur, { refresh_s: 5 }, []).refresh_s).toBe(10);
+  expect(screenAfter(cur, { refresh_s: 500 }, []).refresh_s).toBe(120);
+  expect(screenAfter(cur, { refresh_s: null }, []).refresh_s).toBeNull();
+  expect(screenAfter(cur, { show_distance: false }, []).show_distance).toBe(false);
 });

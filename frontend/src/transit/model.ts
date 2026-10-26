@@ -9,6 +9,7 @@ export const WINDOWS = [15, 30, 60, 120, 180] as const;
 export const WINDOW_RANGE: [number, number] = [5, 240];
 export const ROWS_RANGE: [number, number] = [3, 10];
 export const DWELL_RANGE: [number, number] = [6, 60];
+export const REFRESH_RANGE: [number, number] = [10, 120];
 
 export function clampInt(v: unknown, lo: number, hi: number, fallback: number): number {
   const n = typeof v === 'number' ? v : Number(String(v ?? '').trim());
@@ -60,6 +61,8 @@ export function screenAfter(cur: TransitScreen, patch: Partial<TransitScreen>, c
     window_min: clampInt(next.window_min, WINDOW_RANGE[0], WINDOW_RANGE[1], 60),
     rows: clampInt(next.rows, ROWS_RANGE[0], ROWS_RANGE[1], 5),
     dwell_s: clampInt(next.dwell_s, DWELL_RANGE[0], DWELL_RANGE[1], 15),
+    refresh_s: next.refresh_s == null ? null : clampInt(next.refresh_s, REFRESH_RANGE[0], REFRESH_RANGE[1], 20),
+    show_distance: next.show_distance ?? null,
     stops: next.stops.filter((c) => configured.includes(c)),
   };
 }

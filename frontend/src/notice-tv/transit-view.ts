@@ -8,7 +8,7 @@
  * panel says the data is unavailable; an empty window says so and names the next bus.
  */
 import { esc } from './tv-logic';
-import { ahead, badgeWide, etaOf, noneText, ts, windowChip, type TransitColumn, type TransitDigest, type TransitItem, type TransitMore } from './transit-logic';
+import { ahead, badgeWide, distanceText, etaOf, noneText, ts, windowChip, type TransitColumn, type TransitDigest, type TransitItem, type TransitMore } from './transit-logic';
 
 type Lang = 'he' | 'en';
 
@@ -16,6 +16,8 @@ export interface TransitCtx {
   lang: Lang;
   /** the instant the countdown counts to (the server clock as the screen last saw it) */
   nowMs: number;
+  /** ms since the digest arrived, on the screen's own stopwatch (the age of a vehicle position keeps growing between two fetches) */
+  elapsedMs?: number;
 }
 
 function ic(n: string, cls = ''): string {
@@ -34,17 +36,32 @@ function etaCell(at: string, hm: string, d: TransitDigest, c: TransitCtx, more?:
   return '<span class="eta">' + extra + (rt ? '<span class="mk rt">' + ic('rt', 'liveic') + '</span>' : '<span class="mk sc">' + ic('clock') + '</span>') + main + '</span>';
 }
 
+/**
+ * The estimate wording of a row that has a fresh vehicle position: "800 m away · est. in 3 min" (distance first, then the estimate; "est. at 14:35"
+ * from `clock_after_min` on). '' when the row is not a derived estimate or no distance may be printed - the marker and the legend say "estimate".
+ */
+export function estimateLine(it: TransitItem, d: TransitDigest, c: TransitCtx): string {
+  if (it.quality !== 'realtime' || d.state !== 'fresh') return '';
+  const dist = distanceText(c.lang, it, d, c.elapsedMs ?? 0);
+  if (!dist) return '';
+  const e = etaOf(it.at, it.hm, d, c.nowMs);
+  const est = e.kind === 'now' ? ts(c.lang, 'estNow') : e.kind === 'min' ? ts(c.lang, 'estIn', { n: e.text }) : ts(c.lang, 'estAt', { t: e.text });
+  return '<span class="d">' + esc(dist) + '</span><i> · </i><span class="e">' + esc(est) + '</span>';
+}
+
 function stopName(d: TransitDigest, code: number): string {
   return d.stops?.find((s) => s.code === code)?.name ?? String(code);
 }
 
 function rowHtml(it: TransitItem, d: TransitDigest, c: TransitCtx, multi: boolean): string {
   const far = it.mins >= 40 ? ' far' : '';
-  return '<div class="brow' + far + '">' + badge(it.line) + '<span class="dest"><b>' + esc(it.dest) + '</b>' + (multi ? '<small>' + esc(stopName(d, it.stop)) + '</small>' : '') + '</span>' + etaCell(it.at, it.hm, d, c, it.more, it.quality) + '</div>';
+  const est = estimateLine(it, d, c);
+  return '<div class="brow' + far + (est ? ' hasest' : '') + '">' + badge(it.line) + '<span class="dest"><b>' + esc(it.dest) + '</b>' + (multi ? '<small>' + esc(stopName(d, it.stop)) + '</small>' : '') + (est ? '<small class="est">' + est + '</small>' : '') + '</span>' + etaCell(it.at, it.hm, d, c, it.more, it.quality) + '</div>';
 }
 
 function cardHtml(it: TransitItem, d: TransitDigest, c: TransitCtx): string {
-  return '<div class="bcard"><div class="ct">' + badge(it.line) + '<span>' + esc(it.dest) + '</span></div>' + etaCell(it.at, it.hm, d, c, it.more, it.quality) + '</div>';
+  const est = estimateLine(it, d, c);
+  return '<div class="bcard' + (est ? ' hasest' : '') + '"><div class="ct">' + badge(it.line) + '<span>' + esc(it.dest) + '</span></div>' + etaCell(it.at, it.hm, d, c, it.more, it.quality) + (est ? '<div class="est">' + est + '</div>' : '') + '</div>';
 }
 
 /** The title line: the one stop's name, or the first with "and N more". */

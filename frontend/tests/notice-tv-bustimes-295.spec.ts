@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { lobbyFeed, serveFeed, tvUrl } from './notice-tv-fixtures';
-import { ROWS, columns, digest, screen, serveTransit, type Spec } from './bustimes-fixtures';
+import { ROWS, columns, digest, item, screen, serveTransit, type Spec } from './bustimes-fixtures';
 import type { TransitDigest } from '../src/notice-tv/transit-logic';
 import type { Display } from '../src/notice-tv/tv-logic';
 
@@ -187,4 +187,67 @@ test('template 3 has no side column: the side layout takes the strip', async ({ 
 test('the slide layout in "all together" mode falls back to the strip (there is no rotation to join)', async ({ page }) => {
   await open(page, { layout: 'slide', display: { mode: 'all' }, d: digest({ layout: 'slide', columns: columns(2), nstops: 2 }) });
   await expect(page.locator('#cv')).toHaveAttribute('data-bus', 'strip');
+});
+
+// ---- the estimate line with the distance (owner 26.10): "800 m away - est. in 3 min" under the destination / on the card
+const EST: Spec[] = ROWS.map((r, i) => (i < 4 ? { ...r, dist: [400, 800, 1200, 2500][i], posAge: 90 } : r));
+
+for (const layout of ['side', 'strip', 'slide'] as const) {
+  for (const [w, h] of [[1920, 1080], [1080, 1920]] as const) {
+    for (const theme of ['day', 'night'] as const) {
+      test(`${layout} with distance rows, ${theme}, ${w}x${h}: the line is drawn, no scroll, nothing outside the canvas`, async ({ page }, info) => {
+        const nst = layout === 'slide' ? 2 : 1;
+        const nrows = layout === 'side' ? 3 : 5; // the side column is short at 1080p: three rows leave room for the distance lines (with five they are dropped first, by design)
+        const d = layout === 'slide'
+          ? digest({ layout, nstops: nst, multi: true, columns: columns(nst).map((c, k) => ({ ...c, items: ROWS.filter((_r, i) => i % nst === k).map((r, i) => item({ ...r, stop: c.stop, ...(i < 2 ? { dist: 800 + 400 * i, posAge: 90 } : {}) })) })) })
+          : digest({ layout, rows: nrows, specs: EST });
+        await open(page, { layout, w, h, theme, d, rows: nrows });
+        if (layout === 'slide') await showSlide(page);
+        await expect(page.locator('.bus').first()).toBeVisible();
+        expect(await page.locator('.bus .est').count()).toBeGreaterThan(0);
+        // distance first, then the estimate, in reading order (RTL flows right to left by itself)
+        const text = ((await page.locator('.bus .est').first().textContent()) ?? '').replace(/\s+/g, ' ');
+        expect(text).toMatch(/מ׳ מהתחנה.*הערכה/);
+        expect(await page.locator('.bus .brow .est, .bus .bcard .est').first().evaluate((e) => getComputedStyle(e).direction)).toBe('rtl');
+        await page.screenshot({ path: info.outputPath(`bus-est-${layout}-${theme}-${w}x${h}.png`) });
+        await noScroll(page);
+        if (layout !== 'strip') await expect(page.locator('.bus .est:visible').first()).toBeVisible(); // side / slide have the room for at least the first line
+        await page.screenshot({ path: info.outputPath(`bus-est-${layout}-${theme}-${w}x${h}.png`) });
+      });
+    }
+  }
+}
+
+test('the distance lines go before rows are dropped when the panel is tight (side, 1280x720)', async ({ page }) => {
+  await open(page, { layout: 'side', w: 1280, h: 720, d: digest({ layout: 'side', rows: 8, specs: ROWS.map((r) => ({ ...r, dist: 600, posAge: 60 })) }), rows: 8 });
+  await noScroll(page);
+  const r = await page.evaluate(() => ({
+    est: document.querySelectorAll('.bus .est').length, estHidden: document.querySelectorAll('.bus .est[hidden]').length,
+    rowsHidden: document.querySelectorAll('.bus .brow[hidden]').length,
+  }));
+  expect(r.est).toBeGreaterThan(0);
+  if (r.rowsHidden > 0) expect(r.estHidden).toBe(r.est); // a row was dropped only after every distance line had been
+});
+
+test('a digest without distances draws the plain rows (installation switch off) with the estimate marker only', async ({ page }) => {
+  await open(page, { layout: 'side', d: digest({ layout: 'side', show_distance: false, specs: EST.map(({ dist: _d, ...r }) => r) }) });
+  expect(await page.locator('.bus .est').count()).toBe(0);
+  await noScroll(page);
+});
+
+test('the screen fetches the digest again at the cadence the server gave and keeps counting between fetches', async ({ page }) => {
+  let hits = 0;
+  await page.route('**/api/v1/notices/display/lobby/transit', async (route) => {
+    hits++;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(digest({ layout: 'side', refresh_s: 10 })) });
+  });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await serveFeed(page, lobbyFeed({ theme: 'day', transit: screen({ layout: 'side' }) }));
+  await page.goto(new URL(tvUrl().replace('&clock=fixed', ''), base()).toString());
+  await page.waitForSelector('#cv[data-tpl] .pg .hd', { state: 'attached' });
+  await page.waitForTimeout(1500);
+  expect(hits).toBe(1);
+  await page.waitForTimeout(11_500);
+  expect(hits).toBeGreaterThanOrEqual(2);
+  expect(hits).toBeLessThanOrEqual(3);
 });

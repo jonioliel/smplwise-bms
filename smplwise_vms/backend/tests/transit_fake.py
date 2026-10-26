@@ -77,5 +77,9 @@ class FakeStride:
             return out
         raise stride.StrideError("http_404")
 
+    def arrival_calls(self) -> int:
+        """Requests for the planned arrivals of stops (not the real-time layer's per-ride plan reads)."""
+        return sum(1 for p, a in self.calls if p == "/gtfs_ride_stops/list" and "gtfs_stop_ids" in a)
+
     def count(self, path: str) -> int:
         return sum(1 for p, _ in self.calls if p == path)

@@ -24,9 +24,9 @@ def view(conn: sqlite3.Connection, now: dt.datetime) -> dict[str, Any]:
         state = "off"
     elif age is None:
         state = "down"
-    elif age <= model.FRESH_S:
+    elif age <= model.fresh_s(cfg):
         state = "ok"
-    elif age <= max(model.FRESH_S, cfg["stale_grace_min"] * 60):
+    elif age <= max(model.fresh_s(cfg), cfg["stale_grace_min"] * 60):
         state = "stale"
     else:
         state = "down"

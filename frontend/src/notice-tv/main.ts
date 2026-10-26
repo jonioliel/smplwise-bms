@@ -21,7 +21,7 @@ import {
   playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, str, takeoverNotice, themeOf, timeText, tokenFrom, tx, whenText,
   type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type Item, type LogoLayout, type NetState, type Saver, withTransit,
 } from './tv-logic';
-import { effective, hasPanel, slideWanted, transitOf, transitTick, ts, type TransitDigest } from './transit-logic';
+import { effective, hasPanel, refreshMs, slideWanted, transitOf, transitTick, ts, type TransitDigest } from './transit-logic';
 import { sidePanel, slidePanel, stripPanel, type TransitCtx } from './transit-view';
 
 const Q = new URLSearchParams(location.search);
@@ -97,7 +97,7 @@ function tkey(tv: TransitDigest | null): string {
 }
 
 function transitCtx(): TransitCtx {
-  return { lang: lang(), nowMs: transitNow() };
+  return { lang: lang(), nowMs: transitNow(), elapsedMs: FIXED || NOW_Q ? 0 : Math.max(0, Date.now() - transitRecv) };
 }
 
 function display(): Display {
@@ -497,11 +497,27 @@ function fitBus(): void {
     bus.querySelectorAll('.bcard.cmore').forEach((e) => e.remove());
     let hiddenN = 0;
     if (rows) {
-      bus.style.setProperty('--bk', '1');
-      let k = 1;
-      for (let i = 0; i < 12 && over(rows) && k > 0.6; i++) {
-        k -= 0.04;
-        bus.style.setProperty('--bk', k.toFixed(2));
+      // 1. the rows as they are, scaled down to 0.8; 2. (side column) the welcome and the date make room; 3. the distance lines go; 4. smaller rows, then fewer rows
+      const hasEst = !!rows.querySelector('.est');
+      const shrink = (floor: number): boolean => {
+        let k = 1;
+        bus.style.setProperty('--bk', '1');
+        for (let i = 0; i < 12 && over(rows) && k > floor; i++) {
+          k -= 0.04;
+          bus.style.setProperty('--bk', k.toFixed(2));
+        }
+        return !over(rows);
+      };
+      cv.classList.remove('busdense');
+      let fits = shrink(hasEst ? 0.8 : 0.6);
+      if (!fits && hasEst && bus.matches('[data-bus="side"]')) {
+        cv.classList.add('busdense');
+        fits = shrink(0.8);
+      }
+      if (!fits && hasEst) {
+        cv.classList.remove('busdense');
+        rows.querySelectorAll('.est').forEach((e) => e.setAttribute('hidden', ''));
+        shrink(0.6);
       }
       const list = [...rows.children] as HTMLElement[];
       for (let i = list.length - 1; i > 0 && over(rows); i--) {
@@ -510,6 +526,7 @@ function fitBus(): void {
       }
     }
     if (cards) {
+      if (wide(cards)) cards.querySelectorAll('.est').forEach((e) => e.setAttribute('hidden', '')); // distance lines first, cards after
       const list = [...cards.children] as HTMLElement[];
       for (let i = list.length - 1; i > 0 && wide(cards); i--) {
         list[i].setAttribute('hidden', '');
@@ -804,7 +821,27 @@ async function loadMedia(doc: Feed): Promise<void> {
 }
 
 /** BUSTIMES-295: the bus-times digest of this board (the server's cache, never the third party). A failed read keeps the last digest: it ages on the stopwatch. */
+let transitTimer = 0;
+
+/** The next fetch of the digest: every `refresh_s` seconds (the server's choice for this screen, 10-120). It reads our server's cache only. */
+function scheduleTransit(): void {
+  clearTimeout(transitTimer);
+  transitTimer = 0;
+  if (FIXED || NOW_Q || !transitOf(display()).enabled) return;
+  transitTimer = window.setTimeout(() => {
+    transitTimer = 0;
+    void pollTransit().then(() => refreshTransit());
+  }, refreshMs(transit));
+}
+
+/** The feed poll asks for a digest only when its own timer is not running (the timer is the cadence, not the feed poll). */
+function ensureTransit(): Promise<void> {
+  return transitTimer ? Promise.resolve() : pollTransit();
+}
+
 async function pollTransit(): Promise<void> {
+  clearTimeout(transitTimer);
+  transitTimer = 0;
   if (!transitOf(display()).enabled) {
     transit = null;
     return;
@@ -829,6 +866,7 @@ async function pollTransit(): Promise<void> {
   } catch {
     /* the last digest stays and ages */
   }
+  scheduleTransit();
 }
 
 let rotTimer = 0;
@@ -878,7 +916,7 @@ async function poll(force = false): Promise<void> {
     } else if (!doc.control && lastControl < 0) {
       lastControl = 0;
     }
-    await Promise.all([loadCompanyLogo('light', doc.board.logos?.company), loadCompanyLogo('dark', doc.board.logos?.company_dark), loadMedia(doc), pollTransit()]);
+    await Promise.all([loadCompanyLogo('light', doc.board.logos?.company), loadCompanyLogo('dark', doc.board.logos?.company_dark), loadMedia(doc), ensureTransit()]);
     if (changed) render();
     else refreshTransit();
     if (rotate) restartRotation();

@@ -1,6 +1,6 @@
 """BUSTIMES-295 - the one background loop that talks to the third party.
 
-Every 60 seconds (only while the module is on, the notice boards are on and at least one enabled board shows transit) it collects the DISTINCT
+Every `poll_s` seconds (installation setting, default 30, floor 30 unless acknowledged; only while the module is on, the notice boards are on and at least one enabled board shows transit) it collects the DISTINCT
 stop codes the boards use - one request per code, shared by every screen - and stores for each the planned boardable arrivals of
 `now .. now + the widest display window + 90 minutes`, so "the next bus after the window" and the last-known fallback exist. A circuit breaker
 (1, 2, 4, 8 minutes) stops the calls while the source fails; the cache keeps serving its last rows with their age. The nightly catalogue
@@ -22,7 +22,7 @@ from . import provider as provider_mod
 
 log = logging.getLogger("smplwise.transit")
 
-INTERVAL_S = 60.0
+INTERVAL_S = 30.0  # the default of `transit.config.poll_s`; the loop reads the setting each round
 EXTRA_MIN = 90
 MAX_RANGE_MIN = 240 + EXTRA_MIN
 BACKOFF_S = (60, 120, 240, 480)
@@ -99,7 +99,7 @@ def _provider_for(source: Any, tz: Any) -> provider_mod.ArrivalProvider:
         return source
     got = _PROVIDERS.get(id(source))
     if got is None or got[0] is not source:
-        got = (source, provider_mod.ScheduledProvider(source, tz))
+        got = (source, provider_mod.RealtimeProvider(source, tz))
         _PROVIDERS[id(source)] = got
     return got[1]
 
@@ -112,11 +112,14 @@ def poll_once(db: Database, source: Any, now: dt.datetime) -> dict[str, Any]:
     with db.connection(mode="read", label="transit.poll.plan") as conn:
         want = used_codes(conn)
         tz = sources.installation_tz(conn)
+        cfg = load_config(conn)
     if not want:
         return {"codes": 0, "fetched": 0, "skipped": "idle"}
     if HEALTH.blocked(now):
         return {"codes": len(want), "fetched": 0, "skipped": "backoff"}
     prov = _provider_for(source, tz)
+    if hasattr(prov, "configure"):
+        prov.configure(position_fresh_s=model.position_fresh_s(cfg), poll_s=model.poll_s(cfg))
     if hasattr(prov, "new_pass"):
         prov.new_pass()
     fetched, failed = 0, None
@@ -195,6 +198,14 @@ class Poller:
         if t is not None and t is not threading.current_thread():
             t.join(timeout=timeout)
 
+    @staticmethod
+    def _interval(db: Database) -> float:
+        try:
+            with db.connection(mode="read", label="transit.poll.interval") as conn:
+                return float(model.poll_s(load_config(conn)))
+        except Exception:  # noqa: BLE001 - the default cadence beats a dead loop
+            return INTERVAL_S
+
     def _loop(self, db: Database, fetch: Any) -> None:
         if self.stop_evt.wait(20.0):
             return
@@ -205,7 +216,7 @@ class Poller:
                 poll_once(db, fetch, now)
             except Exception:  # noqa: BLE001 - the loop never dies on one bad pass
                 log.exception("transit pass failed")
-            self.wake.wait(INTERVAL_S)
+            self.wake.wait(self._interval(db))
             self.wake.clear()
 
 

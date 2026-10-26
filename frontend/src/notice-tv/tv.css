@@ -592,3 +592,23 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 .it.transit .cols[data-n="3"] .bus .eta b, .it.transit .cols[data-n="4"] .bus .eta b { font-size: calc(46px * var(--bk)); }
 .it.transit .cols[data-n="3"] .bus .eta b.cl, .it.transit .cols[data-n="4"] .bus .eta b.cl { font-size: calc(40px * var(--bk)); }
 .it.transit .cols:not([data-n="1"]) .bus .eta { min-inline-size: 0; justify-self: end; }
+
+/* ===== BUSTIMES-295: the estimate line "800 m away · est. in 3 min" (distance first, then the estimate) =====
+   A row with it grows past its fixed height; the fit step (fitBus) hides these lines first when the panel does not fit. */
+.bus .brow.hasest { block-size: auto; min-block-size: calc(var(--rowh, 70px) * var(--bk)); padding-block: calc(4px * var(--bk)); }
+.bus .dest small.est { color: var(--accent); font-size: calc(23px * var(--bk)); display: block; }
+.bus .est i { font-style: normal; color: var(--ink-4); padding-inline: .25em; }
+.bus .bcard.hasest { grid-template-rows: auto minmax(0, 1fr) auto; }
+.bus .bcard .est { font-size: 20px; line-height: 1.15; color: var(--accent); min-inline-size: 0; }
+.bus .bcard .est span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bus .bcard .est i { display: none; }
+.it.transit .bus .dest small.est { font-size: calc(26px * var(--bk)); }
+.it.transit .cols:not([data-n="1"]) .bus .dest small.est { font-size: calc(22px * var(--bk)); }
+/* side column with distance lines: the welcome and the date give their room to the panel (set by fitBus only when it helps) */
+#cv.busdense[data-bus="side"] .side .welcome, #cv.busdense[data-bus="side"] .side .clock .d { display: none; }
+#cv.busdense[data-bus="side"] .side .clock .t { font-size: calc(96px * var(--fs)); }
+/* the estimate line wraps between its two parts instead of being cut: the fit step decides whether the extra height fits */
+.bus .dest small.est { display: flex; flex-wrap: wrap; white-space: normal; overflow: visible; text-overflow: clip; font-size: calc(21px * var(--bk)); line-height: 1.15; }
+.bus .dest small.est > span { white-space: nowrap; }
+.it.transit .bus .dest small.est { font-size: calc(24px * var(--bk)); }
+.it.transit .cols:not([data-n="1"]) .bus .dest small.est { font-size: calc(21px * var(--bk)); }

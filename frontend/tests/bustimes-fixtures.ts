@@ -16,12 +16,17 @@ export interface Spec {
   mins: number;
   stop?: number;
   more?: number[];
+  /** an estimate row: its distance from the stop in metres (already rounded by the server); the position is `posAge` seconds old */
+  dist?: number;
+  posAge?: number;
 }
 
 export function item(s: Spec): TransitItem {
   const at = NOW + s.mins * 60_000 + 30_000;
   return {
     line: s.line, dest: s.dest, stop: s.stop ?? 33323, at: new Date(at).toISOString().replace('.000', ''), hm: hm(at), mins: s.mins,
+    ...(s.dist !== undefined ? { quality: 'realtime' as const, scheduled_time: new Date(at + 90_000).toISOString().replace('.000', ''), estimated_time: new Date(at).toISOString().replace('.000', ''),
+      age_seconds: s.posAge ?? 60, distance_m: s.dist, position_age_s: s.posAge ?? 60 } : {}),
     ...(s.more ? { more: s.more.map((m) => ({ at: new Date(NOW + m * 60_000 + 30_000).toISOString().replace('.000', ''), hm: hm(NOW + m * 60_000 + 30_000), mins: m })) } : {}),
   };
 }
@@ -49,7 +54,7 @@ export function digest(p: Partial<TransitDigest> & { specs?: Spec[]; nstops?: nu
   const want = rest.rows ?? 5;
   return {
     state: 'fresh', now: new Date(NOW).toISOString().replace('.000', ''), fetched_at: new Date(NOW - 20_000).toISOString().replace('.000', ''), age_s: 20, updated_hm: hm(NOW - 20_000),
-    layout: 'side', window_min: 120, rows: want, dwell_s: 15, clock_after_min: 60, stale_grace_min: 30, stops, multi: stops.length > 1, realtime: false,
+    layout: 'side', window_min: 120, rows: want, dwell_s: 15, clock_after_min: 60, stale_grace_min: 30, refresh_s: 20, fresh_s: 180, position_fresh_s: 300, show_distance: true, stops, multi: stops.length > 1, realtime: false,
     items: list.slice(0, want), overflow: Math.max(0, list.length - want), grouped: false, next: null,
     ...rest,
   } as TransitDigest;

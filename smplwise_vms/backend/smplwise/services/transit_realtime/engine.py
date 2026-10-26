@@ -184,7 +184,7 @@ class RealtimeEngine:
             est = now
         d = int((est - sched).total_seconds())
         status = "on_time" if abs(d) <= cfg.early_late_s else ("late" if d > 0 else "early")
-        return Arrival(s.stop_code, s.line_ref, s.line, s.destination, sched, est, src, status, d, age)
+        return Arrival(s.stop_code, s.line_ref, s.line, s.destination, sched, est, src, status, d, age, o.distance_m)
 
     def _state(self, e: _Entry | None, rows: list[Arrival], now: datetime) -> str:
         if self._source is None or e is None:

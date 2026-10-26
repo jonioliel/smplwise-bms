@@ -139,7 +139,7 @@ def fetch_arrivals(fetch: Fetch, ids: list[int], frm: dt.datetime, to: dt.dateti
 
 
 def normalize_arrivals(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Boardable rows only (`pickup_type == 0`), as `{line, dest, at, agency, ride}` sorted by time. A row without a time or a line is dropped."""
+    """Boardable rows only (`pickup_type == 0`), as `{line, line_ref, dest, at, agency, ride}` sorted by time. A row without a time or a line is dropped."""
     out: list[dict[str, Any]] = []
     for r in rows:
         if r.get("pickup_type", 0) != 0:
@@ -150,7 +150,8 @@ def normalize_arrivals(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         agency = r.get("gtfs_route__agency_name")
         ride = r.get("gtfs_ride_id")
-        out.append({"line": str(line).strip()[:8], "dest": destination(r.get("gtfs_route__route_long_name")),
+        line_ref = r.get("gtfs_route__line_ref")
+        out.append({"line": str(line).strip()[:8], "line_ref": line_ref if isinstance(line_ref, int) and not isinstance(line_ref, bool) else None, "dest": destination(r.get("gtfs_route__route_long_name")),
                     "at": at.strftime("%Y-%m-%dT%H:%M:%SZ"), "agency": agency.strip()[:40] if isinstance(agency, str) else "",
                     "ride": ride if isinstance(ride, int) else None})
     out.sort(key=lambda x: (x["at"], x["line"]))

@@ -66,6 +66,9 @@ class PlanStore:
         self._t, self._max = transport, max_rides
         self._rides: OrderedDict[int, list[dict]] = OrderedDict()
 
+    def has(self, ride_id: int) -> bool:
+        return ride_id in self._rides
+
     def rows(self, ride_id: int) -> list[dict]:
         if ride_id in self._rides:
             self._rides.move_to_end(ride_id)
@@ -145,5 +148,5 @@ class StrideSource:
                     out.append(Observation(expected=None, not_departed=True, **base))  # waiting at the first stop: its delay says nothing yet
                 else:
                     d = delay_s(rp.plan, dist, rec.timestamp())
-                    out.append(Observation(expected=rp.stop_planned + timedelta(seconds=d), **base))
+                    out.append(Observation(expected=rp.stop_planned + timedelta(seconds=d), distance_m=max(0.0, rp.stop_dist - dist), **base))
         return out

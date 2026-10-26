@@ -69,7 +69,7 @@ def _digest(settings, now, screen):
 
 def test_config_defaults_ranges_and_the_four_stop_cap():
     d = model.normalize_config({})
-    assert d == {"enabled": False, "stops": [], "clock_after_min": 60, "stale_grace_min": 30, "hide_closer_min": 0}
+    assert d == model.CONFIG_DEFAULTS and d["poll_s"] == 30 and d["refresh_s"] == 20 and d["position_fresh_min"] == 5 and d["show_distance"] is True
     five = [{"code": c} for c in (1, 2, 3, 4, 5)]
     assert len(model.normalize_config({"stops": five})["stops"]) == 4  # a stored value is clamped
     with pytest.raises(model.Invalid):
@@ -84,7 +84,7 @@ def test_config_defaults_ranges_and_the_four_stop_cap():
 
 def test_screen_defaults_choices_and_free_window():
     d = model.normalize_screen({})
-    assert d == {"enabled": False, "stops": [], "layout": "side", "window_min": 60, "rows": 5, "group": "auto", "dwell_s": 15}
+    assert d == {"enabled": False, "stops": [], "layout": "side", "window_min": 60, "rows": 5, "group": "auto", "dwell_s": 15, "refresh_s": None, "show_distance": None}
     for w in (15, 30, 60, 120, 180, 45, 240, 5):  # the list AND a free value
         assert model.normalize_screen({"window_min": w}, strict=True)["window_min"] == w
     for bad in ({"window_min": 4}, {"window_min": 241}, {"rows": 2}, {"rows": 11}, {"layout": "x"}, {"group": "x"}, {"stops": [1, 1]}, {"enabled": "yes"}):
@@ -214,11 +214,11 @@ def test_one_request_per_distinct_code_shared_by_every_screen(client, settings):
     fake.calls.clear()
     out = poller.poll_once(_db(settings), fake, BASE)
     assert out["codes"] == 2 and out["fetched"] == 2
-    assert fake.count("/gtfs_ride_stops/list") == 2  # not 3 screens x 2 stops
+    assert fake.arrival_calls() == 2  # not 3 screens x 2 stops
     assert fake.count("/gtfs_stops/list") == 2  # the day's ids, once per code
     fake.calls.clear()
     poller.poll_once(_db(settings), fake, BASE + dt.timedelta(minutes=1))
-    assert fake.count("/gtfs_stops/list") == 0 and fake.count("/gtfs_ride_stops/list") == 2  # the ids are kept for the day
+    assert fake.count("/gtfs_stops/list") == 0 and fake.arrival_calls() == 2  # the ids are kept for the day
 
 
 def test_the_fetched_window_is_wider_than_any_display_window(client, settings):
@@ -228,7 +228,7 @@ def test_the_fetched_window_is_wider_than_any_display_window(client, settings):
     _board(client, "a", {"window_min": 30})
     _board(client, "b", {"window_min": 120})
     poller.poll_once(_db(settings), fake, BASE)
-    _, params = [c for c in fake.calls if c[0] == "/gtfs_ride_stops/list"][-1]
+    _, params = [c for c in fake.calls if c[0] == "/gtfs_ride_stops/list" and "gtfs_stop_ids" in c[1]][-1]
     to = stride.parse_time(params["arrival_time_to"])
     assert to - BASE == dt.timedelta(minutes=120 + poller.EXTRA_MIN)
     with _db(settings).connection(mode="read") as conn:
@@ -300,7 +300,7 @@ def test_a_missing_destination_is_looked_up_once_per_ride(client, settings):
     _board(client)
     poller.poll_once(_db(settings), fake, BASE)
     poller.poll_once(_db(settings), fake, BASE + dt.timedelta(minutes=1))
-    assert sum(1 for p, a in fake.calls if p == "/gtfs_ride_stops/list" and "gtfs_ride_ids" in a) == 1
+    assert sum(1 for p, a in fake.calls if p == "/gtfs_ride_stops/list" and a.get("limit") == 1) == 1
     d = _digest(settings, BASE + dt.timedelta(minutes=1), {"enabled": True})
     assert d["items"][0]["dest"] == "בית גיל הזהב/השקד"
 
@@ -521,7 +521,7 @@ def test_the_board_patch_saves_the_screen_block_and_refuses_an_unconfigured_stop
     _loaded(client, settings, stops=(33323, 33324))
     bid, _ = _board(client, "second")
     ok = client.patch(f"{API}/notices/boards/{bid}", json={"display": {"transit": {"enabled": True, "layout": "strip", "stops": [33324], "window_min": 45, "rows": 6, "group": "always"}}})
-    assert ok.status_code == 200 and ok.json()["board"]["display"]["transit"] == {"enabled": True, "stops": [33324], "layout": "strip", "window_min": 45, "rows": 6, "group": "always", "dwell_s": 15}
+    assert ok.status_code == 200 and ok.json()["board"]["display"]["transit"] == {"enabled": True, "stops": [33324], "layout": "strip", "window_min": 45, "rows": 6, "group": "always", "dwell_s": 15, "refresh_s": None, "show_distance": None}
     assert client.patch(f"{API}/notices/boards/{bid}", json={"display": {"transit": {"stops": [51439]}}}).status_code == 422  # not an installation stop
     assert client.patch(f"{API}/notices/boards/{bid}", json={"display": {"transit": {"layout": "x"}}}).status_code == 422
     assert client.patch(f"{API}/notices/boards/{bid}", json={"display": {"transit": {"window_min": 3}}}).status_code == 422
@@ -639,7 +639,7 @@ def test_a_realtime_provider_plugs_into_the_poller_and_the_rows_carry_both_times
 
 def test_an_old_estimate_is_stale_and_the_schedule_is_shown(client, settings):
     catalogue.refresh(_db(settings), FakeStride(BASE), BASE, dt.date(2026, 10, 26))
-    _on(client)
+    _on(client, position_fresh_min=1)  # the limit is the setting now (default 5 min); one minute keeps the arithmetic below
     _board(client)
     poller.poll_once(_db(settings), FakeRealtime(BASE, est_age=100), BASE)
     d = _digest(settings, BASE + dt.timedelta(seconds=5), {"enabled": True})

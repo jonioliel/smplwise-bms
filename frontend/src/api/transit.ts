@@ -22,6 +22,14 @@ export interface TransitConfig {
   stale_grace_min: number;
   /** walking time: buses closer than this are hidden */
   hide_closer_min: number;
+  /** seconds between two polls of the public source, per distinct stop (15-300; below 30 only with `poll_floor_ack`) */
+  poll_s: number;
+  poll_floor_ack: boolean;
+  /** installation default of how often a screen fetches the digest, seconds (10-120) */
+  refresh_s: number;
+  /** minutes: a vehicle position older than this is no estimate and shows no distance */
+  position_fresh_min: number;
+  show_distance: boolean;
 }
 
 export interface CatalogueStatus {
@@ -54,6 +62,10 @@ export interface TransitLimits {
   clock_after_range: [number, number];
   grace_range: [number, number];
   walk_range: [number, number];
+  poll_range: [number, number];
+  poll_floor_s: number;
+  refresh_range: [number, number];
+  position_fresh_range: [number, number];
   layouts: string[];
   groups: string[];
 }

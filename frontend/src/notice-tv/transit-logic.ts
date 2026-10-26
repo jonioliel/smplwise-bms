@@ -17,6 +17,10 @@ export interface TransitScreen {
   rows: number;
   group: TransitGroup;
   dwell_s: number;
+  /** seconds between two fetches of the digest; null / absent = the installation's value */
+  refresh_s?: number | null;
+  /** show the bus's distance from the stop on estimate rows; null / absent = the installation's value */
+  show_distance?: boolean | null;
 }
 
 /** `realtime` = a fresh estimate (the minutes count to it); `scheduled` = the timetable; `stale` = an estimate too old to trust (the timetable is shown). */
@@ -43,6 +47,10 @@ export interface TransitItem {
   quality?: TransitQuality;
   /** age of the estimate (real-time) or of the cache (scheduled), in seconds, when the digest was made */
   age_seconds?: number;
+  /** road distance from the stop, already rounded by the server (50 m under 1 km, 0.1 km above); present only on an estimate with a fresh position */
+  distance_m?: number;
+  /** age of the vehicle position when the digest was made, seconds */
+  position_age_s?: number;
 }
 
 export interface TransitColumn {
@@ -67,6 +75,13 @@ export interface TransitDigest {
   dwell_s?: number;
   clock_after_min?: number;
   stale_grace_min?: number;
+  /** seconds: how often this screen fetches the digest */
+  refresh_s?: number;
+  /** the age (seconds) under which the digest counts as fresh: max(180, 3 x the poll interval) */
+  fresh_s?: number;
+  /** a vehicle position older than this (seconds) is no estimate and shows no distance */
+  position_fresh_s?: number;
+  show_distance?: boolean;
   stops?: { code: number; name: string }[];
   multi?: boolean;
   realtime?: boolean;
@@ -77,7 +92,7 @@ export interface TransitDigest {
   columns?: TransitColumn[];
 }
 
-export const TRANSIT_SCREEN_DEFAULTS: TransitScreen = { enabled: false, stops: [], layout: 'side', window_min: 60, rows: 5, group: 'auto', dwell_s: 15 };
+export const TRANSIT_SCREEN_DEFAULTS: TransitScreen = { enabled: false, stops: [], layout: 'side', window_min: 60, rows: 5, group: 'auto', dwell_s: 15, refresh_s: null, show_distance: null };
 
 /** The screen's block with every key present (a board saved before BUSTIMES-295 has none). */
 export function transitOf(d: { transit?: Partial<TransitScreen> } | null | undefined): TransitScreen {
@@ -123,11 +138,32 @@ export function ahead<T extends { at: string }>(rows: T[], nowMs: number): T[] {
  */
 export function effective(d: TransitDigest | null, elapsedMs: number): TransitDigest | null {
   if (!d || d.state === 'off' || d.state === 'expired') return d;
-  const age = (d.age_s ?? 0) + Math.max(0, elapsedMs) / 1000;
+  const elapsed = Math.max(0, elapsedMs) / 1000;
+  const age = (d.age_s ?? 0) + elapsed;
+  const fresh = d.fresh_s ?? 180;
   const grace = (d.stale_grace_min ?? 30) * 60;
-  if (age > Math.max(180, grace)) return { ...d, state: 'expired', items: [], columns: [], overflow: 0, next: null };
-  if (age > 180 && d.state === 'fresh') return { ...d, state: 'cached' };
+  if (age > Math.max(fresh, grace)) return { ...d, state: 'expired', items: [], columns: [], overflow: 0, next: null };
+  if (age > fresh && d.state === 'fresh') return { ...d, state: 'cached' };
   return d;
+}
+
+/** Seconds between two fetches of the digest (the server tells; 10-120, 20 before the first answer). */
+export function refreshMs(d: TransitDigest | null): number {
+  const s = d?.refresh_s;
+  return Math.min(120, Math.max(10, typeof s === 'number' && Number.isFinite(s) ? s : 20)) * 1000;
+}
+
+/**
+ * The distance of an estimate row, or '' when it must not be printed: only a derived estimate (quality realtime) of a fresh digest, only while the
+ * position (aged on the screen's own stopwatch since the digest arrived) is within the freshness limit, and only when the screen shows distances.
+ */
+export function distanceText(lang: 'he' | 'en', it: Pick<TransitItem, 'quality' | 'distance_m' | 'position_age_s'>, d: Pick<TransitDigest, 'state' | 'show_distance' | 'position_fresh_s'>, elapsedMs: number): string {
+  if (d.state !== 'fresh' || d.show_distance === false || it.quality !== 'realtime' || typeof it.distance_m !== 'number' || it.distance_m <= 0) return '';
+  if ((it.position_age_s ?? 0) + Math.max(0, elapsedMs) / 1000 > (d.position_fresh_s ?? 300)) return '';
+  const m = it.distance_m;
+  if (m < 1000) return ts(lang, 'distM', { n: m });
+  const km = (Math.round(m / 100) / 10).toFixed(1);
+  return ts(lang, 'distKm', { n: lang === 'he' ? km : km });
 }
 
 /** A key that changes whenever any row's wording could change (the minute of the clock, the digest's state): the panel is redrawn on it only. */
@@ -148,12 +184,12 @@ export function slideWanted(digest: TransitDigest | null): boolean {
 const STRINGS = {
   he: {
     title: 'תחבורה ציבורית', titleStop: 'תחנה: {n}', window: 'ב-{n} הדקות הקרובות', windowH: 'בשעה הקרובה', windowH2: 'ב-{n} השעות הקרובות', now: 'עכשיו',
-    chipMin: "{n} דק'", chipH: 'שעה', chipH2: '{n} שעות', min: "דק'", more: 'ועוד {n}', none: 'אין אוטובוסים {w}', next: 'הבא לפי לוח זמנים:', nextAt: 'קו {l} ל{d} ב-{t}', sched: 'לפי לוח זמנים', rt: 'בזמן אמת', stale: 'לא מעודכן מ-{t}',
+    chipMin: "{n} דק'", chipH: 'שעה', chipH2: '{n} שעות', min: "דק'", more: 'ועוד {n}', none: 'אין אוטובוסים {w}', next: 'הבא לפי לוח זמנים:', nextAt: 'קו {l} ל{d} ב-{t}', sched: 'לפי לוח זמנים', rt: 'הערכה', distM: '{n} מ׳ מהתחנה', distKm: '{n} ק״מ מהתחנה', estIn: 'הערכה בעוד {n} דק׳', estAt: 'הערכה ב-{t}', estNow: 'הערכה: עכשיו', stale: 'לא מעודכן מ-{t}',
     expiredTitle: 'נתוני התחבורה אינם זמינים כרגע', expiredHint: 'הנתונים יחזרו כשהמקור יתעדכן', line: 'קו', toward: 'לכיוון', moreOf: '+{n}',
   },
   en: {
     title: 'Public transport', titleStop: 'Stop: {n}', window: 'the next {n} minutes', windowH: 'the next hour', windowH2: 'the next {n} hours', now: 'Now',
-    chipMin: '{n} min', chipH: '1 hour', chipH2: '{n} hours', min: 'min', more: '{n} more', none: 'No buses in {w}', next: 'Next on schedule:', nextAt: 'Line {l} to {d} at {t}', sched: 'Scheduled', rt: 'Real time', stale: 'Not updated since {t}',
+    chipMin: '{n} min', chipH: '1 hour', chipH2: '{n} hours', min: 'min', more: '{n} more', none: 'No buses in {w}', next: 'Next on schedule:', nextAt: 'Line {l} to {d} at {t}', sched: 'Scheduled', rt: 'Estimate', distM: '{n} m away', distKm: '{n} km away', estIn: 'est. in {n} min', estAt: 'est. at {t}', estNow: 'est. now', stale: 'Not updated since {t}',
     expiredTitle: 'Transit times are not available right now', expiredHint: 'They return when the source updates', line: 'Line', toward: 'Towards', moreOf: '+{n}',
   },
 };

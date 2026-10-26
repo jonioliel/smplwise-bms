@@ -160,7 +160,8 @@ export class SystemTransit extends LitElement {
       <div class="stack">
         ${this.moduleCard(edit)}
         <div class="two">${this.stopsCard(edit)}${edit ? this.searchCard() : nothing}</div>
-        <div class="two">${this.rulesCard(edit)}${this.catalogueCard(edit)}</div>
+        <div class="two">${this.rulesCard(edit)}${this.refreshCard(edit)}</div>
+        ${this.catalogueCard(edit)}
         ${this.healthCard()}
       </div></sw-page>${this.toast ? html`<div class="toast" role="status">${this.toast}</div>` : nothing}`;
   }
@@ -220,12 +221,34 @@ export class SystemTransit extends LitElement {
       </div>`}</div>`;
   }
 
-  private numField(key: 'clock_after_min' | 'stale_grace_min' | 'hide_closer_min', label: TrKey, hint: TrKey, range: [number, number], edit: boolean) {
+  private numField(key: 'clock_after_min' | 'stale_grace_min' | 'hide_closer_min' | 'refresh_s' | 'poll_s' | 'position_fresh_min', label: TrKey, hint: TrKey, range: [number, number], edit: boolean,
+                   unit: TrKey = 'minutes') {
     const v = this.s!.config[key];
     return html`<div class="fld"><label for=${'tr-' + key}>${tr(label)}</label>
       <div class="sum"><input id=${'tr-' + key} class="inp short num" type="number" min=${range[0]} max=${range[1]} step="1" .value=${String(v)} ?disabled=${!edit || this.busy} data-field=${key}
-        @change=${(e: Event) => this.save({ [key]: clampInt((e.target as HTMLInputElement).value, range[0], range[1], v) })}><span class="mut">${tr('minutes')}</span></div>
+        @change=${(e: Event) => this.saveNumber(key, clampInt((e.target as HTMLInputElement).value, range[0], range[1], v))}><span class="mut">${tr(unit)}</span></div>
       <span class="hint">${tr(hint)}</span></div>`;
+  }
+
+  /** A number from the rules; a poll interval under the community-service floor is kept at the floor unless the owner confirmed it. */
+  private saveNumber(key: string, v: number): void {
+    const c = this.s!.config;
+    if (key === 'poll_s' && v < this.s!.limits.poll_floor_s && !c.poll_floor_ack) v = this.s!.limits.poll_floor_s;
+    void this.save({ [key]: v });
+  }
+
+  private refreshCard(edit: boolean) {
+    const { config, limits } = this.s!;
+    return html`<div class="panel" data-transit-refresh><div class="hd"><h2>${tr('refreshCard')}</h2></div><div class="form">
+      ${this.numField('refresh_s', 'refreshS', 'refreshSHint', limits.refresh_range, edit, 'seconds')}
+      ${this.numField('poll_s', 'pollS', 'pollSHint', limits.poll_range, edit, 'seconds')}
+      <label class="ck"><input type="checkbox" data-field="poll_floor_ack" .checked=${config.poll_floor_ack} ?disabled=${!edit || this.busy}
+        @change=${(e: Event) => this.save({ poll_floor_ack: (e.target as HTMLInputElement).checked, ...((e.target as HTMLInputElement).checked || config.poll_s >= limits.poll_floor_s ? {} : { poll_s: limits.poll_floor_s }) })}>${tr('pollAck')}</label>
+      ${this.numField('position_fresh_min', 'positionFresh', 'positionFreshHint', limits.position_fresh_range, edit)}
+      <label class="ck"><input type="checkbox" data-field="show_distance" .checked=${config.show_distance} ?disabled=${!edit || this.busy}
+        @change=${(e: Event) => this.save({ show_distance: (e.target as HTMLInputElement).checked })}>${tr('showDistance')}</label>
+      <span class="hint">${tr('showDistanceHint')}</span>
+    </div></div>`;
   }
 
   private rulesCard(edit: boolean) {

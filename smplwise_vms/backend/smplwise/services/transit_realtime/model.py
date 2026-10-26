@@ -35,6 +35,7 @@ class Observation:
     not_departed: bool = False          # known, but still at / before its first stop
     vehicle_ref: str | None = None
     origin: str = ""                    # which adapter produced it: "stride" | "mot_siri"
+    distance_m: float | None = None     # metres of road between the vehicle and this stop at recorded_at (None = unknown)
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class Arrival:
     status: Status
     delay_s: int | None                 # estimated - scheduled, seconds (negative = early); None when estimated is None
     age_s: int | None                   # now - observation.recorded_at; None when there is no observation
+    distance_m: float | None = None     # vehicle-to-stop road distance at the position's time; only with an estimate
 
     @property
     def best(self) -> datetime:

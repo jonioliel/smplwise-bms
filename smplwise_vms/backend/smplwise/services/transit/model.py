@@ -23,10 +23,16 @@ CLOCK_AFTER_RANGE = (0, 240)  # minutes up to this, then the clock time; 0 = alw
 GRACE_RANGE = (0, 240)  # minutes of last-known data while the source is down; 0 = none
 WALK_RANGE = (0, 30)
 STOP_NAME_MAX = 60
-FRESH_S = 180  # a cache younger than this is "fresh" (the poller runs every 60 s)
+FRESH_S = 180  # the floor of "fresh": a cache younger than max(this, 3 x the poll interval) is fresh
+POLL_RANGE = (15, 300)  # seconds between two polls of the public source, per distinct stop (installation)
+POLL_FLOOR_S = 30  # Stride is a community service: below this the owner must lower the interval knowingly (`poll_floor_ack`)
+REFRESH_RANGE = (10, 120)  # seconds between two fetches of the digest by a screen (installation default, per-screen override)
+POSITION_FRESH_RANGE = (1, 30)  # minutes: a vehicle position older than this is not shown as an estimate (nor its distance)
 
-CONFIG_DEFAULTS: dict[str, Any] = {"enabled": False, "stops": [], "clock_after_min": 60, "stale_grace_min": 30, "hide_closer_min": 0}
-SCREEN_DEFAULTS: dict[str, Any] = {"enabled": False, "stops": [], "layout": "side", "window_min": 60, "rows": 5, "group": "auto", "dwell_s": 15}
+CONFIG_DEFAULTS: dict[str, Any] = {"enabled": False, "stops": [], "clock_after_min": 60, "stale_grace_min": 30, "hide_closer_min": 0,
+                                   "poll_s": 30, "poll_floor_ack": False, "refresh_s": 20, "position_fresh_min": 5, "show_distance": True}
+SCREEN_DEFAULTS: dict[str, Any] = {"enabled": False, "stops": [], "layout": "side", "window_min": 60, "rows": 5, "group": "auto", "dwell_s": 15,
+                                   "refresh_s": None, "show_distance": None}  # None = the installation's value
 
 
 class Invalid(ValueError):
@@ -88,6 +94,22 @@ def normalize_config(raw: Any, *, strict: bool = False) -> dict[str, Any]:
                 raise Invalid("stops", f"עד {MAX_STOPS} תחנות.")
             cleaned = cleaned[:MAX_STOPS]
         out["stops"] = cleaned
+    for key in ("poll_floor_ack", "show_distance"):
+        if key in src:
+            if isinstance(src[key], bool):
+                out[key] = src[key]
+            elif strict:
+                raise Invalid(key, "ערך לא תקין.")
+    for key, rng, msg in (("poll_s", POLL_RANGE, "שניות בין 15 ל-300."), ("refresh_s", REFRESH_RANGE, "שניות בין 10 ל-120."),
+                          ("position_fresh_min", POSITION_FRESH_RANGE, "דקות בין 1 ל-30.")):
+        if key in src:
+            v = _int(src[key], *rng)
+            if v is not None:
+                out[key] = v
+            elif strict:
+                raise Invalid(key, msg)
+    if strict and out["poll_s"] < POLL_FLOOR_S and not out["poll_floor_ack"]:
+        raise Invalid("poll_s", "מתחת ל-30 שניות נדרש אישור מפורש (poll_floor_ack): המקור הציבורי הוא שירות קהילתי.")
     for key, rng, msg in (("clock_after_min", CLOCK_AFTER_RANGE, "דקות בין 0 ל-240."), ("stale_grace_min", GRACE_RANGE, "דקות בין 0 ל-240."),
                           ("hide_closer_min", WALK_RANGE, "דקות בין 0 ל-30.")):
         if key in src:
@@ -138,6 +160,17 @@ def normalize_screen(raw: Any, *, strict: bool = False) -> dict[str, Any]:
             out["group"] = src["group"]
         else:
             bad("group")
+    if "show_distance" in src:
+        if src["show_distance"] is None or isinstance(src["show_distance"], bool):
+            out["show_distance"] = src["show_distance"]
+        else:
+            bad("show_distance")
+    if "refresh_s" in src and src["refresh_s"] is not None:
+        v = _int(src["refresh_s"], *REFRESH_RANGE)
+        if v is not None:
+            out["refresh_s"] = v
+        else:
+            bad("refresh_s")
     for key, rng in (("window_min", WINDOW_RANGE), ("rows", ROWS_RANGE), ("dwell_s", DWELL_RANGE)):
         if key in src:
             v = _int(src[key], *rng)
@@ -146,6 +179,30 @@ def normalize_screen(raw: Any, *, strict: bool = False) -> dict[str, Any]:
             else:
                 bad(key)
     return out
+
+
+def poll_s(config: dict[str, Any]) -> int:
+    """The poll interval in force: below the Stride floor only when the owner acknowledged it."""
+    v = int(config.get("poll_s") or CONFIG_DEFAULTS["poll_s"])
+    return v if config.get("poll_floor_ack") else max(v, POLL_FLOOR_S)
+
+
+def fresh_s(config: dict[str, Any]) -> int:
+    """A cache younger than this is `fresh`: it keeps the 3-minute floor and follows a slower poll (3 x the interval)."""
+    return max(FRESH_S, 3 * poll_s(config))
+
+
+def position_fresh_s(config: dict[str, Any]) -> int:
+    return int(config.get("position_fresh_min") or CONFIG_DEFAULTS["position_fresh_min"]) * 60
+
+
+def screen_refresh_s(config: dict[str, Any], screen: dict[str, Any]) -> int:
+    return int(screen.get("refresh_s") or config.get("refresh_s") or CONFIG_DEFAULTS["refresh_s"])
+
+
+def show_distance(config: dict[str, Any], screen: dict[str, Any]) -> bool:
+    v = screen.get("show_distance")
+    return bool(config.get("show_distance", True)) if v is None else bool(v)
 
 
 def selection(config: dict[str, Any], screen: dict[str, Any]) -> list[int]:
