@@ -47,6 +47,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'general', label: 'אפליקציה לנייד', href: `${GEN}?tab=mobile`, sub: true, keywords: 'נוכחות presence טלפון שיתוף נתונים חיישנים' },
       { tab: 'wall', label: 'מסכי קיר', href: '#/system/wall', keywords: 'wall טאבלט קיוסק תצוגה' },
       { tab: 'notices', label: 'לוח הודעות', href: '#/system/notices', keywords: 'הודעות לבניין לוח תצוגה טלוויזיה מסך לובי TV board notices קישור QR' },
+      { tab: 'transit', label: 'תחבורה ציבורית', href: '#/system/transit', keywords: 'אוטובוס אוטובוסים תחנה תחנות קו זמני הגעה לוח הודעות מסך bus transit stop timetable' },
     ],
   },
   {

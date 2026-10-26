@@ -5,6 +5,8 @@
  */
 import type { ScreenAnnouncement } from '../announce/screen-overlay';
 
+import type { TransitScreen } from './transit-logic';
+
 export type Severity = 'info' | 'alert' | 'critical';
 export type Mode = 'rotation' | 'all' | 'focus';
 export type Urgent = 'stage' | 'stay' | 'full' | 'band';
@@ -63,6 +65,8 @@ export interface Display {
   weather_days?: number | null;
   /** NOTICESLIDES-295: the building photo of template 2 (a URL the feed adds only when one is uploaded) */
   photo?: string;
+  /** BUSTIMES-295: this screen's public-transport block (absent on a board saved before 2.22.0 = off) */
+  transit?: Partial<TransitScreen>;
 }
 
 export type Saver = 'off' | 'wash' | 'cycle' | 'wave' | 'ambient';
@@ -218,6 +222,8 @@ export interface Item {
   dwell: number;
   /** NOTICESLIDES-295: set when the item is a promo slide (`n` is then a stand-in with the id `slide:<id>`) */
   slide?: FeedSlide;
+  /** BUSTIMES-295: set when the item is the rotating bus-times slide (`n` is then a stand-in with the id `transit`) */
+  transit?: boolean;
 }
 
 /** Ticks of the board's interval: a notice's own dwell_s wins, else x2 for the urgent one and for a long body (> 110 characters). */
@@ -245,6 +251,14 @@ export function withSlides(list: Item[], slides: FeedSlide[] | undefined, d: Pic
     slide,
   }));
   return [...list, ...cards];
+}
+
+/** BUSTIMES-295: the bus-times slide at the end of the rotation (layout `slide`, rotation mode only; the caller passes `include` false while the
+ * data is unusable, so an expired board skips the slide). It stays `dwell_s` seconds, in ticks of the board's interval. */
+export function withTransit(list: Item[], include: boolean, dwellS: number, rotateS: number): Item[] {
+  if (!include) return list;
+  const rot = Math.max(1, rotateS || 12);
+  return [...list, { n: { id: 'transit', title: '', body: '', severity: 'info' as Severity, starts_at: '', ends_at: null }, dwell: Math.max(1, Math.round((dwellS || 15) / rot)), transit: true }];
 }
 
 export function bandNotice(notices: FeedNotice[], d: Pick<Display, 'urgent'>): FeedNotice | null {

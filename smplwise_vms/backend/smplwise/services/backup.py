@@ -148,6 +148,9 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # tables of the module, not in PROJECT_TABLES, because they hang off `notice_boards` ids that an archive does not carry
                  # (tests/test_notice_slides_295.py pins it).
                  "notices.enabled", "notices.boards.remote",
+                 # BUSTIMES-295: the bus-times module's switch and stops describe THIS building (a restore must not switch a third-party feed on or
+                 # re-aim it); the catalogue snapshot's status describes the local `transit_*` tables, which an archive does not carry
+                 "transit.config", "transit.catalogue",
                  # NOTIFWA: the WhatsApp notification channel's master switch - a restore can never switch WhatsApp sending on
                  "notify.whatsapp",
                  # USR2: the Arx-only identity switch is the installation's own policy - a restore never switches local sign-in on

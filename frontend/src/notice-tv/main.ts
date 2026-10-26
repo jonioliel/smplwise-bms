@@ -22,9 +22,11 @@ import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
   AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, HEADERS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlanExtra, headerOf, heldIndex, logoLayoutOf, netOf, nightDim,
-  nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, tickerItemHtml, timeText, tokenFrom, tx, updatedOf, weatherDaysOf, whenText,
+  nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, tickerItemHtml, timeText, tokenFrom, tx, updatedOf, weatherDaysOf, whenText, withTransit,
   type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type HeaderLayout, type Item, type LogoLayout, type NetState, type Saver, type UpdatedLine,
 } from './tv-logic';
+import { effective, hasPanel, refreshMs, slideWanted, transitOf, transitTick, ts, type TransitDigest } from './transit-logic';
+import { sidePanel, slidePanel, stripPanel, type TransitCtx } from './transit-view';
 
 const Q = new URLSearchParams(location.search);
 const root = document.documentElement;
@@ -59,6 +61,13 @@ let photoUrl = '';
 let photoSrc = '';
 let lastControl = -1;
 let forceTheme = '';
+// BUSTIMES-295: the bus-times digest (the server's, from its cache), when it arrived (a stopwatch: the building may be offline) and the
+// offset between the server's clock and this screen's, so the minutes count to the server's instant
+let transit: TransitDigest | null = null;
+let transitRecv = 0;
+let transitOffset = 0;
+let transitSig = '';
+let transitKey = '';
 
 function nowDate(): Date {
   if (NOW_Q) {
@@ -76,6 +85,25 @@ function fixedInstant(): Date {
   const c = clockIn(tz, new Date(guess));
   const off = (c.h * 60 + c.m - (9 * 60 + 12)) * 60_000;
   return new Date(guess - off);
+}
+
+function transitNow(): number {
+  return FIXED || NOW_Q ? nowDate().getTime() : Date.now() + transitOffset;
+}
+
+/** The digest as it should be treated now (offline ageing, see transit-logic.effective); null while the board does not show transit. */
+function transitView(): TransitDigest | null {
+  if (!transitOf(display()).enabled) return null;
+  return effective(transit, FIXED || NOW_Q ? 0 : Date.now() - transitRecv);
+}
+
+/** What the panel was drawn from: the digest's state, the minute (the countdown) and which poll it came from. */
+function tkey(tv: TransitDigest | null): string {
+  return transitTick(tv, transitNow()) + ':' + transitRecv;
+}
+
+function transitCtx(): TransitCtx {
+  return { lang: lang(), nowMs: transitNow(), elapsedMs: FIXED || NOW_Q ? 0 : Math.max(0, Date.now() - transitRecv) };
 }
 
 function display(): Display {
@@ -195,7 +223,15 @@ function slideHtml(x: Item, on: boolean): string {
   return '<article class="it promo' + (on ? ' on' : '') + '"><div class="pic">' + (src ? '<img alt="" src="' + esc(src) + '">' : ic('photo')) + '</div><h1>' + tx(s.title) + '</h1><p>' + tx(s.text) + '</p></article>';
 }
 
+function transitSlideHtml(on: boolean): string {
+  const tv = transitView();
+  if (!tv) return '<article class="it transit' + (on ? ' on' : '') + '"></article>';
+  const html = slidePanel(tv, transitCtx(), '<div class="clk num" data-time>' + timeStr() + '</div>');
+  return on ? html.replace('<article class="it transit"', '<article class="it transit on"') : html;
+}
+
 function itemHtml(x: Item, on: boolean): string {
+  if (x.transit) return transitSlideHtml(on);
   if (x.slide) return slideHtml(x, on);
   const n = x.n;
   const look = SEV_LOOK[n.severity] || 'acc';
@@ -368,8 +404,26 @@ function render(): void {
   if (own && LOGO_SCALE[own]) cv.style.setProperty('--lgco', String(LOGO_SCALE[own]));
   else cv.style.removeProperty('--lgco');
 
+  // BUSTIMES-295: where the bus times go. `side` needs a side column (template 3 has none: it takes the strip); `slide` is a rotation slide
+  // (the "all together" and "focus" modes have no rotation: the strip); an expired board has no slide (the rotation skips it).
+  const scr = transitOf(d);
+  const tv = transitView();
+  let busMode: 'none' | 'side' | 'strip' | 'slide' = 'none';
+  if (scr.enabled && hasPanel(tv)) {
+    busMode = scr.layout;
+    if (busMode === 'slide' && d.mode !== 'rotation') busMode = 'strip';
+    if (busMode === 'side' && tpl === 3) busMode = 'strip';
+    if (busMode === 'slide' && !slideWanted(tv)) busMode = 'none';
+  }
+  cv.dataset.bus = busMode;
+  transitSig = busMode;
+  transitKey = tkey(tv);
+  const busCtx = transitCtx();
+  const sideBus = busMode === 'side' && tv ? sidePanel(tv, busCtx) : '';
+  const stripBus = busMode === 'strip' && tv ? '<div class="busrow">' + stripPanel(tv, busCtx) + '</div>' : '';
+
   const prevId = state.currentId;
-  state.list = withSlides(playlist(notices, d), feed.slides, d);
+  state.list = withTransit(withSlides(playlist(notices, d), feed.slides, d), busMode === 'slide', scr.dwell_s, d.rotate_s);
   cv.dataset.empty = state.list.length ? '0' : '1';
   state.held = heldIndex(state.list, d);
   state.plan = gridPlanExtra(state.list.length, !portrait && tpl !== 2, portrait, spaceExtra(headerNow(), spaceOf(d)));
@@ -398,14 +452,14 @@ function render(): void {
   }
   const welcome = one ? '' : welcomeHtml(); // the one-row header carries the greeting
   if (tpl === 1) {
-    h += '<main class="bd"><div class="side">' + welcome + clockHtml() + wxHtml() + '</div><div class="vrule"></div>' + (portrait ? '<div class="rule"></div>' : '') + stageHtml() + '</main>';
+    h += '<main class="bd"><div class="side">' + welcome + clockHtml() + sideBus + wxHtml() + '</div><div class="vrule"></div>' + (portrait ? '<div class="rule"></div>' : '') + stageHtml() + '</main>';
   } else if (tpl === 2) {
-    h += '<main class="bd"><div class="side">' + welcome + clockHtml() + wxHtml() + '</div><section class="card">' + stageHtml() + chipsHtml() + '</section></main>';
+    h += '<main class="bd"><div class="side">' + welcome + clockHtml() + sideBus + wxHtml() + '</div><section class="card">' + stageHtml() + chipsHtml() + '</section></main>';
   } else {
     h += '<main class="bd"><div class="top"><div class="name">' + (one ? '' : esc(feed.board.building || '')) + '<small>' + esc(d.place || '') + '</small></div>' + clockHtml() + '</div><div class="rule"></div>' + stageHtml() + '<div class="rule"></div><div class="bot">' + chipsHtml() + wxHtml() + '</div></main>';
   }
   // the one-row header has no bottom row of its own: only template 1's building chips keep one (the status moved up)
-  h += tickerHtml() + (one ? (tpl === 1 && flags.info ? '<footer class="ft">' + chipsHtml() + '</footer>' : '') : footerHtml(L, tpl === 1, lay, tpl, upd));
+  h += stripBus + tickerHtml() + (one ? (tpl === 1 && flags.info ? '<footer class="ft">' + chipsHtml() + '</footer>' : '') : footerHtml(L, tpl === 1, lay, tpl, upd));
   pg.innerHTML = h;
   const grow = spaceGrow(hdr, spaceOf(d));
   const bd = pg.querySelector('.bd') as HTMLElement | null;
@@ -505,7 +559,8 @@ function layoutAfter(): void {
     side.classList.remove('c1', 'c2', 'c3');
     for (const c of ['c1', 'c2', 'c3']) if (side.scrollHeight > side.clientHeight + 1) side.classList.add(c);
   }
-  cv.querySelectorAll<HTMLElement>('.stage .it').forEach((c) => fit(c, 0.6));
+  cv.querySelectorAll<HTMLElement>('.stage .it:not(.transit)').forEach((c) => fit(c, 0.6));
+  fitBus();
   cv.querySelectorAll<HTMLElement>('.stage .cell').forEach((c) => fit(c, 0.6));
   if (cv.dataset.urgent === 'full') fit(take.querySelector('.mid') as HTMLElement | null, 0.6);
   const win = cv.querySelector('.tk .win') as HTMLElement | null;
@@ -521,6 +576,112 @@ function layoutAfter(): void {
       if (!im.complete) im.addEventListener('load', () => tr.style.setProperty('--dur', Math.max(20, Math.round((ww + tr.scrollWidth) / speed)) + 's'), { once: true });
     });
   }
+}
+
+// ---------------------------------------------------------------- BUSTIMES-295: bus times never scroll - shrink, then drop rows / cards
+
+/** Fit the bus panels to the space they got: the rows scale down (--bk, to 0.6), then trailing rows go and "and N more" counts them; the strip's
+ * cards go while they overflow. Same idea as `fit` for the notices: the content gives way, the page never scrolls. */
+function fitBus(): void {
+  cv.querySelectorAll<HTMLElement>('.bus').forEach((bus) => {
+    const rows = bus.querySelector<HTMLElement>('.rows');
+    const cards = bus.querySelector<HTMLElement>('.cards:not(.msg)');
+    const more = bus.querySelector<HTMLElement>('.bmore');
+    const portraitGrid = cv.classList.contains('portrait');
+    const over = (el: HTMLElement): boolean => el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2;
+    const wide = (el: HTMLElement): boolean => (portraitGrid ? over(el) : el.scrollWidth > el.clientWidth + 2); // the strip's cards sit in one row
+    // idempotent: every pass starts from the full list again (an earlier pass may have run before the layout had its final size)
+    bus.querySelectorAll<HTMLElement>('[hidden]').forEach((e) => e.removeAttribute('hidden'));
+    bus.querySelectorAll('.bcard.cmore').forEach((e) => e.remove());
+    let hiddenN = 0;
+    if (rows) {
+      // 1. the rows as they are, scaled down to 0.8; 2. (side column) the welcome and the date make room; 3. the distance lines go; 4. smaller rows, then fewer rows
+      const hasEst = !!rows.querySelector('.est');
+      const shrink = (floor: number): boolean => {
+        let k = 1;
+        bus.style.setProperty('--bk', '1');
+        for (let i = 0; i < 12 && over(rows) && k > floor; i++) {
+          k -= 0.04;
+          bus.style.setProperty('--bk', k.toFixed(2));
+        }
+        return !over(rows);
+      };
+      cv.classList.remove('busdense');
+      let fits = shrink(hasEst ? 0.8 : 0.6);
+      if (!fits && hasEst && bus.matches('[data-bus="side"]')) {
+        cv.classList.add('busdense');
+        fits = shrink(0.8);
+      }
+      if (!fits && hasEst) {
+        cv.classList.remove('busdense');
+        rows.querySelectorAll('.est').forEach((e) => e.setAttribute('hidden', ''));
+        shrink(0.6);
+      }
+      const list = [...rows.children] as HTMLElement[];
+      for (let i = list.length - 1; i > 0 && over(rows); i--) {
+        list[i].setAttribute('hidden', '');
+        hiddenN++;
+      }
+    }
+    if (cards) {
+      if (wide(cards)) cards.querySelectorAll('.est').forEach((e) => e.setAttribute('hidden', '')); // distance lines first, cards after
+      const list = [...cards.children] as HTMLElement[];
+      for (let i = list.length - 1; i > 0 && wide(cards); i--) {
+        list[i].setAttribute('hidden', '');
+        hiddenN++;
+      }
+      const total = Number(cards.dataset.total ?? list.length);
+      if (hiddenN > 0 || total > list.length) {
+        cards.insertAdjacentHTML('beforeend', '<div class="bcard cmore"><b></b></div>');
+        const mc = cards.lastElementChild as HTMLElement;
+        let shown = list.filter((e) => !e.hasAttribute('hidden')).length;
+        while (wide(cards) && shown > 1) {
+          list.filter((e) => !e.hasAttribute('hidden')).pop()?.setAttribute('hidden', '');
+          shown--;
+        }
+        (mc.firstElementChild as HTMLElement).textContent = ts(lang(), 'more', { n: total - shown });
+      }
+    }
+    if (more) {
+      const base = Number(more.dataset.n || 0);
+      more.textContent = hiddenN + base > 0 ? ts(lang(), 'more', { n: hiddenN + base }) : '';
+    }
+  });
+}
+
+/** The minute turned (or the state aged): redraw the bus panels in place. A change of WHERE they go (a slide appears, a panel is due) is a full render. */
+function refreshTransit(): void {
+  if (!feed) return;
+  const tv = transitView();
+  const key = tkey(tv);
+  if (key === transitKey) return;
+  const d = display();
+  const scr = transitOf(d);
+  let mode = scr.enabled && hasPanel(tv) ? scr.layout : 'none';
+  if (mode === 'slide' && d.mode !== 'rotation') mode = 'strip';
+  if (mode === 'side' && d.template === 3) mode = 'strip';
+  if (mode === 'slide' && !slideWanted(tv)) mode = 'none';
+  if (mode !== transitSig) {
+    render();
+    return;
+  }
+  transitKey = key;
+  if (!tv) return;
+  const ctx = transitCtx();
+  const swap = (sel: string, html: string): void => {
+    const host = cv.querySelector(sel);
+    if (!host) return;
+    const t = document.createElement('div');
+    t.innerHTML = html;
+    const next = t.firstElementChild as HTMLElement | null;
+    if (!next) return;
+    if (host.classList.contains('on')) next.classList.add('on');
+    host.replaceWith(next);
+  };
+  if (mode === 'side') swap('.bus[data-bus="side"]', sidePanel(tv, ctx));
+  else if (mode === 'strip') swap('.bus[data-bus="strip"]', stripPanel(tv, ctx));
+  else if (mode === 'slide') swap('.it.transit', slidePanel(tv, ctx, '<div class="clk num" data-time>' + timeStr() + '</div>'));
+  fitBus();
 }
 
 // ---------------------------------------------------------------- the rotation: the timer tick, manual next / previous, pause
@@ -630,6 +791,7 @@ function tickClock(): void {
     if (st) st.textContent = str(lang(), 'staleFrom', { t: updatedText() });
   }
   if (!feed) return;
+  refreshTransit();
   // the product debounces the automatic switch to one per 10 minutes so dusk never flickers
   const th = currentTheme();
   const dim = nightDim(display(), clock(), feed.notices.some((n) => n.severity === 'critical')) ? '1' : '0';
@@ -790,6 +952,55 @@ async function loadMedia(doc: Feed): Promise<void> {
   }
 }
 
+/** BUSTIMES-295: the bus-times digest of this board (the server's cache, never the third party). A failed read keeps the last digest: it ages on the stopwatch. */
+let transitTimer = 0;
+
+/** The next fetch of the digest: every `refresh_s` seconds (the server's choice for this screen, 10-120). It reads our server's cache only. */
+function scheduleTransit(): void {
+  clearTimeout(transitTimer);
+  transitTimer = 0;
+  if (FIXED || NOW_Q || !transitOf(display()).enabled) return;
+  transitTimer = window.setTimeout(() => {
+    transitTimer = 0;
+    void pollTransit().then(() => refreshTransit());
+  }, refreshMs(transit));
+}
+
+/** The feed poll asks for a digest only when its own timer is not running (the timer is the cadence, not the feed poll). */
+function ensureTransit(): Promise<void> {
+  return transitTimer ? Promise.resolve() : pollTransit();
+}
+
+async function pollTransit(): Promise<void> {
+  clearTimeout(transitTimer);
+  transitTimer = 0;
+  if (!transitOf(display()).enabled) {
+    transit = null;
+    return;
+  }
+  try {
+    let r: Response;
+    if (PREVIEW) {
+      r = await fetch(API + 'notices/boards/' + encodeURIComponent(PREVIEW) + '/transit', {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display: draftDisplay ?? null }),
+      });
+    } else {
+      if (!SLUG || !TOKEN) return;
+      r = await fetch(API + 'notices/display/' + encodeURIComponent(SLUG) + '/transit', { headers: { 'X-Board-Token': TOKEN }, credentials: 'omit', cache: 'no-store' });
+    }
+    if (r.status !== 200) return;
+    const doc = (await r.json()) as TransitDigest;
+    transit = doc;
+    transitRecv = Date.now();
+    const server = Date.parse(doc.now ?? '');
+    transitOffset = Number.isFinite(server) ? server - Date.now() : 0;
+  } catch {
+    /* the last digest stays and ages */
+  }
+  scheduleTransit();
+}
+
 let rotTimer = 0;
 function restartRotation(): void {
   clearInterval(rotTimer);
@@ -837,8 +1048,9 @@ async function poll(force = false): Promise<void> {
     } else if (!doc.control && lastControl < 0) {
       lastControl = 0;
     }
-    await Promise.all([loadCompanyLogo('light', doc.board.logos?.company), loadCompanyLogo('dark', doc.board.logos?.company_dark), loadMedia(doc)]);
+    await Promise.all([loadCompanyLogo('light', doc.board.logos?.company), loadCompanyLogo('dark', doc.board.logos?.company_dark), loadMedia(doc), ensureTransit()]);
     if (changed) render();
+    else refreshTransit();
     if (rotate) restartRotation();
   } else if (net.gone && !feed) {
     feed = emptyFeed();

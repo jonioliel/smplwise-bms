@@ -7,6 +7,8 @@ import json
 import re
 from typing import Any
 
+from ..transit import model as transit_model
+
 SEVERITIES = ("info", "alert", "critical")
 STATUSES = ("draft", "published", "archived")
 STATES = ("draft", "scheduled", "active", "expired", "archived")
@@ -181,6 +183,7 @@ DISPLAY_DEFAULTS: dict[str, Any] = {
     "burn_in": {"shift": True},
     "saver": "wash", "logos": "a",
     # TVOPT-295: header / updated / space / night_logo are absent here on purpose - absent = the installation default (TV_SETTING)
+    "transit": transit_model.SCREEN_DEFAULTS,  # BUSTIMES-295: this screen's public-transport block (off by default)
 }
 
 
@@ -306,6 +309,11 @@ def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
             raise Invalid("display.night.dim", "ערך לא תקין.")
     bi = src.get("burn_in") if isinstance(src.get("burn_in"), dict) else {}
     d["burn_in"]["shift"] = _bool(bi.get("shift"), d["burn_in"]["shift"])
+    if "transit" in src:  # BUSTIMES-295: the per-screen bus-times block (an old board without the key reads the defaults)
+        try:
+            d["transit"] = transit_model.normalize_screen(src["transit"], strict=strict)
+        except transit_model.Invalid as exc:
+            raise Invalid(exc.field, str(exc)) from exc
     return d
 
 

@@ -21,6 +21,7 @@ import '../notices/display-saver';
 import '../notices/display-layout';
 import '../notices/display-info';
 import '../notices/display-slides';
+import '../notices/display-transit';
 import '../notices/news-sources';
 import { feedView, shortName } from '../notices/news-model';
 import type { NoticeSavedDetail } from '../notices/compose-dialog';
@@ -632,6 +633,7 @@ export class SystemNotices extends LitElement {
             <div class="sub"><span>${nt('hold')}</span><select class="inp" data-hold data-v=${d.hold} @change=${(e: Event) => this.setD({ hold: (e.target as HTMLSelectElement).value })}>
               <option value="">${nt('holdNone')}</option>${active.map((n) => html`<option value=${n.id}>${n.title}</option>`)}</select><span class="hint">${nt('holdHint')}</span></div>
             <p class="hint">${nt('dwellNote')}</p></div>
+          <notice-display-transit .display=${d} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-transit>
           <notice-display-slides .display=${d} .boardId=${this.detail!.board.id} .boards=${this.boards} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)} @slides-changed=${() => this.pushPreview()}></notice-display-slides>
         </div></div>
     </div>`;

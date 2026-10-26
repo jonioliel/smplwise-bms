@@ -31,6 +31,8 @@ from ..services.notices import audience as aud
 from ..services.notices import display as disp
 from ..services.notices import model, news_sources, page, store
 from ..services.notices import push as npush
+from ..services.transit import model as transit_model
+from ..db import get_setting
 from ..services.notices.model import PERM_BOARDS, PERM_DELETE, PERM_MANAGE, PERM_PUSH, PERM_VIEW, Invalid
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
@@ -451,6 +453,9 @@ def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Pr
             d = model.merge_display(model.load_display(b["display_json"]), body.display)
             if d["hold"] and not conn.execute("SELECT 1 FROM notice_board_items WHERE board_id = ? AND notice_id = ?", (b["id"], d["hold"])).fetchone():
                 raise Invalid("display.hold", "ההשהיה: הודעה שאינה בלוח.")
+            configured = {s["code"] for s in transit_model.load_config(get_setting(conn, transit_model.CONFIG_KEY, ""))["stops"]}
+            if any(c not in configured for c in d["transit"]["stops"]):  # BUSTIMES-295: a screen picks among the installation's stops
+                raise Invalid("display.transit.stops", "תחנה שאינה מוגדרת בהגדרות תחבורה ציבורית.")
             if not store.settings(conn)["news_custom"]:
                 curated = news_sources.allowed_urls(conn)  # NOTICERSS-295: the editable list (the curated seed until it is first saved)
                 if any(f["url"] not in curated for f in d["news"]["feeds"]):
@@ -544,6 +549,17 @@ def preview(board_id: str, body: PreviewIn, request: Request, principal: Princip
 @router.get("/notices/boards/{board_id}/preview")
 def preview_get(board_id: str, request: Request, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return disp.preview_feed(conn, _board_or_404(conn, board_id), None, settings_of(request).data_dir)
+
+
+@router.post("/notices/boards/{board_id}/transit")
+def preview_board_transit(board_id: str, body: PreviewIn, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """BUSTIMES-295: the digest the Settings preview draws (the saved settings, or a draft `display`)."""
+    b = _board_or_404(conn, board_id)
+    try:
+        d = model.merge_display(model.load_display(b["display_json"]), body.display) if body.display else None
+    except Invalid as exc:
+        raise _invalid(exc)
+    return disp.preview_transit(conn, b, d, store.utcnow())
 
 
 @router.post("/notices/boards/{board_id}/control")
@@ -931,6 +947,13 @@ def display_feed(slug: str, request: Request) -> Response:
     req = disp.Request(slug=slug, token=request.headers.get("x-board-token"), if_none_match=request.headers.get("if-none-match"), client=_client(request),
                        remote=_is_remote(request))
     return _respond(_display_service(request).feed(req))
+
+
+@display_router.get("/notices/display/{slug}/transit")
+def display_transit(slug: str, request: Request) -> Response:
+    """BUSTIMES-295: the bus-times digest (a digest of the server's cache with its age; the third party is never called from here)."""
+    req = disp.Request(slug=slug, token=request.headers.get("x-board-token"), client=_client(request), remote=_is_remote(request))
+    return _respond(_display_service(request).transit(req))
 
 
 @display_router.get("/notices/display/{slug}/logo/company")

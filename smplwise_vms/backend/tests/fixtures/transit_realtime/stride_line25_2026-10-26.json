@@ -1,0 +1,1345 @@
+{
+"_source": "Open Bus Stride, public read-only GETs, recorded 2026-10-26, line 25 Netanya (line_ref 10278), stop code 33323; vehicle_ref values replaced",
+"rides": {
+"160831256": [
+{
+"id": 5741002871,
+"gtfs_stop_id": 49629820,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:10:00+00:00",
+"stop_sequence": 1,
+"pickup_type": 0,
+"shape_dist_traveled": null,
+"gtfs_stop__code": 39426,
+"gtfs_stop__name": "ת. רכבת נתניה",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002872,
+"gtfs_stop_id": 49629667,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:13:13+00:00",
+"stop_sequence": 2,
+"pickup_type": 0,
+"shape_dist_traveled": 1013,
+"gtfs_stop__code": 39247,
+"gtfs_stop__name": "הרצל/עולי הגרדום",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002873,
+"gtfs_stop_id": 49629690,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:13:54+00:00",
+"stop_sequence": 3,
+"pickup_type": 0,
+"shape_dist_traveled": 1268,
+"gtfs_stop__code": 39273,
+"gtfs_stop__name": "הרצל/מינץ",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002874,
+"gtfs_stop_id": 49655060,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:15:18+00:00",
+"stop_sequence": 4,
+"pickup_type": 0,
+"shape_dist_traveled": 1708,
+"gtfs_stop__code": 33323,
+"gtfs_stop__name": "שדרות חיים וייצמן/הרצל",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002875,
+"gtfs_stop_id": 49629687,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:15:59+00:00",
+"stop_sequence": 5,
+"pickup_type": 0,
+"shape_dist_traveled": 1910,
+"gtfs_stop__code": 39270,
+"gtfs_stop__name": "שוק עירוני",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002876,
+"gtfs_stop_id": 49657556,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:16:59+00:00",
+"stop_sequence": 6,
+"pickup_type": 0,
+"shape_dist_traveled": 2105,
+"gtfs_stop__code": 36507,
+"gtfs_stop__name": "וייצמן/ששת הימים",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002877,
+"gtfs_stop_id": 49629699,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:17:40+00:00",
+"stop_sequence": 7,
+"pickup_type": 0,
+"shape_dist_traveled": 2377,
+"gtfs_stop__code": 39282,
+"gtfs_stop__name": "ויצמן\\שפירא משה",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002878,
+"gtfs_stop_id": 49629701,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:18:38+00:00",
+"stop_sequence": 8,
+"pickup_type": 0,
+"shape_dist_traveled": 2747,
+"gtfs_stop__code": 39284,
+"gtfs_stop__name": "וייצמן/שרת",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002879,
+"gtfs_stop_id": 49629702,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:19:01+00:00",
+"stop_sequence": 9,
+"pickup_type": 0,
+"shape_dist_traveled": 2896,
+"gtfs_stop__code": 39285,
+"gtfs_stop__name": "חיים וייצמן/משה איכילוב",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002880,
+"gtfs_stop_id": 49629705,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:19:59+00:00",
+"stop_sequence": 10,
+"pickup_type": 0,
+"shape_dist_traveled": 3173,
+"gtfs_stop__code": 39288,
+"gtfs_stop__name": "שד.וייצמן/סוקולוב",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002881,
+"gtfs_stop_id": 49629722,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:20:59+00:00",
+"stop_sequence": 11,
+"pickup_type": 0,
+"shape_dist_traveled": 3457,
+"gtfs_stop__code": 39306,
+"gtfs_stop__name": "קמיל הויסמנס/רבי עקיבא",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002882,
+"gtfs_stop_id": 49629723,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:21:59+00:00",
+"stop_sequence": 12,
+"pickup_type": 0,
+"shape_dist_traveled": 3635,
+"gtfs_stop__code": 39307,
+"gtfs_stop__name": "קמיל הויסמנס/בלפור",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002883,
+"gtfs_stop_id": 49629717,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:22:59+00:00",
+"stop_sequence": 13,
+"pickup_type": 0,
+"shape_dist_traveled": 3913,
+"gtfs_stop__code": 39301,
+"gtfs_stop__name": "הרב מיימון/מוריה",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002884,
+"gtfs_stop_id": 49629715,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:23:59+00:00",
+"stop_sequence": 14,
+"pickup_type": 0,
+"shape_dist_traveled": 4199,
+"gtfs_stop__code": 39299,
+"gtfs_stop__name": "בית חולים לניאדו",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002885,
+"gtfs_stop_id": 49629714,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:24:59+00:00",
+"stop_sequence": 15,
+"pickup_type": 0,
+"shape_dist_traveled": 4430,
+"gtfs_stop__code": 39298,
+"gtfs_stop__name": "אח''י דקר/דברי חיים",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002886,
+"gtfs_stop_id": 49629719,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:26:04+00:00",
+"stop_sequence": 16,
+"pickup_type": 0,
+"shape_dist_traveled": 4882,
+"gtfs_stop__code": 39303,
+"gtfs_stop__name": "הגפן\\החרוב",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002887,
+"gtfs_stop_id": 49629721,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:26:59+00:00",
+"stop_sequence": 17,
+"pickup_type": 0,
+"shape_dist_traveled": 5072,
+"gtfs_stop__code": 39305,
+"gtfs_stop__name": "הגפן/שד. עין התכלת",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002888,
+"gtfs_stop_id": 49629724,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:28:04+00:00",
+"stop_sequence": 18,
+"pickup_type": 0,
+"shape_dist_traveled": 5379,
+"gtfs_stop__code": 39310,
+"gtfs_stop__name": "הגפן/השקד",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002889,
+"gtfs_stop_id": 49629909,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:29:33+00:00",
+"stop_sequence": 19,
+"pickup_type": 0,
+"shape_dist_traveled": 5700,
+"gtfs_stop__code": 39529,
+"gtfs_stop__name": "השיקמה/השקד",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002890,
+"gtfs_stop_id": 49629928,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:30:16+00:00",
+"stop_sequence": 20,
+"pickup_type": 0,
+"shape_dist_traveled": 5906,
+"gtfs_stop__code": 39566,
+"gtfs_stop__name": "הרימון/התמר",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002891,
+"gtfs_stop_id": 49629725,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:30:59+00:00",
+"stop_sequence": 21,
+"pickup_type": 0,
+"shape_dist_traveled": 6093,
+"gtfs_stop__code": 39311,
+"gtfs_stop__name": "הגפן/השקד",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002892,
+"gtfs_stop_id": 49646550,
+"gtfs_ride_id": 160831256,
+"arrival_time": "2026-10-26T06:32:59+00:00",
+"stop_sequence": 22,
+"pickup_type": 1,
+"shape_dist_traveled": 6845,
+"gtfs_stop__code": 38544,
+"gtfs_stop__name": "בית גיל הזהב/השקד",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+}
+],
+"160831253": [
+{
+"id": 5741002530,
+"gtfs_stop_id": 49629820,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:30:00+00:00",
+"stop_sequence": 1,
+"pickup_type": 0,
+"shape_dist_traveled": null,
+"gtfs_stop__code": 39426,
+"gtfs_stop__name": "ת. רכבת נתניה",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741003143,
+"gtfs_stop_id": 49629667,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:33:13+00:00",
+"stop_sequence": 2,
+"pickup_type": 0,
+"shape_dist_traveled": 1013,
+"gtfs_stop__code": 39247,
+"gtfs_stop__name": "הרצל/עולי הגרדום",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002690,
+"gtfs_stop_id": 49629690,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:33:54+00:00",
+"stop_sequence": 3,
+"pickup_type": 0,
+"shape_dist_traveled": 1268,
+"gtfs_stop__code": 39273,
+"gtfs_stop__name": "הרצל/מינץ",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002692,
+"gtfs_stop_id": 49655060,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:35:18+00:00",
+"stop_sequence": 4,
+"pickup_type": 0,
+"shape_dist_traveled": 1708,
+"gtfs_stop__code": 33323,
+"gtfs_stop__name": "שדרות חיים וייצמן/הרצל",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002693,
+"gtfs_stop_id": 49629687,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:35:59+00:00",
+"stop_sequence": 5,
+"pickup_type": 0,
+"shape_dist_traveled": 1910,
+"gtfs_stop__code": 39270,
+"gtfs_stop__name": "שוק עירוני",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002694,
+"gtfs_stop_id": 49657556,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:36:59+00:00",
+"stop_sequence": 6,
+"pickup_type": 0,
+"shape_dist_traveled": 2105,
+"gtfs_stop__code": 36507,
+"gtfs_stop__name": "וייצמן/ששת הימים",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002695,
+"gtfs_stop_id": 49629699,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:37:40+00:00",
+"stop_sequence": 7,
+"pickup_type": 0,
+"shape_dist_traveled": 2377,
+"gtfs_stop__code": 39282,
+"gtfs_stop__name": "ויצמן\\שפירא משה",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002696,
+"gtfs_stop_id": 49629701,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:38:38+00:00",
+"stop_sequence": 8,
+"pickup_type": 0,
+"shape_dist_traveled": 2747,
+"gtfs_stop__code": 39284,
+"gtfs_stop__name": "וייצמן/שרת",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002697,
+"gtfs_stop_id": 49629702,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:39:01+00:00",
+"stop_sequence": 9,
+"pickup_type": 0,
+"shape_dist_traveled": 2896,
+"gtfs_stop__code": 39285,
+"gtfs_stop__name": "חיים וייצמן/משה איכילוב",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002699,
+"gtfs_stop_id": 49629705,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:39:59+00:00",
+"stop_sequence": 10,
+"pickup_type": 0,
+"shape_dist_traveled": 3173,
+"gtfs_stop__code": 39288,
+"gtfs_stop__name": "שד.וייצמן/סוקולוב",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002700,
+"gtfs_stop_id": 49629722,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:40:59+00:00",
+"stop_sequence": 11,
+"pickup_type": 0,
+"shape_dist_traveled": 3457,
+"gtfs_stop__code": 39306,
+"gtfs_stop__name": "קמיל הויסמנס/רבי עקיבא",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002701,
+"gtfs_stop_id": 49629723,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:41:59+00:00",
+"stop_sequence": 12,
+"pickup_type": 0,
+"shape_dist_traveled": 3635,
+"gtfs_stop__code": 39307,
+"gtfs_stop__name": "קמיל הויסמנס/בלפור",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002702,
+"gtfs_stop_id": 49629717,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:42:59+00:00",
+"stop_sequence": 13,
+"pickup_type": 0,
+"shape_dist_traveled": 3913,
+"gtfs_stop__code": 39301,
+"gtfs_stop__name": "הרב מיימון/מוריה",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002703,
+"gtfs_stop_id": 49629715,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:43:59+00:00",
+"stop_sequence": 14,
+"pickup_type": 0,
+"shape_dist_traveled": 4199,
+"gtfs_stop__code": 39299,
+"gtfs_stop__name": "בית חולים לניאדו",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002705,
+"gtfs_stop_id": 49629714,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:44:59+00:00",
+"stop_sequence": 15,
+"pickup_type": 0,
+"shape_dist_traveled": 4430,
+"gtfs_stop__code": 39298,
+"gtfs_stop__name": "אח''י דקר/דברי חיים",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002706,
+"gtfs_stop_id": 49629719,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:46:04+00:00",
+"stop_sequence": 16,
+"pickup_type": 0,
+"shape_dist_traveled": 4882,
+"gtfs_stop__code": 39303,
+"gtfs_stop__name": "הגפן\\החרוב",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002707,
+"gtfs_stop_id": 49629721,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:46:59+00:00",
+"stop_sequence": 17,
+"pickup_type": 0,
+"shape_dist_traveled": 5072,
+"gtfs_stop__code": 39305,
+"gtfs_stop__name": "הגפן/שד. עין התכלת",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002708,
+"gtfs_stop_id": 49629724,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:48:04+00:00",
+"stop_sequence": 18,
+"pickup_type": 0,
+"shape_dist_traveled": 5379,
+"gtfs_stop__code": 39310,
+"gtfs_stop__name": "הגפן/השקד",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002710,
+"gtfs_stop_id": 49629909,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:49:33+00:00",
+"stop_sequence": 19,
+"pickup_type": 0,
+"shape_dist_traveled": 5700,
+"gtfs_stop__code": 39529,
+"gtfs_stop__name": "השיקמה/השקד",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002713,
+"gtfs_stop_id": 49629928,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:50:16+00:00",
+"stop_sequence": 20,
+"pickup_type": 0,
+"shape_dist_traveled": 5906,
+"gtfs_stop__code": 39566,
+"gtfs_stop__name": "הרימון/התמר",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002715,
+"gtfs_stop_id": 49629725,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:50:59+00:00",
+"stop_sequence": 21,
+"pickup_type": 0,
+"shape_dist_traveled": 6093,
+"gtfs_stop__code": 39311,
+"gtfs_stop__name": "הגפן/השקד",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+},
+{
+"id": 5741002717,
+"gtfs_stop_id": 49646550,
+"gtfs_ride_id": 160831253,
+"arrival_time": "2026-10-26T06:52:59+00:00",
+"stop_sequence": 22,
+"pickup_type": 1,
+"shape_dist_traveled": 6845,
+"gtfs_stop__code": 38544,
+"gtfs_stop__name": "בית גיל הזהב/השקד",
+"gtfs_route__line_ref": 10278,
+"gtfs_route__route_short_name": "25",
+"gtfs_route__route_long_name": "ת. רכבת נתניה-נתניה<->בית גיל הזהב/השקד-נתניה-2#"
+}
+]
+},
+"locations": {
+"2026-10-26T06:10:00+00:00": [
+{
+"recorded_at_time": "2026-10-26T06:05:05+00:00",
+"distance_from_journey_start": 0,
+"velocity": 22,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:16:16+00:00",
+"distance_from_journey_start": 1118,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:17:32+00:00",
+"distance_from_journey_start": 1268,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:18:36+00:00",
+"distance_from_journey_start": 1679,
+"velocity": 29,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:19:31+00:00",
+"distance_from_journey_start": 1861,
+"velocity": 36,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:20:31+00:00",
+"distance_from_journey_start": 2133,
+"velocity": 40,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:21:30+00:00",
+"distance_from_journey_start": 2558,
+"velocity": 40,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:22:34+00:00",
+"distance_from_journey_start": 2975,
+"velocity": 22,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:23:32+00:00",
+"distance_from_journey_start": 3420,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:24:37+00:00",
+"distance_from_journey_start": 3588,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:25:33+00:00",
+"distance_from_journey_start": 3974,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:26:10+00:00",
+"distance_from_journey_start": 4293,
+"velocity": 18,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:10:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+}
+],
+"2026-10-26T06:30:00+00:00": [
+{
+"recorded_at_time": "2026-10-26T06:25:01+00:00",
+"distance_from_journey_start": 0,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:25:01+00:00",
+"distance_from_journey_start": 0,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:34:34+00:00",
+"distance_from_journey_start": 691,
+"velocity": 40,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:35:36+00:00",
+"distance_from_journey_start": 1187,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:36:27+00:00",
+"distance_from_journey_start": 1257,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:37:27+00:00",
+"distance_from_journey_start": 1588,
+"velocity": 18,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:38:22+00:00",
+"distance_from_journey_start": 1644,
+"velocity": 4,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:24+00:00",
+"distance_from_journey_start": 1780,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:40:33+00:00",
+"distance_from_journey_start": 1908,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:41:24+00:00",
+"distance_from_journey_start": 2056,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:42:37+00:00",
+"distance_from_journey_start": 2261,
+"velocity": 29,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:43:23+00:00",
+"distance_from_journey_start": 2425,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:44:55+00:00",
+"distance_from_journey_start": 2853,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:53:39+00:00",
+"distance_from_journey_start": 5608,
+"velocity": 25,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:54:36+00:00",
+"distance_from_journey_start": 5855,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:55:38+00:00",
+"distance_from_journey_start": 5895,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:56:50+00:00",
+"distance_from_journey_start": 6202,
+"velocity": 0,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T06:30:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+}
+],
+"2026-10-26T05:23:00+00:00": [
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 47,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T05:25:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 32,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+},
+{
+"recorded_at_time": "2026-10-26T06:39:23+00:00",
+"distance_from_journey_start": 0,
+"velocity": 7,
+"siri_route__line_ref": 10278,
+"siri_ride__scheduled_start_time": "2026-10-26T05:23:00+00:00",
+"siri_ride__vehicle_ref": "V1"
+}
+]
+}
+}

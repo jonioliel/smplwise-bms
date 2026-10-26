@@ -85,6 +85,7 @@ import '../screens/live-views';
 import '../screens/kiosk-wall';
 import '../screens/system-wall';
 import '../screens/system-notices'; // CR-NOTICE106: הגדרות › לוח הודעות
+import '../screens/system-transit'; // BUSTIMES-295: הגדרות › תחבורה ציבורית
 import '../screens/devices-notices'; // CR-NOTICE106: ראשי › לוח הודעות
 import '../screens/devices-announce'; // ANNOUNCE-295: ראשי › הכרזות
 import '../screens/system-access-control'; // CR-036 S10: הגדרות › בקרת כניסה
@@ -2690,6 +2691,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'schedules') return html`<system-schedules></system-schedules>`; // הגדרות › תזמונים (CR-014)
         if (s[1] === 'wall') return html`<system-wall></system-wall>`; // הגדרות › מסכי קיר (CR-030)
         if (s[1] === 'notices') return html`<system-notices .boardId=${s[2] ?? ''}></system-notices>`; // הגדרות › לוח הודעות (CR-NOTICE106)
+        if (s[1] === 'transit') return html`<system-transit></system-transit>`; // הגדרות › תחבורה ציבורית (BUSTIMES-295)
         if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
         if (s[1] === 'infra') return html`<system-infra .route=${r}></system-infra>`; // הגדרות › תשתיות (CR-023)

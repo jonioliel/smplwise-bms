@@ -265,6 +265,19 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
         checks.append(_check("portal_start", "קליטת בקשות כניסה לפורטל ספקים", "warn" if ps["dropped_1h"] else "ok",
                              f"{ps['accepted']} התקבלו · {ps['dropped']} נפלו (בשעה האחרונה: {ps['dropped_1h']}) · תור {ps['depth']}/{ps['max']}", **ps))
 
+    # BUSTIMES-295: the public-transport source (only while the module is in use): last success, age of the data, error count. No ticket action.
+    from datetime import datetime, timezone
+
+    from .transit import health as transit_health
+
+    tv = transit_health.view(conn, datetime.now(timezone.utc))
+    if tv["state"] != "off":
+        age = tv["age_s"]
+        age_text = "אין נתונים עדיין" if age is None else f"הנתונים בני {age // 60} דק׳"
+        checks.append(_check("transit", "זמני תחבורה ציבורית", "ok" if tv["state"] == "ok" else "warn",
+                             f"{age_text} · {tv['codes_in_use']} תחנות בשימוש · {tv['errors']} שגיאות מאז ההפעלה" + (f" · שגיאה אחרונה: {tv['last_error']}" if tv["last_error"] else ""),
+                             state=tv["state"], age_s=age, last_ok_at=tv["last_ok_at"], errors=tv["errors"], codes_in_use=tv["codes_in_use"]))
+
     # 2.6.3 transitional (delta review S-1): a former secret option still holds a value in the add-on configuration (names only)
     from . import secrets_store
 
@@ -337,6 +350,12 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
     dropped_1h = public_portal.worker_stats()["dropped_1h"]
     if dropped_1h:  # PUBCOUNT-295 / D-04: the operator notice - a vendor's code request was dropped (the vendor saw "sent")
         items.append({"id": "portal_start", "status": "warn", "label": f"{dropped_1h} בקשות קוד של ספקים לא טופלו בשעה האחרונה (התור מלא)"})
+    from datetime import datetime, timezone
+
+    from .transit import health as transit_health
+
+    if transit_health.view(conn, datetime.now(timezone.utc))["state"] == "down":  # BUSTIMES-295: the screens show "unavailable" - the installer sees why
+        items.append({"id": "transit", "status": "warn", "label": "נתוני התחבורה הציבורית אינם מתעדכנים"})
     worst = "ok"
     for it in items:
         if it["status"] == "error":

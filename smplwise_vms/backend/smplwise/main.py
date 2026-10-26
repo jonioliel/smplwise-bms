@@ -822,6 +822,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(notices_router.display_router, prefix=api, tags=["notices"])  # the TV feed: no login, X-Board-Token
     app.include_router(notices_router.router, prefix=api, tags=["notices"])
     app.include_router(notices_router.page_router)  # GET /b/{slug}: the static TV page (before the www mount)
+    from .routers import transit as transit_router  # BUSTIMES-295: הגדרות › תחבורה ציבורית (stops, catalogue, health); the TV digest is a notices display route
+
+    app.include_router(transit_router.router, prefix=api, tags=["transit"])
     from .services.tickets.messaging import RUNTIME as tickets_messaging  # CR-038 S5b: the ticket message channel (outbox, inbound)
 
     tickets_messaging.configure(settings, app.state.db)
@@ -1016,6 +1019,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from .services import camera_image_health
 
             camera_image_health.POLLER.start(app.state.db, settings)  # CAMHEALTH091: idle until switched on in Settings; samples the cache or existing sub streams only
+        from .services.transit import poller as transit_poller
+
+        transit_poller.POLLER.start(app.state.db, settings)  # BUSTIMES-295: idle until the module is on and a board shows transit; the only caller of the third party
         await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
         if settings.cast_relay:  # CR-028: the cast relay listens only when the add-on option is on (the host port mapping is the owner's)
             from .services import cast_relay
@@ -1150,6 +1156,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import camera_image_health
 
         await _in_thread(camera_image_health.POLLER.shutdown)
+        from .services.transit import poller as transit_poller
+
+        await _in_thread(transit_poller.POLLER.shutdown)
         await _in_thread(nvr_batch.shutdown)  # CR-020 S2C: each runner ends after its current camera; the rest is not attempted
         from .routers import plan_geometry as plan_geometry_router
 
