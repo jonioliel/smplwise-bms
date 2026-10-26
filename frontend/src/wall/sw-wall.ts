@@ -8,10 +8,11 @@ import { healthSummary } from '../api/health';
 import { effectiveTransport, productSettings } from '../api/prefs';
 import { loadSession, session } from '../api/session';
 import type { ProductSettings } from '../api/media';
-import { ackWallAlert, frameUrl, getFrameList, getWallConfig, getWallStates, wallSocketUrl, type WallAlert, type WallDisplayConfig, type WallState } from '../api/wall';
+import { ackWallAlert, frameUrl, getFrameList, getWallAnnouncement, getWallConfig, getWallStates, wallSocketUrl, type WallAlert, type WallDisplayConfig, type WallState } from '../api/wall';
 import { classifyDevice, readDeviceEnv } from './device-class';
 import { alertView, frameActive, holdProgress, isAwake, needsAttention, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, shuffleOrder, tileHealth, wakesDisplay, wallScale } from './wall-logic';
 import { timeText } from '../api/day-format';
+import { closeLabel, dirOf, headingOf, pollMs, sizeOf, visibleNow, type ScreenAnnouncement } from '../announce/screen-overlay';
 
 type Phase = 'loading' | 'ready' | 'removed' | 'remote-refused' | 'no-connection';
 const RETRY_BACKOFF_S = [2, 4, 8, 15];
@@ -41,6 +42,10 @@ export class SwWall extends LitElement {
   @state() private wakeUntil = 0;
   @state() private tick = 0;
   @state() private alerts: WallAlert[] = [];
+  /** ANNOUNCEB-295: a voice announcement addressed to this display (text only, until its time ends) and the id a person closed on this screen */
+  @state() private announcement: ScreenAnnouncement | null = null;
+  @state() private annClosed = '';
+  private annTimer = 0;
   @state() private tap = 0;
   @state() private resolved: { id: string; text: string; until: number }[] = [];
   @state() private holdStart: number | null = null;
@@ -646,6 +651,71 @@ export class SwWall extends LitElement {
       font-size: calc(15px * var(--s, 1));
       color: var(--wall-text-2);
     }
+    .announce {
+      position: absolute;
+      inset: 0;
+      z-index: 8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: calc(48px * var(--s, 1)) calc(64px * var(--s, 1));
+      box-sizing: border-box;
+      overflow: hidden;
+      background: radial-gradient(120% 90% at 85% 10%, #1d2a44 0%, #121a2c 55%, #0a101d 100%);
+      color: var(--sw-on-video);
+    }
+    .announce[data-critical='1'] {
+      background: radial-gradient(120% 90% at 85% 10%, #5a1515 0%, #3a0d0d 50%, #220808 100%);
+    }
+    .announce .ann-in {
+      display: flex;
+      flex-direction: column;
+      gap: calc(28px * var(--s, 1));
+      max-inline-size: 100%;
+      max-block-size: 100%;
+      min-inline-size: 0;
+    }
+    .announce .ann-tag {
+      align-self: flex-start;
+      padding: calc(6px * var(--s, 1)) calc(20px * var(--s, 1));
+      border-radius: 999px;
+      font-size: calc(20px * var(--s, 1));
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.14);
+    }
+    .announce .ann-body {
+      display: flex;
+      flex-direction: column;
+      gap: calc(24px * var(--s, 1));
+      min-block-size: 0;
+    }
+    .announce .ann-t {
+      margin: 0;
+      font-weight: 500;
+      line-height: 1.22;
+      overflow-wrap: anywhere;
+      text-wrap: balance;
+    }
+    .announce .ann-t + .ann-t {
+      padding-block-start: calc(22px * var(--s, 1));
+      border-block-start: 1px solid rgba(255, 255, 255, 0.22);
+    }
+    .announce [data-size='xl'] .ann-t { font-size: calc(104px * var(--s, 1)); font-weight: 600; }
+    .announce [data-size='l'] .ann-t { font-size: calc(64px * var(--s, 1)); }
+    .announce [data-size='m'] .ann-t { font-size: calc(44px * var(--s, 1)); }
+    .announce [data-size='s'] .ann-t { font-size: calc(30px * var(--s, 1)); }
+    .announce .ann-close {
+      position: absolute;
+      inset-block-start: calc(16px * var(--s, 1));
+      inset-inline-end: calc(16px * var(--s, 1));
+      inline-size: calc(48px * var(--s, 1));
+      block-size: calc(48px * var(--s, 1));
+      border: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.16);
+      color: inherit;
+      cursor: pointer;
+    }
     .takeover {
       position: absolute;
       inset: 0;
@@ -807,6 +877,7 @@ export class SwWall extends LitElement {
     this.timer = window.setInterval(() => this.onTick(), 1000);
     void productSettings().then((s) => (this.settings = s)).catch(() => undefined);
     void this.load();
+    void this.pollAnnouncement();
   }
 
   disconnectedCallback(): void {
@@ -820,7 +891,35 @@ export class SwWall extends LitElement {
     window.clearTimeout(this.panelTimer);
     window.clearTimeout(this.updatedTimer);
     window.clearInterval(this.holdTimer);
+    window.clearTimeout(this.annTimer);
     this.closeSocket();
+  }
+
+  // ---- ANNOUNCEB-295: the voice announcement text
+  /** Ask the server for this display's announcement every `poll_s` seconds (it answers 0 while this display is not an announcement screen: then look again in a minute). */
+  private async pollAnnouncement(): Promise<void> {
+    let next = 60_000;
+    try {
+      const r = await getWallAnnouncement();
+      this.announcement = r.announcement;
+      next = pollMs(r.poll_s, 60_000);
+    } catch {
+      /* offline or not a wall user: the next look finds out */
+    }
+    window.clearTimeout(this.annTimer);
+    this.annTimer = window.setTimeout(() => void this.pollAnnouncement(), next);
+  }
+
+  private renderAnnouncement(onlyCritical = false) {
+    const a = this.announcement;
+    if (!a || !visibleNow(a, this.now, this.annClosed) || (onlyCritical && !a.critical)) return nothing;
+    return html`<div class="announce" data-wall-announcement=${a.id} data-critical=${a.critical ? '1' : '0'} role="alert">
+      <div class="ann-in" data-size=${sizeOf(a)}>
+        <span class="ann-tag">${headingOf(a, 'he')}</span>
+        <div class="ann-body">${a.texts.map((t) => html`<p class="ann-t" lang=${t.language} dir=${dirOf(t.language)}>${t.text}</p>`)}</div>
+      </div>
+      <button class="ann-close" type="button" data-wall-announcement-close aria-label=${closeLabel('he')} @click=${() => (this.annClosed = a.id)}><sw-icon name="close"></sw-icon></button>
+    </div>`;
   }
 
   // ---- data
@@ -1101,7 +1200,7 @@ export class SwWall extends LitElement {
     const asleep = !this.awake();
     if (asleep) {
       const [x, y] = [10 + ((this.now / 60000) % 60) * 1.3, 15 + ((this.now / 90000) % 60) * 1.2];
-      return html`<div class="wall sleep" data-wall-state="sleep" style=${`${s};display:block`}><div class="bigclock" style=${`inset-inline-start:${x}%;inset-block-start:${y}%`}>${clock.time}${clock.date ? html`<small>${clock.date}</small>` : nothing}</div></div>`;
+      return html`<div class="wall sleep" data-wall-state="sleep" style=${`${s};display:block`}><div class="bigclock" style=${`inset-inline-start:${x}%;inset-block-start:${y}%`}>${clock.time}${clock.date ? html`<small>${clock.date}</small>` : nothing}</div>${this.renderAnnouncement(true)}</div>`;
     }
     const layout = resolveLayout({ layout: cfg.layout, grid: cfg.grid, cameras: data.cameras.length, viewportW: this.vw, viewportH: this.vh, showMap: cfg.show_map, rotateS: cfg.rotate_s });
     const page = layout.rotateS > 0 ? Math.floor(this.now / (layout.rotateS * 1000)) % layout.pages : 0;
@@ -1140,6 +1239,7 @@ export class SwWall extends LitElement {
       ${layout.map ? this.renderMapPane() : nothing}
       ${layout.preset === 'tablet-portrait' ? html`<div class="band" data-wall-band>${chips}</div>` : nothing}
       ${view.takeover.length ? this.renderTakeover(view.takeover, data, clock, transport) : nothing}
+      ${this.renderAnnouncement()}
       ${this.panel ? this.renderPanel(data) : nothing}
       ${this.chipUpdated ? html`<span class="chip updated" data-wall-updated>ההגדרות עודכנו</span>` : nothing}
     </div>`;
@@ -1202,6 +1302,7 @@ export class SwWall extends LitElement {
       <img data-wall-photo=${id} alt="" src=${frameUrl(id)} style=${`object-fit:${fr.fit}`} />
       ${alertChips.length ? html`<span class="chips" data-wall-frame-chips>${alertChips}</span>` : nothing}
       ${fr.clock ? html`<div class="fclock" data-wall-frame-clock><b>${clock.time}</b><span>${clock.date}${clock.date ? ' · ' : ''}${data.title}</span></div>` : nothing}
+      ${this.renderAnnouncement()}
     </div>`;
   }
 

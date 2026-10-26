@@ -74,6 +74,21 @@ def wall_alerts_list(principal: Principal = Depends(current_principal_ro), conn:
     return {"alerts": _alerts_now(conn, principal, row, wall.config_of(row))}
 
 
+@router.get("/wall/announcement")
+def wall_announcement(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """ANNOUNCEB-295: the voice announcement this wall display shows right now (text only), or null; polled every `poll_s` seconds. Needs the display's
+    own profile and the screen allowed in Settings (voice announcements > screens); nothing about who sent it or where else it goes."""
+    row = _wall_user(conn, principal)
+    from ..services import announce_screens as scr
+    from ..services import announcements as ann
+
+    cfg = scr.config(conn)
+    key = f"wall:{row['user_id']}"
+    shown = scr.active_for(conn, key, ann._now())
+    return {"poll_s": cfg["poll_s"] if scr.feature_on(conn) and any(t["key"] == key for t in cfg["targets"]) else 0,
+            "announcement": None if shown is None else {"id": shown["id"], "critical": shown["critical"], "until": shown["until"], "texts": shown["texts"]}}
+
+
 @router.post("/wall/alerts/{alert_id}/ack")
 def wall_alert_ack(alert_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Acknowledge in the core like a person's acknowledge, with the wall user as the actor. Only when the profile allows it

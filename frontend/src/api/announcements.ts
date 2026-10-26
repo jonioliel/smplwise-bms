@@ -25,7 +25,39 @@ export interface AnnounceConfig {
   pause_music: boolean;
   quiet: AnnounceQuiet;
   notify: AnnounceNotify;
+  /** ANNOUNCEB-295 (stage B): the text is also shown on the allowed screens; OFF by default */
+  screens: AnnounceScreensConfig;
 }
+export interface AnnounceScreensConfig {
+  enabled: boolean;
+  /** shown on the screens when the sender does not choose */
+  default_on: boolean;
+  /** how long a normal / an emergency announcement stays on a screen, and how often a screen asks (seconds) */
+  seconds: number;
+  critical_seconds: number;
+  poll_s: number;
+  targets: AnnounceScreenTarget[];
+}
+export interface AnnounceScreenTarget {
+  /** `board:<id>` (a notice TV board) or `wall:<user id>` (a wall display) */
+  key: string;
+  area_id: string | null;
+  device_key: string | null;
+}
+export interface AnnounceScreenOption {
+  key: string;
+  kind: 'board' | 'wall';
+  name: string;
+  area_id: string | null;
+  device_key: string | null;
+  allowed: boolean;
+}
+export interface AnnounceScreenOptions {
+  screens: AnnounceScreenOption[];
+  /** the approved media screens (TVs) a target can be linked to, so a "device" announcement reaches it */
+  devices: { key: string; name: string; area_id: string | null }[];
+}
+export const ANNOUNCE_SCREEN_RANGE = { seconds: [5, 600], critical_seconds: [10, 3600], poll_s: [2, 30] } as const;
 export interface AnnounceQuiet {
   enabled: boolean;
   from: string;
@@ -81,6 +113,9 @@ export interface AnnounceHistoryRow {
   template_id?: string | null;
   critical?: boolean;
   release_at?: string | null;
+  /** ANNOUNCEB-295: how many screens it was shown on, and until when */
+  screens?: number;
+  screen_until?: string | null;
 }
 export interface AnnounceConfigAnswer {
   config: AnnounceConfig;
@@ -90,6 +125,7 @@ export interface AnnounceConfigAnswer {
   engine_info?: { entity_id: string; name: string; platform: string; cloud: boolean }[];
   history: AnnounceHistoryRow[];
   templates: AnnounceTemplate[];
+  screen_options?: AnnounceScreenOptions;
 }
 /** The announce form's data (`media.announce`): the rooms, the templates and the languages. */
 export interface AnnounceForm {
@@ -101,11 +137,16 @@ export interface AnnounceForm {
   default_language: AnnounceLang;
   emergency_languages: AnnounceLang[];
   quiet_mode: AnnounceQuietMode;
+  /** ANNOUNCEB-295: the screens switch is on (the form offers "screens") and whether a new announcement is shown there unless the sender says otherwise */
+  screens_enabled?: boolean;
+  screens_default_on?: boolean;
 }
 export interface AnnounceResult {
   id: string;
   status: 'sent' | 'queued';
   targets: number;
+  /** ANNOUNCEB-295: the screens it is shown on (absent = none) */
+  screens?: number;
   release_at?: string;
 }
 export interface AnnounceArea {
@@ -113,9 +154,12 @@ export interface AnnounceArea {
   name: string;
   floor_name: string | null;
   devices: { key: string; name: string }[];
+  /** ANNOUNCEB-295: allowed screens in this room */
+  screens?: number;
 }
 export type AnnounceConfigPatch = Partial<Pick<AnnounceConfig, 'enabled' | 'engine' | 'language' | 'devices' | 'max_per_minute' | 'volume' | 'pause_music' | 'engine_kind' | 'cloud_enabled' | 'emergency_languages'>> & {
   quiet?: Partial<AnnounceQuiet>;
+  screens?: Partial<AnnounceScreensConfig>;
   notify?: Partial<AnnounceNotify>;
 };
 export const ANNOUNCE_CATEGORIES = ['safety', 'alerts', 'doors', 'device_faults', 'automations', 'system', 'security'] as const;
@@ -126,8 +170,11 @@ export const announceConfig = () => get<AnnounceConfigAnswer>(`${BASE}/config`);
 export const announcePutConfig = (patch: AnnounceConfigPatch) => put<{ changed: string[] } & AnnounceConfigAnswer>(`${BASE}/config`, patch);
 export const announceAreas = () => get<AnnounceForm>(`${BASE}/areas`);
 /** `ref` is `*` for scope `all`. Several languages = `texts`, spoken one after the other. */
-export const announceSpeak = (body: { scope: AnnounceScope; ref: string; text?: string; language?: AnnounceLang; texts?: { language: AnnounceLang; text: string }[]; template_id?: string; volume?: number }) =>
+export const announceSpeak = (body: { scope: AnnounceScope; ref: string; text?: string; language?: AnnounceLang; texts?: { language: AnnounceLang; text: string }[]; template_id?: string; volume?: number;
+  /** ANNOUNCEB-295: `speakers` false = screens only; `screens` omitted = the configured default */ speakers?: boolean; screens?: boolean }) =>
   post<AnnounceResult>(BASE, body);
+/** ANNOUNCEB-295: take an announcement off the screens now (the speech is not touched). */
+export const announceStopScreens = (id: string) => post<{ stopped: boolean }>(`${BASE}/${encodeURIComponent(id)}/screens/stop`);
 /** The ONE-CLICK emergency announcement: no confirmation step, every allowed speaker. */
 export const announceEmergency = (body: { template_id: string } | { texts: { language: AnnounceLang; text: string }[] }) => post<AnnounceResult>(`${BASE}/emergency`, body);
 export const announceTest = (body: { scope: AnnounceScope; ref: string; language: AnnounceLang }) => post<AnnounceResult>(`${BASE}/test`, body);

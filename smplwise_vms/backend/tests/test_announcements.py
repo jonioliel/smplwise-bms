@@ -59,7 +59,8 @@ def test_off_by_default_and_nothing_spoken(world):
     assert c.get(f"{API}/config").json()["config"] == {"enabled": False, "engine": "", "language": "he", "devices": [], "max_per_minute": 6, "max_text": 200, "cooldown_s": 5,
         "engine_kind": "local", "cloud_enabled": False, "cloud_key_set": False, "emergency_languages": ["he", "en", "ru", "ar"],  # ANNOUNCE-295: local engine, cloud OFF by default
         "volume": None, "pause_music": False, "quiet": {"enabled": False, "from": "22:00", "to": "07:00", "days": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"], "mode": "suppress", "night_volume": None},
-        "notify": {"enabled": False, "scope": "area", "ref": "", "categories": [], "min_severity": "alert"}}
+        "notify": {"enabled": False, "scope": "area", "ref": "", "categories": [], "min_severity": "alert"},
+        "screens": {"enabled": False, "default_on": True, "seconds": 30, "critical_seconds": 180, "poll_s": 5, "targets": []}}  # ANNOUNCEB-295: the screens are OFF by default
     r = c.post(API, json={"scope": "area", "ref": "living", "text": "שלום"})
     assert r.status_code == 404 and r.json()["code"] == "feature_disabled"
     assert fake.calls == []

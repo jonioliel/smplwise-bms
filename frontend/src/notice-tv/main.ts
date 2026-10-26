@@ -14,6 +14,7 @@
  * timers), `?now=<ISO>` (a fixed instant).
  */
 import './tv.css';
+import { overlayHtml, overlayKey, pollMs, visibleNow } from '../announce/screen-overlay'; // ANNOUNCEB-295: the announcement overlay's pure rules
 import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo (developer kit artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
@@ -39,6 +40,7 @@ const cv = document.getElementById('cv') as HTMLElement;
 const shift = cv.querySelector('.shift') as HTMLElement;
 const pg = cv.querySelector('.pg') as HTMLElement;
 const take = cv.querySelector('.take') as HTMLElement;
+const ann = cv.querySelector('.ann') as HTMLElement;
 
 let feed: Feed | null = null;
 let draftDisplay: Partial<Display> | null = null;
@@ -343,9 +345,32 @@ function render(): void {
       '<div class="mid"><span class="tag">' + esc(str(lang(), 'urgent')) + '</span><h1>' + tx(u.title) + '</h1><p>' + tx(u.body) + '</p><div class="until">' + tx(when(u)) + '</div></div>' +
       '<div class="bot"><span>' + esc(feed.board.building || '') + ' · ' + esc(feed.board.name) + '</span>' + D.sw + '</div>'
     : '';
+  renderAnn();
   applySaver();
   fitCanvas();
   layoutAfter();
+}
+
+// ---------------------------------------------------------------- ANNOUNCEB-295: a voice announcement addressed to this board
+
+let annKey = '';
+
+/** Draw (or clear) the announcement overlay from the feed; it hides itself when its time ends (`annSync`, every tick). */
+function renderAnn(): void {
+  const a = feed?.announcement ?? null;
+  const key = overlayKey(a);
+  if (key !== annKey) {
+    annKey = key;
+    ann.innerHTML = a ? overlayHtml(a, feed?.board.display.lang ?? 'he') : '';
+  }
+  annSync();
+}
+
+function annSync(): void {
+  const a = feed?.announcement ?? null;
+  const on = visibleNow(a, nowDate().getTime());
+  const v = on ? (a?.critical ? 'crit' : '1') : '0';
+  if (cv.dataset.ann !== v) cv.dataset.ann = v;
 }
 
 /** The grid of "all together": the mock-up wrote --cols / --rows in a style attribute; the CSP allows only the CSSOM. */
@@ -523,6 +548,7 @@ function tickClock(): void {
   cv.querySelectorAll('[data-date]').forEach((e) => {
     if (e.textContent !== dd) e.textContent = dd;
   });
+  annSync();
   const st = cv.querySelector('[data-stale]');
   const before = cv.dataset.net;
   const now = netOf(net, Date.now());
@@ -743,7 +769,12 @@ void poll(true).then(() => {
   restartRotation();
 });
 if (!FIXED && !NOW_Q) {
-  setInterval(() => void poll(), POLL_MS);
+  // the board asks every 30 s, or every `announce_poll_s` seconds while it is an announcement screen (an announcement is not worth waiting half a minute for)
+  const pollLoop = (): void => {
+    window.setTimeout(() => void poll().finally(pollLoop), pollMs(feed?.board.announce_poll_s, POLL_MS));
+  };
+  pollLoop();
   setInterval(tickClock, 5000);
+  setInterval(annSync, 1000);
   setInterval(drift, DRIFT_MS);
 }

@@ -16,6 +16,7 @@ Every attempt is audited as `media.announce`; the setup as `media.announce.confi
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from typing import Any, Literal
 
@@ -27,6 +28,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..db import set_setting as put_setting
 from ..db import unlocked
 from ..rbac import INSTALLATION, Principal, require
+from ..services import announce_screens as scr
 from ..services import announce_templates as tpl
 from ..services import announcements as svc
 
@@ -51,6 +53,8 @@ class SpeakBody(_Body):
     template_id: str | None = Field(default=None, max_length=32)  # the template it came from (a record only; the text is what is spoken)
     volume: int | float | None = None  # percent, clamped to 0-100 by the service; None = the configured default
     critical: bool = False  # exempt from the quiet hours (the same permission, installation scope)
+    speakers: bool = True  # ANNOUNCEB-295: speak it on the allowed speakers (False = screens only)
+    screens: bool | None = None  # ANNOUNCEB-295: also show the text on the allowed screens; None = the configured default (`announce.screens.default_on`)
 
 
 class TestBody(_Body):
@@ -80,7 +84,8 @@ def get_areas(principal: Principal = Depends(current_principal), conn: sqlite3.C
     cfg = svc.config(conn)
     return {"enabled": bool(cfg["enabled"] and svc.engine_ready(cfg)), "areas": svc.areas(conn) if cfg["enabled"] else [], "max_text": svc.MAX_TEXT,
             "templates": tpl.load(conn), "languages": list(svc.LANGUAGES), "default_language": cfg["language"] if cfg["language"] in svc.LANGUAGES else "he",
-            "emergency_languages": cfg["emergency_languages"], "quiet_mode": cfg["quiet"]["mode"]}
+            "emergency_languages": cfg["emergency_languages"], "quiet_mode": cfg["quiet"]["mode"],
+            "screens_enabled": bool(cfg["enabled"] and cfg["screens"]["enabled"]), "screens_default_on": cfg["screens"]["default_on"]}
 
 
 @router.post("/announcements")
@@ -90,7 +95,7 @@ def speak(body: SpeakBody, request: Request, principal: Principal = Depends(curr
         raise svc.err(422, "validation", fields=["text"])
     return svc.announce(conn, settings_of(request), principal, _rid(request), source="manual", scope=body.scope, ref=body.ref, text=body.text, language=body.language,
                         texts=[(p.language, p.text) for p in body.texts] if body.texts is not None else None, template_id=body.template_id,
-                        volume=body.volume, critical=body.critical, unlock=lambda: unlocked(conn))
+                        volume=body.volume, critical=body.critical, audio=body.speakers, on_screens=body.screens, unlock=lambda: unlocked(conn))
 
 
 @router.post("/announcements/emergency")
@@ -108,7 +113,8 @@ def get_config(principal: Principal = Depends(current_principal), conn: sqlite3.
     info = [{"entity_id": r[0], "name": r[1] or r[0], "platform": r[2] or "", "cloud": (r[2] or "") in svc.CLOUD_PLATFORMS}
             for r in conn.execute("SELECT entity_id, name, platform FROM ha_entities WHERE entity_id LIKE 'tts.%' AND disabled = 0 AND removed_at IS NULL ORDER BY entity_id LIMIT 50").fetchall()]
     engines = [i["entity_id"] for i in info]  # the speech engines the home system exposes (read from it, never typed)
-    return {"config": svc.config(conn), "speakers": svc.admin_targets(conn), "engines": engines, "engine_info": info, "history": svc.history(conn, 10), "templates": tpl.load(conn)}
+    return {"config": svc.config(conn), "speakers": svc.admin_targets(conn), "engines": engines, "engine_info": info, "history": svc.history(conn, 10), "templates": tpl.load(conn),
+            "screen_options": scr.admin_screens(conn)}
 
 
 @router.put("/announcements/config")
@@ -117,7 +123,8 @@ def put_config(body: dict[str, Any], request: Request, principal: Principal = De
     changed = svc.update_config(conn, body)
     if changed:
         audit(conn, actor=principal, action="media.announce.config", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
-              details={"changed": changed, **{k: v for k, v in body.items() if k in changed and k in ("enabled", "language", "max_per_minute", "volume", "pause_music", "engine_kind", "cloud_enabled", "emergency_languages")}, **({"quiet": body["quiet"]} if "quiet" in changed else {}), **({"notify": {k: v for k, v in body["notify"].items() if k != "ref"}} if "notify" in changed else {}), **({"devices": len(body["devices"])} if "devices" in changed else {})})
+              details={"changed": changed, **{k: v for k, v in body.items() if k in changed and k in ("enabled", "language", "max_per_minute", "volume", "pause_music", "engine_kind", "cloud_enabled", "emergency_languages")}, **({"quiet": body["quiet"]} if "quiet" in changed else {}),
+                 **({"screens": {k: v for k, v in body["screens"].items() if k != "targets"}, **({"screen_targets": [t.get("key") for t in body["screens"]["targets"]]} if "targets" in body["screens"] else {})} if "screens" in changed else {}), **({"notify": {k: v for k, v in body["notify"].items() if k != "ref"}} if "notify" in changed else {}), **({"devices": len(body["devices"])} if "devices" in changed else {})})
     return {"changed": changed, **get_config(principal, conn)}
 
 
@@ -146,7 +153,20 @@ def put_templates(body: TemplatesBody, request: Request, principal: Principal = 
 @router.post("/announcements/test")
 def test_announcement(body: TestBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
-    return svc.announce(conn, settings_of(request), principal, _rid(request), source="test", scope=body.scope, ref=body.ref, text=svc.TEST_TEXT[body.language], language=body.language, unlock=lambda: unlocked(conn))
+    return svc.announce(conn, settings_of(request), principal, _rid(request), source="test", scope=body.scope, ref=body.ref, text=svc.TEST_TEXT[body.language], language=body.language,
+                        on_screens=False, unlock=lambda: unlocked(conn))  # the test button tries the speaker, never a screen
+
+
+@router.post("/announcements/{announcement_id}/screens/stop")
+def stop_screens(announcement_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """ANNOUNCEB-295: take an announcement off the screens now (the speech is not touched). `media.announce`, installation scope; audited."""
+    require(conn, principal, svc.PERM, INSTALLATION)
+    if not re.match(r"^[0-9a-f]{16}$", announcement_id):
+        raise svc.err(422, "validation", fields=["id"])
+    stopped = scr.stop(conn, announcement_id, svc._now())
+    audit(conn, actor=principal, action="media.announce.screens_stop", decision="allowed" if stopped else "denied", resource_type="announcement", resource_id=announcement_id,
+          request_id=_rid(request), reason=None if stopped else "not_shown", details={})
+    return {"stopped": stopped}
 
 
 @router.get("/announcements/history")

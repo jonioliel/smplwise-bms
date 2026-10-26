@@ -2,7 +2,7 @@
  * ANNOUNCE-295 (stage A, speakers only): the pure logic behind the announce screen (#/devices/announce) and the templates editor in Settings.
  * No DOM and no network: unit specs run it in Node. The server validates everything again; this only decides what the screens offer.
  */
-import { ANNOUNCE_LANGS, type AnnounceLang, type AnnounceTemplate, type AnnounceTemplateKind } from '../api/announcements';
+import { ANNOUNCE_LANGS, ANNOUNCE_SCREEN_RANGE, type AnnounceLang, type AnnounceScreenOption, type AnnounceScreenTarget, type AnnounceTemplate, type AnnounceTemplateKind } from '../api/announcements';
 
 export const TEXT_MAX = 200;
 export const NAME_MAX = 60;
@@ -107,3 +107,34 @@ export function cleanTemplates(list: AnnounceTemplate[]): AnnounceTemplate[] {
     text: Object.fromEntries(ANNOUNCE_LANGS.filter((l) => (t.text[l] ?? '').trim()).map((l) => [l, (t.text[l] as string).trim()])),
   }));
 }
+
+// ---------------------------------------------------------------- ANNOUNCEB-295: the screens (stage B)
+
+/** The allowed screens as the server stores them: key, room and linked media screen (nothing else). */
+export function screenTargets(options: AnnounceScreenOption[]): AnnounceScreenTarget[] {
+  return options.filter((o) => o.allowed).map((o) => ({ key: o.key, area_id: o.area_id || null, device_key: o.device_key || null }));
+}
+
+/** One screen changed in the Settings list: allowed on / off, its room, its linked media screen. */
+export function patchScreen(options: AnnounceScreenOption[], key: string, patch: Partial<Pick<AnnounceScreenOption, 'allowed' | 'area_id' | 'device_key'>>): AnnounceScreenOption[] {
+  return options.map((o) => (o.key === key ? { ...o, ...patch } : o));
+}
+
+export type ScreenNumberField = keyof typeof ANNOUNCE_SCREEN_RANGE;
+
+/** A typed number kept inside what the server accepts (it checks again); '' or garbage gives null = leave the field as it was. */
+export function clampScreenNumber(field: ScreenNumberField, raw: string): number | null {
+  const v = Number(raw.trim());
+  if (raw.trim() === '' || !Number.isFinite(v)) return null;
+  const [lo, hi] = ANNOUNCE_SCREEN_RANGE[field];
+  return Math.min(hi, Math.max(lo, Math.round(v)));
+}
+
+/** Where the operator form sends: the body flags for the chosen channels. Without screens on offer it is the stage A body (no flags added). */
+export function channelFlags(speakers: boolean, screens: boolean, screensOffered: boolean): { speakers?: boolean; screens?: boolean } {
+  if (!screensOffered) return {};
+  return { ...(speakers ? {} : { speakers: false }), screens };
+}
+
+/** The send button works with at least one channel chosen. */
+export const hasChannel = (speakers: boolean, screens: boolean, screensOffered: boolean): boolean => speakers || (screensOffered && screens);
