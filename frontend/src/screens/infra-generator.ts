@@ -28,6 +28,7 @@ import { elecCss } from '../electricity/styles';
 import { genCss } from '../generator/gen-styles';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { leadReserveStyles } from '../styles/lead-reserve'; // LOGOFIX-295: the page row keeps the developer / installer logos' room free
 import { srHeading, srHeadingCss } from '../components/sr-heading';
 
 const G = he.generator;
@@ -61,7 +62,7 @@ export class InfraGenerator extends LitElement {
   /** The page row as the shell's second chip (the dropdown form), published after each render; null = drawn here as a tab row. */
   private pagesChip: PairChip | null = null;
 
-  static styles = [elecCss, genCss, srHeadingCss, css`
+  static styles = [elecCss, genCss, srHeadingCss, leadReserveStyles, css`
     :host { display: flex; flex-direction: column; gap: 14px; min-block-size: 100%; padding: 14px var(--sw-page-pad) 24px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box; }
     .rows { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
     .body { min-inline-size: 0; }
@@ -166,7 +167,7 @@ export class InfraGenerator extends LitElement {
     if (this.phase === 'error' && !this.list) return html`<sw-state-panel state="error" heading=${G.loadError} hint=${this.error} actionLabel=${G.retry} @action=${() => this.loadList()} data-state="error"></sw-state-panel>`;
     if (this.phase === 'loading' && !this.list) return html`<div class="col" data-state="loading"><div class="skl" style="inline-size:320px;block-size:22px"></div><div class="hero"><div class="card"><div class="skl" style="block-size:280px"></div></div><div class="card"><div class="skl"></div><div class="skl" style="margin-block-start:12px"></div></div></div></div>`;
     const ds = this.shown();
-    if (!ds.length) return html`<div class="rows">${l1}</div><div class="body">${this.notFound()}</div>`;
+    if (!ds.length) return html`<div class="rows lead-head">${l1}</div><div class="body">${this.notFound()}</div>`;
     const d = this.device;
     const page = pageOf(this.route?.segments ?? []);
     const q = d ? `?device=${encodeURIComponent(d.id)}` : '';
@@ -187,7 +188,7 @@ export class InfraGenerator extends LitElement {
     const asChip = infraPagesAsChip(this.tabsMode.value, items.length);
     this.pagesChip = asChip ? infraPagesChip('עמודים', items, page, (id) => navigate(`/infra/generator/${id}`, d ? { device: d.id } : undefined)) : null;
     const row = asChip ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.generator')} data-infra-pages></sw-tabs>`;
-    return html`<div class="rows" data-gen-shell>${l1}${row}${pick}${d ? html`<maint-cert-row kind="generator" subjectId=${d.id}></maint-cert-row>` : nothing}</div><div class="body" data-page=${page}>${body}</div>`;
+    return html`<div class="rows lead-head" data-gen-shell>${l1}${row}${pick}${d ? html`<maint-cert-row kind="generator" subjectId=${d.id}></maint-cert-row>` : nothing}</div><div class="body" data-page=${page}>${body}</div>`;
   }
 }
 

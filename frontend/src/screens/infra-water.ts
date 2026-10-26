@@ -15,6 +15,7 @@ import { clearPairChip, publishPairChip, type PairChip } from '../shell/tab-pair
 import { infraPagesAsChip, infraPagesChip } from '../shell/infra-pages';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { leadReserveStyles } from '../styles/lead-reserve'; // LOGOFIX-295: the page row keeps the developer / installer logos' room free
 import { srHeading, srHeadingCss } from '../components/sr-heading';
 import { wt } from '../water/i18n';
 import { openAlertCount, onOpenAlertCount } from '../api/water';
@@ -64,7 +65,7 @@ export class InfraWater extends LitElement {
   private readonly tabsMode = new TabsModeController(this, 'area');
   private pagesChip: PairChip | null = null;
 
-  static styles = [srHeadingCss, css`
+  static styles = [srHeadingCss, leadReserveStyles, css`
     :host {
       display: flex;
       flex-direction: column;
@@ -136,7 +137,7 @@ export class InfraWater extends LitElement {
     const asChip = items.length > 0 && infraPagesAsChip(this.tabsMode.value, items.length);
     this.pagesChip = asChip ? infraPagesChip(wt('pageRow'), items, page, (id) => navigate(`/infra/water/${id}`)) : null;
     const row = asChip || !items.length ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.water')} data-infra-pages></sw-tabs>`;
-    return html`${srHeading(wt('tab'))}<div class="rows" data-water-shell>${l1}${row}</div><div class="body" data-page=${page}>${this.body(page, def)}</div>`;
+    return html`${srHeading(wt('tab'))}<div class="rows lead-head" data-water-shell>${l1}${row}</div><div class="body" data-page=${page}>${this.body(page, def)}</div>`;
   }
 
   protected updated() {
