@@ -24,7 +24,10 @@ import './devices-bulk';
 import type { StateKind } from '../components/sw-badge';
 import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
-import { ApiError, describeError } from '../api/client';
+import { pl } from '../i18n/polish';
+import { ApiError, describeError, patch } from '../api/client';
+import { getSettings } from '../api/media';
+import { invalidateSettings } from '../api/prefs';
 import { LiveController } from '../api/live-refresh'; // HOMELIVE-295
 import { hl } from '../i18n/home-live';
 import { haPushLive, subscribeHa, type HaSyncState } from '../api/ha';
@@ -57,12 +60,10 @@ import {
 import { hs } from '../i18n/home-screen';
 import { HOME_SCREEN_CSS } from './home-screen-css';
 import './home-screen-options'; // (the phone's area sheet draws <devices-area>, defined by the shell's route table - no import here: it imports this module)
-import { patch as patchApi } from '../api/client';
-import { invalidateSettings } from '../api/prefs';
 import './home-edit-panel';
 import type { QuickInfo } from './home-widgets';
 import {
-  getHomeCandidates, HOME_DEFAULT, HOME_PERSONAL_EVENT, HOME_TITLE_DEFAULT, homeViewOf, loadHomeSettings, loadPersonal, moveWidget, NO_DATA, orderFloors, previewData, PHONE_MAX_WIDTH, resolveWidgets, saveHomeSettings, suggestConfig, widgetOn,
+  getHomeCandidates, HOME_DEFAULT, HOME_PERSONAL_EVENT, HOME_TITLE_DEFAULT, homeViewOf, loadHomeSettings, loadPersonal, moveAmong, moveWidget, NO_DATA, orderFloors, previewData, PHONE_MAX_WIDTH, resolveWidgets, saveHomeSettings, suggestConfig, widgetOn,
   type Direction, type HomeCandidates, type HomeSettings, type HomeView, type QuickAction, type WidgetId, type WidgetItem,
 } from '../api/home';
 import { demoHome } from './home-demo';
@@ -122,6 +123,7 @@ export const REFRESH_WINDOW_MS = 400;
 /** How long "מבנה עודכן" stays up after a structure change refetched the screen (CR-007 HA refresh). */
 export const STRUCTURE_FLASH_MS = 4000;
 /** How long after a manual refresh's answer its own structure_changed push is still expected. */
+const INFO_CHOICES: readonly ('bar' | 'cards')[] = ['bar', 'cards']; // HOMEINFO-295: the edit bar's two explicit choices (the options form also offers auto)
 const MANUAL_PUSH_GRACE_MS = 1000;
 
 /** "<what> עכשיו / לפני …": seconds under a minute, then minutes, hours, else the date. '' for no / bad time. */
@@ -1112,6 +1114,10 @@ export class DevicesBuilding extends LitElement {
   @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
   /** POLISH-295: the clock, the weather, Shabbat and the alarm as a thin header bar (default) or as the large cards (home.info_style). */
   @state() private infoStyle: InfoStyle = INFO_STYLE_DEFAULT;
+  /** HOMEINFO-295: may this caller change the installation's info style from the layout editor (system.configure)? Demo: yes, in memory. */
+  @state() private infoCanEdit = false;
+  /** The cards drawn by the last render (edit mode in the thin-bar style draws fewer than all): a drag / move index counts these. */
+  private cardIds: WidgetId[] = [];
   /** K88 plan view: the plan floors of the catalogue (the map's floors, not the platform's), the chosen one, and the
    * area summary opened by a room tap. */
   @state() private planFloors: PlanFloor[] = [];
@@ -1206,6 +1212,7 @@ export class DevicesBuilding extends LitElement {
       this.selected = 'all';
       this.beginHomeEdit();
     },
+    barExtra: () => this.renderInfoChoice(),
     extras: {
       dirty: () => this.homeDirty,
       save: () => this.saveHome(),
@@ -1386,7 +1393,7 @@ export class DevicesBuilding extends LitElement {
     if (sd && sb) {
       const body = screenFormBody(sb, sd);
       if (Object.keys(body).length) {
-        await patchApi('settings', body);
+        await patch('settings', body);
         invalidateSettings();
         this.screenSite = sd.screen;
         this.infoStyle = sd.info;
@@ -1594,8 +1601,43 @@ export class DevicesBuilding extends LitElement {
     const d = this.homeDraft;
     if (!d) return;
     // `to` is a place among the cards drawn now (edit mode draws all five, in the configured order)
-    this.homeDraft = { ...d, config: { ...d.config, order: moveWidget(d.config.order, e.detail.id, e.detail.to) } };
+    // HOMEINFO-295: in the thin-bar style the drawn cards are not all of the order: `to` is a place among the drawn ones
+    const drawn = this.cardIds.length ? this.cardIds : d.config.order;
+    this.homeDraft = { ...d, config: { ...d.config, order: moveAmong(d.config.order, drawn, e.detail.id, e.detail.to) } };
   };
+
+  /** HOMEINFO-295: the layout editor's own choice between the thin row and the widget cards: saved at once for the installation
+   * (home.info_style, system.configure) and applied to this screen immediately, so the edit view and the normal view always agree. */
+  private renderInfoChoice() {
+    return html`<span class="info-choice" data-home-info-style><span class="lbl">${pl('infoHeading')}</span>
+      <span class="lay-seg" role="group" aria-label=${pl('infoHeading')}>
+        ${INFO_CHOICES.map((s) => html`<button type="button" data-home-info-option=${s} aria-pressed=${String(this.effectiveInfo() === s)} ?disabled=${!this.infoCanEdit} @click=${() => this.chooseInfo(s)}>${s === 'bar' ? pl('infoBar') : pl('infoCards')}</button>`)}
+      </span></span>`;
+  }
+
+  /** The info style in force now: the draft of the options form while editing (HOME-295), else the saved one; `auto` resolves by the view. */
+  private effectiveInfo(): 'bar' | 'cards' {
+    return infoStyleFor(this.lay.editing && this.screenDraft ? this.screenDraft.info : this.infoStyle, this.layout);
+  }
+
+  private chooseInfo(next: 'bar' | 'cards') {
+    const before = this.infoStyle;
+    if (!INFO_CHOICES.includes(next) || !this.infoCanEdit) return;
+    this.infoStyle = next;
+    // the options form (HOME-295) shares this value: keep its draft and base equal so the choice is saved here and is not a pending change there
+    if (this.screenDraft) this.screenDraft = { ...this.screenDraft, info: next };
+    if (this.screenBase) this.screenBase = { ...this.screenBase, info: next };
+    if (!isApi()) return;
+    void patch('settings', { 'home.info_style': next }).then(
+      () => invalidateSettings(),
+      (err) => {
+        this.infoStyle = before;
+        if (this.screenDraft) this.screenDraft = { ...this.screenDraft, info: before };
+        if (this.screenBase) this.screenBase = { ...this.screenBase, info: before };
+        this.error = describeError(err);
+      },
+    );
+  }
 
   private onWidgetEdit = (e: CustomEvent<{ id: WidgetId }>) => {
     this.openWidget = e.detail.id;
@@ -2645,6 +2687,10 @@ export class DevicesBuilding extends LitElement {
       loadPersonal().then((p) => {
         this.screenPersonal = p.screen ?? {};
       }),
+      // HOMEINFO-295: may this caller change the installation's info style from the edit bar (system.configure)? Demo: yes, in memory.
+      (isApi() ? getSettings().then((x) => x.can_edit === true, () => false) : Promise.resolve(true)).then((ok) => {
+        this.infoCanEdit = ok;
+      }),
     ]).then(() => undefined);
     window.addEventListener('resize', this.onResize);
     window.addEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
@@ -2840,12 +2886,13 @@ export class DevicesBuilding extends LitElement {
     const alarmShown = items.some((i) => i.id === 'alarm' && i.avail === 'ok');
     // POLISH-295: in the thin-bar style the clock, the weather, Shabbat and the alarm leave the card band for the header (edit mode
     // keeps every card: that is where they are switched on, sized and ordered). HOME-295 (owner answer 5): `auto` = the cards in the
-    // cards view, the bar in tiles.
-    const bar = infoStyleFor(this.lay.editing && this.screenDraft ? this.screenDraft.info : this.infoStyle, this.layout) === 'bar' && !this.lay.editing;
+    // cards view, the bar in tiles. HOMEINFO-295: the edit view follows the chosen style too (the four are switched on / sized / ordered in the editor's list).
+    const bar = this.effectiveInfo() === 'bar';
     // (the mockup: with an alert row or the no-connection row on a tablet / 1366 screen, the multimedia card folds so nothing scrolls)
     const banner = !this.lay.editing && (this.offline || homeAlerts(t).some((x) => !this.acked.includes(`${x.scope}:${x.id}`)));
     const dropMedia = banner && window.innerWidth <= 1366;
     const cardItems = (bar ? items.filter((i) => !AMBIENT_WIDGETS.includes(i.id)) : items).filter((i) => !(dropQuick && i.id === 'quick') && !(dropMedia && i.id === 'media'));
+    this.cardIds = cardItems.map((i) => i.id);
     const ambient = bar ? items.filter((i) => AMBIENT_WIDGETS.includes(i.id) && i.avail === 'ok') : [];
     const widgets = this.renderWidgets(t, h, cardItems, layout);
     const sideLayout = layout === 'side' && cardItems.length > 0;

@@ -999,6 +999,8 @@ export class HomeWidgetsView extends LitElement {
     }
     :host([layout='hero']) .wg {
       flex: 1 1 var(--wb, 210px);
+      /* HOMEINFO-295: with few widgets the cards keep a natural width instead of stretching across the row */
+      max-inline-size: calc(var(--wb, 210px) * 1.5);
     }
     :host([layout='hero']) .wg[data-size='s'] {
       --wb: 140px;
@@ -1161,6 +1163,7 @@ export class HomeWidgetsView extends LitElement {
     }
     :host([layout='row']) .wg {
       flex: 1 1 var(--wb, 220px);
+      max-inline-size: calc(var(--wb, 220px) * 1.5);
       flex-direction: row;
       align-items: center;
       gap: 14px;
