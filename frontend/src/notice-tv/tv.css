@@ -699,9 +699,9 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 .bus.strip .cards:not(.msg) { align-items: stretch; }
 .bus .bcard { flex: 1 1 250px; min-inline-size: 250px; max-inline-size: 470px; padding: 12px 20px 10px; gap: 6px; }
 .bus .bcard .ct { gap: 14px; }
-.bus .bcard .ln { min-inline-size: 78px; block-size: 52px; font-size: 32px; }
-.bus .bcard .ln.w4 { font-size: 26px; }
-.bus .bcard .ct span { font-size: 30px; font-weight: 500; color: var(--ink); }
+.bus .bcard .ct > .ln { flex: none; min-inline-size: 78px; block-size: 52px; font-size: 32px; font-weight: 600; color: var(--accent); overflow: visible; text-overflow: clip; }
+.bus .bcard .ct > .ln.w4 { font-size: 26px; }
+.bus .bcard .ct > span:not(.ln) { font-size: 30px; font-weight: 500; color: var(--ink); }
 .bus .bcard .eta { flex-wrap: wrap; row-gap: 0; column-gap: 12px; align-self: end; min-inline-size: 0; }
 .bus .bcard .eta b { font-size: 68px; }
 .bus .bcard .eta b.w { font-size: 54px; }
