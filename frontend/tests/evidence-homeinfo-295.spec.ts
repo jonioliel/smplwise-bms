@@ -53,8 +53,9 @@ test.describe('home layout editor: the info style is chosen where the owner edit
     await panel.locator('[data-home-info-style]').waitFor();
     const bar = panel.locator('[data-home-info-option="bar"]');
     const cards = panel.locator('[data-home-info-option="cards"]');
-    // it is in the edit bar at the top: no scrolling to find it
-    expect((await bar.boundingBox())!.y).toBeLessThan(200);
+    // it is in the edit bar at the top: no scrolling to find it - in the top third of the first screen (desktop ~136 px of 900; the
+    // 1024 x 768 tablet ~219 px of 768, under the info row and the refresh line)
+    expect((await bar.boundingBox())!.y).toBeLessThan(page.viewportSize()!.height / 3);
     await expect(bar).toHaveText('שורה דקה');
     await expect(cards).toHaveText('ווידג׳טים');
     await expect(bar).toHaveAttribute('aria-pressed', 'true');

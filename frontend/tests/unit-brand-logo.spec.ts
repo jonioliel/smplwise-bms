@@ -62,7 +62,7 @@ test('a server block becomes state; anything unknown reads as the default (a cor
   expect(bad.kind).toBe('developer');
   expect(bad.files).toEqual({ light: null, dark: null });
   expect(bad.size).toBe('m');
-  expect(bad.darkMode).toBe('plate');
+  expect(bad.darkMode).toBe('invert'); // HOME-295 (owner answers round 2, item 12): the default on dark is invert
   expect(bad.titlePrefix).toBe(EMPTY_BRAND.titlePrefix);
   expect(bad.titleMode).toBe('both');
   expect(brandFromView(null)).toEqual(EMPTY_BRAND);

@@ -355,7 +355,10 @@ def test_reject_with_a_block_stops_later_messages(w):
     r = w.c.post(f"{API}/tickets/intake/drafts/{did}/reject", json={"revision": rev, "reason": "spam", "block": True}, headers=w.h("joni"))
     assert r.json() == {"ok": True, "blocked": True}
     assert accept(w, PHONE, "עוד ספאם", NOW + dt.timedelta(hours=1)) == ("intake_blocked", None)
-    assert accept(w, PHONE, "אחרי חודש", NOW + dt.timedelta(days=31))[0] == "intake_draft"
+    # reject() stamps the block from the wall clock (now + block_days), not from the fixed NOW of these messages: "a month later" is
+    # counted from the later of the two, or the test turns red once the real date passes NOW (it did on 2026-10-26)
+    after = max(NOW, dt.datetime.now(UTC)) + dt.timedelta(days=31)
+    assert accept(w, PHONE, "אחרי חודש", after)[0] == "intake_draft"
     assert w.c.post(f"{API}/tickets/intake/drafts/{did}/reject", json={"revision": rev, "reason": "bogus"}, headers=w.h("joni")).status_code == 422
 
 

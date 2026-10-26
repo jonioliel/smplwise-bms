@@ -103,6 +103,28 @@ export const HOME_SCREEN_CSS = css`
     inline-size: 28px;
     padding: 0;
   }
+  /* the bubble skin: every control meets its touch dial (the layout guard: the desktop dial above 1100 px, 44 px on a touch layout) */
+  :host([data-skin='bubble']) .qa .qb,
+  :host([data-skin='bubble']) .treebtn {
+    block-size: auto;
+    min-block-size: var(--sw-touch-desktop);
+    min-inline-size: var(--sw-touch-desktop);
+  }
+  @media (max-width: 1100px) {
+    :host([data-skin='bubble']) .qa .qb,
+    :host([data-skin='bubble']) .treebtn,
+    :host([data-skin='bubble']) .pfl .segs button {
+      block-size: auto;
+      min-block-size: 44px;
+      min-inline-size: 44px;
+    }
+  }
+  /* the narrowest phone in bubble: the touch-sized actions leave the row the name only (as the landscape tablet below drops the temperature) */
+  @media (max-width: 359px) {
+    :host([data-skin='bubble']) .arow-q .arow .tm {
+      display: none;
+    }
+  }
   /* the blinds' count button opens open / stop / close beside it */
   .cmenu {
     position: absolute;
@@ -112,7 +134,7 @@ export const HOME_SCREEN_CSS = css`
     display: flex;
     gap: 4px;
     padding: 4px;
-    background: var(--sw-surface-solid, var(--sw-surface));
+    background: var(--sw-menu-surface);
     border: 1px solid var(--sw-border-strong);
     border-radius: var(--sw-r-pill);
     box-shadow: var(--sw-shadow-3);
@@ -530,8 +552,8 @@ export const HOME_SCREEN_CSS = css`
     flex-direction: column;
     gap: 8px;
     padding: 8px 14px 14px;
-    background: var(--sw-surface-solid, var(--sw-surface));
-    border-radius: 20px 20px 0 0;
+    background: var(--sw-menu-surface);
+    border-radius: var(--sw-r-lg) var(--sw-r-lg) 0 0;
     box-shadow: var(--sw-shadow-3);
     overflow-y: auto;
     overscroll-behavior: contain;

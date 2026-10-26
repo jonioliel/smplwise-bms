@@ -128,6 +128,9 @@ export function inPageCheck(args: GuardArgs): Finding[] {
     if (!matches(b, BUBBLE) || skip(b)) continue;
     const br = R(b.getBoundingClientRect());
     if (empty(br) || empty(visRect(b))) continue;
+    // a bubble that scrolls vertically itself (the home's tree fitted to the view since HOME-295) holds its rows below the fold by
+    // design: only a sideways escape is one there
+    const bScrollsY = /(auto|scroll)/.test(cs(b).overflowY);
     for (const d of scoped) {
       if (d === b || skip(d)) continue;
       const chain = ancestors(d);
@@ -138,7 +141,7 @@ export function inPageCheck(args: GuardArgs): Finding[] {
       if (cs(d).position === 'absolute' && matches(d, '.pop, .menu, [role="menu"]')) continue; // a menu opened from the bubble floats by design
       const r = R(d.getBoundingClientRect());
       if (empty(r)) continue;
-      if (r.l < br.l - 1.5 || r.r > br.r + 1.5 || r.t < br.t - 1.5 || r.b > br.b + 1.5) add('escape', d, `outside ${desc(b)} by ${Math.round(Math.max(br.l - r.l, r.r - br.r, br.t - r.t, r.b - br.b))}px`);
+      if (r.l < br.l - 1.5 || r.r > br.r + 1.5 || (!bScrollsY && (r.t < br.t - 1.5 || r.b > br.b + 1.5))) add('escape', d, `outside ${desc(b)} by ${Math.round(Math.max(br.l - r.l, r.r - br.r, br.t - r.t, r.b - br.b))}px`);
     }
   }
   // clipped text (and text in a rounded corner)

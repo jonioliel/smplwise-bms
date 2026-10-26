@@ -303,7 +303,8 @@ test.describe('phase 2b: the full queue in the player panel', () => {
       const findings: Finding[] = [];
       const run = async (ctx: string) => {
         await page.waitForTimeout(250);
-        findings.push(...(await page.evaluate(inPageCheck, { ctx, bubble: '.row.qrow, .ask, .uq, .tap, .opt', skip: '.skl, .grip', roots: [] })));
+        // within the panel: the home screen under the stage has its own `.qb` quick-action buttons since HOME-295 (not the queue's `.qb`)
+        findings.push(...(await page.evaluate(inPageCheck, { ctx, bubble: '.row.qrow, .ask, .uq, .tap, .opt', skip: '.skl, .grip', roots: [], within: 'media-player-panel' })));
       };
       // LAYOUT_QUICK=1 sweeps four widths (the loop); without it, the ten widths of the layout-bubble specs
       for (const w of process.env.LAYOUT_QUICK ? [320, 390, 820, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440]) {
