@@ -51,6 +51,18 @@ export async function openChrome(page: Page, s: ChromeScreen, theme: string, que
   await page.goto('about:blank');
   await page.goto(`/?design=a&skin=${skin}&scheme=${theme}${query}#${s.hash}`);
   await page.waitForSelector('sw-app');
+  await settledScreen(page, s);
+}
+
+/** QUARANTINE-295: moves the app that is already loaded (same skin, scheme and query) to another screen by its hash, the way the
+ * navigation does. A full document load on the Vite DEV server costs 8-11 s on a busy machine (every module is its own request), so a
+ * test that visits a dozen screens with openChrome spends its whole 60 s budget on reloads; the route change is what a person does. */
+export async function gotoChrome(page: Page, s: ChromeScreen) {
+  await page.evaluate((h) => { location.hash = h; }, s.hash);
+  await settledScreen(page, s);
+}
+
+async function settledScreen(page: Page, s: ChromeScreen) {
   await page.waitForFunction(
     (o) => {
       const el = document.querySelector('sw-app')?.shadowRoot?.querySelector(o);

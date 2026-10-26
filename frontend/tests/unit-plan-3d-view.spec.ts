@@ -23,19 +23,31 @@ async function openDemo(page: Page): Promise<Locator> {
   return el;
 }
 
-/** Wait until the view has stopped rendering (on demand: no change, damping settled). */
+/** Wait until the view has stopped rendering (on demand: no change, damping settled): no frame drawn over 10 animation frames.
+ * QUARANTINE-295: counted in the page's own animation frames, not in wall-clock time. The view draws at most one frame per
+ * animation frame and damping settles over a number of FRAMES; in SwiftShader on a loaded runner a frame can take 250 ms, so
+ * "no change across 400 ms, within 5 s" failed while damping was still (correctly) easing. */
 async function settled(el: Locator): Promise<number> {
-  let last = -1;
-  await expect
-    .poll(async () => {
-      const now = await el.evaluate((n) => (n as unknown as Probe).view.frames);
-      const same = now === last;
-      last = now;
-      return same;
-    }, { intervals: [400, 400, 400, 400, 400, 400, 400, 400, 400, 400] })
-    .toBe(true);
-  return last;
+  return el.evaluate(async (n) => {
+    const v = (n as unknown as Probe).view;
+    let last = v.frames;
+    for (let quiet = 0; quiet < 10;) {
+      await new Promise((r) => requestAnimationFrame(r));
+      if (v.frames === last) quiet++;
+      else [quiet, last] = [0, v.frames];
+    }
+    return last;
+  });
 }
+
+/** How many frames the view drew over the page's next `ticks` animation frames (continuous mode: one per animation frame). */
+const framesOver = (el: Locator, ticks: number): Promise<number> =>
+  el.evaluate(async (n, k) => {
+    const v = (n as unknown as Probe).view;
+    const f0 = v.frames;
+    for (let i = 0; i < k; i++) await new Promise((r) => requestAnimationFrame(r));
+    return v.frames - f0;
+  }, ticks);
 
 /** The demo without its entity pills (slice 1c: a pill is a DOM label standing over the point north of its entity; on
  * the small demo stage one may stand over the part a picking test clicks, and it would take the click - as the
@@ -167,7 +179,9 @@ test('frames render on demand and stop when the scene is static; continuous mode
   await expect(el).toHaveAttribute('data-frames', String(f1)); // the last count went out when the frames stopped
   await el.evaluate((n) => { (n as unknown as { continuous: boolean }).continuous = true; });
   await expect(el).toHaveAttribute('data-measure', '');
-  await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.frames)).toBeGreaterThan(f1 + 20);
+  // continuous: a frame on (nearly) every animation frame - more than 20 over 30, whatever the machine's frame rate (QUARANTINE-295:
+  // "more than 20 frames within 5 s" asked for 4 fps, which SwiftShader on a loaded runner did not reach)
+  expect(await framesOver(el, 30)).toBeGreaterThan(20);
   await expect.poll(async () => Number(await el.getAttribute('data-fps'))).toBeGreaterThan(0);
   await el.evaluate((n) => { (n as unknown as { continuous: boolean }).continuous = false; });
   const f2 = await settled(el);

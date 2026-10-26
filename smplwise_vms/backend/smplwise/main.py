@@ -329,6 +329,18 @@ def janitor_tick(db: Database, settings: Settings) -> None:
     db.checkpoint()  # PASSIVE; a TRUNCATE only when the WAL grew past its size limit and nobody writes or waits
 
 
+def warm_route_tables(app: FastAPI) -> int:
+    """Build every included router's route table now; returns the number of routes.
+
+    FastAPI (0.141) builds an included router's effective route table lazily, on the first request whose path matching walks
+    past it, and keeps it for the life of the app. With ~1570 routes the first request to a late router paid that whole build
+    (measured 2.3 s on the runner, 10 s on a busy workstation) - a one-time cost per app that has nothing to do with the route
+    that was asked for. `python -m smplwise` calls this before it listens; a test that times routes calls it before measuring."""
+    from fastapi.routing import iter_route_contexts
+
+    return sum(1 for _ in iter_route_contexts(app.router.routes))
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
     logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
