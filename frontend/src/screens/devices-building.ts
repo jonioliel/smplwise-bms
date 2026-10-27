@@ -7,6 +7,8 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-kpi';
 import { isScrollLocked } from '../components/scroll-lock';
+import './area-quick-sheet'; // AREAPOPUP-297: the area quick-control pop-up (drawer / pop-up / phone sheet)
+import { pressTarget, type Box, type QuickMode } from './area-quick-logic';
 import { elevatorsAccess, refreshElevatorsVisibility } from '../elevators/access'; // CR-INFRA-ELEVATORS: the home tiles
 import type { Elevator } from '../api/elevators';
 import { refreshTemperatureVisibility, temperatureAccess } from '../temperature/access'; // CR-INFRA-TEMPERATURE phase 3: the home widget (idea 12)
@@ -1175,9 +1177,10 @@ export class DevicesBuilding extends LitElement {
   /** The screen editor's draft of the options (saved with "שמור", like the rest of the editor). */
   @state() private screenDraft: HomeScreenForm | null = null;
   private screenBase: HomeScreenForm | null = null;
-  /** Phone: the floor tree in a bottom sheet; the area opened as a sheet / full screen (home.screen.phone_area). */
+  /** Phone: the floor tree in a bottom sheet. */
   @state() private treeSheet = false;
-  @state() private sheetArea: { id: string; name: string } | null = null;
+  /** AREAPOPUP-297: the area quick-control pop-up - the pressed area, its shape (home.screen.desktop_area / phone_area) and where it grows from. */
+  @state() private quick: { area: DeviceArea; floorName: string; mode: QuickMode; origin: Box | null } | null = null;
   /** The alert rows the viewer confirmed ("אישור"): hidden until the alarm clears and triggers again. */
   @state() private acked: string[] = [];
   /** The area whose blinds' open / stop / close choice is open (tile_blinds = pct). */
@@ -2932,6 +2935,7 @@ export class DevicesBuilding extends LitElement {
       ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.lay.renderPanel()}
       ${this.renderSheets(t)}
+      ${this.renderQuickSheet()}
       <devices-tiles-panel ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
     </sw-page>`;
   }
@@ -3361,17 +3365,42 @@ export class DevicesBuilding extends LitElement {
     return at ? timeText(new Date(at)) : '–';
   }
 
-  /** An area link: on a phone with phone_area = sheet the area opens in a sheet over the home screen; otherwise the link navigates. */
-  private onAreaLink(e: MouseEvent, id: string, name: string) {
-    if (!this.isPhone || this.lay.editing || this.screen.phone_area !== 'sheet' || e.defaultPrevented || e.metaKey || e.ctrlKey || e.button !== 0) return;
+  /** An area link (AREAPOPUP-297): the press opens the quick-control pop-up - a phone's bottom sheet (phone_area = sheet), the desktop's side
+   * drawer or pop-up (desktop_area) - growing out of the pressed element; otherwise (the "screen" choices, a modifier key) the link navigates. */
+  private onAreaLink(e: MouseEvent, id: string, _name: string) {
+    if (this.lay.editing || e.defaultPrevented || e.metaKey || e.ctrlKey || e.button !== 0) return;
+    const mode = pressTarget(this.isPhone, this.screen.phone_area, this.screen.desktop_area);
+    if (mode === 'screen') return;
+    const found = this.findArea(id);
+    if (!found) return;
     e.preventDefault();
+    const el = (e.currentTarget as HTMLElement | null) ?? (e.target as HTMLElement | null);
+    const r = el?.getBoundingClientRect();
     this.treeSheet = false;
-    this.sheetArea = { id, name };
+    this.openQuick(found.area, found.floorName, mode, r ? { x: r.left, y: r.top, w: r.width, h: r.height } : null);
+  }
+
+  private findArea(id: string): { area: DeviceArea; floorName: string } | null {
+    for (const f of this.tree?.floors ?? []) for (const a of f.areas) if (a.area_id === id) return { area: a, floorName: f.floor_id === 'none' ? '' : f.name };
+    return null;
+  }
+
+  private openQuick(area: DeviceArea, floorName: string, mode: QuickMode, origin: Box | null) {
+    this.quick = { area, floorName, mode, origin };
   }
 
   private openArea(a: { area_id: string; name: string }) {
-    if (this.isPhone && this.screen.phone_area === 'sheet') this.sheetArea = { id: a.area_id, name: a.name };
+    const mode = pressTarget(this.isPhone, this.screen.phone_area, this.screen.desktop_area);
+    const found = mode === 'screen' ? null : this.findArea(a.area_id);
+    if (found && mode !== 'screen') this.openQuick(found.area, found.floorName, mode, null);
     else location.hash = `#/devices/areas/${encodeURIComponent(a.area_id)}`;
+  }
+
+  /** The pop-up's group action: the same confirmation dialog as the tiles and the tree (the server authorises it again). */
+  private onQuickBulk(e: CustomEvent<{ kind: BulkKind; position?: number; area: DeviceArea }>) {
+    const { kind, position, area } = e.detail;
+    if (!this.bulkAllowed || area.can_bulk !== true) return;
+    void this.dialog?.show({ scope: 'area', id: area.area_id, name: area.name, kind, position });
   }
 
   /** A quick action pressed: a bulk action through the confirmation dialog (the server authorises it again) - or, for a viewer without
@@ -3478,8 +3507,7 @@ export class DevicesBuilding extends LitElement {
     </div>`;
   }
 
-  /** The phone's sheets: the floor tree, and an area opened over the home screen (phone_area = sheet; `full` opens the area's own
-   * full screen - its route - so this draws no sheet then). */
+  /** The phone's sheet: the floor tree (an area opens in the quick-control sheet, AREAPOPUP-297). */
   private renderSheets(t: DeviceTree) {
     if (!this.isPhone) return nothing;
     if (this.treeSheet) {
@@ -3491,15 +3519,16 @@ export class DevicesBuilding extends LitElement {
           ${this.renderTreePanel(t)}
         </div>`;
     }
-    const a = this.sheetArea;
-    if (!a) return nothing;
-    const full = this.screen.phone_area === 'full';
-    return html`${full ? nothing : html`<div class="scrim" @click=${() => (this.sheetArea = null)}></div>`}
-      <div class=${classMap({ hsheet: true, full })} role="dialog" aria-modal="true" aria-label=${a.name} data-area-sheet=${a.id} data-area-sheet-mode=${full ? 'full' : 'sheet'}>
-        ${full ? nothing : html`<div class="grab" aria-hidden="true"></div>`}
-        <div class="sh"><b>${bidi(a.name)}</b><button type="button" class="x" data-area-sheet-close aria-label=${hs('close')} @click=${() => (this.sheetArea = null)}><sw-icon name="close" size=${15}></sw-icon></button></div>
-        <devices-area .areaId=${a.id}></devices-area>
-      </div>`;
+    return nothing;
+  }
+
+  /** AREAPOPUP-297: the one quick-control element of the screen (closed = out of the way; the same element serves every area). */
+  private renderQuickSheet() {
+    const q = this.quick;
+    const live = q ? (this.findArea(q.area.area_id)?.area ?? q.area) : null; // the tree's fresh counts while it is open
+    const it = q ? this.lay.item(`area:${q.area.area_id}`) : undefined;
+    return html`<area-quick-sheet data-area-quick=${q?.area.area_id ?? nothing} .area=${live} .floorName=${q?.floorName ?? ''} .icon=${it?.icon ?? 'home'} .mode=${q?.mode ?? 'drawer'} ?open=${!!q}
+      .origin=${q?.origin ?? null} ?canBulk=${this.bulkAllowed} ?offline=${this.offline} @close=${() => (this.quick = null)} @area-bulk=${this.onQuickBulk}></area-quick-sheet>`;
   }
 
   private renderTile(a: DeviceArea, unassigned = false) {

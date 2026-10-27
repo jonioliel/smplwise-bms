@@ -13,6 +13,8 @@ present). Every choice the owner answered is only the DEFAULT; each one is a key
   tile_blinds       pct (default: one button with the open count, a tap offers open / stop / close) | buttons (open and close)
   tile_climate      both (default: the target on the button, the room temperature in the header) | target | room
   phone_area        sheet (default) | full - how an area opens on a phone (a user may choose his own, home.personal.screen)
+  desktop_area      drawer (default) | popup | screen - how an area opens on a desktop / tablet (AREAPOPUP-297): the quick-control
+                    side drawer, the quick-control pop-up that grows out of the pressed tile, or the area's own screen as before
   floor_off         menu (default: one "turn off floor" button with a menu) | buttons (two direct buttons: lights / everything)
   many_floors       more (default: four floor cards, the rest through "more floors" in the tree) | tree_scroll (the tree lists every
                     floor and scrolls inside its own panel)
@@ -45,6 +47,7 @@ CHOICES: dict[str, tuple[str, ...]] = {
     "tile_blinds": ("pct", "buttons"),
     "tile_climate": ("both", "target", "room"),
     "phone_area": ("sheet", "full"),
+    "desktop_area": ("drawer", "popup", "screen"),
     "floor_off": ("menu", "buttons"),
     "many_floors": ("more", "tree_scroll"),
     "building_off_tablet": ("hide", "keep"),
@@ -60,6 +63,7 @@ DEFAULT: dict[str, Any] = {
     "tile_blinds": "pct",
     "tile_climate": "both",
     "phone_area": "sheet",
+    "desktop_area": "drawer",
     "floor_off": "menu",
     "many_floors": "more",
     "building_off_tablet": "hide",
