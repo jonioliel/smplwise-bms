@@ -124,11 +124,25 @@ export class SwTabs extends LitElement {
       font-weight: var(--sw-fw-medium);
       cursor: pointer;
       white-space: nowrap;
-      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+      transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
     }
-    a:hover,
-    button:hover {
-      color: var(--sw-text);
+    /* POLISH-CLASSIC-DOMUS-297 (mobile-native): hover only under a hovering pointer */
+    @media (hover: hover) and (pointer: fine) {
+      a:hover,
+      button:hover {
+        color: var(--sw-text);
+      }
+    }
+    .lbl {
+      transition: background var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+    }
+    a:active .lbl,
+    button:active .lbl {
+      transform: scale(var(--sw-press-scale));
     }
     a:focus-visible,
     button:focus-visible {
@@ -157,6 +171,7 @@ export class SwTabs extends LitElement {
     .count {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+      font-variant-numeric: tabular-nums;
     }
     .on .count {
       color: var(--sw-accent-text);

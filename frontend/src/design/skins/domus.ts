@@ -1,5 +1,6 @@
 import { lt, same, type TokenTable } from '../tokens';
 import type { Skin } from './index';
+import { POLISH_MOTION_TOKENS } from './polish-motion';
 
 /** Skin "hi-tech Domus": coloured canvas with a warm and a cool bloom, three glass levels, big titles, round shapes. Values from the approved package. */
 const tokens: TokenTable = {
@@ -84,7 +85,8 @@ const tokens: TokenTable = {
   '--sw-circuit-4': lt('#9a55f0', '#c084fc'),
   '--sw-circuit-5': lt('#d93838', '#ff6b62'),
   '--sw-circuit-6': lt('#12a39a', '#2dd4bf'),
-  '--sw-fs-2xs': same('10.5px'),
+  // POLISH-CLASSIC-DOMUS-297 (audit finding 8, taste-skill type floor): the smallest tier was 10.5 px, under the 11 px label floor
+  '--sw-fs-2xs': same('11px'),
   '--sw-fs-xs': same('12px'),
   '--sw-fs-base': same('13.5px'),
   '--sw-fs-lg': same('15.5px'),
@@ -115,8 +117,12 @@ const tokens: TokenTable = {
   '--sw-glass-sheen': lt('linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.08) 46%)', 'linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,0) 46%)'),
   '--sw-t-med': same('220ms'),
   '--sw-ease': same('cubic-bezier(.2, 0, 0, 1)'),
-  '--sw-ease-thumb': same('cubic-bezier(.34, 1.3, .64, 1)'),
+  // POLISH-CLASSIC-DOMUS-297 (impeccable detector "bounce easing"; apple-design: a sheet lands critically damped): the switch now rides
+  // --sw-spring-toggle, so this curve only drives the phone sheet's rise - the iOS drawer curve, no overshoot
+  '--sw-ease-thumb': same('cubic-bezier(0.32, 0.72, 0, 1)'),
   '--sw-hover-lift': same('-2px'),
+  // POLISH-CLASSIC-DOMUS-297: press feedback, the switch spring and the dialog landing (polish-motion.ts); the domus 220 ms stays
+  ...POLISH_MOTION_TOKENS,
 };
 
 const rules = `
@@ -163,6 +169,19 @@ const rules = `
 /* domus 10 - the settings navigation column: pill links, the current one lifted like a tab */
 :host(system-nav) a { border-radius: var(--sw-r-pill); }
 :host(system-nav) a[aria-current='page'] { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-thumb); }
+/* domus 11 (POLISH-CLASSIC-DOMUS-297) - the bevel finished: a lower dark edge under the light top edge, and a press that sinks the key */
+:host(sw-button:not([variant='ghost'])) button, :host(sw-chip) button { box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 -1px 0 rgba(15, 23, 42, 0.06); }
+:host(sw-button[variant='primary']) button, :host(sw-chip[selected]) button { box-shadow: 0 6px 16px color-mix(in srgb, var(--sw-accent) 30%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.12); }
+:host(sw-button) button:active:not(:disabled), :host(sw-chip) button:active:not(:disabled) { box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.14); }
+:host(sw-button[variant='primary']) button:active:not(:disabled), :host(sw-chip[selected]) button:active:not(:disabled) { box-shadow: 0 2px 6px color-mix(in srgb, var(--sw-accent) 24%, transparent), inset 0 2px 4px rgba(0, 0, 0, 0.22); }
+/* domus 12 - fields: a soft well at rest, a glow of the accent on focus; the switch track is a well too */
+::slotted(input:not([type='checkbox']):not([type='radio']):not([type='range'])), ::slotted(textarea) { box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06); }
+::slotted(input:focus), ::slotted(select:focus), ::slotted(textarea:focus) { box-shadow: 0 0 0 4px color-mix(in srgb, var(--sw-accent) 20%, transparent); }
+:host(sw-toggle) button { box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.16); }
+/* domus 13 - the dialog and the drawer carry the glass edge; the table header reads as a quiet caption row */
+:host(sw-dialog) .box, :host(sw-drawer) .panel { box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); border: 1px solid var(--sw-border); }
+:host(sw-table) th { color: var(--sw-text-2); }
+:host(sw-table) td { font-variant-numeric: tabular-nums; }
 `;
 
 export const domus: Skin = { id: 'domus', name: 'hi-tech Domus', nameHe: 'הייטק Domus', noteHe: 'זכוכית על רקע צבעוני, פינות עגולות, כותרות גדולות', stage: 'stable', features: { material: true, bevel: true, pixelEdge: true, glass: true }, tokens, rules };

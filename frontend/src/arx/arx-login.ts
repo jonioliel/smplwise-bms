@@ -90,7 +90,8 @@ export class ArxLogin extends LitElement {
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-lg);
-      box-shadow: var(--sw-shadow-3);
+      /* POLISH-CLASSIC-DOMUS-297: the card is the one floating object on the page - the floating shadow and the 1 px top edge */
+      box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight);
       padding: 28px 24px 22px;
       display: flex;
       flex-direction: column;
@@ -145,8 +146,10 @@ export class ArxLogin extends LitElement {
     }
     h1 {
       margin: 0;
-      font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      letter-spacing: -0.01em;
     }
     .sub {
       margin: 4px 0 0;
@@ -178,11 +181,13 @@ export class ArxLogin extends LitElement {
       color: var(--sw-text);
       box-sizing: border-box;
       inline-size: 100%;
+      transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color);
     }
     input:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 1px;
+      outline: none;
       border-color: var(--sw-accent);
+      /* the same focus as every field of the product (sw-field): the accent outline and a soft halo */
+      box-shadow: 0 0 0 3px var(--sw-accent-soft), 0 0 0 1px var(--sw-accent);
     }
     input.ltr {
       direction: ltr;
@@ -204,10 +209,23 @@ export class ArxLogin extends LitElement {
       font-weight: var(--sw-fw-semibold);
       font-size: var(--sw-fs-md);
       cursor: pointer;
-      transition: background var(--sw-t-fast) var(--sw-ease);
+      box-shadow: var(--sw-shadow-primary);
+      transition: background var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
-    button:hover:not(:disabled) {
+    button:not(.link):active:not(:disabled) {
+      transform: scale(var(--sw-press-scale));
       background: var(--sw-accent-hover, var(--sw-accent));
+    }
+    button:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      button:hover:not(:disabled) {
+        background: var(--sw-accent-hover, var(--sw-accent));
+      }
     }
     button:disabled {
       opacity: 0.6;
@@ -221,6 +239,7 @@ export class ArxLogin extends LitElement {
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium);
       align-self: center;
+      box-shadow: none;
     }
     .msg {
       border-radius: var(--sw-r-md);
@@ -232,7 +251,7 @@ export class ArxLogin extends LitElement {
     }
     .msg.error {
       background: var(--sw-danger-soft);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .foot {
       border-block-start: 1px solid var(--sw-border);

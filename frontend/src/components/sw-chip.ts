@@ -16,8 +16,23 @@ export class SwChip extends LitElement {
   static styles = css`
     :host {
       display: inline-flex;
+      /* break-ui (POLISH-CLASSIC-DOMUS-297): a long label (an e-mail, a long area name) ends in an ellipsis inside its container
+         instead of running out of the card; the count and the dot never shrink */
+      max-inline-size: 100%;
+      min-inline-size: 0;
+    }
+    .t {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .count,
+    sw-icon {
+      flex-shrink: 0;
     }
     button {
+      max-inline-size: 100%;
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -33,10 +48,31 @@ export class SwChip extends LitElement {
       cursor: pointer;
       white-space: nowrap;
       box-shadow: var(--sw-shadow-1);
-      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
+      /* POLISH-CLASSIC-DOMUS-297: colour on the hover curve, press feedback on transform (1 = none in a skin that sets no scale) */
+      transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
     }
-    button:hover {
-      background: var(--sw-surface-2);
+    @media (hover: hover) and (pointer: fine) {
+      button:hover:not(:disabled) {
+        background: var(--sw-surface-2);
+      }
+      :host([selected]) button:hover:not(:disabled) {
+        background: var(--sw-accent-hover);
+        border-color: var(--sw-accent-hover);
+      }
+    }
+    button:active:not(:disabled) {
+      transform: scale(var(--sw-press-scale));
+    }
+    button:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    .count {
+      font-variant-numeric: tabular-nums;
     }
     :host([selected]) button {
       background: var(--sw-accent);
@@ -76,7 +112,7 @@ export class SwChip extends LitElement {
       <button type="button" class="sw-hit" aria-pressed=${this.selected} ?disabled=${this.disabled}>
         ${this.dot ? html`<span class="d" style="--dot:${this.dot}"></span>` : ''}
         ${this.icon ? html`<sw-icon .name=${this.icon} size=${13}></sw-icon>` : ''}
-        <slot></slot>
+        <span class="t"><slot></slot></span>
         ${this.count !== undefined ? html`<span class="count">(${this.count})</span>` : ''}
       </button>
     `;

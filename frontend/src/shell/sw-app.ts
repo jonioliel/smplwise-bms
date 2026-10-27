@@ -997,6 +997,16 @@ export class SwApp extends LitElement {
       font-size: var(--sw-fs-sm);
       box-shadow: var(--sw-shadow-3);
       max-inline-size: calc(100vw - 32px);
+      /* POLISH-CLASSIC-DOMUS-297: the notice rises 8 px into place with opacity (it enters from the edge it lives on) */
+      opacity: 1;
+      translate: 0 0;
+      transition: opacity var(--sw-t-toast) var(--sw-ease), translate var(--sw-t-toast) var(--sw-ease);
+    }
+    @starting-style {
+      .perm-toast {
+        opacity: 0;
+        translate: 0 8px;
+      }
     }
     .sysbanner {
       position: fixed;

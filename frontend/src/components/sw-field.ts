@@ -52,7 +52,28 @@ export class SwField extends LitElement {
       color: var(--sw-text);
       font: inherit;
       font-size: var(--sw-fs-sm);
-      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+      transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), background var(--sw-t-hover) var(--sw-ease-color);
+    }
+    /* POLISH-CLASSIC-DOMUS-297 (impeccable harden: every control state): hover where a pointer hovers, a disabled field that reads
+       as unavailable, a field the person left wrong in the danger outline */
+    @media (hover: hover) and (pointer: fine) {
+      ::slotted(input:hover:not(:focus):not(:disabled)),
+      ::slotted(select:hover:not(:focus):not(:disabled)),
+      ::slotted(textarea:hover:not(:focus):not(:disabled)) {
+        border-color: color-mix(in srgb, var(--sw-text-3) 45%, var(--sw-border-strong));
+      }
+    }
+    ::slotted(input:disabled),
+    ::slotted(select:disabled),
+    ::slotted(textarea:disabled) {
+      background: var(--sw-surface-3);
+      color: var(--sw-text-3);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    ::slotted(input:user-invalid),
+    ::slotted(textarea:user-invalid) {
+      border-color: var(--sw-danger);
     }
     ::slotted(input:focus),
     ::slotted(select:focus),
@@ -67,6 +88,8 @@ export class SwField extends LitElement {
       ::slotted(select),
       ::slotted(textarea) {
         min-block-size: 44px; /* UXFIX-A11Y-295: 44 px touch target (was 40) */
+        /* POLISH-CLASSIC-DOMUS-297 (mobile-native): under 16 px the phone zooms the page into the field and never zooms back */
+        font-size: max(16px, var(--sw-fs-sm));
       }
     }
     /* ---- DROPDOWNFIT-295: the capsule select. The metrics are the sw-dropdown capsule's (--_c*, copied from sw-dropdown.ts, held equal by

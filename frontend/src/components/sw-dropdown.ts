@@ -144,7 +144,15 @@ export class SwDropdown extends LitElement {
       font-weight: var(--sw-fw-semibold);
       cursor: pointer;
       box-shadow: var(--sw-dd-shadow, var(--sw-shadow-1));
-      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
+      /* POLISH-CLASSIC-DOMUS-297: colour on the hover curve, the same small press as a button (1 = none where a skin sets no scale) */
+      transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .chip:active {
+      transform: scale(var(--sw-press-scale));
     }
     /* the 44 px target: the chip stays 32 px and the hit area grows into the row's padding (the shell's floating-button trick) */
     .chip::after {
@@ -153,8 +161,10 @@ export class SwDropdown extends LitElement {
       inset-inline: -4px;
       inset-block: -7px;
     }
-    .chip:hover {
-      background: var(--sw-dd-hover, var(--sw-surface-2));
+    @media (hover: hover) and (pointer: fine) {
+      .chip:hover {
+        background: var(--sw-dd-hover, var(--sw-surface-2));
+      }
     }
     .chip:focus-visible,
     .opt:focus-visible {
@@ -228,7 +238,19 @@ export class SwDropdown extends LitElement {
       box-shadow: var(--sw-shadow-3);
       outline: none;
       opacity: 1;
+      /* the list grows out of its chip (emil-design-eng: origin-aware, from 97 %, never from nothing) */
       transition: opacity var(--sw-t-fast) var(--sw-ease);
+    }
+    /* the desktop list only (the phone sheet and the centred box have their own travel and a finger-driven drag) */
+    .pop:not(.sheet):not(.centred) {
+      transform-origin: top center;
+      transition: opacity var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+    }
+    @starting-style {
+      .pop:not([hidden]):not(.sheet):not(.centred) {
+        opacity: 0;
+        transform: scale(0.97) translateY(-4px);
+      }
     }
     .pop[hidden] {
       display: none !important;

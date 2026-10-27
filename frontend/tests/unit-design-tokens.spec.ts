@@ -37,8 +37,11 @@ test('the colours of the shell exist for both schemes: surfaces, text, accent, e
 test('skins: registered ids, overrides carry both columns and name existing tokens, rules stay inside the budget', () => {
   expect([...SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'bubble', 'crystal', 'infra', 'soft']);
   expect(DEFAULT_SKIN).toBe('classic');
-  expect(SKINS.classic.tokens).toEqual({});
-  expect(SKINS.classic.rules).toBe('');
+  // POLISH-CLASSIC-DOMUS-297 (round 4): classic carries its own polish layer (skins/classic.ts) so the base table the other skins
+  // inherit from stays where it was; it never moves a size (density / type / control heights are not overridden)
+  expect(Object.keys(SKINS.classic.tokens).length).toBeGreaterThan(0);
+  for (const n of Object.keys(SKINS.classic.tokens)) expect(n, 'classic polish moves no size').not.toMatch(/^--sw-(fs-|ctl-h|page-pad|rail-w|touch|s-\d|gap|h1$)/);
+  expect(ruleCount(SKINS.classic.rules)).toBeGreaterThan(0);
   for (const id of SKIN_IDS) {
     const s = SKINS[id];
     expect(s.id).toBe(id);
@@ -123,13 +126,13 @@ test('the generated CSS: light on :root, dark on [data-theme=dark] and on the OS
   expect(css).toContain(':root[data-skin="domus"]{');
   expect(css).toContain(':root[data-skin="domus"][data-theme="dark"]{');
   expect(css).toContain(':root[data-skin="tesla"][data-theme="dark"]{');
-  expect(css).not.toContain('data-skin="classic"'); // classic is the base: no block
+  expect(css).toContain(':root[data-skin="classic"]{'); // POLISH-CLASSIC-DOMUS-297: classic's polish layer on top of the base
   expect(css).toContain('prefers-reduced-motion: reduce');
   expect(css).not.toMatch(/undefined|\[object/);
   // the light block holds every token
   const light = css.slice(css.indexOf(':root{'), css.indexOf('}\n', css.indexOf(':root{')));
   for (const n of TOKEN_NAMES) expect(light, n).toContain(`${n}:`);
-  expect(skinRules('classic')).toBe('');
+  expect(skinRules('classic')).toBe(SKINS.classic.rules); // classic: its own rules, no material layer
 });
 
 // ---- contrast: text on its solid surface, per skin and scheme (the glass surfaces are checked through their solid twins) ----

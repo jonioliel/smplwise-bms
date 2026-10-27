@@ -69,9 +69,12 @@ export class SwKpi extends LitElement {
       color: var(--sw-stale);
     }
     /* POLISH-295: a screen may colour a counter that has something on by its kind (--sw-kpi-on-bg / --sw-kpi-on-fg, tokens only) */
+    /* POLISH-CLASSIC-DOMUS-297 (audit finding 3, owner "no green outside status meaning"): "all is well" no longer paints the tile's
+       icon green - the healthy state is the quiet one; its word below (the detail line) still carries the status colour. A screen
+       that colours a counter by its kind keeps doing so through --sw-kpi-on-bg / --sw-kpi-on-fg. */
     :host([tone='live']) .icon {
-      background: var(--sw-kpi-on-bg, var(--sw-live-soft));
-      color: var(--sw-kpi-on-fg, var(--sw-success-text));
+      background: var(--sw-kpi-on-bg, var(--sw-surface-3));
+      color: var(--sw-kpi-on-fg, var(--sw-text-2));
     }
     .txt {
       min-inline-size: 0;
@@ -84,8 +87,9 @@ export class SwKpi extends LitElement {
       font-size: var(--sw-fs-2xl);
       font-weight: var(--sw-fw-bold);
       line-height: 1.1;
-      letter-spacing: -0.01em;
+      letter-spacing: -0.02em;
       font-variant-numeric: tabular-nums;
+      color: var(--sw-heading);
     }
     .label {
       font-size: var(--sw-fs-xs);
@@ -105,7 +109,7 @@ export class SwKpi extends LitElement {
     }
     :host([tone='error']) .detail,
     :host([tone='offline']) .detail {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text); /* the ink of the status, not its bare dot colour (3.8:1 on white) */
     }
     :host([tone='neutral']) .detail {
       color: var(--sw-text-3);

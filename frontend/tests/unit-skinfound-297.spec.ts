@@ -14,6 +14,9 @@ import { INFRA_TOKENS } from '../src/design/skins/infra';
 
 const ARX = ['infra', 'soft'] as const;
 const OTHERS = SKIN_IDS.filter((id) => !(ARX as readonly string[]).includes(id));
+// POLISH-CLASSIC-DOMUS-297 (round 4): the two main skins carry their own motion layer (skins/polish-motion.ts); the rest stay neutral
+const POLISHED = ['classic', 'domus'] as const;
+const NEUTRAL = OTHERS.filter((id) => !(POLISHED as readonly string[]).includes(id));
 const SCHEMES = ['light', 'dark'] as const;
 const MOTION_NAMES = Object.keys(ARX_MOTION_TOKENS).filter((n) => !['--sw-t-fast', '--sw-t-med', '--sw-t-sheet', '--sw-t-state', '--sw-ease', '--sw-ease-thumb'].includes(n));
 
@@ -180,7 +183,7 @@ test('motion: the Arx names are neutral in the base (classic and every other ski
   expect(TOKENS['--sw-enter-y'].light).toBe('0px');
   expect(TOKENS['--sw-stagger'].light).toBe('0ms');
   // no other skin sets an Arx motion name: their merged table carries the neutral base values
-  for (const id of OTHERS) for (const n of MOTION_NAMES) expect(SKINS[id].tokens[n], `${id} must not set ${n}`).toBeUndefined();
+  for (const id of NEUTRAL) for (const n of MOTION_NAMES) expect(SKINS[id].tokens[n], `${id} must not set ${n}`).toBeUndefined();
   // the Arx skins carry round 2 (r2.css §1)
   for (const id of ARX) {
     const t = skinTable(id);
@@ -209,7 +212,7 @@ test('motion: the Arx names are neutral in the base (classic and every other ski
 });
 
 test('nothing changes for a skin that is not picked: the other skins\' tables carry no Arx value except the new neutral names', () => {
-  for (const id of OTHERS) {
+  for (const id of NEUTRAL) {
     const t = skinTable(id);
     // the merged table = the base + the skin's own overrides; the new names resolve to the base (neutral) value
     for (const n of [...MOTION_NAMES, '--sw-gap-lg', '--sw-page-pad-phone', '--sw-fs-4xl', '--sw-lh-tight']) {
@@ -221,8 +224,9 @@ test('nothing changes for a skin that is not picked: the other skins\' tables ca
   expect(TOKENS['--sw-t-med'].light).toBe('200ms');
   expect(TOKENS['--sw-ease'].light).toBe('cubic-bezier(0.2, 0, 0, 1)');
   expect(TOKENS['--sw-touch'].light).toBe('36px');
-  expect(SKINS.classic.tokens).toEqual({});
-  expect(SKINS.classic.rules).toBe('');
+  // classic's polish layer moves no size and no density (POLISH-CLASSIC-DOMUS-297)
+  for (const n of ['--sw-touch', '--sw-gap-lg', '--sw-page-pad-phone', '--sw-fs-4xl', '--sw-lh-tight', '--sw-t-fast', '--sw-t-med']) expect(SKINS.classic.tokens[n], n).toBeUndefined();
+  for (const id of POLISHED) expect(skinTable(id)['--sw-press-scale'].light, id).toBe('0.97');
 });
 
 test('logos: the Arx skins never restyle or hide the SmplWise mark, the corner strip or the installation logo slot', () => {

@@ -33,6 +33,21 @@ export class SwDialog extends LitElement {
       place-items: center;
       /* standalone: keep the box clear of the notch and the home indicator */
       padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+      /* POLISH-CLASSIC-DOMUS-297 (apple-design "dim to focus", emil-design-eng "nothing appears from nothing"): the scrim fades in and
+         the box lands from 96 % with opacity on the dialog spring. Centred (a modal is not anchored to a trigger). Reduced motion zeroes
+         the durations (css.ts); a browser without @starting-style simply shows the dialog, as before. */
+      opacity: 1;
+      transition: opacity var(--sw-t-slow) var(--sw-ease);
+      overscroll-behavior: contain;
+    }
+    @starting-style {
+      .backdrop {
+        opacity: 0;
+      }
+      .box {
+        opacity: 0;
+        transform: scale(0.96) translateY(6px);
+      }
     }
     .box {
       inline-size: min(440px, 100%);
@@ -45,6 +60,9 @@ export class SwDialog extends LitElement {
       /* set only inside a device screen in the glass style (CR-007 6a, devices-style.ts); none everywhere else */
       backdrop-filter: var(--sw-glass-blur);
       -webkit-backdrop-filter: var(--sw-glass-blur);
+      opacity: 1;
+      transform: none;
+      transition: opacity var(--sw-t-sheet) var(--sw-ease), transform var(--sw-spring-dialog-ms) var(--sw-spring-dialog);
     }
     :host([wide]) .box {
       inline-size: min(720px, 100%);
@@ -69,6 +87,9 @@ export class SwDialog extends LitElement {
       margin: 0;
       font-size: var(--sw-fs-lg);
       font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+      letter-spacing: -0.01em;
+      text-wrap: balance;
     }
     .sub {
       color: var(--sw-text-3);

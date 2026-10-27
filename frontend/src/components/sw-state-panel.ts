@@ -44,8 +44,12 @@ export class SwStatePanel extends LitElement {
       padding: var(--sw-s-8) var(--sw-s-4);
       color: var(--sw-text-2);
       min-block-size: 220px;
+      /* POLISH-CLASSIC-DOMUS-297 (impeccable harden; audit finding 10: the state sat 120 px from the top of an empty page): in a
+         column with room to spare the panel takes the middle of it; in a block parent the auto margins do nothing */
+      margin-block: auto;
     }
     :host([compact]) {
+      margin-block: 0;
       min-block-size: 0;
       padding: var(--sw-s-4);
       flex-direction: row;
@@ -60,6 +64,15 @@ export class SwStatePanel extends LitElement {
       border-radius: var(--sw-r-lg);
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
+      /* a hairline of its own ink: the tile reads as an object, not a smudge of tint */
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
+      position: relative;
+    }
+    /* the neutral states (empty, loading) are quiet: no accent tile for "nothing here" (colour is for action and status) */
+    :host([state='empty']) .icon,
+    :host([state='loading']) .icon {
+      background: var(--sw-surface-3);
+      color: var(--sw-text-3);
     }
     :host([compact]) .icon {
       inline-size: 34px;
@@ -80,14 +93,30 @@ export class SwStatePanel extends LitElement {
       background: var(--sw-stale-soft);
       color: var(--sw-stale);
     }
+    /* loading: the icon stays still (a spinning clock read as a broken clock); an arc runs round the tile instead (emil-design-eng:
+       a quick spinner reads as a quicker load) */
     :host([state='loading']) .icon {
-      animation: spin 1.2s linear infinite;
+      border-radius: 50%;
+    }
+    :host([state='loading']) .icon::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      border-block-start-color: var(--sw-accent);
+      animation: spin 0.8s linear infinite;
     }
     h4 {
       margin: 0;
-      font-size: var(--sw-fs-md);
+      font-size: var(--sw-fs-lg);
       font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text);
+      color: var(--sw-heading);
+      letter-spacing: -0.005em;
+      text-wrap: balance;
+    }
+    :host([compact]) h4 {
+      font-size: var(--sw-fs-md);
     }
     p {
       margin: 0;
@@ -106,8 +135,8 @@ export class SwStatePanel extends LitElement {
       }
     }
     @media (prefers-reduced-motion: reduce) {
-      :host([state='loading']) .icon {
-        animation: none;
+      :host([state='loading']) .icon::after {
+        animation-duration: 2.4s;
       }
     }
   `;

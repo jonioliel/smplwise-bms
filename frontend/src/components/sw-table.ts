@@ -114,10 +114,16 @@ export class SwTable extends LitElement {
       z-index: 1;
     }
     tbody tr {
-      transition: background var(--sw-t-fast) var(--sw-ease);
+      transition: background var(--sw-t-hover) var(--sw-ease-color);
     }
-    tbody tr:hover {
-      background: var(--sw-surface-2);
+    /* POLISH-CLASSIC-DOMUS-297 (mobile-native): the row tint follows a hovering pointer only; on touch a tapped row stayed tinted */
+    @media (hover: hover) and (pointer: fine) {
+      tbody tr:hover {
+        background: var(--sw-surface-2);
+      }
+    }
+    tbody tr.clickable:active {
+      background: var(--sw-surface-3);
     }
     tbody tr.selected {
       background: var(--sw-accent-soft);

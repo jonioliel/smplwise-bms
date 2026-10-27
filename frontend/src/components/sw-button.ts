@@ -45,13 +45,45 @@ export class SwButton extends LitElement {
       font-weight: var(--sw-fw-medium);
       line-height: 1;
       cursor: pointer;
-      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+      /* POLISH-CLASSIC-DOMUS-297: colour on the hover curve, the press on the press curve (emil-design-eng: name the properties,
+         transform for feedback). --sw-press-scale is 1 in a skin that sets no press feedback, so nothing moves there. */
+      transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
       white-space: nowrap;
       color: var(--sw-text);
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-1);
+      /* mobile-native: no grey tap flash, no 300 ms wait, a long press does not select the label */
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
     }
-    button:hover {
+    button:active:not(:disabled) {
+      transform: scale(var(--sw-press-scale));
+    }
+    button:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    /* hover only where a pointer can hover (mobile-native: a tapped button kept its hover tint on a phone) */
+    @media (hover: hover) and (pointer: fine) {
+      button:hover:not(:disabled) {
+        background: var(--sw-surface-2);
+      }
+      :host([variant='primary']) button:hover:not(:disabled) {
+        background: var(--sw-accent-hover);
+        border-color: var(--sw-accent-hover);
+      }
+      :host([variant='ghost']) button:hover:not(:disabled) {
+        background: var(--sw-surface-3);
+        color: var(--sw-text);
+      }
+      :host([variant='danger']) button:hover:not(:disabled) {
+        background: var(--sw-danger-soft);
+      }
+    }
+    /* the press wash where there is no hover (touch): the state is visible under the finger */
+    button:active:not(:disabled) {
       background: var(--sw-surface-2);
     }
     :host([size='sm']) button {
@@ -72,7 +104,7 @@ export class SwButton extends LitElement {
       color: var(--sw-text-inverse);
       box-shadow: var(--sw-shadow-primary);
     }
-    :host([variant='primary']) button:hover {
+    :host([variant='primary']) button:active:not(:disabled) {
       background: var(--sw-accent-hover);
       border-color: var(--sw-accent-hover);
     }
@@ -82,21 +114,24 @@ export class SwButton extends LitElement {
       box-shadow: none;
       color: var(--sw-text-2);
     }
-    :host([variant='ghost']) button:hover {
+    :host([variant='ghost']) button:active:not(:disabled) {
       background: var(--sw-surface-3);
       color: var(--sw-text);
     }
     :host([variant='danger']) button {
       background: var(--sw-surface);
       border-color: var(--sw-danger);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
-    :host([variant='danger']) button:hover {
+    :host([variant='danger']) button:active:not(:disabled) {
       background: var(--sw-danger-soft);
     }
-    :host([disabled]) button {
+    /* disabled keeps its shape and fades; it never lifts, presses or casts a shadow (it read as "enabled but pale") */
+    :host([disabled]) button,
+    :host([disabled][variant]) button {
       cursor: not-allowed;
       opacity: var(--sw-disabled-opacity);
+      box-shadow: none;
     }
     :host([icononly]) button {
       inline-size: var(--sw-ctl-h-md);

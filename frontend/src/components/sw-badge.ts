@@ -40,6 +40,15 @@ export class SwBadge extends LitElement {
       color: var(--sw-text-2);
       border: 1px solid transparent;
       white-space: nowrap;
+      /* break-ui (POLISH-CLASSIC-DOMUS-297): a long label stays inside its row (ellipsis; the full text is the title) */
+      max-inline-size: 100%;
+      min-inline-size: 0;
+      box-sizing: border-box;
+    }
+    .t {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     :host([onimage]) {
       background: var(--sw-on-image-bg);
@@ -119,7 +128,7 @@ export class SwBadge extends LitElement {
 
   render() {
     const text = this.label || LABELS[this.kind]();
-    return html`<span class="dot" aria-hidden="true"></span><span>${text}</span>`;
+    return html`<span class="dot" aria-hidden="true"></span><span class="t" title=${text}>${text}</span>`;
   }
 }
 

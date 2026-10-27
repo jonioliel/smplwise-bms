@@ -38,11 +38,18 @@ export class SwCard extends LitElement {
     }
     :host([interactive]) {
       cursor: pointer;
-      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+      transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
     }
-    :host([interactive]:hover) {
-      border-color: var(--sw-border-strong);
-      box-shadow: var(--sw-shadow-2);
+    /* POLISH-CLASSIC-DOMUS-297 (mobile-native): the lift only under a pointer that hovers; a press gives the same small give as a button */
+    @media (hover: hover) and (pointer: fine) {
+      :host([interactive]:hover) {
+        border-color: var(--sw-border-strong);
+        box-shadow: var(--sw-shadow-2);
+      }
+    }
+    :host([interactive]:active) {
+      transform: scale(calc(1 - (1 - var(--sw-press-scale)) / 3));
     }
     header {
       display: flex;
@@ -55,6 +62,9 @@ export class SwCard extends LitElement {
       margin: 0;
       font-size: var(--sw-card-title-fs, var(--sw-fs-md));
       font-weight: var(--sw-card-title-fw, var(--sw-fw-semibold));
+      /* POLISH-CLASSIC-DOMUS-297: a card title is a heading (the heading ink, a hair tighter), not body text in bold */
+      color: var(--sw-card-title-color, var(--sw-heading));
+      letter-spacing: -0.005em;
     }
     .sub {
       font-size: var(--sw-fs-xs);

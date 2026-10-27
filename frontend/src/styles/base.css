@@ -15,6 +15,12 @@ body {
   line-height: var(--sw-lh);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  /* POLISH-CLASSIC-DOMUS-297 (mobile-native; impeccable "browser surfaces"): no grey tap flash anywhere (inherited into every
+     shadow root), no font inflation in landscape, and scrollbars drawn from the palette instead of the browser's grey */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scrollbar-color: color-mix(in srgb, var(--sw-text-3) 40%, transparent) transparent;
 }
 
 body {
@@ -39,4 +45,5 @@ kbd,
 
 ::selection {
   background: var(--sw-accent-soft);
+  color: var(--sw-text);
 }

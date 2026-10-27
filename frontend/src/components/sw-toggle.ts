@@ -23,8 +23,16 @@ export class SwToggle extends LitElement {
       background: var(--sw-border-strong);
       position: relative;
       cursor: pointer;
-      transition: background var(--sw-t-fast) var(--sw-ease);
+      /* POLISH-CLASSIC-DOMUS-297: the track fades on the state curve, the thumb rides the switch spring (tokens.ts: the plain curve at
+         120 ms in a skin that sets no spring) */
+      transition: background var(--sw-t-med) var(--sw-ease), box-shadow var(--sw-t-med) var(--sw-ease);
       padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    button:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
     }
     button::after {
       content: '';
@@ -35,8 +43,9 @@ export class SwToggle extends LitElement {
       block-size: 18px;
       border-radius: 50%;
       background: var(--sw-toggle-thumb);
-      box-shadow: var(--sw-shadow-1);
-      transition: transform var(--sw-t-fast) var(--sw-ease);
+      /* the knob's own shadow (the thumb token), not the card's: it reads as a physical knob on the track */
+      box-shadow: var(--sw-shadow-thumb);
+      transition: transform var(--sw-spring-toggle-ms) var(--sw-spring-toggle);
     }
     :host([checked]) button {
       /* 2.4.4: the switch-on colour token (classic: the same blue as the accent; Settings › "צבע מתג פעיל" may change it) */
