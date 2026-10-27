@@ -7,20 +7,12 @@ import type { Chip, Look } from './model';
  * mockup `elevators-full-mockup.html`): the door icon (stylised elevator doors in the state colour - no shaft and no car position, there is no
  * floor sensor; the doors stand open while waiting and shut in operation; fire service pulses), the solid state badge, the sensor lights and the 24-hour bar.
  *
- * State colours are `--sw-el-*` custom properties (a skin may override them). They are solid fills under white text, chosen for at least 4.5:1
- * contrast in both themes, so they do not follow the lighter status tokens: the out-of-service colour is a strong orange of its own, apart
- * from the fault red and the fire-service crimson (owner decision 9a). Motion stops under prefers-reduced-motion.
+ * State colours are the `--sw-el-*` tokens (design/tokens.ts group `elevator`, SKINCOMP-297: promoted from literals on this host so a skin
+ * can tune them; the values are unchanged). They are solid fills under white text, chosen for at least 4.5:1 contrast in both themes, so
+ * they do not follow the lighter status tokens: the out-of-service colour is a strong orange of its own, apart from the fault red and the
+ * fire-service crimson (owner decision 9a). Motion stops under prefers-reduced-motion.
  */
 export const elevatorCss = css`
-  :host {
-    --sw-el-wait: #15803d;
-    --sw-el-act: #1d4ed8;
-    --sw-el-fault: #c81e1e;
-    --sw-el-off: #c2410c;
-    --sw-el-fire: #881337;
-    --sw-el-unk: #667085;
-    --sw-el-trav: #0e7490; /* travelling: teal, apart from the in-operation blue and the waiting green (white text 5.4:1) */
-  }
   [data-look='wait'] { --el-c: var(--sw-el-wait); }
   [data-look='act'] { --el-c: var(--sw-el-act); }
   [data-look='fault'] { --el-c: var(--sw-el-fault); }

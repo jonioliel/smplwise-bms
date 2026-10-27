@@ -7,12 +7,14 @@
  *   scheme = ?scheme= > this browser's own choice (localStorage, "ההעדפה שלי") > the installation's `ui.scheme` > "light"
  *   "auto" follows the operating system (prefers-color-scheme) live.
  *
- * Output: `data-skin` and `data-theme` on <html> (the CSS of css.ts keys on them), the token <style>, and the skin's component
+ *   rail   = the installation's `ui.rail_tone` (SKINCOMP-297: `auto` | `dark`; only a skin with a dark rail - Arx Infra - draws it)
+ *
+ * Output: `data-skin`, `data-theme` and (dark rail only) `data-rail="dark"` on <html> (the CSS of css.ts keys on them), the token <style>, and the skin's component
  * rules as ONE constructable stylesheet adopted into every shadow root (the whole UI lives in Lit shadow roots, which a
  * document stylesheet cannot reach). Replacing that sheet's text re-skins every live component without re-rendering.
  */
 import { ReactiveElement } from 'lit';
-import { DEFAULT_SKIN, SKIN_IDS, SKINS, isSkinId, resolveSkin, type SkinId } from './skins';
+import { DEFAULT_SKIN, SKIN_IDS, SKINS, darkRailOn, isRailTone, isSkinId, resolveSkin, type RailTone, type SkinId } from './skins';
 import { skinRules, skinTable, tokensCss } from './css';
 import { alphaFloor, liteAlpha, sheetModelOf, washCap, washModelOf } from './contrast';
 import { bootLook, onLook, setAlphaFloor, setLiteAlpha, setWashCap } from './look';
@@ -31,6 +33,8 @@ const OWN_SCHEME_KEY = 'sw.ui.scheme'; // this browser's own scheme choice
 interface Installation {
   skin: SkinId;
   scheme: Scheme;
+  /** SKINCOMP-297: `ui.rail_tone`. */
+  rail: RailTone;
 }
 
 function read(key: string): string | null {
@@ -49,7 +53,7 @@ function write(key: string, value: string | null) {
   }
 }
 
-let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light' };
+let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light', rail: 'auto' };
 let ownScheme: Scheme | null = null;
 let queryOverride: { skin: SkinId | null; scheme: Scheme | null } = { skin: null, scheme: null };
 let sheet: CSSStyleSheet | null = null;
@@ -62,6 +66,7 @@ function loadStored() {
     const c = JSON.parse(read(CACHE_KEY) ?? 'null') as Partial<Installation> | null;
     if (c && isSkinId(c.skin)) installation.skin = resolveSkin(c.skin) ?? DEFAULT_SKIN; // a frozen skin reads as the fallback (skins/index.ts)
     if (c && isScheme(c.scheme)) installation.scheme = c.scheme;
+    if (c && isRailTone(c.rail)) installation.rail = c.rail;
   } catch {
     /* a corrupt cache reads as the defaults */
   }
@@ -103,6 +108,10 @@ function apply() {
   const theme = resolvedTheme();
   if (root.getAttribute('data-skin') !== skin) root.setAttribute('data-skin', skin);
   if (root.getAttribute('data-theme') !== theme) root.setAttribute('data-theme', theme);
+  // SKINCOMP-297: the dark rail of the skin (Arx Infra, direction D) - the attribute only while the skin has one and the tone asks for it
+  if (darkRailOn(skin, installation.rail)) {
+    if (root.getAttribute('data-rail') !== 'dark') root.setAttribute('data-rail', 'dark');
+  } else if (root.hasAttribute('data-rail')) root.removeAttribute('data-rail');
   applyBackground(theme); // CRY: the artwork of the scheme (day / night) or the chosen picture, as `--sw-bg-image` on <html>
   if (sheet && sheetSkin !== skin) {
     sheet.replaceSync(skinRules(skin));
@@ -133,18 +142,18 @@ export function onDesign(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
-/** The installation's `ui.skin` / `ui.scheme` as the product settings carry them (unknown values keep the current ones). */
-export function setInstallationDesign(skin: unknown, scheme: unknown) {
-  const next: Installation = { skin: resolveSkin(skin) ?? installation.skin, scheme: isScheme(scheme) ? scheme : installation.scheme };
-  if (next.skin === installation.skin && next.scheme === installation.scheme) return;
+/** The installation's `ui.skin` / `ui.scheme` / `ui.rail_tone` as the product settings carry them (unknown or missing values keep the current ones). */
+export function setInstallationDesign(skin: unknown, scheme: unknown, rail?: unknown) {
+  const next: Installation = { skin: resolveSkin(skin) ?? installation.skin, scheme: isScheme(scheme) ? scheme : installation.scheme, rail: isRailTone(rail) ? rail : installation.rail };
+  if (next.skin === installation.skin && next.scheme === installation.scheme && next.rail === installation.rail) return;
   installation = next;
   write(CACHE_KEY, JSON.stringify(installation));
   apply();
 }
 
 /** The static demo (no backend) keeps "the installation's" choice in this browser: same cache, same effect. */
-export function saveDemoDesign(skin: SkinId, scheme: Scheme) {
-  installation = { skin: resolveSkin(skin) ?? DEFAULT_SKIN, scheme };
+export function saveDemoDesign(skin: SkinId, scheme: Scheme, rail: RailTone = installation.rail) {
+  installation = { skin: resolveSkin(skin) ?? DEFAULT_SKIN, scheme, rail };
   write(CACHE_KEY, JSON.stringify(installation));
   apply();
 }

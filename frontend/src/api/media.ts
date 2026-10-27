@@ -193,6 +193,8 @@ export interface ProductSettings {
   /** Design foundation (2026-10-01): the installation's skin (design/skins) and light / dark / auto choice (design/apply.ts). */
   'ui.skin'?: 'classic' | 'domus' | 'tesla' | 'bubble' | 'crystal' | 'infra' | 'soft';
   'ui.scheme'?: 'light' | 'dark' | 'auto';
+  /** SKINCOMP-297: the rail tone - `auto` (the skin's own rail) or `dark` (the skin's dark rail where it has one: Arx Infra = direction D). */
+  'ui.rail_tone'?: 'auto' | 'dark';
   /** 2.4.4: the accent colour and the switch-on colour - 'default' | a preset id | '#rrggbb' (design/brand.ts). */
   'ui.accent'?: string;
   'ui.toggle_on'?: string;

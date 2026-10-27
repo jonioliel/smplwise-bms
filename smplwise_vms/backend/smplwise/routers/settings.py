@@ -76,6 +76,7 @@ DEFAULTS: dict[str, str] = {
     # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
     "ui.skin": "classic",
     "ui.scheme": "light",
+    "ui.rail_tone": "auto",  # SKINCOMP-297: auto | dark - the dark (navy) rail of a skin that has one (Arx Infra = direction D); RAIL_TONES in frontend/src/design/skins/index.ts
     # 2.4.4 (owner 2026-10-10): the product's accent colour and the colour of a switch that is on - "default" (the skin's own: the
     # system blue of the classic look) | a preset id (ios_green = the earlier glass mockup's green) | "#rrggbb". services/brand_colors.py;
     # applied by the frontend on the DU1 token layer (design/brand.ts). Per installation.
@@ -514,6 +515,8 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     # DEFAULTS and not patchable here: the switches themselves live behind /doors/windows/settings and /doors/emergency/settings.
     out["doors.ui.tab"] = "on" if (get_setting(conn, "doors.windows.enabled") == "on" or get_setting(conn, "doors.emergency.enabled") == "on") else "off"
     out["ui.skin"] = stored_skin(out["ui.skin"])  # BUBBLE-FREEZE-295: a stored frozen skin reads as the fallback (the row is left as it is)
+    if out.get("ui.rail_tone") not in ("auto", "dark"):  # SKINCOMP-297: a corrupt value reads as the default
+        out["ui.rail_tone"] = "auto"
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     if out.get("ui.tickets_section_row") not in ("hide_single", "always"):  # SERVICEIA1-295: a corrupt value reads as the default
         out["ui.tickets_section_row"] = "hide_single"
@@ -766,6 +769,7 @@ class SettingsPatch(BaseModel):
     ui_automations_view: str | None = Field(default=None, pattern="^(rows|cards)$", alias="ui.automations_view")
     ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble|crystal|infra|soft)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts (SKINFOUND-297: infra, soft)
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
+    ui_rail_tone: str | None = Field(default=None, pattern="^(auto|dark)$", alias="ui.rail_tone")  # SKINCOMP-297: keep in step with RAIL_TONES in frontend/src/design/skins/index.ts
 
     @field_validator("ui_skin")
     @classmethod
