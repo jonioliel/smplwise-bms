@@ -28,6 +28,7 @@ class TextResult:
     text: str = ""
     pages: int = 0
     engine: str = "none"
+    reason: str = ""   # why nothing (or no usable text) was read, for the audit row: encrypted, malformed, file_too_large, output_too_large, killed ...
 
 
 @dataclass(frozen=True)

@@ -171,6 +171,10 @@ photo, an e-mailed invoice. The existing filters are explicitly not a guarantee 
   start (the `bill_pdf_engine.py` pattern; `tests/test_self_update_s3_fixes.py` already fails any `subprocess` without `env=`).
   The worker reads one file path and writes one JSON document to stdout; the parent validates that JSON against a schema
   (field names, types, lengths) before anything is stored. The worker has no database handle and no network library imported.
+* *As built for tier 1 (2026-10-28, security review SUPPLIERDOCS2-297 F4):* no separate worker module - `pdftext.run_limited()`
+  starts `pdftotext` itself through a `python -I -S` limit trampoline (POSIX rlimits, own session, group kill) or a Job Object
+  (Windows dev), after pure-Python prechecks, with a generated file name in a private temp directory. The per-OS table of what is
+  and is not enforced is in `docs/changes/CR-SUPPLIERDOCS-297.md`, "Child process security model".
 * **No network.** poppler and tesseract do not use the network; the worker does not import `socket`-using modules, and a test asserts
   a clean environment and no proxy variables. A network namespace is not available to an add-on container, so the control is the
   absence of capability plus the review, stated plainly.

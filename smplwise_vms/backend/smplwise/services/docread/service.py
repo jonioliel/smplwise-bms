@@ -123,17 +123,20 @@ def live_for(conn: sqlite3.Connection, file_id: str) -> sqlite3.Row | None:
 
 def run_reader(file_kind: str, path: Path) -> ports.TextResult:
     """Blocking (a child process): the caller runs it outside the write lock. A picture goes to the OCR port (null in this slice)."""
-    if file_kind != "pdf":
-        return _ocr_reader.read(path, max_pages=OCR_MAX_PAGES)
-    res = text_reader().read(path, max_pages=MAX_PAGES)
-    if not isinstance(res, ports.TextResult) or res.status not in ("ok", "no_text", "unreadable", "too_many_pages", "timeout", "unavailable"):
-        return ports.TextResult(status="unreadable", engine=getattr(res, "engine", "none"))
-    if res.status == "no_text":  # a scanned PDF: tier 2 would take it from here
-        ocr = _ocr_reader.read(path, max_pages=OCR_MAX_PAGES)
-        if ocr.status == "ok":
-            return ocr
-        return ports.TextResult(status="no_text", pages=res.pages, engine=res.engine)
-    return res
+    try:
+        if file_kind != "pdf":
+            return _ocr_reader.read(path, max_pages=OCR_MAX_PAGES)
+        res = text_reader().read(path, max_pages=MAX_PAGES)
+        if not isinstance(res, ports.TextResult) or res.status not in ("ok", "no_text", "unreadable", "too_many_pages", "timeout", "unavailable"):
+            return ports.TextResult(status="unreadable", engine=getattr(res, "engine", "none"), reason="bad_reader_result")
+        if res.status == "no_text":  # a scanned PDF: tier 2 would take it from here
+            ocr = _ocr_reader.read(path, max_pages=OCR_MAX_PAGES)
+            if ocr.status == "ok":
+                return ocr
+            return ports.TextResult(status="no_text", pages=res.pages, engine=res.engine, reason=res.reason or "no_text_layer")
+        return res
+    except Exception:  # noqa: BLE001 - security review F4: a reader failure is a stored, audited `failed` read, never a 500
+        return ports.TextResult(status="unreadable", reason="reader_error")
 
 
 READ_CONCURRENCY = 2      # security review SUPPLIERDOCS2-297 (F3): at most this many reads (child + rules) at once in the add-on
@@ -182,7 +185,7 @@ def store(viewer: Viewer, task: sqlite3.Row, frow: sqlite3.Row, res: ports.TextR
                  (xid, frow["id"], task["id"], frow["sha256"], (res.engine or "none")[:40], certificate_rules.RULES_VERSION, state, code, res.pages or None,
                   summary, json.dumps(flags), json.dumps(fields, ensure_ascii=False), viewer.uid, now.strftime("%Y-%m-%dT%H:%M:%SZ"), _purge_at(now)))
     audit(conn, actor=viewer.principal, action="docread.read", decision="allowed", resource_type="maint_task", resource_id=task["id"], request_id=rid,
-          details={"extraction_id": xid, "file_id": frow["id"], "state": state, "error_code": code, "engine": res.engine, "tier": 1,
+          details={"extraction_id": xid, "file_id": frow["id"], "state": state, "error_code": code, "reason": (res.reason or "")[:40], "engine": res.engine, "tier": 1,
                    "fields_found": sum(1 for f in fields.values() if f["proposed"] is not None), "fields_total": len(fields)})
     return conn.execute("SELECT * FROM doc_extractions WHERE id = ?", (xid,)).fetchone()
 

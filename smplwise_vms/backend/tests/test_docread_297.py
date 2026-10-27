@@ -380,15 +380,17 @@ def test_the_real_pdftotext_reader_on_a_synthetic_english_certificate(mw):
 def test_the_pdftotext_reader_maps_the_child_outcomes(monkeypatch, tmp_path):
     from smplwise.services.docread import pdftext
 
+    import sys
+
     seen: dict = {}
     child = {"status": "ok", "rc": 0, "out": "בתוקף עד: 31/12/2027\n\f".encode()}
 
-    def fake_run_capped(cmd, *, timeout_s, cap):
-        seen.update(cmd=cmd, timeout_s=timeout_s, cap=cap)
-        return child["status"], child["rc"], child["out"]
+    def fake_run_limited(cmd, *, limits, cwd=None, env_extra=None):
+        seen.update(cmd=cmd, timeout_s=limits.timeout_s, cap=limits.output_bytes)
+        return pdftext.ChildResult(child["status"], child["rc"], child["out"])
 
-    monkeypatch.setattr(pdftext.shutil, "which", lambda name: "/usr/bin/pdftotext")
-    monkeypatch.setattr(pdftext, "run_capped", fake_run_capped)
+    monkeypatch.setattr(pdftext.shutil, "which", lambda name: sys.executable)  # an existing file stands in for the binary
+    monkeypatch.setattr(pdftext, "run_limited", fake_run_limited)
     p = tmp_path / "a.pdf"
     p.write_bytes(b"%PDF-1.4\n%%EOF\n")
     res = pdftext.PdftotextReader().read(p, max_pages=10)
@@ -411,7 +413,9 @@ def test_the_pdftotext_reader_maps_the_child_outcomes(monkeypatch, tmp_path):
 def _py(code: str) -> list[str]:
     import sys
 
-    return [sys.executable, "-I", "-c", code]
+    # Windows: a venv's python.exe is a launcher that starts the real interpreter as a CHILD, which the reader's Job Object (one active
+    # process, security review F4) refuses - use the base interpreter (the snippets need nothing from the venv).
+    return [getattr(sys, "_base_executable", sys.executable) or sys.executable, "-I", "-c", code]
 
 
 def test_f2_the_child_runs_with_the_minimal_environment_and_its_output_is_never_buffered_whole(monkeypatch):
