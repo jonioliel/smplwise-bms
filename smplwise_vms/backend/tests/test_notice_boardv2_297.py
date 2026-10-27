@@ -41,8 +41,8 @@ def test_the_v2_choices_and_their_factory_defaults():
     assert model.TV2_FACTORY == FACTORY
     assert {k: model.SETTINGS_DEFAULTS[f"notices.tv2.{k}"] for k in KEYS} == FACTORY
     assert model.tv2_defaults_doc(lambda k, d: d) == FACTORY
-    # the TVOPT-295 document is unchanged (its five keys only)
-    assert set(model.tv_defaults_doc(lambda k, d: d)) == {"header", "updated", "space", "night_logo", "weather_days"}
+    # the TVOPT-295 document keeps only its own keys (five, plus idle_logo from TVNOTICE2-297); no V2 key leaks into it
+    assert set(model.tv_defaults_doc(lambda k, d: d)) == {"header", "updated", "space", "night_logo", "weather_days", "idle_logo"}
 
 
 def test_a_board_holds_only_its_own_v2_choices_and_the_feed_resolves_them():

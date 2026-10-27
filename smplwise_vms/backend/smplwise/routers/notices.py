@@ -366,6 +366,7 @@ class TvDefaultsIn(BaseModel):
     space: str | None = None
     night_logo: str | None = None
     weather_days: StrictInt | None = None
+    idle_logo: str | None = None  # TVNOTICE2-297: the idle board's logos (sw / both)
     # BOARDV2-297: the V2 board options (design, default layout, tenant logo size, portrait order, "next arrivals" row)
     design: str | None = None
     board_layout: str | None = None
