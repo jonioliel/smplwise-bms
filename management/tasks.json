@@ -12002,5 +12002,44 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEYA06-297",
+    "title": "WisKey A06 (T06, W-031, board r152): identity source + role + scope -> admission, working-state mapping (fakes)",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Tests only on fakes, no product code: the live-RBAC identity source on the signed emergency command; EMROLE rows (security-manager grant at a building, revoke, expiry, local identity) on features/start; door / native-write / people-CSV work states never read as done; docs/changes/WISKEYA06-297.md; no migration."
+    ],
+    "requirement_ids": [
+      "R-WISKEYA06-1"
+    ],
+    "test_ids": [
+      "AT-WISKEYA06-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Door-access admission: any gap found becomes a strict xfail and a lead question, never a silent product change."
+    },
+    "deliverables": [
+      "Tests: smplwise_vms/backend/tests/test_wiskeya06_297.py",
+      "Docs: docs/changes/WISKEYA06-297.md"
+    ],
+    "evidence": [
+      "2026-10-27 workstation, pilot/WISKEYA06-297 (from v2.23.2): tests/test_wiskeya06_297.py 88 passed; regression test_t06_admission_295 + test_w031_295 + test_door_emergency_roles_emrole_295 87 passed, 3 xfailed (the strict T06 FINDING xfails). Fakes only. Not a gate."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

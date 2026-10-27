@@ -10269,5 +10269,27 @@
     "expected": "Every listed test passes on the branch; the screen never scrolls the page on the three projects, day and night.",
     "status": "NOT_RUN",
     "notes": "2026-10-23 runner, pilot/WHOIN034-295: backend test_whoin034_295 + test_presence 21 passed (@3143c8835); with test_mobile_push, test_access_permissions_wxperm, test_rbac_groups 68 passed + 1 test bug fixed (@363f5b7fd); specs 110 passed, 3 failed (evidence-tabs-ui editor: the new map tab, spec updated, re-run pending), 1 skipped. Not a gate."
+  },
+  {
+    "id": "AT-WISKEYA06-1",
+    "requirement_ids": [
+      "R-WISKEYA06-1"
+    ],
+    "task_ids": [
+      "WISKEYA06-297"
+    ],
+    "title": "WisKey A06 / T06: live-RBAC identity source, EMROLE admission rows on the signed emergency command, work-state mapping (fakes)",
+    "kind": "unit/contract",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes only (FakeDirectPort recorder); no WisKey, Home Assistant, station or door"
+    ],
+    "procedure": [
+      "backend tests: tests/test_wiskeya06_297.py",
+      "regression: tests/test_t06_admission_295.py, tests/test_w031_295.py, tests/test_door_emergency_roles_emrole_295.py"
+    ],
+    "expected": "Every listed test passes on the branch; a refused caller signs nothing; no work-state word other than the closed acknowledgement / committed / central_committed is read as done.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 workstation, pilot/WISKEYA06-297 (from v2.23.2): tests/test_wiskeya06_297.py 88 passed; regression test_t06_admission_295 + test_w031_295 + test_door_emergency_roles_emrole_295 87 passed, 3 xfailed (the strict T06 FINDING xfails). Fakes only. Not a gate."
   }
 ]

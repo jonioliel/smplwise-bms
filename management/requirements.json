@@ -6883,5 +6883,21 @@
     "test_ids": [
       "AT-WHOIN-1"
     ]
+  },
+  {
+    "id": "R-WISKEYA06-1",
+    "title": "WisKey A06 / T06 (W-031, board r152): identity source + role + scope -> admission, and the work-state mapping",
+    "statement": "Every signed WisKey command is admitted only on the CURRENT Arx RBAC of the person it is attributed to (a revoke, expiry, delete or deny between two commands refuses the second); the emergency-open role given to non-administrators (EMROLE) admits the signed emergency command on its own scope only and lapses at use time; admitted / pending / running / accepted / active and a static status.active are never read as a sent door, a committed native write or a device proof.",
+    "task_ids": [
+      "WISKEYA06-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEYA06-1"
+    ]
   }
 ]
