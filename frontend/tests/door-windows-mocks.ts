@@ -112,7 +112,7 @@ export async function installDoorwinMock(page: Page, o: DoorwinOptions = {}): Pr
     }
     if (p === 'doors/emergency/settings') {
       return json(route, { settings: { 'doors.emergency.enabled': em.enabled ? 'on' : 'off', 'doors.emergency.open_enabled': 'off', 'doors.emergency.automations': 'off',
-        'doors.emergency.hold_ms': '1500', go_live_permitted: false, open_available: false, attested: false,
+        'doors.emergency.hold_ms': '1500', 'doors.emergency.engine_switch': 'on', go_live_permitted: false, build_ready: false, open_available: false, attested: false,
         attestation: { version: 1, text: 'פתיחת חירום ונעילת חירום פועלות על חומרת דלתות שהתנהגותה אינה ידועה למערכת. (טקסט לדוגמה)' } } });
     }
     if (p === 'doors/emergency/state') {
