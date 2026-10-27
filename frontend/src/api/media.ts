@@ -193,6 +193,8 @@ export interface ProductSettings {
   /** Design foundation (2026-10-01): the installation's skin (design/skins) and light / dark / auto choice (design/apply.ts). */
   'ui.skin'?: 'classic' | 'domus' | 'tesla' | 'bubble' | 'crystal' | 'infra' | 'soft';
   'ui.scheme'?: 'light' | 'dark' | 'auto';
+  /** MOTIONSETTING-297: motion - auto (follow the OS reduction) | full (ignore it for non-essential motion) | reduced (zero durations); design/apply.ts. */
+  'ui.motion'?: 'auto' | 'full' | 'reduced';
   /** 2.4.4: the accent colour and the switch-on colour - 'default' | a preset id | '#rrggbb' (design/brand.ts). */
   'ui.accent'?: string;
   'ui.toggle_on'?: string;

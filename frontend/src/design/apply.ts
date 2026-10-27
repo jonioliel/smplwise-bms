@@ -25,12 +25,22 @@ export type Theme = 'light' | 'dark';
 export const SCHEMES: readonly Scheme[] = ['light', 'dark', 'auto'];
 export const isScheme = (v: unknown): v is Scheme => v === 'light' || v === 'dark' || v === 'auto';
 
-const CACHE_KEY = 'sw.ui.design'; // the installation's last known { skin, scheme }: applied at once on the next load (no flash)
+/**
+ * MOTIONSETTING-297: the installation's motion setting `ui.motion`. auto = follow the OS reduction (prefers-reduced-motion), full =
+ * ignore the OS reduction for the non-essential motion the duration tokens drive, reduced = zero durations and press scale 1 (what
+ * the OS reduction does). Written as `data-motion` on <html>; css.ts keys on it. Separate from the skin and the scheme.
+ */
+export type MotionMode = 'auto' | 'full' | 'reduced';
+export const MOTION_MODES: readonly MotionMode[] = ['auto', 'full', 'reduced'];
+export const isMotionMode = (v: unknown): v is MotionMode => v === 'auto' || v === 'full' || v === 'reduced';
+
+const CACHE_KEY = 'sw.ui.design'; // the installation's last known { skin, scheme, motion }: applied at once on the next load (no flash)
 const OWN_SCHEME_KEY = 'sw.ui.scheme'; // this browser's own scheme choice
 
 interface Installation {
   skin: SkinId;
   scheme: Scheme;
+  motion: MotionMode;
 }
 
 function read(key: string): string | null {
@@ -49,9 +59,9 @@ function write(key: string, value: string | null) {
   }
 }
 
-let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light' };
+let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light', motion: 'auto' };
 let ownScheme: Scheme | null = null;
-let queryOverride: { skin: SkinId | null; scheme: Scheme | null } = { skin: null, scheme: null };
+let queryOverride: { skin: SkinId | null; scheme: Scheme | null; motion: MotionMode | null } = { skin: null, scheme: null, motion: null };
 let sheet: CSSStyleSheet | null = null;
 let sheetSkin: SkinId | null = null;
 let darkQuery: MediaQueryList | null = null;
@@ -62,6 +72,7 @@ function loadStored() {
     const c = JSON.parse(read(CACHE_KEY) ?? 'null') as Partial<Installation> | null;
     if (c && isSkinId(c.skin)) installation.skin = resolveSkin(c.skin) ?? DEFAULT_SKIN; // a frozen skin reads as the fallback (skins/index.ts)
     if (c && isScheme(c.scheme)) installation.scheme = c.scheme;
+    if (c && isMotionMode(c.motion)) installation.motion = c.motion;
   } catch {
     /* a corrupt cache reads as the defaults */
   }
@@ -71,7 +82,8 @@ function loadStored() {
     const q = new URLSearchParams(window.location.search);
     const s = q.get('skin');
     const m = q.get('scheme');
-    queryOverride = { skin: resolveSkin(s), scheme: isScheme(m) ? m : null };
+    const mo = q.get('motion'); // this page view only, for designers and the evidence specs
+    queryOverride = { skin: resolveSkin(s), scheme: isScheme(m) ? m : null, motion: isMotionMode(mo) ? mo : null };
   } catch {
     /* no location */
   }
@@ -81,6 +93,8 @@ function loadStored() {
 export const currentSkin = (): SkinId => queryOverride.skin ?? installation.skin;
 /** The scheme setting in force (may be "auto"). */
 export const currentScheme = (): Scheme => queryOverride.scheme ?? ownScheme ?? installation.scheme;
+/** The motion setting in force (auto | full | reduced). */
+export const currentMotion = (): MotionMode => queryOverride.motion ?? installation.motion;
 export const installationDesign = (): Installation => ({ ...installation });
 export const ownSchemeChoice = (): Scheme | null => ownScheme;
 
@@ -103,6 +117,8 @@ function apply() {
   const theme = resolvedTheme();
   if (root.getAttribute('data-skin') !== skin) root.setAttribute('data-skin', skin);
   if (root.getAttribute('data-theme') !== theme) root.setAttribute('data-theme', theme);
+  const motion = currentMotion();
+  if (root.getAttribute('data-motion') !== motion) root.setAttribute('data-motion', motion);
   applyBackground(theme); // CRY: the artwork of the scheme (day / night) or the chosen picture, as `--sw-bg-image` on <html>
   if (sheet && sheetSkin !== skin) {
     sheet.replaceSync(skinRules(skin));
@@ -133,18 +149,22 @@ export function onDesign(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
-/** The installation's `ui.skin` / `ui.scheme` as the product settings carry them (unknown values keep the current ones). */
-export function setInstallationDesign(skin: unknown, scheme: unknown) {
-  const next: Installation = { skin: resolveSkin(skin) ?? installation.skin, scheme: isScheme(scheme) ? scheme : installation.scheme };
-  if (next.skin === installation.skin && next.scheme === installation.scheme) return;
+/** The installation's `ui.skin` / `ui.scheme` / `ui.motion` as the product settings carry them (unknown or missing values keep the current ones). */
+export function setInstallationDesign(skin: unknown, scheme: unknown, motion?: unknown) {
+  const next: Installation = {
+    skin: resolveSkin(skin) ?? installation.skin,
+    scheme: isScheme(scheme) ? scheme : installation.scheme,
+    motion: isMotionMode(motion) ? motion : installation.motion,
+  };
+  if (next.skin === installation.skin && next.scheme === installation.scheme && next.motion === installation.motion) return;
   installation = next;
   write(CACHE_KEY, JSON.stringify(installation));
   apply();
 }
 
 /** The static demo (no backend) keeps "the installation's" choice in this browser: same cache, same effect. */
-export function saveDemoDesign(skin: SkinId, scheme: Scheme) {
-  installation = { skin: resolveSkin(skin) ?? DEFAULT_SKIN, scheme };
+export function saveDemoDesign(skin: SkinId, scheme: Scheme, motion: MotionMode = installation.motion) {
+  installation = { skin: resolveSkin(skin) ?? DEFAULT_SKIN, scheme, motion };
   write(CACHE_KEY, JSON.stringify(installation));
   apply();
 }
