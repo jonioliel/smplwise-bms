@@ -26,7 +26,10 @@ const ROWS: Record<WidgetItem['size'], number> = { s: 0, m: 4, l: 12 };
 export const ELEVATOR_WIDGET_STYLES = [elevatorCss, css`
   .wg-elev { gap: 8px; }
   /* ELEVFIX-297: the card's content is a size container, so a narrow card stacks cleanly instead of squeezing every part (title, summary, badge) */
-  .wg-elev .el-box { display: grid; gap: 8px; min-inline-size: 0; container: el / inline-size; }
+  /* WIDGETFIX-298: an inline-size container has no width of its own content, so it must take the card's width explicitly. In the home's
+     row band (layout row) the card is a flex ROW and this box a flex item sized by content (flex-basis auto): without the 100% it shrank to
+     0 px - the title became a stub, the names vanished, and the row of cards stretched to its 250 px height. */
+  .wg-elev .el-box { display: grid; gap: 8px; min-inline-size: 0; inline-size: 100%; flex: 1 1 auto; box-sizing: border-box; container: el / inline-size; }
   .wg-elev .el-h { display: flex; align-items: baseline; gap: 8px; min-inline-size: 0; font-size: var(--sw-fs-base); color: var(--sw-text-2); }
   .wg-elev .el-h b { color: var(--sw-text); font-size: var(--sw-fs-lg); flex: none; max-inline-size: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wg-elev .el-h [data-home-elevators-summary] { flex: 1 1 0; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

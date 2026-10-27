@@ -1434,6 +1434,94 @@ export class HomeWidgetsView extends LitElement {
         text-overflow: ellipsis;
       }
     }
+    /* WIDGETFIX-298: the infrastructure cards (elevators, temperature, generator, doors, notices) are a heading, a highlight and a list
+       written one under the other; the row band's card is a flex ROW (built for the clock / weather), which laid those parts side by
+       side and squeezed the names to 0 px. In the row band they keep their own top-to-bottom order. */
+    :host([layout='row']) .wg:is(.wg-elev, .wg-temp, .wg-gen, .wg-doors, .wg-notices) {
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+      gap: 6px;
+    }
+    /* the row band is the compact strip: the elevators card is its heading line and one line per elevator (the highlight repeats the
+       first line, and the stacked narrow-card form is kept for a card under 220 px) */
+    :host([layout='row']) .wg-elev:not([data-size='s']) .el-big,
+    :host([layout='row']) .wg-elev[data-size='l'] .dots {
+      display: none;
+    }
+    :host([layout='row']) .wg-elev .el-box {
+      gap: 6px;
+    }
+    :host([layout='row']) .wg-elev .el-h {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 8px;
+    }
+    :host([layout='row']) .wg-elev .el-h b {
+      max-inline-size: 60%;
+    }
+    :host([layout='row']) .wg-elev .el-h [data-home-elevators-summary] {
+      flex: 1 1 0;
+    }
+    :host([layout='row']) .wg-elev .lst {
+      gap: 4px;
+    }
+    /* a narrow temperature card: a wide reading puts the unit's name under it instead of squeezing the name away */
+    :host([layout='row']) .wg-temp .tw-big {
+      flex-wrap: wrap;
+      row-gap: 2px;
+    }
+    :host([layout='row']) .wg-temp .tw-big .t {
+      flex: 1 1 72px;
+    }
+    /* a narrow generator card: its state takes two lines before it ends in an ellipsis */
+    :host([layout='row']) .wg-gen .gw-big .t b {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+    /* the weather card in the row band: the forecast shows the whole days that fit (the others wrap to a hidden second line) instead of
+       being cut at the card's edge, and a fact line too long for the card ends in an ellipsis */
+    :host([layout='row']) .wg-weather .wx-fc {
+      flex: 1 1 0;
+      min-inline-size: 0;
+      grid-template-columns: repeat(auto-fill, 38px);
+      grid-template-rows: auto;
+      grid-auto-rows: 0;
+      row-gap: 0;
+      overflow: hidden;
+    }
+    :host([layout='row']) .wg-weather .wx-m {
+      flex: 0 1 auto;
+      min-inline-size: 0;
+    }
+    :host([layout='row']) .wg-weather .wx-m span {
+      display: block;
+      max-inline-size: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    :host([layout='row']) .wg-weather .wx-m svg {
+      vertical-align: -2px;
+      margin-inline-end: 5px;
+    }
+    @container wg (max-width: 340px) {
+      /* the step before the facts drop (250 px): two facts, so a long value is not cut */
+      :host([layout='row']) .wg-weather .wx-m span:nth-child(n + 3) {
+        display: none;
+      }
+    }
+    @container el (min-width: 220px) {
+      :host([layout='row']) .el-row {
+        display: flex;
+      }
+      :host([layout='row']) .el-row .meta {
+        display: contents;
+      }
+    }
     @media (prefers-reduced-motion: reduce) {
       .wrap {
         scroll-behavior: auto;
