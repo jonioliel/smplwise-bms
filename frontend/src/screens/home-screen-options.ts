@@ -26,6 +26,7 @@ const LABEL_KEY: Record<ChoiceKey, HsKey> = {
   tile_blinds: 'tileBlinds',
   tile_climate: 'tileClimate',
   phone_area: 'phoneArea',
+  desktop_area: 'desktopArea',
   floor_off: 'floorOff',
   many_floors: 'manyFloors',
   building_off_tablet: 'buildingOff',
@@ -38,6 +39,7 @@ const VALUE_PREFIX: Record<ChoiceKey, string> = {
   tile_blinds: 'blinds_',
   tile_climate: 'climate_',
   phone_area: 'area_',
+  desktop_area: 'darea_',
   floor_off: 'off_',
   many_floors: 'floors_',
   building_off_tablet: 'bo_',
@@ -261,6 +263,7 @@ export class HomeScreenOptionsForm extends LitElement {
       ${this.choice('quick_card')}
       ${this.choice('phone_floors')}
       ${this.choice('phone_area')}
+      ${this.choice('desktop_area')}
     </div>`;
   }
 }

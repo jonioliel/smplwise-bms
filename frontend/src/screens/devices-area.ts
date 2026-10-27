@@ -19,7 +19,7 @@ import { can, canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { fmtTime, subscribeHa, type HaSyncState } from '../api/ha';
 import { productSettings } from '../api/prefs';
-import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, getEntityRows, type CardId, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree, type EntityRow } from '../api/devices';
+import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, getEntityRows, type CardId, type DeviceArea, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree, type EntityRow } from '../api/devices';
 import { AREA_DESIGN_KEY, AREA_DESIGN_LABEL, AREA_DESIGNS, mainSlotOf, mainStrip, PERSONALIZE_PERMISSION, resolveAreaDesign, SECTION_BULK, sectionBulkActions, type AreaDesign, type BulkLook } from './devices-area-design';
 import type { BulkKind } from '../api/device-bulk';
 import { alarmTone, REFRESH_WINDOW_MS, STRUCTURE_FLASH_MS } from './devices-building';
@@ -39,6 +39,9 @@ import { SkinController, hueOf } from '../design/skin';
 import { bubbleAreaStyles, renderBubblePill, renderBubbleSensorTile, renderBubbleSep, renderBubbleSheetBody, sectionIcon } from './devices-area-bubble';
 import { mapHrefForArea } from '../api/plan-links';
 import './explore-floor-map';
+import './area-quick-sheet'; // AREAPOPUP-297: a neighbouring area pressed on the plan card opens its quick-control pop-up
+import { pressTarget, type QuickMode } from './area-quick-logic';
+import { loadHomeScreen, type DesktopArea } from '../api/home-screen';
 
 export { rowLabel };
 
@@ -568,6 +571,9 @@ export class DevicesArea extends LitElement {
   /** Bubble skin (phase C): the skin in force mirrored on the host, and the device whose sheet is open. */
   private skin = new SkinController(this);
   @state() private sheet: { id: string; card: CardId } | null = null;
+  /** AREAPOPUP-297: a neighbouring area pressed on the plan card - its quick-control pop-up (the home screen's shapes and settings). */
+  @state() private quick: { area: DeviceArea; mode: QuickMode } | null = null;
+  @state() private desktopArea: DesktopArea = 'drawer';
   /** CR-007 6b: the area's card layout (one per installation and area; edited with system.configure). */
   private lay: DevicesLayoutController = new DevicesLayoutController(this, {
     scope: 'area',
@@ -968,6 +974,7 @@ export class DevicesArea extends LitElement {
       }),
       this.loadDesign(),
     ]).then(() => undefined);
+    void loadHomeScreen().then((o) => (this.desktopArea = o.desktop_area)); // AREAPOPUP-297: how a neighbouring area opens from the plan card
     try {
       this.phoneMq = window.matchMedia('(max-width: 599px)');
       this.phone = this.phoneMq.matches;
@@ -1209,6 +1216,7 @@ export class DevicesArea extends LitElement {
       ${this.canAssignArea ? this.renderAssignDialog() : nothing}
       ${this.lay.renderPanel()}
       ${bubble ? this.renderBubbleSheet() : nothing}
+      ${this.renderQuickSheet(d)}
     </sw-page>`;
   }
 
@@ -1228,8 +1236,34 @@ export class DevicesArea extends LitElement {
     const link = d.area.map!;
     return html`<sw-card class="plancard" data-area-plan-card heading="על התוכנית">
       <a slot="actions" class="plan-open" href=${mapHrefForArea(link) ?? ''} data-area-plan-open>למפה המלאה<sw-icon name="chevron" size=${12}></sw-icon></a>
-      <explore-floor-map embedded compact .floorId=${link.floor_id} .focusZone=${link.zone_id}></explore-floor-map>
+      <explore-floor-map embedded compact .floorId=${link.floor_id} .focusZone=${link.zone_id} @area-open=${(e: CustomEvent<{ area_id: string | null }>) => this.onPlanAreaOpen(d, e.detail.area_id)}></explore-floor-map>
     </sw-card>`;
+  }
+
+  /** AREAPOPUP-297: a room of the plan card pressed - another area of the floor opens in the quick-control pop-up (this area itself is the screen). */
+  private onPlanAreaOpen(d: DeviceAreaDetail, areaId: string | null) {
+    if (!areaId || areaId === d.area.area_id) return;
+    const fa = d.floor_areas.find((a) => a.area_id === areaId);
+    if (!fa) return;
+    const mode = pressTarget(this.phone, 'sheet', this.desktopArea);
+    if (mode === 'screen') {
+      location.hash = `#/devices/areas/${encodeURIComponent(areaId)}`;
+      return;
+    }
+    const area: DeviceArea = { area_id: fa.area_id, name: fa.name, icon: fa.icon, floor_id: d.area.floor_id, counts: fa.counts, has_camera: false, can_bulk: d.can_bulk };
+    this.quick = { area, mode };
+  }
+
+  private onQuickBulk = (e: CustomEvent<{ kind: BulkKind; position?: number; area: DeviceArea }>) => {
+    const { kind, position, area } = e.detail;
+    if (!this.bulkAllowed) return;
+    void this.renderRoot.querySelector<DevicesBulkDialog>('devices-bulk-dialog')?.show({ scope: 'area', id: area.area_id, name: area.name, kind, position });
+  };
+
+  private renderQuickSheet(d: DeviceAreaDetail) {
+    const q = this.quick;
+    return html`<area-quick-sheet data-area-quick=${q?.area.area_id ?? nothing} .area=${q?.area ?? null} .floorName=${d.area.floor_name ?? ''} .mode=${q?.mode ?? 'drawer'} ?open=${!!q}
+      ?canBulk=${this.bulkAllowed} @close=${() => (this.quick = null)} @area-bulk=${this.onQuickBulk}></area-quick-sheet>`;
   }
 
   /** The area's head pill: name, counts, the room temperature (its first temperature sensor), and "כבה הכל" for a bulk holder. */

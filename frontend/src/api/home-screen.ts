@@ -28,6 +28,8 @@ export type RowActions = 'quick' | 'indicators';
 export type TileBlinds = 'pct' | 'buttons';
 export type TileClimate = 'both' | 'target' | 'room';
 export type PhoneArea = 'sheet' | 'full';
+/** AREAPOPUP-297: how an area opens on a desktop / tablet - the quick-control side drawer (default), the pop-up that grows out of the tile, or its screen. */
+export type DesktopArea = 'drawer' | 'popup' | 'screen';
 export type FloorOff = 'menu' | 'buttons';
 export type ManyFloors = 'more' | 'tree_scroll';
 export type BuildingOffTablet = 'hide' | 'keep';
@@ -41,6 +43,7 @@ export const CHOICES = {
   tile_blinds: ['pct', 'buttons'],
   tile_climate: ['both', 'target', 'room'],
   phone_area: ['sheet', 'full'],
+  desktop_area: ['drawer', 'popup', 'screen'],
   floor_off: ['menu', 'buttons'],
   many_floors: ['more', 'tree_scroll'],
   building_off_tablet: ['hide', 'keep'],
@@ -57,6 +60,7 @@ export const CHOICE_DEFAULTS = {
   tile_blinds: 'pct',
   tile_climate: 'both',
   phone_area: 'sheet',
+  desktop_area: 'drawer',
   floor_off: 'menu',
   many_floors: 'more',
   building_off_tablet: 'hide',
@@ -74,6 +78,7 @@ export interface HomeScreenOptions {
   tile_blinds: TileBlinds;
   tile_climate: TileClimate;
   phone_area: PhoneArea;
+  desktop_area: DesktopArea;
   floor_off: FloorOff;
   many_floors: ManyFloors;
   building_off_tablet: BuildingOffTablet;
