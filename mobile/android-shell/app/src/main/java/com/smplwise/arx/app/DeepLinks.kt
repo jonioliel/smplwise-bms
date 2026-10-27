@@ -84,8 +84,8 @@ object DeepLinks {
         } catch (e: URISyntaxException) {
             return true // not parseable: treat as asking (it is not opened by itself)
         }
-        val fragment = uri.rawFragment
-        val routeQuery = fragment?.substringAfter('?', "")?.takeIf { fragment.contains('?') }
+        val fragment: String = uri.rawFragment ?: ""
+        val routeQuery: String? = if (fragment.contains('?')) fragment.substringAfter('?') else null
         return hasParam(uri.rawQuery, "do") || hasParam(routeQuery, "do")
     }
 
