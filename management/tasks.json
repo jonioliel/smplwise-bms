@@ -12166,5 +12166,45 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "DOORWRITE-297",
+    "title": "Door-window program written from Arx to WisKey (board r129): validate, read-back proof, drift, retries, dry run, write again",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "CR-039 4.3 on the Native program commands (technical_program_list / _save / _action pause): the weekly program composed from the Arx schedule is validated before any send (WisKey policy shape, Arx name, catalog size cap), written read-first with pause-before-edit, and counted written only when a read-back proves it (canonical comparison); unchanged programs are never re-sent; program_version +1 per proven write; a door believed written is re-read at most every 15 min and drift (missing / disabled / changed / foreign) is recorded and never corrected automatically; failed writes wait 60 s .. 30 min (5 attempts) then stay failed until a person or a new document; the close direction (pause) always proceeds; a Hebrew sentence per state; GET .../program/preview writes nothing; POST .../program/apply needs access.windows.manage, a person and a confirmation; audit rows carry ids and codes only; migration 0180 additive; PROGRAM_ENGINE_BUILT and EMERGENCY_ENGINE_BUILT stay False."
+    ],
+    "requirement_ids": [
+      "R-DOORWRITE-1"
+    ],
+    "test_ids": [
+      "AT-DOORWRITE-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Door safety: no activation flag flipped; the one internal-door lab write runs only with the owner present, per the runbook."
+    },
+    "deliverables": [
+      "Backend: services/door_window_program.py (validation, canonical comparison, drift, retry, Hebrew messages), services/door_windows.py (_write_program read-back, sync write states, program_preview, write_again, program_view), routers/door_windows.py (program/preview, program/apply, doors[].program), migration 0180_door_window_program_write.sql",
+      "Tests: tests/test_doorwrite_297.py",
+      "Docs: docs/changes/DOORWRITE-297.md, docs/integrations/wiskey/RUNBOOK_DOORWRITE_FIRST_LAB_WRITE.md (prepared, not run)"
+    ],
+    "evidence": [
+      "2026-10-27 runner, pilot/DOORWRITE-297 @ 005d8dcbb: tests/test_doorwrite_297.py with test_doorwin_watch, test_doorwin_api, test_doorwin2_foreign, test_doorwin2_events, test_doorwin2_review2, test_splitswitch_297, test_wiskey_owner26_callers_297, test_f3a_doorwin_dw03_295: 174 passed. Fakes only (W0 FakeProgramEngine behind the live seam classes); no WisKey, no door. Not a gate. The lab write is prepared, NOT_RUN. Also @005d8dcbb: test_migrations, test_migrations_263_upgrade, test_db_template, test_backup_drill, test_db_gate and the remaining door-window suites 216 passed, 1 failed (test_program_writes_are_pinned: the OWNER26 transport was never pinned - fixed) and 1 error (test_backup_sensitive, 'unable to open database file'); @5a984f4bf: test_doorwrite_297 + test_fake_doorwin_closed_rule_sr1 + test_backup_sensitive 71 passed."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

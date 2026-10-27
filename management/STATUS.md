@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-27T15:49:26.444121+00:00
+Generated: 2026-10-27T15:49:34.937790+00:00
 
-Tasks: 260 | Requirements: 369 | Tests: 386 | Screens: 32
+Tasks: 261 | Requirements: 370 | Tests: 387 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 67
+- REVIEW: 68
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 166
+- V1: 167
 - V2: 29
 - V3: 2
 
@@ -298,3 +298,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [GATELANES-297](tasks/GATELANES-297.md) | V1 | REVIEW | Gate lanes: pixel baselines for classic + domus only (tesla / crystal get a structural smoke), archive the September owner-round live specs, a non-blocking timing lane for the wall-clock tests | — |
 | [WISKEYA06-297](tasks/WISKEYA06-297.md) | V1 | REVIEW | WisKey A06 (T06, W-031, board r152): identity source + role + scope -> admission, working-state mapping (fakes) | — |
 | [EXTERNALBUILD-297](tasks/EXTERNALBUILD-297.md) | V1 | REVIEW | External access built to full scope (X0-X6 of EXTERNALSPEC-297 + one-time code + CR-VISITOR105 visitors), fakes only, OFF by default | — |
+| [DOORWRITE-297](tasks/DOORWRITE-297.md) | V1 | REVIEW | Door-window program written from Arx to WisKey (board r129): validate, read-back proof, drift, retries, dry run, write again | — |

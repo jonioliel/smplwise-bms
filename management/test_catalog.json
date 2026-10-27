@@ -10363,5 +10363,26 @@
     "expected": "Every listed test passes on the branch; no default setting changes; nothing reaches a real system.",
     "status": "NOT_RUN",
     "notes": "2026-10-27 local workstation (fakes only), pilot/EXTERNALBUILD-297 @ 9daae20f4 + catalogue fix: tests/test_externalbuild_297.py 30 passed; regression sets (grants, arrival, grants3, grantsmin, harden271, accessreq, denyalert, sharedid, k7, physentry, wkjoin, notify_core, quiet103, wxperm, custom_roles, rbac, rbac_matrix, stationperm, eccact_readback, wkv2, wkv2b, pub03 retention, tickets phone_verify, access) no failures after test_access_permissions_wxperm learned access.visitor.invite; frontend tsc --noEmit clean. No Playwright spec run. Not a gate."
+  },
+  {
+    "id": "AT-DOORWRITE-1",
+    "requirement_ids": [
+      "R-DOORWRITE-1"
+    ],
+    "task_ids": [
+      "DOORWRITE-297"
+    ],
+    "title": "Door-window program write path end to end against the W0 fake program engine (live seam classes, stub direct connection)",
+    "kind": "integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes only; no WisKey, no station, no door; PROGRAM_ENGINE_BUILT switched on inside the test only"
+    ],
+    "procedure": [
+      "backend tests: tests/test_doorwrite_297.py, tests/test_doorwin_watch.py, tests/test_doorwin_api.py, tests/test_doorwin2_foreign.py, tests/test_doorwin2_events.py, tests/test_doorwin2_review2.py, tests/test_splitswitch_297.py, tests/test_wiskey_owner26_callers_297.py, tests/test_f3a_doorwin_dw03_295.py"
+    ],
+    "expected": "Every listed test passes on the branch; the shipped build keeps both engine flags off.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 runner, pilot/DOORWRITE-297 @ 005d8dcbb: tests/test_doorwrite_297.py with test_doorwin_watch, test_doorwin_api, test_doorwin2_foreign, test_doorwin2_events, test_doorwin2_review2, test_splitswitch_297, test_wiskey_owner26_callers_297, test_f3a_doorwin_dw03_295: 174 passed. Fakes only (W0 FakeProgramEngine behind the live seam classes); no WisKey, no door. Not a gate. The lab write is prepared, NOT_RUN. Also @005d8dcbb: test_migrations, test_migrations_263_upgrade, test_db_template, test_backup_drill, test_db_gate and the remaining door-window suites 216 passed, 1 failed (test_program_writes_are_pinned: the OWNER26 transport was never pinned - fixed) and 1 error (test_backup_sensitive, 'unable to open database file'); @5a984f4bf: test_doorwrite_297 + test_fake_doorwin_closed_rule_sr1 + test_backup_sensitive 71 passed."
   }
 ]

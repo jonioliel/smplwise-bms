@@ -72,7 +72,12 @@ PINNED_HA_LOCK = frozenset({
     ("smplwise/services/schedule_view.py", "lock.open"),
     ("smplwise/services/schedule_view.py", "lock.unlock"),
 })
-ENGINE_WRITES: frozenset[tuple[str, str]] = frozenset()  # nothing writes a program today (CR-036: read-only schedules screen)
+# WISKEY-OWNER26-297 added the Native program transport (pinned here by DOORWRITE-297, which found the pin missing): the ONE module that
+# names the save / action commands. Every caller reaches it through door_windows_engine.WiskeyProgramEngine (save / pause) only.
+ENGINE_WRITES: frozenset[tuple[str, str]] = frozenset({
+    ("smplwise/services/wiskey_program_direct.py", "stations/technical_program_save"),
+    ("smplwise/services/wiskey_program_direct.py", "stations/technical_program_action"),
+})
 TIMER_SHAPED = re.compile(r"(^door_windows_watch|_watch$|watchdog|scheduler|_tick$|_ticker$|_jobs?$|^notify_sources$)")
 
 
