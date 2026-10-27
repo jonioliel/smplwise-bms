@@ -60,7 +60,9 @@ def test_off_by_default_and_nothing_spoken(world):
         "engine_kind": "local", "cloud_enabled": False, "cloud_key_set": False, "emergency_languages": ["he", "en", "ru", "ar"],  # ANNOUNCE-295: local engine, cloud OFF by default
         "volume": None, "pause_music": False, "quiet": {"enabled": False, "from": "22:00", "to": "07:00", "days": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"], "mode": "suppress", "night_volume": None},
         "notify": {"enabled": False, "scope": "area", "ref": "", "categories": [], "min_severity": "alert"},
-        "screens": {"enabled": False, "default_on": True, "seconds": 30, "critical_seconds": 180, "poll_s": 5, "targets": []}}  # ANNOUNCEB-295: the screens are OFF by default
+        "screens": {"enabled": False, "default_on": True, "seconds": 30, "critical_seconds": 180, "poll_s": 5, "critical_close_s": 15, "targets": []},  # ANNOUNCEB-295: the screens are OFF by default
+        # ANNOUNCE-297 / ANNOUNCE2-297: translation OFF, the free Google provider chosen (no key), nobody approved it yet
+        "translate": {"enabled": False, "provider": "google", "source": "he", "targets": ["ar", "en", "ru"], "approval": None, "key_set": True}}
     r = c.post(API, json={"scope": "area", "ref": "living", "text": "שלום"})
     assert r.status_code == 404 and r.json()["code"] == "feature_disabled"
     assert fake.calls == []

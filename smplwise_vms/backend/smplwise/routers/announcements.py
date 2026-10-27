@@ -12,6 +12,11 @@ Administration (`system.configure`):
   GET / PUT templates   the ready-made message templates (routine and emergency; he / en / ru): read by an announcer, edited by system.configure
   POST test             `{scope, ref, language}` the fixed test sentence (source `test`), same checks and same limits
   GET history           the last attempts (a person, a rule or a test; spoken, failed, limited or refused)
+ANNOUNCE-297 (stage C, `media.announce`):
+  POST translate        `{text, targets?}` DRAFT translations of a Hebrew text into ar / en / ru for the sender to review and edit; nothing is sent to
+                        a speaker or a screen. OFF by default (404 translate_off); the provider sees the text, so it needs the approval recorded in
+                        config `translate` and a key in the secrets store (409 translate_not_configured). A part sent with `machine: true` is
+                        marked as machine-translated everywhere it is shown.
 Every attempt is audited as `media.announce`; the setup as `media.announce.config`."""
 from __future__ import annotations
 
@@ -30,6 +35,7 @@ from ..db import unlocked
 from ..rbac import INSTALLATION, Principal, require
 from ..services import announce_screens as scr
 from ..services import announce_templates as tpl
+from ..services import announce_translate as tr
 from ..services import announcements as svc
 
 router = APIRouter()
@@ -42,6 +48,16 @@ class _Body(BaseModel):
 class PartBody(_Body):
     language: Literal["he", "en", "ru", "ar"]
     text: str = Field(min_length=1, max_length=400)
+    machine: bool = False  # ANNOUNCE-297: this text came from the automatic translation (a draft, never a gate on sending); never Hebrew
+
+
+class TranslateBody(_Body):
+    text: str = Field(min_length=1, max_length=400)  # Hebrew, cleaned like an announcement
+    targets: list[Literal["ar", "en", "ru"]] | None = Field(default=None, min_length=1, max_length=3)  # default = the configured ones
+
+
+def _machine(parts: list[PartBody] | None) -> list[str] | None:
+    return [p.language for p in parts if p.machine] or None if parts else None
 
 
 class SpeakBody(_Body):
@@ -85,7 +101,8 @@ def get_areas(principal: Principal = Depends(current_principal), conn: sqlite3.C
     return {"enabled": bool(cfg["enabled"] and svc.engine_ready(cfg)), "areas": svc.areas(conn) if cfg["enabled"] else [], "max_text": svc.MAX_TEXT,
             "templates": tpl.load(conn), "languages": list(svc.LANGUAGES), "default_language": cfg["language"] if cfg["language"] in svc.LANGUAGES else "he",
             "emergency_languages": cfg["emergency_languages"], "quiet_mode": cfg["quiet"]["mode"],
-            "screens_enabled": bool(cfg["enabled"] and cfg["screens"]["enabled"]), "screens_default_on": cfg["screens"]["default_on"]}
+            "screens_enabled": bool(cfg["enabled"] and cfg["screens"]["enabled"]), "screens_default_on": cfg["screens"]["default_on"],
+            "translate_enabled": bool(cfg["enabled"] and tr.ready(cfg["translate"])), "translate_targets": cfg["translate"]["targets"]}
 
 
 @router.post("/announcements")
@@ -95,7 +112,8 @@ def speak(body: SpeakBody, request: Request, principal: Principal = Depends(curr
         raise svc.err(422, "validation", fields=["text"])
     return svc.announce(conn, settings_of(request), principal, _rid(request), source="manual", scope=body.scope, ref=body.ref, text=body.text, language=body.language,
                         texts=[(p.language, p.text) for p in body.texts] if body.texts is not None else None, template_id=body.template_id,
-                        volume=body.volume, critical=body.critical, audio=body.speakers, on_screens=body.screens, unlock=lambda: unlocked(conn))
+                        volume=body.volume, critical=body.critical, audio=body.speakers, on_screens=body.screens, unlock=lambda: unlocked(conn),
+                        machine=_machine(body.texts))
 
 
 @router.post("/announcements/emergency")
@@ -104,7 +122,7 @@ def emergency(body: EmergencyBody, request: Request, principal: Principal = Depe
     if sum(x is not None for x in (body.template_id, body.text, body.texts)) != 1:
         raise svc.err(422, "validation", fields=["template_id"])
     return svc.emergency(conn, settings_of(request), principal, _rid(request), body.template_id, unlock=lambda: unlocked(conn), text=body.text, language=body.language,
-                         texts=[(p.language, p.text) for p in body.texts] if body.texts is not None else None)
+                         texts=[(p.language, p.text) for p in body.texts] if body.texts is not None else None, machine=_machine(body.texts))
 
 
 @router.get("/announcements/config")
@@ -120,12 +138,45 @@ def get_config(principal: Principal = Depends(current_principal), conn: sqlite3.
 @router.put("/announcements/config")
 def put_config(body: dict[str, Any], request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, svc.CONFIGURE, INSTALLATION)
-    changed = svc.update_config(conn, body)
+    changed = svc.update_config(conn, body, actor=principal.username or principal.user_id, settings=settings_of(request))
     if changed:
         audit(conn, actor=principal, action="media.announce.config", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
               details={"changed": changed, **{k: v for k, v in body.items() if k in changed and k in ("enabled", "language", "max_per_minute", "volume", "pause_music", "engine_kind", "cloud_enabled", "emergency_languages")}, **({"quiet": body["quiet"]} if "quiet" in changed else {}),
-                 **({"screens": {k: v for k, v in body["screens"].items() if k != "targets"}, **({"screen_targets": [t.get("key") for t in body["screens"]["targets"]]} if "targets" in body["screens"] else {})} if "screens" in changed else {}), **({"notify": {k: v for k, v in body["notify"].items() if k != "ref"}} if "notify" in changed else {}), **({"devices": len(body["devices"])} if "devices" in changed else {})})
+                 **({"screens": {k: v for k, v in body["screens"].items() if k != "targets"}, **({"screen_targets": [t.get("key") for t in body["screens"]["targets"]]} if "targets" in body["screens"] else {})} if "screens" in changed else {}), **({"notify": {k: v for k, v in body["notify"].items() if k != "ref"}} if "notify" in changed else {}), **({"translate": body["translate"]} if "translate" in changed else {}), **({"devices": len(body["devices"])} if "devices" in changed else {})})
     return {"changed": changed, **get_config(principal, conn)}
+
+
+@router.post("/announcements/translate")
+def translate(body: TranslateBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """ANNOUNCE-297: draft translations for review (nothing is announced). Audited as `media.announce.translate`: the provider, the languages, the length
+    and how many came from the cache - never the text and never the key."""
+    require(conn, principal, svc.PERM, INSTALLATION)
+    cfg = svc.config(conn)
+    targets = list(body.targets) if body.targets else cfg["translate"]["targets"]
+    code: str | None = None
+    out: dict[str, Any] = {}
+    try:
+        text = svc.clean_text(body.text)
+    except Exception:  # noqa: BLE001 - text_invalid
+        raise svc.err(422, "text_invalid") from None
+    if not cfg["enabled"]:
+        code = "translate_off"
+    else:
+        try:
+            with unlocked(conn):  # the provider call is network-bound: the write lock is not held across it (reads only inside)
+                out = tr.translate(conn, settings_of(request), text, targets)
+        except tr.TranslateError as exc:
+            code = exc.code if exc.code in svc.MESSAGES else "translate_failed"
+    audit(conn, actor=principal, action="media.announce.translate", decision="denied" if code else "allowed", resource_type="installation", resource_id="*",
+          request_id=_rid(request), reason=code, details={"provider": cfg["translate"]["provider"], "targets": targets, "length": len(text),
+                                                         **({"cached": sum(1 for i in out["items"] if i["cached"])} if out else {})})
+    if code is not None:
+        if code == "translate_rate_limited":
+            from ..errors import ApiError
+
+            raise ApiError(429, code, svc.MESSAGES[code]["he"], retryable=True, details={"message_en": svc.MESSAGES[code]["en"]})
+        raise svc.err({"translate_off": 404, "translate_not_configured": 409}.get(code, 502), code)
+    return out
 
 
 @router.get("/announcements/templates")

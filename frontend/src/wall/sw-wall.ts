@@ -12,7 +12,7 @@ import { ackWallAlert, frameUrl, getFrameList, getWallAnnouncement, getWallConfi
 import { classifyDevice, readDeviceEnv } from './device-class';
 import { alertView, frameActive, holdProgress, isAwake, needsAttention, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, shuffleOrder, tileHealth, wakesDisplay, wallScale } from './wall-logic';
 import { timeText } from '../api/day-format';
-import { closeLabel, dirOf, headingOf, pollMs, sizeOf, visibleNow, type ScreenAnnouncement } from '../announce/screen-overlay';
+import { closeLabel, closeWaitMs, dirOf, headingOf, machineMark, pollMs, sizeOf, visibleNow, type ScreenAnnouncement } from '../announce/screen-overlay';
 
 type Phase = 'loading' | 'ready' | 'removed' | 'remote-refused' | 'no-connection';
 const RETRY_BACKOFF_S = [2, 4, 8, 15];
@@ -46,6 +46,9 @@ export class SwWall extends LitElement {
   @state() private announcement: ScreenAnnouncement | null = null;
   @state() private annClosed = '';
   private annTimer = 0;
+  /** ANNOUNCE-297: when this display first showed the current announcement, and how long an emergency one stays un-closable (the server's rule) */
+  private annSeen = { id: '', at: 0 };
+  private annCloseS: number | undefined;
   @state() private tap = 0;
   @state() private resolved: { id: string; text: string; until: number }[] = [];
   @state() private holdStart: number | null = null;
@@ -704,6 +707,33 @@ export class SwWall extends LitElement {
     .announce [data-size='l'] .ann-t { font-size: calc(64px * var(--s, 1)); }
     .announce [data-size='m'] .ann-t { font-size: calc(44px * var(--s, 1)); }
     .announce [data-size='s'] .ann-t { font-size: calc(30px * var(--s, 1)); }
+    .announce [data-size='xs'] .ann-t { font-size: calc(22px * var(--s, 1)); } /* ANNOUNCE-297: four full-length languages */
+    .announce [data-size='xs'] .ann-body { gap: calc(14px * var(--s, 1)); }
+    .announce [data-size='xs'] .ann-t + .ann-t { padding-block-start: calc(12px * var(--s, 1)); }
+    .announce .ann-mt {
+      display: block;
+      margin-block-start: 0.35em;
+      font-size: max(calc(14px * var(--s, 1)), 0.3em);
+      font-weight: 500;
+      opacity: 0.72;
+    }
+    .announce {
+      animation: ann-in 0.24s cubic-bezier(0.23, 1, 0.32, 1) both;
+    }
+    .announce .ann-wait {
+      font-size: calc(18px * var(--s, 1));
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    @keyframes ann-in {
+      from {
+        opacity: 0;
+      }
+    }
+    .announce .ann-close[disabled] {
+      opacity: 0.35;
+      cursor: default;
+    }
     .announce .ann-close {
       position: absolute;
       inset-block-start: calc(16px * var(--s, 1));
@@ -902,6 +932,8 @@ export class SwWall extends LitElement {
     try {
       const r = await getWallAnnouncement();
       this.announcement = r.announcement;
+      this.annCloseS = r.critical_close_s;
+      if (r.announcement && r.announcement.id !== this.annSeen.id) this.annSeen = { id: r.announcement.id, at: Date.now() };
       next = pollMs(r.poll_s, 60_000);
     } catch {
       /* offline or not a wall user: the next look finds out */
@@ -916,9 +948,14 @@ export class SwWall extends LitElement {
     return html`<div class="announce" data-wall-announcement=${a.id} data-critical=${a.critical ? '1' : '0'} role="alert">
       <div class="ann-in" data-size=${sizeOf(a)}>
         <span class="ann-tag">${headingOf(a, 'he')}</span>
-        <div class="ann-body">${a.texts.map((t) => html`<p class="ann-t" lang=${t.language} dir=${dirOf(t.language)}>${t.text}</p>`)}</div>
+        <div class="ann-body">${a.texts.map((t) => html`<p class="ann-t" lang=${t.language} dir=${dirOf(t.language)} data-machine=${t.machine ? '1' : nothing}>${t.text}${t.machine ? html`<span class="ann-mt">${machineMark(t.language)}</span>` : nothing}</p>`)}</div>
       </div>
-      <button class="ann-close" type="button" data-wall-announcement-close aria-label=${closeLabel('he')} @click=${() => (this.annClosed = a.id)}><sw-icon name="close"></sw-icon></button>
+      ${(() => {
+        // ANNOUNCE-297: an emergency announcement cannot be closed here during its first seconds (the server's `critical_close_s`); a normal one at once
+        const wait = closeWaitMs(a, this.annSeen.id === a.id ? this.annSeen.at : this.now, this.now, this.annCloseS);
+        return html`<button class="ann-close" type="button" data-wall-announcement-close data-close-wait=${Math.ceil(wait / 1000)} ?disabled=${wait > 0} aria-label=${closeLabel('he')}
+          @click=${() => { if (closeWaitMs(a, this.annSeen.at, Date.now(), this.annCloseS) === 0) this.annClosed = a.id; }}>${wait > 0 ? html`<span class="ann-wait" aria-hidden="true">${Math.ceil(wait / 1000)}</span>` : html`<sw-icon name="close"></sw-icon>`}</button>`;
+      })()}
     </div>`;
   }
 
