@@ -681,13 +681,17 @@ def get_emergency_settings(request: Request, principal: Principal = Depends(curr
     return {"settings": de.settings_view(conn, settings_of(request))}
 
 
+class EmergencySettingsBody(SettingsBody):
+    confirm_engine_off: Any = None  # SPLITSWITCH2-297: the explicit confirmation of turning the emergency-buttons switch off
+
+
 @router.put("/doors/emergency/settings")
-def put_emergency_settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def put_emergency_settings(body: EmergencySettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     _confirmed(body.confirmed)
     dw.require_person(conn, principal, "settings.changed", dev_mode=_dev(request))
     try:
-        changed = de.update_settings(conn, settings_of(request), body.changes)
+        changed = de.update_settings(conn, settings_of(request), body.changes, confirm_engine_off=body.confirm_engine_off is True)
     except ApiError as exc:
         audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="setting", reason=exc.code, request_id=_rid(request),
               details={"keys": sorted(body.changes)[:8]})

@@ -275,6 +275,8 @@ export interface EmergencySettings {
   'doors.emergency.hold_ms': string;
   'doors.emergency.announce_phrase'?: string;
   'doors.emergency.home_widget'?: string;
+  /** SPLITSWITCH2-297: the emergency-buttons master switch (setting; default on; settings managers only; OFF needs confirmation). Absent = on. */
+  'doors.emergency.engine_switch'?: string;
   /** EMROLE-295: the expiry offered when a grant names none (hours, 0 = none), the longest a security manager may give, and the two switches. */
   'doors.emergency.grant.default_hours'?: string;
   'doors.emergency.grant.max_hours'?: string;
@@ -284,14 +286,16 @@ export interface EmergencySettings {
   go_live_permitted: boolean;
   live_engine_built?: boolean;
   emergency_engine_built?: boolean;
+  /** permit + engine flag, before the settings switch (so the screen can tell "not approved in this version" from "switched off") */
+  build_ready?: boolean;
   open_available: boolean;
   attested: boolean;
   attestation: { version: number; text: string };
 }
 
 export const getEmergencySettings = () => get<{ settings: EmergencySettings }>(`${E}/settings`);
-export const putEmergencySettings = (changes: Record<string, string>) =>
-  put<{ settings: EmergencySettings; changed: string[] }>(`${E}/settings`, { changes, confirmed: true });
+export const putEmergencySettings = (changes: Record<string, string>, confirmEngineOff = false) =>
+  put<{ settings: EmergencySettings; changed: string[] }>(`${E}/settings`, { changes, confirmed: true, ...(confirmEngineOff ? { confirm_engine_off: true } : {}) });
 export const attest = (version: number) => post<{ attested: boolean; version: number }>(`${E}/attestation`, { version, accepted: true, confirmed: true });
 
 /** WKOPENUNK-295: one explicit new OPEN attempt for ONE door whose OPEN ended unknown; the person types the door's name (the server checks it) - never automatic. */
