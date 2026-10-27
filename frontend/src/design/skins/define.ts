@@ -86,6 +86,11 @@ export function skinProblems(skin: Skin, base: TokenTable = TOKENS): string[] {
     if (!base[n]) p.push(`unknown token ${n} (declare it in tokens.ts first)`);
     if (!v.light.trim() || !v.dark.trim()) p.push(`${n} needs a light AND a dark value`);
   }
+  // SKINCOMP-297: the optional dark rail rewrites only the --sw-rail-* names, both columns
+  for (const [n, v] of Object.entries(skin.darkRail ?? {})) {
+    if (!n.startsWith('--sw-rail-') || !base[n]) p.push(`darkRail: ${n} is not a --sw-rail-* token of tokens.ts`);
+    if (!v.light.trim() || !v.dark.trim()) p.push(`darkRail: ${n} needs a light AND a dark value`);
+  }
   if (ruleCount(skin.rules) > SKIN_RULE_BUDGET) p.push(`rules: ${ruleCount(skin.rules)} blocks > ${SKIN_RULE_BUDGET}`);
   const f = skin.features;
   if (f.bevel && !BEVEL_SKINS.includes(skin.id) && skin.stage !== 'frozen') p.push(`bevel is allowed only in ${BEVEL_SKINS.join(', ')}`);
