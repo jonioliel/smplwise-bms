@@ -12330,5 +12330,45 @@
     "owner": null,
     "commit": "1ea245eb9",
     "actual_cost_usd": null
+  },
+  {
+    "id": "CURVEDGATE-297",
+    "title": "Curved walls stage 1a: the two live curved-wall browser specs (evidence-curved-walls, evidence-curve-points) join the release gate's fixture phase",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "frontend/tests/fixtures/fixture_specs.json marks evidence-curved-walls.spec.ts and evidence-curve-points.spec.ts gate=true (group devices, devices_fake_ha.py); the built-in FIXTURE_SPECS default of scripts/gate/release_gate.py is the same set; test_fixture_job.py pins the JSON, the job and the built-in default; no product code changes; the next L-tier gate runs both specs against the fake backend and they pass on desktop and mobile."
+    ],
+    "requirement_ids": [
+      "R-CURVEDGATE-1"
+    ],
+    "test_ids": [
+      "AT-CURVEDGATE-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "low",
+      "escalation": "Gate configuration only; a red result of either spec in the first gate is a real curved-wall regression or a fixture gap, triaged before quarantine."
+    },
+    "deliverables": [
+      "Gate list: frontend/tests/fixtures/fixture_specs.json (two gate flags), scripts/gate/release_gate.py (built-in FIXTURE_SPECS), scripts/gate/release_gate.sh (header comment)",
+      "Tests: smplwise_vms/backend/tests/test_fixture_job.py (expected set + built-in default pinned)",
+      "Docs: docs/operations/RUNNER_FIXTURE_JOB.md"
+    ],
+    "evidence": [
+      "2026-10-27 workstation, pilot/CURVEDGATE-297 (from release/2241): tests/test_fixture_job.py, test_gate_speed.py, test_select_tests.py, test_gate_tablet_allowlist.py passed (1 skipped); release_gate.classify(L) puts both specs in the fixture kind (desktop, tablet, mobile; every test skips outside desktop / mobile); npx playwright test --list lists 39 tests in the 2 files. The specs themselves were NOT_RUN here: they run in the next L-tier release gate on the runner."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

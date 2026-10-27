@@ -6997,5 +6997,21 @@
     "test_ids": [
       "AT-SPLITSWITCH2-1"
     ]
+  },
+  {
+    "id": "R-CURVEDGATE-1",
+    "title": "The live curved-wall browser checks are part of the release gate",
+    "statement": "Every full release gate runs the two live curved-wall browser checks (curved walls and curved walls through points, desktop and phone) against the fake backend, so a change that breaks drawing, editing or showing curved walls stops the release instead of passing silently.",
+    "task_ids": [
+      "CURVEDGATE-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CURVEDGATE-1"
+    ]
   }
 ]

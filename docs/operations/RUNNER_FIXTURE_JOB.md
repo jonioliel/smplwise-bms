@@ -27,7 +27,11 @@ Chain: `run_smart.py fixture` -> ssh -> `~/run_remote.sh fixture <branch> ...` -
 to the built-in default when the JSON is not beside the script, as in the `~/` copy on the runner); `test_fixture_job.py` pins that
 both agree.
 
-**What the gate runs is unchanged:** only `evidence-camera-card.spec.ts` is `"gate": true`. The four specs added to the list
+**What the gate runs:** `evidence-camera-card.spec.ts`, and since CURVEDGATE-297 (2026-10-27) also `evidence-curved-walls.spec.ts`
+and `evidence-curve-points.spec.ts` (group `devices`, the same `devices_fake_ha.py` backend the gate's fixture phase starts), are
+`"gate": true`. The gate runs fixture specs on every project (header `--project=` flags win); both curved-wall specs skip every
+test outside `desktop` / `mobile`, so the tablet project adds only skips. No gate baseline (pixel) is involved: neither spec calls
+`toHaveScreenshot`. Before the promotion both specs were `"gate": false`. The four specs added to the list
 (`evidence-arx-second-factor`, `evidence-arx-sessions`, `evidence-custom-roles`, `evidence-plan-package` live part) are
 `"gate": false`: the job can run them, the gate still does not. Promoting one is a one-flag change plus a gate baseline refresh;
 note it here when done. `evidence-custom-roles` uses group `devices_floor`, which runs `seed_floor_plan.py` (a site / floor with a

@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-27T18:02:38.734857+00:00
+Generated: 2026-10-27T18:25:41.059802+00:00
 
-Tasks: 264 | Requirements: 373 | Tests: 390 | Screens: 32
+Tasks: 265 | Requirements: 374 | Tests: 391 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 71
+- REVIEW: 72
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 170
+- V1: 171
 - V2: 29
 - V3: 2
 
@@ -302,3 +302,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [XSECFIX-297](tasks/XSECFIX-297.md) | V1 | REVIEW | Security review 2026-10-27 (phone apps): the four medium findings M1-M4 - presence gate exact match, device credentials end on sign-out, failure limiter per source, arx://open waits for the app lock | — |
 | [MOTIONSETTING-297](tasks/MOTIONSETTING-297.md) | V1 | REVIEW | Motion setting ui.motion (auto | full | reduced), separate from the skin and the scheme | — |
 | [SPLITSWITCH2-297](tasks/SPLITSWITCH2-297.md) | V1 | REVIEW | Emergency-buttons switch is a setting (owner q48): default on, admin-only, audited, confirmed when turned off; a gate on the build flags, never an activation | — |
+| [CURVEDGATE-297](tasks/CURVEDGATE-297.md) | V1 | REVIEW | Curved walls stage 1a: the two live curved-wall browser specs (evidence-curved-walls, evidence-curve-points) join the release gate's fixture phase | — |

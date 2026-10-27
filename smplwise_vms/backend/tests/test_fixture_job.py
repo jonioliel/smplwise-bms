@@ -35,7 +35,19 @@ def test_each_spec_listed_once():
 
 def test_the_gate_and_the_job_agree():
     gate = _load("release_gate", "scripts/gate/release_gate.py")
-    assert gate.FIXTURE_SPECS == fj.gate_specs(GROUPS) == {"evidence-camera-card.spec.ts"}
+    # CURVEDGATE-297: the two curved-wall specs joined the gate (same fake backend as the camera card)
+    expected = {"evidence-camera-card.spec.ts", "evidence-curved-walls.spec.ts", "evidence-curve-points.spec.ts"}
+    assert gate.FIXTURE_SPECS == fj.gate_specs(GROUPS) == expected
+
+
+def test_the_built_in_default_matches_the_json():
+    """The ~/ copy of release_gate.py on the runner has no JSON beside it and uses its built-in default: same set."""
+    import ast
+    import re
+
+    src = (ROOT / "scripts" / "gate" / "release_gate.py").read_text(encoding="utf-8")
+    m = re.search(r"^FIXTURE_SPECS = (\{[^}]*\})", src, re.M)
+    assert m and ast.literal_eval(m.group(1)) == fj.gate_specs(GROUPS)
 
 
 def test_the_four_specs_are_covered():
