@@ -15,11 +15,11 @@ const SCREEN = 'wiskey-stations';
 
 const noBaseline = (info: Pick<TestInfo, 'snapshotPath' | 'config'>, name: string) => !['all', 'changed'].includes(info.config.updateSnapshots) && !fs.existsSync(info.snapshotPath(name));
 
-async function toDrawer(page: Page, skin: string, over: Partial<StationMediaMock> = {}, station = 'gate') {
+async function toDrawer(page: Page, skin: string, over: Partial<StationMediaMock> = {}, station = 'gate', scheme: 'light' | 'dark' = 'light') {
   const base = newMock();
   await installStationsMock(page, base);
   await installStationMediaMock(page, base, newMediaMock({ mode: 'video_talk', ...over }));
-  await openStations(page, { skin, scheme: 'light' });
+  await openStations(page, { skin, scheme });
   await page.waitForSelector(`${SCREEN} [data-wk-stations][data-wk-state="ready"]`, { timeout: 30_000 });
   await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="${station}"] button.open`).click();
   await expect(page.locator(`${SCREEN} sw-drawer[data-wk-drawer]`)).toHaveAttribute('open', '');
@@ -68,5 +68,49 @@ test.describe('pixel: station live video and push-to-talk', () => {
     await toDrawer(page, 'classic', { station: { lobby: 'video_only' } }, 'lobby');
     await playing(page);
     await shoot(page, info, 'station-media-classic-no-talk');
+  });
+});
+
+// AVPIXEL-295 retargeted (MEDIACARD-297, owner choice 2026-10-26: "the WisKey media drawer, dark / tablet", not the multimedia screens):
+// the same station drawer as above - the one media panel the product has for a station's video and talk - in the dark scheme on all
+// three viewports, and in the light scheme on the tablet (the block above covers light on desktop and phone). Separate file names
+// (`-dark-` / `-1024-`), so none of the baselines above is touched.
+const WIDTH: Record<string, number> = { desktop: 1440, tablet: 1024, mobile: 390 };
+
+async function shootAt(page: Page, info: TestInfo, name: string) {
+  await settlePage(page);
+  const file = `${name}-${WIDTH[info.project.name] ?? 1440}.png`;
+  if (noBaseline(info, file)) info.annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
+  else await expect(page).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled', mask: [player(page)] });
+}
+
+test.describe('pixel: station live video and push-to-talk, dark and tablet', () => {
+  test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
+
+  for (const skin of SKIN_IDS) {
+    test(`${skin} is pixel-stable: the drawer with live video and push-to-talk, dark`, async ({ page }, info) => {
+      await toDrawer(page, skin, {}, 'gate', 'dark');
+      await playing(page);
+      await shootAt(page, info, `station-media-${skin}-drawer-dark`);
+    });
+
+    test(`${skin} is pixel-stable: the drawer with live video and push-to-talk, light tablet`, async ({ page }, info) => {
+      test.skip(info.project.name !== 'tablet', 'light desktop and phone are the block above');
+      await toDrawer(page, skin);
+      await playing(page);
+      await shootAt(page, info, `station-media-${skin}-drawer-light`);
+    });
+  }
+
+  test('classic is pixel-stable: talking, dark', async ({ page }, info) => {
+    await toDrawer(page, 'classic', {}, 'gate', 'dark');
+    await playing(page);
+    const btn = page.locator(`${SCREEN} sw-drawer wk-talk-button [data-wk-ptt]`);
+    const box = (await btn.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.up(); // WKF01F02-295: one click opens a full-duplex talk
+    await expect(btn).toHaveAttribute('data-phase', 'talking', { timeout: 10_000 });
+    await shootAt(page, info, 'station-media-classic-talking-dark');
   });
 });
