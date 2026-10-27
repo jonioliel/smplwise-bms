@@ -797,6 +797,10 @@ def logout(db: Database, conn_like: Any, cookie_value: str) -> bool:
             _end_where(conn, "sid_hash = ?", (sh,), "web_sign_out")
             ar.revoke_family(conn, row["family_id"], "web_sign_out", actor=actor, subject=row["user_id"])
             ar.release_pins(conn, [row["device_id"]], "web_sign_out", actor=actor, request_id=None)
+            # XSECFIX-297 (review M2 / L1): the sign-out ends this device's token and push registration too (it re-registers on sign-in)
+            from . import presence
+
+            presence.end_on_sign_out(conn, row["user_id"], "logout", device_ids=[row["device_id"]], actor=actor)
             audit(conn, actor=actor, action="auth.app_session.signed_out", decision="allowed", resource_type="mobile_device", resource_id=row["device_id"],
                   reason="web_sign_out", details={"session": row["public_id"], "family": row["family_id"]})
             return True

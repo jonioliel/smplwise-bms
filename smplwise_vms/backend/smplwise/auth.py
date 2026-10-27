@@ -252,7 +252,8 @@ def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
     # state (services/presence.enforce; administrators are never refused)
     from .services import presence
 
-    presence.enforce(conn, principal, request.scope.get("path") or "", request.headers.get("user-agent"), getattr(request.state, "correlation_id", None))
+    presence.enforce(conn, principal, request.scope.get("path") or "", request.headers.get("user-agent"), getattr(request.state, "correlation_id", None),
+                     root_path=request.scope.get("root_path") or "")
     return principal
 
 

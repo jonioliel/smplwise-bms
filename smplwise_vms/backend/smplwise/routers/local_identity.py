@@ -580,6 +580,7 @@ def _end_access(conn: sqlite3.Connection, user_id: str, reason: str) -> dict[str
     li.drop_pending_of(user_id)
     lr.kill_codes(conn, user_id)  # a live self-service code ends too (the confirm would refuse it anyway; a trigger deletes it as well)
     tokens = presence.revoke_tokens(conn, user_id)
+    presence.end_on_sign_out(conn, user_id, reason, everywhere=True)  # XSECFIX-297 (review M2): the push registrations end too
     revocation.mark([user_id])
     return {"sessions_ended": ended, "links_invalidated": links, "device_tokens_revoked": tokens}
 
@@ -779,6 +780,7 @@ def revoke_local_user_sessions(user_id: str, request: Request, principal: Princi
     ended = li.revoke_user_sessions(conn, user_id, "admin")
     li.drop_pending_of(user_id)
     tokens = presence.revoke_tokens(conn, user_id)
+    presence.end_on_sign_out(conn, user_id, "admin", everywhere=True, actor=principal, request_id=_rid(request))  # XSECFIX-297 (review M2): push ends too
     audit(conn, actor=principal, action="identity.local.user.sessions_revoked", decision="allowed", resource_type="user", resource_id=user_id,
           request_id=_rid(request), details={"sessions_ended": ended, "device_tokens_revoked": tokens})
     if ended:

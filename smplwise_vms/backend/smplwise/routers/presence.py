@@ -27,6 +27,7 @@ from ..remote_channel import is_remote
 from ..services import mobile_push
 from ..services import presence as svc
 from ..services import presence_people as people_svc
+from ..services import ha_user_auth as hua
 from ..services.ha_user_auth import bearer_of
 
 router = APIRouter()
@@ -56,25 +57,43 @@ class Caller:
         return "device" if self.device else "session"
 
 
-def _client_key(request: Request, token: str | None) -> str:
-    return "tok:" + svc.token_hash(token)[:8] if token else "ip:" + (request.client.host if request.client else "?")
+def _client_key(request: Request) -> str:
+    """XSECFIX-297 (review M3): the failure bucket is the caller's ADDRESS (Cloudflare's CF-Connecting-IP behind the tunnel, an IPv6
+    /64 as one bucket - ha_user_auth.client_ip / limit_ip), never the presented token: a fresh random token per request no longer
+    earns a fresh bucket."""
+    return "ip:" + (hua.limit_ip(hua.client_ip(request)) or "?")
+
+
+RATE_LIMITED_HE = "יותר מדי ניסיונות. נסו שוב בעוד דקה."
 
 
 def device_caller(request: Request) -> Caller:
-    """Device token only. 401 `device_token_invalid` for anything else (the app then forgets its registration)."""
+    """Device token only. 401 `device_token_invalid` for anything else (the app then forgets its registration).
+    XSECFIX-297 (review M3): the token is looked up FIRST - a valid token is never refused by the failure limiter, whatever anonymous
+    callers do; only a failed lookup counts, per source address, and a source over its limit gets 429 for its failures. There is no
+    installation-wide refusal any more (it let anyone lock every phone out); the global count only logs.
+    XSECFIX-297 (review M2 b): on the remote channel the device token obeys the same remote-access policy as a session of its user (a
+    wall user never travels; under remote.policy = flag an HA user needs the flag or the administrator default) - 403 otherwise."""
     token = bearer_of(request)
-    key = _client_key(request, token)
-    if svc.TOKEN_FAILURES.blocked(key) or svc.TOKEN_FAILURES_ALL.blocked("all"):
-        raise ApiError(429, "rate_limited", "יותר מדי ניסיונות. נסו שוב בעוד דקה.", retryable=True, details={"retry_after_s": 60})
     row = None
+    refusal = None
     if token and svc.is_device_token(token):
         with _db(request).connection(mode="read", label="presence.device") as conn:
             row = svc.by_token(conn, token)
             principal = svc.principal_of(conn, row) if row is not None else None
+            if row is not None and is_remote(request):
+                from ..services import app_refresh
+
+                refusal = app_refresh._remote_refusal(conn, row["user_id"])
     if row is None:
-        svc.TOKEN_FAILURES.fail(key)
-        svc.TOKEN_FAILURES_ALL.fail("all")
+        key = _client_key(request)
+        blocked = svc.TOKEN_FAILURES.blocked(key)
+        svc.token_failure_seen(key)
+        if blocked:
+            raise ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True, details={"retry_after_s": 60})
         raise ApiError(401, "device_token_invalid", "רישום המכשיר אינו תקף. יש לרשום את המכשיר מחדש.")
+    if refusal is not None:
+        raise ApiError(403, "remote_not_allowed", "אין לך הרשאה להתחבר למערכת מרחוק.", details={"reason": refusal})
     return Caller(principal, dict(row))
 
 
