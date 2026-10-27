@@ -85,6 +85,7 @@ class ConfigIn(BaseModel):
     poll_floor_ack: bool | None = None
     refresh_s: int | None = None  # the installation's default for how often a screen fetches the digest (10-120)
     position_fresh_min: int | None = None
+    outage_warn_h: int | None = None  # BUSSTATUS-297: hours of a provider outage before the system health warns (1-72, default 6)
     show_distance: bool | None = None
 
 

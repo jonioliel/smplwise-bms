@@ -179,7 +179,7 @@ def test_the_system_health_does_not_warn_during_a_provider_outage_and_warns_afte
     report = client.get(f"{API}/health/report").json()
     check = next(c for c in report["checks"] if c["id"] == "transit")
     assert check["status"] == "ok" and check["meta"]["state"] == "source_down" and check["meta"]["outage"] is True
-    assert "אינו זמין" in check["message"] and check["meta"]["last_good_at"]
+    assert "אינו זמין" in check["detail"] and check["meta"]["last_good_at"]
     summary = client.get(f"{API}/health/summary").json()
     assert all(i["id"] != "transit" for i in summary["items"])  # no system warning for a provider outage
     age(7 * 60)
