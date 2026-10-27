@@ -1,7 +1,7 @@
 /**
  * BOARDV2-297 - the bus-times markup of the V2 board (owner-approved mock-up private/review/NOTICE_BOARD_BUSTIMES_MOCKUP_V2_2026-10-26.html).
  * Strings only, like transit-view.ts (no DOM, no inline style: CSP). Three fixed areas, one per layout:
- *  - panel (side layout, and the portrait board): the stop header, up to the rows that fit (66 px each), the legend line;
+ *  - panel (side layout, and the portrait board): the stop header, up to the rows that fit (64 px each), the legend line (with "and N more");
  *  - strip: the stop at the start (its own column), one card per line;
  *  - slide: the whole stage for the stop(s), large rows read from across the lobby.
  * Every state draws into the same area: fresh (minutes, "now" in gold, the clock time from `clock_after_min`), cached (the scheduled clock
@@ -70,12 +70,12 @@ function head(d: TransitDigest | null, c: V2TransitCtx, big: boolean): string {
   return '<div class="b2bh">' + ic('bus') + '<div class="tt"><b>' + esc(title) + '</b><span class="sub">' + (win ? '<em>' + esc(win) + '</em>' : '') + sub + '</span></div></div>';
 }
 
-function legend(d: TransitDigest, c: V2TransitCtx): string {
+function legend(d: TransitDigest, c: V2TransitCtx, moreHtml = ''): string {
   const anyRt = d.state === 'fresh' && (d.realtime || (d.items ?? []).some((i) => i.quality === 'realtime'));
   const st = d.state === 'cached' && d.updated_hm
     ? '<span class="b2upd stale">' + esc(ts(c.lang, 'stale', { t: d.updated_hm })) + '</span>'
     : d.updated_hm ? '<span class="b2upd">' + esc(S[c.lang].updated.replace('{t}', '')) + '<span class="num">' + esc(d.updated_hm) + '</span></span>' : '';
-  return '<div class="b2bf">' + (anyRt ? '<span class="lg2 rt">' + ic('rt') + esc(ts(c.lang, 'rt')) + '</span>' : '') + '<span class="lg2">' + ic('clock') + esc(S[c.lang].sched) + '</span><span class="sp"></span>' + st + '</div>';
+  return '<div class="b2bf">' + (anyRt ? '<span class="lg2 rt">' + ic('rt') + esc(ts(c.lang, 'rt')) + '</span>' : '') + '<span class="lg2">' + ic('clock') + esc(S[c.lang].sched) + '</span>' + moreHtml + '<span class="sp"></span>' + st + '</div>';
 }
 
 function offBlock(c: V2TransitCtx): string {
@@ -113,9 +113,9 @@ export function v2Panel(d: TransitDigest | null, c: V2TransitCtx): string {
   else if (st === 'empty' && d) body = emptyBlock(d, c);
   else if (st === 'rows' && d) {
     body = '<div class="rows">' + items.map((it) => '<div class="b2r">' + badge(it.line) + '<span class="b2dest"><b>' + esc(it.dest) + '</b>' +
-      (multi ? '<small>' + esc(stopName(d, it.stop)) + '</small>' : nextHtml(it, d, c)) + '</span>' + v2Eta(it, d, c) + '</div>').join('') + '</div>' + more(d.overflow ?? 0, c);
+      (multi ? '<small>' + esc(stopName(d, it.stop)) + '</small>' : nextHtml(it, d, c)) + '</span>' + v2Eta(it, d, c) + '</div>').join('') + '</div>';
   }
-  return '<section class="b2bus panel" data-b2bus="panel" data-bus-state="' + (d?.state ?? 'wait') + '">' + head(d, c, false) + body + (st === 'rows' && d ? legend(d, c) : '') + '</section>';
+  return '<section class="b2bus panel" data-b2bus="panel" data-bus-state="' + (d?.state ?? 'wait') + '">' + head(d, c, false) + body + (st === 'rows' && d ? legend(d, c, more(d.overflow ?? 0, c)) : '') + '</section>';
 }
 
 /** The strip of the strip layout: a fixed-height row under the notices (the stop in its own column, a card per line). */
@@ -142,7 +142,7 @@ export function v2Slide(d: TransitDigest | null, c: V2TransitCtx, on: boolean): 
   else if (st === 'empty' && d) body = emptyBlock(d, c);
   else if (st === 'rows' && d) {
     body = '<div class="rows">' + items.map((it) => '<div class="b2r">' + badge(it.line) + '<span class="b2dest">' + esc(it.dest) + (multi ? '<small>' + esc(stopName(d, it.stop)) + '</small>' : '') + '</span>' +
-      v2Eta(it, d, c) + (c.next ? nextHtml(it, d, c) || '<span class="b2nx"></span>' : '') + '</div>').join('') + '</div>' + more(d.overflow ?? 0, c);
+      v2Eta(it, d, c) + (c.next ? nextHtml(it, d, c) || '<span class="b2nx"></span>' : '') + '</div>').join('') + '</div>';
   }
-  return '<article class="it transit b2bus slide' + (on ? ' on' : '') + (c.next ? '' : ' nonx') + '" data-b2bus="slide" data-bus-state="' + (d?.state ?? 'wait') + '">' + head(d, c, true) + body + (st === 'rows' && d ? legend(d, c) : '') + '</article>';
+  return '<article class="it transit b2bus slide' + (on ? ' on' : '') + (c.next ? '' : ' nonx') + '" data-b2bus="slide" data-bus-state="' + (d?.state ?? 'wait') + '">' + head(d, c, true) + body + (st === 'rows' && d ? legend(d, c, more(d.overflow ?? 0, c)) : '') + '</article>';
 }

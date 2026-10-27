@@ -31,6 +31,8 @@ interface Open {
   logo?: boolean;
 }
 
+let opened = 0;
+
 async function open(page: Page, o: Open = {}) {
   const layout = o.layout ?? 'side';
   await page.setViewportSize({ width: o.w ?? 1920, height: o.h ?? 1080 });
@@ -39,7 +41,8 @@ async function open(page: Page, o: Open = {}) {
   await serveFeed(page, feed);
   await page.route('**/api/v1/notices/display/lobby/logo/company', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: LOGO_PNG }));
   if (o.d !== null) await serveTransit(page, o.d ?? digest({ layout, rows: 4 }));
-  await page.goto(new URL(tvUrl(), base()).toString());
+  // a fresh query each time: the same URL with only the fragment would not reload the page
+  await page.goto(new URL(tvUrl('n=' + ++opened), base()).toString());
   await page.waitForSelector('#cv[data-design="v2"] .pg .b2hd', { state: 'attached' });
   await page.evaluate(async () => { await document.fonts.ready; });
   await page.waitForTimeout(1400);
@@ -104,9 +107,15 @@ for (const layout of ['side', 'strip', 'slide'] as const) {
         expect(b.hd!.y).toBeGreaterThanOrEqual(39);
         expect(b.hd!.y).toBeLessThanOrEqual(41);
         expect(b.hd!.h).toBeGreaterThanOrEqual(portrait ? 87 : 95);
-        // the weather sits under the date, in the same column, never on the bus area
-        expect(b.wx!.y).toBeGreaterThanOrEqual(b.date!.y + b.date!.h - 1);
-        expect(Math.min(b.wx!.x + b.wx!.w, b.date!.x + b.date!.w) - Math.max(b.wx!.x, b.date!.x)).toBeGreaterThan(0);
+        if (!portrait) {
+          // the weather sits under the date, in the same column, never on the bus area
+          expect(b.wx!.y).toBeGreaterThanOrEqual(b.date!.y + b.date!.h - 1);
+          expect(Math.min(b.wx!.x + b.wx!.w, b.date!.x + b.date!.w) - Math.max(b.wx!.x, b.date!.x)).toBeGreaterThan(0);
+        } else {
+          // portrait (the approved mock-up, E2): the weather at the end of the clock row, its foot level with the date's
+          expect(b.wx!.x + b.wx!.w).toBeLessThanOrEqual(b.date!.x + 1);
+          expect(Math.abs(b.wx!.y + b.wx!.h - (b.date!.y + b.date!.h))).toBeLessThanOrEqual(24);
+        }
         const busArea = portrait || layout === 'side' ? '.b2bus.panel' : layout === 'strip' ? '.b2bus.strip' : '.b2bus.slide';
         await expect(page.locator(busArea)).toBeVisible();
         const bb = (await boxes(page, { bus: busArea }))!.bus!;

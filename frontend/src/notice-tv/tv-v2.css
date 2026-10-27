@@ -90,8 +90,8 @@
 #cv[data-design="v2"][data-empty="1"] .stage.b2stage > .b2vr, #cv[data-design="v2"][data-empty="1"] .stage.b2stage > .others { display: none; }
 #cv[data-design="v2"][data-net="gone"] .stage.b2stage > .b2vr, #cv[data-design="v2"][data-net="gone"] .stage.b2stage > .others { display: none; }
 /* the slide layout: the bus slide takes the whole stage while it is on */
-#cv[data-design="v2"][data-tron="1"] .stage.b2stage { grid-template-columns: minmax(0, 1fr) 0 0; column-gap: 0; }
-#cv[data-design="v2"][data-tron="1"] .stage.b2stage > .b2vr, #cv[data-design="v2"][data-tron="1"] .stage.b2stage > .others { visibility: hidden; }
+#cv[data-design="v2"][data-tron="1"] .stage.b2stage { grid-template-columns: minmax(0, 1fr); column-gap: 0; }
+#cv[data-design="v2"][data-tron="1"] .stage.b2stage > .b2vr, #cv[data-design="v2"][data-tron="1"] .stage.b2stage > .others { display: none; }
 
 /* ---------- bus times: shared pieces ---------- */
 #cv[data-design="v2"] .b2bus { --bk: 1; position: relative; min-block-size: 0; min-inline-size: 0; }
@@ -104,7 +104,7 @@
 #cv[data-design="v2"] .b2eta small { font-size: 22px; color: var(--ink-3); }
 #cv[data-design="v2"] .b2mk { font-size: 20px; color: var(--ink-4); display: inline-flex; align-self: center; }
 #cv[data-design="v2"] .b2mk.rt { color: var(--accent); }
-#cv[data-design="v2"] .b2nx { font-size: 22px; color: var(--ink-3); white-space: nowrap; display: flex; gap: 8px; align-items: baseline; }
+#cv[data-design="v2"] .b2nx { font-size: 22px; color: var(--ink-3); white-space: nowrap; display: flex; gap: 8px; align-items: baseline; min-inline-size: 0; overflow: hidden; }
 #cv[data-design="v2"] .b2nx .num { color: var(--ink-2); }
 #cv[data-design="v2"] .b2bh { display: flex; align-items: flex-start; gap: 14px; min-inline-size: 0; }
 #cv[data-design="v2"] .b2bh .ic { font-size: 36px; color: var(--accent); stroke-width: 1.5; margin-block-start: 4px; }
@@ -131,12 +131,12 @@
 #cv[data-design="v2"] .b2bus [hidden] { display: none !important; }
 
 /* panel (side, portrait): rows of 66 px under the weather */
-#cv[data-design="v2"] .b2bus.panel { border: 1px solid var(--line); border-radius: 20px; background: var(--card); padding: 20px 24px 12px; display: flex; flex-direction: column; flex: 0 1 auto; min-block-size: 0; overflow: hidden; margin-block-start: 24px; }
+#cv[data-design="v2"] .b2bus.panel { border: 1px solid var(--line); border-radius: 20px; background: var(--card); padding: 16px 24px 10px; display: flex; flex-direction: column; flex: 0 1 auto; min-block-size: 0; overflow: hidden; margin-block-start: 24px; }
 #cv[data-design="v2"] .b2info > .b2bus.panel { margin-block-start: auto; }
-#cv[data-design="v2"] .b2bus.panel .b2bh { padding-block-end: 12px; }
-#cv[data-design="v2"] .b2bus.panel .rows { display: grid; grid-auto-rows: 66px; min-block-size: 0; overflow: hidden; flex: 0 1 auto; }
+#cv[data-design="v2"] .b2bus.panel .b2bh { padding-block-end: 8px; }
+#cv[data-design="v2"] .b2bus.panel .rows { display: grid; grid-auto-rows: 64px; grid-template-columns: minmax(0, 1fr); min-block-size: 0; overflow: hidden; flex: 0 1 auto; }
 #cv[data-design="v2"] .b2bus.panel .b2r { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 18px; border-block-start: 1px solid var(--line); }
-#cv[data-design="v2"] .b2bus.panel .b2dest { min-inline-size: 0; display: grid; gap: 2px; }
+#cv[data-design="v2"] .b2bus.panel .b2dest { min-inline-size: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 #cv[data-design="v2"] .b2bus.panel .b2dest b { font-size: 30px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #cv[data-design="v2"] .b2bus.panel .b2dest small { font-size: 20px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #cv[data-design="v2"] .b2bus.panel .b2dest .b2nx { font-size: 20px; line-height: 1.1; }
@@ -166,7 +166,7 @@
 #cv[data-design="v2"] .b2bus.slide .b2bh .ic { font-size: 52px; margin-block-start: 6px; }
 #cv[data-design="v2"] .b2bus.slide .b2bh .tt b { font-size: 52px; font-weight: 500; line-height: 1.1; }
 #cv[data-design="v2"] .b2bus.slide .b2bh .tt .sub { font-size: 28px; }
-#cv[data-design="v2"] .b2bus.slide .rows { display: grid; grid-auto-rows: 138px; margin-block-start: 20px; min-block-size: 0; overflow: hidden; flex: 1 1 auto; align-content: start; }
+#cv[data-design="v2"] .b2bus.slide .rows { display: grid; grid-auto-rows: 128px; grid-template-columns: minmax(0, 1fr); margin-block-start: 20px; min-block-size: 0; overflow: hidden; flex: 1 1 auto; align-content: start; }
 #cv[data-design="v2"] .b2bus.slide .b2r { display: grid; grid-template-columns: auto minmax(0, 1fr) auto 300px; align-items: center; column-gap: 32px; border-block-start: 1px solid var(--line); }
 #cv[data-design="v2"] .b2bus.slide.nonx .b2r { grid-template-columns: auto minmax(0, 1fr) auto; }
 #cv[data-design="v2"] .b2bus.slide .b2ln { min-inline-size: 112px; block-size: 72px; font-size: 46px; border-radius: 16px; }
