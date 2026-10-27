@@ -1,6 +1,6 @@
 # 05 - תבנית מסמך הגדרות מאגר ושורת נוהל אירועים
 
-סטטוס: תבנית, טיוטה. אין זו חוות דעת משפטית. הארגון ממלא את `[הסוגריים]`; שורות שמולאו מהקוד הן עובדות שאומתו מול `origin/integ/290` @ `018795f96` (19.10.2026), `B/` = `smplwise_vms/backend/smplwise/`.
+סטטוס: תבנית, טיוטה. אין זו חוות דעת משפטית. הארגון ממלא את `[הסוגריים]`; שורות שמולאו מהקוד הן עובדות שאומתו מול `origin/integ/290` @ `018795f96` (19.10.2026) ואומתו מחדש מול `origin/release/2241` @ `f1ef67c68` (27.10.2026), `B/` = `smplwise_vms/backend/smplwise/`.
 האם הארגון זקוק למסמך כזה, מה הדין מחייב שיכלול, האם המאגר טעון רישום ואיזו רמת אבטחה חלה: **REQUIRES COUNSEL REVIEW (C4)**. השם "מסמך הגדרות מאגר" משמש כי החלטת הבעלים מ-18.10.2026 ביקשה אותו;
 לא נטענת משמעות משפטית לשם. הנוסח האנגלי ב-`../en/` הוא המקור המדויק.
 
@@ -11,14 +11,14 @@
 | 1 | הארגון (בעל המידע) | [שם, ח.פ., כתובת] **REQUIRES COUNSEL REVIEW (C1)** |
 | 2 | האחראי על המאגר / איש קשר לפרטיות | [שם, תפקיד, פרטי קשר] |
 | 3 | מערכת | SmplWise Arx, גרסה [גרסה], רצה כתוסף Home Assistant על [תיאור השרת, מיקום]. ספקית: SmplWise. גישת הספקית לשרת: [כן/לא, איך, מתי] **REQUIRES COUNSEL REVIEW (C1)** |
-| 4 | אחסון | מסד SQLite מקומי אחד `smplwise.db` וקבצים בתיקיית הנתונים של התוסף (`B/config.py`); בקוד אין עותק שמפעילה SmplWise. גיבויים: `<data>/backups`, נשמרים 5 לפני שדרוג + 7 יומיים (`B/services/backup.py`); עותקים במקום אחר: [איפה / מי / מוצפן?] **REQUIRES COUNSEL REVIEW (C8)** |
+| 4 | אחסון | מסד SQLite מקומי אחד `smplwise.db` וקבצים בתיקיית הנתונים של התוסף (`B/config.py`); בקוד אין עותק שמפעילה SmplWise. גיבויים: `<data>/backups`, נשמרים 5 לפני שדרוג + 7 יומיים (`B/services/backup.py`); יעדי גיבוי חיצוניים שהוגדרו במוצר (תואם S3 / SFTP / נתיב מעוגן, מוצפן, `B/services/backup_offbox.py`): [אין / יעד, מפעיל, מיקום]; עותקים אחרים במקום אחר: [איפה / מי / מוצפן?] **REQUIRES COUNSEL REVIEW (C8)** |
 | 5 | מטרות | [הארגון מגדיר: הפעלת המבנה ואבטחתו, קריאות שירות, ניהול ספקים, בקרת כניסה, אחריותיות צוות...] |
-| 6 | קטגוריות מידע | בחרו מ-`01-data-processing-summary.md` סעיף 2 (A-J); סמנו מה מופעל באתר (קריאות `tickets.enabled`; גישת דלתות חיצונית `access.external_grants` כבויה ואי אפשר להפעילה בגרסה זו; נוכחות בטלפון `presence.*` כבויה כברירת מחדל) |
-| 7 | קטגוריות אנשים | צוות, ספקים והטכנאים שלהם, מי שפותח קריאות, [אחרים] |
-| 8 | מקורות המידע | מוקלד על ידי צוות; מוקלד על ידי ספקים בדפים ציבוריים; מיובא מ-Home Assistant (זהות, מכשירים); מדווח מאפליקציית הטלפון; נקרא ממערכת הכניסה ומהמקליטים |
-| 9 | נמענים ושירותים חיצוניים | הטבלה ב-`01-data-processing-summary.md` סעיף 5, בהשלמת [הסכמים שבידינו] **REQUIRES COUNSEL REVIEW (C5, C6, C7)** |
-| 10 | העברות מחוץ למדינה | [לאן; על מה מבוסס] **REQUIRES COUNSEL REVIEW (C5, C6)** |
-| 11 | מי רשאי לגשת ואיך ניתנת גישה | תפקידים והרשאות מוגבלות היקף (`B/rbac.py`, `B/roles.json`, `docs/security/HA_IDENTITY_RBAC_HE.md`); רשימת בעלי `tickets.configure`, `access.external.grant`, `audit.read`, `backup.manage`, `system.configure`: [שמות, תאריך בדיקה]; סקירת הרשאות כל [תקופה]. הערה: מנהל המארח יכול להגיע לנתונים מחוץ לבקרת הגישה של Arx (`docs/security/HA_IDENTITY_RBAC_HE.md` סעיף 2) |
+| 6 | קטגוריות מידע | בחרו מ-`01-data-processing-summary.md` סעיף 2 (A-R); סמנו מה מופעל באתר (קריאות `tickets.enabled`; גישת דלתות חיצונית `access.external_grants` כבויה כברירת מחדל, מנהל מערכת יכול להפעילה; מבקרים `access.visitors`; נוכחות בטלפון `presence.enabled`; הכרזות קוליות `announce.enabled` ו-`announce.cloud_enabled`; ספירת אנשים `occupancy.enabled`; אנשי קשר לחירום `emergency_readiness.enabled`; לוח הודעות `notices.enabled`; ממשק שותפים `partner.api` (אי אפשר להפעיל בגרסה זו); מחיקת חשבונות מקומיים `privacy.local_purge` ויצוא `privacy.personal_export` - כולם כבויים כברירת מחדל) |
+| 7 | קטגוריות אנשים | צוות, ספקים והטכנאים שלהם, מבקרים, מי שפותח קריאות, אנשי קשר לחירום, [אחרים] |
+| 8 | מקורות המידע | מוקלד על ידי צוות; מוקלד על ידי ספקים בדפים ציבוריים; מיובא מ-Home Assistant (זהות, מכשירים); מדווח מאפליקציית הטלפון; נקרא ממערכת הכניסה (כולל כניסות מבקרים) ומהמקליטים; [נכתב על ידי מערכת שותף, אם חוברה] |
+| 9 | נמענים ושירותים חיצוניים | הטבלה ב-`01-data-processing-summary.md` סעיף 5, בהשלמת [הסכמים שבידינו] **REQUIRES COUNSEL REVIEW (C5, C6, C7, C8, C14, C15)** |
+| 10 | העברות מחוץ למדינה | [לאן; על מה מבוסס] **REQUIRES COUNSEL REVIEW (C5, C6, C14)** |
+| 11 | מי רשאי לגשת ואיך ניתנת גישה | תפקידים והרשאות מוגבלות היקף (`B/rbac.py`, `B/roles.json`, `docs/security/HA_IDENTITY_RBAC_HE.md`); רשימת בעלי `tickets.configure`, `access.external.grant`, `access.visitor.invite`, `audit.read`, `backup.manage`, `system.configure`, `identity.local.manage`, `presence.view`, `notices.manage`, `emergency.manage`, `partner.manage`: [שמות, תאריך בדיקה]; סקירת הרשאות כל [תקופה]. הערה: מנהל המארח יכול להגיע לנתונים מחוץ לבקרת הגישה של Arx (`docs/security/HA_IDENTITY_RBAC_HE.md` סעיף 2) |
 | 12 | הזדהות | זהות Home Assistant, או חשבונות מקומיים עם גיבוב סיסמה scrypt/argon2id, passkeys ו-TOTP אופציונליים (`B/services/local_identity.py`, `B/services/local_passkeys.py`); מגבלות סשן (`B/services/local_identity.py`) |
 | 13 | אמצעי אבטחה בקוד | בקרת גישה, ביקורת כתיבות, אסימונים/סשנים מגובבים, הגבלות קצב, תשובות כשל אחידות בדפים ציבוריים, בלי קוד אישי או טלפון בשורות ביקורת וביומנים (`01-data-processing-summary.md` סעיף 6; `docs/security/`). אמצעים ארגוניים (גישה פיזית לשרת, עדכונים, הגנת גיבויים): [הארגון ממלא] **REQUIRES COUNSEL REVIEW (C4)** |
 | 14 | רישום וניטור | יומן ביקורת (ברירת מחדל 365 יום, `audit.retention_days`); מי בודק ובאיזו תדירות: [למלא] |
@@ -37,7 +37,10 @@
 צעדים טכניים שהמוצר מציע כשחושדים באירוע (עובדות; ההחלטה להשתמש בהם היא של הארגון):
 
 - ביטול מיידי של כל הגישה החיצונית לדלתות: פעולת מנהל "בטל הכל" (`POST /access-grants/revoke-all`, מקלידים מילת אישור, מתועד `access.grant.revoke_all`).
+- ביטול כל הזמנות המבקרים (`POST /access/visitors/revoke-all`, מנהל מערכת, מילה מוקלדת; `B/routers/access_visitors.py`).
 - ביטול הרשאה אחת או הנפקה מחדש של קוד (`/access-grants/{id}/revoke`, `/rotate`; עד 3 שליחות להרשאה).
+- ביטול אסימון שותף או השבתת לקוח שותף (`B/services/partner/core.py`); כיבוי מנוע הדיבור בענן (`announce.cloud_enabled`).
+- השבתת יעד גיבוי חיצוני או החלפת המפתח שלו (`B/services/backup_offbox.py`).
 - ביטול קישור ספק או איש קשר (קישור חדש או השבתת איש הקשר: קישורים חיים מתבטלים מיד, `B/services/tickets/contacts.py`).
 - ביטול מכשיר אפליקציה (`DELETE` של המכשיר; גיבוב האסימון מוחלף, הנוכחות ורישום הדחיפה מנוקים, `B/services/presence.py`); אפשר להשעות את מדיניות החיישנים הנדרשים ברשומת break-glass.
 - השבתת חשבון מקומי או ביטול הסשנים שלו; הסרת גישה מרחוק של משתמש (`B/services/local_identity.py`, `B/routers/remote.py`).
