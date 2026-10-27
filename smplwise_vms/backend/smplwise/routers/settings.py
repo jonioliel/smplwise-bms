@@ -470,6 +470,11 @@ DEFAULTS: dict[str, str] = {
     "maintenance.vendor_missing_insurance_mark": "true",
     "maintenance.vendor_insurance_warn_days": "30",
     "maintenance.file_max_per_task": "10",
+    # SUPPLIERDOCS-297 (provisional, owner questions q52-q56 open): reading an attached supplier certificate (text-layer PDF) into
+    # PROPOSED fields that a person confirms one by one. OFF by default; needs the maintenance module. While off every
+    # /api/v1/maintenance/docread* and .../files/{id}/read|extraction route answers 404 feature_disabled. No OCR, no model.
+    # A security review of the reader boundary gates switching it on in a release (CR-OCR119 section 6).
+    "docread.enabled": "false",
     # NVRMASK-295: privacy-mask writes to the NVR (preview + guarded apply). OFF by default: a mask blacks out live view AND the
     # recording. While off the preview and apply routes answer 409 feature_disabled; the read and the undo of earlier changes stay.
     "nvr.privacy_mask_write": "false",
@@ -987,6 +992,7 @@ class SettingsPatch(BaseModel):
     maintenance_vendor_missing_insurance_mark: str | None = Field(default=None, pattern="^(true|false)$", alias="maintenance.vendor_missing_insurance_mark")
     maintenance_vendor_insurance_warn_days: str | None = Field(default=None, pattern=LEAD_DAYS_PATTERN, alias="maintenance.vendor_insurance_warn_days")
     maintenance_file_max_per_task: str | None = Field(default=None, pattern=r"^([1-9]|[1-4][0-9]|50)$", alias="maintenance.file_max_per_task")
+    docread_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="docread.enabled")  # SUPPLIERDOCS-297 (OFF by default)
 
     model_config = {"populate_by_name": True}
 
@@ -1303,6 +1309,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         current_maint = get_setting(conn, "maintenance.enabled", DEFAULTS["maintenance.enabled"]) or DEFAULTS["maintenance.enabled"]
         if changes["maintenance.enabled"] != ("true" if current_maint == "true" else "false"):
             maintenance_switch = changes["maintenance.enabled"]
+    docread_switch = None  # SUPPLIERDOCS-297: the document-reading switch gets its own audit row when it actually changes
+    if "docread.enabled" in changes:
+        current_dr = get_setting(conn, "docread.enabled", DEFAULTS["docread.enabled"]) or DEFAULTS["docread.enabled"]
+        if changes["docread.enabled"] != ("true" if current_dr == "true" else "false"):
+            docread_switch = changes["docread.enabled"]
     emergency_switch = None  # CR-EMERG104: the module switch gets its own audit row when it actually changes
     if "emergency_readiness.enabled" in changes:
         current_em = get_setting(conn, "emergency_readiness.enabled", DEFAULTS["emergency_readiness.enabled"]) or DEFAULTS["emergency_readiness.enabled"]
@@ -1411,6 +1422,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
     if maintenance_switch is not None:
         audit(conn, actor=principal, action="maintenance.module.enable" if maintenance_switch == "true" else "maintenance.module.disable", decision="allowed",
               resource_type="installation", resource_id="maintenance", request_id=getattr(request.state, "correlation_id", None))
+    if docread_switch is not None:
+        audit(conn, actor=principal, action="docread.enable" if docread_switch == "true" else "docread.disable", decision="allowed",
+              resource_type="installation", resource_id="docread", request_id=getattr(request.state, "correlation_id", None))
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
     return {"settings": read_settings(conn, private=True), "can_edit": True, **_capacity_info(conn)}

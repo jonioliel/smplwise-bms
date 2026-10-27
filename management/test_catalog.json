@@ -10502,5 +10502,50 @@
     "environment": "Workstation Windows 11, Python 3.12 (-X utf8, fakes only), Node 24 + Playwright unit config, JDK 17 Temurin + Android SDK (Gradle JVM unit tests)",
     "evidence": "tests/test_xsecfollow_297.py 24 passed; 31 related backend suites 1114 passed 0 failed; frontend tsc --noEmit clean, unit-xsecfollow-297 + unit-automations-list 34 passed; Android testDebugUnitTest BUILD SUCCESSFUL, 68 JVM tests passed (XsecFollow297Test 8). NOT_RUN: full backend gate, browser evidence specs, iOS, on-device.",
     "executed_at": "2026-10-27"
+  },
+  {
+    "id": "AT-SUPPLIERDOCS-1",
+    "requirement_ids": [
+      "R-SUPPLIERDOCS-1"
+    ],
+    "task_ids": [
+      "SUPPLIERDOCS-297"
+    ],
+    "title": "Supplier certificate reading: switch, permissions, proposals, field-by-field decisions, retention",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Backend on fakes; the real-pdftotext test runs only where poppler is installed (skipped otherwise)"
+    ],
+    "procedure": [
+      "backend tests: tests/test_docread_297.py, tests/test_docread_certificate_rules.py"
+    ],
+    "expected": "Every listed test passes; with the switch off every route is the uniform 404; no route approves all fields at once.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8, pdftotext on PATH so the real-reader test ran): tests/test_docread_297.py + tests/test_docread_certificate_rules.py 55 passed at afbd84032 (fakes + synthetic PDF only; real supplier documents NOT_RUN). Not yet in a release gate."
+  },
+  {
+    "id": "AT-SUPPLIERDOCS2-1",
+    "requirement_ids": [
+      "R-SUPPLIERDOCS2-1"
+    ],
+    "task_ids": [
+      "SUPPLIERDOCS2-297"
+    ],
+    "title": "Supplier documents: migration sequence after release/2241 and security review regressions F1-F3, F6",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Python 3.12; real child processes (python) for run_capped"
+    ],
+    "procedure": [
+      "tests/test_migrations.py, tests/test_migrations_263_upgrade.py",
+      "scripts/release_check.py (migrations contiguous)",
+      "tests/test_docread_297.py -k 'f1 or f2 or f6'",
+      "tests/test_self_update_s3_fixes.py (minimal environment guard)"
+    ],
+    "expected": "Migrations contiguous to 0182 and every listed test passes; the crafted line is scrubbed in well under a second.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8): tests/test_migrations.py + tests/test_migrations_263_upgrade.py + docread tests 57 passed at d4b3fc646 (merge of release/2241); scripts/release_check.py 'migrations contiguous: 182 files, last 0182_doc_extractions.sql' ok; docread tests incl. F1/F2/F6 regressions 55 passed at afbd84032. F4 (child RLIMITs) open: Linux-only, NOT_RUN. Not yet in a release gate."
   }
 ]

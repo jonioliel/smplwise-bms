@@ -12411,5 +12411,86 @@
     "owner": null,
     "commit": "13038637b",
     "actual_cost_usd": null
+  },
+  {
+    "id": "SUPPLIERDOCS-297",
+    "title": "Supplier certificate reading, slice 1: text-layer PDFs into proposed fields decided field by field (OFF by default, PROVISIONAL on owner questions q52-q56)",
+    "epic": "TICKETS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "docread.enabled defaults to false and every docread route answers the uniform 404 while it is off; reading and deciding need maintenance.manage on the task (audited 403), looking needs maintenance.view; only files already attached to a certificate / vendor_document task are read; a picture or a PDF without a text layer ends in needs_ocr; the read stores proposals only (the task never changes); each field is confirmed, edited or rejected on its own (no approve-all route); the audit carries ids, counts and field names, never a value; drafts are purged 14 days after the last activity or with their file / task; doc_extractions is never in a project backup; migration 0182_doc_extractions.sql is additive."
+    ],
+    "requirement_ids": [
+      "R-SUPPLIERDOCS-1"
+    ],
+    "test_ids": [
+      "AT-SUPPLIERDOCS-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Enabling in a release is gated by the security review (docs/changes/CR-SUPPLIERDOCS-297.md, finding F4 open)."
+    },
+    "deliverables": [
+      "Backend: services/docread/ (ports, pdftext, certificate_rules, service), routers/docread.py, routers/settings.py (docread.enabled), services/backup.py",
+      "Migration: smplwise/migrations/0182_doc_extractions.sql",
+      "Tests: tests/test_docread_297.py, tests/test_docread_certificate_rules.py",
+      "Docs: docs/changes/CR-SUPPLIERDOCS-297.md"
+    ],
+    "evidence": [
+      "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8, pdftotext on PATH so the real-reader test ran): tests/test_docread_297.py + tests/test_docread_certificate_rules.py 55 passed at afbd84032 (fakes + synthetic PDF only; real supplier documents NOT_RUN). Not yet in a release gate."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "SUPPLIERDOCS2-297",
+    "title": "Supplier documents: migration renumbered to 0182 after release/2241, merge of release/2241, security review with fixes F1-F3 and F6",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The migration sequence is contiguous on top of release/2241 (0180 external codes, 0181 door-window write, 0182 doc_extractions); F1 the snippet scrubber is linear on a crafted line and the rules run outside the database write lock; F2 the pdftotext child output is read up to the cap and the child killed at the cap or the deadline, with the minimal environment; F3 at most READ_CONCURRENCY reads at once, otherwise 429 busy with nothing stored; F6 proposals of a deleted task are purged at the next janitor pass; docread.enabled stays OFF by default; open findings F4, F5, F7 recorded in the CR."
+    ],
+    "requirement_ids": [
+      "R-SUPPLIERDOCS2-1"
+    ],
+    "test_ids": [
+      "AT-SUPPLIERDOCS2-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "F4 (child RLIMITs / sandbox) needs a Linux run on the runner before docread.enabled may be switched on in a release."
+    },
+    "deliverables": [
+      "services/docread/pdftext.py (run_capped), services/docread/certificate_rules.py (IBAN pattern), services/docread/service.py (analyse, read slots, purge of deleted tasks), routers/docread.py",
+      "Tests: tests/test_docread_297.py (test_f1_*, test_f2_*, test_f6_*)",
+      "Docs: docs/changes/CR-SUPPLIERDOCS-297.md section 'Security review'"
+    ],
+    "evidence": [
+      "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8): tests/test_migrations.py + tests/test_migrations_263_upgrade.py + docread tests 57 passed at d4b3fc646 (merge of release/2241); scripts/release_check.py 'migrations contiguous: 182 files, last 0182_doc_extractions.sql' ok; docread tests incl. F1/F2/F6 regressions 55 passed at afbd84032. F4 (child RLIMITs) open: Linux-only, NOT_RUN. Not yet in a release gate."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

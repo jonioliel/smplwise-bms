@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-27T23:10:41.274524+00:00
+Generated: 2026-10-27T23:19:05.119330+00:00
 
-Tasks: 266 | Requirements: 375 | Tests: 392 | Screens: 32
+Tasks: 268 | Requirements: 377 | Tests: 394 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 73
+- REVIEW: 75
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 172
+- V1: 174
 - V2: 29
 - V3: 2
 
@@ -304,3 +304,5 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [SPLITSWITCH2-297](tasks/SPLITSWITCH2-297.md) | V1 | REVIEW | Emergency-buttons switch is a setting (owner q48): default on, admin-only, audited, confirmed when turned off; a gate on the build flags, never an activation | — |
 | [CURVEDGATE-297](tasks/CURVEDGATE-297.md) | V1 | REVIEW | Curved walls stage 1a: the two live curved-wall browser specs (evidence-curved-walls, evidence-curve-points) join the release gate's fixture phase | — |
 | [XSECFOLLOW-297](tasks/XSECFOLLOW-297.md) | V1 | REVIEW | Security review 2026-10-27 follow-ups of XSECFIX-297: the presence block on WebSockets, phone credentials end on a password change / reset and a forced second factor, ?do=run and Android tests | — |
+| [SUPPLIERDOCS-297](tasks/SUPPLIERDOCS-297.md) | V1 | REVIEW | Supplier certificate reading, slice 1: text-layer PDFs into proposed fields decided field by field (OFF by default, PROVISIONAL on owner questions q52-q56) | — |
+| [SUPPLIERDOCS2-297](tasks/SUPPLIERDOCS2-297.md) | V1 | REVIEW | Supplier documents: migration renumbered to 0182 after release/2241, merge of release/2241, security review with fixes F1-F3 and F6 | — |
