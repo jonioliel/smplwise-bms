@@ -23,10 +23,10 @@
 ```
 
 ## Acceptance
-- **R-EXTBUILD-1 / AT-EXTBUILD-1:** X1 readiness API + Settings block + CLI (read-only); X2 automatic fallback to the service channel instead of a refusal, reason shown, revokes never blocked; X3 owner-session runbook; X5 service-writer adapter behind a port with the expected contract documented (wire not built); one-time code for vendors (request + approver narrowing, entry watch); visitors on the same engine behind access.visitors (off); provisional migration 0180 additive only; no default changed; nothing live.
+- **R-EXTBUILD-1 / AT-EXTBUILD-1:** X1 readiness API + Settings block + CLI (read-only); X2 automatic fallback to the service channel instead of a refusal, reason shown, revokes never blocked; X3 owner-session runbook; X5 service-writer adapter behind a port with the expected contract documented (wire not built); one-time code for vendors (request + approver narrowing, entry watch); visitors on the same engine behind access.visitors (off); migration 0180 additive only (number confirmed at the 2.24.1 integration); no default changed; nothing live.
 
 ## Deliverables
-- Backend: services/access_readiness.py, services/access_service_writer.py, services/access_entries.py, services/access_visitors.py, routers/access_visitors.py; access_grant_engine._write fallback; access_grants code_mode + visitor hooks; migration 0180 (provisional); permission access.visitor.invite; notification source access.visitor.arrived
+- Backend: services/access_readiness.py, services/access_service_writer.py, services/access_entries.py, services/access_visitors.py, routers/access_visitors.py; access_grant_engine._write fallback; access_grants code_mode + visitor hooks; migration 0180_external_codes_visitors.sql (confirmed at the 2.24.1 integration); permission access.visitor.invite; notification source access.visitor.arrived
 - Frontend: readiness block + main switch in the external-access Settings dialog; code type in the request dialog; one-entry chip
 - Tests: smplwise_vms/backend/tests/test_externalbuild_297.py
 - Docs: docs/changes/EXTERNALBUILD-297.md, docs/operations/EXTERNAL_ACCESS_LIVE_SESSION_RUNBOOK.md, docs/user-guide/he/52-external-access_HE.md

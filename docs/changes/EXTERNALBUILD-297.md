@@ -42,8 +42,8 @@ Fakes only. Nothing in this branch was run against WisKey, Home Assistant, a sta
 
 ## 3. Data model (migration)
 
-`smplwise_vms/backend/smplwise/migrations/0180_external_codes_visitors.sql` - **PROVISIONAL number 0180** (v2.23.2 ends at 0179; the lead renumbers at
-integration if another branch took 0180). Additive only:
+`smplwise_vms/backend/smplwise/migrations/0180_external_codes_visitors.sql` - number 0180 (built as provisional on v2.23.2, which ends at 0179;
+confirmed at the 2.24.1 integration on release/2241; DOORWRITE-297 follows as 0181). Additive only:
 - `access_grants.code_mode TEXT NOT NULL DEFAULT 'window' CHECK (code_mode IN ('window','single_entry'))`, `access_grants.first_entry_at TEXT`
   (ALTER TABLE ADD COLUMN, no rebuild);
 - new tables `access_visitor_invites`, `access_visitor_entries`, `access_station_visitor_entrance`.

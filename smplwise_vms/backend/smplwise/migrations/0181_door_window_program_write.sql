@@ -1,5 +1,5 @@
--- Number 0180 (built as PROVISIONAL on pilot/DOORWRITE-297 from pilot/SPLITSWITCH-297 where 0179 is the highest; another branch may take
--- the same number - renumber at integration). The content does not depend on the number.
+-- Number 0181 (built as PROVISIONAL 0180 on pilot/DOORWRITE-297 from pilot/SPLITSWITCH-297 where 0179 is the highest; renumbered at
+-- the 2.24.1 integration, release/2241, because EXTERNALBUILD-297 took 0180). The content does not depend on the number.
 -- DOORWRITE-297 (docs/changes/DOORWRITE-297.md, board r129): the door-window program write path to WisKey - versioned writes, read-back
 -- verification, drift detection and bounded retries. Per door, on the existing `door_window_engine` row:
 --   write_state     idle | written | verified | retry_wait | failed | drift | foreign | blocked | invalid | prepared (NULL = never evaluated)

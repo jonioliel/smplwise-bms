@@ -39,7 +39,8 @@ Write states (`door_window_engine.write_state`): `idle, written, verified, retry
 
 ## Migration / rollback
 
-- `0180_door_window_program_write.sql` - **provisional number** (0179 is the highest on this base; renumber at integration if taken).
+- `0181_door_window_program_write.sql` - built as provisional 0180 (0179 was the highest on its base); renumbered to 0181 at the 2.24.1
+  integration (release/2241), after EXTERNALBUILD-297's `0180_external_codes_visitors.sql`.
   Additive: seven columns on `door_window_engine` (`write_state, write_attempts, next_attempt_at, verified_at, drift_at, drift_kind,
   program_version`). One owner for the DB change: this branch.
 - Rollback = run the previous version (it never reads the columns). Dropping them is optional.

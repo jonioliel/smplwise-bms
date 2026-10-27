@@ -1,5 +1,5 @@
--- PROVISIONAL number 0180 (built on pilot/EXTERNALBUILD-297 from tag v2.23.2, where 0179 is the highest). The lead renumbers at
--- integration when another branch took 0180; the content does not depend on the number.
+-- Number 0180 (built as PROVISIONAL on pilot/EXTERNALBUILD-297 from tag v2.23.2, where 0179 is the highest; confirmed at the
+-- 2.24.1 integration, release/2241: 0179 is the highest on release/2240). The content does not depend on the number.
 --
 -- EXTERNALBUILD-297 (owner direction 2026-10-27, "full intake"; docs/changes/EXTERNALBUILD-297.md):
 --  1. the one-time ("single entry") code option for a vendor's technician, beside the window code: `access_grants.code_mode`
