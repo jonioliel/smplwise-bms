@@ -12002,5 +12002,46 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "EXTERNALBUILD-297",
+    "title": "External access built to full scope (X0-X6 of EXTERNALSPEC-297 + one-time code + CR-VISITOR105 visitors), fakes only, OFF by default",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "X1 readiness API + Settings block + CLI (read-only); X2 automatic fallback to the service channel instead of a refusal, reason shown, revokes never blocked; X3 owner-session runbook; X5 service-writer adapter behind a port with the expected contract documented (wire not built); one-time code for vendors (request + approver narrowing, entry watch); visitors on the same engine behind access.visitors (off); provisional migration 0180 additive only; no default changed; nothing live."
+    ],
+    "requirement_ids": [
+      "R-EXTBUILD-1"
+    ],
+    "test_ids": [
+      "AT-EXTBUILD-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Security path (door credentials): the live session with the owner follows docs/operations/EXTERNAL_ACCESS_LIVE_SESSION_RUNBOOK.md, action by action."
+    },
+    "deliverables": [
+      "Backend: services/access_readiness.py, services/access_service_writer.py, services/access_entries.py, services/access_visitors.py, routers/access_visitors.py; access_grant_engine._write fallback; access_grants code_mode + visitor hooks; migration 0180 (provisional); permission access.visitor.invite; notification source access.visitor.arrived",
+      "Frontend: readiness block + main switch in the external-access Settings dialog; code type in the request dialog; one-entry chip",
+      "Tests: smplwise_vms/backend/tests/test_externalbuild_297.py",
+      "Docs: docs/changes/EXTERNALBUILD-297.md, docs/operations/EXTERNAL_ACCESS_LIVE_SESSION_RUNBOOK.md, docs/user-guide/he/52-external-access_HE.md"
+    ],
+    "evidence": [
+      "2026-10-27 local workstation (fakes only), pilot/EXTERNALBUILD-297 @ 9daae20f4 + catalogue fix: tests/test_externalbuild_297.py 30 passed; regression sets (grants, arrival, grants3, grantsmin, harden271, accessreq, denyalert, sharedid, k7, physentry, wkjoin, notify_core, quiet103, wxperm, custom_roles, rbac, rbac_matrix, stationperm, eccact_readback, wkv2, wkv2b, pub03 retention, tickets phone_verify, access) no failures after test_access_permissions_wxperm learned access.visitor.invite; frontend tsc --noEmit clean. No Playwright spec run. Not a gate."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

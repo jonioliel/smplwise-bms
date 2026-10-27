@@ -6883,5 +6883,21 @@
     "test_ids": [
       "AT-WHOIN-1"
     ]
+  },
+  {
+    "id": "R-EXTBUILD-1",
+    "title": "External access to full scope: readiness check, graceful WisKey write path, service-writer adapter, one-time vendor code, visitor invitations (board r381)",
+    "statement": "A system administrator sees, read-only and in plain Hebrew, which prerequisites of the external access are in place (write path, revoke proof, WhatsApp account, entrance stations, approvers) - unknown is never ok; grant writes never fail because WisKey's direct connection is selected: they use a service writer when WisKey offers one and otherwise fall back to the local service channel, with the reason shown; revokes are never blocked; a vendor's code can be a one-time code that is withdrawn after the first reported entry (best effort); a host with access.visitor.invite invites a visitor on the same grant engine (approval envelope routes, never refuses; no door code before the visitor's number is confirmed by code; entry log and a content-free arrival notice; 30-day erase); every switch stays OFF by default.",
+    "task_ids": [
+      "EXTERNALBUILD-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-EXTBUILD-1"
+    ]
   }
 ]
