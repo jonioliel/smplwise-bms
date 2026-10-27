@@ -53,11 +53,11 @@ type Confirm = { title: string; text: string; btn: string; danger?: boolean; run
 export class DoorWindowsScreen extends LitElement {
   static styles = [dwCss, css`
     :host { display: block; }
-    .stack { display: grid; gap: 18px; }
+    .stack { display: grid; gap: 16px; } /* round 2 loop 2: the larger titles cost 26 px of inner scroll at 1440x900 - the stack gap and the card padding give it back */
     section { display: grid; gap: 10px; }
     /* round 2: section titles one step larger and tight; the cards carry the lit top edge of the elevation ladder; a card title is a real heading */
     h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; color: var(--sw-text); }
-    .card { display: grid; gap: 10px; padding: 16px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; }
+    .card { display: grid; gap: 8px; padding: 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; }
     .card.alarm { border-color: var(--sw-danger); background: var(--sw-danger-soft); }
     .card .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
     .card .top b { font-size: var(--sw-fs-lg); font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
