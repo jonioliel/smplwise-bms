@@ -293,6 +293,6 @@ def _receipt_token(receipt: Any, event_ref: str, command: str) -> str:
 
 
 def install(engine: DirectEmergencyEngine) -> None:
-    """Make `engine` the emergency engine of this process (`door_windows_engine.EMERGENCY_ENGINE_FACTORY`). It changes NO switch and NO permit; `dwe.LIVE_ENGINE_BUILT` is the lead's
-    separate decision (it also governs the window factory)."""
+    """Make `engine` the emergency engine of this process (`door_windows_engine.EMERGENCY_ENGINE_FACTORY`). It changes NO switch and NO permit; `door_windows_engine.EMERGENCY_ENGINE_BUILT`
+    is the owner's separate decision (SPLITSWITCH-297: independent of the window programs' PROGRAM_ENGINE_BUILT)."""
     dwe.EMERGENCY_ENGINE_FACTORY = lambda settings: engine  # noqa: ARG005

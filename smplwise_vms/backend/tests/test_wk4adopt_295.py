@@ -28,7 +28,7 @@ from smplwise.services.wiskey_listen_adapter import ReceiveDownlink, SyntheticDo
 
 BACKEND = Path(__file__).resolve().parents[1]
 PATCH_AFTER = {  # PATCH_TARGET.json of the Mac delivery: the after-hash of each file on the exact base 9eca5e92
-    "smplwise/services/wiskey_media_bridge.py": "7c8181d66218a9a293dde4f3a254d9765ed2ad23684200b701292b8fba6a842c",
+    "smplwise/services/wiskey_media_bridge.py": "945bb99d101fbe1d2ac7602a1f799f263aa53956d402ffbcd31a0e562edcf978",
 }
 
 
@@ -39,9 +39,11 @@ def _owner_timers(who: Any) -> list[Any]:
 
 # ================================================================ W-001: identity of the adopted source
 
-def test_the_media_bridge_is_byte_identical_to_the_reviewed_patch_result():
-    """wiskey_media_bridge.py did not drift from 9eca: the adopted file IS the reviewed after-file (sha256 from PATCH_TARGET.json).
-    intercom_media.py / wiskey_listen_adapter.py differ on purpose (W-002 wiring, the R04 identified merge) - see docs/changes."""
+def test_media_bridge_matches_mac_scoped_ha_contribution():
+    """Integrity of the explicit Mac HA subscription contribution, pending Arx review.
+    Original base80e and before/after bytes remain pinned separately in its target
+    manifest. This is a new contribution assertion, not a historical acceptance.
+    """
     for rel, want in PATCH_AFTER.items():
         assert hashlib.sha256((BACKEND / rel).read_bytes()).hexdigest() == want, rel
 

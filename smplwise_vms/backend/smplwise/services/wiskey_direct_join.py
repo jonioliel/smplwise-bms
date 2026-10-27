@@ -356,6 +356,36 @@ def websocket_media_opener(settings: Any) -> Callable[[str, Mapping[str, str], f
 
 # ---------------------------------------------------------------- the selection wrappers (existing path otherwise)
 
+def mapped_card_transport(join: "DirectJoin", direct: Any) -> Any:
+    """WISKEY-OWNER26-297 (W-005, owner26 Q2 "card"): the original card-capture caller (capture routes and the lease worker ->
+    `lease_events.TRANSPORT`) reaches WisKey's Native `capture/lease_event | lease_request` on the direct path only through the CAPMAP DTO9
+    pre-flight (`wiskey_capture_map.MappedLeaseTransport`) whenever the mapping is enabled. The announced command list is what THIS
+    connection's discovery lists now (`selected(command)`). While `MAPPING_ENABLED` is False (this build) the direct path is the plain
+    `DirectLeaseTransport`, byte for byte the call it made before; `capture_lease.GO_LIVE_PERMITTED` stays False either way."""
+    from . import wiskey_capture_map as cm
+
+    def announced() -> frozenset[str]:
+        return frozenset(c for c in (cm.EVENT_COMMAND, cm.REQUEST_COMMAND) if join.selected(c))
+
+    return MappedWhenEnabled(direct, cm.MappedLeaseTransport(direct, announced), cm.enabled)
+
+
+class MappedWhenEnabled:
+    """`lease_events.LeaseTransport`: the CAPMAP pre-flight transport while `enabled()` (read per call), else the plain direct one."""
+
+    def __init__(self, plain: Any, mapped: Any, enabled: Callable[[], bool]) -> None:
+        self.plain, self.mapped, self.enabled = plain, mapped, enabled
+
+    def _pick(self) -> Any:
+        return self.mapped if self.enabled() else self.plain
+
+    def event(self, settings: Any, text: str) -> Any:
+        return self._pick().event(settings, text)
+
+    def request(self, settings: Any, action: str, text: str) -> Any:
+        return self._pick().request(settings, action, text)
+
+
 class SelectingLeaseTransport:
     """`lease_events.LeaseTransport`: the direct `DirectLeaseTransport` while the join selects the direct path, else the existing
     transport (`BridgeLeaseTransport`) - byte for byte the call it made before."""
@@ -729,7 +759,7 @@ def startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | No
 
     join = DirectJoin(session, provider_ok=_cached(read_provider, DirectJoin.PROVIDER_TTL_S),
                       key_ok=lambda: key_signs(key_provider()), lineage=lineage, audit_for=audit_to)
-    join.lease_transport = SelectingLeaseTransport(join, wiskey_capture_direct.DirectLeaseTransport(join.capture_port),
+    join.lease_transport = SelectingLeaseTransport(join, mapped_card_transport(join, wiskey_capture_direct.DirectLeaseTransport(join.capture_port)),
                                                    lease_events.BridgeLeaseTransport())
     join.template_transport = wiskey_template_direct.DirectTemplateTransport(join.capture_port)
     from .wiskey_intents import LiveResolveTransport

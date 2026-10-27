@@ -119,6 +119,8 @@ export class DoorWindowsScreen extends LitElement {
   @state() private settingsOpen = false;
   @state() private ws: Record<string, string> | null = null;
   @state() private wsEdit: Record<string, string> = {};
+  /** SPLITSWITCH-297: the door-window program engine may write to the door system (its own flag, independent of emergency buttons). */
+  @state() private wLive = false;
   @state() private es: EmergencySettings | null = null;
   @state() private esEdit: Record<string, string> = {};
   @state() private sError = '';
@@ -278,6 +280,7 @@ export class DoorWindowsScreen extends LitElement {
       const [w, e] = await Promise.all([getWindowSettings(), getEmergencySettings()]);
       this.ws = w.settings;
       this.wsEdit = { ...w.settings };
+      this.wLive = w.go_live_permitted === true;
       this.es = e.settings;
       this.esEdit = Object.fromEntries(Object.entries(e.settings).filter(([k, v]) => typeof v === 'string' && ['doors.emergency.enabled', 'doors.emergency.open_enabled', ...GRANT_KEYS].includes(k))) as Record<string, string>;
     } catch (err) {
@@ -343,6 +346,7 @@ export class DoorWindowsScreen extends LitElement {
     return html`<sw-drawer open modal heading=${dwt('sTitle')} @close=${() => (this.settingsOpen = false)}>
       <div class="form" data-dw-settings>
         <section><h2>${dwt('sWindows')}</h2>
+          ${!this.wLive ? html`<div class="callout" data-tone="warn" data-dw-programs-golive><sw-icon name="info"></sw-icon><span>${dwt('sProgramsGoLiveNo')}</span></div>` : nothing}
           ${this.check(w['doors.windows.enabled'] === 'on', 'sWindowsOn', (v) => (this.wsEdit = { ...w, 'doors.windows.enabled': v ? 'on' : 'off' }), false, 'doors.windows.enabled')}
           ${this.num('doors.windows.max_hours', 'sMaxHours', 1, 12)}
           ${this.num('doors.windows.relock_grace_s', 'sGrace', 60, 600)}

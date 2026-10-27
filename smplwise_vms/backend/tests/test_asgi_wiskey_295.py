@@ -1067,37 +1067,74 @@ def test_the_station_sound_rides_the_talk_socket_even_while_muted_and_a_malforme
     assert not world.station.talks
 
 
-def test_listen_only_on_the_signed_provider_stays_pending_and_reaches_no_station(world, app):
-    """`access.station_listen = probe`: the drawer may offer listening, but WisKey's listen-only downlink is not contracted - the socket
-    closes without one byte of audio and no W10 command beyond the descriptor reaches WisKey (no talk is opened as a listen substitute)."""
-    async def scenario() -> dict[str, Any]:
+def test_listen_only_uses_original_signed_provider_and_joins_without_uplink(world, app):
+    async def scenario():
         a = Asgi(app)
         await a.startup()
         try:
             await wait_feed_ready()
-            await configure(a, **{"access.station_listen": "probe"})
-            cap = (await a.req("GET", f"/api/v1/access-control/stations/{STATION}/listen")).json()
-            r = await a.req("POST", f"/api/v1/access-control/stations/{STATION}/listen", json={})
-            out: dict[str, Any] = {"cap": cap, "start": r.status_code, "code": None, "bytes": 0}
-            if r.status_code == 200:
-                ws = a.ws("/" + r.json()["ws_path"])
-                if await ws.connect():
-                    out["code"] = await ws.closed(8)
-                else:
-                    out["code"] = ws.close_code
-                out["bytes"] = len(ws.binaries())
-                out["texts"] = ws.texts()
-            return out
+            await configure(a, **{"access.station_listen": "on"})
+            path = f"/api/v1/access-control/stations/{STATION}/listen"
+            assert (await a.req("GET", path)).json()["available"] is True
+            r = await a.req("POST", path, json={})
+            assert r.status_code == 200
+            ws = a.ws("/"+r.json()["ws_path"])
+            assert await ws.connect()
+            assert (await ws.text())["value"] == "open"
+            ref = talk_ref(world)
+            world.station.emit_audio(ref, 0, PACKET)
+            assert [await ws.binary() for _ in range(5)] == [PACKET[:160]]*5
+            await ws.send_bytes(FRAME)  # standalone listen never dispatches uplink
+            await ws.send_json({"type":"listen/stop"})
+            assert await ws.text() == {"type":"listen/closed", "value":"stopped"}
+            assert await ws.closed() == 1000
+            assert not world.station.frames_sink
         finally:
             await a.shutdown()
+    run(scenario())
+    assert world.station.by_command(w10.TALK_OPEN) and world.station.by_command(w10.TALK_CLOSE)
+    assert not world.station.talks and not world.station.station_talk
+    assert not world.station.by_command(w10.TALK_FLOOR)
+    assert not world.refused
 
-    out = run(scenario())
-    assert out["cap"]["available"] is True and out["start"] == 200, out
-    assert out["code"] == 4503 and out["texts"] == [{"type": "listen/closed", "value": "upstream_unavailable"}], out
-    assert out["bytes"] == 0, out
-    assert not world.station.by_command(w10.TALK_OPEN), "no talk is opened as a listen-only substitute"
-    rows = audit_rows(world, "intercom.listen.end")
-    assert rows and json.loads(rows[-1]["details_json"])["outcome"] == "upstream_unavailable"
+
+@pytest.mark.parametrize("ending", ["revoke", "expiry", "off"])
+def test_listen_fences_before_first_packet_after_change_during_open(world, app, ending):
+    async def scenario():
+        a = Asgi(app)
+        await a.startup()
+        try:
+            await wait_feed_ready()
+            await configure(a, **{"access.station_listen": "on"})
+            bid = await grant(a, "olga", "operator")
+            world.station.delays[w10.TALK_OPEN] = 0.7
+            r = await a.req("POST", f"/api/v1/access-control/stations/{STATION}/listen", user="olga", json={})
+            assert r.status_code == 200
+            session = il.LISTEN.get(r.json()["session"])
+            ws = a.ws("/"+r.json()["ws_path"], "olga")
+            assert await ws.connect()
+            await until(lambda: world.station.by_command(w10.TALK_OPEN), 5, "listen open pending")
+            if ending == "revoke":
+                assert (await a.req("DELETE", f"/api/v1/access/bindings/{bid}")).status_code == 200
+            elif ending == "off":
+                await configure(a, **{"access.station_listen": "off"})
+            else:
+                session.expires_at = time.time()+0.05
+            await until(lambda: bool(world.station.talks), 5, "native listen opened")
+            ref = talk_ref(world)
+            for seq in range(40):
+                if ws.close_code is not None:
+                    break
+                if ref in world.station.talks:
+                    world.station.emit_audio(ref, seq, PACKET)
+                await asyncio.sleep(0.05)
+            code = await ws.closed()
+            assert code == (4408 if ending == "expiry" else 4403)
+            assert ws.binaries() == [], "no packet admitted on stale publication authority"
+        finally:
+            await a.shutdown()
+    run(scenario())
+    assert world.station.by_command(w10.TALK_CLOSE) and not world.station.talks
 
 
 # ================================================================ 6. the lease stream lifecycle (owner / generation / quarantine / timers) across shutdown

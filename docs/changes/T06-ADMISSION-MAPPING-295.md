@@ -142,3 +142,30 @@ Merging T06 next to WK4ADOPT-295, WKR5ADOPT-295 (with WKR5-295) and PEERQUERY-29
 `wiskey_capture_map.py` only names `port.call(` in its docstring (no call). The lineage admin router `routers/wiskey_lineage.py` (WKR5 unit C) imports
 the writer's error class `NativeWriteError` only; its resolve / close / reinitialise go through the installed join. The test stub join takes the
 per-command `selected(command)` of WKR5 unit A.
+
+
+## Mac Native metadata contribution (2026-10-26, local review candidate)
+
+`G-NATIVE-METADATA`: `overview`, `subscribe`, `authorization/session` use the
+original generic command encoder and existing pairing key, bound to the real
+`auth/current_user` of the same HA socket. The test deployment explicitly sets
+`SW_WISKEY_NATIVE_SIGNED_READS=1`; the default remains 0. Only these three
+metadata reads are signed by this wrapper; business calls keep their existing
+route/role/channel admission. Missing key or identity refuses the enabled path.
+The original feed projects overview immediately and retains no person directory.
+No HA user, token, panel policy or role is created or changed by this adapter.
+The original signing inventory includes this caller and its fixed command set.
+
+
+## WISKEY-OWNER26-297 addendum (owner26 Q2: the original callers)
+
+| Command | Gate | Arx permission | Scope | Module |
+|---|---|---|---|---|
+| `stations/technical_program_list`, `stations/technical_program_save`, `stations/technical_program_action` | G-DOOR-WINDOWS | `access.windows.manage`: the door-windows routes admit the person (or the watchdog acts for a rule a person admitted) before `WiskeyProgramEngine` is called; the wire carries the pairing signature only | the door's station chain | `wiskey_program_direct.py` (W-023) |
+| `features/start` `door_automations` (no new command) | G-FEATURE | the block's creator AND approver (`armed_by`) must each hold `access.doors.open` on the door's station (WisKey `door/pulse`); the original automation actor (block id, run, trigger, creator, approver, grant revision = policy revision) | the door's station chain + confirmed relay map | `wiskey_auto_door.py` via `door_automation.LiveSender` (W-018) |
+
+Neither path is reachable in this build: `door_windows_engine.LIVE_ENGINE_BUILT` is False (the window factory hands out the tier-D
+`PreparedEngine`) and `door_automation.GO_LIVE_PERMITTED` is False (`_switch_reason` refuses `feature_off` before any sender). Finding 6
+above is therefore narrowed: door automations now have a production caller of `FeatureAdapters.prepare`, gated off. The card caller
+(`capture/lease_*`) goes through the CAPMAP DTO9 pre-flight on the direct path whenever `MAPPING_ENABLED` is on
+(`wiskey_direct_join.mapped_card_transport`; off in this build = the plain direct transport as before); no new command.

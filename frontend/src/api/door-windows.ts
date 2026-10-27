@@ -186,7 +186,8 @@ export const getCalendar = () => get<CalendarReply>(`${W}/calendar`);
 export const putCalendarDay = (onDate: string, dayType: HolidayRow['kind'] | 'none', label = '') =>
   put<{ saved: number }>(`${W}/calendar`, { days: [{ on_date: onDate, day_type: dayType, label }], confirmed: true });
 
-export const getWindowSettings = () => get<{ settings: Record<string, string>; go_live_permitted: boolean }>(`${W}/settings`);
+/** SPLITSWITCH-297: `go_live_permitted` = the permit AND the door-window program engine's own flag (independent of emergency buttons). */
+export const getWindowSettings = () => get<{ settings: Record<string, string>; go_live_permitted: boolean; program_engine_built?: boolean }>(`${W}/settings`);
 export const putWindowSettings = (changes: Record<string, string>) =>
   put<{ settings: Record<string, string>; changed: string[] }>(`${W}/settings`, { changes, confirmed: true });
 
@@ -279,7 +280,10 @@ export interface EmergencySettings {
   'doors.emergency.grant.max_hours'?: string;
   'doors.emergency.grant.by_security_manager'?: string;
   'doors.emergency.retry_open.by_holders'?: string;
+  /** SPLITSWITCH-297: the permit AND the emergency engine's own flag (independent of door-window programs). */
   go_live_permitted: boolean;
+  live_engine_built?: boolean;
+  emergency_engine_built?: boolean;
   open_available: boolean;
   attested: boolean;
   attestation: { version: number; text: string };

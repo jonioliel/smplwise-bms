@@ -121,9 +121,17 @@ TABLE: dict[str, tuple[str, str, str, str]] = {
     "whatsapp/template_send_v2": (TEMPLATE, "G-NONE-NO-CALLER", "NONE (DirectTemplateTransport.send_v2)", "none - no route calls it"),
     # session
     "direct/connect": (SYSTEM, "G-SESSION", "(service identity: the pairing key signs; no operator)", "the pairing"),
+    "overview": (SYSTEM, "G-NATIVE-METADATA", "paired system metadata; closed feed projection", "original authenticated HA user + pairing"),
+    "subscribe": (SYSTEM, "G-NATIVE-METADATA", "paired data-free refresh subscription", "original authenticated HA connection"),
+    "authorization/session": (SYSTEM, "G-NATIVE-METADATA", "own Native session metadata", "original authenticated HA user"),
     # REL2210 (2.21.0): WKR5ADOPT-295 W-006, the WisKey-verified people CSV (switch access.people_csv_preview, default off)
     "features/people_csv_preview": (FEATURE, "G-PEOPLE-CSV", "access.people.manage (preview, interactive); system administrator (confirm, interactive)",
                                     "the installation (people/write)"),
+    # WISKEY-OWNER26-297 (W-023): the door-window program engine on the Native hold-open programs (door-windows routes admit the person first;
+    # the factory hands the engine out only when live_ready(), LIVE_ENGINE_BUILT False in this build)
+    "stations/technical_program_list": (DOOR, "G-DOOR-WINDOWS", "access.windows.manage (door-windows routes / watchdog of an admitted rule)", "the door's station chain"),
+    "stations/technical_program_save": (DOOR, "G-DOOR-WINDOWS", "access.windows.manage (door-windows routes / watchdog of an admitted rule)", "the door's station chain"),
+    "stations/technical_program_action": (DOOR, "G-DOOR-WINDOWS", "access.windows.manage (door-windows routes / watchdog of an admitted rule)", "the door's station chain"),
 }
 
 # the WisKey permission strings of the six features and the Arx permission(s) that grant each
@@ -139,12 +147,16 @@ def inventory() -> set[str]:
     names |= set(fd.COMMANDS) | {join.MEDIA_INGRESS_COMMAND}
     names |= set(w10.COMMANDS)
     names |= {td.V1_COMMAND, td.V2_COMMAND}
-    names |= {"direct/connect"}
+    from smplwise.services.wiskey_native_feed import METADATA_READS
+    names |= {"direct/connect"} | METADATA_READS
     from smplwise.services import wiskey_people_csv as pcsv
     from smplwise.services import wiskey_peer_query as pq
     from smplwise.services import wiskey_peer_registry as pr
 
     names |= {pcsv.COMMAND, pq.COMMAND, pr.LiveRegistryTransport.COMMAND}  # REL2210: W-006, PEERQUERY, WK4ADOPT W-010
+    from smplwise.services import wiskey_program_direct as wpd
+
+    names |= set(wpd.COMMANDS)  # WISKEY-OWNER26-297 W-023
     from smplwise.services import trusted_door
 
     names |= {"door_open", "door_open_status"}
@@ -197,14 +209,15 @@ def test_the_change_note_lists_every_command_and_every_gate():
 def test_the_only_modules_that_reach_a_signing_call_are_the_known_ones():
     """The transport signs whatever it is given (no allow-list, no identity): admission lives in the callers. So the set of modules that call the
     signing seam is pinned; a new caller is a new admission decision and must be added here (and to the table) on purpose."""
-    pattern = re.compile(r"\.send_signed\(|\.call_command\(|\bport\.call\(|session\.call\(|\.signed_body\(|\blink\.call\(")
+    pattern = re.compile(r"\.send_signed\(|\.call_command\(|\bport\.call\(|session\.call\(|\.command_proof\(|\.signed_body\(|\blink\.call\(")
     callers = {p.name for p in sorted(SERVICES.rglob("*.py")) + sorted(ROUTERS.rglob("*.py")) if pattern.search(p.read_text(encoding="utf-8"))}
     # REL2210 (2.21.0) additions, each an admission decision recorded in docs/changes/T06-ADMISSION-MAPPING-295.md ("REL2210 addendum"):
     # wiskey_peer.py (WK4ADOPT W-010 `peer_read`, behind wiskey.peer_receipt + owner pin), wiskey_peer_query.py (PEERQUERY, system.configure),
     # wiskey_people_csv.py (WKR5ADOPT W-006, G-PEOPLE-CSV); wiskey_capture_map.py only NAMES `port.call(` in its docstring (no call).
     assert callers == {"intercom_media.py", "wiskey_capture_direct.py", "wiskey_capture_port.py", "wiskey_direct_join.py", "wiskey_feature_direct.py",
                        "wiskey_media_bridge.py", "wiskey_native_write.py", "wiskey_talk_pump.py", "wiskey_template_direct.py",
-                       "wiskey_capture_map.py", "wiskey_peer.py", "wiskey_peer_query.py", "wiskey_people_csv.py"}, callers
+                       "wiskey_capture_map.py", "wiskey_peer.py", "wiskey_peer_query.py", "wiskey_people_csv.py", "wiskey_native_feed.py",
+                       "wiskey_program_direct.py"}, callers  # WISKEY-OWNER26-297: G-DOOR-WINDOWS (W-023)
 
 
 def test_no_router_reaches_a_writer_or_an_adapter_except_through_the_join():

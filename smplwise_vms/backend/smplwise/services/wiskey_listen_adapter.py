@@ -24,7 +24,7 @@ from typing import Protocol
 
 log = logging.getLogger("smplwise.intercom.listen")
 
-CONTRACT_STATE = "pending WisKey downlink contract"  # shown in the runbook and the audit of a refused start, never to an operator
+CONTRACT_STATE = "signed talk_open(listen=true), shared native audio slot"  # shown in the runbook and the audit of a refused start, never to an operator
 CODEC = "pcmu"
 SAMPLE_RATE = 8000
 FRAME_BYTES = 160
@@ -252,25 +252,90 @@ async def _join_downlink(channel: _Downlink, reason: str) -> None:
 
 
 class WiskeyDownlinkChannel:
-    """PENDING (CONTRACT_STATE): the LISTEN-ONLY downlink (no microphone) over WisKey's signed direct link. Opening it answers
-    `downlink_pending`, so a real station can never be listened to through a guess.
+    """Listen without microphone through the existing signed talk channel.
 
-    WKF01F02-295: the station's sound now arrives INSIDE a two-way talk (`talk_open(listen=true)`, `arx.station_talk_audio.v1`,
-    `WiskeyBridgeTalkChannel.receive_audio` wrapped in `ReceiveDownlink.for_talk`). Whether the same `talk_open(listen=true)` may serve a
-    listener without floor, frames or microphone, whether it takes the station's single talk slot, and what it answers while another talk is
-    active are WisKey's open answers (Arx reply section 8, addendum F02 item 2); until they come this listen-only channel stays refused."""
+    Native owns the station slot, proof, deadline, idle clock and cleanup. This
+    wrapper exposes no floor or uplink and only splits its verified 800-byte
+    downlink into the standalone player's existing 160-byte frames.
+    """
 
-    def __init__(self, *_args: object, **_kwargs: object) -> None:
-        self._unused = _Downlink()
+    SECURITY_ENDS = {"expired", "access_lost", "source_changed", "connection_closed", "talk_audio_invalid"}
 
-    async def open(self) -> None:
-        raise ListenUnavailable("downlink_pending")
+    def __init__(self, provider=None, settings=None, descriptor=None, *,
+                 actor_id=None, actor_name=None, request_id=None, expires_at=None):
+        self._talk = None
+        self._downlink = _Downlink()
+        self._watcher = None
+        self._close_task = None
+        self._expires_at = expires_at
+        if provider is not None and descriptor is not None and actor_id and actor_name and expires_at is not None:
+            from .intercom_media import WiskeyBridgeTalkChannel
+            from .wiskey_media_contract import Actor
+            self._talk = WiskeyBridgeTalkChannel(provider, settings, descriptor,
+                Actor(actor_id, actor_name), request_id, expires_at)
 
-    def frames(self) -> AsyncIterator[bytes]:
-        return self._unused.frames()
+    @property
+    def dropped_frames(self):
+        return self._downlink.dropped_frames
 
-    async def wait_closed(self) -> str:
-        return await self._unused.wait_closed()
+    def publication_current(self):
+        import time
+        if self._expires_at is not None and time.time() >= self._expires_at:
+            self._downlink._fence("expired")
+        talk = self._talk
+        reason = getattr(getattr(talk, "pump", None), "end_code", None)
+        if reason in self.SECURITY_ENDS or (talk is not None and talk.link is not None and talk.link.closed):
+            self._downlink._fence(reason if reason in self.SECURITY_ENDS else "connection_closed")
+        return not self._downlink._fenced
 
-    async def close(self, reason: str) -> None:
-        await self._unused.close(reason)
+    async def open(self):
+        if self._talk is None:
+            raise ListenUnavailable("listen_not_configured")
+        if self._watcher is not None or self._close_task is not None:
+            raise ListenUnavailable("downlink_closed")
+        await self._talk.open()
+        if not self._talk.listening:
+            await self._talk.close("ended")
+            raise ListenUnavailable("listen_not_offered")
+        self._downlink = ReceiveDownlink(self._talk.receive_audio, self._talk.close)
+        await self._downlink.open()
+        self._watcher = asyncio.create_task(self._watch())
+
+    async def _watch(self):
+        await self._talk.wait_closed()
+        reason = getattr(self._talk.pump, "end_code", None) or "upstream_closed"
+        if reason in self.SECURITY_ENDS:
+            self._downlink._fence(reason)
+        else:
+            self._downlink._end(reason)
+
+    async def frames(self):
+        async for frame in self._downlink.frames():
+            if not self.publication_current():
+                return
+            yield frame
+
+    async def wait_closed(self):
+        return await self._downlink.wait_closed()
+
+    async def close(self, reason):
+        # Fence before the first await; every caller joins one cleanup owner.
+        self._downlink._fence(reason)
+        if self._close_task is None:
+            async def finish():
+                if self._watcher is not None:
+                    self._watcher.cancel()
+                    await asyncio.gather(self._watcher, return_exceptions=True)
+                await self._downlink.close(reason)
+                if self._talk is not None and not isinstance(self._downlink, ReceiveDownlink):
+                    await self._talk.close(reason)
+            self._close_task = asyncio.create_task(finish())
+        cancelled = False
+        while not self._close_task.done():
+            try:
+                await asyncio.shield(self._close_task)
+            except asyncio.CancelledError:
+                cancelled = True
+        self._close_task.result()
+        if cancelled:
+            raise asyncio.CancelledError

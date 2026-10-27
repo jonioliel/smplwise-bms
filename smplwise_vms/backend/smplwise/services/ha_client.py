@@ -458,12 +458,19 @@ async def ws_session(
                     fut = pending.pop(mid)
                     if not fut.done():
                         fut.set_result(msg)
+                elif (msg.get("type") == "result" and msg.get("success") is False
+                      and isinstance(msg.get("error"), dict)
+                      and msg["error"].get("code") == "media_subscription_closed"):
+                    # Terminal control for an already-answered media subscription.
+                    # Its id belongs to that subscription, not a pending command.
+                    if on_message is not None:
+                        on_message(msg)
                 elif msg.get("type") == "event":
                     if on_message is not None:
                         on_message(msg)
                     event = msg.get("event")
                     data = (event.get("data") if isinstance(event, dict) else None) or {}
-                    if data.get("entity_id"):
+                    if isinstance(data, dict) and data.get("entity_id"):
                         on_event(data)
 
         reader_task = asyncio.create_task(reader())

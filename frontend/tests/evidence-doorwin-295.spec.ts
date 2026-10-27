@@ -186,7 +186,19 @@ test('settings: a system administrator sees the switches; real emergency activat
   await expect(s.locator('[data-dw-golive]')).toBeVisible();
   await expect(s.locator('[data-dw-switch="doors.emergency.enabled"] input')).toBeDisabled();
   await expect(s.locator('[data-dw-switch="doors.emergency.open_enabled"] input')).toBeDisabled();
+  await expect(s.locator('[data-dw-programs-golive]')).toBeVisible();
   await shot(page, info, '10-settings');
+});
+
+test('settings: door-window programs and emergency buttons are independent (SPLITSWITCH-297)', async ({ page }) => {
+  await boot(page, { programsLive: true });
+  const s = page.locator(SCREEN);
+  await s.locator('[data-dw-settings-btn]').click();
+  await expect(s.locator('[data-dw-settings]')).toBeVisible();
+  await expect(s.locator('[data-dw-programs-golive]')).toHaveCount(0);
+  await expect(s.locator('[data-dw-switch="doors.windows.enabled"] input')).toBeEnabled();
+  await expect(s.locator('[data-dw-golive]')).toBeVisible();
+  await expect(s.locator('[data-dw-switch="doors.emergency.enabled"] input')).toBeDisabled();
 });
 
 test('English, left to right, dark', async ({ page }, info) => {

@@ -12,6 +12,8 @@ export interface DoorwinOptions {
   persona?: Persona;
   enabled?: boolean;
   tier?: 'program' | 'prepared';
+  /** SPLITSWITCH-297: the window settings' `go_live_permitted` (the program engine's own flag); default false */
+  programsLive?: boolean;
   alarm?: boolean;
   /** what the person may do (the server's `can` fields) */
   can?: { manage: boolean; cancel: boolean; configure: boolean };
@@ -106,7 +108,7 @@ export async function installDoorwinMock(page: Page, o: DoorwinOptions = {}): Pr
     if (p === 'doors/windows/settings') {
       return json(route, { settings: { 'doors.windows.enabled': o.enabled === false ? 'off' : 'on', 'doors.windows.max_hours': '4', 'doors.windows.max_per_day_per_door': '3',
         'doors.windows.quiet_from': '22:00', 'doors.windows.quiet_to': '06:00', 'doors.windows.relock_grace_s': '120', 'doors.windows.relock_retries': '3',
-        'doors.windows.reraise_min': '15', 'doors.windows.exterior_allowed': 'false' }, go_live_permitted: false, changed: [] });
+        'doors.windows.reraise_min': '15', 'doors.windows.exterior_allowed': 'false' }, go_live_permitted: !!o.programsLive, program_engine_built: !!o.programsLive, changed: [] });
     }
     if (p === 'doors/emergency/settings') {
       return json(route, { settings: { 'doors.emergency.enabled': em.enabled ? 'on' : 'off', 'doors.emergency.open_enabled': 'off', 'doors.emergency.automations': 'off',

@@ -155,6 +155,26 @@ class BridgeSigner:
         return signed
 
 
+    def command_proof(self, command: str, query_owner_id: str, parameters: dict[str, Any], *,
+                      kind: str = KIND, window_s: int = WINDOW_S) -> dict[str, Any]:
+        """Original generic command encoder, shared by direct and Native metadata reads."""
+        from . import ha_bridge
+        if (kind not in (KIND, PEER_QUERY_KIND) or not isinstance(command, str)
+                or command.startswith(TYPE_PREFIX) or not _PRINTABLE_RE.fullmatch(command)
+                or not isinstance(query_owner_id, str) or not 1 <= len(query_owner_id) <= 128
+                or type(window_s) is not int or not 0 < window_s <= MAX_WINDOW_S
+                or not isinstance(parameters, dict)):
+            raise MediaBridgeError("proof_invalid", "not_sent")
+        _strict_ns(parameters)
+        now = int(self._clock())
+        body = {"kind": kind, "command": command, "query_owner_id": query_owner_id,
+                "issued_at": _iso(now), "expires_at": _iso(now + window_s), "parameters": parameters}
+        try:
+            return ha_bridge.sign(self._key(), body, ts=now)
+        except MediaBridgeError as exc:
+            raise MediaBridgeError(exc.code, "not_sent") from None
+
+
 def verify_result(message: Any) -> dict[str, Any]:
     """The answer to one command, total: `{id, type: "result", success: true, [bridge_schema], result: {...}}` -> `result`.
     A refusal `{success: false, error: {code, ...}}` -> `MediaBridgeError(code)` (WisKey's text is dropped). Any other shape is
@@ -253,7 +273,8 @@ class SignedBridgeLink:
     """`MediaLink` over a `RawConnection`: each call is signed afresh (new ts, nonce, window) and sent as `{id, type, bridge}`."""
 
     def __init__(self, raw: RawConnection, signer: BridgeSigner, purpose: str, generation: int) -> None:
-        self.raw = raw
+        channel = getattr(raw, "media_channel", None)
+        self.raw = channel() if channel is not None else raw
         self.signer = signer
         self.purpose = purpose
         self.generation = generation
@@ -458,6 +479,7 @@ class DirectLink:
         self._next_id = 2  # 1 was `direct/connect`
         self._pending: dict[int, tuple[str, asyncio.Future[dict[str, Any]]]] = {}
         self._event_ids: set[int] = set()
+        self._active_media_id: int | None = None
         self._send_lock = asyncio.Lock()
         self._closed = False
         self._event_handler: Callable[[dict[str, Any]], None] | None = None
@@ -503,10 +525,23 @@ class DirectLink:
         if frame["type"] == "result":
             entry = self._pending.pop(mid, None)
             if entry is None or entry[1].done():
+                if (mid == self._active_media_id and frame.get("success") is False
+                        and isinstance(frame.get("error"), dict)
+                        and frame["error"].get("code") == "media_subscription_closed"):
+                    self._event_ids.discard(mid)
+                    self._active_media_id = None
+                    handler = self._closed_handler
+                    if handler is not None:
+                        try:
+                            handler()
+                        except Exception:
+                            log.warning("station media: a scoped direct close handler failed")
+                    return  # no socket shutdown or failure of other commands
                 self.dropped_frames += 1  # a late answer to an abandoned request, or an id never asked: never re-attributed
                 return
             command, fut = entry
             if command == w10.TALK_OPEN and frame.get("success") is True:
+                self._active_media_id = mid
                 self._event_ids.add(mid)  # `talk_closed` for this talk arrives on this id (registered before the next frame is read)
             fut.set_result(frame)
             return
@@ -515,6 +550,9 @@ class DirectLink:
         if mid not in self._event_ids or not isinstance(event, dict):
             self.dropped_frames += 1
             return
+        if event.get("type") == "media/talk_closed" and mid == self._active_media_id:
+            self._event_ids.discard(mid)
+            self._active_media_id = None
         if handler is not None:
             try:
                 handler(event)
@@ -580,21 +618,8 @@ class DirectLink:
         `wiskey-peer-query.v1` for the peer reads), the command WITHOUT the `hikvision_intercom/` prefix, this connection's service
         query_owner_id, issued_at / expires_at (this link's window), the parameters unchanged, ts / nonce / sig by the existing recipe
         (`ha_bridge.sign`). Raises MediaBridgeError (outcome `not_sent`) when it cannot be built - nothing is written then."""
-        from . import ha_bridge
-
-        if kind not in (KIND, PEER_QUERY_KIND) or not isinstance(command, str) or command.startswith(TYPE_PREFIX) or not _PRINTABLE_RE.fullmatch(command):
-            raise MediaBridgeError("proof_invalid", "not_sent")
-        if not isinstance(parameters, dict):
-            raise MediaBridgeError("proof_invalid", "not_sent")
-        _strict_ns(parameters)
-        now = int(self.signer._clock())
-        body = {"kind": kind, "command": command, "query_owner_id": self.query_owner_id, "issued_at": _iso(now),
-                "expires_at": _iso(now + self._window_s), "parameters": parameters}
-        try:
-            signed = ha_bridge.sign(_key_text(self._key), body, ts=now)
-        except MediaBridgeError as exc:
-            raise MediaBridgeError(exc.code, "not_sent") from None
-        return signed
+        return self.signer.command_proof(command, self.query_owner_id, parameters,
+            kind=kind, window_s=self._window_s)
 
     async def call_command(self, command: str, parameters: dict[str, Any], *, kind: str = KIND, timeout: float) -> dict[str, Any]:
         """One signed request of any public command; the `result` of its reply once the reply's MAC + connection_ref (reader) and its
@@ -835,6 +860,101 @@ class AutoTransport:
 
 # ---------------------------------------------------------------- the real Home Assistant connection
 
+class _HaMediaChannel:
+    """One media owner on a possibly shared original HA socket.
+
+    A terminal result carries only the original subscription id and fixed code,
+    never a talk reference, reason, media, cleanup claim or renewed authority.
+    """
+
+    def __init__(self, parent: "HaWsConnection") -> None:
+        self.parent = parent
+        self.subscription: int | None = None
+        self._closed = False
+        self._detached = False
+        self._event_handler = None
+        self._closed_handler = None
+
+    @property
+    def user_id(self) -> str:
+        return self.parent.user_id
+
+    @property
+    def closed(self) -> bool:
+        return self._closed or self.parent.closed
+
+    async def send(self, msg_type: str, **payload: Any) -> dict[str, Any]:
+        if self.closed:
+            raise ConnectionError("closed")
+        opening = msg_type == TYPE_PREFIX + w10.TALK_OPEN
+        if opening and self.subscription is not None:
+            raise MediaBridgeError("audio_busy", "not_sent")
+        if opening:
+            self.parent._opening_media += 1
+        try:
+            reply = await self.parent.send(msg_type, **payload)
+            if opening and isinstance(reply, dict) and reply.get("success") is True:
+                mid = reply.get("id")
+                if type(mid) is not int or mid < 1 or mid in self.parent._media_subscriptions:
+                    raise MediaBridgeError("invalid_response", "unknown")
+                self.subscription = mid
+                self.parent._media_subscriptions[mid] = self
+                for frame in self.parent._early_media.pop(mid, []):
+                    self._on_frame(frame)
+                if self.parent._early_media_overflow:
+                    self._mark_closed()
+            return reply
+        finally:
+            if opening:
+                self.parent._opening_media -= 1
+                if not self.parent._opening_media:
+                    self.parent._early_media.clear()
+                    self.parent._early_media_overflow = False
+
+    def _on_frame(self, frame: dict[str, Any]) -> None:
+        if self.closed or frame.get("id") != self.subscription:
+            return
+        if (frame.get("type") == "result" and frame.get("success") is False
+                and isinstance(frame.get("error"), dict)
+                and frame["error"].get("code") == "media_subscription_closed"):
+            self._mark_closed()
+            return
+        event = frame.get("event")
+        if frame.get("type") == "event" and isinstance(event, dict) and self._event_handler is not None:
+            self._event_handler(event)
+
+    def _mark_closed(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        handler, self._closed_handler = self._closed_handler, None
+        if handler is not None:
+            try:
+                handler()
+            except Exception:
+                log.warning("station media: a scoped close handler failed")
+
+    def set_event_handler(self, handler) -> None:
+        self._event_handler = handler
+
+    def set_closed_handler(self, handler) -> None:
+        self._closed_handler = handler
+        if handler is not None and self.closed:
+            self._closed_handler = None
+            handler()
+
+    async def close(self) -> None:
+        self._mark_closed()
+        if self._detached:
+            return
+        self._detached = True
+        if self.parent._media_subscriptions.get(self.subscription) is self:
+            self.parent._media_subscriptions.pop(self.subscription)
+        self.parent._media_channels.discard(self)
+        if not self.parent._media_channels and self.parent._owns_media_socket:
+            await self.parent.close()
+
+
 class HaWsConnection:
     """A `RawConnection` over `ha_client.ws_session` (the service channel by default; `url`/`token` for another identity, which this
     module never chooses - the identity decision is the owner's). Frames: `send` returns the whole `result` message; the integration's
@@ -851,6 +971,17 @@ class HaWsConnection:
         self._closed = False
         self._event_handler: Callable[[dict[str, Any]], None] | None = None
         self._closed_handler: Callable[[], None] | None = None
+        self._media_channels: set[_HaMediaChannel] = set()
+        self._media_subscriptions: dict[int, _HaMediaChannel] = {}
+        self._opening_media = 0
+        self._early_media: dict[int, list[dict[str, Any]]] = {}
+        self._early_media_overflow = False
+        self._owns_media_socket = False
+
+    def media_channel(self) -> _HaMediaChannel:
+        channel = _HaMediaChannel(self)
+        self._media_channels.add(channel)
+        return channel
 
     @property
     def closed(self) -> bool:
@@ -860,10 +991,11 @@ class HaWsConnection:
         return f"HaWsConnection(closed={self._closed})"
 
     @classmethod
-    async def open(cls, settings: Any, *, url: str | None = None, token: str | None = None, internal_tls: bool = False, connect_timeout: float = 15.0) -> "HaWsConnection":
+    async def open(cls, settings: Any, *, url: str | None = None, token: str | None = None, internal_tls: bool = False, connect_timeout: float = 15.0, shared: bool = False) -> "HaWsConnection":
         from . import ha_client
 
         self = cls()
+        self._owns_media_socket = not shared
         ready: asyncio.Future[None] = asyncio.get_running_loop().create_future()
 
         async def on_ready(call: Callable[..., Awaitable[dict[str, Any]]]) -> None:
@@ -902,6 +1034,27 @@ class HaWsConnection:
         return self
 
     def _on_frame(self, frame: dict[str, Any]) -> None:
+        mid = frame.get("id") if isinstance(frame, dict) else None
+        channel = self._media_subscriptions.get(mid) if type(mid) is int else None
+        if channel is not None:
+            try:
+                channel._on_frame(frame)
+            except Exception:
+                channel._mark_closed()
+            return
+        event = frame.get("event") if isinstance(frame, dict) else None
+        terminal = (isinstance(frame, dict) and frame.get("type") == "result"
+                    and frame.get("success") is False and isinstance(frame.get("error"), dict)
+                    and frame["error"].get("code") == "media_subscription_closed")
+        media = isinstance(event, dict) and event.get("type") in {"media/talk_audio", "media/talk_closed"}
+        if self._opening_media and type(mid) is int and (media or terminal):
+            if sum(map(len, self._early_media.values())) < 8:
+                self._early_media.setdefault(mid, []).append(frame)
+            else:
+                self._early_media_overflow = True
+            return
+        if media or terminal:
+            return  # unknown/retired subscription, never another owner's event
         handler = self._event_handler
         event = frame.get("event") if isinstance(frame, dict) else None
         if handler is not None and isinstance(event, dict):
@@ -914,6 +1067,8 @@ class HaWsConnection:
         if self._closed:
             return
         self._closed = True
+        for channel in tuple(self._media_channels):
+            channel._mark_closed()
         handler, self._closed_handler = self._closed_handler, None
         if handler is not None:
             try:

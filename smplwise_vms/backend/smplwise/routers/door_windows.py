@@ -10,7 +10,8 @@ Emergency (`/doors/emergency/...`): the state (the red strip) is readable with `
 the request. Drills go through the same two steps with `drill: true` and never reach an engine.
 
 Shipped OFF (`doors.windows.enabled`, `doors.emergency.enabled` = off) and never live while the live engine is not built
-(door_windows_engine.LIVE_ENGINE_BUILT = False; `go_live_permitted` in the answers below reports `live_ready()`: permit AND built)."""
+(door_windows_engine.LIVE_ENGINE_BUILT = False; `go_live_permitted` in the answers below reports `program_ready()` for windows and `emergency_ready()` for emergency: permit AND that
+engine's own flag, SPLITSWITCH-297)."""
 from __future__ import annotations
 
 import datetime as dt
@@ -118,7 +119,7 @@ def windows_state(request: Request, principal: Principal = Depends(current_princ
         if o["door"] in vis_keys]
     engine_tier = dwe.window_engine(settings_of(request)).tier
     return {
-        "enabled": dw.enabled(conn), "tier": engine_tier if dw.enabled(conn) else "prepared", "go_live_permitted": dwe.live_ready(),
+        "enabled": dw.enabled(conn), "tier": engine_tier if dw.enabled(conn) else "prepared", "go_live_permitted": dwe.program_ready(),
         "settings": {k.split(".")[-1]: v for k, v in dw.settings_view(conn).items()},
         "can": {"manage": bool(manage), "cancel": bool(cancel), "configure": authorize(conn, principal, CONFIGURE, INSTALLATION).allowed},
         "automation_actor": dw.automation_actor_on(conn),
@@ -455,7 +456,7 @@ def put_calendar(body: CalendarBody, request: Request, principal: Principal = De
 @router.get("/doors/windows/settings")
 def get_window_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
-    return {"settings": dw.settings_view(conn), "go_live_permitted": dwe.live_ready()}
+    return {"settings": dw.settings_view(conn), "go_live_permitted": dwe.program_ready(), "program_engine_built": dwe.program_engine_built()}
 
 
 class SettingsBody(BaseModel):

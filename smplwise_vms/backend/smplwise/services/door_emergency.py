@@ -136,7 +136,7 @@ def attested(conn: sqlite3.Connection) -> bool:
 
 def live_ok() -> bool:
     """The real control can act: the permit is in the build AND the live engine exists (DW-01). Never read on the release path."""
-    return dwe.live_ready()
+    return dwe.emergency_ready()  # SPLITSWITCH-297: the emergency flag only; door-window programs have their own
 
 
 def open_available(settings: Any) -> bool:
@@ -158,7 +158,8 @@ def open_enabled(conn: sqlite3.Connection, settings: Any) -> bool:
 
 
 def settings_view(conn: sqlite3.Connection, settings: Any) -> dict[str, Any]:
-    return {**{k: setting(conn, k) for k in SETTINGS}, "go_live_permitted": live_ok(), "live_engine_built": dwe.live_engine_built(),
+    return {**{k: setting(conn, k) for k in SETTINGS}, "go_live_permitted": live_ok(), "live_engine_built": dwe.emergency_engine_built(),
+            "emergency_engine_built": dwe.emergency_engine_built(),
             "open_available": open_available(settings),
             "attested": attested(conn), "attestation": {"version": ATTESTATION_VERSION, "text": ATTESTATION_TEXT_HE}}
 
