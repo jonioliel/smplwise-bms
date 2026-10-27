@@ -122,6 +122,8 @@ for (const layout of ['side', 'strip', 'slide'] as const) {
         const overlap = !(bb.x >= b.wx!.x + b.wx!.w || bb.x + bb.w <= b.wx!.x || bb.y >= b.wx!.y + b.wx!.h || bb.y + bb.h <= b.wx!.y);
         expect(overlap).toBe(false);
         if (layout === 'strip' && !portrait) expect(Math.round(bb.h)).toBe(208);
+        // the side panel and the portrait panel hold the four rows of the mock-up
+        if (busArea === '.b2bus.panel') expect(await page.locator('.b2bus.panel .b2r:not([hidden])').count()).toBe(4);
         // 40 px at the bottom: the footer ends 40 px above the canvas edge
         const cvH = await page.evaluate(() => parseFloat((document.getElementById('cv') as HTMLElement).style.blockSize));
         expect(Math.round(cvH - (b.ft!.y + b.ft!.h))).toBeGreaterThanOrEqual(39);
@@ -168,11 +170,13 @@ test('setting: the "next arrivals" row can be hidden', async ({ page }) => {
 
 test('setting: the portrait order - bus panel first, or the notices first', async ({ page }) => {
   await open(page, { w: 1080, h: 1920, display: { portrait_order: 'bus' } });
-  let b = await boxes(page, { bus: '.b2bus.panel', stage: '.stage.b2stage' });
+  let b = await boxes(page, { clock: '.b2irow', bus: '.b2bus.panel', stage: '.stage.b2stage' });
+  expect(b.clock!.y).toBeLessThan(b.bus!.y); // the clock row stays on top
   expect(b.bus!.y).toBeLessThan(b.stage!.y);
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   await open(page, { w: 1080, h: 1920, display: { portrait_order: 'notices' } });
-  b = await boxes(page, { bus: '.b2bus.panel', stage: '.stage.b2stage' });
+  b = await boxes(page, { clock: '.b2irow', bus: '.b2bus.panel', stage: '.stage.b2stage' });
+  expect(b.clock!.y).toBeLessThan(b.stage!.y);
   expect(b.stage!.y).toBeLessThan(b.bus!.y);
   await noScroll(page);
 });

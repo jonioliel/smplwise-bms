@@ -135,7 +135,7 @@
 #cv[data-design="v2"] .b2bus.panel { border: 1px solid var(--line); border-radius: 20px; background: var(--card); padding: 16px 24px 10px; display: flex; flex-direction: column; flex: 0 1 auto; min-block-size: 0; overflow: hidden; margin-block-start: 24px; }
 #cv[data-design="v2"] .b2info > .b2bus.panel { margin-block-start: auto; }
 #cv[data-design="v2"] .b2bus.panel .b2bh { padding-block-end: 8px; }
-#cv[data-design="v2"] .b2bus.panel .rows { display: grid; grid-auto-rows: 64px; grid-template-columns: minmax(0, 1fr); min-block-size: 0; overflow: hidden; flex: 0 1 auto; }
+#cv[data-design="v2"] .b2bus.panel .rows { display: grid; grid-auto-rows: 60px; grid-template-columns: minmax(0, 1fr); min-block-size: 0; overflow: hidden; flex: 0 1 auto; }
 #cv[data-design="v2"] .b2bus.panel .b2r { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 18px; border-block-start: 1px solid var(--line); }
 #cv[data-design="v2"] .b2bus.panel .b2dest { min-inline-size: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 #cv[data-design="v2"] .b2bus.panel .b2dest b { font-size: 30px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -204,8 +204,6 @@
 #cv[data-design="v2"].v2p .b2hd { min-block-size: 88px; }
 #cv[data-design="v2"] .b2bd[data-l="portrait"] { grid-template-rows: auto auto minmax(0, 1fr); row-gap: 28px; }
 #cv[data-design="v2"] .b2bd[data-l="portrait"][data-order="notices"] { grid-template-rows: auto minmax(0, 1fr) auto; }
-#cv[data-design="v2"] .b2bd[data-l="portrait"][data-order="notices"] > .b2bus { order: 3; }
-#cv[data-design="v2"] .b2bd[data-l="portrait"][data-order="notices"] > .stage { order: 2; }
 #cv[data-design="v2"] .b2bd[data-l="portrait"][data-bus="0"] { grid-template-rows: auto minmax(0, 1fr); }
 #cv[data-design="v2"] .b2bd[data-l="portrait"] > .b2bus.panel { margin-block-start: 0; }
 #cv[data-design="v2"] .b2irow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 32px; order: 1; }
@@ -213,7 +211,13 @@
 #cv[data-design="v2"] .b2irow .b2wx { flex-direction: column; align-items: flex-end; gap: 8px; margin-block-start: 0; padding-block-end: 12px; }
 #cv[data-design="v2"] .b2irow .b2wx .ic { font-size: 56px; }
 #cv[data-design="v2"] .b2irow .b2wx b { font-size: 64px; }
-#cv[data-design="v2"] .b2bd[data-l="portrait"] .stage.b2stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto; row-gap: 36px; order: 2; }
+#cv[data-design="v2"] .b2bd[data-l="portrait"] .stage.b2stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto; row-gap: 36px; }
+/* the order below the clock row (portrait_order): bus = the panel, then the notices; notices = the notices, then the panel */
+#cv[data-design="v2"] .b2bd[data-l="portrait"] > .b2irow { order: 1; }
+#cv[data-design="v2"] .b2bd[data-l="portrait"][data-order="bus"] > .b2bus { order: 2; }
+#cv[data-design="v2"] .b2bd[data-l="portrait"][data-order="bus"] > .stage { order: 3; }
+#cv[data-design="v2"] .b2bd[data-l="portrait"][data-order="notices"] > .stage { order: 2; }
+#cv[data-design="v2"] .b2bd[data-l="portrait"][data-order="notices"] > .b2bus { order: 3; }
 #cv[data-design="v2"] .b2bd[data-l="portrait"] .stage.b2stage > .b2vr { display: none; }
 #cv[data-design="v2"] .b2bd[data-l="portrait"] .stage.b2stage .b2fst .it h1 { font-size: calc(88px * var(--fs2) * var(--k)); max-inline-size: none; }
 #cv[data-design="v2"] .b2bd[data-l="portrait"] .stage.b2stage .b2fst .it p { font-size: calc(46px * var(--fs2) * var(--k)); }
