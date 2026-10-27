@@ -101,6 +101,17 @@ const AREA_DESIGN = css`
   .sec-chip b {
     color: var(--sw-text);
     font-weight: var(--sw-fw-medium);
+    /* WIDGETBREAK-297: a long or unbreakable device name ends in an ellipsis inside the chip (the full name is the tooltip) */
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sec-chip {
+    max-inline-size: 100%;
+    box-sizing: border-box;
+  }
+  .sec-chip span {
+    flex: none;
   }
   .sec-chip.ok span {
     color: var(--sw-success);
@@ -803,6 +814,9 @@ export class DevicesArea extends LitElement {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
+      min-inline-size: 0;
+      /* WIDGETBREAK-297: a long media title or source wraps inside the row, an unbreakable one breaks at the card edge */
+      overflow-wrap: anywhere;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
     }
@@ -1339,7 +1353,7 @@ export class DevicesArea extends LitElement {
       const icon: IconName = r.kind === 'lock' ? (r.locked ? 'lock' : 'unlock') : r.kind === 'alarm' ? 'shield' : r.kind === 'camera' ? 'camera' : 'door';
       const tone = unavailable ? 'off' : r.kind === 'lock' ? (r.locked ? 'ok' : 'warn') : r.kind === 'alarm' ? (r.state === 'triggered' ? 'bad' : r.armed ? 'ok' : 'warn') : r.kind === 'camera' ? 'ok' : r.state === 'on' ? 'warn' : 'ok';
       const text = r.kind === 'camera' ? 'מקוון' : rowLabel(r);
-      const inner = html`<sw-icon .name=${icon} size=${14}></sw-icon><b>${bidi(r.name)}</b><span>${text}</span>`;
+      const inner = html`<sw-icon .name=${icon} size=${14}></sw-icon><b title=${r.name}>${bidi(r.name)}</b><span>${text}</span>`;
       return r.kind === 'alarm'
         ? html`<a class="sec-chip ${tone}" href="#/security/alarm" data-sec-chip=${r.entity_id} title="לאזעקה">${inner}</a>`
         : html`<span class="sec-chip ${tone}" data-sec-chip=${r.entity_id}>${inner}</span>`;
