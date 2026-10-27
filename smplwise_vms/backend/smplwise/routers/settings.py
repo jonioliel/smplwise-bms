@@ -328,6 +328,12 @@ DEFAULTS: dict[str, str] = {
     # default before 2.22.0) or as the large widget cards (cards). HOME-295 (owner answers round 2, item 5): auto, the new default = the
     # cards in the cards view and the thin bar in the tiles view.
     "home.info_style": "auto",
+    # POLISH-CONTROL-297 (owner decisions on the worst-case report, 2026-10-27): a long floor name in a card header is clamped to 2 lines
+    # with a tooltip (1 = one line with an ellipsis, 3 = three lines); a huge list is paged (scroll = the whole list scrolls); a bulk
+    # button with nothing to act on is disabled (enabled = always clickable) - the owner keeps the bulk item open for the design talk.
+    "home.floor_title_lines": "2",
+    "ui.long_lists": "paged",
+    "home.bulk_idle": "disabled",
     # HOME-295 (owner answers on the home mockup round 2, 2026-10-25): the home screen's display options, one JSON object read back as an
     # object with every key (services/home_screen_options.py); "" = never saved = the defaults.
     "home.screen": "",
@@ -881,6 +887,9 @@ class SettingsPatch(BaseModel):
     home_direction: str | None = Field(default=None, pattern="^(a|b|c)$", alias="home.direction")
     home_side: str | None = Field(default=None, pattern="^(start|end)$", alias="home.side")
     home_info_style: str | None = Field(default=None, pattern="^(auto|bar|cards)$", alias="home.info_style")  # HOME-295: auto = by the view
+    home_floor_title_lines: str | None = Field(default=None, pattern="^(1|2|3)$", alias="home.floor_title_lines")  # POLISH-CONTROL-297
+    ui_long_lists: str | None = Field(default=None, pattern="^(paged|scroll)$", alias="ui.long_lists")  # POLISH-CONTROL-297
+    home_bulk_idle: str | None = Field(default=None, pattern="^(disabled|enabled)$", alias="home.bulk_idle")  # POLISH-CONTROL-297
     home_screen: dict[str, Any] | None = Field(default=None, alias="home.screen")  # HOME-295: a partial update, validated in full by services/home_screen_options.py
     home_widgets: dict[str, Any] | None = Field(default=None, alias="home.widgets")  # validated in full by services/home_config.py
     remote_policy: str | None = Field(default=None, pattern="^(flag|any_role)$", alias="remote.policy")

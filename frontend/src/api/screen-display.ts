@@ -46,11 +46,27 @@ export const PAGE_SIZE_MAX = 50;
 
 export const pageSizeKey = (list: PagedList, phone: boolean): string => `ui.page_size.${list}${phone ? '_phone' : ''}`;
 
+/** POLISH-CONTROL-297 (owner decisions on the worst-case report, 2026-10-27): a long floor name in a card header is clamped to this many
+ * lines (2, the default, with a tooltip; 1 = one line with an ellipsis; 3); a huge list is `paged` (the default) or `scroll`s whole; a bulk
+ * button with nothing to act on is `disabled` (the default; `enabled` = always clickable - the owner keeps this one open for the design talk). */
+export type FloorTitleLines = '1' | '2' | '3';
+export const FLOOR_TITLE_LINES: readonly FloorTitleLines[] = ['1', '2', '3'];
+export const FLOOR_TITLE_LINES_DEFAULT: FloorTitleLines = '2';
+export type LongLists = 'paged' | 'scroll';
+export const LONG_LISTS: readonly LongLists[] = ['paged', 'scroll'];
+export const LONG_LISTS_DEFAULT: LongLists = 'paged';
+export type BulkIdle = 'disabled' | 'enabled';
+export const BULK_IDLE: readonly BulkIdle[] = ['disabled', 'enabled'];
+export const BULK_IDLE_DEFAULT: BulkIdle = 'disabled';
+
 export interface ScreenDisplay {
   infoStyle: InfoStyle;
   schedulesView: SchedulesView;
   automationsView: AutomationsView;
   pageSize: Record<PagedList, { wide: number; phone: number }>;
+  floorTitleLines: FloorTitleLines;
+  longLists: LongLists;
+  bulkIdle: BulkIdle;
 }
 
 const pick = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(v as T) ? (v as T) : fallback);
@@ -69,6 +85,9 @@ export function screenDisplayOf(raw: Record<string, unknown> | null | undefined)
     schedulesView: pick(s['ui.schedules_view'], SCHEDULES_VIEWS, SCHEDULES_VIEW_DEFAULT),
     automationsView: pick(s['ui.automations_view'], AUTOMATIONS_VIEWS, AUTOMATIONS_VIEW_DEFAULT),
     pageSize: { schedules: ps('schedules'), automations: ps('automations'), automations_cards: ps('automations_cards') },
+    floorTitleLines: pick(s['home.floor_title_lines'], FLOOR_TITLE_LINES, FLOOR_TITLE_LINES_DEFAULT),
+    longLists: pick(s['ui.long_lists'], LONG_LISTS, LONG_LISTS_DEFAULT),
+    bulkIdle: pick(s['home.bulk_idle'], BULK_IDLE, BULK_IDLE_DEFAULT),
   };
 }
 

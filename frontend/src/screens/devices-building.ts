@@ -52,7 +52,7 @@ import { notifyScreenViews, registerScreenView } from '../shell/screen-view';
 import './home-widgets';
 import './home-ambient-bar';
 import { AMBIENT_WIDGETS } from './home-ambient-bar';
-import { infoStyleFor, loadScreenDisplay, INFO_STYLE_DEFAULT, type InfoStyle } from '../api/screen-display';
+import { infoStyleFor, loadScreenDisplay, BULK_IDLE_DEFAULT, FLOOR_TITLE_LINES_DEFAULT, INFO_STYLE_DEFAULT, type BulkIdle, type FloorTitleLines, type InfoStyle } from '../api/screen-display';
 import {
   areaQuick, climateQuick, effectiveScreen, floorCardsMax, floorCardsSplit, HOME_SCREEN_DEFAULT, homeAlerts, isTabletLandscape, loadHomeScreen, rowQuickMax,
   screenFormBody, showRoomTemp, summaryKindsShown, tileQuickMax, type HomeScreenForm, type HomeScreenOptions, type PersonalScreen, type QuickKind, type SummaryKind,
@@ -1114,6 +1114,9 @@ export class DevicesBuilding extends LitElement {
   @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
   /** POLISH-295: the clock, the weather, Shabbat and the alarm as a thin header bar (default) or as the large cards (home.info_style). */
   @state() private infoStyle: InfoStyle = INFO_STYLE_DEFAULT;
+  /** POLISH-CONTROL-297 (owner decisions 2026-10-27): the floor-name clamp of the card headers and whether an idle bulk button is disabled. */
+  @state() private floorTitleLines: FloorTitleLines = FLOOR_TITLE_LINES_DEFAULT;
+  @state() private bulkIdle: BulkIdle = BULK_IDLE_DEFAULT;
   /** HOMEINFO-295: may this caller change the installation's info style from the layout editor (system.configure)? Demo: yes, in memory. */
   @state() private infoCanEdit = false;
   /** The cards drawn by the last render (edit mode in the thin-bar style draws fewer than all): a drag / move index counts these. */
@@ -2275,6 +2278,27 @@ export class DevicesBuilding extends LitElement {
       text-align: start;
       border-radius: var(--sw-r-2xs);
     }
+    /* POLISH-CONTROL-297 (owner decision, P6 item "long floor names"): the name is clamped to the installation's line count (2 by default,
+       the full name in the tooltip); 1 = one line with an ellipsis */
+    .fcard header h2 .ftitle {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      min-inline-size: 0;
+      max-inline-size: 100%;
+    }
+    .fcard header h2 .ftitle[data-lines='3'] {
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+    }
+    .fcard header h2 .ftitle[data-lines='1'] {
+      display: block;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
     .fcard header h2 .ftitle:hover {
       color: var(--sw-accent);
       text-decoration: underline;
@@ -2692,6 +2716,8 @@ export class DevicesBuilding extends LitElement {
       }),
       loadScreenDisplay().then((d) => {
         this.infoStyle = d.infoStyle;
+        this.floorTitleLines = d.floorTitleLines;
+        this.bulkIdle = d.bulkIdle;
       }),
       // HOME-295: the display options and the user's own (his summary tiles / phone area)
       loadHomeScreen().then((s) => {
@@ -2979,8 +3005,8 @@ export class DevicesBuilding extends LitElement {
         : nothing}
       ${bulkBuilding
         ? html`<span class="bulk-buttons" data-bulk-building>
-            <sw-button size="sm" icon="light" data-bulk-kind="lights_off" ?disabled=${!(t.building.lights_on > 0)} @click=${() => this.building('lights_off')}>כבה תאורה בלבד</sw-button>
-            <sw-button size="sm" variant="danger" icon="bolt" data-bulk-kind="all_off" ?disabled=${!(t.building.lights_on > 0 || t.building.switches_on > 0)} @click=${() => this.building('all_off')}>כבה הכל בבניין</sw-button>
+            <sw-button size="sm" icon="light" data-bulk-kind="lights_off" ?disabled=${this.bulkIdle === 'disabled' && !(t.building.lights_on > 0)} @click=${() => this.building('lights_off')}>כבה תאורה בלבד</sw-button>
+            <sw-button size="sm" variant="danger" icon="bolt" data-bulk-kind="all_off" ?disabled=${this.bulkIdle === 'disabled' && !(t.building.lights_on > 0 || t.building.switches_on > 0)} @click=${() => this.building('all_off')}>כבה הכל בבניין</sw-button>
           </span>`
         : nothing}
     </div>`;
@@ -3208,7 +3234,7 @@ export class DevicesBuilding extends LitElement {
       <header>
         <div class="fh-top">
           ${it?.icon ? html`<sw-icon class="lay-title-icon" .name=${it.icon} size=${16}></sw-icon>` : nothing}
-          <h2><button type="button" class="ftitle" data-floor-title=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} title="פתח קומה" @click=${() => (this.selected = f.floor_id)}>${bidi(titleOf(it, f.name))}</button></h2>
+          <h2><button type="button" class="ftitle" data-floor-title=${f.floor_id} data-lines=${this.floorTitleLines} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} title=${`${titleOf(it, f.name)} · פתח קומה`} @click=${() => (this.selected = f.floor_id)}>${bidi(titleOf(it, f.name))}</button></h2>
           ${this.bulkAllowed && f.can_bulk ? this.renderFloorOff(f) : nothing}
         </div>
         <div class="fh-chips">
