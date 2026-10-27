@@ -137,8 +137,7 @@ test.describe('A11YFIX-297 contrast', () => {
         await page.goto(url('/tickets/mine', skin, scheme));
         await page.waitForSelector('sw-app tickets-list ticket-card');
         const chip = page.locator('sw-app tickets-list ticket-card [data-chip="priority"].bad');
-        expect(await chip.count(), 'the mock has an urgent ticket').toBeGreaterThan(0);
-        await expect(chip.first()).toBeVisible();
+        await expect(chip.first(), 'the mock has an urgent ticket').toBeVisible(); // retries: the cards render after the list answers
         const r = await contrast(chip.first());
         report('urgent', skin, scheme, r);
         expect.soft(r, `urgent chip (${skin}/${scheme})`).toBeGreaterThanOrEqual(AA);
