@@ -604,6 +604,66 @@ export function foldedOf(stored: string | null, phone: boolean): Set<CardKey> {
   return new Set(phone ? PHONE_FOLDED : []);
 }
 
+// ---------------------------------------------------------------- pages (OVERVIEWFIT-297)
+
+/** The widget pages on a desktop: two rows a page. */
+export const PAGE_ROWS = 2;
+
+/**
+ * OVERVIEWFIT-297 (owner rule: a control screen never scrolls on a desktop; owner option א): the widgets keep their order and are cut into
+ * pages of `rows` rows of a `cols`-column grid, the way the grid itself places them (a widget that does not fit in what is left of a row
+ * starts the next row; a span wider than the grid takes the whole row). Returns the widget indexes of each page; never an empty page.
+ */
+export function packPages(spans: readonly number[], cols: number, rows = PAGE_ROWS): number[][] {
+  const c = Math.max(1, Math.floor(cols));
+  const r = Math.max(1, Math.floor(rows));
+  const pages: number[][] = [];
+  let page: number[] = [];
+  let row = 0;
+  let left = c;
+  spans.forEach((raw, i) => {
+    const s = Math.min(c, Math.max(1, Math.floor(raw) || 1));
+    if (s > left) {
+      row += 1;
+      left = c;
+    }
+    if (row >= r) {
+      pages.push(page);
+      page = [];
+      row = 0;
+      left = c;
+    }
+    page.push(i);
+    left -= s;
+  });
+  if (page.length) pages.push(page);
+  return pages;
+}
+
+/**
+ * The span each widget takes on its page so that no row ends in an empty cell (taste review: a page never shows a hole): the last widget of
+ * a row that is not full widens to the row's end. Same placement rules as packPages; the result is indexed like `spans`.
+ */
+export function filledSpans(spans: readonly number[], cols: number): number[] {
+  const c = Math.max(1, Math.floor(cols));
+  const out = spans.map((raw) => Math.min(c, Math.max(1, Math.floor(raw) || 1)));
+  let rowStart = 0;
+  let left = c;
+  const close = (end: number) => {
+    if (end > rowStart && left > 0) out[end - 1] += left;
+  };
+  out.forEach((s, i) => {
+    if (s > left) {
+      close(i);
+      rowStart = i;
+      left = c;
+    }
+    left -= s;
+  });
+  close(out.length);
+  return out;
+}
+
 // ---------------------------------------------------------------- the handler's own numbers ("שלי")
 
 export interface OwnNumbers { open: number; waiting: number; overdue: number; visitsToday: number }

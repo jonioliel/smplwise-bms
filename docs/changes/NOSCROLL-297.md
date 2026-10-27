@@ -40,7 +40,7 @@ Screenshots before / after (fake data): `private/review/noscroll-297/` (untracke
 ## 3. Not in scope / open
 
 - **Service management overview** (`#/tickets/overview`, a dashboard of widgets): 889-927 px at 1440x900, 709-747 px at 1920x1080. It is
-  a dashboard, not a list, and fitting it means choosing which widgets give way: an owner decision (see the agent report).
+  a dashboard, not a list, and fitting it means choosing which widgets give way: an owner decision (see the agent report). Done in OVERVIEWFIT-297 (owner option א: two rows a page, the rest on pages), see `docs/changes/OVERVIEWFIT-297.md`.
 - Requests for quotation, handlers and vendors, the tickets calendar and table views: not measured here.
 - Phone (390 px): out of scope (the rule is for desktops); the phone layouts are unchanged.
 - Pixel baseline `live-wall-ready-*-{desktop,tablet}-linux.png` (visual matrix, demo wall) is expected to change with the demo wall's
