@@ -28,7 +28,7 @@ export const ELEVATOR_WIDGET_STYLES = [elevatorCss, css`
   /* ELEVFIX-297: the card's content is a size container, so a narrow card stacks cleanly instead of squeezing every part (title, summary, badge) */
   .wg-elev .el-box { display: grid; gap: 8px; min-inline-size: 0; container: el / inline-size; }
   .wg-elev .el-h { display: flex; align-items: baseline; gap: 8px; min-inline-size: 0; font-size: var(--sw-fs-base); color: var(--sw-text-2); }
-  .wg-elev .el-h b { color: var(--sw-text); font-size: var(--sw-fs-lg); flex: none; max-inline-size: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wg-elev .el-h b { color: var(--sw-text); font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; flex: none; max-inline-size: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wg-elev .el-h [data-home-elevators-summary] { flex: 1 1 0; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wg-elev .el-big { display: flex; align-items: center; gap: 12px; min-inline-size: 0; }
   .wg-elev .el-big .t { display: grid; gap: 2px; min-inline-size: 0; flex: 1 1 0; }
@@ -76,9 +76,10 @@ export const ELEVATOR_WIDGET_STYLES = [elevatorCss, css`
     display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--sw-r-md, 20px); text-decoration: none; color: var(--sw-text);
     background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: min(100%, 168px); flex: 1 1 168px; box-sizing: border-box;
   }
-  .el-card[data-look='fire'] { border-color: color-mix(in srgb, var(--sw-el-fire) 55%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--sw-el-fire) 14%, transparent), var(--sw-surface)); }
-  .el-card[data-look='fault'] { border-color: color-mix(in srgb, var(--sw-el-fault) 50%, transparent); }
-  .el-card[data-look='off'] { border-color: color-mix(in srgb, var(--sw-el-off) 40%, var(--sw-border)); }
+  /* round 2 (taste-skill: no gradients): an alerting card is a flat tinted field of its colour */
+  .el-card[data-look='fire'] { border-color: color-mix(in srgb, var(--sw-el-fire) 45%, transparent); background: color-mix(in srgb, var(--sw-el-fire) 9%, var(--sw-surface)); }
+  .el-card[data-look='fault'] { border-color: color-mix(in srgb, var(--sw-el-fault) 45%, transparent); background: color-mix(in srgb, var(--sw-el-fault) 6%, var(--sw-surface)); }
+  .el-card[data-look='off'] { border-style: dashed; border-color: color-mix(in srgb, var(--sw-el-off) 50%, transparent); }
   .el-card .t { display: grid; gap: 4px; min-inline-size: 0; flex: 1 1 0; justify-items: start; }
   .el-card .t b { font-size: var(--sw-fs-md); overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; max-inline-size: 100%; }
   .el-card small { color: var(--sw-text-2); font-size: var(--sw-fs-state); }

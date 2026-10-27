@@ -134,7 +134,9 @@ export class TicketsOverview extends LitElement {
     .kpi:active { transform: scale(0.98); }
     .kpi:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: 2px; }
     .kpi small { font-size: var(--sw-fs-sm); color: var(--dv-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .kpi b { font-size: var(--sw-fs-2xl); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--dv-text); overflow-wrap: anywhere; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; }
+    /* round 2 (dataviz hero number): the tile's number at display size, heavy and tight; the word stays a quiet line */
+    .kpi b { font-size: var(--sw-fs-4xl); font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--dv-text); overflow-wrap: anywhere; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; }
+    .kpi { gap: 6px; padding: 16px 20px; }
     .kpi.warn b { color: var(--au-warn-text); }
     .kpi.bad b { color: var(--dv-danger); }
     .kpi .d { display: inline-flex; align-items: center; gap: 2px; font-size: var(--sw-fs-xs); font-weight: 600; color: var(--dv-text-3); font-variant-numeric: tabular-nums; }
@@ -150,7 +152,7 @@ export class TicketsOverview extends LitElement {
     .w.wide { grid-column: span 2; }
     .w.full { grid-column: 1 / -1; }
     .w > header { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
-    .w > header h2 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-lg); font-weight: 700; letter-spacing: -0.015em; line-height: 1.25; min-inline-size: 0; }
+    .w > header h2 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.015em; line-height: 1.25; min-inline-size: 0; }
     .w > header .q { font-size: var(--sw-fs-sm); font-weight: 500; color: var(--dv-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-inline-size: 0; }
     .w > header .fold { all: unset; box-sizing: border-box; margin-inline-start: auto; display: grid; place-items: center; inline-size: 32px; block-size: 32px; border-radius: 50%; color: var(--dv-text-3); cursor: pointer; flex: none; }
     .w > header .fold { transition: background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
@@ -165,7 +167,8 @@ export class TicketsOverview extends LitElement {
     .cnt.bad { background: var(--dv-danger-soft); color: var(--dv-danger); }
     .quiet { display: inline-flex; align-items: center; gap: 8px; min-block-size: 36px; font-size: var(--sw-fs-base); font-weight: 600; color: var(--au-ok-text); }
     .quiet .ic { font-size: var(--sw-fs-lg); }
-    .unavail { display: flex; align-items: center; gap: 10px; min-block-size: 44px; font-size: var(--sw-fs-base); color: var(--dv-text-2); }
+    /* round 2 loop 1 (impeccable harden): a widget's "not available now" is a tinted field with its retry, not a grey line in an empty card */
+    .unavail { display: flex; align-items: center; gap: 10px; min-block-size: 52px; padding: 10px 14px; border-radius: var(--sw-r-lg); background: color-mix(in srgb, var(--dv-text) 5%, transparent); font-size: var(--sw-fs-base); font-weight: 600; color: var(--dv-text-2); }
     .unavail .btn { margin-inline-start: auto; }
     .skel { display: flex; flex-direction: column; gap: 10px; }
     .mut { color: var(--dv-text-3); font-size: var(--sw-fs-sm); }
@@ -229,7 +232,7 @@ export class TicketsOverview extends LitElement {
     a.blk { text-decoration: none; color: inherit; }
     .lane .bt b { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-md); color: var(--dv-text); }
     .lane .bt small { display: flex; flex-wrap: wrap; gap: 2px 10px; }
-    .lane .big { font-size: var(--sw-fs-2xl); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--dv-text); min-inline-size: 28px; text-align: center; }
+    .lane .big { font-size: var(--sw-fs-3xl); font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--dv-text); min-inline-size: 32px; text-align: center; }
     .lane .bi.me { background: var(--dv-accent-soft); color: var(--dv-accent-text); }
     .lane .bi.ext { background: color-mix(in srgb, var(--sw-purple) 16%, transparent); color: color-mix(in srgb, var(--sw-purple) 68%, var(--dv-text)); }
     /* rows: overdue and the agenda */

@@ -79,13 +79,14 @@ export class SchedulesWeekView extends LitElement {
       display: grid;
       grid-template-columns: 1fr var(--label-w);
     }
+    /* round 2: the day name one step larger and bold; the track is a tone step without a frame (taste-skill: no outlined boxes) */
     .lbl {
       direction: rtl;
-      padding-inline-start: 8px;
+      padding-inline-start: 10px;
       display: flex;
       align-items: center;
-      font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-md);
       color: var(--sw-text);
     }
     .row.today .lbl {
@@ -93,11 +94,13 @@ export class SchedulesWeekView extends LitElement {
     }
     .track {
       position: relative;
-      background: var(--sw-surface-2);
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-sm);
+      background: color-mix(in srgb, var(--sw-text) 4%, transparent);
+      border-radius: var(--sw-r-md);
       overflow: hidden;
       min-block-size: 40px;
+    }
+    .row.today .track {
+      background: color-mix(in srgb, var(--sw-accent) 6%, transparent);
     }
     .night {
       position: absolute;
@@ -137,19 +140,19 @@ export class SchedulesWeekView extends LitElement {
     .pill {
       --c: var(--sc-custom);
       position: absolute;
-      block-size: 20px;
+      block-size: 22px;
       box-sizing: border-box;
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      padding: 0 7px;
-      border-radius: var(--sw-r-xs);
-      border: 1px solid color-mix(in srgb, var(--c) 55%, var(--sw-border));
-      border-inline-start: 3px solid var(--c);
-      background: var(--sw-surface);
+      gap: 6px;
+      padding: 0 8px;
+      border-radius: var(--sw-r-pill);
+      border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+      background: color-mix(in srgb, var(--c) 11%, var(--sw-surface));
       color: var(--sw-text);
       font: inherit;
       font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
       line-height: 1;
       cursor: pointer;
       white-space: nowrap;
@@ -175,12 +178,20 @@ export class SchedulesWeekView extends LitElement {
     }
     .pill.cond {
       border-style: dashed;
-      border-inline-start-style: solid;
+    }
+    /* round 2 (impeccable detector: the 3 px side stripe was a slop tell): the category is a filled dot before the time */
+    .pill::before {
+      content: '';
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--c);
+      flex: none;
     }
     .pill b {
       font-variant-numeric: tabular-nums;
       direction: ltr;
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-bold);
     }
     .pill.c-on {
       --c: var(--sc-on);
@@ -249,7 +260,7 @@ export class SchedulesWeekView extends LitElement {
     const W = Math.max(this.width, 300);
     const laneEnd: number[] = [];
     return raw.map((p) => {
-      const w = Math.min(240, 62 + p.text.length * 6.6);
+      const w = Math.min(250, 74 + p.text.length * 6.6);
       // a pill near the end of the day is pulled inside the track BEFORE it is placed in a lane, so the lanes hold true
       const x = Math.max(0, Math.min((p.at / 1440) * W, W - w - 2));
       let lane = laneEnd.findIndex((end) => end + 4 <= x);
@@ -278,7 +289,7 @@ export class SchedulesWeekView extends LitElement {
           const pills = this.pillsOf(d);
           const lanes = pills.reduce((m, p) => Math.max(m, p.lane + 1), 0);
           return html`<div class="row ${d === today ? 'today' : ''}" data-week-day=${d}>
-            <div class="track" style="min-block-size:${Math.max(40, 8 + lanes * 23)}px">
+            <div class="track" style="min-block-size:${Math.max(40, 8 + lanes * 26)}px">
               <div class="night" style="left:0;width:${minutesToPercent(sun.sunrise)}%"></div>
               <div class="night" style="left:${minutesToPercent(sun.sunset)}%;width:${100 - minutesToPercent(sun.sunset)}%"></div>
               ${[3, 6, 9, 12, 15, 18, 21].map((h) => html`<div class="gl" style="left:${minutesToPercent(h * 60)}%"></div>`)}
@@ -286,7 +297,7 @@ export class SchedulesWeekView extends LitElement {
               <div class="sunl" style="left:${minutesToPercent(sun.sunset)}%"></div>
               ${d === today ? html`<div class="nowl" style="left:${minutesToPercent(nowMin)}%"></div>` : nothing}
               ${pills.map((p) => {
-                return html`<button type="button" class="pill c-${p.cat} ${p.cond ? 'cond' : ''}" style="left:${p.x}px;top:${4 + p.lane * 23}px;max-inline-size:${p.w}px" title=${p.title} data-week-pill=${p.id} @click=${() => this.openSchedule(p.id)}><b>${clock(p.at)}</b><span>${p.text}</span></button>`;
+                return html`<button type="button" class="pill c-${p.cat} ${p.cond ? 'cond' : ''}" style="left:${p.x}px;top:${4 + p.lane * 26}px;max-inline-size:${p.w}px" title=${p.title} data-week-pill=${p.id} @click=${() => this.openSchedule(p.id)}><b>${clock(p.at)}</b><span>${p.text}</span></button>`;
               })}
             </div>
             <div class="lbl">${DAY_LONG[d]}</div>

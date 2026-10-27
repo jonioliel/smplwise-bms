@@ -55,12 +55,12 @@ export class DoorWindowsScreen extends LitElement {
     :host { display: block; }
     .stack { display: grid; gap: 18px; }
     section { display: grid; gap: 10px; }
-    h2 { margin: 0; font-size: var(--sw-fs-lg); font-weight: 700; color: var(--sw-text); }
-    /* POLISH-CONTROL-297: the cards sit on the product's first elevation like every other control screen's cards (they were flat) */
-    .card { display: grid; gap: 10px; padding: 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
+    /* round 2: section titles one step larger and tight; the cards carry the lit top edge of the elevation ladder; a card title is a real heading */
+    h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; color: var(--sw-text); }
+    .card { display: grid; gap: 10px; padding: 16px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; }
     .card.alarm { border-color: var(--sw-danger); background: var(--sw-danger-soft); }
     .card .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
-    .card .top b { font-size: var(--sw-fs-md); overflow-wrap: anywhere; }
+    .card .top b { font-size: var(--sw-fs-lg); font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
     .muted { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .doorrow { display: grid; gap: 8px; }
     .occ { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -72,7 +72,7 @@ export class DoorWindowsScreen extends LitElement {
     @media (min-width: 900px) {
       .rule { grid-template-columns: minmax(10em, 1.2fr) minmax(10em, 1.4fr) minmax(9em, 1fr) auto; align-items: center; }
       .rules .head { display: grid; grid-template-columns: minmax(10em, 1.2fr) minmax(10em, 1.4fr) minmax(9em, 1fr) auto; padding-inline: 14px;
-        font-size: var(--sw-fs-xs); color: var(--sw-text-3); text-transform: none; }
+        font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); text-transform: none; }
     }
     @media (max-width: 899px) { .rules .head { display: none; } }
     .form { display: grid; gap: 14px; }
