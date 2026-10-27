@@ -415,7 +415,12 @@ export class AccessRequestDialog extends LitElement {
         <button type="button" data-cred="none" aria-pressed=${String(f.cred === 'none')} @click=${() => this.set({ cred: 'none' })}>${rt('credNone')}</button>
         ${this.cards
           ? html`<button type="button" data-cred="card" aria-pressed=${String(f.cred === 'card')} @click=${() => this.set({ cred: 'card' })}><sw-icon name="shield" size="14"></sw-icon>${rt('credCard')}</button>`
-          : html`<button type="button" disabled aria-pressed="false" data-cred="card"><sw-icon name="lock" size="14"></sw-icon>${rt('credCard')}</button>`}</div></section>`;
+          : html`<button type="button" disabled aria-pressed="false" data-cred="card"><sw-icon name="lock" size="14"></sw-icon>${rt('credCard')}</button>`}</div>
+      ${f.cred === 'pin'
+        ? html`<div class="seg" role="group" aria-label=${rt('codeType')} data-code-mode><button type="button" data-once="0" aria-pressed=${String(!f.once)} @click=${() => this.set({ once: false })}>${rt('codeWindow')}</button>
+            <button type="button" data-once="1" aria-pressed=${String(f.once)} @click=${() => this.set({ once: true })}>${rt('codeOnce')}</button></div>
+            ${f.once ? html`<p class="note">${rt('codeOnceNote')}</p>` : nothing}`
+        : nothing}</section>`;
   }
 
   private notesSection(): TemplateResult {

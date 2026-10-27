@@ -110,6 +110,10 @@ export const xCss = css`
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .row .sp { flex: 1; }
   .err-line { color: var(--x-err-t); font-size: var(--sw-fs-sm); font-weight: 600; margin: 0; }
+  /* EXTERNALBUILD-297: the readiness lines in the settings dialog */
+  ul.rd { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  ul.rd li { display: flex; gap: 8px; align-items: flex-start; font-size: var(--sw-fs-sm); color: var(--sw-text-1, inherit); }
+  ul.rd li .chip { flex: none; }
   @media (max-width: 560px) {
     .ku { grid-template-columns: 1fr; }
     .tl li { grid-template-columns: 64px 14px 1fr; }

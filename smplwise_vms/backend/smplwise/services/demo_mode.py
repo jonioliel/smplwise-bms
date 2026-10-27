@@ -61,6 +61,7 @@ BLOCKED_EXACT = frozenset({
     "script.run", "automation.manage", "scene.manage", "script.manage", "schedule.manage", "rules.ha_notify", "notify.manage",
     "generator.manage", "energy.manage", "water.manage", "infra.elevators.manage", "infra.temperature.manage",
     "messaging.accounts.manage", "access.people.message", "access.pin.generate", "access.external.grant", "access.cards.capture",
+    "access.visitor.invite",  # EXTERNALBUILD-297: a demo session never invites a visitor (a code would be generated for a real door)
 })
 BLOCKED_PREFIXES = ("nvr.",)
 
