@@ -484,6 +484,21 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 .hd.one[data-h="b"] .lg.company { justify-self: start; }
 .hd.one[data-h="b"] .hw { justify-self: center; }
 .hd.one[data-h="b"] .hs { justify-self: end; }
+/* TVNOTICE-297: worst-case data never widens the row. The page grid had one implicit `auto` column, so a long place name (nowrap)
+   grew the column past the canvas and pushed the greeting and SmplWise off the screen. With the one-row header the column is the
+   canvas width; the name gives way (ellipsis), the two logos and the status keep their size, and the "updated" line is capped. */
+#cv[data-header="a"] .pg, #cv[data-header="b"] .pg { grid-template-columns: minmax(0, 1fr); }
+.hd.one { min-inline-size: 0; }
+.hd.one .hst { min-inline-size: 0; }
+.hd.one .live { min-inline-size: 0; max-inline-size: 340px; } /* the place name has the priority in the row; the board name is secondary */
+.hd.one .live .lt { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hd.one[data-h="b"] { grid-template-columns: minmax(max-content, 1fr) minmax(0, max-content) minmax(max-content, 1fr); }
+.hd.one[data-h="b"] .hw { justify-self: stretch; justify-content: center; }
+#cv.portrait .hd.one .live { max-inline-size: 280px; }
+/* portrait a: the caption stands over the place name (as b does), so the name keeps a readable width beside two logos */
+#cv.portrait .hd.one[data-h="a"] .hw { flex-direction: column; align-items: flex-start; gap: 2px; }
+#cv.portrait .hd.one[data-h="a"] .hw b { max-inline-size: 100%; }
+#cv.portrait .hd.one[data-h="b"] .hw { min-inline-size: 0; }
 /* the greeting left the side column: the clock opens the column, the weather closes it */
 #cv[data-header="a"][data-tpl="1"] .side .clock, #cv[data-header="b"][data-tpl="1"] .side .clock { margin-block-start: 0; }
 #cv[data-header="a"] .ft:empty, #cv[data-header="b"] .ft:empty { display: none; }

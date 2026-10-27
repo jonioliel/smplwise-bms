@@ -316,16 +316,18 @@ function headerNow(): HeaderLayout {
 }
 
 /** TVOPT-295: the "updated" line - the full text, the time with the dot, or nothing while live (the stale / offline notes stay). */
-function liveHtml(u: UpdatedLine): string {
+function liveHtml(u: UpdatedLine, one = false): string {
   if (u === 'issues') return '';
   const t = '<span class="num" data-updated>' + updatedText() + '</span>';
-  return '<span class="live"><i></i>' + (u === 'time' ? t : esc(str(lang(), 'updated')) + ' ' + t + ' · ' + esc(feed?.board.name || '')) + '</span>';
+  const full = esc(str(lang(), 'updated')) + ' ' + t + ' · ' + esc(feed?.board.name || '');
+  // TVNOTICE-297: in the one-row header the full line is one box that can end in an ellipsis (a long board name never widens the row)
+  return '<span class="live"><i></i>' + (u === 'time' ? t : one ? '<span class="lt">' + full + '</span>' : full) + '</span>';
 }
 
 /** The network state notes and the "updated" line (the bottom row of the header as before, the header row of a / b). */
 function statusHtml(u: UpdatedLine, sp: boolean): string {
   return '<span class="offline">' + ic('offline') + esc(str(lang(), 'offline')) + '</span>' + (sp ? '<span class="sp"></span>' : '') + '<span class="stale">' + ic('clock') +
-    '<span data-stale>' + esc(str(lang(), 'staleFrom', { t: updatedText() })) + '</span></span>' + liveHtml(u);
+    '<span data-stale>' + esc(str(lang(), 'staleFrom', { t: updatedText() })) + '</span></span>' + liveHtml(u, !sp);
 }
 
 function footerHtml(L: { co: string; sw: string }, withChips: boolean, lay: LogoLayout, tpl: number, u: UpdatedLine): string {
@@ -339,7 +341,9 @@ function footerHtml(L: { co: string; sw: string }, withChips: boolean, lay: Logo
  * the end; b = the greeting centred, SmplWise over the status at the end. The logo layout setting (`logos`) applies to the header as
  * before (c) only. */
 function oneRowHeader(L: { co: string; sw: string }, h: 'a' | 'b', u: UpdatedLine): string {
-  const welcome = '<div class="hw"><small>' + esc(str(lang(), 'welcome')) + '</small><b>' + esc(feed?.board.building || '') + '</b></div>';
+  // TVNOTICE-297: no place name = the greeting alone (no empty box beside it)
+  const place = feed?.board.building || '';
+  const welcome = '<div class="hw"><small>' + esc(str(lang(), 'welcome')) + '</small>' + (place ? '<b>' + esc(place) + '</b>' : '') + '</div>';
   const st = '<div class="hs">' + L.sw + '<span class="hst">' + statusHtml(u, false) + '</span></div>';
   return '<header class="hd one" data-h="' + h + '">' + L.co + (h === 'a' ? '<span class="hdv" aria-hidden="true"></span>' : '') + welcome + st + '</header>';
 }
