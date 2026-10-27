@@ -94,10 +94,6 @@ export class TicketsList extends LitElement {
   private seq = 0;
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
-  /** NOSCROLL-297: on a desktop the view switch sits on the title row (one control row less above the cards) */
-  private wideMq = window.matchMedia('(min-width: 1024px)');
-  @state() private wide = this.wideMq.matches;
-  private onWide = () => (this.wide = this.wideMq.matches);
   private qTimer = 0;
   private toastTimer = 0;
   private extraPages = 0;
@@ -225,7 +221,6 @@ export class TicketsList extends LitElement {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
-    this.wideMq.addEventListener('change', this.onWide);
     this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offNames = onTicketNames(() => this.requestUpdate());
     this.clock = window.setInterval(() => (this.now = new Date()), 60_000);
@@ -236,7 +231,6 @@ export class TicketsList extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
-    this.wideMq.removeEventListener('change', this.onWide);
     this.removeEventListener('scroll', this.onScroll);
     this.offNames?.();
     window.clearInterval(this.clock);
@@ -486,7 +480,6 @@ export class TicketsList extends LitElement {
           <button type="button" class="rc" aria-pressed=${String(!f.department)} data-dept="" @click=${() => this.setFilters({ department: '' })}>${tt('allDepartments')}${Object.keys(c.departments).length ? withDept(total) : nothing}</button>
           ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(f.department === d.id)} data-dept=${d.id} @click=${() => this.setFilters({ department: d.id })}>${bidi(d.name)}${Object.keys(c.departments).length ? withDept(c.departments[d.id] ?? 0) : nothing}</button>`)}
         </div>` : pending ? html`<div class="rooms" aria-hidden="true" data-rooms-pending style="visibility:hidden"><span class="rc">${tt('allDepartments')}</span></div>` : html`<span class="grow"></span>`}
-        ${tools && this.wide ? listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode) : nothing}
       </div>
       ${tools ? html`<div class="dh-det">
         <div class="seg sm scope" role="radiogroup" aria-label=${lt('lsScopeGroup')} data-scope-seg>
@@ -502,7 +495,7 @@ export class TicketsList extends LitElement {
         ${cards ? filterButton(this.filterOpen, active, () => (this.filterOpen = !this.filterOpen)) : nothing}
         ${pending ? html`<span class="btn primary newbtn" aria-hidden="true" style="visibility:hidden">${tIcon('plus')}${tt('newShort')}</span>` : nothing}
         ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
-        ${this.wide ? nothing : listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
+        ${listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
       </div>
       ${cards && this.filterOpen && this.screen === 'ready' ? filterRow((this.items ?? []) as CardItem[], this.filters, (next) => (this.filters = next)) : nothing}` : nothing}
     </header>`;

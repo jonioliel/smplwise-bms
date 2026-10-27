@@ -72,7 +72,14 @@ PINNED_HA_LOCK = frozenset({
     ("smplwise/services/schedule_view.py", "lock.open"),
     ("smplwise/services/schedule_view.py", "lock.unlock"),
 })
-ENGINE_WRITES: frozenset[tuple[str, str]] = frozenset()  # nothing writes a program today (CR-036: read-only schedules screen)
+# GATEFIX2240-297 re-pin of WISKEY-OWNER26-297 (b9cc051fa, the W3 engine adapter this pin was waiting for; reviewed): the Native hold-open
+# program save / pause, sent only by DirectProgramEngine, which door_windows_engine.WiskeyProgramEngine calls from the door-windows routes
+# after the person is admitted (access.windows.manage); not timer-shaped (test_timer_shaped_modules_never_open still holds), and off while
+# PROGRAM_ENGINE_BUILT / LIVE_ENGINE_BUILT stay False (the window factory hands out the tier-D PreparedEngine).
+ENGINE_WRITES: frozenset[tuple[str, str]] = frozenset({
+    ("smplwise/services/wiskey_program_direct.py", "stations/technical_program_save"),
+    ("smplwise/services/wiskey_program_direct.py", "stations/technical_program_action"),
+})
 TIMER_SHAPED = re.compile(r"(^door_windows_watch|_watch$|watchdog|scheduler|_tick$|_ticker$|_jobs?$|^notify_sources$)")
 
 

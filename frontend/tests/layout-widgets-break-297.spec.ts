@@ -6,7 +6,8 @@ import { SKINS_UNDER_TEST } from './helpers/frozen-skins';
 
 // WIDGETBREAK-297: the home widgets (all but the elevators card, ELEVFIX-297) in cards 240 / 280 / 320 / 360 px wide, sizes s / m / l, light and dark,
 // fed NORMAL, WORST-CASE (long Hebrew, unbreakable Latin, mixed RTL/LTR, emoji, huge numbers, many items) and EMPTY invented data through the harness
-// tests/widget-break-harness (the Vite DEV server: the harness imports /src/). Geometry assertions only, no pixel baseline: nothing may leave its card,
+// tests/widget-break-harness. Needs the Vite dev server (the harness imports /src/; a preview build has no tests/ page, the gate's
+// classifier reads this line). One project is enough: the harness sets the card widths itself. Geometry assertions only, no pixel baseline: nothing may leave its card,
 // no text may be cut without an ellipsis, the card may not scroll sideways. Every selectable skin (the frozen bubble skin is skipped by the registry). Fake data only; no backend.
 //   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/layout-widgets-break-297.spec.ts --project=desktop
 // WB_SHOTS=<dir> also writes a screenshot per case; WB_ALL=1 widens the widget list to the ones still open (see docs/design/system/WIDGET_BREAK_2026-10-27.md).
