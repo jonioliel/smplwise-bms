@@ -1919,7 +1919,7 @@ export class SwApp extends LitElement {
         void productSettings().then((ps) => {
           HIDDEN_HREFS.clear();
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
-          setInstallationDesign(ps['ui.skin'], ps['ui.scheme'], ps['ui.motion']); // the installation's skin, light / dark choice (design foundation) and motion (MOTIONSETTING-297)
+          setInstallationDesign(ps['ui.skin'], ps['ui.scheme'], ps['ui.motion'], ps['ui.rail_tone']); // the installation's skin, light / dark choice (design foundation), motion (MOTIONSETTING-297) and rail tone (SKINCOMP-297)
           setInstallationLook(ps['ui.look']); // the installation's look dials (Bubble foundation)
           setInstallationBackground(ps['ui.background'], ps['ui.background_images']); // CRY: the background artwork and the uploaded pictures' stamps
           setCustomPalettes(ps['ui.palettes']); // the installation's custom colour palettes (a palette id in the look dial may point at one)
