@@ -220,6 +220,11 @@ body.box #host { background: #000; }
 .empty span { font-size: calc(34px * var(--fs)); color: var(--ink-3); }
 #cv[data-empty="1"] .it, #cv[data-empty="1"] .dots { display: none !important; }
 #cv[data-empty="1"] .empty { display: flex; }
+/* TVNOTICE2-297: the idle board with the developer logo too (idle_logo both) - the logo above the message; an explicit choice, so it shows
+   even where the header's company-logo block is off */
+.empty .idl { display: flex; margin-block-end: 8px; }
+#cv .empty .idl .lg.company { block-size: calc(96px * var(--lgco, var(--lg, 1))); max-inline-size: 60%; visibility: visible; }
+.empty .idl .lg.company img { block-size: 100%; inline-size: auto; max-inline-size: 100%; object-fit: contain; }
 
 /* building status: a quiet line of text in the footer, a dot per state */
 .chips { display: flex; flex-wrap: wrap; gap: 8px calc(44px * var(--fs)); min-inline-size: 0; overflow: hidden; block-size: calc(40px * var(--fs)); align-content: start; }

@@ -366,6 +366,7 @@ class TvDefaultsIn(BaseModel):
     space: str | None = None
     night_logo: str | None = None
     weather_days: StrictInt | None = None
+    idle_logo: str | None = None  # TVNOTICE2-297: the idle board's logos (sw / both)
 
 
 @router.get("/notices/tv-defaults")

@@ -1,7 +1,7 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import {
-  HEADERS, NIGHT_LOGOS, SPACE_USES, TV_FACTORY, UPDATED_LINES, WEATHER_DAYS, effectiveTv,
+  HEADERS, IDLE_LOGOS, NIGHT_LOGOS, SPACE_USES, TV_FACTORY, UPDATED_LINES, WEATHER_DAYS, effectiveTv,
   type Display, type TvDefaults,
 } from '../notice-tv/tv-logic';
 import { nt, type NtKey } from '../i18n/notices';
@@ -16,6 +16,8 @@ const ROWS: { key: TvKey; seg: string; label: NtKey; values: readonly Val[]; tex
   { key: 'night_logo', seg: 'night-logo', label: 'nightLogoLabel', values: NIGHT_LOGOS, text: (v) => nt(`nightLogo_${v}` as NtKey) },
   // owner 2026-10-25: today only, or today and up to 5 days (0 = the forecast row as before)
   { key: 'weather_days', seg: 'weather-days', label: 'weatherDaysLabel', values: WEATHER_DAYS, text: (v) => (v === 0 ? nt('weatherDays_0') : v === 1 ? nt('weatherDays_1') : nt('weatherDays_n', { n: v })) },
+  // TVNOTICE2-297 (owner 27.10): the idle board - the clock and SmplWise as before, or the developer logo too
+  { key: 'idle_logo', seg: 'idle-logo', label: 'idleLogoLabel', values: IDLE_LOGOS, text: (v) => nt(`idleLogo_${v}` as NtKey) },
 ];
 
 /**
@@ -59,8 +61,8 @@ export class NoticeDisplayLayout extends LitElement {
     const eff = board ? effectiveTv(d, this.defaults) : this.defaults;
     const logoOn = !!d.blocks?.company_logo;
     const weatherOn = !!d.blocks?.weather;
-    const [a, b, c, e, w] = ROWS.map((r) => this.row(r, own(r.key), eff.header, logoOn, weatherOn));
-    return html`<div class="r">${a}${b}</div><div class="r">${c}${e}</div><div class="r">${w}</div>`;
+    const [a, b, c, e, w, i] = ROWS.map((r) => this.row(r, own(r.key), eff.header, logoOn, weatherOn));
+    return html`<div class="r">${a}${b}</div><div class="r">${c}${e}</div><div class="r">${w}${i}</div>`;
   }
 }
 

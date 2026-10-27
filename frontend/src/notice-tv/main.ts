@@ -23,6 +23,7 @@ import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
   AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, HEADERS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlanExtra, headerOf, heldIndex, logoLayoutOf, netOf, nightDim,
   nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, tickerItemHtml, timeText, tokenFrom, tx, updatedOf, weatherDaysOf, whenText, withTransit,
+  idleLogoOf, updatedLineParts,
   type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type HeaderLayout, type Item, type LogoLayout, type NetState, type Saver, type UpdatedLine,
 } from './tv-logic';
 import { effective, hasPanel, refreshMs, slideWanted, transitOf, transitTick, ts, type TransitDigest } from './transit-logic';
@@ -253,7 +254,9 @@ function dotsHtml(count: number, cur: number): string {
 }
 
 function tailHtml(): string {
-  return '<div class="empty"><p>' + esc(str(lang(), 'empty')) + '</p><span>' + esc(feed?.board.building || '') + ' · ' + esc(str(lang(), 'niceDay')) + '</span></div><div class="gone"><p>' + esc(str(lang(), 'gone')) + '</p><span>' + esc(str(lang(), 'goneHint')) + '</span></div>';
+  // TVNOTICE2-297 (owner 27.10): the idle board shows the clock and SmplWise as before; `both` adds the developer logo above the message
+  const idle = idleLogoOf(display()) === 'both' && hasCompany() ? '<div class="idl">' + logos(currentTheme() === 'night').co + '</div>' : '';
+  return '<div class="empty">' + idle + '<p>' + esc(str(lang(), 'empty')) + '</p><span>' + esc(feed?.board.building || '') + ' · ' + esc(str(lang(), 'niceDay')) + '</span></div><div class="gone"><p>' + esc(str(lang(), 'gone')) + '</p><span>' + esc(str(lang(), 'goneHint')) + '</span></div>';
 }
 
 interface State {
@@ -319,7 +322,9 @@ function headerNow(): HeaderLayout {
 function liveHtml(u: UpdatedLine, one = false): string {
   if (u === 'issues') return '';
   const t = '<span class="num" data-updated>' + updatedText() + '</span>';
-  const full = esc(str(lang(), 'updated')) + ' ' + t + ' · ' + esc(feed?.board.name || '');
+  // TVNOTICE2-297: place = "updated · <place> <time>" (the approved preview, the default); full = "updated <time> · <board name>"
+  const p = updatedLineParts(u === 'place' ? 'place' : 'full', { label: str(lang(), 'updated'), place: display().place || '', board: feed?.board.name || '' });
+  const full = esc(p.before) + t + esc(p.after);
   // TVNOTICE-297: in the one-row header the full line is one box that can end in an ellipsis (a long board name never widens the row)
   return '<span class="live"><i></i>' + (u === 'time' ? t : one ? '<span class="lt">' + full + '</span>' : full) + '</span>';
 }
@@ -445,6 +450,7 @@ function render(): void {
   const one = hdr !== 'c';
   cv.dataset.header = hdr;
   cv.dataset.updated = upd;
+  cv.dataset.idleLogo = idleLogoOf(d); // TVNOTICE2-297
   cv.dataset.space = one ? spaceOf(d) : 'none';
   cv.dataset.logos = one ? 'one' : lay; // the logo layout applies to the header as before only
   let h: string;
@@ -1071,7 +1077,7 @@ function emptyFeed(): Feed {
       template: 1, lang: 'he', theme: 'auto', day_hours: '', layout: 'auto', urgent: 'stage', mode: 'rotation', rotate_s: 12, hold: '', font_size: 's', font_scale: 1, place: '',
       blocks: { clock: true, hebdate: true, welcome: true, weather: false, info: [], promo: false, news: false, company_logo: false },
       weather: { hours: 5 }, news: { feeds: [], speed: 'normal' }, night: { enabled: true, from: '23:00', to: '06:00', dim: 0.5 }, burn_in: { shift: true }, saver: 'off', logos: 'a',
-      header: 'c', updated: 'full', space: 'bigger', night_logo: 'auto', weather_days: 0,
+      header: 'c', updated: 'place', space: 'bigger', night_logo: 'auto', weather_days: 0, idle_logo: 'sw',
     } },
     now: new Date().toISOString(),
     notices: [],

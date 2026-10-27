@@ -49,7 +49,7 @@ async function install(page: Page, o: { enabled?: boolean; manager?: boolean } =
     if (p === 'notices/module') return json(route, { enabled, can: CAN });
     if (p === 'notices/settings' && method === 'GET') return json(route, { settings: { ...SETTINGS, enabled }, can: manager ? CAN : { ...CAN, boards: false, configure: false }, weather_entities: [{ entity_id: 'weather.home', name: 'בית' }], company_logo: false, listener: true, building_fallback: 'מגדל הים' });
     if (p === 'notices/settings') return json(route, { settings: { ...SETTINGS, ...(body as object) } });
-    if (p === 'notices/tv-defaults' && method === 'PUT') return json(route, { tv_defaults: { header: 'c', updated: 'full', space: 'bigger', night_logo: 'auto', ...(body as object) } });
+    if (p === 'notices/tv-defaults' && method === 'PUT') return json(route, { tv_defaults: { header: 'c', updated: 'place', space: 'bigger', night_logo: 'auto', weather_days: 0, idle_logo: 'sw', ...(body as object) } });
     if (!enabled) return off();
     if (p === 'notices' && method === 'GET') {
       const scope = new URL(req.url()).searchParams.get('scope');
@@ -190,7 +190,9 @@ test('board page: the header, "updated" line, freed height and night logo choice
   const frame = page.frameLocator('sw-app system-notices iframe[data-preview]');
   await expect(frame.locator('#cv')).toHaveAttribute('data-header', 'c');
   const seg = (name: string) => root.locator(`notice-display-layout [data-seg="${name}"]`);
-  for (const name of ['header', 'updated', 'space', 'night-logo']) await expect(seg(name).locator('button')).toHaveCount(4);
+  for (const name of ['header', 'space', 'night-logo']) await expect(seg(name).locator('button')).toHaveCount(4);
+  await expect(seg('updated').locator('button')).toHaveCount(5); // TVNOTICE2-297: default, place and time, time and board name, time, issues
+  await expect(seg('idle-logo').locator('button')).toHaveCount(3); // TVNOTICE2-297: default, SmplWise only, the developer logo too
   await expect(seg('weather-days').locator('button')).toHaveCount(7); // default, as before, today only, 2..5 days
   await expect(seg('weather-days').locator('button[data-v="1"]')).toHaveText('היום בלבד');
   await expect(seg('header').locator('button[data-v="default"]')).toHaveAttribute('aria-pressed', 'true');
@@ -227,7 +229,10 @@ test('settings: the installation defaults of the TV options (TV boards card)', a
   const card = page.locator('sw-app system-notices [data-tv-defaults-card]');
   await expect(card).toBeVisible();
   const seg = (name: string) => card.locator(`notice-display-layout [data-seg="${name}"]`);
-  for (const name of ['header', 'updated', 'space', 'night-logo']) await expect(seg(name).locator('button')).toHaveCount(3); // no "default" button here
+  for (const name of ['header', 'space', 'night-logo']) await expect(seg(name).locator('button')).toHaveCount(3); // no "default" button here
+  await expect(seg('updated').locator('button')).toHaveCount(4);
+  await expect(seg('updated').locator('button[data-v="place"]')).toHaveAttribute('aria-pressed', 'true'); // TVNOTICE2-297: the preview wording by default
+  await expect(seg('idle-logo').locator('button[data-v="sw"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(seg('weather-days').locator('button')).toHaveCount(6);
   await expect(seg('weather-days').locator('button[data-v="0"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(seg('header').locator('button[data-v="c"]')).toHaveAttribute('aria-pressed', 'true');
