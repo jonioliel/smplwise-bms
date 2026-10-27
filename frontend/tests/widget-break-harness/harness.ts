@@ -3,7 +3,7 @@
 import '../../src/design/boot';
 import '../../src/styles/focus-policy';
 import '../../src/screens/home-widgets';
-import { defaultConfig, type HomeConfig, type HomeData, type Size, type WidgetId } from '../../src/api/home-config';
+import { defaultConfig, resolveWidgets, type HomeConfig, type HomeData, type Size, type WidgetId } from '../../src/api/home-config';
 
 const LONG_HE = 'פתיחת בוקר לכניסה הראשית של הלובי בקומת הקרקע של המבנה הצפוני כולל חניון תת קרקעי';
 const UNB = 'A'.repeat(60);
@@ -92,9 +92,11 @@ const TITLES: Record<string, string> = { clock: 'שעון', weather: 'מזג א�
   const el = document.createElement('home-widgets') as HTMLElement & Record<string, unknown>;
   el.config = b.cfg;
   el.data = b.data;
-  el.items = [{ id, avail: 'ok', size, title: ds === 'worst' ? LONG_HE : TITLES[id] || id }];
+  const qa = { lights_off: true, all_off: true };
+  const found = resolveWidgets(b.cfg, 'a', b.data, { editing: ds === 'empty', quickAllowed: qa, elevatorsAvailable: false, temperatureAvailable: true, generatorsAvailable: true, doorsAvailable: true, noticesAvailable: true, mediaAvailable: false }).find((x) => x.id === id);
+  el.items = found ? [{ ...found, size, title: ds === 'worst' ? LONG_HE : found.title || TITLES[id] || id }] : [];
+  el.editing = ds === 'empty';
   el.layout = opts.layout ?? 'stack';
-  el.editing = !!opts.editing;
   el.quick = { allowed: { lights_off: true, all_off: true }, lightsOn: ds === 'worst' ? 1234 : ds === 'empty' ? 0 : 3, switchesOn: ds === 'worst' ? 99999 : 1 };
   el.temperatureUnits = b.temp;
   el.generators = b.gens;
