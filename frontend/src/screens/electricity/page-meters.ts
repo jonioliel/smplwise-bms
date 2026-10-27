@@ -233,8 +233,13 @@ export class ElecMetersPage extends LitElement {
           overflow: auto;
           scrollbar-width: thin;
         }
+        /* GATEFIX2240-297: in a box of fixed height the grid shared that height out among its rows (the cards are overflow-clipped, so
+           their automatic minimum is 0): at 1024 px the meter cards were squeezed and their reading row spilled below the card, at 1440 px
+           they were stretched. Rows keep their content height and start at the top; the box scrolls. */
         .mlist > .cards {
           padding: 2px;
+          grid-auto-rows: max-content;
+          align-content: start;
         }
         .mlist table.t thead th {
           position: sticky;

@@ -23,7 +23,7 @@ def g(monkeypatch, tmp_path):
     """A fresh copy of the engine per test (module globals are state), with an empty results directory."""
     monkeypatch.delenv("GATE_SCHEDULE", raising=False)
     for k in ("GATE_BACKEND_SHARDS", "GATE_PW_SLOTS", "GATE_W1_MAX_CHUNKS", "GATE_CHUNK_TARGET_SECS", "GATE_PW_MAX_WORKERS",
-              "GATE_BACKEND_TMPFS", "GATE_TMPFS_MIN_GB", "GATE_TMPFS_DIR", "GATE_MIN_FREE_MB", "GATE_COSTS_DIR"):
+              "GATE_BACKEND_TMPFS", "GATE_TMPFS_MIN_GB", "GATE_TMPFS_DIR", "GATE_MIN_FREE_MB", "GATE_COSTS_DIR", "GATE_LANE"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("GATE_RESULTS_DIR", str(tmp_path / "results"))
     monkeypatch.setenv("GATE_HOME", str(tmp_path / "home"))
@@ -56,7 +56,9 @@ def test_cli_refuses_an_unknown_schedule(g):
 
 def test_backend_command_v1_unchanged_v2_adds_junit_and_retention(g, tmp_path):
     v1 = g.backend_cmd(["test_a.py"], tmp_path, 1, tmp_path / "tmp_b1", False)
-    assert v1[1:] == ["-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(tmp_path / "tmp_b1"), "tests/test_a.py"]
+    # GATELANES-297: a gate run (GATE_LANE unset) deselects the non-blocking timing lane
+    assert v1[1:] == ["-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(tmp_path / "tmp_b1"),
+                      "-m", "not timing_lane", "tests/test_a.py"]
     v2 = g.backend_cmd(["test_a.py"], tmp_path, 2, tmp_path / "tmp_b2", True)
     assert "tmp_path_retention_policy=failed" in v2 and str(tmp_path / "backend_s2.xml") in v2 and v2[-1] == "tests/test_a.py"
 
