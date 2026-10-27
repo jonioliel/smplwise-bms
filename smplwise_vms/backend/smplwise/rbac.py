@@ -36,6 +36,8 @@ STATION_PERMISSIONS = frozenset({
     "access.pin.generate", "access.people.message", "access.call",
     # CR-ARX-WISKEY-SHARED-IDENTITY D5 (owner answer 2): approving an external person's temporary door grant, per station
     "access.external.grant",
+    # EXTERNALBUILD-297 (CR-VISITOR105 5.1): inviting a visitor to a station (the host's own approval inside the envelope)
+    "access.visitor.invite",
     # CR-AUTODOORS-295: arming an automation's "open a door" block, per station
     "access.doors.automate",
     # STATIONPERM-295 (CR-STATION-PERMISSIONS-295): allowing / blocking a person's access per station, judged on that station

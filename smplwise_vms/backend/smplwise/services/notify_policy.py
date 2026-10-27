@@ -245,6 +245,10 @@ SOURCES: tuple[Source, ...] = (
     # switch (`access.external.denied_alert`, default off) and the external-access feature are on. A burst raises it to `alert`, never `critical`.
     _s("access.denied_attempt", "ניסיון כניסה נדחה (גישת חוץ)", "security", "info", "ניסיון כניסה נדחה",
        "{place}: ניסיון כניסה נדחה ({reason}) בשעה {time}. גישה {ref}.", window_s=600, subject="access_denied", resolves=False),
+    # EXTERNALBUILD-297 (CR-VISITOR105 4.6, services/access_entries.py): the host's visitor entered - to the host only (subject kind
+    # `access_visitor`). The door's name and the local time - never the visitor's name, number or an image.
+    _s("access.visitor.arrived", "המבקר שלך נכנס", "security", "info", "המבקר שלך נכנס", "המבקר שלך נכנס: {place}, בשעה {time}.",
+       subject="access_visitor", resolves=False),
     # NEEDSREVIEW (2.8.0, lead decision 6): the yearly privacy reminder - once in January when the "needs review" report is not empty
     # (services/needs_review.py). Content-free: a count only, never a name or a number; the review and every deletion stay manual.
     _s("privacy.needs_review", "תזכורת שנתית: דוח דורש בחינה", "security", "info", "דוח דורש בחינה",

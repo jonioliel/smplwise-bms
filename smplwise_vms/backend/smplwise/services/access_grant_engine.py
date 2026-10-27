@@ -659,19 +659,37 @@ class WiskeyServiceEngine:
             return EngineError("unknown", "invalid_response")
         return EngineError("unknown", type(exc).__name__)
 
-    def _write(self, send: Any, person_id: str | None = None) -> EnginePerson:
+    def _write(self, send: Any, person_id: str | None = None, *, action: str | None = None, data: dict[str, Any] | None = None,
+               revision: int | None = None) -> EnginePerson:
         """One people write. With `person_id` (every write to an existing person) an `unknown` outcome blocks the next write to that
         person until `get_person` has read it fresh (WisKey round 3, R3-06): that write is refused here as `not_sent`
-        (`outcome_pending` / `readback_required`), never replayed."""
+        (`outcome_pending` / `readback_required`), never replayed.
+
+        EXTERNALBUILD-297 (X2 + X5, owner direction 2026-10-27 "full intake", replaces the WKINT-295 refusal): while WisKey's direct API
+        is selected, the write goes through the SERVICE writer (services/access_service_writer.py) when one is available on that
+        connection; otherwise it degrades to the local service channel below - the path every `local` installation uses - and the
+        choice and its reason are recorded for the readiness check (`access_service_writer.last_path`). The native HUMAN-actor writer
+        (services/wiskey_native_write.py) is never used here. Revokes take the same path, so a revoke is never blocked by the
+        connection choice."""
+        from . import access_service_writer as asw
         from . import intercom_sync, wiskey_direct_join
 
-        # WKINT-295: while WisKey's direct API is selected, people writes go through the native writer (services/wiskey_native_write.py),
-        # whose contract needs a HUMAN actor in an active interactive session. This engine acts as `system:access_grants`, so it cannot
-        # make a native write: refused here, nothing sent (never a silent second path to the same WisKey). Without the join (no usable
-        # key, or `local`) this is skipped and the write below runs exactly as before.
         join = wiskey_direct_join.installed()
         if join is not None and join.selected():
-            raise EngineError("not_sent", "native_human_actor_required")
+            writer = asw.writer_for(join) if action else None
+            if writer is not None:
+                if person_id is not None and intercom_sync.SYNC.write_gate(intercom_sync.person_target(person_id)) is not None:
+                    raise EngineError("not_sent", "outcome_pending")  # R3-06 holds on this path too: read the person fresh first
+                asw.record("direct_service_writer", "direct_service_writer")
+                raw = writer.write(asw.ServiceWrite(action=action, data=dict(data or {}), person_id=person_id, revision=revision,  # type: ignore[arg-type]
+                                                    attribution=asw.current_attribution()))
+                try:
+                    return person_from_raw(raw)
+                except ValueError:
+                    raise EngineError("unknown", "invalid_response") from None
+            asw.record("service_channel", "direct_service_writer_missing")
+        else:
+            asw.record("service_channel", "direct_not_selected" if join is not None else "provider_local")
         target = intercom_sync.person_target(person_id) if person_id is not None else None
         try:
             reply = intercom_sync.SYNC.action(self.settings, "person", send, person_from_raw_dict, self.WHO, lane="config", target=target)
@@ -689,7 +707,7 @@ class WiskeyServiceEngine:
 
         data = create_payload(display_name=display_name, employee_no=employee_no, category=category, responsible_person=responsible_person,
                               access_purpose=access_purpose)
-        return self._write(lambda call: intercom_client.users_create(call, data, True))
+        return self._write(lambda call: intercom_client.users_create(call, data, True), action="users/create", data=data)
 
     def get_person(self, person_id: str) -> EnginePerson:
         """A fresh `users/get`. R3-06: while an earlier write to this person is still out (its outcome unknown, WisKey may yet save
@@ -719,14 +737,19 @@ class WiskeyServiceEngine:
         from . import intercom_client
 
         data = apply_payload(doors=doors, valid_from=valid_from, valid_until=valid_until, timing=timing, active=active, pin=pin, overrides=overrides)
-        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id)
+        try:
+            return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id, action="users/update", data=data,
+                               revision=revision)
+        finally:
+            data.pop("pin", None)  # a PIN lives only in this call's frame
 
     def strip(self, person_id: str, revision: int) -> EnginePerson:
         self._guard()
         from . import intercom_client
 
         data = strip_payload()
-        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id)
+        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id, action="users/update", data=data,
+                           revision=revision)
 
     def set_station_access(self, person_id: str, revision: int, *, overrides: dict[str, str], doors: dict[str, list[int]]) -> EnginePerson:
         """STATIONPERM-295: refused (`not_permitted`) while the go-live permit is not in the build; never run against a WisKey."""
@@ -734,7 +757,8 @@ class WiskeyServiceEngine:
         from . import intercom_client
 
         data = station_access_payload(overrides=overrides, doors=doors)
-        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id)
+        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id, action="users/update", data=data,
+                           revision=revision)
 
     def revocation_pending(self, person_id: str, revision: int) -> bool | None:
         """WisKey's ACR5-01 access_state is PROPOSED and Arx has built no client for it (R11-I3-01), and the overview projection drops
@@ -806,7 +830,9 @@ class WiskeyServiceEngine:
         self._guard()
         from . import intercom_client
 
-        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, {"display_name": _clean_name(display_name)}, True), person_id)
+        data = {"display_name": _clean_name(display_name)}
+        return self._write(lambda call: intercom_client.users_update(call, person_id, revision, data, True), person_id, action="users/update", data=data,
+                           revision=revision)
 
     def card_add(self, person_id: str, revision: int, *, card_no: str, label: str = "") -> EnginePerson:
         """GRANTS3-295 (X5), NOT_RUN against any WisKey: WisKey `cards/add` answers the person's public record (cards masked). The number
@@ -817,7 +843,8 @@ class WiskeyServiceEngine:
 
         card = {"card_no": card_no, "label": _clean_name(label, ""), "card_type": "normalCard", "enabled": True}
         try:
-            return self._write(lambda call: intercom_client.cards_add(call, person_id, revision, card), person_id)
+            return self._write(lambda call: intercom_client.cards_add(call, person_id, revision, card), person_id, action="cards/add", data={"card": card},
+                               revision=revision)
         finally:
             card.clear()
 
@@ -826,7 +853,8 @@ class WiskeyServiceEngine:
         self._guard()
         from . import intercom_client
 
-        return self._write(lambda call: intercom_client.cards_remove(call, person_id, revision, card_id), person_id)
+        return self._write(lambda call: intercom_client.cards_remove(call, person_id, revision, card_id), person_id, action="cards/remove",
+                           data={"card_id": card_id}, revision=revision)
 
     def delete(self, person_id: str, revision: int) -> None:
         self._guard()

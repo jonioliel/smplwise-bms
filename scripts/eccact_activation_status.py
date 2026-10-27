@@ -4,7 +4,11 @@
 It reports what the CODE permits. It never reports an installation switch or a live result as true: those are runtime facts that this
 script cannot see (`runtime` says so), and `activation_claimed` is always false here.
 
-usage: python scripts/eccact_activation_status.py [--db PATH]   (run with the backend venv; --db adds the installation's registry rows, read-only)
+usage: python scripts/eccact_activation_status.py [--db PATH] [--readiness]
+  (run with the backend venv; --db adds the installation's registry rows, read-only)
+  --readiness (with --db): EXTERNALBUILD-297 X1 - the external access readiness check over that database, read-only. The lines that need the
+  running server (the write path's channel state, the last WisKey negotiation, the WhatsApp account) are `unknown` here; the server's
+  GET /access-grants/readiness shows them.
 """
 from __future__ import annotations
 
@@ -37,8 +41,26 @@ PERMITS = [
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db")
+    ap.add_argument("--readiness", action="store_true")
     args = ap.parse_args()
     import importlib
+
+    if args.readiness:
+        if not args.db:
+            print(json.dumps({"error": "--readiness needs --db PATH"}))
+            return 2
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")  # the Hebrew texts on a Windows console
+        except (AttributeError, ValueError):
+            pass
+        readiness = importlib.import_module("smplwise.services.access_readiness")
+        conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        try:
+            print(json.dumps(readiness.readiness(conn, None, runtime=False), indent=1, ensure_ascii=False, sort_keys=True))
+        finally:
+            conn.close()
+        return 0
 
     permits = {}
     for key, module, const, switch in PERMITS:
