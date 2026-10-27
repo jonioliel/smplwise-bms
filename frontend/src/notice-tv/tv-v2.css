@@ -14,6 +14,7 @@
   --card: rgba(255, 255, 255, .42);
   --ink-3: #6a6e78; /* the mock-up's secondary ink (>= 4.5:1 on the paper) */
   font-variant-numeric: tabular-nums;
+  line-height: 1.2; /* the mock-up board's line height (the page default is looser) */
   background: radial-gradient(90% 70% at 100% 0%, #fbf9f4 0%, transparent 60%), linear-gradient(160deg, #f6f3ec 0%, #ece7dc 100%);
 }
 :root[data-theme="night"] #cv[data-design="v2"] {
