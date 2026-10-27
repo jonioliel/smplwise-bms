@@ -76,6 +76,12 @@ separate device source per building are later slices of the plan and are not app
 | 8 | Click on a remote building without an account there: open anyway; the site's login screen explains. |
 | 9 | Build order: one live overview in one stage (structure, link, real-time update), then permissions and key rotation. |
 | 10 | One formal change request now, covering the live link, the receive endpoint and automatic key rotation (this document). |
+| 11 | New role "super admin" (Hebrew: מנהל על): sees ALL linked installations together, read-only by default. Distinct from the per-site "all buildings" permission, which never crosses sites (answer q17: explicit permission per site). Section 4a. |
+| 12 | No phone notification for remote-site changes in phase 1 (remote live alerts appear in the overview only). |
+| 13 | A real two-server test happens only after phase 2 (permissions and key rotation); until then everything runs on fakes and the equipment tests are reported NOT_RUN. |
+| 14 | No single sign-on across servers in this plan; each site keeps its own login. |
+| 15 | Mismatched versions: the link works when the two versions are compatible (schema-version check at pairing and on every reconnect); otherwise the link card shows "update required" and no data is shown as live. |
+| 16 | The commercial side (licensing, pricing, packaging of multi-site) is decided later and is outside this CR. |
 
 Earlier decisions that still apply: 333-341 and answers 367-379 (see the plan, section 1).
 
@@ -98,6 +104,40 @@ Full design: `docs/architecture/MULTISITE_PLAN.md` sections 2-5. Points this CR 
   system administrator, grantable to any role.
 - **Click-through:** a remote building opens the site in a new tab with its own login (setting `federation.open_mode`), even without an
   account there.
+
+## 4a. Super admin role ("מנהל על") - owner note, added 2026-10-27
+
+**Purpose.** One person (for example the owner of a group of sites) sees every linked installation together in the hub overview.
+
+**Not the same as "all buildings".** The installation-scope "all buildings" binding covers every building of ONE installation and never
+crosses sites (answer q17: access to another site is an explicit permission per site). Super admin is a separate, hub-level role.
+
+**Permissions (read-only by default).**
+- `sites.federation.view_all`: see every approved linked site and building in the overview, link health, freshness, counts and states.
+  Alert titles only where that site's administrator ticked the share approval (decision 4); building names only with the per-link
+  share-names switch.
+- `sites.federation.manage` is NOT included; link creation, pairing and re-pairing stay with the system administrator.
+- No write scope exists in federation, so no write permission can be granted to this role.
+
+**How it is granted.**
+- Only a system administrator of the hub grants or revokes it, to a named account; it is never a default role and never inherited.
+- A link is visible to a super admin only after the site's administrator ticks a per-link "visible to super admin" approval (default
+  off, held and enforced at the site like the share approvals). A super admin cannot widen what a site shares.
+- Granting or removing a holder needs a confirmation with a reason; the holder list is visible in Settings.
+
+**Audit.** Grant, revoke, and every view of a remote site's detail are audited at the hub (who, which link, when; never token text or
+payload content). The site records "viewed by super admin of hub X" in its own audit log. Records are append-only and visible to the
+administrators of both sites.
+
+**What it can never do.**
+- No door, gate, elevator, alarm, emergency or any device command on a remote site. The partner NEVER list stays and no federation write
+  scope exists. Any cross-site command would need per-site approval under a separate change request and is not offered by this CR.
+- No change to a remote site's settings, users, permissions or links; no reading of person names, phone numbers, camera ids or frames.
+- No access to a site that did not approve the link, and no bypass of an explicit deny at the site.
+- No self-granting and no self-service elevation.
+
+**Slice and tests.** Built with slice 2 (permissions). Acceptance: a super admin sees all approved linked sites; an unapproved link is
+invisible to them; an "all buildings" holder sees no remote site; every attempted command from this role is refused and audited.
 
 ## 5. Security notes
 
