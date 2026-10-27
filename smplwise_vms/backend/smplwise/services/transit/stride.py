@@ -33,9 +33,10 @@ Fetch = Callable[[str, dict[str, Any]], Any]
 class StrideError(Exception):
     """The source answered with an error or nonsense (a timeout, a 4xx / 5xx, bad JSON). `kind` is a short code for the health view."""
 
-    def __init__(self, kind: str, message: str = "") -> None:
+    def __init__(self, kind: str, message: str = "", retry_after_s: int | None = None) -> None:
         super().__init__(message or kind)
         self.kind = kind
+        self.retry_after_s = retry_after_s  # the seconds of a numeric `Retry-After` header, when the provider sent one
 
 
 def user_agent() -> str:
@@ -52,7 +53,8 @@ def http_fetch(path: str, params: dict[str, Any]) -> Any:
         with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:  # noqa: S310 - fixed https host
             data = resp.read(MAX_BYTES + 1)
     except urllib.error.HTTPError as exc:
-        raise StrideError(f"http_{exc.code}") from exc
+        ra = exc.headers.get("Retry-After") if exc.headers is not None else None
+        raise StrideError(f"http_{exc.code}", retry_after_s=int(ra.strip()) if isinstance(ra, str) and ra.strip().isdigit() else None) from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise StrideError("unreachable") from exc
     if len(data) > MAX_BYTES:

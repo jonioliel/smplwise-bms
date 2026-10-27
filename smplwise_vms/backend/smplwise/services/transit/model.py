@@ -22,6 +22,8 @@ DWELL_RANGE = (6, 60)
 CLOCK_AFTER_RANGE = (0, 240)  # minutes up to this, then the clock time; 0 = always the clock
 GRACE_RANGE = (0, 240)  # minutes of last-known data while the source is down; 0 = none
 WALK_RANGE = (0, 30)
+OUTAGE_WARN_RANGE = (1, 72)  # BUSSTATUS-297: hours of a provider outage after which the system health says "warning" (before it: a calm info state)
+OUTAGE_KEEP_H = 24  # during a provider outage the last scheduled rows stay on the screens up to this cache age (rows beyond the cached window are unknown)
 STOP_NAME_MAX = 60
 FRESH_S = 180  # the floor of "fresh": a cache younger than max(this, 3 x the poll interval) is fresh
 POLL_RANGE = (15, 300)  # seconds between two polls of the public source, per distinct stop (installation)
@@ -30,7 +32,7 @@ REFRESH_RANGE = (10, 120)  # seconds between two fetches of the digest by a scre
 POSITION_FRESH_RANGE = (1, 30)  # minutes: a vehicle position older than this is not shown as an estimate (nor its distance)
 
 CONFIG_DEFAULTS: dict[str, Any] = {"enabled": False, "stops": [], "clock_after_min": 60, "stale_grace_min": 30, "hide_closer_min": 0,
-                                   "poll_s": 30, "poll_floor_ack": False, "refresh_s": 20, "position_fresh_min": 5, "show_distance": True}
+                                   "poll_s": 30, "poll_floor_ack": False, "outage_warn_h": 6, "refresh_s": 20, "position_fresh_min": 5, "show_distance": True}
 SCREEN_DEFAULTS: dict[str, Any] = {"enabled": False, "stops": [], "layout": "side", "window_min": 60, "rows": 5, "group": "auto", "dwell_s": 15,
                                    "refresh_s": None, "show_distance": None}  # None = the installation's value
 
@@ -111,7 +113,8 @@ def normalize_config(raw: Any, *, strict: bool = False) -> dict[str, Any]:
     if strict and out["poll_s"] < POLL_FLOOR_S and not out["poll_floor_ack"]:
         raise Invalid("poll_s", "מתחת ל-30 שניות נדרש אישור מפורש (poll_floor_ack): המקור הציבורי הוא שירות קהילתי.")
     for key, rng, msg in (("clock_after_min", CLOCK_AFTER_RANGE, "דקות בין 0 ל-240."), ("stale_grace_min", GRACE_RANGE, "דקות בין 0 ל-240."),
-                          ("hide_closer_min", WALK_RANGE, "דקות בין 0 ל-30.")):
+                          ("hide_closer_min", WALK_RANGE, "דקות בין 0 ל-30."),
+                          ("outage_warn_h", OUTAGE_WARN_RANGE, "שעות בין 1 ל-72.")):
         if key in src:
             v = _int(src[key], *rng)
             if v is not None:
@@ -217,3 +220,18 @@ def iso_utc(t: Any) -> str:
     import datetime as dt
 
     return t.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def is_outage(kind: Any) -> bool:
+    """BUSSTATUS-297: is a recorded source error the PROVIDER's outage (a 5xx, a throttle, a timeout / unreachable host, an empty or unreadable
+    answer) rather than something wrong on our side? Only a provider outage is shown calmly instead of as a system warning."""
+    if not isinstance(kind, str) or not kind:
+        return False
+    if kind.startswith("http_"):
+        code = kind[5:]
+        return code.isdigit() and (int(code) >= 500 or int(code) == 429)
+    return kind in ("unreachable", "empty_catalogue", "bad_shape", "bad_json", "too_large")
+
+
+def outage_warn_s(config: dict[str, Any]) -> int:
+    return int(config.get("outage_warn_h") or CONFIG_DEFAULTS["outage_warn_h"]) * 3600

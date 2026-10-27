@@ -90,6 +90,10 @@ export interface TransitDigest {
   grouped?: boolean;
   next?: TransitItem | null;
   columns?: TransitColumn[];
+  /** BUSSTATUS-297: the PROVIDER is failing (5xx / timeout) - the rows are the last scheduled ones, shown with their age */
+  source_down?: boolean;
+  /** BUSSTATUS-297: while the source is down, the cached window ends before the display window - an empty list means "unknown", not "no buses" */
+  partial?: boolean;
 }
 
 export const TRANSIT_SCREEN_DEFAULTS: TransitScreen = { enabled: false, stops: [], layout: 'side', window_min: 60, rows: 5, group: 'auto', dwell_s: 15, refresh_s: null, show_distance: null };
@@ -141,7 +145,7 @@ export function effective(d: TransitDigest | null, elapsedMs: number): TransitDi
   const elapsed = Math.max(0, elapsedMs) / 1000;
   const age = (d.age_s ?? 0) + elapsed;
   const fresh = d.fresh_s ?? 180;
-  const grace = (d.stale_grace_min ?? 30) * 60;
+  const grace = (d.source_down && (d.stale_grace_min ?? 30) > 0 ? 24 * 60 : d.stale_grace_min ?? 30) * 60; // a provider outage keeps the last rows up to 24 h (the server's rule)
   if (age > Math.max(fresh, grace)) return { ...d, state: 'expired', items: [], columns: [], overflow: 0, next: null };
   if (age > fresh && d.state === 'fresh') return { ...d, state: 'cached' };
   return d;
@@ -171,6 +175,13 @@ export function transitTick(digest: TransitDigest | null, nowMs: number): string
   return digest && digest.state !== 'off' ? digest.state + ':' + Math.floor(nowMs / 60_000) : 'off';
 }
 
+/** "updated 12 min ago" / "updated 3 h ago" (BUSSTATUS-297), from the digest's age plus the screen's own stopwatch; '' when the age is unknown. */
+export function agoText(lang: 'he' | 'en', d: Pick<TransitDigest, 'age_s'>, elapsedMs: number): string {
+  if (typeof d.age_s !== 'number') return '';
+  const mins = Math.max(0, Math.floor((d.age_s + Math.max(0, elapsedMs) / 1000) / 60));
+  return mins >= 120 ? ts(lang, 'agoH', { n: Math.floor(mins / 60) }) : ts(lang, 'agoMin', { n: mins });
+}
+
 /** Is there something to draw: a layout shows a panel for fresh / cached / expired (expired says "unavailable"); only the slide skips an expired board. */
 export function hasPanel(digest: TransitDigest | null): boolean {
   return !!digest && digest.state !== 'off';
@@ -185,11 +196,13 @@ const STRINGS = {
   he: {
     title: 'תחבורה ציבורית', titleStop: 'תחנה: {n}', window: 'ב-{n} הדקות הקרובות', windowH: 'בשעה הקרובה', windowH2: 'ב-{n} השעות הקרובות', now: 'עכשיו',
     chipMin: "{n} דק'", chipH: 'שעה', chipH2: '{n} שעות', min: "דק'", more: 'ועוד {n}', none: 'אין אוטובוסים {w}', next: 'הבא לפי לוח זמנים:', nextAt: 'קו {l} ל{d} ב-{t}', sched: 'לפי לוח זמנים', rt: 'הערכה', distM: '{n} מ׳ מהתחנה', distKm: '{n} ק״מ מהתחנה', estIn: 'הערכה בעוד {n} דק׳', estAt: 'הערכה ב-{t}', estNow: 'הערכה: עכשיו', stale: 'לא מעודכן מ-{t}',
+    agoMin: "עודכן לפני {n} דק׳", agoH: 'עודכן לפני {n} שעות', sourceDown: 'מקור הנתונים החיצוני אינו זמין כרגע — מוצגים זמני הלוח האחרונים', sourceDownPartial: 'מקור הנתונים החיצוני אינו זמין כרגע — אין זמני לוח מעודכנים לטווח הזה',
     expiredTitle: 'נתוני התחבורה אינם זמינים כרגע', expiredHint: 'הנתונים יחזרו כשהמקור יתעדכן', line: 'קו', toward: 'לכיוון', moreOf: '+{n}',
   },
   en: {
     title: 'Public transport', titleStop: 'Stop: {n}', window: 'the next {n} minutes', windowH: 'the next hour', windowH2: 'the next {n} hours', now: 'Now',
     chipMin: '{n} min', chipH: '1 hour', chipH2: '{n} hours', min: 'min', more: '{n} more', none: 'No buses in {w}', next: 'Next on schedule:', nextAt: 'Line {l} to {d} at {t}', sched: 'Scheduled', rt: 'Estimate', distM: '{n} m away', distKm: '{n} km away', estIn: 'est. in {n} min', estAt: 'est. at {t}', estNow: 'est. now', stale: 'Not updated since {t}',
+    agoMin: 'Updated {n} min ago', agoH: 'Updated {n} h ago', sourceDown: 'The external data source is unavailable - showing the last scheduled times', sourceDownPartial: 'The external data source is unavailable - no up-to-date schedule for this range',
     expiredTitle: 'Transit times are not available right now', expiredHint: 'They return when the source updates', line: 'Line', toward: 'Towards', moreOf: '+{n}',
   },
 };

@@ -25,7 +25,8 @@ log = logging.getLogger("smplwise.transit")
 INTERVAL_S = 30.0  # the default of `transit.config.poll_s`; the loop reads the setting each round
 EXTRA_MIN = 90
 MAX_RANGE_MIN = 240 + EXTRA_MIN
-BACKOFF_S = (60, 120, 240, 480)
+BACKOFF_S = (60, 120, 240, 480, 900, 1800)  # BUSSTATUS-297: a long provider outage settles at one try per 30 minutes (was 8)
+RETRY_AFTER_MAX_S = 3600
 CATALOGUE_RETRY_S = 1800
 
 
@@ -40,17 +41,23 @@ class Health:
     errors: int = 0
     consecutive: int = 0
     backoff_until: dt.datetime | None = None
+    failing_since: dt.datetime | None = None
 
     def ok(self, now: dt.datetime) -> None:
         with self.lock:
-            self.last_ok_at, self.consecutive, self.backoff_until = now, 0, None
+            self.last_ok_at, self.consecutive, self.backoff_until, self.failing_since = now, 0, None, None
 
-    def fail(self, now: dt.datetime, kind: str) -> None:
+    def fail(self, now: dt.datetime, kind: str, retry_after_s: int | None = None) -> None:
         with self.lock:
             self.errors += 1
             self.consecutive += 1
+            if self.failing_since is None:
+                self.failing_since = now
             self.last_error, self.last_error_at = kind, now
-            self.backoff_until = now + dt.timedelta(seconds=BACKOFF_S[min(self.consecutive, len(BACKOFF_S)) - 1])
+            wait = BACKOFF_S[min(self.consecutive, len(BACKOFF_S)) - 1]
+            if retry_after_s:  # the provider said when to come back (Retry-After): never earlier than that, never later than an hour
+                wait = max(wait, min(int(retry_after_s), RETRY_AFTER_MAX_S))
+            self.backoff_until = now + dt.timedelta(seconds=wait)
 
     def blocked(self, now: dt.datetime) -> bool:
         with self.lock:
@@ -59,7 +66,8 @@ class Health:
     def view(self) -> dict[str, Any]:
         with self.lock:
             return {"last_ok_at": _iso(self.last_ok_at), "last_error_at": _iso(self.last_error_at), "last_error": self.last_error or None,
-                    "errors": self.errors, "consecutive_errors": self.consecutive, "backoff_until": _iso(self.backoff_until)}
+                    "errors": self.errors, "consecutive_errors": self.consecutive, "backoff_until": _iso(self.backoff_until),
+                    "failing_since": _iso(self.failing_since)}
 
 
 HEALTH = Health()
@@ -122,7 +130,7 @@ def poll_once(db: Database, source: Any, now: dt.datetime) -> dict[str, Any]:
         prov.configure(position_fresh_s=model.position_fresh_s(cfg), poll_s=model.poll_s(cfg))
     if hasattr(prov, "new_pass"):
         prov.new_pass()
-    fetched, failed = 0, None
+    fetched, failed, retry_after = 0, None, None
     for code, window in sorted(want.items()):
         try:
             to = now + dt.timedelta(minutes=min(window, 240) + EXTRA_MIN)
@@ -134,14 +142,14 @@ def poll_once(db: Database, source: Any, now: dt.datetime) -> dict[str, Any]:
             _store(db, code, now, to, rows)
             fetched += 1
         except stride.StrideError as exc:
-            failed = exc.kind
+            failed, retry_after = exc.kind, exc.retry_after_s
             break
         except Exception as exc:  # noqa: BLE001 - one bad pass never kills the loop
             log.exception("transit poll failed")
             failed = type(exc).__name__
             break
     if failed:
-        HEALTH.fail(now, failed)
+        HEALTH.fail(now, failed, retry_after)
     else:
         HEALTH.ok(now)
     with db.connection(label="transit.poll.prune") as conn:
