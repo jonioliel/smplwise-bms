@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-27T11:58:22.450238+00:00
+Generated: 2026-10-27T15:49:12.812408+00:00
 
-Tasks: 258 | Requirements: 367 | Tests: 384 | Screens: 32
+Tasks: 259 | Requirements: 368 | Tests: 385 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 65
+- REVIEW: 66
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 164
+- V1: 165
 - V2: 29
 - V3: 2
 
@@ -296,3 +296,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [WHOIN034-295](tasks/WHOIN034-295.md) | V1 | REVIEW | Who is in the building (board r034) and the geofence / beacon / Wi-Fi editors on screen (board r035), 2.16.0 | — |
 | [GATEAUDIT-297](tasks/GATEAUDIT-297.md) | V1 | REVIEW | Gate audit and cleanup: classify the repeatedly failing / flaky / obsolete tests of the last 35 gate and nightly runs, remove duplicates, fix the bubble-freeze leftovers, re-take stale visual baselines, refresh the gate baselines | — |
 | [GATELANES-297](tasks/GATELANES-297.md) | V1 | REVIEW | Gate lanes: pixel baselines for classic + domus only (tesla / crystal get a structural smoke), archive the September owner-round live specs, a non-blocking timing lane for the wall-clock tests | — |
+| [WISKEYA06-297](tasks/WISKEYA06-297.md) | V1 | REVIEW | WisKey A06 (T06, W-031, board r152): identity source + role + scope -> admission, working-state mapping (fakes) | — |
