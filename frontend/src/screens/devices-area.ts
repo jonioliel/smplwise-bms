@@ -814,6 +814,9 @@ export class DevicesArea extends LitElement {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
+      min-inline-size: 0;
+      /* WIDGETBREAK-297: a long media title or source wraps inside the row, an unbreakable one breaks at the card edge */
+      overflow-wrap: anywhere;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
     }

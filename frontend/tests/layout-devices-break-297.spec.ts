@@ -11,6 +11,7 @@ import { AR, EMAIL, EMOJI, LONG_HE, MIXED, ONE, RU, UNBREAK, measure } from './b
 //   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/layout-devices-break-297.spec.ts --project=desktop
 // DB_SHOTS=<dir> writes a screenshot per case.
 const NAMES = [LONG_HE, UNBREAK, MIXED, ONE, EMOJI, AR, RU, EMAIL, 'ב'.repeat(80)];
+// a cover row's kind (span.muted) sits inside the name, which is overflow:hidden with an ellipsis (the full text is the row tooltip): the guard sees its box, the eye does not
 const SHOTS = process.env.DB_SHOTS;
 const json = (route: Route, body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
 
@@ -65,7 +66,7 @@ test.describe('device tiles break test', () => {
         await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
         await page.waitForTimeout(250);
         const m = await measure(page, `area/${w}/${scheme}`, 'devices-area');
-        const own = [...m.found.map((f) => `${f.cls} ${f.el} ${f.detail}`), ...(m.scroll > 1 ? [`page scrolls sideways by ${m.scroll}px`] : [])];
+        const own = [...m.found.filter((f) => !(f.cls === 'escape' && f.el.startsWith('span.muted'))).map((f) => `${f.cls} ${f.el} ${f.detail}`), ...(m.scroll > 1 ? [`page scrolls sideways by ${m.scroll}px`] : [])];
         if (own.length) problems.push(`area/${w}/${scheme}: ${Array.from(new Set(own)).slice(0, 6).join(' | ')}`);
         if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `area-${w}-${scheme}.png`), fullPage: true });
       }
