@@ -49,8 +49,10 @@ export class SwViewSwitch extends LitElement {
       cursor: pointer;
       transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
     }
-    button:hover {
-      background: var(--sw-hover-wash);
+    @media (hover: hover) and (pointer: fine) {
+      button:hover {
+        background: var(--sw-hover-wash);
+      }
     }
     button[aria-pressed='true'] {
       background: var(--sw-surface-solid);

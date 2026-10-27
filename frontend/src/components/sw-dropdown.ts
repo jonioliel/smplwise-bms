@@ -567,8 +567,10 @@ export class SwDropdown extends LitElement {
       font-weight: var(--sw-fw-semibold);
       cursor: pointer;
     }
-    .act:hover {
-      background: var(--sw-dd-active, var(--sw-surface-3));
+    @media (hover: hover) and (pointer: fine) {
+      .act:hover {
+        background: var(--sw-dd-active, var(--sw-surface-3));
+      }
     }
     .act:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -583,9 +585,11 @@ export class SwDropdown extends LitElement {
       background: var(--sw-accent);
       color: var(--sw-text-inverse);
     }
-    .act.done:hover {
-      background: var(--sw-accent);
-      filter: brightness(1.08);
+    @media (hover: hover) and (pointer: fine) {
+      .act.done:hover {
+        background: var(--sw-accent);
+        filter: brightness(1.08);
+      }
     }
     .pop.sheet .act,
     .pop.centred .act {
@@ -644,8 +648,10 @@ export class SwDropdown extends LitElement {
       background: var(--sw-dd-pill-bg, var(--sw-surface-3));
       box-shadow: none;
     }
-    :host([dd-style='pill']) .chip:hover {
-      background: var(--sw-dd-hover, var(--sw-surface-2));
+    @media (hover: hover) and (pointer: fine) {
+      :host([dd-style='pill']) .chip:hover {
+        background: var(--sw-dd-hover, var(--sw-surface-2));
+      }
     }
     :host([dd-style='pill']) .chip[aria-expanded='true'] {
       background: var(--sw-surface-solid);
@@ -689,9 +695,11 @@ export class SwDropdown extends LitElement {
     :host([dd-style='underline']) .chip .n {
       color: var(--sw-accent-text, var(--sw-accent));
     }
-    :host([dd-style='underline']) .chip:hover,
-    :host([dd-style='underline']) .chip[aria-expanded='true'] {
-      background: var(--sw-accent-soft);
+    @media (hover: hover) and (pointer: fine) {
+      :host([dd-style='underline']) .chip:hover,
+      :host([dd-style='underline']) .chip[aria-expanded='true'] {
+        background: var(--sw-accent-soft);
+      }
     }
     :host([dd-style='underline']) .chip[aria-expanded='true'] {
       box-shadow: inset 0 -3px 0 var(--sw-accent);
@@ -730,10 +738,12 @@ export class SwDropdown extends LitElement {
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
     }
-    :host([dd-style='text']) .chip:hover .chev,
-    :host([dd-style='text']) .chip[aria-expanded='true'] .chev {
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text, var(--sw-accent));
+    @media (hover: hover) and (pointer: fine) {
+      :host([dd-style='text']) .chip:hover .chev,
+      :host([dd-style='text']) .chip[aria-expanded='true'] .chev {
+        background: var(--sw-accent-soft);
+        color: var(--sw-accent-text, var(--sw-accent));
+      }
     }
     :host([dd-style='text']) .chip .dot {
       position: static;
@@ -789,8 +799,10 @@ export class SwDropdown extends LitElement {
     :host([dd-style='prefix']) .chip .n {
       margin-inline-end: 4px;
     }
-    :host([dd-style='prefix']) .chip:hover {
-      background: var(--sw-surface-2);
+    @media (hover: hover) and (pointer: fine) {
+      :host([dd-style='prefix']) .chip:hover {
+        background: var(--sw-surface-2);
+      }
     }
     :host([dd-style='prefix']) .chip[aria-expanded='true'] {
       box-shadow: inset 0 0 0 1px var(--sw-accent);
@@ -817,8 +829,10 @@ export class SwDropdown extends LitElement {
     :host([dd-style='tonal']) .chip .n {
       color: var(--sw-accent-text, var(--sw-accent));
     }
-    :host([dd-style='tonal']) .chip:hover {
-      box-shadow: inset 0 0 0 1px var(--sw-accent);
+    @media (hover: hover) and (pointer: fine) {
+      :host([dd-style='tonal']) .chip:hover {
+        box-shadow: inset 0 0 0 1px var(--sw-accent);
+      }
     }
     :host([dd-style='tonal']) .chip[aria-expanded='true'] {
       background: var(--sw-accent);
@@ -962,8 +976,10 @@ export class SwDropdown extends LitElement {
       box-shadow: 0 3px 8px -3px color-mix(in srgb, var(--sw-accent) 42%, transparent), 0 1px 2px color-mix(in srgb, var(--sw-text) 10%, transparent);
       transition: box-shadow var(--sw-t-fast) var(--sw-ease), background var(--sw-t-fast) var(--sw-ease);
     }
-    :host([dd-style='capsule']) .chip:hover::before {
-      background: linear-gradient(180deg, var(--sw-surface-solid) 0%, color-mix(in srgb, var(--sw-accent) 17%, var(--sw-surface-solid)) 100%);
+    @media (hover: hover) and (pointer: fine) {
+      :host([dd-style='capsule']) .chip:hover::before {
+        background: linear-gradient(180deg, var(--sw-surface-solid) 0%, color-mix(in srgb, var(--sw-accent) 17%, var(--sw-surface-solid)) 100%);
+      }
     }
     :host([dd-style='capsule']) .chip:focus-visible {
       outline: none;

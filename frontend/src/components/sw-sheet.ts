@@ -188,8 +188,10 @@ export class SwSheet extends LitElement {
       cursor: pointer;
       padding: 0;
     }
-    .x:hover {
-      background: var(--sw-layer-2);
+    @media (hover: hover) and (pointer: fine) {
+      .x:hover {
+        background: var(--sw-layer-2);
+      }
     }
     .x:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);

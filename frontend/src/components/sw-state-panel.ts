@@ -47,8 +47,19 @@ export class SwStatePanel extends LitElement {
       /* POLISH-CLASSIC-DOMUS-297 (impeccable harden; audit finding 10: the state sat 120 px from the top of an empty page): in a
          column with room to spare the panel takes the middle of it; in a block parent the auto margins do nothing */
       margin-block: auto;
+      /* second pass (P4): in a flex column the panel takes the remaining room (its content is centred in it), so a forbidden or empty
+         screen no longer reads as a small note pinned to the top of an empty page */
+      flex: 1 1 auto;
+      align-self: stretch;
+      box-sizing: border-box;
+    }
+    /* the two "whole screen" states get a taller resting box, capped so it never pushes a control screen into a scroll */
+    :host([state='forbidden']:not([compact])),
+    :host([state='empty']:not([compact])) {
+      min-block-size: clamp(220px, 32dvh, 320px);
     }
     :host([compact]) {
+      flex: none;
       margin-block: 0;
       min-block-size: 0;
       padding: var(--sw-s-4);
