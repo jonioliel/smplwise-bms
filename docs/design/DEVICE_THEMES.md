@@ -446,8 +446,8 @@ is not built. The default skin stays `classic` until the owner decides after rou
 **How they are wired.** They are ordinary entries of the skin registry (`skins/index.ts` `SKIN_IDS`, `SKINS`) and of the backend
 validation of `ui.skin` (`routers/settings.py`, the pattern and `stored_skin`). The picker lists them by itself
 (`SELECTABLE_SKIN_IDS`), with the same save flow as every skin (installation `ui.skin`, demo: this browser). The picker grid is one
-row where the card is wide and two equal rows where it is medium (`--skins-n` / `--skins-half` from the registry), so no card sits
-alone on a line.
+row where the card is very wide (container >= 860 px) and two equal rows otherwise (`--skins-n` / `--skins-half` from the
+registry): at 1024 and 1440 px that is 3 + 3 (before: 4 in one row), so no card sits alone on a line.
 
 **Tokens.** Both skins set light AND dark values for every name they override (surfaces, text, accent, state colours with their
 `-soft` / `-text` pair, the opaque menu pair, shadows, radii, type, density, motion). The values are the design system's measured
