@@ -1,6 +1,6 @@
 -- SUPPLIERDOCS-297 (docs/changes/CR-SUPPLIERDOCS-297.md, builds on CR-OCR119): reading a supplier document - PROPOSED field values
--- that a person decides field by field. PROVISIONAL number 0180 (next free after release/2240's 0179; the release
--- check requires contiguous numbers on the branch). pilot/DOORWRITE-297 ALSO holds 0180: the lead renumbers at integration.
+-- that a person decides field by field. Number 0182: release/2241 holds 0180 (external access codes / visitors) and 0181
+-- (door-window program write); renumbered from the provisional 0180 on pilot/SUPPLIERDOCS2-297 (contiguous after 0181).
 -- Additive only: one new table, no change to an existing table. Nothing here is read or written while `docread.enabled` is off
 -- (default "false") or the maintenance module is off. Instants are UTC ISO-8601 text.
 --
