@@ -151,7 +151,7 @@ export class SwIcon extends LitElement {
       block-size: 100%;
       fill: none;
       stroke: currentColor;
-      stroke-width: 1.8;
+      stroke-width: var(--sw-icon-stroke, 1.8); /* HOMEFABLE-297: a host may set a lighter or heavier stroke (the home's quiet counter icons) */
       stroke-linecap: round;
       stroke-linejoin: round;
     }

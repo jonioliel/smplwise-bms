@@ -173,13 +173,22 @@ export class AreaQuickSheet extends LitElement {
         transform: none;
       }
       /* ---- pop-up: centred, grows out of the pressed element ---- */
+      /* HOMEFABLE-297 (emil-design-eng: a modal under 300-500 ms; apple-design: materialize - blur and scale arrive together): the
+         pop-up lands in 380 ms on the same spring, the scrim behind it blurs the page a touch */
+      :host([mode='popup']) {
+        --qc-open-ms: 380ms;
+      }
+      :host([mode='popup']) .scrim {
+        -webkit-backdrop-filter: var(--sw-popup-blur); /* taste-skill-ignore: the dimmed page behind a dialog */
+        backdrop-filter: var(--sw-popup-blur); /* taste-skill-ignore: the dimmed page behind a dialog */
+      }
       :host([mode='popup']) .panel {
         inset-inline: 0;
         margin-inline: auto;
         inset-block-start: 50%;
         inline-size: min(var(--qc-pop-w), calc(100vw - 32px));
         max-block-size: min(86vh, 900px);
-        border-radius: var(--sw-r-xl);
+        border-radius: var(--sw-r-2xl);
         opacity: 0;
         transform: translateY(-50%) var(--qc-from, scale(0.96));
       }
@@ -249,22 +258,26 @@ export class AreaQuickSheet extends LitElement {
         touch-action: none;
       }
       /* ---- the head: icon ring, name, the floor and the temperature, the actions ---- */
+      /* HOMEFABLE-297 (impeccable typeset): the room's name is the display line of the surface - 24 px / 800, tight - over a 14.5 px
+         reading line; the icon ring a 46 px object with the ladder's first shadow, lit when something is on */
       header {
         flex: none;
         display: grid;
         grid-template-columns: auto minmax(0, 1fr) auto;
         align-items: center;
-        column-gap: 12px;
-        padding: 16px 18px 10px;
+        column-gap: 14px;
+        padding: 18px 20px 12px;
       }
       .ring {
-        inline-size: 40px;
-        block-size: 40px;
+        inline-size: 46px;
+        block-size: 46px;
         border-radius: 50%;
         display: grid;
         place-items: center;
         background: var(--sw-accent-soft);
         color: var(--sw-accent-text);
+        box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+        --sw-icon-stroke: 2;
       }
       .ring[data-on] {
         background: var(--sw-lit-soft);
@@ -274,21 +287,21 @@ export class AreaQuickSheet extends LitElement {
         min-inline-size: 0;
         display: flex;
         flex-direction: column;
-        line-height: 1.2;
+        line-height: 1.15;
       }
       h2 {
         margin: 0;
-        font-size: var(--sw-fs-xl);
-        font-weight: var(--sw-fw-bold);
-        letter-spacing: -0.01em;
+        font-size: var(--sw-fs-2xl);
+        font-weight: 800;
+        letter-spacing: -0.03em;
         color: var(--sw-heading);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
       .sub {
-        margin-block-start: 2px;
-        font-size: var(--sw-fs-sm);
+        margin-block-start: 3px;
+        font-size: var(--sw-fs-md);
         color: var(--sw-text-2);
         font-variant-numeric: tabular-nums;
         overflow: hidden;
@@ -364,12 +377,12 @@ export class AreaQuickSheet extends LitElement {
         overflow-x: hidden;
         overscroll-behavior: contain;
         scrollbar-width: thin;
-        padding: 4px 18px 18px;
+        padding: 4px 20px 20px;
       }
       .cols {
         display: flex;
         flex-direction: column;
-        gap: 14px;
+        gap: 18px;
       }
       /* expanded: two CSS columns in a box of its own height (a column box with a fixed height spills sideways - break-ui found it) */
       :host([data-expanded]) .cols {
@@ -410,28 +423,33 @@ export class AreaQuickSheet extends LitElement {
         flex-wrap: wrap;
         gap: 8px;
       }
+      /* HOMEFABLE-297 (apple-design materials, emil press): the group actions are raised keys (a tone step, the first shadow, 14.5 px
+         semibold) and the one that turns the room off is a filled danger key, not a red outline; a press sinks the key at once */
       .qb {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        min-block-size: 36px;
-        padding: 0 14px;
-        border: 1px solid var(--sw-border-strong); /* taste-skill-ignore: the same outlined pill as the home's own quick actions */
+        gap: 7px;
+        min-block-size: 40px;
+        padding: 0 16px;
+        border: 1px solid var(--sw-border); /* taste-skill-ignore: the key's edge, one step under the panel outline */
         border-radius: var(--sw-r-pill);
         background: var(--sw-surface-2);
-        color: var(--sw-text);
+        box-shadow: var(--sw-shadow-1); /* taste-skill-ignore: a raised key (owner: depth) */
+        color: var(--sw-heading);
         font: inherit;
-        font-size: var(--sw-fs-sm);
-        font-weight: var(--sw-fw-medium);
+        font-size: var(--sw-fs-md);
+        font-weight: var(--sw-fw-semibold);
         cursor: pointer;
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
         user-select: none;
         -webkit-user-select: none;
-        transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), transform 120ms var(--sw-ease-out);
+        transition: background-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
       }
-      .qb:active {
-        transform: scale(0.97);
+      .qb:active:not(:disabled) {
+        transform: scale(var(--sw-press-scale, 0.97));
+        box-shadow: none;
+        background: var(--sw-pressed-wash);
       }
       .qb:disabled {
         opacity: 0.5;
@@ -439,19 +457,19 @@ export class AreaQuickSheet extends LitElement {
       }
       @media (hover: hover) and (pointer: fine) {
         .qb:hover:not(:disabled) {
-          background: var(--sw-surface-3);
-          border-color: var(--sw-text-3);
+          background: var(--sw-surface);
+          box-shadow: var(--sw-shadow-2);
         }
       }
       .qb.main {
-        background: var(--sw-surface);
-        border-color: var(--sw-danger);
-        color: var(--sw-danger);
+        background: var(--sw-danger-soft);
+        border-color: color-mix(in srgb, var(--sw-danger) 35%, transparent);
+        color: var(--sw-danger-text);
       }
       @media (hover: hover) and (pointer: fine) {
         .qb.main:hover:not(:disabled) {
           background: var(--sw-danger-soft);
-          border-color: var(--sw-danger);
+          border-color: color-mix(in srgb, var(--sw-danger) 60%, transparent);
         }
       }
       @media (max-width: 767px) {
@@ -466,39 +484,50 @@ export class AreaQuickSheet extends LitElement {
         gap: 6px;
         min-inline-size: 0;
       }
+      /* HOMEFABLE-297: a section is a real heading (14.5 px bold, heading ink, the icon in the accent) with its count as a filled pill */
       .sh {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 7px;
         padding-inline: 2px;
-        padding-block-start: 2px;
-        font-size: var(--sw-fs-sm);
-        font-weight: var(--sw-fw-semibold);
-        letter-spacing: 0.01em;
-        color: var(--sw-text-2);
+        padding-block-start: 6px;
+        font-size: var(--sw-fs-md);
+        font-weight: var(--sw-fw-bold);
+        letter-spacing: -0.01em;
+        color: var(--sw-heading);
+      }
+      .sh > sw-icon {
+        color: var(--sw-accent);
       }
       .sh .n {
         margin-inline-start: auto;
+        min-inline-size: 22px;
+        padding: 1px 8px;
+        border-radius: var(--sw-r-pill);
+        background: var(--sw-surface-3);
+        color: var(--sw-text-2);
+        font-size: var(--sw-fs-xs);
+        font-weight: var(--sw-fw-bold);
         font-variant-numeric: tabular-nums;
-        font-weight: var(--sw-fw-regular);
+        text-align: center;
       }
       .rows {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 5px;
       }
       .row {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr) auto;
         grid-template-areas: 'ic nm ct' 'ic st ct';
         align-items: center;
-        column-gap: 10px;
-        min-block-size: 44px;
-        padding: 6px 10px;
+        column-gap: 12px;
+        min-block-size: 50px;
+        padding: 7px 12px;
         border-radius: var(--sw-r-md);
         background: var(--sw-surface-2);
         border: 1px solid transparent; /* taste-skill-ignore: reserves the width, no visible line */
-        transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
+        transition: background-color var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
       }
       .row.on {
         background: var(--sw-lit-soft);
@@ -519,7 +548,7 @@ export class AreaQuickSheet extends LitElement {
       .row .nm {
         grid-area: nm;
         font-size: var(--sw-fs-name);
-        font-weight: var(--sw-fw-medium);
+        font-weight: var(--sw-fw-semibold);
         color: var(--sw-heading);
         overflow: hidden;
         text-overflow: ellipsis;
@@ -562,14 +591,15 @@ export class AreaQuickSheet extends LitElement {
         display: flex;
         flex-direction: column;
         min-inline-size: 0;
-        padding: 6px 10px;
-        border-radius: var(--sw-r-sm);
+        padding: 8px 12px;
+        border-radius: var(--sw-r-md);
         background: var(--sw-surface-2);
         line-height: 1.25;
       }
       .sv b {
-        font-size: var(--sw-fs-md);
-        font-weight: var(--sw-fw-semibold);
+        font-size: var(--sw-fs-xl);
+        font-weight: 800;
+        letter-spacing: -0.02em;
         color: var(--sw-heading);
         font-variant-numeric: tabular-nums;
       }

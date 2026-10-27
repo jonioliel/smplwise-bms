@@ -15,7 +15,7 @@ const counts = (c: Partial<DeviceCounts>): DeviceCounts => ({ ...ZERO, ...c });
 const area = (id: string, c: Partial<DeviceCounts>, extra: Partial<DeviceArea> = {}): DeviceArea => ({ area_id: id, name: id, icon: null, floor_id: 'g', has_camera: false, counts: counts(c), ...extra });
 
 test('the defaults are the owner\'s answers', () => {
-  expect(HOME_SCREEN_DEFAULT).toEqual({ summary_tiles: null, area_quick: {}, summary_chooser: 'admin', row_actions: 'quick', tile_blinds: 'pct', tile_climate: 'both', phone_area: 'sheet', floor_off: 'menu', many_floors: 'more', building_off_tablet: 'hide', quick_card: 'show', phone_floors: 'selector' });
+  expect(HOME_SCREEN_DEFAULT).toEqual({ summary_tiles: null, area_quick: {}, summary_chooser: 'admin', row_actions: 'quick', tile_blinds: 'pct', tile_climate: 'both', phone_area: 'sheet', floor_off: 'menu', many_floors: 'more', building_off_tablet: 'hide', quick_card: 'show', phone_floors: 'selector', desktop_area: 'drawer' }); // AREAPOPUP-297 added desktop_area
   expect(CHOICE_DEFAULTS.floor_off).toBe('menu');
   expect(INFO_STYLE_DEFAULT).toBe('auto');
   expect(screenDisplayOf(null).infoStyle).toBe('auto');

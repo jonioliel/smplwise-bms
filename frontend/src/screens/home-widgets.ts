@@ -307,22 +307,41 @@ export class HomeWidgetsView extends LitElement {
       .gbtn {
         transition: background-color var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-state) var(--sw-ease), color var(--sw-t-state) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
       }
-      .wg-alarm[data-tone='err'] .aic {
-        animation: al-pulse 1.6s var(--sw-ease) infinite;
+      /* HOMEFABLE-297 (animation-performance): the alarm pulse is a ring that grows and fades (transform + opacity on a pseudo-element,
+         composited), not a box-shadow repainted every frame */
+      .wg-alarm[data-tone='err'] .aic::after {
+        animation: al-pulse 1.6s var(--sw-ease-out) infinite;
       }
+    }
+    .aic::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--sw-danger) 28%, transparent);
+      opacity: 0;
+      pointer-events: none;
     }
     @keyframes al-pulse {
-      50% {
-        box-shadow: 0 0 0 8px color-mix(in srgb, var(--sw-danger) 22%, transparent);
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      70%,
+      100% {
+        transform: scale(1.5);
+        opacity: 0;
       }
     }
+    /* HOMEFABLE-297 (impeccable typeset): the widget's name is a real heading - 14.5 px bold in the heading ink, the icon in the accent */
     .wg-h {
       display: flex;
       align-items: center;
       gap: 7px;
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-2);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.01em;
+      color: var(--sw-heading);
     }
     .wg-h svg,
     .wg-h sw-icon {
@@ -361,9 +380,9 @@ export class HomeWidgetsView extends LitElement {
     }
     /* ---- clock ---- */
     .hm {
-      font-size: var(--hm, 52px);
-      font-weight: 300;
-      letter-spacing: -0.03em;
+      font-size: var(--hm, 56px);
+      font-weight: var(--sw-fw-medium);
+      letter-spacing: -0.04em;
       line-height: 1;
       direction: ltr;
       unicode-bidi: isolate;
@@ -614,10 +633,11 @@ export class HomeWidgetsView extends LitElement {
       gap: 12px;
     }
     .aic {
+      position: relative;
       display: grid;
       place-items: center;
-      inline-size: var(--ali, 40px);
-      block-size: var(--ali, 40px);
+      inline-size: var(--ali, 44px);
+      block-size: var(--ali, 44px);
       border-radius: 50%;
       background: var(--sw-success-soft);
       color: var(--sw-success);
@@ -650,8 +670,10 @@ export class HomeWidgetsView extends LitElement {
       color: var(--sw-text-3);
     }
     .al-s {
-      font-size: var(--als, 16px);
+      font-size: var(--als, var(--sw-fs-xl));
       font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.015em;
+      color: var(--sw-heading);
       white-space: nowrap;
     }
     .al-x {
@@ -679,29 +701,42 @@ export class HomeWidgetsView extends LitElement {
       flex-direction: column;
       gap: 7px;
     }
+    /* HOMEFABLE-297 (apple-design materials, emil press): a quick action is a raised key - a tone step up from the card, the ladder's first
+       shadow, a 14.5 px semibold label - and it sinks on press (scale from the skin's press token, 120 ms, instant on pointer-down) */
     .qbtn {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 7px;
-      min-block-size: 38px;
-      padding: 0 12px;
-      border-radius: 999px;
-      border: 1px solid var(--sw-border-strong);
-      background: var(--sw-surface);
+      gap: 8px;
+      min-block-size: 40px;
+      padding: 0 14px;
+      border-radius: var(--sw-r-pill);
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface-2);
+      box-shadow: var(--sw-shadow-1);
       font: inherit;
       font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text);
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading);
       white-space: nowrap;
       cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: transform var(--sw-t-press) var(--sw-ease-out), background-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
     }
-    .qbtn:hover {
-      background: var(--sw-hover-wash);
-      border-color: var(--sw-text-3);
+    @media (hover: hover) and (pointer: fine) {
+      .qbtn:hover:not(:disabled) {
+        background: var(--sw-surface);
+        border-color: var(--sw-border-strong);
+        box-shadow: var(--sw-shadow-2);
+      }
     }
-    .qbtn:active {
+    .qbtn:active:not(:disabled) {
+      transform: scale(var(--sw-press-scale));
       background: var(--sw-pressed-wash);
+      box-shadow: none;
     }
     .qbtn:disabled {
       opacity: var(--sw-disabled-opacity);
@@ -709,11 +744,14 @@ export class HomeWidgetsView extends LitElement {
     }
     .qbtn.danger {
       color: var(--sw-danger-text);
-      border-color: color-mix(in srgb, var(--sw-danger) 40%, transparent);
-    }
-    .qbtn.danger:hover {
       background: var(--sw-danger-soft);
-      border-color: color-mix(in srgb, var(--sw-danger) 60%, transparent);
+      border-color: color-mix(in srgb, var(--sw-danger) 35%, transparent);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .qbtn.danger:hover:not(:disabled) {
+        background: var(--sw-danger-soft);
+        border-color: color-mix(in srgb, var(--sw-danger) 60%, transparent);
+      }
     }
     .qbtn svg {
       inline-size: 16px;

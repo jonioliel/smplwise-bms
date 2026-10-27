@@ -62,7 +62,7 @@ test('focus and press: the controls draw the product focus ring and read the pre
 test('compact KPI: the value never wraps, only the label is clamped; the skeleton primitive exists and stops shimmering under reduced motion', () => {
   const kpi = src('components/sw-kpi.ts');
   expect(kpi).toMatch(/:host\(\[layout='compact'\]\) \.value \{[^}]*white-space: nowrap[^}]*tabular-nums/);
-  expect(kpi).toMatch(/:host\(\[layout='compact'\]\) \.label \{[^}]*line-clamp: 2/);
+  expect(kpi).toMatch(/:host\(\[layout='compact'\]\) \.label \{[^}]*line-clamp: var\(--sw-kpi-label-lines, 2\)/); // HOMEFABLE-297: the host may ask for its own line count
   const sk = src('components/sw-skeleton.ts');
   expect(sk).toContain("@customElement('sw-skeleton')");
   expect(sk).toMatch(/prefers-reduced-motion: reduce[\s\S]*animation: none/);

@@ -199,8 +199,8 @@ export class SwKpi extends LitElement {
       min-inline-size: 0;
       display: -webkit-box;
       -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      line-clamp: 2;
+      -webkit-line-clamp: var(--sw-kpi-label-lines, 2);
+      line-clamp: var(--sw-kpi-label-lines, 2);
       overflow: hidden;
       overflow-wrap: anywhere;
       font-size: var(--sw-fs-xs);
@@ -210,11 +210,16 @@ export class SwKpi extends LitElement {
       flex-direction: column;
       align-items: flex-start;
     }
+    /* HOMEFABLE-297 (sw-kpi size hook): the host may ask for two label lines (--sw-kpi-label-lines) - the home's counters do */
     :host([layout='compact'][icon-end]) .label {
       display: -webkit-box;
-      -webkit-line-clamp: 1;
-      line-clamp: 1;
+      -webkit-line-clamp: var(--sw-kpi-label-lines, 1);
+      line-clamp: var(--sw-kpi-label-lines, 1);
       inline-size: 100%;
+    }
+    :host([layout='compact'][icon-end]) .value {
+      font-weight: 800;
+      letter-spacing: -0.03em;
     }
     :host([layout='compact']) .detail {
       margin-block-start: 1px;

@@ -403,6 +403,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-layer-2': lt('rgba(255, 255, 255, 0.8)', 'rgba(255, 255, 255, 0.14)'),
       '--sw-nav-glass': lt('#ffffff', '#151c2c'), // rail, tree panel, phone dock
       '--sw-backdrop-blur': same('none'), // the live page behind a sheet
+      '--sw-popup-blur': same('blur(4px)'), // HOMEFABLE-297: the page behind the area pop-up softens as the dialog lands (apple-design "materialize"; under 20 px, animation-performance)
       // the lite tier of the performance dial (design/look.ts PERFORMANCE_BUNDLE): `initial` = no override, the component's own blur and fill apply
       '--sw-perf-blur': same('initial'), // `none` in lite: components read var(--sw-perf-blur, blur(..)) for cards, pills, rows, chips and lists
       '--sw-perf-glass-bg': same('initial'), // lite: the sheet colour at --sw-lite-alpha, replacing a translucent glass fill
@@ -410,7 +411,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       // the "lit" fill of a light's pill and the text on it (bubble: the lamp's warm colour)
       '--sw-lit': lt('#ffc857', '#ffb547'),
       '--sw-lit-cool': lt('#ece4c9', '#e3e0cf'),
-      '--sw-lit-soft': lt('rgba(255, 200, 87, 0.32)', 'rgba(255, 181, 71, 0.34)'),
+      '--sw-lit-soft': lt('rgba(255, 200, 87, 0.32)', 'rgba(255, 181, 71, 0.24)'), // HOMEFABLE-297 loop 1: dark 0.34 -> 0.24 - a lit row read as mud brown on the navy panels
       '--sw-on-lit': same('#2b1a05'),
       '--sw-fill-edge': same('transparent'), // a 3px mark at the slider fill's end; a palette sets it where fill and track are under 3:1 (design/palette.ts)
       // eight decorative hues for icon rings and the gradient surface (decoration only, never meaning); a palette replaces them

@@ -187,7 +187,7 @@ export const HOME_SCREEN_CSS = css`
   }
   a.tile[data-bad] {
     border-color: color-mix(in srgb, var(--sw-danger) 70%, transparent);
-    background: linear-gradient(180deg, var(--sw-danger-soft), var(--sw-surface) 70%);
+    background: var(--sw-danger-soft); /* HOMEFABLE-297: a solid status field, as the lit tile */
   }
   a.tile .sub {
     font-size: var(--sw-fs-sm);
@@ -260,8 +260,14 @@ export const HOME_SCREEN_CSS = css`
   .arow-q .arow .nm {
     min-inline-size: 3.5em;
   }
+  /* HOMEFABLE-297 (impeccable bolder, status clarity): a room with something on is a whole lit row - a solid warm field with its own
+     rounded edge, not a fade that dies halfway across the card; the rows sit as wells inside the floor card (home layout) */
+  .arow-q {
+    border-radius: var(--sw-r-sm);
+    border-block-start: 0;
+  }
   .arow-q[data-lit] {
-    background: linear-gradient(270deg, var(--sw-lit-soft), transparent 70%);
+    background: var(--sw-lit-soft);
   }
   .arow-q[data-bad] {
     background: var(--sw-danger-soft);

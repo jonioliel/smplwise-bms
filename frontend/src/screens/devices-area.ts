@@ -68,14 +68,15 @@ const AREA_DESIGN = css`
   sw-page {
     gap: 8px;
   }
+  /* HOMEFABLE-297: the security strip is the one dark-ink line of the screen - a label in the heading ink, chips as filled wells */
   .sec-strip {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 8px;
-    padding: 8px 12px;
+    padding: 10px 14px;
     border: 1px solid var(--sw-border);
-    border-radius: var(--sw-r-md);
+    border-radius: var(--sw-r-lg);
     background: var(--sw-surface);
     box-shadow: var(--sw-shadow-1);
   }
@@ -84,20 +85,25 @@ const AREA_DESIGN = css`
     align-items: center;
     gap: 6px;
     margin-inline-end: 6px;
+    color: var(--sw-heading);
+    font-size: var(--sw-fs-md);
+    font-weight: var(--sw-fw-bold);
+    letter-spacing: -0.01em;
+  }
+  .sec-lbl sw-icon {
     color: var(--sw-accent);
-    font-size: var(--sw-fs-sm);
-    font-weight: var(--sw-fw-semibold);
   }
   .sec-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 3px 10px;
-    border: 1px solid var(--sw-border);
-    border-radius: 999px;
-    background: var(--sw-surface);
+    min-block-size: 28px;
+    padding: 3px 11px;
+    border: 1px solid transparent;
+    border-radius: var(--sw-r-pill);
+    background: var(--sw-surface-2);
     color: var(--sw-text-2);
-    font-size: var(--sw-fs-xs);
+    font-size: var(--sw-fs-sm);
     text-decoration: none;
     white-space: nowrap;
   }
@@ -132,8 +138,7 @@ const AREA_DESIGN = css`
     opacity: 0.6;
   }
   a.sec-chip:hover {
-    border-color: var(--sw-border-strong);
-    background: var(--sw-hover-wash);
+    background: var(--sw-surface-3);
   }
   a.sec-chip:focus-visible {
     outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -148,12 +153,12 @@ const AREA_DESIGN = css`
   .msens {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     min-inline-size: 0;
-    padding: 6px 10px;
-    border: 1px solid var(--sw-border);
-    border-radius: var(--sw-r-sm);
-    background: var(--sw-surface);
+    padding: 8px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--sw-r-md);
+    background: var(--sw-surface-2);
   }
   .msens sw-icon {
     flex: none;
@@ -161,7 +166,7 @@ const AREA_DESIGN = css`
   }
   .msens.hot {
     background: var(--sw-warning-soft);
-    border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
+    border-color: transparent;
   }
   .msens.unavailable {
     opacity: 0.6;
@@ -173,8 +178,9 @@ const AREA_DESIGN = css`
     line-height: 1.2;
   }
   .msens .mv b {
-    font-size: var(--sw-fs-md);
-    font-weight: var(--sw-fw-semibold);
+    font-size: var(--sw-fs-xl);
+    font-weight: 800;
+    letter-spacing: -0.02em;
     color: var(--sw-heading);
     font-variant-numeric: tabular-nums;
   }
@@ -234,10 +240,11 @@ const AREA_DESIGN = css`
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas: 'ic nm tg' 'ic st tg';
-    column-gap: 8px;
+    column-gap: 10px;
     row-gap: 0;
     align-items: center;
-    padding: 6px 9px;
+    min-block-size: 50px;
+    padding: 7px 11px;
   }
   .tile .t {
     display: contents;
@@ -256,8 +263,9 @@ const AREA_DESIGN = css`
     overflow-wrap: anywhere;
     white-space: normal;
     line-height: 1.25;
-    font-weight: var(--sw-fw-medium);
-    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-semibold);
+    font-size: var(--sw-fs-base);
+    color: var(--sw-heading);
   }
   .tile .t > sw-toggle {
     grid-area: tg;
@@ -314,7 +322,7 @@ const AREA_DESIGN = css`
   :host([data-area-design='tiles']) .grid:not(.lay-grid) {
     display: block;
     column-width: 360px;
-    column-gap: 10px;
+    column-gap: 12px;
   }
   /* the dense direction: a position bar repeats what the slider under it already shows */
   :host([data-area-design]) .grid:not(.lay-grid) .row .bar {
@@ -323,11 +331,11 @@ const AREA_DESIGN = css`
   :host([data-area-design='tiles']) .grid:not(.lay-grid) > sw-card {
     display: block;
     break-inside: avoid;
-    margin-block-end: 10px;
-    padding: 10px 12px;
+    margin-block-end: 12px;
+    padding: 12px 14px 14px;
   }
   :host([data-area-design='tiles']) .grid:not(.lay-grid) > sw-card > header {
-    margin-block-end: 8px;
+    margin-block-end: 10px;
   }
   /* sections: one section after the other, its title at the side; the sensors card stands beside them */
   :host([data-area-design='sections']) .grid:not(.lay-grid) {
@@ -724,19 +732,25 @@ export class DevicesArea extends LitElement {
       color: var(--sw-text-3);
       font-variant-numeric: tabular-nums;
     }
+    /* HOMEFABLE-297 (impeccable bolder; craft floor "nested cards are always wrong"): a device inside a section card is a WELL - a tone
+       step down, rounded, no hairline - and a device that is on is a solid lit field with the heading ink; the section card above it
+       keeps the only outline on the screen */
     .tile {
       display: flex;
       flex-direction: column;
       gap: 4px;
       padding: 10px 12px;
-      border-radius: var(--sw-r-sm);
-      border: 1px solid var(--sw-border);
-      background: var(--sw-surface);
+      border-radius: var(--sw-r-md);
+      border: 1px solid transparent;
+      background: var(--sw-surface-2);
       min-inline-size: 0;
     }
     .tile.on {
-      background: var(--sw-warning-soft);
-      border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
+      background: var(--sw-lit-soft);
+      border-color: transparent;
+    }
+    .tile.on .t {
+      color: var(--sw-heading);
     }
     /* HOME polish (2026-10-10): a device's state change fades in (the warm fill, the icon); still under reduced motion */
     @media (prefers-reduced-motion: no-preference) {
@@ -789,18 +803,19 @@ export class DevicesArea extends LitElement {
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 4px 10px;
       align-items: center;
-      padding: 8px 10px;
-      border-radius: var(--sw-r-sm);
-      border: 1px solid var(--sw-border);
-      background: var(--sw-surface);
+      padding: 9px 12px;
+      border-radius: var(--sw-r-md);
+      border: 1px solid transparent;
+      background: var(--sw-surface-2);
     }
     .row.on {
-      border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
-      background: var(--sw-warning-soft);
+      border-color: transparent;
+      background: var(--sw-lit-soft);
     }
     .row .n {
-      font-weight: var(--sw-fw-medium);
-      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-base);
+      color: var(--sw-heading);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -812,8 +827,10 @@ export class DevicesArea extends LitElement {
       text-align: end;
     }
     .row .v.big {
-      font-size: var(--sw-fs-xl);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--sw-heading);
     }
     .row .d {
       grid-column: 1 / -1;

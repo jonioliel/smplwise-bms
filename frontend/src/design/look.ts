@@ -506,8 +506,8 @@ export const RADIUS_BUNDLE: Record<Radius, Record<string, string>> = {
  * (`--sw-backdrop-blur`) and the open pop-up (`--sw-glass-blur-sheet`).
  */
 export const PERFORMANCE_BUNDLE: Record<Tier, Record<string, string>> = {
-  full: { '--sw-perf-blur': 'initial', '--sw-perf-glass-bg': 'initial' }, // resets what an enclosing lite page set (the settings preview shows both)
-  lite: { '--sw-perf-blur': 'none', '--sw-perf-glass-bg': 'rgba(var(--sw-sheet-rgb), var(--sw-lite-alpha))' },
+  full: { '--sw-perf-blur': 'initial', '--sw-perf-glass-bg': 'initial', '--sw-popup-blur': 'initial' }, // resets what an enclosing lite page set (the settings preview shows both)
+  lite: { '--sw-perf-blur': 'none', '--sw-perf-glass-bg': 'rgba(var(--sw-sheet-rgb), var(--sw-lite-alpha))', '--sw-popup-blur': 'none' }, // HOMEFABLE-297: no blur behind the area pop-up on a weak device
 };
 
 /**

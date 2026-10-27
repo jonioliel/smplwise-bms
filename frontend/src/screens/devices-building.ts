@@ -814,7 +814,7 @@ const HOME_LAYOUT = css`
   .page-body {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
     min-inline-size: 0;
   }
   .kpis[data-kpis] {
@@ -897,15 +897,19 @@ const HOME_LAYOUT = css`
   :host .kpis[data-kpis] {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     grid-auto-rows: auto;
-    gap: 8px;
+    gap: 10px;
   }
+  /* HOMEFABLE-297 (impeccable typeset, taste-skill §5 "the figure leads"): the counter is a display numeral (the type scale's 2xl, 800,
+     tight), its label a full 12 px line under it (two lines before an ellipsis, never "תאורה..."), the icon a quiet 30 px mark; the
+     tile is a tone step DOWN from the floor cards (surface-2, a hairline, no shadow) so the floors read as the page's objects */
   :host .kpis[data-kpis] > sw-kpi[data-kpi][layout='compact'] {
-    --sw-kpi-compact-icon: 28px;
-    --sw-kpi-compact-value-fs: 16px;
-    min-block-size: 44px;
-    padding-block: 5px;
-    padding-inline: 10px;
-    column-gap: 8px;
+    --sw-kpi-compact-icon: 30px;
+    --sw-kpi-compact-value-fs: var(--sw-fs-2xl);
+    --sw-kpi-label-lines: 2;
+    min-block-size: 58px;
+    padding-block: 7px;
+    padding-inline: 12px;
+    column-gap: 10px;
     row-gap: 0;
   }
   /* "אריחים": the floors as packed sections beside the tree - floors with few areas share a row */
@@ -2008,7 +2012,7 @@ export class DevicesBuilding extends LitElement {
       display: grid;
       /* owner 2026-09-29: a wide screen gives the tree (and its area names) more room */
       grid-template-columns: clamp(250px, 16vw, 320px) minmax(0, 1fr);
-      gap: 16px;
+      gap: 18px;
       align-items: start;
     }
     nav.tree {
@@ -2245,30 +2249,42 @@ export class DevicesBuilding extends LitElement {
     .fcards {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-      gap: 12px;
+      gap: 14px;
       align-items: start;
     }
+    /* HOMEFABLE-297 (impeccable bolder / layout): the floor cards are the page's hero tier - the rounder radius, the ladder's second
+       step, a floor title at 20 px / 800; the rows inside are wells (tone step, rounded), not a ruled table */
     section.fcard {
       display: flex;
       flex-direction: column;
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
+      border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-shadow-2);
+    }
+    /* the hero step over every skin's own panel rule (the skins keep their material; the ladder step and the radius are the home's) */
+    :host .fcards > section.fcard {
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+    }
+    :host .kpis[data-kpis] > sw-kpi[data-kpi] {
+      background: var(--sw-surface-2);
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
     }
     .fcard header {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 14px 16px 8px;
+      padding: 16px 18px 10px;
       flex-wrap: wrap;
     }
     .fcard header h2 {
       margin: 0;
-      font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-semibold);
+      font-size: 20px;
+      font-weight: 800;
       color: var(--sw-heading);
-      letter-spacing: -0.01em;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
     }
     /* owner feedback 2026-09-29: the floor's title enters the floor, like "פתח קומה" */
     .fcard header h2 .ftitle {
@@ -2334,32 +2350,58 @@ export class DevicesBuilding extends LitElement {
     .fcard .rows {
       display: flex;
       flex-direction: column;
-      padding: 0 6px 6px;
+      gap: 4px;
+      padding: 0 10px 10px;
     }
     .arow {
       display: flex;
       align-items: center;
       gap: 10px;
       inline-size: 100%;
-      padding: 8px;
+      min-block-size: 42px;
+      padding: 7px 10px;
       border: 0;
-      border-block-start: 1px solid var(--sw-border);
-      background: transparent;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-2);
       color: var(--sw-text);
       font: inherit;
       font-size: var(--sw-fs-sm);
       text-align: start;
       cursor: pointer;
       flex-wrap: nowrap;
+      transition: transform var(--sw-t-press) var(--sw-ease-out), background-color var(--sw-t-fast) var(--sw-ease);
     }
-    .arow:hover {
-      background: var(--sw-hover-wash);
+    /* mobile-native: a hover only under a pointer that hovers (a tap would leave it stuck); the press answers on pointer-down */
+    @media (hover: hover) and (pointer: fine) {
+      .arow:hover {
+        background: var(--sw-surface-3);
+      }
+    }
+    .arow {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .arow:active {
+      transform: scale(var(--sw-press-scale));
     }
     .arow:focus-visible {
-      background: var(--sw-hover-wash);
+      background: var(--sw-surface-3);
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: -2px;
-      border-radius: var(--sw-r-xs);
+      border-radius: var(--sw-r-sm);
+    }
+    .arow-q .arow {
+      background: transparent;
+    }
+    .arow-q:not([data-lit]):not([data-bad]) {
+      background: var(--sw-surface-2);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .arow-q:not([data-lit]):not([data-bad]):hover {
+        background: var(--sw-surface-3);
+      }
     }
     .arow.empty {
       color: var(--sw-text-3);
@@ -2369,8 +2411,9 @@ export class DevicesBuilding extends LitElement {
       background: transparent;
     }
     .arow .nm {
-      font-size: var(--sw-fs-base);
-      font-weight: var(--sw-fw-medium);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
       flex: 1 1 auto;
       min-inline-size: 3ch; /* P6 item 2: the name never squeezes under three letters - the indicators yield first */
       overflow: hidden;
@@ -2428,8 +2471,7 @@ export class DevicesBuilding extends LitElement {
     .fcard footer {
       display: flex;
       gap: 8px;
-      padding: 8px 16px 12px;
-      border-block-start: 1px solid var(--sw-border);
+      padding: 6px 18px 14px;
     }
     .fcard.loose {
       border-style: dashed;
@@ -2476,8 +2518,9 @@ export class DevicesBuilding extends LitElement {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
+    /* HOMEFABLE-297: a lit area tile is a solid lit field (the same status field as the cards-mode rows), not a fade */
     a.tile.on {
-      background: linear-gradient(180deg, var(--sw-warning-soft), var(--sw-surface) 70%);
+      background: var(--sw-lit-soft);
       border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
     }
     .tile-head > sw-icon {
