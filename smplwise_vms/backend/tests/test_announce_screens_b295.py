@@ -320,7 +320,7 @@ def test_a_wall_display_reads_its_own_announcement_only(world):
     enable(w)
     key = make_wall(w)
     r = w.c.get("/api/v1/wall/announcement", headers=WALL)
-    assert r.status_code == 200 and r.json() == {"poll_s": 0, "announcement": None}, "not allowed yet"
+    assert r.status_code == 200 and r.json() == {"poll_s": 0, "critical_close_s": 15, "announcement": None}, "not allowed yet"  # ANNOUNCE-297 added the close rule
     allow(w, {"key": key, "area_id": "living"})
     assert w.c.get("/api/v1/wall/announcement", headers=WALL).json()["poll_s"] == 5
     advance(w)

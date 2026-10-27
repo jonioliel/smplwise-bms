@@ -27,6 +27,27 @@ export interface AnnounceConfig {
   notify: AnnounceNotify;
   /** ANNOUNCEB-295 (stage B): the text is also shown on the allowed screens; OFF by default */
   screens: AnnounceScreensConfig;
+  /** ANNOUNCE-297 (stage C): automatic translation of a Hebrew text into ar / en / ru for review; OFF by default (absent on an older server) */
+  translate?: AnnounceTranslateConfig;
+}
+export type AnnounceTranslateTarget = 'ar' | 'en' | 'ru';
+export const ANNOUNCE_TRANSLATE_TARGETS: readonly AnnounceTranslateTarget[] = ['ar', 'en', 'ru'];
+export interface AnnounceTranslateConfig {
+  enabled: boolean;
+  /** `off` by default; `cloud` = the external provider (its key lives in the secrets store, never here) */
+  provider: string;
+  source: 'he';
+  targets: AnnounceTranslateTarget[];
+  /** who approved sending announcement text to this provider, and when; null = not approved (it cannot be switched on) */
+  approval: { provider: string; by: string | null; at: string } | null;
+  key_set: boolean;
+}
+/** One draft translation: shown to the sender for review and edit, never sent by itself. */
+export interface AnnounceTranslation {
+  language: AnnounceTranslateTarget;
+  text: string;
+  machine: true;
+  cached: boolean;
 }
 export interface AnnounceScreensConfig {
   enabled: boolean;
@@ -36,6 +57,8 @@ export interface AnnounceScreensConfig {
   seconds: number;
   critical_seconds: number;
   poll_s: number;
+  /** ANNOUNCE-297: an emergency announcement cannot be closed on a wall display for this many seconds (0 = at once); absent on an older server */
+  critical_close_s?: number;
   targets: AnnounceScreenTarget[];
 }
 export interface AnnounceScreenTarget {
@@ -57,7 +80,7 @@ export interface AnnounceScreenOptions {
   /** the approved media screens (TVs) a target can be linked to, so a "device" announcement reaches it */
   devices: { key: string; name: string; area_id: string | null }[];
 }
-export const ANNOUNCE_SCREEN_RANGE = { seconds: [5, 600], critical_seconds: [10, 3600], poll_s: [2, 30] } as const;
+export const ANNOUNCE_SCREEN_RANGE = { seconds: [5, 600], critical_seconds: [10, 3600], poll_s: [2, 30], critical_close_s: [0, 600] } as const;
 export interface AnnounceQuiet {
   enabled: boolean;
   from: string;
@@ -116,6 +139,8 @@ export interface AnnounceHistoryRow {
   /** ANNOUNCEB-295: how many screens it was shown on, and until when */
   screens?: number;
   screen_until?: string | null;
+  /** ANNOUNCE-297: the languages whose text was machine-translated */
+  machine_translated?: string[];
 }
 export interface AnnounceConfigAnswer {
   config: AnnounceConfig;
@@ -140,6 +165,15 @@ export interface AnnounceForm {
   /** ANNOUNCEB-295: the screens switch is on (the form offers "screens") and whether a new announcement is shown there unless the sender says otherwise */
   screens_enabled?: boolean;
   screens_default_on?: boolean;
+  /** ANNOUNCE-297: the automatic translation is switched on, approved and configured (the form offers "translate"), and into which languages */
+  translate_enabled?: boolean;
+  translate_targets?: AnnounceTranslateTarget[];
+}
+/** A part of an announcement; `machine` = taken from the automatic translation (reviewed by the sender), never Hebrew. */
+export interface AnnouncePart {
+  language: AnnounceLang;
+  text: string;
+  machine?: boolean;
 }
 export interface AnnounceResult {
   id: string;
@@ -161,6 +195,8 @@ export type AnnounceConfigPatch = Partial<Pick<AnnounceConfig, 'enabled' | 'engi
   quiet?: Partial<AnnounceQuiet>;
   screens?: Partial<AnnounceScreensConfig>;
   notify?: Partial<AnnounceNotify>;
+  /** ANNOUNCE-297: `approve: true` records the approval for the chosen provider (needed before it can be switched on) */
+  translate?: Partial<Pick<AnnounceTranslateConfig, 'enabled' | 'provider' | 'targets'>> & { approve?: boolean };
 };
 export const ANNOUNCE_CATEGORIES = ['safety', 'alerts', 'doors', 'device_faults', 'automations', 'system', 'security'] as const;
 export type AnnounceScope = 'area' | 'device' | 'all';
@@ -170,13 +206,16 @@ export const announceConfig = () => get<AnnounceConfigAnswer>(`${BASE}/config`);
 export const announcePutConfig = (patch: AnnounceConfigPatch) => put<{ changed: string[] } & AnnounceConfigAnswer>(`${BASE}/config`, patch);
 export const announceAreas = () => get<AnnounceForm>(`${BASE}/areas`);
 /** `ref` is `*` for scope `all`. Several languages = `texts`, spoken one after the other. */
-export const announceSpeak = (body: { scope: AnnounceScope; ref: string; text?: string; language?: AnnounceLang; texts?: { language: AnnounceLang; text: string }[]; template_id?: string; volume?: number;
+export const announceSpeak = (body: { scope: AnnounceScope; ref: string; text?: string; language?: AnnounceLang; texts?: AnnouncePart[]; template_id?: string; volume?: number;
   /** ANNOUNCEB-295: `speakers` false = screens only; `screens` omitted = the configured default */ speakers?: boolean; screens?: boolean }) =>
   post<AnnounceResult>(BASE, body);
 /** ANNOUNCEB-295: take an announcement off the screens now (the speech is not touched). */
 export const announceStopScreens = (id: string) => post<{ stopped: boolean }>(`${BASE}/${encodeURIComponent(id)}/screens/stop`);
 /** The ONE-CLICK emergency announcement: no confirmation step, every allowed speaker. */
-export const announceEmergency = (body: { template_id: string } | { texts: { language: AnnounceLang; text: string }[] }) => post<AnnounceResult>(`${BASE}/emergency`, body);
+export const announceEmergency = (body: { template_id: string } | { texts: AnnouncePart[] }) => post<AnnounceResult>(`${BASE}/emergency`, body);
+/** ANNOUNCE-297: draft translations of a Hebrew text (nothing is announced). 404 translate_off, 409 translate_not_configured, 429, 502. */
+export const announceTranslate = (text: string, targets?: AnnounceTranslateTarget[]) =>
+  post<{ provider: string; source: 'he'; items: AnnounceTranslation[] }>(`${BASE}/translate`, { text, ...(targets ? { targets } : {}) });
 export const announceTest = (body: { scope: AnnounceScope; ref: string; language: AnnounceLang }) => post<AnnounceResult>(`${BASE}/test`, body);
 export const announceTemplates = () => get<{ templates: AnnounceTemplate[]; languages: AnnounceLang[] }>(`${BASE}/templates`);
 export const announcePutTemplates = (templates: AnnounceTemplate[]) => put<{ templates: AnnounceTemplate[] }>(`${BASE}/templates`, { templates });

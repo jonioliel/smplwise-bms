@@ -86,6 +86,7 @@ def wall_announcement(principal: Principal = Depends(current_principal_ro), conn
     key = f"wall:{row['user_id']}"
     shown = scr.active_for(conn, key, ann._now())
     return {"poll_s": cfg["poll_s"] if scr.feature_on(conn) and any(t["key"] == key for t in cfg["targets"]) else 0,
+            "critical_close_s": cfg["critical_close_s"],  # ANNOUNCE-297: an emergency one cannot be closed on the display before this
             "announcement": None if shown is None else {"id": shown["id"], "critical": shown["critical"], "until": shown["until"], "texts": shown["texts"]}}
 
 

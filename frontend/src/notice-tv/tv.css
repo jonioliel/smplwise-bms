@@ -460,6 +460,18 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 #cv.portrait .ann [data-size="m"] .ann-t { font-size: 54px; }
 #cv.portrait .ann [data-size="s"] .ann-t { font-size: 40px; }
 .ann .ann-t + .ann-t { padding-block-start: 32px; border-block-start: 1px solid rgba(246, 238, 232, .22); }
+/* ANNOUNCE-297: four full-length languages (the automatic translation makes that realistic) get one more, smaller step and tighter gaps */
+.ann [data-size="xs"] .ann-t { font-size: 32px; }
+#cv.portrait .ann [data-size="xs"] .ann-t { font-size: 32px; }
+.ann [data-size="xs"].ann-in { gap: 24px; }
+.ann [data-size="xs"] .ann-body { gap: 20px; }
+.ann [data-size="xs"] .ann-t + .ann-t { padding-block-start: 18px; }
+/* ANNOUNCE-297: a block the sender took from the automatic translation says so, in its own language, under its text */
+.ann .ann-mt { display: block; margin-block-start: .35em; font-size: max(22px, .3em); font-weight: 500; letter-spacing: .02em; opacity: .72; }
+/* a short fade when the overlay appears; none at all under reduced motion */
+#cv[data-ann="1"] .ann, #cv[data-ann="crit"] .ann { animation: annin .24s cubic-bezier(0.23, 1, 0.32, 1) both; }
+@keyframes annin { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #cv .ann { animation: none !important; transition: none !important; } }
 /* ===== TVOPT-295: the one-row header (display.header a / b) and the "updated" line (display.updated) =====
    a: the company logo, a hairline and the greeting at the inline start; SmplWise and the status at the inline end of the same row.
    b: the greeting centred; SmplWise over the status at the end. The separate bottom row goes away (template 1 keeps it only for the

@@ -48,7 +48,8 @@ CONFIGURE = "system.configure"
 MAX_TEXT = 200
 COOLDOWN_S = 5
 TEST_TEXT = {"he": "זוהי הכרזת בדיקה של המערכת.", "en": "This is a system test announcement.", "ru": "Это тестовое объявление системы.", "ar": "هذا إعلان تجريبي من النظام."}
-LANGUAGES = ("he", "en", "ru", "ar")  # the spoken languages (ANNOUNCE-295); automatic translation is a later stage
+LANGUAGES = ("he", "en", "ru", "ar")  # the spoken languages (ANNOUNCE-295); ANNOUNCE-297: Hebrew may be machine-translated into ar / en / ru (announce_translate)
+MACHINE_MARK = "mt"  # ANNOUNCE-297: the third element of a `texts_json` part that was machine-translated (`[language, text, "mt"]`)
 K_ENGINE_KIND, K_CLOUD = "announce.engine_kind", "announce.cloud_enabled"
 # the home-system integrations whose speech engine sends the text to a cloud service (the settings warn when the chosen engine is one of them)
 CLOUD_PLATFORMS = frozenset({"cloud", "google_translate", "google_cloud", "microsoft", "azure_tts", "amazon_polly", "elevenlabs", "openai_tts", "watson_tts", "baidu"})
@@ -86,6 +87,14 @@ MESSAGES: dict[str, dict[str, str]] = {
     "template_unknown": {"he": "התבנית לא נמצאה.", "en": "The template was not found."},
     "language_invalid": {"he": "שפה לא נתמכת להכרזה.", "en": "Unsupported announcement language."},
     "local_identity_not_allowed": {"he": "הכרזות אינן זמינות עדיין למשתמשי Arx.", "en": "Announcements are not available to Arx users yet."},
+    # ANNOUNCE-297: the automatic translation (stage C)
+    "translate_off": {"he": "התרגום האוטומטי כבוי בהגדרות.", "en": "Automatic translation is switched off in Settings."},
+    "translate_not_configured": {"he": "שירות התרגום לא הוגדר.", "en": "The translation service is not configured."},
+    "translate_rate_limited": {"he": "יותר מדי בקשות תרגום. נסו שוב בעוד רגע.", "en": "Too many translation requests. Try again in a moment."},
+    "translate_failed": {"he": "התרגום לא הצליח.", "en": "The translation failed."},
+    "translate_rejected": {"he": "שירות התרגום דחה את המפתח.", "en": "The translation service rejected the key."},
+    "translate_unreachable": {"he": "שירות התרגום אינו זמין.", "en": "The translation service is unreachable."},
+    "translate_too_long": {"he": "התרגום ארוך מהמותר להכרזה. קצרו את הטקסט.", "en": "The translation is longer than an announcement may be. Shorten the text."},
 }
 
 
@@ -161,7 +170,15 @@ def config(conn: sqlite3.Connection) -> dict[str, Any]:
             "cloud_key_set": eng.key_is_set(conn, _SETTINGS[0] if _SETTINGS else None), "emergency_languages": tpl.emergency_languages(conn),
             "max_per_minute": per_min, "max_text": MAX_TEXT, "cooldown_s": COOLDOWN_S,
             "volume": _vol_or_none(get_setting(conn, K_VOLUME)), "pause_music": g(K_PAUSE) == "true",
-            "quiet": _load_quiet(get_setting(conn, K_QUIET)), "notify": _load_notify(get_setting(conn, K_NOTIFY)), "screens": screens.config(conn)}
+            "quiet": _load_quiet(get_setting(conn, K_QUIET)), "notify": _load_notify(get_setting(conn, K_NOTIFY)), "screens": screens.config(conn),
+            "translate": translate_cfg(conn)}
+
+
+def translate_cfg(conn: sqlite3.Connection) -> dict[str, Any]:
+    """ANNOUNCE-297: the automatic translation settings (OFF by default; never the key, only whether it is stored)."""
+    from . import announce_translate as tr
+
+    return tr.config(conn, _SETTINGS[0] if _SETTINGS else None)
 
 
 def engine_ready(cfg: dict[str, Any]) -> bool:
@@ -223,9 +240,10 @@ def quiet_active(conn: sqlite3.Connection, now: dt.datetime, cfg: dict[str, Any]
     return bool(q["enabled"]) and ns.in_quiet_hours(q, now, read_settings(conn)["time.zone"])
 
 
-def update_config(conn: sqlite3.Connection, body: dict[str, Any]) -> list[str]:
-    """PUT config (system.configure): every key optional, strict; returns the changed keys."""
-    allowed = {"enabled", "engine", "language", "devices", "max_per_minute", "volume", "pause_music", "quiet", "notify", "engine_kind", "cloud_enabled", "emergency_languages", "screens"}
+def update_config(conn: sqlite3.Connection, body: dict[str, Any], actor: str | None = None, settings: Settings | None = None) -> list[str]:
+    """PUT config (system.configure): every key optional, strict; returns the changed keys. `actor` is recorded with a translation approval."""
+    allowed = {"enabled", "engine", "language", "devices", "max_per_minute", "volume", "pause_music", "quiet", "notify", "engine_kind", "cloud_enabled", "emergency_languages", "screens",
+               "translate"}
     if not isinstance(body, dict) or set(body) - allowed:
         raise err(422, "validation", fields=sorted(set(body) - allowed) if isinstance(body, dict) else ["body"])
     before = config(conn)
@@ -263,6 +281,17 @@ def update_config(conn: sqlite3.Connection, body: dict[str, Any]) -> list[str]:
                 out.update(screens.merge(conn, value))
             except ValueError as exc:
                 raise err(422, "validation", fields=[str(exc)]) from None
+        elif name == "translate":  # ANNOUNCE-297: the automatic translation switch, provider, target languages and the approval
+            from . import announce_translate as tr
+
+            try:
+                out.update(tr.merge(conn, settings or (_SETTINGS[0] if _SETTINGS else None), value, actor, _now()))
+            except ValueError as exc:
+                field = str(exc)
+                if field == "translate.approval_required":
+                    raise err(422, "validation", fields=[field], reason="approval_required") from None
+                raise err(422, "validation", fields=[field]) from None
+            tr.reset()  # a provider / language / switch change: no stale draft is served from the cache
         elif name == "devices" and isinstance(value, list) and len(value) <= 200 and all(isinstance(v, str) and 0 < len(v) <= 64 for v in value):
             known = {r["device_key"] for r in conn.execute("SELECT device_key FROM media_devices WHERE removed_at IS NULL AND kind != 'screen'").fetchall()}
             if any(v not in known for v in value):
@@ -416,7 +445,7 @@ def _limited(conn: sqlite3.Connection, scope: str, ref: str, per_min: int, now: 
 
 def _record(conn: sqlite3.Connection, principal: Principal | None, source: str, rule_id: str | None, scope: str, ref: str, keys: list[str], text: str, status: str, error: str | None, now: dt.datetime,
             notification_id: str | None = None, *, parts: list[tuple[str, str]] | None = None, template_id: str | None = None, critical: bool = False, release_at: str | None = None,
-            row_id: str | None = None) -> str:
+            row_id: str | None = None, machine: frozenset[str] = frozenset()) -> str:
     """One `announcements` row; with `row_id` (a queued row being released or dropped) that row is updated instead of a new one inserted."""
     langs = [p[0] for p in parts or []]
     if row_id:
@@ -425,7 +454,7 @@ def _record(conn: sqlite3.Connection, principal: Principal | None, source: str, 
     aid = new_id()
     conn.execute("INSERT INTO announcements(id, at, source, user_id, username, rule_id, scope, scope_ref, targets_json, message, status, error, notification_id, languages_json, template_id, critical, release_at, texts_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                  (aid, iso_utc(now), source, getattr(principal, "user_id", None), getattr(principal, "username", None), rule_id, scope, ref[:64], json.dumps(keys), text, status, error, notification_id,
-                  json.dumps(langs), template_id, 1 if critical else 0, release_at, json.dumps([list(p) for p in parts or []])))
+                  json.dumps(langs), template_id, 1 if critical else 0, release_at, json.dumps([[*p, MACHINE_MARK] if p[0] in machine else list(p) for p in parts or []])))
     return aid
 
 
@@ -586,10 +615,20 @@ def _parts(text: Any, texts: Any, language: Any, cfg: dict[str, Any]) -> list[tu
     return [(language or cfg["language"], clean_text(text))]
 
 
+def _machine(machine: Any, parts: list[tuple[str, str]]) -> frozenset[str]:
+    """ANNOUNCE-297: the machine-translated languages, checked: a list of languages of this announcement, never the source language (Hebrew)."""
+    if machine is None:
+        return frozenset()
+    langs = {p[0] for p in parts}
+    if not isinstance(machine, (list, tuple, set, frozenset)) or any(m not in langs or m == "he" for m in machine):
+        raise err(422, "language_invalid")
+    return frozenset(machine)
+
+
 def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal | None, request_id: str | None, *, source: str, scope: str, ref: str, text: Any = None,
              rule_id: str | None = None, now: dt.datetime | None = None, unlock: Any = None, volume: Any = None, critical: bool = False,
              notification_id: str | None = None, language: str | None = None, texts: Any = None, template_id: str | None = None,
-             queued_row: str | None = None, audio: bool = True, on_screens: bool | None = None) -> dict[str, Any]:
+             queued_row: str | None = None, audio: bool = True, on_screens: bool | None = None, machine: Any = None) -> dict[str, Any]:
     """Check, record, speak, record the outcome. `unlock` is a context-manager factory (db.unlocked bound to the request's connection) that
     releases the write lock around the speak call; None (a test) calls it directly. A refusal is logged and audited first, then
     raised as an ApiError (the request still commits it). `volume` is a whole percent (clamped); `critical` is exempt from the quiet hours.
@@ -599,6 +638,8 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
     ANNOUNCEB-295 (stage B): `audio` False = screens only (no speaker, no engine needed); `on_screens` None = the configured default (`announce.screens.default_on`),
     True / False = asked for / not; the text is shown for `announce.screens.seconds` (`critical_seconds` for a critical / emergency one) on the allowed screens the
     same scope reaches, under the same switch, quiet hours, limits and audit as the speech.
+    ANNOUNCE-297 (stage C): `machine` names the languages whose text was machine-translated (and reviewed by the sender); never Hebrew, each one a
+    language of the announcement. The mark is stored with the text, shown on the screens, kept in the history and named in the audit.
     Returns `{id, status: "sent", targets: n, screens: m}` (status `queued` + `release_at` when held)."""
     if principal is not None and principal.source == "local":
         # USR2-FIX F4 (CR-USR2 §1a.5): an Arx-only identity has no infrastructure identity; this call would run on the add-on's own
@@ -618,18 +659,22 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
     if not audio and not show:
         raise err(422, "validation", fields=["screens"])
 
+    mt: frozenset[str] = frozenset()
+
     def rec(keys: list[str], t: str, status: str, error: str | None, parts: list[tuple[str, str]] | None = None, release_at: str | None = None) -> str:
         return _record(conn, principal, source, rule_id, scope, ref, keys, t, status, error, now, notification_id, parts=parts, template_id=template_id, critical=critical,
-                       release_at=release_at, row_id=queued_row)
+                       release_at=release_at, row_id=queued_row, machine=mt)
 
     def aud(keys: list[str], status: str, error: str | None, length: int, parts: list[tuple[str, str]] | None, extra: dict[str, Any] | None = None) -> None:
-        more: dict[str, Any] = {**({"template_id": template_id} if template_id else {}), **({"languages": [p[0] for p in parts]} if parts else {})}
+        more: dict[str, Any] = {**({"template_id": template_id} if template_id else {}), **({"languages": [p[0] for p in parts]} if parts else {}),
+                                **({"machine_translated": sorted(mt)} if mt else {})}
         if emergency:  # who = the actor of the audit row, when = its time; the text and the targets are named, never any audio
             more.update({"text": [p[1] for p in parts or []], "target_keys": keys})
         _audit(conn, principal, request_id, source, scope, ref, keys, status, error, rule_id, length, {**more, **(extra or {})})
 
     try:
         parts = _parts(text, texts, language, cfg)
+        mt = _machine(machine, parts)
     except ApiError as exc:
         rec([], "", "refused", exc.code)
         aud([], "refused", exc.code, len(text) if isinstance(text, str) else 0, None)
@@ -720,13 +765,14 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
 
 
 def emergency(conn: sqlite3.Connection, settings: Settings, principal: Principal, request_id: str | None, template_id: str | None, *, unlock: Any = None,
-              text: Any = None, language: str | None = None, texts: Any = None) -> dict[str, Any]:
+              text: Any = None, language: str | None = None, texts: Any = None, machine: Any = None) -> dict[str, Any]:
     """The ONE-CLICK emergency announcement: a template of kind `emergency`, every allowed speaker, in the emergency languages the template has. No
     confirmation step, no quiet hours, no rate limit; one audit row `media.announce.emergency` (who, when, text, languages, targets - no audio)."""
     from . import announce_templates as tpl
 
     if template_id is None:  # free text (owner 2026-10-25): the same one-click flow, the same audit
-        return announce(conn, settings, principal, request_id, source="emergency", scope="all", ref="*", text=text, language=language, texts=texts, critical=True, unlock=unlock, on_screens=True)
+        return announce(conn, settings, principal, request_id, source="emergency", scope="all", ref="*", text=text, language=language, texts=texts, critical=True, unlock=unlock, on_screens=True,
+                         machine=machine)
     t = tpl.by_id(conn, template_id) if isinstance(template_id, str) else None
     if t is None or t["kind"] != "emergency":
         raise err(404, "template_unknown")
@@ -756,11 +802,14 @@ def release_queued(db: Any, settings: Settings, now: dt.datetime | None = None) 
                 if row["source"] != "notification" and (author is None or not authorize(conn, author, PERM, INSTALLATION).allowed):
                     _drop(conn, row, "not_permitted")
                     continue
-                parts = [(p[0], p[1]) for p in json.loads(row["texts_json"] or "[]")]
+                stored = json.loads(row["texts_json"] or "[]")
+                parts = [(p[0], p[1]) for p in stored]
+                machine = [p[0] for p in stored if len(p) > 2 and p[2] == MACHINE_MARK]
                 wants_screens = bool(json.loads(row["screens_json"] or "[]"))  # the intent kept when it was held
                 announce(conn, settings, author, None, source=row["source"], scope=row["scope"], ref=row["scope_ref"], texts=parts, rule_id=row["rule_id"],
                          critical=bool(row["critical"]), template_id=row["template_id"], notification_id=row["notification_id"], queued_row=row["id"], now=now,
-                         unlock=lambda: unlocked(conn), audio=bool(json.loads(row["targets_json"] or "[]")) or not wants_screens, on_screens=wants_screens)
+                         unlock=lambda: unlocked(conn), audio=bool(json.loads(row["targets_json"] or "[]")) or not wants_screens, on_screens=wants_screens,
+                         machine=machine or None)
                 spoken += 1
             except ApiError:
                 continue  # the refusal / failure is already on the row and in the audit
@@ -784,10 +833,19 @@ def _drop(conn: sqlite3.Connection, row: sqlite3.Row, why: str) -> None:
 
 
 def history(conn: sqlite3.Connection, limit: int = 20) -> list[dict[str, Any]]:
-    rows = conn.execute("SELECT id, at, source, username, rule_id, scope, scope_ref, targets_json, message, status, error, notes_json, languages_json, template_id, critical, release_at, screens_json, screen_until FROM announcements ORDER BY at DESC, rowid DESC LIMIT ?", (max(1, min(limit, 100)),)).fetchall()
+    rows = conn.execute("SELECT id, at, source, username, rule_id, scope, scope_ref, targets_json, message, status, error, notes_json, languages_json, template_id, critical, release_at, screens_json, screen_until, texts_json FROM announcements ORDER BY at DESC, rowid DESC LIMIT ?", (max(1, min(limit, 100)),)).fetchall()
     return [{**{k: r[k] for k in ("id", "at", "source", "username", "rule_id", "scope", "scope_ref", "message", "status", "error", "template_id", "release_at")}, "targets": len(json.loads(r["targets_json"] or "[]")),
              "notes": _notes(r["notes_json"]), "languages": _notes(r["languages_json"]), "critical": bool(r["critical"]),
-             "screens": len(_notes(r["screens_json"])), "screen_until": r["screen_until"]} for r in rows]
+             "screens": len(_notes(r["screens_json"])), "screen_until": r["screen_until"], "machine_translated": machine_langs(r["texts_json"])} for r in rows]
+
+
+def machine_langs(raw: Any) -> list[str]:
+    """ANNOUNCE-297: the languages of a stored `texts_json` that were machine-translated."""
+    try:
+        v = json.loads(raw or "[]")
+    except ValueError:
+        return []
+    return [p[0] for p in v if isinstance(p, list) and len(p) > 2 and p[2] == MACHINE_MARK and isinstance(p[0], str)] if isinstance(v, list) else []
 
 
 def _notes(raw: Any) -> list[str]:

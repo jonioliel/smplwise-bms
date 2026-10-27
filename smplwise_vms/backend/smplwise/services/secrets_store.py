@@ -55,6 +55,9 @@ SPECS: tuple[SecretSpec, ...] = (
     # ANNOUNCE-295: the optional CLOUD speech engine's API key (Settings > Multimedia > announcements > engine). Store-only: it never was an add-on
     # option. announce_engine reads it per announcement; the cloud engine is OFF by default and the key is never a plain setting.
     SecretSpec("announce_cloud_key", None, "SW_ANNOUNCE_CLOUD_KEY", "מפתח שירות הדיבור בענן (הכרזות קוליות)", "Cloud speech service key (voice announcements)", False, None),
+    # ANNOUNCE-297: the optional automatic-translation provider's key (Settings > Multimedia > announcements > automatic translation). Store-only;
+    # announce_translate reads it per call; the translation is OFF by default and needs a recorded approval before it can be switched on.
+    SecretSpec("announce_translate_key", None, "SW_ANNOUNCE_TRANSLATE_KEY", "מפתח שירות התרגום האוטומטי (הכרזות קוליות)", "Automatic translation service key (voice announcements)", False, None),
     # USR1-263: the optional home-system ADMINISTRATOR token of הגדרות › משתמשים והרשאות › משתמשי מערכת הבית (routers/ha_users.py reads it
     # from the store per request). Store-only: it never was an add-on option, so it is not in config.LEGACY_SECRET_OPTIONS.
     SecretSpec("ha_users_token", "ha_users_token", "HA_USERS_TOKEN", "אסימון מנהל לניהול משתמשי מערכת הבית", "Home-system users administrator token", False, None),

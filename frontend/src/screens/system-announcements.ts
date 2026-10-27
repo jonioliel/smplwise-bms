@@ -6,7 +6,7 @@ import '../components/sw-toggle';
 import '../components/sw-state-panel';
 import './system-announce-templates';
 import {
-  ANNOUNCE_CATEGORIES, ANNOUNCE_LANGS, ANNOUNCE_QUIET_MODES, ANNOUNCE_SCREEN_RANGE, announceAreas, announceConfig, announcePutConfig, announceSpeak, announceTest,
+  ANNOUNCE_CATEGORIES, ANNOUNCE_LANGS, ANNOUNCE_QUIET_MODES, ANNOUNCE_SCREEN_RANGE, ANNOUNCE_TRANSLATE_TARGETS, announceAreas, announceConfig, announcePutConfig, announceSpeak, announceTest,
   type AnnounceArea, type AnnounceConfigAnswer, type AnnounceConfigPatch, type AnnounceLang, type AnnounceQuietMode, type AnnounceSpeaker,
 } from '../api/announcements';
 import { describeError } from '../api/client';
@@ -208,6 +208,8 @@ export class SystemAnnouncements extends LitElement {
         <input type="number" min=${ANNOUNCE_SCREEN_RANGE.critical_seconds[0]} max=${ANNOUNCE_SCREEN_RANGE.critical_seconds[1]} data-announce-screens-critical aria-label=${t.screensCriticalSeconds} .value=${String(sc.critical_seconds)} @change=${(e: Event) => this.screenNumber('critical_seconds', e)} /></div>
       <div class="row"><span class="lbl">${t.screensPoll}</span>
         <input type="number" min=${ANNOUNCE_SCREEN_RANGE.poll_s[0]} max=${ANNOUNCE_SCREEN_RANGE.poll_s[1]} data-announce-screens-poll aria-label=${t.screensPoll} .value=${String(sc.poll_s)} @change=${(e: Event) => this.screenNumber('poll_s', e)} /></div>
+      ${sc.critical_close_s !== undefined ? html`<div class="row"><span class="lbl">${t.screensCriticalClose}</span>
+        <input type="number" min=${ANNOUNCE_SCREEN_RANGE.critical_close_s[0]} max=${ANNOUNCE_SCREEN_RANGE.critical_close_s[1]} data-announce-screens-critical-close aria-label=${t.screensCriticalClose} .value=${String(sc.critical_close_s)} @change=${(e: Event) => this.screenNumber('critical_close_s', e)} /></div>` : nothing}
       <div class="area">${t.screensList}</div>
       ${opts.length ? opts.map((o) => html`<div class="row" data-announce-screen=${o.key}>
         <label class="pick"><input type="checkbox" .checked=${o.allowed} data-announce-screen-allow @change=${(e: Event) => apply(o.key, { allowed: (e.target as HTMLInputElement).checked })} />${o.name}
@@ -220,6 +222,28 @@ export class SystemAnnouncements extends LitElement {
             <option value="" ?selected=${!o.device_key}>${t.screensNoDevice}</option>
             ${devices.map((x) => html`<option value=${x.key} ?selected=${x.key === o.device_key}>${x.name}</option>`)}</select>
         </span></div>`) : html`<div class="muted" data-announce-screens-none>${t.screensNone}</div>`}
+    </sw-card>`;
+  }
+
+  /** ANNOUNCE-297 (stage C): the automatic translation card - OFF by default; the text goes to an external provider, so switching it on needs the
+   * owner's approval recorded first (who and when are kept and audited); the provider key lives in Settings > Connections > Secrets, never here. */
+  private translateCard(t: ReturnType<typeof announceText>, d: AnnounceConfigAnswer) {
+    const tc = d.config.translate;
+    if (!tc) return nothing;
+    const approved = !!tc.approval && tc.approval.provider === tc.provider;
+    const when = tc.approval ? new Intl.DateTimeFormat(announceLang() === 'en' ? 'en-GB' : 'he-IL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(tc.approval.at)) : '';
+    return html`<sw-card heading=${t.translateCard} subheading=${t.translateHint} data-announce-translate-card>
+      <div class="row"><span class="lbl">${t.translateProvider}</span>
+        <select data-announce-translate-provider aria-label=${t.translateProvider} @change=${(e: Event) => void this.save({ translate: { provider: (e.target as HTMLSelectElement).value, ...(tc.enabled ? { enabled: false } : {}) } })}>
+          <option value="off" ?selected=${tc.provider === 'off'}>${t.translateProviderOff}</option>
+          <option value="cloud" ?selected=${tc.provider === 'cloud'}>${t.translateProviderCloud}</option></select></div>
+      <div class="row"><span class="lbl">${t.translateApprove}${approved ? html`<span class="muted" data-announce-translate-approved>${t.translateApprovedBy} ${tc.approval?.by ?? '—'} · ${when}</span>` : html`<span class="muted">${t.translateNotApproved}</span>`}</span>
+        <sw-button size="sm" data-announce-translate-approve ?disabled=${tc.provider === 'off' || approved} @click=${() => void this.save({ translate: { approve: true } })}>${t.translateApproveAction}</sw-button></div>
+      <div class="row"><span class="lbl">${t.translateEnabled}${tc.provider === 'cloud' ? html`<span class="muted" data-announce-translate-key>${tc.key_set ? t.cloudKeySet : t.cloudKeyMissing}</span>` : nothing}</span>
+        <sw-toggle label=${t.translateEnabled} labelHidden .checked=${tc.enabled} ?disabled=${!approved && !tc.enabled} data-announce-translate-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ translate: { enabled: e.detail.checked } })}></sw-toggle></div>
+      <div class="row"><span class="lbl">${t.translateTargets}</span>
+        <span class="inl">${ANNOUNCE_TRANSLATE_TARGETS.map((l) => html`<label class="pick"><input type="checkbox" data-announce-translate-target=${l} .checked=${tc.targets.includes(l)}
+          @change=${(e: Event) => { const next = ANNOUNCE_TRANSLATE_TARGETS.filter((x) => (x === l ? (e.target as HTMLInputElement).checked : tc.targets.includes(x))); if (next.length) void this.save({ translate: { targets: next } }); else (e.target as HTMLInputElement).checked = true; }} />${t.langName[l]}</label>`)}</span></div>
     </sw-card>`;
   }
 
@@ -289,6 +313,7 @@ export class SystemAnnouncements extends LitElement {
       </sw-card>
       ${this.extraCards(t, cf)}
       ${this.screensCard(t, d)}
+      ${this.translateCard(t, d)}
       <system-announce-templates .templates=${d.templates ?? []} @saved=${(e: CustomEvent<{ templates: AnnounceConfigAnswer['templates'] }>) => { if (this.data) this.data = { ...this.data, templates: e.detail.templates }; this.note(announceText().saved); }}></system-announce-templates>
       <sw-card heading=${t.speakers} subheading=${t.speakersHint}>${this.speakerRows(t)}</sw-card>
       ${this.areas.length ? html`<sw-card heading=${t.say} data-announce-now>

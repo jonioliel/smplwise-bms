@@ -81,7 +81,7 @@ test('the settings list: allowing a screen, its room and its media screen produc
 });
 
 test('typed numbers stay inside what the server accepts; an empty or garbage entry leaves the field alone', () => {
-  expect(ANNOUNCE_SCREEN_RANGE).toEqual({ seconds: [5, 600], critical_seconds: [10, 3600], poll_s: [2, 30] });
+  expect(ANNOUNCE_SCREEN_RANGE).toEqual({ seconds: [5, 600], critical_seconds: [10, 3600], poll_s: [2, 30], critical_close_s: [0, 600] }); // ANNOUNCE-297 added the close rule
   expect(clampScreenNumber('seconds', '45')).toBe(45);
   expect(clampScreenNumber('seconds', '1')).toBe(5);
   expect(clampScreenNumber('seconds', '9999')).toBe(600);

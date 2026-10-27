@@ -98,7 +98,8 @@ export interface WallAlert {
 }
 export const getWallAlerts = () => get<{ alerts: WallAlert[] }>('wall/alerts');
 /** ANNOUNCEB-295: the voice announcement this wall display shows right now (text only), and how often to ask (0 = this display is not an announcement screen). */
-export const getWallAnnouncement = () => get<{ poll_s: number; announcement: import('../announce/screen-overlay').ScreenAnnouncement | null }>('wall/announcement');
+export const getWallAnnouncement = () => get<{ poll_s: number; announcement: import('../announce/screen-overlay').ScreenAnnouncement | null;
+  /** ANNOUNCE-297: an emergency one cannot be closed on the display for this many seconds (absent on an older server) */ critical_close_s?: number }>('wall/announcement');
 export const ackWallAlert = (id: string) => post<{ acknowledged: boolean }>(`wall/alerts/${encodeURIComponent(id)}/ack`);
 export const getFrameList = () => get<{ photos: { id: string; w: number; h: number }[] }>('wall/frame/list');
 export const frameUrl = (id: string) => apiUrl(`wall/frame/${encodeURIComponent(id)}`);
