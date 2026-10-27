@@ -6997,5 +6997,37 @@
     "test_ids": [
       "AT-SPLITSWITCH2-1"
     ]
+  },
+  {
+    "id": "R-SUPPLIERDOCS-1",
+    "title": "Reading an attached supplier certificate into proposals that a person decides field by field",
+    "statement": "An administrator may switch document reading on (default off); a manager of a certificate or supplier-document task can have an attached text-layer PDF read into proposed supplier, document number, issue date, expiry date and scope values, each decided on its own; nothing changes the task, nothing leaves the add-on, no value reaches the audit, and drafts expire.",
+    "task_ids": [
+      "SUPPLIERDOCS-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SUPPLIERDOCS-1"
+    ]
+  },
+  {
+    "id": "R-SUPPLIERDOCS2-1",
+    "title": "Supplier document reading: contiguous migration and the security review fixes",
+    "statement": "The document-reading migration follows the release migrations without a gap or a clash; a crafted document cannot freeze the add-on (linear scrubbing, rules outside the write lock, bounded child output, bounded concurrent reads); proposals of deleted tasks do not linger.",
+    "task_ids": [
+      "SUPPLIERDOCS2-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SUPPLIERDOCS2-1"
+    ]
   }
 ]
