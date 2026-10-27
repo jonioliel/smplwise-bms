@@ -271,8 +271,13 @@ def parse_descriptor(raw: Any, *, station_id: str, provider: str, now: float | N
     # Arx allows exactly one talker per station whatever a descriptor says (half-duplex intercom, WisKey's `audio_busy`)
     max_talkers = 1
 
+    # The transport is a software offer; physical listen/duplex metadata stays
+    # untouched in the source descriptor. Explicit False still refuses.
+    listen = audio.get("listen") is True or (v11 and talk and audio.get("listen") is None
+        and isinstance(audio.get("listen_transports"), list)
+        and "signed_ws_pcmu_v1" in audio["listen_transports"])
     return Descriptor(station_id=station_id, session=session, revision=revision, issued_at=issued, expires_at=expires,
-                      profiles=tuple(profiles), listen=audio.get("listen") is True, talk=talk, duplex=duplex or "half",
+                      profiles=tuple(profiles), listen=listen, talk=talk, duplex=duplex or "half",
                       audio_codec=codec, talk_transports=talk_transports, max_talk_seconds=max_talk, max_viewers=max_viewers,
                       max_talkers=max_talkers, provider=provider)
 
@@ -1094,11 +1099,12 @@ class WiskeyBridgeProvider:
 
     def listen_open(self, settings: Settings, station_id: str, descriptor: Descriptor, *, actor_id: str, actor_name: str, request_id: str | None,
                     expires_at: float | None = None) -> Any:
-        """WKAUDIN-295: listening to the station. PENDING WisKey's downlink contract (services/wiskey_listen_adapter.py): the channel it returns
-        refuses to open (`downlink_pending`), so a real station is never listened to through a guess."""
+        """Listen through the original signed channel, without floor or uplink."""
         from .wiskey_listen_adapter import WiskeyDownlinkChannel
 
-        return WiskeyDownlinkChannel(self, settings, descriptor)
+        until = expires_at if expires_at is not None else time.time() + min(descriptor.max_talk_seconds, TALK_MAX_DEFAULT_S)
+        return WiskeyDownlinkChannel(self, settings, descriptor, actor_id=actor_id,
+            actor_name=actor_name, request_id=request_id, expires_at=until)
 
 
 class _CachedKey:

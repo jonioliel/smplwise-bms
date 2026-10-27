@@ -212,6 +212,9 @@ async def _pump(websocket: WebSocket, s: il.ListenSession, channel: adapter.List
                 return s.stop_requested
             if lease.should_stop():
                 return "access_lost"
+            current = getattr(channel, "publication_current", None)
+            if current is not None and not current():
+                return "upstream_closed"
             s.frames += 1
             await websocket.send_bytes(frame)
         reason = await channel.wait_closed()
@@ -243,17 +246,28 @@ async def _pump(websocket: WebSocket, s: il.ListenSession, channel: adapter.List
                 return "access_lost"
 
     tasks = [asyncio.create_task(to_browser()), asyncio.create_task(from_browser()), asyncio.create_task(watch())]
-    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-    for task in pending:
-        task.cancel()
-        with contextlib.suppress(BaseException):
-            await task
-    for task in done:
-        if task.exception() is not None:
-            log.warning("listen session %s ended by an error: %s", s.ref, type(task.exception()).__name__)
-            return "upstream_closed"
-        return task.result()
-    return "ended"
+    try:
+        done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in done:
+            if task.exception() is not None:
+                log.warning("listen session %s ended by an error: %s", s.ref, type(task.exception()).__name__)
+                return "upstream_closed"
+            return task.result()
+        return "ended"
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        joined = asyncio.gather(*tasks, return_exceptions=True)
+        cancelled = False
+        while not joined.done():
+            try:
+                await asyncio.shield(joined)
+            except asyncio.CancelledError:
+                cancelled = True
+        if cancelled:
+            raise asyncio.CancelledError
+
 
 
 @router.websocket("/access-control/listen/{session_id}/ws")

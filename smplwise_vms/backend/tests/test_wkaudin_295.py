@@ -294,11 +294,11 @@ def test_turning_the_setting_off_or_losing_the_permission_ends_an_open_session(f
 
 # ---------------------------------------------------------------- the real downlink is pending; the adapter's own rules
 
-def test_the_real_provider_has_a_downlink_that_refuses_to_open_until_wiskey_publishes_its_contract():
-    assert "pending" in ad.CONTRACT_STATE
+def test_real_listen_uses_published_signed_contract_and_requires_configuration():
+    assert "talk_open(listen=true)" in ad.CONTRACT_STATE
     with pytest.raises(ad.ListenUnavailable) as e:
         asyncio.run(ad.WiskeyDownlinkChannel().open())
-    assert e.value.code == "downlink_pending"
+    assert e.value.code == "listen_not_configured"
     assert callable(getattr(im.WiskeyBridgeProvider, "listen_open", None)), "the bridge provider joins the downlink here, and only here"
     with pytest.raises(ad.ListenUnavailable) as e2:
         il.provider_listen_open(im.LocalProvider(), None, "entry-a", None, actor_id="u", actor_name="u", request_id=None, expires_at=None)  # type: ignore[arg-type]
