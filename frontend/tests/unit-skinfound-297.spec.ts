@@ -81,7 +81,8 @@ test('the values are the design system\'s measured ones (TOKENS.md §1 / §3 as 
   expect(pick(s, '--sw-text-3')).toEqual(['#566480', '#97a3bb']);
   expect(pick(s, '--sw-accent')).toEqual(['#2f6df6', '#2f6df6']);
   expect(pick(s, '--sw-live-text')).toEqual(['#0e6b33', '#7ee29a']);
-  expect(pick(s, '--sw-toggle-on')).toEqual(['#34c759', '#30d158']);
+  // POLISH-SKINS-297 (owner 2026-10-27): the Soft switch is not green; blue by default, the colour chosen in Settings (the "switch" option)
+  expect(pick(s, '--sw-toggle-on')).toEqual(['#2f6df6', '#3d7bff']);
   expect(s['--sw-r-md'].light).toBe('18px');
   expect(s['--sw-glass-blur'].light).toBe('blur(18px) saturate(1.4)');
   expect(s['--sw-glass-blur-sheet'].light).toBe('none'); // sheets are opaque

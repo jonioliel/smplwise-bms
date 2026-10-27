@@ -7,7 +7,7 @@ import { describeError } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
-import { SELECTABLE_SKIN_IDS, SKINS, type SkinId } from '../design/skins';
+import { SELECTABLE_SKIN_IDS, SKINS, skinOptionChoices, type SkinId } from '../design/skins';
 import { skinTable } from '../design/css';
 import { SCHEMES, installationDesign, onDesign, ownSchemeChoice, saveDemoDesign, setInstallationDesign, setOwnScheme, type Scheme, type Theme } from '../design/apply';
 import { SkinController } from '../design/skin';
@@ -41,6 +41,8 @@ export class SystemDesign extends LitElement {
   readonly bubbleSkin = new SkinController(this);
   @state() private draftSkin: SkinId = installationDesign().skin;
   @state() private draftScheme: Scheme = installationDesign().scheme;
+  /** POLISH-SKINS-297: the skins' options as drafted (`<skin>.<option>` -> choice), saved with the button as `ui.skin_options`. */
+  @state() private draftOptions: Record<string, string> = installationDesign().options;
   @state() private own: Scheme | null = ownSchemeChoice();
   /** CRY: the installation's background choice (saved with the button) and this user's own (saved at once). */
   @state() private draftBackground: BackgroundMode = installationBackground().mode;
@@ -256,6 +258,15 @@ export class SystemDesign extends LitElement {
       font-weight: var(--sw-fw-semibold);
       box-shadow: var(--sw-shadow-1);
     }
+    /* POLISH-SKINS-297: the colour of a skin option's choice, a dot before its name (break-ui: never shrinks beside a long label) */
+    .seg .optsw {
+      flex: none;
+      inline-size: 12px;
+      block-size: 12px;
+      border-radius: 50%;
+      margin-inline-end: 6px;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-text) 18%, transparent);
+    }
     .seg button[disabled] {
       cursor: default;
       opacity: 0.6;
@@ -348,11 +359,12 @@ export class SystemDesign extends LitElement {
       void getSettings()
         .then((r) => {
           this.canEdit = r.can_edit;
-          setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme']);
+          setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme'], r.settings['ui.skin_options']);
           setInstallationBackground(r.settings['ui.background'], r.settings['ui.background_images']);
           const d = installationDesign();
           this.draftSkin = d.skin;
           this.draftScheme = d.scheme;
+          this.draftOptions = d.options;
           this.draftBackground = installationBackground().mode;
         })
         .catch(() => undefined);
@@ -367,7 +379,10 @@ export class SystemDesign extends LitElement {
 
   private get dirty(): boolean {
     const d = installationDesign();
-    return d.skin !== this.draftSkin || d.scheme !== this.draftScheme || installationBackground().mode !== this.draftBackground;
+    const o = d.options;
+    const p = this.draftOptions;
+    const optsDirty = Object.keys({ ...o, ...p }).some((k) => o[k] !== p[k]);
+    return d.skin !== this.draftSkin || d.scheme !== this.draftScheme || optsDirty || installationBackground().mode !== this.draftBackground;
   }
 
   private async save() {
@@ -375,12 +390,12 @@ export class SystemDesign extends LitElement {
     this.error = '';
     try {
       if (isApi()) {
-        const r = await patchSettings({ 'ui.skin': this.draftSkin, 'ui.scheme': this.draftScheme, 'ui.background': this.draftBackground });
+        const r = await patchSettings({ 'ui.skin': this.draftSkin, 'ui.scheme': this.draftScheme, 'ui.skin_options': this.draftOptions, 'ui.background': this.draftBackground });
         invalidateSettings();
-        setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme']);
+        setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme'], r.settings['ui.skin_options']);
         setInstallationBackground(r.settings['ui.background'], r.settings['ui.background_images']);
       } else {
-        saveDemoDesign(this.draftSkin, this.draftScheme);
+        saveDemoDesign(this.draftSkin, this.draftScheme, this.draftOptions);
         saveDemoBackground(this.draftBackground);
       }
       this.message = 'המראה נשמר';
@@ -488,6 +503,25 @@ export class SystemDesign extends LitElement {
     >`;
   }
 
+  /** POLISH-SKINS-297: the options of the skin being chosen (Arx Soft: the lamp glow, the switch colour), one row each, under the skins. */
+  private renderSkinOptions(theme: Theme) {
+    const id = this.draftSkin;
+    const opts = SKINS[id].options ?? [];
+    if (!opts.length) return nothing;
+    const chosen = skinOptionChoices(id, this.draftOptions);
+    const pick = (o: string, c: string) => (this.draftOptions = { ...this.draftOptions, [`${id}.${o}`]: c });
+    return opts.map(
+      (o) => html`<div class="row" data-skin-opt-row=${o.id}><span class="lbl">${o.labelHe}<span class="muted">${SKINS[id].nameHe}</span></span>
+        <span class="seg" role="group" aria-label=${o.labelHe}>
+          ${o.choices.map(
+            (c) => html`<button type="button" data-skin-opt=${`${o.id}:${c.id}`} aria-pressed=${chosen[o.id] === c.id ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => pick(o.id, c.id)}
+              >${c.swatch ? html`<i class="optsw" style=${styleMap({ background: c.swatch[theme === 'dark' ? 1 : 0] })} aria-hidden="true"></i>` : nothing}${c.labelHe}</button
+            >`,
+          )}
+        </span></div>`,
+    );
+  }
+
   render() {
     const preview = themeOf(this.draftScheme);
     const cur = installationDesign();
@@ -504,6 +538,7 @@ export class SystemDesign extends LitElement {
           )}
         </div>
       </div>
+      ${this.renderSkinOptions(preview)}
       <div class="row"><span class="lbl">צבעוניות של המערכת<span class="muted">ברירת המחדל לכל המשתמשים; אוטומטי עוקב אחרי המכשיר</span></span>
         <span class="seg" role="group" aria-label="צבעוניות של המערכת">
           ${SCHEMES.map((s) => html`<button type="button" data-scheme-option=${s} aria-pressed=${this.draftScheme === s ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftScheme = s)}>${SCHEME_LABEL[s]}</button>`)}

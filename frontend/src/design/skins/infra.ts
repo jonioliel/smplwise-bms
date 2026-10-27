@@ -1,6 +1,7 @@
 import { lt, same, type TokenTable } from '../tokens';
 import type { Skin } from './index';
 import { ARX_MOTION_RULES, ARX_MOTION_TOKENS } from './arx-motion';
+import { ARX_STATE_RULES } from './arx-polish';
 
 /**
  * Skin "Arx Infra" (SKINFOUND-297, owner decision 2026-10-27: direction A of the Arx design system, an ADDITIONAL selectable skin;
@@ -51,6 +52,10 @@ export const INFRA_TOKENS: TokenTable = {
   '--sw-shadow-2': lt('0 4px 14px rgba(34, 49, 76, 0.09), 0 1px 2px rgba(16, 24, 40, 0.05)', '0 6px 18px rgba(0, 0, 0, 0.45)'),
   '--sw-shadow-3': lt('0 18px 44px rgba(34, 49, 76, 0.16), 0 2px 6px rgba(16, 24, 40, 0.06)', '0 18px 44px rgba(0, 0, 0, 0.6)'),
   '--sw-hover-lift': same('0px'), // A never lifts
+  // POLISH-SKINS-297: the switch thumb's shadow, two layers (contact + ambient) instead of the flat base one
+  '--sw-shadow-thumb': lt('0 1px 2px rgba(16, 24, 40, 0.16), 0 2px 6px rgba(16, 24, 40, 0.1)', '0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35)'),
+  // a lit lamp's tint: lighter than the classic 32 % so a lit row reads warm without shouting
+  '--sw-lit-soft': lt('rgba(255, 200, 87, 0.22)', 'rgba(255, 181, 71, 0.2)'),
   // the menu pair is stated explicitly (a skin never inherits it by accident; unit-menu-surfaces.spec.ts): the classic values
   '--sw-menu-surface': lt('#ffffff', '#151c2c'),
   '--sw-menu-border': lt('#e7ebf2', '#232e45'),
@@ -58,9 +63,16 @@ export const INFRA_TOKENS: TokenTable = {
   ...ARX_MOTION_TOKENS,
 };
 
+/* POLISH-SKINS-297: A stays flat (no lift, no glass, no lit edge); the polish is in the type, the hairlines and the states */
 const rules = `
-/* infra 1 - numbers are tabular on the KPI tiles (round 2 §3) */
-:host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
-${ARX_MOTION_RULES}`;
+/* infra 1 - numbers are tabular on the KPI tiles (round 2 §3), a touch tighter as they grow */
+:host(sw-kpi) .value { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+/* infra 2 - titles: the card and dialog headings one step tighter (apple-design: tracking by size) */
+:host(sw-card) h3, :host(sw-dialog) h3 { letter-spacing: -0.005em; }
+/* infra 3 - an interactive card answers the pointer with its hairline and the hover shadow, never a lift (mobile-native: only where a pointer hovers) */
+@media (hover: hover) and (pointer: fine) { :host(sw-card[interactive]:hover), :host(sw-kpi[interactive]:hover) { border-color: var(--sw-border-strong); box-shadow: var(--sw-shadow-2); transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color); } }
+/* infra 4 - the switch's thumb on a crisp two-layer shadow */
+:host(sw-toggle) button::after { box-shadow: var(--sw-shadow-thumb); }
+${ARX_STATE_RULES}${ARX_MOTION_RULES}`;
 
 export const infra: Skin = { id: 'infra', name: 'Arx Infra', nameHe: 'Arx Infra', noteHe: 'קו שיער וצל עדין, כחול אחד, משטחים אטומים', stage: 'foundation', features: { material: false, bevel: false, pixelEdge: false, glass: false }, tokens: INFRA_TOKENS, rules };

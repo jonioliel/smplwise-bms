@@ -58,6 +58,8 @@ const tokens: TokenTable = {
   '--sw-success-text': lt('#0a7541', '#2fd070'),
   '--sw-forbidden-text': lt('#a51818', '#ff6b6b'),
   '--sw-toggle-on': lt('#2662f0', '#3d7eff'),
+  // POLISH-SKINS-297: a lit lamp's tint is thin on the flat surfaces (the classic 32-34 % turned a lit row into a heavy amber bar on black)
+  '--sw-lit-soft': lt('rgba(229, 165, 42, 0.16)', 'rgba(242, 181, 68, 0.16)'),
   '--sw-map-bg': lt('#f4f6fa', '#0f141d'),
   '--sw-map-wall': lt('#b9c3d3', '#4a5568'),
   '--sw-map-furniture': lt('#e7ecf4', '#1f2736'),
@@ -157,10 +159,22 @@ const rules = `
 :host(home-widgets) .wg-weather, :host(home-widgets) .wg-shabbat { background: var(--sw-surface); }
 /* tesla 10 - tables: ruled rows, small-caps headings */
 :host(sw-table) th { text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--sw-fs-xs); }
-:host(sw-table) tbody tr:hover { background: var(--sw-surface-2); }
+@media (hover: hover) and (pointer: fine) { :host(sw-table) tbody tr:hover { background: var(--sw-surface-2); } }
+:host(sw-table) td { font-variant-numeric: tabular-nums; }
 /* tesla 11 - the settings navigation column: a rule at its edge, the current link marked by a bar instead of a fill */
 :host(system-nav) { border-inline-end: 1px solid var(--sw-border); }
 :host(system-nav) a[aria-current='page'] { background: transparent; box-shadow: inset 3px 0 0 var(--sw-accent); border-radius: 0; }
+/* POLISH-SKINS-297 (round 4: polish, the structure frozen) */
+/* tesla 12 - press feedback (emil-design-eng: a pressed control answers at once), only where motion is welcome */
+@media (prefers-reduced-motion: no-preference) { :host(sw-button) button, :host(sw-chip) button { transition: transform var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease); } :host(sw-button) button:active:not(:disabled), :host(sw-chip) button:active:not(:disabled) { transform: scale(0.97); } }
+/* tesla 13 - a device that is on stays monochrome (a lamp: a thin lit tint), never the warning colour (audit: status colour as decoration) */
+:host(devices-area) sw-card[data-card='lighting'] :is(.tile, .row).on { background: var(--sw-lit-soft); border-color: color-mix(in srgb, var(--sw-lit) 55%, transparent); }
+:host(devices-area) sw-card:not([data-card='lighting']) :is(.tile, .row).on { background: var(--sw-surface-3); border-color: var(--sw-border-strong); }
+:host(devices-area) .tile.on .t sw-icon { color: var(--sw-heading); }
+/* tesla 14 - a KPI's icon is an outline, not a tinted square (one cold accent), unless its tone carries meaning */
+:host(sw-kpi:not([tone='error']):not([tone='offline']):not([tone='stale']):not([tone='partial']):not([tone='live'])) .icon { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-border-strong); color: var(--sw-text-2); }
+/* tesla 15 - status chips: semibold, never squeezed */
+:host(sw-badge) { font-weight: var(--sw-fw-semibold); flex: none; }
 `;
 
 export const tesla: Skin = { id: 'tesla', name: 'Tesla clean hi-tech', nameHe: 'הייטק נקי (Tesla)', noteHe: 'משטחים שטוחים, קווי 1px, פינות חדות, מבטא אחד', stage: 'stable', features: { material: false, bevel: false, pixelEdge: false, glass: false }, tokens, rules };

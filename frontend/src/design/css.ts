@@ -54,6 +54,12 @@ export function tokensCss(): string {
     if (!Object.keys(skin.tokens).length) continue;
     css += blocks(`:root[data-skin="${id}"]`, skin.tokens, false);
   }
+  // POLISH-SKINS-297: the skin options - every choice but the default (already in the skin's table), keyed on `data-sko-<option>` (apply.ts)
+  for (const id of SKIN_IDS) {
+    for (const o of SKINS[id].options ?? []) {
+      for (const c of o.choices) if (c.id !== o.default) css += blocks(`:root[data-skin="${id}"][data-sko-${o.id}="${c.id}"]`, c.tokens, false);
+    }
+  }
   // the look dials (design/look.ts): token bundles keyed on the data attributes, for the bubble skin
   css += lookBundlesCss();
   // reduced motion: durations become 0 and the hover lift is off (accessibility, TOKEN_CONTRACT §2). !important: a skin's DARK block
@@ -67,8 +73,11 @@ export function tokensCss(): string {
 }
 
 /** The merged table of a skin: the base with the skin's overrides (what a swatch preview and the contrast tests read). */
-export function skinTable(id: SkinId): TokenTable {
-  return { ...TOKENS, ...SKINS[id].tokens };
+export function skinTable(id: SkinId, choices: Record<string, string> = {}): TokenTable {
+  const t = { ...TOKENS, ...SKINS[id].tokens };
+  // POLISH-SKINS-297: the chosen option values (option id -> choice id; an unknown id leaves the default)
+  for (const o of SKINS[id].options ?? []) Object.assign(t, o.choices.find((c) => c.id === choices[o.id])?.tokens ?? {});
+  return t;
 }
 
 /**

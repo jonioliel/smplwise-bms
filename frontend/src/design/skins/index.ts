@@ -9,7 +9,7 @@
  * offered in any picker, is rejected by new writes, and a stored / requested frozen id is read as FROZEN_FALLBACK_SKIN at runtime.
  */
 import type { TokenTable } from '../tokens';
-import type { SkinFeatures, SkinStage } from './define';
+import { SKIN_OPTION_ID, type SkinFeatures, type SkinOptionDef, type SkinStage } from './define';
 import { classic } from './classic';
 import { domus } from './domus';
 import { tesla } from './tesla';
@@ -18,7 +18,7 @@ import { crystal } from './crystal';
 import { infra } from './infra';
 import { soft } from './soft';
 
-export { SKIN_RULE_BUDGET, BEVEL_SKINS, defineSkin, skinProblems, derivedFeatures, type SkinData, type SkinFeatures, type SkinStage } from './define';
+export { SKIN_RULE_BUDGET, BEVEL_SKINS, defineSkin, skinProblems, optionProblems, derivedFeatures, type SkinData, type SkinFeatures, type SkinStage, type SkinOption, type SkinOptionDef } from './define';
 
 export const SKIN_IDS = ['classic', 'domus', 'tesla', 'bubble', 'crystal', 'infra', 'soft'] as const;
 export type SkinId = (typeof SKIN_IDS)[number];
@@ -39,6 +39,8 @@ export interface Skin {
   tokens: TokenTable;
   /** Component rules, written for the shadow roots: `:host(sw-card) .x { }` (see apply.ts for how they are adopted). */
   rules: string;
+  /** POLISH-SKINS-297: the skin's options (define.ts SkinOption): token-only choices offered in Settings, stored in `ui.skin_options`. */
+  options?: readonly SkinOptionDef[];
 }
 
 export const SKINS: Record<SkinId, Skin> = { classic, domus, tesla, bubble, crystal, infra, soft };
@@ -72,3 +74,41 @@ export const isFrozenSkin = (v: unknown): boolean => isSkinId(v) && FROZEN_SKINS
 export const isSelectableSkin = (v: unknown): v is SkinId => isSkinId(v) && !FROZEN_SKINS.includes(v);
 /** The skin to DRAW for a stored / requested value: a frozen id reads as the fallback skin; null for anything that is no skin id. */
 export const resolveSkin = (v: unknown): SkinId | null => (isSkinId(v) ? (FROZEN_SKINS.includes(v) ? FROZEN_FALLBACK_SKIN : v) : null);
+
+/** POLISH-SKINS-297: the most `ui.skin_options` may hold (keep in step with SKIN_OPTIONS_MAX_ENTRIES in routers/settings.py). */
+export const SKIN_OPTIONS_MAX_ENTRIES = 32;
+
+/**
+ * `ui.skin_options` in canonical form: `{ "<skin>.<option>": "<choice>" }`, only registered skins, options and choices (an object or its
+ * JSON text; anything else, a corrupt value or an unknown id, is dropped - it then reads as the option's default).
+ */
+export function normalizeSkinOptions(v: unknown): Record<string, string> {
+  let o: unknown = v;
+  if (typeof v === 'string') {
+    try {
+      o = JSON.parse(v);
+    } catch {
+      return {};
+    }
+  }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, c] of Object.entries(o as Record<string, unknown>)) {
+    if (Object.keys(out).length >= SKIN_OPTIONS_MAX_ENTRIES) break;
+    const [skin, opt, ...rest] = k.split('.');
+    if (rest.length || !isSkinId(skin) || typeof c !== 'string' || !SKIN_OPTION_ID.test(c)) continue;
+    const def = SKINS[skin].options?.find((x) => x.id === opt);
+    if (def?.choices.some((x) => x.id === c)) out[k] = c;
+  }
+  return out;
+}
+
+/** The choice in force for each option of a skin (the stored one, else the default). */
+export function skinOptionChoices(id: SkinId, stored: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const o of SKINS[id].options ?? []) {
+    const c = stored[`${id}.${o.id}`];
+    out[o.id] = c && o.choices.some((x) => x.id === c) ? c : o.default;
+  }
+  return out;
+}

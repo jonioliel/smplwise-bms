@@ -30,7 +30,8 @@ const tokens: TokenTable = {
   '--sw-menu-border': lt('#dfe3ea', '#353c4b'),
   '--sw-border': lt('rgba(255, 255, 255, 0.82)', 'rgba(255, 255, 255, 0.14)'),
   '--sw-border-strong': lt('rgba(30, 50, 90, 0.18)', 'rgba(255, 255, 255, 0.22)'),
-  '--sw-highlight': lt('rgba(255, 255, 255, 1)', 'rgba(255, 255, 255, 0.22)'),
+  // POLISH-SKINS-297 (owner: pixel bevels only in classic and domus): no 1 px lit top line; the rim is the panel's own light border
+  '--sw-highlight': same('transparent'),
   '--sw-overlay': lt('rgba(12, 22, 44, 0.38)', 'rgba(0, 0, 0, 0.62)'),
   '--sw-text': lt('#152238', '#e9eef8'),
   '--sw-heading': lt('#0e1a30', '#ffffff'),
@@ -130,7 +131,8 @@ const tokens: TokenTable = {
   '--sw-backdrop-blur': same('blur(6px)'),
   '--sw-t-med': same('220ms'),
   '--sw-ease': same('cubic-bezier(0.2, 0, 0, 1)'),
-  '--sw-ease-thumb': same('cubic-bezier(0.34, 1.3, 0.64, 1)'),
+  // POLISH-SKINS-297 (impeccable detector: bounce easing; apple-design: overshoot only after a gesture with momentum): a strong ease-out
+  '--sw-ease-thumb': same('cubic-bezier(0.23, 1, 0.32, 1)'),
   '--sw-hover-lift': same('-1px'),
 };
 
@@ -141,25 +143,25 @@ const rules = `
 /* crystal 1 - the canvas: the chosen background artwork under a soft veil, over the prism blooms (none = the blooms alone) */
 :host(sw-app) { background: linear-gradient(var(--sw-bg-veil), var(--sw-bg-veil)), var(--sw-bg-image) center / cover no-repeat, var(--sw-canvas); }
 /* crystal 2 - the rail is a floating crystal panel with a luminous rim */
-:host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-xl); background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
+:host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-xl); background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2); }
 /* crystal 3 - brand tile, rail items, the floating corner (the search panel is a menu, rule 3b), the phone bar */
 :host(sw-app) .brand-tile { background: linear-gradient(145deg, var(--sw-accent), var(--sw-accent-hover)); border-radius: var(--sw-r-sm); box-shadow: var(--sw-shadow-primary); }
 :host(sw-app) a.item.a { border-radius: var(--sw-r-md); }
 :host(sw-app) a.item.a.active { background: var(--sw-accent-soft); color: var(--sw-accent-text); box-shadow: inset 0 0 0 1px var(--sw-border); }
-:host(sw-app) .float .pillrow, :host(sw-app) .tabpair { border: 1px solid var(--sw-border); background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
+:host(sw-app) .float .pillrow, :host(sw-app) .tabpair { border: 1px solid var(--sw-border); background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2); }
 /* crystal 3b - the search panel hangs over the page like a menu: opaque, nothing blurred behind it (owner 2026-10-13) */
-:host(sw-app) .searchpanel { background: var(--sw-glass-sheen), var(--sw-menu-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
-:host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-block-start: 1px solid var(--sw-border); box-shadow: 0 -1px 0 var(--sw-highlight); }
+:host(sw-app) .searchpanel { background: var(--sw-glass-sheen), var(--sw-menu-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--sw-shadow-2); }
+:host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-block-start: 1px solid var(--sw-border); }
 /* crystal 4 - crystal panels: cards, KPI tiles, home widgets, floor cards, area tiles and the building tree (blur and fill behind the performance switches) */
-:host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-surface)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
-:host(sw-card[interactive]:hover), :host(devices-building) a.tile:hover { box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); transform: translateY(var(--sw-hover-lift)); }
+:host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-surface)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); box-shadow: var(--sw-shadow-1); }
+@media (hover: hover) and (pointer: fine) { :host(sw-card[interactive]:hover), :host(devices-building) a.tile:hover { box-shadow: var(--sw-shadow-2); transform: translateY(var(--sw-hover-lift)); } }
 /* crystal 5 - the building tree stays prominent: a taller panel with the nav blur, pill rows, the selected row filled */
 :host(devices-building) nav.tree { border-radius: var(--sw-r-lg); padding: 10px; gap: 3px; -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); }
 :host(devices-building) .tree-row { border-radius: var(--sw-r-pill); padding-block: 8px; }
 :host(devices-building) .tree-row.selected { background: var(--sw-accent-soft); color: var(--sw-accent-text); box-shadow: inset 0 0 0 1px var(--sw-border); }
 /* crystal 6 - controls: buttons with a light rim, pill chips, frosted fields */
-:host(sw-button) button { border-radius: var(--sw-r-sm); min-block-size: 34px; box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }
-:host(sw-button[variant='primary']) button { background: linear-gradient(180deg, var(--sw-accent), var(--sw-accent-hover)); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.28); }
+:host(sw-button) button { border-radius: var(--sw-r-sm); min-block-size: 34px; box-shadow: var(--sw-shadow-1); }
+:host(sw-button[variant='primary']) button { background: linear-gradient(180deg, var(--sw-accent), var(--sw-accent-hover)); box-shadow: var(--sw-shadow-primary); }
 :host(sw-button[variant='ghost']) button { box-shadow: none; }
 :host(sw-button[size='sm']) button { border-radius: var(--sw-r-sm); min-block-size: 30px; }
 :host(sw-chip) button { border-radius: var(--sw-r-pill); }
@@ -169,20 +171,35 @@ const rules = `
 :host(sw-toggle[checked]) button { background: var(--sw-toggle-on); }
 :host(sw-tabs[data-variant='pill']) .row::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-3); }
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); }
-:host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight); }
+:host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-thumb); }
 /* crystal 8 - floating layers read on anything: the solid twin under the sheen, a sheet blur behind, a luminous rim; the menus (a popover, a dropdown's list) are fully opaque, no blur (owner 2026-10-13) */
-:host(sw-dialog) .box, :host(sw-drawer) .panel { background: var(--sw-glass-sheen), var(--sw-surface-solid); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
-:host(sw-popover), :host(sw-dropdown) .pop { background: var(--sw-glass-sheen), var(--sw-menu-surface); border-color: var(--sw-menu-border); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
+:host(sw-dialog) .box, :host(sw-drawer) .panel { background: var(--sw-glass-sheen), var(--sw-surface-solid); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: var(--sw-shadow-3); }
+:host(sw-popover), :host(sw-dropdown) .pop { background: var(--sw-glass-sheen), var(--sw-menu-surface); border-color: var(--sw-menu-border); box-shadow: var(--sw-shadow-3); }
 :host(sw-dialog) .box { border-radius: var(--sw-r-xl); }
 :host(sw-dialog) .backdrop { -webkit-backdrop-filter: var(--sw-backdrop-blur); backdrop-filter: var(--sw-backdrop-blur); }
 /* crystal 9 - tables and list rows: hairline rows, a soft hover; tabular numbers on the KPI tiles; headings */
-:host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }
+@media (hover: hover) and (pointer: fine) { :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); } }
 :host(sw-table) th { font-weight: var(--sw-fw-semibold); letter-spacing: 0.02em; }
 :host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
 :host(sw-page) h1 { font-weight: var(--sw-h1-weight); }
 /* crystal 10 - no backdrop-filter, or the OS asks for less transparency: every crystal layer becomes its solid twin (layout unchanged) */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom, :host(sw-app) .float .pillrow, :host(sw-app) .tabpair { background: var(--sw-surface-solid); } }
 @media (prefers-reduced-transparency: reduce) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom, :host(sw-app) .float .pillrow, :host(sw-app) .tabpair { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+/* POLISH-SKINS-297 (round 4: polish, the structure frozen) */
+/* crystal 11 - more contrast asked (apple-design §14): the crystal layers turn solid with a defined edge */
+@media (prefers-contrast: more) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); border-color: var(--sw-border-strong); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+/* crystal 12 - press feedback (emil-design-eng: a control that is pressed answers at once), only where motion is welcome */
+@media (prefers-reduced-motion: no-preference) { :host(sw-button) button, :host(sw-chip) button { transition: transform var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease); } :host(sw-button) button:active:not(:disabled), :host(sw-chip) button:active:not(:disabled) { transform: scale(0.97); } }
+/* crystal 13 - a device that is on: a lamp glows warm through the crystal, anything else takes the sapphire tint; never the warning colour */
+:host(devices-area) sw-card[data-card='lighting'] :is(.tile, .row).on { background: color-mix(in srgb, var(--sw-lit) 16%, var(--sw-surface-2)); border-color: color-mix(in srgb, var(--sw-lit) 50%, transparent); box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--sw-lit) 60%, transparent); }
+:host(devices-area) sw-card:not([data-card='lighting']) :is(.tile, .row).on { background: color-mix(in srgb, var(--sw-accent) 8%, var(--sw-surface-solid)); border-color: color-mix(in srgb, var(--sw-accent) 34%, transparent); }
+:host(devices-area) sw-card[data-card='lighting'] .tile.on .t sw-icon { color: color-mix(in srgb, var(--sw-lit) 55%, var(--sw-text)); }
+:host(devices-area) sw-card:not([data-card='lighting']) .tile.on .t sw-icon { color: var(--sw-accent-text); }
+/* crystal 14 - status chips: a hairline of their own hue on the pale tint, semibold, never squeezed (taste-skill app-screens §7.6) */
+:host(sw-badge:not([onimage]):not([kind='stale']):not([kind='partial']):not([kind='unknown'])) { box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent); }
+:host(sw-badge) { font-weight: var(--sw-fw-semibold); flex: none; }
+/* crystal 15 - tables: tabular figures; the row hover only where a pointer hovers (mobile-native) */
+:host(sw-table) td { font-variant-numeric: tabular-nums; }
 `;
 
-export const crystal: Skin = { id: 'crystal', name: 'Crystal', nameHe: 'קריסטל', noteHe: 'זכוכית מוארת על רקע יום / לילה, שפה זוהרת, צורות מעודנות', stage: 'stable', features: { material: false, bevel: false, pixelEdge: true, glass: true }, tokens, rules };
+export const crystal: Skin = { id: 'crystal', name: 'Crystal', nameHe: 'קריסטל', noteHe: 'זכוכית מוארת על רקע יום / לילה, שפה זוהרת, צורות מעודנות', stage: 'stable', features: { material: false, bevel: false, pixelEdge: false, glass: true }, tokens, rules };

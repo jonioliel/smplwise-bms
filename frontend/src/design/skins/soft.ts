@@ -1,6 +1,8 @@
 import { lt, same, type TokenTable } from '../tokens';
 import type { Skin } from './index';
+import { defineSkin } from './define';
 import { ARX_MOTION_RULES } from './arx-motion';
+import { ARX_STATE_RULES } from './arx-polish';
 import { INFRA_TOKENS } from './infra';
 
 /**
@@ -33,7 +35,8 @@ const tokens: TokenTable = {
   '--sw-menu-border': lt('#dde2ec', '#2b3450'),
   '--sw-border': lt('rgba(30, 41, 59, 0.09)', 'rgba(255, 255, 255, 0.1)'),
   '--sw-border-strong': lt('rgba(30, 41, 59, 0.18)', 'rgba(255, 255, 255, 0.2)'),
-  '--sw-highlight': lt('rgba(255, 255, 255, 0.9)', 'rgba(255, 255, 255, 0.1)'),
+  // POLISH-SKINS-297 (no pixel bevels outside classic / domus): no 1 px lit top line; the panel reads as material through the sheen and a soft two-layer shadow
+  '--sw-highlight': same('transparent'),
   '--sw-nav-glass': lt('rgba(255, 255, 255, 0.6)', 'rgba(16, 21, 38, 0.6)'), // the rail and the phone bar (TOKENS.md --sw-rail-bg)
   '--sw-text': lt('#1f2a3d', '#eef2fa'),
   '--sw-heading': lt('#16203a', '#f8faff'),
@@ -75,7 +78,6 @@ const tokens: TokenTable = {
   '--sw-forbidden': lt('#d70015', '#ff453a'),
   '--sw-forbidden-soft': lt('rgba(215, 0, 21, 0.12)', 'rgba(255, 69, 58, 0.2)'),
   '--sw-forbidden-text': lt('#b91c1c', '#ff8a80'),
-  '--sw-toggle-on': lt('#34c759', '#30d158'),
   '--sw-lit': lt('#ffb13b', '#ffb547'),
   // shape: rounder (6 / 8 / 12 / 18 / 22 / 24 / 28)
   '--sw-r-2xs': same('6px'),
@@ -86,24 +88,33 @@ const tokens: TokenTable = {
   '--sw-r-xl': same('24px'),
   '--sw-r-2xl': same('28px'),
   // depth: soft lifted panels with the lit top edge (round 2), floating layers, the primary's glow
+  // POLISH-SKINS-297 (apple-design: bigger surfaces read thicker): a contact shadow + a soft ambient one, offset down, never a halo;
+  // the dark ambient is deeper so a panel separates from the navy canvas without a lit line
   '--sw-shadow-1': lt(
-    '0 10px 30px rgba(31, 45, 80, 0.09), 0 1px 2px rgba(31, 45, 80, 0.05), inset 0 1px 0 var(--sw-highlight)',
-    '0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 var(--sw-highlight)',
+    '0 1px 2px rgba(31, 45, 80, 0.06), 0 8px 24px -6px rgba(31, 45, 80, 0.14)',
+    '0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 32px -8px rgba(0, 0, 0, 0.6)',
   ),
   '--sw-shadow-2': lt(
-    '0 18px 44px rgba(31, 45, 80, 0.15), 0 2px 4px rgba(31, 45, 80, 0.06), inset 0 1px 0 var(--sw-highlight)',
-    '0 18px 48px rgba(0, 0, 0, 0.45), inset 0 1px 0 var(--sw-highlight)',
+    '0 2px 4px rgba(31, 45, 80, 0.07), 0 18px 40px -10px rgba(31, 45, 80, 0.22)',
+    '0 2px 4px rgba(0, 0, 0, 0.5), 0 22px 48px -10px rgba(0, 0, 0, 0.7)',
   ),
-  '--sw-shadow-3': lt('0 24px 64px rgba(15, 23, 42, 0.24)', '0 26px 70px rgba(0, 0, 0, 0.6)'),
-  '--sw-shadow-primary': lt('0 4px 12px rgba(47, 109, 246, 0.3)', '0 4px 12px rgba(0, 0, 0, 0.4)'),
+  '--sw-shadow-3': lt('0 4px 10px rgba(15, 23, 42, 0.08), 0 28px 64px -12px rgba(15, 23, 42, 0.3)', '0 4px 10px rgba(0, 0, 0, 0.5), 0 30px 72px -12px rgba(0, 0, 0, 0.72)'),
+  '--sw-shadow-primary': lt('0 1px 2px rgba(47, 109, 246, 0.25), 0 6px 16px -4px rgba(47, 109, 246, 0.45)', '0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px -4px rgba(0, 0, 0, 0.55)'),
+  '--sw-shadow-thumb': lt('0 1px 2px rgba(15, 23, 42, 0.18), 0 3px 8px rgba(15, 23, 42, 0.14)', '0 1px 2px rgba(0, 0, 0, 0.5), 0 3px 8px rgba(0, 0, 0, 0.4)'),
   // material: panels and the nav blur; sheets (dialog, drawer) and menus stay opaque
   '--sw-glass-blur': same('blur(18px) saturate(1.4)'),
   '--sw-glass-blur-nav': same('blur(16px) saturate(1.4)'),
   '--sw-glass-blur-sheet': same('none'),
-  '--sw-glass-sheen': lt('linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 40%)', 'linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 40%)'),
+  '--sw-glass-sheen': lt('linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 46%)', 'linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 46%)'),
+  // the pressed / hovered wash on a glass control: a tone step, not a line
+  '--sw-hover-wash': lt('rgba(255, 255, 255, 0.45)', 'rgba(255, 255, 255, 0.06)'),
+  '--sw-pressed-wash': lt('rgba(31, 45, 80, 0.07)', 'rgba(255, 255, 255, 0.1)'),
+  // a lit lamp: the warm fill, and its tint as a tile bed (the glow itself is the "glow" option below)
+  '--sw-lit-soft': lt('rgba(255, 177, 59, 0.2)', 'rgba(255, 181, 71, 0.2)'),
   // type and density: roomier
   '--sw-h1': same('28px'),
   '--sw-h1-tracking': same('-0.02em'),
+  '--sw-h1-weight': same('700'),
   '--sw-h1-phone': same('24px'),
   '--sw-gap': same('14px'),
   '--sw-gap-lg': same('18px'),
@@ -111,23 +122,75 @@ const tokens: TokenTable = {
   '--sw-hover-lift': same('-2px'), // fine pointers, motion allowed (reduced motion zeroes it)
 };
 
-/* The component rules (budget 50; this skin uses 9 + the 4 motion blocks). Every translucent layer has its solid twin (@supports,
-   prefers-reduced-transparency, prefers-contrast: more); a panel's blur and fill sit behind the performance switches
-   (--sw-perf-blur / --sw-perf-glass-bg, TOKEN_CONTRACT §7). Menus and sheets are not touched: they keep the opaque menu surface. */
+/* The component rules (budget 50; this skin uses 15 + the 4 motion blocks + the 13 Arx state blocks). Every translucent layer has its
+   solid twin (@supports, prefers-reduced-transparency, prefers-contrast: more); a panel's blur and fill sit behind the performance switches
+   (--sw-perf-blur / --sw-perf-glass-bg, TOKEN_CONTRACT §7). Menus and sheets are not touched: they keep the opaque menu surface.
+   POLISH-SKINS-297: no 1 px lit edge anywhere (the owner's bevel policy); depth is the sheen + the two-layer shadow. */
 const rules = `
 /* soft 1 - the canvas: the warm and cool blooms under the glass */
 :host(sw-app) { background: var(--sw-canvas); }
-/* soft 2 - the rail and the phone bar: nav glass with the lit edge */
+/* soft 2 - the rail and the phone bar: nav glass over the canvas */
 :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-color: var(--sw-border); }
-/* soft 3 - panels: cards and KPI tiles are glass (blur and fill behind the performance switches) */
-:host(sw-card), :host(sw-kpi) { border-color: var(--sw-border); background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-surface)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); }
-@media (hover: hover) and (pointer: fine) { :host(sw-card[interactive]:hover) { box-shadow: var(--sw-shadow-2); transform: translateY(var(--sw-hover-lift)); transition: transform var(--sw-t-hover) var(--sw-ease), box-shadow var(--sw-t-hover) var(--sw-ease-color); } }
-/* soft 4 - numbers are tabular on the KPI tiles */
-:host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
-/* soft 5 - no backdrop-filter, less transparency asked, or more contrast asked: every glass layer becomes its solid twin (layout unchanged) */
+/* soft 3 - panels: cards and KPI tiles are glass (blur and fill behind the performance switches), lifted by the two-layer shadow */
+:host(sw-card), :host(sw-kpi) { border-color: var(--sw-border); background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-surface)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); box-shadow: var(--sw-shadow-1); }
+@media (hover: hover) and (pointer: fine) { :host(sw-card[interactive]:hover), :host(sw-kpi[interactive]:hover) { box-shadow: var(--sw-shadow-2); transform: translateY(var(--sw-hover-lift)); transition: transform var(--sw-t-hover) var(--sw-ease), box-shadow var(--sw-t-hover) var(--sw-ease-color); } }
+/* soft 4 - numbers are tabular on the KPI tiles; titles a touch tighter (apple-design: negative tracking as type grows) */
+:host(sw-kpi) .value { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+:host(sw-card) h3, :host(sw-dialog) h3 { letter-spacing: -0.01em; }
+/* soft 5 - the switch: the thumb sits on a soft shadow (material), the track takes the chosen colour (the "switch" option) */
+:host(sw-toggle) button::after { box-shadow: var(--sw-shadow-thumb); }
+/* soft 6 - the home's area rows and floor cards: glass beds, the lit band warm and short */
+:host(devices-building) .arow-q[data-lit] { background: linear-gradient(270deg, var(--sw-lit-soft), transparent 64%); }
+/* soft 7 - no backdrop-filter, less transparency asked, or more contrast asked: every glass layer becomes its solid twin (layout unchanged) */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); } }
 @media (prefers-reduced-transparency: reduce) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 @media (prefers-contrast: more) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); border-color: var(--sw-border-strong); -webkit-backdrop-filter: none; backdrop-filter: none; } }
-${ARX_MOTION_RULES}`;
+${ARX_STATE_RULES}${ARX_MOTION_RULES}`;
 
-export const soft: Skin = { id: 'soft', name: 'Arx Soft', nameHe: 'Arx Soft', noteHe: 'חומר שקוף על רקע חם וקר, פינות עגולות, תפריטים אטומים', stage: 'foundation', features: { material: false, bevel: false, pixelEdge: true, glass: true }, tokens, rules };
+/** TokenTable -> the light and the dark record defineSkin takes. */
+const col = (t: TokenTable, m: 'light' | 'dark'): Record<string, string> => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, v[m]]));
+
+/**
+ * POLISH-SKINS-297 (owner open items 2026-10-27): the two options of Arx Soft, chosen in הגדרות › כללי › מראה המערכת.
+ *  - "glow": the glow around a lit lamp, two intensities. Offset downward like light falling from the lamp (never a flat halo).
+ *  - "switch": the colour of a switch that is on - never green (green stays for status); blue by default.
+ * An installation's brand switch colour (ui.toggle_on, design/brand.ts), when set, still wins over the option: it is the stronger choice.
+ */
+const GLOW = (ring: number, y: number, blur: number, spread: number, a: number) =>
+  `0 0 0 1px color-mix(in srgb, var(--sw-lit) ${ring}%, transparent), 0 ${y}px ${blur}px ${spread}px color-mix(in srgb, var(--sw-lit) ${a}%, transparent)`;
+const options = [
+  {
+    id: 'glow',
+    labelHe: 'זוהר נורה דולקת',
+    default: 'soft',
+    choices: [
+      { id: 'soft', labelHe: 'עדין', light: { '--sw-lit-glow': GLOW(30, 6, 18, -6, 55) }, dark: { '--sw-lit-glow': GLOW(34, 6, 20, -6, 45) } },
+      { id: 'strong', labelHe: 'חזק', light: { '--sw-lit-glow': GLOW(50, 10, 30, -4, 85) }, dark: { '--sw-lit-glow': GLOW(55, 10, 34, -2, 70) } },
+    ],
+  },
+  {
+    id: 'switch',
+    labelHe: 'צבע מתג דולק',
+    default: 'blue',
+    choices: [
+      { id: 'blue', labelHe: 'כחול', swatch: ['#2f6df6', '#3d7bff'] as const, light: { '--sw-toggle-on': '#2f6df6' }, dark: { '--sw-toggle-on': '#3d7bff' } },
+      { id: 'graphite', labelHe: 'גרפיט', swatch: ['#475569', '#8b95a7'] as const, light: { '--sw-toggle-on': '#475569' }, dark: { '--sw-toggle-on': '#8b95a7' } },
+      // no teal: next to the status green it read as green (owner: the switch is never green)
+      { id: 'indigo', labelHe: 'אינדיגו', swatch: ['#4a4fd8', '#8287ff'] as const, light: { '--sw-toggle-on': '#4a4fd8' }, dark: { '--sw-toggle-on': '#8287ff' } },
+      { id: 'violet', labelHe: 'סגול', swatch: ['#6d4ae0', '#9b7dff'] as const, light: { '--sw-toggle-on': '#6d4ae0' }, dark: { '--sw-toggle-on': '#9b7dff' } },
+    ],
+  },
+];
+
+export const soft: Skin = defineSkin({
+  id: 'soft',
+  name: 'Arx Soft',
+  nameHe: 'Arx Soft',
+  noteHe: 'חומר שקוף על רקע חם וקר, פינות עגולות, תפריטים אטומים',
+  stage: 'foundation',
+  features: { material: false, bevel: false, pixelEdge: false, glass: true },
+  light: col(tokens, 'light'),
+  dark: col(tokens, 'dark'),
+  rules,
+  options,
+});

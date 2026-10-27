@@ -12,7 +12,7 @@
  * document stylesheet cannot reach). Replacing that sheet's text re-skins every live component without re-rendering.
  */
 import { ReactiveElement } from 'lit';
-import { DEFAULT_SKIN, SKIN_IDS, SKINS, isSkinId, resolveSkin, type SkinId } from './skins';
+import { DEFAULT_SKIN, SKIN_IDS, SKINS, isSkinId, normalizeSkinOptions, resolveSkin, skinOptionChoices, type SkinId } from './skins';
 import { skinRules, skinTable, tokensCss } from './css';
 import { alphaFloor, liteAlpha, sheetModelOf, washCap, washModelOf } from './contrast';
 import { bootLook, onLook, setAlphaFloor, setLiteAlpha, setWashCap } from './look';
@@ -31,6 +31,8 @@ const OWN_SCHEME_KEY = 'sw.ui.scheme'; // this browser's own scheme choice
 interface Installation {
   skin: SkinId;
   scheme: Scheme;
+  /** POLISH-SKINS-297: `ui.skin_options` in canonical form (skins/index.ts normalizeSkinOptions). */
+  options: Record<string, string>;
 }
 
 function read(key: string): string | null {
@@ -49,9 +51,13 @@ function write(key: string, value: string | null) {
   }
 }
 
-let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light' };
+let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light', options: {} };
 let ownScheme: Scheme | null = null;
-let queryOverride: { skin: SkinId | null; scheme: Scheme | null } = { skin: null, scheme: null };
+let queryOverride: { skin: SkinId | null; scheme: Scheme | null; options: Record<string, string> } = { skin: null, scheme: null, options: {} };
+const sameOptions = (a: Record<string, string>, b: Record<string, string>) => {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
+};
 let sheet: CSSStyleSheet | null = null;
 let sheetSkin: SkinId | null = null;
 let darkQuery: MediaQueryList | null = null;
@@ -62,6 +68,7 @@ function loadStored() {
     const c = JSON.parse(read(CACHE_KEY) ?? 'null') as Partial<Installation> | null;
     if (c && isSkinId(c.skin)) installation.skin = resolveSkin(c.skin) ?? DEFAULT_SKIN; // a frozen skin reads as the fallback (skins/index.ts)
     if (c && isScheme(c.scheme)) installation.scheme = c.scheme;
+    if (c) installation.options = normalizeSkinOptions(c.options);
   } catch {
     /* a corrupt cache reads as the defaults */
   }
@@ -71,7 +78,14 @@ function loadStored() {
     const q = new URLSearchParams(window.location.search);
     const s = q.get('skin');
     const m = q.get('scheme');
-    queryOverride = { skin: resolveSkin(s), scheme: isScheme(m) ? m : null };
+    // POLISH-SKINS-297: `?sko=glow:strong,switch:teal` - the options of the skin in force, for this page view (designers, evidence)
+    const sk = resolveSkin(s) ?? installation.skin;
+    const sko: Record<string, string> = {};
+    for (const pair of (q.get('sko') ?? '').split(',')) {
+      const [o, c] = pair.split(':');
+      if (o && c) sko[`${sk}.${o}`] = c;
+    }
+    queryOverride = { skin: resolveSkin(s), scheme: isScheme(m) ? m : null, options: normalizeSkinOptions(sko) };
   } catch {
     /* no location */
   }
@@ -81,7 +95,9 @@ function loadStored() {
 export const currentSkin = (): SkinId => queryOverride.skin ?? installation.skin;
 /** The scheme setting in force (may be "auto"). */
 export const currentScheme = (): Scheme => queryOverride.scheme ?? ownScheme ?? installation.scheme;
-export const installationDesign = (): Installation => ({ ...installation });
+export const installationDesign = (): Installation => ({ ...installation, options: { ...installation.options } });
+/** POLISH-SKINS-297: the option choices in force for the skin in force (option id -> choice id; every option present). */
+export const currentSkinOptions = (): Record<string, string> => skinOptionChoices(currentSkin(), { ...installation.options, ...queryOverride.options });
 export const ownSchemeChoice = (): Scheme | null => ownScheme;
 
 function systemDark(): boolean {
@@ -108,8 +124,12 @@ function apply() {
     sheet.replaceSync(skinRules(skin));
     sheetSkin = skin;
   }
+  // POLISH-SKINS-297: the skin's option choices as `data-sko-<option>` (css.ts keys the non-default choices on them); stale ones go
+  const choices = currentSkinOptions();
+  for (const a of [...root.getAttributeNames()]) if (a.startsWith('data-sko-') && !(a.slice(9) in choices)) root.removeAttribute(a);
+  for (const [o, c] of Object.entries(choices)) if (root.getAttribute(`data-sko-${o}`) !== c) root.setAttribute(`data-sko-${o}`, c);
   // the translucent sheet never drops below the alpha at which its text reads at 4.5:1 (design/contrast.ts, per skin and scheme)
-  const t = skinTable(skin);
+  const t = skinTable(skin, choices);
   // the palette of the look dial (bubble only): inline custom properties on <html>, so the floor below is computed from ITS colours
   const { palette, tokens: pt } = activePaletteTokens(skin, theme);
   // 2.4.4: the installation's brand colours (accent, switch on) ride the same inline layer, after the palette, so they win over it and
@@ -133,18 +153,23 @@ export function onDesign(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
-/** The installation's `ui.skin` / `ui.scheme` as the product settings carry them (unknown values keep the current ones). */
-export function setInstallationDesign(skin: unknown, scheme: unknown) {
-  const next: Installation = { skin: resolveSkin(skin) ?? installation.skin, scheme: isScheme(scheme) ? scheme : installation.scheme };
-  if (next.skin === installation.skin && next.scheme === installation.scheme) return;
+/** The installation's `ui.skin` / `ui.scheme` (and POLISH-SKINS-297 `ui.skin_options`, when given) as the product settings carry them
+ * (unknown values keep the current ones; options left out keep the current ones). */
+export function setInstallationDesign(skin: unknown, scheme: unknown, options?: unknown) {
+  const next: Installation = {
+    skin: resolveSkin(skin) ?? installation.skin,
+    scheme: isScheme(scheme) ? scheme : installation.scheme,
+    options: options === undefined ? installation.options : normalizeSkinOptions(options),
+  };
+  if (next.skin === installation.skin && next.scheme === installation.scheme && sameOptions(next.options, installation.options)) return;
   installation = next;
   write(CACHE_KEY, JSON.stringify(installation));
   apply();
 }
 
 /** The static demo (no backend) keeps "the installation's" choice in this browser: same cache, same effect. */
-export function saveDemoDesign(skin: SkinId, scheme: Scheme) {
-  installation = { skin: resolveSkin(skin) ?? DEFAULT_SKIN, scheme };
+export function saveDemoDesign(skin: SkinId, scheme: Scheme, options?: Record<string, string>) {
+  installation = { skin: resolveSkin(skin) ?? DEFAULT_SKIN, scheme, options: options === undefined ? installation.options : normalizeSkinOptions(options) };
   write(CACHE_KEY, JSON.stringify(installation));
   apply();
 }

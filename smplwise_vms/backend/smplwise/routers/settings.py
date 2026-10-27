@@ -76,6 +76,10 @@ DEFAULTS: dict[str, str] = {
     # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
     "ui.skin": "classic",
     "ui.scheme": "light",
+    # POLISH-SKINS-297 (owner 2026-10-27): the skins' options - {"<skin>.<option>": "<choice>"} (Arx Soft: the lamp glow, the switch
+    # colour; frontend/src/design/skins). Shape only here (normalize_skin_options); the frontend reads an unknown option or choice as
+    # the default. Per installation.
+    "ui.skin_options": "{}",
     # 2.4.4 (owner 2026-10-10): the product's accent colour and the colour of a switch that is on - "default" (the skin's own: the
     # system blue of the classic look) | a preset id (ios_green = the earlier glass mockup's green) | "#rrggbb". services/brand_colors.py;
     # applied by the frontend on the DU1 token layer (design/brand.ts). Per installation.
@@ -497,6 +501,37 @@ def stored_skin(raw: Any) -> str:
     return raw if raw in ("classic", "domus", "tesla", "bubble", "crystal", "infra", "soft") else DEFAULTS["ui.skin"]
 
 
+# POLISH-SKINS-297: `ui.skin_options` - "<skin>.<option>" -> "<choice>"; keep in step with SKIN_OPTION_ID (skins/define.ts) and
+# SKIN_OPTIONS_MAX_ENTRIES (skins/index.ts) in the frontend.
+SKIN_OPTIONS_MAX_ENTRIES = 32
+_SKIN_OPTION_KEY = re.compile(r"^(classic|domus|tesla|bubble|crystal|infra|soft)\.[a-z][a-z0-9_]{0,23}$")
+_SKIN_OPTION_VALUE = re.compile(r"^[a-z][a-z0-9_]{0,23}$")
+
+
+def normalize_skin_options(value: Any) -> dict[str, str]:
+    """A written `ui.skin_options`: an object of at most SKIN_OPTIONS_MAX_ENTRIES `<skin>.<option>` -> `<choice>` ids; ValueError otherwise."""
+    if not isinstance(value, dict):
+        raise ValueError("an object of skin options")
+    if len(value) > SKIN_OPTIONS_MAX_ENTRIES:
+        raise ValueError(f"at most {SKIN_OPTIONS_MAX_ENTRIES} skin options")
+    out: dict[str, str] = {}
+    for k, v in value.items():
+        if not isinstance(k, str) or not _SKIN_OPTION_KEY.match(k):
+            raise ValueError(f"unknown skin option key: {str(k)[:40]}")
+        if not isinstance(v, str) or not _SKIN_OPTION_VALUE.match(v):
+            raise ValueError(f"bad choice for {k}")
+        out[k] = v
+    return out
+
+
+def stored_skin_options(raw: Any) -> dict[str, str]:
+    """The stored `ui.skin_options` as an object; a corrupt value reads as no choices (every option at its default)."""
+    try:
+        return normalize_skin_options(json.loads(raw) if isinstance(raw, str) else raw)
+    except (ValueError, TypeError):
+        return {}
+
+
 PRIVATE_KEYS = ("site.latitude", "site.longitude")  # SEC247 I3: the manual site position - administrators (system.configure) only
 
 
@@ -513,6 +548,7 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     # CR-039 DOORWIN-295: READ-ONLY, derived - whether the door-windows tab is in the navigation (a door feature is switched on). Not in
     # DEFAULTS and not patchable here: the switches themselves live behind /doors/windows/settings and /doors/emergency/settings.
     out["doors.ui.tab"] = "on" if (get_setting(conn, "doors.windows.enabled") == "on" or get_setting(conn, "doors.emergency.enabled") == "on") else "off"
+    out["ui.skin_options"] = stored_skin_options(out["ui.skin_options"])  # POLISH-SKINS-297: a corrupt value reads as no choices
     out["ui.skin"] = stored_skin(out["ui.skin"])  # BUBBLE-FREEZE-295: a stored frozen skin reads as the fallback (the row is left as it is)
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     if out.get("ui.tickets_section_row") not in ("hide_single", "always"):  # SERVICEIA1-295: a corrupt value reads as the default
@@ -773,6 +809,13 @@ class SettingsPatch(BaseModel):
         if v in FROZEN_SKINS:
             raise ValueError(f"the '{v}' skin is frozen and can no longer be selected; choose classic, domus, tesla, crystal, infra or soft")
         return v
+
+    ui_skin_options: dict[str, Any] | None = Field(default=None, alias="ui.skin_options")  # POLISH-SKINS-297: normalize_skin_options
+
+    @field_validator("ui_skin_options")
+    @classmethod
+    def _skin_options_shape(cls, v: dict[str, Any] | None) -> dict[str, str] | None:
+        return None if v is None else normalize_skin_options(v)
 
     ui_accent: str | None = Field(default=None, max_length=16, alias="ui.accent")  # 2.4.4: validated by services/brand_colors.py
     ui_toggle_on: str | None = Field(default=None, max_length=16, alias="ui.toggle_on")
@@ -1348,7 +1391,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "plan.surfaces", "plan.view", "plan.bakes", "devices.area_row", "devices.floor_row", "home.screen", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.skin_options", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "plan.surfaces", "plan.view", "plan.bakes", "devices.area_row", "devices.floor_row", "home.screen", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if "schedules.classes" in changes:
         set_setting(conn, CLASSES_REV_KEY, "2")  # from now on the list is read as saved (the 2026-10-04 classes can be switched off)
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now

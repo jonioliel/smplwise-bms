@@ -55,6 +55,41 @@ export function derivedFeatures(t: TokenTable): Pick<SkinFeatures, 'pixelEdge' |
   };
 }
 
+/**
+ * POLISH-SKINS-297 (owner open items 2026-10-27): a skin OPTION - one small, named choice a skin offers in הגדרות › כללי › מראה המערכת
+ * (Arx Soft: the glow of a lit lamp, the colour of a switch that is on). Each choice is a light AND a dark set of token overrides; the
+ * default choice's tokens are folded into the skin's own table (it is what the skin draws with nothing chosen), every other choice is
+ * emitted by css.ts as `:root[data-skin="<skin>"][data-sko-<option>="<choice>"]` and switched by apply.ts. Options never carry rules:
+ * a choice changes tokens only, so it can never move, add or hide anything. Stored per installation in `ui.skin_options`
+ * (`{ "<skin>.<option>": "<choice>" }`); an unknown or missing value reads as the default.
+ */
+export interface SkinOptionChoice {
+  id: string;
+  labelHe: string;
+  /** The colour drawn in the picker's swatch (light, dark); omitted = no swatch. */
+  swatch?: readonly [string, string];
+  light: Record<string, string>;
+  dark: Record<string, string>;
+}
+export interface SkinOption {
+  id: string;
+  labelHe: string;
+  default: string;
+  choices: readonly SkinOptionChoice[];
+}
+/** A registered option: each choice's overrides as a token table (both columns). */
+export interface SkinOptionDef {
+  id: string;
+  labelHe: string;
+  default: string;
+  choices: readonly { id: string; labelHe: string; swatch?: readonly [string, string]; tokens: TokenTable }[];
+}
+/** Option and choice ids: what an attribute name / value and the stored key may carry. */
+export const SKIN_OPTION_ID = /^[a-z][a-z0-9_]{0,23}$/;
+export const SKIN_OPTION_LABEL_MAX = 16;
+export const SKIN_OPTIONS_MAX = 4;
+export const SKIN_OPTION_CHOICES_MAX = 6;
+
 export interface SkinData {
   id: SkinId;
   /** English name (developers) and the Hebrew name shown in הגדרות › כללי › מראה המערכת. */
@@ -70,6 +105,56 @@ export interface SkinData {
   features?: Partial<SkinFeatures>;
   /** Component rules for the shadow roots, inside the 50-rule budget, tokens only (SKIN_AUTHORING_HE.md §2-§4). */
   rules?: string;
+  /** POLISH-SKINS-297: the skin's options (tokens only; see SkinOption). */
+  options?: readonly SkinOption[];
+}
+
+/** Turn option data into registry definitions (both columns per choice, the same names in both). */
+export function optionDefs(options: readonly SkinOption[] | undefined): SkinOptionDef[] {
+  return (options ?? []).map((o) => ({
+    id: o.id,
+    labelHe: o.labelHe,
+    default: o.default,
+    choices: o.choices.map((c) => {
+      const tokens: TokenTable = {};
+      for (const n of Object.keys(c.light)) if (n in c.dark) tokens[n] = { light: c.light[n], dark: c.dark[n] };
+      return { id: c.id, labelHe: c.labelHe, ...(c.swatch ? { swatch: c.swatch } : {}), tokens };
+    }),
+  }));
+}
+
+/** The problems of a skin's options (empty = fine): ids, labels, limits, the default, the token names, and the contract with each choice. */
+export function optionProblems(skin: Skin, base: TokenTable = TOKENS): string[] {
+  const p: string[] = [];
+  const opts = skin.options ?? [];
+  if (opts.length > SKIN_OPTIONS_MAX) p.push(`more than ${SKIN_OPTIONS_MAX} options`);
+  const seen = new Set<string>();
+  for (const o of opts) {
+    if (!SKIN_OPTION_ID.test(o.id)) p.push(`option id "${o.id}" is not [a-z][a-z0-9_]{0,23}`);
+    if (seen.has(o.id)) p.push(`option "${o.id}" is declared twice`);
+    seen.add(o.id);
+    if (!o.labelHe.trim() || [...o.labelHe].length > SKIN_OPTION_LABEL_MAX) p.push(`option "${o.id}": label empty or longer than ${SKIN_OPTION_LABEL_MAX}`);
+    if (o.choices.length < 2 || o.choices.length > SKIN_OPTION_CHOICES_MAX) p.push(`option "${o.id}": 2..${SKIN_OPTION_CHOICES_MAX} choices`);
+    if (!o.choices.some((c) => c.id === o.default)) p.push(`option "${o.id}": the default "${o.default}" is not a choice`);
+    const names = new Set<string>();
+    for (const c of o.choices) for (const n of Object.keys(c.tokens)) names.add(n);
+    const cids = new Set<string>();
+    for (const c of o.choices) {
+      if (!SKIN_OPTION_ID.test(c.id)) p.push(`option "${o.id}": choice id "${c.id}" is not [a-z][a-z0-9_]{0,23}`);
+      if (cids.has(c.id)) p.push(`option "${o.id}": choice "${c.id}" twice`);
+      cids.add(c.id);
+      if (!c.labelHe.trim() || [...c.labelHe].length > SKIN_OPTION_LABEL_MAX) p.push(`option "${o.id}" / "${c.id}": label empty or longer than ${SKIN_OPTION_LABEL_MAX}`);
+      // every choice sets the same names, so switching never leaves a value of the previous choice behind
+      for (const n of names) if (!c.tokens[n]) p.push(`option "${o.id}" / "${c.id}": does not set ${n} (every choice sets the same tokens)`);
+      for (const [n, v] of Object.entries(c.tokens)) {
+        if (!base[n]) p.push(`option "${o.id}" / "${c.id}": unknown token ${n}`);
+        if (!v.light.trim() || !v.dark.trim()) p.push(`option "${o.id}" / "${c.id}": ${n} needs a light AND a dark value`);
+        if (/--sw-m-rim/.test(n)) p.push(`option "${o.id}" / "${c.id}": an option never sets the bevel rim`);
+      }
+      for (const x of validateSkinTable({ ...base, ...skin.tokens, ...c.tokens })) p.push(`option "${o.id}" / "${c.id}": ${x.rule}${x.scheme ? ` (${x.scheme})` : ''}: ${x.detail}`);
+    }
+  }
+  return p;
 }
 
 /** The problems of a skin (empty = it may be registered). `base` is the table the skin overrides (tokens.ts by default). */
@@ -108,6 +193,9 @@ export function defineSkin(data: SkinData, base: TokenTable = TOKENS): Skin {
   for (const n of darkNames) if (!(n in data.light)) problems.push(`${n} has a dark value and no light value`);
   const tokens: TokenTable = {};
   for (const n of lightNames) if (n in data.dark) tokens[n] = { light: data.light[n], dark: data.dark[n] };
+  // POLISH-SKINS-297: the default choice of every option is what the skin draws with nothing chosen - folded into its own table
+  const options = optionDefs(data.options);
+  for (const o of options) Object.assign(tokens, o.choices.find((c) => c.id === o.default)?.tokens ?? {});
   const merged = { ...base, ...tokens };
   const skin: Skin = {
     id: data.id,
@@ -118,8 +206,9 @@ export function defineSkin(data: SkinData, base: TokenTable = TOKENS): Skin {
     tokens,
     rules: data.rules ?? '',
     features: { ...NO_FEATURES, ...derivedFeatures(merged), ...(data.features ?? {}) },
+    ...(options.length ? { options } : {}),
   };
-  problems.push(...skinProblems(skin, base));
+  problems.push(...skinProblems(skin, base), ...optionProblems(skin, base));
   if (problems.length) throw new Error(`skin "${data.id}" does not meet the design contract:\n - ${problems.join('\n - ')}`);
   return skin;
 }
