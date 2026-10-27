@@ -25,6 +25,8 @@ export class NoticeDisplayTransit extends LitElement {
   ];
 
   @property({ attribute: false }) display!: Display;
+  /** BOARDV2-297: the board's effective V2 layout when it uses the V2 design (the layout row is then the V2 one: no second picker here) */
+  @property({ attribute: false }) v2Layout: TransitLayout | null = null;
   @state() private t: TransitSettings | null = null;
   @state() private failed = false;
 
@@ -72,8 +74,8 @@ export class NoticeDisplayTransit extends LitElement {
             @change=${() => this.emit({ stops: toggleStop(s.stops, st.code, stops.map((x) => x.code)) })}>${st.name || st.catalogue_name || st.code}</label>`)}
           ${s.stops.length === 0 ? html`<span class="hint">${tr('scrStopsAll')}</span>` : nothing}
         </div>
-        <div class="sub"><span>${tr('scrLayout')}</span><div class="seg" data-transit-layout>${layouts.map(([k, label, hint]) =>
-          html`<button data-layout=${k} title=${hint} aria-pressed=${String(s.layout === k)} @click=${() => this.emit({ layout: k })}>${label}</button>`)}</div></div>
+        ${this.v2Layout ? nothing : html`<div class="sub"><span>${tr('scrLayout')}</span><div class="seg" data-transit-layout>${layouts.map(([k, label, hint]) =>
+          html`<button data-layout=${k} title=${hint} aria-pressed=${String(s.layout === k)} @click=${() => this.emit({ layout: k })}>${label}</button>`)}</div></div>`}
         <div class="sub"><span>${tr('scrWindow')}</span>
           <select class="inp short" data-transit-window .value=${mode === 'list' ? String(s.window_min) : 'free'} @change=${(e: Event) => {
             const v = (e.target as HTMLSelectElement).value;
@@ -99,7 +101,7 @@ export class NoticeDisplayTransit extends LitElement {
             this.emit({ show_distance: v === 'inherit' ? null : v === 'on' });
           }}>${[['inherit', tr('scrDistInherit')], ['on', tr('scrDistOn')], ['off', tr('scrDistOff')]].map(([k, label]) =>
             html`<option value=${k} ?selected=${(s.show_distance == null ? 'inherit' : s.show_distance ? 'on' : 'off') === k}>${label}</option>`)}</select></div>
-        ${s.layout === 'slide' ? html`<div class="sub"><span>${tr('scrDwell')}</span><input class="inp short num" type="number" data-transit-dwell min=${DWELL_RANGE[0]} max=${DWELL_RANGE[1]} step="1" .value=${live(String(s.dwell_s))}
+        ${(this.v2Layout ?? s.layout) === 'slide' ? html`<div class="sub"><span>${tr('scrDwell')}</span><input class="inp short num" type="number" data-transit-dwell min=${DWELL_RANGE[0]} max=${DWELL_RANGE[1]} step="1" .value=${live(String(s.dwell_s))}
           @change=${(e: Event) => this.emit({ dwell_s: clampInt((e.target as HTMLInputElement).value, DWELL_RANGE[0], DWELL_RANGE[1], s.dwell_s) })}></div>` : nothing}
       ` : nothing}
     </div>`;

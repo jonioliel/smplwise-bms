@@ -13,12 +13,13 @@ import {
   audienceOptions, boardControl, boardLink, createBoard, deleteBoard, getBoard, listBoards, listNotices, noticesSettings, patchBoard, patchNoticesSettings, putBoardItems, putTvDefaults,
   getBoardLink, rotateBoardToken, type Board, type NewsSource, type Notice, type SettingsResponse,
 } from '../api/notices';
-import { effectiveTv, tvDefaultsOf, type Display, type TvDefaults } from '../notice-tv/tv-logic';
+import { effectiveTv, effectiveTv2, tv2DefaultsOf, tvDefaultsOf, type Display, type Tv2Defaults, type TvDefaults } from '../notice-tv/tv-logic';
 import { nt } from '../i18n/notices';
 import { SEV_KEY, SEV_LOOK, agoText, boardDraft, draftOf, newDraft, placePresets, retentionOptions, seenState, slugOk, suggestSlug, windowText, type Draft } from '../notices/model';
 import '../notices/compose-dialog';
 import '../notices/display-saver';
 import '../notices/display-layout';
+import '../notices/display-design';
 import '../notices/display-info';
 import '../notices/display-slides';
 import '../notices/display-transit';
@@ -291,14 +292,20 @@ export class SystemNotices extends LitElement {
   private tvDefaultsCard() {
     return html`<div class="panel" data-tv-defaults-card><div class="hd"><h2>${nt('tvDefaultsCard')}</h2></div><div class="form">
       <p class="hint">${nt('tvDefaultsHint')}</p>
+      <notice-display-design mode="defaults" .defaults=${this.tv2Defaults()} @defaults-change=${(e: CustomEvent<Partial<Tv2Defaults>>) => void this.saveTvDefaults(e.detail)}></notice-display-design>
       <notice-display-layout mode="defaults" .defaults=${this.tvDefaults()} @defaults-change=${(e: CustomEvent<Partial<TvDefaults>>) => void this.saveTvDefaults(e.detail)}></notice-display-layout>
     </div></div>`;
   }
 
-  private async saveTvDefaults(body: Partial<TvDefaults>): Promise<void> {
+  /** BOARDV2-297: the installation defaults of the V2 board options (the same card, the same permission). */
+  private tv2Defaults(): Tv2Defaults {
+    return tv2DefaultsOf(this.s?.settings.tv2_defaults);
+  }
+
+  private async saveTvDefaults(body: Partial<TvDefaults & Tv2Defaults>): Promise<void> {
     try {
       const r = await putTvDefaults(body);
-      if (this.s) this.s = { ...this.s, settings: { ...this.s.settings, tv_defaults: r.tv_defaults } };
+      if (this.s) this.s = { ...this.s, settings: { ...this.s.settings, tv_defaults: r.tv_defaults, ...(r.tv2_defaults ? { tv2_defaults: r.tv2_defaults } : {}) } };
       this.say(nt('saved'));
     } catch (e) {
       this.say(describeError(e));
@@ -604,6 +611,7 @@ export class SystemNotices extends LitElement {
           <div class="chips"><label class="ck"><input type="checkbox" .checked=${d.burn_in.shift} @change=${(e: Event) => this.setD({ burn_in: { shift: (e.target as HTMLInputElement).checked } })}>${nt('burnIn')}</label>
             <label class="ck"><input type="checkbox" .checked=${d.blocks.company_logo} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, company_logo: (e.target as HTMLInputElement).checked } })}>${nt('companyLogo')}</label>
             <label class="ck"><input type="checkbox" checked disabled>${nt('smplwiseLogo')}</label></div>
+          <notice-display-design .display=${d} .defaults=${this.tv2Defaults()} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-design>
           <notice-display-layout .display=${d} .defaults=${this.tvDefaults()} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-layout>
           <notice-display-saver .display=${effectiveTv(d, this.tvDefaults())} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-saver>
         </div></div>
@@ -633,7 +641,7 @@ export class SystemNotices extends LitElement {
             <div class="sub"><span>${nt('hold')}</span><select class="inp" data-hold data-v=${d.hold} @change=${(e: Event) => this.setD({ hold: (e.target as HTMLSelectElement).value })}>
               <option value="">${nt('holdNone')}</option>${active.map((n) => html`<option value=${n.id}>${n.title}</option>`)}</select><span class="hint">${nt('holdHint')}</span></div>
             <p class="hint">${nt('dwellNote')}</p></div>
-          <notice-display-transit .display=${d} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-transit>
+          <notice-display-transit .display=${d} .v2Layout=${((e2) => (e2.design === 'v2' ? e2.board_layout : null))(effectiveTv2(d, this.tv2Defaults()))} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-transit>
           <notice-display-slides .display=${d} .boardId=${this.detail!.board.id} .boards=${this.boards} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)} @slides-changed=${() => this.pushPreview()}></notice-display-slides>
         </div></div>
     </div>`;

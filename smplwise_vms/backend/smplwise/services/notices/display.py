@@ -157,7 +157,8 @@ def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime
                display: dict[str, Any] | None = None, news: sources.NewsCache | None = None, logo_base: str = "", public: bool = True) -> dict[str, Any]:
     disp = display if display is not None else model.load_display(board["display_json"])
     # TVOPT-295: the four TV options the board did not choose itself follow the installation defaults
-    disp = model.effective_display(disp, store.settings(conn)["tv_defaults"])
+    st = store.settings(conn)
+    disp = model.effective_display(disp, {**st["tv_defaults"], **st.get("tv2_defaults", {})})  # BOARDV2-297: and the V2 board options
     items = active_items(conn, board["id"], now)
     ids = {n["id"] for n in items}
     if disp.get("hold") and disp["hold"] not in ids:

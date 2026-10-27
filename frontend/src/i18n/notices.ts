@@ -396,6 +396,28 @@ const he = {
   tvDefaultNow: 'לפי ברירת המחדל: {v}',
   tvDefaultsCard: 'ברירות מחדל למסכי הטלוויזיה',
   tvDefaultsHint: 'לכל לוח שלא נבחר בו ערך משלו, וללוחות חדשים.',
+  // BOARDV2-297: the V2 board options
+  designLabel: 'עיצוב המסך',
+  design_classic: 'הקודם',
+  design_v2: 'חדש (V2)',
+  boardLayoutLabel: 'פריסה',
+  boardLayoutDefaultLabel: 'פריסת ברירת מחדל',
+  boardLayout_side: 'עמודת צד',
+  boardLayout_strip: 'שורה למטה',
+  boardLayout_slide: 'שקופית',
+  coSizeLabel: 'גודל לוגו החברה',
+  coSize_auto: 'לפי הגדרות הלוגו',
+  coSize_s: 'קטן',
+  coSize_m: 'בינוני',
+  coSize_l: 'גדול',
+  coSize_xl: 'גדול מאוד',
+  portraitOrderLabel: 'סדר במסך אנכי',
+  portraitOrder_bus: 'אוטובוסים ואז הודעות',
+  portraitOrder_notices: 'הודעות ואז אוטובוסים',
+  nextRowLabel: 'שורת "הבאים"',
+  nextRow_show: 'מוצגת',
+  nextRow_hide: 'מוסתרת',
+  v2Only: 'בעיצוב החדש בלבד',
 };
 
 type Key = keyof typeof he;
@@ -443,6 +465,11 @@ const en: Partial<Record<Key, string>> = {
   weatherDaysLabel: 'Weather forecast', weatherDays_0: 'As before', weatherDays_1: 'Today only', weatherDays_n: '{n} days',
   tvUseDefault: 'Default', tvDefaultNow: 'Following the default: {v}', tvDefaultsCard: 'TV screen defaults',
   tvDefaultsHint: 'For every board that has no value of its own, and for new boards.',
+  designLabel: 'Screen design', design_classic: 'Previous', design_v2: 'New (V2)', boardLayoutLabel: 'Layout', boardLayoutDefaultLabel: 'Default layout',
+  boardLayout_side: 'Side column', boardLayout_strip: 'Bottom row', boardLayout_slide: 'Slide', coSizeLabel: 'Company logo size', coSize_auto: 'As the logo settings say',
+  coSize_s: 'Small', coSize_m: 'Medium', coSize_l: 'Large', coSize_xl: 'Extra large', portraitOrderLabel: 'Order on a portrait screen',
+  portraitOrder_bus: 'Buses, then notices', portraitOrder_notices: 'Notices, then buses', nextRowLabel: '"Next" row', nextRow_show: 'Shown', nextRow_hide: 'Hidden',
+  v2Only: 'With the new design only',
 };
 
 export type NtKey = Key;
