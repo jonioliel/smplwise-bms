@@ -807,9 +807,11 @@ export class LiveWall extends LitElement {
   private renderDemo() {
     const count = effectiveCount(this.count, demoWall.length);
     const cams = demoWall.slice(0, count);
-    const cols = count === 1 ? 1 : count === 2 ? 2 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
+    // NOSCROLL-297: the demo wall is sized like the real one (bestFit: the tiles as big as fit the window, no page scroll on a desktop)
+    const fit = window.innerWidth >= 768 ? this.bestFit(cams.map(() => 1)) : null;
+    const cols = fit ? fit.cols : count === 1 ? 1 : count === 2 ? 2 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
     return html`
-      <div class="grid" style="--cols:${cols}">
+      <div class="grid ${fit ? 'fit' : ''}" style="--cols:${cols};--tile:${fit ? `${fit.tile}px` : 'auto'}">
         ${cams.map((c) => html`<sw-camera-tile name=${c.name} meta=${`${c.floor} · ${this.stream === 'auto' ? (count > 4 ? 'משני' : 'ראשי') : this.stream === 'main' ? 'ראשי' : 'משני'}`} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} ?compact=${count >= 9} @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`)}
       </div>
       <div class="note">נתוני הדגמה: קיר של ${count} אריחים אינו פותח ${count} זרמים ראשיים במקביל; במצב אוטומטי מוצג הזרם המשני במטריצה והראשי במיקוד.</div>

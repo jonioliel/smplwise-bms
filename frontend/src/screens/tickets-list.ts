@@ -94,6 +94,10 @@ export class TicketsList extends LitElement {
   private seq = 0;
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
+  /** NOSCROLL-297: on a desktop the view switch sits on the title row (one control row less above the cards) */
+  private wideMq = window.matchMedia('(min-width: 1024px)');
+  @state() private wide = this.wideMq.matches;
+  private onWide = () => (this.wide = this.wideMq.matches);
   private qTimer = 0;
   private toastTimer = 0;
   private extraPages = 0;
@@ -121,6 +125,34 @@ export class TicketsList extends LitElement {
       display: flex;
       justify-content: center;
       padding-block: 4px;
+    }
+    /* NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): below the header (title, departments, scope, state,
+       search, view) the numbers and the cards scroll in their own region - the page itself never scrolls and the controls stay in
+       place. On a tablet and a phone the region is transparent (display: contents) and the page scrolls as before. */
+    .scr {
+      display: contents;
+    }
+    @media (min-width: 1024px) {
+      :host {
+        overflow: hidden;
+      }
+      .page {
+        block-size: 100%;
+        min-block-size: 0;
+        box-sizing: border-box;
+        padding-block-end: 0;
+      }
+      .scr {
+        display: flex;
+        flex-direction: column;
+        gap: inherit;
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        margin-inline: -36px;
+        padding: 2px 36px 28px;
+      }
     }
     .flt {
       position: fixed;
@@ -193,6 +225,7 @@ export class TicketsList extends LitElement {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
+    this.wideMq.addEventListener('change', this.onWide);
     this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offNames = onTicketNames(() => this.requestUpdate());
     this.clock = window.setInterval(() => (this.now = new Date()), 60_000);
@@ -203,6 +236,7 @@ export class TicketsList extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
+    this.wideMq.removeEventListener('change', this.onWide);
     this.removeEventListener('scroll', this.onScroll);
     this.offNames?.();
     window.clearInterval(this.clock);
@@ -213,7 +247,8 @@ export class TicketsList extends LitElement {
 
   /** TKUI4: the large title compacts while the page scrolls (the schedules page's rule: a layer over the title row, never a change of height) */
   private onScroll = () => {
-    const compact = this.scrollTop > 40;
+    // NOSCROLL-297: on a desktop the list scrolls inside its own region (.scr), on a phone / tablet the page itself
+    const compact = Math.max(this.scrollTop, this.renderRoot.querySelector<HTMLElement>('.scr')?.scrollTop ?? 0) > 40;
     if (compact !== this.compactHeader) this.compactHeader = compact;
   };
 
@@ -451,6 +486,7 @@ export class TicketsList extends LitElement {
           <button type="button" class="rc" aria-pressed=${String(!f.department)} data-dept="" @click=${() => this.setFilters({ department: '' })}>${tt('allDepartments')}${Object.keys(c.departments).length ? withDept(total) : nothing}</button>
           ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(f.department === d.id)} data-dept=${d.id} @click=${() => this.setFilters({ department: d.id })}>${bidi(d.name)}${Object.keys(c.departments).length ? withDept(c.departments[d.id] ?? 0) : nothing}</button>`)}
         </div>` : pending ? html`<div class="rooms" aria-hidden="true" data-rooms-pending style="visibility:hidden"><span class="rc">${tt('allDepartments')}</span></div>` : html`<span class="grow"></span>`}
+        ${tools && this.wide ? listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode) : nothing}
       </div>
       ${tools ? html`<div class="dh-det">
         <div class="seg sm scope" role="radiogroup" aria-label=${lt('lsScopeGroup')} data-scope-seg>
@@ -466,7 +502,7 @@ export class TicketsList extends LitElement {
         ${cards ? filterButton(this.filterOpen, active, () => (this.filterOpen = !this.filterOpen)) : nothing}
         ${pending ? html`<span class="btn primary newbtn" aria-hidden="true" style="visibility:hidden">${tIcon('plus')}${tt('newShort')}</span>` : nothing}
         ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
-        ${listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
+        ${this.wide ? nothing : listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
       </div>
       ${cards && this.filterOpen && this.screen === 'ready' ? filterRow((this.items ?? []) as CardItem[], this.filters, (next) => (this.filters = next)) : nothing}` : nothing}
     </header>`;
@@ -528,8 +564,10 @@ export class TicketsList extends LitElement {
     const drawerOpen = !!this.r.ticketId && this.screen === 'ready';
     return html`<div class="page" data-screen="tickets-list" data-scope=${this.r.scope}>
       ${this.header()}
-      ${this.r.scope === 'mine' && this.screen === 'ready' ? html`<tickets-my-numbers .module=${this.module} .manager=${!!this.meta?.can.manage} .source=${this.items}></tickets-my-numbers>` : nothing}
-      ${this.body()}
+      <div class="scr" data-tickets-scroll @scroll=${this.onScroll}>
+        ${this.r.scope === 'mine' && this.screen === 'ready' ? html`<tickets-my-numbers .module=${this.module} .manager=${!!this.meta?.can.manage} .source=${this.items}></tickets-my-numbers>` : nothing}
+        ${this.body()}
+      </div>
     </div>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${this.r.scope} .focusTimeline=${this.route?.params.get('view') === 'timeline'} .initialTab=${this.route?.params.get('tab') ?? ''}
       .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''} .cameraViewfinder=${ui?.camera_viewfinder === true} .assignContact=${parseAssignParam(this.route?.params.get('assign'))}

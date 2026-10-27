@@ -87,6 +87,10 @@ export class TicketsBoard extends LitElement {
   private seq = 0;
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
+  /** NOSCROLL-297: on a desktop the departments and the view switch sit on the title row (one or two control rows less above the cards) */
+  private wideMq = window.matchMedia('(min-width: 1024px)');
+  @state() private wide = this.wideMq.matches;
+  private onWide = () => (this.wide = this.wideMq.matches);
   private qTimer = 0;
   private live = new LiveRefresh(() => { this.now = new Date(); if (this.screen === 'ready') void this.load(true); }); // 2.5.4: shared poller
   private toastTimer = 0;
@@ -193,6 +197,37 @@ export class TicketsBoard extends LitElement {
     .fpanel {
       max-inline-size: 360px;
     }
+    /* NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): below the header the board (the today row, the tree,
+       the groups of cards) scrolls in its own region - the page itself never scrolls and the controls stay in place; the tree stays
+       beside the cards (sticky inside the region). On a tablet and a phone the region is transparent and the page scrolls as before. */
+    .scr {
+      display: contents;
+    }
+    @media (min-width: 1024px) {
+      :host {
+        overflow: hidden;
+      }
+      .page {
+        block-size: 100%;
+        min-block-size: 0;
+        box-sizing: border-box;
+        padding-block-end: 0;
+      }
+      .scr {
+        display: flex;
+        flex-direction: column;
+        gap: inherit;
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        margin-inline: -36px;
+        padding: 2px 36px 28px;
+      }
+      .dh-row > .depts {
+        flex: none;
+      }
+    }
     @media (max-width: 767px) {
       .dh-row {
         grid-template-areas: 't .' 'r r';
@@ -263,6 +298,7 @@ export class TicketsBoard extends LitElement {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
+    this.wideMq.addEventListener('change', this.onWide);
     this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offNames = onTicketNames(() => this.requestUpdate());
     this.live.start();
@@ -272,6 +308,7 @@ export class TicketsBoard extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
+    this.wideMq.removeEventListener('change', this.onWide);
     this.removeEventListener('scroll', this.onScroll);
     this.offNames?.();
     this.live.stop();
@@ -280,7 +317,8 @@ export class TicketsBoard extends LitElement {
   }
 
   private onScroll = () => {
-    const compact = this.scrollTop > 40;
+    // NOSCROLL-297: on a desktop the board scrolls inside its own region (.scr), on a phone / tablet the page itself
+    const compact = Math.max(this.scrollTop, this.renderRoot.querySelector<HTMLElement>('.scr')?.scrollTop ?? 0) > 40;
     if (compact !== this.compactHeader) this.compactHeader = compact;
   };
 
@@ -457,6 +495,12 @@ export class TicketsBoard extends LitElement {
     const canCreate = !!this.meta?.can.create;
     const chips = d && layout.chips ? floorChips(d.tree) : [];
     const handlersPane = this.r.pane === 'handlers';
+    const deptSeg = depts.length > 1 ? html`<div class="seg sm depts" role="radiogroup" aria-label=${tt('departmentsGroup')} data-dept-chips>
+          <button type="button" role="radio" aria-checked=${String(!this.r.dept)} data-dept="" @click=${() => this.go({ dept: '' })}>${tt('allDepartments')}<small>${depts.reduce((s, x) => s + x.count, 0)}</small></button>
+          ${depts.map((x) => html`<button type="button" role="radio" aria-checked=${String(this.r.dept === x.id)} data-dept=${x.id} @click=${() => this.go({ dept: x.id })}>${bidi(x.name)}<small>${x.count}</small></button>`)}
+        </div>` : nothing;
+    // NOSCROLL-297: on a desktop the departments and the view switch join the title row, so the cards start one or two rows higher
+    const onTitleRow = this.wide && tools && !handlersPane;
     return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-board-header>
       <div class="dh-row">
         <h1 data-tickets-title>${tt('area')}</h1>
@@ -464,17 +508,16 @@ export class TicketsBoard extends LitElement {
           <button type="button" role="radio" aria-checked=${String(!handlersPane)} data-pane="cards" @click=${() => this.go({ pane: 'cards' })}>${tt('area')}</button>
           <button type="button" role="radio" aria-checked=${String(handlersPane)} data-pane="handlers" @click=${() => this.go({ pane: 'handlers' })}>${tt('hdTitle')}</button>
         </div>` : nothing}
+        ${onTitleRow ? deptSeg : nothing}
         ${chips.length ? html`<div class="rooms" role="group" aria-label=${bt('floors')} data-floor-chips>
           <button type="button" class="rc" aria-pressed=${String(!this.r.place)} data-place="" @click=${() => this.go({ place: '' })}>${bt('allFloors')}</button>
           ${chips.map((n) => html`<button type="button" class="rc" aria-pressed=${String(this.r.place === n.key)} data-place=${n.key} @click=${() => this.go({ place: n.key })}>${bidi(placeLabel(n))}<small>${n.count}</small></button>`)}
         </div>` : html`<span class="grow"></span>`}
         ${layout.toggle && tools ? html`<button type="button" class="btn sm" aria-pressed=${String(!this.treeHidden)} data-tree-toggle @click=${() => void this.setTreeHidden(!this.treeHidden)}>${tIcon('tree')}${this.treeHidden ? bt('treeShow') : bt('treeHide')}</button>` : nothing}
+        ${onTitleRow ? listViewSwitch('board', true, this.pickMode) : nothing}
       </div>
       ${tools && !handlersPane ? html`<div class="dh-det">
-        ${depts.length > 1 ? html`<div class="seg sm depts" role="radiogroup" aria-label=${tt('departmentsGroup')} data-dept-chips>
-          <button type="button" role="radio" aria-checked=${String(!this.r.dept)} data-dept="" @click=${() => this.go({ dept: '' })}>${tt('allDepartments')}<small>${depts.reduce((s, x) => s + x.count, 0)}</small></button>
-          ${depts.map((x) => html`<button type="button" role="radio" aria-checked=${String(this.r.dept === x.id)} data-dept=${x.id} @click=${() => this.go({ dept: x.id })}>${bidi(x.name)}<small>${x.count}</small></button>`)}
-        </div>` : nothing}
+        ${onTitleRow ? nothing : deptSeg}
         ${d ? html`<div class="seg sm stf" role="radiogroup" aria-label=${bt('stateStrip')} data-state-strip>
           ${stripItems(ui.closed_strip, d.counts).map((s) => html`<button type="button" role="radio" aria-checked=${String(this.r.state === s.id)} data-state=${s.id} title=${this.stripTip(s.id)} @click=${() => this.go({ state: s.id })}>${s.label}<small>${s.count}</small></button>`)}
         </div>` : nothing}
@@ -484,7 +527,7 @@ export class TicketsBoard extends LitElement {
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('search')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
         ${filterButton(this.filterRowOpen, activeCardFilters(this.filters), () => (this.filterRowOpen = !this.filterRowOpen))}
         ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(boardHref(this.r, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
-        ${listViewSwitch('board', true, this.pickMode)}
+        ${onTitleRow ? nothing : listViewSwitch('board', true, this.pickMode)}
       </div>
       ${this.filterRowOpen && d ? filterRow([...d.items, ...d.closed], this.filters, (next) => (this.filters = next)) : nothing}` : nothing}
     </header>`;
@@ -613,7 +656,7 @@ export class TicketsBoard extends LitElement {
     const drawerOpen = !!this.r.ticketId && this.screen === 'ready';
     return html`<div class="page" data-screen="tickets-board">
       ${this.header()}
-      ${this.body()}
+      <div class="scr" data-board-scroll @scroll=${this.onScroll}>${this.body()}</div>
     </div>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${'department'} .focusTimeline=${this.route?.params.get('view') === 'timeline'} .initialTab=${this.route?.params.get('tab') ?? ''}
       .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''} .cameraViewfinder=${ui?.camera_viewfinder === true} .assignContact=${parseAssignParam(this.route?.params.get('assign'))}

@@ -226,7 +226,7 @@ export class LiveOverview extends LitElement {
           </sw-card>
         </div>
         <div class="row3">
-          <sw-card heading="אירועים אחרונים" subheading=${this.summary ? `${this.summary.today.total} היום · ${this.summary.today.measured} נמדדו · ${this.summary.today.inferred} נגזרו מהקלטה` : ''}>
+          <sw-card fill heading="אירועים אחרונים" subheading=${this.summary ? `${this.summary.today.total} היום · ${this.summary.today.measured} נמדדו · ${this.summary.today.inferred} נגזרו מהקלטה` : ''}>
             <a slot="actions" class="seeall" href="#/investigate/events">הצג הכל</a>
             ${this.recent.length
               ? this.recent.map(
@@ -240,7 +240,7 @@ export class LiveOverview extends LitElement {
                 )
               : html`<div class="muted">${this.loaded ? 'אין אירועים ב־24 השעות האחרונות' : 'טוען…'}</div>`}
           </sw-card>
-          <sw-card heading="דורש תשומת לב" subheading="כל פריט מסביר מדוע הוא מוצג">
+          <sw-card fill heading="דורש תשומת לב" subheading="כל פריט מסביר מדוע הוא מוצג">
             ${spots.length
               ? spots.map(
                   (s) => html`<div class="spot ${s.kind}" data-overview-spot>
@@ -481,6 +481,22 @@ export class LiveOverview extends LitElement {
         grid-template-columns: 1fr;
       }
     }
+    /* NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): the page takes the screen's height and the last
+       row - the recent events and the attention list, the two naturally long lists - takes what is left; each list scrolls inside
+       its own card (sw-card fill). Below 200 px of room the row keeps that height and the page scrolls as before (a very short window). */
+    @media (min-width: 1024px) {
+      sw-page {
+        block-size: 100%;
+      }
+      .row3 {
+        flex: 0 1 auto;
+        min-block-size: 200px;
+        grid-template-rows: minmax(0, 1fr);
+      }
+      .row3 > sw-card {
+        max-block-size: 100%;
+      }
+    }
     @media (max-width: 767px) {
       .kpis {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -560,7 +576,7 @@ export class LiveOverview extends LitElement {
           </sw-card>
         </div>
         <div class="row3">
-          <sw-card heading="אירועים אחרונים">
+          <sw-card fill heading="אירועים אחרונים">
             <a slot="actions" class="seeall" href="#/investigate/events">הצג הכל</a>
             ${demoEvents.slice(0, 5).map(
               (e) => html`<div class="ev" role="link" tabindex="0" @click=${() => navigate('/investigate/events')} @keydown=${(k: KeyboardEvent) => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); navigate('/investigate/events'); } }}>
@@ -572,7 +588,7 @@ export class LiveOverview extends LitElement {
               </div>`,
             )}
           </sw-card>
-          <sw-card heading="דורש תשומת לב" subheading="כל פריט מסביר מדוע הוא מוצג">
+          <sw-card fill heading="דורש תשומת לב" subheading="כל פריט מסביר מדוע הוא מוצג">
             ${spotlights.map(
               (s) => html`<div class="spot ${s.kind}">
                 <div class="ic"><sw-icon name=${s.kind === 'critical' ? 'offline' : 'warning'} size=${15}></sw-icon></div>
