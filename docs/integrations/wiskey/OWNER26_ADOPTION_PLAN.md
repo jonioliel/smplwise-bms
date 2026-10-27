@@ -31,7 +31,7 @@ files hash to the pinned SHA-256 values. So the patches apply as published; no s
    - template (W-013): already wired (TPLV2-295 route -> `wa_template_send.send_v2` -> `TRANSPORT_V2_PROVIDER` ->
      `DirectJoin.template_v2_or_none`). No code change; `TEMPLATE_SEND_SUPPORTED` stays False.
    - card (W-005): `SelectingLeaseTransport` direct branch gets the `MappedLeaseTransport` DTO9 pre-flight in front of
-     `DirectLeaseTransport`. `MAPPING_ENABLED` and `capture_lease.GO_LIVE_PERMITTED` stay False.
+     `DirectLeaseTransport` whenever the mapping is enabled. `MAPPING_ENABLED` and `capture_lease.GO_LIVE_PERMITTED` stay False.
 3. Run the relevant backend suites and a real `npm run build:addon` on the runner; publish the combined SHA and artifact digest.
 4. Write `OWNER26_ADOPTION_RECEIPT.md`: 34 rows x six states, leftovers, questions.
 
