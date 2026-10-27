@@ -1,5 +1,37 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.24.0 (pilot) — Notice board V2 design, two new skins (Arx Infra, Arx Soft), control screens without page scroll, calm bus-provider outages, contrast and widget fixes
+**After installing:** no database migration (the chain still ends at 0179). Nothing changes by itself: the notice board keeps its current design until V2 is chosen, the default skin stays classic, and the door-window program and emergency-button engines stay off.
+- **עברית:** אחרי ההתקנה: אין מיגרציה (השרשרת נשארת 0179). שום דבר לא משתנה מעצמו: לוח ההודעות נשאר בעיצוב הנוכחי עד שבוחרים V2, סקין ברירת המחדל נשאר classic, ומנועי תוכניות חלונות הדלת ולחצן החירום נשארים כבויים.
+
+### What was added - מה נוסף
+- **English:** Notice board V2 design (the approved mock-up): a 96 px header with the tenant logo and the SmplWise logo, the weather always under the date, a fixed bus area per layout (side panel, strip row or full-stage slide), Heebo and the gold accent. **How to enable:** in a board's display settings, "Screen design" > "New (V2)"; per-board choices are the layout, the company logo size, the order on a portrait screen and the "Next" row, and the same choices can be saved as installation defaults for new boards (permission: notice boards).
+- **עברית:** עיצוב V2 ללוח ההודעות (לפי ההדמיה שאושרה): כותרת בגובה 96 פיקסלים עם לוגו הדייר ולוגו SmplWise, מזג האוויר תמיד מתחת לתאריך, אזור אוטובוסים קבוע לכל פריסה (פאנל צד, שורה או שקופית מלאה), גופן Heebo והדגשה בזהב. **הפעלה:** בהגדרות התצוגה של לוח › "עיצוב המסך" › "חדש (V2)"; לכל לוח אפשר לבחור פריסה, גודל לוגו החברה, סדר במסך אנכי ושורת "הבאים", ואפשר לשמור את אותן בחירות כברירת מחדל של ההתקנה ללוחות חדשים (הרשאה: לוחות הודעות).
+- **English:** Two new skins, "Arx Infra" and "Arx Soft", at their foundation stage (the new design system). **How to enable:** Settings > General > System look > choose "Arx Infra" or "Arx Soft". The default stays classic.
+- **עברית:** שני סקינים חדשים, "Arx Infra" ו-"Arx Soft", בשלב הבסיס (מערכת העיצוב החדשה). **הפעלה:** הגדרות › כללי › מראה המערכת › לבחור "Arx Infra" או "Arx Soft". ברירת המחדל נשארת classic.
+- **English:** Public transport: "Warn about a long data-source outage" (default 6 hours) on Settings > Public transport. Until it passes, a provider outage is shown calmly ("updated N min ago" and one short line on the board, the last scheduled rows kept up to 24 hours) instead of a system warning.
+- **עברית:** תחבורה ציבורית: "התראה על תקלה ממושכת במקור הנתונים" (ברירת מחדל 6 שעות) בהגדרות › תחבורה ציבורית. עד שהסף עובר, תקלה אצל ספק הנתונים מוצגת ברוגע ("עודכן לפני N דקות" ושורה קצרה אחת בלוח, שורות לוח הזמנים האחרונות נשמרות עד 24 שעות) ולא כהתראת מערכת.
+
+### What was changed - מה שונה
+- **English:** Live overview, the camera wall, electricity meters and the service-management lists and board fit the desktop window: the page no longer scrolls on a desktop, each list scrolls inside its own card. Phone and tablet keep the page scroll.
+- **עברית:** תמונת המצב החיה, קיר המצלמות, מוני החשמל ורשימות ולוח ניהול השירות נכנסים בחלון המחשב: הדף לא נגלל יותר במחשב, וכל רשימה נגללת בתוך הכרטיס שלה. בטלפון ובטאבלט הדף נגלל כמו קודם.
+- **English:** Doors: the live engine switch is split into two independent build switches, the door-window program engine and the emergency-button engine, both off in this build; the door-window settings show their own notice while the program engine is off. Behaviour after the upgrade is unchanged.
+- **עברית:** דלתות: מתג המנוע החי פוצל לשני מתגי בנייה נפרדים, מנוע תוכניות חלונות הדלת ומנוע לחצן החירום, שניהם כבויים בגרסה זו; הגדרות חלונות הדלת מציגות הודעה משלהן כל עוד מנוע התוכניות כבוי. ההתנהגות אחרי העדכון לא משתנה.
+- **English:** The bubble skin's leftover screens (the Look dials card in Settings > General and the bubble demo page) are hidden while the skin is frozen.
+- **עברית:** המסכים שנשארו מסקין bubble (כרטיס החוגות של המראה בהגדרות › כללי ודף ההדגמה של bubble) מוסתרים כל עוד הסקין מוקפא.
+
+### What was fixed - מה תוקן
+- **English:** Contrast: the selected severity label in Settings > Notifications (dark), the temperature status badge and the urgent chip in service management now meet AA contrast in every skin, light and dark.
+- **עברית:** ניגודיות: התווית הנבחרת של רמת החומרה בהגדרות › התראות (כהה), תג המצב של הטמפרטורה ותגית הדחוף בניהול השירות עומדים עכשיו בניגודיות AA בכל סקין, בהיר וכהה.
+- **English:** Elevators home widget: narrow cards stack cleanly, keep a one-line summary and a calm out-of-service chip; small cards keep the same minimum width as the others.
+- **עברית:** וידג'ט המעליות במסך הבית: כרטיסים צרים נערמים בצורה נקייה, שומרים על שורת סיכום אחת ועל תגית "לא בשירות" רגועה; כרטיסים קטנים שומרים על אותו רוחב מינימלי כמו האחרים.
+- **English:** Home widgets and the area screen with very long names: sensor text, a narrow forecast and the edit chrome stay inside their cards; security chips end long names with an ellipsis; a media title wraps inside its row.
+- **עברית:** וידג'טים במסך הבית ומסך האזור עם שמות ארוכים מאוד: טקסט חיישן, תחזית צרה וכלי העריכה נשארים בתוך הכרטיס; תגיות האבטחה מקצרות שמות ארוכים עם שלוש נקודות; כותרת מדיה נשברת לשורה בתוך השורה שלה.
+
+### Tests and release gate - בדיקות ושער השחרור
+- **English:** Gate cleanup: the zero-pixel duplicate design-foundation tests were removed, stale visual baselines re-taken, pixel baselines kept for classic and domus only (other skins get a structural smoke check), the September owner-round specs archived, and timing tests moved to a non-blocking lane.
+- **עברית:** ניקוי שער הבדיקות: הוסרו בדיקות כפולות של בסיס העיצוב ברמת פיקסל, צולמו מחדש תמונות ייחוס ישנות, תמונות ייחוס פיקסל נשמרו רק ל-classic ול-domus (שאר הסקינים מקבלים בדיקת מבנה), בדיקות סבבי הבעלים מספטמבר הועברו לארכיון, ובדיקות תזמון עברו למסלול שאינו חוסם.
+
 ## 2.23.2 (pilot) — The "bubble" skin is frozen (anyone on it sees domus), show every floor on the phone home screen (setting)
 **After installing:** no database migration (the chain still ends at 0179). The "bubble" skin is no longer offered; an installation that had it selected reads as the "domus" skin (the stored value is kept). One new setting, off by default: Settings > Electricity and devices > Home screen > floors on a phone.
 - **עברית:** אחרי ההתקנה: אין מיגרציה (השרשרת נשארת 0179). סקין "bubble" כבר לא מוצע; התקנה שהייתה עליו נראית בסקין "domus" (הערך השמור נשמר). הגדרה חדשה אחת, כבויה כברירת מחדל: הגדרות › חשמל והתקנים › מסך הבית › קומות בטלפון.
