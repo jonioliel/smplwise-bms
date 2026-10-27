@@ -70,6 +70,7 @@ async function widthAndMeasure(page: Page, px: number): Promise<string[]> {
       }
       for (const s of Array.from(root.querySelectorAll('[data-home-elevators-summary], .el-big small')) as HTMLElement[]) {
         const lh = parseFloat(getComputedStyle(s).lineHeight) || parseFloat(getComputedStyle(s).fontSize) * 1.4;
+        if (s.getBoundingClientRect().height < lh * 0.8) bad.push('summary has no height (collapsed)');
         if (s.getBoundingClientRect().height > lh * 1.6) bad.push(`summary wraps (${Math.round(s.getBoundingClientRect().height)}px)`);
         if (s.scrollWidth > s.clientWidth + 1 && !(s.getAttribute('title') || '').length) bad.push('summary truncated without a title');
       }
@@ -121,9 +122,11 @@ test('screenshots for review', async ({ page }) => {
       for (const size of ['s', 'm']) {
         await install(page, DATA[name], 'both', size);
         await page.goto('about:blank');
-        await page.goto('/?design=a&skin=classic#/devices/building');
+        await page.goto(`/?design=a&skin=classic${scheme === 'dark' ? '&theme=night' : ''}#/devices/building`);
         await expect(page.locator(SECTIONS).first()).toBeAttached();
-        for (const w of [240, 280, 320, 360, 420, 0]) {
+        const themeAttr = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
+        if (scheme === 'dark') expect(themeAttr).toBe('dark');
+        for (const w of [240,280, 320, 360, 420, 0]) {
           if (w) await widthAndMeasure(page, w);
           else await page.locator(SECTIONS).evaluateAll((els) => els.forEach((e) => { const s = (e as HTMLElement).style; s.width = ''; s.maxWidth = ''; s.flex = ''; }));
           await page.waitForTimeout(80);

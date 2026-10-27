@@ -50,6 +50,7 @@ export const ELEVATOR_WIDGET_STYLES = [elevatorCss, css`
   @container el (max-width: 359px) {
     .wg-elev .el-h { flex-direction: column; align-items: stretch; gap: 2px; }
     .wg-elev .el-h b { max-inline-size: 100%; }
+    .wg-elev .el-h [data-home-elevators-summary] { flex: none; }
     .wg-elev .lst { gap: 8px; }
     .el-row { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; row-gap: 3px; align-items: center; }
     .el-row > .eicon { grid-row: 1 / span 2; }
