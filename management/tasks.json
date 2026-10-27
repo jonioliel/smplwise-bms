@@ -12002,5 +12002,47 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "GATEAUDIT-297",
+    "title": "Gate audit and cleanup: classify the repeatedly failing / flaky / obsolete tests of the last 35 gate and nightly runs, remove duplicates, fix the bubble-freeze leftovers, re-take stale visual baselines, refresh the gate baselines",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "docs/testing/GATE_AUDIT_2026-10-27.md classifies every repeatedly red test (REMOVE / FIX / KEEP) with at least two data points and justifies every removal for the owner's review; no removal touches security, permissions / RBAC, data integrity, migrations, contracts / API inventory, release_check or a MASTER_SPEC requirement; the frozen bubble skin is excluded through tests/helpers/frozen-skins.ts only; the M074 visual step reports 0 differences on the branch; scripts/gate/gate_baselines.json matches the current full tier-L counts within a few percent; every changed spec, and the bubble-related specs the 2.23.2 gate did not run, pass on the test machine."
+    ],
+    "requirement_ids": [
+      "R-GATEAUDIT-1"
+    ],
+    "test_ids": [
+      "AT-GATEAUDIT-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Any proposed removal of a security / RBAC / integrity / migration / contract / release_check test goes to the owner instead."
+    },
+    "deliverables": [
+      "docs/testing/GATE_AUDIT_2026-10-27.md",
+      "frontend/tests/evidence-design-foundation.spec.ts (four zero-pixel duplicates removed) and its deleted snapshot folder",
+      "frontend/tests/visual-matrix.spec.ts-snapshots (38 Linux baselines re-taken)",
+      "frontend/tests/helpers/frozen-skins.ts drawnSkin + 7 specs",
+      "scripts/gate/gate_baselines.json, scripts/gate/release_gate.py (budget message)"
+    ],
+    "evidence": [
+      "2026-10-27 test machine, pilot/GATEAUDIT-297 (not a gate; load average 20-52 from other jobs): tsc ok @27834e8ba; visual matrix accept of 7 screens (38 files) then run --all 72 pass / 0 differ, repeats 48/0 x2; changed specs @a06719d44 on the dev server 160 passed / 69 skipped / 11 failed (goto timeouts at load ~50), those two specs again on the dist preview 89 passed / 13 skipped / 0 failed; the 14 bubble-related specs the 2.23.2 gate dropped 381 passed / 103 skipped / 2 failed (fleet-report goto timeout at dev-server cold start), fleet-report on the preview 20 passed / 10 skipped / 0 failed; selftest_gate.py SELFTEST PASSED (41 OK). Report: docs/testing/GATE_AUDIT_2026-10-27.md."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]
