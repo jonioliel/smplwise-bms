@@ -10451,5 +10451,33 @@
     "expected": "Every listed test passes; no build flag changes.",
     "status": "NOT_RUN",
     "notes": "2026-10-27 workstation, pilot/PREP2241-297 @ e59b11f12 (release/2241 + 2.24.1 prep + merge of 1ea245eb9): tests/test_splitswitch2_297.py, test_splitswitch_297.py, test_door_emergency.py, test_doorwin_api.py 68 passed, 0 failed; test_migrations.py + test_migrations_263_upgrade.py 6 passed; frontend tsc --noEmit clean. Fakes only, not a gate. NOT_RUN (runner): playwright evidence-doorwin-295.spec.ts, tests/test_door_emergency_roles_emrole_295.py, tests/test_capmap_295.py."
+  },
+  {
+    "id": "AT-XSECFOLLOW-1",
+    "requirement_ids": [
+      "R-XSECFOLLOW-1"
+    ],
+    "task_ids": [
+      "XSECFOLLOW-297"
+    ],
+    "title": "Review follow-ups: presence block on WebSockets, phone credentials end on password change / reset and forced second factor, ?do=run, Android link tests",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Backend on fakes; frontend Node unit config; Android JVM unit test needs the Android SDK on the machine"
+    ],
+    "procedure": [
+      "backend tests: tests/test_xsecfollow_297.py",
+      "regression: tests/test_xsecfix_297.py, tests/test_presence.py, tests/test_local_identity.py, tests/test_local_reset.py, tests/test_second_factor*.py and every suite that opens a WebSocket",
+      "frontend: npx playwright test -c playwright.unit.config.ts tests/unit-xsecfollow-297.spec.ts; npx tsc --noEmit",
+      "Android: ./gradlew :app:testDebugUnitTest (XsecFollow297Test, DeepLinksTest) in mobile/android-shell"
+    ],
+    "expected": "Every listed test passes; a blocked user's socket closes 4403 after a presence_required frame on every socket route; a password change / reset or a required factor override ends the device token and push registration of the user only; ?do=run opens only the confirmation.",
+    "status": "PASS",
+    "notes": "2026-10-27 (XSECFOLLOW-297): workstation run, see the task evidence - backend 24 + 1114 regression passed, frontend unit 34 passed + tsc clean, Android JVM 68 passed. Full backend gate and browser evidence specs NOT_RUN.",
+    "commit": "13038637b",
+    "environment": "Workstation Windows 11, Python 3.12 (-X utf8, fakes only), Node 24 + Playwright unit config, JDK 17 Temurin + Android SDK (Gradle JVM unit tests)",
+    "evidence": "tests/test_xsecfollow_297.py 24 passed; 31 related backend suites 1114 passed 0 failed; frontend tsc --noEmit clean, unit-xsecfollow-297 + unit-automations-list 34 passed; Android testDebugUnitTest BUILD SUCCESSFUL, 68 JVM tests passed (XsecFollow297Test 8). NOT_RUN: full backend gate, browser evidence specs, iOS, on-device.",
+    "executed_at": "2026-10-27"
   }
 ]

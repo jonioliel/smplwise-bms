@@ -6997,5 +6997,21 @@
     "test_ids": [
       "AT-SPLITSWITCH2-1"
     ]
+  },
+  {
+    "id": "R-XSECFOLLOW-1",
+    "title": "Security review 2026-10-27 follow-ups: the presence block on sockets, phone credentials end with a password change or a forced second factor",
+    "statement": "A user blocked by the required-sensors policy (or the service identity) is refused on every WebSocket as on HTTP, with close 4403 and a reason frame; a password change or reset and a second factor made required for a user without one end that user's phone device tokens and push registrations, audited; an address with ?do=run only opens a confirmation; the Android link rules have JVM tests.",
+    "task_ids": [
+      "XSECFOLLOW-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-XSECFOLLOW-1"
+    ]
   }
 ]
