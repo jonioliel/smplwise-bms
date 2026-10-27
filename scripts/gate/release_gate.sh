@@ -15,7 +15,7 @@
 #        dev     specs that import '/src/...' or whose header says they need the Vite DEV server -> dev server, desktop
 #                (plus the projects the header lists with --project=, and --workers=1 when the header says so)
 #        one     header says "one project only" / "one project (desktop)" -> only that project
-#        fixture specs that need a fake backend (FIXTURE_SPECS: evidence-camera-card = SW_LIVE=1 SW_DEVICES_FIXTURE=1 against
+#        fixture specs that need a fake backend (FIXTURE_SPECS: evidence-camera-card, evidence-curved-walls, evidence-curve-points = SW_LIVE=1 SW_DEVICES_FIXTURE=1 against
 #                tests/fixtures/devices_fake_ha.py on a free port, its own empty data dir, torn down afterwards)
 #        pixel   toHaveScreenshot specs: the 'pixel-stable' tests run only when a *-linux.png baseline exists, else SKIPPED_NO_BASELINE
 #        rest    dist preview (vite preview on a free port), all three projects; evidence specs reviewed in
