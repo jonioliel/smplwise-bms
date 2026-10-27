@@ -185,4 +185,4 @@ const rules = `
 @media (prefers-reduced-transparency: reduce) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom, :host(sw-app) .float .pillrow, :host(sw-app) .tabpair { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 `;
 
-export const crystal: Skin = { id: 'crystal', name: 'Crystal', nameHe: 'קריסטל', noteHe: 'זכוכית מוארת על רקע יום / לילה, שפה זוהרת, צורות מעודנות', tokens, rules };
+export const crystal: Skin = { id: 'crystal', name: 'Crystal', nameHe: 'קריסטל', noteHe: 'זכוכית מוארת על רקע יום / לילה, שפה זוהרת, צורות מעודנות', stage: 'stable', features: { material: false, bevel: false, pixelEdge: true, glass: true }, tokens, rules };
