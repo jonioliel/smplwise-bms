@@ -142,3 +142,16 @@ Merging T06 next to WK4ADOPT-295, WKR5ADOPT-295 (with WKR5-295) and PEERQUERY-29
 `wiskey_capture_map.py` only names `port.call(` in its docstring (no call). The lineage admin router `routers/wiskey_lineage.py` (WKR5 unit C) imports
 the writer's error class `NativeWriteError` only; its resolve / close / reinitialise go through the installed join. The test stub join takes the
 per-command `selected(command)` of WKR5 unit A.
+
+
+## Mac Native metadata contribution (2026-10-26, local review candidate)
+
+`G-NATIVE-METADATA`: `overview`, `subscribe`, `authorization/session` use the
+original generic command encoder and existing pairing key, bound to the real
+`auth/current_user` of the same HA socket. The test deployment explicitly sets
+`SW_WISKEY_NATIVE_SIGNED_READS=1`; the default remains 0. Only these three
+metadata reads are signed by this wrapper; business calls keep their existing
+route/role/channel admission. Missing key or identity refuses the enabled path.
+The original feed projects overview immediately and retains no person directory.
+No HA user, token, panel policy or role is created or changed by this adapter.
+The original signing inventory includes this caller and its fixed command set.

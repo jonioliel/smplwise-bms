@@ -1692,7 +1692,9 @@ class IntercomSync:
             nonlocal poller
             from . import wiskey_channels
 
-            raw = call
+            from .wiskey_native_feed import bind_metadata
+            raw = await bind_metadata(call, self.settings)
+            native_metadata_call = raw
             call = wiskey_channels.guard(raw, "service")  # CR-036 S1: only the service (write) channel's allow-list leaves here
             self._call = call
             # CR-036 S4: the adapter's reads ride this socket under their own guards (no write is on either list)
@@ -1717,6 +1719,14 @@ class IntercomSync:
             async def poll() -> None:
                 while not end.is_set():
                     await asyncio.sleep(POLL_S)
+                    renew_at = getattr(native_metadata_call, "native_subscription_renew_at", None)
+                    if renew_at is not None and time.monotonic() >= renew_at:
+                        # A new finite registration after cancelling this exact
+                        # old id. No proof or media activity is renewed in place.
+                        if self._wiskey_sub is not None:
+                            await call("unsubscribe_events", subscription=self._wiskey_sub)
+                        self._wiskey_sub = await intercom_client.subscribe(call)
+                        self._replay_early()
                     if self.watched():
                         await self._refresh()
 
