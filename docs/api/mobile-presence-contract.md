@@ -34,6 +34,10 @@ cannot be muted (section 7.3). v1 was the first implemented text.
     user agent, or its app web session), and the removal of the user's remote access. The next call answers
     `401 device_token_invalid`; the device row stays, so `POST presence/devices` with a session of the same install
     issues a new token, and the app registers push again. A sign-out in a desktop browser leaves the phones alone.
+  - The same happens on a password change or reset of the user (own change, an administrator's reset link, the
+    self-service code) and when a second factor becomes required for a user who has none (an administrator's `required`
+    override for the user or one of their roles) - XSECFOLLOW-297. The phone the password was changed from re-registers
+    through its kept session like any other.
   - On the remote channel a device token obeys the user's remote-access policy like a session does: a user the policy
     no longer admits (no flag / administrator default, a wall user) gets `403 remote_not_allowed`.
 - **`Origin` is required** on every state-changing request (POST / PATCH / DELETE) that carries the session cookie (a
@@ -270,6 +274,10 @@ covered user whose phone does not report the required sensors is refused:
   `/health` - the routes the app needs to get out of that state. The match is on the path below `<remote_path>` and
   `/api/v1`, exact or by whole leading segments (XSECFIX-297): `/media/...`, `/alarm/me/pin`, `/energy/meters`,
   `/recorders/{id}/health` are NOT exempt.
+- The same block applies to every WebSocket (XSECFOLLOW-297): `/me/ws`, `/events/ws`, live video, playback, the intercom
+  sockets and the others - none is exempt. A refused socket is accepted, receives one
+  `{"type": "error", "value": "presence_required", "message": "…"}` frame and closes with code **4403** (never 4401, which
+  means "signed out"). A client should reconnect only after `/me` reports `presence_gate.blocked: false`.
 - A sensor counts as shared when some live device of the user reported it `on` in `status` within the policy's
   `max_stale_hours` (default 48) **and** acknowledged the current notice version; for `location` also `sharing: true` and
   `location_auth` in `always | when_in_use`. A required sensor reported `unavailable` (no such hardware; owner decision
