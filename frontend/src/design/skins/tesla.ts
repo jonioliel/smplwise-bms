@@ -163,4 +163,4 @@ const rules = `
 :host(system-nav) a[aria-current='page'] { background: transparent; box-shadow: inset 3px 0 0 var(--sw-accent); border-radius: 0; }
 `;
 
-export const tesla: Skin = { id: 'tesla', name: 'Tesla clean hi-tech', nameHe: 'הייטק נקי (Tesla)', noteHe: 'משטחים שטוחים, קווי 1px, פינות חדות, מבטא אחד', tokens, rules };
+export const tesla: Skin = { id: 'tesla', name: 'Tesla clean hi-tech', nameHe: 'הייטק נקי (Tesla)', noteHe: 'משטחים שטוחים, קווי 1px, פינות חדות, מבטא אחד', stage: 'stable', features: { material: false, bevel: false, pixelEdge: false, glass: false }, tokens, rules };

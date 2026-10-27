@@ -28,6 +28,54 @@
    `:host(devices-building) nav.tree { }`. משתמשים **רק בטוקנים** (`var(--sw-*)`) - אין צבע, רדיוס או צל קשיחים.
 4. **בדיקה**: ראו §5.
 
+## 2א. שכבת משתני העיצוב וסקין כנתונים (DESIGNTOKENS-297, יסודות 2.25.0)
+
+**החוזה הסמנטי** - `frontend/src/design/semantic.ts`. לא משתנים חדשים ולא ערכים חדשים: הקובץ נותן שם לתפקיד של משתנים קיימים,
+וכל סקין נבדק מולו בשתי הסכמות.
+
+| תפקיד | המשתנים (לפי הסדר) |
+|---|---|
+| רמות משטח | `--sw-bg` > `--sw-surface` > `--sw-surface-2` > `--sw-surface-3` (וה-solid של כל רמה) |
+| רמות טקסט | `--sw-heading` > `--sw-text` > `--sw-text-2` > `--sw-text-3`; על מילוי מבטא `--sw-text-inverse` |
+| מסגרת | `--sw-border`, `--sw-border-strong`; תפריט: `--sw-menu-surface` / `--sw-menu-border` (תמיד אטומים) |
+| מבטא | `--sw-accent`, `-hover`, `-soft`, `-text`, `--sw-focus`, `--sw-nav` |
+| צבעי מצב (רק למצב) | `live, recorded, offline, stale, unknown, danger, warning, success, forbidden` - כל אחד צבע / `-soft` / `-text` |
+| רדיוס | `--sw-r-2xs` ... `--sw-r-2xl`, ועוד `--sw-r-pill` |
+| גובה (צל) | 0 = בלי צל; `--sw-shadow-1` מנוחה, `-2` ריחוף, `-3` צף (דיאלוג, popover, toast) |
+| ריווח | `--sw-s-1` ... `--sw-s-10` (רשת 4px) |
+| טיפוגרפיה | `--sw-fs-2xs` ... `--sw-fs-4xl`, משקלים `--sw-fw-*` |
+| תנועה | משכים (`--sw-t-*`, `--sw-spring-*-ms`, `--sw-stagger`, `--sw-enter-ms`), מרחק (`--sw-hover-lift`, `--sw-enter-y`), קנה מידה (`--sw-press-scale`), עקומות (`--sw-ease*`) |
+
+הבדיקות של החוזה (`validateSkinTable`): כל השמות קיימים עם light ו-dark; סולמות רדיוס / ריווח / טיפוגרפיה לא יורדים; המבטא
+(`accent`, `accent-hover`, `nav`, `focus`) אף פעם לא שווה לצבע של danger / warning / success / live / stale / forbidden; כל משך הוא
+`ms` וכל מרחק `px`; סגירה לא איטית מפתיחה (`--sw-t-exit` <= `--sw-t-sheet`); משטח ומסגרת התפריט אטומים.
+**תנועה מופחתת** נבנית מאותן רשימות (`css.ts`): משכים 0ms, מרחק 0px, `--sw-press-scale: 1`; צבע ושקיפות נשארים.
+משך או מרחק חדש בקבוצת motion של `tokens.ts` חייב להיכנס לרשימה ב-`semantic.ts` (הבדיקה נכשלת אחרת).
+
+**שלב ותכונות לכל סקין** (`skins/define.ts`), שדות חובה ברישום:
+- `stage`: `stable` (במטריצת הפיקסלים), `foundation` (נבחר, בלי בסיסי פיקסלים - infra, soft), `frozen` (לא מוצע, נקרא כ-domus - bubble).
+  `FROZEN_SKINS` ו-`FOUNDATION_SKINS` נגזרים מהשדה הזה.
+- `features`: `material` (שכבת החומר של `styles/material.ts`), `bevel` (שפת התבליט של 1px בשכבת החומר - **מותר רק ב-classic וב-domus**),
+  `pixelEdge` (קו האור של 1px בראש לוח, `--sw-highlight` לא שקוף), `glass` (טשטוש רקע). הבדיקה משווה את ההצהרה למה שהסקין באמת מצייר,
+  ושכבת החומר מצורפת לכללים רק כש-`material` מוצהר.
+  סתירה מתועדת: bubble (מוקפא) שומר את שפת התבליט שלו כפי שהיא - "בלי שינוי חזותי בסקינים קיימים" גובר; הוא לעולם לא מצויר.
+
+**סקין כנתונים**: במקום קובץ עם כללים, אפשר להגדיר סקין כאובייקט:
+
+```ts
+export const harbor = defineSkin({
+  id: 'harbor', name: 'Harbor', nameHe: 'נמל', noteHe: 'משטחים אטומים, פינות רכות',
+  light: { '--sw-r-md': '10px', '--sw-text-3': '#56657f' },
+  dark:  { '--sw-r-md': '10px', '--sw-text-3': '#93a0b8' },
+  features: { bevel: false },   // ברירת מחדל: בלי חומר ובלי תבליט; pixelEdge / glass נגזרים מהטוקנים
+});
+```
+
+`defineSkin` נכשל (עם רשימת כל הבעיות) על: שם שלא קיים ב-`tokens.ts`, ערך בסכמה אחת בלבד, תבליט מחוץ ל-classic / domus, הפרה של
+החוזה הסמנטי, יותר מ-50 כללים, שם ארוך מ-24 תווים או הערה ארוכה מ-90 (כרטיס הבחירה עוטף שם ארוך ולא מתרחב). סקין חדש מתחיל
+ב-`foundation`. הרישום: המזהה ב-`SKIN_IDS`, האובייקט ב-`SKINS`, והמזהה בתבנית `ui.skin` וב-`stored_skin` של `routers/settings.py` -
+`unit-designtokens-297.spec.ts` משווה את רשימות השרת לרישום. מסך הבחירה (הגדרות › כללי › מראה המערכת) קורא מהרישום ואין בו מה לשנות.
+
 ## 3. תקציב 50 הכללים
 
 "כלל" = בלוק `{ }` אחד. `ruleCount()` ב-`css.ts` סופר, והבדיקה `unit-design-tokens.spec.ts` נכשלת מעל 50 (היום Domus 28, Tesla 33).

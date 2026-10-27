@@ -165,4 +165,4 @@ const rules = `
 :host(system-nav) a[aria-current='page'] { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-thumb); }
 `;
 
-export const domus: Skin = { id: 'domus', name: 'hi-tech Domus', nameHe: 'הייטק Domus', noteHe: 'זכוכית על רקע צבעוני, פינות עגולות, כותרות גדולות', tokens, rules };
+export const domus: Skin = { id: 'domus', name: 'hi-tech Domus', nameHe: 'הייטק Domus', noteHe: 'זכוכית על רקע צבעוני, פינות עגולות, כותרות גדולות', stage: 'stable', features: { material: true, bevel: true, pixelEdge: true, glass: true }, tokens, rules };
