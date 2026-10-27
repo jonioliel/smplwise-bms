@@ -281,7 +281,7 @@ def run_limited(cmd: Sequence[str], *, limits: Limits, cwd: str | os.PathLike[st
                 os.killpg(proc.pid, signal.SIGKILL)  # the group created for this child (its pid is its pgid)
             elif job is not None:
                 job.terminate()
-            else:
+            elif proc.poll() is None:  # fallback: only a still-running child is worth a taskkill
                 _taskkill_tree(proc.pid)
         except (ProcessLookupError, PermissionError, OSError):
             pass
