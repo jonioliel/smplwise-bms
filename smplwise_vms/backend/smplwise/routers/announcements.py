@@ -48,7 +48,7 @@ class _Body(BaseModel):
 class PartBody(_Body):
     language: Literal["he", "en", "ru", "ar"]
     text: str = Field(min_length=1, max_length=400)
-    machine: bool = False  # ANNOUNCE-297: this text came from the automatic translation (reviewed by the sender); never Hebrew
+    machine: bool = False  # ANNOUNCE-297: this text came from the automatic translation (a draft, never a gate on sending); never Hebrew
 
 
 class TranslateBody(_Body):

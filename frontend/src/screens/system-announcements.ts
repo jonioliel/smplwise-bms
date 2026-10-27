@@ -209,7 +209,7 @@ export class SystemAnnouncements extends LitElement {
       <div class="row"><span class="lbl">${t.screensPoll}</span>
         <input type="number" min=${ANNOUNCE_SCREEN_RANGE.poll_s[0]} max=${ANNOUNCE_SCREEN_RANGE.poll_s[1]} data-announce-screens-poll aria-label=${t.screensPoll} .value=${String(sc.poll_s)} @change=${(e: Event) => this.screenNumber('poll_s', e)} /></div>
       ${sc.critical_close_s !== undefined ? html`<div class="row"><span class="lbl">${t.screensCriticalClose}</span>
-        <input type="number" min=${ANNOUNCE_SCREEN_RANGE.critical_close_s[0]} max=${ANNOUNCE_SCREEN_RANGE.critical_close_s[1]} data-announce-screens-critical-close aria-label=${t.screensCriticalClose} .value=${String(sc.critical_close_s)} @change=${(e: Event) => this.screenNumber('critical_close_s', e)} /></div>` : nothing}
+        <input type="number" step="1" inputmode="numeric" min=${ANNOUNCE_SCREEN_RANGE.critical_close_s[0]} max=${ANNOUNCE_SCREEN_RANGE.critical_close_s[1]} data-announce-screens-critical-close aria-label=${t.screensCriticalClose} .value=${String(sc.critical_close_s)} @change=${(e: Event) => this.screenNumber('critical_close_s', e)} /></div>` : nothing}
       <div class="area">${t.screensList}</div>
       ${opts.length ? opts.map((o) => html`<div class="row" data-announce-screen=${o.key}>
         <label class="pick"><input type="checkbox" .checked=${o.allowed} data-announce-screen-allow @change=${(e: Event) => apply(o.key, { allowed: (e.target as HTMLInputElement).checked })} />${o.name}
@@ -236,6 +236,7 @@ export class SystemAnnouncements extends LitElement {
       <div class="row"><span class="lbl">${t.translateProvider}</span>
         <select data-announce-translate-provider aria-label=${t.translateProvider} @change=${(e: Event) => void this.save({ translate: { provider: (e.target as HTMLSelectElement).value, ...(tc.enabled ? { enabled: false } : {}) } })}>
           <option value="off" ?selected=${tc.provider === 'off'}>${t.translateProviderOff}</option>
+          <option value="google" ?selected=${tc.provider === 'google'}>${t.translateProviderGoogle}</option>
           <option value="cloud" ?selected=${tc.provider === 'cloud'}>${t.translateProviderCloud}</option></select></div>
       <div class="row"><span class="lbl">${t.translateApprove}${approved ? html`<span class="muted" data-announce-translate-approved>${t.translateApprovedBy} ${tc.approval?.by ?? '—'} · ${when}</span>` : html`<span class="muted">${t.translateNotApproved}</span>`}</span>
         <sw-button size="sm" data-announce-translate-approve ?disabled=${tc.provider === 'off' || approved} @click=${() => void this.save({ translate: { approve: true } })}>${t.translateApproveAction}</sw-button></div>

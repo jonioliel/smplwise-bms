@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { applyTranslation, canTranslate, editedMachine, partsWithMachine, reviewOk, sentMachine } from '../src/announce/model';
+import { applyTranslation, canTranslate, editedMachine, partsWithMachine, sentMachine } from '../src/announce/model';
 import { CRITICAL_CLOSE_DEFAULT_S, MACHINE_MARK, closeWaitMs, machineMark, overlayHtml, sizeOf, type ScreenAnnouncement } from '../src/announce/screen-overlay';
 import { ANNOUNCE_TABLES } from '../src/i18n/announce';
 
@@ -39,13 +39,7 @@ test('an edited machine text stays marked; emptied it loses the mark; the parts 
   expect(sentMachine(texts, ['he'], mt)).toEqual([]);
 });
 
-test('a machine-translated part is never sent unreviewed', () => {
-  const mt = new Set<'he' | 'en' | 'ru' | 'ar'>(['ar']);
-  expect(reviewOk({ he: 'א', ar: 'ب' }, ['he', 'ar'], mt, false)).toBe(false);
-  expect(reviewOk({ he: 'א', ar: 'ب' }, ['he', 'ar'], mt, true)).toBe(true);
-  expect(reviewOk({ he: 'א', ar: 'ب' }, ['he'], mt, false)).toBe(true);
-  expect(reviewOk({ he: 'א' }, ['he'], new Set(), false)).toBe(true);
-});
+// ANNOUNCE2-297 (owner 27.10): the "reviewed" gate is gone - see unit-announce2-297.spec.ts
 
 test('a machine block on the screen carries the mark in its own language, escaped, and counts toward the size so it still fits', () => {
   const a = A({ texts: [{ language: 'he', text: 'שלום' }, { language: 'ar', text: 'مرحبا <b>', machine: true }] });
@@ -74,7 +68,7 @@ test('the close rule: a normal one at once, an emergency only after the served s
 });
 
 test('every new string exists in all four languages', () => {
-  const keys = ['translate', 'translating', 'machineBadge', 'reviewed', 'translateCard', 'translateHint', 'translateEnabled', 'translateProvider', 'translateApprove',
+  const keys = ['translate', 'translating', 'machineBadge', 'translateCard', 'translateProviderGoogle', 'translateHint', 'translateEnabled', 'translateProvider', 'translateApprove',
     'translateApproveAction', 'translateApprovedBy', 'translateNotApproved', 'translateTargets', 'screensCriticalClose'] as const;
   for (const lang of ['he', 'en', 'ru', 'ar'] as const) for (const k of keys) expect(ANNOUNCE_TABLES[lang][k], `${lang}.${k}`).toBeTruthy();
 });

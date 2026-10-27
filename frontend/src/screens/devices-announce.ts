@@ -7,7 +7,7 @@ import { ANNOUNCE_LANGS, announceAreas, announceEmergency, announceSpeak, announ
 import { describeError } from '../api/client';
 import { can, isApi } from '../api/session';
 import {
-  ALL_ROOMS, applyTemplate, applyTranslation, canSend, canTranslate, channelFlags, editedMachine, emergencyTemplates, hasChannel, partsWithMachine, reviewOk, routineTemplates, sentMachine,
+  ALL_ROOMS, applyTemplate, applyTranslation, canSend, canTranslate, channelFlags, editedMachine, emergencyTemplates, hasChannel, partsWithMachine, routineTemplates,
   spokenLangOf, templateName, toggleLang, type Texts,
 } from '../announce/model';
 import { announceText, announceUiLang } from '../i18n/announce';
@@ -34,9 +34,8 @@ export class DevicesAnnounce extends LitElement {
   @state() private viaScreens = true;
   @state() private busy = '';
   @state() private note = '';
-  /** ANNOUNCE-297: the languages whose text came from the automatic translation, and whether the sender ticked "I reviewed the translation" */
+  /** ANNOUNCE-297: the languages whose text came from the automatic translation (ANNOUNCE2-297: a short mark only, never a gate on sending) */
   @state() private machine: Set<AnnounceLang> = new Set();
-  @state() private reviewed = false;
 
   static styles = css`
     :host { display: block; }
@@ -61,12 +60,10 @@ export class DevicesAnnounce extends LitElement {
     /* a long translation grows its field instead of hiding lines (a 200-character Russian text at phone width); one line keeps the old height */
     textarea { field-sizing: content; min-block-size: 56px; max-block-size: 160px; block-size: auto; }
     .part-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .mt { padding: 1px 8px; border-radius: 999px; font-size: var(--sw-fs-xs); white-space: nowrap; background: color-mix(in srgb, var(--sw-warning, #b7791f) 16%, var(--sw-surface)); color: var(--sw-text); }
-    .rev { display: inline-flex; align-items: center; gap: 6px; font-size: var(--sw-fs-sm); cursor: pointer; user-select: none; -webkit-user-select: none; }
-    .rev input { inline-size: 18px; block-size: 18px; margin: 0; accent-color: var(--sw-accent); }
+    /* ANNOUNCE2-297: the machine mark is quiet (neutral, small): the translation is an aid, not a warning */
+    .mt { padding: 1px 8px; border-radius: 999px; font-size: var(--sw-fs-xs); white-space: nowrap; background: color-mix(in srgb, var(--sw-text-2) 10%, var(--sw-surface)); color: var(--sw-text-2); }
     @media (pointer: coarse) {
       textarea, select { font-size: 16px; } /* no zoom-in on focus on a phone */
-      .rev { min-block-size: 44px; }
     }
     @media (prefers-reduced-motion: reduce) { .chip { transition: none; } }
     .err { padding: 8px 12px; border-radius: var(--sw-r-md); background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface)); color: var(--sw-danger); font-size: var(--sw-fs-sm); }
@@ -135,7 +132,6 @@ export class DevicesAnnounce extends LitElement {
       this.texts = next.texts;
       this.langs = next.selected;
       this.machine = next.machine;
-      this.reviewed = false;
     } catch (err) {
       this.err = describeError(err);
     } finally {
@@ -146,13 +142,11 @@ export class DevicesAnnounce extends LitElement {
   private typed(l: AnnounceLang, value: string) {
     this.texts = { ...this.texts, [l]: value };
     this.machine = editedMachine(this.machine, l, value);
-    if (l === 'he' && this.machine.size) this.reviewed = false; // the source changed: the translations must be looked at again
   }
 
   private clearDraft() {
     this.texts = {};
     this.machine = new Set();
-    this.reviewed = false;
   }
 
   private async send() {
@@ -202,9 +196,8 @@ export class DevicesAnnounce extends LitElement {
     const routine = routineTemplates(f.templates);
     const emergency = emergencyTemplates(f.templates);
     const offered = !!f.screens_enabled;
-    const reviewedOk = reviewOk(this.texts, this.langs, this.machine, this.reviewed);
-    const pendingReview = sentMachine(this.texts, this.langs, this.machine).length > 0;
-    const ok = canSend(this.room, this.texts, this.langs) && hasChannel(this.viaSpeakers, this.viaScreens, offered) && reviewedOk && this.busy === '';
+    // ANNOUNCE2-297 (owner 27.10): a machine translation never holds back sending (no review gate)
+    const ok = canSend(this.room, this.texts, this.langs) && hasChannel(this.viaSpeakers, this.viaScreens, offered) && this.busy === '';
     return html`<sw-page heading=${t.title} data-announce-screen>
       <div class="grid">
         <div class="panel" data-announce-form>
@@ -229,12 +222,11 @@ export class DevicesAnnounce extends LitElement {
             <textarea data-announce-text=${l} dir=${l === 'he' || l === 'ar' ? 'rtl' : 'ltr'} lang=${l} maxlength=${f.max_text} aria-label=${this.machine.has(l) ? `${t.langName[l]} · ${t.machineBadge}` : t.langName[l]} .value=${this.texts[l] ?? ''}
               @input=${(e: Event) => this.typed(l, (e.target as HTMLTextAreaElement).value)}></textarea></div>`)}
           <div class="row"><sw-button variant="primary" icon="check" data-announce-send ?disabled=${!ok} @click=${() => void this.send()}>${t.send}</sw-button>
-            ${pendingReview ? html`<label class="rev"><input type="checkbox" data-announce-reviewed .checked=${this.reviewed} @change=${(e: Event) => (this.reviewed = (e.target as HTMLInputElement).checked)} />${t.reviewed}</label>` : nothing}
             ${this.note ? html`<span class="ok" role="status">${this.note}</span>` : nothing}</div>
           ${this.err ? html`<div class="err" role="alert">${this.err}</div>` : nothing}
         </div>
         ${emergency.length || canSend(this.room, this.texts, this.langs) ? html`<div class="panel em" data-announce-emergency>
-          ${canSend(ALL_ROOMS, this.texts, this.langs) ? html`<sw-button variant="danger" data-announce-emergency-free ?disabled=${this.busy !== '' || !reviewedOk} @click=${() => void this.emergency('free', true)}>${t.emergencyFree}</sw-button>` : nothing}
+          ${canSend(ALL_ROOMS, this.texts, this.langs) ? html`<sw-button variant="danger" data-announce-emergency-free ?disabled=${this.busy !== ''} @click=${() => void this.emergency('free', true)}>${t.emergencyFree}</sw-button>` : nothing}
           ${emergency.map((x) => html`<sw-button variant="danger" data-announce-emergency-button=${x.id} ?disabled=${this.busy !== ''} @click=${() => void this.emergency(x.id)}>${templateName(x, ui)}</sw-button>`)}
         </div>` : nothing}
       </div>

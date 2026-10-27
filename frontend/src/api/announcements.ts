@@ -34,7 +34,7 @@ export type AnnounceTranslateTarget = 'ar' | 'en' | 'ru';
 export const ANNOUNCE_TRANSLATE_TARGETS: readonly AnnounceTranslateTarget[] = ['ar', 'en', 'ru'];
 export interface AnnounceTranslateConfig {
   enabled: boolean;
-  /** `off` by default; `cloud` = the external provider (its key lives in the secrets store, never here) */
+  /** ANNOUNCE2-297: `google` by default (the free Google translation, no key); `cloud` = OpenAI (its key lives in the secrets store, never here); `off` */
   provider: string;
   source: 'he';
   targets: AnnounceTranslateTarget[];
@@ -169,7 +169,7 @@ export interface AnnounceForm {
   translate_enabled?: boolean;
   translate_targets?: AnnounceTranslateTarget[];
 }
-/** A part of an announcement; `machine` = taken from the automatic translation (reviewed by the sender), never Hebrew. */
+/** A part of an announcement; `machine` = taken from the automatic translation (an editable draft; ANNOUNCE2-297: never a gate on sending), never Hebrew. */
 export interface AnnouncePart {
   language: AnnounceLang;
   text: string;

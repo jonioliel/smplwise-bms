@@ -638,7 +638,7 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
     ANNOUNCEB-295 (stage B): `audio` False = screens only (no speaker, no engine needed); `on_screens` None = the configured default (`announce.screens.default_on`),
     True / False = asked for / not; the text is shown for `announce.screens.seconds` (`critical_seconds` for a critical / emergency one) on the allowed screens the
     same scope reaches, under the same switch, quiet hours, limits and audit as the speech.
-    ANNOUNCE-297 (stage C): `machine` names the languages whose text was machine-translated (and reviewed by the sender); never Hebrew, each one a
+    ANNOUNCE-297 (stage C): `machine` names the languages whose text was machine-translated (a draft, never a gate on sending); never Hebrew, each one a
     language of the announcement. The mark is stored with the text, shown on the screens, kept in the history and named in the audit.
     Returns `{id, status: "sent", targets: n, screens: m}` (status `queued` + `release_at` when held)."""
     if principal is not None and principal.source == "local":

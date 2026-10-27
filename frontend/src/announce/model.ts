@@ -183,7 +183,5 @@ export function partsWithMachine(texts: Texts, selected: AnnounceLang[], machine
   return partsOf(texts, selected).map((p) => (p.language !== 'he' && machine.has(p.language) ? { ...p, machine: true } : p));
 }
 
-/** A machine-translated part is never sent unseen: while any is in the announcement, the sender ticks "I reviewed the translation" first. */
-export function reviewOk(texts: Texts, selected: AnnounceLang[], machine: MachineSet, reviewed: boolean): boolean {
-  return reviewed || sentMachine(texts, selected, machine).length === 0;
-}
+// ANNOUNCE2-297 (owner 27.10): the translation is an aid and never holds back sending - there is no "I reviewed the translation" gate any more;
+// each machine-translated field carries a short mark instead (and the mark travels with the announcement to the screens and the history).

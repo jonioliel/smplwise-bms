@@ -1,8 +1,9 @@
 """ANNOUNCE-297 (voice announcements, stage C): a Hebrew announcement machine-translated into Arabic, English and Russian, for review before sending.
 
 Nothing leaves the building by default:
-- the feature is OFF (`announce.translate.enabled` false) and the provider is `off`; while either is so, `translate()` refuses before any provider is
-  built, so no request is ever made;
+- the feature is OFF (`announce.translate.enabled` false); while it is off, the provider is `off` or nobody approved the provider, `translate()`
+  refuses before any provider is built, so no request is ever made. The default provider is `google` (ANNOUNCE2-297, owner 27.10: the free
+  Google translation, no key); `cloud` (OpenAI-compatible, a key) stays selectable;
 - turning it on needs an explicit APPROVAL recorded in the same request (`approve: true` by a `system.configure` holder: who and when are stored in
   `announce.translate.approval` and audited). The approval belongs to one provider; choosing another provider needs a new approval. The product rule
   is that the OWNER gives this approval; the server records the person who pressed it;
@@ -29,6 +30,7 @@ import json
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Callable, Protocol
 
@@ -36,10 +38,12 @@ from ..db import get_setting
 
 SOURCE = "he"
 TARGETS = ("ar", "en", "ru")
-PROVIDERS_KNOWN = ("off", "cloud")
+# ANNOUNCE2-297 (owner 27.10): `google` = the free Google translation (no key; the default provider), `cloud` = the OpenAI-compatible provider
+# (a key in the secrets store; selectable). The switch stays off and needs the recorded approval for the chosen provider either way.
+PROVIDERS_KNOWN = ("off", "google", "cloud")
 SECRET_NAME = "announce_translate_key"
 K_ENABLED, K_PROVIDER, K_TARGETS, K_APPROVAL = "announce.translate.enabled", "announce.translate.provider", "announce.translate.targets", "announce.translate.approval"
-DEFAULTS = {K_ENABLED: "false", K_PROVIDER: "off", K_TARGETS: json.dumps(list(TARGETS)), K_APPROVAL: ""}
+DEFAULTS = {K_ENABLED: "false", K_PROVIDER: "google", K_TARGETS: json.dumps(list(TARGETS)), K_APPROVAL: ""}
 SETTING_KEYS = ("enabled", "provider", "targets", "approve")
 CLOUD_URL = "https://api.openai.com/v1/chat/completions"  # fixed on purpose: not a setting (the key can only ever go here)
 CLOUD_MODEL = "gpt-4o-mini"
@@ -104,6 +108,47 @@ def default_cloud_call(key: str, text: str, source: str, target: str) -> str:
 
 CLOUD_CALL = default_cloud_call  # tests replace it: no test reaches a cloud service
 
+# ANNOUNCE2-297: the free Google translation (the endpoint Google's own web clients use; no key, no account). The host is fixed (not a setting);
+# the text goes in the POST body, never in the address, so it is not in any access log or proxy URL.
+GOOGLE_HOST = "translate.googleapis.com"
+GOOGLE_URL = f"https://{GOOGLE_HOST}/translate_a/single"
+GOOGLE_LANG = {"he": "iw", "ar": "ar", "en": "en", "ru": "ru"}  # Google's codes (Hebrew is "iw")
+
+
+def default_google_call(text: str, source: str, target: str) -> str:
+    """One POST to the fixed Google host; a bounded wait and a bounded answer. Raises TranslateError with a code only (never the text)."""
+    query = urllib.parse.urlencode({"client": "gtx", "sl": GOOGLE_LANG[source], "tl": GOOGLE_LANG[target], "dt": "t", "ie": "UTF-8", "oe": "UTF-8"})
+    body = urllib.parse.urlencode({"q": text}).encode()
+    req = urllib.request.Request(f"{GOOGLE_URL}?{query}", data=body, method="POST",
+                                 headers={"Content-Type": "application/x-www-form-urlencoded;charset=utf-8", "User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=CLOUD_TIMEOUT_S) as resp:  # noqa: S310 - fixed https URL
+            raw = resp.read(MAX_ANSWER_BYTES + 1)
+    except urllib.error.HTTPError as exc:
+        raise TranslateError("translate_rate_limited" if exc.code == 429 else "translate_failed") from None
+    except Exception:  # noqa: BLE001 - never carries the text or a body
+        raise TranslateError("translate_unreachable") from None
+    if not raw or len(raw) > MAX_ANSWER_BYTES:
+        raise TranslateError("translate_failed")
+    try:
+        segments = json.loads(raw)[0]
+        out = "".join(s[0] for s in segments if isinstance(s, list) and s and isinstance(s[0], str))
+    except (ValueError, KeyError, IndexError, TypeError):
+        raise TranslateError("translate_failed") from None
+    if not out.strip():
+        raise TranslateError("translate_failed")
+    return out
+
+
+GOOGLE_CALL = default_google_call  # tests replace it: no test reaches Google
+
+
+class GoogleTranslator:
+    name = "google"
+
+    def translate(self, text: str, source: str, target: str) -> str:
+        return GOOGLE_CALL(text, source, target)
+
 
 class CloudTranslator:
     name = "cloud"
@@ -135,7 +180,7 @@ def _build_cloud(conn: Any, settings: Any) -> Translator | None:
     return CloudTranslator(key) if key else None
 
 
-PROVIDERS: dict[str, Callable[[Any, Any], "Translator | None"]] = {"cloud": _build_cloud}
+PROVIDERS: dict[str, Callable[[Any, Any], "Translator | None"]] = {"google": lambda _conn, _settings: GoogleTranslator(), "cloud": _build_cloud}
 
 
 def register(name: str, factory: Callable[[Any, Any], "Translator | None"]) -> None:

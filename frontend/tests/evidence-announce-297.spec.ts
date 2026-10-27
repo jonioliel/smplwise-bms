@@ -6,8 +6,9 @@ import { lobbyFeed, serveFeed, tvUrl } from './notice-tv-fixtures';
 // Mocked wire contract only: the translation answer is a fixture, nothing reaches a translation service, a speaker or a screen.
 //   SW_BASE_URL=http://127.0.0.1:5262/ npx playwright test tests/evidence-announce-297.spec.ts --project=desktop --workers=1
 // 1. the form offers "translate" only while the server says so; a translation is a draft that fills the languages, is marked, can be edited, and
-//    cannot be sent before "I reviewed the translation" is ticked; the send carries `machine: true`; the screen still fits 1366x768 without scrolling.
-// 2. Settings: the translation card is off by default; the switch is disabled until the approval is recorded.
+//    never holds back sending (ANNOUNCE2-297: no "I reviewed" gate); the send carries `machine: true`; the screen still fits 1366x768 without scrolling.
+// 2. Settings: the translation card is off by default with the free Google provider chosen (ANNOUNCE2-297); the switch is disabled until the
+//    approval is recorded; OpenAI stays selectable.
 
 test.beforeEach(() => test.skip(test.info().project.name !== 'desktop', 'the viewport is set by the spec itself; one project is enough'));
 
@@ -18,7 +19,7 @@ async function setup(page: Page, o: { translate: boolean; approved?: boolean }) 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installCastMock(page, { perms: [...PERMS.admin, 'media.announce'] });
   const calls: Call[] = [];
-  const tr = { enabled: false, provider: o.approved ? 'cloud' : 'off', source: 'he', targets: ['ar', 'en', 'ru'], approval: o.approved ? { provider: 'cloud', by: 'owner', at: '2026-10-27T08:00:00Z' } : null, key_set: false };
+  const tr = { enabled: false, provider: o.approved ? 'cloud' : 'google', source: 'he', targets: ['ar', 'en', 'ru'], approval: o.approved ? { provider: 'cloud', by: 'owner', at: '2026-10-27T08:00:00Z' } : null, key_set: !o.approved };
   const cfg = {
     enabled: true, engine: 'tts.demo_engine', engine_kind: 'local', cloud_enabled: false, cloud_key_set: false, emergency_languages: ['he', 'en', 'ru'], language: 'he', devices: ['sp-1'], max_per_minute: 6, max_text: 200, cooldown_s: 5, volume: null, pause_music: false,
     quiet: { enabled: false, from: '22:00', to: '07:00', days: ['sun'], mode: 'suppress', night_volume: null },
@@ -46,7 +47,7 @@ async function setup(page: Page, o: { translate: boolean; approved?: boolean }) 
   return calls;
 }
 
-test('the announce form: translate is a reviewed, marked draft; it never sends unseen; the screen does not scroll', async ({ page }) => {
+test('the announce form: translate is a marked, editable draft that never holds back sending; the screen does not scroll', async ({ page }) => {
   const off = await setup(page, { translate: false });
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto('/?design=a#/devices/announce');
@@ -70,11 +71,12 @@ test('the announce form: translate is a reviewed, marked draft; it never sends u
   await expect(form.locator('[data-announce-machine]')).toHaveCount(3);
   expect(calls.some((c) => c.method === 'POST' && c.path === '')).toBe(false); // a translation sends nothing
   const send = form.locator('[data-announce-send]');
-  await expect(send).toHaveAttribute('disabled', ''); // not reviewed yet
+  await expect(send).not.toHaveAttribute('disabled', ''); // ANNOUNCE2-297: no review gate
+  await expect(form.locator('[data-announce-reviewed]')).toHaveCount(0);
+  await expect(form.locator('[data-announce-emergency-free]')).not.toHaveAttribute('disabled', ''); // the emergency free text is never held back
+  await expect(form.locator('[data-announce-machine="en"]')).toHaveText('תרגום אוטומטי'); // short and quiet
   await form.locator('[data-announce-text="en"]').fill('Water will be cut (edited)');
   await expect(form.locator('[data-announce-machine="en"]')).toBeVisible(); // edited, still marked
-  await form.locator('[data-announce-reviewed]').check();
-  await expect(send).not.toHaveAttribute('disabled', '');
   const fit = await p2.evaluate(() => ({ h: document.documentElement.scrollHeight, w: innerHeight }));
   expect(fit.h).toBeLessThanOrEqual(fit.w + 1);
   await send.click();
@@ -106,8 +108,10 @@ test('Settings: the translation card is off by default and cannot be switched on
   await page.goto('/?design=a#/system/multimedia?tab=announce');
   const card = page.locator('sw-app system-multimedia system-announcements [data-announce-translate-card]');
   await expect(card).toBeVisible();
-  await expect(card.locator('[data-announce-translate-provider]')).toHaveValue('off');
-  await expect(card.locator('[data-announce-translate-approve]')).toHaveAttribute('disabled', '');
+  await expect(card.locator('[data-announce-translate-provider]')).toHaveValue('google');
+  await expect(card.locator('[data-announce-translate-provider] option')).toHaveCount(3); // off, Google, OpenAI
+  await expect(card.locator('[data-announce-translate-key]')).toHaveCount(0); // Google needs no key
+  await expect(card.locator('[data-announce-translate-approve]')).not.toHaveAttribute('disabled', '');
   await expect(card.locator('[data-announce-translate-enabled]')).toHaveAttribute('disabled', '');
   await card.locator('[data-announce-translate-provider]').selectOption('cloud');
   await expect.poll(() => calls.some((c) => c.method === 'PUT' && (c.body?.translate as { provider?: string } | undefined)?.provider === 'cloud')).toBe(true);

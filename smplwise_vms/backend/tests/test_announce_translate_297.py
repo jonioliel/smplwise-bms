@@ -100,7 +100,8 @@ def rows(w):
 def test_translation_is_off_by_default_and_refuses_before_any_provider_is_built(world, monkeypatch):
     w = world
     cfg = enable(w)["config"]["translate"]
-    assert cfg == {"enabled": False, "provider": "off", "source": "he", "targets": ["ar", "en", "ru"], "approval": None, "key_set": False}
+    # ANNOUNCE2-297 (owner 27.10): the default provider is the free Google translation (no key); the switch stays off until approved
+    assert cfg == {"enabled": False, "provider": "google", "source": "he", "targets": ["ar", "en", "ru"], "approval": None, "key_set": True}
     built = []
     monkeypatch.setitem(tr.PROVIDERS, "fake", lambda _c, _s: built.append(1))
     r = w.c.post(f"{API}/translate", json={"text": "שלום לכולם"})
@@ -117,7 +118,7 @@ def test_enabling_needs_a_recorded_approval_bound_to_the_provider(world):
     enable(w)
     r = w.c.put(f"{API}/config", json={"translate": {"enabled": True, "provider": "fake"}})
     assert r.status_code == 422 and "translate.approval_required" in json.dumps(r.json())
-    for bad in ({"enabled": "yes"}, {"provider": "deepl-direct"}, {"targets": ["he"]}, {"targets": []}, {"targets": ["ar", "ar"]}, {"approve": True}, {"nope": 1}, {}):
+    for bad in ({"enabled": "yes"}, {"provider": "deepl-direct"}, {"targets": ["he"]}, {"targets": []}, {"targets": ["ar", "ar"]}, {"provider": "off", "approve": True}, {"nope": 1}, {}):
         assert w.c.put(f"{API}/config", json={"translate": bad}).status_code == 422, bad
     cfg = turn_on(w)
     assert cfg["enabled"] is True and cfg["provider"] == "fake" and cfg["approval"]["provider"] == "fake" and cfg["approval"]["by"] and cfg["approval"]["at"]
