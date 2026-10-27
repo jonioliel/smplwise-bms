@@ -88,13 +88,15 @@ export const genCss = css`
     line-height: 18px;
     white-space: nowrap;
   }
+  /* POLISH-CONTROL-297: the severity chip's word is the theme's readable text token of its tone (the raw status colour on its soft tint
+     fell under 4.5:1 for the warning and the cleared chips, light and dark) */
   .sev.critical {
     background: var(--sw-danger-soft);
-    color: var(--sw-danger);
+    color: var(--sw-danger-text);
   }
   .sev.alert {
     background: var(--sw-warning-soft);
-    color: var(--sw-warning);
+    color: var(--sw-warning-text);
   }
   .sev.info {
     background: var(--sw-accent-soft);
@@ -102,7 +104,7 @@ export const genCss = css`
   }
   .sev.cleared {
     background: var(--sw-success-soft);
-    color: var(--sw-success);
+    color: var(--sw-success-text);
   }
   .sev.mut {
     background: var(--sw-surface-3);
@@ -400,11 +402,17 @@ export const genCss = css`
     background: var(--sw-surface);
     border: 1px solid var(--sw-border);
     border-radius: var(--sw-r-md);
+    box-shadow: var(--sw-shadow-1);
     padding: 8px 10px;
+    min-inline-size: 0;
   }
+  /* POLISH-CONTROL-297: the small number's label in the secondary text colour, one line (it was the faintest tier at the smallest size) */
   .kpi .k {
-    color: var(--sw-text-3);
+    color: var(--sw-text-2);
     font-size: var(--sw-fs-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .kpi .v {
     font-size: var(--sw-fs-xl);
@@ -547,11 +555,11 @@ export const genCss = css`
   }
   .al.critical .ic {
     background: var(--sw-danger-soft);
-    color: var(--sw-danger);
+    color: var(--sw-danger-text);
   }
   .al.alert .ic {
     background: var(--sw-warning-soft);
-    color: var(--sw-warning);
+    color: var(--sw-warning-text);
   }
   .al.info .ic {
     background: var(--sw-accent-soft);
