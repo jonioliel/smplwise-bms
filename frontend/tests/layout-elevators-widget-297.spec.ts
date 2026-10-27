@@ -74,8 +74,9 @@ async function widthAndMeasure(page: Page, px: number): Promise<string[]> {
         if (s.scrollWidth > s.clientWidth + 1 && !(s.getAttribute('title') || '').length) bad.push('summary truncated without a title');
       }
       for (const n of Array.from(root.querySelectorAll('.el-row .nm, .el-card .t b, [data-home-elevators-top], .el-h b')) as HTMLElement[]) {
-        if (n.getBoundingClientRect().width < 72) bad.push(`name too narrow (${Math.round(n.getBoundingClientRect().width)}px): ${n.textContent?.slice(0, 12)}`);
-        if (n.scrollWidth > n.clientWidth + 1 && !(n.getAttribute('title') || '').length) bad.push('name truncated without a title');
+        const cut = n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1; // an ellipsis / line clamp is at work
+        if (cut && n.getBoundingClientRect().width < 100) bad.push(`name too narrow (${Math.round(n.getBoundingClientRect().width)}px): ${n.textContent?.slice(0, 12)}`);
+        if (cut && !(n.getAttribute('title') || '').length) bad.push('name truncated without a title');
       }
       for (const o of Array.from(root.querySelectorAll('.el-badge[data-look="off"], .eicon[data-look="off"] u')) as HTMLElement[]) {
         if (getComputedStyle(o).backgroundImage.includes('repeating')) bad.push('out-of-service still drawn with diagonal stripes');

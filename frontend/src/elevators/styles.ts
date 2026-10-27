@@ -47,10 +47,14 @@ export const elevatorCss = css`
     padding: 2px 8px;
     font-size: var(--sw-fs-state);
   }
-  /* out of service is told apart by more than its colour: a striped edge */
+  /* out of service is a calm outlined chip (ELEVFIX-297, was a loud diagonal stripe): a tinted fill, an outline and its own icon and word, so it
+     is told apart by more than its colour; the text follows the theme's text colour (readable in light and dark) */
   .el-badge[data-look='off'] {
-    background: repeating-linear-gradient(-45deg, var(--el-c) 0 8px, color-mix(in srgb, var(--el-c) 82%, #000) 8px 12px);
+    background: color-mix(in srgb, var(--el-c) 13%, var(--sw-surface, #fff));
+    color: color-mix(in srgb, var(--el-c) 72%, var(--sw-text, #1b2433));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el-c) 50%, transparent);
   }
+  .el-badge { max-inline-size: 100%; box-sizing: border-box; }
 
   /* the door icon */
   .eicon {
@@ -94,8 +98,9 @@ export const elevatorCss = css`
      in operation they are shut (ELEVDOORS-293) */
   .eicon[data-doors='open'] u:first-of-type { margin-inline-end: calc(var(--ei) * 0.14); }
   .eicon[data-look='off'] u {
-    background: repeating-linear-gradient(-45deg, #d7dce6 0 6px, color-mix(in srgb, var(--sw-el-off) 30%, #d7dce6) 6px 10px);
+    background: linear-gradient(90deg, #cfd5e1, #e4e8f0 45%, #cfd5e1);
   }
+  .eicon[data-look='off'] { opacity: 0.8; }
   @media (prefers-reduced-motion: no-preference) {
     .eicon[data-look='fire'],
     .el-badge[data-look='fire'] {
