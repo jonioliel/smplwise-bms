@@ -195,6 +195,8 @@ export interface ProductSettings {
   'ui.scheme'?: 'light' | 'dark' | 'auto';
   /** MOTIONSETTING-297: motion - auto (follow the OS reduction) | full (ignore it for non-essential motion) | reduced (zero durations); design/apply.ts. */
   'ui.motion'?: 'auto' | 'full' | 'reduced';
+  /** SKINCOMP-297: the rail tone - `auto` (the skin's own rail) or `dark` (the skin's dark rail where it has one: Arx Infra = direction D). */
+  'ui.rail_tone'?: 'auto' | 'dark';
   /** 2.4.4: the accent colour and the switch-on colour - 'default' | a preset id | '#rrggbb' (design/brand.ts). */
   'ui.accent'?: string;
   'ui.toggle_on'?: string;

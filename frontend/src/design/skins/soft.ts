@@ -2,6 +2,7 @@ import { lt, same, type TokenTable } from '../tokens';
 import type { Skin } from './index';
 import { ARX_MOTION_RULES } from './arx-motion';
 import { INFRA_TOKENS } from './infra';
+import { ARX_KPI_RULES, ARX_RAIL_RULES, SOFT_COMPONENT_RULES } from './arx-components';
 
 /**
  * Skin "Arx Soft" (SKINFOUND-297, owner decision 2026-10-27: direction C of the Arx design system, an ADDITIONAL selectable skin;
@@ -10,9 +11,10 @@ import { INFRA_TOKENS } from './infra';
  * C's deltas - private/design-system-2026-10-27/docs/TOKENS.md §3, as corrected by round 2 (round2/r2.css §7: the "vibrancy" muted
  * text and state text that keep 4.5:1 on the blended ground, the dark accent #2f6df6 that keeps white at 4.8:1 on a filled button).
  *
- * FOUNDATION ONLY: tokens (light AND dark), density, the shared motion layer, and the few rules that make the material real (the
- * canvas, glass panels behind the performance switches, their solid fallbacks). The C component rules of COMPONENT_RULES.md (pill
- * buttons, the 51 x 31 switch, the lit glow) come in the build slices. The brand mark and the installation logo are NOT touched.
+ * SKINFOUND-297: tokens (light AND dark), density, the shared motion layer, and the few rules that make the material real (the
+ * canvas, glass panels behind the performance switches, their solid fallbacks). SKINCOMP-297: the C component rules (arx-components.ts:
+ * pill buttons, the 51 x 31 switch, the lit glow, the KPI tile without the icon box, the rail on the `--sw-rail-*` tokens). Soft has no
+ * dark rail (`ui.rail_tone` is ignored here). The brand mark and the installation logo are NOT touched.
  */
 const tokens: TokenTable = {
   ...INFRA_TOKENS,
@@ -35,6 +37,12 @@ const tokens: TokenTable = {
   '--sw-border-strong': lt('rgba(30, 41, 59, 0.18)', 'rgba(255, 255, 255, 0.2)'),
   '--sw-highlight': lt('rgba(255, 255, 255, 0.9)', 'rgba(255, 255, 255, 0.1)'),
   '--sw-nav-glass': lt('rgba(255, 255, 255, 0.6)', 'rgba(16, 21, 38, 0.6)'), // the rail and the phone bar (TOKENS.md --sw-rail-bg)
+  // SKINCOMP-297: the rail (TOKENS.md §3): nav glass with the vibrancy label, the C accent text on a 12 % / 20 % accent pill
+  '--sw-rail-bg': lt('rgba(255, 255, 255, 0.6)', 'rgba(16, 21, 38, 0.6)'),
+  '--sw-rail-text': lt('#4d5a72', '#aeb8cc'),
+  '--sw-rail-active': lt('#2158d4', '#9ec0ff'),
+  '--sw-rail-active-bg': lt('rgba(47, 109, 246, 0.12)', 'rgba(91, 141, 255, 0.2)'),
+  '--sw-rail-border': lt('rgba(30, 41, 59, 0.08)', 'rgba(255, 255, 255, 0.08)'),
   '--sw-text': lt('#1f2a3d', '#eef2fa'),
   '--sw-heading': lt('#16203a', '#f8faff'),
   '--sw-text-2': lt('#44516a', '#b6c0d4'),
@@ -118,7 +126,7 @@ const rules = `
 /* soft 1 - the canvas: the warm and cool blooms under the glass */
 :host(sw-app) { background: var(--sw-canvas); }
 /* soft 2 - the rail and the phone bar: nav glass with the lit edge */
-:host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-color: var(--sw-border); }
+:host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-rail-bg); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-color: var(--sw-rail-border); }
 /* soft 3 - panels: cards and KPI tiles are glass (blur and fill behind the performance switches) */
 :host(sw-card), :host(sw-kpi) { border-color: var(--sw-border); background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-surface)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); }
 @media (hover: hover) and (pointer: fine) { :host(sw-card[interactive]:hover) { box-shadow: var(--sw-shadow-2); transform: translateY(var(--sw-hover-lift)); transition: transform var(--sw-t-hover) var(--sw-ease), box-shadow var(--sw-t-hover) var(--sw-ease-color); } }
@@ -128,6 +136,6 @@ const rules = `
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); } }
 @media (prefers-reduced-transparency: reduce) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 @media (prefers-contrast: more) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); border-color: var(--sw-border-strong); -webkit-backdrop-filter: none; backdrop-filter: none; } }
-${ARX_MOTION_RULES}`;
+${SOFT_COMPONENT_RULES}${ARX_KPI_RULES}${ARX_RAIL_RULES}${ARX_MOTION_RULES}`;
 
 export const soft: Skin = { id: 'soft', name: 'Arx Soft', nameHe: 'Arx Soft', noteHe: 'חומר שקוף על רקע חם וקר, פינות עגולות, תפריטים אטומים', stage: 'foundation', features: { material: false, bevel: false, pixelEdge: true, glass: true }, tokens, rules };

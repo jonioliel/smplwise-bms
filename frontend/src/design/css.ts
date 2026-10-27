@@ -57,6 +57,12 @@ export function tokensCss(): string {
     if (!Object.keys(skin.tokens).length) continue;
     css += blocks(`:root[data-skin="${id}"]`, skin.tokens, false);
   }
+  // SKINCOMP-297: a skin's optional dark rail (`ui.rail_tone` = dark puts data-rail="dark" on <html>, design/apply.ts). After the skin
+  // blocks: the light block outranks the skin's light block by one attribute, the dark block outranks the skin's dark block likewise.
+  for (const id of SKIN_IDS) {
+    const rail = SKINS[id].darkRail;
+    if (rail && Object.keys(rail).length) css += blocks(`:root[data-skin="${id}"][data-rail="dark"]`, rail, false);
+  }
   // the look dials (design/look.ts): token bundles keyed on the data attributes, for the bubble skin
   css += lookBundlesCss();
   // reduced motion: durations become 0 and the hover lift is off (accessibility, TOKEN_CONTRACT §2). !important: a skin's DARK block
@@ -72,9 +78,10 @@ export function tokensCss(): string {
   return css;
 }
 
-/** The merged table of a skin: the base with the skin's overrides (what a swatch preview and the contrast tests read). */
-export function skinTable(id: SkinId): TokenTable {
-  return { ...TOKENS, ...SKINS[id].tokens };
+/** The merged table of a skin: the base with the skin's overrides (what a swatch preview and the contrast tests read). `darkRail`
+ * (SKINCOMP-297) adds the skin's dark-rail overrides when it has them. */
+export function skinTable(id: SkinId, darkRail = false): TokenTable {
+  return { ...TOKENS, ...SKINS[id].tokens, ...(darkRail ? SKINS[id].darkRail ?? {} : {}) };
 }
 
 /**

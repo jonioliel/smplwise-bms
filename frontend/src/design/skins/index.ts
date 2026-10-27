@@ -39,7 +39,20 @@ export interface Skin {
   tokens: TokenTable;
   /** Component rules, written for the shadow roots: `:host(sw-card) .x { }` (see apply.ts for how they are adopted). */
   rules: string;
+  /**
+   * SKINCOMP-297: the optional dark rail of this skin (Arx direction D = Arx Infra with a navy rail): `--sw-rail-*` overrides, both
+   * columns, applied when the installation's `ui.rail_tone` is `dark` (`<html data-rail="dark">`, design/apply.ts). A skin without
+   * it ignores the setting.
+   */
+  darkRail?: TokenTable;
 }
+
+/** `ui.rail_tone` (SKINCOMP-297): `auto` = the skin's own rail, `dark` = the skin's dark rail where it has one. Keep in step with settings.py. */
+export const RAIL_TONES = ['auto', 'dark'] as const;
+export type RailTone = (typeof RAIL_TONES)[number];
+export const isRailTone = (v: unknown): v is RailTone => typeof v === 'string' && (RAIL_TONES as readonly string[]).includes(v);
+/** Whether the dark rail is drawn for this skin and tone. */
+export const darkRailOn = (skin: SkinId, tone: RailTone): boolean => tone === 'dark' && !!SKINS[skin].darkRail;
 
 export const SKINS: Record<SkinId, Skin> = { classic, domus, tesla, bubble, crystal, infra, soft };
 

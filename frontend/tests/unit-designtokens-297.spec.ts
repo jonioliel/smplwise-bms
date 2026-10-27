@@ -58,7 +58,11 @@ test('every registered skin (frozen included) meets the contract in light AND da
   for (const id of SKIN_IDS) {
     expect(validateSkinTable(skinTable(id)), id).toEqual([]);
     expect(skinProblems(SKINS[id]), id).toEqual([]);
+    if (SKINS[id].darkRail) expect(validateSkinTable(skinTable(id, true)), `${id} dark rail`).toEqual([]); // SKINCOMP-297
   }
+  // SKINCOMP-297: a dark rail may rewrite only --sw-rail-* names, with both columns
+  const bad = { ...SKINS.infra, darkRail: { '--sw-accent': { light: '#000000', dark: '#000000' }, '--sw-rail-bg': { light: '#141b2b', dark: ' ' } } };
+  expect(skinProblems(bad).filter((p) => p.startsWith('darkRail'))).toHaveLength(2);
 });
 
 test('features: declared per skin and equal to what the skin really draws; bevels only in classic and domus', () => {
@@ -117,7 +121,11 @@ test('reduced motion: generated from the motion roles; every duration / travel o
       .map((d) => `${d} !important;`)
       .join(''),
   );
-  expect(tokensCss()).toContain(`@media (prefers-reduced-motion: reduce){:root,:root[data-skin]{${REDUCED_MOTION_CORE}${REDUCED_MOTION_ARX}}}`);
+  // MOTIONSETTING-297 (merged into 2.25.0): the generated declarations feed both selectors - the OS reduction unless
+  // data-motion="full", and data-motion="reduced" always
+  const decls = `${REDUCED_MOTION_CORE}${REDUCED_MOTION_ARX}`;
+  expect(tokensCss()).toContain(`@media (prefers-reduced-motion: reduce){:root:not([data-motion="full"]),:root[data-skin]:not([data-motion="full"]){${decls}}}`);
+  expect(tokensCss()).toContain(`:root[data-motion="reduced"],:root[data-skin][data-motion="reduced"]{${decls}}`);
 });
 
 // a minimal valid data skin: two overrides in both schemes (it borrows the tesla id only to satisfy the SkinId type; never registered)
