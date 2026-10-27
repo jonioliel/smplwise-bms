@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { installAccessMock, NOW, SKINS, type MockOptions } from './access-control-mocks';
 import { settlePage } from './pixel-settle';
+import { pixelTitle, skinCheck } from './helpers/pixel-skins';
 
 // CR-036 S8 pixel baselines: the entry log's NEW screens - the list and the drawer with the event picture in every skin the product has, and the
 // states (empty, error, forbidden, stale, the export dialog, the custom period, the table) in the classic skin - desktop 1440 and phone 390,
@@ -39,13 +40,15 @@ test.describe('pixel: the entry log', () => {
 
   for (const skin of SKINS) {
     // "pixel-stable" in the title: the release gate runs its pixel group with --grep pixel-stable (a title without it ran zero tests)
-    test(`${skin} is pixel-stable: the list and the drawer with the picture`, async ({ page }, info) => {
+    // GATELANES-297: pixels for the skins in helpers/pixel-skins.ts (classic, domus), the structural smoke for the others
+    test(pixelTitle(skin, 'the list and the drawer with the picture'), async ({ page }, info) => {
+      const check = skinCheck(page, skin);
       await open(page, {}, skin, `${SCREEN} button.row[data-row-id="ev-0001"]`);
-      await compare(page, info, `events-${skin}-list`);
+      await check(() => compare(page, info, `events-${skin}-list`), SCREEN);
       await page.locator(`${SCREEN} button.row[data-row-id="ev-0001"]`).click();
       await page.waitForSelector(`${SCREEN} sw-drawer[open] [data-ev-portrait="ready"]`, { timeout: 20_000 });
       await settlePage(page);
-      await compare(page, info, `events-${skin}-drawer`);
+      await check(() => compare(page, info, `events-${skin}-drawer`), `${SCREEN} sw-drawer[open] [data-ev-portrait="ready"]`);
     });
   }
 

@@ -190,12 +190,30 @@ def test_call_with_deadline_answers_raises_and_times_out():
 
 
 def test_the_in_flight_cap_refuses_to_send_rather_than_queue(monkeypatch):
+    """The physical-command safety half (blocking gate): with the cap full, a call is refused `not_sent:lane_full` and never reaches the
+    engine - never queued. GATELANES-297: no wall-clock wait in here any more; the slot's recovery is the timing-lane test below."""
+    monkeypatch.setattr(de, "_INFLIGHT", threading.BoundedSemaphore(1))
+    gate = threading.Event()
+    try:
+        assert de.call_with_deadline(lambda: gate.wait(10), 0.1).code == "deadline"  # holds the only slot while it hangs
+        sent = []
+        for _ in range(3):  # every call while the slot is held is refused, none is held back to go out later
+            out = de.call_with_deadline(lambda: sent.append(1), 0.5)
+            assert (out.state, out.code) == ("unknown", "not_sent:lane_full"), out
+        assert sent == [], "nothing reached the engine"
+    finally:
+        gate.set()
+    assert sent == [], "and nothing went out after the slot was freed: a refused call is not queued"
+
+
+@pytest.mark.timing_lane
+def test_the_in_flight_slot_is_freed_when_the_hung_call_ends(monkeypatch):
+    """GATELANES-297 timing lane: the liveness half of the test above (wall-clock: the hung call's thread must end and free its slot
+    within 2 s, and the next call must answer within 1 s). The combined test was FLAKY in 8 of the last 40 gate / nightly runs."""
     monkeypatch.setattr(de, "_INFLIGHT", threading.BoundedSemaphore(1))
     gate = threading.Event()
     assert de.call_with_deadline(lambda: gate.wait(10), 0.1).code == "deadline"  # holds the only slot while it hangs
-    sent = []
-    out = de.call_with_deadline(lambda: sent.append(1), 0.5)
-    assert (out.state, out.code) == ("unknown", "not_sent:lane_full") and sent == [], "nothing reached the engine"
+    assert de.call_with_deadline(lambda: None, 0.5).code == "not_sent:lane_full"
     gate.set()
     end = time.monotonic() + 2
     while time.monotonic() < end and not de._INFLIGHT.acquire(blocking=False):

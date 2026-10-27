@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { settlePage } from './pixel-settle';
 import { band, install, newMock, open, stills, live } from './wall-plan-mocks';
 import { skinsUnderTest } from './helpers/frozen-skins';
+import { pixelTitle, skinCheck } from './helpers/pixel-skins';
 
 // Plan Studio 6, slice S5-B pixel baselines (docs/changes/CR-029-ST7-S5B-NOTES.md): the NEW states only - the plan in the map band of a portrait
 // wall display (the baked stills in the five skins on a dark wall, two on a light wall; the live schematic view on SwiftShader) and the
@@ -39,11 +40,13 @@ test.describe('pixel: the plan in the map band of a portrait wall', () => {
   for (const skin of SKINS) {
     for (const theme of skin === 'classic' || skin === 'bubble' ? (['dark', 'light'] as const) : (['dark'] as const)) {
       // "pixel-stable" in the title: the release gate runs its pixel group with --grep pixel-stable (a title without it ran zero tests)
-      test(`${skin} is pixel-stable: the baked stills in the map band, ${theme} wall`, async ({ page }, info) => {
+      // GATELANES-297: pixels for the skins in helpers/pixel-skins.ts (classic, domus), the structural smoke for the others
+      test(pixelTitle(skin, `the baked stills in the map band, ${theme} wall`), async ({ page }, info) => {
+        const skinShot = skinCheck(page, skin);
         await page.clock.setFixedTime(NOW);
         await open(page, newMock({ skin, scheme: theme === 'dark' ? 'light' : 'dark', theme, plan: { mode: 'stills', quality: 'follow', idle_s: 'follow' } }), undefined, '?design=a&look=performance:full');
         await stillReady(page);
-        await check(band(page), info, `wall-plan-band-${skin}-${theme}.png`);
+        await skinShot(() => check(band(page), info, `wall-plan-band-${skin}-${theme}.png`), band(page));
       });
     }
   }
@@ -74,7 +77,8 @@ test.describe('pixel: the settings drawer\'s map section', () => {
   });
 
   for (const skin of skinsUnderTest(['classic', 'bubble', 'crystal'] as const)) {
-    test(`${skin} is pixel-stable: the map section of the wall drawer`, async ({ page }, info) => {
+    test(pixelTitle(skin, 'the map section of the wall drawer'), async ({ page }, info) => {
+      const skinShot = skinCheck(page, skin);
       await page.clock.setFixedTime(NOW);
       const st = newMock({ admin: true, skin, scheme: 'light', plan: { mode: 'stills', quality: 'schematic', idle_s: 120 } });
       await install(page, st);
@@ -85,7 +89,7 @@ test.describe('pixel: the settings drawer\'s map section', () => {
       await expect(section.locator('select[data-wall-field="plan-idle"]')).toHaveValue('120');
       await section.scrollIntoViewIfNeeded();
       await settlePage(page);
-      await check(section, info, `wall-settings-map-${skin}.png`);
+      await skinShot(() => check(section, info, `wall-settings-map-${skin}.png`), section);
     });
   }
 });

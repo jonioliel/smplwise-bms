@@ -7,6 +7,7 @@ import type { GeometryDoc } from '../src/map/geometry';
 import { settlePage } from './pixel-settle';
 import { camera, walkDoc, walkInput } from './walk-fixtures';
 import { skinsUnderTest } from './helpers/frozen-skins';
+import { pixelTitle, skinCheck } from './helpers/pixel-skins';
 
 // Plan Studio 6, slice S5-A pixel baselines: the NEW states of the touch walk only - the bottom sheet closed and open in the five
 // skins on a 390 px phone, the joystick under a thumb, and the walk bar of a desktop. Nothing the walk showed before S5-A is
@@ -68,17 +69,19 @@ test.describe('pixel: the touch walk', () => {
 
   for (const skin of SKINS) {
     // "pixel-stable" in the title: the release gate's pixel group greps for it (a title without it ran zero tests)
-    test(`${skin} is pixel-stable: the bottom sheet, closed and open`, async ({ page }, info) => {
+    // GATELANES-297: pixels for the skins in helpers/pixel-skins.ts (classic, domus), the structural smoke for the others
+    test(pixelTitle(skin, 'the bottom sheet, closed and open'), async ({ page }, info) => {
       test.skip(info.project.name !== 'mobile', 'the phone layout');
       test.setTimeout(120_000);
+      const skinShot = skinCheck(page, skin);
       const el = await walking(page, skin);
       const sheet = el.locator('[data-walk-sheet]');
       await settlePage(page);
-      await check(info, sheet, `walk-sheet-closed-${skin}.png`);
+      await skinShot(() => check(info, sheet, `walk-sheet-closed-${skin}.png`), sheet);
       await el.locator('[data-walk-sheet-toggle]').click();
       await expect(el.locator('[data-walk-sheet-body]')).toBeVisible();
       await settlePage(page);
-      await check(info, sheet, `walk-sheet-open-${skin}.png`);
+      await skinShot(() => check(info, sheet, `walk-sheet-open-${skin}.png`), sheet);
     });
   }
 

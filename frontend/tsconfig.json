@@ -15,5 +15,6 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src", "tests", "vite.config.ts", "vite.public.config.ts", "playwright.config.ts"]
+  "include": ["src", "tests", "vite.config.ts", "vite.public.config.ts", "playwright.config.ts"],
+  "exclude": ["tests/archive"]
 }

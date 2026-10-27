@@ -35,7 +35,9 @@ test.describe('ticket card titles', () => {
   test.beforeEach(async ({}, info) => test.skip(info.project.name === 'tablet', 'desktop 1440 and phone 390'));
 
   for (const [name, title] of [['russian', RU], ['english', EN]] as const) {
-    test(`a ${name} title keeps its beginning: dir=auto, two lines, full text in title`, async ({ page }) => {
+    // GATELANES-297 timing lane: the wrapping is measured while the web fonts load (FLAKY in 4 of the last 40 runs); the release gate
+    // leaves these two out (--grep-invert @timing-lane), scripts/gate/timing_lane.sh runs them when the runner is quiet
+    test(`a ${name} title keeps its beginning: dir=auto, two lines, full text in title`, { tag: '@timing-lane' }, async ({ page }) => {
       const card = await cardWith(page, title);
       const h3 = card.locator('h3[data-card-title]');
       await expect(h3).toHaveAttribute('dir', 'auto');

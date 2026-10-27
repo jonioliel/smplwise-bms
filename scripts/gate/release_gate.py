@@ -20,6 +20,9 @@ Partial runs for the nightly (scripts/gate/nightly_tests.sh drives this engine; 
   GATE_COSTS_DIR=<dir>  a second results directory whose gate_*.logs also feed the --workers=1 chunk balance (the nightly writes
   its reports to its own directory and borrows the release gates' per-file times).
 
+Timing lane (GATELANES-297, docs/testing/GATE_LANES.md): tests tagged '@timing-lane' (Playwright) or marked timing_lane (pytest) are
+left out of every gate and nightly run here; GATE_LANE=timing (set by timing_lane.sh only) runs ONLY them, non-blocking, after a gate.
+
 Schedules (GATESPEED-293, docs/release/GATE_SPEED.md). `--schedule v1` (the default, GATE_SCHEDULE unset) is the 2.9.2 gate
 unchanged. `--schedule v2` (or GATE_SCHEDULE=v2) keeps every spec, project, server kind, retry rule and false-green guard, and
 only changes WHEN and HOW WIDE things run:
@@ -70,6 +73,32 @@ PW_WORKERS = os.environ.get("GATE_PW_WORKERS", "3")
 SKIP_BACKEND = os.environ.get("GATE_SKIP_BACKEND") == "1"
 SKIP_DEV = os.environ.get("GATE_SKIP_DEV") == "1"
 SKIPPED_CATS = ({"backend"} if SKIP_BACKEND else set()) | ({"dev"} if SKIP_DEV else set())
+# GATELANES-297 timing lane (docs/testing/GATE_LANES.md). Wall-clock / load-sensitive tests carry a Playwright tag (LANE_TAG) or a
+# pytest mark (LANE_MARK). A release gate or the nightly (GATE_LANE unset) never runs them: pytest -m "not timing_lane", Playwright
+# --grep-invert @timing-lane. GATE_LANE=timing (set only by timing_lane.sh, its own results directory) runs ONLY them: no
+# release_check, no visual step, no pixel step, no count-baseline check; its verdict is a report and never reaches a release gate.
+LANE_TAG = "@timing-lane"
+LANE_MARK = "timing_lane"
+LANE = (os.environ.get("GATE_LANE") or "").strip().lower() == "timing"
+LANE_MARK_RE = re.compile(r"@pytest\.mark\.timing_lane\b")
+
+
+def lane_pytest_args():
+    """The pytest selection of this run: a gate deselects the timing lane, the lane selects only it."""
+    return ["-m", LANE_MARK if LANE else f"not {LANE_MARK}"]
+
+
+def lane_grep(grep, grep_invert):
+    """(grep, grep_invert) of one Playwright run: a gate leaves the lane's tagged tests out, the lane runs only them."""
+    if LANE:
+        return LANE_TAG, None
+    return grep, (f"{grep_invert}|{LANE_TAG}" if grep_invert else LANE_TAG)
+
+
+def lane_backend_files(bd):
+    """The backend test files that carry the timing_lane mark (the lane runs only these files)."""
+    return {os.path.basename(f) for f in glob.glob(str(Path(bd) / "tests" / "test_*.py"))
+            if LANE_MARK_RE.search(Path(f).read_text(encoding="utf-8", errors="replace"))}
 COSTS_DIR = os.environ.get("GATE_COSTS_DIR") or ""
 SELECT_BASE = os.environ.get("GATE_SELECT_BASE") or ""   # --select-base <ref>: diff-based selection (select_tests.py); "" = full tier
 REDUCED_CATS = {}        # category -> "n of m files" when a selection left files out (filled by apply_selection())
@@ -287,7 +316,7 @@ def setup_worktree():
     rc = subprocess.run(["git", "rev-parse", "--verify", "-q", f"origin/{BR}^{{commit}}"], cwd=BASE, capture_output=True, text=True)
     if rc.returncode != 0:
         raise SystemExit(f"origin/{BR} not found (push the branch first)")
-    wt = WORK / f"gate-{TAG}"
+    wt = WORK / f"{'lane' if LANE else 'gate'}-{TAG}"   # the timing lane never shares (or resets) a gate's worktree
     if not (wt / ".git").exists():
         subprocess.run(["git", "worktree", "prune"], cwd=BASE)
         subprocess.run(["git", "worktree", "add", "--detach", "-f", str(wt), f"origin/{BR}", "-q"], cwd=BASE, check=True)
@@ -329,8 +358,11 @@ def backend_start(wt, logd, nshards=3, only=None):
         load[k] += os.path.getsize(f)
     procs = []
     for k, fl in enumerate(shards, 1):
+        if not fl:   # an empty shard would run pytest's testpaths (every file); the timing lane has two files
+            continue
         log = logd / f"backend_s{k}.log"
-        p = spawn([PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(logd / f"tmp_b{k}")] + fl, bd, log)
+        p = spawn([PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(logd / f"tmp_b{k}")]
+                  + lane_pytest_args() + fl, bd, log)
         procs.append((k, p, log))
     return procs, len(files)
 
@@ -604,7 +636,7 @@ def tmpfs_root(tag):
 
 
 def backend_cmd(names, logd, k, basetemp, v2):
-    cmd = [PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(basetemp)]
+    cmd = [PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(basetemp)] + lane_pytest_args()
     if v2:   # per-file times for the next gate's split; a passed test's tmp_path is removed at its teardown
         cmd += ["-o", "tmp_path_retention_policy=failed", "--junitxml", str(logd / f"backend_s{k}.xml")]
     return cmd + ["tests/" + x for x in names]
@@ -674,10 +706,13 @@ def tablet_skip_set(fe):
 def classify(fe, tier):
     out = {"rest": {}, "dev": {}, "fixture": {}, "pixel": [], "fixture_other": {}, "tablet_dropped": []}
     no_tablet = tablet_skip_set(fe)
+    # top level only: tests/archive/ (retired specs, GATELANES-297) and tests/helpers/ are never classified
     for f in sorted((fe / "tests").glob("*.spec.ts")):
         if tier == "S" and not f.name.startswith("unit-"):
             continue
         text = f.read_text(errors="replace")
+        if LANE and LANE_TAG not in text:   # the timing lane: only the files with a tagged test
+            continue
         header = "\n".join(text.splitlines()[:70])
         flags = list(dict.fromkeys(re.findall(r"--project=(desktop|tablet|mobile)", header)))
         one = re.search(r"one project", header, re.I) is not None
@@ -698,7 +733,7 @@ def classify(fe, tier):
                 out["tablet_dropped"].append(f.name)
         if fixtures and f.name not in FIXTURE_SPECS:
             out["fixture_other"][f.name] = fixtures[0]
-        if "toHaveScreenshot(" in text and not (VISUAL and f.name == "visual-matrix.spec.ts"):  # the visual step owns that spec
+        if "toHaveScreenshot(" in text and not LANE and not (VISUAL and f.name == "visual-matrix.spec.ts"):  # the visual step owns that spec
             out["pixel"].append(f.name)
         out[kind][f.name] = {"projects": projs, "workers1": workers1, "one": one}
     return out
@@ -757,6 +792,7 @@ def run_pw(fe, specs, projects, base_url, logd, label, env=None, workers=None, g
     jp = logd / f"pw_{label}.json"
     if jp.exists():
         jp.unlink()
+    grep, grep_invert = lane_grep(grep, grep_invert)   # GATELANES-297: every run of a gate leaves the timing lane out
     e = {"SW_BASE_URL": base_url, "PLAYWRIGHT_JSON_OUTPUT_NAME": str(jp)}
     e.update(env or {})
     cmd = ["npx", "playwright", "test"] + (line_args if line_args is not None else [file_arg(s) for s in specs])
@@ -1332,7 +1368,8 @@ def write_reports(sha, verdict, extra):
            "phases": PHASES, "items": ITEMS, **extra}
     write_json(Path(str(base) + ".json"), doc)
     heb = "עבר" if verdict == "pass" else "נכשל"
-    md = [f"# שער שחרור: {BR} @ {sha}", "", f"## פסק דין: **{heb}**", "",
+    title = "מסלול התזמון (לא חוסם, GATELANES-297)" if LANE else "שער שחרור"
+    md = [f"# {title}: {BR} @ {sha}", "", f"## פסק דין: **{heb}**", "",
           f"- דרגה: {TIER} | התחלה: {STARTED} | סיום: {fin} | משך: {dur // 60} דקות {dur % 60} שניות", ""]
     if TIMEDEP:
         md += [f"> **אזהרה:** {len(TIMEDEP)} בדיקות תלויות-שעה (שעות שקט) נכשלו בגלל שעת ההרצה ולכן סומנו KNOWN ולא נבדקו באמת. להריץ את השער שוב בשעות היום לפני שחרור.", ""]
@@ -1434,6 +1471,9 @@ def main():
                 SELECTION.update(error=f"{type(e).__name__}: {str(e)[:200]}")
             write_json(RES / f"gate_{TAG}_{sha}.selection.json", SELECTION)
             only = backend_only(SELECTION)
+    if LANE:   # the timing lane: only the backend files with a timing_lane test (pytest -m timing_lane inside them)
+        only = lane_backend_files(wt / "smplwise_vms" / "backend")
+        extra["lane"] = {"name": "timing", "backend_files": sorted(only), "tag": LANE_TAG, "mark": LANE_MARK, "blocking": False}
     try:
         with Phase("modules", "node modules"):
             if not need_modules(wt, logd / "npm.log"):
@@ -1463,15 +1503,16 @@ def main():
                 item("build", "vite build", "FAIL", f"rc={rc} (see build.log)")
         # 0.1.162 gate: release_check (seconds, reads the tree only) runs right after the build, before any Playwright run -
         # at the end it was starved by the budget (rc=124 without running) and it saw the docs the evidence specs rewrite
-        with Phase("release_check", "release_check.py"):
-            rlog = logd / "release_check.log"
-            rc, to = run([PY, "scripts/release_check.py", "--root", ".", "--json", str(logd / "release_check.json")], wt, rlog, timeout=300)
-            txt = rlog.read_text(errors="replace") if rlog.exists() else ""
-            extra["release_check_output"] = txt
-            extra["release_check_rc"] = rc
-            count("release_check", "pass" if rc == 0 else "fail")
-            if rc != 0:
-                item("release_check", "scripts/release_check.py", "FAIL", f"rc={rc}; " + " | ".join(l.strip() for l in txt.splitlines() if re.search(r"fail|missing|differ", l, re.I))[:220])
+        if not LANE:   # the timing lane checks no release (GATELANES-297)
+            with Phase("release_check", "release_check.py"):
+                rlog = logd / "release_check.log"
+                rc, to = run([PY, "scripts/release_check.py", "--root", ".", "--json", str(logd / "release_check.json")], wt, rlog, timeout=300)
+                txt = rlog.read_text(errors="replace") if rlog.exists() else ""
+                extra["release_check_output"] = txt
+                extra["release_check_rc"] = rc
+                count("release_check", "pass" if rc == 0 else "fail")
+                if rc != 0:
+                    item("release_check", "scripts/release_check.py", "FAIL", f"rc={rc}; " + " | ".join(l.strip() for l in txt.splitlines() if re.search(r"fail|missing|differ", l, re.I))[:220])
         cls = classify(fe, TIER)
         if SELECTION:
             cls = filter_classification(cls, SELECTION)
@@ -1552,9 +1593,12 @@ def main():
         write_json(RES / "quarantine.json", {"updated": now(), "gate": f"{BR}@{sha}", "entries": extra["quarantine"]})
     except Exception as e:  # noqa: BLE001 - a report helper never changes the verdict
         extra["quarantine_error"] = f"{type(e).__name__}: {e}"[:200]
-    baseline, bsrc = load_baseline(wt)
+    baseline, bsrc = (None, "") if LANE else load_baseline(wt)
     extra["baseline_file"] = bsrc or "(none found)"
-    extra["baseline_warnings"] = check_baselines(baseline, TIER) if baseline else ["no gate_baselines.json found: the count-drop check was NOT applied"]
+    if LANE:   # a handful of tagged tests: the release counts do not apply (GATELANES-297)
+        extra["baseline_warnings"] = ["timing lane: no count-baseline check (non-blocking lane, docs/testing/GATE_LANES.md)"]
+    else:
+        extra["baseline_warnings"] = check_baselines(baseline, TIER) if baseline else ["no gate_baselines.json found: the count-drop check was NOT applied"]
     verdict = compute_verdict(hard_fail)
     for h in hard_fail:
         item("gate", h, "FAIL", "")
@@ -1717,6 +1761,8 @@ def main_cli(argv):
             return 0
         else:
             BR = a
+    if LANE:   # GATELANES-297: the timing lane runs only its tagged tests - no visual step, no diff selection
+        VISUAL, SELECT_BASE = "", ""
     if SCHEDULE not in ("v1", "v2"):
         print("--schedule must be v1 (the 2.9.2 gate, default) or v2 (GATESPEED: more shards, one Playwright pool)")
         return 2

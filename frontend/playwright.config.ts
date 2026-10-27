@@ -14,6 +14,8 @@ process.env.TZ = process.env.SW_TEST_TZ || 'Asia/Jerusalem';
 
 export default defineConfig({
   testDir: 'tests',
+  // GATELANES-297: tests/archive/ holds retired specs (history kept, never run; tests/archive/README.md says how to restore one)
+  testIgnore: ['**/archive/**'],
   timeout: 60_000,
   retries: 0,
   // Live specs share one backend and installation-wide settings (e.g. הגדרות › בקרות כניסה, switched by the WisKey

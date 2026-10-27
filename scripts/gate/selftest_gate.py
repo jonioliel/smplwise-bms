@@ -49,6 +49,9 @@ if mode == "rc1_no_failure":  # exit 1 although every reported test passed
     write(report([spec(1), spec(2)])); sys.exit(1)
 if mode == "rc_weird":
     write(report([spec(1)])); sys.exit(7)
+if mode == "argv":            # GATELANES-297: record the command line, then a normal passing report
+    open(os.environ["FAKE_PW_ARGV"], "w").write(json.dumps(sys.argv[1:]))
+    write(report([spec(i) for i in range(1, 3)])); sys.exit(0)
 if mode == "param_fail":      # a test() in a loop: two siblings share file:line, the first fails every time, the last passes
     a, b = spec(7, "unexpected"), spec(7)
     a["title"], b["title"] = "classic is pixel-stable", "bubble is pixel-stable"
@@ -279,6 +282,54 @@ os.environ["GATE_TMPFS_MIN_GB"] = "1000000"
 check("v2 tmpfs: under the free-space floor it falls back to disk (None)", g.tmpfs_root("selftest") is None)
 for k in ("GATE_TMPFS_DIR", "GATE_TMPFS_MIN_GB"):
     os.environ.pop(k, None)
+
+# ---- GATELANES-297: the timing lane is left out of every gate run and is all the lane runs; tests/archive/ is never classified
+def pw_argv(**kw):
+    logd = TMP / "logs_lane"
+    logd.mkdir(exist_ok=True)
+    af = TMP / "argv.json"
+    g.run_pw(TMP, ["a.spec.ts"], ["desktop"], "http://127.0.0.1:1/", logd, "lane", env={"FAKE_PW_MODE": "argv", "FAKE_PW_ARGV": str(af)}, timeout=60, **kw)
+    return json.loads(af.read_text())
+
+
+lane0 = g.LANE
+g.LANE = False
+a = pw_argv(grep_invert="pixel-stable")
+check("lane: a gate's preview run inverts pixel-stable AND @timing-lane", a[a.index("--grep-invert") + 1] == "pixel-stable|@timing-lane", a)
+a = pw_argv()
+check("lane: a gate's dev / retry run inverts @timing-lane", a[a.index("--grep-invert") + 1] == "@timing-lane" and "-g" not in a, a)
+a = pw_argv(grep="pixel-stable")
+check("lane: the pixel step keeps --grep pixel-stable and leaves the lane out", a[a.index("-g") + 1] == "pixel-stable" and "--grep-invert" in a, a)
+bc = g.backend_cmd(["test_x.py"], TMP, 1, TMP / "bt", False)
+check("lane: a gate's pytest shard deselects the timing_lane mark", bc[bc.index("-m") + 1] == "not timing_lane", bc)
+g.LANE = True
+a = pw_argv(grep_invert="pixel-stable")
+check("lane: the lane's Playwright run greps @timing-lane only, inverts nothing", a[a.index("-g") + 1] == "@timing-lane" and "--grep-invert" not in a, a)
+bc = g.backend_cmd(["test_x.py"], TMP, 1, TMP / "bt", False)
+check("lane: the lane's pytest selects only the timing_lane mark", bc[bc.index("-m") + 1] == "timing_lane", bc)
+lfe = TMP / "lane_fe"
+(lfe / "tests" / "archive" / "old").mkdir(parents=True)
+(lfe / "tests" / "unit-a.spec.ts").write_text("test('a', async () => {});\n")
+(lfe / "tests" / "unit-b.spec.ts").write_text("test('b', { tag: '@timing-lane' }, async () => {});\ntest('c', async () => {});\n")
+(lfe / "tests" / "pixel-c.spec.ts").write_text("test('p is pixel-stable', async ({ page }) => { await expect(page).toHaveScreenshot('x.png'); });\n")
+(lfe / "tests" / "archive" / "old" / "evidence-owner-round1.spec.ts").write_text("test('old', async () => {});\n")
+(lfe / "tests" / "archive" / "evidence-x.spec.ts").write_text("test('old', async () => {});\n")
+names = lambda c: set(c["rest"]) | set(c["dev"]) | set(c["fixture"]) | set(c["pixel"])  # noqa: E731
+g.LANE = False
+c = g.classify(lfe, "L")
+check("archive: a gate classifies the top-level specs only, never tests/archive/", names(c) == {"unit-a.spec.ts", "unit-b.spec.ts", "pixel-c.spec.ts"} and c["pixel"] == ["pixel-c.spec.ts"], c)
+g.LANE = True
+c = g.classify(lfe, "L")
+check("lane: the lane classifies only the files with a tagged test, no pixel step", names(c) == {"unit-b.spec.ts"} and c["pixel"] == [], c)
+lbd = TMP / "lane_be"
+(lbd / "tests").mkdir(parents=True)
+(lbd / "tests" / "test_a.py").write_text("import pytest\n\n@pytest.mark.timing_lane\ndef test_t():\n    pass\n")
+(lbd / "tests" / "test_b.py").write_text("def test_u():\n    pass  # timing_lane in a comment is not a mark\n")
+check("lane: the lane's backend files are the ones with @pytest.mark.timing_lane", g.lane_backend_files(lbd) == {"test_a.py"}, g.lane_backend_files(lbd))
+g.LANE = lane0
+real_be = Path(__file__).resolve().parents[2] / "smplwise_vms" / "backend"
+if real_be.is_dir():
+    check("lane: the shipped backend has timing_lane tests (the door slot recovery, LAT1)", {"test_f3a_doorwin_dw03_295.py", "test_lat1_toggle_latency.py"} <= g.lane_backend_files(real_be), g.lane_backend_files(real_be))
 
 print()
 print("SELFTEST " +("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))

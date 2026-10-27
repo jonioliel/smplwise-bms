@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { installAccessMock, NOW, SKINS, type MockOptions } from './access-control-mocks';
 import { settlePage } from './pixel-settle';
+import { pixelTitle, skinCheck } from './helpers/pixel-skins';
 
 // CR-036 S9 pixel baselines: the NEW read-only schedules screen - the door view (week grid, program, library, proposals) in every skin the
 // product has, and the table, the phone's door sheet and the states (empty, error, forbidden) in the classic skin - desktop 1440 and phone
@@ -40,9 +41,11 @@ test.describe('pixel: the schedules screen', () => {
 
   for (const skin of SKINS) {
     // "pixel-stable" in the title: the release gate runs its pixel group with --grep pixel-stable
-    test(`${skin} is pixel-stable: the door view with the library and the proposals`, async ({ page }, info) => {
+    // GATELANES-297: pixels for the skins in helpers/pixel-skins.ts (classic, domus), the structural smoke for the others
+    test(pixelTitle(skin, 'the door view with the library and the proposals'), async ({ page }, info) => {
+      const check = skinCheck(page, skin);
       await open(page, {}, skin, `${SCREEN} [data-sch-lib-row="sch-contractors"]`);
-      await compare(page, info, `schedules-${skin}-door`);
+      await check(() => compare(page, info, `schedules-${skin}-door`), SCREEN);
     });
   }
 

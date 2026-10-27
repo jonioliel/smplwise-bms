@@ -10293,5 +10293,30 @@
     "expected": "Every listed test passes or skips by its own documented rule; the visual matrix reports 0 differences; the gate selftest passes.",
     "status": "NOT_RUN",
     "notes": "2026-10-27 test machine, pilot/GATEAUDIT-297 (not a gate; load average 20-52 from other jobs): tsc ok @27834e8ba; visual matrix accept of 7 screens (38 files) then run --all 72 pass / 0 differ, repeats 48/0 x2; changed specs @a06719d44 on the dev server 160 passed / 69 skipped / 11 failed (goto timeouts at load ~50), those two specs again on the dist preview 89 passed / 13 skipped / 0 failed; the 14 bubble-related specs the 2.23.2 gate dropped 381 passed / 103 skipped / 2 failed (fleet-report goto timeout at dev-server cold start), fleet-report on the preview 20 passed / 10 skipped / 0 failed; selftest_gate.py SELFTEST PASSED (41 OK). Report: docs/testing/GATE_AUDIT_2026-10-27.md."
+  },
+  {
+    "id": "AT-GATELANES-1",
+    "requirement_ids": [
+      "R-GATEAUDIT-1"
+    ],
+    "task_ids": [
+      "GATELANES-297"
+    ],
+    "title": "Gate lanes: per-skin pixel specs (pixels for classic + domus, structural smoke for tesla + crystal), the split door / LAT1 tests in both lanes, the gate selftest and typecheck on the test machine",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Mocked backends / demo mode only; no device, no live installation"
+    ],
+    "procedure": [
+      "npx tsc --noEmit",
+      "python3 scripts/gate/selftest_gate.py",
+      "the 12 per-skin pixel-*.spec.ts on the dist preview, desktop + mobile: --grep pixel-stable (the gate's pixel step) and --grep 'structural smoke' (the tesla / crystal smoke)",
+      "pytest -m 'not timing_lane' and -m timing_lane on test_f3a_doorwin_dw03_295.py and test_lat1_toggle_latency.py",
+      "playwright --list: the archive is not listed; --grep-invert @timing-lane leaves exactly the tagged tests out"
+    ],
+    "expected": "tsc ok; SELFTEST PASSED; every pixel case passes against the unchanged classic / domus baselines and every smoke case passes; both pytest selections pass; the lists match.",
+    "status": "NOT_RUN",
+    "notes": ""
   }
 ]

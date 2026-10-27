@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { installAccessMock, NOW, SKINS, type MockOptions } from './access-control-mocks';
 import { settlePage } from './pixel-settle';
+import { pixelTitle, skinCheck } from './helpers/pixel-skins';
 
 // CR-036 S10 pixel baselines: the Settings page "בקרת כניסה" - the status page and a station's health card in every skin the product has, and the
 // log, the groups, the lower half of the status (sync counts and conflicts), the muted alerts, a stale copy and the states (busy, not connected,
@@ -43,13 +44,16 @@ test.describe('pixel: the access-control Settings page', () => {
 
   for (const skin of SKINS) {
     // "pixel-stable" in the title: the release gate runs its pixel group with --grep pixel-stable (a title without it ran zero tests)
-    test(`${skin} is pixel-stable: the status page and a station's card`, async ({ page }, info) => {
+    // GATELANES-297: pixels for the skins in helpers/pixel-skins.ts (classic, domus), the structural smoke for the others
+    test(pixelTitle(skin, "the status page and a station's card"), async ({ page }, info) => {
+      const check = skinCheck(page, skin);
       await open(page, {}, skin, READY);
-      await compare(page, info, `status-${skin}-list`);
+      await check(() => compare(page, info, `status-${skin}-list`), READY);
       await page.locator(`${STATUS} [data-access-station="entry-c"]`).click();
-      await page.waitForSelector(`${STATUS} sw-drawer[open] system-access-health [data-health-strip]`, { timeout: 20_000 });
+      const health = `${STATUS} sw-drawer[open] system-access-health [data-health-strip]`;
+      await page.waitForSelector(health, { timeout: 20_000 });
       await settlePage(page);
-      await compare(page, info, `status-${skin}-drawer`);
+      await check(() => compare(page, info, `status-${skin}-drawer`), health);
     });
   }
 

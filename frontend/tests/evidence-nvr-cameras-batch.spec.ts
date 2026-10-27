@@ -544,7 +544,10 @@ test.describe('CR-020 S2c permissions and read-only modes (mocked backend)', () 
   });
 });
 
-test.describe('CR-020 S2c hundreds of cameras (mocked backend)', () => {
+// GATELANES-297 timing lane (@timing-lane): the 300-camera list is a scale / timing check on a loaded runner (FLAKY in 10 of the last 40
+// gate / nightly runs). The release gate leaves it out (--grep-invert @timing-lane); scripts/gate/timing_lane.sh runs it when the runner is
+// quiet. The ONE-confirmation, stop, undo and permission rules of the batch stay in the blocking gate (the describes above).
+test.describe('CR-020 S2c hundreds of cameras (mocked backend)', { tag: '@timing-lane' }, () => {
   test.describe.configure({ timeout: 120_000 });
 
   test('300 cameras: a window of rows (not 300), select all that match, progress and the failing camera kept in view', async ({ page }) => {

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { NOW as SETTINGS_NOW, SKINS, url } from './access-control-mocks';
 import { installMessagingSettings, type MessagingSettingsMock } from './wiskey-messaging-settings';
 import { settlePage } from './pixel-settle';
+import { isPixelSkin, pixelTitle, skinCheck } from './helpers/pixel-skins';
 import { install, newMock, type PeopleMock } from './wiskey-people-mock';
 
 // CR-036 WA pixel baselines: the messaging UI - the person's page "הודעות" tab (history list, the opt-out switch, its empty / failed states),
@@ -85,11 +86,14 @@ test.describe('pixel: the messaging UI on the people screen', () => {
 
   // "pixel-stable" in the title: the release gate runs its pixel group with --grep pixel-stable (a title without it ran zero tests)
   for (const [skin, scheme] of [['classic', 'light'], ['classic', 'dark'], ['crystal', 'light']] as const) {
-    test(`the person's messages tab (history and the opt-out switch), ${skin} ${scheme}, is pixel-stable`, async ({ page }, info) => {
+    // GATELANES-297: crystal has no pixel baseline any more (helpers/pixel-skins.ts): its case is the structural smoke
+    const what = `the person's messages tab (history and the opt-out switch), ${skin} ${scheme}`;
+    test(isPixelSkin(skin) ? `${what}, is pixel-stable` : `${what} (structural smoke, no pixel baseline)`, async ({ page }, info) => {
+      const check = skinCheck(page, skin);
       await open(page, mock(), { skin, scheme });
       await openTab(page);
       await expect(drw(page).locator('[data-msg-history-item]')).toHaveCount(3);
-      await compare(page, info, `tab-${skin}-${scheme}`);
+      await check(() => compare(page, info, `tab-${skin}-${scheme}`), drw(page).locator('[data-msg-history-item]'));
     });
   }
 
@@ -199,9 +203,11 @@ test.describe('pixel: the Settings page "הודעות"', () => {
   });
 
   for (const skin of SKINS) {
-    test(`${skin} is pixel-stable: the page as the administrator first finds it`, async ({ page }, info) => {
+    // GATELANES-297: pixels for the skins in helpers/pixel-skins.ts (classic, domus), the structural smoke for the others
+    test(pixelTitle(skin, 'the page as the administrator first finds it'), async ({ page }, info) => {
+      const check = skinCheck(page, skin);
       await openSettings(page, skin, 'light');
-      await compare(page, info, `settings-${skin}`);
+      await check(() => compare(page, info, `settings-${skin}`), `${MSG} [data-access-status="ready"]`);
     });
   }
 

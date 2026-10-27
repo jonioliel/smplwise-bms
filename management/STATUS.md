@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-27T10:54:46.912935+00:00
+Generated: 2026-10-27T11:30:45.402240+00:00
 
-Tasks: 257 | Requirements: 367 | Tests: 383 | Screens: 32
+Tasks: 258 | Requirements: 367 | Tests: 384 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 64
+- REVIEW: 65
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 163
+- V1: 164
 - V2: 29
 - V3: 2
 
@@ -295,3 +295,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [ENTPOL-295](tasks/ENTPOL-295.md) | V1 | REVIEW | Owner decision 3 of 2026-10-21 (Fable security review 4, V-08): the automatic refusal while the service user is not restricted by an entity policy - fail closed on ambiguous policies and on a stale report (Home Assistant unreachable) | — |
 | [WHOIN034-295](tasks/WHOIN034-295.md) | V1 | REVIEW | Who is in the building (board r034) and the geofence / beacon / Wi-Fi editors on screen (board r035), 2.16.0 | — |
 | [GATEAUDIT-297](tasks/GATEAUDIT-297.md) | V1 | REVIEW | Gate audit and cleanup: classify the repeatedly failing / flaky / obsolete tests of the last 35 gate and nightly runs, remove duplicates, fix the bubble-freeze leftovers, re-take stale visual baselines, refresh the gate baselines | — |
+| [GATELANES-297](tasks/GATELANES-297.md) | V1 | REVIEW | Gate lanes: pixel baselines for classic + domus only (tesla / crystal get a structural smoke), archive the September owner-round live specs, a non-blocking timing lane for the wall-clock tests | — |

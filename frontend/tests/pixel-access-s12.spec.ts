@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { installAccessMock, NOW, SKINS, type MockOptions } from './access-control-mocks';
 import { installParityMock, type ParityMock } from './access-parity-mocks';
 import { settlePage } from './pixel-settle';
+import { pixelTitle, skinCheck } from './helpers/pixel-skins';
 
 // CR-036 S12 pixel baselines, NEW states only: the stations-screen display card and the parity report (a report, another user's) in
 // Settings › כללי › מתגי מסכי כניסה, every skin, and the intercom action log narrowed to one person (classic) - desktop 1440 and phone 390,
@@ -44,13 +45,16 @@ test.describe('pixel: CR-036 S12', () => {
   });
 
   for (const skin of SKINS) {
-    test(`${skin} is pixel-stable: the display card and a parity report`, async ({ page }, info) => {
+    // GATELANES-297: pixels for the skins in helpers/pixel-skins.ts (classic, domus), the structural smoke for the others
+    test(pixelTitle(skin, 'the display card and a parity report'), async ({ page }, info) => {
+      const check = skinCheck(page, skin);
       await open(page, {}, skin, `${D} system-access-display sw-card[data-access-display="ready"]`);
-      await compare(page, info, `s12-${skin}-display`, `${D} system-access-display sw-card`);
+      await check(() => compare(page, info, `s12-${skin}-display`, `${D} system-access-display sw-card`), `${D} system-access-display sw-card`);
       await page.locator(`${D} system-access-parity sw-button[data-parity-run]`).click();
       await page.waitForSelector(`${D} system-access-parity sw-card[data-parity-state="ready"]`, { timeout: 20_000 });
       await settlePage(page);
-      await compare(page, info, `s12-${skin}-parity`, `${D} system-access-parity sw-card[data-access-card="parity"]`);
+      const parity = `${D} system-access-parity sw-card[data-access-card="parity"]`;
+      await check(() => compare(page, info, `s12-${skin}-parity`, parity), parity);
     });
   }
 

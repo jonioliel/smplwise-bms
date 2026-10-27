@@ -9,6 +9,7 @@ Files (keep them together in one directory, the runner convention is `~/`):
 | `gate_baselines.json` | per-category passed counts of the previous accepted release (used when the branch under test has none of its own in `scripts/gate/`) |
 | `gate_durations.json` | seconds per Playwright spec file from the last accepted gate: a committed seed that `release_gate.py` uses only for files no `gate_*.logs/pw_*.json` on the runner has timed (balances the `--workers=1` chunks); since GATESPEED-293 also `backend_seconds` (per backend test file, v2 shard split), `backend_shard_seconds_total` and `pixel_phase_seconds` (`--plan` estimates); optional, the engine runs without it |
 | `selftest_gate.py` | self-test with a fake suite; proves the gate fails on a crash and on zero tests |
+| `timing_lane.sh` | GATELANES-297: the non-blocking timing lane (`@timing-lane` / `timing_lane` tests), started by `release_gate.sh` in the background after a gate; waits for a quiet machine; reports in `~/smplwise-results/timing-lane/` (`docs/testing/GATE_LANES.md`) |
 | `runner_cleanup.sh` | disk housekeeping by the retention rules below (dry run by default) |
 
 ## Install / update
@@ -17,9 +18,12 @@ Never while a gate is running (`~/smplwise-results/gate_status.json` must show a
 
 ```
 ssh runner 'cp ~/release_gate.sh ~/release_gate.sh.bak-$(date +%Y%m%d)'      # back up the old one first
-scp scripts/gate/release_gate.sh scripts/gate/release_gate.py scripts/gate/gate_baselines.json scripts/gate/gate_durations.json runner:~/
-ssh runner 'chmod +x ~/release_gate.sh && python3 - < /dev/null'
+scp scripts/gate/release_gate.sh scripts/gate/release_gate.py scripts/gate/timing_lane.sh scripts/gate/gate_baselines.json scripts/gate/gate_durations.json runner:~/
+ssh runner 'chmod +x ~/release_gate.sh ~/timing_lane.sh && python3 - < /dev/null'
 ```
+
+Without `~/timing_lane.sh` (or with `GATE_TIMING_LANE=off`) the gate still leaves the timing-lane tests out; they then run nowhere
+until the lane is installed - install the three files together.
 
 Then run the self-test on the runner (it touches only a temp directory, no real results, worktrees or browsers):
 

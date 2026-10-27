@@ -235,8 +235,26 @@ def _table(title: str, rows: list[dict[str, float]]) -> str:
     return "\n".join(out)
 
 
+def test_toggles_reuse_one_connection_and_report_every_hop(lat_app):
+    """The behaviour of the idle path without a clock (blocking gate, GATELANES-297): 6 toggles reach the fake HA and push back, over
+    one keep-alive connection, and the answer names every hop. The latency bounds are the timing-lane test below."""
+    _app, c, fake = lat_app
+    sub = PushClock()
+    try:
+        rows = [_toggle(c, fake, sub, n) for n in range(6)]
+    finally:
+        sub.close()
+    assert len(rows) == 6
+    assert fake.connections <= 2, f"{fake.connections} connections for {len(rows)} toggles"
+    st = rows[-1]["server_timing"]
+    for hop in ("checks;dur=", "bridge;dur=", "pending_row;dur=", "pending_wait;dur=", "pending_commit;dur=", "record;dur=", "total;dur="):
+        assert hop in st, st
+
+
+@pytest.mark.timing_lane
 def test_toggle_reaches_ha_and_pushes_back_without_waiting(lat_app):
-    """Idle path with the 40/s state stream: 20 toggles, alternating on / off."""
+    """Idle path with the 40/s state stream: 20 toggles, alternating on / off. GATELANES-297: the timing lane (wall-clock medians
+    under a load factor; FLAKY in 3 of the last 40 gate / nightly runs), run when the runner is quiet - scripts/gate/timing_lane.sh."""
     app, c, fake = lat_app
     sub = PushClock()
     try:
