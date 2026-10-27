@@ -43,7 +43,9 @@ export async function expectSkinSmoke(page: Page, skin: string, root: string | L
  *  `await check(() => compare(page, info, name), root)` - the compare for a pixel skin, the structural smoke of `root` otherwise. */
 export function skinCheck(page: Page, skin: string) {
   const errors: string[] = [];
-  if (!isPixelSkin(skin)) page.on('pageerror', (e) => errors.push(e.message));
+  // errors of the app only: the specs' open() first loads about:blank, where the mocks' init scripts cannot read localStorage
+  // ("Access is denied for this document") - in every skin, classic included; that is the harness, not the skin (runner 2026-10-27)
+  if (!isPixelSkin(skin)) page.on('pageerror', (e) => { if (!page.url().startsWith('about:')) errors.push(e.message); });
   return async (pixel: () => Promise<unknown>, root: string | Locator) => {
     if (isPixelSkin(skin)) await pixel();
     else await expectSkinSmoke(page, skin, root, errors);
