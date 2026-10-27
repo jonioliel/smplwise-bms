@@ -10384,5 +10384,72 @@
     "expected": "Every listed test passes on the branch; the shipped build keeps both engine flags off.",
     "status": "NOT_RUN",
     "notes": "2026-10-27 runner, pilot/DOORWRITE-297 @ 005d8dcbb: tests/test_doorwrite_297.py with test_doorwin_watch, test_doorwin_api, test_doorwin2_foreign, test_doorwin2_events, test_doorwin2_review2, test_splitswitch_297, test_wiskey_owner26_callers_297, test_f3a_doorwin_dw03_295: 174 passed. Fakes only (W0 FakeProgramEngine behind the live seam classes); no WisKey, no door. Not a gate. The lab write is prepared, NOT_RUN. Also @005d8dcbb: test_migrations, test_migrations_263_upgrade, test_db_template, test_backup_drill, test_db_gate and the remaining door-window suites 216 passed, 1 failed (test_program_writes_are_pinned: the OWNER26 transport was never pinned - fixed) and 1 error (test_backup_sensitive, 'unable to open database file'); @5a984f4bf: test_doorwrite_297 + test_fake_doorwin_closed_rule_sr1 + test_backup_sensitive 71 passed."
+  },
+  {
+    "id": "AT-XSECFIX-1",
+    "requirement_ids": [
+      "R-XSECFIX-1"
+    ],
+    "task_ids": [
+      "XSECFIX-297"
+    ],
+    "title": "Security review fixes M1-M4: presence gate exact match, credentials end on sign-out, per-source failure limiter, app links wait for the lock",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Backend on fakes; Android JVM unit test needs the Android SDK on the machine"
+    ],
+    "procedure": [
+      "backend tests: tests/test_xsecfix_297.py",
+      "regression: tests/test_presence.py, tests/test_rbac*.py, the security/permission suite selected by the gate",
+      "Android: ./gradlew test (DeepLinksTest) in mobile/android-shell"
+    ],
+    "expected": "Every listed test passes; a valid device token is never refused; every sign-out path except a desktop-browser sign-out ends the device token and push registration; a link asking for an action runs nothing without a confirmation.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 (PREP2241-297): no recorded run in the repository. Gate 2.24.1 runs the whole backend (security-core change). DeepLinksTest is outside the gate: NOT_RUN until run on a machine with the Android SDK."
+  },
+  {
+    "id": "AT-MOTIONSETTING-1",
+    "requirement_ids": [
+      "R-MOTIONSETTING-1"
+    ],
+    "task_ids": [
+      "MOTIONSETTING-297"
+    ],
+    "title": "Motion setting: ui.motion validation and permission, data-motion on the root, reduced-motion CSS per mode, Settings row",
+    "kind": "unit/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "backend tests: tests/test_ui_settings.py",
+      "frontend: playwright unit-motionsetting-297.spec.ts, smoke-motionsetting-297.spec.ts"
+    ],
+    "expected": "Every listed test passes; auto keeps the previous behaviour; full excludes the OS reduction; reduced applies it always.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 (PREP2241-297): no recorded run in the repository. Selected by the 2.24.1 gate from the changed files."
+  },
+  {
+    "id": "AT-SPLITSWITCH2-1",
+    "requirement_ids": [
+      "R-SPLITSWITCH2-1"
+    ],
+    "task_ids": [
+      "SPLITSWITCH2-297"
+    ],
+    "title": "Emergency-buttons switch setting: default on, admin-only, audited, confirmed off, refused during an emergency, never an activation",
+    "kind": "unit/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes only; no door or station"
+    ],
+    "procedure": [
+      "backend tests: tests/test_splitswitch2_297.py, tests/test_splitswitch_297.py, tests/test_door_emergency.py, tests/test_doorwin_api.py",
+      "runner: tests/test_door_emergency_roles_emrole_295.py, tests/test_capmap_295.py",
+      "frontend: tsc --noEmit; playwright evidence-doorwin-295.spec.ts (runner)"
+    ],
+    "expected": "Every listed test passes; no build flag changes.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 workstation, pilot/PREP2241-297 @ e59b11f12 (release/2241 + 2.24.1 prep + merge of 1ea245eb9): tests/test_splitswitch2_297.py, test_splitswitch_297.py, test_door_emergency.py, test_doorwin_api.py 68 passed, 0 failed; test_migrations.py + test_migrations_263_upgrade.py 6 passed; frontend tsc --noEmit clean. Fakes only, not a gate. NOT_RUN (runner): playwright evidence-doorwin-295.spec.ts, tests/test_door_emergency_roles_emrole_295.py, tests/test_capmap_295.py."
   }
 ]

@@ -12206,5 +12206,129 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "XSECFIX-297",
+    "title": "Security review 2026-10-27 (phone apps): the four medium findings M1-M4 - presence gate exact match, device credentials end on sign-out, failure limiter per source, arx://open waits for the app lock",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "M1 presence.gate_exempt matches the path below root_path and /api/v1 exactly or by whole leading segments and refuses non-canonical paths; M2 presence.end_on_sign_out ends the device token and the push registration on every sign-out path (own, administrator, sign out everywhere for HA and local identities, an app sign-in ended from the sessions list, in-app sign-out, removal of remote access, local-user revokes), a desktop-browser sign-out leaves phones alone, audited as presence.device.credentials_ended, a device token on the remote channel obeys the remote-access policy (403 remote_not_allowed); M3 the token is looked up first (a valid token is never refused), failures count per source address bucket, the global count only logs; M4 web: ?do=run only opens the run confirmation; M4 Android: arx://open waits for the unlock and a link carrying a do parameter opens only after the user confirms; iOS hand-off document; regression tests for every finding; no migration."
+    ],
+    "requirement_ids": [
+      "R-XSECFIX-1"
+    ],
+    "test_ids": [
+      "AT-XSECFIX-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Security core (auth.py / rbac.py / presence): the release gate runs the whole backend; the Android JVM test runs outside the gate."
+    },
+    "deliverables": [
+      "Backend: services/presence.py (gate_exempt, end_on_sign_out, per-source limiter), routers/presence.py, routers/remote.py, routers/local_identity.py, services/app_session.py, services/ha_user_auth.py, services/local_identity.py, auth.py, rbac.py",
+      "Android: DeepLinks.asksForAction, ServersActivity.openLink (pendingOpen, confirm), WebActivity first load after unlock; DeepLinksTest (JVM)",
+      "iOS: mobile/ios-shell/HANDOFF_IOS_ADDENDUM_3_DEEPLINK_LOCK.md (hand-off; code not in the repository)",
+      "Tests: smplwise_vms/backend/tests/test_xsecfix_297.py",
+      "Docs: docs/api/mobile-presence-contract.md"
+    ],
+    "evidence": [
+      "Merged into release/2241 (4a7f4d8a8; branch head a360153e3). No run of tests/test_xsecfix_297.py or of DeepLinksTest is recorded in the repository: NOT_RUN. To be covered by the 2.24.1 gate (full backend, security-core change); DeepLinksTest (Gradle JVM) runs outside the gate."
+    ],
+    "owner": null,
+    "commit": "a360153e3",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "MOTIONSETTING-297",
+    "title": "Motion setting ui.motion (auto | full | reduced), separate from the skin and the scheme",
+    "epic": "DESIGN",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "ui.motion in the settings defaults (auto), pattern-validated, a corrupt stored value reads as auto, the same permission model and audit as ui.skin; data-motion on the document root; auto = the OS reduced-motion block as before, full = the OS block is excluded, reduced = the same declarations always; a 'Motion' row next to the skin picker in Settings > General > System look; DEVICE_THEMES.md section 10; no migration."
+    ],
+    "requirement_ids": [
+      "R-MOTIONSETTING-1"
+    ],
+    "test_ids": [
+      "AT-MOTIONSETTING-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Design layer: merging DESIGNTOKENS-297 into 2.25.0 conflicts in design/css.ts (reduced-motion block); keep both MOTIONSETTING selectors."
+    },
+    "deliverables": [
+      "Backend: routers/settings.py (ui.motion)",
+      "Frontend: design/apply.ts (data-motion), design/css.ts, screens/system-design.ts (Motion row), api/media.ts, shell/sw-app.ts",
+      "Tests: smplwise_vms/backend/tests/test_ui_settings.py, frontend/tests/unit-motionsetting-297.spec.ts, frontend/tests/smoke-motionsetting-297.spec.ts",
+      "Docs: docs/design/DEVICE_THEMES.md section 10"
+    ],
+    "evidence": [
+      "Merged into release/2241 (fd59f0820; branch head 88881a3d6). No run of test_ui_settings.py, unit-motionsetting-297 or smoke-motionsetting-297 is recorded in the repository: NOT_RUN. To be covered by the 2.24.1 gate (selected by the changed files)."
+    ],
+    "owner": null,
+    "commit": "88881a3d6",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "SPLITSWITCH2-297",
+    "title": "Emergency-buttons switch is a setting (owner q48): default on, admin-only, audited, confirmed when turned off; a gate on the build flags, never an activation",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "New setting doors.emergency.engine_switch (default on, key/value settings, no migration) gates on top of the permit and EMERGENCY_ENGINE_BUILT, never an activation (build constants still off); live_ok / open_available / enabled / open_enabled / settings_view honour it, releasing an incident never reads it; turning enabled / open_enabled on while the switch is off is refused (engine_switch_off); only PUT /doors/emergency/settings (installation configure permission, named person) writes it, every change audited (settings.changed, before / after); turning it off needs confirm_engine_off and is refused during an active emergency; a Hebrew switch with a confirmation dialog (he/en/ar/ru); the API adds build_ready; tests/test_splitswitch2_297.py; docs/changes/SPLITSWITCH2-297.md."
+    ],
+    "requirement_ids": [
+      "R-SPLITSWITCH2-1"
+    ],
+    "test_ids": [
+      "AT-SPLITSWITCH2-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Door safety: no build flag flipped; a screen switch never turns an engine on by itself."
+    },
+    "deliverables": [
+      "Backend: routers/door_windows.py, services/door_emergency.py",
+      "Frontend: api/door-windows.ts, i18n/door-windows.ts, screens/door-windows.ts",
+      "Tests: smplwise_vms/backend/tests/test_splitswitch2_297.py, frontend/tests/evidence-doorwin-295.spec.ts",
+      "Docs: docs/changes/SPLITSWITCH2-297.md"
+    ],
+    "evidence": [
+      "2026-10-27 workstation, pilot/PREP2241-297 @ e59b11f12 (release/2241 + 2.24.1 prep + merge of 1ea245eb9): tests/test_splitswitch2_297.py, test_splitswitch_297.py, test_door_emergency.py, test_doorwin_api.py 68 passed, 0 failed; test_migrations.py + test_migrations_263_upgrade.py 6 passed; frontend tsc --noEmit clean. Fakes only, not a gate. NOT_RUN (runner): playwright evidence-doorwin-295.spec.ts, tests/test_door_emergency_roles_emrole_295.py, tests/test_capmap_295.py."
+    ],
+    "owner": null,
+    "commit": "1ea245eb9",
+    "actual_cost_usd": null
   }
 ]
