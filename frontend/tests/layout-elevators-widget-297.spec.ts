@@ -114,6 +114,7 @@ test('everything hidden: the message stays inside a narrow card', async ({ page 
 
 test('screenshots for review', async ({ page }) => {
   const dir = process.env.ELEVFIX_SHOTS;
+  test.setTimeout(240_000);
   test.skip(!dir, 'ELEVFIX_SHOTS not set');
   fs.mkdirSync(dir!, { recursive: true });
   for (const scheme of ['light', 'dark'] as const) {
