@@ -45,6 +45,11 @@ class ServersActivity : LockedActivity() {
     private var offer: DeepLinks.Route.Offer? = null
     /** Set by `arx://open` for a stored server while a site is already open. */
     private var replace: DeepLinks.Route.Open? = null
+    /**
+     * Set by `arx://open` for a stored server while no site is open but the link may not open by itself (XSECFIX-297 M4): the app
+     * lock is due (the link waits for the unlock), or the link asks the site to do something (`?do=...`: the user confirms first).
+     */
+    private var pendingOpen: DeepLinks.Route.Open? = null
     private val dev = BuildConfig.ALLOW_DEV_HTTP
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,7 +95,7 @@ class ServersActivity : LockedActivity() {
         setupGestureSetting()
         render()
         if (savedInstanceState == null) {
-            if (offer != null || replace != null) showPending()
+            if (offer != null || replace != null || pendingOpen != null) showPending()
             else if (store.servers().isEmpty()) whenUnlocked { showServerDialog(null, null) }
         }
     }
@@ -103,12 +108,40 @@ class ServersActivity : LockedActivity() {
         showPending()
     }
 
-    /** A link's question (add an unknown server / replace the open site) - never above the lock (security review M3). */
+    /**
+     * A link's question (add an unknown server / replace the open site) - never above the lock (security review M3) - and a link
+     * that waited for the unlock (XSECFIX-297 M4): it opens only after the unlock, and one that asks the site to do something
+     * only after the user confirms it.
+     */
     private fun showPending() {
         whenUnlocked {
             if (replace != null) showReplace()
             if (offer != null) showOffer()
+            if (pendingOpen != null) openPending()
         }
+    }
+
+    private fun openPending() {
+        val route = pendingOpen ?: return
+        pendingOpen = null
+        if (WebActivity.running) {
+            replace = route // a site was opened meanwhile: the replace question covers this link too
+            showReplace()
+            return
+        }
+        if (!DeepLinks.asksForAction(route.url)) {
+            open(route.serverUrl, route.url)
+            return
+        }
+        val dialog = track(
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.replace_site_title)
+                .setMessage(getString(R.string.link_action_message) + "\n\n" + route.url)
+                .setPositiveButton(R.string.replace_site_open) { _, _ -> open(route.serverUrl, route.url) }
+                .setNegativeButton(R.string.cancel, null)
+                .show(),
+        )
+        guardTouches(dialog)
     }
 
     override fun onDestroy() {
@@ -139,6 +172,11 @@ class ServersActivity : LockedActivity() {
                 if (WebActivity.running) {
                     // a site is open (maybe an intercom call): ask before replacing it (security review L3)
                     replace = route
+                    false
+                } else if (AppLock.isDue(store) || DeepLinks.asksForAction(route.url)) {
+                    // XSECFIX-297 M4: never load a site behind the lock from a link (the app may be closed and the phone in another
+                    // hand): the link waits for the unlock; a link asking the site to do something (`?do=run`) is confirmed first
+                    pendingOpen = route
                     false
                 } else {
                     open(route.serverUrl, route.url)
