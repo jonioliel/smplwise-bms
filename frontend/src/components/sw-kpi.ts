@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
 import type { StateKind } from './sw-badge';
+import { fitSchedule, fitTextElement } from './fit-text';
 
 /**
  * Stat tile as on the boards: icon in a soft-blue square, big value, label, green/amber sub-label.
@@ -165,6 +166,7 @@ export class SwKpi extends LitElement {
        label out of the clamp, so the label vanished) - only the label is clamped; the figures are tabular */
     :host([layout='compact']) .line {
       display: flex;
+      flex-wrap: wrap;
       align-items: baseline;
       column-gap: 6px;
       min-inline-size: 0;
@@ -175,14 +177,25 @@ export class SwKpi extends LitElement {
       margin: 0;
     }
     :host([layout='compact']) .value {
-      flex: none;
+      flex: 0 1 auto;
+      min-inline-size: 0;
+      max-inline-size: 100%;
+      overflow: hidden;
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
       font-size: var(--sw-kpi-compact-value-fs, 17px);
       line-height: 1.2;
     }
+    /* a value wider than its tile first shrinks (fit-text.ts, to ~72 %), and only at that floor breaks at its spaces ("53928 /
+       49392"), never inside a number; it never runs over the icon */
+    :host([layout='compact']) .value[data-fit='wrap'] {
+      white-space: normal;
+      overflow: visible;
+      overflow-wrap: normal;
+      line-height: 1.1;
+    }
     :host([layout='compact']) .label {
-      flex: 1 1 auto;
+      flex: 1 1 4em;
       min-inline-size: 0;
       display: -webkit-box;
       -webkit-box-orient: vertical;
@@ -261,6 +274,32 @@ export class SwKpi extends LitElement {
   /** Everything the tile says, in reading order: the control's accessible name and the host's tooltip. */
   private get words(): string {
     return [`${this.value} ${this.label}`.trim(), this.detail, this.badge].filter(Boolean).join(' · ');
+  }
+
+  /** Pass 2 (break-ui): the compact value is fitted to its tile on every render and every resize (one measure per frame). */
+  private fitSlot = { raf: 0 };
+  private ro: ResizeObserver | null = null;
+  private fitValue() {
+    if (this.layout !== 'compact') return;
+    fitSchedule(() => {
+      const v = this.renderRoot.querySelector<HTMLElement>('.value');
+      if (v) fitTextElement(v);
+    }, this.fitSlot);
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    if (typeof ResizeObserver !== 'undefined') {
+      this.ro = new ResizeObserver(() => this.fitValue());
+      this.ro.observe(this);
+    }
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.ro?.disconnect();
+    this.ro = null;
+  }
+  protected updated() {
+    this.fitValue();
   }
 
   protected willUpdate(changed: PropertyValues<this>) {
