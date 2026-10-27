@@ -268,7 +268,12 @@ test.describe('PWA shell (CR-008 P3)', () => {
     await expect(head.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute('content', 'default');
     await expect(head.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', './icons/arx-180.png');
     await expect(head.locator('meta[name="viewport"]')).toHaveAttribute('content', /viewport-fit=cover/);
-    await expect(head.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#2f6bff');
+    // POLISH-PHONE-297: the status bar takes the page's own background (the skin's --sw-bg of the scheme in force), never the brand blue;
+    // design/mobile-polish.ts keeps one meta equal to it live (the per-scheme metas of index.html are the first paint only)
+    await expect(head.locator('meta[name="theme-color"]')).toHaveCount(1);
+    const bg = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--sw-bg').trim());
+    await expect(head.locator('meta[name="theme-color"]')).toHaveAttribute('content', bg);
+    expect(bg).not.toBe('#2f6bff');
     const icon = await (await page.request.get('icons/arx-180.png')).body();
     expect(icon.length).toBeGreaterThan(0);
   });
