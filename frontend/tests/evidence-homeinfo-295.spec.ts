@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installBv1Mock, bv1Config, BV1_NOW } from './bv1-mocks';
+import { drawnSkin } from './helpers/frozen-skins';
 
 // HOMEINFO-295 (owner report after 2.20.x): the choice between the thin info row and the widget cards (home.info_style) is also in the
 // home screen's own layout editor (not only in the settings), the edit view and the normal view agree with the choice, and a home screen
@@ -33,7 +34,7 @@ async function openMock(page: Page, hash: string, infoStyle: 'bar' | 'cards' = '
       if (typeof body['home.info_style'] === 'string') style = body['home.info_style'] as 'bar' | 'cards';
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ settings: { 'home.info_style': style }, can_edit: true }) });
     }
-    const settings = { 'ui.design': 'a', 'ui.skin': 'bubble', 'ui.scheme': 'light', 'ui.look': st.look, 'devices.style': 'smplwise', 'devices.area_design': 'tiles', 'home.direction': 'a', 'home.side': 'end', 'home.title': '', 'home.floor_order': '[]', 'home.widgets': config, 'home.info_style': style };
+    const settings = { 'ui.design': 'a', 'ui.skin': drawnSkin('bubble'), 'ui.scheme': 'light', 'ui.look': st.look, 'devices.style': 'smplwise', 'devices.area_design': 'tiles', 'home.direction': 'a', 'home.side': 'end', 'home.title': '', 'home.floor_order': '[]', 'home.widgets': config, 'home.info_style': style };
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ settings, can_edit: true }) });
   });
   await page.clock.setFixedTime(new Date(BV1_NOW));

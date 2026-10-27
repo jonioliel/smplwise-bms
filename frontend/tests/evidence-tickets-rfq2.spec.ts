@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { url, SKINS } from './tickets-mocks';
 import { installRfqMock, RFQ7, RFQ8, type RfqMock, type RfqMockOptions } from './tickets-rfq-mocks';
+import { drawnSkin } from './helpers/frozen-skins';
 
 // TKRFQ2 evidence (release 2.6.1): "בקשות הצעת מחיר" - the REAL build against a fake server that answers contract v0.9 (fake data only):
 // the list (state strip, KPI tiles, vendor status bars) in five skins, light and dark; the new-request sheet (the preview, the checks,
@@ -74,9 +75,9 @@ test.describe('requests for quotation - manager UI (TKRFQ2)', () => {
       await listReady(page);
       await shot(page, 'list', 'light', skin, false);
     }
-    await go(page, '/tickets/rfqs', {}, 'dark', 'bubble');
+    await go(page, '/tickets/rfqs', {}, 'dark', drawnSkin('bubble')); // BUBBLE-FREEZE-295: domus while frozen
     await listReady(page);
-    await shot(page, 'list', 'dark', 'bubble', false);
+    await shot(page, 'list', 'dark', drawnSkin('bubble'), false);
   });
 
   test('list states: loading, empty, error with retry, not available on this server, no amounts', async ({ page }) => {

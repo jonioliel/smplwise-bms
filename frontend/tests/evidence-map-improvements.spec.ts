@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { drawnSkin } from './helpers/frozen-skins';
 
 // Evidence for the three investigation / map improvements (M043 suggested adjacent cameras + Back to the selection,
 // M047 review spotlights + manual grouping, M064 route ranking through floor connectors + one-click confirm into a
@@ -182,11 +183,11 @@ test.describe('investigation / map improvements (M043, M047, M064)', () => {
     }
     await shot(page, 'm043-04-back', p);
     if (p === 'desktop') {
-      await open(page, `/explore/floors/${seeded.floor0}`, '&skin=bubble&scheme=dark');
+      await open(page, `/explore/floors/${seeded.floor0}`, `&skin=${drawnSkin('bubble')}&scheme=dark`);
       await viewer.locator('[data-multi-toggle]').click();
       await viewer.locator(`sw-plan-canvas g.marker[data-id="${seeded.lobbyAnchor}"]`).dispatchEvent('click');
       await expect(viewer.locator('[data-pickbar] sw-chip[selected]:not([data-room-chip])')).toHaveCount(1);
-      await shot(page, 'm043-05-suggestions-bubble-dark', p);
+      await shot(page, `m043-05-suggestions-${drawnSkin('bubble')}-dark`, p);
     }
   });
 
@@ -234,10 +235,10 @@ test.describe('investigation / map improvements (M043, M047, M064)', () => {
       await centre.locator('[data-window-spotlight-only]').click();
       await expect.poll(async () => rows.count(), { timeout: 15000 }).toBe(3); // the lobby trio, the route's person event, the store's video loss
       await shot(page, 'm047-05-spotlights-only', p);
-      await open(page, '/investigate/reviews', '&skin=bubble&scheme=dark');
+      await open(page, '/investigate/reviews', `&skin=${drawnSkin('bubble')}&scheme=dark`);
       await expect(centre.locator('sw-table')).toBeVisible({ timeout: 20000 });
       await expect.poll(async () => rows.count(), { timeout: 15000 }).toBeGreaterThan(2);
-      await shot(page, 'm047-06-windows-bubble-dark', p);
+      await shot(page, `m047-06-windows-${drawnSkin('bubble')}-dark`, p);
     }
   });
 
@@ -269,10 +270,10 @@ test.describe('investigation / map improvements (M043, M047, M064)', () => {
       expect(cases.cases[0].counts.events).toBe(1);
       expect(cases.cases[0].counts.clips).toBeGreaterThanOrEqual(4);
       if (p === 'desktop') {
-        await open(page, `/investigate/events/${seeded.routeEvent}`, '&skin=bubble&scheme=dark');
+        await open(page, `/investigate/events/${seeded.routeEvent}`, `&skin=${drawnSkin('bubble')}&scheme=dark`);
         await expect(card.locator('[data-route-item]')).toHaveCount(4, { timeout: 20000 });
         await card.scrollIntoViewIfNeeded();
-        await shot(page, 'm064-03-route-bubble-dark', p, true);
+        await shot(page, `m064-03-route-${drawnSkin('bubble')}-dark`, p, true);
       }
     }
   });

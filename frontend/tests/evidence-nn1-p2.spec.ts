@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMBOS, installInstallationMock, type Combo, type HaState } from './nn1-p2-mocks';
 import { inPageCheck, type Finding } from './layout-guard';
-import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
+import { SKINS_UNDER_TEST as SKIN_IDS, drawnSkin } from './helpers/frozen-skins';
 
 // NN1 P2 (docs/architecture/CAPABILITIES.md section 4): the shell reacts to the installation's capabilities. Mocked backend
 // (tests/nn1-p2-mocks.ts), no device, no NVR, no media server, no Home Assistant. Four installations:
@@ -328,7 +328,7 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
       for (const theme of ['light', 'dark']) {
         for (const w of [320, 390, 800, 1440]) {
           await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
-          await open(page, hash, `&skin=bubble&scheme=${theme}`);
+          await open(page, hash, `&skin=${drawnSkin('bubble')}&scheme=${theme}`); // BUBBLE-FREEZE-295: domus while frozen
           await expect(page.locator(sel).first()).toBeVisible({ timeout: 20_000 });
           await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
           found.push(...(await page.evaluate(inPageCheck, { ctx: `${combo} ${hash} ${theme} ${w}`, roots: ['main'] })));

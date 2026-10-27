@@ -1544,7 +1544,8 @@ def main():
         if shm:   # v2 tmpfs scratch: RAM, never left behind (a failed test's dir goes with it; its log line stays in backend_sN.log)
             shutil.rmtree(shm, ignore_errors=True)
     if left() < 0:
-        hard_fail.append("90-minute budget exhausted: the run is incomplete")
+        # the budget is GATE_TOTAL_SECS (90 min for a gate, ~225 min for the nightly): say the real one (GATEAUDIT-297)
+        hard_fail.append(f"{TOTAL // 60}-minute budget exhausted: the run is incomplete")
     extra["resources"] = dict(RESOURCES)
     try:   # the fix-ticket queue: first-run failures in two consecutive gates (report section + ~/smplwise-results/quarantine.json)
         extra["quarantine"] = quarantine(gate_history(f"{BR}@{sha}", ITEMS))

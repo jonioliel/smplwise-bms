@@ -6,13 +6,15 @@ import { settlePage } from './pixel-settle';
 import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // Design foundation (owner 2026-10-01): one shared structure, skins = tokens + a bounded rule set, light / dark for the whole shell.
-//   1. `classic` (the default, today's look) is pixel-stable: toHaveScreenshot against the baselines captured from the build
-//      BEFORE the foundation (tests/evidence-design-foundation.spec.ts-snapshots/), 0 differing pixels allowed.
+//   1. (removed 2026-10-27, GATEAUDIT-297) the zero-pixel `classic is pixel-stable` checks of home / map / settings / dialog: their
+//      baselines had long stopped being the pre-foundation build (re-taken at every intended change) and they duplicated the M074
+//      visual matrix (tests/visual-matrix.spec.ts: the same four views in classic, light AND dark, three viewports, with a tolerance).
+//      See docs/testing/GATE_AUDIT_2026-10-27.md.
 //   2. the evidence matrix: skin (classic | domus | tesla) x scheme (light | dark) on four key screens (home with the building tree
 //      screen with its tree panel, a settings screen, a dialog) at 1440 and 390 -> docs/design/evidence/design-foundation/.
 // Demo mode (no backend). `?skin=` / `?scheme=` are the session override the app reads (design/skin.ts); nothing is stored.
 //   SW_BASE_URL=http://127.0.0.1:4802/ npx playwright test tests/evidence-design-foundation.spec.ts --workers=1 --project=desktop --project=mobile
-//   SW_SHOTS_OFF=1 skips the evidence matrix (only the classic baseline check runs).
+//   SW_SHOTS_OFF=1 skips the evidence matrix.
 const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/design-foundation');
 
 const SKINS = SKIN_IDS;
@@ -61,23 +63,8 @@ async function openDialog(page: Page) {
 
 const view = (info: { project: { name: string } }) => (info.project.name === 'mobile' ? '390' : '1440');
 
-/** The committed baselines carry Playwright's platform suffix (-win32). On another OS (the Linux runner) there is no baseline
- *  until one is generated there with `--update-snapshots`; until then the pixel check is skipped instead of failing on a
- *  missing file. Rendering (fonts, text shaping) differs per OS, so baselines are never shared between platforms. */
-const noBaseline = (info: { snapshotPath: (...name: string[]) => string; config: { updateSnapshots: string } }, name: string) =>
-  info.config.updateSnapshots !== 'all' && !fs.existsSync(info.snapshotPath(name));
-
 test.describe('design foundation', () => {
   test.skip(process.env.SW_LIVE === '1', 'demo-mode spec');
-
-  for (const s of SCREENS) {
-    test(`classic is pixel-stable: ${s.id}`, async ({ page }, info) => {
-      test.skip(info.project.name === 'tablet', 'two widths are enough for the regression check');
-      test.skip(noBaseline(info, `classic-${s.id}-${view(info)}.png`), `no ${process.platform} baseline yet (run with --update-snapshots on this platform)`);
-      await open(page, s.hash);
-      await expect(page).toHaveScreenshot(`classic-${s.id}-${view(info)}.png`, { maxDiffPixels: 0, animations: 'disabled', fullPage: false });
-    });
-  }
 
   test('an explicit performance tier never runs the auto probe', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'the logic runs once');
@@ -91,14 +78,6 @@ test.describe('design foundation', () => {
     await page.waitForTimeout(3500); // past the idle callback + the 700 ms probe window
     expect(await page.evaluate(() => (window as unknown as { __probeSeen: number }).__probeSeen)).toBe(0);
     await expect(page.locator('html')).toHaveAttribute('data-bubble-performance', 'full');
-  });
-
-  test('classic is pixel-stable: dialog', async ({ page }, info) => {
-    test.skip(info.project.name === 'tablet', 'two widths are enough for the regression check');
-    test.skip(noBaseline(info, `classic-dialog-${view(info)}.png`), `no ${process.platform} baseline yet (run with --update-snapshots on this platform)`);
-    await open(page, '/devices');
-    await openDialog(page);
-    await expect(page).toHaveScreenshot(`classic-dialog-${view(info)}.png`, { maxDiffPixels: 0, animations: 'disabled' });
   });
 
   test.describe('the picker and the switch (demo mode: the installation is this browser)', () => {
