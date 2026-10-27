@@ -122,7 +122,7 @@ test('screenshots for review', async ({ page }) => {
       for (const size of ['s', 'm']) {
         await install(page, DATA[name], 'both', size);
         await page.goto('about:blank');
-        await page.goto(`/?design=a&skin=classic${scheme === 'dark' ? '&theme=night' : ''}#/devices/building`);
+        await page.goto(`/?design=a&skin=classic${scheme === 'dark' ? '&scheme=dark' : ''}#/devices/building`);
         await expect(page.locator(SECTIONS).first()).toBeAttached();
         const themeAttr = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
         if (scheme === 'dark') expect(themeAttr).toBe('dark');
