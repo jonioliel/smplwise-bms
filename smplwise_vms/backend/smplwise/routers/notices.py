@@ -366,11 +366,18 @@ class TvDefaultsIn(BaseModel):
     space: str | None = None
     night_logo: str | None = None
     weather_days: StrictInt | None = None
+    # BOARDV2-297: the V2 board options (design, default layout, tenant logo size, portrait order, "next arrivals" row)
+    design: str | None = None
+    board_layout: str | None = None
+    co_size: str | None = None
+    portrait_order: str | None = None
+    next_row: str | None = None
 
 
 @router.get("/notices/tv-defaults")
 def get_tv_defaults(principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    return {"tv_defaults": store.settings(conn)["tv_defaults"]}
+    st = store.settings(conn)
+    return {"tv_defaults": st["tv_defaults"], "tv2_defaults": st["tv2_defaults"]}
 
 
 @router.put("/notices/tv-defaults")
@@ -385,7 +392,8 @@ def put_tv_defaults(body: TvDefaultsIn, request: Request, principal: Principal =
     if changed:
         audit(conn, actor=principal, action="notices.tv_defaults.update", decision="allowed", resource_type="installation", resource_id="notices",
               request_id=_rid(request), details={"keys": sorted(changed)})
-    return {"tv_defaults": store.settings(conn)["tv_defaults"]}
+    st = store.settings(conn)
+    return {"tv_defaults": st["tv_defaults"], "tv2_defaults": st["tv2_defaults"]}
 
 
 def _board_out(b: dict[str, Any], counts: dict[str, int]) -> dict[str, Any]:

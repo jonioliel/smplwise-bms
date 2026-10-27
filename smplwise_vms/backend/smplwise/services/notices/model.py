@@ -52,9 +52,32 @@ TV_FACTORY: dict[str, Any] = {"header": "c", "updated": "full", "space": "bigger
 TV_SETTING: dict[str, str] = {k: f"notices.tv.{k}" for k in TV_CHOICES}
 
 
+# BOARDV2-297 (owner 2026-10-26, notice-board V2 mock-up private/review/NOTICE_BOARD_BUSTIMES_MOCKUP_V2_2026-10-26.html): the V2 design
+# of the TV board and its options. Same mechanism as TVOPT-295 (a board's own value in its display JSON, else the installation default
+# `notices.tv2.*`, edited with notices.boards; no migration). Kept as a second group so the TVOPT-295 defaults document stays as it is.
+#  design:         classic = the board as before (factory: nothing changes until an administrator picks V2), v2 = the V2 board
+#  board_layout:   the V2 layout - side (an information column: clock, date, weather, bus panel), strip (the bus times as a full-width
+#                  row under the notices), slide (the bus times as a full-stage slide in the rotation). The installation value is
+#                  the default layout of every board that did not choose its own.
+#  co_size:        the tenant (company) logo's height in the V2 header - auto = the system logo settings, s / m / l / xl = 72 / 96 / 120 / 144 px
+#  portrait_order: the portrait V2 board below the clock row - bus = the bus panel, then the notices; notices = the notices first
+#  next_row:       the "next arrivals" line of each bus row - show / hide
+DESIGNS = ("classic", "v2")
+BOARD_LAYOUTS = ("side", "strip", "slide")
+CO_SIZES = ("auto", "s", "m", "l", "xl")
+PORTRAIT_ORDERS = ("bus", "notices")
+NEXT_ROWS = ("show", "hide")
+TV2_CHOICES: dict[str, tuple[Any, ...]] = {"design": DESIGNS, "board_layout": BOARD_LAYOUTS, "co_size": CO_SIZES, "portrait_order": PORTRAIT_ORDERS, "next_row": NEXT_ROWS}
+TV2_FACTORY: dict[str, Any] = {"design": "classic", "board_layout": "side", "co_size": "auto", "portrait_order": "bus", "next_row": "show"}
+TV2_SETTING: dict[str, str] = {k: f"notices.tv2.{k}" for k in TV2_CHOICES}
+ALL_TV_CHOICES: dict[str, tuple[Any, ...]] = {**TV_CHOICES, **TV2_CHOICES}
+ALL_TV_FACTORY: dict[str, Any] = {**TV_FACTORY, **TV2_FACTORY}
+ALL_TV_SETTING: dict[str, str] = {**TV_SETTING, **TV2_SETTING}
+
+
 def tv_value_ok(key: str, v: Any) -> bool:
     """One value of a TV choice: the exact type of its list (no True for 1, no "3" for 3) and inside the list."""
-    allowed = TV_CHOICES[key]
+    allowed = ALL_TV_CHOICES[key]
     return type(v) is type(allowed[0]) and v in allowed
 
 PERM_VIEW, PERM_MANAGE, PERM_PUSH, PERM_BOARDS = "notices.view", "notices.manage", "notices.push", "notices.boards"
@@ -93,6 +116,8 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "notices.boards.conn_per_address": "8",
     # TVOPT-295: the installation defaults of the four TV options (written by PUT /notices/tv-defaults, notices.boards)
     **{TV_SETTING[k]: str(v) for k, v in TV_FACTORY.items()},
+    # BOARDV2-297: the installation defaults of the V2 board options (same endpoint, same permission)
+    **{TV2_SETTING[k]: str(v) for k, v in TV2_FACTORY.items()},
 }
 CONN_TOTAL_RANGE = (4, 256)
 CONN_PER_ADDRESS_RANGE = (1, 64)
@@ -258,7 +283,7 @@ def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
     take("saver", v in SAVERS, v)
     v = src.get("logos")
     take("logos", v in LOGO_LAYOUTS, v)
-    for key, allowed in TV_CHOICES.items():  # TVOPT-295: kept only when the board chose its own value; null = follow the default
+    for key in ALL_TV_CHOICES:  # TVOPT-295 / BOARDV2-297: kept only when the board chose its own value; null = follow the default
         if key not in src or src[key] is None:
             continue
         v = src[key]
@@ -334,31 +359,42 @@ def effective_display(disp: dict[str, Any], defaults: dict[str, Any]) -> dict[st
         if disp.get(k) is not None and tv_value_ok(k, disp[k]):
             return disp[k]
         v = defaults.get(k)
-        return v if v is not None and tv_value_ok(k, v) else TV_FACTORY[k]
-    return {**disp, **{k: pick(k) for k in TV_CHOICES}}
+        return v if v is not None and tv_value_ok(k, v) else ALL_TV_FACTORY[k]
+    # BOARDV2-297: the V2 options resolve the same way (`defaults` may carry them; absent = the factory value)
+    return {**disp, **{k: pick(k) for k in ALL_TV_CHOICES}}
+
+
+def _defaults_doc(get: Any, choices: dict[str, tuple[Any, ...]], factory: dict[str, Any], setting: dict[str, str]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for k in choices:
+        raw = get(setting[k], str(factory[k])) or str(factory[k])
+        v: Any = raw
+        if isinstance(factory[k], int):
+            v = int(raw) if str(raw).isdigit() else None
+        out[k] = v if v is not None and tv_value_ok(k, v) else factory[k]
+    return out
 
 
 def tv_defaults_doc(get: Any) -> dict[str, Any]:
     """The installation defaults of the TV options (stored as strings); a stored value outside the list reads as the factory value."""
-    out: dict[str, Any] = {}
-    for k in TV_CHOICES:
-        raw = get(TV_SETTING[k], str(TV_FACTORY[k])) or str(TV_FACTORY[k])
-        v: Any = raw
-        if isinstance(TV_FACTORY[k], int):
-            v = int(raw) if str(raw).isdigit() else None
-        out[k] = v if v is not None and tv_value_ok(k, v) else TV_FACTORY[k]
-    return out
+    return _defaults_doc(get, TV_CHOICES, TV_FACTORY, TV_SETTING)
+
+
+def tv2_defaults_doc(get: Any) -> dict[str, Any]:
+    """BOARDV2-297: the installation defaults of the V2 board options (the same rules as tv_defaults_doc)."""
+    return _defaults_doc(get, TV2_CHOICES, TV2_FACTORY, TV2_SETTING)
 
 
 def tv_defaults_values(patch: dict[str, Any]) -> dict[str, str]:
-    """A defaults patch -> the stored strings, validated like a board's own value (Invalid on an unknown key or value)."""
+    """A defaults patch -> the stored strings, validated like a board's own value (Invalid on an unknown key or value). Takes the
+    TVOPT-295 options and (BOARDV2-297) the V2 board options."""
     out: dict[str, str] = {}
     for k, v in (patch or {}).items():
-        if k not in TV_CHOICES:
+        if k not in ALL_TV_CHOICES:
             raise Invalid(k, "הגדרה לא מוכרת.")
         if not tv_value_ok(k, v):
             raise Invalid(k, "ערך לא תקין.")
-        out[TV_SETTING[k]] = str(v)
+        out[ALL_TV_SETTING[k]] = str(v)
     return out
 
 
@@ -410,6 +446,7 @@ def settings_doc(get: Any) -> dict[str, Any]:
         "conn_per_address": num("notices.boards.conn_per_address", *CONN_PER_ADDRESS_RANGE),
         "news_sources": CURATED_NEWS,
         "tv_defaults": tv_defaults_doc(lambda k, dflt: raw.get(k, dflt)),
+        "tv2_defaults": tv2_defaults_doc(lambda k, dflt: raw.get(k, dflt)),
     }
 
 

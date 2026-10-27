@@ -3,7 +3,7 @@
  * The TV page (src/notice-tv/) has its own fetch of the display feed and never imports this file.
  */
 import { api, del, get, patch, post, put } from './client';
-import type { Display, TvDefaults } from '../notice-tv/tv-logic';
+import type { Display, Tv2Defaults, TvDefaults } from '../notice-tv/tv-logic';
 
 export type Severity = 'info' | 'alert' | 'critical';
 export type NoticeState = 'draft' | 'scheduled' | 'active' | 'expired' | 'archived';
@@ -96,6 +96,8 @@ export interface NoticesSettings {
   news_sources: NewsSource[];
   /** TVOPT-295: the installation defaults of the TV options (absent from an older backend) */
   tv_defaults?: TvDefaults;
+  /** BOARDV2-297: the installation defaults of the V2 board options (absent from an older backend) */
+  tv2_defaults?: Tv2Defaults;
 }
 
 /** NOTICERSS-295: one entry of the installation's editable list of news sources (`custom` = a raw URL a board stored, not yet in the list). */
@@ -145,7 +147,7 @@ export const noticesModule = () => get<{ enabled: boolean; can: NoticesCan }>('n
 export const noticesSettings = () => get<SettingsResponse>('notices/settings');
 export const patchNoticesSettings = (body: Partial<Omit<NoticesSettings, 'news_sources' | 'tv_defaults'>>) => patch<{ settings: NoticesSettings }>('notices/settings', body);
 /** TVOPT-295: the installation defaults of the four TV options (notices.boards) */
-export const putTvDefaults = (body: Partial<TvDefaults>) => put<{ tv_defaults: TvDefaults }>('notices/tv-defaults', body);
+export const putTvDefaults = (body: Partial<TvDefaults & Tv2Defaults>) => put<{ tv_defaults: TvDefaults; tv2_defaults?: Tv2Defaults }>('notices/tv-defaults', body);
 export const getNewsSources = () => get<NewsSourcesAnswer>('notices/news-sources');
 /** the whole list in the order shown; a source without an id is new */
 export const putNewsSources = (sources: { id?: string; name: string; url: string; enabled: boolean }[]) => put<NewsSourcesAnswer>('notices/news-sources', { sources });

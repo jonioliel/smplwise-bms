@@ -17,6 +17,7 @@
  * timers), `?now=<ISO>` (a fixed instant).
  */
 import './tv.css';
+import './tv-v2.css'; // BOARDV2-297: the V2 board, scoped to #cv[data-design="v2"] (loaded after tv.css on purpose)
 import { overlayHtml, overlayKey, pollMs, visibleNow } from '../announce/screen-overlay'; // ANNOUNCEB-295: the announcement overlay's pure rules
 import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo (developer kit artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
@@ -24,9 +25,11 @@ import {
   AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, HEADERS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, gridPlanExtra, headerOf, heldIndex, logoLayoutOf, netOf, nightDim,
   nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, tickerItemHtml, timeText, tokenFrom, tx, updatedOf, weatherDaysOf, whenText, withTransit,
   type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type HeaderLayout, type Item, type LogoLayout, type NetState, type Saver, type UpdatedLine,
+  BOARD_LAYOUTS, CO_SIZE_PX, tv2Of, type BoardLayout,
 } from './tv-logic';
 import { effective, hasPanel, refreshMs, slideWanted, transitOf, transitTick, ts, type TransitDigest } from './transit-logic';
 import { sidePanel, slidePanel, stripPanel, type TransitCtx } from './transit-view';
+import { v2Panel, v2Slide, v2Strip, type V2TransitCtx } from './v2-transit';
 
 const Q = new URLSearchParams(location.search);
 const root = document.documentElement;
@@ -104,6 +107,40 @@ function tkey(tv: TransitDigest | null): string {
 
 function transitCtx(): TransitCtx {
   return { lang: lang(), nowMs: transitNow(), elapsedMs: FIXED || NOW_Q ? 0 : Math.max(0, Date.now() - transitRecv) };
+}
+
+// ---------------------------------------------------------------- BOARDV2-297: the V2 board
+
+/** Is the V2 board in force: the board's `design` (own value, else the installation default), or the `?design=` test hook. */
+function v2On(): boolean {
+  const q = Q.get('design');
+  if (q === 'v2' || q === 'classic') return q === 'v2';
+  return tv2Of(display(), 'design') === 'v2';
+}
+
+/** The V2 layout in force: the board's `board_layout` (own, else the installation's default layout), or the `?b2layout=` test hook. */
+function v2Layout(): BoardLayout {
+  const q = Q.get('b2layout') as BoardLayout | null;
+  return q && BOARD_LAYOUTS.includes(q) ? q : tv2Of(display(), 'board_layout');
+}
+
+type V2Where = 'none' | 'panel' | 'strip' | 'slide';
+
+/** Where the V2 bus area goes. The area is reserved whenever the screen shows bus times (also before the first digest and while the
+ * data is unavailable: the "not available" message fills it); only an installation with the module off draws no area. Portrait: the panel. */
+function v2Where(portrait: boolean): V2Where {
+  const d = display();
+  if (!transitOf(d).enabled) return 'none';
+  const tv = transitView();
+  if (tv && tv.state === 'off') return 'none';
+  if (portrait) return 'panel';
+  let lay = v2Layout();
+  if (lay === 'slide' && d.mode === 'all') lay = 'strip'; // "all together" has no rotation
+  return lay === 'side' ? 'panel' : lay;
+}
+
+function v2Ctx(): V2TransitCtx {
+  return { lang: lang(), nowMs: transitNow(), next: tv2Of(display(), 'next_row') !== 'hide' };
 }
 
 function display(): Display {
@@ -225,6 +262,7 @@ function slideHtml(x: Item, on: boolean): string {
 
 function transitSlideHtml(on: boolean): string {
   const tv = transitView();
+  if (cv.dataset.design === 'v2') return v2Slide(tv, v2Ctx(), on);
   if (!tv) return '<article class="it transit' + (on ? ' on' : '') + '"></article>';
   const html = slidePanel(tv, transitCtx(), '<div class="clk num" data-time>' + timeStr() + '</div>');
   return on ? html.replace('<article class="it transit"', '<article class="it transit on"') : html;
@@ -278,6 +316,10 @@ function stageHtml(): string {
     const slice = list.slice(state.page * plan.per, state.page * plan.per + plan.per);
     return '<div class="stage all">' + slice.map((x, k) => cellHtml(x, state.page * plan.per + k === state.held)).join('') + dotsHtml(plan.pages, state.page) + tailHtml() + '</div>';
   }
+  if (cv.dataset.design === 'v2') {
+    // BOARDV2-297: the main notice without a card, a hairline, one card for the next notice (rotation and focus alike)
+    return '<div class="stage b2stage"><div class="b2fst">' + list.map((x, k) => itemHtml(x, k === state.i)).join('') + dotsHtml(list.length, state.i) + '</div><i class="b2vr"></i><div class="others">' + othersHtml() + '</div>' + tailHtml() + '</div>';
+  }
   if (d.mode === 'focus') {
     return '<div class="stage focus"><div class="fst">' + list.map((x, k) => itemHtml(x, k === state.i)).join('') + dotsHtml(list.length, state.i) + '</div><div class="vrule"></div><div class="others">' + othersHtml() + '</div>' + tailHtml() + '</div>';
   }
@@ -285,8 +327,10 @@ function stageHtml(): string {
 }
 
 function othersHtml(): string {
-  const max = othersMax(spaceExtra(headerNow(), spaceOf(display())));
-  const rest = state.list.filter((_x, k) => k !== state.i);
+  const v2 = cv.dataset.design === 'v2';
+  const max = v2 ? 1 : othersMax(spaceExtra(headerNow(), spaceOf(display())));
+  // V2: the card shows the next notice in the rotation (never the bus slide)
+  const rest = v2 ? [...state.list.slice(state.i + 1), ...state.list.slice(0, state.i)].filter((x) => !x.transit && !x.slide) : state.list.filter((_x, k) => k !== state.i);
   let h = rest.slice(0, max).map((x) => cellHtml(x, false)).join('');
   if (rest.length > max) h += '<div class="more">' + esc(str(lang(), 'more', { n: rest.length - max })) + '</div>';
   return h;
@@ -404,6 +448,16 @@ function render(): void {
   if (own && LOGO_SCALE[own]) cv.style.setProperty('--lgco', String(LOGO_SCALE[own]));
   else cv.style.removeProperty('--lgco');
 
+  const v2 = v2On();
+  cv.dataset.design = v2 ? 'v2' : 'classic';
+  if (v2) {
+    renderV2(d, portrait, L, band, flags);
+    finishRender(urgentNow);
+    return;
+  }
+  cv.classList.remove('v2p');
+  delete cv.dataset.tron;
+
   // BUSTIMES-295: where the bus times go. `side` needs a side column (template 3 has none: it takes the strip); `slide` is a rotation slide
   // (the "all together" and "focus" modes have no rotation: the strip); an expired board has no slide (the rotation skips it).
   const scr = transitOf(d);
@@ -465,6 +519,12 @@ function render(): void {
   const bd = pg.querySelector('.bd') as HTMLElement | null;
   if (bd && grow !== 1) bd.style.setProperty('--fs', ((SIZES[d.font_size] ?? SIZES.s) * (d.font_scale || 1) * grow).toFixed(3));
   applyGridVars();
+  finishRender(urgentNow);
+}
+
+/** What every render ends with (classic and V2): the urgent take-over, the announcement, the saver, the canvas fit and the after-layout fits. */
+function finishRender(urgentNow: FeedNotice | null): void {
+  if (!feed) return;
   const D = logos(true);
   const u = urgentNow;
   take.innerHTML = u
@@ -476,6 +536,90 @@ function render(): void {
   applySaver();
   fitCanvas();
   layoutAfter();
+}
+
+// ---------------------------------------------------------------- BOARDV2-297: the V2 board's page
+
+function v2ClockHtml(flags: Record<string, boolean>): string {
+  const site = flags.welcome && feed?.board.building ? '<div class="site">' + esc(feed.board.building) + '</div>' : '';
+  return '<div class="b2clock">' + site + '<div class="t num" data-time>' + timeStr() + '</div><div class="d" data-date>' + esc(dateStr()) + '</div>' +
+    (flags.hebdate ? '<div class="h" data-heb>' + tx(hebDate()) + '</div>' : '') + '</div>';
+}
+
+/** The weather: always under the date (today only: the icon, the temperature and the condition). */
+function v2WxHtml(): string {
+  const w = feed?.weather;
+  if (!w) return '';
+  return '<div class="b2wx">' + ic(ICON_OF[w.now.condition] || 'cloud') + '<b class="num">' + w.now.t + '°</b><span>' + esc(w.now.text) + '</span></div>';
+}
+
+/** The footer's start: the network notes and the "updated" line (the `updated` option: full = place · updated HH:MM, time, issues = nothing while live). */
+function v2StatusHtml(u: UpdatedLine): string {
+  const t = '<span class="num" data-updated>' + updatedText() + '</span>';
+  const place = display().place || '';
+  const live = u === 'issues' ? '' : '<span class="live"><i></i>' + (u === 'time' ? t : (place ? esc(place) + ' · ' : '') + esc(str(lang(), 'updated')) + ' ' + t) + '</span>';
+  return '<span class="offline">' + ic('offline') + esc(str(lang(), 'offline')) + '</span><span class="stale">' + ic('clock') + '<span data-stale>' + esc(str(lang(), 'staleFrom', { t: updatedText() })) + '</span></span>' + live;
+}
+
+/** The tenant logo's height: the board's co_size, else (auto) the system logo setting's scale of the 96 px header (88 px portrait). */
+function v2LogoHeight(portrait: boolean): string {
+  const s = tv2Of(display(), 'co_size');
+  if (s !== 'auto') return CO_SIZE_PX[s] * (portrait ? 88 / 96 : 1) + 'px';
+  const b = feed?.board.brand;
+  const k = LOGO_SCALE[b?.company_size ?? b?.size ?? 'm'] ?? 1;
+  return Math.round((portrait ? 88 : 96) * k) + 'px';
+}
+
+function renderV2(d: Display, portrait: boolean, L: { co: string; sw: string }, band: FeedNotice | null, flags: Record<string, boolean>): void {
+  if (!feed) return;
+  cv.classList.remove('portrait'); // no classic portrait rule applies to V2; the canvas size reads v2p (fitCanvas)
+  cv.classList.toggle('v2p', portrait);
+  cv.dataset.tpl = 'v2';
+  cv.dataset.logos = 'v2';
+  cv.dataset.header = 'v2';
+  cv.dataset.space = 'none';
+  cv.style.setProperty('--b2co', v2LogoHeight(portrait));
+  const upd = updatedOf(d);
+  cv.dataset.updated = upd;
+
+  const where = v2Where(portrait);
+  const tv = transitView();
+  const scr = transitOf(d);
+  cv.dataset.bus = where;
+  transitSig = 'v2:' + where;
+  transitKey = tkey(tv);
+  const ctx = v2Ctx();
+
+  const prevId = state.currentId;
+  state.list = withTransit(withSlides(playlist(feed.notices, d), feed.slides, d), where === 'slide', scr.dwell_s, d.rotate_s);
+  cv.dataset.empty = state.list.length ? '0' : '1';
+  state.held = heldIndex(state.list, d);
+  state.plan = gridPlanExtra(state.list.length, !portrait, portrait, false);
+  const keep = state.list.findIndex((x) => x.n.id === prevId);
+  state.i = state.held >= 0 ? state.held : keep >= 0 ? keep : Math.min(state.i, Math.max(0, state.list.length - 1));
+  state.page = state.held >= 0 ? Math.floor(state.held / state.plan.per) : Math.min(state.page, state.plan.pages - 1);
+  state.left = state.list.length ? state.list[state.i].dwell : 0;
+  state.currentId = state.list[state.i]?.n.id ?? '';
+  state.paused = state.userPaused || state.held >= 0;
+  cv.dataset.paused = state.paused ? '1' : '0';
+  cv.dataset.tron = state.list[state.i]?.transit ? '1' : '0';
+
+  const clockH = v2ClockHtml(flags);
+  const wx = flags.weather ? v2WxHtml() : '';
+  const panel = where === 'panel' ? v2Panel(tv, ctx) : '';
+  let body: string;
+  if (portrait) {
+    const order = tv2Of(d, 'portrait_order');
+    body = '<main class="b2bd" data-l="portrait" data-order="' + order + '" data-bus="' + (panel ? '1' : '0') + '"><div class="b2irow">' + clockH + wx + '</div>' + panel + stageHtml() + '</main>';
+  } else {
+    const lay = v2Layout() === 'side' || where === 'panel' ? 'side' : where === 'strip' || (where === 'none' && v2Layout() === 'strip') ? 'strip' : 'slide';
+    const info = '<div class="b2info">' + clockH + wx + panel + '</div><i class="b2vr"></i>';
+    if (lay === 'strip') body = '<main class="b2bd" data-l="strip" data-bus="' + (where === 'strip' ? '1' : '0') + '"><div class="b2main">' + info + stageHtml() + '</div>' + (where === 'strip' ? v2Strip(tv, ctx) : '') + '</main>';
+    else body = '<main class="b2bd" data-l="' + lay + '">' + info + stageHtml() + '</main>';
+  }
+  const ft = '<footer class="b2ft"><span class="b2st">' + v2StatusHtml(upd) + '</span><span class="b2pw">' + esc(str(lang(), 'poweredBy')) + '</span></footer>';
+  pg.innerHTML = '<header class="b2hd">' + L.co + L.sw + '</header>' + bandHtml(band) + body + tickerHtml() + ft;
+  applyGridVars();
 }
 
 // ---------------------------------------------------------------- ANNOUNCEB-295: a voice announcement addressed to this board
@@ -513,7 +657,7 @@ function applyGridVars(): void {
 
 const useZoom = !!(window.CSS && CSS.supports && CSS.supports('zoom', '2'));
 function fitCanvas(): void {
-  const portrait = cv.classList.contains('portrait');
+  const portrait = cv.classList.contains('portrait') || cv.classList.contains('v2p');
   const W0 = portrait ? 1080 : 1920;
   const H0 = portrait ? 1920 : 1080;
   const vw = innerWidth || W0;
@@ -583,11 +727,11 @@ function layoutAfter(): void {
 /** Fit the bus panels to the space they got: the rows scale down (--bk, to 0.6), then trailing rows go and "and N more" counts them; the strip's
  * cards go while they overflow. Same idea as `fit` for the notices: the content gives way, the page never scrolls. */
 function fitBus(): void {
-  cv.querySelectorAll<HTMLElement>('.bus').forEach((bus) => {
+  cv.querySelectorAll<HTMLElement>('.bus, .b2bus').forEach((bus) => { // BOARDV2-297: the V2 bus areas give way the same way
     const rows = bus.querySelector<HTMLElement>('.rows');
     const cards = bus.querySelector<HTMLElement>('.cards:not(.msg)');
     const more = bus.querySelector<HTMLElement>('.bmore');
-    const portraitGrid = cv.classList.contains('portrait');
+    const portraitGrid = cv.classList.contains('portrait') && !bus.classList.contains('b2bus');
     const over = (el: HTMLElement): boolean => el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2;
     const wide = (el: HTMLElement): boolean => (portraitGrid ? over(el) : el.scrollWidth > el.clientWidth + 2); // the strip's cards sit in one row
     // idempotent: every pass starts from the full list again (an earlier pass may have run before the layout had its final size)
@@ -657,16 +801,18 @@ function refreshTransit(): void {
   if (key === transitKey) return;
   const d = display();
   const scr = transitOf(d);
-  let mode = scr.enabled && hasPanel(tv) ? scr.layout : 'none';
+  const v2 = cv.dataset.design === 'v2';
+  let mode: string = scr.enabled && hasPanel(tv) ? scr.layout : 'none';
   if (mode === 'slide' && d.mode !== 'rotation') mode = 'strip';
   if (mode === 'side' && d.template === 3) mode = 'strip';
   if (mode === 'slide' && !slideWanted(tv)) mode = 'none';
+  if (v2) mode = 'v2:' + v2Where(cv.classList.contains('v2p'));
   if (mode !== transitSig) {
     render();
     return;
   }
   transitKey = key;
-  if (!tv) return;
+  if (!v2 && !tv) return;
   const ctx = transitCtx();
   const swap = (sel: string, html: string): void => {
     const host = cv.querySelector(sel);
@@ -678,7 +824,14 @@ function refreshTransit(): void {
     if (host.classList.contains('on')) next.classList.add('on');
     host.replaceWith(next);
   };
-  if (mode === 'side') swap('.bus[data-bus="side"]', sidePanel(tv, ctx));
+  if (v2) {
+    // BOARDV2-297: the same areas, redrawn in place (nothing around them moves)
+    const c2 = v2Ctx();
+    if (mode === 'v2:panel') swap('[data-b2bus="panel"]', v2Panel(tv, c2));
+    else if (mode === 'v2:strip') swap('[data-b2bus="strip"]', v2Strip(tv, c2));
+    else if (mode === 'v2:slide') swap('[data-b2bus="slide"]', v2Slide(tv, c2, false));
+  } else if (!tv) return;
+  else if (mode === 'side') swap('.bus[data-bus="side"]', sidePanel(tv, ctx));
   else if (mode === 'strip') swap('.bus[data-bus="strip"]', stripPanel(tv, ctx));
   else if (mode === 'slide') swap('.it.transit', slidePanel(tv, ctx, '<div class="clk num" data-time>' + timeStr() + '</div>'));
   fitBus();
@@ -693,6 +846,7 @@ function showItem(i: number): void {
   state.currentId = state.list[state.i].n.id;
   cv.querySelectorAll('.stage .it').forEach((c, k) => c.classList.toggle('on', k === state.i));
   cv.querySelectorAll('.stage .dots > span:not(.pz)').forEach((d, k) => d.classList.toggle('on', k === state.i));
+  if (cv.dataset.design === 'v2') cv.dataset.tron = state.list[state.i]?.transit ? '1' : '0'; // BOARDV2-297: the bus slide takes the whole stage
   const others = cv.querySelector('.stage .others') as HTMLElement | null;
   if (others) {
     others.innerHTML = othersHtml();

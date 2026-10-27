@@ -67,6 +67,12 @@ export interface Display {
   photo?: string;
   /** BUSTIMES-295: this screen's public-transport block (absent on a board saved before 2.22.0 = off) */
   transit?: Partial<TransitScreen>;
+  /** BOARDV2-297: the V2 board options (same rules as the TVOPT-295 keys: own value, else the installation default) */
+  design?: Design | null;
+  board_layout?: BoardLayout | null;
+  co_size?: CoSize | null;
+  portrait_order?: PortraitOrder | null;
+  next_row?: NextRow | null;
 }
 
 export type Saver = 'off' | 'wash' | 'cycle' | 'wave' | 'ambient';
@@ -121,6 +127,44 @@ export function tvDefaultsOf(raw: Partial<Record<keyof TvDefaults, unknown>> | n
 /** A board's display with the four options resolved: its own value, else the installation default (the backend's effective_display). */
 export function effectiveTv<D extends Partial<Pick<Display, (typeof TV_KEYS)[number]>>>(d: D, defaults: TvDefaults): Omit<D, (typeof TV_KEYS)[number]> & TvDefaults {
   return { ...d, header: d.header || defaults.header, updated: d.updated || defaults.updated, space: d.space || defaults.space, night_logo: d.night_logo || defaults.night_logo, weather_days: d.weather_days ?? defaults.weather_days };
+}
+
+// ---------------------------------------------------------------- BOARDV2-297: the V2 board (owner-approved mock-up 2026-10-26)
+
+/** classic = the board as before; v2 = the V2 board (40 px margins, weather under the date, a fixed bus area per layout, Heebo, gold). */
+export type Design = 'classic' | 'v2';
+/** The V2 layout: side = an information column (clock, date, weather, bus panel); strip = a full-width bus row; slide = a full-stage bus slide. */
+export type BoardLayout = 'side' | 'strip' | 'slide';
+/** The tenant logo's height in the V2 header: auto = the system logo settings, else 72 / 96 / 120 / 144 px. */
+export type CoSize = 'auto' | 's' | 'm' | 'l' | 'xl';
+/** The portrait V2 board below the clock row: the bus panel first, or the notices first. */
+export type PortraitOrder = 'bus' | 'notices';
+export type NextRow = 'show' | 'hide';
+export const DESIGNS: Design[] = ['classic', 'v2'];
+export const BOARD_LAYOUTS: BoardLayout[] = ['side', 'strip', 'slide'];
+export const CO_SIZES: CoSize[] = ['auto', 's', 'm', 'l', 'xl'];
+export const PORTRAIT_ORDERS: PortraitOrder[] = ['bus', 'notices'];
+export const NEXT_ROWS: NextRow[] = ['show', 'hide'];
+export const CO_SIZE_PX: Record<Exclude<CoSize, 'auto'>, number> = { s: 72, m: 96, l: 120, xl: 144 };
+
+export interface Tv2Defaults { design: Design; board_layout: BoardLayout; co_size: CoSize; portrait_order: PortraitOrder; next_row: NextRow }
+export const TV2_FACTORY: Tv2Defaults = { design: 'classic', board_layout: 'side', co_size: 'auto', portrait_order: 'bus', next_row: 'show' };
+export const TV2_KEYS = ['design', 'board_layout', 'co_size', 'portrait_order', 'next_row'] as const;
+const TV2_ALLOWED: { [K in keyof Tv2Defaults]: readonly Tv2Defaults[K][] } = { design: DESIGNS, board_layout: BOARD_LAYOUTS, co_size: CO_SIZES, portrait_order: PORTRAIT_ORDERS, next_row: NEXT_ROWS };
+
+/** One V2 option of a display (the feed always carries the effective value; an unknown or absent one reads as the factory value). */
+export function tv2Of<K extends keyof Tv2Defaults>(d: Partial<Record<K, unknown>> | null | undefined, k: K): Tv2Defaults[K] {
+  return pick(d?.[k], TV2_ALLOWED[k] as readonly string[], TV2_FACTORY[k] as string) as Tv2Defaults[K];
+}
+
+/** The V2 defaults as the API sent them, each value checked. */
+export function tv2DefaultsOf(raw: Partial<Record<keyof Tv2Defaults, unknown>> | null | undefined): Tv2Defaults {
+  return Object.fromEntries(TV2_KEYS.map((k) => [k, tv2Of(raw, k)])) as unknown as Tv2Defaults;
+}
+
+/** A board's display with the V2 options resolved: its own value, else the installation default. */
+export function effectiveTv2(d: Partial<Record<keyof Tv2Defaults, unknown>>, defaults: Tv2Defaults): Tv2Defaults {
+  return Object.fromEntries(TV2_KEYS.map((k) => [k, d[k] ? tv2Of(d, k) : defaults[k]])) as unknown as Tv2Defaults;
 }
 
 /** The text scale of the body (clock, date, weather, notices) under a one-row header: the freed height makes them larger
