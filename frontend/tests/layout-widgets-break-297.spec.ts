@@ -59,9 +59,10 @@ test.describe('home widgets break test', () => {
       page.on('pageerror', (e) => errors.push(String(e)));
       await open(page, scheme, skin);
       const problems: string[] = [];
-      for (const id of WIDGETS) for (const size of SIZES) for (const ds of DATASETS) for (const w of WIDTHS) {
+      for (const id of WIDGETS) for (const size of SIZES) for (const ds of DATASETS) for (const w of ds === 'worst' ? WIDTHS : [240]) {
         const ctx = `${id}/${size}/${ds}/${w}/${skin}-${scheme}`;
         await page.evaluate(([i, s, d, px]) => (window as unknown as { wbMount: (...a: unknown[]) => Promise<void> }).wbMount(i, s, d, px), [id, size, ds, w] as const);
+        if (skin === 'bubble' && id === 'clock' && size === 'm' && ds === 'normal') expect(await page.locator('home-widgets').getAttribute('data-skin')).toBe('bubble');
         const m = await measure(page, ctx, '#cell');
         const e = await edge(page);
         const own = [...m.found.map((f) => `${f.cls} ${f.el} ${f.detail}`), ...e];

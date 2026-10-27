@@ -107,6 +107,6 @@ const TITLES: Record<string, string> = { clock: 'שעון', weather: 'מזג א�
   cell.append(el);
   root.replaceChildren(cell);
   await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
-  await new Promise((r) => setTimeout(r, 300));
+  await new Promise((r) => setTimeout(r, 150));
 };
 (window as unknown as Record<string, unknown>).wbReady = true;
