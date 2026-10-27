@@ -573,7 +573,7 @@ def test_the_health_report_has_no_transit_row_while_the_module_is_off(client, se
 def test_a_restore_never_carries_the_modules_switch_or_stops():
     from smplwise.services import backup
 
-    assert {"transit.config", "transit.catalogue"} <= set(backup.SETTINGS_KEEP)
+    assert {"transit.config", "transit.catalogue", "transit.health"} <= set(backup.SETTINGS_KEEP)
 
 
 def test_there_is_no_service_ticket_action_anywhere_in_the_module():

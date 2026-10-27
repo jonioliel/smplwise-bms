@@ -17,6 +17,7 @@ def view(conn: sqlite3.Connection, now: dt.datetime) -> dict[str, Any]:
     `down` once the outage outlasts that threshold)."""
     cfg = model.load_config(get_setting(conn, model.CONFIG_KEY, ""))
     used = poller.used_codes(conn) if cfg["enabled"] else {}
+    poller.restore_health(conn)
     h = poller.HEALTH.view()
     row = conn.execute("SELECT MIN(fetched_at) AS oldest, MAX(fetched_at) AS newest FROM transit_cache").fetchone()
     newest = stride.parse_time(row["newest"]) if row and row["newest"] else None

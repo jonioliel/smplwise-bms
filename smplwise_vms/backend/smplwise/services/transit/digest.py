@@ -92,9 +92,10 @@ def _state(age_s: float | None, grace_min: int, fresh_s: int = model.FRESH_S) ->
     return "expired"
 
 
-def _provider_outage() -> bool:
-    from . import poller  # lazily: the loop's in-memory health (the screens path itself never calls the provider)
+def _provider_outage(conn: sqlite3.Connection) -> bool:
+    from . import poller  # lazily: the loop's source health, persisted (the screens path itself never calls the provider)
 
+    poller.restore_health(conn)
     h = poller.HEALTH.view()
     return h["consecutive_errors"] > 0 and model.is_outage(h["last_error"])
 
@@ -116,7 +117,7 @@ def build(conn: sqlite3.Connection, screen: dict[str, Any], now: dt.datetime, tz
     oldest = min(fetched) if fetched else None
     age = max(0.0, (now - oldest).total_seconds()) if oldest else None
     state = _state(age, cfg["stale_grace_min"], model.fresh_s(cfg))
-    source_down = _provider_outage() and age is not None and age > model.fresh_s(cfg)
+    source_down = _provider_outage(conn) and age is not None and age > model.fresh_s(cfg)
     if source_down and state == "expired" and cfg["stale_grace_min"] > 0 and age <= model.OUTAGE_KEEP_H * 3600:
         state = "cached"  # the provider is down: keep the last scheduled rows (with their age) instead of blanking the card
     out: dict[str, Any] = {

@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from ...config import Settings
-from ...db import Database, get_setting
+from ...db import Database, get_setting, set_setting
 from . import catalogue, model, stride
 from . import provider as provider_mod
 
@@ -42,6 +42,7 @@ class Health:
     consecutive: int = 0
     backoff_until: dt.datetime | None = None
     failing_since: dt.datetime | None = None
+    restored: bool = False  # BUSSTATUS-297: the persisted state was read (once per process)
 
     def ok(self, now: dt.datetime) -> None:
         with self.lock:
@@ -59,6 +60,26 @@ class Health:
                 wait = max(wait, min(int(retry_after_s), RETRY_AFTER_MAX_S))
             self.backoff_until = now + dt.timedelta(seconds=wait)
 
+    def pristine(self) -> bool:
+        with self.lock:
+            return not self.restored and self.consecutive == 0 and not self.last_error
+
+    def dump(self) -> dict[str, Any]:
+        with self.lock:
+            return {"last_ok_at": _iso(self.last_ok_at), "last_error_at": _iso(self.last_error_at), "last_error": self.last_error, "errors": self.errors,
+                    "consecutive": self.consecutive, "failing_since": _iso(self.failing_since), "backoff_until": _iso(self.backoff_until)}
+
+    def load(self, doc: dict[str, Any]) -> None:
+        def t(k: str) -> dt.datetime | None:
+            return stride.parse_time(doc.get(k)) if isinstance(doc.get(k), str) else None
+
+        with self.lock:
+            self.restored = True
+            self.last_ok_at, self.last_error_at, self.failing_since, self.backoff_until = t("last_ok_at"), t("last_error_at"), t("failing_since"), t("backoff_until")
+            self.last_error = doc["last_error"] if isinstance(doc.get("last_error"), str) else ""
+            self.errors = doc["errors"] if isinstance(doc.get("errors"), int) else 0
+            self.consecutive = doc["consecutive"] if isinstance(doc.get("consecutive"), int) else 0
+
     def blocked(self, now: dt.datetime) -> bool:
         with self.lock:
             return self.backoff_until is not None and now < self.backoff_until
@@ -71,6 +92,27 @@ class Health:
 
 
 HEALTH = Health()
+HEALTH_KEY = "transit.health"  # BUSSTATUS-297: the source health in the settings store, so a restart does not forget an outage
+
+
+def restore_health(conn: Any) -> None:
+    """Read the persisted source health into memory, once per process and only while memory holds nothing of its own (screens, the health
+    view and the poller call it; it is a no-op afterwards)."""
+    if not HEALTH.pristine():
+        return
+    try:
+        doc = json.loads(get_setting(conn, HEALTH_KEY, "") or "{}")
+    except ValueError:
+        doc = {}
+    HEALTH.load(doc if isinstance(doc, dict) else {})
+
+
+def persist_health(db: Database) -> None:
+    try:
+        with db.connection(label="transit.health.persist") as conn:
+            set_setting(conn, HEALTH_KEY, json.dumps(HEALTH.dump(), separators=(",", ":")))
+    except Exception:  # noqa: BLE001 - the state is a convenience; a failed write never stops the loop
+        log.warning("transit health could not be persisted")
 _PROVIDERS: dict[int, tuple[Any, Any]] = {}  # id(fetch callable) -> (fetch, its scheduled provider)
 _LAST_CATALOGUE_TRY: dict[str, dt.datetime] = {}
 
@@ -121,6 +163,7 @@ def poll_once(db: Database, source: Any, now: dt.datetime) -> dict[str, Any]:
         want = used_codes(conn)
         tz = sources.installation_tz(conn)
         cfg = load_config(conn)
+        restore_health(conn)
     if not want:
         return {"codes": 0, "fetched": 0, "skipped": "idle"}
     if HEALTH.blocked(now):
@@ -148,10 +191,14 @@ def poll_once(db: Database, source: Any, now: dt.datetime) -> dict[str, Any]:
             log.exception("transit poll failed")
             failed = type(exc).__name__
             break
+    was_failing = HEALTH.view()["consecutive_errors"] > 0
     if failed:
         HEALTH.fail(now, failed, retry_after)
+        persist_health(db)
     else:
         HEALTH.ok(now)
+        if was_failing:
+            persist_health(db)  # the recovery is written too; a healthy source writes nothing
     with db.connection(label="transit.poll.prune") as conn:
         marks = ",".join("?" * len(want))
         conn.execute(f"DELETE FROM transit_cache WHERE code NOT IN ({marks})", tuple(want))
@@ -179,7 +226,11 @@ def catalogue_pass(db: Database, fetch: stride.Fetch, now: dt.datetime, *, force
     if not force and last is not None and (now - last).total_seconds() < CATALOGUE_RETRY_S:
         return None
     _LAST_CATALOGUE_TRY["t"] = now
-    return catalogue.refresh(db, fetch, now, local.date())
+    res = catalogue.refresh(db, fetch, now, local.date())
+    if res.get("error") and res.get("error_at") == _iso(now) and model.is_outage(res["error"]):
+        HEALTH.fail(now, res["error"])  # BUSSTATUS-297: a failed nightly download is the same provider's outage (503, empty list...) - it counts
+        persist_health(db)
+    return res
 
 
 class Poller:

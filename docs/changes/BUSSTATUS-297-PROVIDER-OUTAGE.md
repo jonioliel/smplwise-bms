@@ -18,15 +18,15 @@ On 2026-10-27 the external Open Bus Stride API answered HTTP 503 for hours. Afte
 | Digest for the TV (`transit/digest.build`) | past the grace: `expired`, no rows | While the provider is failing: state stays `cached` up to 24 h of cache age with the last scheduled rows (clock times, no countdown); new fields `source_down` and `partial` (the cached window ended before the display window: an empty list means "unknown", not "no buses"). Grace 0 still means "no last-known data" |
 | TV card (side, strip, slide) | "not updated since HH:MM" / the unavailable panel | Rows stay; the header shows "updated N min ago" (N follows the screen's own stopwatch); one calm line "the external data source is unavailable - showing the last scheduled times"; a partial empty window says "no up-to-date schedule for this range"; past 24 h the expired panel names the source. Never blank |
 | Backoff | 1, 2, 4, 8 minutes, then 8 minutes for ever | 1, 2, 4, 8, 15, 30 minutes (steady state: one try per 30 minutes - a community service is not hammered for hours); a numeric `Retry-After` header is honoured (never beyond one hour) |
-| Settings | - | New installation setting `outage_warn_h` (1-72, default 6) in `transit.config`; the API validates it. No settings-screen field yet |
+| Settings | - | New installation setting `outage_warn_h` (1-72 hours, default 6) in `transit.config`, validated by the API and shown on the bus-times Settings screen (general rules card: "התראה על תקלה ממושכת במקור הנתונים") |
+| Restart | the source health lived in memory only | The health (last good/failing times, last error, breaker) is persisted in the settings store under `transit.health` (no migration; written on a failure and on a recovery, never by a healthy source) and restored on first use, so there is no "unavailable" window after a restart. The key is in `backup.SETTINGS_KEEP` (a restore never carries it) |
+| Nightly catalogue download | a failure only showed in the catalogue status | A failure of a provider-outage kind (5xx, timeout, empty list) also counts as the provider's outage (owner decision) |
 
 ## Notes for the operator
 
 * An installer sees the calm state in the health report (`transit` check, `meta.state = source_down`, `meta.last_good_at`) and in Settings;
   nothing opens a ticket (tickets-module rule).
-* The in-memory source health is lost at a restart; the first failed pass after it (about 20 s) restores the `source_down` classification.
-  Until then a stale cache past the grace reads as before.
-* The nightly stop-catalogue download is separate: its failure only affects the stop search and does not feed this state.
+* `OUTAGE_KEEP_H = 24` stays a code constant (owner decision).
 
 ## Tests
 

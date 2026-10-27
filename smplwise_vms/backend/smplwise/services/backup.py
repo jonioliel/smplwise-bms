@@ -151,6 +151,8 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
                  # BUSTIMES-295: the bus-times module's switch and stops describe THIS building (a restore must not switch a third-party feed on or
                  # re-aim it); the catalogue snapshot's status describes the local `transit_*` tables, which an archive does not carry
                  "transit.config", "transit.catalogue",
+                 # BUSSTATUS-297: the source health (an outage in progress) is runtime state of this installation, not project data
+                 "transit.health",
                  # NOTIFWA: the WhatsApp notification channel's master switch - a restore can never switch WhatsApp sending on
                  "notify.whatsapp",
                  # USR2: the Arx-only identity switch is the installation's own policy - a restore never switches local sign-in on
