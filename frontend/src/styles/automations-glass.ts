@@ -14,10 +14,12 @@ export const automationsControls = css`
     /* readable text on the soft success / warning fills (the palette's own colours are fills first) */
     --au-ok-text: color-mix(in srgb, var(--dv-success) 58%, #02300f);
     --au-warn-text: color-mix(in srgb, var(--dv-warning) 50%, #3d2400);
+    --au-bad-text: color-mix(in srgb, var(--dv-danger) 62%, #3d0505); /* A11YFIX-297: the urgent chip was 3.3:1 in light (the bare danger colour on its soft fill) */
   }
   :host([data-devices-scheme='dark']) {
     --au-ok-text: var(--dv-success);
     --au-warn-text: var(--dv-warning);
+    --au-bad-text: var(--dv-danger);
   }
   .grow { flex: 1; }
   /* the switch is 28-30 px high: its hit area is 44 px (an invisible margin of the button itself) */
@@ -42,7 +44,7 @@ export const automationsControls = css`
   .chip.ok { background: var(--dv-success-soft); color: var(--au-ok-text); }
   .chip.info { background: var(--dv-accent-soft); color: var(--dv-accent-text); }
   .chip.warn { background: var(--dv-warning-soft); color: var(--au-warn-text); }
-  .chip.bad { background: var(--dv-danger-soft); color: var(--dv-danger); }
+  .chip.bad { background: var(--dv-danger-soft); color: var(--au-bad-text); }
   /* the sensitive chip: amber (default) or red, the owner's setting */
   .chip.sens { background: var(--au-sens-bg, var(--dv-warning-soft)); color: var(--au-sens-fg, var(--au-warn-text)); }
   .dot { inline-size: 8px; block-size: 8px; border-radius: 50%; flex: none; background: var(--dv-offline, #98989d); }
