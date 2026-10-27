@@ -382,7 +382,7 @@ export class SystemNotifications extends LitElement {
       }
       .sevseg button[aria-pressed='true'] {
         background: var(--mm-seg-thumb);
-        color: var(--dv-text);
+        color: var(--mm-seg-fg-on, var(--dv-text));
         box-shadow: var(--dv-shadow-control);
       }
       .sevseg button i {
