@@ -34,7 +34,7 @@ def test_an_outage_survives_a_restart_without_an_unavailable_window(client, sett
     h = poller.HEALTH.view()
     assert h["consecutive_errors"] == 1 and h["last_error"] == "http_503" and h["failing_since"] == "2026-10-26T06:01:00Z"
     poller.HEALTH.__init__()
-    assert poller.poll_once(db, fake, BASE + dt.timedelta(minutes=2))["skipped"] == "backoff"  # the breaker survives the restart too
+    assert poller.poll_once(db, fake, BASE + dt.timedelta(seconds=90))["skipped"] == "backoff"  # the breaker survives the restart too
 
 
 def test_a_recovery_is_persisted_and_a_healthy_source_writes_nothing(client, settings):
