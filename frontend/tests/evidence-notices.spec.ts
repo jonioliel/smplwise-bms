@@ -49,7 +49,13 @@ async function install(page: Page, o: { enabled?: boolean; manager?: boolean } =
     if (p === 'notices/module') return json(route, { enabled, can: CAN });
     if (p === 'notices/settings' && method === 'GET') return json(route, { settings: { ...SETTINGS, enabled }, can: manager ? CAN : { ...CAN, boards: false, configure: false }, weather_entities: [{ entity_id: 'weather.home', name: 'בית' }], company_logo: false, listener: true, building_fallback: 'מגדל הים' });
     if (p === 'notices/settings') return json(route, { settings: { ...SETTINGS, ...(body as object) } });
-    if (p === 'notices/tv-defaults' && method === 'PUT') return json(route, { tv_defaults: { header: 'c', updated: 'full', space: 'bigger', night_logo: 'auto', ...(body as object) } });
+    if (p === 'notices/tv-defaults' && method === 'PUT') {
+      const b = body as Record<string, unknown>;
+      const v2keys = ['design', 'board_layout', 'co_size', 'portrait_order', 'next_row'];
+      const pick = (want: boolean) => Object.fromEntries(Object.entries(b).filter(([k]) => v2keys.includes(k) === want));
+      return json(route, { tv_defaults: { header: 'c', updated: 'full', space: 'bigger', night_logo: 'auto', ...pick(false) },
+        tv2_defaults: { design: 'classic', board_layout: 'side', co_size: 'auto', portrait_order: 'bus', next_row: 'show', ...pick(true) } }); // BOARDV2-297
+    }
     if (!enabled) return off();
     if (p === 'notices' && method === 'GET') {
       const scope = new URL(req.url()).searchParams.get('scope');
@@ -242,6 +248,56 @@ test('settings: the installation defaults of the TV options (TV boards card)', a
   await expect.poll(() => calls.filter((c) => c.method === 'PUT' && c.path === 'notices/tv-defaults').map((c) => c.body)).toEqual([{ header: 'b' }, { night_logo: 'plate' }, { weather_days: 3 }]);
   await noOverflow(page);
   await shot(page, 'settings-tv-defaults');
+});
+
+// BOARDV2-297: the V2 board's options - on a board (with "default"), and as installation defaults in the TV boards card
+test('board page: the V2 design and its options switch the preview; the V2-only rows wait for V2', async ({ page }) => {
+  const calls = await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices/b1'));
+  const root = page.locator('sw-app system-notices');
+  await root.locator('sw-tabs').getByText('תצוגה').click();
+  const frame = page.frameLocator('sw-app system-notices iframe[data-preview]');
+  await expect(frame.locator('#cv')).toHaveAttribute('data-design', 'classic');
+  const seg = (name: string) => root.locator(`notice-display-design [data-seg="${name}"]`);
+  await expect(seg('design').locator('button')).toHaveCount(3); // default, previous, V2
+  await expect(seg('board-layout').locator('button')).toHaveCount(4);
+  await expect(seg('co-size').locator('button')).toHaveCount(6);
+  await expect(seg('portrait-order').locator('button')).toHaveCount(3);
+  await expect(seg('next-row').locator('button')).toHaveCount(3);
+  for (const name of ['board-layout', 'co-size', 'portrait-order', 'next-row']) await expect(seg(name).locator('button').first()).toBeDisabled();
+  await seg('design').locator('button[data-v="v2"]').click();
+  await expect(frame.locator('#cv')).toHaveAttribute('data-design', 'v2');
+  await expect(frame.locator('.pg .b2hd')).toBeVisible();
+  for (const name of ['board-layout', 'co-size', 'portrait-order', 'next-row']) await expect(seg(name).locator('button').first()).toBeEnabled();
+  await seg('board-layout').locator('button[data-v="strip"]').click();
+  await expect(frame.locator('.b2bd')).toHaveAttribute('data-l', 'strip');
+  await seg('co-size').locator('button[data-v="l"]').click();
+  await seg('next-row').locator('button[data-v="hide"]').click();
+  await noOverflow(page);
+  await shot(page, 'board-display-v2');
+  await root.locator('[data-save-display]').click();
+  await expect.poll(() => (calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body as { display?: object } | undefined)?.display)
+    .toMatchObject({ design: 'v2', board_layout: 'strip', co_size: 'l', next_row: 'hide' });
+});
+
+test('settings: the V2 defaults (design, default layout, logo size, portrait order, "next" row) in the TV boards card', async ({ page }) => {
+  const calls = await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices'));
+  const card = page.locator('sw-app system-notices [data-tv-defaults-card]');
+  await expect(card).toBeVisible();
+  const seg = (name: string) => card.locator(`notice-display-design [data-seg="${name}"]`);
+  await expect(seg('design').locator('button[data-v="classic"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(seg('board-layout').locator('button')).toHaveCount(3); // no "default" button here
+  await expect(card.locator('notice-display-design')).toContainText('פריסת ברירת מחדל');
+  await expect(seg('board-layout').locator('button').first()).toBeEnabled(); // the defaults stay editable before the switch
+  await seg('board-layout').locator('button[data-v="slide"]').click();
+  await seg('design').locator('button[data-v="v2"]').click();
+  await expect(seg('design').locator('button[data-v="v2"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => calls.filter((c) => c.method === 'PUT' && c.path === 'notices/tv-defaults').map((c) => c.body)).toEqual([{ board_layout: 'slide' }, { design: 'v2' }]);
+  await noOverflow(page);
+  await shot(page, 'settings-tv2-defaults');
 });
 
 test('settings: the TV defaults card needs the screen settings permission', async ({ page }) => {
