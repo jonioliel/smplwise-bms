@@ -71,7 +71,7 @@ export const ELEVATOR_WIDGET_STYLES = [elevatorCss, css`
   .el-card .t { display: grid; gap: 4px; min-inline-size: 0; flex: 1 1 0; justify-items: start; }
   .el-card .t b { font-size: var(--sw-fs-md); overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; max-inline-size: 100%; }
   .el-card small { color: var(--sw-text-2); font-size: var(--sw-fs-state); }
-  [data-size='s'] .el-card { min-inline-size: min(100%, 132px); flex-basis: 132px; padding: 8px 10px; }
+  [data-size='s'] .el-card { padding: 8px 10px; }
   [data-size='l'] .el-card { flex-basis: 220px; }
 `];
 
