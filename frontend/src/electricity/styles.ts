@@ -141,35 +141,42 @@ export const elecCss = css`
     background: var(--sw-surface);
     border: 1px solid var(--sw-border);
     border-radius: var(--sw-r-lg);
-    box-shadow: var(--sw-shadow-1);
-    padding: 12px 14px;
+    box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+    padding: 14px 18px;
     min-inline-size: 0;
   }
   .tile .k {
     color: var(--sw-text-2);
     font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-medium);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   /* the number and its unit have no break opportunity between them (digits glued to letters), so with the skins' larger value type
      (tesla 30px) a narrow tile would push the unit out; flex-wrap lets the unit drop to its own line, and a too-long number may break */
+  /* round 2 (dataviz hero number): display size, heavy, tight, tabular; the unit a quiet step beside it */
   .tile .v {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     min-inline-size: 0;
     overflow-wrap: anywhere;
-    font-size: var(--sw-fs-3xl);
-    font-weight: var(--sw-fw-bold);
+    font-size: var(--sw-fs-4xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
     color: var(--sw-heading);
+    margin-block-start: 2px;
   }
   .tile .u {
     min-inline-size: 0;
     font-size: var(--sw-fs-sm);
-    color: var(--sw-text-3);
+    color: var(--sw-text-2);
     font-weight: var(--sw-fw-medium);
-    margin-inline-start: 4px;
+    letter-spacing: 0;
+    margin-inline-start: 6px;
   }
   .prog {
     block-size: 8px;

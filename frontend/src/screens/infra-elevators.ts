@@ -74,29 +74,42 @@ export class InfraElevators extends LitElement {
     .new, .add, .hbtn { transition: border-color var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
     .new:active { transform: scale(0.97); }
     .add:active { transform: scale(0.99); }
-    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    /* POLISH-CONTROL-297 round 2: the number is the hero of the tile - display size, heavy, tight and tabular (dataviz "hero number"),
+       the word under it one quiet line; the tile sits on the card elevation with a lit top edge */
     .kpi {
-      display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md, 20px);
-      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0;
+      display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: var(--sw-r-lg, 22px);
+      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0;
     }
-    /* the dot carries a soft halo of its own colour (the temperature KPIs' dot): the state reads from across the room, the number stays the hero */
-    .kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--el-c) 18%, transparent); }
+    .kpi .dot { inline-size: 14px; block-size: 14px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 5px color-mix(in srgb, var(--el-c) 16%, transparent); }
     .kpi > div { min-inline-size: 0; }
-    .kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-    .kpi span.l { display: block; margin-block-start: 3px; font-size: var(--sw-fs-state); color: var(--sw-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kpi b { display: block; font-size: var(--sw-fs-4xl); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; color: var(--sw-heading, var(--sw-text)); }
+    .kpi span.l { display: block; margin-block-start: 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
     .ecard {
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
-      position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--sw-r-lg, 26px); overflow: hidden;
-      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0;
+      position: relative; display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: var(--sw-r-lg, 26px); overflow: hidden;
+      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0;
       transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
     }
     .ecard:active { transform: scale(0.99); }
-    .ecard[data-look='fire'] { background: linear-gradient(160deg, color-mix(in srgb, var(--sw-el-fire) 16%, transparent), var(--sw-surface) 60%); border-color: color-mix(in srgb, var(--sw-el-fire) 50%, transparent); }
-    .ecard[data-look='fault'] { border-color: color-mix(in srgb, var(--sw-el-fault) 45%, transparent); }
-    .ecard[data-look='off'] { border-color: color-mix(in srgb, var(--sw-el-off) 55%, transparent); border-inline-start-width: 4px; }
+    /* round 2 (find-animation-opportunities, occasional screen entry): the cards arrive as a 40 ms cascade - transform and opacity only,
+       off the main thread; under reduced motion only the fade remains */
+    @media (prefers-reduced-motion: no-preference) {
+      .ecard { animation: el-in 360ms var(--sw-ease-out) both; animation-delay: calc(var(--i, 0) * 40ms); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ecard { animation: el-fade 200ms var(--sw-ease) both; }
+    }
+    @keyframes el-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
+    @keyframes el-fade { from { opacity: 0; } }
+    /* round 2 (taste-skill: no gradients; impeccable detector: no side-tab border): an alerting card is a flat tinted field of its colour,
+       the out-of-service card a dashed frame - the state is told by the field, the solid badge and the icon, never by a stripe */
+    .ecard[data-look='fire'] { background: color-mix(in srgb, var(--sw-el-fire) 9%, var(--sw-surface)); border-color: color-mix(in srgb, var(--sw-el-fire) 45%, transparent); }
+    .ecard[data-look='fault'] { background: color-mix(in srgb, var(--sw-el-fault) 6%, var(--sw-surface)); border-color: color-mix(in srgb, var(--sw-el-fault) 45%, transparent); }
+    .ecard[data-look='off'] { border-style: dashed; border-color: color-mix(in srgb, var(--sw-el-off) 55%, transparent); background: color-mix(in srgb, var(--sw-el-off) 4%, var(--sw-surface)); }
     .head { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
-    .head h3 { margin: 0; font-size: var(--sw-fs-xl); flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .head h3 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .head small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
     .body { display: flex; gap: 16px; align-items: center; min-inline-size: 0; }
     .meta { flex: 1; display: grid; gap: 8px; min-inline-size: 0; }
@@ -142,6 +155,8 @@ export class InfraElevators extends LitElement {
       .hbtn { inline-size: 44px; block-size: 44px; margin-block: -6px; }
     }
     @media (max-width: 600px) {
+      /* round 2 loop 1: on a phone the tile's word may take two lines instead of an ellipsis ("ממתינות או פעי...") */
+      .kpi span.l { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.25; }
       /* the title first, the button under it: the top start corner belongs to the floating search */
       .top { flex-direction: column; align-items: stretch; }
       .top .sp { display: none; }
@@ -214,12 +229,12 @@ export class InfraElevators extends LitElement {
     </div>`;
   }
 
-  private card(e: Elevator, stale: boolean, now: number) {
+  private card(e: Elevator, stale: boolean, now: number, i = 0) {
     const c = chipOf({ state: e.state, stale: stale || e.stale, roles: e.roles, flags: e.flags });
     const ago = c.state === 'unknown' ? '' : agoText(e.since, new Date(now));
     const bar = barOf(e.history, now - DAY_MS, now);
     const extras = e.extras.filter((x) => x.on !== null);
-    return html`<article class="ecard" tabindex="0" data-elevator=${e.id} data-state=${c.state} data-look=${c.look} aria-label=${`${e.name}: ${c.label}`}>
+    return html`<article class="ecard" tabindex="0" style=${`--i:${Math.min(i, 8)}`} data-elevator=${e.id} data-state=${c.state} data-look=${c.look} aria-label=${`${e.name}: ${c.label}`}>
       <div class="head"><h3>${e.name}${e.area_name ? html`<small>${e.area_name}</small>` : nothing}</h3>${stateBadge(c)}<button type="button" class="hbtn" data-elevator-history aria-label=${elt('historyOpen', { name: e.name })} title=${elt('historyOpen', { name: e.name })} @click=${(ev: Event) => this.openHistory(e.id, ev.currentTarget as HTMLElement)}><sw-icon name="clock" size="16"></sw-icon></button></div>
       <div class="body">${doorIcon(c, 74)}
         <div class="meta">
@@ -264,7 +279,7 @@ export class InfraElevators extends LitElement {
     }
     return html`${l1}${top}${this.kpis(list, stale)}
       <div class="grid" data-elevators>
-        ${list.map((e) => this.card(e, stale, now))}
+        ${list.map((e, i) => this.card(e, stale, now, i))}
         ${aff.addCard ? html`<a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add><div><b>+</b>${elt('addCard')}</div></a>` : nothing}
       </div>
       ${this.historyDialog(list, now)}`;

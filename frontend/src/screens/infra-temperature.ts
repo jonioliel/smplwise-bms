@@ -86,37 +86,52 @@ export class InfraTemperature extends LitElement {
       display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--sw-offline-soft);
       color: var(--sw-offline-text); font-size: var(--sw-fs-sm);
     }
-    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    /* POLISH-CONTROL-297 round 2: the number is the hero of the tile (display size, heavy, tight, tabular), the tile on the card elevation */
     .kpi {
-      display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md); background: var(--sw-surface);
-      border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); font: inherit; color: inherit; text-align: start; cursor: pointer;
+      display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: var(--sw-r-lg); background: var(--sw-surface);
+      border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); font: inherit; color: inherit; text-align: start; cursor: pointer; min-inline-size: 0;
     }
+    .kpi > div { min-inline-size: 0; }
     /* POLISH136: the KPI is a filter button - it answers hover (fine pointers only), press and keyboard like the cards */
     .kpi { transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
     .kpi:active { transform: scale(0.98); }
     .kpi[aria-pressed='true'] { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
     .kpi[aria-pressed='true'] span.l { color: var(--sw-text); }
-    .kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent); }
-    .kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; }
-    .kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
+    .kpi .dot { inline-size: 14px; block-size: 14px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 16%, transparent); }
+    .kpi b { display: block; font-size: var(--sw-fs-4xl); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; color: var(--sw-heading, var(--sw-text)); }
+    .kpi span.l { display: block; margin-block-start: 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .kpi[data-k='total'] { --c: var(--sw-accent); }
     .kpi[data-k='door'] { --c: var(--tc-door); }
     .kpi:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); gap: 16px; }
     .ucard {
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
-      position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--sw-r-lg); overflow: hidden;
-      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0; cursor: pointer;
+      position: relative; display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: var(--sw-r-lg); overflow: hidden;
+      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; cursor: pointer;
       /* POLISH136: a tappable card confirms the press (transform only, token durations - zero under reduced motion) */
       transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
     }
     .ucard:active { transform: scale(0.99); }
-    .ucard[data-look='alarm'] { border-color: color-mix(in srgb, var(--tc-alarm) 55%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--tc-alarm) 10%, transparent), var(--sw-surface) 55%); }
-    .ucard[data-look='warn'] { border-color: color-mix(in srgb, var(--tc-warn) 55%, transparent); }
+    /* round 2 (taste-skill: no gradients): an alerting card is a flat tinted field of its colour */
+    .ucard[data-look='alarm'] { border-color: color-mix(in srgb, var(--tc-alarm) 55%, transparent); background: color-mix(in srgb, var(--tc-alarm) 7%, var(--sw-surface)); }
+    .ucard[data-look='warn'] { border-color: color-mix(in srgb, var(--tc-warn) 55%, transparent); background: color-mix(in srgb, var(--tc-warn) 5%, var(--sw-surface)); }
     .ucard[data-look='off'] { border-style: dashed; }
     .ucard:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+    /* round 2 (find-animation-opportunities, occasional screen entry): the cards arrive as a 40 ms cascade - transform and opacity only;
+       under reduced motion only the fade remains */
+    @media (prefers-reduced-motion: no-preference) {
+      .ucard { animation: tp-in 360ms var(--sw-ease-out) both; animation-delay: calc(var(--i, 0) * 40ms); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ucard { animation: tp-fade 200ms var(--sw-ease) both; }
+    }
+    .grid > .ucard:nth-child(2) { --i: 1; } .grid > .ucard:nth-child(3) { --i: 2; } .grid > .ucard:nth-child(4) { --i: 3; }
+    .grid > .ucard:nth-child(5) { --i: 4; } .grid > .ucard:nth-child(6) { --i: 5; } .grid > .ucard:nth-child(n + 7) { --i: 6; }
+    @keyframes tp-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
+    @keyframes tp-fade { from { opacity: 0; } }
     .uhead { display: flex; align-items: flex-start; gap: 10px; min-inline-size: 0; }
-    .uhead h3 { margin: 0; font-size: var(--sw-fs-xl); flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .uhead h3 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .uhead h3 small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-weight: var(--sw-fw-regular); overflow: hidden; text-overflow: ellipsis; }
     .ubody { display: flex; gap: 14px; align-items: center; min-inline-size: 0; }
     .umeta { flex: 1; display: grid; gap: 6px; min-inline-size: 0; }
@@ -189,6 +204,8 @@ export class InfraTemperature extends LitElement {
       .add:hover { border-color: var(--sw-border-strong); color: var(--sw-text); }
     }
     @media (max-width: 600px) {
+      /* round 2 loop 1: on a phone the tile's word may take two lines instead of an ellipsis */
+      .kpi span.l { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.25; }
       .top { flex-direction: column; align-items: stretch; }
       .top .sp { display: none; }
       .ubody { gap: 10px; }
