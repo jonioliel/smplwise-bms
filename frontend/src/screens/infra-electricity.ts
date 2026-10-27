@@ -79,6 +79,23 @@ export class InfraElectricity extends LitElement {
     .body > * {
       display: block;
     }
+    /* NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): the meters page takes the height left under the tab
+       rows; its table (or cards) and the areas tree scroll inside their own boxes (screens/electricity/page-meters.ts). The other pages
+       (accounts, bills, customers) are documents and keep the page scroll. */
+    @media (min-width: 900px) {
+      .body[data-page='meters'] {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .body[data-page='meters'] > * {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        display: flex;
+        flex-direction: column;
+      }
+    }
   `, bubbleChrome];
 
   connectedCallback() {

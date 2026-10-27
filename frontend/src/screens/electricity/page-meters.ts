@@ -201,6 +201,47 @@ export class ElecMetersPage extends LitElement {
           display: none;
         }
       }
+      /* NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): the tree and the meters list take the height left
+         under the head and the tiles; the table (its header row stays in place), the cards and the tree each scroll inside their own
+         box, never the page. Below 240 px of room the row keeps that height and the page scrolls (a very short window). */
+      @media (min-width: 900px) {
+        [data-elec='meters'][data-state='ready'] {
+          flex: 1 1 auto;
+          min-block-size: 0;
+        }
+        .cols {
+          flex: 1 1 auto;
+          min-block-size: 240px;
+          grid-template-rows: minmax(0, 1fr);
+        }
+        .cols > .tree-card {
+          max-block-size: 100%;
+          box-sizing: border-box;
+          overflow-y: auto;
+          scrollbar-width: thin;
+        }
+        .cols > .mlist {
+          display: flex;
+          flex-direction: column;
+          max-block-size: 100%;
+          min-block-size: 0;
+          min-inline-size: 0;
+        }
+        .mlist > .scrollx,
+        .mlist > .cards {
+          min-block-size: 0;
+          overflow: auto;
+          scrollbar-width: thin;
+        }
+        .mlist > .cards {
+          padding: 2px;
+        }
+        .mlist table.t thead th {
+          position: sticky;
+          inset-block-start: 0;
+          z-index: 1;
+        }
+      }
     `,
     bubbleChrome,
   ];
@@ -457,7 +498,7 @@ export class ElecMetersPage extends LitElement {
       ${this.renderHead()}
       ${this.notice ? html`<div class="notice" role="status" data-notice>${this.notice}</div>` : nothing}
       ${this.renderTiles()}
-      <div class="cols"><div class="card tree-card">${this.renderTree()}</div><div>${body}</div></div>
+      <div class="cols"><div class="card tree-card">${this.renderTree()}</div><div class="mlist">${body}</div></div>
       ${this.renderAdd()}${card}
     </div>`;
   }

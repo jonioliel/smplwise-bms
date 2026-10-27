@@ -18,6 +18,7 @@ export class SwCard extends LitElement {
   @property({ type: Boolean, reflect: true }) row = false;
   @property({ type: Boolean, reflect: true }) collapsible = false;
   @property({ type: Boolean, reflect: true }) collapsed = false;
+  @property({ type: Boolean, reflect: true }) fill = false;
 
   static styles = css`
     :host {
@@ -110,6 +111,23 @@ export class SwCard extends LitElement {
     }
     :host([row][collapsed]) {
       grid-template-columns: 1fr;
+    }
+    /* fill (NOSCROLL-297): the card takes the height its parent gives it and its body scrolls inside (a naturally long list on a
+       screen that fits the viewport); the heading stays in place. Off by default. */
+    :host([fill]) {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 0;
+      box-sizing: border-box;
+    }
+    :host([fill]) header {
+      flex: none;
+    }
+    :host([fill]) .body {
+      flex: 1 1 auto;
+      min-block-size: 0;
+      overflow-y: auto;
+      scrollbar-width: thin;
     }
   `;
 

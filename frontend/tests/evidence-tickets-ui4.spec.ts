@@ -112,7 +112,11 @@ test.describe('tickets list v5 evidence', () => {
     const header = page.locator(`${L} [data-tickets-header]`);
     await expect(header).not.toHaveClass(/compact/);
     const before = (await header.boundingBox())?.height ?? 0;
-    await page.locator(L).evaluate((h) => { (h as HTMLElement).scrollTop = 400; });
+    // NOSCROLL-297: on a desktop the cards scroll in their own region (.scr) and the page stays put; on a phone the page scrolls
+    await page.locator(L).evaluate((h) => {
+      const region = h.shadowRoot?.querySelector<HTMLElement>('.scr');
+      ((region && getComputedStyle(region).display !== 'contents' ? region : h) as HTMLElement).scrollTop = 400;
+    });
     await expect(header).toHaveClass(/compact/);
     expect(Math.abs(((await header.boundingBox())?.height ?? 0) - before), 'compacting never changes the header height').toBeLessThanOrEqual(1);
   });
