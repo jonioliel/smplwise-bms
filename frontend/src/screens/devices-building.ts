@@ -1419,7 +1419,9 @@ export class DevicesBuilding extends LitElement {
   /** What the home block shows: the server's (which already carries the caller's personal override), or - while editing - the
    * draft's direction and widgets with the entities' data previewed from the candidate list. */
   private homeOf(t: DeviceTree): HomeView {
-    const v = homeViewOf(t.home) ?? homeViewOf(demoHome())!;
+    // P6 item 4: the invented demo home (weather, Shabbat times, alarm) is for the static demo only; against a server without a
+    // home block the widgets show their own empty / unavailable states instead of fake data
+    const v = homeViewOf(t.home) ?? (isApi() ? homeViewOf({ ...demoHome(), config: {}, data: {} }) : homeViewOf(demoHome()))!;
     const d = this.homeDraft;
     if (!d || !this.lay.editing) return v;
     return { ...v, direction: d.direction, side: d.side, config: d.config, data: previewData(d.config, v.data, this.candidates) };
@@ -2343,10 +2345,16 @@ export class DevicesBuilding extends LitElement {
       font-size: var(--sw-fs-base);
       font-weight: var(--sw-fw-medium);
       flex: 1 1 auto;
-      min-inline-size: 0;
+      min-inline-size: 3ch; /* P6 item 2: the name never squeezes under three letters - the indicators yield first */
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    /* P6 item 2: the temperature / stale time never shrinks or clips ("21.0°" read as "0°"); tabular so rows align */
+    .arow .tm {
+      flex: none;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
     }
     /* release 0.1.149: what sits after an area's name - one line, never wrapping; at most three on a phone, the rest as "+N" */
     .ind {
@@ -2971,8 +2979,8 @@ export class DevicesBuilding extends LitElement {
         : nothing}
       ${bulkBuilding
         ? html`<span class="bulk-buttons" data-bulk-building>
-            <sw-button size="sm" icon="light" data-bulk-kind="lights_off" @click=${() => this.building('lights_off')}>כבה תאורה בלבד</sw-button>
-            <sw-button size="sm" variant="danger" icon="bolt" data-bulk-kind="all_off" @click=${() => this.building('all_off')}>כבה הכל בבניין</sw-button>
+            <sw-button size="sm" icon="light" data-bulk-kind="lights_off" ?disabled=${!(t.building.lights_on > 0)} @click=${() => this.building('lights_off')}>כבה תאורה בלבד</sw-button>
+            <sw-button size="sm" variant="danger" icon="bolt" data-bulk-kind="all_off" ?disabled=${!(t.building.lights_on > 0 || t.building.switches_on > 0)} @click=${() => this.building('all_off')}>כבה הכל בבניין</sw-button>
           </span>`
         : nothing}
     </div>`;
@@ -3255,9 +3263,9 @@ export class DevicesBuilding extends LitElement {
           : nothing;
     const body =
       where === 'tree'
-        ? html`${dot}<span class="nm" title=${a.name}>${bidi(a.name)}</span>${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`}`
+        ? html`${dot}<span class="nm" dir="auto" title=${a.name}>${bidi(a.name)}</span>${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`}`
         : quickRow
-          ? html`${dot}<span class="nm" title=${a.name}>${bidi(a.name)}</span>${mid}`
+          ? html`${dot}<span class="nm" dir="auto" title=${a.name}>${bidi(a.name)}</span>${mid}`
           : html`${dot}<span class="nm" title=${a.name}>${bidi(a.name)}</span>${this.renderIndicators(a)}`;
     const attrs = { area: a.area_id, on: String(on), counts: countsAttr(pills) };
     if (unassigned) {
