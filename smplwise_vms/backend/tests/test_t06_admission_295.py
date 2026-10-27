@@ -127,6 +127,11 @@ TABLE: dict[str, tuple[str, str, str, str]] = {
     # REL2210 (2.21.0): WKR5ADOPT-295 W-006, the WisKey-verified people CSV (switch access.people_csv_preview, default off)
     "features/people_csv_preview": (FEATURE, "G-PEOPLE-CSV", "access.people.manage (preview, interactive); system administrator (confirm, interactive)",
                                     "the installation (people/write)"),
+    # WISKEY-OWNER26-297 (W-023): the door-window program engine on the Native hold-open programs (door-windows routes admit the person first;
+    # the factory hands the engine out only when live_ready(), LIVE_ENGINE_BUILT False in this build)
+    "stations/technical_program_list": (DOOR, "G-DOOR-WINDOWS", "access.windows.manage (door-windows routes / watchdog of an admitted rule)", "the door's station chain"),
+    "stations/technical_program_save": (DOOR, "G-DOOR-WINDOWS", "access.windows.manage (door-windows routes / watchdog of an admitted rule)", "the door's station chain"),
+    "stations/technical_program_action": (DOOR, "G-DOOR-WINDOWS", "access.windows.manage (door-windows routes / watchdog of an admitted rule)", "the door's station chain"),
 }
 
 # the WisKey permission strings of the six features and the Arx permission(s) that grant each
@@ -149,6 +154,9 @@ def inventory() -> set[str]:
     from smplwise.services import wiskey_peer_registry as pr
 
     names |= {pcsv.COMMAND, pq.COMMAND, pr.LiveRegistryTransport.COMMAND}  # REL2210: W-006, PEERQUERY, WK4ADOPT W-010
+    from smplwise.services import wiskey_program_direct as wpd
+
+    names |= set(wpd.COMMANDS)  # WISKEY-OWNER26-297 W-023
     from smplwise.services import trusted_door
 
     names |= {"door_open", "door_open_status"}
@@ -208,7 +216,8 @@ def test_the_only_modules_that_reach_a_signing_call_are_the_known_ones():
     # wiskey_people_csv.py (WKR5ADOPT W-006, G-PEOPLE-CSV); wiskey_capture_map.py only NAMES `port.call(` in its docstring (no call).
     assert callers == {"intercom_media.py", "wiskey_capture_direct.py", "wiskey_capture_port.py", "wiskey_direct_join.py", "wiskey_feature_direct.py",
                        "wiskey_media_bridge.py", "wiskey_native_write.py", "wiskey_talk_pump.py", "wiskey_template_direct.py",
-                       "wiskey_capture_map.py", "wiskey_peer.py", "wiskey_peer_query.py", "wiskey_people_csv.py", "wiskey_native_feed.py"}, callers
+                       "wiskey_capture_map.py", "wiskey_peer.py", "wiskey_peer_query.py", "wiskey_people_csv.py", "wiskey_native_feed.py",
+                       "wiskey_program_direct.py"}, callers  # WISKEY-OWNER26-297: G-DOOR-WINDOWS (W-023)
 
 
 def test_no_router_reaches_a_writer_or_an_adapter_except_through_the_join():

@@ -14,8 +14,8 @@ OPERATOR - a principal type of its own:
 Safe by default: a block starts as a draft and does nothing until a person arms it (confirmation, the permission and the door
 rule on every door, loop protection); an edit, a change of the automation, an expired arming, the armer losing the right or a
 storm disarms it; the kill switch (`doors.automation_kill`) stops every block; a simulation evaluates every gate and sends
-nothing. Everything is OFF in this build: `doors.automation_open` cannot be `on` while GO_LIVE_PERMITTED is False, and the live
-sender is not built (it refuses). Tests install a fake sender (`SENDER`).
+nothing. Everything is OFF in this build: `doors.automation_open` cannot be `on` while GO_LIVE_PERMITTED is False. The live sender
+is WisKey's Native `door_automations` feature (WISKEY-OWNER26-297, services/wiskey_auto_door.py). Tests install a fake sender (`SENDER`).
 
 Every fire attempt writes the two rows a human opening writes (`intercom.release`: the attempt committed before sending, then
 the outcome), with the operator as actor and `details.actor_kind = "automation"`. Never retried, never queued."""
@@ -105,15 +105,20 @@ class DoorSender(Protocol):
 
 
 class LiveSender:
-    """The live transport is NOT built in this release: it must go through routers/access_control.open_door (relay guard,
-    attempt before send) and, with the signed path, carry the operator as the DTO actor - WisKey's W1 appendix decides that
-    shape. Until then every call is refused and nothing is sent."""
+    """WISKEY-OWNER26-297 (W-018): the live transport is WisKey's Native `door_automations` feature with the original automation actor
+    (services/wiskey_auto_door.py). `db` None (or no selected direct connection) sends nothing (`not_sent`). Reached only when the go-live
+    permit is in the build and the administrator switch is on (`_switch_reason`); GO_LIVE_PERMITTED stays False in this build."""
+
+    def __init__(self, db: Database | None = None) -> None:
+        from .wiskey_auto_door import NativeDoorSender
+
+        self._native = NativeDoorSender(db)
 
     def open(self, *, operator: Principal, station_id: str, relay: int, request_id: str, not_after: dt.datetime) -> tuple[str, str | None]:
-        return "not_sent", "live_transport_not_built"
+        return self._native.open(operator=operator, station_id=station_id, relay=relay, request_id=request_id, not_after=not_after)
 
 
-SENDER: DoorSender | None = None  # None: LiveSender (refuses)
+SENDER: DoorSender | None = None  # None: LiveSender (the Native door_automations feature)
 DISPATCH: Callable[[Callable[[], Any]], Any] | None = None  # None: the bounded queue and its one worker (never on the WS loop)
 STATS = {"dropped": 0, "handled": 0}  # A-09: frames dropped because the queue was full (shown to the administrator in status)
 _QUEUE: queue.Queue[Callable[[], Any]] | None = None
@@ -1097,7 +1102,7 @@ def _fire_door(db: Database, block_id: str, door: dict[str, Any], trigger: dict[
         audit(conn, actor=op, action="intercom.release", decision="allowed", resource_type="intercom_station", resource_id=door["station_id"],
               details={**details, "phase": "attempt"}, under=_NOT_FROM_A_GRANT)
     # the attempt row is committed: no record, no command. The send runs outside any transaction.
-    sender = SENDER if SENDER is not None else LiveSender()
+    sender = SENDER if SENDER is not None else LiveSender(db)
     try:
         outcome, code = sender.open(operator=op, station_id=door["station_id"], relay=door["relay"], request_id=request_id, not_after=at + dt.timedelta(seconds=SEND_WITHIN_S))
         if outcome not in ("sent", "refused", "unknown", "not_sent"):

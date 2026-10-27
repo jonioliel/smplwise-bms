@@ -389,7 +389,7 @@ def test_feature_switch_cannot_be_turned_on_in_this_build(world):
     assert st["feature"] == "off" and st["go_live_permitted"] is False and st["available"] is False and st["killed"] is False
     assert c.put(f"{API}/door-automations/settings", json={"feature": "off", "confirmed": True}).status_code == 200
     out = door_automation.LiveSender().open(operator=door_automation.operator_of("x", "x"), station_id=ENTRY, relay=1, request_id="r", not_after=MONDAY_9)
-    assert out == ("not_sent", "live_transport_not_built")
+    assert out == ("not_sent", "transport_not_selected")  # WISKEY-OWNER26-297: the Native sender, no direct connection selected here
 
 
 def test_an_armed_block_with_the_feature_off_records_a_refusal_and_sends_nothing(world):

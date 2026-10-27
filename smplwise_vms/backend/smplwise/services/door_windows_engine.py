@@ -30,7 +30,9 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); the switch door_windows.enabled stays OFF and no rule exists until an administrator acts
-LIVE_ENGINE_BUILT = False  # DWFIX-295: the WisKey program / emergency coordinators answer not_implemented; True only when they exist
+# DWFIX-295: False keeps the window factory on the tier-D PreparedEngine and the emergency switch off. WISKEY-OWNER26-297: the program engine
+# is now wired to the Native hold-open programs (WiskeyProgramEngine below), but turning this True is an activation decision of the owner.
+LIVE_ENGINE_BUILT = False
 
 ERROR_KINDS = ("not_permitted", "not_implemented", "not_sent", "unknown", "refused", "revision_conflict")
 PROGRAM_STATUSES = ("idle", "opening", "held_acknowledged", "restoring", "unknown")
@@ -149,32 +151,34 @@ class PreparedEngine:
 # ---------------------------------------------------------------- the live engines (refused in this build)
 
 class WiskeyProgramEngine:
-    """Tier B over WisKey's `stations/technical_program_list / _save / _action` through the generalized trusted caller (U2). Refused
-    while the go-live permit is not in the build; below the guard `not_implemented` (the WisKey coordinator is NOT_IMPLEMENTED, U2 is
-    unanswered and the write commands are not in the W2 selection table). NOT_RUN."""
+    """Tier B over WisKey's Native `stations/technical_program_list / _save / _action`. Refused while the go-live permit is not in the
+    build. WISKEY-OWNER26-297 (W-023): below the guard the calls go to the Native hold-open programs of WisKey CODE e732562e over the
+    selected direct connection (services/wiskey_program_direct.py); without a selected connection nothing is sent (`not_sent`).
+    The factory still hands out this engine only when `live_ready()` (LIVE_ENGINE_BUILT stays False: activation is the owner's)."""
 
     tier = "program"
 
-    def __init__(self, settings: Any) -> None:
+    def __init__(self, settings: Any, native: Any = None) -> None:
         self.settings = settings
+        self._native = native
 
-    @staticmethod
-    def _guard() -> None:
+    def _guard(self) -> Any:
         if not go_live_permitted():
             raise EngineError("not_permitted", "door_windows_not_permitted")
-        raise EngineError("not_implemented", "wiskey_program_coordinator_not_implemented")
+        if self._native is None:
+            from .wiskey_program_direct import DirectProgramEngine
+
+            self._native = DirectProgramEngine()
+        return self._native
 
     def read(self, station_id: str, relay: int) -> ProgramState:
-        self._guard()
-        raise AssertionError("unreachable")
+        return self._guard().read(station_id, relay)
 
     def save(self, station_id: str, relay: int, revision: int, policy: dict[str, Any], enabled: bool) -> ProgramState:
-        self._guard()
-        raise AssertionError("unreachable")
+        return self._guard().save(station_id, relay, revision, policy, enabled)
 
     def pause(self, station_id: str, relay: int, revision: int) -> ProgramState:
-        self._guard()
-        raise AssertionError("unreachable")
+        return self._guard().pause(station_id, relay, revision)
 
 
 class WiskeyEmergencyEngine:
