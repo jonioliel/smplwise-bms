@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { BUBBLE_SCREENS_ENABLED } from '../src/design/skins';
-import { SKINS_UNDER_TEST } from './helpers/frozen-skins';
+import { PICKER_SKINS, SKINS_UNDER_TEST } from './helpers/frozen-skins';
 import { settlePage } from './pixel-settle';
 
 // BUBBLECLEAN-297: while the bubble skin is frozen, the bubble-only screens are gone (the Look dials card in Settings > General, the
@@ -26,7 +26,7 @@ test.describe('BUBBLECLEAN-297', () => {
         await expect(page.locator('html')).toHaveAttribute('data-skin', skin);
         await expect(page.locator('sw-app system-diagnostics system-design')).toHaveCount(1);
         await expect(page.locator('sw-app system-diagnostics system-look')).toHaveCount(0);
-        await expect(page.locator('sw-app system-diagnostics system-design [data-skin-option]')).toHaveCount(SKINS_UNDER_TEST.length);
+        await expect(page.locator('sw-app system-diagnostics system-design [data-skin-option]')).toHaveCount(PICKER_SKINS.length); // SKINFOUND-297: the picker also offers the foundation skins
         await expect(page.locator('sw-app system-diagnostics system-design [data-skin-option="bubble"]')).toHaveCount(0);
         expect(errors).toEqual([]);
       });

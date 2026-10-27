@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
-import { SKINS_UNDER_TEST } from './helpers/frozen-skins';
+import { PICKER_SKINS } from './helpers/frozen-skins';
 
 // VISDIFF-246 (2026-10-12): the layout guard (tests/layout-guard.ts) over the screens the M074 visual matrix covers plus the settings pages
 // the 2.4.6 release restyled, in demo mode (every /api/v1 call is aborted: the demo data answers), classic skin, light and dark, at the
@@ -153,14 +153,18 @@ test.describe('layout guard: the screens of the visual matrix and the restyled s
     });
   }
 
-  test('settings-general: the skin cards share one row wherever the card is wide (no lone card on a second line)', async ({ page }) => {
+  test('settings-general: the skin cards sit in equal rows (no lone card on a second line)', async ({ page }) => {
     test.skip(test.info().project.name !== 'desktop', 'one project runs the sweep');
     for (const w of [1024, 1440]) {
       await page.setViewportSize({ width: w, height: height(w) });
       await open(page, '/system/diagnostics', 'light');
       const tops = await page.locator('[data-skin-option]').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-      expect(tops.length, `the skin cards rendered (${w})`).toBe(SKINS_UNDER_TEST.length); // BUBBLE-FREEZE-295: the selectable skins (was five with bubble)
-      expect(new Set(tops).size, `skin card tops at ${w}: ${tops.join(',')}`).toBe(1);
+      expect(tops.length, `the skin cards rendered (${w})`).toBe(PICKER_SKINS.length); // BUBBLE-FREEZE-295 / SKINFOUND-297: the selectable skins (six with the two Arx skins)
+      // SKINFOUND-297: six cards - one row where the card is very wide (container >= 860 px), otherwise equal rows (3 + 3 at 1024 and
+      // 1440, measured on the runner: tops 326 x3 / 498 x3) - never a lone card on a line of its own
+      const perRow = [...tops.reduce((m, t) => m.set(t, (m.get(t) ?? 0) + 1), new Map<number, number>()).values()];
+      expect(new Set(perRow).size, `skin cards per row at ${w}: ${perRow.join(',')} (tops ${tops.join(',')})`).toBe(1);
+      expect(perRow.length, `at most two rows at ${w}: ${tops.join(',')}`).toBeLessThanOrEqual(2);
     }
   });
 

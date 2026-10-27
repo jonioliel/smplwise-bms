@@ -15,7 +15,7 @@ import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 const WIDTHS = process.env.LAYOUT_FULL ? [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440] : [320, 390, 1440];
 const SKINS = SKIN_IDS;
 const THEMES = ['light', 'dark'] as const;
-const STYLE_OF: Record<(typeof SKINS)[number], string> = { classic: 'field', domus: 'pill', tesla: 'prefix', bubble: 'capsule', crystal: 'tonal' };
+const STYLE_OF: Record<string, string> ={ classic: 'field', domus: 'pill', tesla: 'prefix', bubble: 'capsule', crystal: 'tonal' };
 const SHOTS = process.env.SW_SHOTS ?? '';
 const MORE = [{ name: 'מחסן' }, { name: 'לובי' }, { name: 'מעלית' }, { name: 'גג' }, { name: 'חצר אחורית' }, { name: 'מסדרון' }, { name: 'שער' }];
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);

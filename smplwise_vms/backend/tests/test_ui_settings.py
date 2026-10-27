@@ -348,7 +348,7 @@ def test_ui_skin_and_scheme_settings(settings):
     front = (Path(__file__).resolve().parents[3] / "frontend" / "src" / "design" / "skins" / "index.ts").read_text(encoding="utf-8")
     m = re.search(r"export const SKIN_IDS = \[([^\]]*)\]", front)
     assert m, "SKIN_IDS not found in design/skins/index.ts"
-    assert tuple(re.findall(r"'([a-z]+)'", m.group(1))) == ("classic", "domus", "tesla", "bubble", "crystal")
+    assert tuple(re.findall(r"'([a-z]+)'", m.group(1))) == ("classic", "domus", "tesla", "bubble", "crystal", "infra", "soft")
     # BUBBLE-FREEZE-295: the frozen list and the fallback are the same on both sides
     fm = re.search(r"export const FROZEN_SKINS: readonly SkinId\[\] = \[([^\]]*)\]", front)
     assert fm and tuple(re.findall(r"'([a-z]+)'", fm.group(1))) == ("bubble",)
@@ -360,7 +360,7 @@ def test_ui_skin_and_scheme_settings(settings):
     with TestClient(app) as c:
         s = c.get("/api/v1/settings").json()["settings"]
         assert s["ui.skin"] == "classic" and s["ui.scheme"] == "light"
-        for skin in ("domus", "tesla", "crystal", "classic"):
+        for skin in ("domus", "tesla", "crystal", "infra", "soft", "classic"):  # SKINFOUND-297: the two Arx skins are selectable
             r = c.patch("/api/v1/settings", json={"ui.skin": skin})
             assert r.status_code == 200, (skin, r.text)
             assert r.json()["settings"]["ui.skin"] == skin
@@ -368,7 +368,7 @@ def test_ui_skin_and_scheme_settings(settings):
             r = c.patch("/api/v1/settings", json={"ui.scheme": scheme})
             assert r.status_code == 200, (scheme, r.text)
             assert r.json()["settings"]["ui.scheme"] == scheme
-        for bad in ("ios", "Domus", "", "domus ", "glass", "Bubble", "Crystal"):
+        for bad in ("ios", "Domus", "", "domus ", "glass", "Bubble", "Crystal", "Infra", "arx-infra", "arx-soft", "ops"):
             assert c.patch("/api/v1/settings", json={"ui.skin": bad}).status_code == 422, bad
         # BUBBLE-FREEZE-295: the frozen skin is refused with a clear message and the stored value does not change
         frozen = c.patch("/api/v1/settings", json={"ui.skin": "bubble"})

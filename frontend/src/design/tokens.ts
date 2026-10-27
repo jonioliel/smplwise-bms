@@ -346,6 +346,46 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-t-sheet': same('200ms'), // NEW (bubble): the pop-up's opening spring (bubble 460 ms)
       '--sw-t-state': same('200ms'), // NEW (bubble): a state fill fading in (bubble 900 ms)
       '--sw-hover-lift': same('0px'),
+      // SKINFOUND-297 (owner 2026-10-27): the shared motion layer of the Arx design system (round 2, r2.css §1), NEW names. The base values
+      // are NEUTRAL - the existing curve / durations, no press scale, no entrance travel - so a skin that does not set them (classic, domus,
+      // tesla, crystal, bubble) draws exactly what it drew before; only the `infra` and `soft` skins give them the round-2 values. Reduced
+      // motion zeroes the durations and the travel and resets the press scale (css.ts).
+      '--sw-t-press': same('120ms'), // a pointer-down press (transform)
+      '--sw-t-hover': same('120ms'), // hover / colour changes
+      '--sw-t-slow': same('200ms'), // a scrim, the page pushed back behind a dialog
+      '--sw-t-exit': same('120ms'), // closing is faster than opening
+      '--sw-t-toast': same('200ms'),
+      '--sw-ease-in-out': same('cubic-bezier(0.2, 0, 0, 1)'), // on-screen movement
+      '--sw-ease-drawer': same('cubic-bezier(0.2, 0, 0, 1)'), // a drawer's travel
+      '--sw-ease-color': same('cubic-bezier(0.2, 0, 0, 1)'), // hover / colour
+      // springs sampled into linear() (round 2); the base is the plain curve at the plain duration
+      '--sw-spring-toggle': same('cubic-bezier(0.2, 0, 0, 1)'),
+      '--sw-spring-toggle-ms': same('120ms'),
+      '--sw-spring-tab': same('cubic-bezier(0.2, 0, 0, 1)'),
+      '--sw-spring-tab-ms': same('200ms'),
+      '--sw-spring-dialog': same('cubic-bezier(0.16, 1, 0.3, 1)'),
+      '--sw-spring-dialog-ms': same('200ms'),
+      '--sw-spring-drawer': same('cubic-bezier(0.2, 0, 0, 1)'),
+      '--sw-spring-drawer-ms': same('200ms'),
+      '--sw-spring-kpi': same('cubic-bezier(0.2, 0, 0, 1)'),
+      '--sw-spring-kpi-ms': same('200ms'),
+      '--sw-stagger': same('0ms'), // the entrance stagger between siblings
+      '--sw-enter-y': same('0px'), // the entrance rise
+      '--sw-enter-ms': same('0ms'), // the entrance duration (0 = no entrance)
+      '--sw-press-scale': same('1'), // the scale of a pressed control (1 = no press feedback)
+    },
+  },
+  {
+    // SKINFOUND-297: density names of the Arx design system (docs TOKENS.md §1.3, NEW there). Read by nothing yet outside the `infra` /
+    // `soft` skins; the base values are the Arx Infra values so a later slice that reads them in a shared component starts from the
+    // documented numbers (classic keeps its own look until that slice is approved).
+    id: 'density',
+    title: 'Arx density additions',
+    tokens: {
+      '--sw-gap-lg': same('16px'), // between cards (the tile gap is --sw-gap)
+      '--sw-page-pad-phone': same('14px'),
+      '--sw-fs-4xl': same('32px'), // display readings (clock, kWh, temperature)
+      '--sw-lh-tight': same('1.2'),
     },
   },
   {

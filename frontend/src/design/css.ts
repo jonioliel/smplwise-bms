@@ -24,6 +24,26 @@ const decls = (t: TokenTable, mode: 'light' | 'dark', onlyDiffering = false): st
 
 const AUTO = ':not([data-theme="light"]):not([data-theme="dark"])';
 
+/** Reduced motion for the Arx motion names (tokens.ts, SKINFOUND-297): every duration 0, no rise, no press scale. */
+export const REDUCED_MOTION_ARX = [
+  '--sw-t-press:0ms',
+  '--sw-t-hover:0ms',
+  '--sw-t-slow:0ms',
+  '--sw-t-exit:0ms',
+  '--sw-t-toast:0ms',
+  '--sw-spring-toggle-ms:0ms',
+  '--sw-spring-tab-ms:0ms',
+  '--sw-spring-dialog-ms:0ms',
+  '--sw-spring-drawer-ms:0ms',
+  '--sw-spring-kpi-ms:0ms',
+  '--sw-stagger:0ms',
+  '--sw-enter-y:0px',
+  '--sw-enter-ms:0ms',
+  '--sw-press-scale:1',
+]
+  .map((d) => `${d} !important;`)
+  .join('');
+
 /** One block set for a selector prefix (`:root` or `:root[data-skin="x"]`) and a table. */
 function blocks(prefix: string, t: TokenTable, first: boolean): string {
   const lightDecl = decls(t, 'light');
@@ -50,7 +70,8 @@ export function tokensCss(): string {
   // reduced motion: durations become 0 and the hover lift is off (accessibility, TOKEN_CONTRACT §2). !important: a skin's DARK block
   // (`:root[data-skin="x"][data-theme="dark"]`, and the OS-dark twin) repeats every skin override, motion included, with a higher
   // specificity than `:root[data-skin]` - without it bubble / domus / tesla kept their durations in dark under reduced motion (0.1.162 gate)
-  css += '@media (prefers-reduced-motion: reduce){:root,:root[data-skin]{--sw-t-fast:0ms !important;--sw-t-med:0ms !important;--sw-t-sheet:0ms !important;--sw-t-state:0ms !important;--sw-hover-lift:0px !important}}\n';
+  // SKINFOUND-297: the Arx motion layer (round 2, r2.css §13) keeps colour / opacity and drops travel, springs and the press scale
+  css += `@media (prefers-reduced-motion: reduce){:root,:root[data-skin]{--sw-t-fast:0ms !important;--sw-t-med:0ms !important;--sw-t-sheet:0ms !important;--sw-t-state:0ms !important;--sw-hover-lift:0px !important;${REDUCED_MOTION_ARX}}}\n`;
   // reduced transparency: the translucent layers of every skin become their solid twins
   css += '@media (prefers-reduced-transparency: reduce){:root,:root[data-skin]{--sw-sheet-alpha:1 !important;--sw-glass-blur:none;--sw-glass-blur-nav:none;--sw-glass-blur-sheet:none;--sw-backdrop-blur:none}}\n';
   return css;
