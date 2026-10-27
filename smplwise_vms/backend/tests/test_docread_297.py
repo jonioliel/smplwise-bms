@@ -324,6 +324,20 @@ def test_drafts_are_purged_after_the_retention(mw, reader):
     assert mw.c.get(f"{D}/extractions/{x['id']}").status_code == 404
 
 
+def test_f6_the_drafts_of_a_deleted_task_are_purged_at_the_next_janitor_pass(mw, reader):
+    """F6: a soft-deleted TASK (its files stay attached) left its proposals in the table until the 14-day retention ran out."""
+    on(mw)
+    t, f = doc_with_file(mw)
+    keep_t, keep_f = doc_with_file(mw, place=mw.floor("floor2"))
+    x = read(mw, t, f).json()
+    keep = read(mw, keep_t, keep_f).json()
+    assert mw.c.delete(f"{M}/tasks/{t['id']}").status_code == 200
+    with mw.db.connection() as conn:
+        assert dsvc.purge(conn, NOW) == 1
+    assert mw.rows("SELECT COUNT(*) FROM doc_extractions WHERE id = ?", (x["id"],))[0][0] == 0
+    assert mw.rows("SELECT COUNT(*) FROM doc_extractions WHERE id = ?", (keep["id"],))[0][0] == 1
+
+
 def test_the_table_is_never_in_a_project_backup():
     from smplwise.services import backup as bsvc
 
@@ -363,31 +377,102 @@ def test_the_real_pdftotext_reader_on_a_synthetic_english_certificate(mw):
     assert x["engine"].startswith("pdftotext")
 
 
-def test_the_pdftotext_reader_runs_with_the_minimal_environment(monkeypatch, tmp_path):
+def test_the_pdftotext_reader_maps_the_child_outcomes(monkeypatch, tmp_path):
     from smplwise.services.docread import pdftext
 
     seen: dict = {}
+    child = {"status": "ok", "rc": 0, "out": "בתוקף עד: 31/12/2027\n\f".encode()}
 
-    class Done:
-        returncode, stdout, stderr = 0, "בתוקף עד: 31/12/2027\n\f".encode(), b""
+    def fake_run_capped(cmd, *, timeout_s, cap):
+        seen.update(cmd=cmd, timeout_s=timeout_s, cap=cap)
+        return child["status"], child["rc"], child["out"]
 
-    def fake_run(cmd, **kw):
-        seen.update(kw, cmd=cmd)
-        return Done()
-
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "secret-token-for-test")
     monkeypatch.setattr(pdftext.shutil, "which", lambda name: "/usr/bin/pdftotext")
-    monkeypatch.setattr(pdftext.subprocess, "run", fake_run)
+    monkeypatch.setattr(pdftext, "run_capped", fake_run_capped)
     p = tmp_path / "a.pdf"
     p.write_bytes(b"%PDF-1.4\n%%EOF\n")
     res = pdftext.PdftotextReader().read(p, max_pages=10)
     assert res.status == "ok" and res.pages == 1 and "31/12/2027" in res.text
-    assert "SUPERVISOR_TOKEN" not in seen["env"] and seen["timeout"] <= 30 and seen["check"] is False
+    assert seen["timeout_s"] <= 30 and seen["cap"] == pdftext.OUTPUT_MAX
     assert seen["cmd"][-1] == "-" and "-l" in seen["cmd"] and seen["cmd"][seen["cmd"].index("-l") + 1] == "11"
-    # more pages than the cap: refused; an oversized output: refused
-    Done.stdout = b"x\f" * 12
+    # more pages than the cap: refused; an oversized output, a failing tool, a timeout: refused, never a 500
+    child["out"] = b"x\f" * 12
     assert pdftext.PdftotextReader().read(p, max_pages=10).status == "too_many_pages"
-    Done.stdout = b"a" * (pdftext.OUTPUT_MAX + 10)
+    child.update(status="too_big", rc=-1, out=b"")
     assert pdftext.PdftotextReader().read(p, max_pages=10).status == "unreadable"
-    Done.returncode, Done.stdout = 1, b""
+    child.update(status="ok", rc=1, out=b"")
     assert pdftext.PdftotextReader().read(p, max_pages=10).status == "unreadable"
+    child.update(status="timeout", rc=-1, out=b"")
+    assert pdftext.PdftotextReader().read(p, max_pages=10).status == "timeout"
+
+
+# ================================================================ security review SUPPLIERDOCS2-297 (regressions)
+
+def _py(code: str) -> list[str]:
+    import sys
+
+    return [sys.executable, "-I", "-c", code]
+
+
+def test_f2_the_child_runs_with_the_minimal_environment_and_its_output_is_never_buffered_whole(monkeypatch):
+    """F2: `capture_output` held the WHOLE stdout before the size check; a decompression-bomb PDF could make the add-on hold hundreds
+    of MiB. The bounded reader stops at cap + 1 bytes and kills the child."""
+    import time
+
+    from smplwise.services.docread import pdftext
+
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "secret-token-for-test")
+    status, rc, out = pdftext.run_capped(_py("import os,sys; sys.stdout.write(os.environ.get('SUPERVISOR_TOKEN', 'absent'))"), timeout_s=20, cap=1024)
+    assert (status, rc, out) == ("ok", 0, b"absent")
+    t0 = time.monotonic()
+    status, _, out = pdftext.run_capped(_py("import sys\nwhile True: sys.stdout.write('a' * 65536)"), timeout_s=20, cap=4096)
+    assert status == "too_big" and out == b"" and time.monotonic() - t0 < 15, "killed at the cap, long before the timeout"
+    t0 = time.monotonic()
+    status, _, _ = pdftext.run_capped(_py("import time; time.sleep(30)"), timeout_s=1, cap=1024)
+    assert status == "timeout" and time.monotonic() - t0 < 10
+    assert pdftext.run_capped(["/definitely/not/a/tool-xyz"], timeout_s=1, cap=10)[0] == "unavailable"
+
+
+def test_f1_the_iban_scrub_is_linear_on_a_crafted_line():
+    """F1: `(?:[ ]?[A-Z0-9]{2,4}){3,}\\b` backtracked exponentially - 36 capitals took 0.25 s, the 80-character snippet hours, inside
+    the database write lock. The one-character-per-repetition pattern answers at once and still scrubs a real IBAN."""
+    import time
+
+    from smplwise.services.docread import certificate_rules as cr
+
+    t0 = time.monotonic()
+    for n in (36, 60, 76, 200):
+        cr.scrub("AB12" + "A" * n + "a")
+    assert time.monotonic() - t0 < 1.0
+    assert "IL62" not in cr.scrub("חשבון IL62 0108 0000 0009 9999 999 בנק") and "[…]" in cr.scrub("IBAN GB82WEST12345698765432")
+    t0 = time.monotonic()
+    x = cr.extract("שם הספק: AB12" + "A" * 70 + "a\nבתוקף עד: 31/12/2027\n")
+    assert time.monotonic() - t0 < 1.0 and x.fields["expiry_date"].value == "2027-12-31"
+
+
+def test_f1_the_rules_run_outside_the_write_lock_and_f3_reads_are_bounded(mw, reader, monkeypatch):
+    """F1: the rules ran in `store`, under the database write lock. F3: no bound on reads running at once (discard + read in a loop
+    spawned children without limit). Now the route analyses inside `unlocked` and answers 429 `busy` when every slot is taken."""
+    on(mw)
+    t, f = doc_with_file(mw)
+    calls = {"store_ext": None}
+    real_store = dsvc.store
+
+    def spy_store(viewer, task, frow, res, rid, ext=None):
+        calls["store_ext"] = ext
+        return real_store(viewer, task, frow, res, rid, ext)
+
+    monkeypatch.setattr(dsvc, "store", spy_store)
+    taken = [dsvc.read_slot() for _ in range(dsvc.READ_CONCURRENCY)]
+    try:
+        assert all(taken)
+        r = read(mw, t, f)
+        assert r.status_code == 429 and r.json()["code"] == "busy" and reader.calls == 0
+    finally:
+        for _ in taken:
+            dsvc.release_slot()
+    r = read(mw, t, f)
+    assert r.status_code == 201, r.text
+    assert calls["store_ext"] is not None and calls["store_ext"].fields["expiry_date"].value == "2027-12-31", "analysed before store"
+    assert dsvc.read_slot(), "the slot came back after the read"
+    dsvc.release_slot()

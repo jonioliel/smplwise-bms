@@ -136,18 +136,40 @@ def run_reader(file_kind: str, path: Path) -> ports.TextResult:
     return res
 
 
+READ_CONCURRENCY = 2      # security review SUPPLIERDOCS2-297 (F3): at most this many reads (child + rules) at once in the add-on
+_READ_SLOTS = threading.BoundedSemaphore(READ_CONCURRENCY)
+
+
+def read_slot() -> bool:
+    """Take a reading slot without waiting; False = all slots busy (the route answers 429 `busy`). Release with `release_slot()`."""
+    return _READ_SLOTS.acquire(blocking=False)
+
+
+def release_slot() -> None:
+    _READ_SLOTS.release()
+
+
+def analyse(res: ports.TextResult) -> ports.Extraction | None:
+    """The rules over a read text (pure CPU work): the caller runs it OUTSIDE the database write lock (security review F1)."""
+    if res.status != "ok":
+        return None
+    return certificate_rules.extract(res.text[: 1024 * 1024])
+
+
 _STATE_OF = {"no_text": ("needs_ocr", "no_text_layer"), "ocr_not_available": ("needs_ocr", "ocr_not_available"),
              "unreadable": ("failed", "unreadable"), "too_many_pages": ("failed", "too_many_pages"), "timeout": ("failed", "timeout")}
 
 
-def store(viewer: Viewer, task: sqlite3.Row, frow: sqlite3.Row, res: ports.TextResult, rid: str | None) -> sqlite3.Row:
+def store(viewer: Viewer, task: sqlite3.Row, frow: sqlite3.Row, res: ports.TextResult, rid: str | None,
+          ext: ports.Extraction | None = None) -> sqlite3.Row:
+    """`ext`: the result of `analyse(res)`, computed by the caller outside the write lock; computed here only when missing."""
     conn = viewer.conn
     now = maccess.now()
     xid = new_id()
     fields: dict[str, Any] = {}
     summary, flags, state, code = None, [], "proposed", None
-    if res.status == "ok":
-        ext = certificate_rules.extract(res.text[: 1024 * 1024])
+    ext = ext or analyse(res)
+    if ext is not None:
         summary, flags = ext.summary, list(ext.flags)
         for name in FIELDS:
             f = ext.fields[name]
@@ -279,10 +301,12 @@ def discard(viewer: Viewer, xid: str, rid: str | None) -> dict[str, Any]:
 # ---------------------------------------------------------------- retention
 
 def purge(conn: sqlite3.Connection, at: datetime | None = None) -> int:
-    """Delete drafts past their retention and every proposal whose file was removed. Returns the number of rows deleted."""
+    """Delete drafts past their retention and every proposal whose file or task was removed (the task: security review F6). Returns the
+    number of rows deleted."""
     stamp = (at or maccess.now()).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     cur = conn.execute("DELETE FROM doc_extractions WHERE purge_after < ? OR (source_kind = 'maint_file' AND source_id IN"
-                       " (SELECT id FROM maint_files WHERE deleted_at IS NOT NULL))", (stamp,))
+                       " (SELECT id FROM maint_files WHERE deleted_at IS NOT NULL))"
+                       " OR task_id IN (SELECT id FROM maint_tasks WHERE deleted_at IS NOT NULL)", (stamp,))
     return cur.rowcount or 0
 
 

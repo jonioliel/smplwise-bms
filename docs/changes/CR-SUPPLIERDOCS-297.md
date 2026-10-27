@@ -58,6 +58,31 @@ The row stores parsed candidates and <= 80-character scrubbed snippets, never th
 the last activity and at once when their file is removed (`janitor`, hourly). Fixtures are synthetic: invented suppliers, numbers
 and dates; nothing from `private-evidence/`.
 
+## Security review (SUPPLIERDOCS2-297, 2026-10-27)
+
+Scope: `routers/docread.py`, `services/docread/*`, migration `0182_doc_extractions.sql`, the `docread.enabled` switch, the
+maintenance file intake it reads from (`services/maintenance/files.py`, `tickets/cost_files.check_pdf`). Code review plus regression
+tests on fakes and the local `pdftotext`; no device, no lab, no real supplier document.
+
+| # | Severity | Finding | Status / exact fix |
+|---|---|---|---|
+| F1 | **High** (only while enabled) | ReDoS in the snippet scrubber: the IBAN pattern `(?:[ ]?[A-Z0-9]{2,4}){3,}\b` partitions a run of capitals exponentially before a failing `\b` (36 capitals + a lower-case letter = 0.25 s, x4 per 4 characters; the 80-character snippet = hours). A crafted line next to any label in an attached PDF froze the request - and the rules ran in `store()`, **inside the database write lock**, so the whole add-on stopped writing. | FIXED: one character per repetition `\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){11,30}\b` (linear); the rules now run in `service.analyse()` inside `unlocked()` together with the child, `store()` only writes. Tests `test_f1_*`. |
+| F2 | Medium | `subprocess.run(capture_output=True)` buffered the WHOLE stdout before the 1 MiB check: a decompression-bomb PDF could make the add-on hold hundreds of MiB for up to 20 s. | FIXED: `pdftext.run_capped()` reads at most cap + 1 bytes, kills the child at the cap or the deadline, stderr to DEVNULL (never logged), `env=minimal_env()`, stdin closed. Test `test_f2_*` (real child processes). |
+| F3 | Medium | No bound on concurrent reads: a manager could discard + read in a loop and run any number of `pdftotext` children and rule passes at once (CPU / memory). | FIXED: `READ_CONCURRENCY = 2` non-blocking slots; a third read answers 429 `busy` (retryable), nothing stored, reader not called. Test `test_f1_the_rules_run_outside_..._f3_reads_are_bounded`. A per-user rate limit stays for the hardening slice. |
+| F4 | Medium (gates enabling) | The child has no RLIMITs (address space, CPU, file size), no new session / process-group kill, and runs as the add-on user with read access to the data folder. poppler parses an untrusted file; a parser memory bug would run with those rights (no secret in its environment). | OPEN (CR-OCR119 S4). Fix: on POSIX pass `start_new_session=True` and a `preexec_fn` setting `RLIMIT_AS` 512 MiB, `RLIMIT_CPU` 20 s, `RLIMIT_FSIZE` 0, `RLIMIT_NOFILE` 32, `RLIMIT_NPROC` 0 in `run_capped`; kill the group with `os.killpg`. Better still: run under `bwrap`/`nsjail` with only the one file bind-mounted read-only and no network. Needs a Linux test on the runner (not runnable on the Windows workstation). |
+| F5 | Low | `GET /maintenance/docread/module` needs only a signed-in user and the maintenance module (no `maintenance.view`): it tells any user whether reading is on and which text reader exists. | OPEN, low value. Fix: `Viewer(conn, p).require_anywhere(VIEW)` in `module_gate`. |
+| F6 | Low | Proposals of a soft-deleted TASK (files still attached) stayed in the table until their 14-day retention (invisible, but kept). | FIXED: `purge()` also deletes rows whose task is deleted. Test `test_f6_*`. |
+| F7 | Low | Edited values are length-capped and stripped of control / bidi characters but otherwise free text (`=cmd|...`, `<script>`). Harmless in JSON; dangerous later in a CSV/XLSX export or a non-escaping renderer. | OPEN for the apply / screen slice: render as text only; prefix `'` on `= + - @` cells in any spreadsheet export. |
+| F8 | Info | Read route answers 409 `docread_kind_not_supported` before the 403 manage check, so a view-only user learns the task kind (which the task view already shows). | Accepted. |
+| - | OK | Upload type / size / path: no upload route here; the file came through the maintenance intake (`%PDF-` + `%%EOF`, no active content / encryption, <= 10 MiB; images re-encoded, <= 8 MiB / 16 MP). Stored names are server-generated `<task>/<16 hex>.pdf`; `path_of` checks the pattern and confinement; the URL ids are pattern-bound and never form a path; `pdftotext` gets an absolute path (no option injection) and `-l 11`. | No change. |
+| - | OK | RBAC: every route passes principal -> module -> switch (uniform 404) -> `maintenance.manage` (read, decide, discard; audited 403) or `maintenance.view` (look) on the task's own target -> the visibility rule; a proposal is shown only while its task is visible and its file attached; the file must belong to the task in the URL. Switch: `system.configure`, audited. | No change. |
+| - | OK | Tenant / scope isolation: one installation; scope is the task's floor / building / site target, enforced through `Viewer.holds_where`; `live_for(file_id)` is reached only after the file was proven to belong to the visible task. | No change. |
+| - | OK | Injection: every SQL value is a bound parameter (the one f-string only builds `?` placeholders); `FieldName` is a `Literal`; the body forbids extra keys. SSRF: none - no network, model or URL anywhere; poppler fetches nothing. | No change. |
+| - | OK | Secrets / privacy in logs: no logging in the module; stderr discarded; the audit has ids, counts, field names, decisions and the engine name, never a value or the text; the child gets `minimal_env()` (no `SUPERVISOR_TOKEN`); the table is never in a project backup. | No change. |
+
+Enabling: keep `docread.enabled` OFF in releases until F4 is fixed and tested on Linux and the owner questions q52-q56 are answered.
+F5 and F7 should land with the screen / apply slice.
+
 ## Decisions that still depend on the owner
 
 | Question | Built as (recommended answer) | Where to change it |

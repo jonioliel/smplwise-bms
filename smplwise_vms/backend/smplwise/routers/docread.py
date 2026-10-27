@@ -69,8 +69,14 @@ def read_file(request: Request, response: Response, task_id: str = Path(..., pat
         raise ApiError(404, "maint_file_not_found", "הקובץ לא נמצא.") from None
     if not path.is_file():
         raise ApiError(404, "maint_file_not_found", "הקובץ לא נמצא.")
-    with unlocked(conn):  # the child process never holds the database write lock
-        res = dsvc.run_reader(frow["kind"], path)
+    if not dsvc.read_slot():  # security review F3: a bounded number of reads at once (no queue: the caller retries)
+        raise ApiError(429, "busy", "קריאת מסמך אחרת מתבצעת כעת. נסו שוב בעוד רגע.", retryable=True)
+    try:
+        with unlocked(conn):  # the child process AND the rules never hold the database write lock (security review F1)
+            res = dsvc.run_reader(frow["kind"], path)
+            ext = dsvc.analyse(res)
+    finally:
+        dsvc.release_slot()
     task, frow = dsvc.read_precheck(viewer, task_id, file_id)  # the lock was released: re-check
     live = dsvc.live_for(conn, file_id)
     if live is not None:
@@ -80,7 +86,7 @@ def read_file(request: Request, response: Response, task_id: str = Path(..., pat
         audit(conn, actor=principal, action="docread.read", decision="denied", resource_type="maint_task", resource_id=task_id, reason="reader_unavailable",
               request_id=_rid(request))
         raise ApiError(503, "reader_unavailable", "אין בשרת כלי לקריאת קובצי PDF.", retryable=False)
-    return dsvc.out(conn, dsvc.store(viewer, task, frow, res, _rid(request)), viewer, task)
+    return dsvc.out(conn, dsvc.store(viewer, task, frow, res, _rid(request), ext), viewer, task)
 
 
 @router.get("/maintenance/tasks/{task_id}/files/{file_id}/extraction")

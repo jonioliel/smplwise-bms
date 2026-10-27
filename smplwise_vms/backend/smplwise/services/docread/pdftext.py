@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import threading
+import time
 from pathlib import Path
 
 from ..child_env import minimal_env
@@ -18,6 +20,53 @@ from .ports import TextResult
 TIMEOUT_S = 20
 OUTPUT_MAX = 1024 * 1024  # 1 MiB of text
 MIN_TEXT_CHARS = 10       # fewer visible characters than this = no usable text layer (a scan)
+
+
+def run_capped(cmd: list[str], *, timeout_s: float, cap: int) -> tuple[str, int, bytes]:
+    """Run a child and read at most `cap` + 1 bytes of its stdout (security review SUPPLIERDOCS2-297, finding F2): the output is never
+    buffered whole, so a decompression-bomb PDF cannot make the add-on hold hundreds of MiB. The child is killed as soon as it writes
+    more than `cap` bytes or the wall-clock `timeout_s` passes; stderr is discarded (never logged). Returns (status, returncode, stdout)
+    with status `ok` | `too_big` | `timeout` | `unavailable`."""
+    try:
+        proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=minimal_env())
+    except OSError:
+        return "unavailable", -1, b""
+    deadline = time.monotonic() + timeout_s
+    box: dict[str, bytes] = {}
+
+    def pump() -> None:
+        try:
+            box["out"] = proc.stdout.read(cap + 1) if proc.stdout else b""
+        except (OSError, ValueError):
+            box["out"] = b""
+
+    t = threading.Thread(target=pump, name="docread-pdftotext", daemon=True)
+    t.start()
+    try:
+        t.join(max(deadline - time.monotonic(), 0.0))
+        if t.is_alive():
+            return "timeout", -1, b""
+        out = box.get("out", b"")
+        if len(out) > cap:
+            return "too_big", -1, b""
+        try:
+            rc = proc.wait(timeout=max(deadline - time.monotonic(), 0.1))
+        except subprocess.TimeoutExpired:
+            return "timeout", -1, b""
+        return "ok", rc, out
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+        if proc.stdout:
+            try:
+                proc.stdout.close()
+            except OSError:
+                pass
+        t.join(1.0)
 
 
 class PdftotextReader:
@@ -31,14 +80,12 @@ class PdftotextReader:
         if not tool:
             return TextResult(status="unavailable")
         cmd = [tool, "-layout", "-enc", "UTF-8", "-q", "-f", "1", "-l", str(max_pages + 1), str(path), "-"]
-        try:
-            proc = subprocess.run(cmd, capture_output=True, timeout=self.timeout_s, check=False, env=minimal_env())
-        except subprocess.TimeoutExpired:
+        status, rc, out = run_capped(cmd, timeout_s=self.timeout_s, cap=OUTPUT_MAX)
+        if status == "timeout":
             return TextResult(status="timeout", engine=self.name)
-        except OSError:
+        if status == "unavailable":
             return TextResult(status="unavailable")
-        out = proc.stdout or b""
-        if proc.returncode != 0 or len(out) > OUTPUT_MAX:
+        if status != "ok" or rc != 0:
             return TextResult(status="unreadable", engine=self.name)
         text = out.decode("utf-8", errors="replace")
         pages = text.count("\f") or (1 if text.strip() else 0)

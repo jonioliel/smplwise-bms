@@ -82,7 +82,9 @@ _TAX_TAIL = re.compile(r"\s*[,(]?\s*(?:ח\.?\s?פ\.?|ע\.?\s?מ\.?|ת\.?\s?ז\.?
 _LONG_DIGITS_TAIL = re.compile(r"\s+\d{7,}\s*$")
 # snippet scrubbing: never carry an id / company number, a bank account or a card-like number out of this module
 _SCRUB = [
-    (re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{2,4}){3,}\b"), "[…]"),                                  # IBAN
+    # IBAN: one character per repetition (security review SUPPLIERDOCS2-297, F1). The earlier `(?:[ ]?[A-Z0-9]{2,4}){3,}` split a
+    # run of capitals in exponentially many ways before a failing `\b` - 80 characters of a crafted line froze the request for hours.
+    (re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){11,30}\b"), "[…]"),
     (re.compile(r"(ח\.?\s?פ\.?|ע\.?\s?מ\.?|ת\.?\s?ז\.?|עוסק\s+מורשה|tax\s+id|id\s+no\.?)\s*:?\s*\d[\d\s-]{4,}", re.IGNORECASE), r"\1 ***"),
     (re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)"), "[…]"),                                              # card-like
     (re.compile(r"(?<![\d-])\d{9}(?![\d-])"), "*********"),                                               # a bare 9-digit id
