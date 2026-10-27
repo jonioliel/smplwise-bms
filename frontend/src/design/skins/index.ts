@@ -21,6 +21,11 @@ export const FROZEN_SKINS: readonly SkinId[] = ['bubble'];
 export const FROZEN_FALLBACK_SKIN: SkinId = 'domus';
 /** The skins a person can choose and a write may carry: the registry without the frozen ones. */
 export const SELECTABLE_SKIN_IDS: readonly SkinId[] = SKIN_IDS.filter((id) => !FROZEN_SKINS.includes(id));
+/**
+ * BUBBLECLEAN-297: the bubble-only screens (Settings > General > Look dials card, the #/styleguide/bubble demo page) are offered only
+ * while the bubble skin is NOT frozen. Their code stays in the tree (docs/design/BUBBLE_FREEZE_RESTORE.md).
+ */
+export const BUBBLE_SCREENS_ENABLED: boolean = !FROZEN_SKINS.includes('bubble');
 /** The rule budget of one skin (`{ }` blocks of its `rules`). */
 export const SKIN_RULE_BUDGET = 50;
 

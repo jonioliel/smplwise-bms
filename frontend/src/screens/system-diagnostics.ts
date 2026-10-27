@@ -65,6 +65,7 @@ import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
 import { inAndroidApp, switchServer } from '../arx/android-app';
 import { SkinController } from '../design/skin';
+import { BUBBLE_SCREENS_ENABLED } from '../design/skins'; // BUBBLECLEAN-297: the Look dials card is bubble-only, hidden while the skin is frozen
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { syncDisconnectedText } from '../api/ha-sync-status';
 import { OWN_MODES, QUALITY_MODES, QUALITY_MODE_HINT, QUALITY_MODE_LABEL, modeFromWire, modeToWire, ownModeFromWire, type QualityWire } from '../map/quality-mode';
@@ -812,7 +813,7 @@ export class SystemDiagnostics extends LitElement {
       <system-brand-logos></system-brand-logos>
       <system-brand-installer></system-brand-installer>
       <system-brand-colors></system-brand-colors>
-      <system-look></system-look>
+      ${BUBBLE_SCREENS_ENABLED ? html`<system-look></system-look>` : nothing}
       <system-nav-size></system-nav-size>
       <system-mobile-options></system-mobile-options>
       <sw-card heading="זמן ומיקום">

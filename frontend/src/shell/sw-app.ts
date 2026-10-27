@@ -154,6 +154,7 @@ import { currentSkin, onDesign, setInstallationDesign } from '../design/apply';
 import { applyInstallationColors, brandLogo, onBrandLogo } from '../design/brand-logo'; // LOGOS-295: the corner's logos follow the installation's choices
 import '../components/sw-brand';
 import { loadLook, setInstallationLook } from '../design/look';
+import { BUBBLE_SCREENS_ENABLED } from '../design/skins'; // BUBBLECLEAN-297
 import { loadBackgroundPref, setInstallationBackground } from '../design/background';
 import { setCustomPalettes } from '../design/palette';
 import { getDevicesTree, type DeviceTree } from '../api/devices';
@@ -2706,7 +2707,7 @@ export class SwApp extends LitElement {
     // offered on a phone while its option is on. A UX guard, NOT a security boundary: the server still enforces every permission.
     const guarded = routeGuardKind(s);
     if (guarded && phoneRestricted(guarded)) return this.desktopOnly(guarded, s);
-    if (s[0] === 'styleguide' && s[1] === 'bubble') return html`<bubble-demo></bubble-demo>`; // Bubble foundation: the components' demo page (fixture)
+    if (s[0] === 'styleguide' && s[1] === 'bubble' && BUBBLE_SCREENS_ENABLED) return html`<bubble-demo></bubble-demo>`; // Bubble foundation: the components' demo page (fixture)
     if (s[0] === 'styleguide') return html`<styleguide-screen></styleguide-screen>`;
     if (s[0] === 'screens') return html`<screens-index></screens-index>`;
     if (s[0] === 'kiosk') return html`<kiosk-wall></kiosk-wall>`;
