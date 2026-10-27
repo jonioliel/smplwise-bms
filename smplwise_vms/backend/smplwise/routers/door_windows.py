@@ -412,10 +412,11 @@ def foreign_handled(body: ConfirmBody, request: Request, station_id: str = Path(
 
 @router.get("/doors/windows/doors/{station_id}/{relay}/program/preview")
 def program_preview(request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
-                    principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+                    principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The dry run of the door's program write: what Arx would write, whether it is valid, what the engine holds now and what the write
-    would do (pause first? inside a running window?). Writes nothing. `access.windows.manage` on the door."""
+    would do (pause first? inside a running window?). Writes nothing (only a refusal is audited). `access.windows.manage` on the door."""
     dw.require_doors(conn, principal, [(station_id, relay)], dw.MANAGE, "door.window.program_preview")
+    commit_now(conn)  # the engine read below runs outside this request's write lock
     return {"preview": dw.program_preview(request.app.state.db, settings_of(request), station_id, relay, now_utc())}
 
 

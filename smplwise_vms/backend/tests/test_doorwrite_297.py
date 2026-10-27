@@ -100,8 +100,8 @@ def person_pauses_in_the_panel(pw) -> None:
 # ================================================================ pure rules (no app)
 
 def _compiled_policy() -> dict:
-    door = dw.Door("st-1", 1, "׳›׳ ׳™׳¡׳”", "׳׳•׳‘׳™", "Asia/Jerusalem")
-    rule = dw.RuleDoc("r1", "׳‘׳•׳§׳¨", "weekly", "enabled", "ignore_calendar", (("st-1", 1),),
+    door = dw.Door("st-1", 1, "כניסה", "לובי", "Asia/Jerusalem")
+    rule = dw.RuleDoc("r1", "בוקר", "weekly", "enabled", "ignore_calendar", (("st-1", 1),),
                       tuple(dw.Period(weekday=wd, on_date=None, start="08:00", end="11:00") for wd in (0, 1, 2)), 1)
     c = dw.compile_door([rule], door, {}, dt.date(2026, 11, 2))
     assert c.policy is not None
@@ -165,11 +165,11 @@ def test_the_retry_wait_grows_and_is_bounded():
 
 
 def test_every_write_state_has_a_plain_hebrew_sentence_without_codes():
-    hebrew = re.compile(r"[ײ-׳¿]")
+    hebrew = re.compile(r"[֐-׿]")
     for state in dwp.WRITE_STATES:
         for code in (None, "not_sent:transport_not_selected", "unknown:answer_lost"):
             text = dwp.message_he(state, code, "disabled")
-            assert hebrew.search(text) and "_" not in text and ":" not in text, (state, text)
+            assert hebrew.search(text) and "_" not in text and not re.search(r"[A-Za-z]", text), (state, text)
 
 
 def test_the_build_ships_with_both_engines_off():
@@ -206,7 +206,7 @@ def test_an_unchanged_program_is_never_written_twice(env):
 def test_editing_the_schedule_pauses_saves_and_bumps_the_version(env):
     ruled(env)
     env.sync()
-    r = env.put(f"/doors/windows/rules/{env.rule_id}", name="׳‘׳•׳§׳¨", kind="weekly", doors=[{"station_id": env.ENTRY, "relay": 1}],
+    r = env.put(f"/doors/windows/rules/{env.rule_id}", name="בוקר", kind="weekly", doors=[{"station_id": env.ENTRY, "relay": 1}],
                 periods=[{"weekday": 1, "start": "08:00", "end": "10:00"}], confirmed=True)
     assert r.status_code == 200, r.text
     env.sync()
@@ -257,7 +257,7 @@ def test_a_write_the_read_back_does_not_prove_is_not_written(env):
     assert row["write_state"] == "retry_wait" and row["write_attempts"] == 1 and row["written_sha256"] is None and row["program_version"] == 0
     assert dw.parse_iso(row["next_attempt_at"]) == env.now() + dt.timedelta(seconds=dwp.RETRY_WAIT_S[0])
     assert all(o["state"] != "armed" for o in env.occurrences(station_id=env.ENTRY)), "nothing is armed on a program that is not proven"
-    assert "׳”׳׳™׳ ׳˜׳¨׳§׳•׳ ׳׳ ׳”׳—׳–׳™׳¨ ׳׳× ׳”׳×׳•׳›׳ ׳™׳× ׳©׳ ׳›׳×׳‘׳”" in dw.program_view(row)["message"]
+    assert "האינטרקום לא החזיר את התוכנית שנכתבה" in dw.program_view(row)["message"]
 
 
 # ---------------------------------------------------------------- failure and retry
@@ -268,7 +268,7 @@ def test_a_failed_write_waits_retries_and_then_stops_as_failed(env):
     env.sync()
     row = engine_row(env)
     assert (row["write_state"], row["write_attempts"]) == ("retry_wait", 1) and env.port.calls == []
-    assert "׳׳™׳ ׳›׳¨׳’׳¢ ׳—׳™׳‘׳•׳¨ ׳₪׳¢׳™׳ ׳׳׳™׳ ׳˜׳¨׳§׳•׳" in dw.program_view(row)["message"]
+    assert "אין כרגע חיבור פעיל לאינטרקום" in dw.program_view(row)["message"]
     env.sync()
     assert engine_row(env)["write_attempts"] == 1, "inside the wait nothing is tried"
     for n in range(2, dwp.MAX_ATTEMPTS + 2):
@@ -295,7 +295,7 @@ def test_a_new_document_starts_a_new_cycle_after_failed(env):
         env.sync()
     assert engine_row(env)["write_state"] == "failed"
     env.join.on = True
-    r = env.put(f"/doors/windows/rules/{env.rule_id}", name="׳‘׳•׳§׳¨", kind="weekly", doors=[{"station_id": env.ENTRY, "relay": 1}],
+    r = env.put(f"/doors/windows/rules/{env.rule_id}", name="בוקר", kind="weekly", doors=[{"station_id": env.ENTRY, "relay": 1}],
                 periods=[{"weekday": 1, "start": "08:30", "end": "10:00"}], confirmed=True)
     assert r.status_code == 200, r.text
     env.sync()
@@ -351,7 +351,7 @@ def test_a_program_paused_in_the_intercom_window_is_drift_and_is_not_corrected_a
     assert len(saves(env)) == n and fake_program(env)["enabled"] is False, "Arx never re-enables a program a person paused"
     view = env.get("/doors/windows/state").json()["doors"]
     entry = next(d for d in view if d["key"] == f"{env.ENTRY}:1")
-    assert entry["program"]["state"] == "drift" and "׳”׳•׳©׳”׳×׳” ׳‘׳׳™׳ ׳˜׳¨׳§׳•׳" in entry["program"]["message"]
+    assert entry["program"]["state"] == "drift" and "הושהתה באינטרקום" in entry["program"]["message"]
 
 
 def test_write_again_after_drift_restores_the_arx_program(env):
@@ -399,7 +399,7 @@ def test_an_invalid_program_is_not_sent(env, monkeypatch):
     env.sync()
     row = engine_row(env)
     assert row["write_state"] == "invalid" and saves(env) == [] and env.port.calls == []
-    assert "׳׳™׳ ׳” ׳×׳§׳™׳ ׳”" in dw.program_view(row)["message"]
+    assert "אינה תקינה" in dw.program_view(row)["message"]
 
 
 # ---------------------------------------------------------------- the dry run
@@ -419,7 +419,7 @@ def test_the_dry_run_writes_nothing_and_says_what_the_write_would_do(env):
     env.sync()
     pre = env.get(f"/doors/windows/doors/{env.ENTRY}/1/program/preview").json()["preview"]
     assert pre["action"] == "unchanged" and pre["current"]["matches"] is True
-    env.put(f"/doors/windows/rules/{env.rule_id}", name="׳‘׳•׳§׳¨", kind="weekly", doors=[{"station_id": env.ENTRY, "relay": 1}],
+    env.put(f"/doors/windows/rules/{env.rule_id}", name="בוקר", kind="weekly", doors=[{"station_id": env.ENTRY, "relay": 1}],
             periods=[{"weekday": 1, "start": "08:00", "end": "10:00"}], confirmed=True)
     pre = env.get(f"/doors/windows/doors/{env.ENTRY}/1/program/preview").json()["preview"]
     assert pre["action"] == "write" and pre["two_writes"] is True and pre["in_window"] is False
@@ -428,7 +428,7 @@ def test_the_dry_run_writes_nothing_and_says_what_the_write_would_do(env):
 def test_the_dry_run_warns_when_the_door_is_held_open_now(env):
     _written(env)
     env.world.run_until(dt.datetime(2026, 11, 2, 6, 1, tzinfo=UTC))  # 08:01: WisKey holds the door
-    env.put(f"/doors/windows/rules/{env.rule_id}", name="׳‘׳•׳§׳¨", kind="weekly", doors=[{"station_id": env.ENTRY, "relay": 1}],
+    env.put(f"/doors/windows/rules/{env.rule_id}", name="בוקר", kind="weekly", doors=[{"station_id": env.ENTRY, "relay": 1}],
             periods=[{"weekday": 1, "start": "08:00", "end": "10:00"}], confirmed=True)
     pre = env.get(f"/doors/windows/doors/{env.ENTRY}/1/program/preview").json()["preview"]
     assert pre["action"] == "write" and pre["two_writes"] is True and pre["in_window"] is True
@@ -446,7 +446,7 @@ def test_the_dry_run_and_write_again_need_manage_on_the_door(env):
 def test_write_again_refuses_a_stale_preview(env):
     ruled(env)
     sha = env.get(f"/doors/windows/doors/{env.ENTRY}/1/program/preview").json()["preview"]["sha"]
-    env.put(f"/doors/windows/rules/{env.rule_id}", name="׳‘׳•׳§׳¨", kind="weekly", doors=[{"station_id": env.ENTRY, "relay": 1}],
+    env.put(f"/doors/windows/rules/{env.rule_id}", name="בוקר", kind="weekly", doors=[{"station_id": env.ENTRY, "relay": 1}],
             periods=[{"weekday": 1, "start": "09:00", "end": "10:00"}], confirmed=True)
     r = env.post(f"/doors/windows/doors/{env.ENTRY}/1/program/apply", confirmed=True, expect_sha=sha)
     assert r.status_code == 409 and r.json()["code"] == "preview_stale" and saves(env) == []
