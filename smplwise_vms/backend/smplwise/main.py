@@ -271,6 +271,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         maintenance_reminders.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("maintenance janitor failed", exc_info=True)
+    try:  # SUPPLIERDOCS-297: document-reading drafts past their retention, and those of removed files (hourly inside)
+        from .services.docread import service as docread_service
+
+        docread_service.janitor(db)
+    except Exception:  # noqa: BLE001
+        log.warning("docread janitor failed", exc_info=True)
     try:  # CR-EMERG104: the readiness history (a row only when the verdict or an item changed, or once a day); nothing while the module is off
         from .services.emergency import service as emergency_service
 
@@ -806,6 +812,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(maintenance_router.open_router, prefix=api, tags=["maintenance"])  # GET /maintenance/module: answers while the module is off
     app.include_router(maintenance_router.router, prefix=api, tags=["maintenance"])  # ledger, plans, rounds, supplier documents, tags (off by default)
+    from .routers import docread as docread_router  # SUPPLIERDOCS-297: reading an attached certificate into proposed fields (off by default)
+
+    app.include_router(docread_router.open_router, prefix=api, tags=["docread"])  # GET /maintenance/docread/module
+    app.include_router(docread_router.router, prefix=api, tags=["docread"])
     from .routers import emergency_readiness as emergency_router  # CR-EMERG104: the read-only emergency readiness view (off by default)
 
     app.include_router(emergency_router.open_router, prefix=api, tags=["emergency-readiness"])  # GET /emergency-readiness/module answers while the module is off
