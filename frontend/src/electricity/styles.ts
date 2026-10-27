@@ -211,7 +211,7 @@ export const elecCss = css`
   }
   .btn:focus-visible {
     outline: var(--sw-focus-w) solid var(--sw-focus);
-    outline-offset: var(--sw-focus-offset, 2px);
+    outline-offset: var(--sw-focus-offset);
   }
   @media (hover: hover) and (pointer: fine) {
     .btn:hover {

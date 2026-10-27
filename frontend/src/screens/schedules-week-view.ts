@@ -40,14 +40,14 @@ export class SchedulesWeekView extends LitElement {
       font-size: var(--sw-fs-xs);
       /* POLISH-CONTROL-297: the category colours follow the product's status tokens (a skin, a palette and the dark scheme change them);
          the two that have no status meaning keep a hue of their own */
-      --sc-on: var(--sw-success, #16a34a);
-      --sc-off: var(--sw-unknown, #64748b);
-      --sc-level: var(--sw-warning, #d97706);
-      --sc-climate: var(--sw-accent, #2767ed);
+      --sc-on: var(--sw-success);
+      --sc-off: var(--sw-unknown);
+      --sc-level: var(--sw-warning);
+      --sc-climate: var(--sw-accent);
       --sc-cover: #0d9488;
-      --sc-secure: var(--sw-purple, #7c3aed);
-      --sc-custom: var(--sw-text-2, #475569);
-      --sc-empty: var(--sw-text-3, #94a3b8);
+      --sc-secure: var(--sw-purple);
+      --sc-custom: var(--sw-text-2);
+      --sc-empty: var(--sw-text-3);
       --label-w: 64px;
       /* the night, the grid lines and the sun lines are tints of the text colour, so they are seen on a dark board too */
       --sc-night: color-mix(in srgb, var(--sw-text) 5%, transparent);
