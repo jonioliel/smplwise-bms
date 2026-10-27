@@ -40,7 +40,14 @@ test('skins: registered ids, overrides carry both columns and name existing toke
   // POLISH-CLASSIC-DOMUS-297 (round 4): classic carries its own polish layer (skins/classic.ts) so the base table the other skins
   // inherit from stays where it was; it never moves a size (density / type / control heights are not overridden)
   expect(Object.keys(SKINS.classic.tokens).length).toBeGreaterThan(0);
-  for (const n of Object.keys(SKINS.classic.tokens)) expect(n, 'classic polish moves no size').not.toMatch(/^--sw-(fs-|ctl-h|page-pad|rail-w|touch|s-\d|gap|h1$)/);
+  // POLISH-BOLD-297 (owner 2026-10-27 late): the type scale, the page title and the control heights (+/- 4 px) were released; the
+  // STRUCTURE stays frozen - page padding, the rail width, the touch floor, the spacing scale and the gaps never move under classic
+  for (const n of Object.keys(SKINS.classic.tokens)) expect(n, 'classic polish moves no structural size').not.toMatch(/^--sw-(page-pad|rail-w|touch|s-\d|gap)/);
+  for (const n of ['--sw-ctl-h-sm', '--sw-ctl-h-md', '--sw-ctl-h-lg']) {
+    const base = parseFloat(TOKENS[n].light);
+    const v = SKINS.classic.tokens[n];
+    if (v) expect(Math.abs(parseFloat(v.light) - base), `${n} stays within +/- 4 px of the base`).toBeLessThanOrEqual(4);
+  }
   expect(ruleCount(SKINS.classic.rules)).toBeGreaterThan(0);
   for (const id of SKIN_IDS) {
     const s = SKINS[id];

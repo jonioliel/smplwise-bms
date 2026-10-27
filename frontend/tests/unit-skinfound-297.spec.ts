@@ -226,7 +226,7 @@ test('nothing changes for a skin that is not picked: the other skins\' tables ca
   expect(TOKENS['--sw-touch'].light).toBe('36px');
   // classic's polish layer moves no size and no density (POLISH-CLASSIC-DOMUS-297)
   for (const n of ['--sw-touch', '--sw-gap-lg', '--sw-page-pad-phone', '--sw-fs-4xl', '--sw-lh-tight', '--sw-t-fast', '--sw-t-med']) expect(SKINS.classic.tokens[n], n).toBeUndefined();
-  for (const id of POLISHED) expect(skinTable(id)['--sw-press-scale'].light, id).toBe('0.97');
+  for (const id of POLISHED) expect(skinTable(id)['--sw-press-scale'].light, id).toBe('0.96'); // POLISH-BOLD-297: .97 -> .96
 });
 
 test('logos: the Arx skins never restyle or hide the SmplWise mark, the corner strip or the installation logo slot', () => {
