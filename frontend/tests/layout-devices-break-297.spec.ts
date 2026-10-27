@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { areaDetail, installBubbleMock, tree } from './bubble-mocks';
+import { SKINS_UNDER_TEST } from './helpers/frozen-skins';
 import { AR, EMAIL, EMOJI, LONG_HE, MIXED, ONE, RU, UNBREAK, measure } from './breakui-worst';
 
 // WIDGETBREAK-297: the device tiles / cards of the AREA screen (lights, covers, climate, media, security, sensors, the camera tile) and the building tree
@@ -43,34 +44,34 @@ function worstTree() {
   return t;
 }
 
-async function boot(page: Page, scheme: 'light' | 'dark') {
+async function boot(page: Page, scheme: 'light' | 'dark', skin: string) {
   await installBubbleMock(page, {});
   await page.route('**/api/v1/devices/areas/living', (r) => json(r, worstArea()));
   await page.route('**/api/v1/devices/tree', (r) => json(r, worstTree()));
   await page.goto('about:blank');
-  await page.goto(`/?design=a&skin=bubble&scheme=${scheme}#/devices/areas/living`);
+  await page.goto(`/?design=a&skin=${skin}&scheme=${scheme}#/devices/areas/living`);
   await expect(page.locator('sw-app devices-area').first()).toBeAttached({ timeout: 30_000 });
   await page.waitForTimeout(800);
 }
 
 test.describe('device tiles break test', () => {
   test.beforeAll(() => { if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true }); });
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`${scheme}: the area screen stays inside the viewport with worst-case names`, async ({ page }) => {
+  for (const skin of SKINS_UNDER_TEST) for (const scheme of ['light', 'dark'] as const) {
+    test(`${skin} ${scheme}: the area screen stays inside the viewport with worst-case names`, async ({ page }) => {
       test.setTimeout(180_000);
       const errors: string[] = [];
       page.on('pageerror', (e) => errors.push(String(e)));
       const problems: string[] = [];
-      await boot(page, scheme);
+      await boot(page, scheme, skin);
       for (const w of [320, 360, 390, 768, 1280]) {
         await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
         await page.waitForTimeout(250);
-        const m = await measure(page, `area/${w}/${scheme}`, 'devices-area');
+        const m = await measure(page, `area/${w}/${skin}-${scheme}`, 'devices-area');
         const own = [...m.found.filter((f) => !(f.cls === 'escape' && f.el.startsWith('span.muted'))).map((f) => `${f.cls} ${f.el} ${f.detail}`), ...(m.scroll > 1 ? [`page scrolls sideways by ${m.scroll}px`] : [])];
-        if (own.length) problems.push(`area/${w}/${scheme}: ${Array.from(new Set(own)).slice(0, 6).join(' | ')}`);
-        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `area-${w}-${scheme}.png`), fullPage: true });
+        if (own.length) problems.push(`area/${w}/${skin}-${scheme}: ${Array.from(new Set(own)).slice(0, 6).join(' | ')}`);
+        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `area-${w}-${skin}-${scheme}.png`), fullPage: true });
       }
-      if (process.env.DB_REPORT) fs.writeFileSync(process.env.DB_REPORT.replace('.txt', `-${scheme}.txt`), problems.join('\n'));
+      if (process.env.DB_REPORT) fs.writeFileSync(process.env.DB_REPORT.replace('.txt', `-${skin}-${scheme}.txt`), problems.join('\n'));
       expect(errors, 'page errors').toEqual([]);
       expect(problems, problems.join('\n')).toEqual([]);
     });

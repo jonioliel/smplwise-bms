@@ -2,11 +2,12 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { measure } from './breakui-worst';
+import { SKINS_UNDER_TEST } from './helpers/frozen-skins';
 
 // WIDGETBREAK-297: the home widgets (all but the elevators card, ELEVFIX-297) in cards 240 / 280 / 320 / 360 px wide, sizes s / m / l, light and dark,
 // fed NORMAL, WORST-CASE (long Hebrew, unbreakable Latin, mixed RTL/LTR, emoji, huge numbers, many items) and EMPTY invented data through the harness
 // tests/widget-break-harness (the Vite DEV server: the harness imports /src/). Geometry assertions only, no pixel baseline: nothing may leave its card,
-// no text may be cut without an ellipsis, the card may not scroll sideways. Fake data only; no backend.
+// no text may be cut without an ellipsis, the card may not scroll sideways. Every selectable skin (the frozen bubble skin is skipped by the registry). Fake data only; no backend.
 //   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/layout-widgets-break-297.spec.ts --project=desktop
 // WB_SHOTS=<dir> also writes a screenshot per case; WB_ALL=1 widens the widget list to the ones still open (see docs/design/system/WIDGET_BREAK_2026-10-27.md).
 const WIDTHS = [240, 280, 320, 360];
@@ -52,7 +53,7 @@ async function edge(page: Page): Promise<string[]> {
 
 test.describe('home widgets break test', () => {
   test.beforeAll(() => { if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true }); });
-  for (const [skin, scheme] of [['classic', 'light'], ['classic', 'dark'], ['bubble', 'light'], ['bubble', 'dark']] as const) {
+  for (const skin of SKINS_UNDER_TEST) for (const scheme of ['light', 'dark'] as const) {
     test(`${skin} ${scheme}: no widget leaves or clips its card at 240-360 px`, async ({ page }) => {
       test.setTimeout(240_000);
       const errors: string[] = [];
@@ -62,7 +63,7 @@ test.describe('home widgets break test', () => {
       for (const id of WIDGETS) for (const size of SIZES) for (const ds of DATASETS) for (const w of ds === 'worst' ? WIDTHS : [240]) {
         const ctx = `${id}/${size}/${ds}/${w}/${skin}-${scheme}`;
         await page.evaluate(([i, s, d, px]) => (window as unknown as { wbMount: (...a: unknown[]) => Promise<void> }).wbMount(i, s, d, px), [id, size, ds, w] as const);
-        if (skin === 'bubble' && id === 'clock' && size === 'm' && ds === 'normal') expect(await page.locator('home-widgets').getAttribute('data-skin')).toBe('bubble');
+        if (id === 'clock' && size === 'm' && ds === 'normal') expect(await page.locator('home-widgets').getAttribute('data-skin'), 'the skin in force').toBe(skin);
         const m = await measure(page, ctx, '#cell');
         const e = await edge(page);
         const own = [...m.found.map((f) => `${f.cls} ${f.el} ${f.detail}`), ...e];
