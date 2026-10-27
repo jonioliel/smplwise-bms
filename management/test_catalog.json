@@ -10269,5 +10269,26 @@
     "expected": "Every listed test passes on the branch; the screen never scrolls the page on the three projects, day and night.",
     "status": "NOT_RUN",
     "notes": "2026-10-23 runner, pilot/WHOIN034-295: backend test_whoin034_295 + test_presence 21 passed (@3143c8835); with test_mobile_push, test_access_permissions_wxperm, test_rbac_groups 68 passed + 1 test bug fixed (@363f5b7fd); specs 110 passed, 3 failed (evidence-tabs-ui editor: the new map tab, spec updated, re-run pending), 1 skipped. Not a gate."
+  },
+  {
+    "id": "AT-DOORWRITE-1",
+    "requirement_ids": [
+      "R-DOORWRITE-1"
+    ],
+    "task_ids": [
+      "DOORWRITE-297"
+    ],
+    "title": "Door-window program write path end to end against the W0 fake program engine (live seam classes, stub direct connection)",
+    "kind": "integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes only; no WisKey, no station, no door; PROGRAM_ENGINE_BUILT switched on inside the test only"
+    ],
+    "procedure": [
+      "backend tests: tests/test_doorwrite_297.py, tests/test_doorwin_watch.py, tests/test_doorwin_api.py, tests/test_doorwin2_foreign.py, tests/test_doorwin2_events.py, tests/test_doorwin2_review2.py, tests/test_splitswitch_297.py, tests/test_wiskey_owner26_callers_297.py, tests/test_f3a_doorwin_dw03_295.py"
+    ],
+    "expected": "Every listed test passes on the branch; the shipped build keeps both engine flags off.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 runner, pilot/DOORWRITE-297 @ 005d8dcbb: tests/test_doorwrite_297.py with test_doorwin_watch, test_doorwin_api, test_doorwin2_foreign, test_doorwin2_events, test_doorwin2_review2, test_splitswitch_297, test_wiskey_owner26_callers_297, test_f3a_doorwin_dw03_295: 174 passed. Fakes only (W0 FakeProgramEngine behind the live seam classes); no WisKey, no door. Not a gate. The lab write is prepared, NOT_RUN."
   }
 ]

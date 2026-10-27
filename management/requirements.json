@@ -6883,5 +6883,21 @@
     "test_ids": [
       "AT-WHOIN-1"
     ]
+  },
+  {
+    "id": "R-DOORWRITE-1",
+    "title": "Door-window program written from Arx to WisKey (board r129)",
+    "statement": "Arx writes each door's weekly hold-open program to WisKey only after validating it, proves every write by reading it back, never re-sends an unchanged program, records a version per proven write, detects a program changed or paused outside Arx and does not correct it automatically, retries a failed write a bounded number of times with a growing wait and then waits for a person, always lets the close direction (pause) through, shows the operator one plain Hebrew sentence per state, offers a dry run that writes nothing and a confirmed per-door write-again, and audits ids and codes only; nothing is live while the program engine build flag is off.",
+    "task_ids": [
+      "DOORWRITE-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DOORWRITE-1"
+    ]
   }
 ]
