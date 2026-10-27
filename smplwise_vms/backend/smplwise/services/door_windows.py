@@ -800,6 +800,7 @@ class DoorWork:
     blocked: str | None
     written_sha: str | None
     foreign: bool
+    row: dict[str, Any] | None = None  # the door's `door_window_engine` row as read before the engine I/O (DOORWRITE-297 write state)
 
 
 def _engine_row(conn: sqlite3.Connection, station_id: str, relay: int) -> sqlite3.Row | None:
@@ -817,7 +818,13 @@ def _upsert_engine(conn: sqlite3.Connection, door: Door, tier: str, **fields: An
 def _write_program(engine: dwe.WindowEngine, door: Door, compiled: Compiled) -> tuple[str, int | None, str]:
     """Make the engine hold `compiled.policy` (or no enabled Arx program when it is None). Read first, always: an earlier unknown outcome
     is settled by this read (CR-039 4.3: never a blind second save). Returns (outcome, revision, code); outcome in written | paused |
-    unchanged | foreign | nothing."""
+    unchanged | foreign | nothing | readback_mismatch.
+
+    DOORWRITE-297: "written" now means written AND proven by read-back - the save's own listing, or (when that listing does not show the
+    program as written) one fresh read. A save that the engine accepted but whose read-back differs is `readback_mismatch` (never "written"),
+    and the next attempt starts again from a read. "unchanged" compares the canonical form (dwp.holds), not the raw JSON."""
+    from . import door_window_program as dwp
+
     st = engine.read(door.station_id, door.relay)
     if st.exists and not st.arx:
         return "foreign", st.revision, "foreign_program"
@@ -826,56 +833,126 @@ def _write_program(engine: dwe.WindowEngine, door: Door, compiled: Compiled) -> 
             st = engine.pause(door.station_id, door.relay, st.revision)
             return "paused", st.revision, ""
         return "nothing", st.revision if st.exists else None, ""
-    if st.exists and st.enabled and policy_sha(st.policy) == compiled.sha:
+    if dwp.holds(st, compiled.policy):
         return "unchanged", st.revision, ""
     revision = st.revision if st.exists else 0
     if st.exists and (st.enabled or st.owned):  # WisKey refuses an edit of an enabled program (W0 finding 1): pause, then save-and-activate
         revision = engine.pause(door.station_id, door.relay, revision).revision
     st = engine.save(door.station_id, door.relay, revision, compiled.policy, True)
-    return "written", st.revision, ""
+    if dwp.holds(st, compiled.policy):
+        return "written", st.revision, ""
+    st = engine.read(door.station_id, door.relay)  # the save's listing did not prove it: one fresh read decides
+    if dwp.holds(st, compiled.policy):
+        return "written", st.revision, ""
+    return "readback_mismatch", st.revision if st.exists else None, "readback_mismatch"
 
 
-def sync(db: Database, settings: Any, now: dt.datetime, *, actor: str = "system:door_windows") -> dict[str, Any]:
-    """One compile pass over every door that has an enabled rule or an Arx program record. Engine I/O happens outside the write lock.
-    With the master switch off the desired program of every door is "none": an Arx program that was written is paused (switching off
-    never leaves a door scheduled open), and future occurrences are cancelled."""
+def _load_sync_rules(conn: sqlite3.Connection, now: dt.datetime) -> tuple[list[RuleDoc], set[str]]:
+    """The enabled, still-approved rules plus the running event holds (none while the master switch is off), and the stale rule ids."""
+    on = enabled(conn)
+    rules = load_rules(conn) if on else []
+    stale = set(stale_approvals(conn, rules)) if rules else set()
+    rules = [r for r in rules if r.id not in stale]
+    if on:  # the running event holds join the compile as one-off periods of synthetic rules (a hold is a plan row until it ends)
+        from . import door_window_triggers as dwt
+
+        rules = rules + dwt.running_holds(conn, now)
+    return rules, stale
+
+
+def _compose(conn: sqlite3.Connection, rules: list[RuleDoc], now: dt.datetime, only: set[str] | None = None) -> list[DoorWork]:
+    """Compose the weekly program of every door that has a rule, an engine row or a pending occurrence (or only the `only` doors)."""
+    known = doors_by_key(conn)
+    keys = {door_key(s, r) for rule in rules for s, r in rule.doors}
+    keys |= {door_key(r["station_id"], r["relay"]) for r in conn.execute("SELECT station_id, relay FROM door_window_engine")}
+    keys |= {door_key(r["station_id"], r["relay"]) for r in conn.execute(
+        "SELECT DISTINCT station_id, relay FROM door_window_occurrences WHERE state IN ('prepared','planned','armed')")}
+    if only is not None:
+        keys = set(only)
+    work: list[DoorWork] = []
+    for key in sorted(keys):
+        station_id, relay = key.rsplit(":", 1)
+        door = known.get(key) or Door(station_id, int(relay), f"דלת {relay}", "", installation_zone(conn))
+        first = local_date(now, ZoneInfo(door.zone))
+        compiled = compile_door(rules, door, calendar_for(conn, door.station_id, first, HORIZON_DAYS), first,
+                                max_per_day=int_setting(conn, "doors.windows.max_per_day_per_door"), excluded=exclusions_of(conn, door.station_id, door.relay, first))
+        row = _engine_row(conn, door.station_id, door.relay)
+        work.append(DoorWork(door, compiled, door_blocked(conn, door.station_id, door.relay, now), row["written_sha256"] if row else None,
+                             bool(row["foreign_program"]) if row else False, dict(row) if row else None))
+    return work
+
+
+# write states after which the engine may still hold an enabled Arx program although `written_sha256` is NULL: when the desired program
+# becomes "none" (switch off, rules removed) such a door is read and paused, never skipped as "nothing" (the close direction)
+UNSETTLED_WRITE_STATES = ("drift", "retry_wait", "failed")
+
+
+def _hold_reason(w: DoorWork, now: dt.datetime) -> str | None:
+    """DOORWRITE-297: why the sync must not try this door's write in this pass (None: it may). Only an OPEN-direction write is held - a door
+    whose desired program is "none" (switch off, rules removed) is always paused, whatever its write state (the close direction)."""
+    row = w.row or {}
+    if w.compiled.policy is None:
+        return None
+    if row.get("drift_at"):
+        return "drift"  # a person must look first (the program may have been paused on purpose in the intercom window)
+    if row.get("write_state") == "failed" and row.get("compiled_sha256") == w.compiled.sha:
+        return "failed"  # the attempts for this document are used up; a new document starts a new cycle
+    if row.get("next_attempt_at") and row["next_attempt_at"] > iso(now):
+        return "retry_wait"
+    return None
+
+
+def _check_drift(engine: dwe.WindowEngine, w: DoorWork, now: dt.datetime) -> tuple[str, str]:
+    """An unchanged door whose last proof is older than DRIFT_CHECK_S is re-read. Returns (outcome, code): unchanged (no read due),
+    verified (the read proves it), drift (code = drift kind), or unchanged with code read_failed (a failed read proves nothing either way)."""
+    from . import door_window_program as dwp
+
+    row = w.row or {}
+    last = row.get("verified_at")
+    if last and parse_iso(last) > now - dt.timedelta(seconds=dwp.DRIFT_CHECK_S):
+        return "unchanged", ""
+    try:
+        st = engine.read(w.door.station_id, w.door.relay)
+    except dwe.EngineError:
+        return "unchanged", "read_failed"
+    kind = dwp.drift_of(st, w.compiled.policy)
+    return ("drift", kind) if kind else ("verified", "")
+
+
+def sync(db: Database, settings: Any, now: dt.datetime, *, actor: str = "system:door_windows", only: set[str] | None = None) -> dict[str, Any]:
+    """One compile pass over every door that has an enabled rule or an Arx program record (or only the `only` door keys). Engine I/O happens
+    outside the write lock. With the master switch off the desired program of every door is "none": an Arx program that was written is
+    paused (switching off never leaves a door scheduled open), and future occurrences are cancelled.
+
+    DOORWRITE-297 adds, per door: Arx-side validation before any send (`invalid`, nothing sent), read-back proof of every write, a periodic
+    drift check of doors believed written, and bounded retries (retry_wait -> failed) with the write state kept on the engine row."""
+    from . import door_window_program as dwp
+
     engine = dwe.window_engine(settings)
     refresh_foreign_paused(db, settings, now)
     with db.connection(mode="read") as conn:
-        on = enabled(conn)
-        rules = load_rules(conn) if on else []
-        stale = set(stale_approvals(conn, rules)) if rules else set()
-        rules = [r for r in rules if r.id not in stale]
-        if on:  # the running event holds join the compile as one-off periods of synthetic rules (a hold is a plan row until it ends)
-            from . import door_window_triggers as dwt
-
-            rules = rules + dwt.running_holds(conn, now)
-        known = doors_by_key(conn)
-        keys = {door_key(s, r) for rule in rules for s, r in rule.doors}
-        keys |= {door_key(r["station_id"], r["relay"]) for r in conn.execute("SELECT station_id, relay FROM door_window_engine")}
-        keys |= {door_key(r["station_id"], r["relay"]) for r in conn.execute(
-            "SELECT DISTINCT station_id, relay FROM door_window_occurrences WHERE state IN ('prepared','planned','armed')")}
-        work: list[DoorWork] = []
-        for key in sorted(keys):
-            station_id, relay = key.rsplit(":", 1)
-            door = known.get(key) or Door(station_id, int(relay), f"דלת {relay}", "", installation_zone(conn))
-            first = local_date(now, ZoneInfo(door.zone))
-            compiled = compile_door(rules, door, calendar_for(conn, door.station_id, first, HORIZON_DAYS), first,
-                                    max_per_day=int_setting(conn, "doors.windows.max_per_day_per_door"), excluded=exclusions_of(conn, door.station_id, door.relay, first))
-            row = _engine_row(conn, door.station_id, door.relay)
-            work.append(DoorWork(door, compiled, door_blocked(conn, door.station_id, door.relay, now), row["written_sha256"] if row else None,
-                                 bool(row["foreign_program"]) if row else False))
+        rules, stale = _load_sync_rules(conn, now)
+        work = _compose(conn, rules, now, only)
     results: dict[str, Any] = {"stale_rules": sorted(stale), "doors": {}}
     outcomes: list[tuple[DoorWork, str, int | None, str]] = []
     for w in work:
         if engine.tier != "program" or w.blocked or w.compiled.errors:
             outcomes.append((w, "skipped" if engine.tier == "program" else "prepared", None, w.blocked or ",".join(w.compiled.errors)))
             continue
-        if w.compiled.sha == w.written_sha and w.compiled.sha is not None:
-            outcomes.append((w, "unchanged", None, ""))
+        held = _hold_reason(w, now)
+        if held:
+            outcomes.append((w, "held", None, held))
             continue
-        if w.compiled.sha is None and w.written_sha is None:
+        if w.compiled.sha == w.written_sha and w.compiled.sha is not None:
+            outcome, code = _check_drift(engine, w, now)
+            outcomes.append((w, outcome, None, code))
+            continue
+        if w.compiled.sha is None and w.written_sha is None and (w.row or {}).get("write_state") not in UNSETTLED_WRITE_STATES:
             outcomes.append((w, "nothing", None, ""))
+            continue
+        invalid =dwp.validate_policy(w.compiled.policy, station_id=w.door.station_id, relay=w.door.relay) if w.compiled.policy is not None else None
+        if invalid:
+            outcomes.append((w, "invalid", None, invalid))
             continue
         try:
             outcome, revision, code = _write_program(engine, w.door, w.compiled)
@@ -890,31 +967,154 @@ def sync(db: Database, settings: Any, now: dt.datetime, *, actor: str = "system:
             audit(conn, actor=None, action="door.window.rule_paused", decision="allowed", resource_type="door_window_rule", resource_id=rid, reason="approval_stale")
         for w, outcome, revision, code in outcomes:
             tier = engine.tier
+            row = w.row or {}
             fields: dict[str, Any] = {"compiled_sha256": w.compiled.sha}
             written = False
-            if outcome in ("written", "unchanged"):
-                fields.update(written_sha256=w.compiled.sha, written_at=at, written_by=actor, foreign_program=0, last_error=None)
+            version = None
+            if outcome == "written":
+                version = int(row.get("program_version") or 0) + 1
+                fields.update(written_sha256=w.compiled.sha, written_at=at, written_by=actor, foreign_program=0, last_error=None, write_state="verified",
+                              write_attempts=0, next_attempt_at=None, verified_at=at, drift_at=None, drift_kind=None, program_version=version)
+                if revision is not None:
+                    fields["program_revision"] = revision
+                written = True
+            elif outcome in ("unchanged", "verified"):
+                fields.update(written_sha256=w.compiled.sha, foreign_program=0, last_error=None, write_state="verified")
+                if outcome == "verified" or (outcome == "unchanged" and row.get("written_sha256") != w.compiled.sha):
+                    fields.update(written_at=at, written_by=actor, verified_at=at)  # (an "unchanged" from a write pass: the read proved it)
                 if revision is not None:
                     fields["program_revision"] = revision
                 written = True
             elif outcome in ("paused", "nothing"):
-                fields.update(written_sha256=None, written_at=at, written_by=actor, foreign_program=0, last_error=None, program_revision=revision)
+                fields.update(written_sha256=None, written_at=at, written_by=actor, foreign_program=0, last_error=None, program_revision=revision,
+                              write_state="idle", write_attempts=0, next_attempt_at=None, drift_at=None, drift_kind=None)
             elif outcome == "foreign":
-                fields.update(foreign_program=1, last_error="foreign_program", written_sha256=None)
-            elif outcome == "error":
-                fields.update(last_error=code[:64], written_sha256=None)  # unknown: settled by the next pass's read, never by a blind save
+                fields.update(foreign_program=1, last_error="foreign_program", written_sha256=None, write_state="foreign", write_attempts=0, next_attempt_at=None)
+            elif outcome == "drift":
+                # never corrected automatically: future occurrences fall back to `planned` (the engine no longer holds them), the watchdog
+                # keeps judging them (a window that does not start is `not_started`: the safe direction, with an alert)
+                fields.update(written_sha256=None, write_state="drift", drift_at=at, drift_kind=code, last_error=f"drift:{code}")
+                conn.execute("UPDATE door_window_occurrences SET state = 'planned', updated_at = ? WHERE station_id = ? AND relay = ? AND state = 'armed' AND start_at > ?",
+                             (at, w.door.station_id, w.door.relay, at))
+            elif outcome == "invalid":
+                fields.update(write_state="invalid", last_error=f"invalid:{code}"[:64])
+                written = w.written_sha is not None and w.written_sha == w.compiled.sha
+            elif outcome in ("error", "readback_mismatch"):
+                attempts = int(row.get("write_attempts") or 0) + 1
+                kind = code.split(":", 1)[0] if outcome == "error" else "unknown"
+                nxt = dwp.next_attempt_at(attempts, now) if dwp.retryable(kind) else None
+                fields.update(last_error=code[:64], written_sha256=None, write_attempts=attempts,  # unknown: settled by the next pass's read
+                              write_state="retry_wait" if nxt is not None else "failed", next_attempt_at=iso(nxt) if nxt is not None else None)
+            elif outcome == "held":
+                written = w.written_sha is not None and w.written_sha == w.compiled.sha
             elif outcome == "skipped":
                 written = w.written_sha is not None and w.written_sha == w.compiled.sha
-                fields["last_error"] = code[:64] or None
+                fields.update(last_error=code[:64] or None, write_state="blocked" if w.blocked else "invalid")
+            elif outcome == "prepared":
+                fields["write_state"] = "prepared"
             _upsert_engine(conn, w.door, tier, **fields)
-            if outcome in ("written", "paused", "foreign", "error"):
+            if outcome in ("written", "paused", "foreign", "error", "readback_mismatch", "invalid"):
+                state = fields.get("write_state")
                 audit(conn, actor=None, action="door.window.engine_write", decision="allowed" if outcome in ("written", "paused") else "failed",
                       resource_type="door", resource_id=w.door.key, reason=outcome,
-                      details={"tier": tier, "outcome": outcome, "code": code[:64] or None, "revision": revision, "compiled_sha": (w.compiled.sha or "")[:16] or None})
+                      details={"tier": tier, "outcome": outcome, "code": code[:64] or None, "revision": revision, "compiled_sha": (w.compiled.sha or "")[:16] or None,
+                               "version": version, "write_state": state, "attempts": fields.get("write_attempts")})
+            elif outcome == "drift":
+                audit(conn, actor=None, action="door.window.program_drift", decision="failed", resource_type="door", resource_id=w.door.key, reason=code,
+                      details={"tier": tier, "drift_kind": code, "compiled_sha": (w.compiled.sha or "")[:16] or None, "version": row.get("program_version")})
             planned = plan(w.compiled, local_date(now, ZoneInfo(w.door.zone)) - dt.timedelta(days=1), PLAN_DAYS + 1)
             _store_plan(conn, w.door, planned, tier, written, now)
             results["doors"][w.door.key] = {"outcome": outcome, "code": code, "errors": w.compiled.errors}
     return results
+
+
+# ---------------------------------------------------------------- DOORWRITE-297: the per-door program view, the dry run, "write again"
+
+def program_view(row: Any) -> dict[str, Any]:
+    """The door's write state for the screen: state, one Hebrew sentence, version, last proof, drift and retry facts. Ids and codes stay
+    server-side except `state` / `drift_kind` (enumerations the screen may style)."""
+    from . import door_window_program as dwp
+
+    r = dict(row) if row is not None else {}
+    state = r.get("write_state") or ("prepared" if r.get("tier") == "prepared" else "idle")
+    return {"state": state, "message": dwp.message_he(state, r.get("last_error"), r.get("drift_kind")), "version": int(r.get("program_version") or 0),
+            "verified_at": r.get("verified_at"), "drift_kind": r.get("drift_kind"), "drift_at": r.get("drift_at"), "attempts": int(r.get("write_attempts") or 0),
+            "next_attempt_at": r.get("next_attempt_at"), "revision": r.get("program_revision")}
+
+
+def _summary(policy: dict[str, Any] | None) -> dict[str, Any] | None:
+    if policy is None:
+        return None
+    sched = policy.get("schedule") or {}
+    return {"timezone": policy.get("timezone"), "name": sched.get("name"),
+            "weekly": {d: [f"{p['start']}-{p['end']}" for p in (sched.get("weekly") or {}).get(d, [])] for d in WISKEY_DAYS},
+            "exceptions": len(sched.get("holidays") or []),
+            "next_exceptions": [{"date": h["start"], "periods": [f"{p['start']}-{p['end']}" for p in h["periods"]]} for h in (sched.get("holidays") or [])[:10]]}
+
+
+def program_preview(db: Database, settings: Any, station_id: str, relay: int, now: dt.datetime) -> dict[str, Any]:
+    """The dry run of one door's write (CR-039 10.1 "preview first"): the program Arx would write, whether it is valid, what the engine holds
+    now (one READ when the tier is `program`; nothing in tier D) and the action the next write would take. Writes NOTHING - not to the engine,
+    not to the database. `action`: prepared | blocked | invalid | held | foreign | nothing | pause | unchanged | write.
+    `two_writes`: the program must be paused first (an enabled program); `in_window`: the engine holds the door open now, so the write closes
+    it and re-opens it within ~15 s (the confirmation sentence says so, CR-039 4.3)."""
+    from . import door_window_program as dwp
+
+    engine = dwe.window_engine(settings)
+    key = door_key(station_id, relay)
+    with db.connection(mode="read") as conn:
+        rules, _ = _load_sync_rules(conn, now)
+        w = _compose(conn, rules, now, {key})[0]
+        on = enabled(conn)
+    policy = w.compiled.policy
+    invalid = dwp.validate_policy(policy, station_id=station_id, relay=relay) if policy is not None else None
+    out: dict[str, Any] = {
+        "door": key, "label": w.door.label, "zone": w.door.zone, "enabled": on, "tier": engine.tier if on else "prepared",
+        "sha": (w.compiled.sha or "")[:16] or None, "program": _summary(policy), "errors": list(w.compiled.errors), "invalid": invalid,
+        "request_bytes": dwp.request_bytes(policy, station_id=station_id, relay=relay) if policy is not None else 0,
+        "write": program_view(w.row), "current": None, "two_writes": False, "in_window": False, "dry_run": True,
+    }
+    if engine.tier != "program" or not on:
+        out["action"] = "prepared"
+    elif w.blocked:
+        out["action"], out["reason"] = "blocked", w.blocked
+    elif w.compiled.errors or invalid:
+        out["action"] = "invalid"
+    elif _hold_reason(w, now):
+        out["action"], out["reason"] = "held", _hold_reason(w, now)
+    else:
+        try:
+            st = engine.read(station_id, relay)
+        except dwe.EngineError as exc:
+            out["action"], out["reason"] = "unreadable", exc.kind
+            return out
+        out["current"] = {"exists": st.exists, "enabled": st.enabled, "revision": st.revision, "arx": st.arx, "status": st.status,
+                          "matches": dwp.holds(st, policy) if policy is not None else False}
+        if st.exists and not st.arx:
+            out["action"] = "foreign"
+        elif policy is None:
+            out["action"] = "pause" if st.exists and (st.enabled or st.owned) else "nothing"
+        elif dwp.holds(st, policy):
+            out["action"] = "unchanged"
+        else:
+            out["action"] = "write"
+            out["two_writes"] = st.exists and (st.enabled or st.owned)
+            out["in_window"] = st.exists and (st.owned or st.status in ("opening", "held_acknowledged"))
+    return out
+
+
+def write_again(db: Database, settings: Any, station_id: str, relay: int, now: dt.datetime, *, actor: str) -> dict[str, Any]:
+    """A person's "write again" for one door: clears the door's drift / failed / retry wait and runs the sync for that door only (read first,
+    pause-then-save when needed, read-back proof). Returns the door's sync result plus its new write state."""
+    with db.connection() as conn:
+        conn.execute("""UPDATE door_window_engine SET drift_at = NULL, drift_kind = NULL, write_attempts = 0, next_attempt_at = NULL,
+                        write_state = CASE WHEN write_state IN ('drift','failed','retry_wait') THEN NULL ELSE write_state END,
+                        written_sha256 = NULL WHERE station_id = ? AND relay = ?""", (station_id, relay))
+    key = door_key(station_id, relay)
+    res = sync(db, settings, now, actor=actor, only={key})
+    with db.connection(mode="read") as conn:
+        row = _engine_row(conn, station_id, relay)
+    return {"door": key, **res["doors"].get(key, {"outcome": "nothing", "code": "", "errors": []}), "write": program_view(row)}
 
 
 def pause_door(db: Database, settings: Any, station_id: str, relay: int, until: str | None, *, why: str, allow_foreign: bool = False,
