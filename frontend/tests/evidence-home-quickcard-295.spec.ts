@@ -4,6 +4,7 @@ import { tree } from './bubble-mocks';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { drawnSkin } from './helpers/frozen-skins';
 
 // QUICKHIDE-295 (FIX2231B): the home's quick-actions widget (the "תאורה" / "הכל" pills) can be hidden from הגדרות › מסך ראשי
 // (`home.screen.quick_card`, default show). Hidden: the widget is absent and the cards left take the whole row (no hole), on a
@@ -33,7 +34,7 @@ async function open(page: Page, vp: Vp, quickCard: 'show' | 'hide') {
   });
   const home = { direction: 'a', side: 'end', time_zone: 'Asia/Jerusalem', personalize: false, config: { phone_layout: 'two', notices: { on: true }, quick: { on: true } }, data: {} };
   await page.route('**/api/v1/devices/tree', (route) => json(route, { ...tree(), home }));
-  await page.route((u) => u.pathname.endsWith('/api/v1/settings'), (route) => json(route, { settings: { 'ui.design': 'a', 'ui.skin': 'bubble', 'home.info_style': 'cards', 'home.screen': { quick_card: quickCard } }, can_edit: false }));
+  await page.route((u) => u.pathname.endsWith('/api/v1/settings'), (route) => json(route, { settings: { 'ui.design': 'a', 'ui.skin': drawnSkin('bubble'), 'home.info_style': 'cards', 'home.screen': { quick_card: quickCard } }, can_edit: false }));
   await page.addInitScript(() => {
     try {
       localStorage.setItem('sw.devices.layout', 'cards');
@@ -42,7 +43,7 @@ async function open(page: Page, vp: Vp, quickCard: 'show' | 'hide') {
     }
   });
   await page.goto('about:blank');
-  await page.goto('/?design=a&skin=bubble#/devices/building');
+  await page.goto(`/?design=a&skin=${drawnSkin('bubble')}#/devices/building`); // BUBBLE-FREEZE-295: domus while frozen
   await page.waitForSelector('sw-app devices-building home-widgets');
   await page.waitForTimeout(500);
 }

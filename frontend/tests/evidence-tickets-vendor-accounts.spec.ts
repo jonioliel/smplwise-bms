@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installTicketsMock, url, type Persona } from './tickets-mocks';
+import { drawnSkin } from './helpers/frozen-skins';
 
 // TK258 evidence: "חשבון ספקים" (#/tickets/accounts) - the REAL build against a fake API (invented vendors and amounts only): per
 // vendor and currency what is to pay / paid / awaiting approval (two currencies, never added up), the claims with links, the filters
@@ -130,9 +131,9 @@ test.describe('vendors account (TK258)', () => {
       await expect(page.locator(`${S} sw-table[data-va-claims] tr[data-row-id]`)).toHaveCount(7);
       await shot(page, 'ready', scheme);
     }
-    await go(page, {}, 'light', 'bubble');
+    await go(page, {}, 'light', drawnSkin('bubble')); // BUBBLE-FREEZE-295: domus while frozen
     await ready(page);
-    await shot(page, 'ready', 'light', 'bubble');
+    await shot(page, 'ready', 'light', drawnSkin('bubble'));
   });
 
   test('each row links to its item', async ({ page }) => {

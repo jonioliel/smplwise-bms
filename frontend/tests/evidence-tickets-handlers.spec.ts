@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installTicketsMock, url } from './tickets-mocks';
 import { installS4Mock, serveBuiltApp, type S4Mock, type S4MockOptions } from './tickets-s4-mocks';
+import { drawnSkin } from './helpers/frozen-skins';
 
 // CR-038 owner request 2026-10-14 evidence: "מטפלים וספקים" (#/tickets/handlers), the fifth entry of the area - handlers with an account
 // (department members: add / role / alert / remove), employees WITHOUT an account (a directory kind of their own), vendors and contacts;
@@ -67,13 +68,13 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
         await expect(page).toHaveURL(/#\/tickets\/handlers\?seg=vendors/);
         await shot(page, 'vendors', scheme, skin);
       }
-    await go(page, '/tickets/handlers?seg=contacts', {}, 'light', 'bubble');
+    await go(page, '/tickets/handlers?seg=contacts', {}, 'light', drawnSkin('bubble')); // BUBBLE-FREEZE-295: domus while frozen
     await page.waitForSelector(`${H} tickets-contacts[kind="person"] [data-contacts-list]`);
     // the contacts segment lists persons only (the vendor and the employee are in their own segments)
     await expect(page.locator(`${H} tickets-contacts [data-contact-item="c000000000000v01"]`)).toHaveCount(0);
     await expect(page.locator(`${H} tickets-contacts [data-contact-item="c000000000000e01"]`)).toHaveCount(0);
     await expect(page.locator(`${H} tickets-contacts [data-contact-item="c000000000000p01"]`)).toBeVisible();
-    await shot(page, 'contacts', 'light', 'bubble');
+    await shot(page, 'contacts', 'light', drawnSkin('bubble'));
   });
 
   test('handlers with an account: add a user to a department as a handler, make a manager, remove', async ({ page }) => {
