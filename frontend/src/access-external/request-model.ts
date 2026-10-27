@@ -41,6 +41,8 @@ export interface RequestForm {
   dates: Set<string>;
   wins: Win[];
   cred: 'pin' | 'none' | 'card'; // GRANTS3-295: 'card' only while the cards switch is on (a vendor's technician; the server decides)
+  /** EXTERNALBUILD-297: a window code (default) or a one-time code - only with a PIN */
+  once: boolean;
   notes: string;
   told: boolean;
   path: 'self' | 'send';
@@ -50,7 +52,7 @@ export interface RequestForm {
 export function freshForm(): RequestForm {
   return {
     mode: 'dir', q: '', contactId: null, np: { name: '', company: '', phone: '', lang: 'he' }, ticketId: '', purpose: '', doors: new Set(), dq: '',
-    from: '', until: '', dmode: 'weekly', days: new Set([0, 1, 2, 3, 4]), dates: new Set(), wins: [{ s: '07:00', e: '16:00' }], cred: 'pin', notes: '',
+    from: '', until: '', dmode: 'weekly', days: new Set([0, 1, 2, 3, 4]), dates: new Set(), wins: [{ s: '07:00', e: '16:00' }], cred: 'pin', once: false, notes: '',
     told: false, path: 'send', tried: false,
   };
 }
@@ -234,5 +236,6 @@ export function bodyOf(f: RequestForm, contactId: string, tz: string, maxDays: n
     notes: f.notes.trim() || null,
     told: f.told,
     approve_now: f.path === 'self',
+    ...(f.cred === 'pin' && f.once ? { code_mode: 'single_entry' as const } : {}),
   };
 }

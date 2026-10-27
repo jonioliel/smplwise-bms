@@ -72,6 +72,33 @@ object DeepLinks {
         return Route.Offer(ok.url, full)
     }
 
+    /**
+     * True when [url] asks the site to DO something on arrival - a `do` parameter (`?do=run`, `do=delete`, ...) in its query or in
+     * its `#` route's query, the key compared after percent-decoding (the site's URLSearchParams decodes it too). Such a link,
+     * handed over by another app or a web page, is never opened by itself: the user confirms it first (security review
+     * XSECFIX-297 M4); the site itself also only opens its confirmation for `?do=run`.
+     */
+    fun asksForAction(url: String): Boolean {
+        val uri = try {
+            URI(url.trim())
+        } catch (e: URISyntaxException) {
+            return true // not parseable: treat as asking (it is not opened by itself)
+        }
+        val fragment: String = uri.rawFragment ?: ""
+        val routeQuery: String? = if (fragment.contains('?')) fragment.substringAfter('?') else null
+        return hasParam(uri.rawQuery, "do") || hasParam(routeQuery, "do")
+    }
+
+    private fun hasParam(rawQuery: String?, name: String): Boolean {
+        if (rawQuery.isNullOrEmpty()) return false
+        for (pair in rawQuery.split('&', ';')) {
+            val key = pair.substringBefore('=')
+            val decoded = ServerUrls.decodeSegment(key) ?: key
+            if (decoded.trim().equals(name, ignoreCase = true)) return true
+        }
+        return false
+    }
+
     /** The first value of [name] in a raw query, percent-decoded (`+` is kept: it is legal in a URL). */
     internal fun queryParam(rawQuery: String?, name: String): String? {
         if (rawQuery.isNullOrEmpty()) return null

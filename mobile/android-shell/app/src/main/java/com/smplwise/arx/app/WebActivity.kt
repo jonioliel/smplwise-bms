@@ -213,7 +213,9 @@ class WebActivity : LockedActivity() {
         setupBack()
 
         val restored = savedInstanceState?.let { webView.restoreState(it) } != null
-        if (!restored) webView.loadUrl(ServerUrls.launchUrl(start))
+        // XSECFIX-297 M4: while the app lock is due (a cold start, or back after the lock time) the site is not loaded behind the
+        // cover - its JavaScript would run, sign in again from its stored session and act on its address; it loads after the unlock
+        if (!restored) whenUnlocked { if (!rendererGone && !isFinishing) webView.loadUrl(ServerUrls.launchUrl(start)) }
     }
 
     // ---- WebView set-up ----------------------------------------------------------------------------------------------

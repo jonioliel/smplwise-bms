@@ -24,3 +24,8 @@ media drawer").
 
 ## Targeted gate rerun
 `tests/pixel-wiskey-station-media.spec.ts --project=desktop --project=tablet --project=mobile`
+
+## 2.24.1 integration (release/2241): classic + domus pixels only
+The policy of GATELANES-297 (`frontend/tests/helpers/pixel-skins.ts`: pixel baselines for classic and domus only) now covers the
+second block too: its per-skin cases use `pixelTitle` / `skinCheck`, so tesla and crystal run the same case as the structural
+smoke, and the 8 tesla / crystal baselines of this slice are deleted (11 of the 19 remain: classic and domus).

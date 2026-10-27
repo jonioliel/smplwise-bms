@@ -3,6 +3,8 @@ package com.smplwise.arx.app
 import com.smplwise.arx.app.DeepLinks.Link
 import com.smplwise.arx.app.DeepLinks.Route
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** `arx://servers` and `arx://open?url=` (stored servers only; an unknown one is only offered, with its full address). */
@@ -103,6 +105,30 @@ class DeepLinksTest {
             "",
         )) {
             assertEquals(bad, Route.Invalid, DeepLinks.route(bad, servers))
+        }
+    }
+    /** XSECFIX-297 M4: a link that asks the site to do something on arrival is never opened without the user's confirmation. */
+    @Test
+    fun linksAskingForAnActionAreDetected() {
+        for (asking in listOf(
+            "https://office.example.com/arx/#/devices/automations/a1?do=run",
+            "https://office.example.com/arx/#/devices/scripts/s1?view=detail&do=run",
+            "https://office.example.com/arx/#/devices/automations/a1?DO=run",
+            "https://office.example.com/arx/#/devices/automations/a1?%64o=run",
+            "https://office.example.com/arx/#/devices/automations/a1?d%6F=delete",
+            "https://office.example.com/arx/?do=run#/devices/automations/a1",
+            "https://office.example.com/arx/#/devices/automations/a1?x=1;do=run",
+        )) {
+            assertTrue(asking, DeepLinks.asksForAction(asking))
+        }
+        for (plain in listOf(
+            "https://office.example.com/arx/",
+            "https://office.example.com/arx/#/live",
+            "https://office.example.com/arx/#/devices/automations/a1",
+            "https://office.example.com/arx/#/devices/automations/a1?view=trace",
+            "https://office.example.com/arx/#/investigate/events/ev1?done=1&undo=2",
+        )) {
+            assertFalse(plain, DeepLinks.asksForAction(plain))
         }
     }
 }

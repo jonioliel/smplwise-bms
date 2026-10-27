@@ -714,6 +714,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_grants as access_grants_router
 
     app.include_router(access_grants_router.router, prefix=api, tags=["access"])  # CR-ARX-WISKEY-SHARED-IDENTITY: external-person door grants (off; go-live not permitted)
+    from .routers import access_visitors as access_visitors_router
+
+    app.include_router(access_visitors_router.router, prefix=api, tags=["access"])  # EXTERNALBUILD-297 / CR-VISITOR105: visitor invitations (off by default)
     from .routers import wiskey_switches as wiskey_switches_router
 
     app.include_router(wiskey_switches_router.router, prefix=api, tags=["access"])  # SMALLFIXA-295 (review 3 G-01/G-03): the wiskey.acr5_* switch writer (system administrator)

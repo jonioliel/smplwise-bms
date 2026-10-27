@@ -60,6 +60,24 @@ GATE_ACCESS_STATE = "acr5_01"  # wiskey_acr5.FLAGS: wiskey.acr5_access_state
 GATE_NORMALIZE = "acr5_02"     # wiskey_acr5.FLAGS: wiskey.acr5_normalize_user
 
 
+_LAST: dict[str, Any] | None = None
+_LAST_LOCK = threading.Lock()
+
+
+def _note_negotiated(n: was.Negotiated) -> None:
+    """EXTERNALBUILD-297 (X1): the last negotiation this process made, for the readiness check (version, reason, when). Never a list."""
+    global _LAST
+    from datetime import datetime, timezone
+
+    with _LAST_LOCK:
+        _LAST = {"version": n.version, "reason": n.reason, "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+
+
+def last_negotiated() -> dict[str, Any] | None:
+    with _LAST_LOCK:
+        return dict(_LAST) if _LAST is not None else None
+
+
 class LiveReadback:
     def __init__(self, settings: Any, *, sync: Any = None, clock: Callable[[], float] = time.monotonic,
                  gate: Callable[[str], bool] | None = None) -> None:
@@ -104,6 +122,7 @@ class LiveReadback:
         negotiated = was.negotiate(lists.get("commands"), lists.get("capabilities"))
         with self._lock:
             self._cached = (now, negotiated)
+        _note_negotiated(negotiated)
         return negotiated
 
     # ---- the reads

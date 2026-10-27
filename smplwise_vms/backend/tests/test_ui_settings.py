@@ -387,6 +387,47 @@ def test_ui_skin_and_scheme_settings(settings):
         assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == "tesla"
 
 
+def test_ui_motion_setting(settings):
+    """MOTIONSETTING-297: ui.motion (auto | full | reduced, default auto) sits next to ui.skin: per installation, validated, audited,
+    readable by everyone, writable with system.configure; a corrupt stored value reads as the default. The frontend lists the same ids."""
+    import re
+    from pathlib import Path
+
+    from smplwise.db import set_setting
+
+    front = (Path(__file__).resolve().parents[3] / "frontend" / "src" / "design" / "apply.ts").read_text(encoding="utf-8")
+    m = re.search(r"export const MOTION_MODES: readonly MotionMode\[\] = \[([^\]]*)\]", front)
+    assert m, "MOTION_MODES not found in design/apply.ts"
+    assert re.findall(r"'([^']+)'", m.group(1)) == ["auto", "full", "reduced"]
+
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["ui.motion"] == "auto"
+        for mode in ("reduced", "full", "auto"):
+            r = c.patch("/api/v1/settings", json={"ui.motion": mode})
+            assert r.status_code == 200, (mode, r.text)
+            assert r.json()["settings"]["ui.motion"] == mode
+        for bad in ("none", "Full", "", "reduced ", "off", "true"):
+            assert c.patch("/api/v1/settings", json={"ui.motion": bad}).status_code == 422, bad
+        assert c.get("/api/v1/settings").json()["settings"]["ui.motion"] == "auto"
+        # it travels with the skin in one save and is audited
+        assert c.patch("/api/v1/settings", json={"ui.skin": "infra", "ui.motion": "reduced"}).status_code == 200
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+        assert {"ui.skin": "infra", "ui.motion": "reduced"} in rows
+        # same permission model as the skin: a viewer reads it, cannot write it
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        seen = c.get("/api/v1/settings", headers=as_user("dana"))
+        assert seen.status_code == 200 and seen.json()["settings"]["ui.motion"] == "reduced"
+        assert c.patch("/api/v1/settings", json={"ui.motion": "full"}, headers=as_user("dana")).status_code == 403
+        assert c.get("/api/v1/settings").json()["settings"]["ui.motion"] == "reduced"
+        # a corrupt stored value reads as the default (the row is left as it is)
+        with app.state.db.connection() as conn:
+            set_setting(conn, "ui.motion", "wobble")
+            conn.commit()
+        assert c.get("/api/v1/settings").json()["settings"]["ui.motion"] == "auto"
+
+
 def test_stored_frozen_skin_reads_as_domus(settings):
     """BUBBLE-FREEZE-295: an installation that already stored the frozen 'bubble' skin is read as 'domus' (no migration: the row stays)."""
     from smplwise.db import set_setting

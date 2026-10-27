@@ -15,7 +15,7 @@ import { productSettings } from '../api/prefs';
 import {
   acceptContact, approveGrant, attachCard, confirmGone, exportGrantsCsv, getHistory, type HistoryRow, getDigest, getDrift, getGrant, listGrants, listPendingContacts,
   provisionNow, pushName, putScreenSettings, readNow, refuseGrant, rejectPendingContact, revokeAll, revokeGrant, rotateCode, type Digest, type Drift, type DriftKind,
-  type DriftRow, type Grant, type GrantsReply, type PendingReply, type ScreenSettings,
+  type DriftRow, type Grant, type GrantsReply, type PendingReply, type ScreenSettings, getReadiness, setExternalGrants, type Readiness,
 } from '../api/access-grants';
 import {
   BUCKETS, DAYS, STATE_ICON, STATE_TONE, actionsOf, codeOf, counts, datesText, doorState, durationText, goneReferenceOk, hoursText, ladder, lastDay, localDate,
@@ -100,6 +100,8 @@ export class AccessExternalScreen extends LitElement {
   @state() private pending: PendingReply | null = null;
   @state() private busy = false;
   @state() private dlgError = '';
+  // EXTERNALBUILD-297 (X1): the readiness check shown in the settings dialog (system administrators); null = loading, 'error' = not loaded
+  @state() private readiness: Readiness | null | 'error' = null;
   @state() private toasts: { id: number; text: string }[] = [];
   @state() private tz = 'Asia/Jerusalem';
   // GRANTS3-295: the card typed for a card grant (held only until the save answers) and the owner's per-grant history
@@ -942,6 +944,34 @@ export class AccessExternalScreen extends LitElement {
     this.draft = { ...s };
     this.dlgError = '';
     this.dialog = { kind: 'settings' };
+    this.loadReadiness();
+  }
+
+  private loadReadiness(): void {
+    this.readiness = null;
+    getReadiness().then((r) => (this.readiness = r)).catch(() => (this.readiness = 'error'));
+  }
+
+  /** EXTERNALBUILD-297: the main switch and the read-only readiness lines (ok / missing / unknown, the server's Hebrew text). */
+  private activationSection(): TemplateResult {
+    const on = !!this.data?.enabled;
+    const r = this.readiness;
+    const tone = { ok: 'ok', blocked: 'err', unknown: 'warn' } as const;
+    const set = (v: 'on' | 'off') => this.act(async () => {
+      await setExternalGrants(v);
+      await this.load();
+      this.loadReadiness();
+    }, 'set_saved');
+    return html`<section class="sec" data-sec="activation"><h4>${xt('act_title')}</h4>
+      <div class="seg" role="group" data-external-switch><button type="button" aria-pressed=${String(!on)} data-setting="external_grants:off" ?disabled=${this.busy} @click=${() => on && void set('off')}>${xt('act_off')}</button>
+        <button type="button" aria-pressed=${String(on)} data-setting="external_grants:on" ?disabled=${this.busy} @click=${() => !on && void set('on')}>${xt('act_on')}</button></div>
+      <h4>${xt('rd_title')}</h4>
+      ${r === null ? html`<p class="note" data-readiness="loading">${xt('rd_loading')}</p>`
+        : r === 'error' ? html`<p class="err-line" data-readiness="error">${xt('rd_error')}</p>`
+        : html`<p class="note" data-readiness=${r.ready ? 'ready' : 'missing'}><b>${r.summary}</b></p>
+          <ul class="rd" role="list">${r.lines.map((ln) => html`<li data-rd=${ln.key} data-rd-state=${ln.state}><span class="chip" data-tone=${tone[ln.state]}>${xt(`rd_${ln.state}` as XtKey)}</span>
+            <span><b>${ln.label}</b> · ${ln.text}</span></li>`)}</ul>`}
+    </section>`;
   }
 
   private settingsDialog(): TemplateResult {
@@ -953,6 +983,7 @@ export class AccessExternalScreen extends LitElement {
     const hours: DropdownItem[] = Array.from({ length: 24 }, (_, h) => ({ id: String(h), label: `${String(h).padStart(2, '0')}:00` }));
     return html`<sw-dialog open heading=${xt('set_title')} subheading=${xt('set_sub')} data-settings-dialog @close=${() => (this.dialog = null)}>
       <div class="stack">
+        ${this.activationSection()}
         <section class="sec"><h4>${xt('set_placement')}</h4>${seg('placement', [['access', 'pl_access'], ['tickets', 'pl_tickets'], ['both', 'pl_both']])}</section>
         <section class="sec"><h4>${xt('set_digest')}</h4>
           <div class="field"><label>${xt('set_channel')}</label>${seg('digest_channel', [['app', 'ch_app'], ['app_whatsapp', 'ch_app_whatsapp']])}</div>
@@ -1082,7 +1113,7 @@ export class AccessExternalScreen extends LitElement {
           <span class="pn"><b>${this.name(g)}</b><small>${[g.company, xt(g.category === 'contractor' ? 'contractor' : 'visitor')].filter(Boolean).join(' · ')}</small><span class="sr">${xt(SRC_KEY[g.source] ?? 'srcManual')}${g.source_ref ? html` <span class="num">${g.source_ref}</span>` : nothing}</span></span>
           <span class="doors">${this.doorChips(g)}</span>
           <span class="win"><span class="num">${datesText(g.valid_from, g.valid_until, this.tz)}</span><small class="num">${hoursText(g, this.tz)}</small></span>
-          <span class="st"><span class="row">${this.badge(g)}${g.pending_amendment ? html`<span class="chip" data-tone="acc">${xt('widening')}</span>` : nothing}</span><span class="why">${xtDynamic(whyKey(g), 'why_pending')}</span></span>
+          <span class="st"><span class="row">${this.badge(g)}${g.pending_amendment ? html`<span class="chip" data-tone="acc">${xt('widening')}</span>` : nothing}${g.code_mode === 'single_entry' ? html`<span class="chip" data-tone="acc" data-once>${xt('once_chip')}</span>` : nothing}</span><span class="why">${xtDynamic(whyKey(g), 'why_pending')}</span></span>
           <span class="code">${g.credential === 'pin' ? this.codeCell(g) : html`<span class="chip" data-tone="off">${xt('code_not_needed')}</span>`}</span>
           <span class="chev"><sw-icon name="chevronBack" size="16"></sw-icon></span></button>`)}</div>`;
     }

@@ -497,12 +497,14 @@ export class AutomationDrawer extends LitElement {
     try { this.dry = await autoApi().dryRun(it.kind, it.id); } catch (err) { this.say(mapAutomationError(err).message, 'error'); this.go('detail'); } finally { this.dryBusy = false; }
   }
 
-  /** A card's menu asked for run / copy / delete: open that confirmation (the dialogs live here), then tell the screen to clear the address. */
+  /** A card's menu asked for run / copy / delete: open that confirmation (the dialogs live here, run included), then tell the screen to clear the address. */
   private applyAction() {
     const it = this.item;
     const a = this.action;
     if (!it || !a) return;
-    if (a === 'run' && it.can.run) void this.run();
+    // XSECFIX-297 (review M4): an address never runs anything by itself - `?do=run` (a card menu, but also any link, e.g. `arx://open`
+    // from another app) only opens the run confirmation; the run needs the user's tap on it
+    if (a === 'run' && it.can.run) this.confirm = 'run';
     else if (a === 'copy' && it.can.copy) { this.copyName = `${it.name} (עותק)`; this.confirm = 'copy'; }
     else if (a === 'delete' && it.can.delete) this.confirm = 'delete';
     this.fire('action-done');

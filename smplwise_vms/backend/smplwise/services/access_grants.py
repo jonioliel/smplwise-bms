@@ -175,6 +175,8 @@ NOTICE_SHORT = {
 # A plain vendor contact, a ticket contact or a signed-in user is never one. Alias `c` is ticket_contacts.
 TECHNICIAN_SQL = ("c.kind = 'person' AND c.user_id IS NULL AND c.erased_at IS NULL AND COALESCE(c.employee, 0) = 0 "
                   "AND NOT EXISTS (SELECT 1 FROM access_pending_contacts p WHERE p.contact_id = c.id AND p.accepted_at IS NULL AND p.rejected_at IS NULL) "
+                  # EXTERNALBUILD-297 (CR-VISITOR105 T11): a visitor invited by a host is never a technician
+                  "AND NOT EXISTS (SELECT 1 FROM access_visitor_invites vi WHERE vi.visitor_contact_id = c.id) "
                   "AND (EXISTS (SELECT 1 FROM access_pending_contacts p WHERE p.contact_id = c.id AND p.accepted_at IS NOT NULL) "
                   "  OR EXISTS (SELECT 1 FROM access_person_links l WHERE l.subject_kind = 'contact' AND l.subject_id = c.id) "
                   "  OR EXISTS (SELECT 1 FROM access_grants g WHERE g.subject_kind = 'contact' AND g.subject_id = c.id))")
@@ -205,6 +207,10 @@ NOTICE_CONTACT = {
     "ru": ("обращайтесь", " к управляющему зданием", ": {org}"),
 }
 CODE_MESSAGE_SENDER = "SmplWise Arx"  # the name the code message starts with when no organisation name is set
+# EXTERNALBUILD-297: the one-time code adds one fixed sentence before "the code is personal" (code-owned, four languages)
+TEMPLATE_PERSONAL = {"he": "הקוד אישי", "en": "The code is personal", "ar": "الرمز شخصي", "ru": "Код личный"}
+SINGLE_ENTRY_SENTENCE = {"he": "הקוד לכניסה אחת בלבד.", "en": "The code is for one entry only.", "ar": "الرمز صالح لدخول واحد فقط.",
+                         "ru": "Код действует только на один вход."}
 
 
 def notice_text(conn: sqlite3.Connection, lang: str) -> str:
@@ -455,6 +461,18 @@ def parse_window(valid_from: Any, valid_until: Any, days: int, at: datetime) -> 
     if vu - vf > timedelta(days=days):
         raise _invalid("valid_until", "too_long", f"גישה זמנית אפשרית לכל היותר ל-{days} ימים.")
     return iso(vf), iso(vu)
+
+
+CODE_MODES = ("window", "single_entry")  # EXTERNALBUILD-297: the window code (as built) or a one-time code (ends after the first entry)
+
+
+def parse_code_mode(value: Any) -> str | None:
+    """None = not given (keep / default `window`); otherwise one of CODE_MODES."""
+    if value is None:
+        return None
+    if value not in CODE_MODES:
+        raise _invalid("code_mode", "format")
+    return str(value)
 
 
 def parse_timing(value: Any) -> dict[str, Any] | None:
@@ -829,7 +847,7 @@ def on_permission_change() -> None:
 
 def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, contact_id: str, source_kind: str, source_ref: str | None,
                   assignment_id: str | None, scope: Scope, outside_window: bool = False, request_id: str | None = None,
-                  purpose: str | None = None, notes: str | None = None) -> tuple[dict[str, Any], str]:
+                  purpose: str | None = None, notes: str | None = None, code_mode: str | None = None) -> tuple[dict[str, Any], str]:
     """Create a `requested` grant, or change the person's live one. Returns (grant, outcome): `created`; `replaced` (still
     requested); `merged` (a narrowing or the same scope of a decided grant: applied at once, pushed to WisKey by the worker when
     active); `widening` (held in `pending_json` for a new approval; the approved scope keeps working meanwhile).
@@ -838,6 +856,11 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
     owner decision (a): that person may not approve it. `purpose` / `notes` (already cleaned by services/access_request.clean_text)
     are written when given."""
     texts = {k: v for k, v in (("purpose", purpose), ("notes", notes)) if v is not None}
+    # EXTERNALBUILD-297: the code type. `single_entry` ends the grant after the first granted entry; on a decided grant it is a
+    # narrowing (merged at once), while asking for `window` on a single-entry grant keeps it single-entry (never widened here).
+    mode = parse_code_mode(code_mode)
+    if mode == "single_entry" and scope.credential != "pin":
+        raise _invalid("code_mode", "pin_only", "קוד חד-פעמי אפשרי רק עם קוד כניסה.")
     if not enabled(conn):
         raise _off()
     if not scope.doors:
@@ -867,9 +890,10 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
             (gid, contact_id, (link_of_subject(conn, "contact", contact_id) or {}).get("id"), source_kind, source_ref, assignment_id, 1 if outside_window else 0,
              json.dumps(scope.doors, sort_keys=True), scope.valid_from, scope.valid_until, json.dumps(scope.timing, sort_keys=True) if scope.timing else None,
              scope.credential, requested_by, "not_needed" if scope.credential == "none" else "pending", at, at))
-        conn.execute("UPDATE access_grants SET scope_requested_by = ?, purpose = ?, notes = ? WHERE id = ?", (requested_by, purpose, notes, gid))
+        conn.execute("UPDATE access_grants SET scope_requested_by = ?, purpose = ?, notes = ?, code_mode = ? WHERE id = ?",
+                     (requested_by, purpose, notes, mode or "window", gid))
         _audit(conn, actor, "access.grant.request", gid, request_id=request_id, source=source_kind, source_ref=source_ref, window=[scope.valid_from, scope.valid_until],
-               stations=stations_of(scope.doors), outside_window=bool(outside_window), technician_id=contact_id)
+               stations=stations_of(scope.doors), outside_window=bool(outside_window), technician_id=contact_id, code_mode=mode or "window")
         return grant_row(conn, gid), "created"
     if live["state"] == "revoking":
         raise _conflict("access_grant_revoking", "הגישה הקודמת עדיין מבוטלת. נסו שוב בעוד רגע.")
@@ -877,7 +901,7 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
         _touch(conn, live["id"], {"doors_json": json.dumps(scope.doors, sort_keys=True), "valid_from": scope.valid_from, "valid_until": scope.valid_until,
                                   "timing_json": json.dumps(scope.timing, sort_keys=True) if scope.timing else None, "credential": scope.credential,
                                   "outside_window": 1 if outside_window else 0, "code_state": "not_needed" if scope.credential == "none" else "pending",
-                                  "scope_requested_by": requested_by, **texts})
+                                  "scope_requested_by": requested_by, **texts, **({"code_mode": mode} if mode else {})})
         _audit(conn, actor, "access.grant.amend", live["id"], request_id=request_id, kind="replaced", window=[scope.valid_from, scope.valid_until],
                stations=stations_of(scope.doors))
         return grant_row(conn, live["id"]), "replaced"
@@ -886,6 +910,8 @@ def request_grant(conn: sqlite3.Connection, *, actor: Any, requested_by: str, co
         fields: dict[str, Any] = {"doors_json": json.dumps(scope.doors, sort_keys=True), "valid_from": scope.valid_from, "valid_until": scope.valid_until,
                                   "timing_json": json.dumps(scope.timing, sort_keys=True) if scope.timing else None, "credential": scope.credential,
                                   "pending_json": None, **texts}
+        if mode == "single_entry":
+            fields["code_mode"] = "single_entry"  # a narrowing: one entry instead of the window
         if live["state"] in ("active", "unknown") and scope != current:
             # R4-03: also while an unknown outcome is being settled - the settlement CASes on the row revision (this write moves it), and a
             # readback that still shows the broader scope activates the grant only with this flag set, so the narrowing is pushed next
@@ -980,7 +1006,7 @@ def self_approval_error() -> ApiError:
 
 
 def approve(db: Database, principal: Principal, grant_id: str, revision: int, *, doors: Any = None, valid_from: Any = None, valid_until: Any = None,
-            told: bool = False, request_id: str | None = None) -> dict[str, Any]:
+            told: bool = False, request_id: str | None = None, code_mode: Any = None) -> dict[str, Any]:
     """CR 3.2: an interactive human holding `access.external.grant` + people.manage + people.sensitive (+ pin.generate for a PIN)
     on EVERY station of the grant and of the linked person. The approver may only narrow what was requested. Sends nothing: the
     worker provisions the door map and validity; the code leaves at its due time (owner answer 4)."""
@@ -1038,6 +1064,12 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
         chosen = Scope(chosen_doors, vf, vu, requested.timing, requested.credential)
         if not covers(requested, chosen):
             raise deny("widened", _invalid("doors", "wider_than_requested", "המאשר יכול רק לצמצם את מה שהתבקש."))
+        # EXTERNALBUILD-297: the approver may turn a window code into a one-time code (a narrowing), never the other way round
+        chosen_mode = parse_code_mode(code_mode) or g.get("code_mode") or "window"
+        if chosen_mode == "window" and g.get("code_mode") == "single_entry":
+            raise deny("widened", _invalid("code_mode", "wider_than_requested", "המאשר יכול רק לצמצם את מה שהתבקש."))
+        if chosen_mode == "single_entry" and chosen.credential != "pin":
+            raise deny("code_mode", _invalid("code_mode", "pin_only", "קוד חד-פעמי אפשרי רק עם קוד כניסה."))
         if requested.credential == "card" and not cards_enabled(conn):
             # GRANTS3-295 (X5): built; still refused while the cards switch is off (it cannot be on without the go-live permit)
             raise deny("cards_off", _conflict("access_grant_cards_off", "גישה בכרטיס לאדם חיצוני כבויה."))
@@ -1070,7 +1102,7 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
             _audit(conn, principal, "access.grant.notice_ack", grant_id, request_id=request_id, via="approver", version=NOTICE_VERSION, acknowledged_for=g["subject_id"], technician_id=g["subject_id"])
         fields: dict[str, Any] = {"doors_json": json.dumps(chosen.doors, sort_keys=True), "valid_from": vf, "valid_until": vu, "pending_json": None,
                                   "approved_by": principal.user_id, "approved_at": iso(at), "approval_revision": permission_revision(conn),
-                                  "phone_confirmed_at": (contact or {}).get("phone_confirmed_at")}
+                                  "phone_confirmed_at": (contact or {}).get("phone_confirmed_at"), "code_mode": chosen_mode}
         if amendment:
             # GRANTDENY-295 (GRANTS3 finding): the approved amendment is the WHOLE scope - doors and window AND the timing and the credential
             # that were requested. Writing only doors + window left the old schedule / credential on the row (and the next push) while the
@@ -1096,7 +1128,8 @@ def approve(db: Database, principal: Principal, grant_id: str, revision: int, *,
         if not _touch(conn, grant_id, fields, expect_revision=revision):
             raise deny("stale", _conflict("stale_revision", "הגישה השתנתה מאז שנטענה. טענו מחדש."))
         _audit(conn, principal, action, grant_id, request_id=request_id, stations=stations, window=[vf, vu], credential=chosen.credential,
-               approval_revision=fields["approval_revision"], kind="widening_approved" if amendment else None, technician_id=g["subject_id"])
+               approval_revision=fields["approval_revision"], kind="widening_approved" if amendment else None, technician_id=g["subject_id"],
+               code_mode=chosen_mode)
         out = grant_row(conn, grant_id)
     WORKER.wake()
     return out
@@ -1445,6 +1478,8 @@ def present(conn: sqlite3.Connection, principal: Principal, g: dict[str, Any]) -
         "doors": [{"station_id": s, "name": _station_name(s), "relays": doors[s]} for s in stations],
         "valid_from": g["valid_from"], "valid_until": g["valid_until"], "timing": json.loads(g["timing_json"]) if g["timing_json"] else None,
         "credential": g["credential"], "outside_window": bool(g["outside_window"]),
+        # EXTERNALBUILD-297: window code or one-time code, and when the one entry was seen
+        "code_mode": g.get("code_mode") or "window", "first_entry_at": g.get("first_entry_at"),
         "pending_amendment": json.loads(g["pending_json"]) if g.get("pending_json") else None,
         "approved_by": g["approved_by"], "approved_at": g["approved_at"],
         "code_state": g["code_state"] if sensitive else None, "code_due_at": g["code_due_at"] if sensitive else None,
@@ -1561,6 +1596,8 @@ def render_code_message(conn: sqlite3.Connection, g: dict[str, Any], contact: di
     else:
         hours = HOURS_PHRASE[lang].format(start=vf.strftime("%H:%M"), end=vu.strftime("%H:%M"))
     text = TEMPLATES[lang].format(code=pin, doors=_door_names(json.loads(g["doors_json"])), dates=dates, hours=hours, ref=g["id"][:8])
+    if g.get("code_mode") == "single_entry":  # EXTERNALBUILD-297: a one-time code says so (fixed, code-owned sentence)
+        text = text.replace(TEMPLATE_PERSONAL[lang], SINGLE_ENTRY_SENTENCE[lang] + " " + TEMPLATE_PERSONAL[lang], 1)
     from .privacy_org import identity
 
     org = identity(conn).organization
@@ -1960,10 +1997,12 @@ class Worker:
         """SHAREDID-293: the external-access screen's own passes, after the grant work of the pass (services/access_external.py) - the
         read-back verification of active grants (owner decision 2), the watch for a person confirmed gone that reappears (3), the name
         sync (5) and the weekly digest (4). Each fails closed on its own: a failure never stops the grant work."""
-        from . import access_denied
+        from . import access_denied, access_entries
         from . import access_external as ax
 
-        for step in (ax.verify_pass, ax.watch_gone, ax.name_pass, ax.digest_due, access_denied.denied_pass):  # DENYALERT133-295: the last, a read only
+        # EXTERNALBUILD-297: the entry watch (one-time codes end after the first entry; visitor entries are recorded) and the visitor bookkeeping
+        for step in (ax.verify_pass, ax.watch_gone, ax.name_pass, ax.digest_due, access_denied.denied_pass, access_entries.entry_pass,
+                     access_entries.visitor_pass):
             try:
                 step(db)
             except Exception:  # noqa: BLE001
@@ -1985,6 +2024,13 @@ class Worker:
             feature = enabled(conn)
         if g is None:
             return None
+        from .access_service_writer import attributed
+
+        # EXTERNALBUILD-297 (X5): a direct service write made for this grant carries the grant and its approver's decision
+        with attributed(g, "revoke" if g["state"] == "revoking" else None):
+            return self._process_row(db, g, grant_id, feature)
+
+    def _process_row(self, db: Database, g: dict[str, Any], grant_id: str, feature: bool) -> str | None:
         try:
             if g["state"] == "revoking":
                 # R5-A1: only a verified strip counts as `revoked`; a grant closed because provably nothing was created is not one
@@ -2000,6 +2046,10 @@ class Worker:
                 return None
             if g["state"] == "active" and g["code_state"] == "pending" and feature:
                 due = parse_iso(g["code_due_at"])
+                from . import access_visitors
+
+                if access_visitors.awaiting_confirmation(db, g["id"]):
+                    return None  # CR-VISITOR105 D8: no code before the visitor confirmed his own number
                 if due is not None and due <= now():
                     return "codes" if self.deliver_code(db, g) else None
         except Exception:  # noqa: BLE001 - fail closed per grant; never the PIN in a log
@@ -2118,7 +2168,16 @@ class Worker:
         p = principal_of(approver)
         doors = json.loads(g["doors_json"] or "{}")
         perms = approve_permissions(g["credential"])
-        kept = {s: r for s, r in doors.items() if not missing_on(conn, p, perms, [s])}
+        from . import access_visitors
+
+        envelope = access_visitors.envelope_rule(conn, g)
+        if envelope is not None:
+            # EXTERNALBUILD-297 (CR-VISITOR105 5.3): a visitor grant the host approved inside the envelope is re-decided against the HOST's
+            # invite permission and the visitor-entrance flag of each station (fail closed, like every re-decision)
+            perms, allowed = envelope
+            kept = {s: r for s, r in doors.items() if s in allowed and not missing_on(conn, p, perms, [s])}
+        else:
+            kept = {s: r for s, r in doors.items() if not missing_on(conn, p, perms, [s])}
         if not kept:
             return ("revoke", None)
         if kept != doors:  # R9 within the re-decision: narrowed to the stations the approver still holds
@@ -2836,6 +2895,10 @@ def reset_for_tests() -> None:
     TRANSPORT = None
     _REDECIDE.clear()
     set_clock(None)
+    from . import access_entries, access_service_writer  # EXTERNALBUILD-297: the entry watch's fake feed and the service writer
+
+    access_entries.EVENT_SOURCE = None
+    access_service_writer.reset_for_tests()
     with WORKER._lock:
         WORKER._drop_lease()
         WORKER._drop_when_idle = False

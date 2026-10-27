@@ -289,6 +289,8 @@ PERMISSION_LABELS: dict[str, str] = {
     # a technician) - per station (the access-control station chain), together with people.manage + people.sensitive (+ pin.generate for
     # a code). Sensitive, never implied; built-in holder system_admin only; the owner hands it to a user through a custom role.
     "access.external.grant": "בקרת כניסה: אישור גישה זמנית לאדם חיצוני (ספק או טכנאי)",
+    # EXTERNALBUILD-297 (CR-VISITOR105): invite a visitor to the visitor-entrance doors of a station (approved by the host inside the envelope)
+    "access.visitor.invite": "בקרת כניסה: הזמנת מבקר עם קוד כניסה זמני",
     # CR-AUTODOORS-295: create, edit, arm and stop the "open a door" blocks of automations - only for doors the person may open
     # themselves (checked at arm time and again at every fire). Opens nothing by itself. Sensitive, never implied; built-in holder
     # system_admin only; may be carried by a station-scope role (rbac.STATION_PERMISSIONS).

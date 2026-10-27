@@ -44,6 +44,9 @@ export const REDUCED_MOTION_ARX = [
   .map((d) => `${d} !important;`)
   .join('');
 
+/** Everything reduced motion sets (the older names and the Arx layer); the OS media query and `data-motion="reduced"` share it. */
+export const REDUCED_MOTION_DECLS = `--sw-t-fast:0ms !important;--sw-t-med:0ms !important;--sw-t-sheet:0ms !important;--sw-t-state:0ms !important;--sw-hover-lift:0px !important;${REDUCED_MOTION_ARX}`;
+
 /** One block set for a selector prefix (`:root` or `:root[data-skin="x"]`) and a table. */
 function blocks(prefix: string, t: TokenTable, first: boolean): string {
   const lightDecl = decls(t, 'light');
@@ -71,7 +74,10 @@ export function tokensCss(): string {
   // (`:root[data-skin="x"][data-theme="dark"]`, and the OS-dark twin) repeats every skin override, motion included, with a higher
   // specificity than `:root[data-skin]` - without it bubble / domus / tesla kept their durations in dark under reduced motion (0.1.162 gate)
   // SKINFOUND-297: the Arx motion layer (round 2, r2.css §13) keeps colour / opacity and drops travel, springs and the press scale
-  css += `@media (prefers-reduced-motion: reduce){:root,:root[data-skin]{--sw-t-fast:0ms !important;--sw-t-med:0ms !important;--sw-t-sheet:0ms !important;--sw-t-state:0ms !important;--sw-hover-lift:0px !important;${REDUCED_MOTION_ARX}}}\n`;
+  // MOTIONSETTING-297: the same declarations apply (a) under the OS reduction unless the installation chose `full`
+  // (<html data-motion="full">), and (b) always when it chose `reduced` (data-motion="reduced"): reduced == the OS reduction, byte for byte
+  css += `@media (prefers-reduced-motion: reduce){:root:not([data-motion="full"]),:root[data-skin]:not([data-motion="full"]){${REDUCED_MOTION_DECLS}}}\n`;
+  css += `:root[data-motion="reduced"],:root[data-skin][data-motion="reduced"]{${REDUCED_MOTION_DECLS}}\n`;
   // reduced transparency: the translucent layers of every skin become their solid twins
   css += '@media (prefers-reduced-transparency: reduce){:root,:root[data-skin]{--sw-sheet-alpha:1 !important;--sw-glass-blur:none;--sw-glass-blur-nav:none;--sw-glass-blur-sheet:none;--sw-backdrop-blur:none}}\n';
   return css;

@@ -6901,5 +6901,101 @@
       "AT-GATEAUDIT-1",
       "AT-GATELANES-1"
     ]
+  },
+  {
+    "id": "R-WISKEYA06-1",
+    "title": "WisKey A06 / T06 (W-031, board r152): identity source + role + scope -> admission, and the work-state mapping",
+    "statement": "Every signed WisKey command is admitted only on the CURRENT Arx RBAC of the person it is attributed to (a revoke, expiry, delete or deny between two commands refuses the second); the emergency-open role given to non-administrators (EMROLE) admits the signed emergency command on its own scope only and lapses at use time; admitted / pending / running / accepted / active and a static status.active are never read as a sent door, a committed native write or a device proof.",
+    "task_ids": [
+      "WISKEYA06-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEYA06-1"
+    ]
+  },
+  {
+    "id": "R-EXTBUILD-1",
+    "title": "External access to full scope: readiness check, graceful WisKey write path, service-writer adapter, one-time vendor code, visitor invitations (board r381)",
+    "statement": "A system administrator sees, read-only and in plain Hebrew, which prerequisites of the external access are in place (write path, revoke proof, WhatsApp account, entrance stations, approvers) - unknown is never ok; grant writes never fail because WisKey's direct connection is selected: they use a service writer when WisKey offers one and otherwise fall back to the local service channel, with the reason shown; revokes are never blocked; a vendor's code can be a one-time code that is withdrawn after the first reported entry (best effort); a host with access.visitor.invite invites a visitor on the same grant engine (approval envelope routes, never refuses; no door code before the visitor's number is confirmed by code; entry log and a content-free arrival notice; 30-day erase); every switch stays OFF by default.",
+    "task_ids": [
+      "EXTERNALBUILD-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-EXTBUILD-1"
+    ]
+  },
+  {
+    "id": "R-DOORWRITE-1",
+    "title": "Door-window program written from Arx to WisKey (board r129)",
+    "statement": "Arx writes each door's weekly hold-open program to WisKey only after validating it, proves every write by reading it back, never re-sends an unchanged program, records a version per proven write, detects a program changed or paused outside Arx and does not correct it automatically, retries a failed write a bounded number of times with a growing wait and then waits for a person, always lets the close direction (pause) through, shows the operator one plain Hebrew sentence per state, offers a dry run that writes nothing and a confirmed per-door write-again, and audits ids and codes only; nothing is live while the program engine build flag is off.",
+    "task_ids": [
+      "DOORWRITE-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DOORWRITE-1"
+    ]
+  },
+  {
+    "id": "R-XSECFIX-1",
+    "title": "Security review 2026-10-27 (phone apps): the four medium findings fixed",
+    "statement": "A route is exempt from the required-sensors policy only by an exact path match (non-canonical paths refused); a phone's device token and push registration end on every sign-out except a desktop-browser sign-out, and the event is audited; a device token on the remote channel obeys the user's remote-access policy; a valid device token is never refused by the failure limiter, and failures count per source address; a link that opens the app waits for the app lock and a link that asks for an action runs nothing without the user's confirmation.",
+    "task_ids": [
+      "XSECFIX-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-XSECFIX-1"
+    ]
+  },
+  {
+    "id": "R-MOTIONSETTING-1",
+    "title": "A motion setting separate from the skin and the colour scheme",
+    "statement": "The installation has a motion setting (automatic, full, reduced; default automatic) that is independent of the skin and the scheme: automatic follows the device's reduced-motion preference, full ignores it, reduced always removes motion; it is changed only with the permission to change the system look, is audited like the skin, and a corrupt stored value reads as automatic.",
+    "task_ids": [
+      "MOTIONSETTING-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-MOTIONSETTING-1"
+    ]
+  },
+  {
+    "id": "R-SPLITSWITCH2-1",
+    "title": "The emergency-buttons switch is an installation setting (owner q48)",
+    "statement": "An administrator can switch the emergency buttons off and on for the whole installation (default on); the switch only gates the version's build approval and never starts the emergency engine; releasing an active incident never depends on it; every change is audited with who, when, before and after; turning it off needs an explicit confirmation and is refused while an emergency is active; the screen tells 'not approved in this version' apart from 'switched off'.",
+    "task_ids": [
+      "SPLITSWITCH2-297"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SPLITSWITCH2-1"
+    ]
   }
 ]

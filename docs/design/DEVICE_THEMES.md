@@ -470,8 +470,27 @@ duration and the press scale (.97). The new names are declared in `tokens.ts` wi
 durations, press scale 1, no entrance), so every other skin draws exactly what it drew before. Four component rules use them in both
 Arx skins: press feedback (transform) and colour transitions on `sw-button` / `sw-chip`, and the switch thumb on the toggle spring.
 Reduced motion (`prefers-reduced-motion: reduce`, `css.ts`) zeroes every Arx duration, the rise and the press scale, with
-`!important` like the existing motion names. The `ui.motion` setting of the design system (`auto` / `full` / `reduced`) is not built
-in this slice.
+`!important` like the existing motion names.
+
+**The motion setting `ui.motion` (MOTIONSETTING-297).** A separate installation setting next to `ui.skin` and `ui.scheme`, values
+`auto` (default) | `full` | `reduced`, in every skin (not only the Arx ones). Backend: `routers/settings.py` (`DEFAULTS`, the
+`^(auto|full|reduced)$` pattern, a corrupt stored value reads as `auto`), the same permission model as the skin (everyone reads,
+`system.configure` writes, audited); tests in `backend/tests/test_ui_settings.py`. Frontend: `design/apply.ts` writes it as
+`data-motion` on `<html>` (`MOTION_MODES`, `currentMotion`, cached with the skin and scheme in `sw.ui.design` so the next load has no
+flash; `?motion=` overrides it for one page view, for designers and the specs). `design/css.ts` keys on it:
+
+| Value | What the token layer does |
+|---|---|
+| `auto` | Nothing new: the OS reduction (`prefers-reduced-motion: reduce`) zeroes the motion tokens, exactly as before the setting existed. |
+| `full` | The OS-reduction block is excluded (`:root:not([data-motion="full"])`): the duration, press and hover-lift tokens keep their skin values. |
+| `reduced` | The very same declarations as the OS reduction (`REDUCED_MOTION_DECLS`: every `--sw-t-*` and spring duration 0 ms, `--sw-enter-y` / `--sw-hover-lift` 0 px, `--sw-press-scale` 1) apply always. |
+
+Limits, stated plainly: `full` only releases what the duration tokens drive. Component-local `@media (prefers-reduced-motion: reduce)`
+rules (looping indicators, the wall, the media screens) and the few JavaScript `matchMedia` checks still follow the device; those
+are non-token, mostly functional cues and are untouched by this slice. `reduced` is token-level too, so it is as complete as the OS
+reduction is for the token-driven motion and no more. Where: הגדרות › כללי › מראה המערכת, the row "תנועה" (אוטומטי / מלא / מופחת) above
+the colour-scheme row, saved with the same "שמור" button as the skin. Tests: `tests/unit-motionsetting-297.spec.ts` (the printed CSS),
+`tests/smoke-motionsetting-297.spec.ts` (the control, the attribute, the computed tokens with and without the OS reduction).
 
 **Material (soft only).** The canvas paints the blooms on `sw-app`; the rail, the phone bar, cards and KPI tiles are glass behind the
 performance switches (`--sw-perf-blur` / `--sw-perf-glass-bg`); without `backdrop-filter`, with `prefers-reduced-transparency: reduce`

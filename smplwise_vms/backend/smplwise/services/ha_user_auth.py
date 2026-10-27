@@ -1282,7 +1282,22 @@ def logout(app_state: Any, settings: Settings, conn_like: Any) -> bool:
     s = STORE.drop_chain(sid) if sid else None
     if s is not None:
         _audit(app_state.db, actor=s.principal, action="auth.remote_session.logout", decision="allowed", reason=None, meta=request_meta(conn_like))
+        # XSECFIX-297 (review M2 / L1): a sign-out inside the phone app ends the app's device token and push registration too
+        _end_device_credentials(app_state.db, s.principal.user_id, "logout", user_agents=(s.user_agent, request_meta(conn_like).get("user_agent", "")),
+                                actor=s.principal)
     return s is not None
+
+
+def _end_device_credentials(db: Any, user_id: str, reason: str, **kw: Any) -> int:
+    """XSECFIX-297 (review M2): services/presence.end_on_sign_out on a short connection of its own. Never raises: the sign-out stands."""
+    try:
+        from . import presence
+
+        with db.connection(label="sign-out device credentials") as conn:
+            return presence.end_on_sign_out(conn, user_id, reason, **kw)
+    except Exception:  # noqa: BLE001
+        log.warning("could not end the device credentials of a signed-out user", exc_info=True)
+        return 0
 
 
 # ---------------------------------------------------------------- per request (resolve_principal's remote branch)
@@ -1713,6 +1728,13 @@ async def revoke_sessions(app_state: Any, settings: Settings, sessions: list[Rem
                     app_refresh.hook("revoke_anchor", conn, app_refresh.session_anchor(s.sign_in()), reason)
             if reason in ("signed_out_everywhere", "revoked_all_by_admin"):
                 app_refresh.hook("revoke_user", conn, target_user, reason)
+            # XSECFIX-297 (review M2): the phone app's device token and push registration end with "sign out everywhere" (own or an
+            # administrator's - the lost-phone kill switch), and with one ended sign-in that came from inside the app
+            from . import presence
+
+            presence.end_on_sign_out(conn, target_user, reason, everywhere=reason in ("signed_out_everywhere", "revoked_all_by_admin"),
+                                     user_agents=tuple(s.user_agent for s in dropped if s.principal.user_id == target_user),
+                                     actor=actor, request_id=request_id)
             # review L4: the channel is the ACTOR's (an administrator may revoke from inside the system); what was ended
             # is `ended_via` (cookie / bearer)
             audit(conn, actor=actor, action="auth.remote_session.revoked", decision="allowed", resource_type="user", resource_id=target_user,

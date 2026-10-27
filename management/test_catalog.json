@@ -10318,5 +10318,138 @@
     "expected": "tsc ok; SELFTEST PASSED; every pixel case passes against the unchanged classic / domus baselines and every smoke case passes; both pytest selections pass; the lists match.",
     "status": "NOT_RUN",
     "notes": "2026-10-27 test machine, pilot/GATELANES-297 @ 880cfe659, one targeted run (not a gate; load average 16-28 from other jobs): tsc ok; selftest 2 BROKEN cases = a bug in the new check (it read the -m of `python -m pytest`; the printed command lines show -m 'not timing_lane' / -m timing_lane), fixed in the next commit, selftest NOT re-run; backend -m 'not timing_lane' (door, LAT1, tablet allowlist) 16 passed / 2 deselected; backend -m timing_lane 1 passed, 1 failed (LAT1 latency bounds at load ~25: the lane's reason to exist); playwright --list: archive 0 tests, @timing-lane 15 tests in 4 files; pixel step (12 per-skin pixel specs, desktop + mobile, --grep pixel-stable) 117 passed / 11 skipped / 0 failed against the unchanged classic / domus baselines; structural smoke (tesla, crystal, 3 projects) 39 passed / 29 skipped / 4 failed - all 4 in pixel-access-schedules, a page error 'localStorage access denied' thrown on the about:blank page the spec's open() loads first (harness, not the skin); the smoke now ignores errors of about:blank (next commit), NOT re-run; evidence-uxfix-rtl + evidence-nvr-cameras-batch with --grep-invert @timing-lane 23 passed; timing_lane.sh --now (engine GATE_LANE=timing, own worktree): PASS in 3 min (preview 10, dev 1, backend 2, 0 fail)."
+  },
+  {
+    "id": "AT-WISKEYA06-1",
+    "requirement_ids": [
+      "R-WISKEYA06-1"
+    ],
+    "task_ids": [
+      "WISKEYA06-297"
+    ],
+    "title": "WisKey A06 / T06: live-RBAC identity source, EMROLE admission rows on the signed emergency command, work-state mapping (fakes)",
+    "kind": "unit/contract",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes only (FakeDirectPort recorder); no WisKey, Home Assistant, station or door"
+    ],
+    "procedure": [
+      "backend tests: tests/test_wiskeya06_297.py",
+      "regression: tests/test_t06_admission_295.py, tests/test_w031_295.py, tests/test_door_emergency_roles_emrole_295.py"
+    ],
+    "expected": "Every listed test passes on the branch; a refused caller signs nothing; no work-state word other than the closed acknowledgement / committed / central_committed is read as done.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 workstation, pilot/WISKEYA06-297 (from v2.23.2): tests/test_wiskeya06_297.py 88 passed; regression test_t06_admission_295 + test_w031_295 + test_door_emergency_roles_emrole_295 87 passed, 3 xfailed (the strict T06 FINDING xfails). Fakes only. Not a gate."
+  },
+  {
+    "id": "AT-EXTBUILD-1",
+    "requirement_ids": [
+      "R-EXTBUILD-1"
+    ],
+    "task_ids": [
+      "EXTERNALBUILD-297"
+    ],
+    "title": "External access full scope: readiness, write-path fallback, service-writer adapter, one-time code, visitors (fakes only)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes only (FakeAccessEngine, fake code transport, fake event feed, stand-in service channel and direct join); no WisKey, station, door or WhatsApp"
+    ],
+    "procedure": [
+      "backend tests: tests/test_externalbuild_297.py",
+      "regression: tests/test_access_grants.py, test_grants3_295.py, test_access_arrival.py, test_grantsmin_295.py, test_harden271_access_grants.py, test_accessreq_293.py, test_denyalert133_295.py, test_sharedid_293.py, test_k7_redecide_chunked.py, test_physentry070_295.py, test_wkjoin_295.py, test_notify_core.py, test_quiet103.py, test_access_permissions_wxperm.py, test_custom_roles.py, test_rbac.py, test_rbac_matrix.py, test_stationperm_295.py, test_eccact_readback_295.py, test_wkv2b_295.py, test_wkv2_295.py, test_secfix2_pub03_pending_retention.py, test_tickets_phone_verify.py, test_access.py",
+      "frontend: tsc --noEmit"
+    ],
+    "expected": "Every listed test passes on the branch; no default setting changes; nothing reaches a real system.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 local workstation (fakes only), pilot/EXTERNALBUILD-297 @ 9daae20f4 + catalogue fix: tests/test_externalbuild_297.py 30 passed; regression sets (grants, arrival, grants3, grantsmin, harden271, accessreq, denyalert, sharedid, k7, physentry, wkjoin, notify_core, quiet103, wxperm, custom_roles, rbac, rbac_matrix, stationperm, eccact_readback, wkv2, wkv2b, pub03 retention, tickets phone_verify, access) no failures after test_access_permissions_wxperm learned access.visitor.invite; frontend tsc --noEmit clean. No Playwright spec run. Not a gate."
+  },
+  {
+    "id": "AT-DOORWRITE-1",
+    "requirement_ids": [
+      "R-DOORWRITE-1"
+    ],
+    "task_ids": [
+      "DOORWRITE-297"
+    ],
+    "title": "Door-window program write path end to end against the W0 fake program engine (live seam classes, stub direct connection)",
+    "kind": "integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes only; no WisKey, no station, no door; PROGRAM_ENGINE_BUILT switched on inside the test only"
+    ],
+    "procedure": [
+      "backend tests: tests/test_doorwrite_297.py, tests/test_doorwin_watch.py, tests/test_doorwin_api.py, tests/test_doorwin2_foreign.py, tests/test_doorwin2_events.py, tests/test_doorwin2_review2.py, tests/test_splitswitch_297.py, tests/test_wiskey_owner26_callers_297.py, tests/test_f3a_doorwin_dw03_295.py"
+    ],
+    "expected": "Every listed test passes on the branch; the shipped build keeps both engine flags off.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 runner, pilot/DOORWRITE-297 @ 005d8dcbb: tests/test_doorwrite_297.py with test_doorwin_watch, test_doorwin_api, test_doorwin2_foreign, test_doorwin2_events, test_doorwin2_review2, test_splitswitch_297, test_wiskey_owner26_callers_297, test_f3a_doorwin_dw03_295: 174 passed. Fakes only (W0 FakeProgramEngine behind the live seam classes); no WisKey, no door. Not a gate. The lab write is prepared, NOT_RUN. Also @005d8dcbb: test_migrations, test_migrations_263_upgrade, test_db_template, test_backup_drill, test_db_gate and the remaining door-window suites 216 passed, 1 failed (test_program_writes_are_pinned: the OWNER26 transport was never pinned - fixed) and 1 error (test_backup_sensitive, 'unable to open database file'); @5a984f4bf: test_doorwrite_297 + test_fake_doorwin_closed_rule_sr1 + test_backup_sensitive 71 passed."
+  },
+  {
+    "id": "AT-XSECFIX-1",
+    "requirement_ids": [
+      "R-XSECFIX-1"
+    ],
+    "task_ids": [
+      "XSECFIX-297"
+    ],
+    "title": "Security review fixes M1-M4: presence gate exact match, credentials end on sign-out, per-source failure limiter, app links wait for the lock",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Backend on fakes; Android JVM unit test needs the Android SDK on the machine"
+    ],
+    "procedure": [
+      "backend tests: tests/test_xsecfix_297.py",
+      "regression: tests/test_presence.py, tests/test_rbac*.py, the security/permission suite selected by the gate",
+      "Android: ./gradlew test (DeepLinksTest) in mobile/android-shell"
+    ],
+    "expected": "Every listed test passes; a valid device token is never refused; every sign-out path except a desktop-browser sign-out ends the device token and push registration; a link asking for an action runs nothing without a confirmation.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 (PREP2241-297): no recorded run in the repository. Gate 2.24.1 runs the whole backend (security-core change). DeepLinksTest is outside the gate: NOT_RUN until run on a machine with the Android SDK."
+  },
+  {
+    "id": "AT-MOTIONSETTING-1",
+    "requirement_ids": [
+      "R-MOTIONSETTING-1"
+    ],
+    "task_ids": [
+      "MOTIONSETTING-297"
+    ],
+    "title": "Motion setting: ui.motion validation and permission, data-motion on the root, reduced-motion CSS per mode, Settings row",
+    "kind": "unit/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "backend tests: tests/test_ui_settings.py",
+      "frontend: playwright unit-motionsetting-297.spec.ts, smoke-motionsetting-297.spec.ts"
+    ],
+    "expected": "Every listed test passes; auto keeps the previous behaviour; full excludes the OS reduction; reduced applies it always.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 (PREP2241-297): no recorded run in the repository. Selected by the 2.24.1 gate from the changed files."
+  },
+  {
+    "id": "AT-SPLITSWITCH2-1",
+    "requirement_ids": [
+      "R-SPLITSWITCH2-1"
+    ],
+    "task_ids": [
+      "SPLITSWITCH2-297"
+    ],
+    "title": "Emergency-buttons switch setting: default on, admin-only, audited, confirmed off, refused during an emergency, never an activation",
+    "kind": "unit/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes only; no door or station"
+    ],
+    "procedure": [
+      "backend tests: tests/test_splitswitch2_297.py, tests/test_splitswitch_297.py, tests/test_door_emergency.py, tests/test_doorwin_api.py",
+      "runner: tests/test_door_emergency_roles_emrole_295.py, tests/test_capmap_295.py",
+      "frontend: tsc --noEmit; playwright evidence-doorwin-295.spec.ts (runner)"
+    ],
+    "expected": "Every listed test passes; no build flag changes.",
+    "status": "NOT_RUN",
+    "notes": "2026-10-27 workstation, pilot/PREP2241-297 @ e59b11f12 (release/2241 + 2.24.1 prep + merge of 1ea245eb9): tests/test_splitswitch2_297.py, test_splitswitch_297.py, test_door_emergency.py, test_doorwin_api.py 68 passed, 0 failed; test_migrations.py + test_migrations_263_upgrade.py 6 passed; frontend tsc --noEmit clean. Fakes only, not a gate. NOT_RUN (runner): playwright evidence-doorwin-295.spec.ts, tests/test_door_emergency_roles_emrole_295.py, tests/test_capmap_295.py."
   }
 ]

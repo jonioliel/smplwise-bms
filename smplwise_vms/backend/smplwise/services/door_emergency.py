@@ -58,6 +58,7 @@ ACTIVE = ("applying", "in_effect", "in_effect_partial", "releasing")
 
 ENABLED = "doors.emergency.enabled"
 OPEN_ENABLED = "doors.emergency.open_enabled"
+ENGINE_SWITCH = "doors.emergency.engine_switch"  # SPLITSWITCH2-297 (owner q48): the emergency-buttons master switch as a setting; default on; a gate on top of the build flag, never an activation
 AUTOMATIONS = "doors.emergency.automations"
 HOLD_MS = "doors.emergency.hold_ms"
 ENGINE_DEADLINE_S = 8     # E-03 / DW-03: no engine call is waited for longer than this (call_with_deadline); a call that did not answer is UNKNOWN
@@ -87,6 +88,7 @@ SETTINGS: dict[str, tuple[str, Any]] = {
     HOME_WIDGET: ("off", lambda v: v in ("off", "on")),
     ENABLED: ("off", lambda v: v in ("off", "on")),
     OPEN_ENABLED: ("off", lambda v: v in ("off", "on")),
+    ENGINE_SWITCH: ("on", lambda v: v in ("off", "on")),
     AUTOMATIONS: ("off", lambda v: v in ("off", "on")),
     HOLD_MS: ("1500", lambda v: v.isdigit() and 1000 <= int(v) <= 3000),
     GRANT_DEFAULT_H: ("24", _hours_ok(0)),
@@ -134,14 +136,20 @@ def attested(conn: sqlite3.Connection) -> bool:
     return row is not None and row["version"] == ATTESTATION_VERSION and row["text_sha256"] == ATTESTATION_SHA
 
 
-def live_ok() -> bool:
-    """The real control can act: the permit is in the build AND the live engine exists (DW-01). Never read on the release path."""
-    return dwe.emergency_ready()  # SPLITSWITCH-297: the emergency flag only; door-window programs have their own
+def engine_switch_on(conn: sqlite3.Connection) -> bool:
+    """SPLITSWITCH2-297: the owner's settings switch for the emergency buttons (default on; admin-only; audited). It only ever turns things OFF on top of the build."""
+    return setting(conn, ENGINE_SWITCH) == "on"
 
 
-def open_available(settings: Any) -> bool:
+def live_ok(conn: sqlite3.Connection | None = None) -> bool:
+    """The real control can act: the permit is in the build AND the live engine exists (DW-01) AND, when a connection is given, the settings switch is on
+    (SPLITSWITCH2-297). Never read on the release path: a release works with the switch off."""
+    return dwe.emergency_ready() and (conn is None or engine_switch_on(conn))  # SPLITSWITCH-297: the emergency flag only; door-window programs have their own
+
+
+def open_available(settings: Any, conn: sqlite3.Connection | None = None) -> bool:
     """Whether the LIVE engine can hold doors open (U3 / W13). False in this build (never true while the live engine is not permitted)."""
-    if not live_ok():
+    if not live_ok(conn):
         return False
     try:
         return bool(dwe.emergency_engine(settings).open_supported)
@@ -150,33 +158,40 @@ def open_available(settings: Any) -> bool:
 
 
 def enabled(conn: sqlite3.Connection) -> bool:
-    return setting(conn, ENABLED) == "on" and live_ok()
+    return setting(conn, ENABLED) == "on" and live_ok(conn)
 
 
 def open_enabled(conn: sqlite3.Connection, settings: Any) -> bool:
-    return enabled(conn) and setting(conn, OPEN_ENABLED) == "on" and attested(conn) and open_available(settings)
+    return enabled(conn) and setting(conn, OPEN_ENABLED) == "on" and attested(conn) and open_available(settings, conn)
 
 
 def settings_view(conn: sqlite3.Connection, settings: Any) -> dict[str, Any]:
-    return {**{k: setting(conn, k) for k in SETTINGS}, "go_live_permitted": live_ok(), "live_engine_built": dwe.emergency_engine_built(),
-            "emergency_engine_built": dwe.emergency_engine_built(),
-            "open_available": open_available(settings),
+    return {**{k: setting(conn, k) for k in SETTINGS}, "go_live_permitted": live_ok(conn), "live_engine_built": dwe.emergency_engine_built(),
+            "emergency_engine_built": dwe.emergency_engine_built(), "build_ready": dwe.emergency_ready(),  # build_ready: permit + engine flag, before the settings switch
+            "open_available": open_available(settings, conn),
             "attested": attested(conn), "attestation": {"version": ATTESTATION_VERSION, "text": ATTESTATION_TEXT_HE}}
 
 
-def update_settings(conn: sqlite3.Connection, settings: Any, changes: dict[str, Any]) -> dict[str, tuple[str, str]]:
+def update_settings(conn: sqlite3.Connection, settings: Any, changes: dict[str, Any], *, confirm_engine_off: bool = False) -> dict[str, tuple[str, str]]:
     for key, value in changes.items():
         if key not in SETTINGS or not isinstance(value, str) or not SETTINGS[key][1](value):
             raise ApiError(422, "invalid_setting", "ערך לא תקין להגדרה.", details={"key": str(key)[:64]})
+    if changes.get(ENGINE_SWITCH) == "off" and setting(conn, ENGINE_SWITCH) == "on":  # SPLITSWITCH2-297: an explicit, plain confirmation; never while an emergency runs
+        if confirm_engine_off is not True:
+            raise ApiError(409, "confirmation_required", "כיבוי לחצני החירום דורש אישור מפורש.")
+        if active_incident(conn) is not None:
+            raise ApiError(409, "incident_active", "יש מצב חירום פעיל - יש לשחרר אותו לפני כיבוי הלחצנים.")
     default_h, max_h = int(changes.get(GRANT_DEFAULT_H, setting(conn, GRANT_DEFAULT_H))), int(changes.get(GRANT_MAX_H, setting(conn, GRANT_MAX_H)))
     if (GRANT_DEFAULT_H in changes or GRANT_MAX_H in changes) and default_h > max_h:
         raise ApiError(422, "invalid_setting", "ברירת המחדל לתוקף גדולה מהתוקף המרבי.", details={"key": GRANT_DEFAULT_H})
     if changes.get(ENABLED) == "on" and not dwe.go_live_permitted():
         raise ApiError(409, "go_live_not_permitted", "הפעלה אמיתית של לחצני החירום אינה מאושרת בגרסה זו. תרגילים זמינים.")
-    if changes.get(ENABLED) == "on" and not live_ok():  # DW-01: the permit alone is not enough - the live engine must exist
+    if changes.get(ENABLED) == "on" and not dwe.emergency_ready():  # DW-01: the permit alone is not enough - the live engine must exist
         raise ApiError(409, "engine_not_implemented", "נעילת חירום אמיתית אינה זמינה בגרסה זו: מנגנון הביצוע במערכת הכניסה עדיין לא קיים. תרגילים זמינים.")
+    if (changes.get(ENABLED) == "on" or changes.get(OPEN_ENABLED) == "on") and changes.get(ENGINE_SWITCH, setting(conn, ENGINE_SWITCH)) == "off":
+        raise ApiError(409, "engine_switch_off", "מתג לחצני החירום כבוי. יש להדליק אותו תחילה.")
     if changes.get(OPEN_ENABLED) == "on":
-        if not live_ok() or not open_available(settings):
+        if not live_ok(conn) or not open_available(settings, conn):
             raise ApiError(409, "open_unavailable", "פתיחת חירום ממתינה לממשק מצד מערכת הכניסה.")
         if not attested(conn):
             raise ApiError(409, "attestation_required", "יש לאשר את הצהרת הבטיחות לפני הפעלת פתיחת חירום.")

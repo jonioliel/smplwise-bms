@@ -84,7 +84,35 @@ export interface Grant {
   self_requested?: boolean;
   /** GRANTS3-295 (X5): the card of a card grant (never a number, not even masked); null for a PIN grant or below the sensitive level */
   card_state?: CardState | null;
+  /** EXTERNALBUILD-297: a window code (default) or a one-time code that ends after the first entry; when that entry was seen */
+  code_mode?: CodeMode;
+  first_entry_at?: string | null;
 }
+
+export type CodeMode = 'window' | 'single_entry';
+
+/** EXTERNALBUILD-297 (X1): one line of the read-only readiness check. `unknown` is never shown as ok. */
+export interface ReadinessLine {
+  key: string;
+  label: string;
+  state: 'ok' | 'blocked' | 'unknown';
+  reason: string;
+  text: string;
+  required: boolean;
+}
+
+export interface Readiness {
+  ready: boolean;
+  missing: string[];
+  unknown: string[];
+  summary: string;
+  lines: ReadinessLine[];
+  at: string;
+}
+
+export const getReadiness = () => get<Readiness>('access-grants/readiness');
+/** EXTERNALBUILD-297: the main switch, a system administrator's settings action (audited server-side with before / after). */
+export const setExternalGrants = (value: 'on' | 'off') => put<GrantRules & ScreenSettings>('access-grants/settings', { external_grants: value });
 
 export type CardState = 'awaiting' | 'adding' | 'attached' | 'unknown' | 'removed';
 
@@ -239,7 +267,7 @@ export async function exportGrantsCsv(lang: 'he' | 'en', liveOnly = false): Prom
 export const getScreenSettings = () => get<GrantRules & ScreenSettings>('access-grants/settings');
 export const putScreenSettings = (body: Partial<ScreenSettings>) => put<GrantRules & ScreenSettings>('access-grants/settings', body);
 
-export const approveGrant = (id: string, body: { revision: number; doors?: Record<string, number[]>; valid_from?: string; valid_until?: string; told: boolean }) =>
+export const approveGrant = (id: string, body: { revision: number; doors?: Record<string, number[]>; valid_from?: string; valid_until?: string; told: boolean; code_mode?: CodeMode }) =>
   post<{ grant: Grant }>(`access-grants/${enc(id)}/approve`, body);
 export const refuseGrant = (id: string, revision: number) => post<{ grant: Grant }>(`access-grants/${enc(id)}/refuse`, { revision });
 export const revokeGrant = (id: string) => post<{ grant: Grant }>(`access-grants/${enc(id)}/revoke`);
@@ -357,6 +385,8 @@ export interface RequestBody {
   notes?: string | null;
   told: boolean;
   approve_now: boolean;
+  /** EXTERNALBUILD-297: 'single_entry' = a one-time code (ends after the first entry, best effort); omitted = a window code */
+  code_mode?: CodeMode;
 }
 
 export interface RequestReply {
