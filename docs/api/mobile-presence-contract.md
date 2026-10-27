@@ -26,7 +26,16 @@ cannot be muted (section 7.3). v1 was the first implemented text.
   - **device token** - `Authorization: Bearer arxd_…` (43 base64url characters after the prefix), shown once by the
     registration, kept in the Keychain, stored by the server as a SHA-256 hash. Sent on its own, never together with a
     session cookie. `401 device_token_invalid` on any route means the registration is gone: forget it and show the
-    registration screen again. Twenty unknown tokens a minute from the same client → `429 rate_limited`.
+    registration screen again. Twenty unknown tokens a minute from the same client address → `429 rate_limited` for
+    that address's further unknown tokens; a valid token is looked up first and is never refused by this limit, whatever
+    other clients send (XSECFIX-297).
+  - The device token and the push registration end with a sign-out (XSECFIX-297): "sign out everywhere" (own or by an
+    administrator), an administrator ending the app's sign-in from the sessions list, the sign-out inside the app (its
+    user agent, or its app web session), and the removal of the user's remote access. The next call answers
+    `401 device_token_invalid`; the device row stays, so `POST presence/devices` with a session of the same install
+    issues a new token, and the app registers push again. A sign-out in a desktop browser leaves the phones alone.
+  - On the remote channel a device token obeys the user's remote-access policy like a session does: a user the policy
+    no longer admits (no flag / administrator default, a wall user) gets `403 remote_not_allowed`.
 - **`Origin` is required** on every state-changing request (POST / PATCH / DELETE) that carries the session cookie (a
   device-token call carries none, so it is exempt): `Origin: <scheme>://<host[:port]>` of the server the request goes to,
   no path, exactly as the app has it stored (the app's own HTTP calls send it too; a web view sends it by itself). The
@@ -258,7 +267,9 @@ covered user whose phone does not report the required sensors is refused:
   (`null` when the policy applies to nobody). The web app shows one state naming the missing sensors.
 - Every other request of a blocked session answers `403 presence_required` with `details.missing`, **except**
   `/me`, `/presence/*`, `/notifications/devices*`, `/notifications/app/*`, `/notifications/categories`, `/auth/*`,
-  `/health` - the routes the app needs to get out of that state.
+  `/health` - the routes the app needs to get out of that state. The match is on the path below `<remote_path>` and
+  `/api/v1`, exact or by whole leading segments (XSECFIX-297): `/media/...`, `/alarm/me/pin`, `/energy/meters`,
+  `/recorders/{id}/health` are NOT exempt.
 - A sensor counts as shared when some live device of the user reported it `on` in `status` within the policy's
   `max_stale_hours` (default 48) **and** acknowledged the current notice version; for `location` also `sharing: true` and
   `location_auth` in `always | when_in_use`. A required sensor reported `unavailable` (no such hardware; owner decision

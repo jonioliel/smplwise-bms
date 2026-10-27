@@ -1461,6 +1461,10 @@ def logout(db: Any, settings: Settings, conn_like: Any, cookie_value: str) -> bo
 
             _audit(conn, actor=principal, action="auth.local.session.revoked", decision="allowed", reason="logout",
                    details={"id": public_id(row["chain_id"]), "ip": mask_address(meta.get("client_ip", ""))})
+            # XSECFIX-297 (review M2 / L1): a sign-out inside the phone app ends the app's device token and push registration too
+            from . import presence
+
+            presence.end_on_sign_out(conn, row["user_id"], "logout", user_agents=(meta.get("user_agent", ""), row["user_agent"] or ""), actor=principal)
     except Exception:  # noqa: BLE001 - an older schema: nothing to end
         return False
     return True

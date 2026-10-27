@@ -79,6 +79,7 @@
     <string name="replace_site_title">לפתוח את הקישור?</string>
     <string name="replace_site_message">האתר שפתוח עכשיו באפליקציה ייסגר (גם שיחת אינטרקום פעילה, אם יש).</string>
     <string name="replace_site_open">פתח</string>
+    <string name="link_action_message">הקישור הגיע מאפליקציה או מאתר אחר ומבקש לבצע פעולה במערכת. פתחו אותו רק אם אתם יודעים מאיפה הגיע.</string>
 
     <!-- the site -->
     <string name="exit_title">לצאת מ־SmplWise Arx?</string>

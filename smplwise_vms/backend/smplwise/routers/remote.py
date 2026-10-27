@@ -34,7 +34,7 @@ from ..db import now_iso
 from ..errors import ApiError, unauthenticated
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..remote_channel import channel_of, is_remote
-from ..services import app_download, ha_user_auth as hua
+from ..services import app_download, ha_user_auth as hua, presence
 
 router = APIRouter()
 APP_DOWNLOAD_LIMITS: list[tuple[float, int]] = [(60.0, 30), (3600.0, 300)]
@@ -174,6 +174,9 @@ def set_remote_access(user_id: str, body: RemoteFlag, request: Request, principa
 
             app_refresh.hook("revoke_user", conn, user_id, "remote_access_removed", actor=principal,
                              request_id=getattr(request.state, "correlation_id", None))
+            # XSECFIX-297 (review M2): the phone app's device tokens and push registrations end with the remote access
+            presence.end_on_sign_out(conn, user_id, "remote_access_removed", everywhere=True, actor=principal,
+                                     request_id=getattr(request.state, "correlation_id", None))
     if before != body.enabled:
         audit(conn, actor=principal, action="remote.access_flag", decision="allowed", resource_type="user", resource_id=user_id,
               request_id=getattr(request.state, "correlation_id", None),
@@ -288,6 +291,8 @@ def _app_revoke(request: Request, principal: Principal, admin: bool, pid: str) -
         ended = app_refresh.revoke_family(conn, row["family_id"], reason, actor=principal, request_id=rid, subject=owner)
         app_session._end_where(conn, "sid_hash = ?", (row["sid_hash"],), reason)  # the family was already ended elsewhere: the row still goes
         app_refresh.release_pins(conn, [row["device_id"]], reason, actor=principal, request_id=rid)  # Q296: only the user's own end
+        # XSECFIX-297 (review M2): ending the app's web session (own or by an administrator) ends that device's token and push too
+        presence.end_on_sign_out(conn, owner, reason, device_ids=[row["device_id"]], actor=principal, request_id=rid)
         audit(conn, actor=principal, action="auth.app_session.revoked", decision="allowed", resource_type="user", resource_id=owner, reason=reason,
               request_id=rid, details={"session": pid, "family": row["family_id"], "families_ended": ended})
     ends_current = current == "a:" + pid
@@ -314,9 +319,12 @@ def _local_revoke(request: Request, principal: Principal, admin: bool, *, chain_
             if owner != principal.user_id and not admin:
                 require(conn, principal, "system.configure", INSTALLATION)  # 403, audited
             reason = "logout" if owner == principal.user_id else "admin"
+            agents = tuple(r["user_agent"] or "" for r in conn.execute("SELECT user_agent FROM auth_local_sessions WHERE chain_id = ?", (chain_id,)).fetchall())
             ended = local_identity.revoke_chain(conn, chain_id, reason)
             ends_current = current == "l:" + chain_id
             target = owner
+            # XSECFIX-297 (review M2): a sign-in of the phone app ended from the list ends the app's device token and push too
+            presence.end_on_sign_out(conn, target, reason, user_agents=agents, actor=principal, request_id=getattr(request.state, "correlation_id", None))
         else:
             if not local_identity.is_local_id(user_id):
                 return None
@@ -324,6 +332,8 @@ def _local_revoke(request: Request, principal: Principal, admin: bool, *, chain_
             reason = "logout_all" if target == principal.user_id else "admin"
             ended = local_identity.revoke_user_sessions(conn, target, reason)
             ends_current = current is not None and current.startswith("l:") and target == principal.user_id
+            # XSECFIX-297 (review M2): "sign out everywhere" / an administrator's revoke-all ends every device token and push registration
+            presence.end_on_sign_out(conn, target, reason, everywhere=True, actor=principal, request_id=getattr(request.state, "correlation_id", None))
         audit(conn, actor=principal, action="auth.local.session.revoked", decision="allowed", resource_type="user", resource_id=target, reason=reason,
               request_id=getattr(request.state, "correlation_id", None), details={"sessions": ended, **({"id": chain_pid} if chain_pid else {})})
     response = JSONResponse({"sessions_ended": ended, "ha_sign_ins_ended": 0, "current_ended": ends_current})
