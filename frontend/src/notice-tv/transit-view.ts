@@ -8,7 +8,7 @@
  * panel says the data is unavailable; an empty window says so and names the next bus.
  */
 import { esc } from './tv-logic';
-import { ahead, badgeWide, distanceText, etaOf, noneText, ts, windowChip, type TransitColumn, type TransitDigest, type TransitItem, type TransitMore } from './transit-logic';
+import { agoText, ahead, badgeWide, distanceText, etaOf, noneText, ts, windowChip, type TransitColumn, type TransitDigest, type TransitItem, type TransitMore } from './transit-logic';
 
 type Lang = 'he' | 'en';
 
@@ -71,11 +71,18 @@ export function stopsTitle(d: TransitDigest, lang: Lang): string {
   return names.length === 1 ? names[0] : names[0] + (lang === 'he' ? ' ועוד ' : ' and ') + (names.length - 1) + (lang === 'he' ? '' : ' more');
 }
 
-function subLine(d: TransitDigest, lang: Lang): string {
+function subLine(d: TransitDigest, lang: Lang, elapsedMs = 0): string {
+  if (d.state === 'cached' && d.source_down) return agoText(lang, d, elapsedMs) || ts(lang, 'sched'); // BUSSTATUS-297: "updated N min ago"
   return d.state === 'cached' && d.updated_hm ? ts(lang, 'stale', { t: d.updated_hm }) : ts(lang, 'sched');
 }
 
+/** BUSSTATUS-297: the one calm line of a provider outage (the stale note is the sub-line "updated N min ago"). */
+function outageLine(d: TransitDigest, lang: Lang): string {
+  return d.source_down ? '<div class="bnote down" data-bus-note="source-down">' + ic('clock') + '<span>' + esc(ts(lang, 'sourceDown')) + '</span></div>' : '';
+}
+
 function note(d: TransitDigest, lang: Lang): string {
+  if (d.source_down) return outageLine(d, lang);
   return d.state === 'cached' && d.updated_hm ? '<div class="bnote">' + ic('clock') + '<span>' + esc(ts(lang, 'stale', { t: d.updated_hm })) + '</span></div>' : '';
 }
 
@@ -85,11 +92,12 @@ function footer(d: TransitDigest, lang: Lang): string {
     (d.updated_hm ? '<span class="num">' + esc(d.updated_hm) + '</span>' : '') + '</div>';
 }
 
-function expiredBlock(lang: Lang): string {
-  return '<div class="bmsg" data-bus-state="expired">' + ic('bus') + '<p>' + esc(ts(lang, 'expiredTitle')) + '</p><span>' + esc(ts(lang, 'expiredHint')) + '</span></div>';
+function expiredBlock(lang: Lang, sourceDown = false): string {
+  return '<div class="bmsg" data-bus-state="expired">' + ic('bus') + '<p>' + esc(ts(lang, sourceDown ? 'sourceDown' : 'expiredTitle')) + '</p><span>' + esc(ts(lang, 'expiredHint')) + '</span></div>';
 }
 
 function emptyBlock(d: TransitDigest, c: TransitCtx, next: TransitItem | null | undefined): string {
+  if (d.partial && d.source_down) return '<div class="bmsg" data-bus-state="unknown">' + ic('bus') + '<p>' + esc(ts(c.lang, 'sourceDownPartial')) + '</p></div>'; // unknown, not "no buses"
   const nx = next
     ? '<div class="nx"><span>' + esc(ts(c.lang, 'next')) + '</span>' + badge(next.line) + '<span>' + esc(next.dest) + '</span><b class="num">' + esc(next.hm) + '</b></div>'
     : '';
@@ -97,7 +105,7 @@ function emptyBlock(d: TransitDigest, c: TransitCtx, next: TransitItem | null | 
 }
 
 function header(d: TransitDigest, c: TransitCtx): string {
-  return '<header class="bh">' + ic('bus') + '<div class="tt"><b>' + esc(stopsTitle(d, c.lang)) + '</b><span>' + esc(subLine(d, c.lang)) + '</span></div><span class="win2">' + esc(windowChip(c.lang, d.window_min ?? 60)) + '</span></header>';
+  return '<header class="bh">' + ic('bus') + '<div class="tt"><b>' + esc(stopsTitle(d, c.lang)) + '</b><span>' + esc(subLine(d, c.lang, c.elapsedMs ?? 0)) + '</span></div><span class="win2">' + esc(windowChip(c.lang, d.window_min ?? 60)) + '</span></header>';
 }
 
 /** The "and N more" line under the rows (always present, empty when nothing is hidden: the fit step fills it when it has to drop rows). */
@@ -109,24 +117,25 @@ function bmore(n: number, c: TransitCtx): string {
 export function sidePanel(d: TransitDigest, c: TransitCtx): string {
   const items = ahead(d.items ?? [], c.nowMs);
   let body: string;
-  if (d.state === 'expired') body = expiredBlock(c.lang);
+  if (d.state === 'expired') body = expiredBlock(c.lang, !!d.source_down);
   else if (!items.length) body = emptyBlock(d, c, d.next);
   else body = '<div class="rows">' + items.map((it) => rowHtml(it, d, c, !!d.multi)).join('') + '</div>';
   const more = bmore(d.state !== 'expired' && items.length ? d.overflow ?? 0 : 0, c);
-  return '<section class="bus" data-bus="side" data-bus-state="' + d.state + '">' + header(d, c) + body + more + footer(d, c.lang) + '</section>'; // the header's second line already says "not updated since"
+  return '<section class="bus" data-bus="side" data-bus-state="' + d.state + '">' + header(d, c) + body + more + outageLine(d, c.lang) + footer(d, c.lang) + '</section>'; // the header's second line says how old the data is
 }
 
 /** Bottom strip: a label column and the cards (the fit step drops what does not fit and writes "and N more"). */
 export function stripPanel(d: TransitDigest, c: TransitCtx): string {
   const items = ahead(d.items ?? [], c.nowMs);
   let body: string;
-  if (d.state === 'expired') body = '<div class="cards msg" data-bus-state="expired">' + ic('bus') + '<div>' + esc(ts(c.lang, 'expiredTitle')) + '<span>' + esc(ts(c.lang, 'expiredHint')) + '</span></div></div>';
+  if (d.state === 'expired') body = '<div class="cards msg" data-bus-state="expired">' + ic('bus') + '<div>' + esc(ts(c.lang, d.source_down ? 'sourceDown' : 'expiredTitle')) + '<span>' + esc(ts(c.lang, 'expiredHint')) + '</span></div></div>';
   else if (!items.length) {
     const n = d.next;
     body = '<div class="cards msg" data-bus-state="empty">' + ic('bus') + '<div>' + esc(noneText(c.lang, d.window_min ?? 60)) +
       (n ? '<span>' + esc(ts(c.lang, 'next')) + ' ' + esc(ts(c.lang, 'nextAt', { l: n.line, d: n.dest, t: n.hm })) + '</span>' : '') + '</div></div>';
   } else body = '<div class="cards" data-total="' + (items.length + (d.overflow ?? 0)) + '">' + items.map((it) => cardHtml(it, d, c)).join('') + '</div>';
-  const stale = d.state === 'cached' && d.updated_hm ? '<div class="bnote stalen">' + ic('clock') + '<span>' + esc(ts(c.lang, 'stale', { t: d.updated_hm })) + '</span></div>' : '';
+  const stale = d.source_down && d.state === 'cached' ? '<div class="bnote stalen">' + ic('clock') + '<span>' + esc(agoText(c.lang, d, c.elapsedMs ?? 0)) + ' · ' + esc(ts(c.lang, 'sourceDown')) + '</span></div>'
+    : d.state === 'cached' && d.updated_hm ? '<div class="bnote stalen">' + ic('clock') + '<span>' + esc(ts(c.lang, 'stale', { t: d.updated_hm })) + '</span></div>' : '';
   return '<section class="bus strip" data-bus="strip" data-bus-state="' + d.state + '"><div class="sl">' + ic('bus') + '<b>' + esc(stopsTitle(d, c.lang)) + '</b><span>' + esc(windowChip(c.lang, d.window_min ?? 60)) + '</span></div>' + body + stale + '</section>';
 }
 
@@ -143,6 +152,6 @@ function columnHtml(col: TransitColumn, d: TransitDigest, c: TransitCtx): string
 /** The rotating slide: one column per stop (the digest's `columns`), the clock-style note and legend once. */
 export function slidePanel(d: TransitDigest, c: TransitCtx, clockHtml: string): string {
   const cols = d.columns ?? [];
-  return '<article class="it transit" data-bus="slide" data-bus-state="' + d.state + '"><div class="bhead">' + ic('bus') + '<div class="tt"><b>' + esc(ts(c.lang, 'title')) + '</b><span>' + esc(subLine(d, c.lang)) + '</span></div>' +
+  return '<article class="it transit" data-bus="slide" data-bus-state="' + d.state + '"><div class="bhead">' + ic('bus') + '<div class="tt"><b>' + esc(ts(c.lang, 'title')) + '</b><span>' + esc(subLine(d, c.lang, c.elapsedMs ?? 0)) + '</span></div>' +
     clockHtml + '</div>' + note(d, c.lang) + '<div class="cols" data-n="' + cols.length + '">' + cols.map((col) => columnHtml(col, d, c)).join('') + '</div>' + footer(d, c.lang) + '</article>';
 }

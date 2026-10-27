@@ -7,6 +7,10 @@ State (`state`), from the age of the cache (the oldest fetch among the screen's 
 * `expired` older than the grace (or never fetched): the panel says it is unavailable and shows no row (the rotating slide is skipped);
 * `off`     the module, the screen's switch or the stop selection is off: nothing is drawn.
 
+BUSSTATUS-297: while the PROVIDER is failing (a 5xx, a throttle, a timeout - `source_down: true`) the last scheduled rows stay on the screen past the
+grace (state `cached`, up to `model.OUTAGE_KEEP_H` of cache age) with their age; `partial: true` says the cached window no longer covers the whole
+display window (an empty list then means "unknown", not "no buses"). Grace 0 keeps meaning "no last-known data".
+
 The server drops what has passed, applies the walking-time offset, the window and the rows, and groups by line when asked. Local clock text
 (`hm`) is made here in the installation's zone; the screen never converts from UTC. The digest carries stop codes and public line data only."""
 from __future__ import annotations
@@ -88,6 +92,14 @@ def _state(age_s: float | None, grace_min: int, fresh_s: int = model.FRESH_S) ->
     return "expired"
 
 
+def _provider_outage(conn: sqlite3.Connection) -> bool:
+    from . import poller  # lazily: the loop's source health, persisted (the screens path itself never calls the provider)
+
+    poller.restore_health(conn)
+    h = poller.HEALTH.view()
+    return h["consecutive_errors"] > 0 and model.is_outage(h["last_error"])
+
+
 def build(conn: sqlite3.Connection, screen: dict[str, Any], now: dt.datetime, tz: ZoneInfo) -> dict[str, Any]:
     cfg = model.load_config(get_setting(conn, model.CONFIG_KEY, ""))
     codes = model.selection(cfg, screen) if cfg["enabled"] and screen.get("enabled") else []
@@ -99,12 +111,15 @@ def build(conn: sqlite3.Connection, screen: dict[str, Any], now: dt.datetime, tz
         name = names.get(c) or (catalogue.get(conn, c) or {}).get("name") or str(c)
         stops.append({"code": c, "name": name})
     marks = ",".join("?" * len(codes))
-    cached = {r["code"]: r for r in conn.execute(f"SELECT code, fetched_at, rows_json FROM transit_cache WHERE code IN ({marks})", codes).fetchall()}
+    cached = {r["code"]: r for r in conn.execute(f"SELECT code, fetched_at, window_to, rows_json FROM transit_cache WHERE code IN ({marks})", codes).fetchall()}
     fetched = [stride.parse_time(cached[c]["fetched_at"]) for c in codes if c in cached]
     fetched = [f for f in fetched if f is not None]
     oldest = min(fetched) if fetched else None
     age = max(0.0, (now - oldest).total_seconds()) if oldest else None
     state = _state(age, cfg["stale_grace_min"], model.fresh_s(cfg))
+    source_down = _provider_outage(conn) and age is not None and age > model.fresh_s(cfg)
+    if source_down and state == "expired" and cfg["stale_grace_min"] > 0 and age <= model.OUTAGE_KEEP_H * 3600:
+        state = "cached"  # the provider is down: keep the last scheduled rows (with their age) instead of blanking the card
     out: dict[str, Any] = {
         "state": state, "now": now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "fetched_at": oldest.strftime("%Y-%m-%dT%H:%M:%SZ") if oldest else None,
         "age_s": int(age) if age is not None else None, "updated_hm": _hm(oldest, tz) if oldest else None, "layout": screen["layout"],
@@ -112,6 +127,7 @@ def build(conn: sqlite3.Connection, screen: dict[str, Any], now: dt.datetime, tz
         "stale_grace_min": cfg["stale_grace_min"], "refresh_s": model.screen_refresh_s(cfg, screen),
         "fresh_s": model.fresh_s(cfg), "position_fresh_s": model.position_fresh_s(cfg),
         "show_distance": model.show_distance(cfg, screen), "stops": stops, "multi": len(stops) > 1, "realtime": False,
+        "source_down": bool(source_down), "partial": False,
     }
     limit_s, want_dist = model.position_fresh_s(cfg), model.show_distance(cfg, screen)
     fetched_at = {c: stride.parse_time(cached[c]["fetched_at"]) for c in codes if c in cached}
@@ -143,6 +159,9 @@ def build(conn: sqlite3.Connection, screen: dict[str, Any], now: dt.datetime, tz
                           "est": r.get("est") if est is not None else None, "q": q, "age": int(est_age if est_age is not None else cache_age),
                           "dist": round_distance(r.get("distance_m")) if q == "realtime" and want_dist else None})
     every.sort(key=lambda r: (r["_t"], r["line"]))
+    covered = [stride.parse_time(cached[c]["window_to"]) for c in codes if c in cached]
+    if source_down and (len(covered) < len(codes) or any(t is None or t < end for t in covered)):
+        out["partial"] = True  # the cached window ends before the display window: rows beyond it are unknown, not absent
     inside = [r for r in every if start <= r["_t"] <= end]
     out.update(_arrange(inside, screen["rows"], screen["group"], now, tz))
     out["realtime"] = any(r["q"] == "realtime" for r in inside)

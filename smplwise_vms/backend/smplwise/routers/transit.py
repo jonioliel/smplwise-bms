@@ -50,7 +50,7 @@ def _fetch(request: Request) -> stride.Fetch:
 def _limits() -> dict[str, Any]:
     return {"max_stops": model.MAX_STOPS, "windows": list(model.WINDOW_CHOICES), "window_range": list(model.WINDOW_RANGE), "rows_range": list(model.ROWS_RANGE),
             "dwell_range": list(model.DWELL_RANGE), "clock_after_range": list(model.CLOCK_AFTER_RANGE), "grace_range": list(model.GRACE_RANGE),
-            "walk_range": list(model.WALK_RANGE),
+            "walk_range": list(model.WALK_RANGE), "outage_warn_range": list(model.OUTAGE_WARN_RANGE),
             "poll_range": list(model.POLL_RANGE), "poll_floor_s": model.POLL_FLOOR_S, "refresh_range": list(model.REFRESH_RANGE),
             "position_fresh_range": list(model.POSITION_FRESH_RANGE), "layouts": list(model.LAYOUTS), "groups": list(model.GROUPS)}
 
@@ -85,6 +85,7 @@ class ConfigIn(BaseModel):
     poll_floor_ack: bool | None = None
     refresh_s: int | None = None  # the installation's default for how often a screen fetches the digest (10-120)
     position_fresh_min: int | None = None
+    outage_warn_h: int | None = None  # BUSSTATUS-297: hours of a provider outage before the system health warns (1-72, default 6)
     show_distance: bool | None = None
 
 

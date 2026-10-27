@@ -30,6 +30,8 @@ export interface TransitConfig {
   /** minutes: a vehicle position older than this is no estimate and shows no distance */
   position_fresh_min: number;
   show_distance: boolean;
+  /** BUSSTATUS-297: hours of a provider outage after which the system health warns (1-72, default 6) */
+  outage_warn_h: number;
 }
 
 export interface CatalogueStatus {
@@ -61,6 +63,7 @@ export interface TransitLimits {
   dwell_range: [number, number];
   clock_after_range: [number, number];
   grace_range: [number, number];
+  outage_warn_range: [number, number];
   walk_range: [number, number];
   poll_range: [number, number];
   poll_floor_s: number;

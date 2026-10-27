@@ -264,7 +264,7 @@ def test_the_breaker_backs_off_1_2_4_8_minutes_and_recovers(client, settings):
     db = _db(settings)
     fake.fail = stride.StrideError("http_503")
     t = BASE
-    for expect in (60, 120, 240, 480, 480):
+    for expect in (60, 120, 240, 480, 900, 1800, 1800):  # BUSSTATUS-297: a long outage settles at one try per 30 minutes
         assert poller.poll_once(db, fake, t)["error"] == "http_503"
         assert poller.HEALTH.backoff_until - t == dt.timedelta(seconds=expect)
         n = len(fake.calls)
@@ -273,7 +273,7 @@ def test_the_breaker_backs_off_1_2_4_8_minutes_and_recovers(client, settings):
     fake.fail = None
     assert poller.poll_once(db, fake, t)["fetched"] == 1
     v = poller.HEALTH.view()
-    assert v["consecutive_errors"] == 0 and v["errors"] == 5 and v["backoff_until"] is None and v["last_ok_at"] == "2026-10-26T06:23:00Z"
+    assert v["consecutive_errors"] == 0 and v["errors"] == 7 and v["backoff_until"] is None and v["last_ok_at"] == "2026-10-26T07:30:00Z"
 
 
 def test_a_bad_row_shape_is_a_source_failure_not_a_crash(client, settings):
@@ -573,7 +573,7 @@ def test_the_health_report_has_no_transit_row_while_the_module_is_off(client, se
 def test_a_restore_never_carries_the_modules_switch_or_stops():
     from smplwise.services import backup
 
-    assert {"transit.config", "transit.catalogue"} <= set(backup.SETTINGS_KEEP)
+    assert {"transit.config", "transit.catalogue", "transit.health"} <= set(backup.SETTINGS_KEEP)
 
 
 def test_there_is_no_service_ticket_action_anywhere_in_the_module():

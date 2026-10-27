@@ -274,9 +274,14 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     if tv["state"] != "off":
         age = tv["age_s"]
         age_text = "אין נתונים עדיין" if age is None else f"הנתונים בני {age // 60} דק׳"
-        checks.append(_check("transit", "זמני תחבורה ציבורית", "ok" if tv["state"] == "ok" else "warn",
-                             f"{age_text} · {tv['codes_in_use']} תחנות בשימוש · {tv['errors']} שגיאות מאז ההפעלה" + (f" · שגיאה אחרונה: {tv['last_error']}" if tv["last_error"] else ""),
-                             state=tv["state"], age_s=age, last_ok_at=tv["last_ok_at"], errors=tv["errors"], codes_in_use=tv["codes_in_use"]))
+        # BUSSTATUS-297: a provider outage (5xx / timeout) is a calm "external data source unavailable" with the last good time, not a warning
+        # (it escalates to a warning after `outage_warn_h`, default 6 h)
+        source_down = tv["state"] == "source_down"
+        lead = f"מקור הנתונים החיצוני אינו זמין (תקלה אצל הספק, לא באתר); הנתון התקין האחרון: {tv['last_good_at'] or 'לא ידוע'} UTC · " if source_down else ""
+        checks.append(_check("transit", "זמני תחבורה ציבורית", "ok" if tv["state"] in ("ok", "source_down") else "warn",
+                             lead + f"{age_text} · {tv['codes_in_use']} תחנות בשימוש · {tv['errors']} שגיאות מאז ההפעלה" + (f" · שגיאה אחרונה: {tv['last_error']}" if tv["last_error"] else ""),
+                             state=tv["state"], age_s=age, last_ok_at=tv["last_ok_at"], last_good_at=tv["last_good_at"], outage=tv["outage"], errors=tv["errors"],
+                             codes_in_use=tv["codes_in_use"]))
 
     # 2.6.3 transitional (delta review S-1): a former secret option still holds a value in the add-on configuration (names only)
     from . import secrets_store
@@ -354,8 +359,12 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
 
     from .transit import health as transit_health
 
-    if transit_health.view(conn, datetime.now(timezone.utc))["state"] == "down":  # BUSTIMES-295: the screens show "unavailable" - the installer sees why
-        items.append({"id": "transit", "status": "warn", "label": "נתוני התחבורה הציבורית אינם מתעדכנים"})
+    from .transit import model as transit_model
+
+    tv_s = transit_health.view(conn, datetime.now(timezone.utc))
+    if tv_s["state"] == "down":  # BUSTIMES-295: the screens show "unavailable" - the installer sees why
+        provider = tv_s["consecutive_errors"] > 0 and transit_model.is_outage(tv_s["last_error"])  # BUSSTATUS-297: only after the outage outlasted outage_warn_h
+        items.append({"id": "transit", "status": "warn", "label": "מקור נתוני התחבורה הציבורית אינו זמין זמן רב (תקלה אצל הספק)" if provider else "נתוני התחבורה הציבורית אינם מתעדכנים"})
     worst = "ok"
     for it in items:
         if it["status"] == "error":

@@ -222,7 +222,7 @@ export class SystemTransit extends LitElement {
       </div>`}</div>`;
   }
 
-  private numField(key: 'clock_after_min' | 'stale_grace_min' | 'hide_closer_min' | 'refresh_s' | 'poll_s' | 'position_fresh_min', label: TrKey, hint: TrKey, range: [number, number], edit: boolean,
+  private numField(key: 'clock_after_min' | 'stale_grace_min' | 'hide_closer_min' | 'refresh_s' | 'poll_s' | 'position_fresh_min' | 'outage_warn_h', label: TrKey, hint: TrKey, range: [number, number], edit: boolean,
                    unit: TrKey = 'minutes') {
     const v = this.s!.config[key];
     return html`<div class="fld"><label for=${'tr-' + key}>${tr(label)}</label>
@@ -258,6 +258,7 @@ export class SystemTransit extends LitElement {
       ${this.numField('clock_after_min', 'clockAfter', 'clockAfterHint', lim.clock_after_range, edit)}
       ${this.numField('stale_grace_min', 'grace', 'graceHint', lim.grace_range, edit)}
       ${this.numField('hide_closer_min', 'hideCloser', 'hideCloserHint', lim.walk_range, edit)}
+      ${this.numField('outage_warn_h', 'outageWarn', 'outageWarnHint', lim.outage_warn_range, edit, 'hours')}
     </div></div>`;
   }
 
