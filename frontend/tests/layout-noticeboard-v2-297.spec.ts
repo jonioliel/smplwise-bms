@@ -76,7 +76,7 @@ async function boxes(page: Page, sels: Record<string, string>): Promise<Record<s
 async function noScroll(page: Page) {
   const r = await page.evaluate(() => {
     const over = (el: Element) => el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2;
-    const bad = [...document.querySelectorAll('.b2bus .rows, .b2bus .cards, .b2bd, .b2info, .b2hd, .b2ft')].filter(over).map((e) => e.className);
+    const bad = [...document.querySelectorAll('.b2bus .rows, .b2bus .cards, .b2bd, .b2info, .b2hd, .b2ft')].filter(over).map((e) => `${e.className} ${e.scrollWidth}x${e.scrollHeight} > ${e.clientWidth}x${e.clientHeight}`);
     const cv = document.getElementById('cv') as HTMLElement;
     const c = cv.getBoundingClientRect();
     const outside = [...document.querySelectorAll('.b2bus, .b2hd, .b2clock, .b2wx, .b2ft')].filter((b) => {
