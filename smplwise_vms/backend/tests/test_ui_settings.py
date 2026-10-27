@@ -350,8 +350,15 @@ def test_ui_skin_and_scheme_settings(settings):
     assert m, "SKIN_IDS not found in design/skins/index.ts"
     assert tuple(re.findall(r"'([a-z]+)'", m.group(1))) == ("classic", "domus", "tesla", "bubble", "crystal", "infra", "soft")
     # BUBBLE-FREEZE-295: the frozen list and the fallback are the same on both sides
-    fm = re.search(r"export const FROZEN_SKINS: readonly SkinId\[\] = \[([^\]]*)\]", front)
-    assert fm and tuple(re.findall(r"'([a-z]+)'", fm.group(1))) == ("bubble",)
+    # DESIGNTOKENS-297: FROZEN_SKINS is read from the registry data (each skin's `stage`), not a literal list
+    assert "export const FROZEN_SKINS: readonly SkinId[] = SKIN_IDS.filter((id) => SKINS[id].stage === 'frozen');" in front
+    skins_dir = Path(__file__).resolve().parents[3] / "frontend" / "src" / "design" / "skins"
+    frozen = tuple(
+        sid
+        for sid in re.findall(r"'([a-z]+)'", m.group(1))
+        if re.search(r"\bstage:\s*'frozen'", (skins_dir / f"{sid}.ts").read_text(encoding="utf-8"))
+    )
+    assert frozen == ("bubble",)
     from smplwise.routers import settings as settings_router
 
     assert settings_router.FROZEN_SKINS == ("bubble",) and settings_router.FROZEN_FALLBACK_SKIN == "domus"
