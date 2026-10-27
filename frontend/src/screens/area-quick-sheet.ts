@@ -97,6 +97,8 @@ export class AreaQuickSheet extends LitElement {
   private drag: { y0: number; t0: number; id: number; base: number; last: number; lastT: number; v: number } | null = null;
   /** The last pointer sequence moved the sheet: its trailing click is not a tap. */
   private dragged = false;
+  /** The close in flight came from the keyboard: focus goes back to the opener. */
+  private closedByKey = false;
   private hideTimer = 0;
 
   static styles = [
@@ -809,7 +811,11 @@ export class AreaQuickSheet extends LitElement {
     this.stopLive();
     const back = this.opener;
     this.opener = null;
-    if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
+    // focus returns to the opener after a KEYBOARD close (Escape, the grabber's keys); a pointer close (scrim, flick, the close button)
+    // leaves focus alone - a programmatic focus after a tap counts as keyboard focus and opened the row's own focus summary on a phone
+    const byKey = this.closedByKey;
+    this.closedByKey = false;
+    if (byKey && back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
   }
 
   /** The pop-up starts where the pressed element is (its rectangle moved and scaled onto the panel's resting box). */
@@ -855,6 +861,7 @@ export class AreaQuickSheet extends LitElement {
       const path = e.composedPath();
       if (path.some((n) => n instanceof Element && (n.tagName === 'SW-DIALOG' || n.tagName === 'DEVICES-BULK-DIALOG'))) return;
       e.preventDefault();
+      this.closedByKey = true;
       this.close();
       return;
     }
@@ -918,7 +925,10 @@ export class AreaQuickSheet extends LitElement {
     if (this.mode !== 'sheet') return;
     if (e.key === 'ArrowUp') this.detent = this.detent === 'peek' ? 'half' : 'full';
     else if (e.key === 'ArrowDown') {
-      if (this.detent === 'peek') this.close();
+      if (this.detent === 'peek') {
+        this.closedByKey = true;
+        this.close();
+      }
       else this.detent = this.detent === 'full' ? 'half' : 'peek';
     } else return;
     e.preventDefault();
