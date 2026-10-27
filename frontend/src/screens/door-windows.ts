@@ -56,7 +56,8 @@ export class DoorWindowsScreen extends LitElement {
     .stack { display: grid; gap: 18px; }
     section { display: grid; gap: 10px; }
     h2 { margin: 0; font-size: var(--sw-fs-lg); font-weight: 700; color: var(--sw-text); }
-    .card { display: grid; gap: 10px; padding: 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); min-inline-size: 0; }
+    /* POLISH-CONTROL-297: the cards sit on the product's first elevation like every other control screen's cards (they were flat) */
+    .card { display: grid; gap: 10px; padding: 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
     .card.alarm { border-color: var(--sw-danger); background: var(--sw-danger-soft); }
     .card .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
     .card .top b { font-size: var(--sw-fs-md); overflow-wrap: anywhere; }
@@ -81,10 +82,22 @@ export class DoorWindowsScreen extends LitElement {
       font: inherit; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text);
       min-inline-size: 0;
     }
+    /* POLISH-CONTROL-297: a field shows where the keyboard is (there was no focus style); a choice button answers the press and the
+       keyboard, hover is for fine pointers only (transform and colour, token durations - zero under reduced motion) */
+    input[type='text']:focus-visible, input[type='date']:focus-visible, input[type='time']:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: none; border-color: var(--sw-accent); box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
     .seg { display: flex; flex-wrap: wrap; gap: 6px; }
     .seg button, .days button {
-      font: inherit; padding: 6px 12px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); cursor: pointer;
+      font: inherit; padding: 6px 12px; min-block-size: 32px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); cursor: pointer;
+      transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
     }
+    .seg button:active, .days button:active { transform: scale(0.96); }
+    .seg button:focus-visible, .days button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+    @media (hover: hover) and (pointer: fine) {
+      .seg button:hover:not([aria-pressed='true']), .days button:hover:not([aria-pressed='true']) { border-color: var(--sw-border-strong); background: var(--sw-surface-2); }
+    }
+    @media (pointer: coarse) { .seg button, .days button { min-block-size: 44px; } }
     .seg button[aria-pressed='true'], .days button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); }
     .days { display: flex; flex-wrap: wrap; gap: 6px; }
     .range { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -95,8 +108,11 @@ export class DoorWindowsScreen extends LitElement {
     .footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
     .preview { display: grid; gap: 8px; }
     .radio { display: grid; gap: 6px; }
-    .toast { position: fixed; inset-block-end: 18px; inset-inline: 0; margin-inline: auto; inline-size: fit-content; max-inline-size: calc(100% - 32px); padding: 8px 14px; border-radius: var(--sw-r-pill);
-      background: var(--sw-text); color: var(--sw-surface); font-size: var(--sw-fs-sm); z-index: 5; }
+    /* the toast is the product's toast (its own tokens, above the phone's bottom bar) and rises in instead of popping (zero under reduced motion) */
+    .toast { position: fixed; inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 18px); inset-inline: 0; margin-inline: auto; inline-size: fit-content; max-inline-size: calc(100% - 32px); padding: 8px 16px; border-radius: var(--sw-r-pill);
+      background: var(--sw-toast-bg, var(--sw-text)); color: var(--sw-toast-text, var(--sw-surface)); font-size: var(--sw-fs-sm); z-index: var(--sw-z-toast, 5); box-shadow: var(--sw-shadow-2);
+      opacity: 1; transform: translateY(0); transition: opacity var(--sw-t-med) var(--sw-ease), transform var(--sw-t-med) var(--sw-ease); }
+    @starting-style { .toast { opacity: 0; transform: translateY(8px); } }
   `];
 
   @property({ attribute: false }) route: RouteState | null = null;
