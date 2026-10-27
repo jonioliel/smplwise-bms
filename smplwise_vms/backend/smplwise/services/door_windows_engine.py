@@ -33,6 +33,12 @@ GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); th
 # DWFIX-295: False keeps the window factory on the tier-D PreparedEngine and the emergency switch off. WISKEY-OWNER26-297: the program engine
 # is now wired to the Native hold-open programs (WiskeyProgramEngine below), but turning this True is an activation decision of the owner.
 LIVE_ENGINE_BUILT = False
+# SPLITSWITCH-297 (owner decision 2026-10-27): the one flag above used to turn on BOTH the door-window programs (time windows written to
+# WisKey) and the emergency buttons. They are now two independent build flags, both OFF. `LIVE_ENGINE_BUILT` is kept as the legacy
+# combined flag: a build that sets it True keeps today's behaviour (both on), exactly as before the split. Readers use
+# `program_ready()` / `emergency_ready()`; nothing reads `LIVE_ENGINE_BUILT` directly any more.
+PROGRAM_ENGINE_BUILT = False
+EMERGENCY_ENGINE_BUILT = False
 
 ERROR_KINDS = ("not_permitted", "not_implemented", "not_sent", "unknown", "refused", "revision_conflict")
 PROGRAM_STATUSES = ("idle", "opening", "held_acknowledged", "restoring", "unknown")
@@ -44,12 +50,33 @@ def go_live_permitted() -> bool:
     return GO_LIVE_PERMITTED is True
 
 
+def program_engine_built() -> bool:
+    """SPLITSWITCH-297: the door-window program engine is on (its own flag, or the legacy combined flag)."""
+    return PROGRAM_ENGINE_BUILT is True or LIVE_ENGINE_BUILT is True
+
+
+def emergency_engine_built() -> bool:
+    """SPLITSWITCH-297: the emergency-button engine is on (its own flag, or the legacy combined flag)."""
+    return EMERGENCY_ENGINE_BUILT is True or LIVE_ENGINE_BUILT is True
+
+
+def program_ready() -> bool:
+    """Door-window programs may be written to the live engine: the owner's permit is in the build AND the program engine is on."""
+    return go_live_permitted() and program_engine_built()
+
+
+def emergency_ready() -> bool:
+    """Emergency buttons may act on the live engine: the owner's permit is in the build AND the emergency engine is on."""
+    return go_live_permitted() and emergency_engine_built()
+
+
 def live_engine_built() -> bool:
-    return LIVE_ENGINE_BUILT is True
+    """Legacy (before SPLITSWITCH-297): True only when BOTH engines are on. Kept for callers outside this repo; not read here."""
+    return program_engine_built() and emergency_engine_built()
 
 
 def live_ready() -> bool:
-    """The live engines may be used: the owner's permit is in the build AND the engines exist (not `not_implemented`)."""
+    """Legacy (before SPLITSWITCH-297): the permit AND both engines. Kept for compatibility; readers use program_ready / emergency_ready."""
     return go_live_permitted() and live_engine_built()
 
 
@@ -154,7 +181,7 @@ class WiskeyProgramEngine:
     """Tier B over WisKey's Native `stations/technical_program_list / _save / _action`. Refused while the go-live permit is not in the
     build. WISKEY-OWNER26-297 (W-023): below the guard the calls go to the Native hold-open programs of WisKey CODE e732562e over the
     selected direct connection (services/wiskey_program_direct.py); without a selected connection nothing is sent (`not_sent`).
-    The factory still hands out this engine only when `live_ready()` (LIVE_ENGINE_BUILT stays False: activation is the owner's)."""
+    The factory still hands out this engine only when `program_ready()` (PROGRAM_ENGINE_BUILT stays False: activation is the owner's)."""
 
     tier = "program"
 
@@ -241,7 +268,7 @@ class DrillEngine:
 # ---------------------------------------------------------------- factories (tests replace them with fakes)
 
 def _window_engine(settings: Any) -> WindowEngine:
-    return WiskeyProgramEngine(settings) if live_ready() else PreparedEngine()  # DW-02: tier D while the live engine is not built
+    return WiskeyProgramEngine(settings) if program_ready() else PreparedEngine()  # DW-02: tier D while the program engine is not on
 
 
 def _emergency_engine(settings: Any) -> EmergencyEngine:

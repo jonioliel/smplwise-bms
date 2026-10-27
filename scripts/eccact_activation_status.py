@@ -26,7 +26,11 @@ PERMITS = [
     ("peer_seam", "smplwise.services.wiskey_peer", "GO_LIVE_PERMITTED", "wiskey.peer_receipt"),
     ("peer_registry", "smplwise.services.wiskey_peer_registry", "GO_LIVE_PERMITTED", "wiskey.peer_pin (owner)"),
     ("door_windows_engine", "smplwise.services.door_windows_engine", "GO_LIVE_PERMITTED", "door_windows.enabled"),
-    ("door_automation", "smplwise.services.door_automation", "GO_LIVE_PERMITTED", "doors.automation_open"),
+    # SPLITSWITCH-297: two independent engine flags (both off); LIVE_ENGINE_BUILT is the legacy combined flag (True = both on)
+    ("door_windows_program_engine", "smplwise.services.door_windows_engine", "PROGRAM_ENGINE_BUILT", "doors.windows.enabled"),
+    ("door_emergency_engine", "smplwise.services.door_windows_engine", "EMERGENCY_ENGINE_BUILT", "doors.emergency.enabled"),
+    ("door_engine_legacy_combined", "smplwise.services.door_windows_engine", "LIVE_ENGINE_BUILT", None),
+    ("door_automation","smplwise.services.door_automation", "GO_LIVE_PERMITTED", "doors.automation_open"),
     ("bridge_key_rotation", "smplwise.services.bridge_rotation", "GO_LIVE_PERMITTED", "bridge.key_rotation"),
     ("peer_signed_capture_covered", "smplwise.services.wiskey_peer", "SIGNED_CAPTURE_COVERED", None),
     ("peer_wiskey_half_reviewed", "smplwise.services.wiskey_peer", "WISKEY_HALF_REVIEWED", None),

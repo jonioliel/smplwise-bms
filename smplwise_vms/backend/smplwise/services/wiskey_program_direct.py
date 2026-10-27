@@ -17,7 +17,7 @@ socket and this connection's discovery listing the command). There is no fallbac
 `unknown` and the next step is a fresh read. The human authority stays where it is: the door-windows routes admit the person
 (`access.windows.manage` on the door's station chain) before the engine is called; the wire carries the pairing signature only.
 
-This module turns nothing on. `door_windows_engine.LIVE_ENGINE_BUILT` stays False, so the window factory keeps handing out the tier-D
+This module turns nothing on. `door_windows_engine.PROGRAM_ENGINE_BUILT` (and the legacy LIVE_ENGINE_BUILT) stay False, so the window factory keeps handing out the tier-D
 `PreparedEngine`; an administrator switch and the owner's activation decision are separate."""
 from __future__ import annotations
 
