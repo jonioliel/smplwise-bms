@@ -11,8 +11,10 @@ import { domus } from './domus';
 import { tesla } from './tesla';
 import { bubble } from './bubble';
 import { crystal } from './crystal';
+import { infra } from './infra';
+import { soft } from './soft';
 
-export const SKIN_IDS = ['classic', 'domus', 'tesla', 'bubble', 'crystal'] as const;
+export const SKIN_IDS = ['classic', 'domus', 'tesla', 'bubble', 'crystal', 'infra', 'soft'] as const;
 export type SkinId = (typeof SKIN_IDS)[number];
 export const DEFAULT_SKIN: SkinId = 'classic';
 /** Skins that are frozen: not selectable, not publishable. Unfreeze = empty this list (and re-enable the specs, see docs/changes/BUBBLE-FREEZE-295.md). */
@@ -21,6 +23,13 @@ export const FROZEN_SKINS: readonly SkinId[] = ['bubble'];
 export const FROZEN_FALLBACK_SKIN: SkinId = 'domus';
 /** The skins a person can choose and a write may carry: the registry without the frozen ones. */
 export const SELECTABLE_SKIN_IDS: readonly SkinId[] = SKIN_IDS.filter((id) => !FROZEN_SKINS.includes(id));
+/**
+ * SKINFOUND-297 (owner 2026-10-27): the Arx design-system skins ("Arx Infra" = direction A, "Arx Soft" = direction C) at their
+ * FOUNDATION stage: registered, selectable in הגדרות › כללי › מראה המערכת, token-tested (contrast, menus, HUD) like every skin, but
+ * kept out of the broad "for each skin" layout / evidence / pixel matrix of the specs (tests/helpers/frozen-skins.ts) until the
+ * owner's round-2 decision - they have no pixel baselines yet. Leaving the foundation stage = empty this list.
+ */
+export const FOUNDATION_SKINS: readonly SkinId[] = ['infra', 'soft'];
 /** The rule budget of one skin (`{ }` blocks of its `rules`). */
 export const SKIN_RULE_BUDGET = 50;
 
@@ -37,7 +46,7 @@ export interface Skin {
   rules: string;
 }
 
-export const SKINS: Record<SkinId, Skin> = { classic, domus, tesla, bubble, crystal };
+export const SKINS: Record<SkinId, Skin> = { classic, domus, tesla, bubble, crystal, infra, soft };
 
 export const isSkinId = (v: unknown): v is SkinId => typeof v === 'string' && (SKIN_IDS as readonly string[]).includes(v);
 

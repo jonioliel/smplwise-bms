@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { DEFAULT_SKIN, FROZEN_FALLBACK_SKIN, FROZEN_SKINS, SELECTABLE_SKIN_IDS, SKIN_IDS, SKINS, isFrozenSkin, isSelectableSkin, resolveSkin } from '../src/design/skins';
-import { isFrozen, SKINS_UNDER_TEST, skinsUnderTest } from './helpers/frozen-skins';
+import { DEFAULT_SKIN, FOUNDATION_SKINS, FROZEN_FALLBACK_SKIN, FROZEN_SKINS, SELECTABLE_SKIN_IDS, SKIN_IDS, SKINS, isFrozenSkin, isSelectableSkin, resolveSkin } from '../src/design/skins';
+import { isFrozen, PICKER_SKINS, SKINS_UNDER_TEST, skinsUnderTest } from './helpers/frozen-skins';
 
 // BUBBLE-FREEZE-295 (owner 2026-10-26): the bubble skin stays in the registry and in the tree, but is not selectable and reads as Domus.
 // This spec does NOT skip itself: it is the check that the freeze holds (and that the code is still there).
@@ -13,7 +13,7 @@ test('the registry keeps the bubble skin (code and tokens stay) but marks it fro
   expect(FROZEN_FALLBACK_SKIN).toBe('domus');
   expect(FROZEN_SKINS).not.toContain(FROZEN_FALLBACK_SKIN);
   expect(DEFAULT_SKIN).toBe('classic');
-  expect([...SELECTABLE_SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'crystal']);
+  expect([...SELECTABLE_SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'crystal', 'infra', 'soft']); // SKINFOUND-297: the two Arx skins are selectable
 });
 
 test('a frozen id is not selectable and is read as the fallback; unknown values stay unknown', () => {
@@ -22,14 +22,17 @@ test('a frozen id is not selectable and is read as the fallback; unknown values 
   expect(isSelectableSkin('bubble')).toBe(false);
   expect(isSelectableSkin('crystal')).toBe(true);
   expect(resolveSkin('bubble')).toBe('domus');
-  for (const id of ['classic', 'domus', 'tesla', 'crystal'] as const) expect(resolveSkin(id)).toBe(id);
+  for (const id of ['classic', 'domus', 'tesla', 'crystal', 'infra', 'soft'] as const) expect(resolveSkin(id)).toBe(id);
   for (const bad of ['Bubble', '', 'ios', null, undefined, 3]) expect(resolveSkin(bad)).toBeNull();
 });
 
 test('the test helper derives the skins under test from the registry', () => {
   expect(isFrozen('bubble')).toBe(true);
-  expect([...SKINS_UNDER_TEST]).toEqual([...SELECTABLE_SKIN_IDS]);
-  expect(skinsUnderTest(['classic', 'bubble', 'crystal'])).toEqual(['classic', 'crystal']);
+  // SKINFOUND-297: the foundation-stage skins are selectable but not in the per-skin matrix (no pixel baselines yet)
+  expect([...SKINS_UNDER_TEST]).toEqual(SELECTABLE_SKIN_IDS.filter((id) => !FOUNDATION_SKINS.includes(id)));
+  expect([...SKINS_UNDER_TEST]).toEqual(['classic', 'domus', 'tesla', 'crystal']);
+  expect([...PICKER_SKINS]).toEqual([...SELECTABLE_SKIN_IDS]);
+  expect(skinsUnderTest(['classic', 'bubble', 'crystal', 'soft'])).toEqual(['classic', 'crystal']);
 });
 
 test('on the page: a requested or cached bubble skin is drawn as domus', async ({ page }) => {

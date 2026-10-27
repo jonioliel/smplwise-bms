@@ -90,13 +90,20 @@ export class SystemDesign extends LitElement {
       align-items: start;
     }
     /* VISDIFF-246: skins in a row that held one fewer left the last alone on a second line (a 25 % card and a hole beside it):
-       where the card is wide enough all of them sit in one row. BUBBLE-FREEZE-295: four selectable skins now (the bubble skin is frozen) */
+       where the card is wide enough all of them sit in one row. BUBBLE-FREEZE-295: four selectable skins (the bubble skin is frozen).
+       SKINFOUND-297: six with the two Arx skins - one row where the card is wide, two equal rows (3 + 3) where it is medium; the counts
+       come from the registry (--skins-n / --skins-half on .skins), so a lone card on its own line never appears */
     .skinrow {
       container-type: inline-size;
     }
-    @container (min-width: 740px) {
+    @container (min-width: 520px) {
       .skins {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(var(--skins-half, 2), minmax(0, 1fr));
+      }
+    }
+    @container (min-width: 860px) {
+      .skins {
+        grid-template-columns: repeat(var(--skins-n, 4), minmax(0, 1fr));
       }
     }
     .skin {
@@ -478,7 +485,7 @@ export class SystemDesign extends LitElement {
     return html`<sw-card heading="מראה המערכת" subheading="סגנון וצבעוניות - בהיר, כהה או לפי המכשיר" data-design-card>
       <div class="row col skinrow">
         <span class="lbl">סגנון<span class="muted">אותו מבנה בכל הסגנונות; ההבדל הוא בחומרים, בצורות ובצבעים</span></span>
-        <div class="skins" role="group" aria-label="סגנון">
+        <div class="skins" role="group" aria-label="סגנון" style=${styleMap({ '--skins-n': String(SELECTABLE_SKIN_IDS.length), '--skins-half': String(Math.ceil(SELECTABLE_SKIN_IDS.length / 2)) })}>
           ${SELECTABLE_SKIN_IDS.map(
             (id) => html`<button type="button" class="skin" data-skin-option=${id} aria-pressed=${this.draftSkin === id ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftSkin = id)}>
               ${this.swatch(id, preview)}

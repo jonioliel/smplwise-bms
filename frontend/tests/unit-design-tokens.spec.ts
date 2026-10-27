@@ -35,7 +35,7 @@ test('the colours of the shell exist for both schemes: surfaces, text, accent, e
 });
 
 test('skins: registered ids, overrides carry both columns and name existing tokens, rules stay inside the budget', () => {
-  expect([...SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'bubble', 'crystal']);
+  expect([...SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'bubble', 'crystal', 'infra', 'soft']);
   expect(DEFAULT_SKIN).toBe('classic');
   expect(SKINS.classic.tokens).toEqual({});
   expect(SKINS.classic.rules).toBe('');

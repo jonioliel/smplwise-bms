@@ -494,7 +494,7 @@ def stored_skin(raw: Any) -> str:
     """The installation's skin as the pages draw it: a frozen skin reads as the fallback; an unknown value as the default."""
     if raw in FROZEN_SKINS:
         return FROZEN_FALLBACK_SKIN
-    return raw if raw in ("classic", "domus", "tesla", "bubble", "crystal") else DEFAULTS["ui.skin"]
+    return raw if raw in ("classic", "domus", "tesla", "bubble", "crystal", "infra", "soft") else DEFAULTS["ui.skin"]
 
 
 PRIVATE_KEYS = ("site.latitude", "site.longitude")  # SEC247 I3: the manual site position - administrators (system.configure) only
@@ -764,14 +764,14 @@ class SettingsPatch(BaseModel):
     ui_page_size_automations_cards_phone: int | None = Field(default=None, ge=1, le=50, alias="ui.page_size.automations_cards_phone")
     ui_schedules_view: str | None = Field(default=None, pattern="^(rows|cards|table|week)$", alias="ui.schedules_view")
     ui_automations_view: str | None = Field(default=None, pattern="^(rows|cards)$", alias="ui.automations_view")
-    ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble|crystal)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
+    ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble|crystal|infra|soft)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts (SKINFOUND-297: infra, soft)
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
 
     @field_validator("ui_skin")
     @classmethod
     def _skin_not_frozen(cls, v: str | None) -> str | None:
         if v in FROZEN_SKINS:
-            raise ValueError(f"the '{v}' skin is frozen and can no longer be selected; choose classic, domus, tesla or crystal")
+            raise ValueError(f"the '{v}' skin is frozen and can no longer be selected; choose classic, domus, tesla, crystal, infra or soft")
         return v
 
     ui_accent: str | None = Field(default=None, max_length=16, alias="ui.accent")  # 2.4.4: validated by services/brand_colors.py

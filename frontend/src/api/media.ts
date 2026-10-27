@@ -191,7 +191,7 @@ export interface ProductSettings {
    * wins), the sensors card / count, the climate strip, and the density. */
   'devices.style'?: 'smplwise' | 'glass';
   /** Design foundation (2026-10-01): the installation's skin (design/skins) and light / dark / auto choice (design/apply.ts). */
-  'ui.skin'?: 'classic' | 'domus' | 'tesla' | 'bubble' | 'crystal';
+  'ui.skin'?: 'classic' | 'domus' | 'tesla' | 'bubble' | 'crystal' | 'infra' | 'soft';
   'ui.scheme'?: 'light' | 'dark' | 'auto';
   /** 2.4.4: the accent colour and the switch-on colour - 'default' | a preset id | '#rrggbb' (design/brand.ts). */
   'ui.accent'?: string;

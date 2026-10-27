@@ -430,3 +430,66 @@ the glass bridge like every other control; it has no knob of its own.
 **Review G diagnostic:** opening the app with `?debug=overflow` installs `window.__arxOverflow()`
 (`frontend/src/debug/overflow.ts`), which lists the scroll containers that scroll and the elements whose bottom edge lies
 furthest down in the app's scroll area - read-only, for naming the element behind a needless scrollbar.
+
+## 10. The Arx skins: "Arx Infra" and "Arx Soft" (SKINFOUND-297, foundation)
+
+Owner decision 2026-10-27: directions A ("Arx Infra") and C ("Arx Soft") of the Arx design system
+(`private/design-system-2026-10-27/`, docs `DESIGN.md`, `TOKENS.md`, `COMPONENT_RULES.md`, round 2 `round2/NOTES.md` and `r2.css`)
+are built as two ADDITIONAL product skins next to classic, domus, tesla and crystal (bubble stays frozen). Direction B ("Arx Ops")
+is not built. The default skin stays `classic` until the owner decides after round 2. This section covers the foundation slice only.
+
+| Skin id | Name in הגדרות › כללי › מראה המערכת | Source file | What it is |
+|---|---|---|---|
+| `infra` | Arx Infra | `frontend/src/design/skins/infra.ts` | The classic base plus the A deltas of `TOKENS.md` §1 as corrected by round 2 (`r2.css` §5). |
+| `soft` | Arx Soft | `frontend/src/design/skins/soft.ts` | The Infra table plus the C deltas of `TOKENS.md` §3 as corrected by round 2 (`r2.css` §7). |
+
+**How they are wired.** They are ordinary entries of the skin registry (`skins/index.ts` `SKIN_IDS`, `SKINS`) and of the backend
+validation of `ui.skin` (`routers/settings.py`, the pattern and `stored_skin`). The picker lists them by itself
+(`SELECTABLE_SKIN_IDS`), with the same save flow as every skin (installation `ui.skin`, demo: this browser). The picker grid is one
+row where the card is wide and two equal rows where it is medium (`--skins-n` / `--skins-half` from the registry), so no card sits
+alone on a line.
+
+**Tokens.** Both skins set light AND dark values for every name they override (surfaces, text, accent, state colours with their
+`-soft` / `-text` pair, the opaque menu pair, shadows, radii, type, density, motion). The values are the design system's measured
+ones; two were corrected because the repository's contrast guards failed them, and both are flagged for the owner:
+
+- Soft light canvas: the cool bloom `rgba(110,162,255,.3)` is softened 30 % toward white at the same alpha
+  (`rgba(154,190,255,.3)`), the owner's option A of UXFIX-A11Y-295 already used for domus and crystal (muted text 4.19:1 and accent
+  text 4.33:1 at the bloom's centre before, at least 4.55:1 after).
+- Soft dark `--sw-accent-hover`: round 2's `#4a80ff` carried white at 3.9:1; it takes C's light hover `#255ddb` (5.5:1).
+
+**Density.** Infra: page padding 24 (phone 14), tile gap 12 (`--sw-gap`), the 44 px touch target, control heights 28 / 34 / 40,
+rail 72, bottom bar 56, tree 260, page title 24 (phone 20). Soft: Infra's, with gap 14 / 18, page padding 28 and title 28 (phone 24).
+`--sw-gap-lg`, `--sw-page-pad-phone`, `--sw-fs-4xl` and `--sw-lh-tight` are new names (token group `density`), read by no shared
+component yet.
+
+**Motion.** The shared motion layer of round 2 (`r2.css` §1) is `skins/arx-motion.ts`: durations (press 140, hover 160, fast 160,
+med 220, slow 280, exit 160, toast 400 ms), the curves (`--sw-ease` = `cubic-bezier(.23,1,.32,1)`, `--sw-ease-in-out`,
+`--sw-ease-drawer`, `--sw-ease-color`), the five springs sampled into `linear()` with their durations, the entrance stagger / rise /
+duration and the press scale (.97). The new names are declared in `tokens.ts` with NEUTRAL base values (the existing curve and
+durations, press scale 1, no entrance), so every other skin draws exactly what it drew before. Four component rules use them in both
+Arx skins: press feedback (transform) and colour transitions on `sw-button` / `sw-chip`, and the switch thumb on the toggle spring.
+Reduced motion (`prefers-reduced-motion: reduce`, `css.ts`) zeroes every Arx duration, the rise and the press scale, with
+`!important` like the existing motion names. The `ui.motion` setting of the design system (`auto` / `full` / `reduced`) is not built
+in this slice.
+
+**Material (soft only).** The canvas paints the blooms on `sw-app`; the rail, the phone bar, cards and KPI tiles are glass behind the
+performance switches (`--sw-perf-blur` / `--sw-perf-glass-bg`); without `backdrop-filter`, with `prefers-reduced-transparency: reduce`
+or `prefers-contrast: more` they take the solid twin. Menus and sheets are not touched: they stay on the opaque menu surface.
+
+**Logos.** Neither skin has a rule on the SmplWise mark in the rail (`.brand-tile`), the corner strip (`[data-brand-strip]`), the
+lead row, the phone home head (`[data-home-brand]`) or the installation / company logo slot (`sw-brand`); they render as under
+classic. `tests/unit-skinfound-297.spec.ts` keeps the rules away from them and the smoke compares the logo sizes with classic.
+
+**The device screens.** `devices.style = glass` keeps bridging its `--dv-*` knobs onto these names inside the device screens, as for
+every skin (§2); the `smplwise` style follows the skin's tokens. No device palette was added.
+
+**Tests.** `frontend/tests/unit-skinfound-297.spec.ts` (registry, both columns, rule budget, the design-system values, WCAG 4.5:1 for
+every text token on every surface and canvas bed, state text on its soft fill, text on the accent and the badge, opaque menus, the
+motion layer neutral elsewhere and zero under reduced motion, the logo rules); the existing token guards
+(`unit-design-tokens`, `unit-muted-contrast`, `unit-menu-surfaces`, `unit-hud-opaque`, `unit-stall-retry-contrast`,
+`unit-uxrest-295`, `unit-wall-plan-scene`) iterate `SKIN_IDS` and cover both skins. `frontend/tests/smoke-skinfound-297.spec.ts`
+picks each skin in the picker, saves, and loads home, a devices screen and settings in light and dark with no page error and no
+console error classic does not print too. **Foundation stage:** `FOUNDATION_SKINS` (registry) keeps them out of
+`SKINS_UNDER_TEST` (`tests/helpers/frozen-skins.ts`), so the per-skin layout / evidence / pixel matrix does not run them yet and no
+pixel baselines exist for them. Leaving the stage = empty `FOUNDATION_SKINS` and generate the baselines.

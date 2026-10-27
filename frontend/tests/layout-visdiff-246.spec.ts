@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
-import { SKINS_UNDER_TEST } from './helpers/frozen-skins';
+import { PICKER_SKINS } from './helpers/frozen-skins';
 
 // VISDIFF-246 (2026-10-12): the layout guard (tests/layout-guard.ts) over the screens the M074 visual matrix covers plus the settings pages
 // the 2.4.6 release restyled, in demo mode (every /api/v1 call is aborted: the demo data answers), classic skin, light and dark, at the
@@ -159,8 +159,11 @@ test.describe('layout guard: the screens of the visual matrix and the restyled s
       await page.setViewportSize({ width: w, height: height(w) });
       await open(page, '/system/diagnostics', 'light');
       const tops = await page.locator('[data-skin-option]').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-      expect(tops.length, `the skin cards rendered (${w})`).toBe(SKINS_UNDER_TEST.length); // BUBBLE-FREEZE-295: the selectable skins (was five with bubble)
-      expect(new Set(tops).size, `skin card tops at ${w}: ${tops.join(',')}`).toBe(1);
+      expect(tops.length, `the skin cards rendered (${w})`).toBe(PICKER_SKINS.length); // BUBBLE-FREEZE-295 / SKINFOUND-297: the selectable skins (six with the two Arx skins)
+      // SKINFOUND-297: one row where the card is wide, otherwise equal rows - never a lone card on a line of its own
+      const perRow = [...tops.reduce((m, t) => m.set(t, (m.get(t) ?? 0) + 1), new Map<number, number>()).values()];
+      expect(new Set(perRow).size, `skin cards per row at ${w}: ${perRow.join(',')} (tops ${tops.join(',')})`).toBe(1);
+      if (w >= 1440) expect(perRow.length, `one row at ${w}: ${tops.join(',')}`).toBe(1);
     }
   });
 
