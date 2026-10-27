@@ -68,46 +68,95 @@ export class InfraElevators extends LitElement {
       background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; box-shadow: var(--sw-shadow-1);
     }
     button.new { border: 0; font: inherit; cursor: pointer; }
-    .new:focus-visible, .add:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 3px; }
-    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+    /* POLISH-CONTROL-297: the focus ring is the product's (the same token as the temperature screen), and every pressable thing answers
+       the press (transform only, token durations - zero under reduced motion) */
+    .new:focus-visible, .add:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 3px; }
+    .new, .add, .hbtn { transition: border-color var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
+    .new:active { transform: scale(0.97); }
+    .add:active { transform: scale(0.99); }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    /* POLISH-CONTROL-297 round 2: the number is the hero of the tile - display size, heavy, tight and tabular (dataviz "hero number"),
+       the word under it one quiet line; the tile sits on the card elevation with a lit top edge */
     .kpi {
-      display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md, 20px);
-      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1);
+      display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: var(--sw-r-lg, 22px);
+      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0;
     }
-    .kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--el-c); flex: none; }
-    .kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; }
-    .kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
+    .kpi .dot { inline-size: 14px; block-size: 14px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 5px color-mix(in srgb, var(--el-c) 16%, transparent); }
+    .kpi > div { min-inline-size: 0; }
+    .kpi b { display: block; font-size: var(--sw-fs-4xl); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; color: var(--sw-heading, var(--sw-text)); }
+    .kpi span.l { display: block; margin-block-start: 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
     .ecard {
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
-      position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--sw-r-lg, 26px); overflow: hidden;
-      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0;
+      position: relative; display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: var(--sw-r-lg, 26px); overflow: hidden;
+      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0;
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
     }
-    .ecard[data-look='fire'] { background: linear-gradient(160deg, color-mix(in srgb, var(--sw-el-fire) 16%, transparent), var(--sw-surface) 60%); border-color: color-mix(in srgb, var(--sw-el-fire) 50%, transparent); }
-    .ecard[data-look='fault'] { border-color: color-mix(in srgb, var(--sw-el-fault) 45%, transparent); }
-    .ecard[data-look='off'] { border-color: color-mix(in srgb, var(--sw-el-off) 55%, transparent); border-inline-start-width: 4px; }
+    .ecard:active { transform: scale(0.99); }
+    /* round 2 (find-animation-opportunities, occasional screen entry): the cards arrive as a 40 ms cascade - transform and opacity only,
+       off the main thread; under reduced motion only the fade remains */
+    @media (prefers-reduced-motion: no-preference) {
+      .ecard { animation: el-in 360ms var(--sw-ease-out) both; animation-delay: calc(var(--i, 0) * 40ms); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ecard { animation: el-fade 200ms var(--sw-ease) both; }
+    }
+    @keyframes el-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
+    @keyframes el-fade { from { opacity: 0; } }
+    /* round 2 (taste-skill: no gradients; impeccable detector: no side-tab border): an alerting card is a flat tinted field of its colour,
+       the out-of-service card a dashed frame - the state is told by the field, the solid badge and the icon, never by a stripe */
+    .ecard[data-look='fire'] { background: color-mix(in srgb, var(--sw-el-fire) 9%, var(--sw-surface)); border-color: color-mix(in srgb, var(--sw-el-fire) 45%, transparent); }
+    .ecard[data-look='fault'] { background: color-mix(in srgb, var(--sw-el-fault) 6%, var(--sw-surface)); border-color: color-mix(in srgb, var(--sw-el-fault) 45%, transparent); }
+    .ecard[data-look='off'] { border-style: dashed; border-color: color-mix(in srgb, var(--sw-el-off) 55%, transparent); background: color-mix(in srgb, var(--sw-el-off) 4%, var(--sw-surface)); }
     .head { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
-    .head h3 { margin: 0; font-size: var(--sw-fs-xl); flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .head h3 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .head small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
     .body { display: flex; gap: 16px; align-items: center; min-inline-size: 0; }
     .meta { flex: 1; display: grid; gap: 8px; min-inline-size: 0; }
-    .row2 { display: flex; justify-content: space-between; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-state); }
+    .row2 { display: flex; justify-content: space-between; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; }
     .ext { display: flex; flex-wrap: wrap; gap: 6px; }
-    .ecard:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
-    .hbtn { border: 0; background: transparent; color: var(--sw-text-2); border-radius: 999px; padding: 6px; display: inline-grid; place-items: center; cursor: pointer; }
-    .hbtn:hover { color: var(--sw-accent); }
-    .hbtn:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
+    .ecard:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+    /* the history button is a real target (32 px, 44 px on touch layouts) with a wash on hover, not a bare glyph that only changes colour */
+    .hbtn { border: 0; background: transparent; color: var(--sw-text-2); border-radius: 999px; padding: 0; inline-size: 32px; block-size: 32px; display: inline-grid; place-items: center; cursor: pointer; flex: none; }
+    .hbtn:active { transform: scale(0.94); }
+    .hbtn:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-block-size: 60vh; overflow: auto; }
-    .hist li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); }
-    .hist .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--el-c); flex: none; }
-    .hist .t { flex: 1; min-inline-size: 0; }
-    .hist .w { color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; }
+    .hist li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); }
+    .hist .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-c) 18%, transparent); }
+    .hist .t { flex: 1; min-inline-size: 0; font-weight: var(--sw-fw-medium); }
+    .hist .w { color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .add {
       display: grid; place-items: center; min-block-size: 200px; border-radius: var(--sw-r-lg, 26px); border: 2px dashed var(--sw-border);
       color: var(--sw-text-2); text-decoration: none; text-align: center; padding: 16px;
     }
     .add b { display: block; font-size: calc(var(--sw-fs-3xl) * 1.3); color: var(--sw-accent); line-height: 1; }
+    /* the loading state draws the shape of the page (title, the KPI row, three cards) instead of one grey bar - the temperature screen's skeleton */
+    .skl { display: flex; flex-direction: column; gap: 14px; block-size: auto; background: none; animation: none; border-radius: 0; }
+    .sk {
+      border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); box-sizing: border-box;
+      background: linear-gradient(90deg, var(--sw-surface-3) 0%, var(--sw-surface) 50%, var(--sw-surface-3) 100%); background-size: 200% 100%; animation: el-shimmer 1.4s var(--sw-ease) infinite;
+    }
+    .sk-top { display: grid; gap: 8px; padding-block: 4px; }
+    .sk-h1 { inline-size: 160px; block-size: 30px; }
+    .sk-sub { inline-size: 300px; max-inline-size: 100%; block-size: 14px; border-radius: var(--sw-r-xs); }
+    .sk-kpi { block-size: 64px; }
+    .sk-card { block-size: 220px; border-radius: var(--sw-r-lg); }
+    @keyframes el-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+    /* hover is only for fine pointers - a touch must not leave a card lit */
+    @media (hover: hover) and (pointer: fine) {
+      .ecard:hover { box-shadow: var(--sw-shadow-2); }
+      .ecard:hover:not([data-look='fire']):not([data-look='fault']):not([data-look='off']) { border-color: var(--sw-border-strong); }
+      .kpi:hover { border-color: var(--sw-border-strong); }
+      .hbtn:hover { color: var(--sw-accent-text); background: var(--sw-accent-soft); }
+      .add:hover { border-color: var(--sw-border-strong); color: var(--sw-text); }
+    }
+    @media (max-width: 1100px) {
+      .hbtn { inline-size: 44px; block-size: 44px; margin-block: -6px; }
+    }
     @media (max-width: 600px) {
+      /* round 2 loop 1: on a phone the tile's word may take two lines instead of an ellipsis ("ממתינות או פעי...") */
+      .kpi span.l { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.25; }
       /* the title first, the button under it: the top start corner belongs to the floating search */
       .top { flex-direction: column; align-items: stretch; }
       .top .sp { display: none; }
@@ -180,12 +229,12 @@ export class InfraElevators extends LitElement {
     </div>`;
   }
 
-  private card(e: Elevator, stale: boolean, now: number) {
+  private card(e: Elevator, stale: boolean, now: number, i = 0) {
     const c = chipOf({ state: e.state, stale: stale || e.stale, roles: e.roles, flags: e.flags });
     const ago = c.state === 'unknown' ? '' : agoText(e.since, new Date(now));
     const bar = barOf(e.history, now - DAY_MS, now);
     const extras = e.extras.filter((x) => x.on !== null);
-    return html`<article class="ecard" tabindex="0" data-elevator=${e.id} data-state=${c.state} data-look=${c.look} aria-label=${`${e.name}: ${c.label}`}>
+    return html`<article class="ecard" tabindex="0" style=${`--i:${Math.min(i, 8)}`} data-elevator=${e.id} data-state=${c.state} data-look=${c.look} aria-label=${`${e.name}: ${c.label}`}>
       <div class="head"><h3>${e.name}${e.area_name ? html`<small>${e.area_name}</small>` : nothing}</h3>${stateBadge(c)}<button type="button" class="hbtn" data-elevator-history aria-label=${elt('historyOpen', { name: e.name })} title=${elt('historyOpen', { name: e.name })} @click=${(ev: Event) => this.openHistory(e.id, ev.currentTarget as HTMLElement)}><sw-icon name="clock" size="16"></sw-icon></button></div>
       <div class="body">${doorIcon(c, 74)}
         <div class="meta">
@@ -207,7 +256,11 @@ export class InfraElevators extends LitElement {
     if (!this.data) {
       return this.error
         ? html`${l1}<sw-state-panel state="error" heading=${elt('loadError')} hint=${this.error} data-state="error"></sw-state-panel>`
-        : html`${l1}<div class="skl" style="block-size:160px" data-state="loading"></div>`;
+        : html`${l1}<div class="skl" data-state="loading" aria-busy="true" aria-label=${elt('title')}>
+            <div class="sk-top"><div class="sk sk-h1"></div><div class="sk sk-sub"></div></div>
+            <div class="kpis">${[0, 1, 2, 3, 4].map(() => html`<div class="sk sk-kpi"></div>`)}</div>
+            <div class="grid">${[0, 1, 2].map(() => html`<div class="sk sk-card"></div>`)}</div>
+          </div>`;
     }
     const list = this.data.elevators;
     const manage = this.access.manage;
@@ -226,7 +279,7 @@ export class InfraElevators extends LitElement {
     }
     return html`${l1}${top}${this.kpis(list, stale)}
       <div class="grid" data-elevators>
-        ${list.map((e) => this.card(e, stale, now))}
+        ${list.map((e, i) => this.card(e, stale, now, i))}
         ${aff.addCard ? html`<a class="add" href=${ELEVATORS_SETTINGS_HREF} data-elevators-add><div><b>+</b>${elt('addCard')}</div></a>` : nothing}
       </div>
       ${this.historyDialog(list, now)}`;

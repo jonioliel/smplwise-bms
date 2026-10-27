@@ -30,9 +30,10 @@ export const TEMPERATURE_WIDGET_STYLES = css`
   .wg-temp [data-look='off'], .tw-card[data-look='off'] { --tw: var(--sw-offline); }
   .wg-temp [data-look='idle'], .wg-temp [data-look='unk'], .tw-card[data-look='idle'], .tw-card[data-look='unk'] { --tw: var(--sw-unknown); }
   .wg-temp .tw-h { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-base); color: var(--sw-text-2); flex-wrap: wrap; }
-  .wg-temp .tw-h b { color: var(--sw-text); font-size: var(--sw-fs-lg); }
+  .wg-temp .tw-h b { color: var(--sw-text); font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; }
   .wg-temp .tw-big { display: flex; align-items: center; gap: 12px; min-inline-size: 0; }
-  .wg-temp .tw-big .v { font-size: var(--sw-fs-3xl); font-weight: var(--sw-fw-semibold); color: var(--tw); font-variant-numeric: tabular-nums; direction: ltr; }
+  /* round 2 (dataviz hero number): the loudest reading at display size, heavy and tight */
+  .wg-temp .tw-big .v { font-size: var(--sw-fs-4xl); font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--tw); font-variant-numeric: tabular-nums; direction: ltr; }
   .wg-temp .tw-big .t { display: grid; gap: 2px; min-inline-size: 0; }
   .wg-temp .tw-big .t b { font-size: var(--sw-fs-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wg-temp .tw-big .t small { color: var(--sw-text-2); font-size: var(--sw-fs-state); }
@@ -40,9 +41,19 @@ export const TEMPERATURE_WIDGET_STYLES = css`
   .wg-temp .dots i { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--tw); display: inline-block; }
   .wg-temp .dots i[data-look='off'] { border-radius: 3px; } /* sensor offline: a square, not only a colour */
   .wg-temp .lst { display: grid; gap: 6px; }
-  .tw-row { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-base); color: inherit; text-decoration: none; min-inline-size: 0; border-radius: 10px; padding: 2px 4px; }
-  .tw-row:focus-visible, .tw-card:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
-  .tw-row i { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--tw); flex: none; }
+  .tw-row { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-base); color: inherit; text-decoration: none; min-inline-size: 0; border-radius: 10px; padding: 4px 6px; margin-inline: -2px; }
+  /* POLISH-CONTROL-297: a row and a card are links - they answer hover (fine pointers only), the press and the keyboard with the product's
+     focus ring (transform and colour only, token durations - zero under reduced motion) */
+  .tw-row, .tw-card { transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
+  .tw-row:active { transform: scale(0.985); }
+  .tw-card:active { transform: scale(0.98); }
+  .tw-row:focus-visible, .tw-card:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+  @media (hover: hover) and (pointer: fine) {
+    .tw-row:hover { background: color-mix(in srgb, var(--sw-text) 6%, transparent); }
+    .tw-card:hover { box-shadow: var(--sw-shadow-2); border-color: color-mix(in srgb, var(--tw) 55%, var(--sw-border)); }
+  }
+  /* the state dot carries a soft halo of its colour (the KPI dots of the temperature screen) */
+  .tw-row i { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--tw); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--tw) 18%, transparent); }
   .tw-row .nm { flex: 1; font-weight: 600; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tw-row .vv { font-variant-numeric: tabular-nums; direction: ltr; white-space: nowrap; }
   .tw-row small { color: var(--sw-text-2); font-size: var(--sw-fs-state); white-space: nowrap; }
@@ -50,12 +61,15 @@ export const TEMPERATURE_WIDGET_STYLES = css`
   .wg-temp .none { color: var(--sw-text-2); font-size: var(--sw-fs-base); }
   .wg.wg-temp-cards { background: transparent; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0; overflow: visible; }
   .tw-cards { display: flex; flex-wrap: wrap; gap: 10px; }
+  /* round 2 (impeccable detector: the 4 px side stripe was a slop tell): the unit card is a flat tinted field of its state with a dot before the name */
   .tw-card {
-    display: grid; gap: 2px; padding: 10px 14px; border-radius: var(--sw-r-md, 20px); text-decoration: none; color: var(--sw-text); background: var(--sw-surface);
-    border: 1px solid var(--sw-border); border-inline-start: 4px solid var(--tw); box-shadow: var(--sw-shadow-1); min-inline-size: 130px; flex: 1 1 130px; box-sizing: border-box;
+    display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--sw-r-md, 20px); text-decoration: none; color: var(--sw-text);
+    background: color-mix(in srgb, var(--tw) 7%, var(--sw-surface));
+    border: 1px solid color-mix(in srgb, var(--tw) 30%, var(--sw-border)); box-shadow: var(--sw-shadow-1); min-inline-size: 130px; flex: 1 1 130px; box-sizing: border-box;
   }
-  .tw-card b { font-size: var(--sw-fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tw-card .vv { font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-semibold); color: var(--tw); font-variant-numeric: tabular-nums; direction: ltr; text-align: start; }
+  .tw-card b { font-size: var(--sw-fs-md); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+  .tw-card b::before { content: ''; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--tw); flex: none; }
+  .tw-card .vv { font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; color: var(--tw); font-variant-numeric: tabular-nums; direction: ltr; text-align: start; }
   .tw-card small { color: var(--sw-text-2); font-size: var(--sw-fs-state); }
   [data-size='s'] .tw-card { min-inline-size: 110px; padding: 8px 10px; }
 `;

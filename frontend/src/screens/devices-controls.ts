@@ -20,6 +20,8 @@ import { bidi, ltrNum } from '../i18n/bidi';
 /** The modes the add-on's allow-list accepts (services/ha_bridge.HVAC_MODES); the menu shows the entity's own
  * hvac_modes that are among them - never a mode the entity does not report. */
 const HVAC_SELECTABLE = ['off', 'heat', 'cool', 'heat_cool', 'auto', 'dry', 'fan_only'];
+/** P6 item 7: the common preset names in Hebrew (an unknown preset keeps its own name). */
+const PRESET_HE: Record<string, string> = { home: 'בבית', away: 'מחוץ לבית', eco: 'חיסכון', comfort: 'נוחות', sleep: 'שינה', boost: 'מוגבר', none: 'ללא', auto: 'אוטומטי', off: 'כבוי', activity: 'פעילות' };
 /** How long a "one gesture to arm, one tap to confirm" control stays armed (cover open / close / position: attention
  * risk in the allow-list, services/ha_bridge.py - a confirmation is required, but a modal is overkill for a card). */
 export const ARM_MS = 4000;
@@ -489,8 +491,8 @@ export class DeviceControls implements ReactiveController {
           : nothing}
         ${presetModes.length
           ? html`<select class="ctl-select" data-control="preset-mode" aria-label="מצב מוגדר מראש" ?disabled=${presetPending} @change=${changePreset}>
-              ${presetModes.includes(preset) ? nothing : html`<option value="" selected disabled>${preset || 'מצב מוגדר'}</option>`}
-              ${presetModes.map((m) => html`<option value=${m} ?selected=${m === preset}>${m}</option>`)}
+              ${presetModes.includes(preset) ? nothing : html`<option value="" selected disabled>${(preset && PRESET_HE[preset]) || preset || 'מצב מוגדר'}</option>`}
+              ${presetModes.map((m) => html`<option value=${m} ?selected=${m === preset}>${PRESET_HE[m] ?? m}</option>`)}
             </select>`
           : nothing}
         ${swingModes.length

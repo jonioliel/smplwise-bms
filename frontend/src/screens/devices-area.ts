@@ -603,14 +603,14 @@ export class DevicesArea extends LitElement {
   private areaPool(): AreaEntity[] {
     const d = this.detail;
     if (!d) return [];
-    return CARD_IDS.filter((id) => this.prefs.showSensors || id !== 'sensors').flatMap((id) => d.cards[id].entities.map((r) => ({ id: r.entity_id, name: r.name, card: id, domain: r.domain, group: r.group, door: r.door_class })));
+    return CARD_IDS.filter((id) => this.prefs.showSensors || id !== 'sensors').flatMap((id) => (d.cards[id]?.entities ?? []).map((r) => ({ id: r.entity_id, name: r.name, card: id, domain: r.domain, group: r.group, door: r.door_class })));
   }
 
   private rowIndex(): Map<string, { row: DeviceRow; card: CardId }> {
     const out = new Map<string, { row: DeviceRow; card: CardId }>();
     const d = this.detail;
     if (!d) return out;
-    for (const id of CARD_IDS) for (const r of d.cards[id].entities) out.set(r.entity_id, { row: r, card: id });
+    for (const id of CARD_IDS) for (const r of d.cards[id]?.entities ?? []) out.set(r.entity_id, { row: r, card: id }); // P6 item 13: a missing card never blanks the screen
     for (const [id, r] of this.extra) if (!out.has(id)) out.set(id, { row: r, card: r.card }); // devices of other areas the layout lists
     return out;
   }
@@ -1340,7 +1340,7 @@ export class DevicesArea extends LitElement {
     if (bubble) {
       return html`<sw-card data-card=${c.id} data-lay-key=${key} ?data-empty=${c.count === 0} data-bubble-card>${this.renderBubbleSection(c, key, body)}</sw-card>`;
     }
-    return html`<sw-card data-card=${c.id} data-lay-key=${key} ?data-empty=${c.count === 0} ?row=${this.rowSections && c.id !== 'sensors' && c.id !== 'media'} ?collapsible=${this.phone && !this.lay.editing} ?collapsed=${this.phone && !this.lay.editing && this.folded(key, c.id === 'sensors')} @sw-card-toggle=${(ev: CustomEvent<{ collapsed: boolean }>) => this.fold(key, ev.detail.collapsed)} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count} התקנים${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'heating' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active} פעילים` : ''}` : ''}>
+    return html`<sw-card data-card=${c.id} data-lay-key=${key} ?data-empty=${c.count === 0} ?row=${this.rowSections && c.id !== 'sensors' && c.id !== 'media'} ?collapsible=${this.phone && !this.lay.editing} ?collapsed=${this.phone && !this.lay.editing && this.folded(key, c.id === 'sensors')} @sw-card-toggle=${(ev: CustomEvent<{ collapsed: boolean }>) => this.fold(key, ev.detail.collapsed)} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count === 1 ? 'התקן אחד' : `${c.count} התקנים`}${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'heating' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active === 1 ? 'אחד פעיל' : `${c.active} פעילים`}` : ''}` : ''}>
       ${this.renderSectionBulk(c, key)}
       <sw-icon slot="actions" .name=${it?.icon ?? CARD_ICON[c.id]} size=${18}></sw-icon>
       ${body}
@@ -1535,7 +1535,7 @@ export class DevicesArea extends LitElement {
       const sepCard: DeviceCard = { ...pseudo, id: (isCardType(custom.type) && (CARD_IDS as string[]).includes(custom.type) ? custom.type : 'sensors') as CardId, label: titleOf(it, info.label) };
       return html`<sw-card data-custom-card=${key.slice(5)} data-card-type=${custom.type} data-lay-key=${key} ?data-empty=${all.length === 0} data-bubble-card>${renderBubbleSep({ id: sepCard.id, icon: it?.icon ?? info.icon, label: sepCard.label, count: all.length ? `${ltrNum(all.length)}` : '' })}${body}</sw-card>`;
     }
-    return html`<sw-card data-custom-card=${key.slice(5)} data-card-type=${custom.type} data-lay-key=${key} ?data-empty=${all.length === 0} heading=${titleOf(it, info.label)} subheading=${all.length ? `${all.length} התקנים` : ''}>
+    return html`<sw-card data-custom-card=${key.slice(5)} data-card-type=${custom.type} data-lay-key=${key} ?data-empty=${all.length === 0} heading=${titleOf(it, info.label)} subheading=${all.length ? (all.length === 1 ? 'התקן אחד' : `${all.length} התקנים`) : ''}>
       <sw-icon slot="actions" .name=${it?.icon ?? info.icon} size=${18}></sw-icon>
       ${body}
     </sw-card>`;

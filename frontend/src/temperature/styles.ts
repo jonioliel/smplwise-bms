@@ -30,11 +30,14 @@ export const tempCss = css`
     background: var(--c-soft); color: var(--c-text); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4;
   }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  /* POLISH-CONTROL-297: the chip's word is set one step larger (the audit's smallest text was these tags) and its tone colour is the
+     theme's readable text token, never the raw status colour; a neutral chip reads in the full text colour */
   .chip {
-    display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5;
-    font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 10px; line-height: 1.5;
+    font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text); white-space: nowrap;
     max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis;
   }
+  .chip[data-tone] { font-weight: var(--sw-fw-semibold); }
   .chip[data-tone='err'] { background: var(--sw-danger-soft); color: var(--sw-danger-text); }
   .chip[data-tone='warn'] { background: var(--sw-warning-soft); color: var(--sw-warning-text); }
   .chip[data-tone='door'] { background: color-mix(in srgb, var(--tc-door) 14%, transparent); color: var(--sw-text); }
@@ -54,21 +57,23 @@ export const tempCss = css`
   .g-sp { stroke: var(--tc-acc); }
   .g-tick { font-size: var(--sw-fs-2xs); fill: var(--sw-text-3); }
   .gv { position: relative; display: grid; justify-items: center; gap: 1px; margin-block-start: 8px; text-align: center; }
-  .gv b { font-size: var(--sw-fs-2xl); line-height: 1; color: var(--sw-heading); }
-  .gv b sup { font-size: var(--sw-fs-2xs); margin-inline-start: 1px; color: var(--sw-text-2); }
-  .gv small { font-size: var(--sw-fs-2xs); color: var(--sw-text-2); }
-  .gv .trend { font-size: var(--sw-fs-2xs); color: var(--c-text); font-weight: var(--sw-fw-semibold); }
+  /* round 2 (dataviz hero number): the reading is the hero of the gauge - display size, heavy, tight, tabular */
+  .gv b { font-size: var(--sw-fs-3xl); font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--sw-heading); font-variant-numeric: tabular-nums; }
+  .gv b sup { font-size: var(--sw-fs-xs); margin-inline-start: 1px; color: var(--sw-text-2); }
+  .gv small { font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
+  .gv .trend { font-size: var(--sw-fs-xs); color: var(--c-text); font-weight: var(--sw-fw-semibold); }
   [data-stale] .gv b { color: var(--sw-text-3); }
 
   /* charts */
-  .spark { block-size: 52px; border-radius: var(--sw-r-xs); overflow: hidden; background: var(--sw-surface-2); }
+  /* round 2 (dataviz marks): a taller sparkline on a tone step (no box), a 2 px line, the band a quiet field, the out-of-range run heavier */
+  .spark { block-size: 60px; border-radius: var(--sw-r-sm); overflow: hidden; background: color-mix(in srgb, var(--sw-text) 3.5%, transparent); }
   .spark svg { inline-size: 100%; block-size: 100%; display: block; }
   .c-band { fill: var(--tc-band); }
   .c-door { fill: var(--tc-door); opacity: 0.22; }
   .c-defrost { fill: var(--tc-acc); opacity: 0.12; }
-  .c-edge { stroke: var(--tc-ok); stroke-opacity: 0.55; stroke-dasharray: 3 3; }
-  .c-line { stroke: var(--tc-line); stroke-width: 1.8; stroke-linejoin: round; }
-  .c-out { stroke: var(--tc-alarm); stroke-width: 2.2; stroke-linejoin: round; }
+  .c-edge { stroke: var(--tc-ok); stroke-opacity: 0.45; stroke-dasharray: 3 3; }
+  .c-line { stroke: var(--tc-line); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .c-out { stroke: var(--tc-alarm); stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round; }
   .c-sp { stroke: var(--sw-text-2); stroke-width: 1.4; stroke-dasharray: 5 3; }
   .c-line.big { stroke-width: 2; }
   /* phase 3 (idea 10): the compared units over the main line - categorical timeline colours, dashed so the main unit stays the hero */

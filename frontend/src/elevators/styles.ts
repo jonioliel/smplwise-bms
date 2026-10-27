@@ -35,13 +35,15 @@ export const elevatorCss = css`
     align-items: center;
     gap: 6px;
     border-radius: 999px;
-    padding: 3px 11px;
+    padding: 4px 12px;
     background: var(--el-c);
     color: #fff;
     font-size: var(--sw-fs-base);
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: -0.005em;
     white-space: nowrap;
     line-height: 1.4;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); /* round 2: a lit top edge, the badge reads as a solid pill, not a flat rectangle */
   }
   .el-badge.sm {
     padding: 2px 8px;
@@ -136,14 +138,16 @@ export const elevatorCss = css`
   .led[data-na] { opacity: 0.45; }
 
   /* the 24-hour bar */
+  /* round 2 (dataviz marks): a taller bar with a surface gap between the state segments, so each run reads as its own mark */
   .tl {
-    block-size: 10px;
-    border-radius: 6px;
+    block-size: 12px;
+    border-radius: 999px;
     display: flex;
+    gap: 2px;
     overflow: hidden;
-    background: color-mix(in srgb, var(--sw-text-3) 16%, transparent);
+    background: color-mix(in srgb, var(--sw-text-3) 14%, transparent);
   }
-  .tl span { block-size: 100%; background: var(--el-c); }
+  .tl span { block-size: 100%; background: var(--el-c); border-radius: 2px; }
   .tl span.lead { background: transparent; }
 `;
 

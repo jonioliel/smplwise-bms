@@ -128,8 +128,15 @@ export class TicketsOverview extends LitElement {
     /* the numbers row: the RFQ board's tiles */
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--sw-s-3); }
     .kpi { display: flex; flex-direction: column; gap: 4px; padding: 14px 18px; border-radius: var(--sw-r-xl); border: 1px solid var(--dv-border); background: var(--dv-surface); -webkit-backdrop-filter: var(--dv-surface-blur); backdrop-filter: var(--dv-surface-blur); box-shadow: var(--dv-shadow-1); min-inline-size: 0; color: inherit; text-decoration: none; font: inherit; text-align: start; cursor: pointer; }
-    .kpi small { font-size: var(--sw-fs-sm); color: var(--dv-text-2); }
-    .kpi b { font-size: var(--sw-fs-2xl); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--dv-text); overflow-wrap: anywhere; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; }
+    /* POLISH-CONTROL-297: the number tile is a link - it answers hover (fine pointers only), the press and the keyboard (it had a pointer
+       cursor and nothing else); transform and colour only, token durations - zero under reduced motion */
+    .kpi { transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
+    .kpi:active { transform: scale(0.98); }
+    .kpi:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: 2px; }
+    .kpi small { font-size: var(--sw-fs-sm); color: var(--dv-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* round 2 (dataviz hero number): the tile's number at display size, heavy and tight; the word stays a quiet line */
+    .kpi b { font-size: var(--sw-fs-4xl); font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--dv-text); overflow-wrap: anywhere; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; }
+    .kpi { gap: 6px; padding: 16px 20px; }
     .kpi.warn b { color: var(--au-warn-text); }
     .kpi.bad b { color: var(--dv-danger); }
     .kpi .d { display: inline-flex; align-items: center; gap: 2px; font-size: var(--sw-fs-xs); font-weight: 600; color: var(--dv-text-3); font-variant-numeric: tabular-nums; }
@@ -145,10 +152,11 @@ export class TicketsOverview extends LitElement {
     .w.wide { grid-column: span 2; }
     .w.full { grid-column: 1 / -1; }
     .w > header { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
-    .w > header h2 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-lg); font-weight: 700; letter-spacing: -0.015em; line-height: 1.25; min-inline-size: 0; }
+    .w > header h2 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.015em; line-height: 1.25; min-inline-size: 0; }
     .w > header .q { font-size: var(--sw-fs-sm); font-weight: 500; color: var(--dv-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-inline-size: 0; }
     .w > header .fold { all: unset; box-sizing: border-box; margin-inline-start: auto; display: grid; place-items: center; inline-size: 32px; block-size: 32px; border-radius: 50%; color: var(--dv-text-3); cursor: pointer; flex: none; }
-    .w > header .fold:hover { background: var(--dv-surface-3); color: var(--dv-text); }
+    .w > header .fold { transition: background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
+    .w > header .fold:active { transform: scale(0.92); }
     .w > header .fold:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: 2px; }
     .w > header .fold .ic { font-size: var(--sw-fs-xl); transition: transform var(--mm-motion, 200ms) var(--mm-ease, ease); }
     .w.folded > header .fold .ic { transform: rotate(90deg); }
@@ -159,7 +167,8 @@ export class TicketsOverview extends LitElement {
     .cnt.bad { background: var(--dv-danger-soft); color: var(--dv-danger); }
     .quiet { display: inline-flex; align-items: center; gap: 8px; min-block-size: 36px; font-size: var(--sw-fs-base); font-weight: 600; color: var(--au-ok-text); }
     .quiet .ic { font-size: var(--sw-fs-lg); }
-    .unavail { display: flex; align-items: center; gap: 10px; min-block-size: 44px; font-size: var(--sw-fs-base); color: var(--dv-text-2); }
+    /* round 2 loop 1 (impeccable harden): a widget's "not available now" is a tinted field with its retry, not a grey line in an empty card */
+    .unavail { display: flex; align-items: center; gap: 10px; min-block-size: 52px; padding: 10px 14px; border-radius: var(--sw-r-lg); background: color-mix(in srgb, var(--dv-text) 5%, transparent); font-size: var(--sw-fs-base); font-weight: 600; color: var(--dv-text-2); }
     .unavail .btn { margin-inline-start: auto; }
     .skel { display: flex; flex-direction: column; gap: 10px; }
     .mut { color: var(--dv-text-3); font-size: var(--sw-fs-sm); }
@@ -171,7 +180,9 @@ export class TicketsOverview extends LitElement {
     .tree { display: flex; flex-direction: column; gap: 2px; }
     .place { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; align-items: center; gap: 12px; }
     .tree .row { box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; min-block-size: 40px; padding-inline: 8px 12px; border-radius: var(--sw-r-lg); color: var(--dv-text); font-size: var(--sw-fs-base); text-decoration: none; }
-    .tree .row:hover, .tree .row:focus-visible { background: color-mix(in srgb, var(--dv-text) 6%, transparent); outline: none; }
+    .tree .row { transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
+    .tree .row:active { transform: scale(0.99); }
+    .tree .row:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: -2px; }
     .tree .row.l0 .nm { font-weight: 700; }
     .tree .row.l1 { padding-inline-start: 28px; color: var(--dv-text-2); }
     .tree .row.l2 { padding-inline-start: 48px; color: var(--dv-text-2); }
@@ -191,23 +202,25 @@ export class TicketsOverview extends LitElement {
     .crows { display: flex; flex-direction: column; }
     .crow { display: grid; grid-template-columns: auto minmax(0, 1.4fr) auto auto; gap: 12px; align-items: center; padding: 6px; min-block-size: 56px; border-block-end: 1px solid var(--dv-border); color: inherit; text-decoration: none; font-size: var(--sw-fs-md); }
     .crow:last-child { border-block-end: 0; }
-    .crow:hover, .crow:focus-visible { background: var(--dv-surface-2); outline: none; }
+    .crow { transition: background-color var(--sw-t-fast) var(--sw-ease); }
+    .crow:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: -2px; }
     .crow b { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-weight: 700; }
     .crow .nm small { display: block; color: var(--dv-text-3); font-size: var(--sw-fs-xs); }
     .av { display: inline-grid; place-items: center; flex: none; inline-size: 36px; block-size: 36px; border-radius: 50%; font-weight: 800; font-size: var(--sw-fs-sm); background: var(--dv-accent-soft); color: var(--dv-accent-text); }
     .av.ext { color: var(--au-warn-text); background: var(--dv-warning-soft); }
     .st { display: flex; gap: 0; }
     .cell { font-size: var(--sw-fs-md); color: var(--dv-text); font-variant-numeric: tabular-nums; min-inline-size: 58px; text-align: center; }
-    .cell small { display: none; font-size: var(--sw-fs-2xs); color: var(--dv-text-3); }
+    .cell small { display: none; font-size: var(--sw-fs-xs); color: var(--dv-text-3); }
     .cell.bad { color: var(--dv-danger); font-weight: 700; }
     .cell.warn { color: var(--au-warn-text); font-weight: 700; }
     .ldc { min-inline-size: 70px; display: grid; justify-items: center; gap: 3px; }
-    .ldc small { font-size: var(--sw-fs-2xs); color: var(--dv-text-3); }
+    .ldc small { font-size: var(--sw-fs-xs); color: var(--dv-text-3); }
     .load { display: inline-flex; gap: 3px; align-items: center; }
     .load i { inline-size: 14px; block-size: 6px; border-radius: var(--sw-r-pill); background: var(--dv-surface-3); }
     .load i.on { background: var(--dv-accent); }
     .load i.hot { background: var(--dv-danger); }
-    .hhead { display: grid; grid-template-columns: 36px minmax(0, 1.4fr) auto auto; gap: 12px; padding-inline: 6px; font-size: var(--sw-fs-2xs); color: var(--dv-text-3); }
+    /* POLISH-CONTROL-297: the column heads of the handler table one step up from the smallest size (the audit's 10 px tier) */
+    .hhead { display: grid; grid-template-columns: 36px minmax(0, 1.4fr) auto auto; gap: 12px; padding-inline: 6px; font-size: var(--sw-fs-xs); color: var(--dv-text-2); }
     .hhead .st span { min-inline-size: 58px; text-align: center; }
     .hhead .ldc { min-inline-size: 70px; text-align: center; }
     .chip.pur { background: color-mix(in srgb, var(--sw-purple) 16%, transparent); color: color-mix(in srgb, var(--sw-purple) 68%, var(--dv-text)); }
@@ -219,14 +232,16 @@ export class TicketsOverview extends LitElement {
     a.blk { text-decoration: none; color: inherit; }
     .lane .bt b { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-md); color: var(--dv-text); }
     .lane .bt small { display: flex; flex-wrap: wrap; gap: 2px 10px; }
-    .lane .big { font-size: var(--sw-fs-2xl); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--dv-text); min-inline-size: 28px; text-align: center; }
+    .lane .big { font-size: var(--sw-fs-3xl); font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--dv-text); min-inline-size: 32px; text-align: center; }
     .lane .bi.me { background: var(--dv-accent-soft); color: var(--dv-accent-text); }
     .lane .bi.ext { background: color-mix(in srgb, var(--sw-purple) 16%, transparent); color: color-mix(in srgb, var(--sw-purple) 68%, var(--dv-text)); }
     /* rows: overdue and the agenda */
     .closedrows { display: flex; flex-direction: column; padding: 4px 0; }
     .closedrows .cr { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 6px 14px; min-block-size: 44px; padding: 6px 10px; color: var(--dv-text); font-size: var(--sw-fs-base); text-align: start; text-decoration: none; border-radius: var(--sw-r-lg); }
     .closedrows .cr + .cr { border-block-start: 1px solid var(--dv-border); }
-    .closedrows .cr:hover, .closedrows .cr:focus-visible { background: var(--dv-surface-3); outline: none; }
+    .closedrows .cr { transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
+    .closedrows .cr:active { transform: scale(0.99); }
+    .closedrows .cr:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: -2px; }
     .closedrows .cr .num { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; color: var(--dv-text-3); font-weight: 600; }
     .closedrows .cr b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-inline-size: 0; }
     .closedrows .cr b small { display: block; font-weight: 400; color: var(--dv-text-2); overflow: hidden; text-overflow: ellipsis; }
@@ -255,7 +270,7 @@ export class TicketsOverview extends LitElement {
     .bars svg { inline-size: 100%; block-size: 132px; display: block; overflow: visible; }
     .bars .bo { fill: var(--dv-accent); }
     .bars .bc { fill: var(--dv-success, var(--sw-success)); }
-    .bars .bl { font-size: 8.5px; text-anchor: middle; fill: var(--dv-text-3); }
+    .bars .bl { font-size: var(--sw-fs-2xs); text-anchor: middle; fill: var(--dv-text-2); }
     .bars .ax { font-size: var(--sw-fs-2xs); text-anchor: middle; fill: var(--dv-text-3); }
     .bars .base { stroke: var(--dv-border); }
     .bars .lg { display: flex; gap: 14px; font-size: var(--sw-fs-xs); color: var(--dv-text-2); }
@@ -318,8 +333,17 @@ export class TicketsOverview extends LitElement {
     @media (pointer: coarse) {
       .tree .row, .closedrows .cr, .tl { min-block-size: 44px; }
     }
+    /* POLISH-CONTROL-297: hover is for fine pointers only - a touch never leaves a tile, a row or the fold button lit */
+    @media (hover: hover) and (pointer: fine) {
+      .kpi:hover { border-color: var(--dv-border-strong, var(--dv-border)); box-shadow: var(--dv-shadow-2); }
+      .w > header .fold:hover { background: var(--dv-surface-3); color: var(--dv-text); }
+      .tree .row:hover { background: color-mix(in srgb, var(--dv-text) 6%, transparent); }
+      .crow:hover { background: var(--dv-surface-2); }
+      .closedrows .cr:hover { background: var(--dv-surface-3); }
+    }
     @media (prefers-reduced-motion: reduce) {
       .w > header .fold .ic { transition: none; }
+      .kpi, .tree .row, .crow, .closedrows .cr, .w > header .fold { transition: none; }
     }
   `];
 

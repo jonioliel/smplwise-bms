@@ -38,15 +38,20 @@ export class SchedulesWeekView extends LitElement {
       display: block;
       direction: ltr;
       font-size: var(--sw-fs-xs);
-      --sc-on: #16a34a;
-      --sc-off: #64748b;
-      --sc-level: #d97706;
-      --sc-climate: #2767ed;
+      /* POLISH-CONTROL-297: the category colours follow the product's status tokens (a skin, a palette and the dark scheme change them);
+         the two that have no status meaning keep a hue of their own */
+      --sc-on: var(--sw-success);
+      --sc-off: var(--sw-unknown);
+      --sc-level: var(--sw-warning);
+      --sc-climate: var(--sw-accent);
       --sc-cover: #0d9488;
-      --sc-secure: #7c3aed;
-      --sc-custom: #475569;
-      --sc-empty: #94a3b8;
+      --sc-secure: var(--sw-purple);
+      --sc-custom: var(--sw-text-2);
+      --sc-empty: var(--sw-text-3);
       --label-w: 64px;
+      /* the night, the grid lines and the sun lines are tints of the text colour, so they are seen on a dark board too */
+      --sc-night: color-mix(in srgb, var(--sw-text) 5%, transparent);
+      --sc-gridline: color-mix(in srgb, var(--sw-text) 9%, transparent);
     }
     .head {
       position: relative;
@@ -57,8 +62,8 @@ export class SchedulesWeekView extends LitElement {
       position: absolute;
       inset-block-end: 2px;
       transform: translateX(-50%);
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-2xs);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
       font-variant-numeric: tabular-nums;
     }
     .hour:first-child {
@@ -74,13 +79,14 @@ export class SchedulesWeekView extends LitElement {
       display: grid;
       grid-template-columns: 1fr var(--label-w);
     }
+    /* round 2: the day name one step larger and bold; the track is a tone step without a frame (taste-skill: no outlined boxes) */
     .lbl {
       direction: rtl;
-      padding-inline-start: 8px;
+      padding-inline-start: 10px;
       display: flex;
       align-items: center;
-      font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-md);
       color: var(--sw-text);
     }
     .row.today .lbl {
@@ -88,27 +94,29 @@ export class SchedulesWeekView extends LitElement {
     }
     .track {
       position: relative;
-      background: var(--sw-surface-2);
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-sm);
+      background: color-mix(in srgb, var(--sw-text) 4%, transparent);
+      border-radius: var(--sw-r-md);
       overflow: hidden;
       min-block-size: 40px;
+    }
+    .row.today .track {
+      background: color-mix(in srgb, var(--sw-accent) 6%, transparent);
     }
     .night {
       position: absolute;
       inset-block: 0;
-      background: rgba(30, 46, 71, 0.045);
+      background: var(--sc-night);
     }
     .gl {
       position: absolute;
       inset-block: 0;
       inline-size: 1px;
-      background: rgba(30, 46, 71, 0.07);
+      background: var(--sc-gridline);
     }
     .sunl {
       position: absolute;
       inset-block: 0;
-      border-inline-start: 1px dashed rgba(217, 119, 6, 0.7);
+      border-inline-start: 1px dashed color-mix(in srgb, var(--sw-warning) 70%, transparent);
     }
     .nowl {
       position: absolute;
@@ -116,43 +124,74 @@ export class SchedulesWeekView extends LitElement {
       border-inline-start: 2px solid var(--sw-danger);
       z-index: 2;
     }
+    /* the "now" line carries a small head, so it is told from a schedule's edge */
+    .nowl::before {
+      content: '';
+      position: absolute;
+      inset-block-start: -1px;
+      inset-inline-start: -4px;
+      inline-size: 6px;
+      block-size: 6px;
+      border-radius: 50%;
+      background: var(--sw-danger);
+    }
+    /* POLISH-CONTROL-297: the pill is one step taller and its text one step larger (it was the 10 px tier); it answers the press and the
+       keyboard, hover is for fine pointers only (transform and shadow, token durations - zero under reduced motion) */
     .pill {
       --c: var(--sc-custom);
       position: absolute;
-      block-size: 18px;
+      block-size: 22px;
       box-sizing: border-box;
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      padding: 0 7px;
-      border-radius: var(--sw-r-xs);
-      border: 1px solid var(--c);
-      border-inline-start-width: 3px;
-      background: var(--sw-surface);
+      gap: 6px;
+      padding: 0 8px;
+      border-radius: var(--sw-r-pill);
+      border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+      background: color-mix(in srgb, var(--c) 11%, var(--sw-surface));
       color: var(--sw-text);
       font: inherit;
-      font-size: var(--sw-fs-2xs);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-medium);
+      line-height: 1;
       cursor: pointer;
       white-space: nowrap;
       direction: rtl;
       z-index: 1;
       overflow: hidden;
       text-overflow: ellipsis;
+      transition: box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
     }
-    .pill:hover,
+    .pill:active {
+      transform: scale(0.97);
+    }
     .pill:focus-visible {
       z-index: 3;
-      box-shadow: var(--sw-shadow-2);
       outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .pill:hover {
+        z-index: 3;
+        box-shadow: var(--sw-shadow-2);
+      }
     }
     .pill.cond {
       border-style: dashed;
-      border-inline-start-style: solid;
+    }
+    /* round 2 (impeccable detector: the 3 px side stripe was a slop tell): the category is a filled dot before the time */
+    .pill::before {
+      content: '';
+      inline-size: 7px;
+      block-size: 7px;
+      border-radius: 50%;
+      background: var(--c);
+      flex: none;
     }
     .pill b {
       font-variant-numeric: tabular-nums;
       direction: ltr;
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-bold);
     }
     .pill.c-on {
       --c: var(--sc-on);
@@ -173,9 +212,10 @@ export class SchedulesWeekView extends LitElement {
       --c: var(--sc-secure);
     }
     .empty {
-      padding: 24px;
+      padding: 28px 16px;
       text-align: center;
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-base);
       direction: rtl;
     }
   `;
@@ -220,7 +260,7 @@ export class SchedulesWeekView extends LitElement {
     const W = Math.max(this.width, 300);
     const laneEnd: number[] = [];
     return raw.map((p) => {
-      const w = Math.min(240, 62 + p.text.length * 6.6);
+      const w = Math.min(250, 74 + p.text.length * 6.6);
       // a pill near the end of the day is pulled inside the track BEFORE it is placed in a lane, so the lanes hold true
       const x = Math.max(0, Math.min((p.at / 1440) * W, W - w - 2));
       let lane = laneEnd.findIndex((end) => end + 4 <= x);
@@ -249,7 +289,7 @@ export class SchedulesWeekView extends LitElement {
           const pills = this.pillsOf(d);
           const lanes = pills.reduce((m, p) => Math.max(m, p.lane + 1), 0);
           return html`<div class="row ${d === today ? 'today' : ''}" data-week-day=${d}>
-            <div class="track" style="min-block-size:${Math.max(40, 8 + lanes * 21)}px">
+            <div class="track" style="min-block-size:${Math.max(40, 8 + lanes * 26)}px">
               <div class="night" style="left:0;width:${minutesToPercent(sun.sunrise)}%"></div>
               <div class="night" style="left:${minutesToPercent(sun.sunset)}%;width:${100 - minutesToPercent(sun.sunset)}%"></div>
               ${[3, 6, 9, 12, 15, 18, 21].map((h) => html`<div class="gl" style="left:${minutesToPercent(h * 60)}%"></div>`)}
@@ -257,7 +297,7 @@ export class SchedulesWeekView extends LitElement {
               <div class="sunl" style="left:${minutesToPercent(sun.sunset)}%"></div>
               ${d === today ? html`<div class="nowl" style="left:${minutesToPercent(nowMin)}%"></div>` : nothing}
               ${pills.map((p) => {
-                return html`<button type="button" class="pill c-${p.cat} ${p.cond ? 'cond' : ''}" style="left:${p.x}px;top:${4 + p.lane * 21}px;max-inline-size:${p.w}px" title=${p.title} data-week-pill=${p.id} @click=${() => this.openSchedule(p.id)}><b>${clock(p.at)}</b><span>${p.text}</span></button>`;
+                return html`<button type="button" class="pill c-${p.cat} ${p.cond ? 'cond' : ''}" style="left:${p.x}px;top:${4 + p.lane * 26}px;max-inline-size:${p.w}px" title=${p.title} data-week-pill=${p.id} @click=${() => this.openSchedule(p.id)}><b>${clock(p.at)}</b><span>${p.text}</span></button>`;
               })}
             </div>
             <div class="lbl">${DAY_LONG[d]}</div>

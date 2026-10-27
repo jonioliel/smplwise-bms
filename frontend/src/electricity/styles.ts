@@ -136,35 +136,47 @@ export const elecCss = css`
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
   }
+  /* POLISH-CONTROL-297: the number tile sits on the same elevation as the cards beside it (it was flat); the label keeps one line */
   .tile {
     background: var(--sw-surface);
     border: 1px solid var(--sw-border);
     border-radius: var(--sw-r-lg);
-    padding: 12px 14px;
+    box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+    padding: 14px 18px;
     min-inline-size: 0;
   }
   .tile .k {
     color: var(--sw-text-2);
     font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-medium);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   /* the number and its unit have no break opportunity between them (digits glued to letters), so with the skins' larger value type
      (tesla 30px) a narrow tile would push the unit out; flex-wrap lets the unit drop to its own line, and a too-long number may break */
+  /* round 2 (dataviz hero number): display size, heavy, tight, tabular; the unit a quiet step beside it */
   .tile .v {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     min-inline-size: 0;
     overflow-wrap: anywhere;
-    font-size: var(--sw-fs-3xl);
-    font-weight: var(--sw-fw-bold);
+    font-size: var(--sw-fs-4xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
     color: var(--sw-heading);
+    margin-block-start: 2px;
   }
   .tile .u {
     min-inline-size: 0;
     font-size: var(--sw-fs-sm);
-    color: var(--sw-text-3);
+    color: var(--sw-text-2);
     font-weight: var(--sw-fw-medium);
-    margin-inline-start: 4px;
+    letter-spacing: 0;
+    margin-inline-start: 6px;
   }
   .prog {
     block-size: 8px;
@@ -196,16 +208,32 @@ export const elecCss = css`
     white-space: nowrap;
     text-decoration: none;
   }
-  .btn:hover {
-    background: var(--sw-surface-2);
+  /* POLISH-CONTROL-297: a button answers the press (transform only, token durations - zero under reduced motion), hover is for fine
+     pointers only (a touch never leaves it lit), and the keyboard gets the product's focus ring (there was none) */
+  .btn {
+    transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+  }
+  .btn:active:not([disabled]) {
+    transform: scale(0.97);
+  }
+  .btn:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: var(--sw-focus-offset);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .btn:hover {
+      background: var(--sw-surface-2);
+    }
   }
   .btn.pri {
     background: var(--sw-accent);
     border-color: var(--sw-accent);
     color: var(--sw-text-inverse);
   }
-  .btn.pri:hover {
-    background: var(--sw-accent-hover);
+  @media (hover: hover) and (pointer: fine) {
+    .btn.pri:hover {
+      background: var(--sw-accent-hover);
+    }
   }
   .btn.dng {
     color: var(--sw-danger-text);
@@ -477,8 +505,14 @@ export const elecCss = css`
   table.t tbody tr.go {
     cursor: pointer;
   }
-  table.t tbody tr.go:hover td {
-    background: var(--sw-surface-2);
+  @media (hover: hover) and (pointer: fine) {
+    table.t tbody tr.go:hover td {
+      background: var(--sw-surface-2);
+    }
+  }
+  table.t tbody tr.go:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: -2px;
   }
   table.t tfoot td {
     font-weight: var(--sw-fw-bold);
@@ -670,7 +704,8 @@ export const elecCss = css`
   .skl {
     background: linear-gradient(90deg, var(--sw-surface-3), var(--sw-surface-2), var(--sw-surface-3));
     border-radius: var(--sw-r-xs);
-    block-size: 14px;    animation: elec-pulse 1.4s ease-in-out infinite;
+    block-size: 14px;
+    animation: elec-pulse 1.4s ease-in-out infinite;
   }
   @keyframes elec-pulse {
     50% {

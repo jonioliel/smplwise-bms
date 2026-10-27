@@ -421,6 +421,7 @@ export class HomeWidgetsView extends LitElement {
       display: flex;
       align-items: center;
       gap: 12px;
+      min-inline-size: 0; /* P6 item 3: the measures column wraps inside the card at 105 C / 100% / 187.4 km/h instead of leaving it */
     }
     .wx-ic {
       inline-size: var(--wxi, 44px);
@@ -441,6 +442,7 @@ export class HomeWidgetsView extends LitElement {
       display: flex;
       flex-direction: column;
       line-height: 1.1;
+      min-inline-size: 0;
     }
     .wx-t {
       font-size: var(--wxt, 36px);
@@ -462,6 +464,8 @@ export class HomeWidgetsView extends LitElement {
       display: flex;
       gap: 6px 14px;
       flex-wrap: wrap;
+      min-inline-size: 0;
+      max-inline-size: 100%;
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }

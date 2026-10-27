@@ -256,12 +256,20 @@ export const ticketBoardV5Styles = css`
     font-size: var(--sw-fs-base);
     text-align: start;
   }
+  /* POLISH-CONTROL-297: the "today" entry answers the press (transform only, token durations - zero under reduced motion); hover is for
+     fine pointers only */
   .today button.up {
     cursor: pointer;
     border-radius: var(--sw-r-md);
+    transition: transform var(--sw-t-fast) var(--sw-ease);
   }
-  .today button.up:hover {
-    text-decoration: underline;
+  .today button.up:active {
+    transform: scale(0.98);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .today button.up:hover {
+      text-decoration: underline;
+    }
   }
   .today button.up:focus-visible {
     outline: 2px solid var(--dv-focus);
@@ -348,10 +356,20 @@ export const ticketBoardV5Styles = css`
   .closedrows .cr + .cr {
     border-block-start: 1px solid var(--dv-border);
   }
-  .closedrows .cr:hover,
+  .closedrows .cr {
+    transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+  }
+  .closedrows .cr:active {
+    transform: scale(0.99);
+  }
   .closedrows .cr:focus-visible {
-    background: var(--dv-surface-3);
-    outline: none;
+    outline: 2px solid var(--dv-focus);
+    outline-offset: -2px;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .closedrows .cr:hover {
+      background: var(--dv-surface-3);
+    }
   }
   .closedrows .cr .num {
     font-variant-numeric: tabular-nums;
