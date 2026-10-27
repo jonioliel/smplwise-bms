@@ -29,6 +29,7 @@ function build(ds: Dataset) {
   cfg.weather.fields = ['condition', 'temperature', 'humidity', 'wind', 'pressure', 'visibility', 'uv', 'precipitation', 'apparent', 'forecast'] as never;
   cfg.weather.forecast = '5' as never;
   cfg.agenda.calendars = ['calendar.a'];
+  if (new URLSearchParams(location.search).get('skin') === 'bubble') { cfg.clock.style = 'tile'; cfg.weather.style = 'tile'; }
   cfg.launcher.items = [{ kind: 'route', id: '/devices', label: ds === 'worst' ? LONG_HE : 'מכשירים' }, { kind: 'scene', id: 'scene.x', label: ds === 'worst' ? UNB : 'ערב' }, { kind: 'script', id: 'script.x', label: '' }];
   const empty = ds === 'empty';
   const worst = ds === 'worst';

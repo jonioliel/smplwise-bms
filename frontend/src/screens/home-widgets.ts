@@ -405,6 +405,10 @@ export class HomeWidgetsView extends LitElement {
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
       white-space: nowrap;
+      /* WIDGETBREAK-297: the Hebrew date comes from a sensor the installer picked; a long state ends in an ellipsis (the full text is the tooltip) */
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-inline-size: 100%;
     }
     .wg-clock[data-size='s'] .d1 {
       font-size: var(--sw-fs-xs);
@@ -514,7 +518,10 @@ export class HomeWidgetsView extends LitElement {
     }
     .fc .hl {
       display: flex;
-      gap: 5px;
+      /* WIDGETBREAK-297: in a narrow card the high and the low stack instead of crossing into the next day's column */
+      flex-wrap: wrap;
+      justify-content: center;
+      column-gap: 5px;
       align-items: baseline;
       direction: ltr;
     }
@@ -538,6 +545,9 @@ export class HomeWidgetsView extends LitElement {
     .sub {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
+      /* WIDGETBREAK-297: the holiday and the date lines come from sensors; an unbreakable value wraps inside the card */
+      overflow-wrap: anywhere;
+      min-inline-size: 0;
     }
     .tms {
       display: flex;
@@ -923,6 +933,9 @@ export class HomeWidgetsView extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
+      /* WIDGETBREAK-297: the edit controls wrap in a 240 px card instead of leaving it */
+      flex-wrap: wrap;
+      row-gap: 2px;
       background: var(--sw-surface);
       border-radius: 999px;
       padding: 3px 4px 3px 8px;
@@ -1648,7 +1661,7 @@ export class HomeWidgetsView extends LitElement {
     const sensor = this.config.calendar.date ? this.data.sensors[this.config.calendar.date] : undefined;
     const hebrew = c.hebrew && dated ? (this.config.calendar.date ? (hasValue(sensor) ? sensor.state : '') : hebrewDate(this.now, this.zone)) : '';
     const dates = dated
-      ? html`<div class="dts"><div class="d1"><span class="only-s">${p.weekdayShort} · ${p.dateShort}</span><span class="only-m">${p.weekdayLong}, ${p.dateLong}</span><span class="only-l">${p.weekdayLong}, ${p.dateYear}</span></div>${hebrew ? html`<div class="d2 ge-m" data-home-hebrew-date>${hebrew}</div>` : nothing}</div>`
+      ? html`<div class="dts"><div class="d1"><span class="only-s">${p.weekdayShort} · ${p.dateShort}</span><span class="only-m">${p.weekdayLong}, ${p.dateLong}</span><span class="only-l">${p.weekdayLong}, ${p.dateYear}</span></div>${hebrew ? html`<div class="d2 ge-m" data-home-hebrew-date title=${hebrew}>${hebrew}</div>` : nothing}</div>`
       : nothing;
     return this.shell(it, 'wg-clock', {}, html`${this.head(it, CLOCK_ICON)}
       <div class="wg-b"><div class="clk" role="timer" aria-label="השעה עכשיו"><span class="hm" data-home-time>${p.h}<b>:</b>${p.m}</span>${c.seconds ? html`<span class="ss only-l">${p.s}</span>` : nothing}</div>${dates}</div>`);

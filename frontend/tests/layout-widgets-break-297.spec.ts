@@ -16,9 +16,9 @@ const FIXED = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'agenda', 'tempe
 const WIDGETS = FIXED;
 const SHOTS = process.env.WB_SHOTS;
 
-async function open(page: Page, scheme: 'light' | 'dark') {
+async function open(page: Page, scheme: 'light' | 'dark', skin = 'classic') {
   await page.goto('about:blank');
-  await page.goto(`/tests/widget-break-harness/index.html?skin=classic&scheme=${scheme}`);
+  await page.goto(`/tests/widget-break-harness/index.html?skin=${skin}&scheme=${scheme}`);
   await page.waitForFunction(() => (window as unknown as { wbReady?: boolean }).wbReady === true, null, { timeout: 30_000 });
 }
 
@@ -52,24 +52,24 @@ async function edge(page: Page): Promise<string[]> {
 
 test.describe('home widgets break test', () => {
   test.beforeAll(() => { if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true }); });
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`${scheme}: no widget leaves or clips its card at 240-360 px`, async ({ page }) => {
+  for (const [skin, scheme] of [['classic', 'light'], ['classic', 'dark'], ['bubble', 'light'], ['bubble', 'dark']] as const) {
+    test(`${skin} ${scheme}: no widget leaves or clips its card at 240-360 px`, async ({ page }) => {
       test.setTimeout(240_000);
       const errors: string[] = [];
       page.on('pageerror', (e) => errors.push(String(e)));
-      await open(page, scheme);
+      await open(page, scheme, skin);
       const problems: string[] = [];
       for (const id of WIDGETS) for (const size of SIZES) for (const ds of DATASETS) for (const w of WIDTHS) {
-        const ctx = `${id}/${size}/${ds}/${w}/${scheme}`;
+        const ctx = `${id}/${size}/${ds}/${w}/${skin}-${scheme}`;
         await page.evaluate(([i, s, d, px]) => (window as unknown as { wbMount: (...a: unknown[]) => Promise<void> }).wbMount(i, s, d, px), [id, size, ds, w] as const);
         const m = await measure(page, ctx, '#cell');
         const e = await edge(page);
         const own = [...m.found.map((f) => `${f.cls} ${f.el} ${f.detail}`), ...e];
         const uniq = Array.from(new Set(own));
         if (uniq.length) problems.push(`${ctx}: ${uniq.slice(0, 4).join(' | ')}`);
-        if (SHOTS && ds === 'worst' && w === 240 || SHOTS && ds === 'worst' && w === 360) await page.locator('#cell').screenshot({ path: path.join(SHOTS, `${id}-${size}-${w}-${scheme}.png`) });
+        if (SHOTS && ds === 'worst' && w === 240 || SHOTS && ds === 'worst' && w === 360) await page.locator('#cell').screenshot({ path: path.join(SHOTS, `${id}-${size}-${w}-${skin}-${scheme}.png`) });
       }
-      if (process.env.WB_REPORT) fs.writeFileSync(process.env.WB_REPORT.replace('.txt', `-${scheme}.txt`), problems.join('\n'));
+      if (process.env.WB_REPORT) fs.writeFileSync(process.env.WB_REPORT.replace('.txt', `-${skin}-${scheme}.txt`), problems.join('\n'));
       expect(errors, 'page errors').toEqual([]);
       expect(problems, problems.join('\n')).toEqual([]);
     });
