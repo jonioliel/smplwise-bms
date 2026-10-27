@@ -31,10 +31,18 @@ export const ticketCardStyles = css`
     border: 1px solid var(--dv-border);
     border-radius: var(--sw-r-2xl);
     box-shadow: var(--dv-shadow-1);
-    transition: box-shadow var(--mm-motion) var(--mm-ease), border-color var(--mm-motion);
+    transition: box-shadow var(--mm-motion) var(--mm-ease), border-color var(--mm-motion), transform var(--sw-t-press) var(--sw-ease);
+    -webkit-tap-highlight-color: transparent;
   }
-  .tcard:hover {
-    box-shadow: var(--dv-shadow-2);
+  /* POLISH-CLASSIC-DOMUS-297 second pass (P4): the shared hover convention (a pointer that hovers) and a small press of the card
+     itself - not while a button or link inside it is the thing pressed (that control gives its own feedback) */
+  @media (hover: hover) and (pointer: fine) {
+    .tcard:hover {
+      box-shadow: var(--dv-shadow-2);
+    }
+  }
+  .tcard:active:not(:has(button:active, a:active, input:active, select:active, sw-button:active)) {
+    transform: scale(calc(1 - (1 - var(--sw-press-scale)) / 3));
   }
   .tcard:focus-within,
   :host([data-picked]) .tcard {

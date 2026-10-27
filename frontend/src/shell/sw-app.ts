@@ -657,6 +657,19 @@ export class SwApp extends LitElement {
     a.item.a span {
       display: inline;
     }
+    /* POLISH-CLASSIC-DOMUS-297 second pass (P4): a long area label ("מולטימדיה", 76 px) overflowed the 68 px active pill on every
+       screen. The rail keeps its width; the pill never grows past it, gives the label 2 px more each side and ends a longer one in an
+       ellipsis (the link's aria-label / title carries the whole name) */
+    a.item.a {
+      max-inline-size: 100%;
+      padding-inline: 2px;
+    }
+    a.item.a span {
+      max-inline-size: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: -0.01em;
+    }
     /* labels off (a free size with no label): the icon alone; the link keeps its aria-label */
     :host([data-nolabels]) a.item.a span,
     :host([data-nolabels]) button.me .lbl,

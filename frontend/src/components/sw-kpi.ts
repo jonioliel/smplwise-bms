@@ -160,28 +160,48 @@ export class SwKpi extends LitElement {
     :host([layout='compact'][icon-end]) .label {
       line-height: 1.25;
     }
-    /* the value and the label on one line; a long label wraps once, then ellipsis (the full text is the host's title) */
+    /* the value and the label on one line; a long label wraps once, then ellipsis (the full text is the host's title).
+       POLISH-CLASSIC-DOMUS-297 second pass (break-ui, P4/P6): the VALUE never wraps ("1284 / 2047" broke over two lines and pushed the
+       label out of the clamp, so the label vanished) - only the label is clamped; the figures are tabular */
     :host([layout='compact']) .line {
+      display: flex;
+      align-items: baseline;
+      column-gap: 6px;
+      min-inline-size: 0;
+      line-height: 1.25;
+    }
+    :host([layout='compact']) .value,
+    :host([layout='compact']) .label {
+      margin: 0;
+    }
+    :host([layout='compact']) .value {
+      flex: none;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      font-size: var(--sw-kpi-compact-value-fs, 17px);
+      line-height: 1.2;
+    }
+    :host([layout='compact']) .label {
+      flex: 1 1 auto;
+      min-inline-size: 0;
       display: -webkit-box;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
       line-clamp: 2;
       overflow: hidden;
       overflow-wrap: anywhere;
-      line-height: 1.25;
-    }
-    :host([layout='compact']) .value,
-    :host([layout='compact']) .label {
-      display: inline;
-      margin: 0;
-    }
-    :host([layout='compact']) .value {
-      font-size: var(--sw-kpi-compact-value-fs, 17px);
-      line-height: 1.2;
-      margin-inline-end: 6px;
-    }
-    :host([layout='compact']) .label {
       font-size: var(--sw-fs-xs);
+    }
+    /* icon at the end: the value above its label, the label one clamped line (the tile's height as before) */
+    :host([layout='compact'][icon-end]) .line {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    :host([layout='compact'][icon-end]) .label {
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      line-clamp: 1;
+      inline-size: 100%;
     }
     :host([layout='compact']) .detail {
       margin-block-start: 1px;
@@ -217,9 +237,18 @@ export class SwKpi extends LitElement {
       outline-offset: 2px;
     }
     :host([interactive]) {
-      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+      transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
     }
-    :host([interactive]:hover),
+    /* the hover convention of the shared components: only under a pointer that hovers (a tapped tile kept its lift on a phone) */
+    @media (hover: hover) and (pointer: fine) {
+      :host([interactive]:hover) {
+        border-color: var(--sw-border-strong);
+        box-shadow: var(--sw-shadow-2);
+      }
+    }
+    :host([interactive]:active) {
+      transform: scale(calc(1 - (1 - var(--sw-press-scale)) / 3));
+    }
     :host([interactive][data-expanded]) {
       border-color: var(--sw-border-strong);
       box-shadow: var(--sw-shadow-2);

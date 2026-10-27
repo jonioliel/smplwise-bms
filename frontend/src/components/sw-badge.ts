@@ -49,6 +49,8 @@ export class SwBadge extends LitElement {
       min-inline-size: 0;
       overflow: hidden;
       text-overflow: ellipsis;
+      /* second pass (break-ui): the text takes its own direction, so a Latin e-mail in the RTL shell is cut at its END, not its start */
+      unicode-bidi: plaintext;
     }
     :host([onimage]) {
       background: var(--sw-on-image-bg);
