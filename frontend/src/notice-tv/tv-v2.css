@@ -97,7 +97,8 @@
 #cv[data-design="v2"] .b2bus { --bk: 1; position: relative; min-block-size: 0; min-inline-size: 0; }
 #cv[data-design="v2"] .b2ln { display: inline-grid; place-items: center; min-inline-size: 84px; block-size: 52px; padding: 0 14px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); font-size: 34px; font-weight: 600; line-height: 1; direction: ltr; unicode-bidi: isolate; }
 #cv[data-design="v2"] .b2ln.w4 { font-size: 28px; }
-#cv[data-design="v2"] .b2eta { display: flex; align-items: baseline; justify-content: flex-end; gap: 10px; white-space: nowrap; direction: rtl; }
+#cv[data-design="v2"] .b2eta { display: flex; align-items: baseline; justify-content: flex-end; gap: 10px; white-space: nowrap; direction: rtl; line-height: 1; }
+#cv[data-design="v2"] .b2bus .b2r { overflow: hidden; min-inline-size: 0; } /* a row never makes its list taller or wider than its track */
 #cv[data-design="v2"] .b2eta b { font-size: 48px; font-weight: 500; line-height: 1; letter-spacing: -.02em; }
 #cv[data-design="v2"] .b2eta b.now { color: var(--accent); font-size: 40px; font-weight: 600; letter-spacing: 0; }
 #cv[data-design="v2"] .b2eta b.cl { font-size: 42px; font-weight: 400; color: var(--ink-2); }
