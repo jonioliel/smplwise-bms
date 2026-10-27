@@ -30,11 +30,14 @@ export const tempCss = css`
     background: var(--c-soft); color: var(--c-text); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4;
   }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  /* POLISH-CONTROL-297: the chip's word is set one step larger (the audit's smallest text was these tags) and its tone colour is the
+     theme's readable text token, never the raw status colour; a neutral chip reads in the full text colour */
   .chip {
-    display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5;
-    font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 10px; line-height: 1.5;
+    font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text); white-space: nowrap;
     max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis;
   }
+  .chip[data-tone] { font-weight: var(--sw-fw-semibold); }
   .chip[data-tone='err'] { background: var(--sw-danger-soft); color: var(--sw-danger-text); }
   .chip[data-tone='warn'] { background: var(--sw-warning-soft); color: var(--sw-warning-text); }
   .chip[data-tone='door'] { background: color-mix(in srgb, var(--tc-door) 14%, transparent); color: var(--sw-text); }
@@ -55,9 +58,9 @@ export const tempCss = css`
   .g-tick { font-size: var(--sw-fs-2xs); fill: var(--sw-text-3); }
   .gv { position: relative; display: grid; justify-items: center; gap: 1px; margin-block-start: 8px; text-align: center; }
   .gv b { font-size: var(--sw-fs-2xl); line-height: 1; color: var(--sw-heading); }
-  .gv b sup { font-size: var(--sw-fs-2xs); margin-inline-start: 1px; color: var(--sw-text-2); }
-  .gv small { font-size: var(--sw-fs-2xs); color: var(--sw-text-2); }
-  .gv .trend { font-size: var(--sw-fs-2xs); color: var(--c-text); font-weight: var(--sw-fw-semibold); }
+  .gv b sup { font-size: var(--sw-fs-xs); margin-inline-start: 1px; color: var(--sw-text-2); }
+  .gv small { font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
+  .gv .trend { font-size: var(--sw-fs-xs); color: var(--c-text); font-weight: var(--sw-fw-semibold); }
   [data-stale] .gv b { color: var(--sw-text-3); }
 
   /* charts */

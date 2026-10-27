@@ -40,9 +40,19 @@ export const TEMPERATURE_WIDGET_STYLES = css`
   .wg-temp .dots i { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--tw); display: inline-block; }
   .wg-temp .dots i[data-look='off'] { border-radius: 3px; } /* sensor offline: a square, not only a colour */
   .wg-temp .lst { display: grid; gap: 6px; }
-  .tw-row { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-base); color: inherit; text-decoration: none; min-inline-size: 0; border-radius: 10px; padding: 2px 4px; }
-  .tw-row:focus-visible, .tw-card:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
-  .tw-row i { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--tw); flex: none; }
+  .tw-row { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-base); color: inherit; text-decoration: none; min-inline-size: 0; border-radius: 10px; padding: 4px 6px; margin-inline: -2px; }
+  /* POLISH-CONTROL-297: a row and a card are links - they answer hover (fine pointers only), the press and the keyboard with the product's
+     focus ring (transform and colour only, token durations - zero under reduced motion) */
+  .tw-row, .tw-card { transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
+  .tw-row:active { transform: scale(0.985); }
+  .tw-card:active { transform: scale(0.98); }
+  .tw-row:focus-visible, .tw-card:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+  @media (hover: hover) and (pointer: fine) {
+    .tw-row:hover { background: color-mix(in srgb, var(--sw-text) 6%, transparent); }
+    .tw-card:hover { box-shadow: var(--sw-shadow-2); border-color: var(--sw-border-strong); border-inline-start-color: var(--tw); }
+  }
+  /* the state dot carries a soft halo of its colour (the KPI dots of the temperature screen) */
+  .tw-row i { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--tw); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--tw) 18%, transparent); }
   .tw-row .nm { flex: 1; font-weight: 600; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tw-row .vv { font-variant-numeric: tabular-nums; direction: ltr; white-space: nowrap; }
   .tw-row small { color: var(--sw-text-2); font-size: var(--sw-fs-state); white-space: nowrap; }
