@@ -9,7 +9,7 @@ import type { Skin } from './index';
  * Built on the DU1 token layer: every tier of the type / radius / control scales is set here; the state colours share the
  * proven Domus values (semantic colours stay recognisable from skin to skin).
  */
-const tokens: TokenTable = {
+const base: TokenTable = {
   '--sw-bg': lt('#eef3fa', '#0a0f1a'),
   // UXFIX-A11Y-295 (owner option A for domus, applied to crystal too - the same finding): the light blooms are softened toward white at
   // the same alpha - rgba(120, 200, 255) -> rgba(152, 213, 255), rgba(176, 150, 255) -> rgba(204, 187, 255) - so text straight on a bloom
@@ -136,6 +136,33 @@ const tokens: TokenTable = {
   '--sw-hover-lift': same('-1px'),
 };
 
+/**
+ * POLISH-SKINS-297 pass 2 (owner: the first pass was invisible): "prism". Saturated canvas blooms (sapphire top-start, rose-violet
+ * bottom-end, a cyan shard across the middle) held at the alphas that keep every text token at 4.5:1 on the bare canvas
+ * (unit-skinfound / unit-muted-contrast measure it); thinner glass with a heavier blur so more of the canvas shows through; deep layered
+ * shadows; larger titles. ui-ux-pro-max style search: "Glassmorphism" (vibrant background, layered, light source, depth).
+ */
+const tokens: TokenTable = {
+  ...base,
+  '--sw-canvas': lt(
+    'radial-gradient(1100px 700px at 6% -12%, rgba(146, 204, 255, 0.3), transparent 60%), radial-gradient(1000px 700px at 104% 112%, rgba(204, 187, 255, 0.3), transparent 62%), radial-gradient(700px 420px at 62% 38%, rgba(190, 236, 255, 0.3), transparent 70%), linear-gradient(160deg, #f2f6fd 0%, #e8eef9 55%, #ece8f8 100%)',
+    'radial-gradient(1000px 640px at 6% -8%, rgba(64, 140, 255, 0.24), transparent 60%), radial-gradient(1000px 700px at 104% 110%, rgba(170, 96, 255, 0.22), transparent 62%), radial-gradient(700px 420px at 62% 38%, rgba(40, 170, 220, 0.14), transparent 70%), linear-gradient(180deg, #0c1428 0%, #070b16 100%)',
+  ),
+  '--sw-surface': lt('rgba(255, 255, 255, 0.5)', 'rgba(22, 32, 56, 0.56)'),
+  '--sw-nav-glass': lt('rgba(255, 255, 255, 0.46)', 'rgba(20, 28, 50, 0.56)'),
+  '--sw-glass-blur': same('blur(32px) saturate(1.6)'),
+  '--sw-glass-blur-nav': same('blur(26px) saturate(1.5)'),
+  '--sw-shadow-1': lt('0 1px 2px rgba(20, 40, 90, 0.06), 0 14px 38px -8px rgba(30, 60, 140, 0.22)', '0 1px 2px rgba(0, 0, 0, 0.5), 0 18px 44px -10px rgba(0, 0, 0, 0.7)'),
+  '--sw-shadow-2': lt('0 2px 6px rgba(20, 40, 90, 0.08), 0 26px 60px -12px rgba(30, 60, 140, 0.32)', '0 2px 6px rgba(0, 0, 0, 0.5), 0 30px 70px -12px rgba(0, 0, 0, 0.8)'),
+  '--sw-shadow-primary': lt('0 2px 4px rgba(30, 91, 216, 0.25), 0 10px 24px -6px rgba(30, 91, 216, 0.55)', '0 2px 4px rgba(0, 0, 0, 0.5), 0 10px 24px -6px rgba(90, 150, 255, 0.4)'),
+  '--sw-h1': same('38px'),
+  '--sw-h1-tracking': same('-1px'),
+  '--sw-fs-lg': same('16.5px'),
+  '--sw-r-md': same('18px'),
+  '--sw-r-lg': same('22px'),
+  '--sw-r-xl': same('26px'),
+};
+
 /* The component rules (budget 50; this skin uses 34). Written for the shadow roots (SKIN_AUTHORING_HE.md §2). Every translucent
    layer has its solid twin (@supports / prefers-reduced-transparency, rules 26-27); a scrolling layer wraps its blur and fill in the
    performance switches (TOKEN_CONTRACT §7). */
@@ -180,7 +207,7 @@ const rules = `
 /* crystal 9 - tables and list rows: hairline rows, a soft hover; tabular numbers on the KPI tiles; headings */
 @media (hover: hover) and (pointer: fine) { :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); } }
 :host(sw-table) th { font-weight: var(--sw-fw-semibold); letter-spacing: 0.02em; }
-:host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
+:host(sw-kpi) .value, :host(sw-table) td { font-variant-numeric: tabular-nums; }
 :host(sw-page) h1 { font-weight: var(--sw-h1-weight); }
 /* crystal 10 - no backdrop-filter, or the OS asks for less transparency: every crystal layer becomes its solid twin (layout unchanged) */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom, :host(sw-app) .float .pillrow, :host(sw-app) .tabpair { background: var(--sw-surface-solid); } }
@@ -196,10 +223,16 @@ const rules = `
 :host(devices-area) sw-card[data-card='lighting'] .tile.on .t sw-icon { color: color-mix(in srgb, var(--sw-lit) 55%, var(--sw-text)); }
 :host(devices-area) sw-card:not([data-card='lighting']) .tile.on .t sw-icon { color: var(--sw-accent-text); }
 /* crystal 14 - status chips: a hairline of their own hue on the pale tint, semibold, never squeezed (taste-skill app-screens §7.6) */
-:host(sw-badge:not([onimage]):not([kind='stale']):not([kind='partial']):not([kind='unknown'])) { box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent); }
-:host(sw-badge) { font-weight: var(--sw-fw-semibold); flex: none; }
+:host(sw-badge:not([onimage])) { box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent); font-weight: var(--sw-fw-semibold); flex: none; }
 /* crystal 15 - tables: tabular figures; the row hover only where a pointer hovers (mobile-native) */
-:host(sw-table) td { font-variant-numeric: tabular-nums; }
+/* POLISH-SKINS-297 pass 2 - prism (impeccable bolder / typeset) */
+/* crystal 16 - type: card titles a step larger and semibold; KPI numerals large, tight */
+:host(sw-card) h3 { font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-semibold); letter-spacing: -0.01em; }
+:host(sw-kpi) .value { font-size: 28px; letter-spacing: -0.02em; }
+/* crystal 17 - the current rail item is a sapphire jewel (its ink is the skin's inverse: white in light, deep navy on the pale dark accent) */
+:host(sw-app) a.item.a.active { background: linear-gradient(145deg, var(--sw-accent), var(--sw-accent-hover)); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary); }
+/* crystal 18 - empty / loading / error: the glyph on a frosted disc that floats */
+:host(sw-state-panel) .icon { background: var(--sw-glass-sheen), var(--sw-surface-2); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); }
 `;
 
 export const crystal: Skin = { id: 'crystal', name: 'Crystal', nameHe: 'קריסטל', noteHe: 'זכוכית מוארת על רקע יום / לילה, שפה זוהרת, צורות מעודנות', stage: 'stable', features: { material: false, bevel: false, pixelEdge: false, glass: true }, tokens, rules };

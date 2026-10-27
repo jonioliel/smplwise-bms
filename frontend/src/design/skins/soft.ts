@@ -23,10 +23,10 @@ const tokens: TokenTable = {
   // (-> rgba(154, 190, 255, .3)), the owner's option A of UXFIX-A11Y-295 for domus and crystal: at the bloom's centre on the warm stop
   // the muted text #566480 read 4.19:1 and the accent text 4.33:1 (unit-muted-contrast.spec.ts), now >= 4.55:1. Dark unchanged.
   '--sw-canvas': lt(
-    'radial-gradient(900px 500px at 85% -10%, rgba(255, 196, 120, 0.35), transparent 60%), radial-gradient(900px 600px at 10% 110%, rgba(154, 190, 255, 0.3), transparent 60%), linear-gradient(#eef2f9, #f3f1ec)',
-    'radial-gradient(900px 500px at 85% -10%, rgba(255, 159, 10, 0.14), transparent 60%), radial-gradient(900px 600px at 10% 110%, rgba(58, 108, 224, 0.25), transparent 60%), linear-gradient(#0b1020, #0e1220)',
+    'radial-gradient(1000px 620px at 88% -14%, rgba(255, 190, 110, 0.4), transparent 60%), radial-gradient(1000px 700px at 6% 112%, rgba(154, 190, 255, 0.3), transparent 62%), radial-gradient(600px 380px at 40% 40%, rgba(255, 236, 214, 0.5), transparent 70%), linear-gradient(#eef2f9, #f3f1ec)',
+    'radial-gradient(1000px 620px at 88% -14%, rgba(255, 159, 10, 0.18), transparent 60%), radial-gradient(1000px 700px at 6% 112%, rgba(58, 108, 224, 0.3), transparent 62%), linear-gradient(#0b1020, #10121f)',
   ),
-  '--sw-surface': lt('rgba(255, 255, 255, 0.72)', 'rgba(24, 30, 48, 0.7)'),
+  '--sw-surface': lt('rgba(255, 255, 255, 0.64)', 'rgba(26, 32, 52, 0.62)'),
   '--sw-surface-solid': lt('#fdfdfe', '#1a2032'),
   '--sw-surface-2': lt('rgba(255, 255, 255, 0.62)', 'rgba(44, 52, 76, 0.6)'),
   '--sw-surface-2-solid': lt('#f4f6fa', '#232a40'),
@@ -82,11 +82,11 @@ const tokens: TokenTable = {
   // shape: rounder (6 / 8 / 12 / 18 / 22 / 24 / 28)
   '--sw-r-2xs': same('6px'),
   '--sw-r-xs': same('8px'),
-  '--sw-r-sm': same('12px'),
-  '--sw-r-md': same('18px'),
-  '--sw-r-lg': same('22px'),
-  '--sw-r-xl': same('24px'),
-  '--sw-r-2xl': same('28px'),
+  '--sw-r-sm': same('14px'),
+  '--sw-r-md': same('22px'),
+  '--sw-r-lg': same('26px'),
+  '--sw-r-xl': same('28px'),
+  '--sw-r-2xl': same('32px'),
   // depth: soft lifted panels with the lit top edge (round 2), floating layers, the primary's glow
   // POLISH-SKINS-297 (apple-design: bigger surfaces read thicker): a contact shadow + a soft ambient one, offset down, never a halo;
   // the dark ambient is deeper so a panel separates from the navy canvas without a lit line
@@ -102,7 +102,7 @@ const tokens: TokenTable = {
   '--sw-shadow-primary': lt('0 1px 2px rgba(47, 109, 246, 0.25), 0 6px 16px -4px rgba(47, 109, 246, 0.45)', '0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px -4px rgba(0, 0, 0, 0.55)'),
   '--sw-shadow-thumb': lt('0 1px 2px rgba(15, 23, 42, 0.18), 0 3px 8px rgba(15, 23, 42, 0.14)', '0 1px 2px rgba(0, 0, 0, 0.5), 0 3px 8px rgba(0, 0, 0, 0.4)'),
   // material: panels and the nav blur; sheets (dialog, drawer) and menus stay opaque
-  '--sw-glass-blur': same('blur(18px) saturate(1.4)'),
+  '--sw-glass-blur': same('blur(24px) saturate(1.6)'),
   '--sw-glass-blur-nav': same('blur(16px) saturate(1.4)'),
   '--sw-glass-blur-sheet': same('none'),
   '--sw-glass-sheen': lt('linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 46%)', 'linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 46%)'),
@@ -112,8 +112,8 @@ const tokens: TokenTable = {
   // a lit lamp: the warm fill, and its tint as a tile bed (the glow itself is the "glow" option below)
   '--sw-lit-soft': lt('rgba(255, 177, 59, 0.2)', 'rgba(255, 181, 71, 0.2)'),
   // type and density: roomier
-  '--sw-h1': same('28px'),
-  '--sw-h1-tracking': same('-0.02em'),
+  '--sw-h1': same('32px'),
+  '--sw-h1-tracking': same('-0.025em'),
   '--sw-h1-weight': same('700'),
   '--sw-h1-phone': same('24px'),
   '--sw-gap': same('14px'),
@@ -131,16 +131,23 @@ const rules = `
 :host(sw-app) { background: var(--sw-canvas); }
 /* soft 2 - the rail and the phone bar: nav glass over the canvas */
 :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-glass-sheen), var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); border-color: var(--sw-border); }
-/* soft 3 - panels: cards and KPI tiles are glass (blur and fill behind the performance switches), lifted by the two-layer shadow */
-:host(sw-card), :host(sw-kpi) { border-color: var(--sw-border); background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-surface)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); box-shadow: var(--sw-shadow-1); }
+/* soft 3 - panels: cards and KPI tiles are glass lit warm from the top corner (loop 1: the glass read as flat white), blur and fill behind the performance switches, lifted by the two-layer shadow */
+:host(sw-card), :host(sw-kpi) { border-color: var(--sw-border); background: var(--sw-glass-sheen), linear-gradient(165deg, color-mix(in srgb, var(--sw-lit) 9%, transparent), transparent 55%), var(--sw-perf-glass-bg, var(--sw-surface)); -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur)); box-shadow: var(--sw-shadow-1); }
 @media (hover: hover) and (pointer: fine) { :host(sw-card[interactive]:hover), :host(sw-kpi[interactive]:hover) { box-shadow: var(--sw-shadow-2); transform: translateY(var(--sw-hover-lift)); transition: transform var(--sw-t-hover) var(--sw-ease), box-shadow var(--sw-t-hover) var(--sw-ease-color); } }
-/* soft 4 - numbers are tabular on the KPI tiles; titles a touch tighter (apple-design: negative tracking as type grows) */
-:host(sw-kpi) .value { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-:host(sw-card) h3, :host(sw-dialog) h3 { letter-spacing: -0.01em; }
 /* soft 5 - the switch: the thumb sits on a soft shadow (material), the track takes the chosen colour (the "switch" option) */
 :host(sw-toggle) button::after { box-shadow: var(--sw-shadow-thumb); }
-/* soft 6 - the home's area rows and floor cards: glass beds, the lit band warm and short */
-:host(devices-building) .arow-q[data-lit] { background: linear-gradient(270deg, var(--sw-lit-soft), transparent 64%); }
+/* POLISH-SKINS-297 pass 2 - warm glass, lamp-lit (impeccable bolder + delight: the lamp is the hero of this skin) */
+/* soft 8 - controls are pills: buttons, chips and the segmented rails (shape only; sizes untouched) */
+:host(sw-button) button, :host(sw-chip) button, :host(sw-tabs[data-variant='pill']) .row::before, :host(sw-tabs[data-variant='pill']) .lbl { border-radius: 999px; }
+/* soft 9 - the current rail item: a white glass pill lifted off the rail, the accent ink */
+:host(sw-app) a.item.a.active { background: var(--sw-surface-solid); color: var(--sw-accent-text); box-shadow: var(--sw-shadow-1); }
+/* soft 10 - type (impeccable typeset, apple-design: tracking by size): card titles larger and bold, KPI numerals large, tabular, tight */
+:host(sw-card) h3, :host(sw-dialog) h3 { font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); letter-spacing: -0.01em; }
+:host(sw-kpi) .value { font-size: 28px; font-weight: var(--sw-fw-bold); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+/* soft 11 - empty / loading / error: the glyph sits on a warm glass disc */
+:host(sw-state-panel) .icon { background: var(--sw-glass-sheen), color-mix(in srgb, var(--sw-lit) 18%, var(--sw-surface-solid)); color: var(--sw-text); box-shadow: var(--sw-shadow-1); border-radius: 999px; }
+/* soft 12 - a dialog arrives from 0.97 (find-animation-opportunities: occasional + spatial); reduced motion: none */
+@media (prefers-reduced-motion: no-preference) { :host(sw-dialog) .box { transition: opacity var(--sw-t-med) var(--sw-ease), transform var(--sw-spring-dialog-ms) var(--sw-spring-dialog); @starting-style { opacity: 0; transform: scale(0.97); } } }
 /* soft 7 - no backdrop-filter, less transparency asked, or more contrast asked: every glass layer becomes its solid twin (layout unchanged) */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); } }
 @media (prefers-reduced-transparency: reduce) { :host(sw-card), :host(sw-kpi), :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
@@ -164,8 +171,8 @@ const options = [
     labelHe: 'זוהר נורה דולקת',
     default: 'soft',
     choices: [
-      { id: 'soft', labelHe: 'עדין', light: { '--sw-lit-glow': GLOW(30, 6, 18, -6, 55) }, dark: { '--sw-lit-glow': GLOW(34, 6, 20, -6, 45) } },
-      { id: 'strong', labelHe: 'חזק', light: { '--sw-lit-glow': GLOW(50, 10, 30, -4, 85) }, dark: { '--sw-lit-glow': GLOW(55, 10, 34, -2, 70) } },
+      { id: 'soft', labelHe: 'עדין', light: { '--sw-lit-glow': GLOW(40, 8, 24, -6, 70) }, dark: { '--sw-lit-glow': GLOW(45, 8, 26, -6, 60) } },
+      { id: 'strong', labelHe: 'חזק', light: { '--sw-lit-glow': GLOW(60, 12, 40, -2, 95) }, dark: { '--sw-lit-glow': GLOW(65, 12, 44, 0, 85) } },
     ],
   },
   {
@@ -175,9 +182,9 @@ const options = [
     choices: [
       { id: 'blue', labelHe: 'כחול', swatch: ['#2f6df6', '#3d7bff'] as const, light: { '--sw-toggle-on': '#2f6df6' }, dark: { '--sw-toggle-on': '#3d7bff' } },
       { id: 'graphite', labelHe: 'גרפיט', swatch: ['#475569', '#8b95a7'] as const, light: { '--sw-toggle-on': '#475569' }, dark: { '--sw-toggle-on': '#8b95a7' } },
-      // no teal: next to the status green it read as green (owner: the switch is never green)
-      { id: 'indigo', labelHe: 'אינדיגו', swatch: ['#4a4fd8', '#8287ff'] as const, light: { '--sw-toggle-on': '#4a4fd8' }, dark: { '--sw-toggle-on': '#8287ff' } },
-      { id: 'violet', labelHe: 'סגול', swatch: ['#6d4ae0', '#9b7dff'] as const, light: { '--sw-toggle-on': '#6d4ae0' }, dark: { '--sw-toggle-on': '#9b7dff' } },
+      // dataviz validate_palette.js (2026-10-27): indigo and violet sat at normal-vision dE 5.4 from each other and violet at 10 from blue -
+      // one family read as three; teal read as green. Kept: blue, graphite (a neutral on purpose), magenta (dE >= 15 from blue).
+      { id: 'magenta', labelHe: 'פוקסיה', swatch: ['#c2349b', '#e45bb8'] as const, light: { '--sw-toggle-on': '#c2349b' }, dark: { '--sw-toggle-on': '#e45bb8' } },
     ],
   },
 ];

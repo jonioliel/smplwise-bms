@@ -27,7 +27,7 @@ export const INFRA_TOKENS: TokenTable = {
   '--sw-warning-text': lt('#a04a06', '#f5b043'),
   // type: a calmer page title (round 2: 24 / 700 / -0.01em), the 2xl tier 22, the phone title 20
   '--sw-fs-2xl': same('22px'),
-  '--sw-h1': same('24px'),
+  '--sw-h1': same('26px'),
   '--sw-h1-weight': same('700'),
   '--sw-h1-tracking': same('-0.01em'),
   '--sw-h1-phone': same('20px'),
@@ -47,8 +47,8 @@ export const INFRA_TOKENS: TokenTable = {
   '--sw-lh-tight': same('1.2'),
   '--sw-fs-4xl': same('32px'),
   // shape: the dialog one step above the card; round 2's two-layer shadows (rest = 1 px + a 2 % ring, hover, floating)
-  '--sw-r-xl': same('16px'),
-  '--sw-shadow-1': lt('0 1px 2px rgba(16, 24, 40, 0.05), 0 0 0 1px rgba(16, 24, 40, 0.02)', '0 1px 2px rgba(0, 0, 0, 0.4)'),
+  '--sw-r-xl': same('18px'),
+  '--sw-shadow-1': lt('0 1px 0 rgba(16, 24, 40, 0.04)', '0 1px 0 rgba(0, 0, 0, 0.35)'),
   '--sw-shadow-2': lt('0 4px 14px rgba(34, 49, 76, 0.09), 0 1px 2px rgba(16, 24, 40, 0.05)', '0 6px 18px rgba(0, 0, 0, 0.45)'),
   '--sw-shadow-3': lt('0 18px 44px rgba(34, 49, 76, 0.16), 0 2px 6px rgba(16, 24, 40, 0.06)', '0 18px 44px rgba(0, 0, 0, 0.6)'),
   '--sw-hover-lift': same('0px'), // A never lifts
@@ -56,6 +56,33 @@ export const INFRA_TOKENS: TokenTable = {
   '--sw-shadow-thumb': lt('0 1px 2px rgba(16, 24, 40, 0.16), 0 2px 6px rgba(16, 24, 40, 0.1)', '0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35)'),
   // a lit lamp's tint: lighter than the classic 32 % so a lit row reads warm without shouting
   '--sw-lit-soft': lt('rgba(255, 200, 87, 0.22)', 'rgba(255, 181, 71, 0.2)'),
+  // POLISH-SKINS-297 pass 2 (owner: the first pass was invisible): the "framed sheet" (taste-skill draw --app, seed 537858390). One
+  // tinted blue-grey frame holds the rail and the canvas with no rule between them; the work sits on white sheets with a hairline edge,
+  // 14-16 px corners and no shadow at rest - depth is one tone step. A deeper steel blue (not the classic system blue) for the one
+  // accent; the colour budget stays under 3 % of the screen. Dark: a near-black navy frame, the sheets one step up.
+  '--sw-bg': lt('#e9eef5', '#0a101c'),
+  '--sw-canvas': lt('linear-gradient(#e9eef5, #e9eef5)', 'linear-gradient(#0a101c, #0a101c)'),
+  '--sw-surface': lt('#ffffff', '#121a2a'),
+  '--sw-surface-solid': lt('#ffffff', '#121a2a'),
+  '--sw-surface-2': lt('#f5f7fb', '#172136'),
+  '--sw-surface-2-solid': lt('#f5f7fb', '#172136'),
+  '--sw-surface-3': lt('rgba(20, 40, 80, 0.06)', 'rgba(255, 255, 255, 0.07)'),
+  '--sw-nav-glass': lt('#e9eef5', '#0a101c'),
+  '--sw-border': lt('#dde4ee', '#1f2a40'),
+  '--sw-accent': lt('#1957c9', '#3b6fe0'), // dark: white on it reads 4.6:1 (unit-hud-opaque)
+  '--sw-accent-hover': lt('#1449ad', '#2f5fcc'),
+  '--sw-accent-soft': lt('rgba(25, 87, 201, 0.1)', 'rgba(92, 141, 255, 0.18)'),
+  '--sw-accent-text': lt('#174fb8', '#9dbbff'),
+  '--sw-focus': lt('#1957c9', '#9dbbff'),
+  '--sw-nav': lt('#1957c9', '#5c8dff'),
+  '--sw-toggle-on': lt('#1957c9', '#3b6fe0'),
+  // the state inks one step darker on the tinted frame (4.5:1 on #e9eef5)
+  '--sw-success-text': lt('#0f6e33', '#7ee29a'),
+  '--sw-live-text': lt('#0f6e33', '#7ee29a'),
+  '--sw-r-sm': same('8px'),
+  '--sw-r-md': same('14px'),
+  '--sw-r-lg': same('16px'),
+  '--sw-skeleton': lt('#e9eef5', '#172136'),
   // the menu pair is stated explicitly (a skin never inherits it by accident; unit-menu-surfaces.spec.ts): the classic values
   '--sw-menu-surface': lt('#ffffff', '#151c2c'),
   '--sw-menu-border': lt('#e7ebf2', '#232e45'),
@@ -73,6 +100,17 @@ const rules = `
 @media (hover: hover) and (pointer: fine) { :host(sw-card[interactive]:hover), :host(sw-kpi[interactive]:hover) { border-color: var(--sw-border-strong); box-shadow: var(--sw-shadow-2); transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color); } }
 /* infra 4 - the switch's thumb on a crisp two-layer shadow */
 :host(sw-toggle) button::after { box-shadow: var(--sw-shadow-thumb); }
+/* POLISH-SKINS-297 pass 2 - the framed sheet (impeccable bolder + layout: one move - the frame and the sheets - and everything else quiet) */
+/* infra 5 - the frame: the rail and the phone bar sit on the canvas tint with no rule; the current item is a white sheet tab in the accent ink */
+:host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-bg); border-color: transparent; box-shadow: none; }
+:host(sw-app) a.item.a.active { background: var(--sw-surface); color: var(--sw-accent-text); box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08); }
+/* infra 6 - the sheets: cards, KPI tiles, the building tree and the floor cards are white with the hairline edge */
+:host(sw-card), :host(sw-kpi), :host(devices-building) nav.tree, :host(devices-building) section.fcard { background: var(--sw-surface); border-color: var(--sw-border); }
+/* infra 7 - type (impeccable typeset): card titles one step up and semibold; KPI numerals 26 px semibold in ink (dataviz: values in text tokens) */
+:host(sw-card) h3 { font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-semibold); }
+:host(sw-kpi) .value { font-size: 26px; font-weight: var(--sw-fw-semibold); }
+/* infra 8 - empty / loading / error: the glyph on a sheet tile with the hairline, in the accent ink */
+:host(sw-state-panel) .icon { background: var(--sw-surface-2); box-shadow: inset 0 0 0 1px var(--sw-border); color: var(--sw-accent-text); }
 ${ARX_STATE_RULES}${ARX_MOTION_RULES}`;
 
 export const infra: Skin = { id: 'infra', name: 'Arx Infra', nameHe: 'Arx Infra', noteHe: 'קו שיער וצל עדין, כחול אחד, משטחים אטומים', stage: 'foundation', features: { material: false, bevel: false, pixelEdge: false, glass: false }, tokens: INFRA_TOKENS, rules };

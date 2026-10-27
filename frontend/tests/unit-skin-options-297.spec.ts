@@ -81,11 +81,11 @@ test('the CSS: one block set per non-default choice, keyed on data-sko-<option>,
   const css = tokensCss();
   expect(css).toContain(':root[data-skin="soft"][data-sko-glow="strong"]{');
   expect(css).toContain(':root[data-skin="soft"][data-sko-glow="strong"][data-theme="dark"]{');
-  expect(css).toContain(':root[data-skin="soft"][data-sko-switch="indigo"]{--sw-toggle-on:#4a4fd8;}');
+  expect(css).toContain(':root[data-skin="soft"][data-sko-switch="magenta"]{--sw-toggle-on:#c2349b;}');
   expect(css).not.toContain('[data-sko-glow="soft"]');
   expect(css).not.toContain('[data-sko-switch="blue"]');
   // the merged table follows a choice
-  expect(skinTable('soft', { switch: 'violet' })['--sw-toggle-on'].dark).toBe('#9b7dff');
+  expect(skinTable('soft', { switch: 'magenta' })['--sw-toggle-on'].dark).toBe('#e45bb8');
   expect(skinTable('soft', { switch: 'nosuch' })['--sw-toggle-on'].light).toBe('#2f6df6');
 });
 
@@ -94,7 +94,7 @@ test('break-ui: ui.skin_options worst cases read as the defaults, never throw', 
   expect(normalizeSkinOptions('{not json')).toEqual({});
   expect(normalizeSkinOptions('[]')).toEqual({});
   expect(normalizeSkinOptions(['soft.glow'])).toEqual({});
-  expect(normalizeSkinOptions({ 'soft.glow': 'strong', 'soft.switch': 'indigo' })).toEqual({ 'soft.glow': 'strong', 'soft.switch': 'indigo' });
+  expect(normalizeSkinOptions({ 'soft.glow': 'strong', 'soft.switch': 'magenta' })).toEqual({ 'soft.glow': 'strong', 'soft.switch': 'magenta' });
   expect(normalizeSkinOptions('{"soft.glow":"strong"}')).toEqual({ 'soft.glow': 'strong' });
   // unknown skin, option, choice, a value that is not an id, a nested key: dropped
   expect(normalizeSkinOptions({ 'nosuch.glow': 'strong', 'soft.nosuch': 'x', 'soft.glow': 'blinding', 'soft.switch': 'url(x)', 'soft.glow.x': 'strong', 'tesla.glow': 'strong' })).toEqual({});

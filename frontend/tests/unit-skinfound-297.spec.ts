@@ -70,10 +70,13 @@ test('the values are the design system\'s measured ones (TOKENS.md §1 / §3 as 
   expect(i['--sw-touch'].light).toBe('44px');
   expect([i['--sw-ctl-h-sm'].light, i['--sw-ctl-h-md'].light, i['--sw-ctl-h-lg'].light]).toEqual(['28px', '34px', '40px']);
   expect(i['--sw-page-pad'].light).toBe('24px');
-  expect(i['--sw-h1'].light).toBe('24px');
+  expect(i['--sw-h1'].light).toBe('26px'); // POLISH-SKINS-297 pass 2: one step up
   expect(i['--sw-glass-blur'].light).toBe('none'); // A has no glass
-  // A keeps the classic surfaces and accent (it is "classic with the deltas")
-  for (const n of ['--sw-bg', '--sw-surface', '--sw-surface-solid', '--sw-accent', '--sw-text', '--sw-heading']) expect(pick(i, n), n).toEqual([TOKENS[n].light, TOKENS[n].dark]);
+  // A keeps the classic text inks; POLISH-SKINS-297 pass 2 (owner: the first pass was invisible) gives it its own frame, sheets and accent
+  for (const n of ['--sw-text', '--sw-heading']) expect(pick(i, n), n).toEqual([TOKENS[n].light, TOKENS[n].dark]);
+  expect(pick(i, '--sw-bg')).toEqual(['#e9eef5', '#0a101c']);
+  expect(pick(i, '--sw-surface-solid')).toEqual(['#ffffff', '#121a2a']);
+  expect(pick(i, '--sw-accent')).toEqual(['#1957c9', '#3b6fe0']);
   // C: the material, the vibrancy text, the dark accent that keeps white text at 4.8:1, rounder shapes
   expect(pick(s, '--sw-bg')).toEqual(['#eef2f9', '#0b1020']);
   expect(pick(s, '--sw-surface-solid')).toEqual(['#fdfdfe', '#1a2032']);
@@ -83,8 +86,8 @@ test('the values are the design system\'s measured ones (TOKENS.md §1 / §3 as 
   expect(pick(s, '--sw-live-text')).toEqual(['#0e6b33', '#7ee29a']);
   // POLISH-SKINS-297 (owner 2026-10-27): the Soft switch is not green; blue by default, the colour chosen in Settings (the "switch" option)
   expect(pick(s, '--sw-toggle-on')).toEqual(['#2f6df6', '#3d7bff']);
-  expect(s['--sw-r-md'].light).toBe('18px');
-  expect(s['--sw-glass-blur'].light).toBe('blur(18px) saturate(1.4)');
+  expect(s['--sw-r-md'].light).toBe('22px'); // POLISH-SKINS-297 pass 2: rounder
+  expect(s['--sw-glass-blur'].light).toBe('blur(24px) saturate(1.6)'); // POLISH-SKINS-297 pass 2: thicker glass
   expect(s['--sw-glass-blur-sheet'].light).toBe('none'); // sheets are opaque
   // C is built on A: the density and the motion of A unless C says otherwise
   expect(s['--sw-touch'].light).toBe(INFRA_TOKENS['--sw-touch'].light);

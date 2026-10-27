@@ -2,7 +2,7 @@ import { lt, same, type TokenTable } from '../tokens';
 import type { Skin } from './index';
 
 /** Skin "Tesla clean hi-tech": flat opaque surfaces, 1px rules, sharp corners, large numerals, one cold accent. Values from the approved package. */
-const tokens: TokenTable = {
+const base: TokenTable = {
   '--sw-bg': lt('#ffffff', '#000000'),
   '--sw-canvas': lt('linear-gradient(#ffffff, #ffffff)', 'linear-gradient(#000000, #000000)'),
   '--sw-surface': lt('#fafafa', '#0f0f0f'),
@@ -115,12 +115,62 @@ const tokens: TokenTable = {
   '--sw-ease-thumb': same('cubic-bezier(.4, 0, .2, 1)'),
 };
 
+/**
+ * POLISH-SKINS-297 pass 2 (owner: the first pass was invisible): the Tesla showroom. A light grey floor (#f2f2f2) under borderless white
+ * panels in light, true black under #111 panels in dark - depth by one tone step, never a line or a shadow (taste-skill app-screens §9.4);
+ * thin display type (300) at 56 px and large regular numerals; the ink-black primary button with the one cold blue kept for selection and
+ * focus; 4 px corners everywhere. ui-ux-pro-max style search: "Minimalism & Swiss Style" (monochrome, high contrast, sharp shadows if any).
+ */
+const tokens: TokenTable = {
+  ...base,
+  '--sw-bg': lt('#f2f2f2', '#000000'),
+  '--sw-canvas': lt('linear-gradient(#f2f2f2, #f2f2f2)', 'linear-gradient(#000000, #000000)'),
+  '--sw-surface': lt('#ffffff', '#111111'),
+  '--sw-surface-solid': lt('#ffffff', '#111111'),
+  '--sw-surface-2': lt('#f7f7f7', '#1a1a1a'),
+  '--sw-surface-2-solid': lt('#f7f7f7', '#1a1a1a'),
+  '--sw-surface-3': lt('#ececec', '#262626'),
+  '--sw-surface-3-solid': lt('#ececec', '#262626'),
+  '--sw-menu-surface': lt('#ffffff', '#151515'),
+  '--sw-menu-border': lt('#d6d6d6', '#2e2e2e'),
+  '--sw-border': lt('rgba(0,0,0,0)', 'rgba(255,255,255,0)'),
+  '--sw-border-strong': lt('rgba(0,0,0,.22)', 'rgba(255,255,255,.24)'),
+  '--sw-accent': lt('#3e6ae1', '#5b84ff'),
+  '--sw-accent-hover': lt('#2f57c4', '#4a73ee'),
+  '--sw-accent-soft': lt('rgba(62,106,225,.10)', 'rgba(91,132,255,.16)'),
+  '--sw-accent-text': lt('#2f57c4', '#93b0ff'),
+  '--sw-focus': lt('#3e6ae1', '#93b0ff'),
+  '--sw-nav': lt('#171a20', '#ffffff'),
+  '--sw-toggle-on': lt('#171a20', '#5b84ff'),
+  '--sw-text-inverse': lt('#ffffff', '#000000'),
+  '--sw-h1': same('56px'),
+  '--sw-h1-weight': same('300'),
+  '--sw-h1-tracking': same('-1.2px'),
+  '--sw-h1-phone': same('34px'),
+  '--sw-fs-2xl': same('26px'),
+  '--sw-r-2xs': same('2px'),
+  '--sw-r-xs': same('3px'),
+  '--sw-r-sm': same('4px'),
+  '--sw-r-md': same('4px'),
+  '--sw-r-lg': same('4px'),
+  '--sw-r-xl': same('6px'),
+  '--sw-r-2xl': same('8px'),
+  '--sw-r-pill': same('4px'),
+  '--sw-shadow-3': lt('0 12px 40px rgba(0,0,0,.18)', '0 0 0 1px rgba(255,255,255,.18), 0 16px 48px rgba(0,0,0,.8)'),
+  '--sw-t-fast': same('120ms'),
+  '--sw-t-med': same('200ms'),
+  // improve-animations: the Material standard curve (.4,0,.2,1) is a weak ease-out; the strong one from the animate skill
+  '--sw-ease': same('cubic-bezier(0.23, 1, 0.32, 1)'),
+  '--sw-ease-thumb': same('cubic-bezier(0.23, 1, 0.32, 1)'),
+  '--sw-lit': lt('#f2b544', '#f2b544'),
+  '--sw-skeleton': lt('#ececec', '#1c1c1c'),
+};
+
 const rules = `
 /* tesla 1 - the rail is a flat column with a hairline; the brand mark is an outline; the active item is the heading colour */
-:host(sw-app) nav.rail.rail { background: var(--sw-bg); border-inline-end: 1px solid var(--sw-border); }
 :host(sw-app) .brand-tile { background: transparent; color: var(--sw-heading); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); box-shadow: none; font-weight: 600; }
 :host(sw-app) a.item.a { border-radius: var(--sw-r-md); }
-:host(sw-app) a.item.a.active { background: transparent; color: var(--sw-heading); }
+:host(sw-app) a.item.a.active { background: var(--sw-surface-3); color: var(--sw-heading); }
 :host(sw-app) a.item.a.active sw-icon { color: var(--sw-heading); }
 /* tesla 2 - the phone bar and the corner pill are flat too */
 :host(sw-app) nav.bottom.bottom { background: var(--sw-bg); box-shadow: none; border-block-start: 1px solid var(--sw-border); }
@@ -141,7 +191,7 @@ const rules = `
 :host(sw-button[variant='secondary']) button, :host(sw-button[variant='danger']) button { background: var(--hud-fill, transparent); }
 :host(sw-chip) button { background: var(--hud-fill, transparent); border-radius: var(--sw-r-md); box-shadow: none; }
 :host(sw-chip[selected]) button { background: var(--sw-text); border-color: var(--sw-text); color: var(--sw-text-inverse); }
-:host(sw-badge:not([onimage])) { background: transparent; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); border-radius: var(--sw-r-md); }
+:host(sw-badge:not([onimage])) { background: transparent; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); border-radius: var(--sw-r-md); font-weight: var(--sw-fw-semibold); flex: none; }
 ::slotted(input), ::slotted(select), ::slotted(textarea) { background: transparent; border-radius: var(--sw-r-sm); }
 /* tesla 6 - switch: an outlined track, the thumb in grey, accent when on */
 :host(sw-toggle) button { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-border-strong); }
@@ -173,8 +223,20 @@ const rules = `
 :host(devices-area) .tile.on .t sw-icon { color: var(--sw-heading); }
 /* tesla 14 - a KPI's icon is an outline, not a tinted square (one cold accent), unless its tone carries meaning */
 :host(sw-kpi:not([tone='error']):not([tone='offline']):not([tone='stale']):not([tone='partial']):not([tone='live'])) .icon { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-border-strong); color: var(--sw-text-2); }
-/* tesla 15 - status chips: semibold, never squeezed */
-:host(sw-badge) { font-weight: var(--sw-fw-semibold); flex: none; }
+/* POLISH-SKINS-297 pass 2 - the showroom (impeccable bolder: one decisive move - borderless white panels on a grey floor, thin big type) */
+/* tesla 16 - the rail and the phone bar are white panels on the grey floor; the current item a solid grey square */
+:host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom { background: var(--sw-surface); border-color: transparent; }
+/* tesla 17 - type: card titles medium and a step larger, KPI numerals large and regular, their label in the second ink (dataviz: text wears text tokens) */
+:host(sw-card) h3 { font-size: var(--sw-fs-lg); letter-spacing: -0.01em; }
+:host(sw-kpi) .value { font-size: 30px; font-weight: 400; letter-spacing: -0.02em; }
+/* tesla 18 - the primary button is ink on paper (the one blue stays for selection and focus); outlines carry the strong rule */
+:host(sw-button[variant='primary']) button { background: var(--sw-heading); border-color: var(--sw-heading); color: var(--sw-text-inverse); }
+@media (hover: hover) and (pointer: fine) { :host(sw-button[variant='primary']) button:hover:not(:disabled) { background: var(--sw-accent); border-color: var(--sw-accent); color: #ffffff; } }
+:host(sw-button[variant='secondary']) button, :host(sw-button[variant='danger']) button, :host(sw-chip) button { border-color: var(--sw-border-strong); }
+/* tesla 19 - empty / loading / error: an outlined square glyph, no tinted disc */
+:host(sw-state-panel) .icon { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-border-strong); color: var(--sw-text-2); border-radius: var(--sw-r-sm); }
+/* tesla 20 - the building tree and the floor cards: white panels, no rule */
+:host(devices-building) nav.tree, :host(devices-building) section.fcard { background: var(--sw-surface); border-color: transparent; }
 `;
 
 export const tesla: Skin = { id: 'tesla', name: 'Tesla clean hi-tech', nameHe: 'הייטק נקי (Tesla)', noteHe: 'משטחים שטוחים, קווי 1px, פינות חדות, מבטא אחד', stage: 'stable', features: { material: false, bevel: false, pixelEdge: false, glass: false }, tokens, rules };
