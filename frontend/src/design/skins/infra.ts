@@ -63,4 +63,4 @@ const rules = `
 :host(sw-kpi) .value { font-variant-numeric: tabular-nums; }
 ${ARX_MOTION_RULES}`;
 
-export const infra: Skin = { id: 'infra', name: 'Arx Infra', nameHe: 'Arx Infra', noteHe: 'קו שיער וצל עדין, כחול אחד, משטחים אטומים', tokens: INFRA_TOKENS, rules };
+export const infra: Skin = { id: 'infra', name: 'Arx Infra', nameHe: 'Arx Infra', noteHe: 'קו שיער וצל עדין, כחול אחד, משטחים אטומים', stage: 'foundation', features: { material: false, bevel: false, pixelEdge: false, glass: false }, tokens: INFRA_TOKENS, rules };

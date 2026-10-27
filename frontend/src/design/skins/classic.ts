@@ -6,6 +6,9 @@ export const classic: Skin = {
   name: 'Classic',
   nameHe: 'קלאסי',
   noteHe: 'המראה הנוכחי של המערכת',
+  stage: 'stable',
+  // bevels are allowed here (BEVEL_SKINS) but classic draws none: no material layer, no top-edge line, no glass
+  features: { material: false, bevel: true, pixelEdge: false, glass: false },
   tokens: {},
   rules: '',
 };

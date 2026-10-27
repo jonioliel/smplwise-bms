@@ -15,6 +15,7 @@ import { TOKENS, type TokenTable } from './tokens';
 import { SKINS, SKIN_IDS, type SkinId } from './skins';
 import { lookBundlesCss } from './look';
 import { materialRules } from '../styles/material';
+import { reducedMotionArx, reducedMotionCore } from './semantic';
 
 const decls = (t: TokenTable, mode: 'light' | 'dark', onlyDiffering = false): string =>
   Object.entries(t)
@@ -24,25 +25,13 @@ const decls = (t: TokenTable, mode: 'light' | 'dark', onlyDiffering = false): st
 
 const AUTO = ':not([data-theme="light"]):not([data-theme="dark"])';
 
-/** Reduced motion for the Arx motion names (tokens.ts, SKINFOUND-297): every duration 0, no rise, no press scale. */
-export const REDUCED_MOTION_ARX = [
-  '--sw-t-press:0ms',
-  '--sw-t-hover:0ms',
-  '--sw-t-slow:0ms',
-  '--sw-t-exit:0ms',
-  '--sw-t-toast:0ms',
-  '--sw-spring-toggle-ms:0ms',
-  '--sw-spring-tab-ms:0ms',
-  '--sw-spring-dialog-ms:0ms',
-  '--sw-spring-drawer-ms:0ms',
-  '--sw-spring-kpi-ms:0ms',
-  '--sw-stagger:0ms',
-  '--sw-enter-y:0px',
-  '--sw-enter-ms:0ms',
-  '--sw-press-scale:1',
-]
-  .map((d) => `${d} !important;`)
-  .join('');
+/**
+ * Reduced motion for the Arx motion names (tokens.ts, SKINFOUND-297): every duration 0, no rise, no press scale. DESIGNTOKENS-297: generated
+ * from the motion roles of semantic.ts (the same declarations in the same order as the list that was kept here by hand).
+ */
+export const REDUCED_MOTION_ARX = reducedMotionArx();
+/** Reduced motion for the core motion names: the four durations 0, no hover lift (semantic.ts). */
+export const REDUCED_MOTION_CORE = reducedMotionCore();
 
 /** One block set for a selector prefix (`:root` or `:root[data-skin="x"]`) and a table. */
 function blocks(prefix: string, t: TokenTable, first: boolean): string {
@@ -71,7 +60,7 @@ export function tokensCss(): string {
   // (`:root[data-skin="x"][data-theme="dark"]`, and the OS-dark twin) repeats every skin override, motion included, with a higher
   // specificity than `:root[data-skin]` - without it bubble / domus / tesla kept their durations in dark under reduced motion (0.1.162 gate)
   // SKINFOUND-297: the Arx motion layer (round 2, r2.css §13) keeps colour / opacity and drops travel, springs and the press scale
-  css += `@media (prefers-reduced-motion: reduce){:root,:root[data-skin]{--sw-t-fast:0ms !important;--sw-t-med:0ms !important;--sw-t-sheet:0ms !important;--sw-t-state:0ms !important;--sw-hover-lift:0px !important;${REDUCED_MOTION_ARX}}}\n`;
+  css += `@media (prefers-reduced-motion: reduce){:root,:root[data-skin]{${REDUCED_MOTION_CORE}${REDUCED_MOTION_ARX}}}\n`;
   // reduced transparency: the translucent layers of every skin become their solid twins
   css += '@media (prefers-reduced-transparency: reduce){:root,:root[data-skin]{--sw-sheet-alpha:1 !important;--sw-glass-blur:none;--sw-glass-blur-nav:none;--sw-glass-blur-sheet:none;--sw-backdrop-blur:none}}\n';
   return css;
@@ -82,10 +71,14 @@ export function skinTable(id: SkinId): TokenTable {
   return { ...TOKENS, ...SKINS[id].tokens };
 }
 
-/** A skin's component rules (the sheet adopted into every shadow root) plus the material layer of the glass-capable skins (MD1, styles/material.ts); empty for classic. */
+/**
+ * A skin's component rules (the sheet adopted into every shadow root) plus the material layer of the glass-capable skins (MD1,
+ * styles/material.ts); empty for classic. DESIGNTOKENS-297: the material layer is appended only where the registry allows it
+ * (`features.material`), so a skin added as data can never pick up the bevel rim by accident.
+ */
 export function skinRules(id: SkinId): string {
-  return SKINS[id].rules + materialRules(id);
+  return SKINS[id].rules + (SKINS[id].features.material ? materialRules(id) : '');
 }
 
-/** Number of rule blocks in a CSS string (the 50-rule budget of a skin counts `{ }` blocks, nested at-rules included). */
-export const ruleCount = (css: string): number => (css.match(/\{[^{}]*\}/g) ?? []).length;
+/** Number of rule blocks in a CSS string (the 50-rule budget of a skin counts `{ }` blocks, nested at-rules included); lives in skins/define.ts. */
+export { ruleCount } from './skins/define';

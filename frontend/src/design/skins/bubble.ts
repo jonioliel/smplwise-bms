@@ -180,4 +180,4 @@ const rules = `
 :host(system-nav) a { border-radius: var(--sw-r-pill); min-block-size: max(36px, var(--sw-settings-row-h, 0px)); }
 `;
 
-export const bubble: Skin = { id: 'bubble', name: 'Bubble', nameHe: 'Bubble', noteHe: 'חלונות קופצים שקופים, כמוסות, פס צף בטלפון; צפיפות, משטח ופינות לבחירה', tokens, rules };
+export const bubble: Skin = { id: 'bubble', name: 'Bubble', nameHe: 'Bubble', noteHe: 'חלונות קופצים שקופים, כמוסות, פס צף בטלפון; צפיפות, משטח ופינות לבחירה', stage: 'frozen', features: { material: true, bevel: true, pixelEdge: true, glass: true }, tokens, rules };

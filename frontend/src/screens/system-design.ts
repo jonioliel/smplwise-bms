@@ -132,10 +132,14 @@ export class SystemDesign extends LitElement {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
+    /* DESIGNTOKENS-297 (break-ui): a skin added as data may carry a long name (up to 24 characters, skins/define.ts) or an unbroken
+       English word; the name wraps inside its card instead of pushing the card wider, and the "current" mark never shrinks or wraps */
     .skin .nm {
       display: flex;
       align-items: center;
       gap: 6px;
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
       font-weight: var(--sw-fw-semibold);
       font-size: var(--sw-fs-md);
     }
@@ -143,6 +147,11 @@ export class SystemDesign extends LitElement {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
       line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    .skin .cur {
+      flex: none;
+      white-space: nowrap;
     }
     .cur {
       font-size: var(--sw-fs-2xs);
