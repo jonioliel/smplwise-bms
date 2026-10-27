@@ -68,21 +68,30 @@ export class InfraElevators extends LitElement {
       background: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; box-shadow: var(--sw-shadow-1);
     }
     button.new { border: 0; font: inherit; cursor: pointer; }
-    .new:focus-visible, .add:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 3px; }
+    /* POLISH-CONTROL-297: the focus ring is the product's (the same token as the temperature screen), and every pressable thing answers
+       the press (transform only, token durations - zero under reduced motion) */
+    .new:focus-visible, .add:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 3px; }
+    .new, .add, .hbtn { transition: border-color var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
+    .new:active { transform: scale(0.97); }
+    .add:active { transform: scale(0.99); }
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
     .kpi {
       display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--sw-r-md, 20px);
-      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1);
+      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0;
     }
-    .kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--el-c); flex: none; }
-    .kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; }
-    .kpi span.l { font-size: var(--sw-fs-state); color: var(--sw-text-2); }
+    /* the dot carries a soft halo of its own colour (the temperature KPIs' dot): the state reads from across the room, the number stays the hero */
+    .kpi .dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--el-c) 18%, transparent); }
+    .kpi > div { min-inline-size: 0; }
+    .kpi b { display: block; font-size: var(--sw-fs-2xl); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+    .kpi span.l { display: block; margin-block-start: 3px; font-size: var(--sw-fs-state); color: var(--sw-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
     .ecard {
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
       position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: var(--sw-r-lg, 26px); overflow: hidden;
       background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1); min-inline-size: 0;
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
     }
+    .ecard:active { transform: scale(0.99); }
     .ecard[data-look='fire'] { background: linear-gradient(160deg, color-mix(in srgb, var(--sw-el-fire) 16%, transparent), var(--sw-surface) 60%); border-color: color-mix(in srgb, var(--sw-el-fire) 50%, transparent); }
     .ecard[data-look='fault'] { border-color: color-mix(in srgb, var(--sw-el-fault) 45%, transparent); }
     .ecard[data-look='off'] { border-color: color-mix(in srgb, var(--sw-el-off) 55%, transparent); border-inline-start-width: 4px; }
@@ -91,22 +100,47 @@ export class InfraElevators extends LitElement {
     .head small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
     .body { display: flex; gap: 16px; align-items: center; min-inline-size: 0; }
     .meta { flex: 1; display: grid; gap: 8px; min-inline-size: 0; }
-    .row2 { display: flex; justify-content: space-between; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-state); }
+    .row2 { display: flex; justify-content: space-between; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; }
     .ext { display: flex; flex-wrap: wrap; gap: 6px; }
-    .ecard:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
-    .hbtn { border: 0; background: transparent; color: var(--sw-text-2); border-radius: 999px; padding: 6px; display: inline-grid; place-items: center; cursor: pointer; }
-    .hbtn:hover { color: var(--sw-accent); }
-    .hbtn:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
+    .ecard:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+    /* the history button is a real target (32 px, 44 px on touch layouts) with a wash on hover, not a bare glyph that only changes colour */
+    .hbtn { border: 0; background: transparent; color: var(--sw-text-2); border-radius: 999px; padding: 0; inline-size: 32px; block-size: 32px; display: inline-grid; place-items: center; cursor: pointer; flex: none; }
+    .hbtn:active { transform: scale(0.94); }
+    .hbtn:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-block-size: 60vh; overflow: auto; }
-    .hist li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); }
-    .hist .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--el-c); flex: none; }
-    .hist .t { flex: 1; min-inline-size: 0; }
-    .hist .w { color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; }
+    .hist li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); }
+    .hist .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-c) 18%, transparent); }
+    .hist .t { flex: 1; min-inline-size: 0; font-weight: var(--sw-fw-medium); }
+    .hist .w { color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .add {
       display: grid; place-items: center; min-block-size: 200px; border-radius: var(--sw-r-lg, 26px); border: 2px dashed var(--sw-border);
       color: var(--sw-text-2); text-decoration: none; text-align: center; padding: 16px;
     }
     .add b { display: block; font-size: calc(var(--sw-fs-3xl) * 1.3); color: var(--sw-accent); line-height: 1; }
+    /* the loading state draws the shape of the page (title, the KPI row, three cards) instead of one grey bar - the temperature screen's skeleton */
+    .skl { display: flex; flex-direction: column; gap: 14px; block-size: auto; background: none; animation: none; border-radius: 0; }
+    .sk {
+      border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); box-sizing: border-box;
+      background: linear-gradient(90deg, var(--sw-surface-3) 0%, var(--sw-surface) 50%, var(--sw-surface-3) 100%); background-size: 200% 100%; animation: el-shimmer 1.4s var(--sw-ease) infinite;
+    }
+    .sk-top { display: grid; gap: 8px; padding-block: 4px; }
+    .sk-h1 { inline-size: 160px; block-size: 30px; }
+    .sk-sub { inline-size: 300px; max-inline-size: 100%; block-size: 14px; border-radius: var(--sw-r-xs); }
+    .sk-kpi { block-size: 64px; }
+    .sk-card { block-size: 220px; border-radius: var(--sw-r-lg); }
+    @keyframes el-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+    /* hover is only for fine pointers - a touch must not leave a card lit */
+    @media (hover: hover) and (pointer: fine) {
+      .ecard:hover { box-shadow: var(--sw-shadow-2); }
+      .ecard:hover:not([data-look='fire']):not([data-look='fault']):not([data-look='off']) { border-color: var(--sw-border-strong); }
+      .kpi:hover { border-color: var(--sw-border-strong); }
+      .hbtn:hover { color: var(--sw-accent-text); background: var(--sw-accent-soft); }
+      .add:hover { border-color: var(--sw-border-strong); color: var(--sw-text); }
+    }
+    @media (max-width: 1100px) {
+      .hbtn { inline-size: 44px; block-size: 44px; margin-block: -6px; }
+    }
     @media (max-width: 600px) {
       /* the title first, the button under it: the top start corner belongs to the floating search */
       .top { flex-direction: column; align-items: stretch; }
@@ -207,7 +241,11 @@ export class InfraElevators extends LitElement {
     if (!this.data) {
       return this.error
         ? html`${l1}<sw-state-panel state="error" heading=${elt('loadError')} hint=${this.error} data-state="error"></sw-state-panel>`
-        : html`${l1}<div class="skl" style="block-size:160px" data-state="loading"></div>`;
+        : html`${l1}<div class="skl" data-state="loading" aria-busy="true" aria-label=${elt('title')}>
+            <div class="sk-top"><div class="sk sk-h1"></div><div class="sk sk-sub"></div></div>
+            <div class="kpis">${[0, 1, 2, 3, 4].map(() => html`<div class="sk sk-kpi"></div>`)}</div>
+            <div class="grid">${[0, 1, 2].map(() => html`<div class="sk sk-card"></div>`)}</div>
+          </div>`;
     }
     const list = this.data.elevators;
     const manage = this.access.manage;
