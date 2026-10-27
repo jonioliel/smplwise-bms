@@ -1,15 +1,15 @@
 {
-  "_comment": "Per-category PASSED counts (pass + flaky) of the previous accepted release gate. The gate fails a category whose passed count is below GATE_DROP_THRESHOLD (default 70 percent) of its value here, unless it was started with --allow-count-drop \"<reason>\". Refresh from \"baseline_candidate\" of a GREEN gate report after each release. Only tier L has a baseline; S and M print a warning (the count-drop check is not applied).",
-  "source": "gate integ/293-rel @ b3788047 (tier L, 2026-10-20, the 2.9.3 release gate; values given by the lead, applied at the 2.10.0 integration, integ/2100).",
+  "_comment": "Per-category PASSED counts (pass + flaky) of the previous accepted release gate. The gate fails a category whose passed count is below GATE_DROP_THRESHOLD (default 70 percent) of its value here, unless it was started with --allow-count-drop \"<reason>\". Refresh from \"baseline_candidate\" of a GREEN gate report after each release. Only tier L has a baseline; S and M print a warning (the count-drop check is not applied). A diff-selection gate never checks the ratio (it prints 'selection'), so these values only matter for a full tier-L run (nightly, --full).",
+  "source": "GATEAUDIT-297 (2026-10-27): the last FULL tier-L run is the nightly on main @ 011c97d4d (2.23.1, 2026-10-27 02:00): baseline_candidate preview 15086, dev 1038, pixel 221, fixture 15, backend 17611. Adjusted for what changed after it: the bubble freeze (2.23.2) skips 151 preview and 101 dev tests that passed there (whole-file skips + every test titled with the bubble skin); pixel +25 (the visual-matrix baselines re-taken here now pass), -8 (the evidence-design-foundation zero-pixel duplicates removed here), about -20 (bubble pixel cases now skipped). The values are therefore an estimate within a few percent, far inside the 70 percent threshold; replace them with the baseline_candidate of the first green full tier-L run that contains this branch. The previous values (integ/293-rel @ b3788047, 2026-10-20: preview 11935, dev 936, pixel 188, backend 12106) were a week and about 3000 preview / 5500 backend tests behind.",
   "tiers": {
     "L": {
       "tsc": 1,
       "build": 1,
-      "preview": 11935,
-      "pixel": 188,
-      "dev": 936,
+      "preview": 14935,
+      "pixel": 218,
+      "dev": 937,
       "fixture": 15,
-      "backend": 12106,
+      "backend": 17611,
       "release_check": 1
     }
   }
