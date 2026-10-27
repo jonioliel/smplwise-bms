@@ -1,6 +1,7 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
 import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
+import { pixelTitle, skinCheck } from './helpers/pixel-skins';
 import { settlePage } from './pixel-settle';
 import { installStationsMock, newMock, openStations } from './wiskey-stations-mocks';
 import { installStationMediaMock, newMediaMock, type StationMediaMock } from './wiskey-station-media-mocks';
@@ -41,11 +42,13 @@ test.describe('pixel: station live video and push-to-talk', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   for (const skin of SKIN_IDS) {
-    test(`${skin} is pixel-stable: the drawer with live video and push-to-talk`, async ({ page }, info) => {
+    // GATELANES-297: pixels for the skins in helpers/pixel-skins.ts (classic, domus), the structural smoke for the others
+    test(pixelTitle(skin, 'the drawer with live video and push-to-talk'), async ({ page }, info) => {
       test.skip(info.project.name === 'tablet', 'desktop and phone only');
+      const check = skinCheck(page, skin);
       await toDrawer(page, skin);
       await playing(page);
-      await shoot(page, info, `station-media-${skin}-drawer`);
+      await check(() => shoot(page, info, `station-media-${skin}-drawer`), player(page));
     });
   }
 

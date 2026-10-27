@@ -170,7 +170,8 @@ test('a chair inside a shared instance group is picked by its own id; the export
   expect(out.nodes).toBe(1 + drawn.children - 1); // the exported group and every child but the outline
 });
 
-test('frames render on demand and stop when the scene is static; continuous mode keeps them going', async ({ page }) => {
+// GATELANES-297 timing lane: counts frames over wall-clock windows on SwiftShader (FLAKY in 6 of the last 40 runs)
+test('frames render on demand and stop when the scene is static; continuous mode keeps them going', { tag: '@timing-lane' }, async ({ page }) => {
   test.setTimeout(90_000);
   const el = await openDemo(page);
   const f1 = await settled(el);

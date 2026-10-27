@@ -6889,7 +6889,8 @@
     "title": "The release gate fails only on relevant tests",
     "statement": "Owner 2026-10-27: tests that are obsolete, duplicated or tied to a frozen / removed feature leave the gate, with each removal justified in a reviewable document; stale baselines are re-taken after review; the gate's reference counts match reality. Tests that guard security, permissions, data integrity, migrations, contracts or release_check are never removed.",
     "task_ids": [
-      "GATEAUDIT-297"
+      "GATEAUDIT-297",
+      "GATELANES-297"
     ],
     "chapters": [],
     "screens": [],
@@ -6897,7 +6898,8 @@
     "priority": "P1",
     "status": "PLANNED",
     "test_ids": [
-      "AT-GATEAUDIT-1"
+      "AT-GATEAUDIT-1",
+      "AT-GATELANES-1"
     ]
   }
 ]

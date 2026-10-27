@@ -114,7 +114,8 @@ test('level 3 is additive and carries its rungs: lite and realistic post chains,
   expect(r2.tone).toBe(4); // ACES again
 });
 
-test('the level-3 graph is deterministic after a full rebuild from an equal description; the same pixels twice', async ({ page }) => {
+// GATELANES-297 timing lane: two full level-3 rebuilds on SwiftShader under the runner's load (FLAKY in 6 of the last 40 runs)
+test('the level-3 graph is deterministic after a full rebuild from an equal description; the same pixels twice', { tag: '@timing-lane' }, async ({ page }) => {
   test.setTimeout(300_000);
   const el = await openDemo(page);
   await realistic(el, page, 'lite');

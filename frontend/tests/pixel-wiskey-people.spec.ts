@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { settlePage } from './pixel-settle';
+import { isPixelSkin, skinCheck } from './helpers/pixel-skins';
 import { install, newMock, type PeopleMock, type Role } from './wiskey-people-mock';
 
 // CR-036 S7 pixel baselines: the NEW states of the native people screen - the list (table on the desktop, rows on the phone), the
@@ -49,12 +50,16 @@ test.describe('pixel: the native people screen', () => {
 
   // "pixel-stable" in the title: the release gate runs its pixel group with --grep pixel-stable (a title without it ran zero tests)
   for (const [skin, scheme] of [['classic', 'light'], ['classic', 'dark'], ['crystal', 'light']] as const) {
-    test(`people list and the person's page, ${skin} ${scheme}, is pixel-stable`, async ({ page }, info) => {
+    // GATELANES-297: crystal has no pixel baseline any more (helpers/pixel-skins.ts): its case is the structural smoke
+    const what = `people list and the person's page, ${skin} ${scheme}`;
+    test(isPixelSkin(skin) ? `${what}, is pixel-stable` : `${what} (structural smoke, no pixel baseline)`, async ({ page }, info) => {
+      const check = skinCheck(page, skin);
       await open(page, role(), { skin, scheme });
-      await compare(page, info, `list-${skin}-${scheme}`);
+      await check(() => compare(page, info, `list-${skin}-${scheme}`), `${SCREEN} [data-person-row="p3"]`);
       await page.locator(`${SCREEN} [data-person-row="p3"]`).click();
-      await expect(page.locator('wiskey-person-drawer [data-person-section="sensitive"]')).toBeVisible();
-      await compare(page, info, `drawer-${skin}-${scheme}`);
+      const sensitive = page.locator('wiskey-person-drawer [data-person-section="sensitive"]');
+      await expect(sensitive).toBeVisible();
+      await check(() => compare(page, info, `drawer-${skin}-${scheme}`), sensitive);
     });
   }
 

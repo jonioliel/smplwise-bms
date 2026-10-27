@@ -1,6 +1,7 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
 import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
+import { pixelTitle, skinCheck } from './helpers/pixel-skins';
 import { settlePage } from './pixel-settle';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
 
@@ -40,15 +41,17 @@ test.describe('pixel: the stations and doors screen', () => {
 
   for (const skin of SKIN_IDS) {
     // "pixel-stable" in the title: the release gate runs its pixel group with --grep pixel-stable (a title without it ran zero tests)
-    test(`${skin} is pixel-stable: the station cards and a station's drawer`, async ({ page }, info) => {
+    // GATELANES-297: pixels for the skins in helpers/pixel-skins.ts (classic, domus), the structural smoke for the others
+    test(pixelTitle(skin, "the station cards and a station's drawer"), async ({ page }, info) => {
       test.skip(info.project.name === 'tablet', 'desktop and phone only');
+      const check = skinCheck(page, skin);
       await toScreen(page, skin);
       await readyCards(page);
-      await shoot(page, info, `stations-${skin}-cards`);
+      await check(() => shoot(page, info, `stations-${skin}-cards`), `${SCREEN} [data-wk-stations][data-wk-state="ready"]`);
       await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="gate"] button.open`).click();
       await expect(page.locator(`${SCREEN} sw-drawer[data-wk-drawer]`)).toHaveAttribute('open', '');
       await expect(page.locator(`${SCREEN} sw-drawer [data-wk-live] img`)).toBeVisible();
-      await shoot(page, info, `stations-${skin}-drawer`);
+      await check(() => shoot(page, info, `stations-${skin}-drawer`), `${SCREEN} sw-drawer [data-wk-live] img`);
     });
   }
 

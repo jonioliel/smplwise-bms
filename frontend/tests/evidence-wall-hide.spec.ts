@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 // Owner request 2026-09-30: "סידור הקיר" can leave a camera out of the wall ("מוצגת" off). Against a mocked backend
 // (page.route on api/v1, cameras kept in the test and PATCHed): the dialog's per-row switch, hidden rows listed last and
 // dimmed, what is PATCHed on save, the wall grid / footer / kiosk after it, and the menu item being the wall's own.
-// Real backend: backend tests/test_cameras.py (wall_hidden) and the live step in evidence-owner-round11.spec.ts.
+// Real backend: backend tests/test_cameras.py (wall_hidden) and the live step in evidence-owner-round11.spec.ts (archived 2026-10-27: tests/archive/owner-rounds-2026-09/).
 //   SW_BASE_URL=http://127.0.0.1:4315/ npx playwright test tests/evidence-wall-hide.spec.ts --project=desktop
 
 const GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');

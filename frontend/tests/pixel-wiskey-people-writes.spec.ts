@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { settlePage } from './pixel-settle';
+import { isPixelSkin, skinCheck } from './helpers/pixel-skins';
 import { install, newMock, type PeopleMock } from './wiskey-people-mock';
 import { installWrites, newWrites, type WritesMock } from './wiskey-writes-mock';
 
@@ -60,13 +61,16 @@ test.describe('pixel: the person writes', () => {
 
   // "pixel-stable" in the title: the release gate runs its pixel group with --grep pixel-stable
   for (const [skin, scheme] of [['classic', 'light'], ['classic', 'dark'], ['crystal', 'light']] as const) {
-    test(`the actions menu and the cards, ${skin} ${scheme}, is pixel-stable`, async ({ page }, info) => {
+    // GATELANES-297: crystal has no pixel baseline any more (helpers/pixel-skins.ts): its case is the structural smoke
+    const what = `the actions menu and the cards, ${skin} ${scheme}`;
+    test(isPixelSkin(skin) ? `${what}, is pixel-stable` : `${what} (structural smoke, no pixel baseline)`, async ({ page }, info) => {
+      const check = skinCheck(page, skin);
       await open(page, newMock('admin'), newWrites(), { skin, scheme });
       await actions(page, 'p1');
-      await compare(page, info, `menu-${skin}-${scheme}`);
+      await check(() => compare(page, info, `menu-${skin}-${scheme}`), `${ACTIONS} [data-person-action="cards"]`);
       await page.locator(`${ACTIONS} [data-person-action="cards"]`).click();
       await expect(page.locator(`${ACTIONS} [data-person-card]`)).toHaveCount(1);
-      await compare(page, info, `cards-${skin}-${scheme}`);
+      await check(() => compare(page, info, `cards-${skin}-${scheme}`), `${ACTIONS} [data-person-card]`);
     });
   }
 

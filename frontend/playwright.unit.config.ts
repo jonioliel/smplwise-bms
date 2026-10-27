@@ -7,6 +7,7 @@ import { defineConfig } from '@playwright/test';
 process.env.TZ = process.env.SW_TEST_TZ || 'Asia/Jerusalem';
 export default defineConfig({
   testDir: 'tests',
+  testIgnore: ['**/archive/**'], // GATELANES-297: retired specs, never run (tests/archive/README.md)
   timeout: 30_000,
   retries: 0,
   reporter: [['list']],

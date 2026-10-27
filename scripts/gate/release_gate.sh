@@ -32,6 +32,9 @@
 #   9. M074 visual matrix, ON by default in every tier as a warning section (never fails the gate); --visual-block makes failures count,
 #      --no-visual switches it off;
 #      --visual-base <ref> (default origin/main) selects the touched screens; diff images/summary.md/index.html in the gate's .logs/visual/
+#  10. TIMING LANE (GATELANES-297): tests tagged '@timing-lane' (Playwright) / marked timing_lane (pytest) are NOT run by the gate;
+#      after the verdict this wrapper starts timing_lane.sh <branch> in the background (non-blocking, waits for a quiet machine,
+#      report in ~/smplwise-results/timing-lane/); GATE_TIMING_LANE=off skips it (docs/testing/GATE_LANES.md)
 # After a GREEN gate of a release, refresh scripts/gate/gate_baselines.json from "baseline_candidate" in that gate's .json.
 # One gate at a time (flock; it also holds the nightly lock, so cron's nightly/watcher skip meanwhile); total timeout 90 min
 # (GATE_TOTAL_SECS to change). Never kills by name: only process groups this script started. Free ports only.
@@ -39,7 +42,7 @@
 # see scripts/gate/INSTALL_ON_RUNNER.md. The self-test is scripts/gate/selftest_gate.py.
 set -uo pipefail
 export PATH="$HOME/smplwisebms/.venv/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-case "${1:-}" in -h|--help|"") sed -n 2,39p "$0"; exit 0;; esac
+case "${1:-}" in -h|--help|"") sed -n 2,42p "$0"; exit 0;; esac
 DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 [ -f "$DIR/release_gate.py" ] || { echo "release_gate.py must sit next to release_gate.sh ($DIR)"; exit 2; }
 mkdir -p "$HOME/smplwise-results" "$HOME/work"
@@ -48,4 +51,24 @@ flock -n 9 || { echo "another release gate is running"; exit 3; }
 exec 8>"$HOME/.smplwise-tests.lock"
 flock -n 8 || { echo "the nightly/manual test run holds ~/.smplwise-tests.lock"; exit 3; }
 TOTAL="${GATE_TOTAL_SECS:-5400}"
-exec timeout -k 30 "$TOTAL" python3 "$DIR/release_gate.py" "$@"
+timeout -k 30 "$TOTAL" python3 "$DIR/release_gate.py" "$@"
+RC=$?
+# GATELANES-297 timing lane (docs/testing/GATE_LANES.md): the '@timing-lane' / timing_lane tests this gate left out run AFTER it, in the
+# background, once the machine is quiet (timing_lane.sh waits for that). NON-BLOCKING: the gate's verdict and exit code above are final;
+# the lane writes its own report to ~/smplwise-results/timing-lane/. GATE_TIMING_LANE=off skips it. The lane gets neither lock fd.
+BR=""; skip=0
+for a in "$@"; do
+  if [ "$skip" -eq 1 ]; then skip=0; continue; fi
+  case "$a" in
+    --tier|--schedule|--select-base|--allow-count-drop|--visual-base|--root) skip=1;;
+    --plan|--seed-from) BR=""; break;;
+    -*) ;;
+    *) BR="$a";;
+  esac
+done
+if [ -n "$BR" ] && [ "${GATE_TIMING_LANE:-on}" != "off" ] && [ -x "$DIR/timing_lane.sh" ]; then
+  mkdir -p "$HOME/smplwise-results/timing-lane"
+  nohup setsid "$DIR/timing_lane.sh" "$BR" > "$HOME/smplwise-results/timing-lane/lane_last.log" 2>&1 < /dev/null 8>&- 9>&- &
+  echo "timing lane queued for $BR (non-blocking; runs when the machine is quiet): ~/smplwise-results/timing-lane/lane_last.log"
+fi
+exit "$RC"
