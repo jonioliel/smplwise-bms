@@ -276,23 +276,27 @@ def test_the_card_caller_goes_through_the_dto9_preflight_on_the_direct_path(monk
     port = RecordingPort()
     join = StubJoin(port, selected={cd.EVENT_COMMAND, cd.REQUEST_COMMAND})
     t = wdj.mapped_card_transport(join, cd.DirectLeaseTransport(port))
-    assert isinstance(t, cm.MappedLeaseTransport)
-    with pytest.raises(cm.CaptureMapError) as e:  # the build default: mapping disabled -> nothing leaves Arx
-        _send(t, row)
-    assert e.value.reason == "mapping_disabled" and port.calls == []
-    monkeypatch.setattr(cm, "MAPPING_ENABLED", True)  # inside this test only
+    assert isinstance(t, wdj.MappedWhenEnabled) and isinstance(t.mapped, cm.MappedLeaseTransport)
+    # the build default (MAPPING_ENABLED False): the plain direct transport, byte for byte the call it made before
+    garbage = '{"m":1}'
+    t.event(None, garbage)
+    assert port.calls[-1][:2] == (cd.EVENT_COMMAND, {"signed_message_json": garbage})
+    n = len(port.calls)
+    monkeypatch.setattr(cm, "MAPPING_ENABLED", True)  # inside this test only: the DTO9 pre-flight is in front
+    with pytest.raises(cm.CaptureMapError) as e:
+        t.event(None, garbage)
+    assert e.value.reason in cm.PROJECTION_REASONS and len(port.calls) == n, "an unmappable text never leaves Arx"
     _send(t, row)
-    assert len(port.calls) == 1 and port.calls[0][0] == cm.COMMAND_OF_KIND[kind]
-    assert port.calls[0][1] == {"signed_message_json": row["signed_message_json"]}, "the same signed text, byte for byte"
+    assert len(port.calls) == n + 1 and port.calls[-1][0] == cm.COMMAND_OF_KIND[kind]
+    assert port.calls[-1][1] == {"signed_message_json": row["signed_message_json"]}, "the same signed text, byte for byte"
     join._selected = set()
     with pytest.raises(cm.CaptureMapError) as e:
         _send(t, row)
-    assert e.value.reason == "command_not_announced" and len(port.calls) == 1
+    assert e.value.reason == "command_not_announced" and len(port.calls) == n + 1
 
 
 def test_the_installed_join_wraps_its_direct_lease_transport():
-    src = (wdj.__file__)
-    text = open(src, encoding="utf-8").read()
+    text = open(wdj.__file__, encoding="utf-8").read()
     assert "SelectingLeaseTransport(join, mapped_card_transport(join, wiskey_capture_direct.DirectLeaseTransport(join.capture_port))," in text
 
 

@@ -367,7 +367,8 @@ def test_ha_ws_connection_asks_who_it_is_routes_events_and_closes(monkeypatch):
             return {"id": 2, "type": "result", "success": True, "result": {"echo": sorted(kw)}}
 
         await on_ready(call)
-        seen["push"] = lambda: on_message({"id": 9, "type": "event", "event": {"type": "media/talk_closed", "talk_ref": REF}})
+        seen["push"] = lambda mid=9: on_message({"id": mid, "type": "event", "event": {"type": "media/talk_closed", "talk_ref": REF}})
+        seen["terminal"] = lambda mid: on_message({"id": mid, "type": "result", "success": False, "error": {"code": "media_subscription_closed"}})
         await stop.wait()
 
     monkeypatch.setattr(ha_client, "ws_session", fake_ws_session)
@@ -377,8 +378,21 @@ def test_ha_ws_connection_asks_who_it_is_routes_events_and_closes(monkeypatch):
         assert conn.user_id == "user-77" and not conn.closed and "user-77" not in repr(conn) and "not-a-real-token" not in repr(conn)
         events: list[dict[str, Any]] = []
         conn.set_event_handler(events.append)
+        # WISKEY-OWNER26-297 (owner26 HA-scoped terminal): a media event of a subscription no media channel owns is never handed to anyone
         seen["push"]()
-        assert events and events[0]["talk_ref"] == REF
+        assert events == []
+        # ... while the media channel that opened the talk (subscription = its talk_open id) gets its own events, and the terminal
+        # `media_subscription_closed` ends only that channel, never the shared socket
+        channel = conn.media_channel()
+        mine: list[dict[str, Any]] = []
+        channel.set_event_handler(mine.append)
+        assert (await channel.send(bridge.TYPE_PREFIX + w10.TALK_OPEN, bridge={}))["success"] is True
+        seen["push"](2)
+        assert mine and mine[0]["talk_ref"] == REF and events == []
+        ended: list[int] = []
+        channel.set_closed_handler(lambda: ended.append(1))
+        seen["terminal"](2)
+        assert channel.closed and ended == [1] and not conn.closed
         assert (await conn.send("hikvision_intercom/media/talk_floor", bridge={}))["result"] == {"echo": ["bridge"]}
         closed: list[int] = []
         conn.set_closed_handler(lambda: closed.append(1))

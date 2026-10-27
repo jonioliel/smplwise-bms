@@ -167,4 +167,5 @@ The original signing inventory includes this caller and its fixed command set.
 Neither path is reachable in this build: `door_windows_engine.LIVE_ENGINE_BUILT` is False (the window factory hands out the tier-D
 `PreparedEngine`) and `door_automation.GO_LIVE_PERMITTED` is False (`_switch_reason` refuses `feature_off` before any sender). Finding 6
 above is therefore narrowed: door automations now have a production caller of `FeatureAdapters.prepare`, gated off. The card caller
-(`capture/lease_*`) goes through the CAPMAP DTO9 pre-flight on the direct path (`wiskey_direct_join.mapped_card_transport`); no new command.
+(`capture/lease_*`) goes through the CAPMAP DTO9 pre-flight on the direct path whenever `MAPPING_ENABLED` is on
+(`wiskey_direct_join.mapped_card_transport`; off in this build = the plain direct transport as before); no new command.

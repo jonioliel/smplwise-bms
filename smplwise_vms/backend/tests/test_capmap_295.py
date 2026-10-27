@@ -82,7 +82,10 @@ def test_the_mapping_flag_is_off_in_this_build_and_cannot_be_on_without_macs_tab
 def test_the_go_live_permit_and_the_lease_route_are_untouched():
     assert cl.GO_LIVE_PERMITTED is False and cl.MIN_BRIDGE_FOR_CAPTURE_LEASE is None
     src = (REPO / "smplwise_vms" / "backend" / "smplwise" / "services" / "wiskey_direct_join.py").read_text(encoding="utf-8")
-    assert "wiskey_capture_map" not in src, "the map is not wired into the direct join in this build"
+    # WISKEY-OWNER26-297 (owner26 Q2 card): the map is wired into the direct join, but only while MAPPING_ENABLED (False in this build); the
+    # direct path otherwise stays the plain DirectLeaseTransport (tests/test_wiskey_owner26_callers_297.py)
+    assert "MappedWhenEnabled(direct, cm.MappedLeaseTransport(direct, announced), cm.enabled)" in src
+    assert cm.MAPPING_ENABLED is False
 
 
 def test_state_is_honest():
