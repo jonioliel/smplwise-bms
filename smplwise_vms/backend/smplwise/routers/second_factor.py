@@ -164,14 +164,19 @@ def set_override(kind: str, subject_id: str, body: OverrideBody, request: Reques
     _limit(principal)
     before = sf.set_override(conn, kind, subject_id, body.policy, principal.user_id)
     affected = [subject_id] if kind == "user" else sf.users_of_role(conn, subject_id)
-    ended = 0
+    ended = phones = 0
     if body.policy == "required":
+        rid = getattr(request.state, "correlation_id", None)
         for uid in affected:
             if uid != principal.user_id and not sf.is_enrolled(conn, uid):
-                ended += hua.revoke_user_sign_ins(conn, uid, actor=principal, reason="second_factor_required", request_id=getattr(request.state, "correlation_id", None))
+                ended += hua.revoke_user_sign_ins(conn, uid, actor=principal, reason="second_factor_required", request_id=rid)
+                # XSECFOLLOW-297 (review follow-up b): a device token issued before the rule must not roll on without the factor either -
+                # the phone's device token and push registration end; the app re-registers through a session, which now owes the code
+                phones += presence.end_on_sign_out(conn, uid, "second_factor_required", everywhere=True, actor=principal, request_id=rid)
     audit(conn, actor=principal, action="auth.second_factor.policy_override", decision="allowed", resource_type=kind, resource_id=subject_id,
           request_id=getattr(request.state, "correlation_id", None),
-          details={"method": "totp", "before": before or "inherit", "after": body.policy, "users_affected": len(affected), "sign_ins_ended": ended})
+          details={"method": "totp", "before": before or "inherit", "after": body.policy, "users_affected": len(affected), "sign_ins_ended": ended,
+                   "device_credentials_ended": phones})
     return {"kind": kind, "subject_id": subject_id, "policy": body.policy, **sf.overrides(conn)}
 
 

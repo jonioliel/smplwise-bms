@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-27T22:41:45.593434+00:00
+Generated: 2026-10-27T23:10:41.274524+00:00
 
-Tasks: 265 | Requirements: 374 | Tests: 391 | Screens: 32
+Tasks: 266 | Requirements: 375 | Tests: 392 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 72
+- REVIEW: 73
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 171
+- V1: 172
 - V2: 29
 - V3: 2
 
@@ -303,3 +303,4 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [MOTIONSETTING-297](tasks/MOTIONSETTING-297.md) | V1 | REVIEW | Motion setting ui.motion (auto | full | reduced), separate from the skin and the scheme | — |
 | [SPLITSWITCH2-297](tasks/SPLITSWITCH2-297.md) | V1 | REVIEW | Emergency-buttons switch is a setting (owner q48): default on, admin-only, audited, confirmed when turned off; a gate on the build flags, never an activation | — |
 | [CURVEDGATE-297](tasks/CURVEDGATE-297.md) | V1 | REVIEW | Curved walls stage 1a: the two live curved-wall browser specs (evidence-curved-walls, evidence-curve-points) join the release gate's fixture phase | — |
+| [XSECFOLLOW-297](tasks/XSECFOLLOW-297.md) | V1 | REVIEW | Security review 2026-10-27 follow-ups of XSECFIX-297: the presence block on WebSockets, phone credentials end on a password change / reset and a forced second factor, ?do=run and Android tests | — |

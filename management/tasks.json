@@ -12370,5 +12370,46 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "XSECFOLLOW-297",
+    "title": "Security review 2026-10-27 follow-ups of XSECFIX-297: the presence block on WebSockets, phone credentials end on a password change / reset and a forced second factor, ?do=run and Android tests",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Follows XSECFIX-297 (review follow-ups). (a) every WebSocket resolves its caller in routers/media._principal_for_ws, which applies the service-account refusal and presence.enforce exactly like auth._principal: a blocked user's socket gets one error frame (presence_required / service_account) and close 4403, audited like the HTTP refusal; HTTP streaming routes (clips, downloads, snapshots, HLS) are refused by auth._principal before the handler; (b) a password change (own), a reset link and a self-service reset, and a required second-factor override (user or role, users without a factor) end the user's device tokens and push registrations (presence.end_on_sign_out everywhere, audited presence.device.credentials_ended with the reason password_changed / second_factor_required); a refused change and an optional override end nothing; (c) ?do=run only opens the run confirmation - automations-logic.addressAction with a Node unit spec and a source guard; (d) Android JVM tests for the arx://open action and lock path; no migration."
+    ],
+    "requirement_ids": [
+      "R-XSECFOLLOW-1"
+    ],
+    "test_ids": [
+      "AT-XSECFOLLOW-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "Security core (WebSocket identity, presence, local identity, second factor): the release gate runs the whole backend; the Android JVM test runs outside the gate."
+    },
+    "deliverables": [
+      "Backend: routers/media.py (_principal_for_ws, _refuse_socket), services/local_identity.py (_end_phone_credentials, change_password, use_link), services/local_reset.py, routers/second_factor.py (set_override)",
+      "Frontend: src/screens/automations-logic.ts (addressAction), src/screens/automation-drawer.ts (applyAction through it)",
+      "Tests: smplwise_vms/backend/tests/test_xsecfollow_297.py, frontend/tests/unit-xsecfollow-297.spec.ts, mobile/android-shell/app/src/test/java/com/smplwise/arx/app/XsecFollow297Test.kt",
+      "Docs: docs/api/mobile-presence-contract.md"
+    ],
+    "evidence": [
+      "Workstation 2026-10-27 on pilot/XSECFOLLOW-297 (base f1ef67c68): backend Python 3.12 -X utf8 - tests/test_xsecfollow_297.py 24 passed; regression of 31 suites (test_xsecfix_297, test_presence, test_local_identity, test_local_reset, test_local_passkeys, test_second_factor*, test_app_refresh_295, test_remote_access, test_remote_hardening, test_security_review_220 and every suite that opens a WebSocket) 1114 passed, 0 failed; frontend tsc --noEmit clean, playwright.unit.config.ts unit-xsecfollow-297 + unit-automations-list 34 passed; Android ./gradlew testDebugUnitTest BUILD SUCCESSFUL (XsecFollow297Test 8, DeepLinksTest 7, all 68 JVM tests passed). NOT_RUN: full backend suite (gate), Playwright evidence/browser specs, iOS shell (code not in the repository), on-device test."
+    ],
+    "owner": null,
+    "commit": "13038637b",
+    "actual_cost_usd": null
   }
 ]

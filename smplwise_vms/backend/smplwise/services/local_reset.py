@@ -435,6 +435,7 @@ def confirm(db: Any, settings: Any, conn_like: Any, username: str, presented: An
         links = li.invalidate_links(conn, uid)
         ended = li.revoke_user_sessions(conn, uid, "password_changed")
         li.drop_pending_of(uid)
+        li._end_phone_credentials(conn, uid, "password_changed", request_id=request_id)  # XSECFOLLOW-297: the phones' device token + push end too
         li.TIERS.acct_clear_name(user["username"])  # the person's own failed tries before they asked for the code end with the reset
         must_enrol = not li.has_factor(conn, uid) and (li.holds_admin(conn, uid) or li.factor_policy_required(conn, uid))  # USR2 phase 4: a passkey counts
         li._audit(conn, actor=None, action="auth.local.reset.completed", decision="allowed", resource_id=uid,
