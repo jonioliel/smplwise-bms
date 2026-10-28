@@ -105,3 +105,12 @@ Run on the assembled tree (with the plan-studio-panel fix), Windows workstation,
     `pilot/HOMEFABLE-297` @ `e4e67daa9` (checked with the same command), and no R5 branch touches the 3D sources: pre-existing,
     not caused by the assembly.
 - Not run here: the gate, the browser / evidence / layout / pixel suites (runner only).
+
+Re-run after the merge of main, the history-map decision and the skincomp spec fix (`fa3d8436b`):
+
+- `npx tsc --noEmit`: exit 0. `npx vite build`: exit 0.
+- `unit-*` (349 files, desktop project, port 4791): 3398 passed, 2 failed, 8 skipped. The 2 failures are the same two known
+  3D specs, with the same numbers as on the base (2972 of 259200 pixels in `plan-3d-l1-iso-desktop.png`). Before the skincomp
+  fix, the run on the plain main merge (`2bde44771`) was 3397 passed, 3 failed, 8 skipped. The extra failure was
+  `unit-skincomp-297` test 3.
+- The unit run rewrites `docs/evidence/USR2/*.png`. Those outputs were reverted each time and are not committed.
