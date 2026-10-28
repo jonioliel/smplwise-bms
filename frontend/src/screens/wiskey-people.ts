@@ -1473,6 +1473,15 @@ export class WiskeyPeople extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* PEOPLE-TABLE-2271: the R5 cells (14 px sides, 15 px figures, the 13/700 state field) made the table's narrowest form about
+       930 px, wider than its box from the table's first width (TABLE_MIN_WIDTH, 1000 px) to about 1075 px - it scrolled sideways by
+       51 px at 1024. Below 1200 px the cells keep the R5 type and take 8 px sides; 1200 px and up are unchanged. */
+    @media (max-width: 1199px) {
+      th:not(.chk):not(.act),
+      td:not(.chk):not(.act) {
+        padding-inline: 8px;
+      }
+    }
     .more {
       display: flex;
       justify-content: center;
