@@ -275,6 +275,12 @@ export class ElecMetersPage extends LitElement {
           z-index: 1;
         }
       }
+      /* R5 fix: the R5 type (bolder chips and names) made the meters table 8 px wider than its card at 1024 px (classic); the cells
+         give 2 px of inline padding a side back so the table fits its card again */
+      table.t[data-meters-table] th,
+      table.t[data-meters-table] td {
+        padding-inline: 10px;
+      }
     `,
     bubbleChrome,
   ];
