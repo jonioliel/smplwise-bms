@@ -182,8 +182,10 @@ export class MediaAdminToolbar extends LitElement {
       color: var(--sw-text);
       cursor: pointer;
     }
-    .colopt:hover {
-      background: var(--sw-surface-2);
+    @media (hover: hover) and (pointer: fine) {
+      .colopt:hover {
+        background: var(--sw-surface-2);
+      }
     }
     .colopt:focus-within {
       outline: 2px solid var(--sw-accent);
@@ -676,9 +678,14 @@ export const mediaAdminListCss = css`
     color: var(--sw-text-3);
     cursor: pointer;
   }
-  .cp:hover {
-    background: var(--sw-surface-2);
-    color: var(--sw-text);
+  @media (hover: hover) and (pointer: fine) {
+    .cp:hover {
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+    }
+  }
+  .cp:active {
+    background: var(--sw-surface-3);
   }
   .cnb {
     color: var(--sw-accent-text);

@@ -414,7 +414,7 @@ export class ElecMetersPage extends LitElement {
       <div class="tile"><div class="k">היום</div><div class="v"><span class="num">${fmtInt(s.today_kwh)}</span><span class="u">קוט״ש</span></div></div>
       <div class="tile"><div class="k">מתחילת החודש</div><div class="v"><span class="num" data-month>${this.meters.some((m) => m.month_kwh != null) ? fmtInt(s.month_kwh) : '-'}</span><span class="u">קוט״ש</span></div></div>
       <div class="tile"><div class="k">מדווחים</div><div class="v"><span class="num" data-count="reporting">${s.reporting}</span><span class="u">מתוך ${s.total}</span></div></div>
-      <div class="tile"><div class="k">לא מדווחים</div><div class="v" style=${s.stale ? 'color:var(--sw-warning-text)' : ''}><span class="num" data-count="stale">${s.stale}</span></div></div>
+      <div class="tile" ?data-warn=${s.stale > 0}><div class="k">לא מדווחים</div><div class="v" style=${s.stale ? 'color:var(--sw-warning-text)' : ''}><span class="num" data-count="stale">${s.stale}</span></div></div>
     </div>`;
   }
 

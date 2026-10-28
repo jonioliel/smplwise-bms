@@ -90,9 +90,12 @@ export class InfraTemperature extends LitElement {
     /* POLISH-CONTROL-297 round 2: the number is the hero of the tile (display size, heavy, tight, tabular), the tile on the card elevation */
     /* R5-MEDIA-ENERGY-297 (HOMEFABLE tiers): the counter is a tone step DOWN from the unit cards (surface-2, a hairline, no shadow) so the
        cards read as the page's objects; its label gets two lines before an ellipsis; a chosen counter is a filled status field */
+    /* loop 2 (visible-difference test): surface-2 is 3 % from white and read as "another white card"; the counter is now a surface-3 well with
+       no outline and no shadow, its mark a 20 px disc with a ring; a counter that is not zero on an alerting status is a filled status field
+       (impeccable detect flagged the first try - a 6 px side border - as the "side-tab accent border" tell; replaced by the field) */
     .kpi {
-      display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: var(--sw-r-lg); background: var(--sw-surface-2);
-      border: 1px solid var(--sw-border); box-shadow: none; font: inherit; color: inherit; text-align: start; cursor: pointer; min-inline-size: 0;
+      display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: var(--sw-r-lg); background: var(--sw-surface-3);
+      border: 1px solid transparent; box-shadow: none; font: inherit; color: inherit; text-align: start; cursor: pointer; min-inline-size: 0;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
     }
     .kpi > div { min-inline-size: 0; }
@@ -101,10 +104,13 @@ export class InfraTemperature extends LitElement {
     .kpi:active { transform: scale(var(--sw-press-scale)); background: var(--sw-surface-3); }
     .kpi[aria-pressed='true'] { border-color: var(--c); background: color-mix(in srgb, var(--c) 20%, var(--sw-surface)); box-shadow: inset 0 0 0 1px var(--c); }
     .kpi[aria-pressed='true'] span.l { color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }
-    .kpi .dot { inline-size: 14px; block-size: 14px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 16%, transparent); }
+    .kpi .dot { inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
     .kpi b { display: block; font-size: var(--sw-fs-4xl); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; color: var(--sw-heading, var(--sw-text)); }
     .kpi span.l { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; margin-block-start: 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); overflow: hidden; line-height: 1.25; }
     .kpi[data-k='total'] { --c: var(--sw-accent); }
+    .kpi[data-nz][data-look='alarm'], .kpi[data-nz][data-look='warn'], .kpi[data-nz][data-look='off'], .kpi[data-nz][data-k='door'] { background: color-mix(in srgb, var(--c) 18%, var(--sw-surface)); }
+    .kpi[data-nz][data-look='alarm'] b, .kpi[data-nz][data-look='warn'] b { color: var(--c-text, var(--sw-heading)); }
+    .kpi[data-nz] span.l { color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }
     .kpi[data-k='door'] { --c: var(--tc-door); }
     .kpi:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); gap: 16px; }
@@ -318,7 +324,7 @@ export class InfraTemperature extends LitElement {
 
   private kpis(list: TempUnit[], stale: boolean) {
     const k = kpisOf(list, stale);
-    const cell = (id: KpiKey, look: string, value: number, key: TtKey) => html`<button type="button" class="kpi" data-k=${id} data-look=${look} data-temp-kpi=${id}
+    const cell = (id: KpiKey, look: string, value: number, key: TtKey) => html`<button type="button" class="kpi" data-k=${id} data-look=${look} data-temp-kpi=${id} ?data-nz=${value > 0}
       aria-pressed=${String(this.kpi === id)} @click=${() => { this.kpi = this.kpi === id ? null : id; }}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${tt(key)}</span></div></button>`;
     return html`<div class="kpis" role="group" aria-label=${tt('title')}>
       ${cell('total', '', k.total, 'kpiTotal')}${cell('ok', 'ok', k.ok, 'kpiOk')}${cell('warning', 'warn', k.warning, 'kpiWarn')}${cell('alarm', 'alarm', k.alarm, 'kpiAlarm')}

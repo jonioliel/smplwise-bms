@@ -143,13 +143,23 @@ export const elecCss = css`
     gap: 12px;
   }
   /* POLISH-CONTROL-297: the number tile sits on the same elevation as the cards beside it (it was flat); the label keeps one line */
+  /* loop 2 (visible-difference test): surface-2 read as "another white card"; the tile is a surface-3 well with no outline and no shadow;
+     the not-reporting tile is a filled warning field when it is not zero (impeccable detect flagged the first try - a 6 px side border -
+     as the "side-tab accent border" tell; replaced by the field) */
   .tile {
-    background: var(--sw-surface-2);
-    border: 1px solid var(--sw-border);
+    background: var(--sw-surface-3);
+    border: 1px solid transparent;
     border-radius: var(--sw-r-lg);
     box-shadow: none;
     padding: 12px 16px;
     min-inline-size: 0;
+  }
+  .tile[data-warn] {
+    background: color-mix(in srgb, var(--sw-warning) 18%, var(--sw-surface));
+  }
+  .tile[data-warn] .k {
+    color: var(--sw-heading);
+    font-weight: var(--sw-fw-semibold);
   }
   .tile .k {
     color: var(--sw-text-2);
@@ -648,6 +658,15 @@ export const elecCss = css`
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
+  }
+  /* R5-MEDIA-ENERGY-297 (display numerals): the card's key figure is 24 px / 800, tabular; the amount sits in the heading ink */
+  .big {
+    font-size: var(--sw-fs-3xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    color: var(--sw-heading);
+    font-variant-numeric: tabular-nums;
   }
   .kv {
     display: grid;

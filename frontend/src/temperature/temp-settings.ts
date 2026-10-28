@@ -61,7 +61,7 @@ export class TempSettings extends LitElement {
     /* R5-MEDIA-ENERGY-297: section titles read as titles; a rule kind is a well inside the panel, not an outlined box inside a card */
     h3 { margin: 0 0 4px; font-size: var(--sw-fs-xl); font-weight: 800; letter-spacing: -0.01em; color: var(--sw-heading); }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 16px; }
-    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-block-end: 1px solid var(--sw-border); font-size: var(--sw-fs-sm); }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-block-end: 1px solid var(--sw-border); font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); color: var(--sw-heading); }
     .row input[type='number'] { inline-size: 84px; }
     .row input { min-block-size: 30px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 8px; font: inherit; }
     .row input[type='checkbox'] { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }

@@ -79,11 +79,16 @@ export class InfraElevators extends LitElement {
        the word under it one quiet line; the tile sits on the card elevation with a lit top edge */
     /* R5-MEDIA-ENERGY-297 (HOMEFABLE tiers): the counter is a tone step DOWN from the elevator cards (surface-2, a hairline, no shadow) so
        the cards read as the page's objects; its label gets two lines before an ellipsis */
+    /* loop 2 (visible-difference test): surface-2 read as "another white card"; the counter is a surface-3 well with no outline and no shadow,
+       its mark a 20 px disc with a ring; a counter that is not zero on fault / fire / out-of-service is a filled status field (impeccable
+       detect flagged the first try - a 6 px side border - as the "side-tab accent border" tell; replaced by the field) */
     .kpi {
       display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: var(--sw-r-lg, 22px);
-      background: var(--sw-surface-2); border: 1px solid var(--sw-border); box-shadow: none; min-inline-size: 0;
+      background: var(--sw-surface-3); border: 1px solid transparent; box-shadow: none; min-inline-size: 0;
     }
-    .kpi .dot { inline-size: 14px; block-size: 14px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 5px color-mix(in srgb, var(--el-c) 16%, transparent); }
+    .kpi[data-nz][data-look='fault'], .kpi[data-nz][data-look='fire'], .kpi[data-nz][data-look='off'] { background: color-mix(in srgb, var(--el-c) 18%, var(--sw-surface)); }
+    .kpi[data-nz] span.l { color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }
+    .kpi .dot { inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--el-c) 22%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
     .kpi > div { min-inline-size: 0; }
     .kpi b { display: block; font-size: var(--sw-fs-4xl); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; color: var(--sw-heading, var(--sw-text)); }
     .kpi span.l { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; margin-block-start: 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); overflow: hidden; line-height: 1.25; }
@@ -229,7 +234,7 @@ export class InfraElevators extends LitElement {
 
   private kpis(list: Elevator[], stale: boolean) {
     const k = kpisOf(list, stale);
-    const cell = (look: Look, value: number, key: EltKey, id: string) => html`<div class="kpi" data-look=${look} data-elevators-kpi=${id}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${elt(key)}</span></div></div>`;
+    const cell = (look: Look, value: number, key: EltKey, id: string) => html`<div class="kpi" data-look=${look} data-elevators-kpi=${id} ?data-nz=${value > 0}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${elt(key)}</span></div></div>`;
     return html`<div class="kpis" role="group" aria-label=${elt('title')}>
       ${cell('unk', k.total, 'title', 'total')}${cell('wait', k.ok, 'kpiOk', 'ok')}${cell('fault', k.fault, 'kpiFault', 'fault')}${cell('off', k.off, 'kpiOff', 'off')}${cell('fire', k.fire, 'kpiFire', 'fire')}${k.usesTravel ? cell('trav', k.travel, 'kpiTravel', 'travel') : nothing}
     </div>`;

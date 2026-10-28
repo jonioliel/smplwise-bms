@@ -55,9 +55,10 @@ export class ElecSettingsRetention extends LitElement {
         flex-wrap: wrap;
         align-items: flex-start;
         gap: 10px 16px;
-        padding: 10px 12px;
-        background: var(--sw-surface);
-        border: 1px solid var(--sw-border);
+        padding: 12px 14px;
+        /* R5-MEDIA-ENERGY-297: an option row is a well (a tone step, no outlined box inside the card) */
+        background: var(--sw-surface-2);
+        border: 1px solid transparent;
         border-radius: var(--sw-r-md);
       }
       .rowx .grow {
@@ -68,8 +69,9 @@ export class ElecSettingsRetention extends LitElement {
         flex: 0 0 170px;
       }
       .rowx .t1 {
-        font-weight: var(--sw-fw-semibold);
-        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-bold);
+        font-size: var(--sw-fs-md);
+        color: var(--sw-heading);
       }
       .rowx .t2 {
         font-size: var(--sw-fs-xs);

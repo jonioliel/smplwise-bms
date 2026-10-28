@@ -126,7 +126,9 @@ export class TempDetail extends LitElement {
     .tlrow .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); flex-wrap: wrap; }
     .cmp { display: grid; gap: 8px; }
     .ci { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: var(--sw-r-sm); border: 0; background: transparent; font: inherit; color: inherit; text-align: start; cursor: pointer; }
-    .ci:hover { background: var(--sw-hover-wash); }
+    /* R5-MEDIA-ENERGY-297 (mobile-native): hover only under a pointer that hovers; the row answers the press */
+    @media (hover: hover) and (pointer: fine) { .ci:hover { background: var(--sw-hover-wash); } }
+    .ci:active { background: var(--sw-surface-3); }
     .ci > div { min-inline-size: 0; overflow-wrap: anywhere; }
     .ci small { display: block; color: var(--sw-text-3); font-size: var(--sw-fs-2xs); }
     .ci .spark { block-size: 30px; }
@@ -152,7 +154,8 @@ export class TempDetail extends LitElement {
     .pop .hd { padding: 6px 10px; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); }
     .pop .nt { padding: 0 10px 6px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
     .pop button { display: flex; justify-content: space-between; gap: 16px; border: 0; background: transparent; padding: 8px 10px; border-radius: var(--sw-r-sm); font: inherit; color: inherit; cursor: pointer; text-align: start; }
-    .pop button:hover { background: var(--sw-hover-wash); }
+    @media (hover: hover) and (pointer: fine) { .pop button:hover { background: var(--sw-hover-wash); } }
+    .pop button:active { background: var(--sw-surface-3); }
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
     /* phase 3 */
     .summ.hl b[data-bad='true'] { color: var(--sw-warning-text); font-weight: var(--sw-fw-semibold); }
