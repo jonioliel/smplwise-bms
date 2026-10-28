@@ -77,22 +77,30 @@ export class InfraElevators extends LitElement {
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
     /* POLISH-CONTROL-297 round 2: the number is the hero of the tile - display size, heavy, tight and tabular (dataviz "hero number"),
        the word under it one quiet line; the tile sits on the card elevation with a lit top edge */
+    /* R5-MEDIA-ENERGY-297 (HOMEFABLE tiers): the counter is a tone step DOWN from the elevator cards (surface-2, a hairline, no shadow) so
+       the cards read as the page's objects; its label gets two lines before an ellipsis */
+    /* loop 2 (visible-difference test): surface-2 read as "another white card"; the counter is a surface-3 well with no outline and no shadow,
+       its mark a 20 px disc with a ring; a counter that is not zero on fault / fire / out-of-service is a filled status field (impeccable
+       detect flagged the first try - a 6 px side border - as the "side-tab accent border" tell; replaced by the field) */
     .kpi {
-      display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: var(--sw-r-lg, 22px);
-      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0;
+      display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: var(--sw-r-lg, 22px);
+      background: var(--sw-surface-3); border: 1px solid transparent; box-shadow: none; min-inline-size: 0;
     }
-    .kpi .dot { inline-size: 14px; block-size: 14px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 5px color-mix(in srgb, var(--el-c) 16%, transparent); }
+    .kpi[data-nz][data-look='fault'], .kpi[data-nz][data-look='fire'], .kpi[data-nz][data-look='off'] { background: color-mix(in srgb, var(--el-c) 18%, var(--sw-surface)); }
+    .kpi[data-nz] span.l { color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }
+    .kpi .dot { inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--el-c) 22%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
     .kpi > div { min-inline-size: 0; }
     .kpi b { display: block; font-size: var(--sw-fs-4xl); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; color: var(--sw-heading, var(--sw-text)); }
-    .kpi span.l { display: block; margin-block-start: 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kpi span.l { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; margin-block-start: 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); overflow: hidden; line-height: 1.25; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
     .ecard {
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
       position: relative; display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: var(--sw-r-lg, 26px); overflow: hidden;
-      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0;
-      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+      /* R5-MEDIA-ENERGY-297: the elevator card is the hero tier - the ladder's second step and a lit top edge; it sinks on pointer-down */
+      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0;
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     }
-    .ecard:active { transform: scale(0.99); }
+    .ecard:active { transform: scale(var(--sw-press-scale)); box-shadow: var(--sw-shadow-1); }
     /* round 2 (find-animation-opportunities, occasional screen entry): the cards arrive as a 40 ms cascade - transform and opacity only,
        off the main thread; under reduced motion only the fade remains */
     @media (prefers-reduced-motion: no-preference) {
@@ -105,11 +113,13 @@ export class InfraElevators extends LitElement {
     @keyframes el-fade { from { opacity: 0; } }
     /* round 2 (taste-skill: no gradients; impeccable detector: no side-tab border): an alerting card is a flat tinted field of its colour,
        the out-of-service card a dashed frame - the state is told by the field, the solid badge and the icon, never by a stripe */
-    .ecard[data-look='fire'] { background: color-mix(in srgb, var(--sw-el-fire) 9%, var(--sw-surface)); border-color: color-mix(in srgb, var(--sw-el-fire) 45%, transparent); }
-    .ecard[data-look='fault'] { background: color-mix(in srgb, var(--sw-el-fault) 6%, var(--sw-surface)); border-color: color-mix(in srgb, var(--sw-el-fault) 45%, transparent); }
-    .ecard[data-look='off'] { border-style: dashed; border-color: color-mix(in srgb, var(--sw-el-off) 55%, transparent); background: color-mix(in srgb, var(--sw-el-off) 4%, var(--sw-surface)); }
+    /* R5-MEDIA-ENERGY-297 (status as a filled field): a solid tinted field with a strong frame, readable across the room in light and dark */
+    .ecard[data-look='fire'] { background: color-mix(in srgb, var(--sw-el-fire) 16%, var(--sw-surface)); border-color: color-mix(in srgb, var(--sw-el-fire) 70%, transparent); }
+    .ecard[data-look='fault'] { background: color-mix(in srgb, var(--sw-el-fault) 14%, var(--sw-surface)); border-color: color-mix(in srgb, var(--sw-el-fault) 70%, transparent); }
+    .ecard[data-look='off'] { border-style: dashed; border-color: color-mix(in srgb, var(--sw-el-off) 70%, transparent); background: color-mix(in srgb, var(--sw-el-off) 8%, var(--sw-surface)); }
     .head { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
-    .head h3 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* the elevator name is the card's title - 20 px / 800 in the heading ink */
+    .head h3 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--sw-heading); flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .head small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
     .body { display: flex; gap: 16px; align-items: center; min-inline-size: 0; }
     .meta { flex: 1; display: grid; gap: 8px; min-inline-size: 0; }
@@ -121,9 +131,10 @@ export class InfraElevators extends LitElement {
     .hbtn:active { transform: scale(0.94); }
     .hbtn:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-block-size: 60vh; overflow: auto; }
-    .hist li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); }
+    /* R5-MEDIA-ENERGY-297: history rows are wells inside the dialog (no outlined boxes inside a panel), the state in the heading ink */
+    .hist li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--sw-r-md); border: 0; background: var(--sw-surface-2); min-block-size: 44px; }
     .hist .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--el-c); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-c) 18%, transparent); }
-    .hist .t { flex: 1; min-inline-size: 0; font-weight: var(--sw-fw-medium); }
+    .hist .t { flex: 1; min-inline-size: 0; font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
     .hist .w { color: var(--sw-text-2); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .add {
       display: grid; place-items: center; min-block-size: 200px; border-radius: var(--sw-r-lg, 26px); border: 2px dashed var(--sw-border);
@@ -223,7 +234,7 @@ export class InfraElevators extends LitElement {
 
   private kpis(list: Elevator[], stale: boolean) {
     const k = kpisOf(list, stale);
-    const cell = (look: Look, value: number, key: EltKey, id: string) => html`<div class="kpi" data-look=${look} data-elevators-kpi=${id}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${elt(key)}</span></div></div>`;
+    const cell = (look: Look, value: number, key: EltKey, id: string) => html`<div class="kpi" data-look=${look} data-elevators-kpi=${id} ?data-nz=${value > 0}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${elt(key)}</span></div></div>`;
     return html`<div class="kpis" role="group" aria-label=${elt('title')}>
       ${cell('unk', k.total, 'title', 'total')}${cell('wait', k.ok, 'kpiOk', 'ok')}${cell('fault', k.fault, 'kpiFault', 'fault')}${cell('off', k.off, 'kpiOff', 'off')}${cell('fire', k.fire, 'kpiFire', 'fire')}${k.usesTravel ? cell('trav', k.travel, 'kpiTravel', 'travel') : nothing}
     </div>`;

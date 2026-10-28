@@ -55,16 +55,21 @@ export class ElevatorSettings extends LitElement {
   static styles = [elecCss, elevatorCss, css`
     :host { display: flex; flex-direction: column; gap: 14px; }
     .dset { display: grid; gap: 8px; max-inline-size: 640px; margin-block-start: 8px; }
-    .drow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; border: 1px solid var(--sw-border); border-radius: 14px; padding: 8px 12px; }
+    /* R5-MEDIA-ENERGY-297: an option row is a well inside the card (no outlined box inside a card inside a card), its label in the heading ink */
+    .drow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; border: 0; background: var(--sw-surface-2); border-radius: var(--sw-r-md); padding: 10px 14px; min-block-size: 48px; }
+    .drow > span:first-child { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
     .seg { display: inline-flex; flex-wrap: wrap; background: var(--sw-surface-3); padding: 2px; border-radius: 999px; gap: 1px; }
     .seg button { border: 0; background: transparent; padding: 3px 12px; min-block-size: 30px; font: inherit; font-size: var(--sw-fs-xs); color: var(--sw-text-2); border-radius: 999px; cursor: pointer; }
     .seg button[aria-pressed='true'] { background: var(--sw-surface); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
     .seg button:focus-visible, .lnk:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 1px; }
     .incl { display: flex; flex-wrap: wrap; gap: 6px 14px; }
     .lnk { color: var(--sw-accent-text, var(--sw-accent)); font-size: var(--sw-fs-sm); }
-    .el { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-block-end: 1px solid var(--sw-border); }
-    .el:last-child { border-block-end: 0; }
+    /* R5-MEDIA-ENERGY-297: an elevator row is a well (52 px) with its name 16 px / 700 in the heading ink, not a ruled table line */
+    .el { display: flex; align-items: center; gap: 10px; padding: 8px 14px; margin: 6px 8px; min-block-size: 52px; border: 0; border-radius: var(--sw-r-md); background: var(--sw-surface-2); }
+    .el:first-child { margin-block-start: 8px; }
+    .el:last-child { margin-block-end: 8px; }
     .el .grow { flex: 1; min-inline-size: 0; }
+    .el .grow > b { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
     .map { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr); gap: 8px 12px; align-items: center; }
     .map select, .map input, .fld input { inline-size: 100%; box-sizing: border-box; }
     .xrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 8px; align-items: center; }

@@ -66,13 +66,17 @@ export const elecCss = css`
     margin: 0;
     color: var(--sw-heading);
   }
+  /* R5-MEDIA-ENERGY-297 (HOMEFABLE type scale): headings read as headings - 20 px / 800 and 17 px / 700 in the heading ink */
   .h2 {
-    font-size: var(--sw-fs-xl);
-    font-weight: var(--sw-fw-bold);
+    font-size: var(--sw-fs-2xl);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--sw-heading);
   }
   .h3 {
     font-size: var(--sw-fs-lg);
-    font-weight: var(--sw-fw-semibold);
+    font-weight: var(--sw-fw-bold);
+    color: var(--sw-heading);
   }
   .mut {
     color: var(--sw-text-3);
@@ -104,14 +108,16 @@ export const elecCss = css`
   }
 
   /* cards, tiles */
+  /* R5-MEDIA-ENERGY-297 (HOMEFABLE tiers): the card is the hero tier - the ladder's second step and a lit top edge; the number tiles step
+     DOWN (surface-2, a hairline, no shadow); rows and list items are wells */
   .card {
     background: var(--sw-surface);
     border: 1px solid var(--sw-border);
     border-radius: var(--sw-r-lg);
-    box-shadow: var(--sw-shadow-1);
+    box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
     -webkit-backdrop-filter: var(--sw-glass-blur-sheet);
     backdrop-filter: var(--sw-glass-blur-sheet);
-    padding: 16px;
+    padding: 16px 18px;
     min-inline-size: 0;
   }
   .card.flush {
@@ -137,21 +143,34 @@ export const elecCss = css`
     gap: 12px;
   }
   /* POLISH-CONTROL-297: the number tile sits on the same elevation as the cards beside it (it was flat); the label keeps one line */
+  /* loop 2 (visible-difference test): surface-2 read as "another white card"; the tile is a surface-3 well with no outline and no shadow;
+     the not-reporting tile is a filled warning field when it is not zero (impeccable detect flagged the first try - a 6 px side border -
+     as the "side-tab accent border" tell; replaced by the field) */
   .tile {
-    background: var(--sw-surface);
-    border: 1px solid var(--sw-border);
+    background: var(--sw-surface-3);
+    border: 1px solid transparent;
     border-radius: var(--sw-r-lg);
-    box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
-    padding: 14px 18px;
+    box-shadow: none;
+    padding: 12px 16px;
     min-inline-size: 0;
+  }
+  .tile[data-warn] {
+    background: color-mix(in srgb, var(--sw-warning) 18%, var(--sw-surface));
+  }
+  .tile[data-warn] .k {
+    color: var(--sw-heading);
+    font-weight: var(--sw-fw-semibold);
   }
   .tile .k {
     color: var(--sw-text-2);
     font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-medium);
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.25;
   }
   /* the number and its unit have no break opportunity between them (digits glued to letters), so with the skins' larger value type
      (tesla 30px) a narrow tile would push the unit out; flex-wrap lets the unit drop to its own line, and a too-long number may break */
@@ -197,24 +216,30 @@ export const elecCss = css`
     justify-content: center;
     gap: 6px;
     min-block-size: max(36px, var(--elec-touch));
-    padding: 0 14px;
+    padding: 0 16px;
     border-radius: var(--sw-r-sm);
-    border: 1px solid var(--sw-border-strong);
+    border: 1px solid var(--sw-border);
     background: var(--sw-surface-solid);
-    color: var(--sw-text);
+    color: var(--sw-heading);
     font: inherit;
-    font-weight: var(--sw-fw-medium);
+    font-weight: var(--sw-fw-semibold);
     cursor: pointer;
     white-space: nowrap;
     text-decoration: none;
+    /* R5-MEDIA-ENERGY-297 (HOMEFABLE keys): a raised key - the first shadow and a lit top edge - that sinks on pointer-down (the press token) */
+    box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   /* POLISH-CONTROL-297: a button answers the press (transform only, token durations - zero under reduced motion), hover is for fine
      pointers only (a touch never leaves it lit), and the keyboard gets the product's focus ring (there was none) */
   .btn {
-    transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+    transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
   }
   .btn:active:not([disabled]) {
-    transform: scale(0.97);
+    transform: scale(var(--sw-press-scale));
+    box-shadow: none;
+    background: var(--sw-surface-3);
   }
   .btn:focus-visible {
     outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -229,6 +254,10 @@ export const elecCss = css`
     background: var(--sw-accent);
     border-color: var(--sw-accent);
     color: var(--sw-text-inverse);
+    box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  .btn.pri:active:not([disabled]) {
+    background: var(--sw-accent);
   }
   @media (hover: hover) and (pointer: fine) {
     .btn.pri:hover {
@@ -247,6 +276,7 @@ export const elecCss = css`
     background: transparent;
     border-color: transparent;
     color: var(--sw-accent-text);
+    box-shadow: none;
   }
   .btn.sm {
     min-block-size: max(30px, var(--elec-touch));
@@ -326,10 +356,23 @@ export const elecCss = css`
     border-color: var(--sw-accent);
     color: var(--sw-text-inverse);
   }
+  /* R5-MEDIA-ENERGY-297 (taste lint: no glyph as an icon): the check is drawn, not a ✓ character */
   input[type='checkbox']:checked + .ind::after {
-    content: '✓';
-    font-size: var(--sw-fs-sm);
-    font-weight: var(--sw-fw-bold);
+    content: '';
+    inline-size: 5px;
+    block-size: 9px;
+    border: solid currentColor;
+    border-width: 0 2px 2px 0;
+    transform: translateY(-1px) rotate(45deg);
+  }
+  /* a bare checkbox or radio (outside label.li) keeps its own size: the field rules above are for text controls */
+  input[type='checkbox']:not(label.li > input),
+  input[type='radio']:not(label.li > input) {
+    inline-size: 18px;
+    block-size: 18px;
+    min-block-size: 0;
+    padding: 0;
+    accent-color: var(--sw-accent);
   }
   input[type='radio']:checked + .ind {
     background: var(--sw-surface-solid);
@@ -431,14 +474,15 @@ export const elecCss = css`
   }
 
   /* chips */
+  /* R5-MEDIA-ENERGY-297 (status as a filled field): a status chip is a 24 px field of its colour at 24 % with the deep status text, 700 */
   .chip {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 2px 10px;
+    gap: 6px;
+    padding: 2px 11px;
     border-radius: var(--sw-r-pill);
     font-size: var(--sw-fs-sm);
-    font-weight: var(--sw-fw-semibold);
+    font-weight: var(--sw-fw-bold);
     white-space: nowrap;
     line-height: 20px;
     background: var(--sw-surface-3);
@@ -455,15 +499,15 @@ export const elecCss = css`
     display: none;
   }
   .c-ok {
-    background: var(--sw-success-soft);
+    background: color-mix(in srgb, var(--sw-success) 24%, var(--sw-surface));
     color: var(--sw-success-text);
   }
   .c-warn {
-    background: var(--sw-warning-soft);
+    background: color-mix(in srgb, var(--sw-warning) 26%, var(--sw-surface));
     color: var(--sw-warning-text);
   }
   .c-err {
-    background: var(--sw-danger-soft);
+    background: color-mix(in srgb, var(--sw-danger) 22%, var(--sw-surface));
     color: var(--sw-danger-text);
   }
   .c-mut {
@@ -486,13 +530,18 @@ export const elecCss = css`
   }
   table.t th {
     text-align: start;
-    font-weight: var(--sw-fw-semibold);
-    font-size: var(--sw-fs-sm);
-    color: var(--sw-text-2);
-    padding: 9px 12px;
+    font-weight: var(--sw-fw-bold);
+    font-size: var(--sw-fs-xs);
+    letter-spacing: 0.01em;
+    color: var(--sw-heading);
+    padding: 10px 12px;
     border-block-end: 1px solid var(--sw-border-strong);
     white-space: nowrap;
     background: var(--sw-surface-2);
+  }
+  table.t td .rowlink,
+  table.t td.b {
+    font-size: var(--sw-fs-md);
   }
   table.t td {
     padding: 12px;
@@ -558,9 +607,10 @@ export const elecCss = css`
     display: flex;
     gap: 10px;
     align-items: center;
-    padding: 12px;
-    background: var(--sw-surface);
-    border: 1px solid var(--sw-border);
+    padding: 12px 14px;
+    /* R5-MEDIA-ENERGY-297: a list row is a well (a tone step, no outline), never an outlined box inside the card */
+    background: var(--sw-surface-2);
+    border: 1px solid transparent;
     border-radius: var(--sw-r-md);
     min-inline-size: 0;
     color: inherit;
@@ -582,7 +632,8 @@ export const elecCss = css`
     min-inline-size: 0;
   }
   .li .t1 {
-    font-weight: var(--sw-fw-semibold);
+    font-weight: var(--sw-fw-bold);
+    font-size: var(--sw-fs-md);
     color: var(--sw-heading);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -608,6 +659,15 @@ export const elecCss = css`
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
   }
+  /* R5-MEDIA-ENERGY-297 (display numerals): the card's key figure is 24 px / 800, tabular; the amount sits in the heading ink */
+  .big {
+    font-size: var(--sw-fs-3xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    color: var(--sw-heading);
+    font-variant-numeric: tabular-nums;
+  }
   .kv {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -620,8 +680,8 @@ export const elecCss = css`
   }
   .kv dd {
     margin: 0;
-    color: var(--sw-text);
-    font-weight: var(--sw-fw-medium);
+    color: var(--sw-heading);
+    font-weight: var(--sw-fw-semibold);
     overflow-wrap: anywhere;
   }
   .ver {
@@ -760,14 +820,16 @@ export const elecCss = css`
     background: var(--sw-success-soft);
     color: var(--sw-success-text);
   }
+  /* R5-MEDIA-ENERGY-297: the current step is a filled accent field (status as a field), its number a light disc on it */
   .steps button.on {
-    background: var(--sw-accent-soft);
-    color: var(--sw-accent-text);
-    font-weight: var(--sw-fw-semibold);
-  }
-  .steps button.on .n {
     background: var(--sw-accent);
     color: var(--sw-text-inverse);
+    font-weight: var(--sw-fw-bold);
+    box-shadow: var(--sw-shadow-primary);
+  }
+  .steps button.on .n {
+    background: var(--sw-text-inverse);
+    color: var(--sw-accent);
   }
   .steps button[disabled] {
     opacity: 0.55;
@@ -1076,9 +1138,13 @@ export const elecCss = css`
   table.t tbody tr.pick {
     cursor: pointer;
   }
-  table.t tbody tr.pick:hover td,
   table.t tbody tr.sel td {
-    background: var(--sw-surface-2);
+    background: var(--sw-accent-soft);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    table.t tbody tr.pick:hover td {
+      background: var(--sw-surface-2);
+    }
   }
   table.t tbody tr.pick:focus-visible {
     outline: var(--sw-focus-w) solid var(--sw-focus);

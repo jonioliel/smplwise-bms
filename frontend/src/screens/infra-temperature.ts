@@ -88,34 +88,46 @@ export class InfraTemperature extends LitElement {
     }
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
     /* POLISH-CONTROL-297 round 2: the number is the hero of the tile (display size, heavy, tight, tabular), the tile on the card elevation */
+    /* R5-MEDIA-ENERGY-297 (HOMEFABLE tiers): the counter is a tone step DOWN from the unit cards (surface-2, a hairline, no shadow) so the
+       cards read as the page's objects; its label gets two lines before an ellipsis; a chosen counter is a filled status field */
+    /* loop 2 (visible-difference test): surface-2 is 3 % from white and read as "another white card"; the counter is now a surface-3 well with
+       no outline and no shadow, its mark a 20 px disc with a ring; a counter that is not zero on an alerting status is a filled status field
+       (impeccable detect flagged the first try - a 6 px side border - as the "side-tab accent border" tell; replaced by the field) */
     .kpi {
-      display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: var(--sw-r-lg); background: var(--sw-surface);
-      border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); font: inherit; color: inherit; text-align: start; cursor: pointer; min-inline-size: 0;
+      display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: var(--sw-r-lg); background: var(--sw-surface-3);
+      border: 1px solid transparent; box-shadow: none; font: inherit; color: inherit; text-align: start; cursor: pointer; min-inline-size: 0;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
     }
     .kpi > div { min-inline-size: 0; }
     /* POLISH136: the KPI is a filter button - it answers hover (fine pointers only), press and keyboard like the cards */
-    .kpi { transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
-    .kpi:active { transform: scale(0.98); }
-    .kpi[aria-pressed='true'] { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
-    .kpi[aria-pressed='true'] span.l { color: var(--sw-text); }
-    .kpi .dot { inline-size: 14px; block-size: 14px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 16%, transparent); }
+    .kpi { transition: border-color var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out); }
+    .kpi:active { transform: scale(var(--sw-press-scale)); background: var(--sw-surface-3); }
+    .kpi[aria-pressed='true'] { border-color: var(--c); background: color-mix(in srgb, var(--c) 20%, var(--sw-surface)); box-shadow: inset 0 0 0 1px var(--c); }
+    .kpi[aria-pressed='true'] span.l { color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }
+    .kpi .dot { inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
     .kpi b { display: block; font-size: var(--sw-fs-4xl); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; color: var(--sw-heading, var(--sw-text)); }
-    .kpi span.l { display: block; margin-block-start: 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kpi span.l { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; margin-block-start: 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); color: var(--sw-text-2); overflow: hidden; line-height: 1.25; }
     .kpi[data-k='total'] { --c: var(--sw-accent); }
+    .kpi[data-nz][data-look='alarm'], .kpi[data-nz][data-look='warn'], .kpi[data-nz][data-look='off'], .kpi[data-nz][data-k='door'] { background: color-mix(in srgb, var(--c) 18%, var(--sw-surface)); }
+    .kpi[data-nz][data-look='alarm'] b, .kpi[data-nz][data-look='warn'] b { color: var(--c-text, var(--sw-heading)); }
+    .kpi[data-nz] span.l { color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }
     .kpi[data-k='door'] { --c: var(--tc-door); }
     .kpi:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); gap: 16px; }
     .ucard {
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
       position: relative; display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: var(--sw-r-lg); overflow: hidden;
-      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; cursor: pointer;
+      /* R5-MEDIA-ENERGY-297: the unit card is the hero tier - the ladder's second step and a lit top edge */
+      background: var(--sw-surface); border: 1px solid var(--sw-border); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; cursor: pointer;
       /* POLISH136: a tappable card confirms the press (transform only, token durations - zero under reduced motion) */
-      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     }
-    .ucard:active { transform: scale(0.99); }
-    /* round 2 (taste-skill: no gradients): an alerting card is a flat tinted field of its colour */
-    .ucard[data-look='alarm'] { border-color: color-mix(in srgb, var(--tc-alarm) 55%, transparent); background: color-mix(in srgb, var(--tc-alarm) 7%, var(--sw-surface)); }
-    .ucard[data-look='warn'] { border-color: color-mix(in srgb, var(--tc-warn) 55%, transparent); background: color-mix(in srgb, var(--tc-warn) 5%, var(--sw-surface)); }
+    .ucard:active { transform: scale(var(--sw-press-scale)); box-shadow: var(--sw-shadow-1); }
+    /* R5-MEDIA-ENERGY-297 (status as a filled field): an alerting card is a solid tinted field of its colour with a strong frame - readable from
+       across the room, in light and in dark - never a 7 % wash */
+    .ucard[data-look='alarm'] { border-color: color-mix(in srgb, var(--tc-alarm) 75%, transparent); background: color-mix(in srgb, var(--tc-alarm) 16%, var(--sw-surface)); }
+    .ucard[data-look='warn'] { border-color: color-mix(in srgb, var(--tc-warn) 75%, transparent); background: color-mix(in srgb, var(--tc-warn) 14%, var(--sw-surface)); }
+    .ucard[data-look='alarm'] .chip, .ucard[data-look='warn'] .chip { background: color-mix(in srgb, var(--sw-surface) 55%, transparent); }
     .ucard[data-look='off'] { border-style: dashed; }
     .ucard:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     /* round 2 (find-animation-opportunities, occasional screen entry): the cards arrive as a 40 ms cascade - transform and opacity only;
@@ -131,7 +143,8 @@ export class InfraTemperature extends LitElement {
     @keyframes tp-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
     @keyframes tp-fade { from { opacity: 0; } }
     .uhead { display: flex; align-items: flex-start; gap: 10px; min-inline-size: 0; }
-    .uhead h3 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* R5-MEDIA-ENERGY-297: the unit name is the card's title - 20 px / 800 in the heading ink */
+    .uhead h3 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--sw-heading); flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .uhead h3 small { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-state); font-weight: var(--sw-fw-regular); overflow: hidden; text-overflow: ellipsis; }
     .ubody { display: flex; gap: 14px; align-items: center; min-inline-size: 0; }
     .umeta { flex: 1; display: grid; gap: 6px; min-inline-size: 0; }
@@ -161,7 +174,7 @@ export class InfraTemperature extends LitElement {
       display: flex; align-items: center; gap: 10px; border: 0; background: transparent; padding: 4px 6px; font: inherit; color: inherit; cursor: pointer; text-align: start;
       inline-size: 100%; min-block-size: 32px; border-radius: var(--sw-r-md); transition: background-color var(--sw-t-fast) var(--sw-ease);
     }
-    .ghead h2 { margin: 0; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-semibold); }
+    .ghead h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 800; color: var(--sw-heading); letter-spacing: -0.01em; }
     .ghead small { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .ghead .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--c); flex: none; }
     .ghead .chev { margin-inline-start: auto; color: var(--sw-text-3); transition: transform var(--sw-t-fast) var(--sw-ease-out); }
@@ -196,7 +209,7 @@ export class InfraTemperature extends LitElement {
     @keyframes tp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
     /* POLISH136: hover is only for fine pointers - a touch must not leave a card lit */
     @media (hover: hover) and (pointer: fine) {
-      .ucard:hover { box-shadow: var(--sw-shadow-2); }
+      .ucard:hover { box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
       .ucard:hover:not([data-look='alarm']):not([data-look='warn']) { border-color: var(--sw-border-strong); }
       .kpi:hover { border-color: var(--sw-border-strong); }
       .floors button:hover { border-color: var(--sw-border-strong); color: var(--sw-text); }
@@ -311,7 +324,7 @@ export class InfraTemperature extends LitElement {
 
   private kpis(list: TempUnit[], stale: boolean) {
     const k = kpisOf(list, stale);
-    const cell = (id: KpiKey, look: string, value: number, key: TtKey) => html`<button type="button" class="kpi" data-k=${id} data-look=${look} data-temp-kpi=${id}
+    const cell = (id: KpiKey, look: string, value: number, key: TtKey) => html`<button type="button" class="kpi" data-k=${id} data-look=${look} data-temp-kpi=${id} ?data-nz=${value > 0}
       aria-pressed=${String(this.kpi === id)} @click=${() => { this.kpi = this.kpi === id ? null : id; }}><span class="dot" aria-hidden="true"></span><div><b>${value}</b><span class="l">${tt(key)}</span></div></button>`;
     return html`<div class="kpis" role="group" aria-label=${tt('title')}>
       ${cell('total', '', k.total, 'kpiTotal')}${cell('ok', 'ok', k.ok, 'kpiOk')}${cell('warning', 'warn', k.warning, 'kpiWarn')}${cell('alarm', 'alarm', k.alarm, 'kpiAlarm')}

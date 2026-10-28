@@ -182,8 +182,10 @@ export class MediaAdminToolbar extends LitElement {
       color: var(--sw-text);
       cursor: pointer;
     }
-    .colopt:hover {
-      background: var(--sw-surface-2);
+    @media (hover: hover) and (pointer: fine) {
+      .colopt:hover {
+        background: var(--sw-surface-2);
+      }
     }
     .colopt:focus-within {
       outline: 2px solid var(--sw-accent);
@@ -579,7 +581,8 @@ export const mediaAdminListCss = css`
     background: var(--sw-surface);
     border-block-end: 1px solid var(--sw-border-strong);
     font-size: var(--sw-fs-xs);
-    color: var(--sw-text-3);
+    font-weight: var(--sw-fw-bold);
+    color: var(--sw-text-2);
     min-block-size: 34px;
   }
   .sortb {
@@ -623,8 +626,11 @@ export const mediaAdminListCss = css`
   .c .lb {
     display: none;
   }
+  /* R5-MEDIA-ENERGY-297: the device name leads the row - 14.5 px semibold in the heading ink; the header row reads as a header */
   .nm {
-    font-weight: var(--sw-fw-medium);
+    font-weight: var(--sw-fw-semibold);
+    font-size: var(--sw-fs-md);
+    color: var(--sw-heading);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -672,9 +678,14 @@ export const mediaAdminListCss = css`
     color: var(--sw-text-3);
     cursor: pointer;
   }
-  .cp:hover {
-    background: var(--sw-surface-2);
-    color: var(--sw-text);
+  @media (hover: hover) and (pointer: fine) {
+    .cp:hover {
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+    }
+  }
+  .cp:active {
+    background: var(--sw-surface-3);
   }
   .cnb {
     color: var(--sw-accent-text);

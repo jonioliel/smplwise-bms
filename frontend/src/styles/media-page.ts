@@ -120,11 +120,19 @@ export const mediaPageStyles = css`
       font-weight: 500;
       color: var(--dv-text-2);
       white-space: nowrap;
-      transition: background var(--mm-motion), color var(--mm-motion);
+      transition: background var(--mm-motion), color var(--mm-motion), transform var(--sw-t-press, 120ms) var(--sw-ease-out, ease-out);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
-    .rc:hover {
-      color: var(--dv-text);
-      background: var(--dv-surface);
+    /* R5-MEDIA-ENERGY-297 (mobile-native): hover only under a pointer that hovers; the chip sinks on pointer-down */
+    @media (hover: hover) and (pointer: fine) {
+      .rc:hover {
+        color: var(--dv-text);
+        background: var(--dv-surface);
+      }
+    }
+    .rc:active {
+      transform: scale(var(--sw-press-scale, 0.97));
     }
     .rc[aria-pressed='true'] {
       background: var(--dv-text);
@@ -208,12 +216,15 @@ export const mediaPageStyles = css`
       gap: 12px;
       padding-inline: 4px;
     }
+    /* R5-MEDIA-ENERGY-297 (HOMEFABLE type scale): the floor heading is 20 px / 800 in the heading ink, its count line semibold */
+    /* loop 2 (visible-difference test): the floor is the page's section object - its heading steps up to 26 px / 800 */
     .sh h2 {
       margin: 0;
-      font-size: var(--sw-fs-2xl);
-      font-weight: 700;
-      letter-spacing: -0.025em;
+      font-size: var(--sw-fs-3xl);
+      font-weight: 800;
+      letter-spacing: -0.03em;
       line-height: 1.2;
+      color: var(--sw-heading, var(--dv-text));
     }
     .shlink {
       all: unset;
@@ -229,8 +240,10 @@ export const mediaPageStyles = css`
       color: var(--dv-text-3);
       transition: transform var(--mm-motion) var(--mm-ease);
     }
-    .shlink:hover .ic {
-      transform: translateX(-3px);
+    @media (hover: hover) and (pointer: fine) {
+      .shlink:hover .ic {
+        transform: translateX(-3px);
+      }
     }
     .shlink:focus-visible {
       outline: 2px solid var(--dv-focus);
@@ -279,9 +292,17 @@ export const mediaPageStyles = css`
       color: var(--dv-text);
       font-size: var(--sw-fs-xs);
       font-weight: 700;
+      transition: background var(--mm-motion), transform var(--sw-t-press, 120ms) var(--sw-ease-out, ease-out);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
-    .ecard button:hover {
-      background: var(--dv-surface-3);
+    @media (hover: hover) and (pointer: fine) {
+      .ecard button:hover {
+        background: var(--dv-surface-3);
+      }
+    }
+    .ecard button:active {
+      transform: scale(var(--sw-press-scale, 0.97));
     }
     .ecard button[aria-pressed='true'] {
       color: var(--dv-accent-text);

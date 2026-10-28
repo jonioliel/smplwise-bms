@@ -50,7 +50,12 @@ export class TempReport extends LitElement {
     .ovl { position: absolute; inset: 0; background: var(--sw-overlay); }
     .sheet { position: relative; inline-size: min(1040px, 100%); max-block-size: calc(100dvh - 32px); display: flex; flex-direction: column; background: var(--sw-bg); border-radius: var(--sw-r-2xl); box-shadow: var(--sw-shadow-3); overflow: hidden; }
     .wh { display: flex; align-items: flex-start; gap: 10px; padding: 16px 20px 8px; }
-    .wh h2 { margin: 0; font-size: var(--sw-fs-xl); }
+    /* R5-MEDIA-ENERGY-297 (emil: modals 200-400 ms, ease-out, never from scale(0)): the sheet lands in 300 ms from 0.96 with a fade, the scrim
+       fades with it; the title is a title */
+    .ovl { opacity: 1; transition: opacity var(--sw-t-slow) var(--sw-ease); }
+    .sheet { opacity: 1; transform: scale(1); transition: opacity 300ms var(--sw-ease-out), transform 300ms cubic-bezier(0.23, 1, 0.32, 1); }
+    @starting-style { .ovl { opacity: 0; } .sheet { opacity: 0; transform: scale(0.96); } }
+    .wh h2 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; color: var(--sw-heading); }
     .wh small { color: var(--sw-text-2); }
     .wh .t { flex: 1; }
     .icb { inline-size: 36px; block-size: 36px; padding: 0; justify-content: center; }

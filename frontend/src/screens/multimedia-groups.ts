@@ -173,10 +173,12 @@ export class MultimediaGroups extends LitElement {
       flex-direction: column;
       line-height: 1.3;
     }
+    /* R5-MEDIA-ENERGY-297: the group name is the card's title - 20 px / 800 in the heading ink */
     .gh .tx b {
-      font-size: var(--sw-fs-xl);
-      font-weight: 700;
-      letter-spacing: -0.01em;
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--sw-heading, var(--dv-text));
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -195,8 +197,9 @@ export class MultimediaGroups extends LitElement {
       align-items: center;
       padding: 10px;
       border-radius: var(--sw-r-lg);
+      /* R5-MEDIA-ENERGY-297: the now-playing strip is a well inside the glass card (no outlined box inside a card) */
       background: var(--dv-surface-2);
-      border: 1px solid var(--dv-border);
+      border: 1px solid transparent;
     }
     .gnp .thumb {
       position: relative;
@@ -259,10 +262,14 @@ export class MultimediaGroups extends LitElement {
       padding: 0 2px;
       min-inline-size: 0;
     }
+    /* R5-MEDIA-ENERGY-297: the group volume is a display numeral (20 px / 800) */
     .vrow .vv {
-      min-inline-size: 30px;
+      min-inline-size: 36px;
       text-align: end;
-      font-weight: 700;
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--sw-heading, var(--dv-text));
       font-variant-numeric: tabular-nums;
     }
     .vrow .lbl {
@@ -352,9 +359,9 @@ export class MultimediaGroups extends LitElement {
     }
     .psh h4 {
       margin: 0;
-      font-size: var(--sw-fs-base);
+      font-size: var(--sw-fs-md);
       font-weight: 700;
-      color: var(--dv-text-2);
+      color: var(--sw-heading, var(--dv-text));
     }
     .lnk {
       all: unset;
@@ -384,8 +391,9 @@ export class MultimediaGroups extends LitElement {
       min-block-size: var(--mm-member-row-h);
       padding: 6px 12px;
       border-radius: var(--sw-r-lg);
+      /* R5-MEDIA-ENERGY-297: a member row is a well (a tone step, no outline); the leading room a filled accent field */
       background: var(--dv-surface-2);
-      border: 1px solid var(--dv-border);
+      border: 1px solid transparent;
     }
     .mrow .nm {
       display: flex;
@@ -394,8 +402,9 @@ export class MultimediaGroups extends LitElement {
       line-height: 1.25;
     }
     .mrow .nm b {
-      font-size: var(--sw-fs-base);
-      font-weight: 600;
+      font-size: var(--sw-fs-md);
+      font-weight: 700;
+      color: var(--sw-heading, var(--dv-text));
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -416,10 +425,11 @@ export class MultimediaGroups extends LitElement {
       font-weight: 600;
     }
     .mrow .vv {
-      font-size: var(--sw-fs-base);
-      font-weight: 700;
+      font-size: var(--sw-fs-lg);
+      font-weight: 800;
       text-align: end;
       font-variant-numeric: tabular-nums;
+      color: var(--sw-heading, var(--dv-text));
     }
     .mrow .rb {
       inline-size: 44px;
@@ -429,7 +439,7 @@ export class MultimediaGroups extends LitElement {
       font-size: var(--sw-fs-lg);
     }
     .mrow.lead {
-      border-color: color-mix(in srgb, var(--dv-accent) 35%, transparent);
+      background: var(--dv-accent-soft);
     }
     .mrow.dim {
       opacity: 0.55;

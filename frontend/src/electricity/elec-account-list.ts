@@ -77,7 +77,7 @@ export class ElecAccountsList extends ElecBase {
       body = html`<div class="grid-cards" data-elec-list>${rows.map((r) => html`<div class="card" data-account-row=${r.account.id}>
         <div class="row"><a class="rowlink h3" href=${href.account(r.account.id)}>${r.account.name}</a><span class="sp"></span>${this.status(r)}</div>
         <div class="mut">${r.account.customer.name} · ${periodLabel(r.account.period_months, r.account.period_anchor_day, r.account.period_anchor_month)}</div>
-        <div class="row" style="margin-block-start:10px;align-items:baseline"><span style="font-size:22px;font-weight:700;color:var(--sw-heading)">${n(f2(r.kwh ?? 0))}</span><span class="mut">קוט״ש בתקופה</span><span class="sp"></span>${money && r.amount !== undefined ? html`<b>${n(ils(r.amount))}</b>` : nothing}</div>
+        <div class="row" style="margin-block-start:10px;align-items:baseline"><span class="big">${n(f2(r.kwh ?? 0))}</span><span class="mut">קוט״ש בתקופה</span><span class="sp"></span>${money && r.amount !== undefined ? html`<b class="big amt">${n(ils(r.amount))}</b>` : nothing}</div>
         ${money ? html`<div class="mut" style="margin-block-start:6px">חיוב אחרון: ${this.last(r)}</div>` : nothing}</div>`)}</div>`;
     } else {
       body = html`<div class="card flush scrollx" data-elec-list><table class="t">
