@@ -180,7 +180,11 @@ export class InvestigateIncidents extends LitElement {
     table.t th { text-align: start; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 8px 12px; border-block-end: 1px solid var(--sw-border-strong); white-space: nowrap; background: var(--sw-surface-2); }
     table.t td { padding: 12px 14px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; white-space: nowrap; }
     table.t tbody tr { cursor: pointer; }
-    table.t tbody tr:hover { background: var(--sw-hover-wash); }
+    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer; the row's title sinks on pointer-down (a tr cannot transform) */
+    @media (hover: hover) and (pointer: fine) { table.t tbody tr:hover { background: var(--sw-hover-wash); } }
+    table.t tbody tr:active { background: var(--sw-surface-2); }
+    .cards .c, .dr, .li { transition: transform var(--sw-t-press) var(--sw-ease-out); }
+    .cards .c:active { transform: scale(var(--sw-press-scale)); }
     table.t tbody tr:last-child td { border-block-end: 0; }
     td .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-lg); }
     table.t td.num { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }

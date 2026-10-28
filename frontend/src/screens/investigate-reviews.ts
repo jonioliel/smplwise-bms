@@ -617,9 +617,12 @@ export class InvestigateReviews extends LitElement {
       color: var(--sw-text-2);
       cursor: pointer;
     }
-    .ib:hover {
-      background: var(--sw-surface-2);
-      color: var(--sw-text);
+    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer (a tap must not leave a stuck hover) */
+    @media (hover: hover) and (pointer: fine) {
+      .ib:hover {
+        background: var(--sw-surface-2);
+        color: var(--sw-text);
+      }
     }
     /* state chips: short, inline, never a paragraph */
     .notes {

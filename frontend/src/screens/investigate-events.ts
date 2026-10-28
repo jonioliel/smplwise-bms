@@ -383,8 +383,17 @@ export class InvestigateEvents extends LitElement {
       color: var(--sw-text);
       font-size: var(--sw-fs-sm);
     }
-    .wrow:hover {
-      background: var(--sw-hover-wash);
+    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer; the row sinks on pointer-down */
+    @media (hover: hover) and (pointer: fine) {
+      .wrow:hover {
+        background: var(--sw-hover-wash);
+      }
+    }
+    .wrow {
+      transition: transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .wrow:active {
+      transform: scale(var(--sw-press-scale));
     }
     .wrow:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -947,7 +956,7 @@ export class InvestigateEvents extends LitElement {
   private columns: TableColumn[] = [
     // rendered inside sw-table's shadow root (like renderThumb): the box is styled inline, or the demo thumbnail filled a phone card
     { key: 'thumb', label: '', width: '104px', render: (r) => (r.type === 'offline' || r.type === 'door' ? html`<div class="thumb none" style="inline-size:88px;block-size:56px;border-radius:8px;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)"><sw-icon name=${r.type === 'offline' ? 'offline' : 'door'} size=${14}></sw-icon></div>` : html`<sw-scene class="thumb" style="display:block;inline-size:88px;block-size:56px;border-radius:8px;overflow:hidden;box-shadow:var(--sw-shadow-thumb)" kind=${(SCENE[String(r.camera)] ?? 'lobby') as 'lobby'}></sw-scene>`) },
-    { key: 'title', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${TONE[r.type as DemoEvent['type']]}"><i></i>${eventTypeLabel[r.type as DemoEvent['type']]}</span><div class="sub">${String(r.title)} · ${r.acked ? 'טופל' : 'ממתין לטיפול'}</div>` },
+    { key: 'title', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${TONE[r.type as DemoEvent['type']]}"><i></i>${eventTypeLabel[r.type as DemoEvent['type']]}</span><div class="sub">${String(r.title)} · ${r.acked ? 'טופל' : html`<span style="color:var(--sw-warning-text);font-weight:var(--sw-fw-semibold)">ממתין לטיפול</span>`}</div>` },
     { key: 'camera', label: 'מצלמה', render: (r) => html`${String(r.camera)}<div class="sub">${String(r.floor)}</div>` },
     { key: 'time', label: 'זמן', render: (r) => html`<span style="font-weight:700;font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)">${String(r.time)}</span><div class="sub ltr">${String(r.source)}</div>` },
     { key: 'severity', label: 'חומרה', render: (r) => html`<sw-badge filled kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${{ info: 'מידע', alert: 'התראה', critical: 'קריטי' }[r.severity as DemoEvent['severity']]}></sw-badge>` },

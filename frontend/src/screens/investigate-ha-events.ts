@@ -188,7 +188,7 @@ export class InvestigateHaEvents extends LitElement {
       { key: 'camera_name', label: hev('colSensor'), render: (r) => html`${String(r.camera_name ?? '—')}` },
       { key: 'place', label: hev('colArea'), render: (r) => { const p = placeLabel((r as unknown as SensorEvent).place); return p ? html`${p}` : html`<span class="sub">${hev('noArea')}</span>`; } },
       { key: 'occurred_at', label: hev('colTime'), render: (r) => html`<span class="ltr" style="font-weight:700;font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)">${this.fmt(String(r.occurred_at))}</span><div class="sub ltr">${this.fmtDate(String(r.occurred_at))}</div>` },
-      { key: 'severity', label: hev('colSeverity'), render: (r) => html`<sw-badge kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${this.sev(String(r.severity))}></sw-badge>` },
+      { key: 'severity', label: hev('colSeverity'), render: (r) => html`<sw-badge filled kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${this.sev(String(r.severity))}></sw-badge>` },
     ];
   }
 

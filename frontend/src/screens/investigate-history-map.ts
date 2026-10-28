@@ -596,8 +596,11 @@ export class InvestigateHistoryMap extends LitElement {
       min-block-size: 34px;
       box-sizing: border-box;
     }
-    .lyr:hover {
-      background: var(--sw-hover-wash);
+    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer */
+    @media (hover: hover) and (pointer: fine) {
+      .lyr:hover {
+        background: var(--sw-hover-wash);
+      }
     }
     .lyr .sw {
       position: relative;
@@ -759,8 +762,13 @@ export class InvestigateHistoryMap extends LitElement {
       box-shadow: var(--sw-shadow-primary, none);
       font: inherit;
     }
-    .play:hover {
-      background: var(--sw-accent-hover, var(--sw-accent));
+    @media (hover: hover) and (pointer: fine) {
+      .play:hover {
+        background: var(--sw-accent-hover, var(--sw-accent));
+      }
+    }
+    .play:active {
+      transform: scale(var(--sw-press-scale));
     }
     .kbd {
       font-family: var(--sw-font-mono);

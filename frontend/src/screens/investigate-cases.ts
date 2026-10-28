@@ -57,7 +57,7 @@ const columns: TableColumn[] = [
   { key: 'owner', label: 'בעלים' },
   { key: 'clips', label: 'קטעים' },
   { key: 'notes', label: 'הערות' },
-  { key: 'preserved', label: 'ראיות שמורות', render: (r) => html`${r.preserved} שמורות${Number(r.missing) ? html` · <span style="color:var(--sw-danger)">${r.missing} חסרות</span>` : ''}` },
+  { key: 'preserved', label: 'ראיות שמורות', render: (r) => html`${r.preserved} שמורות${Number(r.missing) ? html` <sw-badge filled kind="error" label=${`${r.missing} חסרות`} style="margin-inline-start:6px"></sw-badge>` : ''}` },
   { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>` },
 ];
 
@@ -361,8 +361,13 @@ export class InvestigateCaseDetail extends LitElement {
   private pollTimer = 0;
 
   static styles = [css`
+    /* R5-INVESTIGATE-297 loop 2: the stage is bounded by the viewport height, so the clip row, the tabs and the form stay on
+       screen at 1440x900 (the form used to scroll under the fold); the column centres when the height is the limit */
     .wrap {
       max-inline-size: 860px;
+      inline-size: min(100%, calc((100dvh - 470px) * 16 / 9));
+      min-inline-size: min(100%, 560px);
+      margin-inline: auto;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -462,13 +467,22 @@ export class InvestigateCaseDetail extends LitElement {
       font-family: var(--sw-font-mono);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
+    /* a missing clip is a danger field, not a grey hole: the name reads as a title, the reason as a filled badge */
     .clip.missing {
-      background: var(--sw-surface-3);
+      background: var(--sw-danger-soft);
+      box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sw-danger) 35%, transparent);
       display: grid;
       place-items: center;
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
+      align-content: center;
+      gap: 6px;
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
       text-align: center;
+      cursor: default;
+    }
+    .clip.missing:active {
+      transform: none;
     }
     .add {
       aspect-ratio: 16 / 9;
@@ -901,7 +915,7 @@ export class InvestigateCaseDetail extends LitElement {
           <div class="clips">
             <div class="clip on"><sw-scene kind="entrance"></sw-scene><span class="t">00:00</span></div>
             <div class="clip"><sw-scene kind="lobby"></sw-scene><span class="t">00:06</span></div>
-            <div class="clip missing"><span>מסדרון 10:15<br />לא שמור: NVR מחק</span></div>
+            <div class="clip missing"><span>מסדרון 10:15</span><sw-badge filled kind="error" label="לא שמור: המקליט מחק"></sw-badge></div>
             <div class="add"><span><sw-icon name="plus" size=${14}></sw-icon> הוסף קטע</span></div>
           </div>
           <sw-tabs .items=${[{ id: 'details', label: 'פרטים' }, { id: 'notes', label: 'הערות', count: 2 }, { id: 'related', label: 'מצלמות קשורות', count: 3 }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>

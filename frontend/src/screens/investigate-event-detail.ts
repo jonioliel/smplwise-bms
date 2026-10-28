@@ -161,13 +161,18 @@ export class InvestigateEventDetail extends LitElement {
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
     }
+    /* R5-INVESTIGATE-297 loop 2 (break-ui): the caption is bounded by the stage and breaks an unbreakable camera name instead of
+       running past the frame at 390 px; the name reads as a title */
     .caption {
       position: absolute;
       inset-inline-start: 12px;
+      inset-inline-end: 12px;
       inset-block-end: 12px;
       color: var(--sw-on-video);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      overflow-wrap: anywhere;
     }
     .caption small {
       display: block;

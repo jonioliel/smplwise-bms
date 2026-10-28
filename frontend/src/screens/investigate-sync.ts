@@ -204,7 +204,8 @@ export class InvestigateSync extends LitElement {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
-      max-inline-size: min(100%, calc((100dvh - 390px) * 16 / 9 + 10px));
+      /* an explicit inline-size: with auto margins in the page's flex column, a max-inline-size alone shrink-wraps the grid to its gap */
+      inline-size: min(100%, calc((100dvh - 455px) * 16 / 9 + 10px));
       margin-inline: auto;
     }
     .tile {
@@ -222,7 +223,7 @@ export class InvestigateSync extends LitElement {
     }
     @media (max-width: 767px) {
       .grid {
-        max-inline-size: 100%;
+        inline-size: 100%;
       }
     }
     .drift {

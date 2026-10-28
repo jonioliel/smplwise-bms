@@ -374,6 +374,17 @@ export class InvestigateRules extends LitElement {
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
     }
+    /* R5-INVESTIGATE-297 loop 2 (break-ui, 390 px): a rule name is what identifies it, so on the phone it wraps to two lines instead
+       of "רכב באזור ..." after three words; the detail keeps one line */
+    @media (max-width: 767px) {
+      .txt b {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+    }
     .empty {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-sm);
