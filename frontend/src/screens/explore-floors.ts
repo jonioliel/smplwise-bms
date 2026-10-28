@@ -258,6 +258,70 @@ export class ExploreFloors extends LitElement {
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 12px;
     }
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the floor rows are the hero objects - large radius, a 17/700 heading, the
+       counts as a 13/500 line with tabular digits; the selected floor is a FILLED accent field with the accent edge and shadow 2
+       (not a 3 px halo around a white card). Press on pointer-down; hover only with a fine pointer. */
+    .pic {
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .floor {
+      padding: 12px 16px;
+      border-color: transparent;
+      border-radius: var(--sw-r-lg);
+      transition: border-color var(--sw-t-hover) var(--sw-ease-color), background var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .floor:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .floor.on {
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+      box-shadow: var(--sw-shadow-2);
+    }
+    @media (hover: none) {
+      .floor:hover {
+        border-color: transparent;
+        box-shadow: var(--sw-shadow-1);
+      }
+      .floor.on:hover {
+        border-color: var(--sw-accent);
+        box-shadow: var(--sw-shadow-2);
+      }
+    }
+    .title {
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      letter-spacing: -0.01em;
+    }
+    .floor.on .title {
+      color: var(--sw-accent-text);
+    }
+    .counts {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-2);
+      margin-block-start: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    .floor.on .counts {
+      color: var(--sw-text);
+    }
+    .empty {
+      background: var(--sw-surface-2);
+      font-weight: var(--sw-fw-medium);
+    }
+    dd {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    dt {
+      color: var(--sw-text-2);
+    }
   `;
 
   connectedCallback() {

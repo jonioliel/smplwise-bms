@@ -392,6 +392,79 @@ export class InvestigateHistoryMap extends LitElement {
         grid-template-columns: 1fr;
       }
     }
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): a 26/700 title; the time bar is the status field of the screen (the recorded
+       tone with its own hairline from the token - the fixed #cddcff was a light line on the dark scheme) and the chosen time its display
+       digit (20/700, tabular, interface face); the plan is the hero (shadow 2); the event rows are wells and the one at the chosen time a
+       filled accent field; press feedback on the rows; hover only with a fine pointer. */
+    h1 {
+      font-size: var(--sw-fs-3xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-2);
+    }
+    .bar {
+      padding: 10px 14px;
+      border-color: color-mix(in srgb, var(--sw-recorded) 35%, transparent);
+      box-shadow: var(--sw-shadow-1);
+      font-weight: var(--sw-fw-medium);
+    }
+    .time {
+      font-family: inherit;
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+      color: var(--sw-recorded-text);
+    }
+    .stage {
+      box-shadow: var(--sw-shadow-2);
+    }
+    .chip {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .hist {
+      background: color-mix(in srgb, var(--sw-purple) 14%, var(--sw-menu-surface));
+      font-weight: var(--sw-fw-bold);
+    }
+    .legend {
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-medium);
+    }
+    dd {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    dt {
+      color: var(--sw-text-2);
+    }
+    .evl a {
+      background: var(--sw-surface-2);
+      border-color: transparent;
+      transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .evl a:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .evl a.hit {
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .evl .s {
+      color: var(--sw-text-2);
+    }
+    .tlbar {
+      font-weight: var(--sw-fw-medium);
+    }
     @media (max-width: 767px) {
       .head,
       .bar,

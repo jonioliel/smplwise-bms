@@ -144,6 +144,33 @@ export class ExploreEntities extends LitElement {
       direction: ltr;
       unicode-bidi: isolate;
     }
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the drawer's key / value list is a well (surface 2, no hairlines) with the values as
+       14/600 headings - the value is the answer; the keys stay the quiet column. The table itself is the shared sw-table (not touched). */
+    dl {
+      gap: 10px 14px;
+      padding: 12px 14px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      align-items: center;
+    }
+    dt {
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    dd {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .attrs {
+      padding: 10px 12px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-2);
+    }
+    .note {
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-2);
+    }
   `, bubbleChrome];
 
   /** A backend session without system.configure at the installation: nothing is requested and nothing is shown. */

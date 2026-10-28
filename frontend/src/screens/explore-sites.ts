@@ -207,6 +207,85 @@ export class ExploreSites extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-xs);
     }
+    /* R5-MAPS-297 (impeccable bolder, the HOMEFABLE hero / card / well pattern): the site cards are the hero step - the large radius,
+       shadow 2, the name as a 20/700 heading and the "buildings · cameras" count as the display line (it is the answer of this screen);
+       the add card and the empty map are wells; the building rows keep the card step with a 15/700 name. Press feedback on pointer-down,
+       hover only with a fine pointer (emil-design-eng, mobile-native). */
+    .grid > sw-card {
+      --sw-card-radius: var(--sw-r-lg);
+      --sw-card-shadow: var(--sw-shadow-2);
+    }
+    .info {
+      padding: 12px 14px 14px;
+    }
+    .info b {
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      min-block-size: 2.4em;
+    }
+    .info small:not(.clamp2) {
+      display: block;
+      margin-block: 3px 4px;
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      font-variant-numeric: tabular-nums;
+    }
+    .add {
+      background: var(--sw-surface-2);
+      border-color: var(--sw-border-strong);
+      border-radius: var(--sw-r-lg);
+      transition: border-color var(--sw-t-hover) var(--sw-ease-color), background var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .add strong {
+      display: block;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .add .ic {
+      background: transparent;
+      border: 1.5px dashed var(--sw-border-strong);
+      color: var(--sw-text-2);
+    }
+    .add:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    @media (hover: none) {
+      .add:hover {
+        border-color: var(--sw-border-strong);
+        background: var(--sw-surface-2);
+        color: var(--sw-text-2);
+      }
+    }
+    .brow b {
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .brow small {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-2);
+      font-variant-numeric: tabular-nums;
+    }
+    .brow sw-scene,
+    img.photo.small {
+      inline-size: 84px;
+      block-size: 56px;
+      border-radius: var(--sw-r-sm);
+    }
+    .map {
+      background: var(--sw-surface-2);
+      border: 0;
+      font-weight: var(--sw-fw-medium);
+    }
   `;
 
   connectedCallback() {

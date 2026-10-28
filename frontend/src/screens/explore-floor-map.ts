@@ -1278,6 +1278,153 @@ export class ExploreFloorMap extends LitElement {
     :host([embedded]) .crumbs {
       display: none; /* hosted: the host screen chooses the floor; the map's own floor controls would leave it */
     }
+
+    /* ---- R5-MAPS-297 (impeccable bolder, the HOMEFABLE hero / card / well pattern) ----
+       The stage is the hero object (shadow 2) under a 26/700 title; the HUD panels over it keep the opaque menu surface (owner 2026-10-13)
+       with a 14/700 floor chip and a legend in the body ink with 10 px dots. Every "on" state is a FILLED field: an active layer and the
+       selected side-list row are the accent field, a lit circuit is the warm lit field over its whole button (not a glowing dot alone).
+       Press feedback on pointer-down for every pressable HUD control; hover only with a fine pointer (emil-design-eng, mobile-native). */
+    h1 {
+      font-size: var(--sw-fs-3xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-2);
+    }
+    .stage {
+      box-shadow: var(--sw-shadow-2);
+    }
+    .floorchip {
+      padding: 7px 12px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .legend {
+      padding: 5px 12px;
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-medium);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .legend i {
+      inline-size: 10px;
+      block-size: 10px;
+    }
+    .layers {
+      background: var(--sw-surface-2);
+      padding: 3px;
+      gap: 3px;
+    }
+    .layers button {
+      inline-size: 30px;
+      block-size: 28px;
+      transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+    }
+    .layers button.on {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      box-shadow: none;
+    }
+    .layers button,
+    .floorbtns button,
+    .circuits .circuit,
+    .sidelist button.it,
+    .floorstrip button,
+    .sidelist .grab {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .layers button:active,
+    .floorbtns button:active,
+    .circuits .circuit:active:not(:disabled),
+    .sidelist button.it:active,
+    .floorstrip button:active:not([disabled]) {
+      transform: scale(var(--sw-press-scale));
+    }
+    .floorbtns button {
+      transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+    }
+    .circuits .circuit {
+      transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+    }
+    .circuits .circuit.on {
+      background: var(--sw-lit-soft);
+      border-color: color-mix(in srgb, var(--sw-map-lit) 60%, var(--sw-border-strong));
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .circuits .circuit.on .cnt {
+      color: var(--sw-text);
+    }
+    .sidelist {
+      box-shadow: var(--sw-shadow-3);
+    }
+    .sidelist .sh {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .sidelist .grp {
+      font-weight: var(--sw-fw-semibold);
+    }
+    .sidelist button.it {
+      transition: background var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+    }
+    .sidelist button.it.on {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .sidelist button.it.on .st {
+      color: var(--sw-accent-text);
+    }
+    @media (hover: none) {
+      .sidelist button.it:hover {
+        background: none;
+      }
+      .sidelist button.it.on:hover {
+        background: var(--sw-accent-soft);
+      }
+      .floorstrip button:hover {
+        background: transparent;
+      }
+      .floorstrip button.on:hover {
+        background: var(--sw-accent-soft);
+      }
+    }
+    .panel h3 {
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .panel .prow .lbl {
+      font-weight: var(--sw-fw-semibold);
+    }
+    .roomcard .rc-head strong {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .shared-members .sm-head {
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .estate {
+      border: 0;
+    }
+    .estate.live {
+      background: var(--sw-accent-soft);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-accent) 35%, transparent);
+    }
+    .meta dd {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
   `;
 
   private onKey = (e: KeyboardEvent) => {
