@@ -106,6 +106,8 @@ export class SystemDesign extends LitElement {
         grid-template-columns: repeat(var(--skins-n, 4), minmax(0, 1fr));
       }
     }
+    /* R5-SYSTEM-297: a skin card is a key one step below the card (surface-2 well, no outline at rest); the chosen one is a FILLED accent
+       field with the accent ring; it gives on press and lifts only under a pointer that hovers */
     .skin {
       all: unset;
       align-self: start;
@@ -113,16 +115,35 @@ export class SystemDesign extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 8px;
-      padding: 8px;
-      border: 1px solid var(--sw-border-strong);
+      padding: 10px;
+      border: 1px solid transparent;
       border-radius: var(--sw-r-md);
-      background: var(--sw-surface);
+      background: var(--sw-surface-2);
       cursor: pointer;
       min-block-size: 44px;
+      transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .skin:hover:not([disabled]) {
+        box-shadow: var(--sw-shadow-2);
+      }
+    }
+    .skin:active:not([disabled]) {
+      transform: scale(var(--sw-press-scale));
     }
     .skin[aria-pressed='true'] {
+      background: var(--sw-accent-soft);
       border-color: var(--sw-accent);
-      box-shadow: 0 0 0 2px var(--sw-accent);
+      box-shadow: 0 0 0 2px var(--sw-accent), var(--sw-shadow-2);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .skin {
+        transition-duration: 0ms;
+      }
     }
     .skin[disabled] {
       cursor: default;
@@ -140,13 +161,15 @@ export class SystemDesign extends LitElement {
       gap: 6px;
       min-inline-size: 0;
       overflow-wrap: anywhere;
-      font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-lg);
+      color: var(--sw-heading, var(--sw-text));
+      letter-spacing: -0.005em;
     }
     .skin .note {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      line-height: 1.35;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      line-height: 1.4;
       overflow-wrap: anywhere;
     }
     .skin .cur {

@@ -14,6 +14,7 @@ import { isOptionalStep, SETUP_HINT_TEXT, summarizeSetup, type SetupSummary } fr
 import { demoSetupState, setupCheck, setupState, STATUS_TEXT, type SetupState, type SetupStep, type StepId } from '../api/setup';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsLadderStyles } from '../styles/settings';
 
 /** Tells the shell's "השלם את ההתקנה" hint what the wizard just learned, so it does not wait for its own next read. */
 export function announceSetup(s: SetupState) {
@@ -258,7 +259,7 @@ export class SystemWizard extends LitElement {
     </sw-page>`;
   }
 
-  static styles = [css`
+  static styles = [settingsLadderStyles, css`
     .wrap {
       display: flex;
       flex-direction: column;
@@ -268,12 +269,13 @@ export class SystemWizard extends LitElement {
     .rail {
       list-style: none;
       margin: 0;
-      padding: 12px 14px;
+      padding: 14px 16px;
       display: flex;
       gap: 4px;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
       overflow-x: auto;
       scrollbar-width: none;
     }
@@ -287,10 +289,11 @@ export class SystemWizard extends LitElement {
     .rail li:not(:last-child)::after {
       content: '';
       position: absolute;
-      inset-inline-start: calc(50% + 18px);
-      inset-inline-end: calc(-50% + 18px);
-      inset-block-start: 14px;
-      block-size: 2px;
+      inset-inline-start: calc(50% + 20px);
+      inset-inline-end: calc(-50% + 20px);
+      inset-block-start: 15px;
+      block-size: 3px;
+      border-radius: 2px;
       background: var(--sw-border);
     }
     .rail li.done:not(:last-child)::after {
@@ -313,18 +316,31 @@ export class SystemWizard extends LitElement {
       outline-offset: 2px;
       border-radius: var(--sw-r-xs);
     }
+    .rail button {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      transition: transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .rail button:active {
+      transform: scale(var(--sw-press-scale));
+    }
     .dot {
       display: grid;
       place-items: center;
-      inline-size: 28px;
-      block-size: 28px;
+      inline-size: 32px;
+      block-size: 32px;
       border-radius: 50%;
       border: 2px solid var(--sw-border-strong);
       background: var(--sw-surface);
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-bold);
       color: var(--sw-text-2);
       position: relative;
       z-index: 1;
+      box-shadow: var(--sw-shadow-1);
     }
     .done .dot {
       background: var(--sw-live);
@@ -350,14 +366,16 @@ export class SystemWizard extends LitElement {
       opacity: 0.75;
       font-size: 0.85em;
     }
+    /* R5-SYSTEM-297: the verdict is the hero of the wizard - the large radius, shadow 2, a 20/800 line, a 48 px status disc */
     .summary {
       display: flex;
       align-items: center;
-      gap: 14px;
-      padding: 14px 16px;
-      border-radius: var(--sw-r-md);
+      gap: 16px;
+      padding: 16px 20px;
+      border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
       flex-wrap: wrap;
     }
     .summary.ready {
@@ -367,19 +385,22 @@ export class SystemWizard extends LitElement {
     .summary .big {
       display: grid;
       place-items: center;
-      inline-size: 40px;
-      block-size: 40px;
+      inline-size: 48px;
+      block-size: 48px;
       border-radius: 50%;
       background: var(--sw-live);
       color: var(--sw-text-inverse);
+      box-shadow: var(--sw-shadow-2);
     }
     .summary .count {
-      font-size: var(--sw-fs-lg);
+      font-size: var(--sw-fs-xl);
       color: var(--sw-text-2);
       font-variant-numeric: tabular-nums;
     }
     .summary .count b {
-      font-size: var(--sw-fs-xl);
+      font-size: var(--sw-fs-3xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.03em;
       color: var(--sw-heading, var(--sw-text));
     }
     .summary .txt {
@@ -388,7 +409,13 @@ export class SystemWizard extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 2px;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
+    }
+    .summary .txt b {
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.02em;
+      color: var(--sw-heading, var(--sw-text));
     }
     .summary .txt span {
       color: var(--sw-text-2);
@@ -398,15 +425,18 @@ export class SystemWizard extends LitElement {
       gap: 8px;
       flex-wrap: wrap;
     }
+    /* R5-SYSTEM-297: a step is a card of the ladder (the large radius, shadow 2 + the light line, a 17/700 title); its state stays a
+       filled edge and a filled pill (status as a field) */
     .step {
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-inline-start: 4px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-md);
-      padding: 14px 16px;
+      border-inline-start: 5px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+      padding: 16px 18px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
       scroll-margin-block-start: 12px;
     }
     .step.done {
@@ -427,12 +457,14 @@ export class SystemWizard extends LitElement {
     .num {
       display: grid;
       place-items: center;
-      inline-size: 26px;
-      block-size: 26px;
+      inline-size: 30px;
+      block-size: 30px;
       border-radius: 50%;
       background: var(--sw-surface-3);
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+      box-shadow: inset 0 1px 0 var(--sw-highlight), var(--sw-shadow-1);
     }
     .head {
       flex: 1;
@@ -442,21 +474,22 @@ export class SystemWizard extends LitElement {
     }
     h3 {
       margin: 0;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.01em;
       color: var(--sw-heading, var(--sw-text));
     }
     .meta {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
     }
     .pill {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 3px 10px;
+      padding: 4px 12px;
       border-radius: 999px;
-      font-size: var(--sw-fs-xs);
+      font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
       background: var(--sw-surface-3);
       color: var(--sw-text-2);

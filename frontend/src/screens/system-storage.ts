@@ -17,6 +17,7 @@ import { formatBytes } from '../api/exports';
 import { bidi } from '../i18n/bidi';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsLadderStyles } from '../styles/settings';
 import { dayTimeText } from '../api/day-format';
 
 const PER_CAMERA = [
@@ -38,35 +39,41 @@ export class SystemStorage extends LitElement {
   @state() private loading = false;
   @state() private tz = 'Asia/Jerusalem';
 
-  static styles = [css`
+  static styles = [settingsLadderStyles, css`
     .kpis {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
     }
+    /* R5-SYSTEM-297: the three counters are the hero row - a 32/800 figure in the heading ink, a 13 px label in the secondary ink; the
+       icon square steps back (28 px, quiet) so the number is the object (taste §5) */
     .kpi {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 12px 14px;
+      padding: 14px 16px;
     }
     .kpi .v {
-      font-size: var(--sw-fs-2xl);
+      font-size: 32px;
       font-weight: var(--sw-fw-bold);
-      line-height: 1.1;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      color: var(--sw-heading, var(--sw-text));
+      font-variant-numeric: tabular-nums;
     }
     .kpi .l {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
+      margin-block-start: 4px;
+      font-size: var(--sw-fs-base);
+      color: var(--sw-text-2);
     }
     .kpi .ic {
       display: grid;
       place-items: center;
-      inline-size: 30px;
-      block-size: 30px;
+      inline-size: 28px;
+      block-size: 28px;
       border-radius: var(--sw-r-sm);
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent);
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
       margin-inline-start: auto;
     }
     .kpi svg {
@@ -88,11 +95,13 @@ export class SystemStorage extends LitElement {
     }
     .cam {
       display: grid;
-      grid-template-columns: 100px minmax(0, 1fr) 60px;
+      grid-template-columns: 110px minmax(0, 1fr) 64px;
       align-items: center;
       gap: 10px;
-      padding: 6px 0;
-      font-size: var(--sw-fs-sm);
+      padding: 7px 0;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-heading, var(--sw-text));
     }
     .cam .bar {
       block-size: 8px;
@@ -110,16 +119,19 @@ export class SystemStorage extends LitElement {
     .cam .gb {
       text-align: end;
       font-variant-numeric: tabular-nums;
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-xs);
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-sm);
     }
     .policy {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 7px 0;
+      padding: 8px 0;
       border-block-end: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading, var(--sw-text));
     }
     .policy:last-child {
       border-block-end: 0;
@@ -130,13 +142,14 @@ export class SystemStorage extends LitElement {
       inline-size: 28px;
       block-size: 28px;
       border-radius: var(--sw-r-sm);
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent);
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
     }
     .policy small {
       display: block;
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-regular);
+      font-size: var(--sw-fs-sm);
     }
     .hint {
       font-size: var(--sw-fs-xs);

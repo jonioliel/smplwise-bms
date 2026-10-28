@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { settingsLadderStyles } from '../styles/settings';
 import { live } from 'lit/directives/live.js';
 import '../components/sw-page';
 import '../components/sw-button';
@@ -22,6 +23,7 @@ import { noticesCss } from '../notices/styles';
 @customElement('system-transit')
 export class SystemTransit extends LitElement {
   static styles = [
+    settingsLadderStyles,
     noticesCss,
     css`
       .stack { display: grid; gap: 14px; }

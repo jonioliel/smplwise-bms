@@ -67,16 +67,18 @@ export class SwStatePanel extends LitElement {
       text-align: start;
       justify-content: flex-start;
     }
+    /* R5-SYSTEM-297: a whole-screen state is the one object on the page - a 64 px tile that sits on the page (the floating shadow,
+       the 1 px light line), a 20/700 heading, a 14 px hint in the secondary ink; the compact row keeps its 34 px tile */
     .icon {
       display: grid;
       place-items: center;
-      inline-size: 48px;
-      block-size: 48px;
+      inline-size: 64px;
+      block-size: 64px;
       border-radius: var(--sw-r-lg);
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
       /* a hairline of its own ink: the tile reads as an object, not a smudge of tint */
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent), var(--sw-shadow-2);
       position: relative;
     }
     /* the neutral states (empty, loading) are quiet: no accent tile for "nothing here" (colour is for action and status) */
@@ -89,6 +91,7 @@ export class SwStatePanel extends LitElement {
       inline-size: 34px;
       block-size: 34px;
       border-radius: var(--sw-r-sm);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
     }
     :host([state='error']) .icon {
       background: var(--sw-danger-soft);
@@ -120,18 +123,25 @@ export class SwStatePanel extends LitElement {
     }
     h4 {
       margin: 0;
-      font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
       color: var(--sw-heading);
-      letter-spacing: -0.005em;
+      letter-spacing: -0.015em;
+      line-height: 1.25;
       text-wrap: balance;
     }
     :host([compact]) h4 {
       font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      letter-spacing: -0.005em;
     }
     p {
       margin: 0;
-      max-inline-size: 42ch;
+      max-inline-size: 46ch;
+      font-size: var(--sw-fs-md);
+      line-height: 1.5;
+    }
+    :host([compact]) p {
       font-size: var(--sw-fs-sm);
     }
     .text {
@@ -163,14 +173,14 @@ export class SwStatePanel extends LitElement {
     const hint = (rawCode ? '' : this.hint) || (this.quiet ? '' : preset.hint());
     const icon = !forbidden && this.state === 'empty' && this.icon ? this.icon : preset.icon;
     return html`
-      <div class="icon" data-look=${forbidden ? 'forbidden' : ''} data-icon=${icon} aria-hidden="true"><sw-icon .name=${icon} size=${this.compact ? 20 : 26}></sw-icon></div>
+      <div class="icon" data-look=${forbidden ? 'forbidden' : ''} data-icon=${icon} aria-hidden="true"><sw-icon .name=${icon} size=${this.compact ? 20 : 30}></sw-icon></div>
       <div class="text" role="status">
         <h4>${this.heading || preset.title()}</h4>
         ${hint ? html`<p>${hint}</p>` : ''}
         <slot></slot>
       </div>
       ${this.actionLabel && !forbidden
-        ? html`<sw-button variant=${this.state === 'error' ? 'primary' : 'secondary'} size="sm" @click=${() => this.dispatchEvent(new CustomEvent('action', { bubbles: true, composed: true }))}>${this.actionLabel}</sw-button>`
+        ? html`<sw-button variant=${this.state === 'error' ? 'primary' : 'secondary'} size=${this.compact ? 'sm' : 'md'} @click=${() => this.dispatchEvent(new CustomEvent('action', { bubbles: true, composed: true }))}>${this.actionLabel}</sw-button>`
         : ''}
     `;
   }

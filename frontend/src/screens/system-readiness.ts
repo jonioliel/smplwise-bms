@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { settingsLadderStyles } from '../styles/settings';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-page';
 import '../components/sw-button';
@@ -319,7 +320,7 @@ export class SystemReadiness extends LitElement {
     </sw-page>`;
   }
 
-  static styles = css`
+  static styles = [settingsLadderStyles, css`
     :host {
       display: block;
       block-size: 100%;
@@ -349,24 +350,27 @@ export class SystemReadiness extends LitElement {
       color: var(--sw-warning-text);
       font-size: var(--sw-fs-sm);
     }
+    /* R5-SYSTEM-297: the panels take the card step (the ladder's shadow 2 + light line, the large radius) */
     .panel {
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      box-shadow: var(--sw-shadow-1);
-      padding: 12px 14px;
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+      padding: 14px 16px;
     }
+    /* the score is the one primary object of the page: the hero panel, a 120 px ring with a 40/800 figure */
     .hero {
       flex: none;
       display: flex;
       align-items: center;
-      gap: 18px;
+      gap: 22px;
+      padding: 16px 20px;
     }
     .ring {
       position: relative;
       flex: none;
-      inline-size: 96px;
-      block-size: 96px;
+      inline-size: 120px;
+      block-size: 120px;
     }
     .ring svg {
       inline-size: 100%;
@@ -399,14 +403,16 @@ export class SystemReadiness extends LitElement {
       text-align: center;
     }
     .ring .v b {
-      font-size: var(--sw-fs-3xl);
+      font-size: 40px;
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.04em;
       line-height: 1;
       color: var(--sw-heading, var(--sw-text));
       font-variant-numeric: tabular-nums;
     }
     .ring .v small {
-      font-size: var(--sw-fs-2xs);
-      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
     }
     .lvl {
       min-inline-size: 0;
@@ -420,13 +426,14 @@ export class SystemReadiness extends LitElement {
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
-      font-size: var(--sw-fs-xl);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.02em;
       color: var(--sw-heading, var(--sw-text));
     }
     .hint {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-md);
     }
     .scale {
       display: grid;
@@ -508,6 +515,8 @@ export class SystemReadiness extends LitElement {
       overflow-x: auto;
       scrollbar-width: none;
     }
+    /* the six counters are keys one step below the hero: surface-2 wells with a 22/800 figure, the chosen one a filled accent field;
+       they give on press, and hover stays with a pointer that hovers */
     .kpi {
       all: unset;
       box-sizing: border-box;
@@ -516,14 +525,40 @@ export class SystemReadiness extends LitElement {
       min-inline-size: 104px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border: 1px solid var(--sw-border);
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid transparent;
       border-radius: var(--sw-r-md);
       background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+      font-size: var(--sw-fs-base);
+      color: var(--sw-text-2);
+      transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
     }
-    .kpi:hover {
-      background: var(--sw-surface-2);
+    .kpi b {
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.02em;
+      color: var(--sw-heading, var(--sw-text));
+      font-variant-numeric: tabular-nums;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .kpi:hover {
+        background: var(--sw-surface-2);
+        box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+      }
+    }
+    .kpi:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .kpi {
+        transition-duration: 0ms;
+      }
     }
     .kpi:focus-visible {
       outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent));
@@ -959,7 +994,7 @@ export class SystemReadiness extends LitElement {
         justify-content: space-between;
       }
     }
-  `;
+  `];
 }
 
 declare global {

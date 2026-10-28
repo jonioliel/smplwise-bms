@@ -192,9 +192,10 @@ export class SystemNotifications extends LitElement {
         gap: 12px;
         flex-wrap: wrap;
       }
+      /* R5-SYSTEM-297: a section title at the card-title step of the ladder (20/700), its rows with a 15/600 label */
       .sec header h2 {
         margin: 0;
-        font-size: var(--sw-fs-xl);
+        font-size: var(--sw-fs-2xl);
         font-weight: 700;
         letter-spacing: -0.02em;
         display: flex;
@@ -232,8 +233,9 @@ export class SystemNotifications extends LitElement {
         line-height: 1.3;
       }
       .frow .l b {
-        font-size: var(--sw-fs-md);
+        font-size: var(--sw-fs-lg);
         font-weight: 600;
+        letter-spacing: -0.005em;
       }
       .frow .l small {
         font-size: var(--sw-fs-sm);

@@ -40,23 +40,27 @@ export const settingsSegStyles = css`
     gap: var(--sw-seg-gap, 0);
   }
   /* the knobs --sw-seg-* belong to a glass host (TKUI6: the service-management settings): a pill track with a lifted thumb */
+  /* R5-SYSTEM-297: a segment is a KEY - 14/600, 34 px, the hover only under a pointer that hovers (mobile-native) */
   .seg button {
     border: 0;
     border-radius: var(--sw-seg-btn-radius, 0);
     background: transparent;
     padding: 0 14px;
-    min-block-size: var(--sw-seg-h, var(--sw-ctl-h-md));
+    min-block-size: var(--sw-seg-h, 34px);
     font: inherit;
-    font-size: var(--sw-fs-sm);
+    font-size: var(--sw-fs-md);
+    font-weight: var(--sw-fw-semibold);
     cursor: pointer;
     color: var(--sw-text-2);
   }
   .seg button + button {
     border-inline-start: var(--sw-seg-divider, 1px solid var(--sw-border));
   }
-  .seg button:hover {
-    background: var(--sw-hover-wash);
-    color: var(--sw-text);
+  @media (hover: hover) and (pointer: fine) {
+    .seg button:hover {
+      background: var(--sw-hover-wash);
+      color: var(--sw-text);
+    }
   }
   .seg button[aria-pressed='true'],
   .seg button[aria-selected='true'] {
@@ -70,38 +74,102 @@ export const settingsSegStyles = css`
   }
 `;
 
+/** R5-SYSTEM-297: the settings ladder (the HOMEFABLE pattern - hero / card / well - on every הגדרות page). A screen that does not
+ * adopt settingsStyles (the audit, storage, update, wizard, readiness, notices pages) takes this sheet alone: the page's cards step
+ * up (the card radius, the floating shadow with the 1 px light line, a 17/700 title in the heading ink), every pressable local
+ * control gives on pointer-down, and hover stays with a pointer that hovers (mobile-native). Tokens only. */
+export const settingsLadderStyles = css`
+  :host {
+    /* the card step: sw-card reads these (components/sw-card.ts) - the skins keep their material, the step and the title are the settings' */
+    --sw-card-radius: var(--sw-r-lg);
+    --sw-card-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+    --sw-card-title-fs: var(--sw-fs-xl);
+    --sw-card-title-fw: var(--sw-fw-bold);
+    --sw-card-pad: 16px;
+  }
+  /* press feedback (emil-design-eng: a pressable thing gives on pointer-down; 120 ms, transform only) */
+  .seg button,
+  .kpi,
+  .skin,
+  .swatch,
+  .pages button,
+  .chips button,
+  .rc,
+  .colbtn,
+  .pillsel,
+  button.opt {
+    transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .seg button:active:not(:disabled),
+  .kpi:active,
+  .skin:active:not(:disabled),
+  .swatch:active:not(:disabled),
+  .pages button:active,
+  .chips button:active,
+  .rc:active,
+  .colbtn:active,
+  button.opt:active:not(:disabled) {
+    transform: scale(var(--sw-press-scale));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .seg button,
+    .kpi,
+    .skin,
+    .swatch,
+    .pages button,
+    .chips button,
+    .rc,
+    .colbtn,
+    button.opt {
+      transition-duration: 0ms;
+    }
+  }
+`;
+
 export const settingsStyles = css`
+  ${settingsLadderStyles}
   :host {
     display: block;
   }
   .sections {
     display: flex;
     flex-direction: column;
-    gap: var(--sw-s-3);
+    gap: var(--sw-s-4);
     max-inline-size: 880px;
     min-inline-size: 0;
   }
+  /* R5-SYSTEM-297: a group label is a heading, not a 10 px uppercase smudge (Hebrew has no uppercase to begin with) */
   .grouplabel {
-    font-size: var(--sw-fs-xs);
-    font-weight: var(--sw-fw-semibold);
-    color: var(--sw-text-3);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    margin-block: var(--sw-s-1) 2px;
+    font-size: var(--sw-fs-base);
+    font-weight: var(--sw-fw-bold);
+    color: var(--sw-heading, var(--sw-text));
+    letter-spacing: -0.005em;
+    margin-block: var(--sw-s-2) 2px;
     grid-column: 1 / -1;
   }
   .grouplabel:not(:first-child) {
-    margin-block-start: var(--sw-s-3);
+    margin-block-start: var(--sw-s-4);
   }
+  /* R5-SYSTEM-297: a settings row is a WELL (surface-2, rounded, no hairline) inside the card - the third step of the ladder; the
+     label reads at a glance (14/600 in the heading ink) and its hint is body-sized secondary text, not an 11 px caption */
   .row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: var(--sw-s-3) var(--sw-s-4);
-    padding: 10px 0;
-    border-block-end: 1px solid var(--sw-border);
+    padding: 12px 14px;
+    border: 0;
+    border-radius: var(--sw-r-md);
+    background: var(--sw-surface-2);
     font-size: var(--sw-fs-sm);
     min-inline-size: 0;
+  }
+  .row + .row {
+    margin-block-start: 6px;
   }
   .row:last-child {
     border-block-end: 0;
@@ -116,15 +184,16 @@ export const settingsStyles = css`
     gap: 2px;
     min-inline-size: 0;
     flex: 1 1 220px;
-    font-size: var(--sw-fs-base);
-    font-weight: var(--sw-fw-medium);
-    color: var(--sw-text);
+    font-size: var(--sw-fs-md);
+    font-weight: var(--sw-fw-semibold);
+    color: var(--sw-heading, var(--sw-text));
+    letter-spacing: -0.005em;
   }
   .row .lbl .muted,
   .muted {
-    font-size: var(--sw-fs-xs);
+    font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-regular);
-    color: var(--sw-text-3);
+    color: var(--sw-text-2);
     line-height: 1.45;
   }
   .row .ctl {
@@ -143,37 +212,56 @@ export const settingsStyles = css`
     justify-content: flex-end;
     min-inline-size: 0;
   }
+  /* R5-SYSTEM-297: a fact row keeps its hairline (a dense list) but its value is a display figure (14.5/700 in the heading ink, tabular)
+     and a toned value is a FILLED pill, not a coloured word (status as a field) */
   .check {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: var(--sw-s-2);
-    padding: 8px 0;
+    padding: 9px 0;
     border-block-end: 1px solid var(--sw-border);
-    font-size: var(--sw-fs-sm);
+    font-size: var(--sw-fs-base);
   }
   .check:last-child {
     border-block-end: 0;
   }
   .val {
-    color: var(--sw-text-2);
+    color: var(--sw-heading, var(--sw-text));
+    font-weight: var(--sw-fw-bold);
+    font-size: var(--sw-fs-md);
+    font-variant-numeric: tabular-nums;
     text-align: end;
     max-inline-size: 60%;
     overflow-wrap: anywhere;
   }
+  .val.ok,
+  .val.warn,
+  .val.err {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 24px;
+    padding: 1px 10px;
+    border-radius: var(--sw-r-pill);
+    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-semibold);
+    line-height: 1.4;
+  }
   .val.ok {
+    background: var(--sw-success-soft);
     color: var(--sw-success-text);
   }
   .val.warn {
+    background: var(--sw-warning-soft);
     color: var(--sw-warning-text);
   }
   .val.err {
+    background: var(--sw-danger-soft);
     color: var(--sw-danger-text);
-    font-weight: var(--sw-fw-semibold);
   }
   .hint {
-    font-size: var(--sw-fs-xs);
-    color: var(--sw-text-3);
+    font-size: var(--sw-fs-sm);
+    color: var(--sw-text-2);
     line-height: 1.5;
   }
   .ltr,
@@ -192,11 +280,11 @@ export const settingsStyles = css`
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    min-block-size: var(--sw-ctl-h-sm);
-    padding: 2px 10px;
+    min-block-size: 28px;
+    padding: 2px 12px;
     border-radius: var(--sw-r-pill);
-    font-size: var(--sw-fs-xs);
-    font-weight: var(--sw-fw-medium);
+    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-semibold);
     background: var(--sw-surface-3);
     color: var(--sw-text-2);
     max-inline-size: 100%;
@@ -269,8 +357,8 @@ export const settingsStyles = css`
   }
   .danger h4 {
     margin: 0 0 4px;
-    font-size: var(--sw-fs-sm);
-    font-weight: var(--sw-fw-semibold);
+    font-size: var(--sw-fs-md);
+    font-weight: var(--sw-fw-bold);
     color: var(--sw-danger-text);
   }
   .actions {
@@ -313,11 +401,32 @@ export const settingsStyles = css`
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
+  /* the bubble skin is frozen (unit-bubble-freeze-295): its rows keep the hairline list and its cards their own material */
+  :host([data-skin='bubble']) {
+    --sw-card-radius: initial;
+    --sw-card-shadow: initial;
+    --sw-card-title-fs: initial;
+    --sw-card-title-fw: initial;
+    --sw-card-pad: initial;
+  }
+  :host([data-skin='bubble']) .row {
+    padding: 10px 0;
+    border-radius: 0;
+    background: transparent;
+    border-block-end: 1px solid var(--sw-border);
+  }
+  :host([data-skin='bubble']) .row + .row {
+    margin-block-start: 0;
+  }
+  :host([data-skin='bubble']) .row:last-child {
+    border-block-end: 0;
+  }
   @media (max-width: 767px) {
     .row {
       flex-direction: column;
       align-items: stretch;
       gap: var(--sw-s-2);
+      padding: 12px;
     }
     .row .lbl {
       flex-basis: auto;

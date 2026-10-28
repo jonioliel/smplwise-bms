@@ -457,12 +457,15 @@ export class SwApp extends LitElement {
       .subnav {
         padding: 8px 12px 0;
       }
+      /* R5-SYSTEM-297 (phone shell): the bar is a surface that sits OVER the page (the upward shadow and the light line); an item
+         gives on pointer-down (transform only, 120 ms); the current one reads in the accent ink at 600 */
       nav.bottom {
         grid-area: bottom;
         display: grid;
         grid-template-columns: repeat(5, 1fr);
         background: var(--sw-surface);
         border-block-start: 1px solid var(--sw-border);
+        box-shadow: 0 -6px 18px rgba(16, 24, 40, 0.06), inset 0 1px 0 var(--sw-highlight);
         /* a landscape phone's notch/rounded corners sit on the inline edges too, not only the home indicator below */
         padding-inline: env(safe-area-inset-right, 0px) env(safe-area-inset-left, 0px);
         padding-block-end: env(safe-area-inset-bottom);
@@ -475,7 +478,7 @@ export class SwApp extends LitElement {
         justify-content: center;
         gap: 3px;
         font-size: var(--sw-fs-2xs);
-        color: var(--sw-text-3);
+        color: var(--sw-text-2);
         text-decoration: none;
         min-block-size: var(--sw-bottomnav-h);
         font-weight: var(--sw-fw-medium);
@@ -484,10 +487,26 @@ export class SwApp extends LitElement {
         padding: 0;
         font-family: inherit;
         cursor: pointer;
+        transition: transform var(--sw-t-press) var(--sw-ease), color var(--sw-t-hover) var(--sw-ease-color);
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      nav.bottom a:active,
+      nav.bottom button:active {
+        transform: scale(var(--sw-press-scale));
       }
       nav.bottom a.active,
       nav.bottom button.active {
         color: var(--sw-accent-text);
+        font-weight: var(--sw-fw-semibold);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        nav.bottom a,
+        nav.bottom button {
+          transition-duration: 0ms;
+        }
       }
       .search {
         display: none;

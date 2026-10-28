@@ -15,6 +15,7 @@ import type { TableColumn } from '../components/sw-table';
 import { demoAudit } from '../fixtures/catalog';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsLadderStyles } from '../styles/settings';
 import { dateInputLang } from '../api/day-format';
 
 const columns: TableColumn[] = [
@@ -182,7 +183,7 @@ export class SystemAudit extends LitElement {
     `;
   }
 
-  static styles = [css`
+  static styles = [settingsLadderStyles, css`
     .filters {
       display: flex;
       gap: 8px;

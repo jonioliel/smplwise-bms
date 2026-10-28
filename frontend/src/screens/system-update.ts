@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { settingsLadderStyles } from '../styles/settings';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-button';
@@ -79,32 +80,38 @@ export class SystemUpdate extends LitElement {
   @state() private switchError = '';
   private applyKey = '';
 
-  static styles = css`
+  static styles = [settingsLadderStyles, css`
     :host {
       display: block;
     }
     .rows {
       display: grid;
     }
+    /* R5-SYSTEM-297: a fact row is a well (surface-2) with a 17/700 value in the heading ink */
     .row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
       flex-wrap: wrap;
-      padding: 12px 0;
-      border-block-end: 1px solid var(--sw-border);
+      padding: 12px 14px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
       min-inline-size: 0;
     }
-    .row:last-child {
-      border-block-end: 0;
+    .row + .row {
+      margin-block-start: 6px;
     }
     .lbl {
       color: var(--sw-text-2);
       font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
     }
     .val {
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.01em;
+      color: var(--sw-heading, var(--sw-text));
       min-inline-size: 0;
       overflow-wrap: anywhere;
     }
@@ -117,16 +124,25 @@ export class SystemUpdate extends LitElement {
       display: grid;
       gap: 12px;
     }
+    /* status as a filled field, not a coloured word */
     .status {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 8px;
-      font-weight: var(--sw-fw-semibold);
+      min-block-size: 30px;
+      padding: 2px 12px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
     }
     .status.up {
-      color: var(--sw-live);
+      background: var(--sw-success-soft);
+      color: var(--sw-success-text);
     }
     .status.avail {
+      background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
     }
     .msg {
@@ -170,7 +186,7 @@ export class SystemUpdate extends LitElement {
       background: var(--sw-surface);
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-shadow-2);
     }
     .seg button:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -268,7 +284,7 @@ export class SystemUpdate extends LitElement {
       direction: ltr;
       text-align: start;
     }
-  `;
+  `];
 
   connectedCallback() {
     super.connectedCallback();

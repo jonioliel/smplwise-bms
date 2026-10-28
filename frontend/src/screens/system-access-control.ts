@@ -19,6 +19,7 @@ import { ageText } from '../access-control/status-text';
 import { ACCESS_CONTROL_SETTINGS_HREF, tabStyleOf } from '../shell/nav';
 import { UTC_ZONE } from './wiskey-format';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsLadderStyles } from '../styles/settings';
 import { st } from '../i18n/access-status';
 import { mt } from '../i18n/access-messaging';
 
@@ -49,6 +50,7 @@ export class SystemAccessControl extends LitElement {
   private stop: (() => void) | null = null;
 
   static styles = [
+    settingsLadderStyles,
     css`
       :host {
         display: block;
