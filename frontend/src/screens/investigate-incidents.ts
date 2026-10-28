@@ -132,9 +132,10 @@ export class InvestigateIncidents extends LitElement {
     .mut { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
     a.lnk { color: var(--sw-accent-text); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
     a.lnk:hover { text-decoration: underline; }
-    .panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); min-inline-size: 0; min-block-size: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; min-block-size: 0; display: flex; flex-direction: column; overflow: hidden; }
     .panel .hd { display: flex; align-items: center; gap: 8px; padding: 11px 16px 8px; flex-wrap: wrap; flex: none; }
-    .panel .hd h2 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+    /* R5-INVESTIGATE-297: a panel title is a title (17 px / 800); the panels carry the hero shadow */
+    .panel .hd h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: 800; letter-spacing: -0.02em; color: var(--sw-heading); }
     .panel .hd .sp { flex: 1; }
     .panel > sw-state-panel { flex: 1; min-block-size: 0; }
     .board { flex: 1; min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, .85fr); gap: 14px; }
@@ -150,16 +151,17 @@ export class InvestigateIncidents extends LitElement {
     .tile .rel { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: var(--sw-video-scrim); color: var(--sw-on-video); font-size: var(--sw-fs-2xs); pointer-events: none; z-index: 1; }
     .capchip { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; z-index: 1; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: var(--sw-warning); color: #1e2e47; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); pointer-events: none; }
     .drs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-    .dr { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 7px 16px; border-block-start: 1px solid var(--sw-border); }
-    .dr .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-base); line-height: 1.3; overflow-wrap: anywhere; }
+    .drs { gap: 6px; padding: 0 12px 12px; }
+    .dr { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; min-block-size: 44px; padding: 6px 10px; border-radius: var(--sw-r-sm); background: var(--c-soft, var(--sw-surface-2)); }
+    .dr .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-md); line-height: 1.3; overflow-wrap: anywhere; }
     .dr .t2 { display: block; font-size: var(--sw-fs-xs); color: var(--sw-text-3); line-height: 1.3; }
     .dr .when { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
     .rows { display: flex; flex-direction: column; gap: 5px; padding: 0 16px 12px; }
-    .li { display: flex; gap: 10px; align-items: center; padding: 4px 10px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); min-inline-size: 0; }
+    .li { display: flex; gap: 10px; align-items: center; min-block-size: 44px; padding: 5px 10px; border: 0; border-radius: var(--sw-r-sm); background: var(--sw-surface-2); min-inline-size: 0; }
     .li .grow { flex: 1; min-inline-size: 0; }
-    .li .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-base); line-height: 1.3; }
+    .li .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-md); line-height: 1.3; }
     .li .t2 { font-size: var(--sw-fs-xs); color: var(--sw-text-3); line-height: 1.3; }
-    .li .ico { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: var(--sw-r-md); background: var(--c-soft, var(--sw-surface-3)); color: var(--c-text, var(--sw-text-2)); flex: none; }
+    .li .ico { display: grid; place-items: center; inline-size: 34px; block-size: 34px; border-radius: 50%; background: var(--c-soft, var(--sw-surface-3)); color: var(--c-text, var(--sw-text-2)); flex: none; }
     .chain { list-style: none; margin: 0; padding: 2px 16px 12px; display: flex; flex-direction: column; flex: 1; min-block-size: 0; }
     .step { position: relative; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; column-gap: 10px; padding-block-end: 8px; }
     .step::before { content: ''; position: absolute; inset-inline-start: 6px; inset-block: 16px -2px; inline-size: 2px; background: var(--sw-border-strong); }
@@ -167,7 +169,7 @@ export class InvestigateIncidents extends LitElement {
     .step:last-child::before { display: none; }
     .step .dot { position: relative; z-index: 1; inline-size: 14px; block-size: 14px; margin-block-start: 3px; border-radius: 50%; background: var(--c, var(--sw-accent)); box-shadow: 0 0 0 3px var(--sw-surface); }
     .step.wait .dot { background: var(--sw-surface); box-shadow: 0 0 0 2px var(--sw-border-strong), 0 0 0 5px var(--sw-surface); }
-    .step .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-sm); line-height: 1.35; overflow-wrap: anywhere; }
+    .step .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-md); line-height: 1.35; overflow-wrap: anywhere; }
     .step .t2 { font-size: var(--sw-fs-xs); color: var(--sw-text-2); line-height: 1.35; overflow-wrap: anywhere; }
     .step .w { font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-variant-numeric: tabular-nums; padding-block-start: 2px; }
     .step.wait .t1 { color: var(--sw-text-3); font-weight: var(--sw-fw-medium); }
@@ -176,14 +178,15 @@ export class InvestigateIncidents extends LitElement {
     .only-phone { display: none; }
     table.t { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-md); }
     table.t th { text-align: start; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 8px 12px; border-block-end: 1px solid var(--sw-border-strong); white-space: nowrap; background: var(--sw-surface-2); }
-    table.t td { padding: 9px 12px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; white-space: nowrap; }
+    table.t td { padding: 12px 14px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; white-space: nowrap; }
     table.t tbody tr { cursor: pointer; }
     table.t tbody tr:hover { background: var(--sw-hover-wash); }
     table.t tbody tr:last-child td { border-block-end: 0; }
-    td .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+    td .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); font-size: var(--sw-fs-lg); }
+    table.t td.num { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
     td .t2 { display: block; font-size: var(--sw-fs-sm); color: var(--sw-text-3); white-space: normal; }
     .cards { display: none; gap: 8px; padding: 0 12px 12px; }
-    .cards .c { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 8px 12px; display: grid; gap: 2px; background: var(--sw-surface); cursor: pointer; text-align: start; font: inherit; color: inherit; }
+    .cards .c { border: 0; border-radius: var(--sw-r-sm); padding: 10px 12px; min-block-size: 56px; display: grid; gap: 2px; background: var(--sw-surface-2); cursor: pointer; text-align: start; font: inherit; color: inherit; }
     .cards .c .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .cards .c .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); min-inline-size: 0; }
     .listwrap { flex: 1; min-block-size: 0; }
@@ -226,7 +229,7 @@ export class InvestigateIncidents extends LitElement {
       .clock { padding: 3px 8px; font-size: var(--sw-fs-sm); }
       .map { margin: 0 12px 12px; }
       .panel .hd { padding: 10px 12px 6px; }
-      .dr { padding-inline: 12px; grid-template-columns: 56px minmax(0, 1fr) auto; }
+      .dr { padding-inline: 10px; grid-template-columns: 56px minmax(0, 1fr) auto; }
       .dr .when { display: none; }
       .chain, .rows { padding-inline: 12px; }
       table.t { display: none; }

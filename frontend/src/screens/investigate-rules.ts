@@ -26,6 +26,7 @@ import { demoRules } from '../fixtures/catalog';
 import { navigate } from '../router';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, dayTimeText } from '../api/day-format';
 
 const RULE_ICON: Record<string, { icon: IconName; bg: string; fg: string }> = {
@@ -298,23 +299,51 @@ export class InvestigateRules extends LitElement {
     .list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 0;
       max-inline-size: 860px;
+    }
+    sw-card.rulecard {
+      --sw-card-pad: 10px;
+      max-inline-size: 860px;
+    }
+    /* R5-INVESTIGATE-297: a rule is one row - a well inside the hero list card (the sw-card of before put the slotted children in a
+       block, so 60 % of a 130 px card was empty and the toggle fell under the text) */
+    .rulecard {
+      padding: 10px;
     }
     .rule {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 10px 12px;
+      gap: 14px;
+      padding: 10px 14px;
+      min-block-size: 64px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-2);
+      transition: transform var(--sw-t-press) var(--sw-ease-out), background-color var(--sw-t-fast) var(--sw-ease);
+    }
+    .rule + .rule {
+      margin-block-start: 6px;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .rule:hover {
+        background: var(--sw-surface-3);
+      }
+    }
+    .rule:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .rule[data-off] {
+      color: var(--sw-text-3);
     }
     .ic {
       display: grid;
       place-items: center;
-      inline-size: 36px;
-      block-size: 36px;
-      border-radius: var(--sw-r-sm);
+      inline-size: 42px;
+      block-size: 42px;
+      border-radius: 50%;
       background: var(--bg);
       color: var(--fg);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 22%, transparent);
       flex-shrink: 0;
     }
     .txt {
@@ -324,15 +353,26 @@ export class InvestigateRules extends LitElement {
     .txt b {
       display: block;
       font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-lg);
+      color: var(--sw-heading);
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .txt small {
+      display: block;
       color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
+      font-size: var(--sw-fs-sm);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .last {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
       white-space: nowrap;
+      font-variant-numeric: tabular-nums;
     }
     .empty {
       color: var(--sw-text-3);
@@ -401,7 +441,7 @@ export class InvestigateRules extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   render() {
     if (isApi()) return this.renderApi();
@@ -410,19 +450,19 @@ export class InvestigateRules extends LitElement {
         <sw-button slot="actions" variant="primary" icon="plus" @click=${() => navigate('/investigate/rules/new')}>חוק חדש</sw-button>
         <sw-tabs .items=${[{ id: 'rules', label: 'חוקים', count: demoRules.length }, { id: 'notif', label: 'התראות' }, { id: 'sched', label: 'לוחות זמנים' }, { id: 'trig', label: 'Triggers' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${this.tab === 'rules'
-          ? html`<div class="list">
+          ? html`<sw-card class="rulecard list"><div class="list">
               ${demoRules.map((r) => {
                 const ic = RULE_ICON[r.id] ?? RULE_ICON['r-1'];
-                return html`<sw-card flush class="rule" style="--bg:${ic.bg};--fg:${ic.fg}">
-                  <div class="ic"><sw-icon .name=${ic.icon} size=${16}></sw-icon></div>
+                return html`<div class="rule" ?data-off=${!r.enabled} style="--bg:${ic.bg};--fg:${ic.fg}">
+                  <div class="ic"><sw-icon .name=${ic.icon} size=${18}></sw-icon></div>
                   <div class="txt"><b>${r.name}</b><small>${r.trigger} · ${r.scope} · ${r.action}</small></div>
                   <span class="last">הופעל: ${r.last}</span>
                   <sw-toggle ?checked=${r.enabled} label=""></sw-toggle>
                   <sw-button size="sm" @click=${() => navigate(`/investigate/rules/${r.id}`)}>עריכה</sw-button>
                   <sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>
-                </sw-card>`;
+                </div>`;
               })}
-            </div>`
+            </div></sw-card>`
           : html`<sw-card><div class="empty">${this.tab === 'notif' ? 'ערוצי התראה: Push דרך תשתית המערכת, מייל (Beta). ההגדרה מגיעה עם T063.' : this.tab === 'sched' ? 'לוחות זמנים בזמן האתר (Asia/Jerusalem), שעון קיץ לפי התאריך.' : 'Triggers זמינים: אירועי NVR (אדם, רכב, תנועה, חציית קו, ניתוק) ושינויי מצב התקן (allowlist).'}</div></sw-card>`}
       </sw-page>
     `;
@@ -457,17 +497,31 @@ export class InvestigateRuleEditor extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
+    /* R5-INVESTIGATE-297: a dry-run hit is a well with a filled verdict */
     .dry {
-      font-size: var(--sw-fs-sm);
-      padding: 6px 0;
-      border-block-end: 1px solid var(--sw-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+      padding: 9px 12px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-2);
+    }
+    .dry + .dry {
+      margin-block-start: 6px;
+    }
+    .dry[data-fire] {
+      background: var(--sw-success-soft);
     }
     @media (max-width: 1023px) {
       .layout {
         grid-template-columns: 1fr;
       }
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   render() {
     const r = demoRules.find((x) => x.id === this.ruleId) ?? { name: 'חוק חדש', trigger: 'זיהוי אדם', scope: 'חוץ', action: 'התראה' };
@@ -504,9 +558,9 @@ export class InvestigateRuleEditor extends LitElement {
           </div>
           <div class="stack">
             <sw-card heading="בדיקה יבשה על 24 שעות">
-              <div class="dry">10:14 · כניסה ראשית · <sw-badge kind="live" label="היה מפעיל"></sw-badge></div>
-              <div class="dry">09:42 · חצר · <sw-badge kind="neutral" label="מחוץ ללוח הזמנים"></sw-badge></div>
-              <div class="dry">אתמול 23:10 · לובי · <sw-badge kind="live" label="היה מפעיל"></sw-badge></div>
+              <div class="dry" data-fire><span>10:14 · כניסה ראשית</span><sw-badge filled kind="live" label="היה מפעיל"></sw-badge></div>
+              <div class="dry"><span>09:42 · חצר</span><sw-badge filled kind="unknown" label="מחוץ ללוח הזמנים"></sw-badge></div>
+              <div class="dry" data-fire><span>אתמול 23:10 · לובי</span><sw-badge filled kind="live" label="היה מפעיל"></sw-badge></div>
               <div class="hint" style="margin-block-start:8px">2 הפעלות · 0 כפילויות · correlation id לכל אירוע · מניעת לולאה: פעולה שיצרה אירוע לא מפעילה את אותו חוק.</div>
             </sw-card>
           </div>

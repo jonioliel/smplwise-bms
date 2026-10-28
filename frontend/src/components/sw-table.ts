@@ -36,12 +36,14 @@ export class SwTable extends LitElement {
     table {
       inline-size: 100%;
       border-collapse: collapse;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-table-fs, var(--sw-fs-sm));
       min-inline-size: 560px;
     }
+    /* R5-INVESTIGATE-297 (size hooks): a host may ask for taller rows and a larger reading size (the investigation lists do); the defaults
+       are exactly the old values, every other table is unchanged */
     th,
     td {
-      padding: 9px 14px;
+      padding: var(--sw-table-cell-pad, 9px 14px);
       text-align: start;
       border-block-end: 1px solid var(--sw-border);
       vertical-align: middle;

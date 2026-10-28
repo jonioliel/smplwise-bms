@@ -13,6 +13,7 @@ import { cancelExport, deleteExport, exportDownloadUrl, exportManifestUrl, forma
 import { describeError } from '../api/client';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { INVESTIGATE_R5 } from './investigate-r5-css';
 
 const STATE_LABEL: Record<ExportJob['state'], string> = { queued: 'ממתין', running: 'מוריד', done: 'הושלם', partial: 'חלקי', failed: 'נכשל', cancelled: 'בוטל', interrupted: 'הופסק', paused_disk_full: 'מושהה · אין מקום בדיסק' };
 const STATE_KIND: Record<ExportJob['state'], StateKind> = { queued: 'neutral', running: 'live', done: 'recorded', partial: 'partial', failed: 'error', cancelled: 'unknown', interrupted: 'stale', paused_disk_full: 'stale' };
@@ -28,22 +29,55 @@ export class InvestigateExports extends LitElement {
   private timer: number | undefined;
 
   static styles = [css`
+    /* R5-INVESTIGATE-297: a job is a well (tone step, rounded), its percent a display numeral, the bar 8 px; the list has rhythm
+       between wells instead of hairlines */
     .job {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 180px auto;
+      grid-template-columns: minmax(0, 1fr) 220px auto;
       gap: var(--sw-s-3);
       align-items: center;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
+      padding: 12px 14px;
+      margin-block-end: 8px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-2);
       font-size: var(--sw-fs-sm);
     }
     .job:last-child {
-      border-block-end: 0;
+      margin-block-end: 0;
+    }
+    .job strong {
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading);
+    }
+    .job[data-state='fail'] {
+      background: var(--sw-danger-soft);
+    }
+    .job[data-state='done'] {
+      background: var(--sw-success-soft);
+    }
+    .pct {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-block-end: 4px;
+    }
+    .pct b {
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-heading);
+    }
+    .pct span {
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-semibold);
     }
     .bar {
-      block-size: 6px;
-      border-radius: 3px;
-      background: var(--sw-surface-3);
+      block-size: 8px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--sw-text-3) 18%, transparent);
       overflow: hidden;
     }
     .bar i {
@@ -85,7 +119,7 @@ export class InvestigateExports extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   connectedCallback() {
     super.connectedCallback();
@@ -180,9 +214,9 @@ export class InvestigateExports extends LitElement {
     return html`
       <sw-card>
         ${demoJobs.map(
-          (j) => html`<div class="job">
+          (j) => html`<div class="job" data-state=${j.status.startsWith('נכשל') ? 'fail' : j.progress === 100 ? 'done' : 'run'}>
             <div><strong>${j.title}</strong><div class="meta">${j.size} · ${j.hash}</div></div>
-            <div><div class="bar ${j.status.startsWith('נכשל') ? 'fail' : ''}"><i style="inline-size:${j.progress}%"></i></div><div class="meta">${j.status} · ${j.progress}%</div></div>
+            <div><div class="pct"><b>${j.progress}%</b><span>${j.status}</span></div><div class="bar ${j.status.startsWith('נכשל') ? 'fail' : ''}"><i style="inline-size:${j.progress}%"></i></div></div>
             <div class="actions">
               ${j.progress === 100 ? html`<sw-button size="sm" icon="download">הורדה</sw-button>` : j.status.startsWith('נכשל') ? html`<sw-button size="sm" icon="refresh">נסה שוב</sw-button>` : html`<sw-button size="sm" variant="ghost" icon="close">בטל</sw-button>`}
             </div>
