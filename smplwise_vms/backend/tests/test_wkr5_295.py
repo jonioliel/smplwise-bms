@@ -25,8 +25,9 @@ from smplwise.services import wiskey_direct_join as join
 from smplwise.services import wiskey_media_bridge as bridge
 from smplwise.services.wiskey_capture_port import PortError
 
-ORIGINAL_CATALOG_SHA256 = "f707d1a15252e08f87596a1296b476f366d8718f884c5857756f1a6c63f431d7"  # Mac R5 COMMAND_CATALOG.jsonl bytes
-CODE = "fa05c60b001ad1af092a9e43e8f9170388e708c3"
+# WISKEY-MAC-ADOPT-298 item E: the FINAL Mac catalog of 27.10 (04_vectors_catalog/catalog/COMMAND_CATALOG.jsonl) replaces the R5 one
+ORIGINAL_CATALOG_SHA256 = "dd55f9df3bc0480729fc9336d066ab741811cfbfe6806df90620166669937293"  # final COMMAND_CATALOG.jsonl bytes
+CODE = "d5a3ab862fab45537cde2f30358e0e9d1f3f9c8b"
 
 
 @pytest.fixture(autouse=True)
@@ -59,8 +60,8 @@ def sent(server: JoinServer) -> list[str]:
 def test_catalog_counts_names_not_lines_and_skips_provenance() -> None:
     c = wdc.load()
     lines = [json.loads(x) for x in wdc.CATALOG_PATH.read_text(encoding="utf-8").splitlines() if x.strip()]
-    assert len(lines) == 278 and lines[0]["kind"] == "CATALOG_PROVENANCE"
-    assert c.command_count == 277 and c.registered_count == 274 and c.discovered_count == 270
+    assert len(lines) == 280 and lines[0]["kind"] == "CATALOG_PROVENANCE"
+    assert c.command_count == 279 and c.registered_count == 276 and c.discovered_count == 272
     assert len(c.families) == 43 and "direct" in c.families
     assert c.code == CODE and c.source_sha256 == ORIGINAL_CATALOG_SHA256
     direct_only = sorted(e.command for e in c.entries() if e.row_kind == "DIRECT_ONLY_COMMAND")
@@ -100,9 +101,9 @@ def test_a_malformed_catalog_is_refused_whole(mutate: Any, code: str) -> None:
 def test_the_caller_map_covers_every_catalog_family() -> None:
     path = Path(__file__).resolve().parents[3] / "docs" / "integrations" / "wiskey" / "r5" / "CALLER_MAP.json"
     m = json.loads(path.read_text(encoding="utf-8"))
-    assert m["catalog_source_sha256"] == ORIGINAL_CATALOG_SHA256 and m["family_count"] == 43 and m["command_count"] == 277
+    assert m["catalog_source_sha256"] == ORIGINAL_CATALOG_SHA256 and m["family_count"] == 43 and m["command_count"] == 279
     assert set(m["families"]) == set(wdc.load().families)
-    assert sum(len(f["commands"]) for f in m["families"].values()) == 277
+    assert sum(len(f["commands"]) for f in m["families"].values()) == 279
 
 
 # ================================================================ the discovery reader

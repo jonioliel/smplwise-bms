@@ -264,9 +264,11 @@ async def _raw_body(request: Request) -> bytes:
 def _end_row(conn: sqlite3.Connection, principal: Any, t: im.TalkSession) -> None:
     started = t.opened_at or t.created_at
     duration = max(0, int(round(time.time() - started))) if t.opened_at else 0
+    details = {"session": t.ref, "outcome": t.outcome, "duration_s": duration, "frames": t.frames, "presses": t.presses, "transport": t.transport}
+    if getattr(t, "publication_end", None):
+        details["publication_end"] = t.publication_end  # WISKEY-MAC-ADOPT-298 review M2: which native security end stopped the sound
     audit(conn, actor=principal, action="intercom.talk.end", decision="allowed", resource_type="intercom_station", resource_id=t.station_id,
-          reason=t.outcome, request_id=t.request_id,
-          details={"session": t.ref, "outcome": t.outcome, "duration_s": duration, "frames": t.frames, "presses": t.presses, "transport": t.transport})
+          reason=t.outcome, request_id=t.request_id, details=details)
 
 
 def _audit_pruned(conn: sqlite3.Connection) -> None:
@@ -444,6 +446,14 @@ async def _pump(websocket: WebSocket, t: im.TalkSession, channel: im.TalkChannel
                     return t.stop_requested
                 if lease.should_stop():
                     return "access_lost"
+                # WISKEY-MAC-ADOPT-298 item A (Mac ARX_DRAIN_REVIEW.json): a native terminal / revocation that arrived WHILE `confirm` was
+                # awaited ends publication here - still with no await before `send_bytes`. A natural end keeps its admitted tail. The
+                # outcome is the one `upstream()` reports for a native end (`upstream_closed`), so the race of the two tasks cannot change it.
+                current = getattr(channel, "publication_current", None)
+                if current is not None and not current():
+                    # review M2: the outcome stays `upstream_closed`; the audit row names the security end that stopped it
+                    t.publication_end = getattr(channel, "publication_end", None) or "closed"
+                    return "upstream_closed"
                 await websocket.send_bytes(packet)
             return "upstream_closed"  # the station's sound ended (its connection is gone): the talk is over too
         finally:
