@@ -513,6 +513,9 @@ class TemplateSender:
           (`TRANSPORT_V2_PROVIDER`, unit D; set but answering None refuses, with no fallback), else the installed transport. It must
           offer `send_v2`, else refused before any hand-over.
         `accepted` is the provider's acceptance only (delivery unknown); anything but a closed v2 result is UNKNOWN, never retried."""
+        # review M4: the window is an INPUT check - refused before the switch, the registry or the shared budget is consulted
+        if window not in WINDOW_STATES:
+            return _refuse("invalid_fields")
         if person_revision is not None and expected_person_revision is not None and person_revision != expected_person_revision:
             return _refuse("invalid_reference")
         revision = person_revision if person_revision is not None else expected_person_revision
@@ -545,8 +548,7 @@ class TemplateSender:
         # approved template is sent as a template even inside an open conversation window - this route never chooses free text and never
         # infers the window. So `window` no longer refuses here (`send`, v1, keeps its F3C TP-04 rule). Nothing else is relaxed: the switch
         # + permit, the registered reference and its WisKey pair, the shared budget and the transport selection above/below all still hold.
-        if window not in WINDOW_STATES:
-            return _refuse("invalid_fields")
+        # (`window` itself was checked first, before the budget: review M4.)
         transport = self._v2_transport()
         send_v2 = getattr(transport, "send_v2", None)
         if transport is None or isinstance(transport, UnwiredTransport) or not callable(send_v2):
