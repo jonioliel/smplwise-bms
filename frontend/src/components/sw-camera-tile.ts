@@ -265,9 +265,12 @@ export class SwCameraTile extends LitElement {
       white-space: nowrap;
     }
     /* R5-LIVE-297: the camera's name is the tile's title - 14 px bold on the picture */
-    :host(:not([compact])) .label {
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-bold);
+    /* loop 2: on a phone's two-column wall a 14 px name ran into the floor line - the step up is for tablet and desktop widths */
+    @media (min-width: 768px) {
+      :host(:not([compact])) .label {
+        font-size: var(--sw-fs-md);
+        font-weight: var(--sw-fw-bold);
+      }
     }
     :host([compact]) .label {
       font-size: var(--sw-fs-xs);
