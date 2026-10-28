@@ -39,7 +39,28 @@ Not merged, not tagged, not installed. Tests: fakes and synthetic data only.
 
 ## 3. Reconciliation table (before = `origin/main` 0a3b04bbe, after = this branch head; first 16 hex of SHA-256)
 
-RECONCILIATION_TABLE
+| File | Before | After | Status |
+|---|---|---|---|
+| `smplwise_vms/backend/smplwise/routers/intercom_media.py` | `71236168096443d5` | `195feeba20cde753` | changed |
+| `smplwise_vms/backend/smplwise/services/intercom_media.py` | `1895b103e4989e61` | `cbfa5b105fa7a291` | changed |
+| `smplwise_vms/backend/smplwise/services/wiskey_listen_adapter.py` | `88242820268bb8ca` | `88242820268bb8ca` | same |
+| `smplwise_vms/backend/smplwise/routers/intercom_listen.py` | `eb6ef0e872e949eb` | `eb6ef0e872e949eb` | same |
+| `smplwise_vms/backend/smplwise/services/wa_template_send.py` | `be5ac851fc27e3b7` | `190fb8de756f977e` | changed |
+| `smplwise_vms/backend/smplwise/services/wa_template_v2_contract.py` | `73facd9a950ae139` | `7dc6c378029ba347` | changed |
+| `smplwise_vms/backend/smplwise/services/wiskey_service_write.py` | `absent` | `26145ac87c270eab` | new |
+| `smplwise_vms/backend/smplwise/services/access_service_writer.py` | `79534278a37889da` | `e649f6cfd0bd8c5b` | changed |
+| `smplwise_vms/backend/smplwise/services/access_grant_engine.py` | `ac17d67ee7362aa7` | `034f487cadbf5601` | changed |
+| `smplwise_vms/backend/smplwise/services/wiskey_peer.py` | `4f31aeab419f0cbd` | `e5c2fe1b7ceab92b` | changed |
+| `smplwise_vms/backend/smplwise/services/wiskey_capture_map.py` | `1d2160dad84eb331` | `1d2160dad84eb331` | same |
+| `smplwise_vms/backend/smplwise/services/wiskey_emergency_direct.py` | `d98afe71f2f1e16a` | `d98afe71f2f1e16a` | same |
+| `smplwise_vms/backend/smplwise/services/wiskey_people_csv.py` | `0f55bfaf1986cbf7` | `0f55bfaf1986cbf7` | same |
+| `smplwise_vms/backend/smplwise/services/wiskey_direct_discovery.py` | `eaae1e2a692f3dff` | `1fade6d88b03162f` | changed |
+| `smplwise_vms/backend/smplwise/services/wiskey_direct_catalog.py` | `8e620bbe07954b29` | `987c790d405658ea` | changed |
+| `smplwise_vms/backend/smplwise/services/wiskey_r5_catalog.jsonl` | `a9e8ef4c2def85f0` | `6e1513b62849cd34` | changed |
+| `docs/integrations/wiskey/r5/CALLER_MAP.json` | `7aada5b3252a42d4` | `282279abbc3785fb` | changed |
+| `smplwise_vms/backend/tests/test_wkr5_295.py` | `eb573135cf3c0af7` | `9c61c17ea6b0c0c5` | changed |
+| `smplwise_vms/backend/tests/test_tplv2_295.py` | `6fca382413600fe0` | `9999e8e94bef404a` | changed |
+| `smplwise_vms/backend/tests/test_wiskey_mac_adopt_298.py` | `absent` | `35a7c262656ab6c0` | new |
 
 ## 4. Per-item states
 
@@ -59,3 +80,14 @@ RECONCILIATION_TABLE
 - `management/tasks.json` / test catalog rows were not added on this branch (lead's call; `scripts/project_status.py --write` not run).
 - Build artifact: NOT produced (no `npm run build:addon`, no add-on image) - backend-only source change.
 - Owner: grant reference source (OWNER-CONFIG), session-day target, installation instruction and per-action notices (OWNER-LIVE).
+
+## 6. Tests run (synthetic, fakes only; venv .venv\Scripts\python.exe -m pytest, each run kept with stdout/stderr/JUnit outside Git)
+
+| Run | Scope | Result |
+|---|---|---|
+| run01 | tests/test_wiskey_mac_adopt_298.py (first version) | 44 PASS, 1 FAIL (a test that wrongly matched the docstring; test fixed) |
+| run02 | tests/test_wiskey_mac_adopt_298.py | 45 PASS, 0 FAIL, 0 ERROR, 0 SKIP |
+| run03 | 33 impacted suites in one process | INTERRUPTED by the agent after ~40 min at 13 % (one F visible in partial output, not identified); counts not used |
+| run04 | the same 33 suites, one process per file | 1093 tests: 1090 PASS, 0 FAIL, 0 ERROR, 3 SKIP (test_t06_admission_295.py: pre-existing documented FINDING-3/4/5 xfail-style skips, unchanged by this branch) |
+
+Full suite: NOT_RUN. Runs are not summed (run02 and run04 do not overlap).
