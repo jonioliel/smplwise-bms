@@ -84,7 +84,7 @@ sequential. Soft delete = `archived_at`.
 | `name` | TEXT NOT NULL | 1-80 chars, unique among non-archived calendars (case-folded) |
 | `type` | TEXT NOT NULL | `room` \| `team` \| `maintenance` \| `event` |
 | `description` | TEXT | 0-500 chars, plain text |
-| `color` | TEXT NOT NULL | a palette KEY, not a hex value: `blue`, `indigo`, `violet`, `magenta`, `rose`, `orange`, `amber`, `teal`, `cyan`, `slate`, `brown`, `sky`. **No green key exists** (green is status only). The UI maps keys to tokens per skin and scheme |
+| `color` | TEXT NOT NULL | a palette KEY, not a hex value, in this fixed order: `blue`, `rose`, `cyan`, `orange`, `violet`, `brown`, `magenta`, plus the neutral `slate` (imported / read-only calendars only). **No green key exists** (green is status only); no amber (it is the warning status). The 7 hues passed the dataviz palette validator in light and dark (mockup round 6, `inspect/dataviz-validate-palette.txt`); a first 10-hue set failed (sky/cyan and violet/indigo indistinguishable). Calendars beyond 7 reuse keys; identity is never colour alone (every chip and bar carries the calendar or event name). The UI maps keys to tokens per skin and scheme |
 | `tz` | TEXT NOT NULL | IANA zone; default = `time.zone` at creation; changing it later does not move existing instants (section 5) |
 | `owner_user_id` | TEXT NOT NULL | the accountable manager (one person); also gets a `manage` membership row automatically |
 | `area_ref` | TEXT | room: the area / zone / org location id it stands for (nullable for non-spatial rooms) |
@@ -695,6 +695,16 @@ with permission-aware fields, approval inbox, maintenance window with the overla
 calendar, retention, per-calendar permissions), sync connections. Rules: frozen shell (rail, tabs, logos, titles, floor chips, order of
 controls), no scrolling inside control screens (paging), green only for status, calendar colours from the non-green palette keys,
 no Home Assistant words.
+
+Mockup round 6 (2026-10-29, `private/design-system-2026-10-27/round6/calendars/`, local only, invented data, product tokens generated
+from `frontend/src/design/css.ts`): 8 screens and their states - month / week / day with the calendar switcher; rooms timeline (time
+axis left-to-right inside the RTL page, like the schedules day bar; 6-hour window on the phone); new / edit drawer in three permission
+variants (operator: own only, "on behalf" locked; site_admin: on behalf + guest details with the retention notice; calendar manager:
+no approval, delete); approvals inbox with series approval and per-occurrence rejection; maintenance window in the three overlap modes;
+calendars management; settings tabs (overlap, approval per calendar, per-calendar permissions, guest retention); sync connections
+(iCal, Google, Microsoft in that order). Kind marks used on every surface: confirmed = tinted fill, pending = dashed outline,
+maintenance = diagonal hatch, displaced = amber hatch + strike-through, closed hours = fine hatch, imported = neutral well.
+164 screenshots (classic + domus, light + dark, 1440x900 + 390x844, worst-case and empty data): 0 with page scroll or sideways overflow.
 
 ## 17. Test plan (phase by phase; nothing here has been run)
 
