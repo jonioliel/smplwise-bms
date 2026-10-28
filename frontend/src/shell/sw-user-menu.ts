@@ -421,8 +421,21 @@ export class SwUserMenu extends LitElement {
     return Array.from(this.renderRoot.querySelectorAll<HTMLElement>('button, a[href], summary'));
   }
 
+  /** The sections are <details> inside the account level: they are re-created closed whenever the level is drawn again, so the
+   * "open" flags (which gate the lazily loaded children) must be dropped with them - else a hidden section keeps its child
+   * mounted and loaded, and the flag disagrees with what the person sees. */
+  private closeSections() {
+    this.sessionsOpen = false;
+    this.wiskeyOpen = false;
+    this.homeOpen = false;
+    this.factorOpen = false;
+    this.deviceOpen = false;
+    this.staffOpen = false;
+  }
+
   private goLevel(level: 'main' | 'account') {
     this.level = level;
+    this.closeSections();
     void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(level === 'account' ? 'header button[data-menu-back]' : 'ul a[href], ul button')?.focus({ preventScroll: true }));
   }
 
@@ -439,12 +452,7 @@ export class SwUserMenu extends LitElement {
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('open') && this.open) {
       this.level = 'main';
-      this.sessionsOpen = false;
-      this.wiskeyOpen = false;
-      this.homeOpen = false;
-      this.factorOpen = false;
-      this.deviceOpen = false;
-      this.staffOpen = false;
+      this.closeSections();
     }
   }
 
