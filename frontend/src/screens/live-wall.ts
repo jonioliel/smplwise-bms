@@ -322,6 +322,8 @@ export class LiveWall extends LitElement {
       font-variant-numeric: tabular-nums;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
       transition: background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     }
     .layouts button.on {

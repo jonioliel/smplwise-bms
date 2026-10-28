@@ -118,6 +118,9 @@ export class SwCameraTile extends LitElement {
     :host {
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
     :host(:active) {
       transform: scale(var(--sw-press-scale, 0.985));

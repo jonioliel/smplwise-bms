@@ -575,6 +575,24 @@ export class SystemSecurityCameras extends LitElement {
       border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
     }
+    /* break-ui (cams-worst, 390 px): a long camera name ran past the card's edge and pushed the WebRTC mark and the pencil off the
+       screen - the name takes the head's first line and wraps, the mark and the pencil keep their own line end */
+    .card .head {
+      flex-wrap: wrap;
+    }
+    .card .head .cam {
+      flex: 1 1 auto;
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
+    /* break-ui (desktop): a long name widened the whole table into a sideways scroll - the name is clamped to one line at 280 px */
+    td[data-col='camera'] .cam {
+      display: inline-block;
+      max-inline-size: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: middle;
+    }
     .card.down {
       background: color-mix(in srgb, var(--sw-offline) 16%, var(--sw-surface));
     }
