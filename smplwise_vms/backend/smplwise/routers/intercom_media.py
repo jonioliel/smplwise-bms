@@ -444,6 +444,12 @@ async def _pump(websocket: WebSocket, t: im.TalkSession, channel: im.TalkChannel
                     return t.stop_requested
                 if lease.should_stop():
                     return "access_lost"
+                # WISKEY-MAC-ADOPT-298 item A (Mac ARX_DRAIN_REVIEW.json): a native terminal / revocation that arrived WHILE `confirm` was
+                # awaited ends publication here - still with no await before `send_bytes`. A natural end keeps its admitted tail. The
+                # outcome is the one `upstream()` reports for a native end (`upstream_closed`), so the race of the two tasks cannot change it.
+                current = getattr(channel, "publication_current", None)
+                if current is not None and not current():
+                    return "upstream_closed"
                 await websocket.send_bytes(packet)
             return "upstream_closed"  # the station's sound ended (its connection is gone): the talk is over too
         finally:

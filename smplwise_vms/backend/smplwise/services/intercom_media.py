@@ -933,6 +933,27 @@ class WiskeyBridgeTalkChannel:
             if time.monotonic() - received <= self.INCOMING_MAX_AGE_S:
                 return packet
 
+    # WISKEY-MAC-ADOPT-298 item A (Mac 01_terminal_listen/ARX_DRAIN_REVIEW.json): the native terminals that END publication of the
+    # station's sound at once - an expiry, a revocation, a changed source, a lost connection, an invalid packet. A natural end (`ended`,
+    # `stopped`, `idle_timeout`, an unknown reason read as `upstream_closed`) keeps the tail that was already admitted while current.
+    SECURITY_ENDS = frozenset({"expired", "access_lost", "source_changed", "connection_closed", "talk_audio_invalid"})
+    publication_end: str | None = None
+
+    def publication_current(self) -> bool:
+        """True while a packet of this talk's sound may still reach the browser NOW (no await: the router calls it right before its
+        publication, after its awaited lease confirm). Once False it stays False (`publication_end` keeps the first terminal)."""
+        if self.publication_end is not None:
+            return False
+        pump, link = self.pump, self.link
+        code = getattr(pump, "end_code", None)
+        if time.time() >= self.expires_at:
+            self.publication_end = "expired"
+        elif code in self.SECURITY_ENDS:
+            self.publication_end = code
+        elif link is None or getattr(link, "closed", False):
+            self.publication_end = "connection_closed"
+        return self.publication_end is None
+
     async def send_frame(self, frame: bytes) -> None:
         if self.pump is not None:
             self.pump.push(frame)
@@ -946,6 +967,8 @@ class WiskeyBridgeTalkChannel:
 
     async def close(self, reason: str) -> None:
         self._future()
+        if self.publication_end is None:  # a close fences publication before its first await
+            self.publication_end = reason if reason in self.SECURITY_ENDS else "closed"
         pump, link, ref = self.pump, self.link, self.ref
         if pump is not None:
             await pump.stop()  # the only sender is gone before the close goes out: one request at a time to the end
