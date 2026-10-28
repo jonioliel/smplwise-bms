@@ -69,6 +69,50 @@ export class SwStatePanel extends LitElement {
     }
     /* R5-SYSTEM-297: a whole-screen state is the one object on the page - a 64 px tile that sits on the page (the floating shadow,
        the 1 px light line), a 20/700 heading, a 14 px hint in the secondary ink; the compact row keeps its 34 px tile */
+    /* R5-SYSTEM-297 loop 2: the whole-screen state is a HERO CARD (the P8 ladder's top step), not a note floating in a void - a
+       surface with the large radius, shadow 2 and the light line, 32 px of padding, capped at 560 px; it enters once (opacity +
+       scale 0.97 -> 1, 220 ms ease-out; opacity only under reduced motion). The compact row stays flat. */
+    .box {
+      display: flex;
+      flex-direction: column;
+      align-items: inherit;
+      text-align: inherit;
+      gap: var(--sw-s-3);
+      inline-size: min(100%, 560px);
+      box-sizing: border-box;
+      padding: 32px 36px;
+      border-radius: var(--sw-r-xl, var(--sw-r-lg));
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+      animation: state-in 220ms var(--sw-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+    }
+    :host([compact]) .box {
+      display: contents;
+      animation: none;
+    }
+    @keyframes state-in {
+      from {
+        opacity: 0;
+        transform: scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .box {
+        animation: state-fade 160ms ease both;
+      }
+      @keyframes state-fade {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+    }
     .icon {
       display: grid;
       place-items: center;
@@ -173,6 +217,7 @@ export class SwStatePanel extends LitElement {
     const hint = (rawCode ? '' : this.hint) || (this.quiet ? '' : preset.hint());
     const icon = !forbidden && this.state === 'empty' && this.icon ? this.icon : preset.icon;
     return html`
+      <div class="box">
       <div class="icon" data-look=${forbidden ? 'forbidden' : ''} data-icon=${icon} aria-hidden="true"><sw-icon .name=${icon} size=${this.compact ? 20 : 30}></sw-icon></div>
       <div class="text" role="status">
         <h4>${this.heading || preset.title()}</h4>
@@ -182,6 +227,7 @@ export class SwStatePanel extends LitElement {
       ${this.actionLabel && !forbidden
         ? html`<sw-button variant=${this.state === 'error' ? 'primary' : 'secondary'} size=${this.compact ? 'sm' : 'md'} @click=${() => this.dispatchEvent(new CustomEvent('action', { bubbles: true, composed: true }))}>${this.actionLabel}</sw-button>`
         : ''}
+      </div>
     `;
   }
 }

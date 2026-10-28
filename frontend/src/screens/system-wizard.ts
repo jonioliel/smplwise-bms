@@ -427,10 +427,11 @@ export class SystemWizard extends LitElement {
     }
     /* R5-SYSTEM-297: a step is a card of the ladder (the large radius, shadow 2 + the light line, a 17/700 title); its state stays a
        filled edge and a filled pill (status as a field) */
+    /* loop 2 (impeccable detect: "side-tab accent border" on the 5 px edge): the status moves off the card edge into the step
+       disc, a FILLED field (success / danger / warning soft + the dark ink), beside the filled status pill */
     .step {
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-inline-start: 5px solid var(--sw-border-strong);
       border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
       padding: 16px 18px;
@@ -439,14 +440,17 @@ export class SystemWizard extends LitElement {
       gap: 10px;
       scroll-margin-block-start: 12px;
     }
-    .step.done {
-      border-inline-start-color: var(--sw-live);
+    .step.done .num {
+      background: var(--sw-success-soft);
+      color: var(--sw-success-text);
     }
-    .step.failed {
-      border-inline-start-color: var(--sw-danger);
+    .step.failed .num {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
     }
-    .step.todo {
-      border-inline-start-color: var(--sw-warning);
+    .step.todo .num {
+      background: var(--sw-warning-soft);
+      color: var(--sw-warning-text);
     }
     .step header {
       display: flex;
@@ -637,15 +641,30 @@ export class SystemWizard extends LitElement {
       overflow-wrap: anywhere;
       min-inline-size: 0;
     }
+    /* loop 2: a toned fact value is a FILLED pill (status as a field), not a coloured word on white */
+    dd.ok,
+    dd.warn,
+    dd.err {
+      display: inline-flex;
+      align-items: center;
+      justify-self: end;
+      min-block-size: 24px;
+      padding: 1px 10px;
+      border-radius: var(--sw-r-pill);
+      font-weight: var(--sw-fw-semibold);
+      line-height: 1.4;
+    }
     dd.ok {
-      color: var(--sw-success);
+      background: var(--sw-success-soft);
+      color: var(--sw-success-text);
     }
     dd.warn {
-      color: var(--sw-warning);
+      background: var(--sw-warning-soft);
+      color: var(--sw-warning-text);
     }
     dd.err {
-      color: var(--sw-danger);
-      font-weight: var(--sw-fw-semibold);
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
     }
     .foot {
       font-size: var(--sw-fs-xs);

@@ -83,9 +83,12 @@ export const settingsLadderStyles = css`
     /* the card step: sw-card reads these (components/sw-card.ts) - the skins keep their material, the step and the title are the settings' */
     --sw-card-radius: var(--sw-r-lg);
     --sw-card-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
-    --sw-card-title-fs: var(--sw-fs-xl);
+    --sw-card-title-fs: var(--sw-fs-2xl);
     --sw-card-title-fw: var(--sw-fw-bold);
-    --sw-card-pad: 16px;
+    --sw-card-pad: 18px;
+    /* loop 2 (visible-difference test): the well is a real step down from the card, not a near-white wash - surface-2 pulled a
+       quarter of the way toward the border tone; the skins' own surface-2 / border decide the hue, so domus and crystal stay glass */
+    --sw-well: color-mix(in srgb, var(--sw-surface-2) 76%, var(--sw-border));
   }
   /* press feedback (emil-design-eng: a pressable thing gives on pointer-down; 120 ms, transform only) */
   .seg button,
@@ -161,15 +164,15 @@ export const settingsStyles = css`
     justify-content: space-between;
     align-items: center;
     gap: var(--sw-s-3) var(--sw-s-4);
-    padding: 12px 14px;
+    padding: 14px 16px;
     border: 0;
     border-radius: var(--sw-r-md);
-    background: var(--sw-surface-2);
+    background: var(--sw-well, var(--sw-surface-2));
     font-size: var(--sw-fs-sm);
     min-inline-size: 0;
   }
   .row + .row {
-    margin-block-start: 6px;
+    margin-block-start: 8px;
   }
   .row:last-child {
     border-block-end: 0;
@@ -184,7 +187,7 @@ export const settingsStyles = css`
     gap: 2px;
     min-inline-size: 0;
     flex: 1 1 220px;
-    font-size: var(--sw-fs-md);
+    font-size: var(--sw-fs-lg);
     font-weight: var(--sw-fw-semibold);
     color: var(--sw-heading, var(--sw-text));
     letter-spacing: -0.005em;

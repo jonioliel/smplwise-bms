@@ -204,7 +204,8 @@ export class ArxLogin extends LitElement {
       padding: 8px 14px;
       border-radius: var(--sw-r-md);
       border: 1px solid transparent;
-      background: var(--sw-surface-2, var(--sw-surface));
+      /* loop 2: the well is a real step down from the card (surface-2 pulled toward the border tone), so an empty field reads as a field */
+      background: color-mix(in srgb, var(--sw-surface-2, var(--sw-surface)) 76%, var(--sw-border));
       color: var(--sw-text);
       box-sizing: border-box;
       inline-size: 100%;
@@ -375,7 +376,8 @@ export class ArxLogin extends LitElement {
       color: var(--sw-accent-text, var(--sw-accent));
     }
     button.secondary:hover:not(:disabled) {
-      background: var(--sw-surface-2, var(--sw-surface));
+      /* loop 2: the well is a real step down from the card (surface-2 pulled toward the border tone), so an empty field reads as a field */
+      background: color-mix(in srgb, var(--sw-surface-2, var(--sw-surface)) 76%, var(--sw-border));
     }
     .passkey-only {
       display: flex;
