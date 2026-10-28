@@ -78,14 +78,16 @@ def test_switch_on_stages_the_pinned_bundle_and_requests_one_restart_per_digest(
     assert "path" not in str(again["wiskey_native"]).lower() and str(ha_cfg) not in str(again["wiskey_native"])
 
 
-def test_a_changed_installed_tree_is_restaged_but_the_same_digest_is_never_restarted_twice(settings: Any, ha_cfg: Path,
-                                                                                          supervisor: dict[str, list[Any]]) -> None:
+def test_a_tree_edited_after_staging_is_never_overwritten_and_never_restarted(settings: Any, ha_cfg: Path,
+                                                                             supervisor: dict[str, list[Any]]) -> None:
+    # review H3: an installed tree whose digest is not the one Arx staged last is someone else's - refused, left exactly as it is
     app = _app(settings, True)
     bridge_install.install(app.state.db, settings)
-    (ha_cfg / "custom_components" / "hikvision_intercom" / "const.py").write_text("# edited\n", encoding="utf-8")
+    edited = ha_cfg / "custom_components" / "hikvision_intercom" / "const.py"
+    edited.write_text("# edited\n", encoding="utf-8")
     st = bridge_install.install(app.state.db, settings)
-    assert st["wiskey_native"]["state"] == "staged" and st["wiskey_native"]["restart"] == "already_requested"
-    assert len(supervisor["restart"]) == 1
+    assert st["wiskey_native"]["state"] == "refused" and st["wiskey_native"]["code"] == "native_foreign_installed"
+    assert edited.read_text(encoding="utf-8") == "# edited\n" and len(supervisor["restart"]) == 1
 
 
 def test_a_failed_restart_answer_is_never_replayed(settings: Any, ha_cfg: Path, supervisor: dict[str, list[Any]],

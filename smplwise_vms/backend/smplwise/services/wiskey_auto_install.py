@@ -22,6 +22,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import stat
 import sys
 from pathlib import Path
@@ -456,17 +457,72 @@ def verify_pin(source: Path) -> dict[str, Any]:
     return pin
 
 
-def stage_native_bundle(config_root: Path, source: Path) -> str:
-    """The delivery's `install_native_bundle`, by content: copy the pinned bundle into `<config>/custom_components/hikvision_intercom`
-    when the installed tree differs from it (a stable version label never hides a new source). `up_to_date` | `staged`."""
-    from .bridge_install import _copy_tree
+STAGED_DIGEST_KEY = "wiskey.installation.staged_digest"  # the content digest of the tree Arx itself staged last (review H3)
+BACKUP_SUFFIX = ".smplwise-backup"  # the previous tree, kept as ONE rollback copy (a dotted name is never loaded as a component)
+_SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$")
 
+
+def semver_key(version: Any) -> tuple[Any, ...] | None:
+    """A sortable key of a semantic version (`2.0.0-rc.38` < `2.0.0`), None when it is not one."""
+    m = _SEMVER.match(version) if isinstance(version, str) else None
+    if m is None:
+        return None
+    pre = m.group(4)
+    ids = tuple((0, int(p), "") if p.isdigit() else (1, 0, p) for p in pre.split(".")) if pre else ()
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3)), 0 if pre else 1, ids)
+
+
+def _manifest_version(tree: Path) -> Any:
+    try:
+        return json.loads((tree / "manifest.json").read_text(encoding="utf-8")).get("version")
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def _swap_with_backup(source: Path, target: Path) -> None:
+    """Copy `source` next to `target`, keep the current `target` as the one rollback backup, then swap. A failed swap puts the
+    previous tree back."""
+    import shutil
+
+    tmp = target.with_name(target.name + ".smplwise-new")
+    backup = target.with_name(target.name + BACKUP_SUFFIX)
+    if tmp.exists():
+        shutil.rmtree(tmp)
+    shutil.copytree(source, tmp, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store"))
+    if not target.exists():
+        tmp.rename(target)
+        return
+    if backup.exists():
+        shutil.rmtree(backup)
+    target.rename(backup)
+    try:
+        tmp.rename(target)
+    except OSError:
+        backup.rename(target)  # roll back: the previous tree stays installed
+        raise
+
+
+def stage_native_bundle(config_root: Path, source: Path, staged_digest: str | None = None) -> str:
+    """The delivery's `install_native_bundle`, by content, with the review H3 guards. `up_to_date` (the target already is the source),
+    `staged` (copied: the target was missing, or it is exactly the tree Arx staged last - `staged_digest` - and the source is not
+    older), `native_newer_installed` (the installed component's version is newer than the bundle: never downgraded) or
+    `native_foreign_installed` (a tree Arx did not stage - installed or edited by someone else: never overwritten). The previous tree is
+    kept as `hikvision_intercom.smplwise-backup`."""
     verify_pin(source)
     target = Path(config_root) / "custom_components" / NATIVE_DOMAIN
-    if target.is_dir() and source_digest(target) == source_digest(source):
-        return "up_to_date"
+    if target.is_symlink() or (target.exists() and not target.is_dir()):
+        return "native_foreign_installed"
+    if target.is_dir():
+        current = source_digest(target)
+        if current == source_digest(source):
+            return "up_to_date"
+        installed_v, source_v = semver_key(_manifest_version(target)), semver_key(_manifest_version(source))
+        if installed_v is not None and (source_v is None or installed_v > source_v):
+            return "native_newer_installed"
+        if staged_digest is None or current != staged_digest:
+            return "native_foreign_installed"
     (Path(config_root) / "custom_components").mkdir(exist_ok=True)
-    _copy_tree(source, target)
+    _swap_with_backup(source, target)
     return "staged"
 
 
@@ -503,6 +559,27 @@ def request_component_restart(db: Any, settings: Any, source: Path, *, conn: Any
     return "requested"
 
 
+def _staged_digest(db: Any, conn: Any) -> str | None:
+    from ..db import get_setting
+
+    if conn is not None:
+        return get_setting(conn, STAGED_DIGEST_KEY) or None
+    with db.connection(mode="read", label="wiskey staged digest") as c:
+        return get_setting(c, STAGED_DIGEST_KEY) or None
+
+
+def _store_staged_digest(db: Any, conn: Any, value: str) -> None:
+    from ..db import get_setting, set_setting
+
+    if conn is not None:
+        if get_setting(conn, STAGED_DIGEST_KEY) != value:
+            set_setting(conn, STAGED_DIGEST_KEY, value)
+        return
+    with db.write_aside(label="wiskey staged digest") as c:
+        if get_setting(c, STAGED_DIGEST_KEY) != value:
+            set_setting(c, STAGED_DIGEST_KEY, value)
+
+
 def installer_step(db: Any, settings: Any, config_root: Path, bridge_source: Path | None, *, conn: Any = None, restart: bool) -> dict[str, Any]:
     """Called by `bridge_install.install` after the bridge copy. Switch off: nothing (state `off`). Switch on: verify the pin, stage
     the native bundle, and - when the copy changed something and `restart` is asked - one restart per digest. Never raises; never
@@ -516,7 +593,11 @@ def installer_step(db: Any, settings: Any, config_root: Path, bridge_source: Pat
         return dict(NATIVE)
     try:
         NATIVE["version"] = json.loads((source / "manifest.json").read_text(encoding="utf-8")).get("version")
-        staged = stage_native_bundle(config_root, source)
+        staged = stage_native_bundle(config_root, source, _staged_digest(db, conn))
+        if staged in ("native_newer_installed", "native_foreign_installed"):
+            NATIVE.update(state="refused", code=staged, restart=None)  # the installed tree is left exactly as it is
+            return dict(NATIVE)
+        _store_staged_digest(db, conn, source_digest(source))
         NATIVE.update(state=staged, code=None)
         if restart and staged == "staged":
             NATIVE["restart"] = request_component_restart(db, settings, source, conn=conn)

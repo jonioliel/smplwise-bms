@@ -148,3 +148,110 @@ def test_h2_backup_does_not_carry_the_installation_keys_and_a_restore_never_writ
 def test_h2_the_document_no_longer_claims_the_switch_is_simply_not_exported() -> None:
     doc = (REPO / "docs/changes/WISKEY-ADOPT-2272.md").read_text(encoding="utf-8")
     assert "kept out of backups" in doc and "SETTINGS_KEEP" in doc
+
+# ================================================================ H3: staging never overwrites a tree Arx did not stage, never downgrades
+
+BUNDLE = REPO / "smplwise_vms" / "integration" / "hikvision_intercom"
+
+
+def _pinned_copy(root: Path, version: str | None = None, marker: str | None = None) -> Path:
+    """A synthetic pinned bundle: the real one copied, optionally with another manifest version / one changed file, re-pinned."""
+    import hashlib
+    import shutil
+
+    src = root / "hikvision_intercom"
+    shutil.copytree(BUNDLE, src, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    if version is not None:
+        manifest = json.loads((src / "manifest.json").read_text(encoding="utf-8"))
+        manifest["version"] = version
+        (src / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    if marker is not None:
+        (src / "synthetic_marker.txt").write_text(marker, encoding="utf-8")
+    files = wai._tree_files(src)
+    tree = hashlib.sha256()
+    for name in sorted(files):
+        tree.update(name.encode("utf-8") + b"\0" + files[name].encode("ascii") + b"\n")
+    (root / wai.PIN_NAME).write_text(json.dumps({"files": files, "tree_sha256": tree.hexdigest()}), encoding="utf-8")
+    return src
+
+
+@pytest.fixture()
+def cfg(tmp_path: Path) -> Path:
+    root = tmp_path / "ha"
+    (root / "custom_components").mkdir(parents=True)
+    return root
+
+
+def test_h3_semver_order() -> None:
+    assert wai.semver_key("2.0.0-rc.38") < wai.semver_key("2.0.0-rc.39") < wai.semver_key("2.0.0") < wai.semver_key("2.0.1")
+    assert wai.semver_key("2.0.0-rc.9") < wai.semver_key("2.0.0-rc.10") and wai.semver_key("rc38") is None
+
+
+def test_h3_a_missing_target_is_staged_and_an_identical_one_is_up_to_date(cfg: Path, tmp_path: Path) -> None:
+    src = _pinned_copy(tmp_path / "a")
+    assert wai.stage_native_bundle(cfg, src, None) == "staged"
+    assert wai.stage_native_bundle(cfg, src, None) == "up_to_date"
+
+
+def test_h3_a_newer_installed_tree_is_refused_and_left_as_it_is(cfg: Path, tmp_path: Path) -> None:
+    newer = _pinned_copy(tmp_path / "newer", version="2.0.1")
+    wai.stage_native_bundle(cfg, newer, None)
+    target = cfg / "custom_components" / "hikvision_intercom"
+    before = wai.source_digest(target)
+    older = _pinned_copy(tmp_path / "older")  # the image's rc.38
+    # refused even when the newer tree is the one Arx staged itself (an older image never downgrades)
+    assert wai.stage_native_bundle(cfg, older, before) == "native_newer_installed"
+    assert wai.source_digest(target) == before and not target.with_name("hikvision_intercom" + wai.BACKUP_SUFFIX).exists()
+
+
+def test_h3_a_foreign_tree_is_refused(cfg: Path, tmp_path: Path) -> None:
+    foreign = _pinned_copy(tmp_path / "foreign", version="1.9.0")
+    wai.stage_native_bundle(cfg, foreign, None)
+    target = cfg / "custom_components" / "hikvision_intercom"
+    before = wai.source_digest(target)
+    src = _pinned_copy(tmp_path / "src")
+    assert wai.stage_native_bundle(cfg, src, None) == "native_foreign_installed"
+    assert wai.stage_native_bundle(cfg, src, "0" * 64) == "native_foreign_installed"
+    assert wai.source_digest(target) == before
+
+
+def test_h3_arx_s_own_tree_is_replaced_and_kept_as_the_rollback_backup(cfg: Path, tmp_path: Path) -> None:
+    first = _pinned_copy(tmp_path / "first", marker="one")
+    assert wai.stage_native_bundle(cfg, first, None) == "staged"
+    target = cfg / "custom_components" / "hikvision_intercom"
+    staged = wai.source_digest(target)
+    second = _pinned_copy(tmp_path / "second", marker="two")
+    assert wai.stage_native_bundle(cfg, second, staged) == "staged"
+    backup = target.with_name("hikvision_intercom" + wai.BACKUP_SUFFIX)
+    assert (target / "synthetic_marker.txt").read_text(encoding="utf-8") == "two"
+    assert (backup / "synthetic_marker.txt").read_text(encoding="utf-8") == "one" and wai.source_digest(backup) == staged
+
+
+def test_h3_the_installer_stores_the_staged_digest_and_refuses_a_newer_tree(settings: Any, tmp_path: Path,
+                                                                            monkeypatch: pytest.MonkeyPatch) -> None:
+    from smplwise.services import bridge_install, ha_client
+
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir()
+    (cfg_dir / "configuration.yaml").write_text("", encoding="utf-8")
+    monkeypatch.setenv("SW_HA_CONFIG_DIR", str(cfg_dir))
+    monkeypatch.setattr(ha_client, "supervisor_token", lambda: None)
+    restarts: list[Any] = []
+    monkeypatch.setattr(ha_client, "call_service", lambda *a, **k: restarts.append(a) or {})
+    wai.NATIVE.update(state="off", code=None, version=None, restart=None)
+    newer = _pinned_copy(tmp_path / "newer", version="3.0.0")
+    wai.stage_native_bundle(cfg_dir, newer, None)  # someone installed a newer WisKey
+    app = _app(settings)
+    with app.state.db.write_aside() as conn:
+        set_setting(conn, wai.SWITCH_KEY, "on")
+    st = bridge_install.install(app.state.db, settings)
+    assert st["wiskey_native"]["state"] == "refused" and st["wiskey_native"]["code"] == "native_newer_installed" and restarts == []
+    with app.state.db.connection() as conn:
+        assert get_setting(conn, wai.STAGED_DIGEST_KEY) is None
+    import shutil
+
+    shutil.rmtree(cfg_dir / "custom_components" / "hikvision_intercom")
+    st = bridge_install.install(app.state.db, settings)
+    assert st["wiskey_native"]["state"] == "staged"
+    with app.state.db.connection() as conn:
+        assert get_setting(conn, wai.STAGED_DIGEST_KEY) == wai.source_digest(BUNDLE)

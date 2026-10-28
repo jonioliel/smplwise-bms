@@ -142,8 +142,11 @@ Integrations (sha256 of the sorted `git ls-tree -r` lines, first 16 hex; file co
 ## 5. Installer (step 5)
 
 - `bridge_install.install` -> `wiskey_auto_install.installer_step` after the bridge copy: switch off -> `off`; on -> the bundle must be
-  byte-exact to its pin (else `native_pin_mismatch`, nothing copied), staged into `<config>/custom_components/hikvision_intercom` when its
-  content digest differs (a stable version label never hides a new source). Never blocks the bridge copy or its announcement.
+  byte-exact to its pin (else `native_pin_mismatch`, nothing copied), staged into `<config>/custom_components/hikvision_intercom` only
+  when the target is missing or is exactly the tree Arx staged last (`wiskey.installation.staged_digest`, review H3); an installed
+  component with a newer semantic version is refused (`native_newer_installed`, never downgraded), any other tree Arx did not stage is
+  refused (`native_foreign_installed`, left as it is); the previous tree is kept as `hikvision_intercom.smplwise-backup` (one rollback
+  copy). Never blocks the bridge copy or its announcement.
   `status()` carries `wiskey_native` (state / code / version / restart, no path).
 - Restart by digest: one `homeassistant.restart` request per staged source digest, claimed durably (`wiskey.installation.restart_digest`)
   before the call; a failed / lost answer is `restart_unknown`; the same digest is never requested again.
