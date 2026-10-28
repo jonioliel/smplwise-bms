@@ -2450,7 +2450,9 @@
      "direct_envelope": "wiskey-bridge-command.v1",
      "discovered_for_native_owner": true,
      "owner_excluded_write": false,
-     "arx_callers": []
+     "arx_callers": [
+      "smplwise/services/wiskey_installed_features.py"
+     ]
     },
     "whatsapp/template_enqueue_v1": {
      "row_kind": "COMMAND",
@@ -2466,7 +2468,9 @@
      "direct_envelope": "wiskey-bridge-command.v1",
      "discovered_for_native_owner": true,
      "owner_excluded_write": false,
-     "arx_callers": []
+     "arx_callers": [
+      "smplwise/services/wiskey_installed_features.py"
+     ]
     },
     "whatsapp/template_registry_v1": {
      "row_kind": "COMMAND",
@@ -2524,6 +2528,7 @@
     "smplwise/services/wa_template_v2_contract.py",
     "smplwise/services/wiskey_auto_install.py",
     "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_installed_features.py",
     "smplwise/services/wiskey_template_direct.py"
    ]
   },
