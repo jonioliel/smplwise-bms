@@ -652,6 +652,18 @@ def reconcile_due(db: Any, settings: Any, *, now: float | None = None) -> str | 
 
 
 AUDIT_REGISTRY_SYNC = "wiskey.installation.template_registry_sync"
+NATIVE_ACCOUNTS_KEY = "wiskey.installation.native_accounts"  # review M3: WisKey's account list of the last applied signed sync
+
+
+def native_accounts(conn: Any) -> frozenset[str]:
+    """The accounts WisKey's last applied signed registry named (empty when none / unreadable). Never exported (backup prefix)."""
+    from ..db import get_setting
+
+    try:
+        value = json.loads(get_setting(conn, NATIVE_ACCOUNTS_KEY) or "[]")
+    except (TypeError, ValueError):
+        return frozenset()
+    return frozenset(a for a in value if isinstance(a, str)) if isinstance(value, list) else frozenset()
 
 
 def sync_native_templates(db: Any, reply: Any) -> int:
@@ -697,6 +709,9 @@ def sync_native_templates(db: Any, reply: Any) -> int:
         if problems:
             raise InstallationError("native_registry_conflict")  # e.g. more than REGISTRY_MAX rows together: nothing is changed
         wts.store_registry(conn, merged)
+        from ..db import set_setting
+
+        set_setting(conn, NATIVE_ACCOUNTS_KEY, json.dumps(sorted({r.account for r in native if r.account}), separators=(",", ":")))
         audit(conn, actor=None, action=AUDIT_REGISTRY_SYNC, decision="allowed", resource_type="installation", resource_id="messaging",
               details={"native": len(native), "admin_kept": len(admin), "native_removed": len(set(previous) - {r.id for r in native}),
                        "accounts": len({r.account for r in native})})

@@ -145,6 +145,8 @@ def parse_ref(raw: Any) -> TemplateRef | None:
     account = raw.get("account")
     if account is not None and not (isinstance(account, str) and WIRE_ID_RE.fullmatch(account)):
         return None
+    if account is not None and not rid.startswith(NATIVE_ID_PREFIX):
+        return None  # review M3: only a row the signed native registry sync created may name its own account
     return TemplateRef(rid, name, lang, tuple(params), str(purpose), wref, wrev, account)
 
 
@@ -182,8 +184,29 @@ NATIVE_ID_PREFIX = "native_"  # WISKEY-ADOPT-2272 review H1: ids the signed nati
 
 
 def is_native(ref: TemplateRef) -> bool:
-    """A row the native registry sync created (and may replace); every other row is the administrator's and is never touched by it."""
-    return ref.id.startswith(NATIVE_ID_PREFIX) or ref.account is not None
+    """A row the native registry sync created (and may replace); every other row is the administrator's and is never touched by it.
+    Only such a row may carry an `account` (`parse_ref`, review M3)."""
+    return ref.id.startswith(NATIVE_ID_PREFIX)
+
+
+def admin_registry_input(raw: Any) -> tuple[list[TemplateRef], list[dict[str, str]]]:
+    """Review M3: the administrator's PUT. Rows with a `native_*` id belong to the signed sync and are skipped (they are kept as stored,
+    so a screen may send back what it read); every other row loses any `account` it carries (an administrator row always uses the
+    configured messaging account and its availability). Problem paths keep the caller's own indexes."""
+    if not isinstance(raw, list):
+        return validate_registry(raw)
+    index: list[int] = []
+    rows: list[Any] = []
+    for i, item in enumerate(raw):
+        if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].startswith(NATIVE_ID_PREFIX):
+            continue
+        index.append(i)
+        rows.append({k: v for k, v in item.items() if k != "account"} if isinstance(item, dict) else item)
+    refs, problems = validate_registry(rows)
+    for p in problems:
+        if p["path"].startswith("templates.") and p["path"][10:].isdigit() and int(p["path"][10:]) < len(index):
+            p["path"] = f"templates.{index[int(p['path'][10:])]}"
+    return refs, problems
 
 
 def ref_doc(r: TemplateRef) -> dict[str, Any]:

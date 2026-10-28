@@ -68,6 +68,7 @@ def _ref(i: int, account: str | None = None, **over: Any) -> dict[str, Any]:
          "template_ref": f"ref-{i}", "template_revision": 1}
     if account is not None:
         d["account"] = account
+        d["id"] = f"native_{i}"  # review M3: only a sync-owned row may name an account
     d.update(over)
     return d
 

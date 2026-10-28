@@ -361,3 +361,50 @@ def test_m2_the_documents_require_a_written_owner_confirmation() -> None:
     for name in ("WISKEY-ADOPT-2272.md", "WKWRITE-295-ADOPTION-MAP.md", "WKR5-295.md"):
         text = (REPO / "docs" / "changes" / name).read_text(encoding="utf-8")
         assert "review M2" in text and "in writing" in text.lower(), name
+
+# ================================================================ M3: an account only on sync-created rows, verified against WisKey's list
+
+from intercom_station_scope import station_scope  # noqa: E402,F401 - a fixture
+from test_intercom_messaging import mc, req  # noqa: E402,F401 - `mc` is a fixture
+from test_tplv2_295 import REF, preview, v2  # noqa: E402,F401 - `v2` is a fixture
+
+
+def test_m3_parse_ref_accepts_an_account_only_on_a_native_row() -> None:
+    assert wts.parse_ref({**REF, "account": "acct-a"}) is None
+    assert wts.parse_ref({**REF, "id": "native_abc", "account": "acct-a"}).account == "acct-a"
+
+
+def test_m3_the_admin_put_strips_the_account_and_keeps_the_synced_rows(v2: Any) -> None:
+    c, _s, _station, _open = v2
+    db = c.app.state.db
+    wai.sync_native_templates(db, _registry(_item("acct-a", "r1")))
+    with db.connection() as conn:
+        native = [r for r in wts.load_registry(conn) if wts.is_native(r)]
+    forged = {"id": native[0].id, "name": "forged_name", "language": "he", "params": [], "purpose": "notice", "account": "acct-x"}
+    r = req(c, "PUT", "/messaging/template-send", json={"templates": [{**REF, "account": "acct-evil"}, forged]})
+    assert r.status_code == 200, r.text
+    with db.connection() as conn:
+        refs = wts.load_registry(conn)
+    assert [(x.id, x.account) for x in refs] == [("access", None), (native[0].id, "acct-a")]
+    assert refs[1].name == "access_notice"  # the synced row is the sync's: an administrator PUT never rewrites it
+    bad = req(c, "PUT", "/messaging/template-send", json={"templates": [{**REF, "id": "native_x", "name": "x"}, {**REF, "id": "BAD"}]})
+    assert bad.status_code == 422 and bad.json()["details"]["errors"] == [{"path": "templates.1", "code": "invalid"}]
+
+
+def test_m3_a_native_account_is_used_only_when_wiskey_listed_it_and_the_switch_is_on(v2: Any) -> None:
+    c, _s, _station, open_v2 = v2
+    open_v2()
+    db = c.app.state.db
+    wai.sync_native_templates(db, _registry(_item("acct-a", "r1")))
+    with db.connection() as conn:
+        rid = next(r.id for r in wts.load_registry(conn) if wts.is_native(r))
+    off = preview(c, template=rid).json()
+    assert off["preview"]["account"] is None and "account_unavailable" in off["blockers"]  # switch off: never the native account
+    with db.write_aside() as conn:
+        set_setting(conn, wai.SWITCH_KEY, "on")
+    on = preview(c, template=rid).json()
+    assert on["preview"]["account"] == "acct-a" and "account_unavailable" not in on["blockers"]
+    with db.write_aside() as conn:
+        set_setting(conn, wai.NATIVE_ACCOUNTS_KEY, json.dumps(["acct-other"]))  # WisKey no longer lists it
+    gone = preview(c, template=rid).json()
+    assert gone["preview"]["account"] is None and "account_unavailable" in gone["blockers"]
