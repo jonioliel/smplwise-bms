@@ -437,3 +437,30 @@ def test_m4_the_installed_client_connects_with_the_command_purpose(monkeypatch: 
     client = wai.InstalledWiskeyClient(None, reader=synthetic_manifest)
     asyncio.run(client.connect(opener=lambda: None))
     assert seen == [bridge.PURPOSE_COMMAND] and bridge.PURPOSE_COMMAND != bridge.PURPOSE_TALK
+
+# ================================================================ M5: the waiting state re-announces the bridge
+
+def test_m5_reconcile_re_announces_in_the_waiting_state(settings: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from smplwise.services import bridge_install, wiskey_direct_join
+    from test_wiskey_adopt_2272_contrib import synthetic_manifest, write_manifest
+
+    cfg = tmp_path / "ha"
+    (cfg / ".storage").mkdir(parents=True)
+    monkeypatch.setenv("SW_HA_CONFIG_DIR", str(cfg))
+    write_manifest(cfg, synthetic_manifest(readiness="waiting_for_arx_bridge", entries=[]))
+    announced: list[Any] = []
+    monkeypatch.setattr(bridge_install, "announce_discovery", lambda db, s, conn=None: announced.append(1) or True)
+
+    class Join:
+        capture_port = None
+
+        @staticmethod
+        def selected(command: str | None = None) -> bool:
+            raise AssertionError("the registry is never read while the installation waits for the bridge")
+
+    monkeypatch.setattr(wiskey_direct_join, "JOIN", Join())
+    app = _app(settings)
+    with app.state.db.write_aside() as conn:
+        set_setting(conn, wai.SWITCH_KEY, "on")
+    assert wai.read_checked_installation(cfg)["readiness"] == "waiting_for_arx_bridge"  # a valid document, not ready
+    assert wai.reconcile_installation(app.state.db, settings) == "manifest_not_ready" and announced == [1]

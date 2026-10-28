@@ -617,8 +617,10 @@ def reconcile_installation(db: Any, settings: Any) -> str:
     if not switch_on_db(db):
         return "off"
     try:
-        read_checked_installation()
+        ready = read_checked_installation()["readiness"] == "ready"
     except InstallationError:
+        ready = False
+    if not ready:  # review M5: missing, invalid AND `waiting_for_arx_bridge` all re-announce the bridge
         from .bridge_install import announce_discovery
 
         announce_discovery(db, settings)
