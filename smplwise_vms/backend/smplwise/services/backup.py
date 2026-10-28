@@ -260,6 +260,12 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_key_reset_notice_title", 
 # ATTEST232-295: the attestation mode, minimum level and trust roots are security policy - a restore must never weaken or swap them
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_attestation", "security.app_refresh_attestation_min_level",
                                  "security.app_refresh_attestation_android_roots"}
+# WISKEY-ADOPT-2272 review H2: WisKey's automatic installation describes THIS box - the switch (an archive must never switch staging /
+# restarts / the bridge's automatic pairing on elsewhere), the restart claim and the staged-tree digest (an archive must never make a
+# restart repeat or let Arx overwrite a tree it did not stage), the WisKey account list of the last signed registry sync, and the event
+# cursor (an older archive cursor would replay events or hide a gap). Never exported, never restored (`wiskey.installation.*` by prefix).
+SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.auto_install", "wiskey.installation.restart_digest", "wiskey.events.cursor"}
+SETTINGS_KEEP_PREFIXES = SETTINGS_KEEP_PREFIXES + ("wiskey.installation.",)
 
 
 def _kept_setting(key: Any) -> bool:

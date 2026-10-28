@@ -31,7 +31,9 @@ real Home Assistant user, no restart of a real platform.
 
 ### The one switch
 
-Every installation EFFECT is behind the setting `wiskey.auto_install` (value `on`; default off, no screen, not exported). With it off the
+Every installation EFFECT is behind the setting `wiskey.auto_install` (value `on`; default off, no screen). It is kept out of backups
+(review H2: `services/backup.py` `SETTINGS_KEEP` - never exported, never restored - together with `wiskey.events.cursor` and every
+`wiskey.installation.*` key: the restart claim, the staged-tree digest, the native account list). With it off the
 add-on behaves exactly as before this branch: no WisKey bundle is copied into the owner's config directory, no platform restart, no
 `wiskey_auto_install` discovery flag, no setting changes, no registry sync. Reading / validating the manifest is always allowed (read-only).
 The code-level template permit `intercom_messaging_adapter.TEMPLATE_SEND_SUPPORTED` stays False in every case (the delivery set it True at

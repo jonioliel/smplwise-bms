@@ -119,3 +119,32 @@ def test_h1_the_reconcile_keeps_the_registry_on_an_empty_reply(settings: Any, tm
     assert wai.reconcile_installation(app.state.db, settings) == "registry_invalid"
     with app.state.db.connection() as conn:
         assert [wts.ref_doc(r) for r in wts.load_registry(conn)] == ADMIN
+
+
+# ================================================================ H2: the installation keys never travel in a backup
+
+INSTALLATION_KEYS = ("wiskey.auto_install", "wiskey.installation.restart_digest", "wiskey.events.cursor",
+                     "wiskey.installation.staged_digest", "wiskey.installation.native_accounts")
+
+
+def test_h2_backup_does_not_carry_the_installation_keys_and_a_restore_never_writes_them(settings: Any) -> None:
+    from smplwise.services import backup
+
+    app = _app(settings)
+    with app.state.db.write_aside() as conn:
+        for key in INSTALLATION_KEYS:
+            set_setting(conn, key, "local")
+        set_setting(conn, "ui.synthetic_marker", "x")  # control: an ordinary setting still travels
+    with app.state.db.connection() as conn:
+        exported = {r["key"] for r in backup.snapshot(conn)["settings"]}
+    assert not exported & set(INSTALLATION_KEYS) and "ui.synthetic_marker" in exported
+    archive = [{"key": k, "value": "from-archive"} for k in INSTALLATION_KEYS]
+    with app.state.db.write_aside() as conn:
+        assert backup._insert_rows(conn, "settings", archive, True) == 0
+    with app.state.db.connection() as conn:
+        assert all(get_setting(conn, k) == "local" for k in INSTALLATION_KEYS)
+
+
+def test_h2_the_document_no_longer_claims_the_switch_is_simply_not_exported() -> None:
+    doc = (REPO / "docs/changes/WISKEY-ADOPT-2272.md").read_text(encoding="utf-8")
+    assert "kept out of backups" in doc and "SETTINGS_KEEP" in doc
