@@ -91,3 +91,26 @@ Not merged, not tagged, not installed. Tests: fakes and synthetic data only.
 | run04 | the same 33 suites, one process per file | 1093 tests: 1090 PASS, 0 FAIL, 0 ERROR, 3 SKIP (test_t06_admission_295.py: pre-existing documented FINDING-3/4/5 xfail-style skips, unchanged by this branch) |
 
 Full suite: NOT_RUN. Runs are not summed (run02 and run04 do not overlap).
+
+## 7. Independent review fixes (after 00066e011)
+
+Each fix has a regression test written first in `smplwise_vms/backend/tests/test_wiskey_mac_adopt_298_review.py` (watched failing, then
+passing). The section 3 table describes `00066e011`; the files below changed again after it.
+
+| Finding | Fix | Tests |
+|---|---|---|
+| F1 journal cap never pruned | `Journal.prune` (run by `write`): settled rows (completed / refused) older than 30 days, and the oldest settled rows older than 24 h from 3072 down to 2048; UNKNOWN rows and freshly settled rows never. A write within 64 rows of the 4096 cap is `service_write_capacity`; `FinalServiceWriter.available()` is False there (`ServiceWriteClient.has_room`, a read-only occupancy count). | `test_f1_*` |
+| F2 UNKNOWN write does not hold the person | `users/update` / `users/temporary_cancel` take the shared people gate (`intercom_sync.SYNC.begin_external` / `end_external`, like the capture-lease confirm): an UNKNOWN keeps the person `readback_required` until a fresh read. Arx's own UNKNOWN row holds the person on the service path across restarts (`service_write_unsettled`) until a status read settles it (`status`, `unsettled`, `settle_unknown`). `users/pin_generate` respects the gate but does not take it. | `test_f2_*` |
+| F3 PIN duplicate answered `completed` | A PIN-bearing duplicate (`users/pin_generate`, or `data.pin` set) of a completed row returns `unknown` / `pin_duplicate_unverified`, no receipt, nothing sent. | `test_f3_*` |
+| F4 unsalted request hash | `request_mac`: HMAC-SHA256 under an install-local 32-byte key in `<data_dir>/keys/wiskey-service-write.key` (`load_or_create_key`, 0600, linked into place), never in the database. No key: nothing sent. The column keeps its name `request_sha256` (64 hex). | `test_f4_*` |
+| F5 raw exceptions, PIN shape, receipt person | sqlite errors before dispatch are `journal_unavailable` (not_sent), after it the row stays UNKNOWN; non-JSON / odd input is `invalid_fields` (not_sent); the generated PIN must be exactly six ASCII digits; a receipt (result or status) of a write to an existing person must name that person, else UNKNOWN. | `test_f5_*` |
+| M1 natural tail and link close | A link torn down after a natural end keeps the admitted tail; a closed link with no native end still fences. | `test_m1_*` |
+| M2 audit of security ends | `TalkSession.publication_end`; the `intercom.talk.end` audit details carry `publication_end` when a security end stopped the sound (outcome stays `upstream_closed`). | `test_m2_*` |
+| M3 one bad block fails discovery | A malformed / different optional block (`business_contracts`, `native_service_write`, `station_talk_audio`) is not read (`Capabilities.rejected_blocks`, feature off); the core document still is. An unknown top-level key is still refused. | `test_m3_*`, `test_e_*` |
+| M4 window check order in send_v2 | `window` is validated first, before the switch, registry and the shared budget. | `test_m4_*` |
+
+Migration: the journal table is still created by `ensure_schema` (idempotent); `0182` is taken on other branches, so no migration number
+was chosen here - the lead picks it at merge. The service writer stays disabled (`from_join`: no grant source, no client, no key).
+Open: an UNKNOWN service row whose status stays `unknown` holds that person on the service path until WisKey's record answers; the human
+path is held only by the shared gate (cleared by a fresh read). Whether a fresh read should also release the service-path hold is an
+owner / lead decision (not implemented).
