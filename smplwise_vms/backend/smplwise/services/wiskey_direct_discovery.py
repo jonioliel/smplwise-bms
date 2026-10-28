@@ -23,6 +23,7 @@ What Arx takes from them (and what it does NOT):
 Status: implemented and tested against the in-memory fake direct server only (tests/test_wkr5_295.py)."""
 from __future__ import annotations
 
+import logging
 import re
 import time
 from dataclasses import dataclass, field
@@ -30,6 +31,8 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Mapping
 
 from . import wiskey_media_bridge as bridge
+
+log = logging.getLogger("smplwise.wiskey_direct_discovery")
 
 CAPABILITIES = "direct/capabilities"
 TIME = "direct/time"
@@ -80,6 +83,7 @@ class Capabilities:
     business_contracts: Mapping[str, Any] = field(default_factory=dict, repr=False)
     service_write: bool = False  # `native_service_write` offered exactly as wiskey-native-service-write.v1
     talk_audio: bool = False  # `station_talk_audio` offered exactly as arx.station_talk_audio.v1 (opt-in, default off)
+    rejected_blocks: tuple[str, ...] = ()  # optional blocks present but not read (malformed / another contract): their feature is off
 
     def lists(self, command: str) -> bool:
         return command in self.commands
@@ -141,18 +145,26 @@ def read_capabilities(raw: Any, connection_ref: str) -> Capabilities:
         raise DiscoveryError("capabilities_invalid")
     if raw["physical_result"] != "unproven":  # discovery never claims a physical fact
         raise DiscoveryError("capabilities_invalid")
+    # review M3: each OPTIONAL block is judged on its own. A malformed or different block is not offered (its feature stays off, the
+    # block is named in `rejected_blocks`) - it never fails the discovery of the core document, whose closed checks above still hold.
+    rejected: list[str] = []
     contracts = raw.get("business_contracts", {})
     if not isinstance(contracts, Mapping) or not all(isinstance(k, str) and isinstance(v, Mapping) for k, v in contracts.items()):
-        raise DiscoveryError("capabilities_invalid")
+        rejected.append("business_contracts")
+        contracts = {}
     service = raw.get("native_service_write")
     if service is not None and (not isinstance(service, Mapping) or dict(service) != SERVICE_WRITE_CAP):
-        raise DiscoveryError("capabilities_unsupported")  # another service-write contract is a new contract: never guessed
+        rejected.append("native_service_write")  # another service-write contract is a new contract: never guessed, never used
+        service = None
     talk_audio = raw.get("station_talk_audio")
     if talk_audio is not None and (not isinstance(talk_audio, Mapping) or dict(talk_audio) != TALK_AUDIO_CAP):
-        raise DiscoveryError("capabilities_unsupported")
+        rejected.append("station_talk_audio")
+        talk_audio = None
+    if rejected:
+        log.warning("wiskey discovery: optional capabilities blocks not offered as read: %s", ",".join(rejected))
     return Capabilities(connection_ref, frozenset(names), tuple(families), versions, dict(limits), dict(resources), len(stations),
                         business_contracts={k: dict(v) for k, v in contracts.items()}, service_write=service is not None,
-                        talk_audio=talk_audio is not None)
+                        talk_audio=talk_audio is not None, rejected_blocks=tuple(rejected))
 
 
 def _utc(value: Any) -> datetime:
