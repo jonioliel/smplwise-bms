@@ -30,6 +30,7 @@ from smplwise.services import wiskey_direct_catalog as wdc
 from smplwise.services import wiskey_direct_discovery as dd
 from smplwise.services import wiskey_peer as wp
 from smplwise.services import wiskey_service_write as sw
+from smplwise.services import intercom_sync
 from smplwise.services import access_service_writer as asw
 from smplwise.services.access_grant_engine import EngineError
 
@@ -187,6 +188,7 @@ def test_b_the_open_window_relaxes_nothing_else() -> None:
 GRANT = sw.GrantRef("synthetic-authority", 3, "synthetic-scope", "synthetic-grant", 7, 2)
 REPO = "synthetic-repository-1"
 ACTOR = "arx-service:synthetic-entry"
+KEY = bytes(range(32))  # a synthetic install key
 PERSON = {"id": "person-synthetic-1", "revision": 1, "display_name": "Synthetic person", "active": False}
 
 
@@ -225,7 +227,8 @@ class PortErr(Exception):
 
 
 def _client(wire: Wire, conn: sqlite3.Connection | None = None, repo: str | None = REPO) -> sw.ServiceWriteClient:
-    return sw.ServiceWriteClient(wire, sw.Journal(conn or sqlite3.connect(":memory:")), repository_id=lambda: repo)
+    return sw.ServiceWriteClient(wire, sw.Journal(conn or sqlite3.connect(":memory:")), repository_id=lambda: repo, key=KEY,
+                                 gate=intercom_sync.IntercomSync())
 
 
 CREATE = {"data": {"display_name": "Synthetic person", "access_category": "contractor", "active": False}, "sync_now": False}
@@ -277,22 +280,22 @@ def test_c_the_intent_is_durable_unknown_before_the_frame_leaves_and_a_lost_rece
         other.close()
         raise PortErr("connection_closed", "unknown")  # the receipt is lost
 
-    client = sw.ServiceWriteClient(lost, sw.Journal(sqlite3.connect(db)), repository_id=lambda: REPO)
+    client = sw.ServiceWriteClient(lost, sw.Journal(sqlite3.connect(db)), repository_id=lambda: REPO, key=KEY)
     with pytest.raises(sw.ServiceWriteError) as exc:
         client.write("users/create", CREATE, _meta())
     assert exc.value.outcome == "unknown" and seen and seen[0][0] == "unknown" and len(seen[0][1]) == 64
     # a restart: a NEW process opens the same journal; the same request is observed, never sent again
     wire = Wire()
-    again = sw.ServiceWriteClient(wire, sw.Journal(sqlite3.connect(db)), repository_id=lambda: REPO).write("users/create", CREATE, _meta())
+    again = sw.ServiceWriteClient(wire, sw.Journal(sqlite3.connect(db)), repository_id=lambda: REPO, key=KEY).write("users/create", CREATE, _meta())
     assert (again.state, again.dispatched, wire.calls) == ("unknown", False, [])
     # a changed request under the same operation is a conflict, never acknowledged with the old record
     with pytest.raises(sw.ServiceWriteError) as conflict:
-        sw.ServiceWriteClient(wire, sw.Journal(sqlite3.connect(db)), repository_id=lambda: REPO).write(
+        sw.ServiceWriteClient(wire, sw.Journal(sqlite3.connect(db)), repository_id=lambda: REPO, key=KEY).write(
             "users/create", {**CREATE, "data": {**CREATE["data"], "display_name": "Changed"}}, _meta())
     assert conflict.value.code == "service_operation_conflict" and wire.calls == []
     # the same request id under a fresh operation is refused too
     with pytest.raises(sw.ServiceWriteError) as dup:
-        sw.ServiceWriteClient(wire, sw.Journal(sqlite3.connect(db)), repository_id=lambda: REPO).write("users/create", CREATE, _meta(op="op-2"))
+        sw.ServiceWriteClient(wire, sw.Journal(sqlite3.connect(db)), repository_id=lambda: REPO, key=KEY).write("users/create", CREATE, _meta(op="op-2"))
     assert dup.value.code == "service_origin_or_request_already_recorded" and wire.calls == []
 
 
@@ -335,9 +338,9 @@ def test_c_the_journal_never_holds_a_pin_even_as_a_searchable_hash() -> None:
     upd = {"user_id": "p1", "revision": 2, "data": {"pin": "123456", "active": True}}
     a = sw.build_parameters("users/update", upd, _meta(target="p1", rev=2))
     b = sw.build_parameters("users/update", {**upd, "data": {"pin": "654321", "active": True}}, _meta(target="p1", rev=2))
-    assert sw.request_sha256("users/update", a) == sw.request_sha256("users/update", b)
+    assert sw.request_mac(KEY, "users/update", a) == sw.request_mac(KEY, "users/update", b)
     c = sw.build_parameters("users/update", {**upd, "data": {"pin": "123456", "active": False}}, _meta(target="p1", rev=2))
-    assert sw.request_sha256("users/update", a) != sw.request_sha256("users/update", c), "every other field still binds the request"
+    assert sw.request_mac(KEY, "users/update", a) != sw.request_mac(KEY, "users/update", c), "every other field still binds the request"
 
 
 @pytest.mark.parametrize("code,outcome,state", [
@@ -367,10 +370,10 @@ def test_c_a_malformed_success_is_unknown(raw: dict[str, Any]) -> None:
     assert out.state == "unknown" and c.journal.get(REPO, "op-1").state == "unknown"
 
 
-def test_c_capacity_is_bounded_without_eviction() -> None:
+def test_c_capacity_is_bounded_without_evicting_an_unknown_row() -> None:
     conn = sqlite3.connect(":memory:")
     c = _client(Wire(), conn)
-    rows = [(3, REPO, f"op-x{i}", f"req-x{i}", "users/create", f"o{i}", "0" * 64, "completed", "t") for i in range(sw.JOURNAL_CAPACITY)]
+    rows = [(3, REPO, f"op-x{i}", f"req-x{i}", "users/create", f"o{i}", "0" * 64, "unknown", "t") for i in range(sw.JOURNAL_CAPACITY)]
     conn.executemany("INSERT INTO wiskey_service_write_journal (schema_version, repository_id, operation_id, request_id, command, target_ref, "
                      "request_sha256, state, created_at) VALUES (?,?,?,?,?,?,?,?,?)", rows)
     with pytest.raises(sw.ServiceWriteError) as exc:
@@ -470,6 +473,5 @@ def test_e_the_final_capabilities_document_is_read_and_unknown_blocks_are_refuse
     assert exc.value.code == "capabilities_invalid"
     bad = _final_capabilities()
     bad["native_service_write"]["default_authority"] = "service_role_fallback"
-    with pytest.raises(dd.DiscoveryError) as exc2:
-        dd.read_capabilities(bad, "ref-1")
-    assert exc2.value.code == "capabilities_unsupported"
+    other = dd.read_capabilities(bad, "ref-1")  # another service-write contract is never used (review M3: the discovery itself stands)
+    assert other.service_write is False and other.rejected_blocks == ("native_service_write",)
