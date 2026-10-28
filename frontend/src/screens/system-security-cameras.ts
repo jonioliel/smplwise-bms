@@ -461,6 +461,128 @@ export class SystemSecurityCameras extends LitElement {
         margin: 0;
       }
     }
+    /* R5-LIVE-297 (the HOMEFABLE method on the cameras settings, columns and order untouched): the table is the one card of the screen
+       (radius lg); its head is a tinted band with 12.5 px semibold labels instead of grey 11 px; each camera opens with its name in
+       14 px bold heading ink and its second stream is quieter; a camera that is down is a FILLED offline row (the tint across the
+       row, a solid dot) instead of a 7 px grey dot; the pencil is a raised key that sinks on press; the count is a bold numeral;
+       row and key hovers only under a fine pointer */
+    .wrap {
+      border-radius: var(--sw-r-lg);
+    }
+    th {
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+    }
+    th button {
+      padding-block: 11px;
+    }
+    td {
+      padding-block: 10px;
+    }
+    tbody tr.first td[data-col='camera'] .cam {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    tbody tr.repeat td {
+      color: var(--sw-text-2);
+    }
+    tbody tr.first td {
+      border-block-start: 1px solid var(--sw-border-strong);
+    }
+    tbody tr:first-child td {
+      border-block-start: 0;
+    }
+    tbody tr.down td {
+      background: color-mix(in srgb, var(--sw-offline) 16%, var(--sw-surface));
+    }
+    tbody tr.down td[data-col='camera'] .cam {
+      color: var(--sw-text-2);
+    }
+    .dot {
+      inline-size: 9px;
+      block-size: 9px;
+      background: var(--sw-offline);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--sw-offline) 30%, transparent);
+      margin-inline-end: 8px;
+    }
+    tbody tr:hover {
+      background: transparent;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      tbody tr:not(.msg):hover td {
+        background: var(--sw-surface-2);
+      }
+      tbody tr.down:hover td {
+        background: color-mix(in srgb, var(--sw-offline) 24%, var(--sw-surface));
+      }
+    }
+    .v {
+      inline-size: 26px;
+      block-size: 26px;
+    }
+    .count {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .pen {
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+      color: var(--sw-heading);
+      box-shadow: var(--sw-shadow-1);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      transition: background-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .pen:hover:not([disabled]) {
+      background: var(--sw-surface);
+      color: var(--sw-heading);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .pen:hover:not([disabled]) {
+        background: var(--sw-surface-2);
+        box-shadow: var(--sw-shadow-2);
+      }
+    }
+    .pen:active:not([disabled]) {
+      transform: scale(var(--sw-press-scale, 0.92));
+      box-shadow: none;
+      background: var(--sw-pressed-wash);
+    }
+    .pen[disabled] {
+      box-shadow: none;
+      background: transparent;
+    }
+    .card {
+      gap: 6px;
+      padding: 12px 14px;
+      border-radius: var(--sw-r-lg);
+    }
+    .card .head .cam {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .card .line:not(.facts) {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .card .facts {
+      padding: 6px 10px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+    }
+    .card.down {
+      background: color-mix(in srgb, var(--sw-offline) 16%, var(--sw-surface));
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .pen:active:not([disabled]) {
+        transform: none;
+      }
+    }
   `, bubbleChrome];
 
   connectedCallback() {
@@ -830,7 +952,7 @@ export class SystemSecurityCameras extends LitElement {
     const s = r.stream;
     const first = startsGroup(rows, i);
     const line = this.lines.get(r.key);
-    return html`<tr class="${first ? 'first' : 'repeat'} ${r.enabledInArx ? '' : 'off'}" data-stream-row data-camera=${r.cameraKey} data-stream=${s?.stream_ref ?? ''}>
+    return html`<tr class="${first ? 'first' : 'repeat'} ${r.enabledInArx ? '' : 'off'} ${r.online === false ? 'down' : ''}" data-stream-row data-camera=${r.cameraKey} data-stream=${s?.stream_ref ?? ''}>
       <td class="muted c-chan" data-col="channel"><span class="ltr">${r.channel}</span></td>
       <td data-col="camera"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת" data-offline></span>` : nothing}${r.cameraName}</span>${this.multiRecorder ? html`<span class="muted" data-nvr-recorder> · ${this.recorderName(r.recorderId)}</span>` : nothing}<span class="chan muted"> ערוץ <span class="ltr">${r.channel}</span></span></td>
       <td data-col="role">${s ? ROLE_HE[s.role] : html`<span class="muted" data-unread>לא נקרא</span>`}</td>
@@ -847,7 +969,7 @@ export class SystemSecurityCameras extends LitElement {
 
   private renderCard(r: StreamRow) {
     const s = r.stream;
-    return html`<div class="card ${r.enabledInArx ? '' : 'off'}" data-stream-card data-camera=${r.cameraKey} data-stream=${s?.stream_ref ?? ''}>
+    return html`<div class="card ${r.enabledInArx ? '' : 'off'} ${r.online === false ? 'down' : ''}" data-stream-card data-camera=${r.cameraKey} data-stream=${s?.stream_ref ?? ''}>
       <div class="head"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת"></span>` : nothing}${r.cameraName}</span>${this.multiRecorder ? html`<span class="muted" data-nvr-recorder>${this.recorderName(r.recorderId)}</span>` : nothing}<span class="muted">ערוץ <span class="ltr">${r.channel}</span></span><span style="margin-inline-start:auto;display:inline-flex;align-items:center;gap:6px">${this.verdict(r)}${this.renderPen(r)}</span></div>
       ${s
         ? html`<div class="line"><span>${ROLE_HE[s.role]}</span><bdi class="ltr">${codecLabel(s)}</bdi><bdi class="ltr">${resolutionLabel(s)}</bdi><span class="ltr">${fpsLabel(s)}</span></div>

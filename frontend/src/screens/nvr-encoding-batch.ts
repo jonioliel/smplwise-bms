@@ -266,6 +266,60 @@ export class NvrEncodingBatch extends LitElement {
         --sw-touch-desktop: 44px;
       }
     }
+    /* R5-LIVE-297 (the HOMEFABLE tiers in the multi-camera encoding dialog; the windowed rows keep their 44 / 60 px heights): the list is
+       a WELL (surface-2, no outline) inside the dialog; a chosen stream is a FILLED accent row with its name in bold heading ink, not
+       only a ticked box; rows tint on hover only under a fine pointer and darken on press; the count is a bold numeral */
+    .vl {
+      border-color: transparent;
+      background: var(--sw-surface-2);
+    }
+    .sel {
+      font-size: var(--sw-fs-md);
+      transition: background-color var(--sw-t-fast) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sel:hover:not([aria-disabled='true']) {
+      background: transparent;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .sel:hover:not([aria-disabled='true']) {
+        background: var(--sw-surface-3);
+      }
+    }
+    .sel:active:not([aria-disabled='true']) {
+      background: var(--sw-pressed-wash);
+    }
+    .sel[aria-checked='true'] {
+      background: var(--sw-accent-soft);
+    }
+    .sel[aria-checked='true'] .nm {
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .box {
+      background: var(--sw-surface);
+    }
+    .count {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .row {
+      font-size: var(--sw-fs-md);
+    }
+    .row .nm {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .sum {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .msg {
+      padding: 8px 12px;
+      border-radius: var(--sw-r-md);
+    }
   `;
 
   // ---------------------------------------------------------------------------------------------- the screen's calls

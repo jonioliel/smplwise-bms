@@ -81,6 +81,31 @@ export class NvrConfirm extends LitElement {
     .arrow {
       color: var(--sw-text-3);
     }
+    /* R5-LIVE-297 (the HOMEFABLE type scale in the one confirmation): the lead line 14 px in the reading ink, the number of changes a
+       WELL with a 17 px bold line - the one thing the owner must read before he presses - and the change list as wells */
+    p {
+      font-size: var(--sw-fs-md);
+      line-height: 1.45;
+    }
+    .count {
+      padding: 10px 14px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.01em;
+    }
+    summary {
+      font-weight: var(--sw-fw-semibold);
+    }
+    ul:not(.names) li {
+      padding: 7px 12px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
   `;
 
   private cancel = () => this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));
