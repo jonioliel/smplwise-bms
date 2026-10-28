@@ -971,8 +971,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # one lineage per process, its scope recovered once the direct socket authenticates (in the background, never blocking start)
         from .services import wiskey_auto_install
 
-        # WISKEY-ADOPT-2272: fills unset station / listen / template settings once WisKey's installation manifest is ready - only with
-        # wiskey.auto_install = on; never overrides an owner value, never opens the template send permit, never sends or actuates
+        # WISKEY-ADOPT-2272: fills the unset station provider (`auto`, the one setting the installation needs - review M1) once WisKey's
+        # installation manifest is ready - only with wiskey.auto_install = on; audited; never overrides an owner value, never switches a
+        # feature on, never opens the template send permit, never sends or actuates
         try:
             await run_in_threadpool(wiskey_auto_install.activate_software, app.state.db)
         except Exception:  # noqa: BLE001 - start-up never fails on it

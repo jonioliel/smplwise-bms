@@ -10,7 +10,8 @@ The config directory is the add-on's mapping (`bridge_install.ha_config_dir`: `/
 What the delivery does on its own and what Arx keeps behind ONE switch (`wiskey.auto_install`, default OFF, no screen):
 - reading the manifest, validating it and reporting its state: always (read-only, no I/O towards WisKey);
 - staging the pinned native bundle into the config directory, the bridge's automatic-install discovery flag, the one restart per
-  source digest, flipping the station / listen / template switches and the template registry sync: ONLY with the switch on. Until the
+  source digest, filling the unset station provider (`auto`; every feature switch is an owner step - review M1) and the template
+  registry sync: ONLY with the switch on. Until the
   owner turns it on (joint session, owner28 OWNER-JOINT-LIVE), the installation stays exactly as it is - no WisKey release reaches the
   owner's system, no restart, no switch moves, nothing is sent.
 Setup / restart / reconcile never open a door and never send a message by themselves (delivery `installer_effects`).
@@ -371,10 +372,21 @@ class InstalledWiskeyClient:
 
 # ---------------------------------------------------------------- installation effects (behind the switch)
 
+AUDIT_ACTIVATE = "wiskey.installation.activate"
+# Review M1: the ONLY setting the installation strictly needs - the direct join (and with it every installed WisKey path) is installed
+# only with the station provider `auto` (wiskey_direct_join.startup). Everything else the delivery switched on is an OWNER step
+# (docs/changes/WISKEY-ADOPT-2272.md "Owner steps after the automatic installation"): video + talk (`access.station_media`), listen
+# (`access.station_listen`), the template switch (`messaging.template_send`), people messaging (`access.messaging.enabled`) and the
+# pacing configuration (its conservative default already applies unwritten).
+ACTIVATION_DEFAULTS: tuple[tuple[str, str], ...] = (("access.station_media_provider", "auto"),)
+
+
 def activate_software(db: Any) -> bool:
-    """The delivery's `activate_software`: connect the station provider (`auto`), video + talk, listen, the template switch, pacing and
-    messaging. Arx runs it only with the switch on AND a ready manifest, and it never overrides a value the owner already chose
-    (only an unset setting is filled). It never enqueues a message or actuates anything. Returns True when it ran."""
+    """The delivery's `activate_software`, cut down to what the installation strictly needs (`ACTIVATION_DEFAULTS`). Arx runs it only
+    with the switch on AND a ready manifest, and it never overrides a value the owner already chose (only an unset setting is filled);
+    every filled key writes one audit row (key, before, after - no secret). It never enqueues a message, never switches a feature on and
+    never actuates anything. Returns True when it ran."""
+    from ..audit import audit
     from ..db import get_setting, set_setting
 
     if not switch_on_db(db):
@@ -384,22 +396,12 @@ def activate_software(db: Any) -> bool:
             return False
     except InstallationError:
         return False
-    from . import intercom_messaging, wa_pacing
-    from . import wa_template_send as wts
-
     with db.write_aside(label="wiskey auto install activate") as conn:
-        for key, value in (("access.station_media_provider", "auto"), ("access.station_media", "video_talk"), ("access.station_listen", "on")):
+        for key, value in ACTIVATION_DEFAULTS:
             if get_setting(conn, key) is None:
                 set_setting(conn, key, value)
-        if get_setting(conn, wts.SWITCH_KEY) is None:
-            wts.store_switch(conn, True)
-        if get_setting(conn, wa_pacing.SETTING_KEY) is None:
-            wa_pacing.store_config(conn, wa_pacing.load_config(conn))  # the conservative default, written explicitly
-        if get_setting(conn, intercom_messaging.SETTING_KEY) is None:
-            messaging = intercom_messaging.read_settings(conn)
-            messaging["enabled"] = True
-            messaging["revision"] = int(messaging.get("revision") or 0) + 1
-            set_setting(conn, intercom_messaging.SETTING_KEY, json.dumps(messaging))
+                audit(conn, actor=None, action=AUDIT_ACTIVATE, decision="allowed", resource_type="setting", resource_id=key,
+                      details={"key": key, "before": None, "after": value})
     # the code-level template permit (`intercom_messaging_adapter.TEMPLATE_SEND_SUPPORTED`) is NOT flipped here: a real WhatsApp send
     # stays a joint owner session decision (owner28 OWNER-JOINT-LIVE); the delivery set it True at start-up
     return True

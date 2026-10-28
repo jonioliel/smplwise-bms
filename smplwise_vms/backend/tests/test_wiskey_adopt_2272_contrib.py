@@ -238,7 +238,8 @@ def test_activation_fills_only_unset_values_and_never_opens_the_send_permit(sett
     assert wai.activate_software(app.state.db) is True
     with app.state.db.connection() as conn:
         assert get_setting(conn, "access.station_listen") == "off"
-        assert get_setting(conn, "access.station_media_provider") == "auto" and wts.switch_on(conn) is True
+        # review M1: only the provider the installation needs; the template switch stays an owner step
+        assert get_setting(conn, "access.station_media_provider") == "auto" and wts.switch_on(conn) is False
     assert intercom_messaging_adapter.TEMPLATE_SEND_SUPPORTED is False and wts.permit() is False
 
 

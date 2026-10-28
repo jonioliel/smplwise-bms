@@ -152,7 +152,15 @@ Integrations (sha256 of the sorted `git ls-tree -r` lines, first 16 hex; file co
   before the call; a failed / lost answer is `restart_unknown`; the same digest is never requested again.
 - Discovery: `announce_discovery` adds `wiskey_auto_install: true` with the switch on (the bridge then pairs without its form).
 - `main.py`: hourly `reconcile_due` (template registry sync over the direct join when it selects `whatsapp/template_registry_v1`; while
-  the manifest is not ready, re-announce) and start-up `activate_software` (unset settings only).
+  the manifest is not ready, re-announce) and start-up `activate_software` (review M1: only `access.station_media_provider = auto`
+  when unset - the direct join needs it - with one audit row `wiskey.installation.activate` per filled key).
+
+### Owner steps after the automatic installation (review M1)
+
+The delivery's `activate_software` also switched these on; Arx leaves each one to the owner (joint session, settings screens):
+video + talk (`access.station_media = video_talk`), listen (`access.station_listen = on`), the template switch
+(`messaging.template_send`), people messaging (`access.messaging.enabled`), and - only if the owner wants other values than the
+conservative default that already applies - the pacing configuration. The code-level template permit stays False in every case.
 - Not done: a screen for the switch; a bridge version bump (the release round bumps the bridge version - it must, or an existing
   bridge copy is not refreshed); creating a real HA user (never - none is needed).
 

@@ -285,3 +285,30 @@ def test_h4_only_the_auto_install_discovery_writes_the_entry_flag() -> None:
         user = src.split("async def async_step_user", 1)[1].split("async def async_step_hassio", 1)[0]
         confirm = src.split("async def async_step_hassio_confirm", 1)[1].split("class SmplwiseBridgeOptionsFlow", 1)[0]
         assert "WISKEY" not in user and "WISKEY" not in confirm
+
+# ================================================================ M1: activation fills only what the installation needs, audited
+
+def test_m1_activation_fills_only_the_provider_and_audits_it(settings: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from smplwise.services import intercom_messaging, wa_pacing
+    from test_wiskey_adopt_2272_contrib import synthetic_manifest, write_manifest
+
+    cfg = tmp_path / "ha"
+    (cfg / ".storage").mkdir(parents=True)
+    monkeypatch.setenv("SW_HA_CONFIG_DIR", str(cfg))
+    write_manifest(cfg, synthetic_manifest())
+    app = _app(settings)
+    with app.state.db.write_aside() as conn:
+        set_setting(conn, wai.SWITCH_KEY, "on")
+        before = {k: get_setting(conn, k) for k in ("access.station_media", "access.station_listen", wts.SWITCH_KEY,
+                                                    wa_pacing.SETTING_KEY, intercom_messaging.SETTING_KEY)}
+    assert wai.activate_software(app.state.db) is True
+    assert wai.activate_software(app.state.db) is True  # a second start fills nothing more
+    with app.state.db.connection() as conn:
+        after = {k: get_setting(conn, k) for k in before}
+        assert after == before and get_setting(conn, "access.station_media_provider") == "auto"
+        rows = conn.execute("SELECT resource_id, details_json FROM audit_log WHERE action = ?", (wai.AUDIT_ACTIVATE,)).fetchall()
+    assert [(r[0], json.loads(r[1])) for r in rows] == [
+        ("access.station_media_provider", {"key": "access.station_media_provider", "before": None, "after": "auto"})]
+    assert wai.ACTIVATION_DEFAULTS == (("access.station_media_provider", "auto"),)
+    doc = (REPO / "docs/changes/WISKEY-ADOPT-2272.md").read_text(encoding="utf-8")
+    assert "Owner steps after the automatic installation" in doc
