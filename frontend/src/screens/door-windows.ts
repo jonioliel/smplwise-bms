@@ -385,8 +385,13 @@ export class DoorWindowsScreen extends LitElement {
         <sw-button variant="ghost" @click=${() => (this.settingsOpen = false)}>${dwt('cancel')}</sw-button>
         <sw-button variant="primary" data-dw-settings-save ?disabled=${this.busy || !this.ws} @click=${() => void this.saveSettings()}>${dwt('sSave')}</sw-button>
       </div>
-    </sw-drawer>
-    ${this.engineOffAsk ? html`<sw-dialog open heading=${dwt('sEngineOffTitle')} @close=${() => (this.engineOffAsk = false)} data-dw-engine-off-confirm>
+      ${this.renderEngineOffAsk()}
+    </sw-drawer>`;
+  }
+
+  /** Rendered INSIDE the modal settings drawer: the drawer is in the top layer and everything outside it is inert (sw-drawer). */
+  private renderEngineOffAsk(): TemplateResult | typeof nothing {
+    return html`${this.engineOffAsk ? html`<sw-dialog open heading=${dwt('sEngineOffTitle')} @close=${() => (this.engineOffAsk = false)} data-dw-engine-off-confirm>
       <p>${dwt('sEngineOffText')}</p>
       <div slot="footer" class="footer">
         <sw-button variant="ghost" @click=${() => (this.engineOffAsk = false)}>${dwt('cancel')}</sw-button>
