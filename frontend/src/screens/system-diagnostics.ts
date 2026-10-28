@@ -222,20 +222,24 @@ export class SystemDiagnostics extends LitElement {
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); /* CR-026 guard: a 300px column overflowed a 320px phone */
       gap: 10px;
     }
+    /* R5-SYSTEM-297: a health card is a well of the ladder (surface-2, no hairline); a failing one is a FILLED danger / stale field,
+       not a coloured outline; its name reads at 14/600 in the heading ink */
     .hcard {
-      border: 1px solid var(--sw-border);
+      border: 1px solid transparent;
       border-radius: var(--sw-r-md);
-      padding: 10px 12px;
-      background: var(--sw-surface);
+      padding: 12px 14px;
+      background: var(--sw-surface-2);
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
     .hcard.error {
-      border-color: var(--sw-danger);
+      background: var(--sw-danger-soft);
+      border-color: color-mix(in srgb, var(--sw-danger) 35%, transparent);
     }
     .hcard.warn {
-      border-color: var(--sw-stale);
+      background: var(--sw-stale-soft);
+      border-color: color-mix(in srgb, var(--sw-stale) 35%, transparent);
     }
     .hcard .hh {
       display: flex;
@@ -243,10 +247,11 @@ export class SystemDiagnostics extends LitElement {
       justify-content: space-between;
       gap: 8px;
       font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading, var(--sw-text));
     }
     .hcard .hd {
-      font-size: var(--sw-fs-xs);
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
       line-height: 1.5;
     }
@@ -273,13 +278,15 @@ export class SystemDiagnostics extends LitElement {
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px 12px;
       align-items: center;
-      padding: 8px 10px;
-      border: 1px solid var(--sw-border);
+      padding: 10px 12px;
+      border: 0;
       border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
     }
     .brow .name {
       font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading, var(--sw-text));
       display: flex;
       align-items: center;
       gap: 8px;

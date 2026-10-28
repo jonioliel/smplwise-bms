@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { settingsLadderStyles } from '../styles/settings';
 import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-card';
@@ -64,25 +65,75 @@ export class StyleguideScreen extends LitElement {
     if (input) this.demo3d = { ...this.demo3d, desc: buildScene({ ...input, realistic: on }) };
   }
 
-  static styles = css`
+  static styles = [settingsLadderStyles, css`
     :host {
       display: block;
       padding: 14px 24px 24px;
       max-inline-size: var(--sw-content-max);
     }
+    /* R5-SYSTEM-297: the guide reads in the product's own scale - the page heading, 17/700 section titles, a body-sized lead */
     h2 {
-      font-size: var(--sw-fs-2xl);
+      font-family: var(--sw-font-heading, var(--sw-font));
+      font-size: var(--sw-h1, var(--sw-fs-2xl));
+      font-weight: var(--sw-h1-weight, var(--sw-fw-bold));
+      letter-spacing: var(--sw-h1-tracking, -0.01em);
+      color: var(--sw-heading, var(--sw-text));
       margin: 0 0 4px;
-      font-weight: var(--sw-fw-semibold);
     }
     h3 {
-      font-size: var(--sw-fs-md);
-      margin: 22px 0 10px;
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-xl);
+      margin: 26px 0 10px;
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.01em;
+      color: var(--sw-heading, var(--sw-text));
     }
     .lead {
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
       margin: 0 0 12px;
+      font-size: var(--sw-fs-md);
+      max-inline-size: 90ch;
+    }
+    /* the surface ladder of HOMEFABLE / R5: the page, a hero (large radius, shadow 2 + light line), a card (shadow 1), a well (surface-2) */
+    .ladder {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .ladder > div {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+    }
+    .ladder .hero {
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+    }
+    .ladder .card {
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .ladder .well {
+      border-radius: var(--sw-r-md);
+      border-color: transparent;
+      background: var(--sw-surface-2);
+    }
+    .ladder b {
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .ladder .big {
+      font-size: var(--sw-fs-3xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .ladder small {
+      color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
     }
     .row {
@@ -158,16 +209,19 @@ export class StyleguideScreen extends LitElement {
       color: var(--sw-text-2);
     }
     .panel {
+      display: flex;
+      flex-direction: column;
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
+      border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
     }
     .kpis {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
       gap: 10px;
     }
-  `;
+  `];
 
   render() {
     return html`
@@ -181,13 +235,21 @@ export class StyleguideScreen extends LitElement {
 
       <h3>טיפוגרפיה (Heebo, מארח מקומית)</h3>
       <div class="type">
-        <p style="font-size:var(--sw-fs-3xl);font-weight:var(--sw-fw-bold)">מספר גדול 24</p>
-        <p style="font-size:var(--sw-fs-2xl);font-weight:var(--sw-fw-semibold)">כותרת מסך 18</p>
-        <p style="font-size:var(--sw-fs-lg);font-weight:var(--sw-fw-semibold)">כותרת אזור 14</p>
-        <p style="font-size:var(--sw-fs-md);font-weight:var(--sw-fw-semibold)">כותרת כרטיס 12.5</p>
-        <p>טקסט גוף 12.5 — מפה של אתר, מבנה וקומה היא משטח העבודה המרכזי.</p>
-        <p style="font-size:var(--sw-fs-sm);color:var(--sw-text-2)">טקסט משני 11.5</p>
-        <p style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">תווית 10.5 · <span class="ltr">2026-09-14T08:05:38Z</span> נשאר LTR</p>
+        <p style="font-size:32px;font-weight:var(--sw-fw-bold);letter-spacing:-0.03em;color:var(--sw-heading)">ספרת תצוגה 32 · 1.3 TB</p>
+        <p style="font-size:var(--sw-h1);font-weight:var(--sw-h1-weight);letter-spacing:var(--sw-h1-tracking);color:var(--sw-heading)">כותרת עמוד 26</p>
+        <p style="font-size:var(--sw-fs-2xl);font-weight:var(--sw-fw-bold);color:var(--sw-heading)">כותרת מצב / Hero 20</p>
+        <p style="font-size:var(--sw-fs-xl);font-weight:var(--sw-fw-bold);color:var(--sw-heading)">כותרת כרטיס 17</p>
+        <p style="font-size:var(--sw-fs-md);font-weight:var(--sw-fw-semibold);color:var(--sw-heading)">תווית שורה 14</p>
+        <p>טקסט גוף 13: מפה של אתר, מבנה וקומה היא משטח העבודה המרכזי.</p>
+        <p style="font-size:var(--sw-fs-sm);color:var(--sw-text-2)">הסבר משני 12.5</p>
+        <p style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">תווית 11 · <span class="ltr">2026-09-14T08:05:38Z</span> נשאר LTR</p>
+      </div>
+
+      <h3>מדרגות המשטח (עמוד · Hero · כרטיס · באר)</h3>
+      <div class="ladder">
+        <div class="hero"><b>Hero: העצם הראשי</b><span class="big">84</span><small>רדיוס גדול, צל 2 וקו אור עליון; אחד למסך.</small></div>
+        <div class="card"><b>כרטיס</b><small>משטח, צל 1, כותרת 17/700. כל sw-card במסכי ההגדרות.</small></div>
+        <div class="well"><b>באר</b><small>surface-2, בלי מתאר; שורת הגדרה, אריח התקן, מונה.</small></div>
       </div>
 
       <h3>כרטיסי KPI</h3>

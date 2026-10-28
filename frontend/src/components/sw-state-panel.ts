@@ -67,16 +67,62 @@ export class SwStatePanel extends LitElement {
       text-align: start;
       justify-content: flex-start;
     }
+    /* R5-SYSTEM-297: a whole-screen state is the one object on the page - a 64 px tile that sits on the page (the floating shadow,
+       the 1 px light line), a 20/700 heading, a 14 px hint in the secondary ink; the compact row keeps its 34 px tile */
+    /* R5-SYSTEM-297 loop 2: the whole-screen state is a HERO CARD (the P8 ladder's top step), not a note floating in a void - a
+       surface with the large radius, shadow 2 and the light line, 32 px of padding, capped at 560 px; it enters once (opacity +
+       scale 0.97 -> 1, 220 ms ease-out; opacity only under reduced motion). The compact row stays flat. */
+    .box {
+      display: flex;
+      flex-direction: column;
+      align-items: inherit;
+      text-align: inherit;
+      gap: var(--sw-s-3);
+      inline-size: min(100%, 560px);
+      box-sizing: border-box;
+      padding: 32px 36px;
+      border-radius: var(--sw-r-xl, var(--sw-r-lg));
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+      animation: state-in 220ms var(--sw-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+    }
+    :host([compact]) .box {
+      display: contents;
+      animation: none;
+    }
+    @keyframes state-in {
+      from {
+        opacity: 0;
+        transform: scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .box {
+        animation: state-fade 160ms ease both;
+      }
+      @keyframes state-fade {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+    }
     .icon {
       display: grid;
       place-items: center;
-      inline-size: 48px;
-      block-size: 48px;
+      inline-size: 64px;
+      block-size: 64px;
       border-radius: var(--sw-r-lg);
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
       /* a hairline of its own ink: the tile reads as an object, not a smudge of tint */
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent), var(--sw-shadow-2);
       position: relative;
     }
     /* the neutral states (empty, loading) are quiet: no accent tile for "nothing here" (colour is for action and status) */
@@ -89,6 +135,7 @@ export class SwStatePanel extends LitElement {
       inline-size: 34px;
       block-size: 34px;
       border-radius: var(--sw-r-sm);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
     }
     :host([state='error']) .icon {
       background: var(--sw-danger-soft);
@@ -120,18 +167,25 @@ export class SwStatePanel extends LitElement {
     }
     h4 {
       margin: 0;
-      font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
       color: var(--sw-heading);
-      letter-spacing: -0.005em;
+      letter-spacing: -0.015em;
+      line-height: 1.25;
       text-wrap: balance;
     }
     :host([compact]) h4 {
       font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      letter-spacing: -0.005em;
     }
     p {
       margin: 0;
-      max-inline-size: 42ch;
+      max-inline-size: 46ch;
+      font-size: var(--sw-fs-md);
+      line-height: 1.5;
+    }
+    :host([compact]) p {
       font-size: var(--sw-fs-sm);
     }
     .text {
@@ -163,15 +217,17 @@ export class SwStatePanel extends LitElement {
     const hint = (rawCode ? '' : this.hint) || (this.quiet ? '' : preset.hint());
     const icon = !forbidden && this.state === 'empty' && this.icon ? this.icon : preset.icon;
     return html`
-      <div class="icon" data-look=${forbidden ? 'forbidden' : ''} data-icon=${icon} aria-hidden="true"><sw-icon .name=${icon} size=${this.compact ? 20 : 26}></sw-icon></div>
+      <div class="box">
+      <div class="icon" data-look=${forbidden ? 'forbidden' : ''} data-icon=${icon} aria-hidden="true"><sw-icon .name=${icon} size=${this.compact ? 20 : 30}></sw-icon></div>
       <div class="text" role="status">
         <h4>${this.heading || preset.title()}</h4>
         ${hint ? html`<p>${hint}</p>` : ''}
         <slot></slot>
       </div>
       ${this.actionLabel && !forbidden
-        ? html`<sw-button variant=${this.state === 'error' ? 'primary' : 'secondary'} size="sm" @click=${() => this.dispatchEvent(new CustomEvent('action', { bubbles: true, composed: true }))}>${this.actionLabel}</sw-button>`
+        ? html`<sw-button variant=${this.state === 'error' ? 'primary' : 'secondary'} size=${this.compact ? 'sm' : 'md'} @click=${() => this.dispatchEvent(new CustomEvent('action', { bubbles: true, composed: true }))}>${this.actionLabel}</sw-button>`
         : ''}
+      </div>
     `;
   }
 }

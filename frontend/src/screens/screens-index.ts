@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { customElement } from 'lit/decorators.js';
+import { settingsLadderStyles } from '../styles/settings';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-badge';
@@ -89,7 +90,7 @@ const PHASE_KIND: Record<Entry['phase'], StateKind> = { PILOT: 'live', BETA: 're
 /** Design-review index of every skeleton screen (SC29/SC30 mobile variants are the same routes at phone width). */
 @customElement('screens-index')
 export class ScreensIndex extends LitElement {
-  static styles = css`
+  static styles = [settingsLadderStyles, css`
     .groups {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -130,7 +131,7 @@ export class ScreensIndex extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
-  `;
+  `];
 
   render() {
     return html`

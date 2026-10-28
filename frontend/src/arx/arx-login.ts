@@ -84,18 +84,43 @@ export class ArxLogin extends LitElement {
         radial-gradient(900px 500px at 0% 110%, color-mix(in srgb, var(--sw-accent) 10%, transparent), transparent 60%),
         var(--sw-bg);
     }
+    /* R5-SYSTEM-297: the card is the hero of the page - wider, deeper (shadow 3 + the light line), a 26/800 title, 48 px wells for the
+       fields and a 48 px primary key; it materialises once (240 ms ease-out, fade + 10 px rise; a cross-fade under reduced motion) */
     .card {
-      inline-size: min(400px, 100%);
+      inline-size: min(420px, 100%);
       box-sizing: border-box;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-lg);
-      /* POLISH-CLASSIC-DOMUS-297: the card is the one floating object on the page - the floating shadow and the 1 px top edge */
+      border-radius: var(--sw-r-2xl, 22px);
       box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight);
-      padding: 28px 24px 22px;
+      padding: 32px 28px 24px;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 20px;
+      animation: login-in 240ms var(--sw-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+    }
+    @keyframes login-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card {
+        animation: login-fade 160ms ease both;
+      }
+      @keyframes login-fade {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
     }
     /* LOGOS-295 (mockup v3.1): BOTH logos in the card head, centred - the company's on top (when one is set), the SmplWise logo below;
        with no company logo the SmplWise logo alone, larger. The sizes follow the administrator's scale (sw-brand). */
@@ -146,15 +171,16 @@ export class ArxLogin extends LitElement {
     }
     h1 {
       margin: 0;
-      font-size: var(--sw-fs-xl);
+      font-size: var(--sw-fs-3xl);
       font-weight: var(--sw-fw-bold);
       color: var(--sw-heading);
-      letter-spacing: -0.01em;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
     }
     .sub {
-      margin: 4px 0 0;
+      margin: 6px 0 0;
       color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
       line-height: 1.5;
     }
     form {
@@ -166,26 +192,30 @@ export class ArxLogin extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-medium);
-      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading, var(--sw-text));
     }
+    /* a field is a well (surface-2, no resting outline); the accent ring appears on focus */
     input {
       font: inherit;
-      font-size: var(--sw-fs-lg); /* no zoom-on-focus on iOS */
-      min-block-size: 44px;
-      padding: 8px 12px;
+      font-size: max(16px, var(--sw-fs-lg)); /* no zoom-on-focus on iOS */
+      min-block-size: 48px;
+      padding: 8px 14px;
       border-radius: var(--sw-r-md);
-      border: 1px solid var(--sw-border-strong);
-      background: var(--sw-surface);
+      border: 1px solid transparent;
+      /* loop 2: the well is a real step down from the card (surface-2 pulled toward the border tone), so an empty field reads as a field */
+      background: color-mix(in srgb, var(--sw-surface-2, var(--sw-surface)) 76%, var(--sw-border));
       color: var(--sw-text);
       box-sizing: border-box;
       inline-size: 100%;
-      transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-border-strong) 60%, transparent);
+      transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), background var(--sw-t-hover) var(--sw-ease-color);
     }
     input:focus-visible {
       outline: none;
       border-color: var(--sw-accent);
+      background: var(--sw-surface);
       /* the same focus as every field of the product (sw-field): the accent outline and a soft halo */
       box-shadow: 0 0 0 3px var(--sw-accent-soft), 0 0 0 1px var(--sw-accent);
     }
@@ -201,13 +231,14 @@ export class ArxLogin extends LitElement {
     }
     button {
       font: inherit;
-      min-block-size: 44px;
+      min-block-size: 48px;
       border-radius: var(--sw-r-md);
       border: 1px solid var(--sw-accent);
       background: var(--sw-accent);
       color: var(--sw-text-inverse);
-      font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-lg);
+      letter-spacing: -0.005em;
       cursor: pointer;
       box-shadow: var(--sw-shadow-primary);
       transition: background var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
@@ -243,8 +274,9 @@ export class ArxLogin extends LitElement {
     }
     .msg {
       border-radius: var(--sw-r-md);
-      padding: 10px 12px;
-      font-size: var(--sw-fs-sm);
+      padding: 12px 14px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
       line-height: 1.5;
       background: var(--sw-accent-soft);
       color: var(--sw-text);
@@ -252,6 +284,7 @@ export class ArxLogin extends LitElement {
     .msg.error {
       background: var(--sw-danger-soft);
       color: var(--sw-danger-text);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-danger) 30%, transparent);
     }
     .foot {
       border-block-start: 1px solid var(--sw-border);
@@ -307,19 +340,21 @@ export class ArxLogin extends LitElement {
       padding: 4px;
       border-radius: var(--sw-r-md);
       background: var(--sw-surface-2, var(--sw-bg));
-      border: 1px solid var(--sw-border);
+      border: 1px solid transparent;
     }
     button.mode {
       background: none;
       border: 0;
       color: var(--sw-text-2);
       min-block-size: 40px;
-      font-weight: var(--sw-fw-medium);
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-md);
+      box-shadow: none;
     }
     button.mode.on {
       background: var(--sw-surface);
-      color: var(--sw-text);
-      box-shadow: var(--sw-shadow-1, none);
+      color: var(--sw-heading, var(--sw-text));
+      box-shadow: var(--sw-shadow-2, none);
     }
     button.mode:hover:not(:disabled):not(.on) {
       background: none;
@@ -341,7 +376,8 @@ export class ArxLogin extends LitElement {
       color: var(--sw-accent-text, var(--sw-accent));
     }
     button.secondary:hover:not(:disabled) {
-      background: var(--sw-surface-2, var(--sw-surface));
+      /* loop 2: the well is a real step down from the card (surface-2 pulled toward the border tone), so an empty field reads as a field */
+      background: color-mix(in srgb, var(--sw-surface-2, var(--sw-surface)) 76%, var(--sw-border));
     }
     .passkey-only {
       display: flex;

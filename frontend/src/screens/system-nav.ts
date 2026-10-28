@@ -107,9 +107,11 @@ export class SystemNav extends LitElement {
       color: var(--sw-text-3);
       cursor: pointer;
     }
-    .search .clear:hover {
-      background: var(--sw-hover-wash);
-      color: var(--sw-text);
+    @media (hover: hover) and (pointer: fine) {
+      .search .clear:hover {
+        background: var(--sw-hover-wash);
+        color: var(--sw-text);
+      }
     }
     .search .clear:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -124,18 +126,17 @@ export class SystemNav extends LitElement {
       flex-direction: column;
       gap: 1px;
     }
+    /* R5-SYSTEM-297: a group label is a heading of the column (12.5/700, the heading ink), not a 10 px uppercase smudge */
     .grp > b {
       display: flex;
       align-items: center;
       gap: 6px;
       margin: 0;
       padding: 0;
-      font-size: var(--sw-fs-2xs);
-      font-weight: var(--sw-fw-semibold);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      /* VISDIFF-246: a 10 px label takes the secondary text colour (the tertiary one is 2.8:1 on the light page) */
-      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.005em;
+      color: var(--sw-heading, var(--sw-text));
     }
     .grp > b sw-icon {
       color: var(--sw-text-2);
@@ -158,8 +159,10 @@ export class SystemNav extends LitElement {
       text-align: start;
       cursor: pointer;
     }
-    .grp > b .gh:hover {
-      background: var(--sw-hover-wash);
+    @media (hover: hover) and (pointer: fine) {
+      .grp > b .gh:hover {
+        background: var(--sw-hover-wash);
+      }
     }
     .grp > b .gh:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -175,6 +178,7 @@ export class SystemNav extends LitElement {
     .grp[data-open='true'] > b {
       margin-block-end: 2px;
     }
+    /* R5-SYSTEM-297: the entries read at a glance (13.5/500), the current one is a filled field in 600; a press gives (transform only) */
     a {
       display: flex;
       align-items: center;
@@ -184,8 +188,33 @@ export class SystemNav extends LitElement {
       border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       text-decoration: none;
+      font-size: var(--sw-fs-base);
       font-weight: var(--sw-fw-medium);
       line-height: 1.3;
+      transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    a:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .grp > b .gh {
+      transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .grp > b .gh:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    @media (prefers-reduced-motion: reduce) {
+      a,
+      .grp > b .gh {
+        transition-duration: 0ms;
+      }
     }
     .score-chip {
       margin-inline-start: auto;
@@ -212,20 +241,23 @@ export class SystemNav extends LitElement {
       margin-inline-start: 14px;
       min-block-size: max(28px, var(--sw-settings-row-h, 0px));
       font-weight: var(--sw-fw-regular);
-      font-size: var(--sw-fs-xs);
+      font-size: var(--sw-fs-sm);
       border-inline-start: 2px solid var(--sw-border);
       border-radius: 0 var(--sw-r-sm) var(--sw-r-sm) 0;
       border-start-start-radius: 0;
       border-end-start-radius: 0;
     }
-    a:hover {
-      background: var(--sw-hover-wash);
-      color: var(--sw-text);
+    @media (hover: hover) and (pointer: fine) {
+      a:hover {
+        background: var(--sw-hover-wash);
+        color: var(--sw-text);
+      }
     }
     a[aria-current='page'] {
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-accent) 22%, transparent);
     }
     a.sub[aria-current='page'] {
       border-inline-start-color: var(--sw-accent);

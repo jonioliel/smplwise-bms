@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { settingsLadderStyles } from '../styles/settings';
 import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-icon';
@@ -45,6 +46,7 @@ type BoardDetail = Awaited<ReturnType<typeof getBoard>>;
 @customElement('system-notices')
 export class SystemNotices extends LitElement {
   static styles = [
+    settingsLadderStyles,
     noticesCss,
     css`
       .tpls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
