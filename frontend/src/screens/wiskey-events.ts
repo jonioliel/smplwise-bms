@@ -859,11 +859,11 @@ export class WiskeyEvents extends LitElement {
     }
     /* R5-SECURITY: the day heading is a heading (13/800 in the heading ink on a tone step) */
     .grp {
-      padding: 8px 14px;
-      background: var(--sw-surface-2);
+      padding: 9px 14px;
+      background: var(--sw-surface-3);
       border-block-start: 1px solid var(--sw-border);
       color: var(--sw-heading, var(--sw-text));
-      font-size: var(--sw-fs-base);
+      font-size: var(--sw-fs-md);
       font-weight: 800;
       letter-spacing: 0.01em;
     }
@@ -914,9 +914,9 @@ export class WiskeyEvents extends LitElement {
     .time {
       /* the time is the display figure of a log row: 15/800, tabular, in the heading ink */
       flex: none;
-      min-inline-size: 52px;
+      min-inline-size: 56px;
       color: var(--sw-heading, var(--sw-text));
-      font-size: var(--sw-fs-lg);
+      font-size: var(--sw-fs-xl);
       font-weight: 800;
       font-variant-numeric: tabular-nums;
       letter-spacing: -0.01em;

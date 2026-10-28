@@ -941,7 +941,7 @@ export class WiskeyPeople extends LitElement {
     const state = selectionState(this.selected, this.rows);
     const cell = (p: AcPerson, key: ColumnKey): TemplateResult => {
       switch (key) {
-        case 'name': return html`<span class="who"><sw-avatar name=${p.display_name} size=${28} aria-hidden="true"></sw-avatar><b data-wiskey-person-name>${p.display_name}</b></span>`;
+        case 'name': return html`<span class="who"><sw-avatar name=${p.display_name} size=${34} aria-hidden="true"></sw-avatar><b data-wiskey-person-name>${p.display_name}</b></span>`;
         case 'employee': return html`<bdi class="ltr" data-wiskey-person-employee>${p.employee_no ?? ''}</bdi>`;
         case 'groups': return html`${this.groupsText(p)}`;
         case 'stations': return html`<span data-wiskey-person-assignments=${enabledStations(p)}>${this.stationsText(p)}</span>`;
@@ -1238,12 +1238,13 @@ export class WiskeyPeople extends LitElement {
     tbody tr.sel {
       background: var(--sw-accent-soft);
     }
-    /* R5-SECURITY: the state badge is the question of its column - 12.5/700, a 22 px field */
+    /* R5-SECURITY: the state badge is the question of its column - 13/700, a 26 px field */
     sw-badge {
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-base);
       font-weight: var(--sw-fw-bold);
-      line-height: 18px;
-      padding-block: 2px;
+      line-height: 20px;
+      padding-block: 3px;
+      padding-inline: 10px;
     }
     .main {
       display: flex;
@@ -1253,8 +1254,9 @@ export class WiskeyPeople extends LitElement {
       min-inline-size: 0;
     }
     .main b {
-      font-weight: var(--sw-fw-bold);
-      font-size: var(--sw-fs-lg);
+      font-weight: 800;
+      font-size: var(--sw-fs-xl);
+      letter-spacing: -0.01em;
       color: var(--sw-heading, var(--sw-text));
       overflow: hidden;
       text-overflow: ellipsis;
@@ -1400,7 +1402,8 @@ export class WiskeyPeople extends LitElement {
       border: 1px solid transparent;
       border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
-      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+      /* R5-SECURITY pass 2: the table is the screen's one primary object - shadow 2 */
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
     }
     table {
       inline-size: 100%;
@@ -1426,18 +1429,22 @@ export class WiskeyPeople extends LitElement {
       letter-spacing: 0.03em;
       padding-block: 10px;
     }
+    /* R5-SECURITY pass 2: the name is the row's display line (17/800, tracked -0.01em), the row 60 px, the figures 600 */
     td .who b,
     td.name b {
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-xl);
+      font-weight: 800;
+      letter-spacing: -0.01em;
       color: var(--sw-heading, var(--sw-text));
     }
     td {
       font-variant-numeric: tabular-nums;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
     }
     tbody tr {
       cursor: pointer;
-      block-size: 56px;
+      block-size: 60px;
     }
     tbody tr:last-child td {
       border-block-end: 0;

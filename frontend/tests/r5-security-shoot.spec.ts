@@ -46,7 +46,8 @@ const people = (prep: (st: PeopleMock) => void = () => {}, after: (page: Page, v
   await installPeople(page, st);
   await installWrites(page, st, w);
   await go(page, '/wiskey/people', skin, scheme);
-  await page.locator('wiskey-people sw-page[data-people-phase="ready"]').waitFor({ timeout: 20_000 });
+  // the error state never reaches "ready": it renders the state panel instead
+  await page.locator('wiskey-people sw-page[data-people-phase="ready"], wiskey-people sw-state-panel').first().waitFor({ timeout: 20_000 });
   await after(page, vp);
   await settle(page);
 };

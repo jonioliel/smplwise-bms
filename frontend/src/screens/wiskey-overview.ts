@@ -797,8 +797,8 @@ export class WiskeyOverview extends LitElement {
     .ic {
       display: grid;
       place-items: center;
-      inline-size: 40px;
-      block-size: 40px;
+      inline-size: 44px;
+      block-size: 44px;
       border-radius: var(--sw-r-md);
       background: var(--sw-live-soft);
       color: var(--sw-success);
@@ -825,11 +825,11 @@ export class WiskeyOverview extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: var(--sw-fs-xl);
+      font-size: var(--sw-fs-2xl);
       font-weight: 800;
-      letter-spacing: -0.01em;
+      letter-spacing: -0.02em;
       color: var(--sw-heading, var(--sw-text));
-      line-height: 1.2;
+      line-height: 1.15;
     }
     .title small {
       font-size: var(--sw-fs-sm);

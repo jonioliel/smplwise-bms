@@ -476,10 +476,10 @@ export class SecurityAlarm extends LitElement {
     /* R5-SECURITY: the area is a heading (16/800 in the heading ink), its count a filled pill */
     h3 {
       margin: 8px 0 8px;
-      font-size: var(--sw-fs-lg);
+      font-size: var(--sw-fs-xl);
       color: var(--sw-heading, var(--sw-text));
       font-weight: 800;
-      letter-spacing: -0.01em;
+      letter-spacing: -0.02em;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -591,8 +591,8 @@ export class SecurityAlarm extends LitElement {
       align-items: center;
     }
     .zstate {
-      /* R5-SECURITY: the state word reads first - 14/800 */
-      font-size: var(--sw-fs-md);
+      /* R5-SECURITY: the state word reads first - 15/800 */
+      font-size: var(--sw-fs-lg);
       font-weight: 800;
       transition: color var(--sw-t-state) var(--sw-ease);
     }
