@@ -527,6 +527,136 @@ export class LiveOverview extends LitElement {
         grid-template-columns: repeat(var(--lv-tile-compact-cols-phone), minmax(0, 1fr));
       }
     }
+    /* R5-LIVE-297 (the HOMEFABLE method on the live overview, structure unchanged): three surface tiers - the four counters are the
+       hero (a 32 px / 800 display numeral through the sw-kpi value hook), the cards the second tier, every row inside a card a WELL
+       (surface-2, rounded, no hairline); a state is a filled field (the tone's tint behind a dot and a bold word), not a dot on white;
+       the critical attention item is a filled danger field; rows sink on pointer-down and tint on hover only under a fine pointer */
+    .kpis {
+      --sw-kpi-value-fs: var(--sw-fs-4xl);
+      --sw-kpi-value-fw: 800;
+    }
+    .donut svg {
+      inline-size: 96px;
+      block-size: 96px;
+    }
+    .donut .big {
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--sw-heading);
+      font-variant-numeric: tabular-nums;
+    }
+    .bar {
+      block-size: 10px;
+      border-radius: var(--sw-r-pill);
+      margin-block: 8px 6px;
+    }
+    .bar i {
+      border-radius: var(--sw-r-pill);
+    }
+    .hrow,
+    .ev,
+    .spot {
+      border-block-end: 0;
+      margin-inline: 0;
+      margin-block-end: 5px;
+      padding: 7px 12px; /* loop 1: 9 px left two events in view at 1440 x 900 */
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .hrow:last-child,
+    .ev:last-child,
+    .spot:last-child {
+      margin-block-end: 0;
+    }
+    .hrow > span:first-child,
+    .spot .t,
+    .ev .txt b {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .ev time {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-2);
+      font-variant-numeric: tabular-nums;
+    }
+    .ev sw-scene,
+    .ev img.thumb,
+    .ev .none {
+      inline-size: 64px;
+      block-size: 40px;
+      border-radius: var(--sw-r-sm);
+    }
+    .status {
+      position: relative;
+      isolation: isolate;
+      flex: none;
+      min-block-size: 26px;
+      padding: 0 11px;
+      gap: 7px;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .status i::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: var(--sw-r-pill);
+      background: color-mix(in srgb, var(--c) 20%, var(--sw-surface));
+    }
+    .spot {
+      align-items: center;
+    }
+    .spot .ic {
+      inline-size: 36px;
+      block-size: 36px;
+      border-radius: 50%;
+    }
+    .spot.critical {
+      background: var(--sw-danger-soft);
+    }
+    .spot.critical .ic {
+      background: var(--sw-danger);
+      color: var(--sw-text-inverse);
+    }
+    .spot .why {
+      color: var(--sw-text-2);
+    }
+    .seeall {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .hrow.link,
+    .ev {
+      transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .hrow.link:hover,
+    .ev:hover {
+      background: var(--sw-surface-2);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .hrow.link:hover,
+      .ev:hover {
+        background: var(--sw-surface-3);
+      }
+    }
+    .hrow.link:active,
+    .ev:active {
+      transform: scale(var(--sw-press-scale, 0.98));
+      background: var(--sw-pressed-wash);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hrow.link:active,
+      .ev:active {
+        transform: none;
+      }
+    }
   `];
 
   render() {

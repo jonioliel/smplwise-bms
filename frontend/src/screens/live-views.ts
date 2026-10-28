@@ -299,6 +299,60 @@ export class LiveViews extends LitElement {
       margin-block-start: 10px;
       align-items: center;
     }
+    /* R5-LIVE-297 (the HOMEFABLE tiers on the saved views): the card is the second tier, the 2x2 preview its framed picture (the
+       video ink, the media radius, the first shadow), the facts a WELL under it - a two-column grid of label over a bold value
+       (a 20 px / 800 tile count), not a list of grey 11 px pairs; the view's name 17 px / 800 */
+    .grid {
+      gap: 16px;
+    }
+    .thumb {
+      gap: 4px;
+      padding: 5px;
+      border-radius: var(--sw-r-media);
+      margin-block-end: 12px;
+      box-shadow: var(--sw-shadow-1);
+    }
+    .thumb sw-scene,
+    .thumb img {
+      border-radius: var(--sw-r-2xs);
+    }
+    .head {
+      gap: 8px;
+      margin-block-end: 10px;
+    }
+    .head b {
+      font-size: var(--sw-fs-xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--sw-heading);
+    }
+    dl {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-auto-flow: column;
+      grid-template-rows: auto auto;
+      gap: 2px 10px;
+      padding: 10px 12px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      font-size: var(--sw-fs-sm);
+    }
+    dt {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    dd {
+      min-inline-size: 0;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .foot {
+      margin-block-start: 12px;
+      gap: 8px;
+    }
   `, bubbleChrome];
 
   render() {

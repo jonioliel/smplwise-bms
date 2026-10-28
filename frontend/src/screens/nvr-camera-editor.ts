@@ -77,6 +77,12 @@ export class NvrCameraEditor extends LitElement {
   static styles = css`
     :host {
       display: contents;
+      --r5-drawer-ms: var(--sw-spring-drawer-ms);
+    }
+    /* R5-LIVE-297 (emil-design-eng: a panel lands in 200-400 ms): the Arx skins' drawer travel is 630 ms, long for a form opened
+       from a table row; this drawer clamps it to 380 ms and keeps every faster skin's own value */
+    sw-drawer {
+      --sw-spring-drawer-ms: clamp(200ms, var(--r5-drawer-ms), 380ms);
     }
     form {
       display: grid;
@@ -209,6 +215,95 @@ export class NvrCameraEditor extends LitElement {
     }
     .muted {
       color: var(--sw-text-3);
+    }
+    /* R5-LIVE-297 (the HOMEFABLE tiers inside the stream editor): each setting is a WELL (surface-2, rounded) with its label 12.5 px
+       semibold in the heading ink over a control that sits a tier up (surface, first shadow, 14 px semibold value); the two switches
+       are the same wells, so the drawer reads as ten equal blocks instead of floating labels; the history rows are wells too */
+    form {
+      gap: 8px;
+    }
+    .f {
+      gap: 7px;
+      padding: 10px 12px 12px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+    }
+    .f.sw {
+      padding: 4px 12px;
+      min-block-size: 56px;
+    }
+    .f > span.l,
+    .f.sw > span.l {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .f.sw > span.l {
+      font-size: var(--sw-fs-md);
+    }
+    select,
+    input {
+      border-color: var(--sw-border);
+      box-shadow: var(--sw-shadow-1);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .bad {
+      background: var(--sw-danger-soft);
+    }
+    .line {
+      font-size: var(--sw-fs-md);
+      border-radius: var(--sw-r-md);
+      padding: 10px 12px;
+    }
+    ol li {
+      padding: 8px 12px;
+      border-block-end: 0;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+    }
+    details.history summary {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    /* R5-LIVE-297 Fable pass: the wells breathe (12 / 14 px), the label 13 px / 700, the control a 46 px key with a 15 px / 700 value;
+       the switch wells show their word at 15 px / 700 */
+    form {
+      gap: 10px;
+    }
+    .f {
+      gap: 8px;
+      padding: 12px 14px 14px;
+      border-radius: var(--sw-r-lg);
+    }
+    .f > span.l,
+    .f.sw > span.l {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+    }
+    .f.sw > span.l {
+      font-size: var(--sw-fs-lg);
+    }
+    .f.sw {
+      padding: 6px 14px;
+      min-block-size: 60px;
+    }
+    select,
+    input {
+      min-block-size: 46px;
+      border-color: transparent;
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      border-radius: var(--sw-r-md);
+    }
+    select:focus,
+    input:focus {
+      border-color: var(--sw-accent);
+    }
+    .bad select,
+    .bad input {
+      border-color: var(--sw-danger);
     }
   `;
 

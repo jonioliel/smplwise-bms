@@ -44,6 +44,18 @@ interface Row {
 const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking', 'warehouse', 'backyard', 'driveway', 'night'];
 
 /** SC27 — camera health (board 2 screen 12): registry from the backend (read-only NVR sync) or demo rows. */
+/** R5-LIVE-297: inline cell styles (sw-table renders the cells in its own shadow root - see `columns`). */
+const CELL_CAM = 'display:flex;align-items:center;gap:12px;min-inline-size:0';
+const CELL_PIC = 'inline-size:72px;block-size:44px;flex:none;border-radius:var(--sw-r-sm);overflow:hidden;';
+/** A state as a filled pill: the tone's tint behind a dot and a bold word (the HOMEFABLE "status is a field" rule). */
+function statePill(state: string, tone: string, text: string, attr: 'cam' | 'cih' = 'cam') {
+  const style = `display:inline-flex;align-items:center;gap:7px;min-block-size:26px;padding:0 11px;border-radius:var(--sw-r-pill);background:color-mix(in srgb, ${tone} 20%, var(--sw-surface));color:var(--sw-heading);font-size:var(--sw-fs-sm);font-weight:var(--sw-fw-bold);white-space:nowrap`;
+  const dot = html`<i style=${`--c:${tone};inline-size:8px;block-size:8px;border-radius:50%;background:${tone};flex:none`}></i>`;
+  return attr === 'cam'
+    ? html`<span class="status" data-cam-state=${state} style=${style}>${dot}${text}</span>`
+    : html`<span class="status" data-cih-cell=${state} style=${style}>${dot}${text}</span>`;
+}
+
 @customElement('system-devices')
 export class SystemDevices extends LitElement {
   /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
@@ -297,7 +309,7 @@ export class SystemDevices extends LitElement {
     if (!c || c.state === 'off') return html`<span class="hint">—</span>`;
     const tone = c.state === 'warn' ? (c.issues.some((k) => k === 'frozen' || k === 'shifted') ? 'var(--sw-danger)' : 'var(--sw-stale)') : c.state === 'ok' ? 'var(--sw-live)' : 'var(--sw-unknown)';
     const text = c.state === 'warn' ? c.issues.map((k) => cit(k)).join(', ') : c.state === 'ok' ? cit('stateOk') : c.state === 'excluded' ? cit('stateExcluded') : (c.error_text ?? cit('stateUnknown'));
-    return html`<span class="status" data-cih-cell=${c.state} style=${c.state === 'warn' ? 'color:var(--sw-warning-text);font-weight:var(--sw-fw-semibold)' : ''}><i style="--c:${tone}"></i>${text}</span>`;
+    return statePill(c.state, tone, text, 'cih');
   }
 
   /** The drawer: the picture state, brightness / sharpness and the reference view. */
@@ -324,9 +336,12 @@ export class SystemDevices extends LitElement {
     return svg`<svg class="net" viewBox="0 0 22 14" aria-label="רשת">${[0, 1, 2, 3].map((i) => svg`<rect x=${i * 5.5} y=${11 - i * 3} width="4" height=${3 + i * 3} rx="1" fill=${i < level ? (level >= 3 ? 'var(--sw-live)' : 'var(--sw-stale)') : 'var(--sw-border-strong)'} />`)}</svg>`;
   }
 
+  // R5-LIVE-297: the cells render inside sw-table's own shadow root, so this screen's `.cam` / `.status` rules never reached them (the
+  // picture filled the whole column - a 440 x 250 scene per row - and the state dot was missing). The cell carries its own inline style:
+  // a 72 x 44 picture in the media radius, the name 14 px bold over its line, the state a FILLED pill in the tone's tint.
   private columns: TableColumn[] = [
-    { key: 'name', label: 'מצלמה', render: (r) => html`<div class="cam">${r.api && (r.api as { status?: string }).status === 'online' ? html`<img class="snap" src=${snapshotUrl(String(r.id))} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:5px;flex-shrink:0;background:var(--sw-surface-3);display:block" @error=${(e: Event) => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />` : r.scene ? html`<sw-scene kind=${r.scene as SceneKind}></sw-scene>` : html`<div class="none"><sw-icon name=${r.state === 'forbidden' ? 'lock' : 'offline'} size=${14}></sw-icon></div>`}<div><b>${String(r.name)}</b><small>${String(r.sub)}</small></div></div>` },
-    { key: 'state', label: 'מצב', render: (r) => html`<span class="status" data-cam-state=${String(r.state)} style=${r.state === 'offline' ? 'color:var(--sw-danger-text);font-weight:var(--sw-fw-semibold)' : r.state === 'stale' || r.state === 'forbidden' ? 'color:var(--sw-warning-text)' : ''}><i style="--c:${r.state === 'live' ? 'var(--sw-live)' : r.state === 'offline' ? 'var(--sw-danger)' : r.state === 'unknown' ? 'var(--sw-unknown)' : 'var(--sw-stale)'}"></i>${r.state === 'live' ? 'מחוברת' : r.state === 'offline' ? 'מנותקת' : r.state === 'stale' ? 'לא מעודכן' : r.state === 'forbidden' ? 'ללא הרשאה' : 'לא נבדק'}</span>` },
+    { key: 'name', label: 'מצלמה', render: (r) => html`<div class="cam" style=${CELL_CAM}>${r.api && (r.api as { status?: string }).status === 'online' ? html`<img class="snap" src=${snapshotUrl(String(r.id))} alt="" loading="lazy" style=${CELL_PIC + 'object-fit:cover;background:var(--sw-surface-3);display:block'} @error=${(e: Event) => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />` : r.scene ? html`<sw-scene kind=${r.scene as SceneKind} style=${CELL_PIC}></sw-scene>` : html`<div class="none" style=${CELL_PIC + 'display:grid;place-items:center;color:var(--sw-offline-text);background:color-mix(in srgb, var(--sw-offline) 22%, var(--sw-surface-3))'}><sw-icon name=${r.state === 'forbidden' ? 'lock' : 'offline'} size=${16}></sw-icon></div>`}<div style="min-inline-size:0"><b style="display:block;font-size:var(--sw-fs-md);font-weight:var(--sw-fw-bold);color:var(--sw-heading)">${String(r.name)}</b><small style="display:block;color:var(--sw-text-2);font-size:var(--sw-fs-xs)">${String(r.sub)}</small></div></div>` },
+    { key: 'state', label: 'מצב', render: (r) => statePill(String(r.state), r.state === 'live' ? 'var(--sw-live)' : r.state === 'offline' ? 'var(--sw-danger)' : r.state === 'unknown' ? 'var(--sw-unknown)' : 'var(--sw-stale)', r.state === 'live' ? 'מחוברת' : r.state === 'offline' ? 'מנותקת' : r.state === 'stale' ? 'לא מעודכן' : r.state === 'forbidden' ? 'ללא הרשאה' : 'לא נבדק') },
     { key: 'fps', label: 'FPS', ltr: true },
     { key: 'bitrate', label: 'קצב', ltr: true },
     { key: 'firmware', label: 'זרם ראשי', ltr: true },

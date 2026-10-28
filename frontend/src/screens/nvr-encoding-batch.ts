@@ -266,6 +266,117 @@ export class NvrEncodingBatch extends LitElement {
         --sw-touch-desktop: 44px;
       }
     }
+    /* R5-LIVE-297 (the HOMEFABLE tiers in the multi-camera encoding dialog; the windowed rows keep their 44 / 60 px heights): the list is
+       a WELL (surface-2, no outline) inside the dialog; a chosen stream is a FILLED accent row with its name in bold heading ink, not
+       only a ticked box; rows tint on hover only under a fine pointer and darken on press; the count is a bold numeral */
+    .vl {
+      border-color: transparent;
+      background: var(--sw-surface-2);
+    }
+    .sel {
+      font-size: var(--sw-fs-md);
+      transition: background-color var(--sw-t-fast) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sel:hover:not([aria-disabled='true']) {
+      background: transparent;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .sel:hover:not([aria-disabled='true']) {
+        background: var(--sw-surface-3);
+      }
+    }
+    .sel:active:not([aria-disabled='true']) {
+      background: var(--sw-pressed-wash);
+    }
+    .sel[aria-checked='true'] {
+      background: color-mix(in srgb, var(--sw-accent) 20%, var(--sw-surface)); /* 50 % test: accent-soft vanished in dark */
+    }
+    .vl {
+      border-radius: var(--sw-r-lg);
+    }
+    .sel[aria-checked='true'] .nm {
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .box {
+      background: var(--sw-surface);
+    }
+    .count {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .row {
+      font-size: var(--sw-fs-md);
+    }
+    .row .nm {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .sum {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .msg {
+      padding: 8px 12px;
+      border-radius: var(--sw-r-md);
+    }
+    /* R5-LIVE-297 Fable pass (the Opus list still had hairlines between the rows and a 20 % tint that vanished in dark): the rows sit
+       in the well with NO lines (the windowed 44 / 60 px heights untouched); a chosen stream is a 26 % accent field with a 4 px accent
+       bar at its start edge and a 22 px box; the count is a 20 px / 800 display line; the plan rows are bold in the heading ink */
+    .sel,
+    .row {
+      border-block-end: 0;
+    }
+    .sel {
+      padding-inline: 14px;
+      gap: 12px;
+      color: var(--sw-heading);
+    }
+    .sel[aria-checked='true'] {
+      background: color-mix(in srgb, var(--sw-accent) 26%, var(--sw-surface));
+      /* the bar sits at the row's START edge: box-shadow offsets are physical, so RTL (the default) is the right edge */
+      box-shadow: inset -4px 0 0 var(--sw-accent);
+    }
+    :host-context([dir='ltr']) .sel[aria-checked='true'] {
+      box-shadow: inset 4px 0 0 var(--sw-accent);
+    }
+    .box {
+      inline-size: 22px;
+      block-size: 22px;
+      border-radius: var(--sw-r-xs);
+      border-color: var(--sw-border-strong);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .sel[aria-checked='true'] .box {
+      box-shadow: none;
+    }
+    .sel .meta {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-2);
+    }
+    .count {
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .row {
+      padding-inline: 14px;
+    }
+    .row .nm {
+      font-weight: var(--sw-fw-bold);
+    }
+    .adj {
+      font-weight: var(--sw-fw-bold);
+    }
+    .sum {
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+    }
   `;
 
   // ---------------------------------------------------------------------------------------------- the screen's calls

@@ -84,9 +84,10 @@ export class SwKpi extends LitElement {
     .label {
       display: block;
     }
+    /* R5-LIVE-297 (sw-kpi size hook, like --sw-kpi-label-lines): a host may ask for a display numeral; unset = the old 20 px / 700 */
     .value {
-      font-size: var(--sw-fs-2xl);
-      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-kpi-value-fs, var(--sw-fs-2xl));
+      font-weight: var(--sw-kpi-value-fw, var(--sw-fw-bold));
       line-height: 1.1;
       letter-spacing: -0.02em;
       font-variant-numeric: tabular-nums;

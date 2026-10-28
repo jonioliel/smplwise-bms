@@ -107,9 +107,25 @@ export class SwCameraTile extends LitElement {
       isolation: isolate;
       outline: none;
     }
-    :host(:hover) {
-      box-shadow: var(--sw-shadow-2);
-      transform: translateY(var(--sw-hover-lift));
+    /* R5-LIVE-297 (mobile-native, emil press): the lift follows a hovering pointer only (a tapped tile kept it on a phone), and a
+       tile answers the pointer-down at once - it sinks a step, the shadow drops */
+    @media (hover: hover) and (pointer: fine) {
+      :host(:hover) {
+        box-shadow: var(--sw-shadow-2);
+        transform: translateY(var(--sw-hover-lift));
+      }
+    }
+    :host {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    :host(:active) {
+      transform: scale(var(--sw-press-scale, 0.985));
+      box-shadow: none;
+      transition-duration: var(--sw-t-press);
     }
     :host(:focus-visible) {
       box-shadow: 0 0 0 var(--sw-focus-w) var(--sw-focus), var(--sw-shadow-2);
@@ -122,6 +138,39 @@ export class SwCameraTile extends LitElement {
     :host([state='forbidden']),
     :host([state='unknown']) {
       box-shadow: inset 0 0 0 1px var(--sw-border-strong);
+    }
+    /* R5-LIVE-297 (status as a filled field): a camera that is down is a filled offline field - the panel in the offline tint, a
+       solid ring with the icon, the name 15 px bold over a "disconnected" line - not a white card with a dashed edge that read as
+       a picture still loading; forbidden takes the danger tint */
+    :host([state='offline']:not([dark])) .off,
+    :host([state='unknown']:not([dark])) .off {
+      background: color-mix(in srgb, var(--sw-offline) 40%, var(--sw-surface-3)); /* loop 1: 22 % read as an empty card in light */
+    }
+    :host([dark][state='offline']) .off,
+    :host([dark][state='unknown']) .off {
+      background: color-mix(in srgb, var(--sw-offline) 22%, var(--sw-video-bg));
+    }
+    :host([state='forbidden']:not([dark])) .off {
+      background: color-mix(in srgb, var(--sw-danger) 12%, var(--sw-surface-3));
+    }
+    :host([state='offline']:not([dark])) .off .ring,
+    :host([state='unknown']:not([dark])) .off .ring,
+    :host([state='forbidden']:not([dark])) .off .ring {
+      border: 0;
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+    }
+    :host([state='offline']) .off .ring sw-icon,
+    :host([state='unknown']) .off .ring sw-icon {
+      color: var(--sw-offline-text);
+    }
+    :host(:not([compact])) .off .label {
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+    }
+    :host(:not([compact])) .off {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
     }
     :host([state='offline']) .off sw-icon,
     :host([state='unknown']) .off sw-icon {
@@ -215,6 +264,14 @@ export class SwCameraTile extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* R5-LIVE-297: the camera's name is the tile's title - 14 px bold on the picture */
+    /* loop 2: on a phone's two-column wall a 14 px name ran into the floor line - the step up is for tablet and desktop widths */
+    @media (min-width: 768px) {
+      :host(:not([compact])) .label {
+        font-size: var(--sw-fs-md);
+        font-weight: var(--sw-fw-bold);
+      }
+    }
     :host([compact]) .label {
       font-size: var(--sw-fs-xs);
       inset-inline-start: 8px;
@@ -272,6 +329,46 @@ export class SwCameraTile extends LitElement {
     }
     :host([state='forbidden']) .off .label .dot {
       background: var(--sw-danger);
+    }
+    /* R5-LIVE-297 Fable pass (the Opus offline tile was a flat grey field with a 44 px dashed ring: it still read as a picture that had
+       not loaded): the down tile is a filled offline FIELD with a 60 px solid ring that floats (surface, the second shadow), the name
+       18 px / 800 in the heading ink, the reason 14 px semibold; dark tiles tint deeper (34 %) so the field reads on the video ink */
+    :host(:not([compact])) .off {
+      gap: 10px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+    }
+    :host(:not([compact])) .off .ring {
+      inline-size: 60px;
+      block-size: 60px;
+      border: 0;
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-2);
+    }
+    :host(:not([compact])) .off .ring sw-icon {
+      inline-size: 26px;
+      block-size: 26px;
+    }
+    :host(:not([compact])) .off .label {
+      font-size: var(--sw-fs-xl);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: var(--sw-heading);
+    }
+    :host([dark]:not([compact])) .off .label {
+      color: var(--sw-on-video);
+    }
+    :host([dark][state='offline']) .off,
+    :host([dark][state='unknown']) .off {
+      background: color-mix(in srgb, var(--sw-offline) 34%, var(--sw-video-bg));
+    }
+    :host([dark]:not([compact])) .off .ring {
+      background: color-mix(in srgb, var(--sw-on-video) 14%, var(--sw-video-bg));
+      box-shadow: var(--sw-shadow-2);
+    }
+    .off .label .dot {
+      inline-size: 9px;
+      block-size: 9px;
     }
     .stamp {
       position: absolute;

@@ -304,6 +304,108 @@ export class LiveWall extends LitElement {
         grid-template-columns: repeat(min(var(--cols), 2), minmax(0, 1fr));
       }
     }
+    /* R5-LIVE-297 (the HOMEFABLE method on the wall, the grid and its sizing untouched): the tile count is a real segmented control -
+       32 px keys, 13 px bold numerals, the chosen count a filled accent key that reads from across the room; hover tints only under a
+       fine pointer and a key sinks on pointer-down; a camera that is down is a filled field at full strength (sw-camera-tile), not
+       dimmed; the wall-settings rows are wells, not outlined boxes; the phone's kiosk button is a raised key */
+    .layouts {
+      gap: 3px;
+      padding: 3px;
+      border-radius: var(--sw-r-md);
+    }
+    .layouts button {
+      min-inline-size: 32px;
+      block-size: 32px;
+      border-radius: var(--sw-r-sm);
+      font-size: var(--sw-fs-base);
+      font-weight: var(--sw-fw-bold);
+      font-variant-numeric: tabular-nums;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .layouts button.on {
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse);
+      box-shadow: var(--sw-shadow-primary);
+    }
+    .layouts button:hover:not(.on) {
+      color: var(--sw-text-2);
+      background: transparent;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .layouts button:hover:not(.on) {
+        color: var(--sw-heading);
+        background: var(--sw-surface);
+      }
+    }
+    .layouts button:active {
+      transform: scale(var(--sw-press-scale, 0.94));
+    }
+    .grid sw-camera-tile[state='offline'],
+    .grid sw-camera-tile[state='unknown'] {
+      opacity: 1;
+    }
+    .settings-row {
+      padding: 8px 10px;
+      border-color: transparent;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+    }
+    .settings-name {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .pbar .kiosk {
+      border-color: var(--sw-border);
+      color: var(--sw-heading);
+      box-shadow: var(--sw-shadow-1);
+      transition: transform var(--sw-t-press) var(--sw-ease-out), box-shadow var(--sw-t-fast) var(--sw-ease);
+    }
+    .pbar .kiosk:active {
+      transform: scale(var(--sw-press-scale, 0.95));
+      box-shadow: none;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .layouts button:active,
+      .pbar .kiosk:active {
+        transform: none;
+      }
+    }
+    /* R5-LIVE-297 Fable pass: the tile-count tray is a RAISED control (surface, the first shadow, 36 px keys, 15 px / 800 numerals)
+       instead of a flat surface-3 tray; the tile grid breathes 14 px; the settings rows are wells with a 15 px name */
+    .layouts {
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      border-radius: var(--sw-r-lg);
+      padding: 4px;
+      gap: 2px;
+    }
+    .layouts button {
+      min-inline-size: 36px;
+      block-size: 36px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-md);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: var(--sw-text);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .layouts button:hover:not(.on) {
+        background: var(--sw-surface-2);
+      }
+    }
+    @media (min-width: 768px) {
+      .grid {
+        gap: 14px;
+      }
+    }
+    .settings-row {
+      padding: 10px 12px;
+    }
   `, bubbleChrome];
 
   /** Owner round 3 (2.5): columns chosen by hand for the wall (0 = best fit); kept per browser. */
