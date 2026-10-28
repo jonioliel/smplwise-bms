@@ -28,7 +28,15 @@ file below was merged exactly once, with its single owner's intent kept as-is (n
 - `components/media-player-card.ts`, `components/media-screen-card.ts` (MEDIA-ENERGY, title size).
 - `components/sw-automation-row.ts`, `components/sw-automation-card.ts`, `styles/automations-glass.ts` (DEVICES).
 
-## OPEN: `screens/investigate-history-map.ts` (INVESTIGATE x MAPS)
+## RESOLVED: `screens/investigate-history-map.ts` (INVESTIGATE x MAPS)
+
+Owner decision 2026-10-28: option (a), the MAPS look. The base `.bar` / `.time` rules went back to their pre-R5 form (the rules
+the MAPS block was written over), so the time bar renders exactly as on `pilot/R5-MAPS-297` @ `610634505`: the recorded-tone
+status field with the 26 px recorded-tone time. Both rule pairs were compared with that branch and are identical. INVESTIGATE's
+other changes to the file stay: `dl` / `dt` / `dd`, the event-row wells, the press feedback, hover only under a fine pointer, and
+the `INVESTIGATE_R5` sheet, which has no `.bar` / `.time` rules. The analysis that led to the decision follows.
+
+### Analysis at merge time
 
 Both groups restyled the same history-map screen, in different hunks, so git merged it without a conflict. The cascade result is
 a hybrid neither group designed:
@@ -43,6 +51,37 @@ background is INVESTIGATE's neutral surface (MAPS did not restate it). So the ba
 and a 26px recorded-ink time. The intent conflict (neutral control strip vs recorded status field) is a design call, not a merge
 call, so it was left as merged and not hand-resolved. Decision needed: (a) MAPS look (restore `background: var(--sw-recorded-soft)`
 in the MAPS block), (b) INVESTIGATE look (drop `.bar` / `.time` from the MAPS block), or (c) keep the hybrid.
+
+## Merge of `main` (v2.25.0, `83a7c795f`) into the branch
+
+`main` was 66 commits (240 files) ahead, and the branch was 61 commits ahead (merge base `b03730a1b`). A real merge of `main`
+(`2bde44771`) gave no textual conflicts. Ten files changed on both sides. Each was read on both sides, and none clashes, because
+main changed behaviour or layout while R5 changed the visual styling in other rules:
+
+- `design/tokens.ts`: main adds the `rail` and `elevator` token groups (SKINCOMP-297); HOMEFABLE adds `--sw-popup-blur` and tunes the
+  dark `--sw-lit-soft`. Different lines.
+- `elevators/styles.ts`: main moves the `--sw-el-*` literals from `:host` to the tokens with the same values; MEDIA-ENERGY restyles
+  the badge, the sensor lights and the bar, and still reads the same variables.
+- `elevators/home-widget.ts`: main fixes the container width (WIDGETFIX-298); the branch restyles the title, rows and alert cards.
+- `screens/home-widgets.ts`: main adds the row-band rules (WIDGETFIX-298) at the end of the sheet; the branch's edits are earlier.
+- `screens/door-windows.ts`: main adds the emergency engine switch and its confirm dialog (SPLITSWITCH2-297); the branch changes CSS only.
+- `screens/automation-drawer.ts`: main's XSECFIX-297 `addressAction` rule (logic) is kept; DEVICES changes styles only.
+- `screens/electricity/page-meters.ts`: main's GATEFIX2240 grid rows (`max-content`, `align-content: start`) apply together with
+  MEDIA-ENERGY's card styling.
+- `screens/system-design.ts`: main adds the motion and rail-tone settings (logic and markup); SYSTEM restyles the skin cards.
+- `shell/sw-app.ts`: main passes `ui.motion` / `ui.rail_tone` to `setInstallationDesign`; SYSTEM and POLISH restyle the phone bar
+  and the rail pill.
+- `backend/.../routers/settings.py`: main adds `ui.motion`, `ui.rail_tone` and `docread.enabled`; the branch adds the
+  POLISH-CONTROL `home.*` / `ui.long_lists` keys. Different keys.
+
+One clash showed up only in the tests. Main's `tests/unit-skincomp-297.spec.ts` asserted `SKINS.classic.tokens` `{}` and
+`SKINS.classic.rules` `''`. The owner-approved polish rounds already in the HOMEFABLE base (POLISH-CLASSIC-DOMUS-297,
+POLISH-BOLD-297) give classic its own tokens and rules, so those two lines were stale. They were removed. The guard the spec
+exists for still runs for classic in the loop above them: no rail or elevator override, no dark rail, no Arx rule. No product
+code changed (the spec passes 6/6).
+
+`git merge-base --is-ancestor main release/2270-r5` returns 0. `smplwise_vms/www` is identical to main: the UI rebuild into
+`www` is left for the runner.
 
 ## Fix after the MAPS merge: `screens/plan-studio-panel.ts`
 
@@ -66,3 +105,12 @@ Run on the assembled tree (with the plan-studio-panel fix), Windows workstation,
     `pilot/HOMEFABLE-297` @ `e4e67daa9` (checked with the same command), and no R5 branch touches the 3D sources: pre-existing,
     not caused by the assembly.
 - Not run here: the gate, the browser / evidence / layout / pixel suites (runner only).
+
+Re-run after the merge of main, the history-map decision and the skincomp spec fix (`fa3d8436b`):
+
+- `npx tsc --noEmit`: exit 0. `npx vite build`: exit 0.
+- `unit-*` (349 files, desktop project, port 4791): 3398 passed, 2 failed, 8 skipped. The 2 failures are the same two known
+  3D specs, with the same numbers as on the base (2972 of 259200 pixels in `plan-3d-l1-iso-desktop.png`). Before the skincomp
+  fix, the run on the plain main merge (`2bde44771`) was 3397 passed, 3 failed, 8 skipped. The extra failure was
+  `unit-skincomp-297` test 3.
+- The unit run rewrites `docs/evidence/USR2/*.png`. Those outputs were reverted each time and are not committed.
