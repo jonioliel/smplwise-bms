@@ -75,6 +75,19 @@ export function sameNavSize(a: NavSize, b: NavSize): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+/** The preset closest to a free value's icon size. */
+export function nearestPreset(s: NavSize): NavPreset {
+  if (s.mode === 'rel') return s.preset;
+  const icons: Record<NavPreset, number> = { s: 18, m: 20, l: 25, xl: 30 };
+  return NAV_PRESETS.reduce((best, p) => (Math.abs(icons[p] - s.icon) < Math.abs(icons[best] - s.icon) ? p : best), 'm' as NavPreset);
+}
+
+/** Owner decision 2026-10-27 (home direction A): no free mode in the UI. A stored free value (the backend still accepts it: an old
+ * personal choice or installation default) is shown as the nearest preset; the stored value itself is left untouched. */
+export function usableNavSize(v: unknown): NavSize | null {
+  const n = normalizeNavSize(v);
+  return n && n.mode === 'free' ? { mode: 'rel', preset: nearestPreset(n) } : n;
+}
 /** The free sizes a preset stands for (the "חופשי" editor starts from the current preset). */
 export function freeFrom(size: NavSize): Extract<NavSize, { mode: 'free' }> {
   if (size.mode === 'free') return size;
@@ -165,7 +178,7 @@ export function onNavSize(fn: (s: NavSize) => void): () => void {
 
 /** The installation default (the product setting): at load, and right after the settings screen saved it. */
 export function setInstallationNavSize(v: unknown): void {
-  installation = normalizeNavSize(v) ?? NAV_DEFAULT;
+  installation = usableNavSize(v) ?? NAV_DEFAULT;
   notify();
 }
 
@@ -174,7 +187,7 @@ function readCache(): { u: string; size: NavSize } | null {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const c = JSON.parse(raw) as { u?: unknown; size?: unknown };
-    const size = normalizeNavSize(c.size);
+    const size = usableNavSize(c.size);
     return typeof c.u === 'string' && size ? { u: c.u, size } : null;
   } catch {
     return null;
@@ -202,7 +215,7 @@ export async function loadNavSize(userId: string, api: boolean): Promise<void> {
     const p = await getMyPrefs();
     if (user !== userId) return;
     const stored = Array.isArray(p.stored) && p.stored.includes('ui.nav_size');
-    const v = stored ? normalizeNavSize(p.prefs['ui.nav_size']) : null;
+    const v = stored ? usableNavSize(p.prefs['ui.nav_size']) : null;
     writeCache(userId, v);
     own = v;
     notify();
