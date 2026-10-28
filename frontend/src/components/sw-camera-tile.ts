@@ -107,9 +107,22 @@ export class SwCameraTile extends LitElement {
       isolation: isolate;
       outline: none;
     }
-    :host(:hover) {
-      box-shadow: var(--sw-shadow-2);
-      transform: translateY(var(--sw-hover-lift));
+    /* R5-LIVE-297 (mobile-native, emil press): the lift follows a hovering pointer only (a tapped tile kept it on a phone), and a
+       tile answers the pointer-down at once - it sinks a step, the shadow drops */
+    @media (hover: hover) and (pointer: fine) {
+      :host(:hover) {
+        box-shadow: var(--sw-shadow-2);
+        transform: translateY(var(--sw-hover-lift));
+      }
+    }
+    :host {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    :host(:active) {
+      transform: scale(var(--sw-press-scale, 0.985));
+      box-shadow: none;
+      transition-duration: var(--sw-t-press);
     }
     :host(:focus-visible) {
       box-shadow: 0 0 0 var(--sw-focus-w) var(--sw-focus), var(--sw-shadow-2);
@@ -122,6 +135,39 @@ export class SwCameraTile extends LitElement {
     :host([state='forbidden']),
     :host([state='unknown']) {
       box-shadow: inset 0 0 0 1px var(--sw-border-strong);
+    }
+    /* R5-LIVE-297 (status as a filled field): a camera that is down is a filled offline field - the panel in the offline tint, a
+       solid ring with the icon, the name 15 px bold over a "disconnected" line - not a white card with a dashed edge that read as
+       a picture still loading; forbidden takes the danger tint */
+    :host([state='offline']:not([dark])) .off,
+    :host([state='unknown']:not([dark])) .off {
+      background: color-mix(in srgb, var(--sw-offline) 22%, var(--sw-surface-3));
+    }
+    :host([dark][state='offline']) .off,
+    :host([dark][state='unknown']) .off {
+      background: color-mix(in srgb, var(--sw-offline) 16%, var(--sw-video-bg));
+    }
+    :host([state='forbidden']:not([dark])) .off {
+      background: color-mix(in srgb, var(--sw-danger) 12%, var(--sw-surface-3));
+    }
+    :host([state='offline']:not([dark])) .off .ring,
+    :host([state='unknown']:not([dark])) .off .ring,
+    :host([state='forbidden']:not([dark])) .off .ring {
+      border: 0;
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+    }
+    :host([state='offline']) .off .ring sw-icon,
+    :host([state='unknown']) .off .ring sw-icon {
+      color: var(--sw-offline-text);
+    }
+    :host(:not([compact])) .off .label {
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+    }
+    :host(:not([compact])) .off {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
     }
     :host([state='offline']) .off sw-icon,
     :host([state='unknown']) .off sw-icon {
@@ -214,6 +260,11 @@ export class SwCameraTile extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    /* R5-LIVE-297: the camera's name is the tile's title - 14 px bold on the picture */
+    :host(:not([compact])) .label {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
     }
     :host([compact]) .label {
       font-size: var(--sw-fs-xs);
