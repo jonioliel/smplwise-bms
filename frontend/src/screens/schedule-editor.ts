@@ -304,12 +304,13 @@ export class ScheduleEditor extends LitElement {
       gap: 14px;
       min-inline-size: 0;
     }
+    /* R5-DEVICES-297: the editor's panels are the top step (shadow 2, larger radius) */
     .card {
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-lg);
-      padding: 14px 16px;
-      box-shadow: var(--sw-shadow-1);
+      border-radius: var(--sw-r-2xl);
+      padding: 16px 18px;
+      box-shadow: var(--sw-shadow-2);
       min-inline-size: 0;
     }
     .toolbar {
@@ -331,22 +332,27 @@ export class ScheduleEditor extends LitElement {
     .seg button {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       border: 0;
       background: none;
       font: inherit;
-      font-size: var(--sw-fs-sm);
-      padding: 5px 12px;
-      border-radius: var(--sw-r-xs);
+      font-size: var(--sw-fs-base);
+      font-weight: var(--sw-fw-semibold);
+      padding: 5px 14px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       cursor: pointer;
-      min-block-size: 30px;
+      min-block-size: 36px;
+      transition: transform var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease);
+    }
+    .seg button:active {
+      transform: scale(var(--sw-press-scale, 1));
     }
     .seg button[aria-pressed='true'] {
       background: var(--sw-surface);
       color: var(--sw-accent-text);
       box-shadow: var(--sw-shadow-1);
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-bold);
     }
     .seg button:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -503,13 +509,16 @@ export class ScheduleEditor extends LitElement {
       color: var(--sw-text-3);
     }
     /* ------------------------------------------------------------------ side */
+    /* R5-DEVICES-297 loop 2: the side panel's section titles are headings (lg/700, heading ink), not grey labels */
     .side h4 {
       display: flex;
       align-items: center;
       gap: 8px;
       margin: 0 0 8px;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+      letter-spacing: -0.01em;
     }
     .side h4 small {
       color: var(--sw-text-3);

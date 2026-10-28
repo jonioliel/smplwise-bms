@@ -37,22 +37,40 @@ export class DevicesClimateKindAdmin extends LitElement {
     :host {
       display: block;
     }
+    /* R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold */
     table {
       inline-size: 100%;
-      border-collapse: collapse;
-      font-size: var(--sw-fs-sm);
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: var(--sw-fs-base);
     }
     th,
     td {
       text-align: start;
-      padding: 6px 8px;
+      padding: 10px 10px;
       border-block-end: 1px solid var(--sw-border);
       vertical-align: middle;
     }
+    th {
+      background: var(--sw-surface-2);
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: var(--sw-fw-bold);
+      white-space: nowrap;
+    }
+    th:first-child {
+      border-start-start-radius: var(--sw-r-md);
+    }
+    th:last-child {
+      border-start-end-radius: var(--sw-r-md);
+    }
+    td:first-child {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading, var(--sw-text));
+    }
     select {
       font: inherit;
-      font-size: var(--sw-fs-sm);
-      min-block-size: 36px;
+      font-size: var(--sw-fs-base);
+      min-block-size: 38px;
       padding: 0 10px;
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-sm);
@@ -60,8 +78,8 @@ export class DevicesClimateKindAdmin extends LitElement {
       color: var(--sw-text);
     }
     .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
     }
     .tech {
       font-family: var(--sw-font-mono, ui-monospace, monospace);

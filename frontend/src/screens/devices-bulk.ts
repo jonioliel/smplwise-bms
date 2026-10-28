@@ -528,41 +528,51 @@ export class DevicesBulkDialog extends LitElement {
   private follow: { stopped: boolean } | null = null;
 
   static styles = css`
+    /* R5-DEVICES-297: the dialog answers "what will happen" at a glance - the headline is a display line, the domains are filled
+       pills, the notes read at the base size, the progress bar is a real bar */
     .what {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      font-size: var(--sw-fs-sm);
+      gap: 8px;
+      font-size: var(--sw-fs-base);
     }
     .big {
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+      letter-spacing: -0.02em;
+      line-height: 1.2;
     }
     .domains {
       display: flex;
       flex-wrap: wrap;
-      gap: 4px 8px;
+      gap: 6px 8px;
     }
     .domains span {
-      padding: 2px 8px;
+      display: inline-flex;
+      align-items: center;
+      min-block-size: 28px;
+      padding: 0 11px;
       border-radius: 999px;
-      background: var(--sw-surface-2);
-      font-size: var(--sw-fs-xs);
+      background: var(--sw-surface-3);
+      color: var(--sw-text);
+      font-size: var(--sw-fs-base);
+      font-weight: var(--sw-fw-bold);
       font-variant-numeric: tabular-nums;
     }
     .muted {
       color: var(--sw-text-2);
-      font-size: var(--sw-fs-xs);
+      font-size: var(--sw-fs-base);
     }
     .never {
-      padding: 8px 10px;
-      border-radius: var(--sw-r-sm);
+      padding: 10px 12px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
-      font-size: var(--sw-fs-xs);
+      font-size: var(--sw-fs-base);
       color: var(--sw-text-2);
     }
     details {
-      font-size: var(--sw-fs-xs);
+      font-size: var(--sw-fs-base);
       color: var(--sw-text-2);
     }
     details ul,
@@ -581,38 +591,41 @@ export class DevicesBulkDialog extends LitElement {
       margin-block-start: 4px;
     }
     .bar {
-      block-size: 8px;
+      block-size: 12px;
       border-radius: 999px;
-      background: var(--sw-surface-2);
+      background: var(--sw-surface-3);
       overflow: hidden;
     }
     .bar > div {
       block-size: 100%;
+      border-radius: 999px;
       background: var(--sw-success);
       transition: inline-size var(--sw-t-med) var(--sw-ease);
     }
     .headline {
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.02em;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
     .headline.ok {
-      color: var(--sw-success);
+      color: var(--sw-success-text, var(--sw-success));
     }
     .headline.partial,
     .headline.none {
-      color: var(--sw-warning);
+      color: var(--sw-warning-text, var(--sw-warning));
     }
     .outcome {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
+      font-size: var(--sw-fs-base);
+      color: var(--sw-text-2);
       margin-inline-start: 6px;
     }
     .err {
-      color: var(--sw-danger);
-      font-size: var(--sw-fs-sm);
+      color: var(--sw-danger-text, var(--sw-danger));
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
     }
   `;
 

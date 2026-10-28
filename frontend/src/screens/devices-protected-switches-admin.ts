@@ -58,11 +58,13 @@ export class DevicesProtectedSwitches extends LitElement {
       flex-wrap: wrap;
       gap: 8px 12px;
       align-items: center;
-      padding: 8px 12px;
-      margin-block-end: 10px;
+      padding: 12px 14px;
+      margin-block-end: 12px;
       border-radius: var(--sw-r-md);
       background: var(--sw-warning-soft);
-      font-size: var(--sw-fs-sm);
+      color: var(--sw-warning-text, var(--sw-text));
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
     }
     .strip .grow {
       flex: 1;
@@ -92,40 +94,73 @@ export class DevicesProtectedSwitches extends LitElement {
     }
     .note,
     .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
     }
+    /* R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold; a state is a filled
+       chip, not a coloured word */
     table {
       inline-size: 100%;
-      border-collapse: collapse;
-      font-size: var(--sw-fs-sm);
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: var(--sw-fs-base);
     }
     th,
     td {
       text-align: start;
-      padding: 6px 8px;
+      padding: 10px 10px;
       border-block-end: 1px solid var(--sw-border);
       vertical-align: middle;
     }
+    th {
+      background: var(--sw-surface-2);
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: var(--sw-fw-bold);
+      white-space: nowrap;
+    }
+    th:first-child {
+      border-start-start-radius: var(--sw-r-md);
+    }
+    th:last-child {
+      border-start-end-radius: var(--sw-r-md);
+    }
+    td:nth-child(2) {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading, var(--sw-text));
+    }
     th button {
       font: inherit;
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-bold);
       background: none;
       border: 0;
       padding: 0;
       cursor: pointer;
-      color: var(--sw-text);
+      color: inherit;
+    }
+    .yes,
+    .wait,
+    .no {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-block-size: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-sm);
+      white-space: nowrap;
     }
     .yes {
-      color: var(--sw-success);
-      font-weight: var(--sw-fw-semibold);
+      background: var(--sw-success-soft);
+      color: var(--sw-success-text, var(--sw-success));
     }
     .wait {
-      color: var(--sw-warning);
-      font-weight: var(--sw-fw-semibold);
+      background: var(--sw-warning-soft);
+      color: var(--sw-warning-text, var(--sw-warning));
     }
     .no {
-      color: var(--sw-text-3);
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
     }
     input[type='checkbox'] {
       inline-size: 18px;
@@ -162,15 +197,18 @@ export class DevicesProtectedSwitches extends LitElement {
         grid-template-columns: auto minmax(0, 1fr);
         gap: 2px 10px;
         align-items: center;
-        padding: 8px 10px;
-        border: 1px solid var(--sw-border);
+        padding: 10px 12px;
+        border: 0;
+        background: var(--sw-surface-2);
         border-radius: var(--sw-r-md);
-        min-block-size: 44px;
+        min-block-size: 48px;
+        font-weight: var(--sw-fw-semibold);
       }
       .card .sub {
         grid-column: 2;
-        font-size: var(--sw-fs-xs);
-        color: var(--sw-text-3);
+        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-regular);
+        color: var(--sw-text-2);
       }
       .actions.bulk {
         position: sticky;

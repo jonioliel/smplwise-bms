@@ -238,30 +238,38 @@ export class DevicesTilesPanel extends LitElement {
         border-radius: var(--sw-r-md);
         overflow: hidden;
       }
+      /* R5-DEVICES-297: the filter segment reads at the base size, 40 px high; a press sinks the key */
       .seg button {
         flex: 1;
         min-inline-size: 0;
-        min-block-size: 36px;
+        min-block-size: 40px;
         border: 0;
         padding: 4px 6px;
         background: var(--sw-surface);
         color: var(--sw-text);
         font: inherit;
-        font-size: var(--sw-fs-xs);
+        font-size: var(--sw-fs-base);
+        font-weight: var(--sw-fw-semibold);
         cursor: pointer;
         font-variant-numeric: tabular-nums;
         line-height: 1.2;
+        transition: transform var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease);
+      }
+      .seg button:active {
+        transform: scale(var(--sw-press-scale, 1));
       }
       .seg button + button {
         border-inline-start: 1px solid var(--sw-border-strong);
       }
-      .seg button:hover {
-        background: var(--sw-hover-wash);
+      @media (hover: hover) and (pointer: fine) {
+        .seg button:hover {
+          background: var(--sw-hover-wash);
+        }
       }
       .seg button[aria-pressed='true'] {
         background: var(--sw-accent);
         color: var(--sw-text-inverse);
-        font-weight: var(--sw-fw-semibold);
+        font-weight: var(--sw-fw-bold);
       }
       .seg button:focus-visible,
       .search input:focus-visible {
@@ -316,11 +324,17 @@ export class DevicesTilesPanel extends LitElement {
         background: transparent;
         color: var(--sw-accent);
         cursor: pointer;
+        box-shadow: var(--sw-shadow-1);
+        transition: transform var(--sw-t-fast) var(--sw-ease);
+      }
+      button.master:active:not(:disabled) {
+        transform: scale(var(--sw-press-scale, 1));
       }
       button.master[data-state='on'],
       button.master[data-state='mixed'] {
         background: var(--sw-accent);
         color: var(--sw-text-inverse);
+        box-shadow: var(--sw-shadow-primary, var(--sw-shadow-1));
       }
       button.master:disabled {
         opacity: 0.4;
@@ -376,11 +390,13 @@ export class DevicesTilesPanel extends LitElement {
         flex-direction: column;
         gap: 6px;
       }
+      /* R5-DEVICES-297: the floor is a heading, the area a sub-heading; rows are wells (no outline), a lit row a full lit field */
       .floor > h4 {
-        margin: 6px 0 0;
-        font-size: var(--sw-fs-sm);
-        font-weight: var(--sw-fw-semibold);
-        color: var(--sw-text-2);
+        margin: 10px 0 0;
+        font-size: var(--sw-fs-lg);
+        font-weight: var(--sw-fw-bold);
+        color: var(--sw-heading, var(--sw-text));
+        letter-spacing: -0.01em;
       }
       .area {
         display: flex;
@@ -388,27 +404,31 @@ export class DevicesTilesPanel extends LitElement {
         gap: 6px;
       }
       .area > h5 {
-        margin: 2px 0 0;
-        font-size: var(--sw-fs-xs);
-        font-weight: var(--sw-fw-medium);
-        color: var(--sw-text-3);
+        margin: 4px 0 0;
+        font-size: var(--sw-fs-base);
+        font-weight: var(--sw-fw-semibold);
+        color: var(--sw-text-2);
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 5px;
       }
       .row {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr) auto;
         align-items: center;
         gap: 4px 10px;
-        padding: 8px 10px;
-        border: 1px solid var(--sw-border);
-        border-radius: var(--sw-r-sm);
-        background: var(--sw-surface);
+        min-block-size: 50px;
+        padding: 8px 12px;
+        border: 1px solid transparent;
+        border-radius: var(--sw-r-md);
+        background: var(--sw-surface-2);
       }
       .row.on {
-        background: var(--sw-warning-soft);
-        border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
+        background: var(--sw-lit-soft, var(--sw-warning-soft));
+      }
+      .row.on .nm {
+        font-weight: var(--sw-fw-bold);
+        color: var(--sw-heading, var(--sw-text));
       }
       /* HOME polish (2026-10-10): a row's state change fades in; still under reduced motion */
       @media (prefers-reduced-motion: no-preference) {
@@ -437,12 +457,12 @@ export class DevicesTilesPanel extends LitElement {
         line-clamp: 2;
         overflow: hidden;
         overflow-wrap: anywhere;
-        font-weight: var(--sw-fw-medium);
-        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-semibold);
+        font-size: var(--sw-fs-md);
         line-height: 1.3;
       }
       .row .st {
-        font-size: var(--sw-fs-xs);
+        font-size: var(--sw-fs-sm);
         color: var(--sw-text-2);
         font-variant-numeric: tabular-nums;
       }

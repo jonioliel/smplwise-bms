@@ -90,21 +90,22 @@ export class AutomationDrawer extends LitElement {
     .blk .chip.warn {
       flex: none;
     }
+    /* R5-DEVICES-297: device rows and run rows are wells (no outline); the run's time is bold; a run row sinks on pointer-down */
     .dev {
       display: flex;
       align-items: center;
       gap: 12px;
-      min-block-size: 52px;
-      padding: 8px 12px;
-      border-radius: var(--sw-r-lg);
-      background: var(--dv-surface);
-      border: 1px solid var(--dv-border);
+      min-block-size: 54px;
+      padding: 8px 14px;
+      border-radius: var(--sw-r-md);
+      background: var(--dv-surface-2);
+      border: 1px solid transparent;
     }
     .dev .bi {
       display: grid;
       place-items: center;
-      inline-size: 32px;
-      block-size: 32px;
+      inline-size: 34px;
+      block-size: 34px;
       border-radius: 50%;
       background: var(--dv-surface-3);
       color: var(--dv-text-2);
@@ -117,37 +118,50 @@ export class AutomationDrawer extends LitElement {
       flex: 1;
       min-inline-size: 0;
       font-size: var(--sw-fs-md);
+      font-weight: 600;
     }
     .dev .bt small {
       display: block;
-      color: var(--dv-text-3);
+      color: var(--dv-text-2);
       font-size: var(--sw-fs-sm);
+      font-weight: 500;
     }
     .run {
       display: flex;
       align-items: center;
       gap: 10px;
       min-block-size: 48px;
-      padding: 8px 12px;
-      border-radius: var(--sw-r-lg);
-      background: var(--dv-surface);
-      border: 1px solid var(--dv-border);
+      padding: 8px 14px;
+      border-radius: var(--sw-r-md);
+      background: var(--dv-surface-2);
+      border: 1px solid transparent;
       color: inherit;
       text-align: start;
       inline-size: 100%;
       box-sizing: border-box;
       font-size: var(--sw-fs-base);
+      transition: background-color var(--sw-t-fast, 120ms) var(--sw-ease, ease-out), transform var(--sw-t-fast, 120ms) var(--sw-ease, ease-out);
     }
     a.run,
     button.run {
       cursor: pointer;
       text-decoration: none;
     }
-    .run:hover {
-      border-color: var(--dv-border-strong, var(--dv-border));
+    @media (hover: hover) and (pointer: fine) {
+      a.run:hover,
+      button.run:hover {
+        background: var(--dv-surface-3);
+      }
+    }
+    a.run:active,
+    button.run:active {
+      transform: scale(var(--sw-press-scale, 1));
+      background: var(--sw-pressed-wash, var(--dv-surface-3));
     }
     .run .t {
-      font-weight: 600;
+      font-weight: 800;
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading, var(--dv-text));
       font-variant-numeric: tabular-nums;
       flex: none;
     }
@@ -194,9 +208,9 @@ export class AutomationDrawer extends LitElement {
       gap: 4px 10px;
       align-items: center;
       padding: 12px 14px;
-      border-radius: var(--sw-r-lg);
-      background: var(--dv-surface);
-      border: 1px solid var(--dv-border);
+      border-radius: var(--sw-r-md);
+      background: var(--dv-surface-2);
+      border: 1px solid transparent;
     }
     .ver.cur {
       background: var(--dv-accent-soft);
@@ -229,9 +243,9 @@ export class AutomationDrawer extends LitElement {
       gap: 4px 12px;
       align-items: center;
       padding: 12px 14px;
-      border-radius: var(--sw-r-lg);
-      background: var(--dv-surface);
-      border: 1px solid var(--dv-border);
+      border-radius: var(--sw-r-md);
+      background: var(--dv-surface-2);
+      border: 1px solid transparent;
     }
     .tr .bi {
       grid-row: 1 / span 3;
@@ -267,11 +281,12 @@ export class AutomationDrawer extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 12px;
-      border-radius: var(--sw-r-lg);
-      background: var(--dv-surface);
-      border: 1px solid var(--dv-border);
+      padding: 10px 14px;
+      border-radius: var(--sw-r-md);
+      background: var(--dv-surface-2);
+      border: 1px solid transparent;
       font-size: var(--sw-fs-md);
+      font-weight: 600;
     }
     .dry-row .st {
       display: grid;

@@ -25,22 +25,22 @@ export const automationsControls = css`
   /* the switch is 28-30 px high: its hit area is 44 px (an invisible margin of the button itself) */
   .tog::before { content: ''; position: absolute; inset: -8px -4px; }
   .tog[disabled] { opacity: 0.5; pointer-events: none; }
-  /* chips: state of an item, never a paragraph */
+  /* chips: state of an item, never a paragraph. R5-DEVICES-297: a filled field one step taller (28 px) in the base size, bold */
   .chip {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    block-size: 26px;
-    padding-inline: 10px;
+    gap: 6px;
+    block-size: 28px;
+    padding-inline: 11px;
     border-radius: 999px;
-    font-size: var(--sw-fs-sm);
-    font-weight: 600;
+    font-size: var(--sw-fs-base);
+    font-weight: 700;
     white-space: nowrap;
     background: var(--dv-surface-3);
     color: var(--dv-text-2);
     border: 1px solid transparent;
   }
-  .chip .ic { font-size: var(--sw-fs-base); }
+  .chip .ic { font-size: var(--sw-fs-md); }
   .chip.ok { background: var(--dv-success-soft); color: var(--au-ok-text); }
   .chip.info { background: var(--dv-accent-soft); color: var(--dv-accent-text); }
   .chip.warn { background: var(--dv-warning-soft); color: var(--au-warn-text); }
@@ -67,7 +67,7 @@ export const automationsControls = css`
     color: var(--dv-text);
   }
   .banner > .ic { font-size: var(--sw-fs-2xl); flex: none; }
-  .banner b { display: block; font-size: var(--sw-fs-md); font-weight: 700; }
+  .banner b { display: block; font-size: var(--sw-fs-lg); font-weight: 700; color: var(--sw-heading, var(--dv-text)); }
   .banner small { display: block; font-size: var(--sw-fs-sm); font-weight: 500; color: var(--dv-text-2); margin-block-start: 2px; }
   .banner.warn { background: linear-gradient(var(--dv-warning-soft), var(--dv-warning-soft)), var(--dv-surface); border-color: color-mix(in srgb, var(--dv-warning) 38%, transparent); }
   .banner.warn > .ic { color: var(--au-warn-text); }
@@ -75,72 +75,91 @@ export const automationsControls = css`
   .banner.bad > .ic { color: var(--dv-danger); }
   .banner.info > .ic { color: var(--dv-accent-text); }
   .banner .btn { margin-inline-start: auto; }
-  /* the sentence of an item: the one Hebrew line (a short paragraph) in an accent box */
+  /* the sentence of an item: the one Hebrew line (a short paragraph) in an accent box. R5-DEVICES-297: it is the drawer's lead - the
+     heading size, semibold, with the heading ink */
   .sentence {
     display: flex;
     gap: 12px;
     align-items: flex-start;
-    padding: 14px 16px;
+    padding: 16px 18px;
     border-radius: var(--dv-radius-md);
     background: var(--dv-accent-soft);
-    color: var(--dv-text);
-    font-size: var(--sw-fs-lg);
-    font-weight: 500;
-    line-height: 1.55;
+    color: var(--sw-heading, var(--dv-text));
+    font-size: var(--sw-fs-xl);
+    font-weight: 600;
+    line-height: 1.45;
+    letter-spacing: -0.01em;
   }
-  .sentence > .ic { font-size: var(--sw-fs-2xl); color: var(--dv-accent-text); flex: none; margin-block-start: 2px; }
-  .sentence small { display: block; font-size: var(--sw-fs-sm); color: var(--dv-text-2); margin-block-start: 3px; font-weight: 500; }
-  /* drawer sections: כאשר / אם / אז, devices, runs */
+  .sentence > .ic { font-size: var(--sw-fs-3xl); color: var(--dv-accent-text); flex: none; margin-block-start: 1px; }
+  .sentence small { display: block; font-size: var(--sw-fs-base); color: var(--dv-text-2); margin-block-start: 4px; font-weight: 500; letter-spacing: 0; }
+  /* drawer sections: כאשר / אם / אז, devices, runs. R5-DEVICES-297: the section title is a heading (md/700, heading ink) and its
+     count a filled pill, so the sections read before the rows do */
   .sect { display: flex; flex-direction: column; gap: 8px; }
   .sect > h4 {
-    margin: 0;
+    margin: 4px 0 0;
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: var(--sw-fs-sm);
-    font-weight: 600;
-    color: var(--dv-text-2);
+    font-size: var(--sw-fs-md);
+    font-weight: 700;
+    color: var(--sw-heading, var(--dv-text));
+    letter-spacing: -0.01em;
   }
-  .sect > h4 .num { font-variant-numeric: tabular-nums; }
+  .sect > h4 .num {
+    font-variant-numeric: tabular-nums;
+    display: inline-grid;
+    place-items: center;
+    min-inline-size: 22px;
+    block-size: 22px;
+    padding-inline: 7px;
+    border-radius: 999px;
+    background: var(--dv-surface-3);
+    color: var(--dv-text-2);
+    font-size: var(--sw-fs-sm);
+    font-weight: 700;
+  }
   .sect > h4 .tag {
     display: inline-grid;
     place-items: center;
-    inline-size: 22px;
-    block-size: 22px;
-    border-radius: var(--sw-r-xs);
+    inline-size: 26px;
+    block-size: 26px;
+    border-radius: var(--sw-r-sm);
     color: #fff;
     background: var(--dv-accent);
+    box-shadow: var(--dv-shadow-1);
   }
-  .sect > h4 .tag .ic { font-size: var(--sw-fs-base); }
+  .sect > h4 .tag .ic { font-size: var(--sw-fs-md); }
   .sect > h4 .tag.t1 { background: var(--sw-warning); }
   .sect > h4 .tag.t2 { background: #8e8e93; }
   .sect > h4 .tag.t3 { background: var(--dv-accent); }
+  /* R5-DEVICES-297: a block is a well (one tone step down, no outline) - a card inside the glass drawer read as a card in a card */
   .blk {
     display: flex;
     align-items: center;
     gap: 12px;
-    min-block-size: 48px;
-    padding: 8px 12px;
-    border-radius: var(--sw-r-lg);
-    background: var(--dv-surface);
-    border: 1px solid var(--dv-border);
+    min-block-size: 52px;
+    padding: 10px 14px;
+    border-radius: var(--sw-r-md);
+    background: var(--dv-surface-2);
+    border: 1px solid transparent;
     font-size: var(--sw-fs-md);
+    font-weight: 600;
     min-inline-size: 0;
   }
   .blk .bi {
     flex: none;
     display: grid;
     place-items: center;
-    inline-size: 32px;
-    block-size: 32px;
+    inline-size: 34px;
+    block-size: 34px;
     border-radius: 50%;
     background: var(--dv-surface-3);
     color: var(--dv-text-2);
   }
   .blk .bi .ic { font-size: var(--sw-fs-lg); }
   .blk .bt { flex: 1; min-inline-size: 0; }
-  .blk .bt small { display: block; color: var(--dv-text-3); font-size: var(--sw-fs-sm); }
-  .blk.locked { border-style: dashed; background: var(--dv-surface-2); }
+  .blk .bt small { display: block; color: var(--dv-text-2); font-size: var(--sw-fs-sm); font-weight: 500; }
+  .blk.locked { border-style: dashed; border-color: var(--dv-border-strong, var(--dv-border)); background: var(--dv-surface-3); }
   .blk.nested { margin-inline-start: 22px; }
   .blk .chip { flex: none; }
   .tpl-badge { direction: ltr; font-family: var(--sw-font-mono, monospace); font-size: var(--sw-fs-xs); padding: 1px 6px; border-radius: var(--sw-r-xs); background: var(--dv-surface-3); color: var(--dv-text-2); }
@@ -175,9 +194,19 @@ export const automationsControls = css`
   select.inp { padding-inline: 10px; }
   .sr-only { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .empty-note { color: var(--dv-text-2); font-size: var(--sw-fs-base); padding: 6px 2px; }
+  /* R5-DEVICES-297: every key sinks on pointer-down (the skin's press scale; 1 = none), hover only for a fine pointer */
+  .btn, .rc, .more-btn, .more, .rb {
+    transition: transform var(--sw-t-fast, 120ms) var(--sw-ease, ease-out), background-color var(--sw-t-fast, 120ms) var(--sw-ease, ease-out);
+  }
+  .btn:active:not(:disabled), .rc:active:not(:disabled), .more-btn:active, .more:active, .rb:active {
+    transform: scale(var(--sw-press-scale, 1));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn, .rc, .more-btn, .more, .rb { transition-duration: 0.01ms; }
+  }
   @media (pointer: coarse), (max-width: 767px) {
     .rb.sm { inline-size: 44px; block-size: 44px; }
-    .chip { block-size: 28px; }
+    .chip { block-size: 30px; }
   }
 `;
 

@@ -296,24 +296,29 @@ export class DevicesSchedules extends LitElement {
     .upnext::-webkit-scrollbar {
       display: none;
     }
+    /* R5-DEVICES-297: "today" is the live object of the list - its word is a heading and the next time a display figure */
     .upnext > b {
       flex: none;
-      font-size: var(--sw-fs-base);
-      font-weight: 700;
-      color: var(--dv-text-2);
+      font-size: var(--sw-fs-lg);
+      font-weight: 800;
+      color: var(--sw-heading, var(--dv-text));
+      letter-spacing: -0.01em;
     }
     .up {
       flex: none;
       display: inline-flex;
       align-items: center;
-      gap: 7px;
-      font-size: var(--sw-fs-base);
+      gap: 8px;
+      font-size: var(--sw-fs-md);
       color: var(--dv-text);
       white-space: nowrap;
     }
     .up time {
-      font-weight: 700;
+      font-weight: 800;
+      font-size: var(--sw-fs-xl);
       font-variant-numeric: tabular-nums;
+      color: var(--sw-heading, var(--dv-text));
+      letter-spacing: -0.02em;
     }
     .up .what {
       color: var(--dv-text-2);
@@ -338,11 +343,14 @@ export class DevicesSchedules extends LitElement {
       backdrop-filter: var(--dv-surface-blur);
       border: 1px solid var(--dv-border);
       border-radius: var(--sw-r-2xl);
-      box-shadow: var(--dv-shadow-1);
+      box-shadow: var(--dv-shadow-2);
       transition: box-shadow var(--mm-motion) var(--mm-ease), border-color var(--mm-motion);
     }
-    .acard:hover {
-      box-shadow: var(--dv-shadow-2);
+    /* R5-DEVICES-297: the card is the top step (shadow 2 at rest); hover is for a fine pointer only */
+    @media (hover: hover) and (pointer: fine) {
+      .acard:hover {
+        box-shadow: var(--dv-shadow-3, var(--dv-shadow-2));
+      }
     }
     .acard:focus-within {
       border-color: color-mix(in srgb, var(--dv-accent) 55%, transparent);
@@ -371,10 +379,11 @@ export class DevicesSchedules extends LitElement {
     }
     .acard h3 {
       margin: 0;
-      font-size: var(--sw-fs-xl);
-      font-weight: 700;
-      letter-spacing: -0.015em;
-      line-height: 1.25;
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      color: var(--sw-heading, var(--dv-text));
+      letter-spacing: -0.02em;
+      line-height: 1.2;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -495,7 +504,7 @@ export class DevicesSchedules extends LitElement {
       align-items: center;
       gap: 8px 12px;
       margin-block-start: auto;
-      font-size: var(--sw-fs-base);
+      font-size: var(--sw-fs-md);
       color: var(--dv-text-2);
     }
     .run {
@@ -506,13 +515,19 @@ export class DevicesSchedules extends LitElement {
       min-inline-size: 0;
     }
     .run b {
-      color: var(--dv-text);
-      font-weight: 600;
+      color: var(--sw-heading, var(--dv-text));
+      font-weight: 800;
+      font-size: var(--sw-fs-lg);
     }
-    /* ---- POLISH-295: the rows view (the approved preview): one 54 px row per schedule, the whole row opens the drawer ---- */
+    /* ---- POLISH-295: the rows view (the approved preview): one row per schedule, the whole row opens the drawer ----
+       R5-DEVICES-297: the rows are wells (one tone step down, rounded, no hairlines) inside the glass panel; the name is a heading,
+       the next-run time a bold figure; a disabled schedule sits a step deeper with quiet ink; the row sinks on pointer-down */
     .rlist {
-      padding: 0;
+      padding: 4px;
       overflow: visible;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
     }
     .lr {
       position: relative;
@@ -520,17 +535,17 @@ export class DevicesSchedules extends LitElement {
       grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 44px;
       align-items: center;
       gap: var(--sw-s-3);
-      min-block-size: 54px;
+      /* loop 2: 56 px rows + 4 px gaps pushed the pager under the fold at 1440x900 (no scrolling in control screens): 52 + 3 keeps
+         ten rows and the pager on one screen */
+      min-block-size: 52px;
       padding-inline: var(--sw-s-4);
-      border-block-end: 1px solid var(--dv-border);
+      border-radius: var(--sw-r-md);
+      background: var(--dv-surface-2);
       font-size: var(--sw-fs-base);
-      transition: background-color var(--mm-motion) var(--mm-ease);
+      transition: background-color var(--mm-motion) var(--mm-ease), transform var(--sw-t-fast, 120ms) var(--sw-ease, ease-out);
     }
     .rlist.picking .lr {
       grid-template-columns: 32px 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 44px;
-    }
-    .lr:last-child {
-      border-block-end: 0;
     }
     .lr[data-picked] {
       background: var(--dv-accent-soft);
@@ -538,19 +553,32 @@ export class DevicesSchedules extends LitElement {
     .lr[data-menu] {
       z-index: 20;
     }
+    .lr.off {
+      background: var(--dv-surface-3);
+    }
+    .lr:active {
+      transform: scale(var(--sw-press-scale, 1));
+      background: var(--sw-pressed-wash, var(--dv-surface-3));
+    }
     @media (hover: hover) and (pointer: fine) {
       .lr:hover {
-        background: var(--dv-surface-2);
+        background: var(--dv-surface-3);
       }
       .lr[data-picked]:hover {
         background: var(--dv-accent-soft);
       }
     }
+    @media (prefers-reduced-motion: reduce) {
+      .lr {
+        transition-duration: 0.01ms;
+      }
+    }
     .lr .name {
       display: block;
-      font-weight: 600;
-      font-size: var(--sw-fs-md);
-      color: var(--dv-text);
+      font-weight: 700;
+      font-size: var(--sw-fs-lg);
+      color: var(--sw-heading, var(--dv-text));
+      letter-spacing: -0.01em;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -603,13 +631,13 @@ export class DevicesSchedules extends LitElement {
     .lsel .pick {
       margin: 0;
     }
-    .lr.off .name,
     .lr.off .ldays,
     .lr.off .lbar {
-      opacity: 0.5;
+      opacity: 0.55;
     }
     .lr.off .name {
       color: var(--dv-text-2);
+      font-weight: 600;
     }
     .lbar {
       min-inline-size: 0;
@@ -619,7 +647,7 @@ export class DevicesSchedules extends LitElement {
       align-items: center;
       gap: 7px;
       min-inline-size: 0;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
@@ -627,8 +655,9 @@ export class DevicesSchedules extends LitElement {
       text-overflow: ellipsis;
     }
     .lnext b {
-      color: var(--dv-text);
-      font-weight: 600;
+      color: var(--sw-heading, var(--dv-text));
+      font-weight: 800;
+      font-size: var(--sw-fs-lg);
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -778,8 +807,17 @@ export class DevicesSchedules extends LitElement {
       .lr > .lbar {
         display: none;
       }
+      /* loop 2 (break-ui at 390 px): the next-run column was 38vw and the name was cut to one word ("מאוור..."): the time keeps
+         its weight at the base size and the name gets the room */
       .lnext {
-        max-inline-size: 38vw;
+        max-inline-size: 30vw;
+        font-size: var(--sw-fs-sm);
+      }
+      .lnext b {
+        font-size: var(--sw-fs-base);
+      }
+      .lr .name {
+        font-size: var(--sw-fs-md);
       }
       .upnext .tl {
         flex-basis: 100%;
@@ -803,15 +841,19 @@ export class DevicesSchedules extends LitElement {
     .tr:last-child {
       border-block-end: 0;
     }
+    /* R5-DEVICES-297: the table's header is a heading row (bold, heading ink); a name is a heading, a disabled row a deeper well */
     .tr.h {
       background: var(--dv-surface-2);
-      color: var(--dv-text-2);
-      font-size: var(--sw-fs-sm);
-      font-weight: 600;
-      padding-block: 9px;
+      color: var(--sw-heading, var(--dv-text));
+      font-size: var(--sw-fs-base);
+      font-weight: 700;
+      padding-block: 10px;
     }
     .tr[data-picked] {
       background: var(--dv-accent-soft);
+    }
+    .tr.off {
+      background: var(--dv-surface-3);
     }
     .tr.off .name,
     .tr.off .slotrows {
@@ -820,16 +862,20 @@ export class DevicesSchedules extends LitElement {
     .tr .name {
       display: block;
       font-weight: 700;
-      font-size: var(--sw-fs-md);
+      font-size: var(--sw-fs-lg);
+      color: var(--sw-heading, var(--dv-text));
+      letter-spacing: -0.01em;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .tr .name:hover {
-      color: var(--dv-accent-text);
+    @media (hover: hover) and (pointer: fine) {
+      .tr .name:hover {
+        color: var(--dv-accent-text);
+      }
     }
     .tr .sub {
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
       overflow: hidden;
       text-overflow: ellipsis;
@@ -849,7 +895,9 @@ export class DevicesSchedules extends LitElement {
     }
     .sr .w {
       font-variant-numeric: tabular-nums;
-      font-weight: 600;
+      font-weight: 700;
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading, var(--dv-text));
       direction: ltr;
       text-align: end;
       unicode-bidi: isolate;
