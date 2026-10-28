@@ -63,7 +63,9 @@ test('the screen wires the controller, a visible button alternative, and no text
   const src = readFileSync(join(SRC, 'screens/infra-elevators.ts'), 'utf8');
   expect(src).toContain('new ElevatorHistoryPress(this');
   expect(src).toContain('data-elevator-history');
-  expect(src).toContain('tabindex="0" data-elevator=');
+  // R5-MEDIA-ENERGY-297: the cascade index (style=--i) sits between the tabindex and the id since POLISH-CONTROL round 2; both are still on the card
+  expect(src).toContain('class="ecard" tabindex="0"');
+  expect(src).toContain('data-elevator=${e.id}');
   expect(src).toContain('-webkit-touch-callout: none');
   expect(src).toContain('user-select: none');
   const ctl = readFileSync(join(SRC, 'elevators/history-press.ts'), 'utf8');
