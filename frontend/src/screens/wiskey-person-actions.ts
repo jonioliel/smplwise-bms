@@ -473,19 +473,33 @@ export class WiskeyPersonActions extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
-      min-block-size: 44px;
-      padding-inline: 12px;
-      border: 1px solid var(--sw-border);
+      min-block-size: 46px;
+      padding-inline: 14px;
+      border: 1px solid transparent;
       border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
       text-align: start;
       cursor: pointer;
+      /* R5-SECURITY: the menu items are raised keys (shadow 1) that sink on pointer-down; a hover only under a fine pointer */
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     }
-    .item:hover {
-      background: var(--sw-surface-2);
+    @media (hover: hover) and (pointer: fine) {
+      .item:hover {
+        background: var(--sw-surface-2);
+      }
+    }
+    .item:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .item.danger {
+      background: var(--sw-danger-soft);
     }
     .item:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -538,13 +552,17 @@ export class WiskeyPersonActions extends LitElement {
       flex-wrap: wrap;
       align-items: center;
       gap: 6px 10px;
-      padding: 6px 10px;
-      border: 1px solid var(--sw-border);
+      padding: 8px 12px;
+      border: 1px solid transparent;
       border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
       min-block-size: 44px;
     }
     .card .mask {
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-lg);
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-heading, var(--sw-text));
       direction: ltr;
       unicode-bidi: isolate;
     }

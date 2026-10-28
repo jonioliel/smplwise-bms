@@ -84,23 +84,35 @@ export const stationsCss = css`
     gap: var(--sw-s-2);
     min-block-size: var(--wk-hit);
     padding-inline: var(--sw-s-4);
-    border: 1px solid var(--sw-border-strong);
+    border: 1px solid transparent;
     border-radius: var(--sw-r-pill);
     background: var(--sw-surface);
     color: var(--sw-text);
     font: inherit;
     font-size: var(--sw-fs-sm);
-    font-weight: var(--sw-fw-medium);
+    font-weight: var(--sw-fw-semibold);
     white-space: nowrap;
     cursor: pointer;
+    /* R5-SECURITY: a raised key (shadow 1), sinks on pointer-down; the active one a filled accent field */
+    box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
   }
-  .chip:hover {
-    background: var(--sw-surface-2);
+  @media (hover: hover) and (pointer: fine) {
+    .chip:hover {
+      background: var(--sw-surface-2);
+    }
+  }
+  .chip:active,
+  .rowmain:active,
+  .open:active ~ .scrim {
+    transform: scale(var(--sw-press-scale));
   }
   .chip[aria-pressed='true'] {
-    background: var(--sw-accent-soft);
-    border-color: var(--sw-accent);
-    color: var(--sw-accent-text);
+    background: var(--sw-accent);
+    color: var(--sw-text-inverse);
+    font-weight: var(--sw-fw-bold);
   }
   .chip.places {
     display: none;
@@ -119,8 +131,16 @@ export const stationsCss = css`
     border-radius: var(--sw-r-md);
     background: var(--sw-warning-soft);
     color: var(--sw-warning-text);
-    font-size: var(--sw-fs-base);
-    font-weight: var(--sw-fw-semibold);
+    font-size: var(--sw-fs-md);
+    font-weight: var(--sw-fw-bold);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-warning) 40%, transparent);
+  }
+  /* R5-SECURITY: the badges of the cards, rows and the drawer are fields - 12.5/700 on 22 px */
+  sw-badge {
+    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-bold);
+    line-height: 18px;
+    padding-block: 2px;
   }
   .strip .dot {
     flex: none;
@@ -204,8 +224,10 @@ export const stationsCss = css`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: var(--sw-fs-xl);
-    font-weight: var(--sw-fw-semibold);
+    /* R5-SECURITY: the station's name is the card's display line - 20/800 */
+    font-size: var(--sw-fs-2xl);
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
   .scrim .place {
     min-inline-size: 0;
@@ -291,10 +313,12 @@ export const stationsCss = css`
   }
   .callrow.ringing {
     background: var(--sw-warning-soft);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-warning) 40%, transparent);
   }
   .callrow.in_call,
   .callrow.ending {
     background: var(--sw-accent-soft);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-accent) 35%, transparent);
   }
   .callrow.big {
     padding-block: var(--sw-s-3);
@@ -305,12 +329,13 @@ export const stationsCss = css`
     align-items: center;
     gap: var(--sw-s-2);
     min-inline-size: 0;
-    font-size: var(--sw-fs-base);
-    font-weight: var(--sw-fw-semibold);
+    font-size: var(--sw-fs-md);
+    font-weight: var(--sw-fw-bold);
     white-space: nowrap;
   }
   .callrow.big .cs {
-    font-size: var(--sw-fs-lg);
+    font-size: var(--sw-fs-xl);
+    font-weight: 800;
   }
   /* the controls of a call row move together: when the row is narrow they take their own line, side by side */
   .ctl {
@@ -474,7 +499,12 @@ export const stationsCss = css`
     display: flex;
     align-items: center;
     gap: var(--sw-s-2);
-    font-weight: var(--sw-fw-semibold);
+    font-weight: var(--sw-fw-bold);
+    font-size: var(--sw-fs-md);
+    color: var(--sw-heading, var(--sw-text));
+  }
+  .row[data-status='ringing'] {
+    background: var(--sw-warning-soft);
   }
   .rowtext .t b {
     min-inline-size: 0;
@@ -587,19 +617,20 @@ export const stationsCss = css`
     flex-direction: column;
     gap: var(--sw-s-3);
     flex: none;
-    padding: var(--sw-s-3);
-    border: 1px solid var(--sw-border);
-    border-radius: var(--sw-r-md);
+    padding: var(--sw-s-4);
+    border: 1px solid transparent;
+    border-radius: var(--sw-r-lg);
     background: var(--sw-surface-2);
   }
+  /* R5-SECURITY: the drawer's sections are wells; their headings 14.5/700 in the heading ink; the door name 15/700 */
   .dsec h4 {
     display: flex;
     align-items: center;
     gap: var(--sw-s-2);
     margin: 0;
-    color: var(--sw-text-3);
-    font-size: var(--sw-fs-xs);
-    font-weight: var(--sw-fw-semibold);
+    color: var(--sw-heading, var(--sw-text));
+    font-size: var(--sw-fs-md);
+    font-weight: var(--sw-fw-bold);
   }
   .doorrow {
     display: flex;
@@ -608,7 +639,9 @@ export const stationsCss = css`
     min-block-size: var(--wk-hit);
   }
   .doorrow .dn {
-    font-weight: var(--sw-fw-semibold);
+    font-weight: var(--sw-fw-bold);
+    font-size: var(--sw-fs-lg);
+    color: var(--sw-heading, var(--sw-text));
   }
   .doorrow .ds {
     flex: 1;
@@ -634,6 +667,8 @@ export const stationsCss = css`
     min-inline-size: 0;
     overflow-wrap: anywhere;
     font-variant-numeric: tabular-nums;
+    font-weight: var(--sw-fw-semibold);
+    color: var(--sw-text);
   }
   .toggle {
     display: flex;

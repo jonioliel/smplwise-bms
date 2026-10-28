@@ -178,12 +178,13 @@ export class SecurityAlarm extends LitElement {
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 16px 20px;
       align-items: center;
-      padding: 20px 22px;
+      padding: 22px 24px;
       border-radius: var(--sw-r-lg);
-      background: var(--sw-glass-sheen), color-mix(in srgb, var(--tone, var(--sw-offline)) 4%, var(--sw-surface));
+      /* R5-SECURITY: the hero step - the tone is a field (12%), not a wash (4%); its edge and its shadow carry the same tone */
+      background: var(--sw-glass-sheen), color-mix(in srgb, var(--tone, var(--sw-offline)) 12%, var(--sw-surface));
       -webkit-backdrop-filter: var(--sw-glass-blur);
       backdrop-filter: var(--sw-glass-blur);
-      border: 1px solid var(--sw-border);
+      border: 1px solid color-mix(in srgb, var(--tone, var(--sw-offline)) 38%, var(--sw-border));
       box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
       position: relative;
       overflow: hidden;
@@ -212,16 +213,31 @@ export class SecurityAlarm extends LitElement {
     }
     .hero[data-tone='triggered'] {
       --tone: var(--al-fault);
-      background: color-mix(in srgb, var(--al-fault) 10%, var(--sw-surface));
-      border-color: color-mix(in srgb, var(--al-fault) 50%, var(--sw-border));
-      animation: pulse 1.2s ease-in-out infinite;
+      background: color-mix(in srgb, var(--al-fault) 16%, var(--sw-surface));
+      border-color: color-mix(in srgb, var(--al-fault) 60%, var(--sw-border));
     }
     .hero[data-tone='offline'] {
       --tone: var(--sw-offline);
     }
+    /* R5-SECURITY (animation-performance): the triggered pulse is a ring on the shield, on transform + opacity (composited), not a
+       box-shadow of the whole card (paint every frame) */
+    .hero[data-tone='triggered'] .shield::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      border: 2px solid var(--al-fault);
+      animation: pulse 1.4s var(--sw-ease) infinite;
+      pointer-events: none;
+    }
     @keyframes pulse {
-      50% {
-        box-shadow: 0 0 0 4px color-mix(in srgb, var(--al-fault) 35%, transparent);
+      from {
+        transform: scale(1);
+        opacity: 0.9;
+      }
+      to {
+        transform: scale(1.45);
+        opacity: 0;
       }
     }
     /* the arrival of a new state: the shield and the label settle in (once, never looping) */
@@ -236,7 +252,7 @@ export class SecurityAlarm extends LitElement {
       animation: state-in var(--sw-t-med) var(--sw-ease) both;
     }
     @media (prefers-reduced-motion: reduce) {
-      .hero[data-tone='triggered'],
+      .hero[data-tone='triggered'] .shield::after,
       .hero.changed .shield,
       .hero.changed .state-label {
         animation: none;
@@ -249,14 +265,15 @@ export class SecurityAlarm extends LitElement {
       min-inline-size: 0;
     }
     .shield {
-      inline-size: 60px;
-      block-size: 60px;
+      inline-size: 68px;
+      block-size: 68px;
       border-radius: var(--sw-r-lg);
       display: grid;
       place-items: center;
-      background: color-mix(in srgb, var(--tone, var(--sw-offline)) 14%, var(--sw-surface));
+      position: relative;
+      background: color-mix(in srgb, var(--tone, var(--sw-offline)) 18%, var(--sw-surface));
       color: var(--tone, var(--sw-offline));
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone, var(--sw-offline)) 35%, transparent);
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px color-mix(in srgb, var(--tone, var(--sw-offline)) 40%, transparent);
       flex: none;
       transition: background var(--sw-t-state) var(--sw-ease), color var(--sw-t-state) var(--sw-ease);
     }
@@ -265,11 +282,15 @@ export class SecurityAlarm extends LitElement {
       color: var(--sw-text-inverse);
     }
     .state-label {
-      font-size: clamp(22px, 5vw, 30px);
-      font-weight: var(--sw-fw-bold);
+      /* R5-SECURITY: the display word of the screen - 34/800, tracking -0.03em (impeccable craft-floor: obvious scale steps) */
+      font-size: clamp(26px, 5.5vw, 34px);
+      font-weight: 800;
       color: var(--sw-heading, var(--sw-text));
-      line-height: 1.15;
-      letter-spacing: var(--sw-h1-tracking);
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+    .meta {
+      font-weight: var(--sw-fw-medium);
     }
     .hero[data-tone='triggered'] .state-label {
       color: var(--sw-danger-text);
@@ -293,9 +314,10 @@ export class SecurityAlarm extends LitElement {
       display: flex;
       align-items: flex-start;
       gap: 10px;
-      padding: 10px 12px;
+      padding: 12px 14px;
       border-radius: var(--sw-r-md);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
       background: var(--sw-success-soft);
       color: var(--sw-success-text);
     }
@@ -353,37 +375,53 @@ export class SecurityAlarm extends LitElement {
       gap: 6px;
       flex-wrap: wrap;
     }
+    /* R5-SECURITY: the filter chips are raised keys (a tone step + shadow 1), not outlined pills; they sink on pointer-down */
     .chips button {
       font: inherit;
-      font-size: var(--sw-fs-sm);
-      border: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-base);
+      font-weight: var(--sw-fw-semibold);
+      border: 1px solid transparent;
       background: var(--sw-surface);
       border-radius: var(--sw-r-pill);
-      padding: 4px 12px;
+      padding: 4px 14px;
       cursor: pointer;
-      color: var(--sw-text-2);
-      min-block-size: 32px;
+      color: var(--sw-text);
+      min-block-size: 36px;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+      gap: 8px;
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out), box-shadow var(--sw-t-fast) var(--sw-ease);
     }
-    .chips button:hover {
-      background: var(--sw-surface-2);
-      color: var(--sw-text);
+    @media (hover: hover) and (pointer: fine) {
+      .chips button:hover {
+        background: var(--sw-surface-2);
+        box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+      }
+    }
+    .chips button:active,
+    .vt button:active {
+      transform: scale(var(--sw-press-scale));
     }
     .chips button[aria-pressed='true'] {
-      background: var(--sw-accent-soft);
-      border-color: var(--sw-accent);
-      color: var(--sw-accent-text);
-      font-weight: var(--sw-fw-semibold);
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse);
+      font-weight: var(--sw-fw-bold);
+    }
+    .chips button[aria-pressed='true'] .n {
+      background: rgba(255, 255, 255, 0.22);
+      color: inherit;
     }
     .chips button .n {
-      font-size: var(--sw-fs-2xs);
-      font-weight: var(--sw-fw-semibold);
-      min-inline-size: 18px;
-      block-size: 18px;
-      padding-inline: 5px;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-bold);
+      min-inline-size: 20px;
+      block-size: 20px;
+      padding-inline: 6px;
       border-radius: var(--sw-r-pill);
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
@@ -414,14 +452,16 @@ export class SecurityAlarm extends LitElement {
       border: 0;
       background: transparent;
       color: var(--sw-text-2);
-      inline-size: 30px;
-      block-size: 28px;
+      inline-size: 32px;
+      block-size: 30px;
       border-radius: var(--sw-r-xs);
       display: grid;
       place-items: center;
       cursor: pointer;
       padding: 0;
-      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     }
     .vt button[aria-pressed='true'] {
       background: var(--sw-surface);
@@ -433,19 +473,29 @@ export class SecurityAlarm extends LitElement {
       color: var(--sw-text-3);
       font-variant-numeric: tabular-nums;
     }
+    /* R5-SECURITY: the area is a heading (16/800 in the heading ink), its count a filled pill */
     h3 {
-      margin: 6px 0 8px;
-      font-size: var(--sw-fs-md);
-      color: var(--sw-text-2);
-      font-weight: var(--sw-fw-semibold);
+      margin: 8px 0 8px;
+      font-size: var(--sw-fs-lg);
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: 800;
+      letter-spacing: -0.01em;
       display: flex;
       align-items: center;
       gap: 8px;
     }
     h3 .n {
       font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      font-weight: var(--sw-fw-regular);
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-bold);
+      min-inline-size: 20px;
+      block-size: 20px;
+      padding-inline: 6px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-3);
+      display: inline-grid;
+      place-items: center;
+      font-variant-numeric: tabular-nums;
     }
     /* the areas pack side by side on a wide screen (an area with one sensor no longer owns a whole row); each keeps its own cards grid */
     .areas {
@@ -468,33 +518,34 @@ export class SecurityAlarm extends LitElement {
       grid-template-columns: auto minmax(0, 1fr) auto;
       gap: 4px 10px;
       align-items: center;
-      padding: 12px;
+      padding: 12px 14px;
       border-radius: var(--sw-r-lg);
       background: var(--sw-glass-sheen), var(--sw-surface);
       -webkit-backdrop-filter: var(--sw-glass-blur);
       backdrop-filter: var(--sw-glass-blur);
-      border: 1px solid var(--sw-border);
+      border: 1px solid transparent;
       box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
       position: relative;
       transition: background var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-state) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
     }
+    /* R5-SECURITY: a sensor that needs a look is a FILLED field (the whole card in the tone's soft colour), not a 6% wash + a 1px edge */
     .zone[data-tone='open'] {
-      border-color: color-mix(in srgb, var(--al-open) 55%, var(--sw-border));
-      background: var(--sw-glass-sheen), color-mix(in srgb, var(--al-open) 6%, var(--sw-surface));
+      border-color: color-mix(in srgb, var(--al-open) 45%, transparent);
+      background: var(--sw-glass-sheen), var(--sw-warning-soft);
     }
     .zone[data-tone='fault'] {
-      border-color: color-mix(in srgb, var(--al-fault) 55%, var(--sw-border));
-      background: var(--sw-glass-sheen), color-mix(in srgb, var(--al-fault) 6%, var(--sw-surface));
+      border-color: color-mix(in srgb, var(--al-fault) 45%, transparent);
+      background: var(--sw-glass-sheen), var(--sw-danger-soft);
     }
     .zone[data-tone='bypassed'] {
-      background: var(--sw-glass-sheen), color-mix(in srgb, var(--al-bypass) 6%, var(--sw-surface));
+      background: var(--sw-glass-sheen), color-mix(in srgb, var(--al-bypass) 14%, var(--sw-surface));
     }
     .zone[data-tone='motion'] {
-      border-color: color-mix(in srgb, var(--al-motion) 45%, var(--sw-border));
+      background: var(--sw-glass-sheen), var(--sw-accent-soft);
     }
     .zicon {
-      inline-size: 36px;
-      block-size: 36px;
+      inline-size: 40px;
+      block-size: 40px;
       border-radius: var(--sw-r-md);
       display: grid;
       place-items: center;
@@ -523,12 +574,12 @@ export class SecurityAlarm extends LitElement {
       color: var(--al-motion);
     }
     .zname {
-      font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-lg);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      color: var(--sw-text);
+      color: var(--sw-heading, var(--sw-text));
     }
     .zsub {
       font-size: var(--sw-fs-xs);
@@ -540,8 +591,9 @@ export class SecurityAlarm extends LitElement {
       align-items: center;
     }
     .zstate {
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
+      /* R5-SECURITY: the state word reads first - 14/800 */
+      font-size: var(--sw-fs-md);
+      font-weight: 800;
       transition: color var(--sw-t-state) var(--sw-ease);
     }
     .zone[data-tone='open'] .zstate,
@@ -582,8 +634,8 @@ export class SecurityAlarm extends LitElement {
     .zlist {
       display: flex;
       flex-direction: column;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
       background: var(--sw-glass-sheen), var(--sw-surface);
       -webkit-backdrop-filter: var(--sw-glass-blur);
       backdrop-filter: var(--sw-glass-blur);
@@ -604,16 +656,28 @@ export class SecurityAlarm extends LitElement {
     .zrow:last-child {
       border-block-end: 0;
     }
-    .zrow:hover {
-      background: var(--sw-hover-wash);
+    @media (hover: hover) and (pointer: fine) {
+      .zrow:hover {
+        background: var(--sw-hover-wash);
+      }
+    }
+    /* R5-SECURITY: the list row carries the same filled field as the card */
+    .zrow[data-tone='open'] {
+      background: var(--sw-warning-soft);
+    }
+    .zrow[data-tone='fault'] {
+      background: var(--sw-danger-soft);
+    }
+    .zrow[data-tone='bypassed'] {
+      background: color-mix(in srgb, var(--al-bypass) 14%, var(--sw-surface));
     }
     .zrow .zicon {
-      inline-size: 28px;
-      block-size: 28px;
+      inline-size: 32px;
+      block-size: 32px;
       border-radius: var(--sw-r-sm);
     }
     .zrow .zname {
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
     }
     .zrow .zsub {
       grid-column: 2;

@@ -1091,24 +1091,28 @@ export class WiskeyPeople extends LitElement {
       align-items: center;
       gap: 8px;
     }
+    /* R5-SECURITY: the filter chips are raised keys (shadow 1, no outline); an active one is a filled accent field */
     .fchip {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       min-block-size: 44px;
       padding-inline: 12px 6px;
-      border: 1px solid var(--sw-border-strong);
+      border: 1px solid transparent;
       border-radius: var(--sw-r-pill);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
       font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
       max-inline-size: 100%;
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
     }
     .fchip.on {
-      border-color: var(--sw-accent);
+      border-color: transparent;
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-accent) 45%, transparent);
     }
     .fchip .k {
       color: var(--sw-text-3);
@@ -1189,32 +1193,57 @@ export class WiskeyPeople extends LitElement {
       list-style: none;
       margin: 0;
       padding: 0;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
       overflow: hidden;
     }
     .row {
       display: flex;
       align-items: center;
       gap: 12px;
-      min-block-size: 56px;
-      padding: 8px 12px;
+      min-block-size: 60px;
+      padding: 8px 14px;
       border-block-end: 1px solid var(--sw-border);
       cursor: pointer;
     }
     .row:last-child {
       border-block-end: 0;
     }
-    .row:hover,
-    .card:hover,
-    tbody tr:hover {
-      background: var(--sw-surface-2);
+    /* R5-SECURITY (mobile-native / emil): a hover only under a fine pointer; the press answers on pointer-down */
+    @media (hover: hover) and (pointer: fine) {
+      .row:hover,
+      .card:hover,
+      tbody tr:hover {
+        background: var(--sw-surface-2);
+      }
+    }
+    .row,
+    .card,
+    tbody tr {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .row:active,
+    .card:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    tbody tr:active td {
+      background: var(--sw-surface-3);
     }
     .row.sel,
     .card.sel,
     tbody tr.sel {
       background: var(--sw-accent-soft);
+    }
+    /* R5-SECURITY: the state badge is the question of its column - 12.5/700, a 22 px field */
+    sw-badge {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      line-height: 18px;
+      padding-block: 2px;
     }
     .main {
       display: flex;
@@ -1224,7 +1253,9 @@ export class WiskeyPeople extends LitElement {
       min-inline-size: 0;
     }
     .main b {
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-lg);
+      color: var(--sw-heading, var(--sw-text));
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -1254,12 +1285,17 @@ export class WiskeyPeople extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding: 12px;
-      border: 1px solid var(--sw-border);
+      padding: 14px;
+      border: 1px solid transparent;
       border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
       cursor: pointer;
+    }
+    .card .ctop b {
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
     }
     .ctop {
       display: flex;
@@ -1361,34 +1397,47 @@ export class WiskeyPeople extends LitElement {
     }
     .scroll {
       overflow: auto;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
     }
     table {
       inline-size: 100%;
       border-collapse: collapse;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-base);
     }
     th,
     td {
-      padding: 8px 12px;
+      padding: 8px 14px;
       text-align: start;
       white-space: nowrap;
       border-block-end: 1px solid var(--sw-border);
       vertical-align: middle;
     }
+    /* R5-SECURITY: column heads are a filled head row (surface-2, 11/700 tracked); the name cell is the row's display line */
     th {
       position: sticky;
       inset-block-start: 0;
-      background: var(--sw-surface);
-      color: var(--sw-text-3);
-      font-weight: var(--sw-fw-medium);
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-bold);
       font-size: var(--sw-fs-xs);
+      letter-spacing: 0.03em;
+      padding-block: 10px;
+    }
+    td .who b,
+    td.name b {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    td {
+      font-variant-numeric: tabular-nums;
     }
     tbody tr {
       cursor: pointer;
-      block-size: 52px;
+      block-size: 56px;
     }
     tbody tr:last-child td {
       border-block-end: 0;

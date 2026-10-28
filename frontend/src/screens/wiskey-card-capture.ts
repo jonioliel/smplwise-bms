@@ -457,7 +457,6 @@ export class WiskeyCardCapture extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-weight: var(--sw-fw-semibold);
     }
     .pulse {
       inline-size: 10px;
@@ -481,13 +480,22 @@ export class WiskeyCardCapture extends LitElement {
         animation: none;
       }
     }
+    /* R5-SECURITY: the read card number is the dialog's display figure - 26/800 tabular in a well */
     .card {
-      font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-semibold);
-      padding: 8px 12px;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-3xl);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-heading, var(--sw-text));
+      padding: 12px 16px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
       background: var(--sw-surface-2);
+    }
+    .status {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
     }
     [data-ltr] {
       direction: ltr;

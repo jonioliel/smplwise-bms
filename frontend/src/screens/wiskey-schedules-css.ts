@@ -93,12 +93,35 @@ export const schedulesCss = css`
     text-align: start;
     cursor: pointer;
   }
-  .doors button:hover {
-    background: var(--sw-hover-wash);
+  /* R5-SECURITY: a hover only under a fine pointer; the chosen door is a filled accent field, 700; the row sinks on pointer-down */
+  @media (hover: hover) and (pointer: fine) {
+    .doors button:hover {
+      background: var(--sw-hover-wash);
+    }
+  }
+  .doors button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+  }
+  .doors button:active {
+    transform: scale(var(--sw-press-scale));
   }
   .doors button[aria-current='true'] {
-    background: var(--sw-accent-soft);
-    color: var(--sw-accent-text);
+    background: var(--sw-accent);
+    color: var(--sw-text-inverse);
+    font-weight: var(--sw-fw-bold);
+  }
+  .doors .station {
+    color: var(--sw-heading, var(--sw-text));
+    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-bold);
+  }
+  sw-badge {
+    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-bold);
+    line-height: 18px;
+    padding-block: 2px;
   }
   .doors button .name {
     flex: 1;
@@ -146,8 +169,10 @@ export const schedulesCss = css`
   .doorhead h2 {
     margin: 0;
     min-inline-size: 0;
-    font-size: var(--sw-fs-lg);
-    font-weight: var(--sw-fw-semibold);
+    /* R5-SECURITY: the door is the heading of the page's main column - 20/800 */
+    font-size: var(--sw-fs-2xl);
+    font-weight: 800;
+    letter-spacing: -0.02em;
     color: var(--sw-heading);
     overflow-wrap: anywhere;
   }
@@ -173,8 +198,8 @@ export const schedulesCss = css`
   }
   .bh h3 {
     margin: 0;
-    font-size: var(--sw-fs-base);
-    font-weight: var(--sw-fw-semibold);
+    font-size: var(--sw-fs-lg);
+    font-weight: var(--sw-fw-bold);
     color: var(--sw-heading);
   }
   .bh .n {
@@ -192,9 +217,14 @@ export const schedulesCss = css`
     gap: var(--sw-s-2) var(--sw-s-3);
   }
   .prog .name {
-    font-weight: var(--sw-fw-semibold);
-    color: var(--sw-text);
+    font-weight: var(--sw-fw-bold);
+    font-size: var(--sw-fs-md);
+    color: var(--sw-heading, var(--sw-text));
     overflow-wrap: anywhere;
+  }
+  .row .t {
+    font-size: var(--sw-fs-md);
+    color: var(--sw-heading, var(--sw-text));
   }
   .muted {
     color: var(--sw-text-3);
