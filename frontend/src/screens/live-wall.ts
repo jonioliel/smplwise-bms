@@ -40,8 +40,10 @@ function storedQuality(): 'auto' | 'main' | 'sub' {
   }
 }
 
-/** The wall grid's own CSS gap on desktop (`.grid { gap: 12px }` below); the fit maths uses the same value. */
-const WALL_GAP = 12;
+/** The wall grid's own CSS gap on desktop (R5-LIVE-297: `.grid { gap: 14px }` from 768 px, below); the fit maths
+ * uses the same value. WALL-OVERFLOW-2270: R5 widened the CSS gap to 14 px but this stayed 12, so every row gap
+ * after the first made the fitted wall 2 px taller than the room measured for it (a page scroll of 2-8 px). */
+const WALL_GAP = 14;
 const COUNT_KEY = 'sw.wall.count';
 const VIEWS = [
   { id: 'all', label: 'כל המצלמות' },
