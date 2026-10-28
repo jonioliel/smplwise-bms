@@ -126,6 +126,181 @@ def read_installation(config_root: Path | str | None = None) -> dict[str, Any]:
     return value
 
 
+# ---------------------------------------------------------------- step 3: the full closed manifest schema, its state, the GrantRef
+
+ENTRY_FIELDS = frozenset({"entry_id", "repository_id", "query_owner_id", "grant_ref", "authority_mode", "expires_at", "coverage",
+                          "service_contract", "peer_binding_ref", "peer_binding_revision", "direct_path", "pairing_material"})
+SERVICE_CONTRACT_V2 = "wiskey-native-service-write.v2"
+COVERAGE = "all_current_and_future_supported_capabilities_and_resources"
+READINESS = ("ready", "waiting_for_arx_bridge")
+_MAX_REF = 128
+_MAX_REVISION = 2 ** 53 - 1
+
+
+def _ref(value: Any, limit: int = _MAX_REF) -> bool:
+    return (isinstance(value, str) and 1 <= len(value.encode("utf-8")) <= limit
+            and not any(ord(c) < 32 or ord(c) == 127 for c in value))
+
+
+def _rev(value: Any) -> bool:
+    return type(value) is int and 1 <= value <= _MAX_REVISION
+
+
+def check_manifest(value: Any) -> dict[str, Any]:
+    """The closed `wiskey-local-installation.v1` document as WisKey's `native_auto_installation.reconcile` writes it: every top field, every
+    entry field and every GrantRef field typed; `readiness` ready (exactly one entry: Arx is one bridge entry) or waiting_for_arx_bridge
+    (no entry). Returns the document; anything else is InstallationError (closed code, never the content)."""
+    if type(value) is not dict or set(value) != MANIFEST_FIELDS:
+        raise InstallationError("installation_invalid")
+    if value["format"] != FORMAT or type(value["schema_version"]) is not int or value["schema_version"] != 1:
+        raise InstallationError("installation_unsupported")
+    if not (_ref(value["installation_id"]) and _ref(value["repository_id"]) and isinstance(value["catalog_sha256"], str)
+            and len(value["catalog_sha256"]) == 64 and all(c in "0123456789abcdef" for c in value["catalog_sha256"])):
+        raise InstallationError("installation_invalid")
+    commands = value["commands"]
+    if type(commands) is not list or not all(_ref(c) for c in commands) or commands != sorted(set(commands)):
+        raise InstallationError("installation_invalid")
+    if not all(_ref(value[k]) for k in ("template_registry_command", "event_cursor_command", "discovery_command")):
+        raise InstallationError("installation_invalid")
+    if value["readiness"] not in READINESS or type(value["entries"]) is not list:
+        raise InstallationError("installation_invalid")
+    if (value["readiness"] == "ready") != (len(value["entries"]) >= 1):
+        raise InstallationError("installation_invalid")
+    for row in value["entries"]:
+        if type(row) is not dict or set(row) != ENTRY_FIELDS:
+            raise InstallationError("installation_identity_invalid")
+        g = row["grant_ref"]
+        if (type(g) is not dict or set(g) != GRANT_FIELDS or not all(_ref(g[k]) for k in ("authority_ref", "scope_ref", "grant_id"))
+                or not all(_rev(g[k]) for k in ("authority_revision", "grant_revision", "permission_revision"))):
+            raise InstallationError("installation_identity_invalid")
+        if (row["authority_mode"] != "permanent_full_installation" or row["expires_at"] is not None or row["coverage"] != COVERAGE
+                or row["service_contract"] != SERVICE_CONTRACT_V2 or row["repository_id"] != value["repository_id"]):
+            raise InstallationError("installation_identity_invalid")
+        if not (_ref(row["entry_id"]) and _ref(row["query_owner_id"]) and row["query_owner_id"] == "arx-service:" + row["entry_id"]
+                and _ref(row["peer_binding_ref"], 512) and _rev(row["peer_binding_revision"]) and _ref(row["direct_path"], 512)
+                and row["direct_path"].startswith("/") and _ref(row["pairing_material"], 512)):
+            raise InstallationError("installation_identity_invalid")
+    if len(value["entries"]) > 1:
+        raise InstallationError("installation_entries_ambiguous")  # Arx is ONE bridge entry; two would need a choice Arx does not make
+    return value
+
+
+def read_checked_installation(config_root: Path | str | None = None) -> dict[str, Any]:
+    """`check_manifest` over the private file (the strict reader the Arx consumers use)."""
+    return check_manifest(read_private_json(manifest_path(config_root)))
+
+
+def installation_state(config_root: Path | str | None = None) -> dict[str, Any]:
+    """A closed, secret-free status of the installation for the add-on's own status view: state, counts, the commands Arx relies on. No
+    path, no ref, no GrantRef, no pairing material. `ready` is local authority/transport readiness - not a cloud or hardware proof."""
+    try:
+        doc = read_checked_installation(config_root)
+    except InstallationError as exc:
+        state = {"installation_missing": "missing", "ha_config_not_mapped": "not_mapped"}.get(exc.code, "invalid")
+        return {"state": state, "code": exc.code, "entries": 0, "commands": 0, "service_contract": None, "relies_on": {}}
+    needed = (doc["discovery_command"], doc["event_cursor_command"], doc["template_registry_command"], "whatsapp/template_enqueue_v1")
+    return {"state": "ready" if doc["readiness"] == "ready" else "waiting", "code": None, "entries": len(doc["entries"]),
+            "commands": len(doc["commands"]), "service_contract": SERVICE_CONTRACT_V2 if doc["entries"] else None,
+            "relies_on": {c: c in doc["commands"] for c in needed}}
+
+
+class ManifestGrantSource:
+    """The GrantRef of the service writer (contract v2), read from WisKey's manifest on every call - never cached, never written. None
+    while the `wiskey.auto_install` switch is off (when a database is given), the manifest is missing / not ready / invalid."""
+
+    def __init__(self, db: Any = None, config_root: Path | str | None = None, *, reader: Callable[[], Any] | None = None) -> None:
+        self._db, self._read = db, reader or (lambda: read_checked_installation(config_root))
+
+    def __repr__(self) -> str:
+        return "ManifestGrantSource()"
+
+    def _row(self) -> dict[str, Any] | None:
+        if self._db is not None and not switch_on_db(self._db):
+            return None
+        try:
+            doc = self._read()
+        except InstallationError:
+            return None
+        return doc["entries"][0] if doc.get("readiness") == "ready" and doc.get("entries") else None
+
+    def __call__(self) -> Any:
+        from .wiskey_service_write import GrantRef
+
+        row = self._row()
+        if row is None:
+            return None
+        ref = GrantRef(**row["grant_ref"])
+        return ref if ref.valid() else None
+
+    def actor_id(self) -> str | None:
+        row = self._row()
+        return row["query_owner_id"] if row is not None else None
+
+
+# ---------------------------------------------------------------- step 3: the template resource exchange (resources.json)
+
+RESOURCES_RELATIVE_PATH = ".storage/hikvision_intercom.arx_installation/resources.json"
+RESOURCES_FORMAT = "wiskey-local-template-resources.v1"
+RESOURCE_TOP = frozenset({"format", "accounts", "templates"})
+RESOURCE_ACCOUNT = frozenset({"account", "api_version", "business_id", "phone_number_id", "token"})
+RESOURCE_TEMPLATE = frozenset({"reference", "revision", "account", "ui_language", "template_id", "name", "language", "body", "parameter_fields"})
+RESOURCE_MAX = 128
+NATIVE_PARAMETER_FIELDS = ("display_name", "employee_no", "pin", "valid_from", "valid_until")
+
+
+def check_resources(value: Any) -> dict[str, Any]:
+    """The closed `wiskey-local-template-resources.v1` shape (03_templates_queue/RESOURCE_EXPORT_CONTRACT.json): 1..128 accounts and
+    templates, closed fields, unique account / reference, every template bound to a listed account. WisKey's own parser
+    (`native_template_installation.configuration`) stays the authority on the values; this is Arx's pre-write check."""
+    if type(value) is not dict or set(value) != RESOURCE_TOP or value["format"] != RESOURCES_FORMAT:
+        raise InstallationError("resources_invalid")
+    accounts, templates = value["accounts"], value["templates"]
+    if type(accounts) is not list or type(templates) is not list or not 1 <= len(accounts) <= RESOURCE_MAX or not 1 <= len(templates) <= RESOURCE_MAX:
+        raise InstallationError("resources_invalid")
+    names: set[str] = set()
+    for a in accounts:
+        if type(a) is not dict or set(a) != RESOURCE_ACCOUNT or not all(_ref(a[k], 4096) for k in RESOURCE_ACCOUNT) or a["account"] in names:
+            raise InstallationError("resources_invalid")
+        names.add(a["account"])
+    refs: set[str] = set()
+    for t in templates:
+        if (type(t) is not dict or set(t) != RESOURCE_TEMPLATE or not _ref(t["reference"]) or t["reference"] in refs or not _rev(t["revision"])
+                or t["account"] not in names or not all(_ref(t[k]) for k in ("ui_language", "template_id", "name", "language"))
+                or not isinstance(t["body"], str) or not t["body"] or len(t["body"]) > 1024 or type(t["parameter_fields"]) is not list
+                or not all(p in NATIVE_PARAMETER_FIELDS for p in t["parameter_fields"])):
+            raise InstallationError("resources_invalid")
+        refs.add(t["reference"])
+    return value
+
+
+def write_resources(value: Any, config_root: Path | str | None = None) -> Path:
+    """The PRODUCER side of the exchange (owner28 says the Arx installer writes it): checked, then atomically replaced on the same
+    filesystem, directory 0700, file 0600. Arx has NO caller yet: the source of real Cloud accounts and approved templates is not in this
+    repository (SOURCE-CLOUD-EXPORT, BLOCKED - docs/changes/WISKEY-ADOPT-2272.md). Never fed with owner-typed or invented values."""
+    import secrets
+
+    doc = check_resources(value)
+    target = manifest_path(config_root).with_name("resources.json")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(target.parent, 0o700)
+    except OSError:
+        pass
+    tmp = target.with_name(f".resources.{secrets.token_hex(6)}.tmp")
+    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+    try:
+        os.write(fd, json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(tmp, target)
+    return target
+
+
+def read_resources(config_root: Path | str | None = None) -> dict[str, Any]:
+    return check_resources(read_private_json(manifest_path(config_root).with_name("resources.json")))
+
+
 # ---------------------------------------------------------------- the installed client (signed direct transport)
 
 class InstalledWiskeyClient:
@@ -136,7 +311,7 @@ class InstalledWiskeyClient:
     def __init__(self, settings: Any, config_root: Path | str | None = None, *, key_provider: Callable[[], Any] | None = None,
                  reader: Callable[[], dict[str, Any]] | None = None) -> None:
         self.settings, self.config_root = settings, config_root
-        self._read = reader or (lambda: read_installation(self.config_root))
+        self._read = reader or (lambda: read_checked_installation(self.config_root))  # step 3: the full closed schema
         self.manifest = self._read()
         self.row = self.manifest["entries"][0]
         # the delivery signs with the pairing material WisKey copied into the manifest (the bridge entry's own code); a caller may hand

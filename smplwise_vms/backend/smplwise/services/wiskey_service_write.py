@@ -59,6 +59,11 @@ from typing import Any, Callable, Mapping
 log = logging.getLogger("smplwise.wiskey_service_write")
 
 CONTRACT = "wiskey-native-service-write.v1"
+# WISKEY-ADOPT-2272 (WisKey owner28): v2 is the permanent full installation authority - the SAME 13 metadata keys with `contract` = v2 and
+# the GrantRef WisKey's installer published in its private manifest (wiskey_auto_install.ManifestGrantSource). WisKey echoes the
+# request's contract in a write result; `users/service_write_status_v1` keeps answering v1. v1 stays readable for old callers.
+CONTRACT_V2 = "wiskey-native-service-write.v2"
+CONTRACTS = (CONTRACT, CONTRACT_V2)
 SCHEMA_VERSION = 1
 METADATA_PARAMETER = "service_write"
 ROLE = "access_manager"
@@ -150,11 +155,12 @@ class Metadata:
     target_revision: int | None
     request_id: str
     operation_id: str
+    contract: str = CONTRACT  # CONTRACT_V2 for a GrantRef of WisKey's permanent installation manifest
 
     def wire(self) -> dict[str, Any]:
         """The closed 13-key `service_write` object, or ServiceWriteError(invalid_fields, not_sent)."""
         g = self.grant
-        out = {"contract": CONTRACT, "role": ROLE, "actor_id": self.actor_id, "authority_ref": g.authority_ref,
+        out = {"contract": self.contract, "role": ROLE, "actor_id": self.actor_id, "authority_ref": g.authority_ref,
                "authority_revision": g.authority_revision, "scope_ref": g.scope_ref, "grant_id": g.grant_id, "grant_revision": g.grant_revision,
                "permission_revision": g.permission_revision, "target_ref": self.target_ref, "target_revision": self.target_revision,
                "request_id": self.request_id, "operation_id": self.operation_id}
@@ -167,7 +173,7 @@ def check_metadata(meta: Any) -> bool:
     """The contract's JSON schema of `service_write`, closed (additionalProperties false)."""
     if not isinstance(meta, Mapping) or set(meta) != META_KEYS:
         return False
-    if meta["contract"] != CONTRACT or meta["role"] != ROLE:
+    if meta["contract"] not in CONTRACTS or meta["role"] != ROLE:
         return False
     if not all(_ref(meta[k]) for k in ("actor_id", "authority_ref", "scope_ref", "grant_id", "target_ref", "request_id", "operation_id")):
         return False
@@ -322,21 +328,25 @@ def _receipt_names(receipt: Receipt, command: str, target_ref: str | None) -> bo
     return command == "users/create" or target_ref is None or receipt.user_id == target_ref
 
 
-def read_result(raw: Any, *, command: str, operation_id: str, target_ref: str | None = None) -> ServiceWriteOutcome | None:
-    """The closed reading of a successful frame's `result`, or None (malformed -> UNKNOWN). A duplicate carries no `result`."""
+def read_result(raw: Any, *, command: str, operation_id: str, target_ref: str | None = None,
+                contract: str = CONTRACT) -> ServiceWriteOutcome | None:
+    """The closed reading of a successful frame's `result`, or None (malformed -> UNKNOWN). A duplicate carries no `result`. `contract`
+    is the one the request carried (WisKey echoes it; a result of the other contract is malformed)."""
+    if contract not in CONTRACTS:
+        return None
     try:
-        return _read_result(raw, command=command, operation_id=operation_id, target_ref=target_ref)
+        return _read_result(raw, command=command, operation_id=operation_id, target_ref=target_ref, contract=contract)
     except (TypeError, KeyError, AttributeError):  # an unhashable / odd value inside a frame: malformed, never a crash
         return None
 
 
-def _read_result(raw: Any, *, command: str, operation_id: str, target_ref: str | None) -> ServiceWriteOutcome | None:
+def _read_result(raw: Any, *, command: str, operation_id: str, target_ref: str | None, contract: str) -> ServiceWriteOutcome | None:
     if not isinstance(raw, Mapping):
         return None
     keys = set(raw)
     if not keys <= RESULT_KEYS or not RESULT_KEYS - {"result"} <= keys:
         return None
-    if (raw["contract"] != CONTRACT or type(raw["schema_version"]) is not int or raw["schema_version"] != SCHEMA_VERSION
+    if (raw["contract"] != contract or type(raw["schema_version"]) is not int or raw["schema_version"] != SCHEMA_VERSION
             or raw["operation_id"] != operation_id or raw["replay_available"] is not False or raw["state"] not in STATES):
         return None
     code = raw["code"]
@@ -646,7 +656,7 @@ class ServiceWriteClient:
             raise ServiceWriteError(code, "not_sent" if outcome == "not_sent" else "unknown") from None
         finally:
             params.clear()  # the frame (and any PIN in it) lives only for the call
-        out = read_result(raw, command=command, operation_id=meta.operation_id, target_ref=meta.target_ref)
+        out = read_result(raw, command=command, operation_id=meta.operation_id, target_ref=meta.target_ref, contract=meta.contract)
         if out is None:
             settled["code"] = "invalid_response"
             self._record(self.journal.note_unknown, repo, meta.operation_id, "invalid_response")
@@ -710,8 +720,23 @@ class FinalServiceWriter:
     journal exists and has room (review F1). Production (`from_join`) has no grant source yet (OWNER-CONFIG): it is never available and nothing is sent."""
 
     def __init__(self, *, selected: Callable[[str], bool], client: ServiceWriteClient | None, grant: Callable[[], GrantRef | None],
-                 actor_id: str, new_id: Callable[[], str]) -> None:
+                 actor_id: str, new_id: Callable[[], str], contract: str = CONTRACT) -> None:
+        if contract not in CONTRACTS:
+            raise ValueError("contract")
         self._selected, self.client, self._grant, self.actor_id, self._new_id = selected, client, grant, actor_id, new_id
+        self.contract = contract
+
+    @classmethod
+    def from_installation(cls, join: Any, *, grant: Callable[[], GrantRef | None], actor_id: str,
+                          client: ServiceWriteClient | None = None) -> "FinalServiceWriter":
+        """WISKEY-ADOPT-2272: the v2 writer of WisKey's permanent installation. `grant` reads the GrantRef WisKey published in its private
+        manifest (`wiskey_auto_install.ManifestGrantSource`: None while the `wiskey.auto_install` switch is off or the manifest is not
+        ready) and `actor_id` is the manifest's `arx-service:<entry>` subject. Arx never creates a grant. Production passes no `client`
+        yet (the journal connection of a service write is not wired - docs/changes/WISKEY-ADOPT-2272.md), so it stays unavailable."""
+        import uuid
+
+        return cls(selected=lambda c: bool(join.selected(c)), client=client, grant=grant, actor_id=actor_id,
+                   new_id=lambda: uuid.uuid4().hex, contract=CONTRACT_V2)
 
     @classmethod
     def from_join(cls, join: Any) -> "FinalServiceWriter":
@@ -743,7 +768,7 @@ class FinalServiceWriter:
         create = op.action == "users/create"
         oid = self._new_id()
         target = f"arx-origin-{oid}" if create else op.person_id
-        meta = Metadata(self.actor_id, grant, target, None if create else op.revision, f"req-{oid}", f"op-{oid}")
+        meta = Metadata(self.actor_id, grant, target, None if create else op.revision, f"req-{oid}", f"op-{oid}", self.contract)
         business: dict[str, Any] = {"data": dict(op.data)}
         if not create:
             business.update(user_id=op.person_id, revision=op.revision)
