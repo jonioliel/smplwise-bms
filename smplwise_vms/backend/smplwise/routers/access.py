@@ -152,6 +152,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # switch, the allowed sensors, the employee notice, the required-sensors policy, retention) are system.configure.
     "presence.report": "רישום המכשיר הנייד שלי ודיווח נוכחות",
     "presence.sensors.view": "צפייה במכשירים הניידים של כולם ובמה שהם משתפים",
+    # BUILDING-PRESENCE-2271 (board r339): the anonymous "is the building / a room occupied" signal of the sensors the owner tagged (no person,
+    # no phone). Administrators and site managers by default; the cockpit's trigger / condition read the same sensors.
+    "presence.building.view": "צפייה בנוכחות במבנה ובחדרים (אנונימי, מחיישני נוכחות מסומנים)",
     # WHOIN034-295 (board r034): presence.view opens "מי במבנה" - who the phone app currently places inside, by floor and area. Scoped like
     # the map (a floor-scoped holder sees that floor only; a person placed on a site only needs installation scope). system_admin only by
     # default and SENSITIVE (a custom role names it among its sensitive permissions): it shows where named people are right now.

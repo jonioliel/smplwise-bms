@@ -625,6 +625,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import presence as presence_router
 
     app.include_router(presence_router.router, prefix=api, tags=["presence"])  # CR-027: the phone app - device registration, presence / sensor reports, the required-sensors policy
+    from .routers import building_presence as building_presence_router
+
+    app.include_router(building_presence_router.router, prefix=api, tags=["presence"])  # BUILDING-PRESENCE-2271: anonymous room / building occupancy from the tagged presence sensors (invisible while none is tagged)
     from .routers import app_refresh as app_refresh_router
 
     app.include_router(app_refresh_router.router, prefix=api, tags=["identity"])  # APPREFRESH-295: the phone app's persistent sign-in (switch security.app_refresh, default off)
