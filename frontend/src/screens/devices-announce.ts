@@ -63,7 +63,7 @@ export class DevicesAnnounce extends LitElement {
     /* ANNOUNCE2-297: the machine mark is quiet (neutral, small): the translation is an aid, not a warning */
     .mt { padding: 1px 8px; border-radius: 999px; font-size: var(--sw-fs-xs); white-space: nowrap; background: color-mix(in srgb, var(--sw-text-2) 10%, var(--sw-surface)); color: var(--sw-text-2); }
     @media (pointer: coarse) {
-      textarea, select { font-size: 16px; } /* no zoom-in on focus on a phone */
+      textarea, select { font-size: var(--sw-fs-xl); } /* no zoom-in on focus on a phone (needs >= 16px; the xl tier is 17px) */
     }
     @media (prefers-reduced-motion: reduce) { .chip { transition: none; } }
     .err { padding: 8px 12px; border-radius: var(--sw-r-md); background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface)); color: var(--sw-danger); font-size: var(--sw-fs-sm); }

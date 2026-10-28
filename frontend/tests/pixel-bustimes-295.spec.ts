@@ -21,7 +21,9 @@ test.beforeEach(() => {
 
 async function shot(page: Page, layout: 'side' | 'strip' | 'slide', theme: 'day' | 'night', w: number, h: number, extra = {}) {
   await page.setViewportSize({ width: w, height: h });
-  await serveFeed(page, lobbyFeed({ theme, transit: screen({ layout }) }));
+  // TVNOTICE2-297: the baselines carry the footer's full "updated <time> · <board name>" wording; the default is now the place wording
+  // (longer, it reflows the status chips beside it), so the wording is pinned here as in pixel-notice-tv-mock - this spec is about the buses
+  await serveFeed(page, lobbyFeed({ updated: 'full', theme, transit: screen({ layout }) }));
   await serveTransit(page, digest({ layout, nstops: layout === 'slide' ? 3 : 1, multi: layout === 'slide', columns: layout === 'slide' ? columns(3) : undefined, ...extra }));
   await page.goto(new URL(tvUrl(), base()).toString());
   await settled(page);
