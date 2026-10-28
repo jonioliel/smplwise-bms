@@ -822,6 +822,124 @@ export class LiveCamera extends LitElement {
     .acc-content {
       padding: 0 2px 12px;
     }
+    /* R5-LIVE-297 (the HOMEFABLE method on the single camera): the picture is the hero (radius 2xl, the third shadow); the stream
+       choice is a pair of raised keys with the chosen one a filled accent key, 14 px bold; the round tools are 42 px raised keys that
+       sink on pointer-down and tint on hover only under a fine pointer; the details card's facts are WELLS (label over a 15 px bold
+       value) instead of grey label / value text; a camera that is down is a filled offline field */
+    .video {
+      border-radius: var(--sw-r-2xl);
+      box-shadow: var(--sw-shadow-3);
+    }
+    .video.off {
+      background: color-mix(in srgb, var(--sw-offline) 22%, var(--sw-surface-3));
+      box-shadow: var(--sw-shadow-1);
+    }
+    .stamp {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .quality {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+    }
+    .controls {
+      margin-block-start: 16px;
+    }
+    .round {
+      gap: 10px;
+    }
+    .round button {
+      inline-size: 42px;
+      block-size: 42px;
+      border-color: var(--sw-border);
+      color: var(--sw-heading);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .round button:hover {
+      background: var(--sw-surface);
+      color: var(--sw-heading);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .round button:hover:not(:disabled) {
+        background: var(--sw-surface-2);
+        box-shadow: var(--sw-shadow-2);
+      }
+    }
+    .round button:active:not(:disabled),
+    .zoom button:active,
+    .joy button:active {
+      transform: scale(var(--sw-press-scale, 0.94));
+      box-shadow: none;
+    }
+    .round .q {
+      block-size: 36px;
+      padding-inline: 14px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      font-variant-numeric: tabular-nums;
+    }
+    .round .q.on,
+    .round .q.on:hover {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: var(--sw-text-inverse);
+      box-shadow: var(--sw-shadow-primary);
+    }
+    .round .transport button {
+      block-size: 30px;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .grid {
+      gap: 16px;
+      margin-block-start: 16px;
+    }
+    /* each label / value pair is one well row: the two cells share the surface-2 fill and round the row's outer corners */
+    dl {
+      gap: 5px 0;
+      font-size: var(--sw-fs-md);
+    }
+    dt,
+    dd {
+      display: flex;
+      align-items: center;
+      min-block-size: 40px;
+      padding: 6px 12px;
+      background: var(--sw-surface-2);
+    }
+    dt {
+      color: var(--sw-text-2);
+      border-start-start-radius: var(--sw-r-md);
+      border-end-start-radius: var(--sw-r-md);
+    }
+    dd {
+      min-inline-size: 0;
+      justify-content: flex-end;
+      text-align: end;
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      font-variant-numeric: tabular-nums;
+      border-start-end-radius: var(--sw-r-md);
+      border-end-end-radius: var(--sw-r-md);
+    }
+    .note {
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .acc-root {
+      border-radius: var(--sw-r-lg);
+    }
+    .acc-root > summary {
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .round button:active:not(:disabled) {
+        transform: none;
+      }
+    }
   `, bubbleChrome];
 
   connectedCallback() {
