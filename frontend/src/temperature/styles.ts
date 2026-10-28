@@ -17,6 +17,9 @@ export const tempCss = css`
     --tc-acc: var(--sw-accent);
     --tc-line: var(--sw-accent);
     --tc-band: color-mix(in srgb, var(--sw-success) 14%, transparent);
+    /* R5-MEDIA-ENERGY-297: the solid fills behind white text (badges, the selected counter); the status tokens themselves stay the marks' colours */
+    --tc-alarm-solid: #c81e1e;
+    --tc-warn-solid: #b45309;
   }
   [data-look='ok'] { --c: var(--tc-ok); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
   [data-look='warn'] { --c: var(--tc-warn); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
@@ -26,15 +29,19 @@ export const tempCss = css`
 
   .num { font-variant-numeric: tabular-nums; }
   .badge {
-    display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; white-space: nowrap;
-    background: var(--c-soft); color: var(--c-text); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4;
+    display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 4px 12px; white-space: nowrap;
+    background: var(--c-soft); color: var(--c-text); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-bold); line-height: 1.4;
   }
+  /* R5-MEDIA-ENERGY-297 (status as a filled field, not a wash): an alerting badge is a solid pill of a deep status colour under white text
+     (both at least 4.5:1 in light and dark; the raw status tokens are too light for white), with the elevators' lit top edge */
+  [data-look='alarm'] .badge, .badge[data-look='alarm'] { background: var(--tc-alarm-solid); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+  [data-look='warn'] .badge, .badge[data-look='warn'] { background: var(--tc-warn-solid); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
   /* POLISH-CONTROL-297: the chip's word is set one step larger (the audit's smallest text was these tags) and its tone colour is the
      theme's readable text token, never the raw status colour; a neutral chip reads in the full text colour */
   .chip {
-    display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 10px; line-height: 1.5;
-    font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text); white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 3px 11px; line-height: 1.5;
+    font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); background: var(--sw-surface-3); color: var(--sw-text); white-space: nowrap;
     max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis;
   }
   .chip[data-tone] { font-weight: var(--sw-fw-semibold); }
@@ -58,7 +65,7 @@ export const tempCss = css`
   .g-tick { font-size: var(--sw-fs-2xs); fill: var(--sw-text-3); }
   .gv { position: relative; display: grid; justify-items: center; gap: 1px; margin-block-start: 8px; text-align: center; }
   /* round 2 (dataviz hero number): the reading is the hero of the gauge - display size, heavy, tight, tabular */
-  .gv b { font-size: var(--sw-fs-3xl); font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--sw-heading); font-variant-numeric: tabular-nums; }
+  .gv b { font-size: var(--sw-fs-4xl); font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--sw-heading); font-variant-numeric: tabular-nums; }
   .gv b sup { font-size: var(--sw-fs-xs); margin-inline-start: 1px; color: var(--sw-text-2); }
   .gv small { font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
   .gv .trend { font-size: var(--sw-fs-xs); color: var(--c-text); font-weight: var(--sw-fw-semibold); }
@@ -121,19 +128,31 @@ export const tempCss = css`
   .legend i[data-k='alarm'] { background: var(--tc-alarm); }
   .legend i[data-k='none'] { background: var(--sw-surface-3); }
 
+  /* R5-MEDIA-ENERGY-297 (HOMEFABLE keys): a button is a raised key - the card tone, the first shadow and a lit top edge - that sinks on
+     pointer-down (the press token, 120 ms); hover only under a pointer that hovers (mobile-native) */
   .btn {
-    display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 7px 14px; min-block-size: var(--sw-ctl-h-sm);
-    border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-weight: var(--sw-fw-semibold); cursor: pointer;
-    text-decoration: none; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 7px 16px; min-block-size: var(--sw-ctl-h-sm);
+    border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-heading); font: inherit; font-weight: var(--sw-fw-semibold); cursor: pointer;
+    text-decoration: none; white-space: nowrap; box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+    transition: transform var(--sw-t-press) var(--sw-ease-out), background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   }
-  .btn:hover { border-color: var(--sw-border-strong); }
-  .btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); }
-  .btn.ghost { background: transparent; border-color: transparent; color: var(--sw-accent-text); }
+  @media (hover: hover) and (pointer: fine) {
+    .btn:hover { border-color: var(--sw-border-strong); background: var(--sw-surface-2); }
+  }
+  .btn:active:not([disabled]) { transform: scale(var(--sw-press-scale)); box-shadow: none; background: var(--sw-surface-3); }
+  .btn.pri { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+  @media (hover: hover) and (pointer: fine) {
+    .btn.pri:hover { background: var(--sw-accent-hover); border-color: var(--sw-accent-hover); }
+  }
+  .btn.pri:active:not([disabled]) { background: var(--sw-accent); }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--sw-accent-text); box-shadow: none; }
   .btn.sm { padding: 4px 10px; min-block-size: 0; font-size: var(--sw-fs-sm); }
   .btn:disabled { opacity: var(--sw-disabled-opacity); cursor: default; }
   .btn:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
-  .panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 14px 16px; box-shadow: var(--sw-shadow-1); min-inline-size: 0; }
-  .panel h4 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); }
+  /* R5-MEDIA-ENERGY-297: a panel is the hero tier (the ladder's second step, a lit top edge); its heading reads as a heading */
+  .panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 16px 18px; box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; }
+  .panel h4 { margin: 0; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.01em; }
   .hint { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
   .ltr { direction: ltr; unicode-bidi: isolate; }
   .mono { font-family: var(--sw-font-mono); font-size: var(--sw-fs-2xs); color: var(--sw-text-3); }

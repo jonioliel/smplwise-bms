@@ -296,12 +296,14 @@ export class MultimediaScreens extends LitElement {
       gap: 12px;
       padding-inline: 4px;
     }
+    /* R5-MEDIA-ENERGY-297 (HOMEFABLE type scale): the floor heading is 20 px / 800 in the heading ink */
     .sh h2 {
       margin: 0;
       font-size: var(--sw-fs-2xl);
-      font-weight: 700;
+      font-weight: 800;
       letter-spacing: -0.025em;
       line-height: 1.2;
+      color: var(--sw-heading, var(--dv-text));
     }
     .shlink {
       all: unset;

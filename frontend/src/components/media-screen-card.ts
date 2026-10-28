@@ -271,10 +271,12 @@ export class MediaScreenCard extends LitElement {
       flex-direction: column;
       line-height: 1.3;
     }
+    /* R5-MEDIA-ENERGY-297 (HOMEFABLE type scale): the screen name is the card's title - 20 px / 800 in the heading ink */
     .srow .tx b {
-      font-size: var(--sw-fs-lg);
-      font-weight: 600;
-      letter-spacing: -0.01em;
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--sw-heading, var(--dv-text));
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;

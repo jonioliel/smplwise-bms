@@ -106,14 +106,29 @@ export class ElecMetersPage extends LitElement {
         border-radius: var(--sw-r-sm);
         cursor: pointer;
         text-align: start;
+        transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
       }
-      .tree button:hover {
-        background: var(--sw-surface-2);
+      @media (hover: hover) and (pointer: fine) {
+        .tree button:hover {
+          background: var(--sw-surface-2);
+        }
       }
+      .tree button:active {
+        transform: scale(var(--sw-press-scale));
+        background: var(--sw-surface-3);
+      }
+      /* R5-MEDIA-ENERGY-297: the chosen area is a filled accent field (status as a field), its count on it */
       .tree button[aria-current='true'] {
-        background: var(--sw-accent-soft);
-        color: var(--sw-accent-text);
-        font-weight: var(--sw-fw-semibold);
+        background: var(--sw-accent);
+        color: var(--sw-text-inverse);
+        font-weight: var(--sw-fw-bold);
+        box-shadow: var(--sw-shadow-primary);
+      }
+      .tree button[aria-current='true'] .cnt {
+        color: var(--sw-text-inverse);
+        opacity: 0.85;
       }
       .tree .fl {
         color: var(--sw-text-2);
@@ -157,10 +172,23 @@ export class ElecMetersPage extends LitElement {
         cursor: pointer;
         min-block-size: var(--elec-touch);
       }
+      /* R5-MEDIA-ENERGY-297: the reading is the card's display numeral; the card answers the press */
       .mcard .big {
-        font-size: var(--sw-fs-3xl);
-        font-weight: var(--sw-fw-bold);
+        font-size: var(--sw-fs-4xl);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+        font-variant-numeric: tabular-nums;
         color: var(--sw-heading, var(--sw-text));
+      }
+      .mcard {
+        transition: transform var(--sw-t-press) var(--sw-ease-out), box-shadow var(--sw-t-fast) var(--sw-ease);
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .mcard:active {
+        transform: scale(var(--sw-press-scale));
+        box-shadow: var(--sw-shadow-1);
       }
       .phone-only {
         display: none;

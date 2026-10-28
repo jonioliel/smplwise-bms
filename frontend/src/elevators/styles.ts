@@ -115,25 +115,30 @@ export const elevatorCss = css`
 
   /* the sensor lights */
   .leds { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* R5-MEDIA-ENERGY-297: a sensor light is a well (a tone step, no outline - five outlined pills per card were the page's loudest noise);
+     a lit sensor is a filled field of its colour with the word in the heading ink */
   .led {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     font-size: var(--sw-fs-state);
-    color: var(--sw-text);
-    background: color-mix(in srgb, var(--sw-surface, #fff) 60%, transparent);
-    border: 1px solid var(--sw-border);
+    font-weight: var(--sw-fw-medium);
+    color: var(--sw-text-2);
+    background: color-mix(in srgb, var(--sw-text, #1b2433) 6%, transparent);
+    border: 0;
     border-radius: 999px;
-    padding: 2px 9px;
+    padding: 3px 10px;
+    min-block-size: 24px;
   }
   .led i {
-    inline-size: 8px;
-    block-size: 8px;
+    inline-size: 9px;
+    block-size: 9px;
     border-radius: 50%;
     background: color-mix(in srgb, var(--sw-text-3) 45%, transparent);
     display: inline-block;
   }
-  .led[data-on='true'] i { background: var(--el-c); box-shadow: 0 0 6px var(--el-c); }
+  .led[data-on='true'] { background: color-mix(in srgb, var(--el-c) 20%, var(--sw-surface, #fff)); color: var(--sw-heading, var(--sw-text)); font-weight: var(--sw-fw-bold); }
+  .led[data-on='true'] i { background: var(--el-c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--el-c) 30%, transparent); }
   .led[data-on='null'] i { background: transparent; border: 1px dashed var(--sw-text-3); box-sizing: border-box; }
   .led[data-na] { opacity: 0.45; }
 

@@ -47,13 +47,13 @@ export class MultimediaEditPanel extends LitElement {
       padding: 16px 16px 18px;
       border: 1px dashed color-mix(in srgb, var(--dv-accent) 55%, transparent);
     }
+    /* R5-MEDIA-ENERGY-297: the panel's headings read as headings (heading ink, no tracking); its rows are wells, not outlined boxes */
     h3,
     h4 {
       margin: 0;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
       font-weight: 700;
-      color: var(--dv-text-2);
-      letter-spacing: 0.02em;
+      color: var(--sw-heading, var(--dv-text));
     }
     h4 {
       margin-block-start: 6px;
@@ -76,7 +76,7 @@ export class MultimediaEditPanel extends LitElement {
       flex-direction: column;
       gap: 8px;
       padding: 9px 10px;
-      border: 1px solid var(--dv-border);
+      border: 1px solid transparent;
       border-radius: var(--dv-radius-sm);
       background: var(--dv-surface-2);
     }

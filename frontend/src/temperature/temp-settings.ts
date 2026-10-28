@@ -58,7 +58,8 @@ export class TempSettings extends LitElement {
 
   static styles = [tempCss, css`
     :host { display: grid; gap: 14px; }
-    h3 { margin: 0 0 4px; font-size: var(--sw-fs-lg); }
+    /* R5-MEDIA-ENERGY-297: section titles read as titles; a rule kind is a well inside the panel, not an outlined box inside a card */
+    h3 { margin: 0 0 4px; font-size: var(--sw-fs-xl); font-weight: 800; letter-spacing: -0.01em; color: var(--sw-heading); }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 16px; }
     .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-block-end: 1px solid var(--sw-border); font-size: var(--sw-fs-sm); }
     .row input[type='number'] { inline-size: 84px; }
@@ -71,7 +72,7 @@ export class TempSettings extends LitElement {
     .step { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: var(--sw-fs-sm); }
     .step input[type='number'] { inline-size: 70px; min-block-size: 30px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 8px; font: inherit; }
     h4 { margin: 10px 0 4px; }
-    .kind { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 8px; }
+    .kind { border: 0; background: var(--sw-surface-2); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 8px; }
     .kind[data-on='false'] .body { opacity: 0.55; }
     .opts { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--sw-fs-sm); }
     .sw { display: inline-flex; gap: 8px; align-items: center; }

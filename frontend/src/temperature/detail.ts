@@ -75,8 +75,16 @@ export class TempDetail extends LitElement {
       display: flex; flex-direction: column; min-block-size: 0; min-inline-size: 0; max-inline-size: 100vw; overflow: hidden;
     }
     .drawer.wide { inline-size: min(1240px, 100vw); }
+    /* R5-MEDIA-ENERGY-297 (emil: drawers 200-400 ms, ease-out; transform + opacity only): the drawer slides in from its edge in 280 ms, the scrim fades */
+    .ovl { opacity: 1; transition: opacity var(--sw-t-slow) var(--sw-ease); }
+    .drawer { opacity: 1; transform: translateX(0); transition: transform 280ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms var(--sw-ease-out); }
+    /* the drawer hangs on the inline end: in RTL (the product) that edge is the left, so it enters from the left; in LTR from the right */
+    @starting-style { .ovl { opacity: 0; } .drawer { opacity: 0; transform: translateX(-28px); } }
+    :host(:dir(ltr)) .drawer { transition: transform 280ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms var(--sw-ease-out); }
+    @starting-style { :host(:dir(ltr)) .drawer { transform: translateX(28px); } }
     .dh { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-block-end: 1px solid var(--sw-border); background: var(--sw-surface); }
-    .dh h2 { margin: 0; font-size: var(--sw-fs-xl); }
+    /* R5-MEDIA-ENERGY-297: the drawer's title is a title (24 px / 800), its statistics are wells with display numerals, its footer keys are raised */
+    .dh h2 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--sw-heading); }
     .dh small { color: var(--sw-text-2); font-size: var(--sw-fs-xs); }
     .dh .t { flex: 1; min-inline-size: 0; overflow-wrap: anywhere; }
     .dh .badge { flex: none; }
@@ -94,7 +102,7 @@ export class TempDetail extends LitElement {
     .summ { display: grid; gap: 4px; font-size: var(--sw-fs-sm); }
     .summ > div { display: flex; gap: 10px; justify-content: space-between; border-block-end: 1px solid var(--sw-border); padding-block: 5px; }
     .summ > div > span { color: var(--sw-text-2); flex: none; }
-    .summ b { font-weight: var(--sw-fw-medium); text-align: end; min-inline-size: 0; overflow-wrap: anywhere; }
+    .summ b { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); text-align: end; min-inline-size: 0; overflow-wrap: anywhere; }
     .summ > div > span { overflow-wrap: anywhere; }
     .sname { overflow-wrap: anywhere; word-break: break-word; }
     .seg { display: inline-flex; background: var(--sw-surface-2); border-radius: var(--sw-r-pill); padding: 3px; gap: 2px; }
@@ -110,9 +118,9 @@ export class TempDetail extends LitElement {
     }
     .tip b { font-size: var(--sw-fs-md); }
     .stat4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-block-start: 10px; }
-    .stat4 > div { min-inline-size: 0; overflow-wrap: anywhere; background: var(--sw-surface-2); border-radius: var(--sw-r-sm); padding: 8px 10px; display: grid; gap: 2px; }
-    .stat4 span { font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
-    .stat4 b { font-size: var(--sw-fs-lg); }
+    .stat4 > div { min-inline-size: 0; overflow-wrap: anywhere; background: var(--sw-surface-2); border-radius: var(--sw-r-md); padding: 10px 12px; display: grid; gap: 3px; }
+    .stat4 span { font-size: var(--sw-fs-xs); color: var(--sw-text-2); font-weight: var(--sw-fw-medium); }
+    .stat4 b { font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; color: var(--sw-heading); font-variant-numeric: tabular-nums; }
     .stat4 small { font-size: var(--sw-fs-2xs); color: var(--sw-text-3); }
     .tlrow { display: grid; gap: 4px; margin-block-end: 10px; }
     .tlrow .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: var(--sw-fs-xs); color: var(--sw-text-2); flex-wrap: wrap; }

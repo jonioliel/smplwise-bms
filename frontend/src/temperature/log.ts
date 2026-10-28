@@ -35,17 +35,19 @@ export class TempLog extends LitElement {
     .top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
     .top .sp { flex: 1; }
     .meta { display: flex; gap: 8px; flex-wrap: wrap; }
-    .tcard { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); overflow: hidden; }
+    /* R5-MEDIA-ENERGY-297: the log table is the page's hero object; its header row and severity marks carry weight */
+    .tcard { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); overflow: hidden; }
     .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 12px; border-block-end: 1px solid var(--sw-border); }
     .filters select { min-block-size: var(--sw-ctl-h-sm); border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 12px; font: inherit; }
     .filters .sp { flex: 1; }
     .scrollx { overflow-x: auto; }
     table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm); }
     th, td { text-align: start; padding: 10px 12px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; }
-    th { background: var(--sw-surface-2); font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); white-space: nowrap; }
-    td small { display: block; color: var(--sw-text-3); font-size: var(--sw-fs-2xs); }
-    .sev { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-    .sev i { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--c); }
+    th { background: var(--sw-surface-2); font-weight: var(--sw-fw-bold); color: var(--sw-heading); white-space: nowrap; font-size: var(--sw-fs-xs); letter-spacing: 0.01em; }
+    td { font-size: var(--sw-fs-md); }
+    td small { display: block; color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+    .sev { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; font-weight: var(--sw-fw-bold); color: var(--c-text); background: var(--c-soft); border-radius: var(--sw-r-pill); padding: 3px 10px 3px 8px; font-size: var(--sw-fs-sm); }
+    .sev i { inline-size: 9px; block-size: 9px; border-radius: 50%; background: var(--c); }
     .num { white-space: nowrap; }
     .foot { display: flex; justify-content: center; padding: 10px; }
     .err { color: var(--sw-danger-text); padding: 12px; }

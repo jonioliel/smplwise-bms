@@ -51,12 +51,17 @@ export class TempWizard extends LitElement {
       position: relative; inline-size: min(780px, 100%); max-block-size: calc(100dvh - 32px); display: flex; flex-direction: column; background: var(--sw-bg);
       border-radius: var(--sw-r-2xl); box-shadow: var(--sw-shadow-3); overflow: hidden;
     }
+    /* R5-MEDIA-ENERGY-297 (emil: modals 200-400 ms, ease-out, never from scale(0)): the sheet lands in 300 ms from 0.96 with a fade */
+    .ovl { opacity: 1; transition: opacity var(--sw-t-slow) var(--sw-ease); }
+    .sheet { opacity: 1; transform: scale(1); transition: opacity 300ms var(--sw-ease-out), transform 300ms cubic-bezier(0.23, 1, 0.32, 1); }
+    @starting-style { .ovl { opacity: 0; } .sheet { opacity: 0; transform: scale(0.96); } }
     .wh { display: flex; align-items: center; gap: 10px; padding: 16px 20px 8px; }
-    .wh h2 { margin: 0; flex: 1; font-size: var(--sw-fs-xl); }
+    /* R5-MEDIA-ENERGY-297: the wizard's title is a title; the step bar is a real bar; a rule row is a well, not an outlined box */
+    .wh h2 { margin: 0; flex: 1; font-size: var(--sw-fs-2xl); font-weight: 800; letter-spacing: -0.02em; color: var(--sw-heading); }
     .icb { inline-size: 36px; block-size: 36px; padding: 0; justify-content: center; }
     .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 20px 10px; }
     .steps button { border: 0; background: transparent; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text-2); text-align: start; padding: 0; cursor: pointer; display: grid; gap: 6px; }
-    .steps i { display: block; block-size: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); }
+    .steps i { display: block; block-size: 6px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); transition: background-color var(--sw-t-med) var(--sw-ease); }
     .steps button[aria-current='step'] { color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
     .steps button[aria-current='step'] i, .steps button[data-done] i { background: var(--sw-accent); }
     .wb { flex: 1; overflow: auto; padding: 8px 20px 16px; display: grid; gap: 14px; align-content: start; }
@@ -83,7 +88,7 @@ export class TempWizard extends LitElement {
     .sopt .lv { font-variant-numeric: tabular-nums; color: var(--sw-text-2); white-space: nowrap; direction: ltr; }
     .sw { display: inline-flex; align-items: center; gap: 8px; font-size: var(--sw-fs-sm); cursor: pointer; }
     .sw input { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
-    .rule { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); background: var(--sw-surface); flex-wrap: wrap; }
+    .rule { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 0; border-radius: var(--sw-r-md); background: var(--sw-surface-2); flex-wrap: wrap; }
     .rule .txt { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1; font-size: var(--sw-fs-sm); }
     .rule[data-off] .txt { opacity: 0.55; }
     .tpl { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
