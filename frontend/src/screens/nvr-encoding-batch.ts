@@ -290,7 +290,10 @@ export class NvrEncodingBatch extends LitElement {
       background: var(--sw-pressed-wash);
     }
     .sel[aria-checked='true'] {
-      background: var(--sw-accent-soft);
+      background: color-mix(in srgb, var(--sw-accent) 20%, var(--sw-surface)); /* 50 % test: accent-soft vanished in dark */
+    }
+    .vl {
+      border-radius: var(--sw-r-lg);
     }
     .sel[aria-checked='true'] .nm {
       font-weight: var(--sw-fw-bold);

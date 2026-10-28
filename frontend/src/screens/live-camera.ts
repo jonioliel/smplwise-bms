@@ -842,8 +842,15 @@ export class LiveCamera extends LitElement {
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-bold);
     }
+    /* visible-difference test (50 %): on a desktop the picture is most of the frame, so the tool row became a tier-2 strip - the
+       surface, the first shadow, rounded - that reads as the camera's control deck under the hero */
     .controls {
-      margin-block-start: 16px;
+      margin-block-start: 14px;
+      padding: 10px 14px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-xl);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-2);
     }
     .round {
       gap: 10px;
