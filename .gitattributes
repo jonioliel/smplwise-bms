@@ -19,3 +19,6 @@
 # line-ending normalisation.
 docs/integrations/wiskey/catalog/**/*.json -text
 docs/integrations/wiskey/catalog/**/LICENSE -text
+
+# WisKey native integration bundle (WISKEY-ADOPT-2272): byte-exact to the delivered archive; its pin file lists every SHA-256.
+smplwise_vms/integration/hikvision_intercom/** -text

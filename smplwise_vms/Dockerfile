@@ -20,6 +20,8 @@ COPY www-public /app/www-public
 # CR-021 S4: the running version's `[platform-restart]` marker is read from the add-on's own notes (services/release_notes.py).
 COPY CHANGELOG.md /app/CHANGELOG.md
 # The bridge integration ships in the image and is copied into Home Assistant's custom_components at start-up.
+# WISKEY-ADOPT-2272: the same folder carries the source-pinned WisKey native integration (integration/hikvision_intercom, pin
+# file integration/hikvision_intercom.pin.json); services/wiskey_auto_install.py stages it next to the bridge.
 COPY integration /app/integration
 # The signed release APK (owner decision 2026-10-06) ships inside the image: scripts/stage_apk.py places SmplWiseArx.apk and
 # SmplWiseArx.apk.json in downloads/ of the build context before a release. downloads/ always exists (a tracked README), so

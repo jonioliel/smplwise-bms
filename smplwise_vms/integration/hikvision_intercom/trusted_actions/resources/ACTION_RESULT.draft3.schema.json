@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wiskey:arx:seven:action-result-draft3",
+  "x-status": "DRAFT3_WRITTEN_PLANNING_RECEIVED_OFF",
+  "x-runtime-enabled": false,
+  "x-validation": "VALIDATION_NOT_RUN; stdlib structural/refs only",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "wiskey-arx-outcome-draft.3"
+    },
+    "kind": {
+      "const": "action_result"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+    },
+    "operation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+    },
+    "outcome": {
+      "enum": [
+        "not_sent",
+        "sent_unknown",
+        "refused_known",
+        "saved"
+      ]
+    },
+    "origin": {
+      "enum": [
+        "source_guard",
+        "handler",
+        "delegate",
+        "dispatcher"
+      ]
+    },
+    "stage": {
+      "enum": [
+        "pre_dispatch",
+        "post_dispatch",
+        "unknown"
+      ]
+    },
+    "dispatch_certainty": {
+      "enum": [
+        "not_dispatched",
+        "possible",
+        "unknown"
+      ]
+    },
+    "source_proof_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+    },
+    "local_storage": {
+      "type": "object",
+      "properties": {
+        "confirmed": {
+          "type": "boolean"
+        },
+        "record_reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "storage_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "x-strict-lexical-rule": "future validator must reject bool/nonintegral or coerced values as agreed; schema alone not Python exact-type proof"
+        }
+      },
+      "required": [
+        "confirmed"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "enum": [
+            "Unauthorized",
+            "action_failed",
+            "binding_denied",
+            "cursor_stale",
+            "device_unavailable",
+            "grant_revoked",
+            "invalid_field",
+            "invalid_fields",
+            "permission_revision_changed",
+            "permissions_changed",
+            "record_too_large",
+            "status_unknown",
+            "storage_write_failed",
+            "unauthorized",
+            "unknown_action",
+            "unknown_contract_version",
+            "unproven_duplicate"
+          ],
+          "x-boundary": "explicit known source/proposed public names only; unknown source code omitted and result unknown, never raw sensitive error passthrough"
+        },
+        "field": {
+          "enum": [
+            "display_name",
+            "valid_from",
+            "valid_until",
+            "group_ids",
+            "person_id",
+            "profile_revision",
+            "export_revision",
+            "generated_at"
+          ]
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "request_id",
+    "operation_id",
+    "outcome",
+    "dispatch_certainty"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "refused_known"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "required": [
+          "origin",
+          "stage",
+          "source_proof_id"
+        ],
+        "properties": {
+          "stage": {
+            "const": "pre_dispatch"
+          },
+          "dispatch_certainty": {
+            "const": "not_dispatched"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "dispatch_certainty": {
+            "enum": [
+              "possible",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "dispatch_certainty"
+        ]
+      },
+      "then": {
+        "properties": {
+          "outcome": {
+            "const": "sent_unknown"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "saved"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "required": [
+          "local_storage"
+        ],
+        "properties": {
+          "local_storage": {
+            "properties": {
+              "confirmed": {
+                "const": true
+              }
+            },
+            "required": [
+              "confirmed"
+            ]
+          },
+          "dispatch_certainty": {
+            "const": "not_dispatched"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "enum": [
+              "not_sent",
+              "refused_known"
+            ]
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "dispatch_certainty": {
+            "const": "not_dispatched"
+          }
+        }
+      }
+    }
+  ],
+  "x-proof": "source_proof_id and origin/stage are claims requiring engine/bridge correlation; schema alone does not prove actual effect",
+  "x-v1": "outcomes not_sent/sent_unknown/refused_known/saved only. v1 does not emit device_applied; saved axis cannot override uncertain dispatch",
+  "x-saved-unknown": "if storage confirmed but device dispatch/effect uncertain, top outcome sent_unknown; storage confirmed can be shown separately without success claim",
+  "x-legacy": "new draft mapping only; existing Unauthorized rejection wire contract remains unchanged",
+  "x-source-proof": "source_proof_id resolves source registry/version/exact origin and authentic internal operation correlation; registry locator alone not proof of pre_dispatch"
+}
