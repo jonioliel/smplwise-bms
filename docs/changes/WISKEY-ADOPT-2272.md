@@ -60,7 +60,7 @@ start-up). Turning the switch on is an owner decision for the joint session (own
 | `routers/intercom_media.py`, `services/intercom_media.py` | already adopted by 298 item A (terminal re-check after `lease.confirm`, no await before `send_bytes`) | 298's finer rule kept: a natural end keeps its admitted tail (the delivery's `publication_current` ended on any pump end) |
 | `services/wiskey_listen_adapter.py` | the listen channel also fences on the talk channel's own `publication_current` | none |
 | `services/wa_template_send.py` | `REGISTRY_MAX` 128, optional `account`, uniqueness by (account, name, language) | the `window_open` removal was already 298 item B |
-| `services/wiskey_direct_catalog.py` | `OWNER_EXCLUDED_WRITES` emptied | **contradiction recorded**: the earlier owner decision excluded `jobs/approval_decide` / `jobs/approval_request`; the owner28 instruction says "no artificial allowlist"; owner28 adopted, Arx has no caller of either write |
+| `services/wiskey_direct_catalog.py` | `OWNER_EXCLUDED_WRITES` kept (review M2), lifted only while `wiskey.auto_install` is on | **contradiction recorded**: the earlier owner decision excluded `jobs/approval_decide` / `jobs/approval_request`; the owner28 instruction says "no artificial allowlist"; review M2: the exclusion holds unless the switch is on, and the owner must confirm in writing before turning it on; Arx has no caller of either write |
 | `services/wiskey_direct_discovery.py` | not changed: 298 M3 already reads the three optional blocks (a superset of the delivery's looser key check) | v1 reader unchanged |
 | `services/bridge_install.py` | step 5 | step 5 |
 | `services/wiskey_auto_install.py` | adopted; hardened in steps 3 and 5 | `activate_software` fills only UNSET settings and never opens the send permit; the delivered `read_installation` used `os.O_NOFOLLOW` (absent on Windows) - kept POSIX-strict, Windows dev skips mode bits only |
@@ -205,7 +205,9 @@ Full frontend Playwright suite, add-on image build (`npm run build:addon`), any 
   touched (joint session with the owner present, with notices).
 - Decision for the owner: turning `wiskey.auto_install` on (it stages WisKey rc.38 over whatever `hikvision_intercom` the platform runs
   and requests one platform restart) - only in the joint session.
-- Contradiction recorded: `OWNER_EXCLUDED_WRITES` (earlier owner decision) vs owner28 "no allowlist" - owner28 adopted.
+- Contradiction recorded: `OWNER_EXCLUDED_WRITES` (earlier owner decision) vs owner28 "no allowlist" - review M2: the exclusion holds
+  unless `wiskey.auto_install` is on; **the owner must confirm in writing** (before the switch is turned on) that Arx may write
+  `jobs/approval_decide` / `jobs/approval_request`.
 - `management/tasks.json` / test catalog rows not added (lead's call); `scripts/project_status.py --write` not run.
 
 ## Next steps (for whoever continues)

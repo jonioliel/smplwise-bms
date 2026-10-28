@@ -107,14 +107,14 @@ def test_the_template_v2_route_takes_the_account_of_a_native_reference() -> None
     assert "if tpl is not None and tpl.account is not None:" in src and "account, problem = tpl.account, None" in src
 
 
-# ================================================================ the catalog: owner28, approval writes no longer excluded
+# ================================================================ the catalog: owner28 (approval writes excluded unless the switch is on)
 
 def test_owner28_catalog_adds_the_installation_commands() -> None:
     c = wdc.load()
     for name in ("events/resume_v1", "whatsapp/template_registry_v1", "whatsapp/template_enqueue_v1", "whatsapp/template_job_v1",
                  "whatsapp/template_cancel_v1", "whatsapp/template_send_v3", "direct/capabilities_v2"):
         assert c.get(name) is not None, name
-    assert wdc.OWNER_EXCLUDED_WRITES == frozenset()
+    assert wdc.OWNER_EXCLUDED_WRITES == frozenset({"jobs/approval_decide", "jobs/approval_request"})  # review M2
     assert wdc.envelope_for("events/resume_v1") == wdc.bridge.KIND and wdc.direct_refusal("whatsapp/template_send_v3") is None
     for alias in ("audio/start", "audio/send", "audio/receive", "audio/mute", "audio/diagnostics"):  # HA-only aliases kept
         assert wdc.direct_refusal(alias) == "not_a_direct_command"

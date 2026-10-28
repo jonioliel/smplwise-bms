@@ -312,3 +312,52 @@ def test_m1_activation_fills_only_the_provider_and_audits_it(settings: Any, tmp_
     assert wai.ACTIVATION_DEFAULTS == (("access.station_media_provider", "auto"),)
     doc = (REPO / "docs/changes/WISKEY-ADOPT-2272.md").read_text(encoding="utf-8")
     assert "Owner steps after the automatic installation" in doc
+
+# ================================================================ M2: the approval writes stay excluded unless the switch is on
+
+@pytest.mark.parametrize("command", ["jobs/approval_decide", "jobs/approval_request"])
+def test_m2_the_approval_writes_are_excluded_unless_the_switch_is_on(command: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    from smplwise.services import wiskey_direct_catalog as wdc
+
+    monkeypatch.setattr(wdc, "INSTALLATION_SWITCH", None)
+    assert wdc.direct_refusal(command) == "owner_excluded"  # no join / no reader: excluded
+    monkeypatch.setattr(wdc, "INSTALLATION_SWITCH", lambda: False)
+    assert wdc.direct_refusal(command) == "owner_excluded"
+
+    def broken() -> bool:
+        raise RuntimeError("synthetic")
+
+    monkeypatch.setattr(wdc, "INSTALLATION_SWITCH", broken)
+    assert wdc.direct_refusal(command) == "owner_excluded"  # unreadable: excluded
+    monkeypatch.setattr(wdc, "INSTALLATION_SWITCH", lambda: True)
+    assert wdc.direct_refusal(command) is None
+    assert wdc.direct_refusal("jobs/approval_review") is None  # the read is never excluded
+
+
+def test_m2_the_join_installs_the_live_switch_reader_and_shutdown_removes_it(settings: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    from smplwise.services import wiskey_direct_catalog as wdc
+    from smplwise.services import wiskey_direct_join as join
+
+    app = _app(settings)
+    monkeypatch.setattr(wdc, "INSTALLATION_SWITCH", None)
+
+    async def opener() -> Any:
+        raise OSError("synthetic: never connects")
+
+    j = join.startup(app.state.db, settings, opener=opener, open_lineage=False, provider_reader=lambda: True,
+                     key_reader=lambda: "synthetic-pairing-key-0123456789abcdef")
+    try:
+        assert j is not None and wdc.INSTALLATION_SWITCH is not None
+        assert wdc.direct_refusal("jobs/approval_decide") == "owner_excluded"
+        with app.state.db.write_aside() as conn:
+            set_setting(conn, wai.SWITCH_KEY, "on")
+        assert wdc.direct_refusal("jobs/approval_decide") is None
+    finally:
+        join.shutdown()
+    assert wdc.INSTALLATION_SWITCH is None and wdc.direct_refusal("jobs/approval_decide") == "owner_excluded"
+
+
+def test_m2_the_documents_require_a_written_owner_confirmation() -> None:
+    for name in ("WISKEY-ADOPT-2272.md", "WKWRITE-295-ADOPTION-MAP.md", "WKR5-295.md"):
+        text = (REPO / "docs" / "changes" / name).read_text(encoding="utf-8")
+        assert "review M2" in text and "in writing" in text.lower(), name

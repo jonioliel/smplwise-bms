@@ -25,10 +25,11 @@ The SIGNED ENVELOPE KIND of a command is decided here, per command, from the cat
                               they are never sent on the direct envelope.
 `wiskey-direct-connect.v1` is the connect body only (wiskey_media_bridge.connect_body). No `api_contract` is added to a closed envelope.
 
-OWNER_EXCLUDED_WRITES: was the job-approval WRITES (owner decision before 28.10). WISKEY-ADOPT-2272: the owner's 28.10 instruction (permanent full
-installation, "no artificial allowlist of targets/fields/actions for the installed Arx") empties it; WisKey's own business approvals,
-schema, CAS and authority checks stay authoritative. The contradiction with the earlier decision is recorded in
-docs/changes/WISKEY-ADOPT-2272.md; Arx still has no caller of either write."""
+OWNER_EXCLUDED_WRITES: the job-approval WRITES (owner decision before 28.10). WISKEY-ADOPT-2272: the owner's 28.10 instruction (permanent full
+installation, "no artificial allowlist of targets/fields/actions for the installed Arx") conflicts with it; review M2 keeps the exclusion
+unless `wiskey.auto_install` is on, and the owner confirms in writing before turning it on. WisKey's own business approvals, schema, CAS
+and authority checks stay authoritative. The contradiction is recorded in docs/changes/WISKEY-ADOPT-2272.md; Arx has no caller of either
+write."""
 from __future__ import annotations
 
 import hashlib
@@ -36,6 +37,7 @@ import json
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Callable
 
 from . import wiskey_media_bridge as bridge
 
@@ -43,7 +45,22 @@ CATALOG_PATH = Path(__file__).with_name("wiskey_r5_catalog.jsonl")
 NATIVE_WIRE = "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
 PEER_QUERY_WIRE = "original wiskey-peer-query.v1 signed read envelope"
 HA_BODY_WIRE = "original HA WebSocket body; no native envelope reinterpretation"
-OWNER_EXCLUDED_WRITES: frozenset[str] = frozenset()  # WISKEY-ADOPT-2272 (owner28 permanent full installation)
+OWNER_EXCLUDED_WRITES: frozenset[str] = frozenset({"jobs/approval_decide", "jobs/approval_request"})
+# WISKEY-ADOPT-2272 review M2: the exclusion holds on every installation; it is lifted ONLY while the automatic installation switch
+# (`wiskey.auto_install`) is on - `wiskey_direct_join.startup` installs the reader, None (no join) keeps the exclusion. The owner must
+# confirm in writing, before turning the switch on, that Arx may write job approvals (docs/changes/WISKEY-ADOPT-2272.md,
+# WKWRITE-295-ADOPTION-MAP.md, WKR5-295.md). An unreadable switch keeps the exclusion.
+INSTALLATION_SWITCH: Callable[[], bool] | None = None
+
+
+def _installation_on() -> bool:
+    reader = INSTALLATION_SWITCH
+    if reader is None:
+        return False
+    try:
+        return reader() is True
+    except Exception:  # noqa: BLE001 - unreadable: the exclusion holds
+        return False
 ROW_KINDS = ("CATALOG_PROVENANCE", "COMMAND", "DIRECT_ONLY_COMMAND")
 
 
@@ -159,7 +176,7 @@ def envelope_for(command: str) -> str | None:
 
 def direct_refusal(command: str) -> str | None:
     """Why `command` must never be written on the direct envelope (refused `not_sent` before any byte), else None."""
-    if command in OWNER_EXCLUDED_WRITES:
+    if command in OWNER_EXCLUDED_WRITES and not _installation_on():
         return "owner_excluded"
     entry = load().get(command)
     if entry is not None and entry.envelope is None:

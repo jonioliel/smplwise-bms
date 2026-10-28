@@ -79,8 +79,8 @@ def test_envelope_is_decided_per_command_from_the_catalog_row() -> None:
         assert wdc.envelope_for(name) == bridge.KIND
     assert all(e.envelope != bridge.DIRECT_PROTOCOL for e in c.entries())  # the transport protocol is never a bridge.kind
     assert wdc.direct_refusal("audio/start") == "not_a_direct_command"
-    # WISKEY-ADOPT-2272: owner28 permanent full installation - no Arx-side exclusion of the job-approval writes any more
-    assert wdc.direct_refusal("jobs/approval_decide") is None and wdc.direct_refusal("jobs/approval_request") is None
+    # WISKEY-ADOPT-2272 review M2: the job-approval writes stay excluded unless the automatic installation switch is on
+    assert wdc.direct_refusal("jobs/approval_decide") == wdc.direct_refusal("jobs/approval_request") == "owner_excluded"
     assert wdc.direct_refusal("jobs/list") is None and wdc.direct_refusal("jobs/approval_review") is None  # reads stay available
 
 
