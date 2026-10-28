@@ -344,6 +344,16 @@ export class ExploreFloors extends LitElement {
     }
     .title {
       font-size: var(--sw-fs-2xl);
+      /* break-ui (shots/final/floors-worst-*): a 90-character unbreakable name ran out of the row; a name wraps to two lines at most */
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+    }
+    .counts {
+      overflow-wrap: anywhere;
     }
     .counts {
       font-size: var(--sw-fs-md);

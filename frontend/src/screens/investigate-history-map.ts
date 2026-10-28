@@ -424,15 +424,15 @@ export class InvestigateHistoryMap extends LitElement {
     }
     .stage {
       box-shadow: var(--sw-shadow-2);
-      --sw-map-bg: var(--sw-surface-2); /* loop 2: the ground a tone step down, the plan floats */
+      --sw-map-bg: var(--sw-surface-3); /* loop 2: the ground a tone step down, the plan floats */
       border-color: transparent;
     }
     .chip {
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-bold);
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-      color: var(--sw-text-inverse);
+      background: var(--sw-menu-surface); /* a HUD panel keeps the opaque menu surface (unit-menu-lint): weight from the accent edge + ink */
+      border: 2px solid var(--sw-accent);
+      color: var(--sw-accent-text);
       box-shadow: var(--sw-shadow-2);
     }
     .chip sw-icon {

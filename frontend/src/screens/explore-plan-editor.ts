@@ -616,7 +616,7 @@ export class ExplorePlanEditor extends LitElement {
     .mapwrap {
       box-shadow: var(--sw-shadow-2);
       /* loop 2: the map ground a tone step down (the desk), the plan sheet floats, the rail and chips read as raised */
-      --sw-map-bg: var(--sw-surface-2);
+      --sw-map-bg: var(--sw-surface-3);
     }
     .rail {
       box-shadow: var(--sw-shadow-3);
@@ -629,10 +629,6 @@ export class ExplorePlanEditor extends LitElement {
     .rail button.on {
       background: var(--sw-accent);
       color: var(--sw-text-inverse);
-    }
-    .rail button:disabled {
-      opacity: 1;
-      color: var(--sw-text-3);
     }
     .rail button:active:not(:disabled),
     .bar button.icon:active:not(:disabled),
@@ -674,12 +670,14 @@ export class ExplorePlanEditor extends LitElement {
     .autosave.dirty i {
       background: currentColor;
     }
+    /* a HUD panel keeps the opaque menu surface (owner 2026-10-13, unit-menu-lint): the chip's weight comes from a 2 px accent edge and the
+       accent ink, not from an accent fill */
     .floorchip {
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-bold);
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-      color: var(--sw-text-inverse);
+      background: var(--sw-menu-surface);
+      border: 2px solid var(--sw-accent);
+      color: var(--sw-accent-text);
       box-shadow: var(--sw-shadow-2);
     }
     .floorchip sw-icon {

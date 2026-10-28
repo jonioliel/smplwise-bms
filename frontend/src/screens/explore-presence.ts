@@ -166,7 +166,7 @@ export class ExplorePresence extends LitElement {
     .kpi { background: var(--sw-surface-2); border: 2px solid transparent; box-shadow: none; }
     .kpi .dot { inline-size: 14px; block-size: 14px; }
     .kpi[aria-pressed='true'] { background: color-mix(in srgb, var(--c) 16%, var(--sw-surface)); border-color: var(--c); box-shadow: var(--sw-shadow-2); }
-    .stage { --sw-map-bg: var(--sw-surface-2); }
+    .stage { --sw-map-bg: var(--sw-surface-3); }
     @media (hover: hover) and (pointer: fine) { .kpi:not([aria-pressed='true']):not([data-k='hidden']):hover { background: var(--sw-surface-3); } }
     .kpi:active:not([data-k='hidden']), .chips button:active, .btn:active, .seg button:active { transform: scale(var(--sw-press-scale)); }
     .chips button, .btn, .seg button { transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }

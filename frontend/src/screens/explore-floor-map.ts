@@ -1297,17 +1297,18 @@ export class ExploreFloorMap extends LitElement {
     .stage {
       box-shadow: var(--sw-shadow-2);
       /* loop 2: the map ground is a tone step down (the desk); a raster plan sheet floats on it and the opaque HUD panels read as raised */
-      --sw-map-bg: var(--sw-surface-2);
+      --sw-map-bg: var(--sw-surface-3);
       border-color: transparent;
     }
     .floorchip {
       padding: 8px 14px;
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-bold);
-      /* loop 2: the "where am I" chip is a filled accent field, not a white pill among white pills */
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-      color: var(--sw-text-inverse);
+      /* loop 2: the "where am I" chip carries a 2 px accent edge and the accent ink - a HUD panel keeps the opaque menu surface
+         (owner 2026-10-13, unit-menu-lint rejects an accent fill on a registered panel) */
+      background: var(--sw-menu-surface);
+      border: 2px solid var(--sw-accent);
+      color: var(--sw-accent-text);
       box-shadow: var(--sw-shadow-2);
     }
     .floorchip sw-icon {
