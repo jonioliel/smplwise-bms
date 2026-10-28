@@ -224,8 +224,9 @@ class PullResult:
 
 class EventCursor:
     """The consumer: one durable cursor + the recent event ids, in Arx's settings / a small table. `pull` hands each NEW event to
-    `handler` (in order) and stores the cursor only after all of them returned; a handler failure leaves the cursor where it was (the
-    page comes again - at-least-once - and the de-duplication drops what was already handed on)."""
+    `handler` (in order), remembers each id once its handler returned, and stores the cursor only after all of them returned; a handler
+    failure leaves the cursor where it was (the page comes again - at-least-once - and the de-duplication drops what was already handed
+    on)."""
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
@@ -280,7 +281,10 @@ class EventCursor:
             result = handler(rec["event"])
             if hasattr(result, "__await__"):
                 await result  # type: ignore[misc]
-        self._remember([r["event"]["id"] for r in fresh])
+            # review L1: remembered as soon as ITS handler returned - a later failure on the page re-reads the page (the cursor did not
+            # move) and the events already handed on are dropped as duplicates instead of being handed on twice
+            self._remember([rec["event"]["id"]])
+            self.conn.commit()
         self._store({"cursor": page.cursor, "source": page.source, "pending_reset": None})
         self.conn.commit()
         return PullResult("page", None, len(fresh), dup, page.has_more, page.all_delivered)

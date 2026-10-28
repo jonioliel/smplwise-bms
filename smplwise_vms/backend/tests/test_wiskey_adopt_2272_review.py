@@ -545,3 +545,30 @@ def test_m8_installer_step_on_a_database_error(settings: Any, tmp_path: Path, mo
     shutil.rmtree(cfg / "custom_components" / "hikvision_intercom", ignore_errors=True)  # stage again, so the failing step runs again
     direct =wai.installer_step(app.state.db, settings, cfg, bridge_install.source_dir(), restart=True)
     assert direct["state"] == "error" and direct["code"] == "installer_failed"
+
+# ================================================================ L1: a partly failed event page
+
+def test_l1_a_partly_failed_page_never_hands_an_event_on_twice() -> None:
+    import asyncio
+
+    from smplwise.services import wiskey_installed_features as wif
+    from test_wiskey_adopt_2272_features import Client, _db, _page
+
+    conn = _db()
+    cur = wif.EventCursor(conn)
+    page = _page([(1, "e1"), (2, "e2"), (3, "e3")], "c3")
+    client = Client(page, page)
+    handled: list[str] = []
+    fail = {"e2": 1}
+
+    def handler(event: dict[str, Any]) -> None:
+        if fail.get(event["id"]):
+            fail[event["id"]] -= 1
+            raise RuntimeError("synthetic handler failure")
+        handled.append(event["id"])
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(cur.pull(client, handler))
+    assert handled == ["e1"] and cur.state()["cursor"] is None  # the cursor did not move past the failure
+    again = asyncio.run(cur.pull(client, handler))
+    assert handled == ["e1", "e2", "e3"] and (again.delivered, again.duplicates) == (2, 1) and cur.state()["cursor"] == "c3"
