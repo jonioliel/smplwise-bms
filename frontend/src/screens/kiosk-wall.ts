@@ -459,6 +459,80 @@ export class KioskWall extends LitElement {
         font-size: var(--sw-fs-lg);
       }
     }
+    /* R5-LIVE-297 (the HOMEFABLE type scale on the wall display, read from across the room): the title 800, the clock a 32 px / 800
+       display numeral, the counters 34 px / 800 tight over a 14 px label; a counter that needs someone (open alerts) is a filled danger
+       field, a healthy one keeps the quiet wash; the exit is a key that tints on hover only under a fine pointer and sinks on press */
+    h1 {
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .clock b {
+      font-size: var(--sw-fs-4xl);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    .stat {
+      padding: 14px 18px;
+      border-color: transparent;
+    }
+    .stat:has(.ic.red) {
+      background: color-mix(in srgb, var(--sw-danger) 26%, var(--sw-video-bg));
+    }
+    .stat .ic {
+      inline-size: 44px;
+      block-size: 44px;
+    }
+    .stat .ic.red {
+      background: var(--sw-danger);
+      color: var(--sw-text-inverse);
+    }
+    .stat b {
+      font-size: var(--sw-fs-4xl); /* the kiosk's display numeral, read at three metres */
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+    .stat b[data-word] {
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+    }
+    .stat span {
+      font-size: var(--sw-fs-md);
+    }
+    header a.exit {
+      font-weight: var(--sw-fw-semibold);
+      background: var(--k-wash);
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color var(--sw-t-fast) ease, transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    header a.exit:hover {
+      background: var(--k-wash);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      header a.exit:hover {
+        background: color-mix(in srgb, var(--sw-on-video) 16%, transparent);
+      }
+    }
+    header a.exit:active {
+      transform: scale(var(--sw-press-scale, 0.96));
+    }
+    @media (max-width: 767px) {
+      .stat {
+        padding: 8px 12px;
+      }
+      .stat .ic {
+        inline-size: 34px;
+        block-size: 34px;
+      }
+      .stat b {
+        font-size: var(--sw-fs-2xl);
+      }
+      .stat b[data-word] {
+        font-size: var(--sw-fs-lg);
+      }
+      .clock b {
+        font-size: var(--sw-fs-2xl);
+      }
+    }
     @media (prefers-reduced-motion: reduce) {
       * {
         animation: none !important;
