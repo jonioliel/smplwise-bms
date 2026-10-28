@@ -496,7 +496,7 @@ export class SystemSecurityCameras extends LitElement {
       border-block-start: 0;
     }
     tbody tr.down td {
-      background: color-mix(in srgb, var(--sw-offline) 16%, var(--sw-surface));
+      background: color-mix(in srgb, var(--sw-offline) 26%, var(--sw-surface)); /* loop 1: 16 % vanished on white */
     }
     tbody tr.down td[data-col='camera'] .cam {
       color: var(--sw-text-2);
@@ -594,7 +594,7 @@ export class SystemSecurityCameras extends LitElement {
       vertical-align: middle;
     }
     .card.down {
-      background: color-mix(in srgb, var(--sw-offline) 16%, var(--sw-surface));
+      background: color-mix(in srgb, var(--sw-offline) 26%, var(--sw-surface));
     }
     @media (prefers-reduced-motion: reduce) {
       .pen:active:not([disabled]) {

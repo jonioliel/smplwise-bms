@@ -559,8 +559,8 @@ export class LiveOverview extends LitElement {
     .spot {
       border-block-end: 0;
       margin-inline: 0;
-      margin-block-end: 6px;
-      padding: 9px 12px;
+      margin-block-end: 5px;
+      padding: 7px 12px; /* loop 1: 9 px left two events in view at 1440 x 900 */
       border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
       -webkit-tap-highlight-color: transparent;

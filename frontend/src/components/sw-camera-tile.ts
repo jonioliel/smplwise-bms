@@ -144,11 +144,11 @@ export class SwCameraTile extends LitElement {
        a picture still loading; forbidden takes the danger tint */
     :host([state='offline']:not([dark])) .off,
     :host([state='unknown']:not([dark])) .off {
-      background: color-mix(in srgb, var(--sw-offline) 22%, var(--sw-surface-3));
+      background: color-mix(in srgb, var(--sw-offline) 40%, var(--sw-surface-3)); /* loop 1: 22 % read as an empty card in light */
     }
     :host([dark][state='offline']) .off,
     :host([dark][state='unknown']) .off {
-      background: color-mix(in srgb, var(--sw-offline) 16%, var(--sw-video-bg));
+      background: color-mix(in srgb, var(--sw-offline) 22%, var(--sw-video-bg));
     }
     :host([state='forbidden']:not([dark])) .off {
       background: color-mix(in srgb, var(--sw-danger) 12%, var(--sw-surface-3));

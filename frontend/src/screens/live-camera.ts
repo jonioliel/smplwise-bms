@@ -831,7 +831,7 @@ export class LiveCamera extends LitElement {
       box-shadow: var(--sw-shadow-3);
     }
     .video.off {
-      background: color-mix(in srgb, var(--sw-offline) 22%, var(--sw-surface-3));
+      background: color-mix(in srgb, var(--sw-offline) 40%, var(--sw-surface-3));
       box-shadow: var(--sw-shadow-1);
     }
     .stamp {

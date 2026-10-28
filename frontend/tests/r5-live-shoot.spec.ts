@@ -30,7 +30,7 @@ const DEF: Record<string, Screen> = {
     hash: '/system/security/cameras',
     nvr: true,
     open: async (page) => {
-      const b = page.locator(`${CAMS} button[data-edit-stream]:not([disabled])`).first();
+      const b = page.locator(`${CAMS} button[data-edit-stream]:not([disabled]):visible`).first();
       await b.waitFor({ state: 'visible', timeout: 10_000 });
       await b.click();
       await page.locator(`${CAMS} nvr-camera-editor sw-drawer[open]`).waitFor({ state: 'attached', timeout: 8000 });
@@ -53,7 +53,7 @@ const DEF: Record<string, Screen> = {
     hash: '/system/security/cameras',
     nvr: true,
     open: async (page) => {
-      const t = page.locator(`${CAMS} sw-toggle:not([disabled])`).first();
+      const t = page.locator(`${CAMS} sw-toggle:not([disabled]):visible`).first();
       await t.waitFor({ state: 'visible', timeout: 10_000 });
       await t.click();
       await page.locator('sw-dialog[open][data-nvr-confirm-dialog]').first().waitFor({ state: 'attached', timeout: 8000 });
