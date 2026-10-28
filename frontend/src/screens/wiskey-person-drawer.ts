@@ -134,8 +134,24 @@ export class WiskeyPersonDrawer extends LitElement {
     }
     .tabs button[aria-selected='true'] {
       background: var(--sw-surface);
-      color: var(--sw-accent-text);
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: var(--sw-fw-bold);
       box-shadow: var(--sw-shadow-1);
+    }
+    .tabs button {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .tabs button:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    /* R5-SECURITY: the badges in the head and the sections are fields - 12.5/700 on 22 px */
+    sw-badge {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      line-height: 18px;
+      padding-block: 2px;
     }
     .tabs button:focus-visible,
     .linkbtn:focus-visible {
@@ -147,19 +163,20 @@ export class WiskeyPersonDrawer extends LitElement {
       flex-direction: column;
       gap: 8px;
     }
+    /* R5-SECURITY: section headings in the heading ink (14.5/700); values 14/600; the sensitive section is a well (a tone step, no edge) */
     h4 {
       margin: 0;
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-2);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
     }
     section.sens {
-      padding: 12px;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
+      padding: 14px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
       background: var(--sw-surface-2);
     }
     dl {
@@ -167,7 +184,7 @@ export class WiskeyPersonDrawer extends LitElement {
       grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);
       gap: 8px 12px;
       margin: 0;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-base);
     }
     dt {
       color: var(--sw-text-3);
@@ -176,6 +193,9 @@ export class WiskeyPersonDrawer extends LitElement {
       margin: 0;
       min-inline-size: 0;
       overflow-wrap: anywhere;
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text);
+      font-variant-numeric: tabular-nums;
     }
     .sub {
       color: var(--sw-text-3);
@@ -206,7 +226,9 @@ export class WiskeyPersonDrawer extends LitElement {
     li.station .name {
       flex: 1 1 8rem;
       min-inline-size: 0;
-      font-weight: var(--sw-fw-medium);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading, var(--sw-text));
     }
     li.station .err {
       flex-basis: 100%;
@@ -228,9 +250,10 @@ export class WiskeyPersonDrawer extends LitElement {
       overflow: hidden;
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
-      font-size: var(--sw-fs-xl);
-      font-weight: var(--sw-fw-semibold);
-      border: 2px solid var(--sw-border);
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      border: 2px solid var(--sw-surface);
+      box-shadow: var(--sw-shadow-2);
     }
     .frame img {
       inline-size: 100%;

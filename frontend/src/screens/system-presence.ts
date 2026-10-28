@@ -64,8 +64,11 @@ export class SystemPresence extends LitElement {
     .row:last-of-type {
       border-block-end: 0;
     }
+    /* R5-SECURITY: the setting's name 14/700 in the heading ink */
     .lbl {
-      font-weight: var(--sw-fw-medium);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading, var(--sw-text));
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -141,8 +144,18 @@ export class SystemPresence extends LitElement {
       vertical-align: top;
     }
     th {
-      color: var(--sw-text-muted);
-      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-xs);
+      letter-spacing: 0.03em;
+      background: var(--sw-surface-2);
+    }
+    td {
+      font-variant-numeric: tabular-nums;
+    }
+    td:first-child {
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
     }
     .wrap {
       overflow-x: auto;

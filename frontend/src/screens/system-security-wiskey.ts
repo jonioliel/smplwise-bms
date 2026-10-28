@@ -44,12 +44,12 @@ export class SystemSecurityWiskey extends LitElement {
       :host { display: block; }
       .lead { margin: 0; padding: 14px; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
       .sw-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; align-items: center; padding: 14px; border-block-start: 1px solid var(--sw-border); }
-      .sw-row .t { margin: 0; font-size: var(--sw-fs-md); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      .sw-row .t { margin: 0; font-size: var(--sw-fs-lg); color: var(--sw-heading); font-weight: var(--sw-fw-bold); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } /* R5-SECURITY: the switch's name 15/700 */
       .sw-row .x { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
       .sw-row .k { margin: 4px 0 0; color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
       .sw-row .k code { font-family: var(--sw-font-mono, monospace); direction: ltr; unicode-bidi: isolate; }
       .sw-row .why { grid-column: 1 / -1; margin: 0; display: inline-flex; gap: 6px; align-items: center; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
-      .pill { display: inline-flex; align-items: center; min-block-size: 24px; padding: 0 10px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); background: var(--sw-surface-2, var(--sw-border)); color: var(--sw-text-2); }
+      .pill { display: inline-flex; align-items: center; min-block-size: 24px; padding: 0 10px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-bold); background: var(--sw-surface-3, var(--sw-border)); color: var(--sw-text-2); } /* R5-SECURITY: the state is a filled 12.5/700 field */
       .pill[data-state='on'] { background: var(--sw-success-bg, var(--sw-toggle-on)); color: var(--sw-success-text, var(--sw-text)); }
       .foot { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-block-start: 14px; }
       .err-line { margin: 10px 0 0; color: var(--sw-danger-text, var(--sw-danger)); font-size: var(--sw-fs-sm); }

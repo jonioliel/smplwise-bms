@@ -766,23 +766,28 @@ export class WiskeyOverview extends LitElement {
       grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
       gap: 12px;
     }
+    /* R5-SECURITY: a station card is the hero step of this screen (radius lg, shadow 2); a ringing one is a FILLED warning field,
+       an offline one steps down a tone */
     .door {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding: 12px 14px;
+      padding: 14px 16px;
       background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      box-shadow: var(--sw-shadow-1);
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
       min-inline-size: 0;
+      transition: box-shadow var(--sw-t-fast) var(--sw-ease), background var(--sw-t-state) var(--sw-ease);
     }
     .door.ringing {
-      border-color: var(--sw-warning);
-      box-shadow: 0 0 0 3px var(--sw-warning-soft);
+      border-color: color-mix(in srgb, var(--sw-warning) 55%, transparent);
+      background: var(--sw-warning-soft);
+      box-shadow: var(--sw-shadow-2), 0 0 0 3px color-mix(in srgb, var(--sw-warning) 30%, transparent);
     }
     .door.offline {
       background: var(--sw-surface-2);
+      box-shadow: var(--sw-shadow-1);
     }
     .door-head {
       display: flex;
@@ -792,11 +797,12 @@ export class WiskeyOverview extends LitElement {
     .ic {
       display: grid;
       place-items: center;
-      inline-size: 32px;
-      block-size: 32px;
-      border-radius: var(--sw-r-sm);
+      inline-size: 44px;
+      block-size: 44px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-live-soft);
       color: var(--sw-success);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent);
       flex: none;
     }
     .door.offline .ic {
@@ -815,9 +821,18 @@ export class WiskeyOverview extends LitElement {
       min-inline-size: 0;
     }
     .title b {
+      /* R5-SECURITY: the station's name is the card's display line - 17/800 in the heading ink */
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--sw-heading, var(--sw-text));
+      line-height: 1.15;
+    }
+    .title small {
+      font-size: var(--sw-fs-sm);
     }
     small,
     .muted {
@@ -829,19 +844,38 @@ export class WiskeyOverview extends LitElement {
       align-items: center;
       gap: 6px;
       align-self: flex-start;
-      padding: 3px 10px;
+      padding: 4px 12px;
       border-radius: var(--sw-r-pill);
-      background: var(--sw-warning-soft);
-      color: var(--sw-warning);
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
+      background: var(--sw-warning);
+      color: var(--sw-text-inverse);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      box-shadow: var(--sw-shadow-1);
     }
     .facts {
       display: flex;
       flex-wrap: wrap;
       gap: 4px 12px;
-      font-size: var(--sw-fs-xs);
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
+    }
+    .facts b {
+      color: var(--sw-heading, var(--sw-text));
+    }
+    /* R5-SECURITY: the badges of this screen read as fields - 12.5/700 on 22 px */
+    sw-badge {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      line-height: 18px;
+      padding-block: 2px;
+    }
+    .attn strong {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .attn small {
+      font-size: var(--sw-fs-sm);
     }
     .still {
       position: relative;

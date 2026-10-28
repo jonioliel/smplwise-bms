@@ -109,9 +109,9 @@ export class WiskeyMessageDialog extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 12px;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
+      padding: 12px 14px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
       background: var(--sw-surface-2);
     }
     .to .col {
@@ -120,8 +120,12 @@ export class WiskeyMessageDialog extends LitElement {
       gap: 2px;
       min-inline-size: 0;
     }
+    /* R5-SECURITY: the recipient is the dialog's display line - 17/800 in the heading ink; the pills are 12.5/700 fields */
     .to b {
-      font-weight: var(--sw-fw-semibold);
+      font-weight: 800;
+      font-size: var(--sw-fs-xl);
+      letter-spacing: -0.01em;
+      color: var(--sw-heading, var(--sw-text));
     }
     .to .meta {
       display: flex;
@@ -134,10 +138,10 @@ export class WiskeyMessageDialog extends LitElement {
     .pill {
       display: inline-flex;
       align-items: center;
-      padding: 1px 8px;
+      padding: 3px 10px;
       border-radius: var(--sw-r-pill);
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-medium);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
       white-space: nowrap;
@@ -170,25 +174,35 @@ export class WiskeyMessageDialog extends LitElement {
       flex-wrap: wrap;
       gap: 8px;
     }
+    /* R5-SECURITY: the template chips are raised keys (shadow 1, 600) that sink on pointer-down; the chosen one a filled accent field */
     .chip {
       min-block-size: 44px;
       padding-inline: 14px;
       border-radius: var(--sw-r-pill);
-      border: 1px solid var(--sw-border-strong);
+      border: 1px solid transparent;
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
       font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
       cursor: pointer;
       max-inline-size: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .chip:active:not(:disabled) {
+      transform: scale(var(--sw-press-scale));
     }
     .chip[aria-pressed='true'] {
       background: var(--sw-accent);
-      border-color: var(--sw-accent);
+      border-color: transparent;
       color: var(--sw-text-inverse);
+      font-weight: var(--sw-fw-bold);
     }
     .chip:disabled {
       opacity: var(--sw-disabled-opacity);

@@ -48,18 +48,18 @@ export class WiskeyEventDrawer extends LitElement {
       gap: 12px;
       min-inline-size: 0;
     }
+    /* R5-SECURITY: the sections are wells (a tone step, no edge, radius lg); headings 14.5/700 in the heading ink; values 600 */
     .sect {
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
       background: var(--sw-surface-2);
-      padding: 12px 14px;
+      padding: 14px 16px;
       display: flex;
       flex-direction: column;
       gap: 8px;
       min-inline-size: 0;
     }
     .sect.sens {
-      border-color: var(--sw-border-strong);
       background: var(--sw-surface-3);
     }
     h4 {
@@ -67,13 +67,9 @@ export class WiskeyEventDrawer extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
-      letter-spacing: 0.04em;
-      color: var(--sw-text-3);
-    }
-    .sens h4 {
-      color: var(--sw-text-2);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
     }
     dl {
       display: grid;
@@ -88,8 +84,15 @@ export class WiskeyEventDrawer extends LitElement {
     dd {
       margin: 0;
       color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+      font-variant-numeric: tabular-nums;
       min-inline-size: 0;
       overflow-wrap: anywhere;
+    }
+    dd:first-of-type {
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
     }
     bdi {
       unicode-bidi: isolate;
@@ -101,7 +104,7 @@ export class WiskeyEventDrawer extends LitElement {
       overflow: hidden;
       display: grid;
       place-items: center;
-      background: linear-gradient(135deg, var(--sw-surface-3), var(--sw-surface-2));
+      background: var(--sw-surface-3);
       color: var(--sw-text-3);
     }
     .frame img {

@@ -620,7 +620,7 @@ export class WiskeyEvents extends LitElement {
     const zone = this.zoneOf(e);
     const tone = rowTone(e);
     const title = this.titleText(e);
-    return html`<button type="button" class="row" data-row-id=${e.id} data-wiskey-event @click=${() => this.open(e.id)}>
+    return html`<button type="button" class="row" data-row-id=${e.id} data-row-tone=${tone.dot} data-wiskey-event @click=${() => this.open(e.id)}>
       <time class="time" datetime=${e.timestamp ?? ''} data-wiskey-event-time><bdi>${localTime(e.timestamp, zone)}</bdi></time>
       <span class="dot ${tone.dot}" aria-hidden="true"></span>
       <span class="main"><span class="t" data-wiskey-event-person>${title}</span><span class="s" data-wiskey-event-station>${this.subText(e)}</span></span>
@@ -857,14 +857,15 @@ export class WiskeyEvents extends LitElement {
     .feed {
       display: block;
     }
+    /* R5-SECURITY: the day heading is a heading (13/800 in the heading ink on a tone step) */
     .grp {
-      padding: 8px 14px;
-      background: var(--sw-surface-2);
+      padding: 9px 14px;
+      background: var(--sw-surface-3);
       border-block-start: 1px solid var(--sw-border);
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
-      letter-spacing: 0.04em;
+      color: var(--sw-heading, var(--sw-text));
+      font-size: var(--sw-fs-md);
+      font-weight: 800;
+      letter-spacing: 0.01em;
     }
     .grp:first-child {
       border-block-start: 0;
@@ -884,29 +885,57 @@ export class WiskeyEvents extends LitElement {
       text-align: start;
       cursor: pointer;
       box-sizing: border-box;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     }
     .grp + .row {
       border-block-start: 0;
     }
-    .row:hover {
-      background: var(--sw-hover-wash);
+    /* R5-SECURITY (mobile-native / emil): a hover only under a fine pointer; the row sinks on pointer-down; a refused entry is a
+       filled danger field, a call a filled accent field (status as a field, never a wash) */
+    @media (hover: hover) and (pointer: fine) {
+      .row:hover {
+        background: var(--sw-hover-wash);
+      }
+    }
+    .row:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .row[data-row-tone='err'] {
+      background: var(--sw-danger-soft);
+    }
+    .row[data-row-tone='warn'] {
+      background: var(--sw-warning-soft);
     }
     .row:focus-visible {
       outline-offset: -2px;
     }
     .time {
+      /* the time is the display figure of a log row: 15/800, tabular, in the heading ink */
       flex: none;
-      min-inline-size: 44px;
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
+      min-inline-size: 56px;
+      color: var(--sw-heading, var(--sw-text));
+      font-size: var(--sw-fs-xl);
+      font-weight: 800;
       font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
     }
     .dot {
       flex: none;
-      inline-size: 10px;
-      block-size: 10px;
+      inline-size: 12px;
+      block-size: 12px;
       border-radius: 50%;
       background: var(--sw-unknown);
+      box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 0%, var(--sw-surface));
+    }
+    sw-badge {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      line-height: 18px;
+      padding-block: 2px;
+      min-inline-size: 64px;
+      justify-content: center;
     }
     .dot.ok {
       background: var(--sw-live);
@@ -925,7 +954,8 @@ export class WiskeyEvents extends LitElement {
       gap: 2px;
     }
     .main .t {
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-bold);
+      font-size: var(--sw-fs-md);
       color: var(--sw-heading);
       overflow: hidden;
       text-overflow: ellipsis;
