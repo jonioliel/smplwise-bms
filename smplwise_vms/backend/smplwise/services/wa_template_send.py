@@ -178,10 +178,35 @@ def load_registry(conn: sqlite3.Connection) -> list[TemplateRef]:
     return [] if problems else refs  # fail closed: a registry with any bad entry reads as empty
 
 
-def store_registry(conn: sqlite3.Connection, refs: list[TemplateRef]) -> None:
-    doc = [{"id": r.id, "name": r.name, "language": r.language, "params": list(r.params), "purpose": r.purpose,
+NATIVE_ID_PREFIX = "native_"  # WISKEY-ADOPT-2272 review H1: ids the signed native registry sync owns (never an administrator's row)
+
+
+def is_native(ref: TemplateRef) -> bool:
+    """A row the native registry sync created (and may replace); every other row is the administrator's and is never touched by it."""
+    return ref.id.startswith(NATIVE_ID_PREFIX) or ref.account is not None
+
+
+def ref_doc(r: TemplateRef) -> dict[str, Any]:
+    """The stored form of one reference (the inverse of `parse_ref`)."""
+    return {"id": r.id, "name": r.name, "language": r.language, "params": list(r.params), "purpose": r.purpose,
             **({"template_ref": r.wiskey_ref, "template_revision": r.wiskey_revision} if r.wiskey_ref is not None else {}),
-            **({"account": r.account} if r.account is not None else {})} for r in refs]
+            **({"account": r.account} if r.account is not None else {})}
+
+
+def load_registry_raw(conn: sqlite3.Connection) -> Any:
+    """The stored registry document as JSON (None when absent or not JSON) - for callers that must not mistake a broken registry for
+    an empty one (the fail-closed `load_registry` reads both as [])."""
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (REGISTRY_KEY,)).fetchone()
+    if not row:
+        return []
+    try:
+        return json.loads(row[0])
+    except (TypeError, ValueError):
+        return None
+
+
+def store_registry(conn: sqlite3.Connection, refs: list[TemplateRef]) -> None:
+    doc = [ref_doc(r) for r in refs]
     conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                  (REGISTRY_KEY, json.dumps(doc, separators=(",", ":"))))
 

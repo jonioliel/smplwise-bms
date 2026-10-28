@@ -568,29 +568,56 @@ def reconcile_due(db: Any, settings: Any, *, now: float | None = None) -> str | 
     return reconcile_installation(db, settings)
 
 
+AUDIT_REGISTRY_SYNC = "wiskey.installation.template_registry_sync"
+
+
 def sync_native_templates(db: Any, reply: Any) -> int:
-    """Fill Arx's original registry from WisKey's signed `whatsapp/template_registry_v1` (no owner ids): one stable internal id per
-    (account, template_ref); the same name/language on two accounts stays two templates. Any malformed row refuses the whole reply."""
+    """MERGE WisKey's signed `whatsapp/template_registry_v1` (no owner ids) into Arx's original registry: one stable internal id per
+    (account, template_ref); the same name/language on two accounts stays two templates. Review H1: only the sync's own rows
+    (`native_*` / carrying an account) are replaced - every administrator row is kept as it is; an EMPTY reply is refused (it never wipes
+    the registry); a stored registry Arx cannot read is never overwritten; each applied sync writes one audit row (counts only).
+    Review L6: a native row keeps the purpose / parameter slots it already has (the signed reply carries neither). Any malformed row
+    refuses the whole reply. Returns the number of native rows now stored."""
+    from ..audit import audit
     from . import wa_template_send as wts
 
     if (not isinstance(reply, dict) or set(reply) != {"schema_version", "state", "templates"} or reply["schema_version"] != 1
             or type(reply["schema_version"]) is not int or reply["state"] != "ready" or type(reply["templates"]) is not list):
         raise InstallationError("native_registry_invalid")
-    rows = []
+    if not reply["templates"]:
+        raise InstallationError("native_registry_empty")  # never a wipe: the stored registry stays as it was
+    items = []
     for item in reply["templates"]:
         if type(item) is not dict or set(item) != {"account", "template_ref", "expected_template_revision", "template_name", "language"}:
             raise InstallationError("native_registry_invalid")
         if not (isinstance(item["account"], str) and isinstance(item["template_ref"], str)):
             raise InstallationError("native_registry_invalid")
-        rid = "native_" + hashlib.sha256((item["account"] + "\0" + item["template_ref"]).encode("utf-8")).hexdigest()[:24]
-        rows.append({"id": rid, "name": item["template_name"], "language": item["language"], "params": [], "purpose": "notice",
-                     "template_ref": item["template_ref"], "template_revision": item["expected_template_revision"], "account": item["account"]})
-    refs, problems = wts.validate_registry(rows)
-    if problems:
-        raise InstallationError("native_registry_invalid")
+        items.append(item)
     with db.write_aside(label="wiskey native template registry") as conn:
-        wts.store_registry(conn, refs)
-    return len(refs)
+        stored = wts.load_registry_raw(conn)
+        current, stored_problems = wts.validate_registry(stored if stored is not None else "unreadable")
+        if stored_problems:
+            raise InstallationError("stored_registry_unreadable")  # an administrator's registry Arx cannot read is never overwritten
+        previous = {r.id: r for r in current if wts.is_native(r)}
+        admin = [r for r in current if not wts.is_native(r)]
+        rows = []
+        for item in items:
+            rid = wts.NATIVE_ID_PREFIX + hashlib.sha256((item["account"] + "\0" + item["template_ref"]).encode("utf-8")).hexdigest()[:24]
+            old = previous.get(rid)
+            rows.append({"id": rid, "name": item["template_name"], "language": item["language"],
+                         "params": list(old.params) if old is not None else [], "purpose": old.purpose if old is not None else "notice",
+                         "template_ref": item["template_ref"], "template_revision": item["expected_template_revision"], "account": item["account"]})
+        native, problems = wts.validate_registry(rows)
+        if problems:
+            raise InstallationError("native_registry_invalid")
+        merged, problems = wts.validate_registry([wts.ref_doc(r) for r in admin] + rows)
+        if problems:
+            raise InstallationError("native_registry_conflict")  # e.g. more than REGISTRY_MAX rows together: nothing is changed
+        wts.store_registry(conn, merged)
+        audit(conn, actor=None, action=AUDIT_REGISTRY_SYNC, decision="allowed", resource_type="installation", resource_id="messaging",
+              details={"native": len(native), "admin_kept": len(admin), "native_removed": len(set(previous) - {r.id for r in native}),
+                       "accounts": len({r.account for r in native})})
+    return len(native)
 
 
 # ---------------------------------------------------------------- template_send_v3 (closed companion reader)
