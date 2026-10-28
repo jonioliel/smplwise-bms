@@ -615,6 +615,8 @@ export class ExplorePlanEditor extends LitElement {
        side cards read at a glance. Press on pointer-down; hover only with a fine pointer. */
     .mapwrap {
       box-shadow: var(--sw-shadow-2);
+      /* loop 2: the map ground a tone step down (the desk), the plan sheet floats, the rail and chips read as raised */
+      --sw-map-bg: var(--sw-surface-2);
     }
     .rail {
       box-shadow: var(--sw-shadow-3);
@@ -675,17 +677,27 @@ export class ExplorePlanEditor extends LitElement {
     .floorchip {
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading);
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: var(--sw-text-inverse);
       box-shadow: var(--sw-shadow-2);
     }
+    .floorchip sw-icon {
+      color: inherit;
+    }
     .legend {
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text);
-      font-weight: var(--sw-fw-medium);
-      box-shadow: var(--sw-shadow-1);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-2);
     }
     .legend i {
-      inline-size: 10px;
-      block-size: 10px;
+      inline-size: 12px;
+      block-size: 12px;
+    }
+    .autosave {
+      font-size: var(--sw-fs-sm);
+      padding: 4px 12px;
     }
     .list button {
       transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);

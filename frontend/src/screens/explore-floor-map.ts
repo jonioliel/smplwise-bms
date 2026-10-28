@@ -1296,23 +1296,37 @@ export class ExploreFloorMap extends LitElement {
     }
     .stage {
       box-shadow: var(--sw-shadow-2);
+      /* loop 2: the map ground is a tone step down (the desk); a raster plan sheet floats on it and the opaque HUD panels read as raised */
+      --sw-map-bg: var(--sw-surface-2);
+      border-color: transparent;
     }
     .floorchip {
-      padding: 7px 12px;
+      padding: 8px 14px;
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading);
+      /* loop 2: the "where am I" chip is a filled accent field, not a white pill among white pills */
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: var(--sw-text-inverse);
       box-shadow: var(--sw-shadow-2);
     }
+    .floorchip sw-icon {
+      color: inherit;
+    }
     .legend {
-      padding: 5px 12px;
+      padding: 6px 14px;
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text);
-      font-weight: var(--sw-fw-medium);
-      box-shadow: var(--sw-shadow-1);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-2);
     }
     .legend i {
-      inline-size: 10px;
-      block-size: 10px;
+      inline-size: 12px;
+      block-size: 12px;
+    }
+    .crumbs {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
     }
     .layers {
       background: var(--sw-surface-2);

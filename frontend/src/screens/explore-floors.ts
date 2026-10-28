@@ -322,6 +322,36 @@ export class ExploreFloors extends LitElement {
     dt {
       color: var(--sw-text-2);
     }
+    /* R5-MAPS-297 loop 2: three steps, not one - the unselected floors are WELLS (surface 2, no shadow, no edge), the selected floor is the
+       one hero (accent field, 2 px accent edge, shadow 2), the heading 20/700 and the counts 14/500 with 700 digits. */
+    .floor {
+      background: var(--sw-surface-2);
+      box-shadow: none;
+      border-width: 2px;
+      padding: 14px 18px;
+    }
+    .floor.on {
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+      box-shadow: var(--sw-shadow-2);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .floor:hover:not(.on) {
+        background: var(--sw-surface-3);
+        border-color: transparent;
+        box-shadow: none;
+      }
+    }
+    .title {
+      font-size: var(--sw-fs-2xl);
+    }
+    .counts {
+      font-size: var(--sw-fs-md);
+    }
+    .pic {
+      inline-size: 124px;
+      block-size: 80px;
+    }
   `;
 
   connectedCallback() {

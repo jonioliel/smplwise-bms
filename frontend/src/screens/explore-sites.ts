@@ -286,6 +286,30 @@ export class ExploreSites extends LitElement {
       border: 0;
       font-weight: var(--sw-fw-medium);
     }
+    /* R5-MAPS-297 loop 2 (the loop-1 shots still read as "the same white cards"): the count is a FILLED field (surface 3 pill in the heading
+       ink); the building rows carry the same filled count field. */
+    .info small:not(.clamp2) {
+      display: inline-block;
+      inline-size: fit-content;
+      max-inline-size: 100%;
+      padding: 4px 12px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-3);
+      margin-block: 6px 6px;
+      line-height: 1.3;
+    }
+    .info small.clamp2 {
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .brow small {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-3);
+      color: var(--sw-heading);
+      margin-block-start: 4px;
+    }
   `;
 
   connectedCallback() {

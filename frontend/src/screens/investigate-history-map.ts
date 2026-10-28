@@ -407,27 +407,36 @@ export class InvestigateHistoryMap extends LitElement {
       color: var(--sw-text-2);
     }
     .bar {
-      padding: 10px 14px;
-      border-color: color-mix(in srgb, var(--sw-recorded) 35%, transparent);
-      box-shadow: var(--sw-shadow-1);
+      padding: 12px 16px;
+      border-color: var(--sw-recorded);
+      box-shadow: var(--sw-shadow-2);
       font-weight: var(--sw-fw-medium);
+      border-radius: var(--sw-r-lg);
     }
     .time {
       font-family: inherit;
-      font-size: var(--sw-fs-2xl);
+      font-size: var(--sw-fs-3xl); /* loop 2: the chosen time is the display digit of this screen */
       font-weight: var(--sw-fw-bold);
       font-variant-numeric: tabular-nums;
-      letter-spacing: -0.01em;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
       color: var(--sw-recorded-text);
     }
     .stage {
       box-shadow: var(--sw-shadow-2);
+      --sw-map-bg: var(--sw-surface-2); /* loop 2: the ground a tone step down, the plan floats */
+      border-color: transparent;
     }
     .chip {
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading);
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: var(--sw-text-inverse);
       box-shadow: var(--sw-shadow-2);
+    }
+    .chip sw-icon {
+      color: inherit;
     }
     .hist {
       background: color-mix(in srgb, var(--sw-purple) 14%, var(--sw-menu-surface));

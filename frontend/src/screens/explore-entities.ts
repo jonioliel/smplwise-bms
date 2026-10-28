@@ -158,7 +158,7 @@ export class ExploreEntities extends LitElement {
       color: var(--sw-text-2);
     }
     dd {
-      font-size: var(--sw-fs-md);
+      font-size: var(--sw-fs-lg); /* loop 2: the value is the answer - 15/600 heading ink */
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading);
     }
