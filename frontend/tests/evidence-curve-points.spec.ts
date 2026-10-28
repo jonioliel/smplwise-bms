@@ -26,15 +26,49 @@ const throughOf = (w: Wall): P[] => (w.external_ids?.curve_through ?? '').split(
 const curved = (w: Wall) => !!w.bulges && w.bulges.some((b) => b !== 0);
 const near = (a: P, b: P, tol = 0.004) => Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] - b[1]) <= tol;
 
+// The screen position of a plan point, read in ONE evaluate (the canvas box and its view in the same frame: a layout shift
+// between two round trips put a click ~60 px off, so a curve point landed at y 0.32 instead of 0.40).
 async function at(page: Page, p: P): Promise<{ x: number; y: number }> {
-  const canvas = page.locator(`${ED} sw-plan-canvas`);
-  const box = (await canvas.boundingBox())!;
-  const s = await canvas.evaluate((el, q) => (el as unknown as { toScreen: (a: number, b: number) => { x: number; y: number } }).toScreen(q[0], q[1]), p);
-  return { x: box.x + s.x, y: box.y + s.y };
+  return page.locator(`${ED} sw-plan-canvas`).evaluate((el, q) => {
+    const c = el as unknown as { toScreen: (a: number, b: number) => { x: number; y: number } };
+    const box = el.getBoundingClientRect();
+    const s = c.toScreen(q[0], q[1]);
+    return { x: box.x + s.x, y: box.y + s.y };
+  }, p);
+}
+// Settled = the canvas box, the page scroll and the view (where two plan points sit) did not change for 6 animation frames in
+// a row. State based, no timers: it resolves as soon as the layout stops moving.
+async function settled(page: Page) {
+  await page.locator(`${ED} sw-plan-canvas`).evaluate((el) => new Promise<void>((resolve) => {
+    const c = el as unknown as { toScreen: (a: number, b: number) => { x: number; y: number } };
+    const sig = () => {
+      const r = el.getBoundingClientRect();
+      const a = c.toScreen(0, 0);
+      const b = c.toScreen(1, 1);
+      return [r.x, r.y, r.width, r.height, window.scrollX, window.scrollY, a.x, a.y, b.x, b.y].map((n) => n.toFixed(2)).join('|');
+    };
+    let last = sig();
+    let still = 0;
+    const tick = () => {
+      const now = sig();
+      still = now === last ? still + 1 : 0;
+      last = now;
+      if (still >= 6) resolve();
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }));
 }
 async function clickAt(page: Page, p: P) {
+  await settled(page);
+  // move there, then check the point is still under the mouse (the layout may have moved while the mouse travelled)
+  await expect.poll(async () => {
+    const s = await at(page, p);
+    await page.mouse.move(s.x, s.y, { steps: 3 });
+    const s2 = await at(page, p);
+    return Math.abs(s2.x - s.x) < 0.5 && Math.abs(s2.y - s.y) < 0.5 ? 'steady' : '';
+  }, { message: `the canvas is steady under ${p}` }).toBe('steady');
   const s = await at(page, p);
-  await page.mouse.move(s.x, s.y, { steps: 3 });
   await page.mouse.click(s.x, s.y);
 }
 async function drag(page: Page, from: { x: number; y: number }, dx: number, dy: number) {
@@ -54,6 +88,7 @@ async function openStructure(page: Page) {
   await expect(page.locator(`${ED} sw-plan-canvas`)).toHaveCount(1, { timeout: 20000 });
   await page.locator(`${ED} [data-tool="structure"]`).click();
   await expect(page.locator(`${ED} [data-studio-panel]`)).toHaveCount(1, { timeout: 15000 });
+  await settled(page);
 }
 async function newWalls(before: number): Promise<Wall[]> {
   const d = await draft();
@@ -116,8 +151,11 @@ test.describe.serial('plan editor: curved walls through points and the glass wal
     await page.keyboard.press('r');
     await expect(page.locator(`${ED} [data-studio-mode="curved"]`)).toHaveAttribute('aria-pressed', 'true');
     const pts: P[] = [[0.15, 0.6], [0.28, 0.4], [0.42, 0.35], [0.56, 0.45]];
-    for (const p of pts.slice(0, 3)) await clickAt(page, p);
     const hint = page.locator(`${ED} [data-curve-hint]`);
+    for (const [k, p] of pts.slice(0, 3).entries()) {
+      await clickAt(page, p);
+      await expect(hint).toHaveAttribute('data-curve-hint', String(k + 1)); // the point registered before the next one is aimed
+    }
     await expect(hint).toHaveAttribute('data-curve-hint', '3');
     const hb = (await hint.locator('span').boundingBox())!;
     expect(hb.y + hb.height, 'the live hint is on screen').toBeLessThanOrEqual(page.viewportSize()!.height);
