@@ -509,13 +509,16 @@ export class ScheduleEditor extends LitElement {
       color: var(--sw-text-3);
     }
     /* ------------------------------------------------------------------ side */
+    /* R5-DEVICES-297 loop 2: the side panel's section titles are headings (lg/700, heading ink), not grey labels */
     .side h4 {
       display: flex;
       align-items: center;
       gap: 8px;
       margin: 0 0 8px;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+      letter-spacing: -0.01em;
     }
     .side h4 small {
       color: var(--sw-text-3);

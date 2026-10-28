@@ -9,7 +9,7 @@ import { LONG_HE, MIXED, UNBREAK } from './breakui-worst';
 // selectable skin, light + dark, desktop 1440x900 + phone 390x844. Nothing here touches a device.
 //   R5_OUT=<dir> R5_SCREENS=sched-rows,auto-rows R5_SKINS=classic,domus SW_BASE_URL=http://127.0.0.1:4188/ npx playwright test tests/r5-devices-shoot.spec.ts --project=desktop --project=mobile
 const OUT = process.env.R5_OUT ?? '';
-const ALL = 'sched-rows,sched-cards,sched-table,sched-week,sched-drawer,sched-editor,sched-editor-table,sched-new,sched-trash,sched-empty,sched-unavailable,auto-rows,auto-cards,auto-drawer,auto-builder,auto-new,auto-trash,auto-empty,auto-offline,scenes,scene-editor,scripts,script-drawer,scenarios,scenario-new,bulk-menu,bulk-dialog,tiles-panel,protected,theme,climate-kinds,device-types,sched-rows-worst,auto-rows-worst';
+const ALL = 'sched-rows,sched-cards,sched-table,sched-week,sched-drawer,sched-editor,sched-editor-table,sched-new,sched-trash,sched-empty,sched-unavailable,auto-rows,auto-cards,auto-drawer,auto-builder,auto-new,auto-trash,auto-empty,auto-offline,scenes,scene-editor,scripts,script-drawer,scenarios,scenario-new,bulk-menu,bulk-dialog,tiles-panel,area-cards,protected,theme,climate-kinds,device-types,sched-rows-worst,auto-rows-worst';
 const SCREENS = (process.env.R5_SCREENS ?? ALL).split(',');
 const SKINS = (process.env.R5_SKINS ?? 'classic,domus,tesla,crystal,infra,soft').split(',');
 const json = (route: Route, body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
@@ -32,6 +32,20 @@ interface Screen {
 }
 
 const schedWorst = { persona: 'admin' };
+
+/** Opens the first bulk menu of the building screen: the building / floor trigger button on a desktop, the floor card's "כבה קומה"
+ * trigger (devices-bulk-menu[data-floor-menu]) on a phone, where the building trigger is not in the header. */
+async function openBulk(page: Page) {
+  const t = page.locator('devices-building sw-button[data-bulk-trigger="building"], devices-building sw-button[data-bulk-trigger="floor"]').first();
+  if (await t.isVisible().catch(() => false)) {
+    await t.click();
+    return;
+  }
+  const m = page.locator('devices-building devices-bulk-menu[data-floor-menu]').first();
+  await m.waitFor({ state: 'attached', timeout: 8000 });
+  await m.scrollIntoViewIfNeeded();
+  await m.locator('button, sw-button').first().click();
+}
 const DEF: Record<string, Screen> = {
   'sched-rows': { boot: 'demo', hash: '/devices/schedules', q: '&sched_view=rows', sched: { persona: 'admin' } },
   'sched-cards': { boot: 'demo', hash: '/devices/schedules', q: '&sched_view=cards', sched: { persona: 'admin' } },
@@ -63,18 +77,14 @@ const DEF: Record<string, Screen> = {
   'bulk-menu': {
     boot: 'bubble', hash: '/devices/building',
     after: async (page) => {
-      const t = page.locator('devices-building sw-button[data-bulk-trigger="building"], devices-building sw-button[data-bulk-trigger="floor"]').first();
-      await t.waitFor({ state: 'visible', timeout: 8000 });
-      await t.click();
+      await openBulk(page);
       await page.waitForTimeout(500);
     },
   },
   'bulk-dialog': {
     boot: 'bubble', hash: '/devices/building',
     after: async (page) => {
-      const t = page.locator('devices-building sw-button[data-bulk-trigger="building"], devices-building sw-button[data-bulk-trigger="floor"]').first();
-      await t.waitFor({ state: 'visible', timeout: 8000 });
-      await t.click();
+      await openBulk(page);
       await page.waitForTimeout(300);
       const item = page.locator('devices-building devices-bulk-menu [data-bulk-kind="all_off"], devices-building devices-bulk-menu [data-bulk-kind]').first();
       await item.waitFor({ state: 'visible', timeout: 5000 });
@@ -82,6 +92,8 @@ const DEF: Record<string, Screen> = {
       await page.waitForTimeout(700);
     },
   },
+  // the camera card and the media card live on the area screen (the bubble mock's living area has one camera and two players)
+  'area-cards': { boot: 'bubble', hash: '/devices/areas/living' },
   'tiles-panel': {
     boot: 'bubble', hash: '/devices/building',
     after: async (page) => {
@@ -186,6 +198,7 @@ async function serveScenarios(page: Page) {
     sig('electricity.power', 'electricity', 'חשמל', 'number', 'הספק', 'kW', [{ id: 'main', name: 'ראשי' }]),
   ];
   const cat = { signals, limits: { depth: 3, leaves: 12, actions: 4 }, actions: ['notify', 'ticket'], tickets_on: true, option_defaults: { cooldown_s: 300, clear_after_s: 60, for_s: 0, on_unknown: 'false', unknown_grace_s: 60 }, option_ranges: { cooldown_s: [0, 86400], clear_after_s: [0, 86400], for_s: [0, 86400], unknown_grace_s: [0, 3600] } };
+  await page.route('**/api/v1/scenarios/status', (r) => json(r, { enabled: true, kill_switch: false, can: { view: true, manage: true, admin: true }, can_use: true, actions: { notify: true, create_service_request: true, set_flag: true }, tickets_on: true }));
   await page.route('**/api/v1/scenarios/signals', (r) => json(r, cat));
   await page.route('**/api/v1/scenarios/choices', (r) => json(r, { recipients: [{ id: 'u', name: 'יוני' }], channels: ['push'] }));
   await page.route('**/api/v1/scenarios/settings', (r) => json(r, { settings: {} }));
@@ -240,7 +253,8 @@ async function boot(page: Page, s: Screen, skin: string, scheme: 'light' | 'dark
     if (s.routes) await s.routes(page);
     await page.goto('about:blank');
     await page.goto(`/?design=a&look=performance:full&skin=${skin}&scheme=${scheme}#/system/diagnostics?tab=devices`);
-    await page.waitForFunction((tag) => !!customElements.get(tag), s.tag);
+    const tag = s.tag ?? '';
+    await page.waitForFunction((t) => !!customElements.get(t), tag);
     await page.waitForTimeout(1200);
     await page.evaluate(({ tag }) => {
       document.querySelectorAll('#r5-stage').forEach((e) => e.remove());

@@ -459,13 +459,16 @@ export abstract class AutomationEditorBase extends LitElement {
         flex-direction: column;
         gap: 8px;
       }
+      /* R5-DEVICES-297 loop 2: the builder's כאשר / אם / אז are the sheet's headings (xl/800, heading ink) above their block wells */
       .bsec2 > h4 {
         display: flex;
         gap: 10px;
         align-items: center;
-        margin: 0;
-        font-size: var(--sw-fs-lg);
-        font-weight: 700;
+        margin: 4px 0 0;
+        font-size: var(--sw-fs-xl);
+        font-weight: 800;
+        color: var(--sw-heading, var(--dv-text));
+        letter-spacing: -0.015em;
       }
       .bsec2 > h4 small {
         font-size: var(--sw-fs-sm);

@@ -523,11 +523,11 @@ export class DevicesSchedules extends LitElement {
        R5-DEVICES-297: the rows are wells (one tone step down, rounded, no hairlines) inside the glass panel; the name is a heading,
        the next-run time a bold figure; a disabled schedule sits a step deeper with quiet ink; the row sinks on pointer-down */
     .rlist {
-      padding: 6px;
+      padding: 4px;
       overflow: visible;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 3px;
     }
     .lr {
       position: relative;
@@ -535,7 +535,9 @@ export class DevicesSchedules extends LitElement {
       grid-template-columns: 44px minmax(0, 1.6fr) auto minmax(140px, 1.3fr) minmax(130px, 1fr) 44px;
       align-items: center;
       gap: var(--sw-s-3);
-      min-block-size: 56px;
+      /* loop 2: 56 px rows + 4 px gaps pushed the pager under the fold at 1440x900 (no scrolling in control screens): 52 + 3 keeps
+         ten rows and the pager on one screen */
+      min-block-size: 52px;
       padding-inline: var(--sw-s-4);
       border-radius: var(--sw-r-md);
       background: var(--dv-surface-2);
@@ -805,8 +807,17 @@ export class DevicesSchedules extends LitElement {
       .lr > .lbar {
         display: none;
       }
+      /* loop 2 (break-ui at 390 px): the next-run column was 38vw and the name was cut to one word ("מאוור..."): the time keeps
+         its weight at the base size and the name gets the room */
       .lnext {
-        max-inline-size: 38vw;
+        max-inline-size: 30vw;
+        font-size: var(--sw-fs-sm);
+      }
+      .lnext b {
+        font-size: var(--sw-fs-base);
+      }
+      .lr .name {
+        font-size: var(--sw-fs-md);
       }
       .upnext .tl {
         flex-basis: 100%;
