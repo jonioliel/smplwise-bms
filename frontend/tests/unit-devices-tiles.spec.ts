@@ -281,7 +281,7 @@ test.describe('overview tiles (demo data)', () => {
     const first = page.locator('devices-building sw-kpi').first();
     await expect(first).toHaveAttribute('layout', 'compact');
     await expect(first).toHaveAttribute('icon-end', '');
-    expect(await first.evaluate((e) => e.getBoundingClientRect().height)).toBeLessThanOrEqual(64);
+    expect(await first.evaluate((e) => e.getBoundingClientRect().height)).toBeLessThanOrEqual(90); // HOMEFABLE-297: a display numeral over a two-line label and a detail line, every tile as tall as the tallest (was 64); a tall card is > 90
     await shot(page, 'building-compact-auto-desktop');
     await open(page, '/devices/building', 'cards');
     await expect(page.locator('devices-building sw-kpi').first()).toHaveAttribute('layout', 'cards');

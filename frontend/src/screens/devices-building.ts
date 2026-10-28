@@ -801,6 +801,18 @@ const HOME_LAYOUT = css`
     --sw-kpi-on-bg: var(--sw-lit-soft);
     --sw-kpi-on-fg: var(--sw-warning-text);
   }
+  /* the owner's explicit "compact" tile choice stays compact: one label line, the 18 px numeral, the knobs' own height */
+  :host([data-tile-layout='compact']) .kpis[data-kpis] > sw-kpi[data-kpi][layout='compact'] {
+    --sw-kpi-label-lines: 1;
+    --sw-kpi-compact-value-fs: var(--sw-fs-xl);
+    min-block-size: var(--dv-kpi-compact-min-block);
+    padding-block: var(--dv-kpi-compact-pad-block);
+  }
+  /* HOMEFABLE-297: the display size is for numerals; the alarm tile's value is a word ("armed (home)") and keeps the 16 px reading size, so a
+     wrapped state never stretches the whole counter row */
+  :host .kpis[data-kpis] > sw-kpi[data-tile-kind='alarm'][layout='compact'] {
+    --sw-kpi-compact-value-fs: var(--sw-fs-lg);
+  }
   sw-kpi[data-tile-kind='climate'] {
     --sw-kpi-on-bg: var(--sw-accent-soft);
     --sw-kpi-on-fg: var(--sw-accent-text);
@@ -906,8 +918,8 @@ const HOME_LAYOUT = css`
     --sw-kpi-compact-icon: 30px;
     --sw-kpi-compact-value-fs: var(--sw-fs-2xl);
     --sw-kpi-label-lines: 2;
-    min-block-size: 58px;
-    padding-block: 7px;
+    min-block-size: 56px;
+    padding-block: 5px;
     padding-inline: 12px;
     column-gap: 10px;
     row-gap: 0;

@@ -216,10 +216,12 @@ export class SwKpi extends LitElement {
       -webkit-line-clamp: var(--sw-kpi-label-lines, 1);
       line-clamp: var(--sw-kpi-label-lines, 1);
       inline-size: 100%;
+      flex: 0 1 auto; /* the row layout's 4em basis is a HEIGHT in this column - the label is as tall as its clamped lines */
     }
     :host([layout='compact'][icon-end]) .value {
       font-weight: 800;
       letter-spacing: -0.03em;
+      line-height: 1.1;
     }
     :host([layout='compact']) .detail {
       margin-block-start: 1px;
