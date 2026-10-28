@@ -76,7 +76,7 @@ export class InvestigateExports extends LitElement {
     }
     .bar {
       block-size: 8px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-pill);
       background: color-mix(in srgb, var(--sw-text-3) 18%, transparent);
       overflow: hidden;
     }
