@@ -109,10 +109,14 @@ def _context(act: base._Act, template_id: str) -> dict[str, Any]:
     tpl = next((t for t in wts.load_registry(conn) if t.id == template_id), None)
     rec = act.person()
     person = rec["person"]
-    status = MESSAGING.status(act.settings, act.principal.user_id)
-    account, problem = MESSAGING.account_for(status, M.read_settings(conn)["account"])
-    if status.get("available") is not True:
-        account = None
+    if tpl is not None and tpl.account is not None:
+        # WISKEY-ADOPT-2272: a reference synced from WisKey's signed native registry names its own native account
+        account, problem = tpl.account, None
+    else:
+        status = MESSAGING.status(act.settings, act.principal.user_id)
+        account, problem = MESSAGING.account_for(status, M.read_settings(conn)["account"])
+        if status.get("available") is not True:
+            account = None
     revision = person.get("revision") if type(person.get("revision")) is int and person.get("revision") >= 1 else None
     token = flow.binding_token(tpl=tpl, person_id=act.person_id, person_revision=revision, account=account) if tpl is not None else None
     return {"tpl": tpl, "rec": rec, "person": person, "account": account, "problem": problem, "revision": revision, "token": token,

@@ -644,7 +644,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(entry.add_update_listener(options_updated))
     hass.async_create_task(push_directory())
+    await _async_setup_native(hass)
     return True
+
+
+NATIVE_DOMAIN = "hikvision_intercom"
+
+
+async def _async_setup_native(hass: HomeAssistant) -> bool:
+    """0.10.x (WISKEY-ADOPT-2272, WisKey owner28 delivery): when the add-on staged the WisKey native integration next to the bridge, the
+    bridge sets it up itself - no owner step, no form. The native setup is what writes WisKey's private installation manifest; the bridge
+    never creates a grant. No staged component: nothing happens. A failed native setup is logged and never takes the bridge down (the
+    delivery raised here; Arx keeps the bridge's own services available instead)."""
+    try:
+        manifest = Path(hass.config.path("custom_components", NATIVE_DOMAIN, "manifest.json"))
+        if not await hass.async_add_executor_job(manifest.is_file):
+            return False
+        from homeassistant.setup import async_setup_component
+
+        done = await async_setup_component(hass, NATIVE_DOMAIN, {})
+    except Exception as exc:  # noqa: BLE001 - the bridge stays up; the add-on reads the native state from the manifest
+        _LOGGER.warning("native intercom setup failed (%s)", type(exc).__name__)
+        return False
+    if not done:
+        _LOGGER.warning("native intercom setup did not complete")
+    return bool(done)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -1,0 +1,15 @@
+<!doctype html><html lang="he" dir="rtl"><meta charset="utf-8"><title>Isolated MSE and listen playback</title>
+<!-- WISKEY-ADOPT-2272: the WisKey owner28 browser harness (delivery frontend/owner28-harness.html), moved under tests/ so the product build
+     never ships it. It mounts the ORIGINAL wk-station-live (sw-live-player MSE video + wk-listen-button WebAudio) with a synthetic station. -->
+<style>body{margin:24px;background:#eef2f7;font-family:sans-serif}wk-station-live{display:block;max-width:680px;margin:auto}</style>
+<script type="module">
+import '../../src/components/wk-station-live.ts';
+const view = document.createElement('wk-station-live');
+view.stationId = 'synthetic-station';
+view.stationName = 'Synthetic station';
+view.media = {station_id: 'synthetic-station', mode: 'video', state: 'ready', reason: null,
+  video: {profiles: [{id: 'main', codec: 'h264', transports: ['mse'], width: 160, height: 90, fps: 10}], default_profile: 'main', allowed: true,
+          paths: {main: 'api/v1/synthetic/video'}, max_viewers: 1, viewers: 0},
+  talk: null, listen: true, expires_at: null};
+document.body.append(view);
+</script></html>

@@ -8,10 +8,13 @@ The file has THREE row kinds and this reader handles each one explicitly (W5-CAT
 - `CATALOG_PROVENANCE` - exactly one, first; metadata, never counted as a command;
 - `COMMAND`            - a command registered in WisKey's Home Assistant WebSocket table (276 since WISKEY-MAC-ADOPT-298: the FINAL Mac
                           catalog of 27.10, source SHA-256 dd55f9df..., CODE d5a3ab86 - adds `users/service_write_status_v1` and
-                          `features/people_csv_preview`);
-- `DIRECT_ONLY_COMMAND` - a command only the direct socket serves (`peer_identity/get`, `direct/capabilities`, `direct/time`); it has
+                          `features/people_csv_preview`; 282 since WISKEY-ADOPT-2272: the owner28 catalog CATALOG-FINAL-08, source
+                          SHA-256 15ad9de7..., CODE 0a099c53 - adds `events/resume_v1`, `whatsapp/template_registry_v1` /
+                          `_enqueue_v1` / `_job_v1` / `_cancel_v1` and `whatsapp/template_send_v3`);
+- `DIRECT_ONLY_COMMAND` - a command only the direct socket serves (`peer_identity/get`, `direct/capabilities`, `direct/capabilities_v2`,
+                          `direct/time`); it has
                           none of the HA registration fields and is not required to.
-279 command names in 43 families. Anything else (an unknown row kind, a duplicate name, a count that does not match the provenance)
+286 command names in 43 families. Anything else (an unknown row kind, a duplicate name, a count that does not match the provenance)
 refuses the whole catalog.
 
 The SIGNED ENVELOPE KIND of a command is decided here, per command, from the catalog row (W5-API-01) - never from
@@ -22,7 +25,10 @@ The SIGNED ENVELOPE KIND of a command is decided here, per command, from the cat
                               they are never sent on the direct envelope.
 `wiskey-direct-connect.v1` is the connect body only (wiskey_media_bridge.connect_body). No `api_contract` is added to a closed envelope.
 
-OWNER_EXCLUDED_WRITES: the owner's decision keeps the job-approval WRITES out of Arx (reads stay available)."""
+OWNER_EXCLUDED_WRITES: was the job-approval WRITES (owner decision before 28.10). WISKEY-ADOPT-2272: the owner's 28.10 instruction (permanent full
+installation, "no artificial allowlist of targets/fields/actions for the installed Arx") empties it; WisKey's own business approvals,
+schema, CAS and authority checks stay authoritative. The contradiction with the earlier decision is recorded in
+docs/changes/WISKEY-ADOPT-2272.md; Arx still has no caller of either write."""
 from __future__ import annotations
 
 import hashlib
@@ -37,7 +43,7 @@ CATALOG_PATH = Path(__file__).with_name("wiskey_r5_catalog.jsonl")
 NATIVE_WIRE = "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
 PEER_QUERY_WIRE = "original wiskey-peer-query.v1 signed read envelope"
 HA_BODY_WIRE = "original HA WebSocket body; no native envelope reinterpretation"
-OWNER_EXCLUDED_WRITES = frozenset({"jobs/approval_decide", "jobs/approval_request"})
+OWNER_EXCLUDED_WRITES: frozenset[str] = frozenset()  # WISKEY-ADOPT-2272 (owner28 permanent full installation)
 ROW_KINDS = ("CATALOG_PROVENANCE", "COMMAND", "DIRECT_ONLY_COMMAND")
 
 

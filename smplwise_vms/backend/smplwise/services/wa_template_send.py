@@ -93,7 +93,7 @@ NATIVE_INSTALLER_CONSUMED_KEYS = ("schema_version", "station_id", "bridge_entry_
 NATIVE_PARAMETER_FIELDS = ("display_name", "employee_no", "pin", "valid_from", "valid_until")  # WisKey-side only; never on Arx's wire
 V2_REF_MAX_BYTES = 128
 V2_REVISION_MAX = 2 ** 53 - 1
-REGISTRY_MAX = 20
+REGISTRY_MAX = 128  # WISKEY-ADOPT-2272: WisKey's resource exchange carries 1..128 templates; the signed native registry fills it
 SLOTS = ("name", "organization", "link", "days")
 PURPOSES = ("consent_request", "notice")
 PARAM_MAX = 1024  # a filled slot (Meta's own limit is the template's; Arx never sends more than this)
@@ -117,6 +117,7 @@ class TemplateRef:
     purpose: str
     wiskey_ref: str | None = None  # WK4ADOPT-295: WisKey's exact private template reference (template_send_v2 `template_ref`)
     wiskey_revision: int | None = None  # ... and the revision Arx observed (`expected_template_revision`)
+    account: str | None = None  # WISKEY-ADOPT-2272: the native account the template belongs to (signed registry sync); None = the messaging account
 
 
 def _v2_ref_ok(value: Any) -> bool:
@@ -141,11 +142,15 @@ def parse_ref(raw: Any) -> TemplateRef | None:
     wref, wrev = raw.get("template_ref"), raw.get("template_revision")
     if (wref is None) != (wrev is None) or (wref is not None and not (_v2_ref_ok(wref) and _v2_rev_ok(wrev))):
         return None  # both or neither (the v2 pair), never half of it
-    return TemplateRef(rid, name, lang, tuple(params), str(purpose), wref, wrev)
+    account = raw.get("account")
+    if account is not None and not (isinstance(account, str) and WIRE_ID_RE.fullmatch(account)):
+        return None
+    return TemplateRef(rid, name, lang, tuple(params), str(purpose), wref, wrev, account)
 
 
 def validate_registry(raw: Any) -> tuple[list[TemplateRef], list[dict[str, str]]]:
-    """(references, problems `{path, code}`) of an administrator's list. Ids and (name, language) pairs are unique."""
+    """(references, problems `{path, code}`) of an administrator's list. Ids and (account, name, language) triples are unique (the same
+    name/language on two native accounts stays two templates - WISKEY-ADOPT-2272)."""
     if not isinstance(raw, list):
         return [], [{"path": "templates", "code": "not_a_list"}]
     problems: list[dict[str, str]] = []
@@ -156,7 +161,7 @@ def validate_registry(raw: Any) -> tuple[list[TemplateRef], list[dict[str, str]]
         ref = parse_ref(item)
         if ref is None:
             problems.append({"path": f"templates.{i}", "code": "invalid"})
-        elif any(r.id == ref.id for r in out) or any((r.name, r.language) == (ref.name, ref.language) for r in out):
+        elif any(r.id == ref.id for r in out) or any((r.account, r.name, r.language) == (ref.account, ref.name, ref.language) for r in out):
             problems.append({"path": f"templates.{i}", "code": "duplicate"})
         else:
             out.append(ref)
@@ -175,7 +180,8 @@ def load_registry(conn: sqlite3.Connection) -> list[TemplateRef]:
 
 def store_registry(conn: sqlite3.Connection, refs: list[TemplateRef]) -> None:
     doc = [{"id": r.id, "name": r.name, "language": r.language, "params": list(r.params), "purpose": r.purpose,
-            **({"template_ref": r.wiskey_ref, "template_revision": r.wiskey_revision} if r.wiskey_ref is not None else {})} for r in refs]
+            **({"template_ref": r.wiskey_ref, "template_revision": r.wiskey_revision} if r.wiskey_ref is not None else {}),
+            **({"account": r.account} if r.account is not None else {})} for r in refs]
     conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                  (REGISTRY_KEY, json.dumps(doc, separators=(",", ":"))))
 

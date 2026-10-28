@@ -69,6 +69,13 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._discovered = {CONF_ADDON_URL: url, CONF_PAIRING_CODE: code}
         self._addon_name = discovery_info.name or self._addon_name
         self.context["title_placeholders"] = {"addon": self._addon_name}
+        if cfg.get("wiskey_auto_install") is True:
+            # 0.10.x (WISKEY-ADOPT-2272, owner28): the add-on's own authenticated Supervisor discovery asks for the automatic
+            # installation - the entry is created after a successful signed ping, without the confirmation form
+            err = await self._try_pair(url, code)
+            if err is not None:
+                return self.async_abort(reason=err)
+            return self.async_create_entry(title="SMPLWISE Bridge", data=self._discovered)
         return await self.async_step_hassio_confirm()
 
     async def async_step_hassio_confirm(self, user_input: dict[str, Any] | None = None):

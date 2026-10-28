@@ -284,6 +284,10 @@ class WiskeyDownlinkChannel:
             self._downlink._fence("expired")
         talk = self._talk
         reason = getattr(getattr(talk, "pump", None), "end_code", None)
+        # WISKEY-ADOPT-2272 (Mac owner28 06_media): the talk channel's own synchronous fence is the final word after any awaited check
+        publication = getattr(talk, "publication_current", None)
+        if publication is not None and not publication():
+            self._downlink._fence(getattr(talk, "publication_end", None) or reason or "connection_closed")
         if reason in self.SECURITY_ENDS or (talk is not None and talk.link is not None and talk.link.closed):
             self._downlink._fence(reason if reason in self.SECURITY_ENDS else "connection_closed")
         return not self._downlink._fenced
