@@ -607,6 +607,9 @@ def installer_step(db: Any, settings: Any, config_root: Path, bridge_source: Pat
         NATIVE.update(state="error", code=exc.code)
     except (OSError, ValueError) as exc:
         NATIVE.update(state="error", code=f"copy_failed:{type(exc).__name__}")
+    except Exception as exc:  # noqa: BLE001 - review M8: e.g. sqlite3.OperationalError; the bridge install must never fail on this step
+        log.warning("wiskey native installer step failed (%s)", type(exc).__name__)
+        NATIVE.update(state="error", code="installer_failed", restart=None)
     return dict(NATIVE)
 
 

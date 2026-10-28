@@ -514,3 +514,34 @@ def test_m7_concurrent_enqueue_returns_the_recorded_state_never_a_false_not_sent
     # a request id already recorded for ANOTHER operation: unknown, never not_sent
     other = asyncio.run(wif.TemplateJobs(second).enqueue(Client(), _tpl(op="op-2"), ttl_s=60))
     assert (other.outcome, other.code) == ("unknown", "request_already_recorded")
+
+# ================================================================ M8: a database error in the installer step is a closed code, never a 500
+
+@pytest.mark.parametrize("where", ["_staged_digest", "request_component_restart"])
+def test_m8_installer_step_on_a_database_error(settings: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str) -> None:
+    import sqlite3
+
+    from smplwise.services import bridge_install, ha_client
+
+    cfg = tmp_path / "ha"
+    cfg.mkdir()
+    (cfg / "configuration.yaml").write_text("", encoding="utf-8")
+    monkeypatch.setenv("SW_HA_CONFIG_DIR", str(cfg))
+    monkeypatch.setattr(ha_client, "supervisor_token", lambda: None)
+    wai.NATIVE.update(state="off", code=None, version=None, restart=None)
+
+    def locked(*_a: Any, **_k: Any) -> Any:
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(wai, where, locked)
+    app = _app(settings)
+    with app.state.db.write_aside() as conn:
+        set_setting(conn, wai.SWITCH_KEY, "on")
+    st = bridge_install.install(app.state.db, settings)  # never raises
+    assert st["wiskey_native"]["state"] == "error" and st["wiskey_native"]["code"] == "installer_failed"
+    assert "locked" not in json.dumps(st["wiskey_native"]) and st["installed_version"] == st["source_version"]
+    import shutil
+
+    shutil.rmtree(cfg / "custom_components" / "hikvision_intercom", ignore_errors=True)  # stage again, so the failing step runs again
+    direct =wai.installer_step(app.state.db, settings, cfg, bridge_install.source_dir(), restart=True)
+    assert direct["state"] == "error" and direct["code"] == "installer_failed"
