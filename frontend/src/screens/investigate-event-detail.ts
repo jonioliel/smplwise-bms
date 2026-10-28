@@ -18,6 +18,7 @@ import { CERTAINTY_LABEL, EVENT_LABEL, ackEvent, confirmEventRoute, getCorrelati
 import type { StateKind } from '../components/sw-badge';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { INVESTIGATE_R5 } from './investigate-r5-css';
 
 const CERTAINTY_KIND: Record<Certainty, StateKind> = { measured: 'recorded', inferred: 'unknown', command: 'partial', availability: 'stale' };
 import { closePlayback, createPlayback, playbackWsUrl, type PlaybackSession } from '../api/recordings';
@@ -126,7 +127,7 @@ export class InvestigateEventDetail extends LitElement {
       background: var(--sw-video-bg);
       border-radius: var(--sw-r-lg);
       overflow: hidden;
-      box-shadow: var(--sw-shadow-2);
+      box-shadow: var(--sw-shadow-3);
     }
     .player sw-live-player,
     .player img {
@@ -160,13 +161,18 @@ export class InvestigateEventDetail extends LitElement {
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
     }
+    /* R5-INVESTIGATE-297 loop 2 (break-ui): the caption is bounded by the stage and breaks an unbreakable camera name instead of
+       running past the frame at 390 px; the name reads as a title */
     .caption {
       position: absolute;
       inset-inline-start: 12px;
+      inset-inline-end: 12px;
       inset-block-end: 12px;
       color: var(--sw-on-video);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      overflow-wrap: anywhere;
     }
     .caption small {
       display: block;
@@ -185,19 +191,33 @@ export class InvestigateEventDetail extends LitElement {
     .bar .grow {
       flex: 1;
     }
+    /* R5-INVESTIGATE-297: the facts are wells (value first, label as caption), two per row */
     dl.meta {
       display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 8px 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
       margin: 0;
-      font-size: var(--sw-fs-sm);
+    }
+    dl.meta > div {
+      background: var(--sw-surface-2);
+      border-radius: var(--sw-r-sm);
+      padding: 8px 12px;
+      min-inline-size: 0;
+    }
+    dl.meta > div.wide {
+      grid-column: 1 / -1;
     }
     dl.meta dt {
       color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      margin-block-end: 2px;
     }
     dl.meta dd {
       margin: 0;
-      font-weight: var(--sw-fw-medium);
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading);
+      overflow-wrap: anywhere;
     }
     .map {
       position: relative;
@@ -325,22 +345,39 @@ export class InvestigateEventDetail extends LitElement {
     .nearby {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
       margin-block-start: 6px;
     }
+    /* R5-INVESTIGATE-297: a nearby event is a well that sinks on pointer-down; hover only under a fine pointer */
     .nearby a {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       gap: 8px;
-      padding: 6px 8px;
+      min-block-size: 42px;
+      padding: 8px 12px;
       border-radius: var(--sw-r-sm);
       text-decoration: none;
-      color: var(--sw-text);
-      font-size: var(--sw-fs-sm);
-      border: 1px solid var(--sw-border);
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      background: var(--sw-surface-2);
+      transition: transform var(--sw-t-press) var(--sw-ease-out), background-color var(--sw-t-fast) var(--sw-ease);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
-    .nearby a:hover {
-      background: var(--sw-hover-wash);
+    .nearby a .ltr {
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-medium);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .nearby a:hover {
+        background: var(--sw-surface-3);
+      }
+    }
+    .nearby a:active {
+      transform: scale(var(--sw-press-scale));
     }
     .nearby a:focus-visible,
     .corr .link a:focus-visible {
@@ -369,7 +406,7 @@ export class InvestigateEventDetail extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   connectedCallback() {
     super.connectedCallback();
@@ -813,12 +850,12 @@ export class InvestigateEventDetail extends LitElement {
           <div>
             <sw-card heading="הקשר האירוע" data-context>
               <dl class="meta">
-                <dt>מצב</dt><dd data-status>${acked ? html`<sw-badge kind="live" label=${`טופל · ${ev.acked_by_username ?? ''}`}></sw-badge> <span class="note" style="margin:0">${this.fmt(ev.acked_at!, true)}</span>` : html`<sw-badge kind="stale" label="טרם טופל"></sw-badge>`}</dd>
-                <dt>מקור</dt><dd>${SOURCE_LABEL[ev.source] ?? ev.source}${ev.camera_id ? html` / ${camera}` : nothing} <span class="note" style="margin:0">raw <span class="ltr">${ev.raw_type}</span></span></dd>
-                <dt>סוג</dt><dd>${label}${ev.confidence === 'inferred' ? ' · נגזר (inferred)' : ''}</dd>
-                <dt>זמן התחלה</dt><dd><span class="ltr">${this.fmt(ev.occurred_at, true)}</span></dd>
-                <dt>משך החלון</dt><dd>${this.duration(ev)}${ev.count > 1 ? ` · ${ev.count} חזרות` : ''}</dd>
-                <dt>מיקום</dt><dd data-where>${where ?? (ev.camera_id ? 'המצלמה עדיין לא מוצבת על תוכנית' : '—')}</dd>
+                <div><dt>מצב</dt><dd data-status>${acked ? html`<sw-badge filled kind="live" label=${`טופל · ${ev.acked_by_username ?? ''}`}></sw-badge> <span class="note" style="margin:0">${this.fmt(ev.acked_at!, true)}</span>` : html`<sw-badge filled kind="stale" label="טרם טופל"></sw-badge>`}</dd></div>
+                <div><dt>זמן התחלה</dt><dd><span class="ltr">${this.fmt(ev.occurred_at, true)}</span></dd></div>
+                <div><dt>סוג</dt><dd>${label}${ev.confidence === 'inferred' ? ' · נגזר (inferred)' : ''}</dd></div>
+                <div><dt>משך החלון</dt><dd>${this.duration(ev)}${ev.count > 1 ? ` · ${ev.count} חזרות` : ''}</dd></div>
+                <div class="wide"><dt>מיקום</dt><dd data-where>${where ?? (ev.camera_id ? 'המצלמה עדיין לא מוצבת על תוכנית' : '—')}</dd></div>
+                <div class="wide"><dt>מקור</dt><dd>${SOURCE_LABEL[ev.source] ?? ev.source}${ev.camera_id ? html` / ${camera}` : nothing} <span class="note" style="margin:0">raw <span class="ltr">${ev.raw_type}</span></span></dd></div>
               </dl>
               ${loc && loc.has_plan && this.bundle
                 ? html`<div class="map" style=${this.view3d ? 'block-size:320px' : ''}>

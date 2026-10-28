@@ -25,6 +25,7 @@ import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, dayTimeText } from '../api/day-format';
 
 interface RecentSet {
@@ -197,13 +198,33 @@ export class InvestigateSync extends LitElement {
   }
 
   static styles = [css`
+    /* R5-INVESTIGATE-297: two rows of 16:9 tiles are bounded by the viewport height so the transport, the timeline and the filters
+       stay on screen (owner: no scrolling in a control screen); the grid centres when the height, not the width, is the limit */
     .grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+      /* an explicit inline-size: with auto margins in the page's flex column, a max-inline-size alone shrink-wraps the grid to its gap */
+      inline-size: min(100%, calc((100dvh - 455px) * 16 / 9 + 10px));
+      margin-inline: auto;
     }
     .tile {
       position: relative;
+      border-radius: var(--sw-r-lg);
+      overflow: hidden;
+      box-shadow: var(--sw-shadow-2);
+    }
+    .transport {
+      padding: 8px 12px;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+    }
+    @media (max-width: 767px) {
+      .grid {
+        inline-size: 100%;
+      }
     }
     .drift {
       position: absolute;
@@ -371,12 +392,15 @@ export class InvestigateSync extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 6px 0;
-      border-block-end: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
+      padding: 8px 12px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-2);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
     }
-    .recent:last-child {
-      border-block-end: 0;
+    .recent + .recent {
+      margin-block-start: 6px;
     }
     .recent > span:first-child {
       flex: 1;
@@ -398,7 +422,7 @@ export class InvestigateSync extends LitElement {
         block-size: 44px;
       }
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   render() {
     if (isApi()) return this.renderApi();

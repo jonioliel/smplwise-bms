@@ -41,6 +41,7 @@ import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { sameRefs } from '../map/memo';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, dayTimeText, timeText } from '../api/day-format';
 import '../components/sw-history-lanes';
 import type { SwTimeline } from '../components/sw-timeline';
@@ -207,23 +208,29 @@ export class InvestigateHistoryMap extends LitElement {
     .grow {
       flex: 1;
     }
+    /* R5-INVESTIGATE-297: the time strip is the page's control, not a footnote - a raised strip (surface, shadow 2) with the instant as a
+       20 px / 800 tabular numeral */
     .bar {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin: 0 24px 10px;
-      padding: 8px 12px;
-      background: var(--sw-recorded-soft);
-      border: 1px solid #cddcff;
-      border-radius: var(--sw-r-md);
+      gap: 12px;
+      margin: 0 24px 12px;
+      padding: 10px 16px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
       font-size: var(--sw-fs-sm);
       flex-wrap: wrap;
     }
     .time {
-      font-family: var(--sw-font-mono);
       direction: ltr;
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-accent-text);
+      font-weight: 800;
+      font-size: var(--sw-fs-2xl);
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-heading);
     }
     input[type='range'] {
       inline-size: 260px;
@@ -311,16 +318,22 @@ export class InvestigateHistoryMap extends LitElement {
     dl {
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 8px 12px;
+      gap: 6px 12px;
       margin: 0;
       font-size: var(--sw-fs-sm);
+      align-items: center;
     }
     dt {
       color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
     }
     dd {
       margin: 0;
-      font-weight: var(--sw-fw-medium);
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading);
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
     }
     .evl {
       display: flex;
@@ -330,13 +343,20 @@ export class InvestigateHistoryMap extends LitElement {
     .evl a {
       display: grid;
       grid-template-columns: 1fr auto;
+      align-items: center;
       gap: 8px;
-      padding: 6px 8px;
-      border: 1px solid var(--sw-border);
+      min-block-size: 42px;
+      padding: 7px 12px;
+      background: var(--sw-surface-2);
       border-radius: var(--sw-r-sm);
       text-decoration: none;
-      color: var(--sw-text);
-      font-size: var(--sw-fs-sm);
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      transition: transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .evl a:active {
+      transform: scale(var(--sw-press-scale));
     }
     .evl a.hit {
       border-color: var(--sw-accent);
@@ -576,8 +596,11 @@ export class InvestigateHistoryMap extends LitElement {
       min-block-size: 34px;
       box-sizing: border-box;
     }
-    .lyr:hover {
-      background: var(--sw-hover-wash);
+    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer */
+    @media (hover: hover) and (pointer: fine) {
+      .lyr:hover {
+        background: var(--sw-hover-wash);
+      }
     }
     .lyr .sw {
       position: relative;
@@ -739,8 +762,13 @@ export class InvestigateHistoryMap extends LitElement {
       box-shadow: var(--sw-shadow-primary, none);
       font: inherit;
     }
-    .play:hover {
-      background: var(--sw-accent-hover, var(--sw-accent));
+    @media (hover: hover) and (pointer: fine) {
+      .play:hover {
+        background: var(--sw-accent-hover, var(--sw-accent));
+      }
+    }
+    .play:active {
+      transform: scale(var(--sw-press-scale));
     }
     .kbd {
       font-family: var(--sw-font-mono);
@@ -949,7 +977,7 @@ export class InvestigateHistoryMap extends LitElement {
         padding: 4px 8px 0;
       }
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   connectedCallback() {
     super.connectedCallback();

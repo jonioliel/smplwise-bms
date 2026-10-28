@@ -28,6 +28,7 @@ import type { Camera } from '../api/types';
 import { CASE_STATUS_LABEL, FILE_STATUS_LABEL, PRESERVATION_LABEL, PRODUCER_LABEL, producerOf, addCaseItem, bundleUrl, caseItemFileUrl, checkCaseIntegrity, createBundle, createCase, deleteCase, getCase, importBundle, listBundles, listCases, preserveCaseItem, removeCaseItem, updateCase, verifyBundle, type Bundle, type BundleFileStatus, type BundleVerification, type Case, type CaseDetail, type CaseIntegrity, type CaseItem, type CaseStatus, type Preservation, type SignatureVerdict } from '../api/cases';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dayTimeText } from '../api/day-format';
 
 const STATUS_KIND: Record<CaseStatus, StateKind> = { open: 'stale', in_review: 'recorded', closed: 'neutral' };
@@ -42,8 +43,8 @@ function signatureText(s?: SignatureVerdict | null): string {
 }
 const fmtWhen = (iso: string, tz?: string) => dayTimeText(new Date(iso), { timeZone: tz });
 const API_COLUMNS: TableColumn[] = [
-  { key: 'title', label: 'תיק', render: (r) => html`<strong>${String(r.title)}</strong>${r.imported ? html` <sw-badge kind="historic" label="מיובא" data-case-imported></sw-badge>` : nothing}${r.tags ? html`<div style="font-size:11px;color:var(--sw-text-3)">${String(r.tags)}</div>` : nothing}` },
-  { key: 'status', label: 'סטטוס', render: (r) => html`<sw-badge kind=${STATUS_KIND[r.status as CaseStatus]} label=${CASE_STATUS_LABEL[r.status as CaseStatus]}></sw-badge>` },
+  { key: 'title', label: 'תיק', render: (r) => html`<strong style="font-size:var(--sw-fs-md);color:var(--sw-heading)">${String(r.title)}</strong>${r.imported ? html` <sw-badge kind="historic" label="מיובא" data-case-imported></sw-badge>` : nothing}${r.tags ? html`<div style="font-size:11px;color:var(--sw-text-3)">${String(r.tags)}</div>` : nothing}` },
+  { key: 'status', label: 'סטטוס', render: (r) => html`<sw-badge filled kind=${STATUS_KIND[r.status as CaseStatus]} label=${CASE_STATUS_LABEL[r.status as CaseStatus]}></sw-badge>` },
   { key: 'owner', label: 'בעלים' },
   { key: 'items', label: 'פריטים' },
   { key: 'preserved', label: 'עותקים שמורים', render: (r) => html`${String(r.preserved)} מתוך ${String(r.clips)}` },
@@ -51,12 +52,12 @@ const API_COLUMNS: TableColumn[] = [
 ];
 
 const columns: TableColumn[] = [
-  { key: 'title', label: 'תיק', render: (r) => html`<strong>${String(r.title)}</strong>` },
-  { key: 'status', label: 'סטטוס', render: (r) => html`<sw-badge kind=${r.status === 'פתוח' ? 'stale' : r.status === 'סגור' ? 'neutral' : 'recorded'} label=${String(r.status)}></sw-badge>` },
+  { key: 'title', label: 'תיק', render: (r) => html`<strong style="font-size:var(--sw-fs-md);color:var(--sw-heading)">${String(r.title)}</strong>` },
+  { key: 'status', label: 'סטטוס', render: (r) => html`<sw-badge filled kind=${r.status === 'פתוח' ? 'stale' : r.status === 'סגור' ? 'offline' : 'recorded'} label=${String(r.status)}></sw-badge>` },
   { key: 'owner', label: 'בעלים' },
   { key: 'clips', label: 'קטעים' },
   { key: 'notes', label: 'הערות' },
-  { key: 'preserved', label: 'ראיות שמורות', render: (r) => html`${r.preserved} שמורות${Number(r.missing) ? html` · <span style="color:var(--sw-danger)">${r.missing} חסרות</span>` : ''}` },
+  { key: 'preserved', label: 'ראיות שמורות', render: (r) => html`${r.preserved} שמורות${Number(r.missing) ? html` <sw-badge filled kind="error" label=${`${r.missing} חסרות`} style="margin-inline-start:6px"></sw-badge>` : ''}` },
   { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>` },
 ];
 
@@ -161,7 +162,7 @@ export class InvestigateCases extends LitElement {
       direction: ltr;
       unicode-bidi: isolate;
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   connectedCallback() {
     super.connectedCallback();
@@ -360,8 +361,13 @@ export class InvestigateCaseDetail extends LitElement {
   private pollTimer = 0;
 
   static styles = [css`
+    /* R5-INVESTIGATE-297 loop 2: the stage is bounded by the viewport height, so the clip row, the tabs and the form stay on
+       screen at 1440x900 (the form used to scroll under the fold); the column centres when the height is the limit */
     .wrap {
       max-inline-size: 860px;
+      inline-size: min(100%, calc((100dvh - 470px) * 16 / 9));
+      min-inline-size: min(100%, 560px);
+      margin-inline: auto;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -371,7 +377,7 @@ export class InvestigateCaseDetail extends LitElement {
       aspect-ratio: 16 / 9;
       border-radius: var(--sw-r-lg);
       overflow: hidden;
-      box-shadow: var(--sw-shadow-2);
+      box-shadow: var(--sw-shadow-3);
       color: var(--sw-on-video);
     }
     .video sw-scene {
@@ -432,20 +438,25 @@ export class InvestigateCaseDetail extends LitElement {
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
     }
+    /* R5-INVESTIGATE-297: a clip is an object (shadow 2) that sinks on pointer-down; the playing one wears the accent ring */
     .clip {
       position: relative;
       aspect-ratio: 16 / 9;
-      border-radius: var(--sw-r-sm);
+      border-radius: var(--sw-r-md);
       overflow: hidden;
       cursor: pointer;
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-shadow-2);
+      transition: transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .clip:active {
+      transform: scale(var(--sw-press-scale));
     }
     .clip sw-scene {
       position: absolute;
       inset: 0;
     }
     .clip.on {
-      box-shadow: 0 0 0 2px var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent), var(--sw-shadow-2);
     }
     .clip .t {
       position: absolute;
@@ -456,13 +467,22 @@ export class InvestigateCaseDetail extends LitElement {
       font-family: var(--sw-font-mono);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
+    /* a missing clip is a danger field, not a grey hole: the name reads as a title, the reason as a filled badge */
     .clip.missing {
-      background: var(--sw-surface-3);
+      background: var(--sw-danger-soft);
+      box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sw-danger) 35%, transparent);
       display: grid;
       place-items: center;
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
+      align-content: center;
+      gap: 6px;
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
       text-align: center;
+      cursor: default;
+    }
+    .clip.missing:active {
+      transform: none;
     }
     .add {
       aspect-ratio: 16 / 9;
@@ -493,11 +513,14 @@ export class InvestigateCaseDetail extends LitElement {
     .pill {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      border: 1px solid var(--sw-border);
+      gap: 10px;
+      padding: 10px 12px;
+      min-block-size: 44px;
+      border: 0;
       border-radius: var(--sw-r-sm);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
       background: var(--sw-surface-2);
     }
     .pill sw-icon {
@@ -651,7 +674,7 @@ export class InvestigateCaseDetail extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   updated(changed: Map<string, unknown>) {
     if (changed.has('caseId') && isApi() && this.loadedFor !== this.caseId) void this.load();
@@ -892,7 +915,7 @@ export class InvestigateCaseDetail extends LitElement {
           <div class="clips">
             <div class="clip on"><sw-scene kind="entrance"></sw-scene><span class="t">00:00</span></div>
             <div class="clip"><sw-scene kind="lobby"></sw-scene><span class="t">00:06</span></div>
-            <div class="clip missing"><span>מסדרון 10:15<br />לא שמור: NVR מחק</span></div>
+            <div class="clip missing"><span>מסדרון 10:15</span><sw-badge filled kind="error" label="לא שמור: המקליט מחק"></sw-badge></div>
             <div class="add"><span><sw-icon name="plus" size=${14}></sw-icon> הוסף קטע</span></div>
           </div>
           <sw-tabs .items=${[{ id: 'details', label: 'פרטים' }, { id: 'notes', label: 'הערות', count: 2 }, { id: 'related', label: 'מצלמות קשורות', count: 3 }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>

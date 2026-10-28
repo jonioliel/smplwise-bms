@@ -24,6 +24,7 @@ import { dateInZone, closePlayback, createPlayback, frameUrl, playbackWsUrl, typ
 import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, timeText, dayMonthText } from '../api/day-format';
 
 const TONE: Record<DemoEvent['type'], string> = { person: 'var(--sw-tl-person)', vehicle: 'var(--sw-tl-vehicle)', motion: 'var(--sw-tl-motion)', line: 'var(--sw-tl-line)', offline: 'var(--sw-tl-offline)', door: 'var(--sw-tl-door)' };
@@ -131,12 +132,14 @@ export class InvestigateEvents extends LitElement {
       position: relative;
       min-block-size: 420px;
     }
+    /* R5-INVESTIGATE-297: the picture is how an event is recognised - 88x56, rounded, a thumb shadow (was 64x40) */
     sw-scene.thumb,
     .thumb.none {
-      inline-size: 64px;
-      block-size: 40px;
-      border-radius: var(--sw-r-xs);
+      inline-size: 88px;
+      block-size: 56px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
+      box-shadow: var(--sw-shadow-thumb);
     }
     .thumb.none {
       background: var(--sw-surface-3);
@@ -145,10 +148,10 @@ export class InvestigateEvents extends LitElement {
       color: var(--sw-text-3);
     }
     .thumb img {
-      inline-size: 64px;
-      block-size: 40px;
+      inline-size: 88px;
+      block-size: 56px;
       object-fit: cover;
-      border-radius: var(--sw-r-xs);
+      border-radius: var(--sw-r-sm);
       display: block;
       background: var(--sw-surface-3);
     }
@@ -173,7 +176,9 @@ export class InvestigateEvents extends LitElement {
     .big {
       position: relative;
       aspect-ratio: 16 / 9;
-      border-radius: var(--sw-r-md);
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2);
+      margin-block-end: 12px;
       overflow: hidden;
       background: var(--sw-surface-3);
       display: grid;
@@ -208,6 +213,8 @@ export class InvestigateEvents extends LitElement {
       align-items: center;
       gap: 7px;
       font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading);
     }
     .ty i {
       inline-size: 8px;
@@ -224,7 +231,9 @@ export class InvestigateEvents extends LitElement {
     .preview {
       position: relative;
       aspect-ratio: 16 / 9;
-      border-radius: var(--sw-r-md);
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2);
+      margin-block-end: 12px;
       overflow: hidden;
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
@@ -374,8 +383,17 @@ export class InvestigateEvents extends LitElement {
       color: var(--sw-text);
       font-size: var(--sw-fs-sm);
     }
-    .wrow:hover {
-      background: var(--sw-hover-wash);
+    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer; the row sinks on pointer-down */
+    @media (hover: hover) and (pointer: fine) {
+      .wrow:hover {
+        background: var(--sw-hover-wash);
+      }
+    }
+    .wrow {
+      transition: transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .wrow:active {
+      transform: scale(var(--sw-press-scale));
     }
     .wrow:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -492,7 +510,7 @@ export class InvestigateEvents extends LitElement {
       direction: ltr;
       unicode-bidi: isolate;
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   connectedCallback() {
     super.connectedCallback();
@@ -839,7 +857,7 @@ export class InvestigateEvents extends LitElement {
   }
 
   private windowColumns: TableColumn[] = [
-    { key: 'thumb', label: '', width: '72px', render: (r) => this.renderWindowThumb(r as unknown as EventWindow) },
+    { key: 'thumb', label: '', width: '104px', render: (r) => this.renderWindowThumb(r as unknown as EventWindow) },
     { key: 'title', label: 'חלון אירוע', render: (r) => { const w = r as unknown as EventWindow; return html`<span class="ty" style="--tone:${EVENT_TONE[w.dominant_type] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[w.dominant_type] ?? w.dominant_type}${w.count > 1 ? html` <span class="sub">×${String(w.count)}</span>` : nothing}</span><div class="sub">${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')} · ${w.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראות מה־NVR'}</div>`; } },
     { key: 'spotlight', label: 'זרקור', width: '150px', render: (r) => { const w = r as unknown as EventWindow; const s = w.spotlight; return s?.on ? html`<span class="spot" data-window-spotlight title=${s.rules.map((x) => x.why).join(' · ')}><sw-icon name="target" size=${12}></sw-icon>${s.rules.map((x) => x.label).join(' · ')}</span>` : w.manual_group_id ? html`<span class="sub" data-window-manual>קיבוץ ידני</span>` : nothing; } },
     { key: 'camera_name', label: 'מצלמה / קבוצה', render: (r) => { const w = r as unknown as EventWindow; return html`${w.camera_name ?? (w.channel ? `ערוץ ${w.channel}` : 'מערכת')}${w.group && w.group !== 'camera' && w.group !== 'manual' && w.camera_names?.length ? html`<div class="sub">${w.camera_names.join(' · ')}</div>` : nothing}`; } },
@@ -849,7 +867,7 @@ export class InvestigateEvents extends LitElement {
 
   private renderWindowThumb(w: EventWindow) {
     if (w.thumbnail === 'ready') return html`<img class="thumb" src=${thumbnailUrl(w.thumbnail_event_id, this.thumbVersion.get(w.thumbnail_event_id) ?? 0)} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:6px;display:block;background:var(--sw-surface-3)" />`;
-    return html`<div style="inline-size:64px;block-size:40px;border-radius:6px;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)"><sw-icon name=${w.camera_id ? 'image' : 'info'} size=${14}></sw-icon></div>`;
+    return html`<div style="inline-size:88px;block-size:56px;border-radius:8px;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)"><sw-icon name=${w.camera_id ? 'image' : 'info'} size=${14}></sw-icon></div>`;
   }
 
   private renderWindowDrawer(w: EventWindow) {
@@ -928,20 +946,20 @@ export class InvestigateEvents extends LitElement {
   }
 
   private apiColumns: TableColumn[] = [
-    { key: 'thumb', label: '', width: '72px', render: (r) => this.renderThumb(r as unknown as VmsEvent) },
+    { key: 'thumb', label: '', width: '104px', render: (r) => this.renderThumb(r as unknown as VmsEvent) },
     { key: 'type', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${EVENT_TONE[r.type as EventKind] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[r.type as EventKind] ?? String(r.type)}${Number(r.count) > 1 ? html` <span class="sub">×${String(r.count)}</span>` : nothing}</span><div class="sub">${r.source === 'ha' ? 'חיישן התקן' : r.source === 'system' ? 'מערכת' : r.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מה־NVR'} · ${r.acked_at ? `טופל · ${String(r.acked_by_username ?? '')}` : 'ממתין לטיפול'}</div>` },
     { key: 'camera_name', label: 'מצלמה', render: (r) => html`${String(r.camera_name ?? (r.channel ? `ערוץ ${String(r.channel)}` : 'מערכת'))}<div class="sub ltr">${String(r.raw_type)}</div>` },
-    { key: 'occurred_at', label: 'זמן', render: (r) => html`${this.fmt(String(r.occurred_at))}<div class="sub">${this.fmtDate(String(r.occurred_at))}${r.ended_at ? ` · עד ${this.fmt(String(r.ended_at))}` : ''}</div>` },
-    { key: 'severity', label: 'חומרה', render: (r) => html`<sw-badge kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${SEV_LABEL[r.severity as keyof typeof SEV_LABEL] ?? String(r.severity)}></sw-badge>` },
+    { key: 'occurred_at', label: 'זמן', render: (r) => html`<span style="font-weight:700;font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)">${this.fmt(String(r.occurred_at))}</span><div class="sub">${this.fmtDate(String(r.occurred_at))}${r.ended_at ? ` · עד ${this.fmt(String(r.ended_at))}` : ''}</div>` },
+    { key: 'severity', label: 'חומרה', render: (r) => html`<sw-badge filled kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${SEV_LABEL[r.severity as keyof typeof SEV_LABEL] ?? String(r.severity)}></sw-badge>` },
   ];
 
   private columns: TableColumn[] = [
     // rendered inside sw-table's shadow root (like renderThumb): the box is styled inline, or the demo thumbnail filled a phone card
-    { key: 'thumb', label: '', width: '80px', render: (r) => (r.type === 'offline' || r.type === 'door' ? html`<div class="thumb none" style="inline-size:64px;block-size:40px;border-radius:6px;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)"><sw-icon name=${r.type === 'offline' ? 'offline' : 'door'} size=${14}></sw-icon></div>` : html`<sw-scene class="thumb" style="display:block;inline-size:64px;block-size:40px;border-radius:6px;overflow:hidden" kind=${(SCENE[String(r.camera)] ?? 'lobby') as 'lobby'}></sw-scene>`) },
-    { key: 'title', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${TONE[r.type as DemoEvent['type']]}"><i></i>${eventTypeLabel[r.type as DemoEvent['type']]}</span><div class="sub">${String(r.title)} · ${r.acked ? 'טופל' : 'ממתין לטיפול'}</div>` },
+    { key: 'thumb', label: '', width: '104px', render: (r) => (r.type === 'offline' || r.type === 'door' ? html`<div class="thumb none" style="inline-size:88px;block-size:56px;border-radius:8px;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)"><sw-icon name=${r.type === 'offline' ? 'offline' : 'door'} size=${14}></sw-icon></div>` : html`<sw-scene class="thumb" style="display:block;inline-size:88px;block-size:56px;border-radius:8px;overflow:hidden;box-shadow:var(--sw-shadow-thumb)" kind=${(SCENE[String(r.camera)] ?? 'lobby') as 'lobby'}></sw-scene>`) },
+    { key: 'title', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${TONE[r.type as DemoEvent['type']]}"><i></i>${eventTypeLabel[r.type as DemoEvent['type']]}</span><div class="sub">${String(r.title)} · ${r.acked ? 'טופל' : html`<span style="color:var(--sw-warning-text);font-weight:var(--sw-fw-semibold)">ממתין לטיפול</span>`}</div>` },
     { key: 'camera', label: 'מצלמה', render: (r) => html`${String(r.camera)}<div class="sub">${String(r.floor)}</div>` },
-    { key: 'time', label: 'זמן', render: (r) => html`${String(r.time)}<div class="sub ltr">${String(r.source)}</div>` },
-    { key: 'severity', label: 'חומרה', render: (r) => html`<sw-badge kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${{ info: 'מידע', alert: 'התראה', critical: 'קריטי' }[r.severity as DemoEvent['severity']]}></sw-badge>` },
+    { key: 'time', label: 'זמן', render: (r) => html`<span style="font-weight:700;font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)">${String(r.time)}</span><div class="sub ltr">${String(r.source)}</div>` },
+    { key: 'severity', label: 'חומרה', render: (r) => html`<sw-badge filled kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${{ info: 'מידע', alert: 'התראה', critical: 'קריטי' }[r.severity as DemoEvent['severity']]}></sw-badge>` },
     { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>` },
   ];
 
@@ -1019,14 +1037,14 @@ export class InvestigateEvents extends LitElement {
                     : html`<div class="hint">${!ev.camera_id ? 'אירוע ללא מצלמה' : ev.thumbnail === 'unavailable' ? 'אין פריים זמין בהקלטה בזמן האירוע' : this.player?.eventId === ev.id ? 'פותח את ההקלטה…' : 'מכין תמונה מההקלטה…'}</div>`}
                 ${this.player?.eventId === ev.id && this.player.error ? html`<div class="err">${this.player.error}</div>` : nothing}
               </div>
-              <dl>
-                <dt>מקור</dt><dd>${ev.source === 'alertstream' ? 'התראה מה־NVR (alertStream)' : ev.source === 'recording' ? 'קובץ הקלטה (חיפוש)' : ev.source === 'ha' ? 'חיישן התקן (מעבר מצב)' : 'מערכת'} · raw: <span class="ltr">${ev.raw_type}</span></dd>
-                <dt>ודאות</dt><dd>${ev.confidence === 'measured' ? 'נמדד על ידי המכשיר' : 'נגזר (inferred)'}</dd>
-                <dt>זמן אירוע</dt><dd><span class="ltr">${this.fmtDate(ev.occurred_at)} ${this.fmt(ev.occurred_at)}</span>${ev.ended_at ? html` → <span class="ltr">${this.fmt(ev.ended_at)}</span>` : nothing} · נקלט <span class="ltr">${this.fmt(ev.received_at)}</span>${typeof ev.details.time_precision === 'string' ? html` · דיוק: ${String(ev.details.time_precision)}` : nothing}</dd>
-                <dt>חזרות</dt><dd>${ev.count} · מצב ${ev.state === 'active' ? 'פעיל' : ev.state === 'inactive' ? 'הסתיים' : '—'}</dd>
-                <dt>טיפול</dt><dd>${ev.acked_at ? `טופל בידי ${ev.acked_by_username ?? ''} · ${this.fmt(ev.acked_at)}` : 'ממתין'}</dd>
-                ${typeof ev.details.description === 'string' && ev.details.description ? html`<dt>תיאור</dt><dd class="ltr">${String(ev.details.description)}</dd>` : nothing}
-                ${typeof ev.details.seconds === 'number' ? html`<dt>משך ההקלטה</dt><dd>${String(ev.details.seconds)} שנ׳</dd>` : nothing}
+              <dl class="r5-facts">
+                <div class="wide"><dt>מקור</dt><dd>${ev.source === 'alertstream' ? 'התראה מה־NVR (alertStream)' : ev.source === 'recording' ? 'קובץ הקלטה (חיפוש)' : ev.source === 'ha' ? 'חיישן התקן (מעבר מצב)' : 'מערכת'} · raw: <span class="ltr">${ev.raw_type}</span></dd></div>
+                <div><dt>ודאות</dt><dd>${ev.confidence === 'measured' ? 'נמדד על ידי המכשיר' : 'נגזר (inferred)'}</dd></div>
+                <div class="wide"><dt>זמן אירוע</dt><dd><span class="ltr">${this.fmtDate(ev.occurred_at)} ${this.fmt(ev.occurred_at)}</span>${ev.ended_at ? html` → <span class="ltr">${this.fmt(ev.ended_at)}</span>` : nothing} · נקלט <span class="ltr">${this.fmt(ev.received_at)}</span>${typeof ev.details.time_precision === 'string' ? html` · דיוק: ${String(ev.details.time_precision)}` : nothing}</dd></div>
+                <div><dt>חזרות</dt><dd>${ev.count} · מצב ${ev.state === 'active' ? 'פעיל' : ev.state === 'inactive' ? 'הסתיים' : '—'}</dd></div>
+                <div><dt>טיפול</dt><dd>${ev.acked_at ? `טופל בידי ${ev.acked_by_username ?? ''} · ${this.fmt(ev.acked_at)}` : 'ממתין'}</dd></div>
+                ${typeof ev.details.description === 'string' && ev.details.description ? html`<div class="wide"><dt>תיאור</dt><dd class="ltr">${String(ev.details.description)}</dd></div>` : nothing}
+                ${typeof ev.details.seconds === 'number' ? html`<div><dt>משך ההקלטה</dt><dd>${String(ev.details.seconds)} שנ׳</dd></div>` : nothing}
               </dl>
               <div slot="footer">
                 <sw-button variant="primary" size="sm" icon="expand" data-review @click=${() => navigate(`/investigate/events/${ev.id}`)}>סקירה מלאה</sw-button>
@@ -1058,12 +1076,12 @@ export class InvestigateEvents extends LitElement {
         ${ev
           ? html`<sw-drawer open heading=${eventTypeLabel[ev.type]} subheading=${`${ev.camera} · ${ev.time}`} @close=${() => (this.selected = null)}>
               <div class="preview">${ev.type === 'offline' || ev.type === 'door' ? 'אין תמונה לאירוע זה' : html`<sw-scene kind=${(SCENE[ev.camera] ?? 'lobby') as 'lobby'}></sw-scene><span class="demo">דמו · תמונת אירוע מה־NVR (T044)</span>`}</div>
-              <dl>
-                <dt>מקור</dt><dd><span class="ltr">${ev.source}</span> · raw: <span class="ltr">${ev.type}</span></dd>
-                <dt>זמן אירוע</dt><dd>${ev.time} · נקלט +1.2s</dd>
-                <dt>קומה</dt><dd>${ev.floor}</dd>
-                <dt>כיסוי הקלטה</dt><dd>${ev.type === 'offline' ? 'אין' : 'קיים · 10 שנ׳ לפני/אחרי'}</dd>
-                <dt>טיפול</dt><dd>${ev.acked ? 'טופל בידי יוני, 09:50' : 'ממתין'}</dd>
+              <dl class="r5-facts">
+                <div><dt>זמן אירוע</dt><dd>${ev.time} <span class="r5-sub">· נקלט +1.2s</span></dd></div>
+                <div><dt>טיפול</dt><dd>${ev.acked ? 'טופל בידי יוני, 09:50' : 'ממתין'}</dd></div>
+                <div><dt>קומה</dt><dd>${ev.floor}</dd></div>
+                <div><dt>כיסוי הקלטה</dt><dd>${ev.type === 'offline' ? 'אין' : 'קיים · 10 שנ׳ לפני/אחרי'}</dd></div>
+                <div class="wide"><dt>מקור</dt><dd><span class="ltr">${ev.source}</span> · raw: <span class="ltr">${ev.type}</span></dd></div>
               </dl>
               <div slot="footer">
                 <a href="#/investigate/playback"><sw-button variant="primary" size="sm" icon="history">להקלטה</sw-button></a>

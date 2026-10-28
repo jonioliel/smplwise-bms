@@ -25,6 +25,8 @@ export class SwBadge extends LitElement {
   @property({ reflect: true }) kind: StateKind = 'neutral';
   @property() label = '';
   @property({ type: Boolean, reflect: true }) onImage = false;
+  /** R5-INVESTIGATE-297: a solid status field (the state's colour, inverse ink) instead of the soft wash. */
+  @property({ type: Boolean, reflect: true }) filled = false;
 
   static styles = css`
     :host {
@@ -111,6 +113,47 @@ export class SwBadge extends LitElement {
     :host([kind='error']) {
       background: var(--sw-danger-soft);
       color: var(--sw-danger-text);
+    }
+    /* R5-INVESTIGATE-297 (status as a filled field, not a wash): "filled" paints the badge in the state's own colour with inverse ink,
+       a solid edge and a slightly larger reading size; an outline-only kind (stale, unknown) keeps its dashed meaning in the dot */
+    :host([filled]) {
+      border-style: solid;
+      border-color: transparent;
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-sm);
+      line-height: 18px;
+      padding: 2px 10px;
+      color: var(--sw-text-inverse);
+      background: var(--sw-text-3);
+    }
+    :host([filled]) .dot {
+      background: currentColor;
+      border: 0;
+      animation: none;
+    }
+    :host([filled][kind='live']) {
+      background: var(--sw-success);
+    }
+    :host([filled][kind='recorded']),
+    :host([filled][kind='historic']) {
+      background: var(--sw-accent);
+    }
+    :host([filled][kind='offline']) {
+      background: var(--sw-offline);
+    }
+    :host([filled][kind='stale']),
+    :host([filled][kind='partial']) {
+      background: var(--sw-stale);
+      color: var(--sw-on-lit);
+    }
+    :host([filled][kind='unknown']) {
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      border: 1px dashed var(--sw-border-strong);
+    }
+    :host([filled][kind='forbidden']),
+    :host([filled][kind='error']) {
+      background: var(--sw-danger);
     }
     @keyframes pulse {
       0%,

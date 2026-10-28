@@ -26,6 +26,7 @@ import { appendPage, applyReviewed, filtersActive, focusAfter, keyAction, nextRe
 import { fx, frigateLocale } from '../i18n/frigate-text';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dayMonthTimeText } from '../api/day-format';
 
 /** The motion layer reads at most the last 24 h whatever the period says: the screen says so. */
@@ -445,10 +446,21 @@ export class InvestigateReviews extends LitElement {
       cursor: pointer;
       white-space: nowrap;
     }
+    /* R5-INVESTIGATE-297: the chosen layer is a raised key (shadow 1 + light line, heading ink, 700), its count a display numeral;
+       the keys sink on pointer-down */
+    .layers button {
+      font-size: var(--sw-fs-base);
+      min-block-size: 36px;
+      transition: transform var(--sw-t-press) var(--sw-ease-out), background-color var(--sw-t-fast) var(--sw-ease);
+    }
+    .layers button:active {
+      transform: scale(var(--sw-press-scale));
+    }
     .layers button[aria-selected='true'] {
       background: var(--sw-surface);
-      color: var(--sw-text);
-      box-shadow: var(--sw-shadow-1);
+      color: var(--sw-heading);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
     }
     .layers button:focus-visible,
     .seg button:focus-visible,
@@ -459,15 +471,17 @@ export class InvestigateReviews extends LitElement {
     }
     .layers .n {
       font-variant-numeric: tabular-nums;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      padding: 0 6px;
+      font-size: var(--sw-fs-md);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--sw-text-2);
+      padding: 0 7px;
       border-radius: var(--sw-r-pill);
       background: var(--sw-surface-2);
     }
     .layers button[aria-selected='true'] .n {
-      background: var(--sw-surface-3);
-      color: var(--sw-text-2);
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse);
     }
     .layers .new {
       inline-size: 7px;
@@ -603,9 +617,12 @@ export class InvestigateReviews extends LitElement {
       color: var(--sw-text-2);
       cursor: pointer;
     }
-    .ib:hover {
-      background: var(--sw-surface-2);
-      color: var(--sw-text);
+    /* R5-INVESTIGATE-297 loop 2: hover only under a fine pointer (a tap must not leave a stuck hover) */
+    @media (hover: hover) and (pointer: fine) {
+      .ib:hover {
+        background: var(--sw-surface-2);
+        color: var(--sw-text);
+      }
     }
     /* state chips: short, inline, never a paragraph */
     .notes {
@@ -805,7 +822,7 @@ export class InvestigateReviews extends LitElement {
         scroll-snap-align: start;
       }
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   private dd(attr: string, label: string, value: string, items: { id: string; label: string }[], on: (id: string) => void) {
     return html`<sw-dropdown data-review-filter=${attr} .label=${label} .placeholder=${label} .value=${value} .items=${items} @change=${(e: CustomEvent<{ id: string }>) => on(e.detail.id)}></sw-dropdown>`;

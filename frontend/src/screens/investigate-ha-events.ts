@@ -16,6 +16,7 @@ import { EVENT_TONE, getEventFacets, listEvents, subscribeEvents, type EventFace
 import { dateInZone } from '../api/recordings';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { hev, type HevKey } from '../i18n/ha-events';
 import { SENSOR_TYPES, areaOptions, describeSensorEvent, placeLabel, type SensorEvent } from './ha-events-logic';
 import { dateInputLang, timeText, dayMonthText } from '../api/day-format';
@@ -57,13 +58,16 @@ export class InvestigateHaEvents extends LitElement {
     .rangepick { display: inline-flex; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); padding: 2px; }
     .rangepick button { font: inherit; font-size: var(--sw-fs-xs); border: 0; background: transparent; color: var(--sw-text-2); border-radius: var(--sw-r-xs); padding: 4px 8px; cursor: pointer; min-block-size: 28px; }
     .rangepick button.on { background: var(--sw-surface); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+    /* R5-INVESTIGATE-297: the status line reads as a stat strip (the count a display numeral), the rows at 13 px */
+    .banner[data-ha-status] { font-size: var(--sw-fs-sm); padding: 8px 14px; background: var(--sw-surface); box-shadow: var(--sw-shadow-1); }
+    .banner[data-ha-status] [data-ha-summary] { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
     .banner { font-size: var(--sw-fs-xs); padding: 6px 10px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); border: 1px solid var(--sw-border); color: var(--sw-text-2); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; line-height: 1.5; margin-block: 8px; }
     .banner.warn { background: var(--sw-warning-soft); border-color: color-mix(in srgb, var(--sw-warning) 40%, transparent); color: var(--sw-warning-text); }
     .dot { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--sw-offline); display: inline-block; box-shadow: 0 0 0 2px var(--sw-offline-soft); flex: none; }
     .dot.on { background: var(--sw-online, var(--sw-accent)); box-shadow: 0 0 0 2px var(--sw-accent-soft); }
     .ro { display: inline-flex; gap: 6px; align-items: center; margin-inline-start: auto; color: var(--sw-text-3); }
     .stage { position: relative; min-block-size: 320px; margin-block-start: 8px; }
-    .ty { display: inline-flex; align-items: center; gap: 7px; font-weight: var(--sw-fw-semibold); }
+    .ty { display: inline-flex; align-items: center; gap: 7px; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-md); color: var(--sw-heading); }
     .ty i { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--tone); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tone) 22%, transparent); flex: none; }
     .sub { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
     dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; font-size: var(--sw-fs-sm); }
@@ -75,7 +79,7 @@ export class InvestigateHaEvents extends LitElement {
       .filters sw-field, .filters sw-field:has(input[type='search']) { inline-size: 100%; }
       .ro { margin-inline-start: 0; }
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   connectedCallback() {
     super.connectedCallback();
@@ -183,8 +187,8 @@ export class InvestigateHaEvents extends LitElement {
       } },
       { key: 'camera_name', label: hev('colSensor'), render: (r) => html`${String(r.camera_name ?? '—')}` },
       { key: 'place', label: hev('colArea'), render: (r) => { const p = placeLabel((r as unknown as SensorEvent).place); return p ? html`${p}` : html`<span class="sub">${hev('noArea')}</span>`; } },
-      { key: 'occurred_at', label: hev('colTime'), render: (r) => html`<span class="ltr">${this.fmt(String(r.occurred_at))}</span><div class="sub ltr">${this.fmtDate(String(r.occurred_at))}</div>` },
-      { key: 'severity', label: hev('colSeverity'), render: (r) => html`<sw-badge kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${this.sev(String(r.severity))}></sw-badge>` },
+      { key: 'occurred_at', label: hev('colTime'), render: (r) => html`<span class="ltr" style="font-weight:700;font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)">${this.fmt(String(r.occurred_at))}</span><div class="sub ltr">${this.fmtDate(String(r.occurred_at))}</div>` },
+      { key: 'severity', label: hev('colSeverity'), render: (r) => html`<sw-badge filled kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${this.sev(String(r.severity))}></sw-badge>` },
     ];
   }
 
@@ -238,16 +242,16 @@ export class InvestigateHaEvents extends LitElement {
   private renderDrawer(ev: SensorEvent) {
     const d = ev.details as { from?: unknown; to?: unknown };
     return html`<sw-drawer open heading=${describeSensorEvent(ev)} subheading=${`${ev.camera_name ?? ''} · ${this.fmt(ev.occurred_at)}`} data-ha-drawer @close=${() => (this.selected = null)}>
-      <dl>
-        <dt>${hev('drawerSensor')}</dt><dd>${ev.camera_name ?? '—'}</dd>
-        <dt>${hev('drawerEvent')}</dt><dd>${describeSensorEvent(ev)}${ev.count > 1 ? ` · ${hev('repeats', { n: ev.count })}` : ''}</dd>
-        <dt>${hev('drawerArea')}</dt><dd>${placeLabel(ev.place) || hev('noArea')}</dd>
-        <dt>${hev('drawerTime')}</dt><dd><span class="ltr">${this.fmtDate(ev.occurred_at)} ${this.fmt(ev.occurred_at)}</span></dd>
-        ${d.from != null && d.from !== '' ? html`<dt>${hev('drawerFrom')}</dt><dd class="ltr">${String(d.from)}</dd>` : nothing}
-        ${d.to != null && d.to !== '' ? html`<dt>${hev('drawerTo')}</dt><dd class="ltr">${String(d.to)}</dd>` : nothing}
-        <dt>${hev('colSeverity')}</dt><dd>${this.sev(ev.severity)}</dd>
-        <dt>${hev('drawerCertainty')}</dt><dd>${hev('drawerMeasured')}</dd>
-        <dt>${hev('drawerSource')}</dt><dd>${hev('drawerSourceValue')}</dd>
+      <dl class="r5-facts">
+        <div class="wide"><dt>${hev('drawerEvent')}</dt><dd>${describeSensorEvent(ev)}${ev.count > 1 ? ` · ${hev('repeats', { n: ev.count })}` : ''}</dd></div>
+        <div><dt>${hev('drawerSensor')}</dt><dd>${ev.camera_name ?? '—'}</dd></div>
+        <div><dt>${hev('drawerArea')}</dt><dd>${placeLabel(ev.place) || hev('noArea')}</dd></div>
+        <div><dt>${hev('drawerTime')}</dt><dd><span class="ltr">${this.fmtDate(ev.occurred_at)} ${this.fmt(ev.occurred_at)}</span></dd></div>
+        <div><dt>${hev('colSeverity')}</dt><dd>${this.sev(ev.severity)}</dd></div>
+        ${d.from != null && d.from !== '' ? html`<div><dt>${hev('drawerFrom')}</dt><dd class="ltr">${String(d.from)}</dd></div>` : nothing}
+        ${d.to != null && d.to !== '' ? html`<div><dt>${hev('drawerTo')}</dt><dd class="ltr">${String(d.to)}</dd></div>` : nothing}
+        <div><dt>${hev('drawerCertainty')}</dt><dd>${hev('drawerMeasured')}</dd></div>
+        <div><dt>${hev('drawerSource')}</dt><dd>${hev('drawerSourceValue')}</dd></div>
       </dl>
       <div class="noclip" data-ha-noclip><sw-icon name="info" size=${14}></sw-icon><span>${hev('drawerNoClip')}</span></div>
       <div slot="footer"><sw-button variant="ghost" size="sm" @click=${() => (this.selected = null)}>${hev('close')}</sw-button></div>

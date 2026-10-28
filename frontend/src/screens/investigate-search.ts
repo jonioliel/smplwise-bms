@@ -16,6 +16,7 @@ import { navigate } from '../router';
 import { OBJECT_LABEL, searchProviders, semanticSearch, type ProvidersResponse, type SemanticResponse } from '../api/search';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dayMonthTimeText } from '../api/day-format';
 
 const RESULTS = [
@@ -161,9 +162,10 @@ export class InvestigateSearch extends LitElement {
       gap: 14px;
     }
     .by .ref {
-      inline-size: 120px;
-      block-size: 90px;
-      border-radius: var(--sw-r-sm);
+      inline-size: 160px;
+      block-size: 100px;
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-2);
       overflow: hidden;
       flex-shrink: 0;
       position: relative;
@@ -178,7 +180,10 @@ export class InvestigateSearch extends LitElement {
     }
     .by b {
       display: block;
-      font-size: var(--sw-fs-md);
+      font-size: var(--sw-fs-xl);
+      font-weight: 800;
+      color: var(--sw-heading);
+      letter-spacing: -0.02em;
     }
     .by p {
       margin: 2px 0 10px;
@@ -194,8 +199,10 @@ export class InvestigateSearch extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-xl);
+      font-weight: 800;
+      color: var(--sw-heading);
+      letter-spacing: -0.02em;
     }
     .head a {
       color: var(--sw-accent-text);
@@ -208,15 +215,23 @@ export class InvestigateSearch extends LitElement {
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
     }
+    /* R5-INVESTIGATE-297: a match is an object - picture on top, the time as the title on a well, sinks on pointer-down */
     .res {
       cursor: pointer;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+      overflow: hidden;
+      transition: transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .res:active {
+      transform: scale(var(--sw-press-scale));
     }
     .res .pic {
       position: relative;
-      aspect-ratio: 4 / 3;
-      border-radius: var(--sw-r-sm);
+      aspect-ratio: 16 / 10;
       overflow: hidden;
-      box-shadow: var(--sw-shadow-1);
     }
     .res .pic sw-scene {
       position: absolute;
@@ -233,13 +248,17 @@ export class InvestigateSearch extends LitElement {
       padding: 1px 6px;
     }
     .res .cap {
-      margin-block-start: 6px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-      line-height: 1.35;
+      padding: 8px 12px 10px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+      line-height: 1.3;
+      font-variant-numeric: tabular-nums;
     }
     .res .cap small {
       display: block;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-regular, 400);
       color: var(--sw-text-3);
     }
     .searchrow {
@@ -255,7 +274,7 @@ export class InvestigateSearch extends LitElement {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   render() {
     if (isApi()) return this.renderApi();

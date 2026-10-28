@@ -37,6 +37,7 @@ import type { Camera } from '../api/types';
 import { StallWatch, stallOptionsFromSettings, type StallPhase } from '../api/playback-stall';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, timeText } from '../api/day-format';
 
 type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
@@ -160,7 +161,9 @@ export class InvestigatePlayback extends LitElement {
     .pick sw-field {
       inline-size: 150px;
     }
+    /* R5-INVESTIGATE-297: the stage is the hero (shadow 3) */
     .video {
+      box-shadow: var(--sw-shadow-3);
       position: relative;
       aspect-ratio: 16 / 9;
       border-radius: var(--sw-r-lg);
@@ -472,6 +475,14 @@ export class InvestigatePlayback extends LitElement {
     .tlwrap {
       position: relative;
     }
+    /* R5-INVESTIGATE-297: the timeline is the second object of the page (radius lg, shadow 2, a light line); the stage keeps shadow 3 */
+    sw-timeline {
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+    }
+    .filters sw-chip {
+      --sw-fs-sm: var(--sw-fs-base);
+    }
     .tlpreview {
       position: absolute;
       inset-block-end: calc(100% + 6px);
@@ -565,7 +576,7 @@ export class InvestigatePlayback extends LitElement {
         flex: none;
       }
     }
-  `, bubbleChrome];
+  `, bubbleChrome, INVESTIGATE_R5];
 
   connectedCallback() {
     super.connectedCallback();
