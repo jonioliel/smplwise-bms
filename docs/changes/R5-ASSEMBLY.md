@@ -55,5 +55,14 @@ no runtime or visual change.
 
 ## Verification
 
-See the assembly report for exact counts: `npx tsc --noEmit`, `npx vite build`, `tests/unit-*.spec.ts` (Playwright, desktop project,
-private preview port), including `unit-token-lint.spec.ts`. Browser / pixel suites of the gate were not run here.
+Run on the assembled tree (with the plan-studio-panel fix), Windows workstation, 2026-10-28:
+
+- `npx tsc --noEmit`: exit 0.
+- `npx vite build`: exit 0 (only the usual chunk-size warning).
+- `npx playwright test tests/unit- --project=desktop` (all 349 `unit-*` files, preview on a private port 4791):
+  3372 passed, 2 failed, 8 skipped. `unit-token-lint.spec.ts` passed.
+  - The 2 failures are `unit-plan-3d-determinism` (3D pixel baselines, 1.15 % vs 0.2 % allowed, "on the renderer that drew
+    them") and `unit-plan-3d-odd` test 5 (export button background transparent). Both fail the same way on the untouched base
+    `pilot/HOMEFABLE-297` @ `e4e67daa9` (checked with the same command), and no R5 branch touches the 3D sources: pre-existing,
+    not caused by the assembly.
+- Not run here: the gate, the browser / evidence / layout / pixel suites (runner only).
