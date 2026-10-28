@@ -67,6 +67,10 @@ test.describe('elevators follow-up evidence (2.9.1)', () => {
       const card = page.locator('sw-app infra-elevators [data-elevator="e2"]');
       await expect(card).toBeVisible();
       await expect(page.locator('sw-app infra-elevators [data-elevator-history-dialog]')).toHaveCount(0);
+      // R5 (2.27.0): the taller KPI tiles and cards put this card's lower edge under the phone's fixed bottom bar (the press landed on a
+      // tab link, not the card): bring the card into view and let its entrance cascade finish before measuring where to press
+      await card.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await card.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
       const box = (await card.boundingBox())!;
       // a long press on the card body (not on its history button): 500 ms hold, no movement
       await page.mouse.move(box.x + box.width / 2, box.y + box.height - 8);
