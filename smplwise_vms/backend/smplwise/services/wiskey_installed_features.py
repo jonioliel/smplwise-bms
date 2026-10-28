@@ -120,7 +120,16 @@ class TemplateJobs:
                               (op, req, template_id, person_id, now, now))
             self.conn.commit()
         except sqlite3.IntegrityError:
-            return JobView(op, "unknown", "not_sent", "request_already_recorded")
+            # review M7: a concurrent enqueue of the same operation won the row - its record is the answer (never a false not_sent);
+            # a request id recorded for ANOTHER operation leaves this one unknown
+            try:
+                self.conn.rollback()
+            except sqlite3.Error:
+                pass
+            seen = self.row(op)
+            if seen is not None:
+                return JobView(op, seen["state"], seen["outcome"], seen["code"])
+            return JobView(op, "unknown", "unknown", "request_already_recorded")
         try:
             raw = await client.enqueue(dict(template), ttl_s)
         except Exception as exc:  # noqa: BLE001 - after the write began the outcome is unknown unless the transport proves not_sent

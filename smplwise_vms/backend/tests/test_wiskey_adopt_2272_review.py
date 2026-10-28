@@ -484,3 +484,33 @@ def test_m6_an_installed_0_10_0_bridge_is_refreshed(settings: Any, tmp_path: Pat
     for root in (REPO / "custom_components" / "smplwise_bridge", REPO / "smplwise_vms" / "integration" / "smplwise_bridge"):
         assert f'VERSION = "{src}"' in (root / "const.py").read_text(encoding="utf-8")
         assert f"const VERSION = '{src}';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+
+# ================================================================ M7: a concurrent enqueue of the same operation reads the winner's record
+
+def test_m7_concurrent_enqueue_returns_the_recorded_state_never_a_false_not_sent(tmp_path: Path) -> None:
+    import asyncio
+    import sqlite3
+
+    from smplwise.services import wiskey_installed_features as wif
+    from test_wiskey_adopt_2272_features import Client, _job, _tpl
+
+    path = tmp_path / "jobs.db"
+    first, second = sqlite3.connect(path), sqlite3.connect(path)
+    for c in (first, second):
+        c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+    a, b = wif.TemplateJobs(first), wif.TemplateJobs(second)
+    real_row = b.row
+    calls = {"n": 0}
+
+    def raced_row(op: str) -> Any:  # B looked before A's row existed (another worker / process), then A won the INSERT
+        calls["n"] += 1
+        return None if calls["n"] == 1 else real_row(op)
+
+    b.row = raced_row  # type: ignore[method-assign]
+    client_a, client_b = Client(_job("queued")), Client()
+    assert asyncio.run(a.enqueue(client_a, _tpl(), ttl_s=60)).outcome == "pending"
+    view = asyncio.run(b.enqueue(client_b, _tpl(), ttl_s=60))
+    assert (view.state, view.outcome) == ("queued", "pending") and client_b.calls == []  # the winner's record, nothing sent twice
+    # a request id already recorded for ANOTHER operation: unknown, never not_sent
+    other = asyncio.run(wif.TemplateJobs(second).enqueue(Client(), _tpl(op="op-2"), ttl_s=60))
+    assert (other.outcome, other.code) == ("unknown", "request_already_recorded")
