@@ -328,7 +328,7 @@ class InstalledWiskeyClient:
         from . import wiskey_media_bridge as bridge
 
         transport = bridge.DirectApiTransport(opener or bridge.websocket_opener(self.settings), self._key_provider)
-        self.link = await transport.connect(bridge.PURPOSE_TALK)
+        self.link = await transport.connect(bridge.PURPOSE_COMMAND)  # review M4: command traffic, as Arx's own join (never a talk slot)
         identity = transport.last_identity or {}
         # the authenticated connect already names the service subject and the repository: both must be the manifest's
         if identity.get("query_owner_id") != self.row["query_owner_id"] or identity.get("repository_id") != self.manifest["repository_id"]:

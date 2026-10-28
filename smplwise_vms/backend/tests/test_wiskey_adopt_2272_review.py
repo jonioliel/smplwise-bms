@@ -408,3 +408,32 @@ def test_m3_a_native_account_is_used_only_when_wiskey_listed_it_and_the_switch_i
         set_setting(conn, wai.NATIVE_ACCOUNTS_KEY, json.dumps(["acct-other"]))  # WisKey no longer lists it
     gone = preview(c, template=rid).json()
     assert gone["preview"]["account"] is None and "account_unavailable" in gone["blockers"]
+
+# ================================================================ M4: the installed client connects for command traffic
+
+def test_m4_the_installed_client_connects_with_the_command_purpose(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    from smplwise.services import wiskey_media_bridge as bridge
+    from test_wiskey_adopt_2272_contrib import SYNTHETIC_ROW, synthetic_manifest
+
+    seen: list[str] = []
+
+    class Link:
+        closed = False
+
+        async def close(self) -> None:
+            self.closed = True
+
+    class Transport:
+        def __init__(self, opener: Any, key_provider: Any) -> None:
+            self.last_identity = {"query_owner_id": SYNTHETIC_ROW["query_owner_id"], "repository_id": SYNTHETIC_ROW["repository_id"]}
+
+        async def connect(self, purpose: str) -> Any:
+            seen.append(purpose)
+            return Link()
+
+    monkeypatch.setattr(bridge, "DirectApiTransport", Transport)
+    client = wai.InstalledWiskeyClient(None, reader=synthetic_manifest)
+    asyncio.run(client.connect(opener=lambda: None))
+    assert seen == [bridge.PURPOSE_COMMAND] and bridge.PURPOSE_COMMAND != bridge.PURPOSE_TALK
