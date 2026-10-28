@@ -28,13 +28,15 @@ import { asHandledDays, HANDLED_DEFAULT, installationHandledDays, readStoredPeri
 import { ot, type OverviewTextKey } from '../tickets/overview-text';
 import {
   agenda, APPROVALS_SHOWN, approvalsTotal, dailyTotals, dayKey, daysOfPeriod, deptComparison, FOLD_STORAGE_KEY, foldedOf, handlerRows, kpiDeltas, lanes, METER_SEGMENTS,
-  overdueRows, OVERDUE_SHOWN, overviewSettingsOf, parseKpiStore, paymentDates, paymentOverdueRows, paymentsTotal, payWhen, periodOfDays, rfqStageOf, rollKpis, serverPaymentDates, shortDay, signed, sortDepartments, splitVendors,
+  overdueRows, OVERDUE_SHOWN, overviewSettingsOf, packPages, filledSpans, parseKpiStore, paymentDates, paymentOverdueRows, paymentsTotal, payWhen, periodOfDays, rfqStageOf, rollKpis, serverPaymentDates, shortDay, signed, sortDepartments, splitVendors,
   STUCK_REASONS, stuckPlaces, stuckReasonCounts,
   type AgendaEntry, type CardKey, type HandlerRow, type KpiKey, type Kpis, type OverviewSettings,
 } from '../tickets/overview-model';
 import { timeText, dayMonthText } from '../api/day-format';
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
+/** OVERVIEWFIT-297: a drawn widget with what the pages need - its grid span, its title (the pager's labels) and whether it carries a red count */
+interface OverviewWidget { key: CardKey; title: string; span: number; alert: boolean; fill?: number; make: (span?: number) => TemplateResult }
 
 /** the board and the numbers row every minute while visible (spec 5); the requests for quotation, the payment dates, the handled counts and
  * the cost claims - which do not change minute by minute - every ten minutes */
@@ -106,6 +108,18 @@ export class TicketsOverview extends LitElement {
   /** phase 4: the payments board (GET /tickets/dashboard/payments) - only for a manager who may pay somewhere; null = not read / not shown */
   @state() private payments: PaymentsResponse | null = null;
   @state() private paymentsFailed = false;
+  /** OVERVIEWFIT-297: on a desktop the widgets are cut into pages of two rows (no page scroll); the page on screen */
+  @state() private paged = TicketsOverview.pagedMq.matches;
+  @state() private pageIdx = 0;
+  private pageOfKey = new Map<CardKey, number>();
+  private pageCount = 0;
+  /** the paged board: a desktop wide enough for the three-column grid and tall enough for two rows; anything smaller scrolls as before
+   * (the tablet and the phone layouts are unchanged) */
+  static readonly pagedMq = window.matchMedia('(min-width: 1181px) and (min-height: 700px)');
+  private onPaged = () => {
+    this.paged = TicketsOverview.pagedMq.matches;
+    this.pageIdx = 0;
+  };
   private seq = 0;
   private sumSeq = 0;
   private slowAt = 0;
@@ -287,6 +301,57 @@ export class TicketsOverview extends LitElement {
     .closedrows .cr[data-pay-row='instalment'] .tags { grid-column: 2; grid-row: 2; justify-content: flex-start; align-items: center; gap: 8px; }
     .closedrows .cr[data-pay-row='instalment'] .back { grid-column: 3; grid-row: 1 / span 2; }
     .vh { position: absolute !important; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    /* OVERVIEWFIT-297 (owner rule: a control screen never scrolls on a desktop; owner option א): on a desktop (.paged, set from
+       TicketsOverview.pagedMq) the screen takes the window's height; the widgets keep their order and grid spans and are cut into pages
+       of two rows that fill what is left under the numbers row; the pages sit side by side in a track that snaps page by page (the
+       pager, a swipe, a trackpad, the keyboard focus). A long widget scrolls inside its own card. Elsewhere .wb is transparent and the
+       page scrolls as before (tablet, phone, a short window). */
+    .wb { display: contents; }
+    .page.paged { block-size: 100%; min-block-size: 0; box-sizing: border-box; padding-block-end: 0; }
+    .paged .wpages { flex: 1 1 auto; min-block-size: 420px; display: grid; grid-auto-flow: column; grid-auto-columns: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; margin-inline: -36px; outline: none; }
+    .paged .wpages::-webkit-scrollbar { display: none; }
+    .paged .pg { box-sizing: border-box; min-inline-size: 0; min-block-size: 0; padding: 2px 36px 22px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: var(--dv-gap-lg, 18px); scroll-snap-align: start; scroll-snap-stop: always; }
+    .paged .pg > .w { min-block-size: 0; overflow: hidden; }
+    .paged .pg > .w.folded { align-self: start; }
+    .paged .w > .wb { flex: 1 1 auto; min-block-size: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; margin-inline: -6px; padding-inline: 6px; padding-block-end: 14px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent); }
+    /* break-ui: a reference number never splits over two lines in a third-wide card */
+    .closedrows .cr .num { white-space: nowrap; }
+    .paged .wgrid.top > .w { max-block-size: 30vh; overflow: hidden; }
+    .paged .wgrid.top > .w > .wb { flex: 1 1 auto; min-block-size: 0; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 12px; }
+    /* many departments: one row that scrolls sideways (the controls row never grows into the widgets' room) */
+    .paged .dh-det { flex-wrap: nowrap; }
+    .paged .dh-det .depts { flex: 0 1 auto; min-inline-size: 0; overflow-x: auto; scrollbar-width: none; }
+    .paged .dh-det .depts.over:dir(rtl) { -webkit-mask-image: linear-gradient(to left, transparent, #000 28px); mask-image: linear-gradient(to left, transparent, #000 28px); }
+    .paged .dh-det .depts.over:dir(ltr) { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px); mask-image: linear-gradient(to right, transparent, #000 28px); }
+    .paged .dh-det .depts > button { flex: none; }
+    .paged .dh-det .amb { white-space: nowrap; }
+    .pager { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+    .pager .pgb { all: unset; box-sizing: border-box; display: grid; place-items: center; inline-size: 34px; block-size: 34px; border-radius: 50%; color: var(--dv-text-2); cursor: pointer; }
+    .pager .pgb .ic { font-size: var(--sw-fs-lg); }
+    .pager .pgb.next .ic { transform: scaleX(-1); }
+    .pager:dir(ltr) .pgb.prev .ic { transform: scaleX(-1); }
+    .pager:dir(ltr) .pgb.next .ic { transform: none; }
+    .pager .pgb { transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background-color 140ms ease; }
+    .pager .pgb:active:not([disabled]) { transform: scale(0.94); }
+    /* mobile-native: a large touch screen (an iPad Pro in landscape) also gets the pages - no tap flash, no double-tap delay, no label selection */
+    .pager .pgb, .pager .pd { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+    .pager .pgb[disabled] { opacity: 0.35; cursor: default; }
+    .pager .pds { display: inline-flex; align-items: center; }
+    .pager .pd { all: unset; box-sizing: border-box; display: grid; place-items: center; min-inline-size: 24px; block-size: 34px; padding-inline: 2px; cursor: pointer; }
+    .pager .pd i { display: block; inline-size: 8px; block-size: 8px; border-radius: var(--sw-r-pill); background: var(--dv-border-strong, var(--dv-text-3)); transition: inline-size 180ms cubic-bezier(0.23, 1, 0.32, 1), background-color 180ms ease; }
+    .pager .pd.alert i { background: var(--dv-danger); }
+    .pager .pd[aria-current='page'] i { inline-size: 22px; background: var(--dv-accent); }
+    @media (hover: hover) and (pointer: fine) {
+      .pager .pgb:hover:not([disabled]) { background: var(--dv-surface-3); color: var(--dv-text); }
+      .pager .pd:hover i { background: var(--dv-text-2); }
+      .pager .pd[aria-current='page']:hover i { background: var(--dv-accent); }
+    }
+    .pager .pgb:focus-visible, .pager .pd:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: 2px; border-radius: var(--sw-r-pill); }
+    .pager .pgn { font-size: var(--sw-fs-sm); color: var(--dv-text-2); font-weight: 600; min-inline-size: 30px; text-align: center; }
+    @media (pointer: coarse) {
+      .pager .pgb { inline-size: 44px; block-size: 44px; }
+      .pager .pd { block-size: 44px; }
+    }
     @media (max-width: 1180px) {
       .wgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
@@ -344,6 +409,7 @@ export class TicketsOverview extends LitElement {
     @media (prefers-reduced-motion: reduce) {
       .w > header .fold .ic { transition: none; }
       .kpi, .tree .row, .crow, .closedrows .cr, .w > header .fold { transition: none; }
+      .pager .pd i, .pager .pgb { transition: none; }
     }
   `];
 
@@ -351,6 +417,7 @@ export class TicketsOverview extends LitElement {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
+    TicketsOverview.pagedMq.addEventListener('change', this.onPaged);
     this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offNames = onTicketNames(() => this.requestUpdate());
     // spec 5: a notification of the module is a trigger to re-read, never the data itself (no new push channel)
@@ -369,6 +436,7 @@ export class TicketsOverview extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this.phoneMq.removeEventListener('change', this.onPhone);
+    TicketsOverview.pagedMq.removeEventListener('change', this.onPaged);
     this.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('online', this.onOnline);
     this.offNames?.();
@@ -402,6 +470,63 @@ export class TicketsOverview extends LitElement {
 
   protected updated(): void {
     measureHeaderBar(this.renderRoot, this.phone);
+    // a widget set that shrank (another department, a widget that left) leaves no empty page on screen
+    if (this.paged && this.pageCount && this.pageIdx >= this.pageCount) this.goPage(this.pageCount - 1, false);
+    // break-ui: a departments row longer than the room fades at its end (it scrolls sideways); a row that fits keeps its edge
+    const seg = this.renderRoot.querySelector<HTMLElement>('[data-dept-chips]');
+    seg?.classList.toggle('over', this.paged && seg.scrollWidth > seg.clientWidth + 1);
+  }
+
+  // ---------------------------------------------------------------- pages (OVERVIEWFIT-297)
+
+  private track(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>('[data-overview-pages]');
+  }
+
+  /** Shows page `i`: the track scrolls by whole pages (it snaps there anyway); RTL scrolls towards negative offsets. */
+  private goPage(i: number, smooth = true): void {
+    const n = Math.max(1, this.pageCount);
+    const next = Math.min(n - 1, Math.max(0, i));
+    this.pageIdx = next;
+    const tr = this.track();
+    if (!tr) return;
+    const sign = getComputedStyle(tr).direction === 'rtl' ? -1 : 1;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    tr.scrollTo({ left: sign * next * tr.clientWidth, behavior: smooth && !reduce ? 'smooth' : 'auto' });
+  }
+
+  /** The page on screen follows the track: a swipe, a trackpad, the keyboard focus moving into a widget of another page. */
+  private onTrack = (e: Event) => {
+    const tr = e.currentTarget as HTMLElement;
+    const i = Math.round(Math.abs(tr.scrollLeft) / Math.max(1, tr.clientWidth));
+    if (i !== this.pageIdx && i < this.pageCount) this.pageIdx = i;
+  };
+
+  /** The pager's keys: the arrows in the reading direction (RTL: left = next), Home and End. */
+  private onPagerKey = (e: KeyboardEvent) => {
+    const rtl = getComputedStyle(this).direction === 'rtl';
+    const step = e.key === 'ArrowLeft' ? (rtl ? 1 : -1) : e.key === 'ArrowRight' ? (rtl ? -1 : 1) : 0;
+    let to = -1;
+    if (step) to = this.pageIdx + step;
+    else if (e.key === 'Home') to = 0;
+    else if (e.key === 'End') to = this.pageCount - 1;
+    if (to < 0 || to >= this.pageCount) return;
+    e.preventDefault();
+    this.goPage(to, false); // a key press moves at once (no animation on a keyboard action)
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-page-dot="${to}"]`)?.focus());
+  };
+
+  private pager(pages: readonly (readonly OverviewWidget[])[]): TemplateResult | typeof nothing {
+    if (pages.length < 2) return nothing;
+    const of = pages.length;
+    const idx = Math.min(this.pageIdx, of - 1);
+    return html`<div class="pager" role="group" aria-label=${ot('pagesGroup')} data-overview-pager @keydown=${this.onPagerKey}>
+      <button type="button" class="pgb prev" data-page-prev ?disabled=${idx === 0} aria-label=${ot('pagePrev')} title=${ot('pagePrev')} @click=${() => this.goPage(idx - 1)}>${tIcon('back')}</button>
+      <span class="pds">${pages.map((p, i) => html`<button type="button" class=${`pd${p.some((w) => w.alert) ? ' alert' : ''}`} data-page-dot=${i} aria-current=${i === idx ? 'page' : 'false'}
+        aria-label=${ot('pageDot', { n: i + 1, of, names: p.map((w) => w.title).join(', ') }) + (p.some((w) => w.alert) ? ` · ${ot('pageAlert')}` : '')} title=${p.map((w) => w.title).join(' · ')} @click=${() => this.goPage(i)}><i></i></button>`)}</span>
+      <span class="pgn" aria-hidden="true"><span class="n">${idx + 1}/${of}</span></span>
+      <button type="button" class="pgb next" data-page-next ?disabled=${idx >= of - 1} aria-label=${ot('pageNext')} title=${ot('pageNext')} @click=${() => this.goPage(idx + 1)}>${tIcon('back')}</button>
+    </div>`;
   }
 
   // ---------------------------------------------------------------- data
@@ -632,12 +757,13 @@ export class TicketsOverview extends LitElement {
     return boardHref({ dept: this.dept, ...patch }, t ? { t } : {});
   }
 
-  private widget(key: CardKey, title: string, q: string, body: TemplateResult, opts: { cls?: string; badge?: TemplateResult | typeof nothing; extra?: TemplateResult } = {}): TemplateResult {
+  private widget(key: CardKey, title: string, q: string, body: TemplateResult, opts: { cls?: string; badge?: TemplateResult | typeof nothing; extra?: TemplateResult; span?: number } = {}): TemplateResult {
     const folded = this.folded.has(key);
-    return html`<section class=${`glass w ${opts.cls ?? ''}${folded ? ' folded' : ''}`} data-widget=${key} id=${`w-${key}`}>
+    // OVERVIEWFIT-297: on a desktop page the last widget of a short row widens to the row's end (no empty cell)
+    return html`<section class=${`glass w ${opts.cls ?? ''}${folded ? ' folded' : ''}`} data-widget=${key} id=${`w-${key}`} style=${opts.span ? `grid-column: span ${opts.span}` : nothing}>
       <header><h2>${title}${opts.badge ?? nothing}</h2>${q ? html`<span class="q">${q}</span>` : nothing}${opts.extra && !folded ? opts.extra : nothing}
         <button type="button" class="fold" data-fold=${key} aria-expanded=${String(!folded)} aria-label=${ot(folded ? 'unfold' : 'fold', { name: title })} @click=${() => this.toggleFold(key)}>${tIcon('chevronDown')}</button></header>
-      ${body}
+      <div class="wb">${body}</div>
     </section>`;
   }
 
@@ -649,7 +775,7 @@ export class TicketsOverview extends LitElement {
     return html`<div class="skel" aria-busy="true">${Array.from({ length: rows }, () => html`<span class="skl" style=${`block-size:${h}px`}></span>`)}</div>`;
   }
 
-  private header(): TemplateResult {
+  private header(pages: OverviewWidget[][] | null = null): TemplateResult {
     const d = this.data;
     const depts = d?.departments ?? [];
     const all = !!d?.all_departments;
@@ -664,6 +790,7 @@ export class TicketsOverview extends LitElement {
         </div>` : nothing}
         ${this.lastOk ? html`<span class="amb" data-updated>${ot('updated', { when: '' }).trim()} <em>${this.now.getTime() - this.lastOk.getTime() < 60_000 ? ot('justNow') : relTime(this.lastOk.toISOString(), this.now)}</em></span>` : nothing}
         <span class="grow"></span>
+        ${pages ? this.pager(pages) : nothing}
         <a class="btn sm hide-ph" href=${this.href()} data-to-board>${tIcon('ticket')}${ot('toBoard')}</a>
       </div>` : nothing}
     </header>`;
@@ -693,6 +820,12 @@ export class TicketsOverview extends LitElement {
 
   private reveal(key: CardKey): void {
     if (this.folded.has(key)) this.toggleFold(key);
+    // OVERVIEWFIT-297: on a desktop the widget's page comes on screen (the track scrolls sideways only)
+    const page = this.paged ? this.pageOfKey.get(key) : undefined;
+    if (page !== undefined) {
+      this.goPage(page);
+      return;
+    }
     void this.updateComplete.then(() => this.renderRoot.querySelector(`#w-${key}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   }
 
@@ -1010,10 +1143,47 @@ export class TicketsOverview extends LitElement {
 
   private loadingGrid(): TemplateResult {
     const card = (cls: string, rows: number, h: number) => html`<section class=${`glass w ${cls}`}><header><span class="skl" style="block-size:20px;inline-size:40%"></span></header>${this.skeleton(rows, h)}</section>`;
+    // OVERVIEWFIT-297: on a desktop the skeleton is the first page (two rows), the same frame the widgets land in
+    if (this.paged) return html`<div class="wpages" data-overview-state="loading"><div class="pg">${card('wide', 5, 40)}${card('', 3, 56)}${card('wide', 5, 52)}${card('', 4, 44)}</div></div>`;
     return html`<div class="wgrid" data-overview-state="loading">${card('wide', 5, 40)}${card('', 3, 56)}${card('wide', 5, 52)}${card('', 4, 44)}${card('', 4, 44)}${card('', 4, 44)}${card('', 4, 44)}${card('wide', 4, 40)}${card('', 1, 150)}</div>`;
   }
 
-  private body(): TemplateResult {
+  /** The ready screen's widgets in their order (the comparison's place from the settings), or null when the screen shows a state box. */
+  private widgets(): { list: OverviewWidget[]; top: OverviewWidget | null } | null {
+    if (this.screen !== 'ready' || !this.data) return null;
+    const d = this.data;
+    if (!d.counts.all && !d.counts.closed_all && !d.items.length) return null;
+    const s = this.settings();
+    const w = (key: CardKey, title: string, q: string, body: TemplateResult, opts: { cls?: string; badge?: TemplateResult | typeof nothing; extra?: TemplateResult } = {}, alert = false): OverviewWidget =>
+      ({ key, title, span: opts.cls === 'full' ? 3 : opts.cls === 'wide' ? 2 : 1, alert, make: (span?: number) => this.widget(key, title, q, body, { ...opts, span }) });
+    const compare = d.all_departments && !this.dept && d.departments.length > 1 ? w('departments', ot('cmpTitle'), ot('cmpQ'), this.departmentsCard(), { cls: 'full' }) : null;
+    const load = this.loadCard();
+    const od = this.overdueCard();
+    const stuckN = d.counts.stuck;
+    const sum = this.summary;
+    const apN = sum ? approvalsTotal(sum.approvals) : 0;
+    const rqN = sum ? sum.rfqs.count : 0;
+    const pyN = paymentsTotal(this.payments);
+    const pyBad = !!this.payments?.overdue.count;
+    const daily = sum ? dailyTotals(sum.daily.days) : null;
+    const list: (OverviewWidget | null)[] = [
+      s.compare === 'below_numbers' ? compare : null,
+      w('stuck', ot('stTitle'), ot('stQ'), this.whereStuck(), { cls: 'wide', badge: stuckN ? html` <span class="cnt" data-count>${stuckN}</span>` : nothing }),
+      w('waits', ot('wwTitle'), ot('wwQ'), this.whoWaits()),
+      w('load', ot('ldTitle'), ot('ldQ'), load.body, { cls: 'wide', badge: load.busy ? html` <span class="cnt bad" data-count>${ot('ldBusyCount', { n: load.busy })}</span>` : nothing }, !!load.busy),
+      w('overdue', ot('odTitle'), ot('odQ'), od.body, { badge: od.count ? html` <span class="cnt bad" data-count>${od.count}</span>` : nothing }, !!od.count),
+      w('approvals', ot('apTitle'), ot('apQ'), this.approvalsCard(), { badge: apN ? html` <span class="cnt" data-count>${apN}</span>` : nothing }),
+      this.payments || this.paymentsFailed ? w('payments', ot('pyTitle'), ot('pyQ'), this.paymentsCard(), { badge: pyN ? html` <span class=${`cnt${pyBad ? ' bad' : ''}`} data-count>${pyN}</span>` : nothing }, pyBad) : null,
+      w('rfqs', ot('rqTitle'), ot('rqQ'), this.rfqsCard(), { badge: rqN ? html` <span class="cnt info" data-count>${rqN}</span>` : nothing }),
+      w('upcoming', ot('agTitle'), ot('agQ'), this.agendaCard()),
+      w('throughput', ot('thTitle'), ot('thQ'), this.throughputCard(), { cls: 'wide', extra: this.periodSeg() }),
+      w('daily', ot('dyTitle'), ot('dyQ'), this.dailyCard(), { badge: daily && (daily.opened || daily.closed) ? html` <span class=${`cnt${daily.net > 0 ? '' : ' info'}`} data-count data-net-badge>${ot('dyNet', { n: signed(daily.net) })}</span>` : nothing }),
+      s.compare === 'bottom' ? compare : null,
+    ];
+    return { list: list.filter((x): x is OverviewWidget => !!x), top: s.compare === 'top' ? compare : null };
+  }
+
+  private body(ws: { list: OverviewWidget[]; top: OverviewWidget | null } | null, pages: OverviewWidget[][] | null): TemplateResult {
     switch (this.screen) {
       case 'loading':
         return html`${this.kpiRow()}${this.loadingGrid()}`;
@@ -1026,43 +1196,31 @@ export class TicketsOverview extends LitElement {
       default:
         break;
     }
-    const d = this.data as BoardResponse;
-    if (!d.counts.all && !d.counts.closed_all && !d.items.length) {
+    if (!ws) {
       return this.stateBox('ticket', ot('emptyAll'), 'empty', this.meta?.can.create ? html`<a class="btn primary" href=${listHref('mine', NO_FILTERS, { create: true })} data-new>${tIcon('plus')}${ot('newTicket')}</a>` : undefined);
     }
-    const s = this.settings();
-    const compare = d.all_departments && !this.dept && d.departments.length > 1 ? this.widget('departments', ot('cmpTitle'), ot('cmpQ'), this.departmentsCard(), { cls: 'full' }) : nothing;
-    const load = this.loadCard();
-    const od = this.overdueCard();
-    const stuckN = d.counts.stuck;
-    const sum = this.summary;
-    const apN = sum ? approvalsTotal(sum.approvals) : 0;
-    const rqN = sum ? sum.rfqs.count : 0;
-    const pyN = paymentsTotal(this.payments);
-    const daily = sum ? dailyTotals(sum.daily.days) : null;
-    return html`
-      ${s.compare === 'top' ? html`<div class="wgrid">${compare}</div>` : nothing}
-      ${this.kpiRow()}
-      <div class="wgrid">
-        ${s.compare === 'below_numbers' ? compare : nothing}
-        ${this.widget('stuck', ot('stTitle'), ot('stQ'), this.whereStuck(), { cls: 'wide', badge: stuckN ? html` <span class="cnt" data-count>${stuckN}</span>` : nothing })}
-        ${this.widget('waits', ot('wwTitle'), ot('wwQ'), this.whoWaits())}
-        ${this.widget('load', ot('ldTitle'), ot('ldQ'), load.body, { cls: 'wide', badge: load.busy ? html` <span class="cnt bad" data-count>${ot('ldBusyCount', { n: load.busy })}</span>` : nothing })}
-        ${this.widget('overdue', ot('odTitle'), ot('odQ'), od.body, { badge: od.count ? html` <span class="cnt bad" data-count>${od.count}</span>` : nothing })}
-        ${this.widget('approvals', ot('apTitle'), ot('apQ'), this.approvalsCard(), { badge: apN ? html` <span class="cnt" data-count>${apN}</span>` : nothing })}
-        ${this.payments || this.paymentsFailed ? this.widget('payments', ot('pyTitle'), ot('pyQ'), this.paymentsCard(), { badge: pyN ? html` <span class=${`cnt${this.payments?.overdue.count ? ' bad' : ''}`} data-count>${pyN}</span>` : nothing }) : nothing}
-        ${this.widget('rfqs', ot('rqTitle'), ot('rqQ'), this.rfqsCard(), { badge: rqN ? html` <span class="cnt info" data-count>${rqN}</span>` : nothing })}
-        ${this.widget('upcoming', ot('agTitle'), ot('agQ'), this.agendaCard())}
-        ${this.widget('throughput', ot('thTitle'), ot('thQ'), this.throughputCard(), { cls: 'wide', extra: this.periodSeg() })}
-        ${this.widget('daily', ot('dyTitle'), ot('dyQ'), this.dailyCard(), { badge: daily && (daily.opened || daily.closed) ? html` <span class=${`cnt${daily.net > 0 ? '' : ' info'}`} data-count data-net-badge>${ot('dyNet', { n: signed(daily.net) })}</span>` : nothing })}
-        ${s.compare === 'bottom' ? compare : nothing}
+    const top = ws.top ? html`<div class="wgrid top">${ws.top.make()}</div>` : nothing;
+    if (!pages) {
+      return html`${top}${this.kpiRow()}<div class="wgrid">${ws.list.map((x) => x.make())}</div>`;
+    }
+    // OVERVIEWFIT-297: the pages side by side in a track that snaps page by page (a swipe, a trackpad, the pager, the keyboard focus);
+    // every widget stays in the document (the numbers row and a focused widget bring their page on screen)
+    const idx = Math.min(this.pageIdx, pages.length - 1);
+    return html`${top}${this.kpiRow()}
+      <div class="wpages" data-overview-pages tabindex="-1" @scroll=${this.onTrack}>
+        ${pages.map((p, i) => html`<div class="pg" role="group" aria-label=${ot('pageOf', { n: i + 1, of: pages.length })} data-page=${i} data-current=${String(i === idx)}>${p.map((x) => x.make(x.fill))}</div>`)}
       </div>`;
   }
 
   render() {
-    return html`<div class=${`page${this.offline ? ' stale' : ''}`} data-screen="tickets-overview">
-      ${this.header()}
-      ${this.body()}
+    const ws = this.widgets();
+    const fill = ws ? filledSpans(ws.list.map((x) => x.span), 3) : [];
+    const pages = this.paged && ws ? packPages(ws.list.map((x) => x.span), 3).map((p) => p.map((i) => ({ ...ws.list[i], fill: fill[i] }))) : null;
+    this.pageCount = pages?.length ?? 0;
+    this.pageOfKey = new Map((pages ?? []).flatMap((p, i) => p.map((x) => [x.key, i] as const)));
+    return html`<div class=${`page${this.offline ? ' stale' : ''}${this.paged ? ' paged' : ''}`} data-screen="tickets-overview">
+      ${this.header(pages)}
+      ${this.body(ws, pages)}
     </div>`;
   }
 }

@@ -222,6 +222,13 @@ const he = {
   setDeptStuck: 'סף "מחלקה עמוסה"',
   setDeptStuckSub: '{f:תקועות|m:תקועים} במחלקה · להתראה למנהלי המחלקה',
   setDeptStuckInvalid: 'מספר בין 1 ל-999',
+  // OVERVIEWFIT-297: the widget pages on a desktop
+  pagesGroup: 'עמודי הסקירה',
+  pagePrev: 'העמוד הקודם',
+  pageNext: 'העמוד הבא',
+  pageOf: 'עמוד {n} מתוך {of}',
+  pageDot: 'עמוד {n} מתוך {of}: {names}',
+  pageAlert: 'יש בו מספר אדום',
 };
 
 export type OverviewTextKey = keyof typeof he;
@@ -415,6 +422,12 @@ const en: Partial<Record<OverviewTextKey, string>> = {
   setDeptStuck: 'Busy department threshold',
   setDeptStuckSub: 'stuck {tickets} in a department · for the alert to its managers',
   setDeptStuckInvalid: 'A number from 1 to 999',
+  pagesGroup: 'Overview pages',
+  pagePrev: 'Previous page',
+  pageNext: 'Next page',
+  pageOf: 'Page {n} of {of}',
+  pageDot: 'Page {n} of {of}: {names}',
+  pageAlert: 'has a red count',
 };
 
 /** The raw template of a key (the unit tests read it). */
