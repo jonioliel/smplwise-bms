@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, svg } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import './building-presence-chip';
 import { ALARM_HE } from '../api/devices';
 import { createClockSubscription } from '../api/clock-ticker';
 import { calendarText, clockParts, hasValue, valueText, WEATHER_HE, type HomeConfig, type HomeData, type WidgetId, type WidgetItem } from '../api/home-config';
@@ -62,6 +63,10 @@ export class HomeAmbientBar extends LitElement {
       padding-inline-start: var(--sw-s-4);
       border-inline-start: 1px solid var(--sw-border);
     }
+    building-presence-chip[data-on] {
+      padding-inline-start: var(--sw-s-4);
+      border-inline-start: 1px solid var(--sw-border);
+    }
     b {
       color: var(--sw-heading);
       font-weight: var(--sw-fw-semibold);
@@ -114,6 +119,7 @@ export class HomeAmbientBar extends LitElement {
         padding-inline-start: 0;
         border-inline-start: 0;
       }
+      building-presence-chip,
       .shabbat,
       .alarm,
       .part sw-icon,
@@ -141,7 +147,8 @@ export class HomeAmbientBar extends LitElement {
     if (!this.config || !this.data) return nothing;
     const parts = [this.clockPart(), this.weatherPart(), this.shabbatPart(), this.alarmPart()].filter((p) => p !== nothing);
     if (!parts.length) return nothing;
-    return html`<div class="bar" role="group" data-home-ambient>${parts}</div>`;
+    // BUILDING-PRESENCE-2271: one more quiet part, last; it renders nothing at all unless sensors are tagged and the caller may see them
+    return html`<div class="bar" role="group" data-home-ambient>${parts}<building-presence-chip></building-presence-chip></div>`;
   }
 
   private clockPart() {

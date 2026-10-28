@@ -46,6 +46,7 @@ class SettingsIn(BaseModel):
 
 @router.get("/presence/building")
 def building_snapshot(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """The live anonymous occupancy of the building and its rooms from the tagged presence sensors (presence.building.view); `configured: false` while none is tagged."""
     db = request.app.state.db
     with db.connection(mode="read", label="presence.building") as conn:
         touch_user(conn, principal)
@@ -59,6 +60,7 @@ def building_snapshot(request: Request, principal: Principal = Depends(_principa
 
 @router.get("/presence/building/sensors")
 def building_sensors(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """The presence / motion sensors that can be tagged, with their tag and the two settings (system.configure)."""
     with request.app.state.db.connection(mode="read", label="presence.building.sensors") as conn:
         touch_user(conn, principal)
         require(conn, principal, bp.CONFIGURE, INSTALLATION)
@@ -67,6 +69,7 @@ def building_sensors(request: Request, principal: Principal = Depends(_principal
 
 @router.put("/presence/building/sensors")
 def set_building_sensors(body: SensorsIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """Replace the tagged set (system.configure; binary sensors only; audited with entity ids)."""
     with request.app.state.db.connection(label="presence.building.tag") as conn:
         touch_user(conn, principal)
         require(conn, principal, bp.CONFIGURE, INSTALLATION)
@@ -83,6 +86,7 @@ def set_building_sensors(body: SensorsIn, request: Request, principal: Principal
 
 @router.put("/presence/building/settings")
 def set_building_settings(body: SettingsIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """The debounce hold (seconds) and the empty timeout (minutes) (system.configure; audited)."""
     with request.app.state.db.connection(label="presence.building.settings") as conn:
         touch_user(conn, principal)
         require(conn, principal, bp.CONFIGURE, INSTALLATION)

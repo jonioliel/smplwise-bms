@@ -4,6 +4,7 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-field';
+import './system-building-presence';
 import { describeError } from '../api/client';
 import { dayTimeText } from '../api/day-format';
 import {
@@ -384,7 +385,8 @@ export class SystemPresence extends LitElement {
             </div>`
           : nothing}
       </sw-card>
-      ${this.renderDevices()}`;
+      ${this.renderDevices()}
+      <system-building-presence ?editable=${editable}></system-building-presence>`;
   }
 }
 
