@@ -601,6 +601,90 @@ export class SystemSecurityCameras extends LitElement {
         transform: none;
       }
     }
+    /* R5-LIVE-297 Fable pass (the Opus table still read as hairlines at one weight): the head is a 13 px / 700 band in the heading ink
+       on surface-3; a camera's rows are separated by a 6 px step in the page tone (no 1 px line between cameras); the camera's name is
+       15 px / 800, its main stream's codec and resolution 14 px / 700 in the heading ink, the second stream quiet; the WebRTC mark 28
+       px; the pencil a 36 px raised key; the phone card's stream word is a filled tag */
+    .wrap {
+      border-color: transparent;
+      box-shadow: var(--sw-shadow-2);
+    }
+    th {
+      background: var(--sw-surface-3);
+      color: var(--sw-heading);
+      font-weight: var(--sw-fw-bold);
+    }
+    th button {
+      padding-block: 12px;
+    }
+    td {
+      padding-block: 11px;
+      border-block-end: 0;
+    }
+    tbody tr.first td {
+      border-block-start: 6px solid var(--sw-bg);
+    }
+    tbody tr:first-child td {
+      border-block-start: 0;
+    }
+    tbody tr.first td[data-col='camera'] .cam {
+      font-size: var(--sw-fs-lg);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    tbody tr.first td[data-col='codec'],
+    tbody tr.first td[data-col='resolution'] {
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    tbody tr.repeat td {
+      background: var(--sw-surface-2);
+    }
+    tbody tr.repeat td[data-col='camera'] .cam {
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-medium);
+    }
+    tbody tr.down td,
+    tbody tr.down.repeat td {
+      background: color-mix(in srgb, var(--sw-offline) 26%, var(--sw-surface));
+    }
+    .v {
+      inline-size: 28px;
+      block-size: 28px;
+    }
+    .pen {
+      inline-size: 36px;
+      block-size: 36px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+    }
+    .count {
+      font-size: var(--sw-fs-lg);
+      font-weight: 800;
+    }
+    .card {
+      border-color: transparent;
+      box-shadow: var(--sw-shadow-2);
+    }
+    .card .head .cam {
+      font-size: var(--sw-fs-lg);
+      font-weight: 800;
+    }
+    .card .line:not(.facts) > :first-child {
+      display: inline-flex;
+      align-items: center;
+      min-block-size: 24px;
+      padding: 0 10px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-3);
+      font-size: var(--sw-fs-sm);
+    }
+    @media (max-width: 1100px) {
+      .pen {
+        inline-size: 44px;
+        block-size: 44px;
+      }
+    }
   `, bubbleChrome];
 
   connectedCallback() {

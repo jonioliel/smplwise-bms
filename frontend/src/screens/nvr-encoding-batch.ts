@@ -323,6 +323,60 @@ export class NvrEncodingBatch extends LitElement {
       padding: 8px 12px;
       border-radius: var(--sw-r-md);
     }
+    /* R5-LIVE-297 Fable pass (the Opus list still had hairlines between the rows and a 20 % tint that vanished in dark): the rows sit
+       in the well with NO lines (the windowed 44 / 60 px heights untouched); a chosen stream is a 26 % accent field with a 4 px accent
+       bar at its start edge and a 22 px box; the count is a 20 px / 800 display line; the plan rows are bold in the heading ink */
+    .sel,
+    .row {
+      border-block-end: 0;
+    }
+    .sel {
+      padding-inline: 14px;
+      gap: 12px;
+      color: var(--sw-heading);
+    }
+    .sel[aria-checked='true'] {
+      background: color-mix(in srgb, var(--sw-accent) 26%, var(--sw-surface));
+      /* the bar sits at the row's START edge: box-shadow offsets are physical, so RTL (the default) is the right edge */
+      box-shadow: inset -4px 0 0 var(--sw-accent);
+    }
+    :host-context([dir='ltr']) .sel[aria-checked='true'] {
+      box-shadow: inset 4px 0 0 var(--sw-accent);
+    }
+    .box {
+      inline-size: 22px;
+      block-size: 22px;
+      border-radius: var(--sw-r-xs);
+      border-color: var(--sw-border-strong);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .sel[aria-checked='true'] .box {
+      box-shadow: none;
+    }
+    .sel .meta {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-2);
+    }
+    .count {
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .row {
+      padding-inline: 14px;
+    }
+    .row .nm {
+      font-weight: var(--sw-fw-bold);
+    }
+    .adj {
+      font-weight: var(--sw-fw-bold);
+    }
+    .sum {
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+    }
   `;
 
   // ---------------------------------------------------------------------------------------------- the screen's calls

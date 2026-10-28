@@ -267,6 +267,44 @@ export class NvrCameraEditor extends LitElement {
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading);
     }
+    /* R5-LIVE-297 Fable pass: the wells breathe (12 / 14 px), the label 13 px / 700, the control a 46 px key with a 15 px / 700 value;
+       the switch wells show their word at 15 px / 700 */
+    form {
+      gap: 10px;
+    }
+    .f {
+      gap: 8px;
+      padding: 12px 14px 14px;
+      border-radius: var(--sw-r-lg);
+    }
+    .f > span.l,
+    .f.sw > span.l {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+    }
+    .f.sw > span.l {
+      font-size: var(--sw-fs-lg);
+    }
+    .f.sw {
+      padding: 6px 14px;
+      min-block-size: 60px;
+    }
+    select,
+    input {
+      min-block-size: 46px;
+      border-color: transparent;
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      border-radius: var(--sw-r-md);
+    }
+    select:focus,
+    input:focus {
+      border-color: var(--sw-accent);
+    }
+    .bad select,
+    .bad input {
+      border-color: var(--sw-danger);
+    }
   `;
 
   protected willUpdate(changed: PropertyValues) {

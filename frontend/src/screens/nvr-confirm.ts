@@ -106,6 +106,32 @@ export class NvrConfirm extends LitElement {
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading);
     }
+    /* R5-LIVE-297 Fable pass (the Opus count well sat in the dialog's own grey): the number of changes is a 20 px / 800 line in a
+       14 % accent field with a 4 px accent bar - the one thing read before the press; the lead 15 px in the reading ink */
+    p {
+      font-size: var(--sw-fs-lg);
+      color: var(--sw-text);
+    }
+    .count {
+      padding: 12px 16px;
+      border-radius: var(--sw-r-lg);
+      background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-surface));
+      box-shadow: inset -4px 0 0 var(--sw-accent); /* the start edge in RTL (offsets are physical) */
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    :host-context([dir='ltr']) .count {
+      box-shadow: inset 4px 0 0 var(--sw-accent);
+    }
+    summary {
+      font-size: var(--sw-fs-md);
+      min-block-size: 36px;
+    }
+    ul:not(.names) li {
+      font-size: var(--sw-fs-md);
+      padding: 9px 14px;
+    }
   `;
 
   private cancel = () => this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));

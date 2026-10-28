@@ -375,6 +375,37 @@ export class LiveWall extends LitElement {
         transform: none;
       }
     }
+    /* R5-LIVE-297 Fable pass: the tile-count tray is a RAISED control (surface, the first shadow, 36 px keys, 15 px / 800 numerals)
+       instead of a flat surface-3 tray; the tile grid breathes 14 px; the settings rows are wells with a 15 px name */
+    .layouts {
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      border-radius: var(--sw-r-lg);
+      padding: 4px;
+      gap: 2px;
+    }
+    .layouts button {
+      min-inline-size: 36px;
+      block-size: 36px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-md);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: var(--sw-text);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .layouts button:hover:not(.on) {
+        background: var(--sw-surface-2);
+      }
+    }
+    @media (min-width: 768px) {
+      .grid {
+        gap: 14px;
+      }
+    }
+    .settings-row {
+      padding: 10px 12px;
+    }
   `, bubbleChrome];
 
   /** Owner round 3 (2.5): columns chosen by hand for the wall (0 = best fit); kept per browser. */

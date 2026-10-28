@@ -330,6 +330,46 @@ export class SwCameraTile extends LitElement {
     :host([state='forbidden']) .off .label .dot {
       background: var(--sw-danger);
     }
+    /* R5-LIVE-297 Fable pass (the Opus offline tile was a flat grey field with a 44 px dashed ring: it still read as a picture that had
+       not loaded): the down tile is a filled offline FIELD with a 60 px solid ring that floats (surface, the second shadow), the name
+       18 px / 800 in the heading ink, the reason 14 px semibold; dark tiles tint deeper (34 %) so the field reads on the video ink */
+    :host(:not([compact])) .off {
+      gap: 10px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+    }
+    :host(:not([compact])) .off .ring {
+      inline-size: 60px;
+      block-size: 60px;
+      border: 0;
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-2);
+    }
+    :host(:not([compact])) .off .ring sw-icon {
+      inline-size: 26px;
+      block-size: 26px;
+    }
+    :host(:not([compact])) .off .label {
+      font-size: var(--sw-fs-xl);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: var(--sw-heading);
+    }
+    :host([dark]:not([compact])) .off .label {
+      color: var(--sw-on-video);
+    }
+    :host([dark][state='offline']) .off,
+    :host([dark][state='unknown']) .off {
+      background: color-mix(in srgb, var(--sw-offline) 34%, var(--sw-video-bg));
+    }
+    :host([dark]:not([compact])) .off .ring {
+      background: color-mix(in srgb, var(--sw-on-video) 14%, var(--sw-video-bg));
+      box-shadow: var(--sw-shadow-2);
+    }
+    .off .label .dot {
+      inline-size: 9px;
+      block-size: 9px;
+    }
     .stamp {
       position: absolute;
       inset-inline-end: 10px;

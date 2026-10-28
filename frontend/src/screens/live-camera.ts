@@ -947,6 +947,111 @@ export class LiveCamera extends LitElement {
         transform: none;
       }
     }
+    /* R5-LIVE-297 Fable pass (the Opus deck was a full-width strip, 80 % empty, that vanished in the flat skins): the deck hugs its
+       keys - a raised remote (radius xl, the second shadow) at the start edge under the picture, not a band; 44 px keys with the first
+       shadow, the stream choice 40 px / 15 px bold with the chosen one a filled accent key; the player's state is a filled field in the
+       deck (the same slot as the old "playing through…" note, so the order of controls is unchanged); a camera that is down shows a
+       64 px ring with its reason in 15 px semibold */
+    .controls {
+      inline-size: fit-content;
+      max-inline-size: 100%;
+      margin-inline-end: auto;
+      padding: 10px 12px;
+      gap: 10px 14px;
+      border-color: transparent;
+      border-radius: var(--sw-r-xl);
+      /* loop 1: in the flat skins (tesla, Arx Infra, Arx Soft) a surface deck with a faint shadow melted into the page - the deck is a
+         7 % tone step in the heading ink, so it reads as a tray in every skin, light and dark, and the surface keys float on it */
+      background: color-mix(in srgb, var(--sw-heading) 7%, var(--sw-surface));
+      box-shadow: var(--sw-shadow-2);
+    }
+    .round {
+      gap: 8px;
+    }
+    .round button {
+      inline-size: 44px;
+      block-size: 44px;
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .round .transport {
+      background: color-mix(in srgb, var(--sw-heading) 6%, var(--sw-surface));
+    }
+    .round .q {
+      block-size: 40px;
+      padding-inline: 16px;
+      font-size: var(--sw-fs-lg);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    .round .transport {
+      background: var(--sw-surface-2);
+      border-radius: var(--sw-r-md);
+      padding: 3px;
+    }
+    .round .transport button {
+      block-size: 34px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      padding: 0 12px;
+      border-radius: var(--sw-r-sm);
+    }
+    .controls > .note {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-block-size: 32px;
+      padding: 0 14px;
+      border-radius: var(--sw-r-pill);
+      background: color-mix(in srgb, var(--sw-live) 20%, var(--sw-surface));
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      white-space: nowrap;
+    }
+    .controls > .note::before {
+      content: '';
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-live);
+      flex: none;
+    }
+    .controls[data-player='error'] > .note {
+      background: color-mix(in srgb, var(--sw-danger) 20%, var(--sw-surface));
+    }
+    .controls[data-player='error'] > .note::before {
+      background: var(--sw-danger);
+    }
+    .controls[data-player='connecting'] > .note {
+      background: color-mix(in srgb, var(--sw-stale) 22%, var(--sw-surface));
+    }
+    .controls[data-player='connecting'] > .note::before {
+      background: var(--sw-stale);
+    }
+    .video.off .center {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .video.off .center > div {
+      gap: 12px;
+      max-inline-size: 36ch;
+    }
+    .video.off .center sw-icon {
+      inline-size: 64px;
+      block-size: 64px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-2);
+      color: var(--sw-offline-text, var(--sw-text-2));
+    }
+    .acc-root {
+      border-color: transparent;
+      box-shadow: var(--sw-shadow-2);
+    }
   `, bubbleChrome];
 
   connectedCallback() {
@@ -1182,7 +1287,7 @@ export class LiveCamera extends LitElement {
           : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'ה־NVR של המצלמה מושבת' : cam.status === 'offline' ? 'המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
       </div>
       ${canView && cam.live_kind === 'still' ? html`<div class="note" data-live-still-note>${fx().live.stillExplain.replace('{n}', String(cam.still_refresh_s ?? 10))}</div>` : nothing}
-      <div class="controls">
+      <div class="controls" data-player=${this.playerStatus === 'playing' ? 'playing' : this.playerStatus === 'error' ? 'error' : 'connecting'}>
         <div class="round" role="group" aria-label="פקדי מצלמה">
           <button title="רענון תמונה" aria-label="רענון תמונה" @click=${() => (this.posterBust = Date.now())}><sw-icon name="aperture" size=${16}></sw-icon></button>
           <button title="מסך מלא" aria-label="מסך מלא" ?disabled=${this.playerStatus !== 'playing'} @click=${() => this.player?.fullscreen()}><sw-icon name="expand" size=${16}></sw-icon></button>
@@ -1316,7 +1421,7 @@ export class LiveCamera extends LitElement {
               <span>${cam.state === 'offline' ? 'המצלמה אינה מחוברת ל־NVR' : 'אין הרשאת צפייה במצלמה זו'}</span>
             </div></div>`}
       </div>
-      <div class="controls">
+      <div class="controls" data-player=${canView ? 'playing' : 'error'}>
         <div class="round" role="group" aria-label="פקדי מצלמה">
           ${cam.audio ? html`<button title="מיקרופון" aria-label="מיקרופון" ?disabled=${!canView}><sw-icon name="mic" size=${16}></sw-icon></button><button title="שמע" aria-label="שמע" ?disabled=${!canView}><sw-icon name="volume" size=${16}></sw-icon></button>` : nothing}
           <button title="צילום מסך" aria-label="צילום מסך" ?disabled=${!canView}><sw-icon name="aperture" size=${16}></sw-icon></button>
