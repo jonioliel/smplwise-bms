@@ -1459,10 +1459,19 @@ export class WiskeyPeople extends LitElement {
       inline-size: 48px;
       padding: 0 4px;
     }
+    /* break-ui (R5): an 80-character name used to push every other column out of the table (nowrap cells, no cap); the name cell
+       is capped at 30ch and truncates, the full name lives in the person drawer */
     .who {
       display: inline-flex;
       align-items: center;
       gap: 8px;
+      max-inline-size: min(30ch, 34vw);
+    }
+    .who b {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .more {
       display: flex;
