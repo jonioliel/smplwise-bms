@@ -4,7 +4,6 @@
  * state and passes callbacks; its shadow root provides the shared classes (.row, .two, .note, .btns, .err).
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
-import '../components/sw-icon';
 import type { CalibrationHint, CopyCandidate, GeometryIssue, IfcImportReport } from '../api/geometry';
 import { OUTSIDE_MAIN_HE, isOutsideMain, outsideMainSummary, type CandidateSet, type CandKind, type CandSource, type CandState, objectsSummary } from '../map/candidates';
 import { connectorTargets, currentTarget, isTwinCopy, otherFloorOf, type LinkTargetFloor } from '../map/connector-targets';
