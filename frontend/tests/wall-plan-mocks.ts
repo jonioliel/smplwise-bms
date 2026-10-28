@@ -176,6 +176,7 @@ export async function open(page: Page, st: Mock, dev: Dev = TABLET_P, query = '?
   await install(page, st);
   await asDevice(page, dev);
   await page.goto(`/${query}#/`);
-  await expect(page.locator('sw-wall [data-wall-state="base"]')).toBeVisible();
+  // the first paint of a wall on a loaded runner took more than the 5 s default of expect (FLAKY-2250-297: the full gate saw it, a lone run did not)
+  await expect(page.locator('sw-wall [data-wall-state="base"]')).toBeVisible({ timeout: 30_000 });
 }
 

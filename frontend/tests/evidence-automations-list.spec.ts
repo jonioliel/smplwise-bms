@@ -1215,6 +1215,7 @@ test.describe('the editors over the list (S3 x S4 wiring)', () => {
 test.describe('evidence matrix: the three kinds and the settings tab at 1440 / 820 / 390, light and dark', () => {
   for (const scheme of ['light', 'dark'] as const) {
     test(`automations, scenes, scripts and הגדרות › אוטומציות (${scheme}); no product name`, async ({ page }) => {
+      test.slow(); // FLAKY-2250-297: up to twelve page loads and screenshots per run (three sizes x four screens); 60 s ran out on a loaded runner's phone project
       for (const size of ['1440', '820', '390'] as const) {
         await open(page, '/devices/automations', size, { scheme });
         await ready(page);

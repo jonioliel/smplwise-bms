@@ -41,6 +41,7 @@ test.describe('tickets deletion evidence', () => {
   });
 
   test('the drawer: the danger action, the dialog (number + reason), the drawer closes and the row leaves', async ({ page }) => {
+    test.slow(); // FLAKY-2250-297: five page loads and ten screenshots (four skin/scheme sweeps, then the real flow) in one test: 60 s is not enough on a loaded runner's phone project
     for (const skin of ['classic', 'domus'])
       for (const scheme of ['light', 'dark'] as const) {
         await go(page, `/tickets/mine?t=${A02}`, {}, scheme, skin);

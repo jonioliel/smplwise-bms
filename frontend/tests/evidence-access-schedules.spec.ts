@@ -175,20 +175,30 @@ test.describe('the schedules screen: behaviour', () => {
     expect(reads(mock).filter((p) => p.startsWith('schedules') || p.startsWith('stations'))).toEqual([]);
   });
 
-  test('states: error with retry, busy, unsupported (the blocks are absent), empty, stale', async ({ page }) => {
+  // FLAKY-2250-297: five states were five page loads in ONE test, so on a loaded runner the sum (not any one wait) passed the 60 s
+  // test timeout; one test per state, the same assertions.
+  test('states: error with retry', async ({ page }) => {
     await boot(page, { schedules: 'error' }, { ready: `${SCREEN} [data-sch-panel="door-error"]` });
     await expect(page.locator(`${SCREEN} [data-sch-panel="library-error"]`)).toBeVisible();
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+
+  test('states: busy', async ({ page }) => {
     await boot(page, { schedules: 'busy' }, { ready: `${SCREEN} [data-sch-panel="door-busy"]` });
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+
+  test('states: unsupported (the blocks are absent)', async ({ page }) => {
     await boot(page, { schedules: 'unsupported' }, { ready: `${SCREEN} [data-sch-panel="door-unsupported"]` });
     await expect(page.locator(`${SCREEN} [data-sch-library]`)).toHaveCount(0);
     await expect(page.locator(`${SCREEN} sw-badge[data-sch-code]`)).toHaveCount(0);
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+
+  test('states: empty', async ({ page }) => {
     await boot(page, { schedules: 'empty' }, { ready: `${SCREEN} [data-sch-panel="no-program"]` });
     await expect(page.locator(`${SCREEN} [data-sch-panel="library-empty"]`)).toBeVisible();
     await expect(page.locator(`${SCREEN} [data-sch-panel="plans-empty"]`)).toBeVisible();
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+
+  test('states: stale', async ({ page }) => {
     await boot(page, { schedules: 'stale' });
     await expect.poll(() => texts(page, `${SCREEN} [data-sch-stale="door"]`)).toEqual(['הנתונים אינם עדכניים · עודכן 27.09.2026 12:58']);
   });
