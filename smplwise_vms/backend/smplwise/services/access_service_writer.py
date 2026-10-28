@@ -38,8 +38,9 @@ from .access_grant_engine import EngineError
 
 log = logging.getLogger("smplwise.access_service_writer")
 
-CONTRACT = "wiskey-native-service-write.v1"  # PROPOSED name (Arx); WisKey decides the final one
-SERVICE_COMMAND = "users/service_write_v1"   # PROPOSED command name on the direct connection
+CONTRACT = "wiskey-native-service-write.v1"  # WisKey kept the name; its FINAL wire differs from this proposal (services/wiskey_service_write.py)
+SERVICE_COMMAND = "users/service_write_v1"   # Arx's PROPOSED single command - SUPERSEDED (WISKEY-MAC-ADOPT-298): WisKey adds `service_write`
+                                             # metadata to four existing commands instead; this command does not exist on WisKey's side
 SERVICE_CAPABILITY = "native_service_actor_write_v1"
 ACTIONS = frozenset({"users/create", "users/update", "users/delete", "cards/add", "cards/remove"})
 SERVICE_ACTOR_PREFIX = "arx-service:"
@@ -233,7 +234,11 @@ def writer_for(join: Any) -> ServiceWriter | None:
     w = WRITER
     if w is None and join is not None:
         try:
-            w = DirectServiceWriter.from_join(join)
+            # WISKEY-MAC-ADOPT-298 item C: WisKey's FINAL contract (services/wiskey_service_write.py) replaces Arx's proposal above. It is
+            # wired here, but it is available only once the OWNER's grant reference is configured (OWNER-CONFIG) - until then None.
+            from .wiskey_service_write import FinalServiceWriter
+
+            w = FinalServiceWriter.from_join(join)
         except Exception:  # noqa: BLE001
             w = None
     try:
