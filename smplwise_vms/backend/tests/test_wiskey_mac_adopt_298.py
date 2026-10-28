@@ -442,8 +442,10 @@ def test_d_peer_result_classes_are_closed() -> None:
 
 def test_e_the_runtime_catalog_is_the_final_one() -> None:
     c = wdc.load()
-    assert c.source_sha256 == FINAL_CATALOG_SHA256 and c.code == FINAL_CODE
-    assert c.registered_count == 276 and c.command_count == 279 and len(c.families) == 43
+    # WISKEY-ADOPT-2272 supersedes the 27.10 catalog with the owner28 one (CODE 0a099c53): a superset of every command checked here
+    assert (c.source_sha256, c.code) == ("15ad9de70fd5929053d1aeba60b0c33e723ef8197624e0f43544db4571e589bf",
+                                         "0a099c53d359a1bffdf9e63f31d2433f1c9445a4")
+    assert c.registered_count == 282 and c.command_count == 286 and len(c.families) == 43
     assert c.get("users/service_write_status_v1") is not None and wdc.envelope_for("users/service_write_status_v1") == "wiskey-bridge-command.v1"
     assert c.get("features/people_csv_preview") is not None
     for name in sw.COMMANDS:
