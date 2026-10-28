@@ -474,7 +474,7 @@ def draft_errors(ctx: Any, kind: str, draft: Mapping[str, Any], item_id: str | N
     if kind != "automation":
         return []
     out: list[dict[str, str]] = []
-    mctx = model.ModelContext(shabbat_sensor=ctx.shabbat_sensor or None, wall_buttons=ctx.wall_buttons, presence_entity=ctx.presence_entity)
+    mctx = model.ModelContext(shabbat_sensor=ctx.shabbat_sensor or None, wall_buttons=ctx.wall_buttons, presence_entity=ctx.presence_entity, presence_sensors=ctx.presence_sensors)
     crit: dict[str, Any] | None = None
     for w in model.walk_draft(draft):
         b = w.block
@@ -797,4 +797,6 @@ def catalog_extension(ctx: Any) -> dict[str, Any]:
     if f["presence"]:
         out["presence_sources"] = presence_sources(ctx.conn)
         out["presence_entity"] = ctx.presence_entity
+    if ctx.presence_sensors:  # BUILDING-PRESENCE-2271 (additive): the tagged sensors the building-empty trigger / room-occupied condition may name
+        out["building_presence"] = {"sensors": list(ctx.presence_sensors)}
     return out

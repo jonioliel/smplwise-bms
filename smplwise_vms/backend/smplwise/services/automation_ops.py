@@ -374,7 +374,7 @@ def _validate(w: W, kind: str, draft: dict[str, Any], item_id: str | None = None
     """The model's validation (caps, required values, the argument and notify rules of NEW or CHANGED blocks) plus what only the service knows: a device step
     drives devices of its own domain (`light.turn_on` on a switch is a mistake the catalogue never offers)."""
     out = model.validate_draft(kind, draft, notify_targets=list(w.ctx.notify_targets), shabbat_sensor=w.ctx.shabbat_sensor or None, allowed_actions=w.ctx.allowed_actions(),
-                               presence_entity=w.ctx.presence_entity, wall_buttons=w.ctx.wall_buttons)
+                               presence_entity=w.ctx.presence_entity, wall_buttons=w.ctx.wall_buttons, presence_sensors=w.ctx.presence_sensors)
     out.extend(ext.draft_errors(w.ctx, kind, draft, item_id))  # KAV079-295: a button outside the caller's reach, a critical sound that is not allowed
     mctx = w.ctx.model_ctx(code_view=False, scoped=False)
     for wk in model.walk_draft(draft):
