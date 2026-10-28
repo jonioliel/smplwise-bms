@@ -198,12 +198,13 @@ async function serveScenarios(page: Page) {
     sig('electricity.power', 'electricity', 'חשמל', 'number', 'הספק', 'kW', [{ id: 'main', name: 'ראשי' }]),
   ];
   const cat = { signals, limits: { depth: 3, leaves: 12, actions: 4 }, actions: ['notify', 'ticket'], tickets_on: true, option_defaults: { cooldown_s: 300, clear_after_s: 60, for_s: 0, on_unknown: 'false', unknown_grace_s: 60 }, option_ranges: { cooldown_s: [0, 86400], clear_after_s: [0, 86400], for_s: [0, 86400], unknown_grace_s: [0, 3600] } };
-  await page.route('**/api/v1/scenarios/status', (r) => json(r, { enabled: true, kill_switch: false, can: { view: true, manage: true, admin: true }, can_use: true, actions: { notify: true, create_service_request: true, set_flag: true }, tickets_on: true }));
-  await page.route('**/api/v1/scenarios/signals', (r) => json(r, cat));
-  await page.route('**/api/v1/scenarios/choices', (r) => json(r, { recipients: [{ id: 'u', name: 'יוני' }], channels: ['push'] }));
-  await page.route('**/api/v1/scenarios/settings', (r) => json(r, { settings: {} }));
-  await page.route('**/api/v1/scenarios', (r) => json(r, { scenarios: list, can_manage: true }));
-  await page.route(/\/api\/v1\/scenarios\/s\d$/, (r) => json(r, { ...list[1], definition: { all: [{ signal: 'doors.open', subject: 'garage', op: 'is', value: true }], options: {} } }));
+  // regex routes: the client may add a query string, which a glob without "?*" would not match
+  await page.route(/\/api\/v1\/scenarios\/status(\?.*)?$/, (r) => json(r, { enabled: true, kill_switch: false, can: { view: true, manage: true, admin: true }, can_use: true, actions: { notify: true, create_service_request: true, set_flag: true }, tickets_on: true }));
+  await page.route(/\/api\/v1\/scenarios\/signals(\?.*)?$/, (r) => json(r, cat));
+  await page.route(/\/api\/v1\/scenarios\/choices(\?.*)?$/, (r) => json(r, { recipients: [{ id: 'u', name: 'יוני' }], channels: ['push'] }));
+  await page.route(/\/api\/v1\/scenarios\/settings(\?.*)?$/, (r) => json(r, { settings: {} }));
+  await page.route(/\/api\/v1\/scenarios(\?.*)?$/, (r) => json(r, { scenarios: list, can_manage: true }));
+  await page.route(/\/api\/v1\/scenarios\/s\d(\?.*)?$/, (r) => json(r, { ...list[1], definition: { all: [{ signal: 'doors.open', subject: 'garage', op: 'is', value: true }], options: {} } }));
 }
 
 /** The bulk dialog's preview (the bubble mock answers 404 to everything it does not know). */
@@ -218,7 +219,14 @@ async function boot(page: Page, s: Screen, skin: string, scheme: 'light' | 'dark
   await page.emulateMedia({ colorScheme: scheme });
   if (s.boot === 'demo') {
     await page.route('**/api/v1/**', (route) => route.abort());
-    if (s.hash?.includes('/scenarios')) await serveScenarios(page);
+    if (s.hash?.includes('/scenarios')) {
+      // the scenarios panel has no demo store and loads only in the API mode (`/me` answers): a generic server behind it, the
+      // automations list empty, the scenario routes real
+      await page.route('**/api/v1/**', (r) => json(r, { items: [], automations: [], scenes: [], scripts: [] }));
+      await page.route('**/api/v1/me', (r) => json(r, { user: { id: 'u', username: 'admin', display_name: 'יוני', source: 'ingress' }, channel: 'local', remote: null, bindings: [], permissions_installation: ['system.configure', 'devices.read', 'automations.manage'], permissions_any: ['system.configure', 'devices.read', 'automations.manage'], has_access: true, permission_revision: 1, bootstrap_state: 'done' }));
+      await page.route('**/api/v1/settings', (r) => json(r, { settings: { 'ui.design': 'a', 'ui.skin': skin, 'ui.scheme': scheme, 'devices.scheme': scheme }, can_edit: true }));
+      await serveScenarios(page);
+    }
     await page.clock.install({ time: PINNED_NOW });
     const ls = { ...(s.ls ?? {}) };
     if (s.sched) ls['sw.demo.schedules'] = JSON.stringify(s.sched);
