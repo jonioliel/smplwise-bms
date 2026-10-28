@@ -126,9 +126,10 @@ def validate_policy(policy: Any, *, station_id: str = "", relay: int = 1, revisi
 
 def request_bytes(policy: dict[str, Any], *, station_id: str = "", relay: int = 1, revision: int = 0) -> int:
     """The size of the `technical_program_save` frame Arx would send (with a generous envelope allowance for id / type / api_contract)."""
+    from .intercom_client import API_CONTRACT  # one source for the client API number (test_wiskeyarx_291 n07 pins it)
     from .wiskey_program_direct import SAVE  # the transport module is the one place that names the command (tests pin it)
 
-    body = {"id": 999999999, "type": f"hikvision_intercom/{SAVE}", "api_contract": 1, "station_id": station_id or "x" * 128,
+    body = {"id": 999999999, "type": f"hikvision_intercom/{SAVE}", "api_contract": API_CONTRACT, "station_id": station_id or "x" * 128,
             "door": relay, "revision": revision, "policy": policy, "enabled": True}
     return len(json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
 

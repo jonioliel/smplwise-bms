@@ -221,7 +221,8 @@ test('settings: the emergency-buttons switch is on by default; turning it off as
   await sw.uncheck();
   await expect(s.locator('[data-dw-engine-off]')).toBeVisible();
   await s.locator('[data-dw-settings-save]').click();
-  await expect(s.locator('[data-dw-engine-off-confirm]')).toBeVisible(); // asked first: nothing sent yet
+  // asked first: nothing sent yet. The sw-dialog host has no box of its own (a fixed backdrop inside), so check its button.
+  await expect(s.locator('sw-dialog[open][data-dw-engine-off-confirm] [data-dw-engine-off-btn]')).toBeVisible();
   expect(mock.posts.find((p) => p.path === 'doors/emergency/settings')).toBeUndefined();
   await s.locator('[data-dw-engine-off-btn]').click();
   await expect.poll(() => mock.posts.find((p) => p.path === 'doors/emergency/settings')?.body)
