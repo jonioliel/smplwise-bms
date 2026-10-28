@@ -42,6 +42,15 @@ TIME_RECHECK_S = 600.0  # a time observation older than this is read again (the 
 READ_TIMEOUT_S = 6.0
 _CAP_KEYS = {"schema_version", "protocol", "families", "commands", "limits", "station_media_contract", "stations", "resources",
              "lifecycle", "physical_result"}
+# WISKEY-MAC-ADOPT-298 item E: the FINAL capabilities document (Mac 27.10, product CODE d5a3ab86, CURRENT_SIMULATOR_PROFILE.json) adds three
+# closed, additive top-level blocks while staying schema_version 1. Each is optional (an older WisKey omits them); any OTHER key is refused.
+_CAP_OPTIONAL = {"business_contracts", "native_service_write", "station_talk_audio"}
+SERVICE_WRITE_CAP = {"contract": "wiskey-native-service-write.v1", "schema_version": 1,
+                     "commands": ["users/create", "users/pin_generate", "users/temporary_cancel", "users/update"],
+                     "metadata_parameter": "service_write", "grant_source": "owner pairing options.native_service_grants_v1",
+                     "default_authority": "denied_without_current_native_owner_grant"}
+TALK_AUDIO_CAP = {"schema": "arx.station_talk_audio.v1", "transport": "signed_ws_pcmu_v1", "opt_in": "media/talk_open.parameters.listen",
+                  "default": False}
 _CMD_KEYS = {"name", "envelope", "api_contract", "explicit_parameter_version"}
 _TIME_KEYS = {"schema_version", "server_utc", "max_ts_skew_seconds", "max_issued_future_seconds", "max_command_ttl_seconds"}
 _LIFECYCLE_V1 = {"kid_in_v1": False, "event_cursor_resume": False, "reconnect_adopts_old_resources": False}
@@ -67,6 +76,10 @@ class Capabilities:
     limits: Mapping[str, Any] = field(repr=False)
     resources: Mapping[str, Any] = field(repr=False)
     stations: int = 0
+    # WISKEY-MAC-ADOPT-298 item E: observations of the final document (never authority: a contract is used only by its own caller)
+    business_contracts: Mapping[str, Any] = field(default_factory=dict, repr=False)
+    service_write: bool = False  # `native_service_write` offered exactly as wiskey-native-service-write.v1
+    talk_audio: bool = False  # `station_talk_audio` offered exactly as arx.station_talk_audio.v1 (opt-in, default off)
 
     def lists(self, command: str) -> bool:
         return command in self.commands
@@ -96,7 +109,7 @@ class TimeObservation:
 
 def read_capabilities(raw: Any, connection_ref: str) -> Capabilities:
     """The closed schema_version-1 document, or DiscoveryError. Every command entry's `envelope` must be the transport protocol."""
-    if not isinstance(raw, Mapping) or set(raw) != _CAP_KEYS:
+    if not isinstance(raw, Mapping) or not _CAP_KEYS <= set(raw) <= _CAP_KEYS | _CAP_OPTIONAL:
         raise DiscoveryError("capabilities_invalid")
     if not _int(raw["schema_version"]) or raw["schema_version"] != SCHEMA_VERSION or raw["protocol"] != bridge.DIRECT_PROTOCOL:
         raise DiscoveryError("capabilities_unsupported")
@@ -128,7 +141,18 @@ def read_capabilities(raw: Any, connection_ref: str) -> Capabilities:
         raise DiscoveryError("capabilities_invalid")
     if raw["physical_result"] != "unproven":  # discovery never claims a physical fact
         raise DiscoveryError("capabilities_invalid")
-    return Capabilities(connection_ref, frozenset(names), tuple(families), versions, dict(limits), dict(resources), len(stations))
+    contracts = raw.get("business_contracts", {})
+    if not isinstance(contracts, Mapping) or not all(isinstance(k, str) and isinstance(v, Mapping) for k, v in contracts.items()):
+        raise DiscoveryError("capabilities_invalid")
+    service = raw.get("native_service_write")
+    if service is not None and (not isinstance(service, Mapping) or dict(service) != SERVICE_WRITE_CAP):
+        raise DiscoveryError("capabilities_unsupported")  # another service-write contract is a new contract: never guessed
+    talk_audio = raw.get("station_talk_audio")
+    if talk_audio is not None and (not isinstance(talk_audio, Mapping) or dict(talk_audio) != TALK_AUDIO_CAP):
+        raise DiscoveryError("capabilities_unsupported")
+    return Capabilities(connection_ref, frozenset(names), tuple(families), versions, dict(limits), dict(resources), len(stations),
+                        business_contracts={k: dict(v) for k, v in contracts.items()}, service_write=service is not None,
+                        talk_audio=talk_audio is not None)
 
 
 def _utc(value: Any) -> datetime:

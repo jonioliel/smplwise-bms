@@ -6,10 +6,12 @@ fa05c60b001ad1af092a9e43e8f9170388e708c3), trimmed to its routing facts by scrip
 
 The file has THREE row kinds and this reader handles each one explicitly (W5-CATALOG-01):
 - `CATALOG_PROVENANCE` - exactly one, first; metadata, never counted as a command;
-- `COMMAND`            - a command registered in WisKey's Home Assistant WebSocket table (274);
+- `COMMAND`            - a command registered in WisKey's Home Assistant WebSocket table (276 since WISKEY-MAC-ADOPT-298: the FINAL Mac
+                          catalog of 27.10, source SHA-256 dd55f9df..., CODE d5a3ab86 - adds `users/service_write_status_v1` and
+                          `features/people_csv_preview`);
 - `DIRECT_ONLY_COMMAND` - a command only the direct socket serves (`peer_identity/get`, `direct/capabilities`, `direct/time`); it has
                           none of the HA registration fields and is not required to.
-277 command names in 43 families. Anything else (an unknown row kind, a duplicate name, a count that does not match the provenance)
+279 command names in 43 families. Anything else (an unknown row kind, a duplicate name, a count that does not match the provenance)
 refuses the whole catalog.
 
 The SIGNED ENVELOPE KIND of a command is decided here, per command, from the catalog row (W5-API-01) - never from
