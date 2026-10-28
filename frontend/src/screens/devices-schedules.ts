@@ -810,7 +810,8 @@ export class DevicesSchedules extends LitElement {
       /* loop 2 (break-ui at 390 px): the next-run column was 38vw and the name was cut to one word ("מאוור..."): the time keeps
          its weight at the base size and the name gets the room */
       .lnext {
-        max-inline-size: 30vw;
+        /* R5 fix: 30vw cut the next-run line ("היום 17:00 · ב..."); the earlier 38vw shows it whole again */
+        max-inline-size: 38vw;
         font-size: var(--sw-fs-sm);
       }
       .lnext b {
