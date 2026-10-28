@@ -516,9 +516,9 @@ def test_init_wires_the_fences_for_screened_messages_only():
 
 def test_version_092_both_copies_identical_and_strings():
     for root in (SRC, MIRROR):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.0"
-        assert 'VERSION = "0.10.0"' in (root / "const.py").read_text(encoding="utf-8")
-        assert "const VERSION = '0.10.0'" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.1"
+        assert 'VERSION = "0.10.1"' in (root / "const.py").read_text(encoding="utf-8")
+        assert "const VERSION = '0.10.1'" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
     for path in sorted(p for p in SRC.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
         rel = path.relative_to(SRC)
         assert (MIRROR / rel).read_bytes() == path.read_bytes(), rel

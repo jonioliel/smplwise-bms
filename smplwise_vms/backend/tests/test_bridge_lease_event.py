@@ -854,8 +854,8 @@ def test_the_provisional_names_live_in_one_constant_each_and_nothing_else_spells
 def test_version_0_9_6_everywhere_and_both_copies_are_byte_identical():
     mirror = REPO / "smplwise_vms" / "integration" / "smplwise_bridge"
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == const.VERSION == "0.10.0"
-    assert "const VERSION = '0.10.0'" in (SRC / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+    assert manifest["version"] == const.VERSION == "0.10.1"
+    assert "const VERSION = '0.10.1'" in (SRC / "www" / "smplwise-card.js").read_text(encoding="utf-8")
     names = sorted(p.relative_to(SRC).as_posix() for p in SRC.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
     assert {"lease_contract.py", "lease_answers.py", "lease_service.py"} <= set(names)
     for name in names:

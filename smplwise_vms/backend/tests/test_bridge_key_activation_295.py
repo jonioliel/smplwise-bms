@@ -321,7 +321,7 @@ def test_hkdf_matches_the_add_on_and_the_bridge_files_are_mirrored():
     assert keyset_mod.derive_next("k-cur", salt, "g1-0000abcd", 1) == bk.derive_next("k-cur", salt, "g1-0000abcd", 1)
     mirror = ROOT / "smplwise_vms" / "integration" / "smplwise_bridge"
     assert (mirror / "keyset.py").read_bytes() == (BRIDGE / "keyset.py").read_bytes()
-    assert json.loads((BRIDGE / "manifest.json").read_text())["version"] == "0.10.0"
+    assert json.loads((BRIDGE / "manifest.json").read_text())["version"] == "0.10.1"
 
 
 def test_bridge_cap_hard_cut_and_restart_cap():

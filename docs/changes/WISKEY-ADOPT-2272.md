@@ -161,8 +161,10 @@ The delivery's `activate_software` also switched these on; Arx leaves each one t
 video + talk (`access.station_media = video_talk`), listen (`access.station_listen = on`), the template switch
 (`messaging.template_send`), people messaging (`access.messaging.enabled`), and - only if the owner wants other values than the
 conservative default that already applies - the pacing configuration. The code-level template permit stays False in every case.
-- Not done: a screen for the switch; a bridge version bump (the release round bumps the bridge version - it must, or an existing
-  bridge copy is not refreshed); creating a real HA user (never - none is needed).
+- Bridge version: 0.10.0 -> 0.10.1 (review M6; manifest, `const.VERSION`, the card, the mirror and the version pins of the bridge
+  tests). `bridge_install.install` copies whenever the installed version differs from the source, so an existing 0.10.0 copy is
+  refreshed (one platform restart by the owner loads it, as for every bridge release).
+- Not done: a screen for the switch; creating a real HA user (never - none is needed).
 
 ## SOURCE-CLOUD-EXPORT (mapped, BLOCKED)
 
@@ -220,4 +222,4 @@ Full frontend Playwright suite, add-on image build (`npm run build:addon`), any 
 3. Use `TemplateJobs` / `EventCursor` from a background worker once the owner turns the switch on (an `InstalledWiskeyClient` per
    process, reconnect on `installation_changed_reconnect_required`); persist nothing but ids / cursors.
 4. SOURCE-CLOUD-EXPORT: when the WhatsApp source exists, map it to the resources ABI above and call `write_resources`.
-5. Release round only with owner approval: bump the bridge version, build the add-on image, record the full merged SHA + artifact hash.
+5. Release round only with owner approval: build the add-on image (bridge already 0.10.1), record the full merged SHA + artifact hash.

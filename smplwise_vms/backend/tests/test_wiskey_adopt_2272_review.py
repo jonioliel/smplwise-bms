@@ -464,3 +464,23 @@ def test_m5_reconcile_re_announces_in_the_waiting_state(settings: Any, tmp_path:
         set_setting(conn, wai.SWITCH_KEY, "on")
     assert wai.read_checked_installation(cfg)["readiness"] == "waiting_for_arx_bridge"  # a valid document, not ready
     assert wai.reconcile_installation(app.state.db, settings) == "manifest_not_ready" and announced == [1]
+
+# ================================================================ M6: the bridge version moved, so an existing copy is refreshed
+
+def test_m6_an_installed_0_10_0_bridge_is_refreshed(settings: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from smplwise.services import bridge_install, ha_client
+
+    cfg = tmp_path / "ha"
+    old = cfg / "custom_components" / "smplwise_bridge"
+    old.mkdir(parents=True)
+    (cfg / "configuration.yaml").write_text("", encoding="utf-8")
+    (old / "manifest.json").write_text(json.dumps({"domain": "smplwise_bridge", "version": "0.10.0"}), encoding="utf-8")
+    monkeypatch.setenv("SW_HA_CONFIG_DIR", str(cfg))
+    monkeypatch.setattr(ha_client, "supervisor_token", lambda: None)
+    st = bridge_install.install(_app(settings).state.db, settings, announce=False)
+    src = bridge_install.read_version(bridge_install.source_dir())
+    assert wai.semver_key(src) > wai.semver_key("0.10.0") and src == "0.10.1"
+    assert st["installed_now"] is True and bridge_install.read_version(old) == src
+    for root in (REPO / "custom_components" / "smplwise_bridge", REPO / "smplwise_vms" / "integration" / "smplwise_bridge"):
+        assert f'VERSION = "{src}"' in (root / "const.py").read_text(encoding="utf-8")
+        assert f"const VERSION = '{src}';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")

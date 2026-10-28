@@ -237,8 +237,8 @@ def test_version_092_and_both_copies_identical():
     import json
 
     for root in (SRC, MIRROR):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.0"
-        assert 'VERSION = "0.10.0"' in (root / "const.py").read_text(encoding="utf-8")
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.1"
+        assert 'VERSION = "0.10.1"' in (root / "const.py").read_text(encoding="utf-8")
         assert (root / "service_identity.py").read_bytes() == (SRC / "service_identity.py").read_bytes()
     for name in ("strings.json", "translations/en.json", "translations/he.json"):
         data = json.loads((SRC / name).read_text(encoding="utf-8"))
