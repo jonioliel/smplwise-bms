@@ -401,6 +401,9 @@ class NoWindowProbe:
         return "unknown"
 
 
+WINDOW_STATES = ("open", "closed", "unknown")
+
+
 def needs_template(window: str) -> bool:
     """Only an explicit `open` window may carry free text; closed and unknown take a template."""
     return window != "open"
@@ -504,7 +507,8 @@ class TemplateSender:
         - the person revision is `person_revision` (W-013) or `expected_person_revision` (unit D); both given must agree.
         - the WisKey template pair is the explicit `template_ref` + `expected_template_revision` (unit D) or else the pair stored on
           the reference (`TemplateRef.wiskey_ref` / `.wiskey_revision`, W-013); without either: `template_v2_unbound`.
-        - same admission as `send` (switch + permit, the reference, the shared budget, the window).
+        - same admission as `send` (switch + permit, the reference, the shared budget) EXCEPT the window: an open window does not refuse
+          an explicitly requested approved template (WISKEY-MAC-ADOPT-298 item B, WisKey answer 5); `window` must be open|closed|unknown.
         - the transport: the explicit one (W-013), else the v2 provider of the direct join while `template_send_v2` is selected
           (`TRANSPORT_V2_PROVIDER`, unit D; set but answering None refuses, with no fallback), else the installed transport. It must
           offer `send_v2`, else refused before any hand-over.
@@ -537,8 +541,12 @@ class TemplateSender:
             reason = "pacing_expired" if d.expired else "paced"
             return TemplateResult("not_sent", code=reason, reason=reason, retry_after_s=max(1, int((d.not_before - now).total_seconds())),
                                   wait_until=d.not_before)
-        if not needs_template(window) and tpl.purpose != "consent_request":
-            return _refuse("window_open")
+        # WISKEY-MAC-ADOPT-298 item B (Mac 03_template_peer/TEMPLATE_SEVEN_ANSWERS.json answer 5, option b): an EXPLICITLY requested
+        # approved template is sent as a template even inside an open conversation window - this route never chooses free text and never
+        # infers the window. So `window` no longer refuses here (`send`, v1, keeps its F3C TP-04 rule). Nothing else is relaxed: the switch
+        # + permit, the registered reference and its WisKey pair, the shared budget and the transport selection above/below all still hold.
+        if window not in WINDOW_STATES:
+            return _refuse("invalid_fields")
         transport = self._v2_transport()
         send_v2 = getattr(transport, "send_v2", None)
         if transport is None or isinstance(transport, UnwiredTransport) or not callable(send_v2):
