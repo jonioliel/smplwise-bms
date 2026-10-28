@@ -109,4 +109,39 @@ const TITLES: Record<string, string> = { clock: 'שעון', weather: 'מזג א�
   await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
   await new Promise((r) => setTimeout(r, 150));
 };
+/** WIDGETFIX-298: the home screen's real top row - several widgets side by side in ONE <home-widgets> (layout `row` on a desktop, the
+ * product's own band), in a cell `width` px wide (null = the full page width). Normal data; two elevators (one out of service, one in
+ * operation) and a generator on the grid. */
+(window as unknown as Record<string, unknown>).wbMountRow = async (ids: WidgetId[], width: number | null, opts: { layout?: string; fit?: string; size?: Size; editing?: boolean } = {}) => {
+  const b = build('normal');
+  b.cfg.order = [...ids, ...b.cfg.order.filter((x) => !ids.includes(x))];
+  b.gens[0].summary.engine_state.value = 'stopped';
+  b.gens[0].summary.mains_available.value = true;
+  b.gens[0].summary.ats_position.value = 'mains';
+  const cell = document.createElement('div');
+  cell.id = 'cell';
+  cell.style.cssText = width ? `width:${width}px;max-width:${width}px;box-sizing:border-box` : 'width:100%;box-sizing:border-box';
+  const el = document.createElement('home-widgets') as unknown as HTMLElement & Record<string, unknown>;
+  el.config = b.cfg;
+  el.data = b.data;
+  const found = resolveWidgets(b.cfg, 'a', b.data, { quickAllowed: { lights_off: true, all_off: true }, elevatorsAvailable: true, temperatureAvailable: true, generatorsAvailable: true, doorsAvailable: true, noticesAvailable: true, mediaAvailable: false });
+  el.items = ids.map((id) => found.find((x) => x.id === id)).filter((x) => !!x).map((x) => (opts.size ? { ...x!, size: opts.size } : x!));
+  el.editing = !!opts.editing;
+  el.layout = opts.layout ?? 'row';
+  if (opts.fit) el.setAttribute('data-fit', opts.fit);
+  el.quick = { allowed: { lights_off: true, all_off: true }, lightsOn: 3, switchesOn: 1 };
+  el.temperatureUnits = b.temp;
+  el.generators = b.gens;
+  el.doors = b.doors;
+  el.notices = { notices: b.notices, emptyMode: 'line' };
+  el.elevators = [
+    { id: 'e1', name: 'מעלית צפונית', area_id: null, area_name: null, state: 'out_of_service', reason: 'out_of_service', partial: false, stale: false, since: new Date(Date.now() - 72 * 60_000).toISOString(), roles: ['out_of_service'], flags: { out_of_service: true }, extras: [] },
+    { id: 'e2', name: 'מעלית דרומית', area_id: null, area_name: null, state: 'active', reason: 'active', partial: false, stale: false, since: new Date(Date.now() - 3 * 3600_000).toISOString(), roles: ['out_of_service'], flags: { out_of_service: false }, extras: [] },
+  ];
+  el.alarmLink = true;
+  cell.append(el);
+  root.replaceChildren(cell);
+  await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+  await new Promise((r) => setTimeout(r, 200));
+};
 (window as unknown as Record<string, unknown>).wbReady = true;

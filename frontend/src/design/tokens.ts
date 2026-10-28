@@ -389,6 +389,36 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     },
   },
   {
+    // SKINCOMP-297: the navigation rail of the Arx design system (docs TOKENS.md §1.2, NEW there): the rail and the phone bar's fill, their
+    // label / icon colour, the current item's colour and pill, the rail's hairline. The base values are what the shell paints today
+    // (shell/sw-app.ts reads its own names, not these), so nothing changes for a skin that does not set them; only the `infra` and `soft`
+    // component rules read them, and the optional dark rail of Arx Infra (direction D, `ui.rail_tone`, design/apply.ts) rewrites them.
+    id: 'rail',
+    title: 'Navigation rail (Arx skins)',
+    tokens: {
+      '--sw-rail-bg': same('var(--sw-surface)'),
+      '--sw-rail-text': same('var(--sw-text-2)'),
+      '--sw-rail-active': same('var(--sw-accent-text)'),
+      '--sw-rail-active-bg': same('var(--sw-accent-soft)'),
+      '--sw-rail-border': same('var(--sw-border)'),
+    },
+  },
+  {
+    // SKINCOMP-297: the elevator state colours (TOKENS.md §1.2, NEW there), promoted from literals on the host of elevators/styles.ts so a
+    // skin can tune them. The values are those literals, one value for both schemes (solid fills under white text, >= 4.5:1).
+    id: 'elevator',
+    title: 'Elevator states (solid badge fills under white text)',
+    tokens: {
+      '--sw-el-wait': same('#15803d'),
+      '--sw-el-act': same('#1d4ed8'),
+      '--sw-el-trav': same('#0e7490'), // travelling: teal, apart from the in-operation blue and the waiting green
+      '--sw-el-fault': same('#c81e1e'),
+      '--sw-el-off': same('#c2410c'), // out of service: a strong orange of its own (owner decision 9a)
+      '--sw-el-fire': same('#881337'),
+      '--sw-el-unk': same('#667085'),
+    },
+  },
+  {
     // Bubble foundation (2026-10-02). Every name here is NEW. The base values are neutral: the classic skin draws nothing with
     // them that it did not draw before (a sheet is opaque, a pill is a plain surface, the hues are the accent). The bubble skin
     // gives them their values; a PALETTE (later phase) is a set of values for the colour names of this group and of

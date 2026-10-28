@@ -6,11 +6,15 @@ feature is OFF by default (`announce.screens.enabled`, and it needs `announce.en
 media screen device, so the SAME scopes as the speakers address it: `device` (the media screen it is linked to), `area` (its area) and `all`.
 An unknown or not-allowed target is simply "no targets" - the caller never learns which.
 
-The text shown is the text of the announcement (every language, one block per language, no translation). It follows the speakers' rules because it
+The text shown is the text of the announcement (every language, one block per language; ANNOUNCE-297: a block the sender took from the automatic
+translation carries `machine: true` and the screen marks it as machine-translated). It follows the speakers' rules because it
 is part of the same `announce()` call: the feature switch, the quiet hours (suppress refuses both, queue holds both, lower / allow show it), the
 rate limits, the critical / emergency flag and the audit. What is editable in Settings (system.configure): the switch, whether a new announcement
 is shown on screens by default, how long a normal and an emergency announcement stays, how often a screen asks, and the allowed screens.
 The display side only READS: `active_for` (a board's feed block, a wall display's route). Nothing here ever reaches a physical device.
+ANNOUNCE-297 dismiss rule: a person may close a normal announcement on a wall display at once; an emergency one only after
+`announce.screens.critical_close_s` seconds (default 15, 0 = at once). A notice TV board has no close at all; the sender can always take an
+announcement off every screen (`stop`), and it leaves by itself when its time ends.
 """
 from __future__ import annotations
 
@@ -25,11 +29,12 @@ from .timeutil import iso_utc
 
 K_ENABLED, K_TARGETS, K_DEFAULT_ON = "announce.screens.enabled", "announce.screens.targets", "announce.screens.default_on"
 K_SECONDS, K_CRIT_SECONDS, K_POLL = "announce.screens.seconds", "announce.screens.critical_seconds", "announce.screens.poll_s"
-DEFAULTS = {K_ENABLED: "false", K_TARGETS: "[]", K_DEFAULT_ON: "true", K_SECONDS: "30", K_CRIT_SECONDS: "180", K_POLL: "5"}
-SECONDS_RANGE, CRIT_RANGE, POLL_RANGE = (5, 600), (10, 3600), (2, 30)
+K_CRIT_CLOSE = "announce.screens.critical_close_s"  # ANNOUNCE-297: an emergency announcement cannot be closed on a wall display for this long
+DEFAULTS = {K_ENABLED: "false", K_TARGETS: "[]", K_DEFAULT_ON: "true", K_SECONDS: "30", K_CRIT_SECONDS: "180", K_POLL: "5", K_CRIT_CLOSE: "15"}
+SECONDS_RANGE, CRIT_RANGE, POLL_RANGE, CRIT_CLOSE_RANGE = (5, 600), (10, 3600), (2, 30), (0, 600)
 MAX_TARGETS = 100
 KEY_RE = re.compile(r"^(board|wall):[A-Za-z0-9_-]{1,64}$")
-SETTING_KEYS = ("enabled", "default_on", "seconds", "critical_seconds", "poll_s", "targets")
+SETTING_KEYS = ("enabled", "default_on", "seconds", "critical_seconds", "poll_s", "critical_close_s", "targets")
 
 
 def _int(raw: Any, default: str, lo_hi: tuple[int, int]) -> int:
@@ -62,6 +67,7 @@ def config(conn: sqlite3.Connection) -> dict[str, Any]:
 
     return {"enabled": g(K_ENABLED) == "true", "default_on": g(K_DEFAULT_ON) == "true", "seconds": _int(g(K_SECONDS), DEFAULTS[K_SECONDS], SECONDS_RANGE),
             "critical_seconds": _int(g(K_CRIT_SECONDS), DEFAULTS[K_CRIT_SECONDS], CRIT_RANGE), "poll_s": _int(g(K_POLL), DEFAULTS[K_POLL], POLL_RANGE),
+            "critical_close_s": _int(g(K_CRIT_CLOSE), DEFAULTS[K_CRIT_CLOSE], CRIT_CLOSE_RANGE),
             "targets": _targets(g(K_TARGETS))}
 
 
@@ -80,11 +86,11 @@ def merge(conn: sqlite3.Connection, body: Any) -> dict[str, str]:
             if not isinstance(value, bool):
                 raise ValueError(f"screens.{name}")
             out[K_ENABLED if name == "enabled" else K_DEFAULT_ON] = "true" if value else "false"
-        elif name in ("seconds", "critical_seconds", "poll_s"):
-            lo, hi = {"seconds": SECONDS_RANGE, "critical_seconds": CRIT_RANGE, "poll_s": POLL_RANGE}[name]
+        elif name in ("seconds", "critical_seconds", "poll_s", "critical_close_s"):
+            lo, hi = {"seconds": SECONDS_RANGE, "critical_seconds": CRIT_RANGE, "poll_s": POLL_RANGE, "critical_close_s": CRIT_CLOSE_RANGE}[name]
             if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
                 raise ValueError(f"screens.{name}")
-            out[{"seconds": K_SECONDS, "critical_seconds": K_CRIT_SECONDS, "poll_s": K_POLL}[name]] = str(value)
+            out[{"seconds": K_SECONDS, "critical_seconds": K_CRIT_SECONDS, "poll_s": K_POLL, "critical_close_s": K_CRIT_CLOSE}[name]] = str(value)
         else:  # targets
             if not isinstance(value, list) or len(value) > MAX_TARGETS:
                 raise ValueError("screens.targets")
@@ -194,8 +200,9 @@ def active_for(conn: sqlite3.Connection, key: str, now: dt.datetime) -> dict[str
         "AND EXISTS (SELECT 1 FROM json_each(screens_json) WHERE value = ?) ORDER BY critical DESC, at DESC, rowid DESC LIMIT 1", (iso_utc(now), key)).fetchone()
     if row is None:
         return None
-    try:
-        parts = [{"language": p[0], "text": p[1]} for p in json.loads(row["texts_json"] or "[]") if isinstance(p, list) and len(p) == 2 and p[1]]
+    try:  # ANNOUNCE-297: a part `[language, text, "mt"]` was machine-translated; the screen marks it
+        parts = [{"language": p[0], "text": p[1], **({"machine": True} if len(p) > 2 and p[2] == "mt" else {})}
+                 for p in json.loads(row["texts_json"] or "[]") if isinstance(p, list) and 2 <= len(p) <= 3 and p[1]]
     except ValueError:
         parts = []
     if not parts:

@@ -1377,6 +1377,7 @@ def use_link(db: Any, settings: Settings, conn_like: Any, token: str, password: 
         invalidate_links(conn, uid)
         ended = revoke_user_sessions(conn, uid, "password_changed")
         drop_pending_of(uid)
+        _end_phone_credentials(conn, uid, "password_changed", request_id=request_id)
         must_enrol = not has_factor(conn, uid) and (holds_admin(conn, uid) or factor_policy_required(conn, uid))
         _audit(conn, actor=None, action="auth.local.link.used", decision="allowed", resource_id=uid,
                details={"purpose": link["purpose"], "via": link["issued_via"], "channel": link["issued_channel"], "temporary": bool(link["temporary"]),
@@ -1436,6 +1437,9 @@ def change_password(conn, settings: Settings, conn_like: Any, s: LocalSession, c
                  (phc, version, iso(now), iso(now), uid))
     invalidate_links(conn, uid)
     ended = revoke_user_sessions(conn, uid, "password_changed", keep_chain=s.chain_id)
+    # XSECFOLLOW-297: every phone of the user loses its device token and push registration - also the phone the change was made from:
+    # its kept session re-registers the same install on the next presence call (contract section 1)
+    _end_phone_credentials(conn, uid, "password_changed", actor=s.principal, request_id=request_id)
     rotate_current(conn, settings, conn_like, s)
     _audit(conn, actor=s.principal, action="auth.local.password.changed", decision="allowed", details={"other_sessions_ended": ended}, request_id=request_id)
     return {"other_sessions_ended": ended}
@@ -1461,9 +1465,22 @@ def logout(db: Any, settings: Settings, conn_like: Any, cookie_value: str) -> bo
 
             _audit(conn, actor=principal, action="auth.local.session.revoked", decision="allowed", reason="logout",
                    details={"id": public_id(row["chain_id"]), "ip": mask_address(meta.get("client_ip", ""))})
+            # XSECFIX-297 (review M2 / L1): a sign-out inside the phone app ends the app's device token and push registration too
+            from . import presence
+
+            presence.end_on_sign_out(conn, row["user_id"], "logout", user_agents=(meta.get("user_agent", ""), row["user_agent"] or ""), actor=principal)
     except Exception:  # noqa: BLE001 - an older schema: nothing to end
         return False
     return True
+
+
+def _end_phone_credentials(conn, user_id: str, reason: str, *, actor: Principal | None = None, request_id: str | None = None) -> int:
+    """XSECFOLLOW-297 (review follow-up b): a password change or reset is a "sign out everywhere" for the phone app too - every device
+    token (`arxd_`) and push registration of the user ends (services/presence.end_on_sign_out, everywhere; device rows kept, audited
+    `presence.device.credentials_ended`). Never raises: the password change stands."""
+    from . import presence
+
+    return presence.end_on_sign_out(conn, user_id, reason, everywhere=True, actor=actor, request_id=request_id)
 
 
 # ---------------------------------------------------------------- hooks from other modules

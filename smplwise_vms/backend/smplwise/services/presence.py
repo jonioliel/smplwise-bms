@@ -27,6 +27,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import logging
 import math
 import re
 import secrets
@@ -38,6 +39,8 @@ from typing import Any
 from ..db import Database, get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import Principal, is_system_admin
+
+log = logging.getLogger("smplwise.presence")
 
 TOKEN_PREFIX = "arxd_"  # a device token; never an HA token, never a session cookie
 NAME_MIN, NAME_MAX = 2, 40
@@ -56,8 +59,8 @@ APP_UA_MARK = "SmplWiseArx/"  # the shells' user-agent suffix: `SmplWiseArx/<ver
 RATE_REGISTER = (10, 10 / 60.0)  # registrations per user: burst 10, 10 per hour
 RATE_EVENTS = (60, 60.0)  # event batches per device: burst 60, 60 per minute
 RATE_SETTINGS = (20, 20.0)  # presence.settings writes per installation (one administrator at a time)
-TOKEN_FAILURES_PER_MIN = 20  # unknown-token lookups per client key before 429
-TOKEN_FAILURES_GLOBAL = 300
+TOKEN_FAILURES_PER_MIN = 20  # failed device-token lookups per source address bucket before 429 (a valid token is never refused by it)
+TOKEN_FAILURES_GLOBAL = 300  # failed lookups per minute across all sources: logged once a minute, never a refusal (XSECFIX-297 M3)
 GATE_AUDIT_EVERY_S = 600  # one `presence.gate.refused` audit row per user per 10 minutes, not per request
 
 # The sensor catalogue (iOS addendum A.2; Android implements the same keys). Derived values only; the server validates
@@ -210,7 +213,10 @@ def take(lane: str, key: str, rate: tuple[int, float]) -> bool:
 
 
 class _Failures:
-    """Unknown-token lookups per client key (a minute's window): 128 random bits cannot be guessed, this keeps noise down."""
+    """Failed device-token lookups per source address bucket (a minute's window): 256 random bits cannot be guessed, this keeps
+    noise down. XSECFIX-297 (review M3): consulted only AFTER a lookup failed, so an anonymous flood never refuses a valid token,
+    and keyed by the caller's address (ha_user_auth.limit_ip), never by the presented token (a fresh random token per request
+    would otherwise get a fresh bucket each time)."""
 
     def __init__(self, burst: int) -> None:
         self.burst = burst
@@ -230,8 +236,25 @@ class _Failures:
 
 
 TOKEN_FAILURES = _Failures(TOKEN_FAILURES_PER_MIN)
-TOKEN_FAILURES_ALL = _Failures(TOKEN_FAILURES_GLOBAL)
+TOKEN_FAILURES_ALL = _Failures(TOKEN_FAILURES_GLOBAL)  # observation only (token_failure_seen): it never refuses anyone
 _GATE_AUDITED: dict[str, float] = {}
+_FLOOD_LOGGED = [0.0]
+
+
+def token_failure_seen(who: str) -> None:
+    """Record one failed device-token lookup from the source bucket `who`. The installation-wide count only produces one log line
+    a minute while it is over TOKEN_FAILURES_GLOBAL - it is never a reason to refuse (XSECFIX-297 M3: an anonymous flood would
+    otherwise lock every phone out)."""
+    TOKEN_FAILURES.fail(who)
+    TOKEN_FAILURES_ALL.fail("all")
+    if TOKEN_FAILURES_ALL.blocked("all"):
+        now = _now()
+        with _LOCK:
+            due = now - _FLOOD_LOGGED[0] >= 60.0
+            if due:
+                _FLOOD_LOGGED[0] = now
+        if due:
+            log.warning("presence: more than %d failed device-token lookups in the last minute", TOKEN_FAILURES_GLOBAL)
 
 
 def reset_limits() -> None:
@@ -240,6 +263,7 @@ def reset_limits() -> None:
         TOKEN_FAILURES.hits.clear()
         TOKEN_FAILURES_ALL.hits.clear()
         _GATE_AUDITED.clear()
+        _FLOOD_LOGGED[0] = 0.0
 
 
 # ---------------------------------------------------------------- settings
@@ -780,6 +804,62 @@ def revoke_tokens(conn: sqlite3.Connection, user_id: str) -> int:
     return n
 
 
+def end_device_credentials(conn: sqlite3.Connection, user_id: str, reason: str, *, device_ids: list[str] | None = None,
+                           actor: Principal | None = None, request_id: str | None = None) -> int:
+    """XSECFIX-297 (review M2): a sign-out ends the phone app's DEVICE credential with it - the device token (`arxd_...`) AND the push
+    registration (the relay token), so a lost phone stops receiving pushes and cannot pull their content, post presence events or read
+    the presence config once the user (or an administrator) signs it out. Called by: the sign-out of an app web session (that device
+    only), the sign-out inside the app (its user agent), "sign out everywhere" (own or by an administrator), the end of one app session
+    by an administrator, and the removal of the user's remote access.
+    The device rows stay (name, notice acknowledgement): the app's next call answers 401 `device_token_invalid` and re-registers through a
+    session of the same install (`install_id`, contract section 1), which issues a new token; it then registers push again. Undelivered
+    push messages of those devices are dropped. `device_ids` limits it to those devices of the user. One audit row when anything ended.
+    Never raises (the sign-out itself stands); returns the number of devices whose credential ended."""
+    try:
+        sql = "SELECT id FROM mobile_devices WHERE user_id = ? AND revoked_at IS NULL AND (token_hash NOT LIKE 'revoked:%' OR push_relay_token IS NOT NULL)"
+        args: list[Any] = [user_id]
+        if device_ids is not None:
+            ids = [d for d in device_ids if d]
+            if not ids:
+                return 0
+            sql += " AND id IN (" + ",".join("?" * len(ids)) + ")"
+            args.extend(ids)
+        rows = conn.execute(sql, args).fetchall()
+        now = now_iso()
+        for r in rows:
+            conn.execute("UPDATE mobile_devices SET token_hash = ?, token_rotated_at = ?, push_relay_token = NULL, push_platform = NULL, push_failures = 0,"
+                         " push_last_error = NULL WHERE id = ?", ("revoked:" + new_id(), now, r["id"]))
+            conn.execute("DELETE FROM mobile_push_messages WHERE device_id = ?", (r["id"],))
+        if rows:
+            from ..audit import audit
+
+            who = actor or Principal(user_id=user_id, username="", display_name="", source="internal")
+            audit(conn, actor=who, action="presence.device.credentials_ended", decision="allowed", resource_type="user", resource_id=user_id, reason=reason,
+                  request_id=request_id, details={"devices": [r["id"] for r in rows][:20], "count": len(rows)})
+        return len(rows)
+    except Exception:  # noqa: BLE001 - e.g. before migration 0057 (no device table): nothing to end, the sign-out stands
+        log.warning("presence: could not end the device credentials of a signed-out user", exc_info=True)
+        return 0
+
+
+def end_on_sign_out(conn: sqlite3.Connection, user_id: str, reason: str, *, everywhere: bool = False, user_agents: tuple[str, ...] | list[str] = (),
+                    device_ids: list[str] | None = None, actor: Principal | None = None, request_id: str | None = None) -> int:
+    """XSECFIX-297 (review M2, L1): which device credentials a sign-out ends.
+    - `everywhere` ("sign out everywhere", an administrator ending all of a user's sign-ins, remote access removed): every device of the user;
+    - `device_ids` (an app web session, which knows its device): those devices;
+    - otherwise only a sign-out made from inside the phone app (one of `user_agents` carries the app mark): every device of the user -
+      the web session does not know which installation it runs in, and a sign-out inside the app means "this phone is no longer
+      signed in as me". A sign-out in a desktop browser leaves the phones alone.
+    Never raises."""
+    if everywhere:
+        return end_device_credentials(conn, user_id, reason, actor=actor, request_id=request_id)
+    if device_ids is not None:
+        return end_device_credentials(conn, user_id, reason, device_ids=device_ids, actor=actor, request_id=request_id)
+    if any(is_app_user_agent(ua) for ua in user_agents):
+        return end_device_credentials(conn, user_id, reason, actor=actor, request_id=request_id)
+    return 0
+
+
 def out(conn: sqlite3.Connection, device_id: str, *, with_user: bool = False) -> dict[str, Any]:
     return _device_out(get_device(conn, device_id), with_user=with_user, conn=conn)
 
@@ -1000,7 +1080,40 @@ def state_of(conn: sqlite3.Connection, device_id: str) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- the required-sensors policy (the gate)
 
-GATE_ALLOWED_PATHS = ("/me", "/presence/", "/notifications/devices", "/notifications/app/", "/notifications/categories", "/auth/", "/health", "/csp-report", "/.well-known/")
+# XSECFIX-297 (review M1): the routes a blocked user may still call, matched on the path AFTER the mount prefix (root_path: the remote
+# channel's `<remote_path>`, Ingress) and `/api/v1` - an exact route or a whole-segment prefix, never a substring (`/me` used to
+# match `/media/...`, `/alarm/me/pin`, `/energy/meters`; `/health` matched `/recorders/{id}/health`). Contract section 5:
+# `/me`, `/presence/*`, `/notifications/devices*`, `/notifications/app/*`, `/notifications/categories`, `/auth/*`, `/health`.
+API_PREFIX = "/api/v1"
+GATE_ALLOWED_EXACT = frozenset(("/me", "/presence", "/notifications/devices", "/notifications/categories", "/health", "/csp-report"))
+GATE_ALLOWED_PREFIXES = ("/presence/", "/notifications/devices/", "/notifications/app/", "/auth/", "/health/")
+GATE_ALLOWED_PATHS = tuple(sorted(GATE_ALLOWED_EXACT)) + GATE_ALLOWED_PREFIXES  # kept for readers; gate_exempt is the rule
+
+
+def api_route_of(path: str, root_path: str = "") -> str | None:
+    """The route below `/api/v1` of a request path (`/me`, `/media/live/x/ws`), or None when the path is not an API route or is not in
+    canonical form (empty / `.` / `..` segments, a doubled slash, a backslash): such a path is never exempt."""
+    p = path or ""
+    rp = (root_path or "").rstrip("/")
+    if rp and (p == rp or p.startswith(rp + "/")):
+        p = p[len(rp):]
+    if not p.startswith(API_PREFIX + "/"):
+        return None
+    rest = p[len(API_PREFIX):]
+    if "\\" in rest or "//" in rest or "\x00" in rest:
+        return None
+    if any(s in (".", "..") for s in rest.split("/")):
+        return None
+    return rest
+
+
+def gate_exempt(path: str, root_path: str = "") -> bool:
+    """True for the routes a user blocked by the required-sensors policy may still call (the ones that lead out of that state)."""
+    rest = api_route_of(path, root_path)
+    if rest is None:
+        return False
+    rest_cmp = rest[:-1] if len(rest) > 1 and rest.endswith("/") else rest
+    return rest_cmp in GATE_ALLOWED_EXACT or any(rest.startswith(p) for p in GATE_ALLOWED_PREFIXES)
 
 
 def _user_roles(conn: sqlite3.Connection, user_id: str) -> set[str]:
@@ -1059,11 +1172,11 @@ def gate_for(conn: sqlite3.Connection, user_id: str, *, app: bool, st: dict[str,
     return {**base, "missing": missing, "blocked": bool(missing), "reason": "missing_sensors" if missing else None}
 
 
-def enforce(conn: sqlite3.Connection, principal: Principal, path: str, user_agent: str | None, request_id: str | None = None) -> None:
+def enforce(conn: sqlite3.Connection, principal: Principal, path: str, user_agent: str | None, request_id: str | None = None, *, root_path: str = "") -> None:
     """The server-side half of the policy, called by auth._principal on every authenticated request: refuse (403
     `presence_required`) a request of a blocked user, except on the paths the app needs to get out of that state (its
-    own registration and reports, /me, sign-in). One audit row per user per GATE_AUDIT_EVERY_S."""
-    if any(seg in path for seg in GATE_ALLOWED_PATHS):
+    own registration and reports, /me, sign-in - gate_exempt, an exact / prefix match). One audit row per user per GATE_AUDIT_EVERY_S."""
+    if gate_exempt(path, root_path):
         return
     app = is_app_user_agent(user_agent)
     if get_setting(conn, "presence.required_sensors") is None:  # the policy was never written: the common case, one cheap read

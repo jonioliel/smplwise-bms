@@ -470,8 +470,27 @@ duration and the press scale (.97). The new names are declared in `tokens.ts` wi
 durations, press scale 1, no entrance), so every other skin draws exactly what it drew before. Four component rules use them in both
 Arx skins: press feedback (transform) and colour transitions on `sw-button` / `sw-chip`, and the switch thumb on the toggle spring.
 Reduced motion (`prefers-reduced-motion: reduce`, `css.ts`) zeroes every Arx duration, the rise and the press scale, with
-`!important` like the existing motion names. The `ui.motion` setting of the design system (`auto` / `full` / `reduced`) is not built
-in this slice.
+`!important` like the existing motion names.
+
+**The motion setting `ui.motion` (MOTIONSETTING-297).** A separate installation setting next to `ui.skin` and `ui.scheme`, values
+`auto` (default) | `full` | `reduced`, in every skin (not only the Arx ones). Backend: `routers/settings.py` (`DEFAULTS`, the
+`^(auto|full|reduced)$` pattern, a corrupt stored value reads as `auto`), the same permission model as the skin (everyone reads,
+`system.configure` writes, audited); tests in `backend/tests/test_ui_settings.py`. Frontend: `design/apply.ts` writes it as
+`data-motion` on `<html>` (`MOTION_MODES`, `currentMotion`, cached with the skin and scheme in `sw.ui.design` so the next load has no
+flash; `?motion=` overrides it for one page view, for designers and the specs). `design/css.ts` keys on it:
+
+| Value | What the token layer does |
+|---|---|
+| `auto` | Nothing new: the OS reduction (`prefers-reduced-motion: reduce`) zeroes the motion tokens, exactly as before the setting existed. |
+| `full` | The OS-reduction block is excluded (`:root:not([data-motion="full"])`): the duration, press and hover-lift tokens keep their skin values. |
+| `reduced` | The very same declarations as the OS reduction (`REDUCED_MOTION_DECLS`: every `--sw-t-*` and spring duration 0 ms, `--sw-enter-y` / `--sw-hover-lift` 0 px, `--sw-press-scale` 1) apply always. |
+
+Limits, stated plainly: `full` only releases what the duration tokens drive. Component-local `@media (prefers-reduced-motion: reduce)`
+rules (looping indicators, the wall, the media screens) and the few JavaScript `matchMedia` checks still follow the device; those
+are non-token, mostly functional cues and are untouched by this slice. `reduced` is token-level too, so it is as complete as the OS
+reduction is for the token-driven motion and no more. Where: הגדרות › כללי › מראה המערכת, the row "תנועה" (אוטומטי / מלא / מופחת) above
+the colour-scheme row, saved with the same "שמור" button as the skin. Tests: `tests/unit-motionsetting-297.spec.ts` (the printed CSS),
+`tests/smoke-motionsetting-297.spec.ts` (the control, the attribute, the computed tokens with and without the OS reduction).
 
 **Material (soft only).** The canvas paints the blooms on `sw-app`; the rail, the phone bar, cards and KPI tiles are glass behind the
 performance switches (`--sw-perf-blur` / `--sw-perf-glass-bg`); without `backdrop-filter`, with `prefers-reduced-transparency: reduce`
@@ -493,3 +512,42 @@ picks each skin in the picker, saves, and loads home, a devices screen and setti
 console error classic does not print too. **Foundation stage:** `FOUNDATION_SKINS` (registry) keeps them out of
 `SKINS_UNDER_TEST` (`tests/helpers/frozen-skins.ts`), so the per-skin layout / evidence / pixel matrix does not run them yet and no
 pixel baselines exist for them. Leaving the stage = empty `FOUNDATION_SKINS` and generate the baselines.
+
+### 10.1 Component rules, rail and elevator tokens, option D (SKINCOMP-297)
+
+What the foundation left out, for the two Arx skins only (`skins/arx-components.ts`, adopted through each skin's `rules`; the skin
+sheet holds the active skin's rules only, so classic / domus / tesla / crystal draw exactly what they drew):
+
+| Rule | Infra | Soft | Source |
+|---|---|---|---|
+| KPI tile = dot · number · word: the icon box becomes a 10 px dot in the tile's tone with a 14 % halo, the glyph leaves the layout; the tall tile puts the dot beside the number | yes | yes | round 2 `r2.css` §5 / §7 (`.kpi .ibox` hidden) |
+| Rail items, the user button in the rail and the phone bar read `--sw-rail-*` (label, current item's pill and mark, hover) | yes | yes | `TOKENS.md` §1.2 / §3 |
+| Rail / phone bar fill and hairline = `--sw-rail-bg` / `--sw-rail-border` | flat | under the glass sheen | `TOKENS.md` §1.2 / §3 |
+| Pill buttons (every size) | - | yes | `TOKENS.md` §3 "Component rules" |
+| The 51 x 31 switch, 27 px knob on the thumb shadow, 20 px travel | - | yes | same |
+| The lit light tile: tinted 16 % by `--sw-lit` with a 24 px warm glow (`devices-area` lighting tiles, not the glass device style; `prefers-contrast: more` drops the glow) | - | yes | same; `r2.css` §7 `.dev.on` |
+
+**New tokens** (`tokens.ts`): group `rail` (`--sw-rail-bg`, `-text`, `-active`, `-active-bg`, `-border`; base = the shell's own
+names, read by no shared component) and group `elevator` (`--sw-el-wait` / `-act` / `-trav` / `-fault` / `-off` / `-fire` / `-unk`,
+the literals that `elevators/styles.ts` declared on its host before, unchanged values; the host block is gone, so a skin can tune them).
+Infra sets the A rail (white, `#4b5976`, `#2062ec` on `#e9f0ff` - round 2's lighter pill; dark `#0f1526`), Soft the C rail (nav glass,
+`#4d5a72`, `#2158d4` on a 12 % accent pill; dark `#aeb8cc`, `#9ec0ff`).
+
+**Option D - Arx Infra with a dark rail.** A setting, no migration: `ui.rail_tone` (`auto` | `dark`, default `auto`) is one more
+key-value row of the settings table (`routers/settings.py` `DEFAULTS` + the patch model; a corrupt stored value reads as `auto`),
+written with the skin from הגדרות › כללי › מראה המערכת (the "סרגל הניווט" row, shown only for a skin that has a dark rail). The skin
+declares it as `darkRail` (`skins/infra.ts` `INFRA_DARK_RAIL`: direction B's navy rail `#141b2b`, label `#aab6cc`, white current item
+on a 10 % white pill; in the dark scheme Infra's own navy rail). `design/apply.ts` puts `data-rail="dark"` on `<html>` only while the
+skin has a dark rail and the tone asks for it; `css.ts` emits `:root[data-skin="infra"][data-rail="dark"]` blocks after the skin blocks.
+Soft and every other skin ignore the tone. `light` (a light rail in the dark scheme) is not built: the rail mark would be drawn white on
+white (see the open item below).
+
+**Open item (logos are out of this slice).** On the dark rail in the light scheme the SmplWise mark in the rail keeps its light-scheme
+artwork (navy `#0e3054` and blue `#0062ff`): the navy part reads at about 1.3:1 on `#141b2b`. The fix is one attribute - the rail mark's
+`sw-brand` `.scheme` = `dark` while `<html data-rail="dark">`, as FIX2180-295 does for domus and crystal - and is left to the logo work.
+
+**Contrast** (`tests/unit-skincomp-297.spec.ts`): the rail label, the current item on its pill and the hovered label >= 4.5:1 on the
+rail over every ground (Soft: every bloom on every canvas stop and the solid twin), Infra / Soft / Infra dark rail, light and dark
+(worst 4.57, Infra light); white on every `--sw-el-*` >= 4.5:1 in every skin; Soft's lit tile keeps `--sw-text` / `--sw-text-2` >= 4.5:1.
+`tests/smoke-skincomp-297.spec.ts` checks the sizes in a browser (classic: 30 px icon box, 42 x 24 switch, 8 / 6 px buttons; Arx: the
+10 px dot; Soft: 51 x 31, pill buttons) and option D end to end in the demo. Still no pixel baselines for the Arx skins.

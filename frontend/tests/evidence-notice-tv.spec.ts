@@ -65,7 +65,7 @@ test('lobby, template 1, day: the feed is read with the token header, and the pa
   await expect(page.locator('.welcome b')).toHaveText('מגדל הים');
   await expect(page.locator('.stage .it.on h1')).toContainText('הפסקת מים מחר');
   await expect(page.locator('.stage .dots > span:not(.pz)')).toHaveCount(7);
-  await expect(page.locator('.ft .live')).toContainText('לוח הלובי');
+  await expect(page.locator('.ft .live')).toHaveText('עודכן · הכניסה הראשית 09:12'); // TVNOTICE2-297: the place wording is the default
   expect(page.url()).toContain('#t='); // the token stays in the fragment (the TV reloads with it)
   await checks(page, 't1-lobby-day-1920');
   expect(errors).toEqual([]);

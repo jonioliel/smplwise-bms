@@ -34,6 +34,7 @@ const POLL_MS = 15_000;
 const EM_POLL_MS = 5_000;
 const DAYS = [0, 1, 2, 3, 4, 5, 6];
 /** EMROLE-295: the settings of the emergency-open role (who may give it, the expiry, whether holders may retry). */
+const ENGINE_SWITCH = 'doors.emergency.engine_switch'; // SPLITSWITCH2-297
 const GRANT_KEYS = ['doors.emergency.grant.default_hours', 'doors.emergency.grant.max_hours', 'doors.emergency.grant.by_security_manager', 'doors.emergency.retry_open.by_holders'];
 const CALENDARS: CalendarPolicy[] = ['skip_holidays', 'holidays_like_friday', 'ignore_calendar'];
 
@@ -137,6 +138,7 @@ export class DoorWindowsScreen extends LitElement {
   @state() private wsEdit: Record<string, string> = {};
   /** SPLITSWITCH-297: the door-window program engine may write to the door system (its own flag, independent of emergency buttons). */
   @state() private wLive = false;
+  @state() private engineOffAsk = false;
   @state() private es: EmergencySettings | null = null;
   @state() private esEdit: Record<string, string> = {};
   @state() private sError = '';
@@ -298,14 +300,19 @@ export class DoorWindowsScreen extends LitElement {
       this.wsEdit = { ...w.settings };
       this.wLive = w.go_live_permitted === true;
       this.es = e.settings;
-      this.esEdit = Object.fromEntries(Object.entries(e.settings).filter(([k, v]) => typeof v === 'string' && ['doors.emergency.enabled', 'doors.emergency.open_enabled', ...GRANT_KEYS].includes(k))) as Record<string, string>;
+      this.esEdit = Object.fromEntries(Object.entries(e.settings).filter(([k, v]) => typeof v === 'string' && ['doors.emergency.enabled', 'doors.emergency.open_enabled', ENGINE_SWITCH, ...GRANT_KEYS].includes(k))) as Record<string, string>;
     } catch (err) {
       this.sError = describeError(err);
     }
   }
 
-  private async saveSettings(): Promise<void> {
+  private async saveSettings(engineOffConfirmed = false): Promise<void> {
     if (!this.ws || !this.es) return;
+    const cur0 = this.es as unknown as Record<string, string>;
+    if (!engineOffConfirmed && this.esEdit[ENGINE_SWITCH] === 'off' && (cur0[ENGINE_SWITCH] ?? 'on') !== 'off') {
+      this.engineOffAsk = true; // SPLITSWITCH2-297: turning the emergency buttons off is never silent
+      return;
+    }
     this.busy = true;
     this.sError = '';
     try {
@@ -313,7 +320,7 @@ export class DoorWindowsScreen extends LitElement {
       if (Object.keys(w).length) this.ws = (await putWindowSettings(w)).settings;
       const cur = this.es as unknown as Record<string, string>;
       const e = Object.fromEntries(Object.entries(this.esEdit).filter(([k, v]) => cur[k] !== v));
-      if (Object.keys(e).length) this.es = (await putEmergencySettings(e)).settings;
+      if (Object.keys(e).length) this.es = (await putEmergencySettings(e, e[ENGINE_SWITCH] === 'off')).settings;
       this.settingsOpen = false;
       this.flash(dwt('saved'));
       await this.load();
@@ -359,6 +366,8 @@ export class DoorWindowsScreen extends LitElement {
     const w = this.wsEdit;
     const es = this.es;
     const live = !!es?.go_live_permitted;
+    const engineOn = this.esEdit[ENGINE_SWITCH] !== 'off';
+    const built = es?.build_ready ?? live; // "not approved in this version" is about the build; a switched-off screen says so itself
     return html`<sw-drawer open modal heading=${dwt('sTitle')} @close=${() => (this.settingsOpen = false)}>
       <div class="form" data-dw-settings>
         <section><h2>${dwt('sWindows')}</h2>
@@ -371,7 +380,9 @@ export class DoorWindowsScreen extends LitElement {
           ${this.check(w['doors.windows.exterior_allowed'] === 'true', 'sExterior', (v) => (this.wsEdit = { ...w, 'doors.windows.exterior_allowed': v ? 'true' : 'false' }), false, 'doors.windows.exterior_allowed')}
         </section>
         ${es ? html`<section><h2>${dwt('sEmergency')}</h2>
-          ${!live ? html`<div class="callout" data-tone="warn" data-dw-golive><sw-icon name="info"></sw-icon><span>${dwt('sGoLiveNo')}</span></div>` : nothing}
+          ${!built ? html`<div class="callout" data-tone="warn" data-dw-golive><sw-icon name="info"></sw-icon><span>${dwt('sGoLiveNo')}</span></div>` : nothing}
+          ${this.check(engineOn, 'sEngineOn', (v) => (this.esEdit = { ...this.esEdit, [ENGINE_SWITCH]: v ? 'on' : 'off' }), false, ENGINE_SWITCH)}
+          ${!engineOn ? html`<div class="callout" data-tone="warn" data-dw-engine-off><sw-icon name="info"></sw-icon><span>${dwt('sEngineOffNote')}</span></div>` : nothing}
           ${this.check(this.esEdit['doors.emergency.enabled'] === 'on', 'sEmergencyOn', (v) => (this.esEdit = { ...this.esEdit, 'doors.emergency.enabled': v ? 'on' : 'off' }), !live, 'doors.emergency.enabled')}
           ${this.check(this.esEdit['doors.emergency.open_enabled'] === 'on', 'sOpenOn', (v) => (this.esEdit = { ...this.esEdit, 'doors.emergency.open_enabled': v ? 'on' : 'off' }),
             !live || !es.open_available || !es.attested, 'doors.emergency.open_enabled')}
@@ -390,7 +401,19 @@ export class DoorWindowsScreen extends LitElement {
         <sw-button variant="ghost" @click=${() => (this.settingsOpen = false)}>${dwt('cancel')}</sw-button>
         <sw-button variant="primary" data-dw-settings-save ?disabled=${this.busy || !this.ws} @click=${() => void this.saveSettings()}>${dwt('sSave')}</sw-button>
       </div>
+      ${this.renderEngineOffAsk()}
     </sw-drawer>`;
+  }
+
+  /** Rendered INSIDE the modal settings drawer: the drawer is in the top layer and everything outside it is inert (sw-drawer). */
+  private renderEngineOffAsk(): TemplateResult | typeof nothing {
+    return html`${this.engineOffAsk ? html`<sw-dialog open heading=${dwt('sEngineOffTitle')} @close=${() => (this.engineOffAsk = false)} data-dw-engine-off-confirm>
+      <p>${dwt('sEngineOffText')}</p>
+      <div slot="footer" class="footer">
+        <sw-button variant="ghost" @click=${() => (this.engineOffAsk = false)}>${dwt('cancel')}</sw-button>
+        <sw-button variant="danger" data-dw-engine-off-btn ?disabled=${this.busy} @click=${() => { this.engineOffAsk = false; void this.saveSettings(true); }}>${dwt('sEngineOffBtn')}</sw-button>
+      </div>
+    </sw-dialog>` : nothing}`;
   }
 
   // ---------------------------------------------------------------- render

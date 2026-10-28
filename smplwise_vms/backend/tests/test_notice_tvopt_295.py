@@ -17,9 +17,10 @@ from smplwise.db import Database
 from smplwise.services.notices import model, sources
 
 API = "/api/v1"
-KEYS = ("header", "updated", "space", "night_logo", "weather_days")
-ALLOWED = {"header": model.HEADERS, "updated": model.UPDATED_LINES, "space": model.SPACE_USES, "night_logo": model.NIGHT_LOGOS, "weather_days": model.WEATHER_DAYS}
-FACTORY = {"header": "c", "updated": "full", "space": "bigger", "night_logo": "auto", "weather_days": 0}
+KEYS = ("header", "updated", "space", "night_logo", "weather_days", "idle_logo")
+ALLOWED = {"header": model.HEADERS, "updated": model.UPDATED_LINES, "space": model.SPACE_USES, "night_logo": model.NIGHT_LOGOS, "weather_days": model.WEATHER_DAYS, "idle_logo": model.IDLE_LOGOS}
+# TVNOTICE2-297 (owner 27.10): the "updated" line defaults to the approved preview wording ("place"); the header stays c; idle = SmplWise only
+FACTORY = {"header": "c", "updated": "place", "space": "bigger", "night_logo": "auto", "weather_days": 0, "idle_logo": "sw"}
 BAD = ["", "A", "d", "bigger ", 1, True, ["a"], {"v": "a"}]
 BAD_DAYS = [-1, 6, 2.0, "3", True, False, [3], ""]
 
@@ -48,7 +49,8 @@ def _fd(client, slug, token):
 
 def test_the_allowed_values_and_the_factory_defaults():
     assert model.HEADERS == ("a", "b", "c")
-    assert model.UPDATED_LINES == ("full", "time", "issues")
+    assert model.UPDATED_LINES == ("place", "full", "time", "issues")
+    assert model.IDLE_LOGOS == ("sw", "both")
     assert model.SPACE_USES == ("bigger", "more", "mix")
     assert model.NIGHT_LOGOS == ("auto", "plate", "invert")
     assert model.TV_FACTORY == FACTORY
@@ -78,7 +80,7 @@ def test_unknown_values_are_dropped_on_load_and_refused_by_a_patch(key, bad):
 
 
 def test_effective_display_prefers_the_boards_own_value():
-    defaults = {"header": "a", "updated": "time", "space": "mix", "night_logo": "plate", "weather_days": 4}
+    defaults = {"header": "a", "updated": "time", "space": "mix", "night_logo": "plate", "weather_days": 4, "idle_logo": "both"}
     assert {k: model.effective_display({}, defaults)[k] for k in KEYS} == defaults
     own = model.effective_display({"header": "c", "night_logo": "invert", "weather_days": 0}, defaults)
     assert (own["header"], own["updated"], own["space"], own["night_logo"], own["weather_days"]) == ("c", "time", "mix", "invert", 0)  # an own 0 wins too
@@ -113,7 +115,7 @@ def test_boards_follow_the_installation_defaults_until_they_choose(client):
     assert client.get(f"{API}/notices/tv-defaults").json()["tv_defaults"] == FACTORY
     assert client.get(f"{API}/notices/settings").json()["settings"]["tv_defaults"] == FACTORY
 
-    want = {"header": "a", "updated": "issues", "space": "more", "night_logo": "plate", "weather_days": 3}
+    want = {"header": "a", "updated": "issues", "space": "more", "night_logo": "plate", "weather_days": 3, "idle_logo": "both"}
     r = client.put(f"{API}/notices/tv-defaults", json=want)
     assert r.status_code == 200 and r.json()["tv_defaults"] == want
     v_before = _feed(client, "lobby", old_board["token"]).json()["board"]["version"]
@@ -134,8 +136,8 @@ def test_boards_follow_the_installation_defaults_until_they_choose(client):
     # a board created with its own values keeps them through a defaults change
     own = _board(client, "lobby-3", {"header": "b", "updated": "time"})
     assert client.put(f"{API}/notices/tv-defaults", json={"header": "c", "updated": "full"}).status_code == 200
-    assert _fd(client, "lobby-3", own["token"]) == {"header": "b", "updated": "time", "space": "more", "night_logo": "plate", "weather_days": 3}
-    assert _fd(client, "lobby-2", new_board["token"]) == {"header": "c", "updated": "full", "space": "more", "night_logo": "plate", "weather_days": 3}
+    assert _fd(client, "lobby-3", own["token"]) == {"header": "b", "updated": "time", "space": "more", "night_logo": "plate", "weather_days": 3, "idle_logo": "both"}
+    assert _fd(client, "lobby-2", new_board["token"]) == {"header": "c", "updated": "full", "space": "more", "night_logo": "plate", "weather_days": 3, "idle_logo": "both"}
 
 
 def test_board_values_are_validated_and_the_preview_resolves_drafts(client):
@@ -149,7 +151,7 @@ def test_board_values_are_validated_and_the_preview_resolves_drafts(client):
     r = client.post(f"{API}/notices/boards/{bid}/preview", json={"display": {"header": "b", "night_logo": "invert"}})
     assert r.status_code == 200
     d = r.json()["board"]["display"]
-    assert (d["header"], d["updated"], d["space"], d["night_logo"], d["weather_days"]) == ("b", "full", "mix", "invert", 0)  # draft + defaults
+    assert (d["header"], d["updated"], d["space"], d["night_logo"], d["weather_days"]) == ("b", "place", "mix", "invert", 0)  # draft + defaults
     assert not set(KEYS) & set(client.get(f"{API}/notices/boards/{bid}").json()["board"]["display"])  # nothing saved
     assert _fd(client, "lobby", token)["space"] == "mix"
 

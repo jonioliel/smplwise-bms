@@ -350,8 +350,15 @@ def test_ui_skin_and_scheme_settings(settings):
     assert m, "SKIN_IDS not found in design/skins/index.ts"
     assert tuple(re.findall(r"'([a-z]+)'", m.group(1))) == ("classic", "domus", "tesla", "bubble", "crystal", "infra", "soft")
     # BUBBLE-FREEZE-295: the frozen list and the fallback are the same on both sides
-    fm = re.search(r"export const FROZEN_SKINS: readonly SkinId\[\] = \[([^\]]*)\]", front)
-    assert fm and tuple(re.findall(r"'([a-z]+)'", fm.group(1))) == ("bubble",)
+    # DESIGNTOKENS-297: FROZEN_SKINS is read from the registry data (each skin's `stage`), not a literal list
+    assert "export const FROZEN_SKINS: readonly SkinId[] = SKIN_IDS.filter((id) => SKINS[id].stage === 'frozen');" in front
+    skins_dir = Path(__file__).resolve().parents[3] / "frontend" / "src" / "design" / "skins"
+    frozen = tuple(
+        sid
+        for sid in re.findall(r"'([a-z]+)'", m.group(1))
+        if re.search(r"\bstage:\s*'frozen'", (skins_dir / f"{sid}.ts").read_text(encoding="utf-8"))
+    )
+    assert frozen == ("bubble",)
     from smplwise.routers import settings as settings_router
 
     assert settings_router.FROZEN_SKINS == ("bubble",) and settings_router.FROZEN_FALLBACK_SKIN == "domus"
@@ -385,6 +392,81 @@ def test_ui_skin_and_scheme_settings(settings):
         assert seen.status_code == 200 and seen.json()["settings"]["ui.skin"] == "tesla"
         assert c.patch("/api/v1/settings", json={"ui.skin": "domus"}, headers=as_user("dana")).status_code == 403
         assert c.get("/api/v1/settings").json()["settings"]["ui.skin"] == "tesla"
+
+
+def test_ui_motion_setting(settings):
+    """MOTIONSETTING-297: ui.motion (auto | full | reduced, default auto) sits next to ui.skin: per installation, validated, audited,
+    readable by everyone, writable with system.configure; a corrupt stored value reads as the default. The frontend lists the same ids."""
+    import re
+    from pathlib import Path
+
+    from smplwise.db import set_setting
+
+    front = (Path(__file__).resolve().parents[3] / "frontend" / "src" / "design" / "apply.ts").read_text(encoding="utf-8")
+    m = re.search(r"export const MOTION_MODES: readonly MotionMode\[\] = \[([^\]]*)\]", front)
+    assert m, "MOTION_MODES not found in design/apply.ts"
+    assert re.findall(r"'([^']+)'", m.group(1)) == ["auto", "full", "reduced"]
+
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["ui.motion"] == "auto"
+        for mode in ("reduced", "full", "auto"):
+            r = c.patch("/api/v1/settings", json={"ui.motion": mode})
+            assert r.status_code == 200, (mode, r.text)
+            assert r.json()["settings"]["ui.motion"] == mode
+        for bad in ("none", "Full", "", "reduced ", "off", "true"):
+            assert c.patch("/api/v1/settings", json={"ui.motion": bad}).status_code == 422, bad
+        assert c.get("/api/v1/settings").json()["settings"]["ui.motion"] == "auto"
+        # it travels with the skin in one save and is audited
+        assert c.patch("/api/v1/settings", json={"ui.skin": "infra", "ui.motion": "reduced"}).status_code == 200
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+        assert {"ui.skin": "infra", "ui.motion": "reduced"} in rows
+        # same permission model as the skin: a viewer reads it, cannot write it
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        seen = c.get("/api/v1/settings", headers=as_user("dana"))
+        assert seen.status_code == 200 and seen.json()["settings"]["ui.motion"] == "reduced"
+        assert c.patch("/api/v1/settings", json={"ui.motion": "full"}, headers=as_user("dana")).status_code == 403
+        assert c.get("/api/v1/settings").json()["settings"]["ui.motion"] == "reduced"
+        # a corrupt stored value reads as the default (the row is left as it is)
+        with app.state.db.connection() as conn:
+            set_setting(conn, "ui.motion", "wobble")
+            conn.commit()
+        assert c.get("/api/v1/settings").json()["settings"]["ui.motion"] == "auto"
+
+
+def test_ui_rail_tone_setting(settings):
+    """SKINCOMP-297: ui.rail_tone (auto | dark, default auto) - the dark rail of a skin that has one (Arx Infra = direction D). A plain
+    key-value setting (no migration): validated, audited, readable by everyone, writable with system.configure; a corrupt stored value
+    reads as auto. The frontend's RAIL_TONES lists the same values."""
+    import re
+    from pathlib import Path
+
+    from smplwise.db import set_setting
+
+    front = (Path(__file__).resolve().parents[3] / "frontend" / "src" / "design" / "skins" / "index.ts").read_text(encoding="utf-8")
+    m = re.search(r"export const RAIL_TONES = \[([^\]]*)\]", front)
+    assert m and tuple(re.findall(r"'([a-z]+)'", m.group(1))) == ("auto", "dark")
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get("/api/v1/settings").json()["settings"]["ui.rail_tone"] == "auto"
+        for tone in ("dark", "auto", "dark"):
+            r = c.patch("/api/v1/settings", json={"ui.rail_tone": tone})
+            assert r.status_code == 200, (tone, r.text)
+            assert r.json()["settings"]["ui.rail_tone"] == tone
+        for bad in ("light", "Dark", "", "navy", "dark "):
+            assert c.patch("/api/v1/settings", json={"ui.rail_tone": bad}).status_code == 422, bad
+        assert c.get("/api/v1/settings").json()["settings"]["ui.rail_tone"] == "dark"
+        with app.state.db.connection() as conn:
+            rows = [json.loads(r[0] or "{}") for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'settings.update' AND decision = 'allowed' ORDER BY rowid").fetchall()]
+        assert {"ui.rail_tone": "dark"} in rows
+        bind(c, settings, "dana", "viewer", "installation", "*")
+        assert c.get("/api/v1/settings", headers=as_user("dana")).json()["settings"]["ui.rail_tone"] == "dark"
+        assert c.patch("/api/v1/settings", json={"ui.rail_tone": "auto"}, headers=as_user("dana")).status_code == 403
+        with app.state.db.connection() as conn:
+            set_setting(conn, "ui.rail_tone", "purple")
+            conn.commit()
+        assert c.get("/api/v1/settings").json()["settings"]["ui.rail_tone"] == "auto"
 
 
 def test_stored_frozen_skin_reads_as_domus(settings):

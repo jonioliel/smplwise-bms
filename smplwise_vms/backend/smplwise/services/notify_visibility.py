@@ -16,6 +16,7 @@ are the product's existing ones, not new ones:
 | bulk_job           | the initiator only                                                                               |
 | energy_bills       | energy.bills (ELECBILL77)                                                                        |
 | access_denied      | access.external.grant on the refused attempt's station (DENYALERT133-295)                        |
+| access_visitor     | the host who invited the visitor (origin.host_user_id; EXTERNALBUILD-297)                        |
 | system             | system.configure                                                                                |
 | water              | water.view on the meter (floor-scoped by its entity), only while the water module is on (CR-WATER78) |
 | session / security | the account's own user; a code lockout ONLY to system.configure holders (not the locked-out user)  |
@@ -189,6 +190,8 @@ class Reach:
         if kind == "access_denied":  # DENYALERT133-295: access.external.grant on THE station of the refused attempt (the approvers of that door)
             sid = origin.get("station_id") or sid
             return bool(sid) and authorize(self.conn, self.principal, "access.external.grant", (STATION, str(sid))).allowed
+        if kind == "access_visitor":  # EXTERNALBUILD-297: the host who invited the visitor, nobody else
+            return bool(origin.get("host_user_id")) and origin.get("host_user_id") == uid
         if kind == "maintenance":  # CR-MAINT215: exactly who may see the task (module on, maintenance.view on its place)
             from .maintenance import access as maintenance_access
 

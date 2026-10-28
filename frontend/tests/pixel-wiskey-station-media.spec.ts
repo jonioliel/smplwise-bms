@@ -91,17 +91,21 @@ test.describe('pixel: station live video and push-to-talk, dark and tablet', () 
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   for (const skin of SKIN_IDS) {
-    test(`${skin} is pixel-stable: the drawer with live video and push-to-talk, dark`, async ({ page }, info) => {
+    // GATELANES-297 policy (2.24.1 integration): pixels for the skins in helpers/pixel-skins.ts (classic, domus) only; tesla / crystal
+    // run the same case as the structural smoke, their MEDIACARD-297 baselines were deleted
+    test(pixelTitle(skin, 'the drawer with live video and push-to-talk, dark'), async ({ page }, info) => {
+      const check = skinCheck(page, skin);
       await toDrawer(page, skin, {}, 'gate', 'dark');
       await playing(page);
-      await shootAt(page, info, `station-media-${skin}-drawer-dark`);
+      await check(() => shootAt(page, info, `station-media-${skin}-drawer-dark`), player(page));
     });
 
-    test(`${skin} is pixel-stable: the drawer with live video and push-to-talk, light tablet`, async ({ page }, info) => {
+    test(pixelTitle(skin, 'the drawer with live video and push-to-talk, light tablet'), async ({ page }, info) => {
       test.skip(info.project.name !== 'tablet', 'light desktop and phone are the block above');
+      const check = skinCheck(page, skin);
       await toDrawer(page, skin);
       await playing(page);
-      await shootAt(page, info, `station-media-${skin}-drawer-light`);
+      await check(() => shootAt(page, info, `station-media-${skin}-drawer-light`), player(page));
     });
   }
 

@@ -427,3 +427,15 @@ export function templateRows(seen: readonly TplRef[], known: readonly TplRef[], 
   for (const id of hidden) if (!seen.some((t) => t.id === id)) out.push(merged.get(id) ?? { id, name: `תבנית ${id}`, suggest_schedule: false });
   return out;
 }
+
+/** XSECFIX-297 / XSECFOLLOW-297 (review M4): what `?do=` of the address may do in the drawer - open ONE confirmation dialog, never act.
+ * `run` opens the run confirmation (the run itself needs the user's tap on it), `copy` the copy-name dialog, `delete` the delete
+ * confirmation; each only with the item's own right. Anything else - another value, a right the caller lacks, no value - opens nothing.
+ * The address may come from any link (a card's menu, but also `arx://open` from another app), so it is never an instruction. */
+export type AddressAction = 'run' | 'copy' | 'delete';
+export function addressAction(action: string | null | undefined, can: Pick<Item['can'], 'run' | 'copy' | 'delete'>): AddressAction | null {
+  if (action === 'run' && can.run) return 'run';
+  if (action === 'copy' && can.copy) return 'copy';
+  if (action === 'delete' && can.delete) return 'delete';
+  return null;
+}

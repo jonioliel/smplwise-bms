@@ -248,12 +248,41 @@ async def _principal_for_ws(websocket: WebSocket) -> Principal | None:
             return None
 
     def _touch() -> None:
+        # XSECFOLLOW-297 (review follow-up a): the same checks as auth._principal on an HTTP request - the service Home Assistant user is
+        # refused (403 service_account) and the required-sensors policy blocks a socket of a blocked user (presence.enforce: exact /
+        # whole-segment exempt routes; no socket route is exempt, `/me/ws` included - it carries notifications). Every socket of the
+        # product (live / Home Assistant camera / playback / intercom live, talk and listen / events / wall / me / ha) resolves its
+        # caller here, so none of them is a way around the block. The refusal's audit row commits (Database.connection on ApiError).
+        from ..services import presence, service_identity
+
         with db.connection() as conn:
+            service_identity.refuse_service_principal(conn, principal, None)
             touch_user(conn, principal)
             maybe_bootstrap(conn, settings, principal, None)
+            presence.enforce(conn, principal, websocket.scope.get("path") or "", websocket.headers.get("user-agent"), None,
+                             root_path=websocket.scope.get("root_path") or "")
 
-    await run_in_threadpool(_touch)
+    try:
+        await run_in_threadpool(_touch)
+    except ApiError as exc:
+        await _refuse_socket(websocket, exc)
     return principal
+
+
+async def _refuse_socket(websocket: WebSocket, exc: ApiError) -> None:
+    """XSECFOLLOW-297: a socket refused after its caller was identified (presence_required, service_account). Accepted first so the
+    client sees the reason (a close before accept is a bare handshake failure), one `{"type":"error","value":<code>,"message":…}`
+    frame, then close 4403 - raised as WebSocketException, so no route handler runs past _principal_for_ws (its own `None -> 4401`
+    branch would read as "signed out" and send the app back to the sign-in page)."""
+    import json as _json
+
+    from starlette.exceptions import WebSocketException
+
+    with contextlib.suppress(Exception):
+        if websocket.client_state.name == "CONNECTING":
+            await websocket.accept()
+        await websocket.send_text(_json.dumps({"type": "error", "value": exc.code, "message": exc.user_message}, ensure_ascii=False))
+    raise WebSocketException(code=4403, reason=exc.code)
 
 
 async def _refuse_remote_cap(websocket: WebSocket, db: Database, principal: Principal, camera_id: str, refusal: ApiError, chain: str | None, resource_type: str = "camera") -> None:

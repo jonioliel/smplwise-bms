@@ -138,3 +138,50 @@ export function channelFlags(speakers: boolean, screens: boolean, screensOffered
 
 /** The send button works with at least one channel chosen. */
 export const hasChannel = (speakers: boolean, screens: boolean, screensOffered: boolean): boolean => speakers || (screensOffered && screens);
+
+// ---------------------------------------------------------------- ANNOUNCE-297: the automatic translation (stage C)
+
+/** The languages whose text came from the automatic translation; a language leaves the set when its text is emptied. */
+export type MachineSet = ReadonlySet<AnnounceLang>;
+
+/** The translate button is offered while the server says translation is ready and there is a Hebrew text to translate. */
+export function canTranslate(enabled: boolean | undefined, texts: Texts): boolean {
+  const he = (texts.he ?? '').trim();
+  return !!enabled && he !== '' && he.length <= TEXT_MAX;
+}
+
+/** The draft translations fill the text of their languages (selected for the sender, in the canonical order) and are marked machine-translated.
+ * The Hebrew text is kept; a language the server did not return keeps what was typed. Nothing is sent: the sender reviews and edits first. */
+export function applyTranslation(texts: Texts, selected: AnnounceLang[], machine: MachineSet, items: { language: AnnounceLang; text: string }[]):
+  { texts: Texts; selected: AnnounceLang[]; machine: Set<AnnounceLang> } {
+  const out: Texts = { ...texts };
+  const mt = new Set(machine);
+  const langs = new Set<AnnounceLang>(selected);
+  for (const it of items) {
+    if (it.language === 'he' || !ANNOUNCE_LANGS.includes(it.language) || !it.text) continue;
+    out[it.language] = it.text.slice(0, TEXT_MAX);
+    mt.add(it.language);
+    langs.add(it.language);
+  }
+  return { texts: out, selected: ANNOUNCE_LANGS.filter((l) => langs.has(l)), machine: mt };
+}
+
+/** A machine-translated text the sender edits stays marked (it still came from the translation); emptied, the mark goes. */
+export function editedMachine(machine: MachineSet, l: AnnounceLang, value: string): Set<AnnounceLang> {
+  const mt = new Set(machine);
+  if (!value.trim()) mt.delete(l);
+  return mt;
+}
+
+/** The machine-translated languages that will actually be sent (selected, with a text). */
+export function sentMachine(texts: Texts, selected: AnnounceLang[], machine: MachineSet): AnnounceLang[] {
+  return partsOf(texts, selected).map((p) => p.language).filter((l) => l !== 'he' && machine.has(l));
+}
+
+/** The parts with the machine mark, as `POST /announcements` takes them. */
+export function partsWithMachine(texts: Texts, selected: AnnounceLang[], machine: MachineSet): { language: AnnounceLang; text: string; machine?: boolean }[] {
+  return partsOf(texts, selected).map((p) => (p.language !== 'he' && machine.has(p.language) ? { ...p, machine: true } : p));
+}
+
+// ANNOUNCE2-297 (owner 27.10): the translation is an aid and never holds back sending - there is no "I reviewed the translation" gate any more;
+// each machine-translated field carries a short mark instead (and the mark travels with the announcement to the screens and the history).

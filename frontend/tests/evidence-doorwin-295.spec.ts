@@ -209,3 +209,22 @@ test('English, left to right, dark', async ({ page }, info) => {
   await noOverflow(page);
   await shot(page, info, '11-english-dark');
 });
+
+test('settings: the emergency-buttons switch is on by default; turning it off asks first and sends the confirmation (SPLITSWITCH2-297)', async ({ page }) => {
+  const { mock } = await boot(page);
+  const s = page.locator(SCREEN);
+  await s.locator('[data-dw-settings-btn]').click();
+  const sw = s.locator('[data-dw-switch="doors.emergency.engine_switch"] input');
+  await expect(sw).toBeChecked();
+  await expect(sw).toBeEnabled();
+  await expect(s.locator('[data-dw-engine-off]')).toHaveCount(0);
+  await sw.uncheck();
+  await expect(s.locator('[data-dw-engine-off]')).toBeVisible();
+  await s.locator('[data-dw-settings-save]').click();
+  // asked first: nothing sent yet. The sw-dialog host has no box of its own (a fixed backdrop inside), so check its button.
+  await expect(s.locator('sw-dialog[open][data-dw-engine-off-confirm] [data-dw-engine-off-btn]')).toBeVisible();
+  expect(mock.posts.find((p) => p.path === 'doors/emergency/settings')).toBeUndefined();
+  await s.locator('[data-dw-engine-off-btn]').click();
+  await expect.poll(() => mock.posts.find((p) => p.path === 'doors/emergency/settings')?.body)
+    .toMatchObject({ changes: { 'doors.emergency.engine_switch': 'off' }, confirmed: true, confirm_engine_off: true });
+});

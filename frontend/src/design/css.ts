@@ -33,6 +33,9 @@ export const REDUCED_MOTION_ARX = reducedMotionArx();
 /** Reduced motion for the core motion names: the four durations 0, no hover lift (semantic.ts). */
 export const REDUCED_MOTION_CORE = reducedMotionCore();
 
+/** Everything reduced motion sets (the older names and the Arx layer); the OS media query and `data-motion="reduced"` share it. */
+export const REDUCED_MOTION_DECLS = `${REDUCED_MOTION_CORE}${REDUCED_MOTION_ARX}`;
+
 /** One block set for a selector prefix (`:root` or `:root[data-skin="x"]`) and a table. */
 function blocks(prefix: string, t: TokenTable, first: boolean): string {
   const lightDecl = decls(t, 'light');
@@ -54,21 +57,31 @@ export function tokensCss(): string {
     if (!Object.keys(skin.tokens).length) continue;
     css += blocks(`:root[data-skin="${id}"]`, skin.tokens, false);
   }
+  // SKINCOMP-297: a skin's optional dark rail (`ui.rail_tone` = dark puts data-rail="dark" on <html>, design/apply.ts). After the skin
+  // blocks: the light block outranks the skin's light block by one attribute, the dark block outranks the skin's dark block likewise.
+  for (const id of SKIN_IDS) {
+    const rail = SKINS[id].darkRail;
+    if (rail && Object.keys(rail).length) css += blocks(`:root[data-skin="${id}"][data-rail="dark"]`, rail, false);
+  }
   // the look dials (design/look.ts): token bundles keyed on the data attributes, for the bubble skin
   css += lookBundlesCss();
   // reduced motion: durations become 0 and the hover lift is off (accessibility, TOKEN_CONTRACT §2). !important: a skin's DARK block
   // (`:root[data-skin="x"][data-theme="dark"]`, and the OS-dark twin) repeats every skin override, motion included, with a higher
   // specificity than `:root[data-skin]` - without it bubble / domus / tesla kept their durations in dark under reduced motion (0.1.162 gate)
   // SKINFOUND-297: the Arx motion layer (round 2, r2.css §13) keeps colour / opacity and drops travel, springs and the press scale
-  css += `@media (prefers-reduced-motion: reduce){:root,:root[data-skin]{${REDUCED_MOTION_CORE}${REDUCED_MOTION_ARX}}}\n`;
+  // MOTIONSETTING-297: the same declarations apply (a) under the OS reduction unless the installation chose `full`
+  // (<html data-motion="full">), and (b) always when it chose `reduced` (data-motion="reduced"): reduced == the OS reduction, byte for byte
+  css += `@media (prefers-reduced-motion: reduce){:root:not([data-motion="full"]),:root[data-skin]:not([data-motion="full"]){${REDUCED_MOTION_DECLS}}}\n`;
+  css += `:root[data-motion="reduced"],:root[data-skin][data-motion="reduced"]{${REDUCED_MOTION_DECLS}}\n`;
   // reduced transparency: the translucent layers of every skin become their solid twins
   css += '@media (prefers-reduced-transparency: reduce){:root,:root[data-skin]{--sw-sheet-alpha:1 !important;--sw-glass-blur:none;--sw-glass-blur-nav:none;--sw-glass-blur-sheet:none;--sw-backdrop-blur:none}}\n';
   return css;
 }
 
-/** The merged table of a skin: the base with the skin's overrides (what a swatch preview and the contrast tests read). */
-export function skinTable(id: SkinId): TokenTable {
-  return { ...TOKENS, ...SKINS[id].tokens };
+/** The merged table of a skin: the base with the skin's overrides (what a swatch preview and the contrast tests read). `darkRail`
+ * (SKINCOMP-297) adds the skin's dark-rail overrides when it has them. */
+export function skinTable(id: SkinId, darkRail = false): TokenTable {
+  return { ...TOKENS, ...SKINS[id].tokens, ...(darkRail ? SKINS[id].darkRail ?? {} : {}) };
 }
 
 /**

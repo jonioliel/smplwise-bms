@@ -118,6 +118,7 @@ def windows_state(request: Request, principal: Principal = Depends(current_princ
            OR state IN ('relock_unconfirmed','ending','active','starting') ORDER BY start_at LIMIT 500""", (dw.iso(now - dt.timedelta(hours=12)), horizon)).fetchall())
         if o["door"] in vis_keys]
     engine_tier = dwe.window_engine(settings_of(request)).tier
+    engine_rows = {dw.door_key(r["station_id"], r["relay"]): r for r in conn.execute("SELECT * FROM door_window_engine").fetchall()}  # DOORWRITE-297
     return {
         "enabled": dw.enabled(conn), "tier": engine_tier if dw.enabled(conn) else "prepared", "go_live_permitted": dwe.program_ready(),
         "settings": {k.split(".")[-1]: v for k, v in dw.settings_view(conn).items()},
@@ -129,7 +130,8 @@ def windows_state(request: Request, principal: Principal = Depends(current_princ
             "SELECT at, source, station_id, relay, decision, reason, end_at FROM door_window_trigger_log WHERE station_id IS NOT NULL ORDER BY at DESC LIMIT 60").fetchall()
             if dw.door_key(t["station_id"], t["relay"]) in vis_keys][:20],
         "doors": [{"key": d.key, "station_id": d.station_id, "relay": d.relay, "label": d.label, "station_name": d.station_name, "name": d.name, "zone": d.zone,
-                   "manage": d.key in manage, "cancel": d.key in cancel, "exterior": d.key in ext} for d in sorted(visible, key=lambda d: d.label)],
+                   "manage": d.key in manage, "cancel": d.key in cancel, "exterior": d.key in ext, "program": dw.program_view(engine_rows.get(d.key))}
+                  for d in sorted(visible, key=lambda d: d.label)],
         "rules": rules, "occurrences": occ, "now": dw.iso(now),
     }
 
@@ -404,6 +406,63 @@ def foreign_handled(body: ConfirmBody, request: Request, station_id: str = Path(
         raise ApiError(409, "nothing_to_clear", "אין תוכנית שהושהתה בדלת זו.")
     audit(conn, actor=principal, action="door.window.foreign_handled", decision="allowed", resource_type="door", resource_id=dw.door_key(station_id, relay), request_id=_rid(request))
     return {"door": dw.door_key(station_id, relay), "handled": True}
+
+
+# ---------------------------------------------------------------- DOORWRITE-297: the door's program - dry run and "write again"
+
+@router.get("/doors/windows/doors/{station_id}/{relay}/program/preview")
+def program_preview(request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
+                    principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The dry run of the door's program write: what Arx would write, whether it is valid, what the engine holds now and what the write
+    would do (pause first? inside a running window?). Writes nothing (only a refusal is audited). `access.windows.manage` on the door."""
+    dw.require_doors(conn, principal, [(station_id, relay)], dw.MANAGE, "door.window.program_preview")
+    commit_now(conn)  # the engine read below runs outside this request's write lock
+    return {"preview": dw.program_preview(request.app.state.db, settings_of(request), station_id, relay, now_utc())}
+
+
+class ProgramApplyBody(BaseModel):
+    expect_sha: str | None = Field(default=None, max_length=64)  # the `sha` of the preview the person confirmed
+    confirmed: Any = None
+
+
+_APPLY_REFUSAL = {"prepared": "התוכנית מוכנה בלבד: אין כתיבה לאינטרקום בגרסה זו.", "windows_off": "חלונות הפתיחה כבויים.",
+                  "preview_stale": "התוכנית השתנתה מאז התצוגה המקדימה. פתחו אותה שוב."}
+
+
+@router.post("/doors/windows/doors/{station_id}/{relay}/program/apply")
+def program_apply(body: ProgramApplyBody, request: Request, station_id: str = Path(min_length=1, max_length=128), relay: int = Path(ge=1, le=64),
+                  principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A person's "write again" for one door after a drift, a failed write or a wait: clears the door's hold and writes now (read first,
+    pause-then-save when needed, read-back proof). `access.windows.manage` on the door and an explicit confirmation. Never writes over a
+    program a person made in the intercom window (that stays `foreign`)."""
+    _confirmed(body.confirmed)
+    dw.require_person(conn, principal, "door.window.program_apply", dev_mode=_dev(request))
+    dw.require_doors(conn, principal, [(station_id, relay)], dw.MANAGE, "door.window.program_apply")
+    key = dw.door_key(station_id, relay)
+    db, settings, now = request.app.state.db, settings_of(request), now_utc()
+
+    def refuse(code: str, c: sqlite3.Connection) -> None:
+        audit(c, actor=principal, action="door.window.program_apply", decision="denied", resource_type="door", resource_id=key, reason=code, request_id=_rid(request))
+        raise ApiError(409, code, _APPLY_REFUSAL[code])
+
+    if not dw.enabled(conn):
+        refuse("windows_off", conn)
+    if dwe.window_engine(settings).tier != "program":
+        refuse("prepared", conn)
+    commit_now(conn)  # the engine I/O below runs outside this request's write lock (the open-for pattern)
+    if body.expect_sha is not None:
+        current = dw.program_preview(db, settings, station_id, relay, now)["sha"] or ""
+        if current != body.expect_sha:
+            with db.connection() as wconn:
+                audit(wconn, actor=principal, action="door.window.program_apply", decision="denied", resource_type="door", resource_id=key,
+                      reason="preview_stale", request_id=_rid(request))
+            raise ApiError(409, "preview_stale", _APPLY_REFUSAL["preview_stale"])
+    result = dw.write_again(db, settings, station_id, relay, now, actor=f"user:{principal.user_id}")
+    with db.connection() as wconn:
+        audit(wconn, actor=principal, action="door.window.program_apply", decision="allowed" if result["outcome"] in ("written", "unchanged", "verified", "paused", "nothing") else "failed",
+              resource_type="door", resource_id=key, reason=result["outcome"], request_id=_rid(request),
+              details={"outcome": result["outcome"], "write_state": result["write"]["state"], "version": result["write"]["version"]})
+    return {"result": result}
 
 
 @router.get("/doors/windows/calendar")
@@ -681,13 +740,17 @@ def get_emergency_settings(request: Request, principal: Principal = Depends(curr
     return {"settings": de.settings_view(conn, settings_of(request))}
 
 
+class EmergencySettingsBody(SettingsBody):
+    confirm_engine_off: Any = None  # SPLITSWITCH2-297: the explicit confirmation of turning the emergency-buttons switch off
+
+
 @router.put("/doors/emergency/settings")
-def put_emergency_settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def put_emergency_settings(body: EmergencySettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     _confirmed(body.confirmed)
     dw.require_person(conn, principal, "settings.changed", dev_mode=_dev(request))
     try:
-        changed = de.update_settings(conn, settings_of(request), body.changes)
+        changed = de.update_settings(conn, settings_of(request), body.changes, confirm_engine_off=body.confirm_engine_off is True)
     except ApiError as exc:
         audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="setting", reason=exc.code, request_id=_rid(request),
               details={"keys": sorted(body.changes)[:8]})

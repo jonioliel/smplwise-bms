@@ -63,6 +63,8 @@ export interface Display {
   night_logo?: NightLogo | null;
   /** TVOPT-295 (owner 2026-10-25): the forecast row - 0 = as before (the entity's forecast entries), 1 = today only, 2..5 = days */
   weather_days?: number | null;
+  /** TVNOTICE2-297 (owner 27.10): the idle board (no notice to show) - sw = the clock and SmplWise as before, both = the developer logo too */
+  idle_logo?: IdleLogo | null;
   /** NOTICESLIDES-295: the building photo of template 2 (a URL the feed adds only when one is uploaded) */
   photo?: string;
   /** BUSTIMES-295: this screen's public-transport block (absent on a board saved before 2.22.0 = off) */
@@ -94,39 +96,53 @@ export function logoLayoutOf(d: Pick<Display, 'logos'>): LogoLayout {
 /** a = the company logo and the greeting together, SmplWise and the status at the other end of the same row; b = the greeting
  * centred in that row; c = the header as before (the separate bottom row stays). */
 export type HeaderLayout = 'a' | 'b' | 'c';
-/** full = "updated HH:MM · board name"; time = the time and the green dot; issues = nothing while live (the stale / offline notes still show). */
-export type UpdatedLine = 'full' | 'time' | 'issues';
+/** place = "updated · <the board's place> HH:MM" (the approved preview wording, the default since TVNOTICE2-297); full = "updated HH:MM ·
+ * board name" (the wording before); time = the time and the green dot; issues = nothing while live (the stale / offline notes still show). */
+export type UpdatedLine = 'place' | 'full' | 'time' | 'issues';
+/** TVNOTICE2-297: the idle board's logos - sw = SmplWise only (as before), both = the developer (company) logo too. */
+export type IdleLogo = 'sw' | 'both';
 /** What the height freed by a one-row header goes to. */
 export type SpaceUse = 'bigger' | 'more' | 'mix';
 /** The company logo on a dark surface: auto = the system logo settings, plate = always the white plate, invert = invert when possible. */
 export type NightLogo = 'auto' | 'plate' | 'invert';
 export const HEADERS: HeaderLayout[] = ['a', 'b', 'c'];
-export const UPDATED_LINES: UpdatedLine[] = ['full', 'time', 'issues'];
+export const UPDATED_LINES: UpdatedLine[] = ['place', 'full', 'time', 'issues'];
+export const IDLE_LOGOS: IdleLogo[] = ['sw', 'both'];
 export const SPACE_USES: SpaceUse[] = ['bigger', 'more', 'mix'];
 export const NIGHT_LOGOS: NightLogo[] = ['auto', 'plate', 'invert'];
 export const WEATHER_DAYS = [0, 1, 2, 3, 4, 5] as const;
 
 const pick = <T extends string>(v: unknown, all: readonly T[], dflt: T): T => (all.includes(v as T) ? (v as T) : dflt);
 export const headerOf = (d: Pick<Display, 'header'>): HeaderLayout => pick(d.header, HEADERS, 'c');
-export const updatedOf = (d: Pick<Display, 'updated'>): UpdatedLine => pick(d.updated, UPDATED_LINES, 'full');
+export const updatedOf = (d: Pick<Display, 'updated'>): UpdatedLine => pick(d.updated, UPDATED_LINES, 'place');
+export const idleLogoOf = (d: Pick<Display, 'idle_logo'>): IdleLogo => pick(d.idle_logo, IDLE_LOGOS, 'sw');
 export const spaceOf = (d: Pick<Display, 'space'>): SpaceUse => pick(d.space, SPACE_USES, 'bigger');
 export const nightLogoOf = (d: Pick<Display, 'night_logo'>): NightLogo => pick(d.night_logo, NIGHT_LOGOS, 'auto');
 export const weatherDaysOf = (d: Pick<Display, 'weather_days'>): number => (typeof d.weather_days === 'number' && (WEATHER_DAYS as readonly number[]).includes(d.weather_days) ? d.weather_days : 0);
 
 /** TVOPT-295: the installation defaults of the four options (`notices.tv.*`); the factory values are the screen as it was. */
-export interface TvDefaults { header: HeaderLayout; updated: UpdatedLine; space: SpaceUse; night_logo: NightLogo; weather_days: number }
-export const TV_FACTORY: TvDefaults = { header: 'c', updated: 'full', space: 'bigger', night_logo: 'auto', weather_days: 0 };
-export const TV_KEYS = ['header', 'updated', 'space', 'night_logo', 'weather_days'] as const;
+export interface TvDefaults { header: HeaderLayout; updated: UpdatedLine; space: SpaceUse; night_logo: NightLogo; weather_days: number; idle_logo: IdleLogo }
+export const TV_FACTORY: TvDefaults = { header: 'c', updated: 'place', space: 'bigger', night_logo: 'auto', weather_days: 0, idle_logo: 'sw' };
+export const TV_KEYS = ['header', 'updated', 'space', 'night_logo', 'weather_days', 'idle_logo'] as const;
 
 /** The defaults as the API sent them, each value checked (a missing or unknown one reads as the factory value). */
 export function tvDefaultsOf(raw: Partial<Record<keyof TvDefaults, unknown>> | null | undefined): TvDefaults {
   const r = raw ?? {};
-  return { header: headerOf({ header: r.header as HeaderLayout }), updated: updatedOf({ updated: r.updated as UpdatedLine }), space: spaceOf({ space: r.space as SpaceUse }), night_logo: nightLogoOf({ night_logo: r.night_logo as NightLogo }), weather_days: weatherDaysOf({ weather_days: r.weather_days as number }) };
+  return { header: headerOf({ header: r.header as HeaderLayout }), updated: updatedOf({ updated: r.updated as UpdatedLine }), space: spaceOf({ space: r.space as SpaceUse }), night_logo: nightLogoOf({ night_logo: r.night_logo as NightLogo }), weather_days: weatherDaysOf({ weather_days: r.weather_days as number }), idle_logo: idleLogoOf({ idle_logo: r.idle_logo as IdleLogo }) };
 }
 
 /** A board's display with the four options resolved: its own value, else the installation default (the backend's effective_display). */
 export function effectiveTv<D extends Partial<Pick<Display, (typeof TV_KEYS)[number]>>>(d: D, defaults: TvDefaults): Omit<D, (typeof TV_KEYS)[number]> & TvDefaults {
-  return { ...d, header: d.header || defaults.header, updated: d.updated || defaults.updated, space: d.space || defaults.space, night_logo: d.night_logo || defaults.night_logo, weather_days: d.weather_days ?? defaults.weather_days };
+  return { ...d, header: d.header || defaults.header, updated: d.updated || defaults.updated, space: d.space || defaults.space, night_logo: d.night_logo || defaults.night_logo, weather_days: d.weather_days ?? defaults.weather_days, idle_logo: d.idle_logo || defaults.idle_logo };
+}
+
+/** TVNOTICE2-297: the text of the "updated" line around its time - place: "<label> · <place> <time>" (no place: the board name),
+ * full: "<label> <time> · <board>". The caller draws the time between `before` and `after`; an empty name drops its separator. */
+export function updatedLineParts(u: 'place' | 'full', c: { label: string; place: string; board: string }): { before: string; after: string } {
+  const board = c.board.trim();
+  const place = c.place.trim() || board;
+  if (u === 'place') return { before: c.label + (place ? ' · ' + place : '') + ' ', after: '' };
+  return { before: c.label + ' ', after: board ? ' · ' + board : '' };
 }
 
 // ---------------------------------------------------------------- BOARDV2-297: the V2 board (owner-approved mock-up 2026-10-26)

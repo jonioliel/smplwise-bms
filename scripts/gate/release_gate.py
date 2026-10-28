@@ -108,7 +108,7 @@ SELECTION = {}           # the select_tests.py result of this run
 # One source with scripts/fixture_job.py (the runner's `fixture` job): frontend/tests/fixtures/fixture_specs.json, the specs with
 # "gate": true. When the JSON is not next to the script (the gate copy in ~/ on the runner) the built-in default is used; both give
 # the same set, a test (test_fixture_job.py) pins that.
-FIXTURE_SPECS = {"evidence-camera-card.spec.ts"}
+FIXTURE_SPECS = {"evidence-camera-card.spec.ts", "evidence-curved-walls.spec.ts", "evidence-curve-points.spec.ts"}   # CURVEDGATE-297
 try:
     _fx = json.loads((HERE.parent.parent / "frontend" / "tests" / "fixtures" / "fixture_specs.json").read_text(encoding="utf-8"))["groups"]
     FIXTURE_SPECS = {n for g in _fx.values() for n, s in g["specs"].items() if s.get("gate")} or FIXTURE_SPECS

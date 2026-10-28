@@ -37,18 +37,23 @@ LOGO_LAYOUTS = ("a", "b", "c")
 #              (default), plate = always the light file on a white plate, invert = the dark file when there is one, else the
 #              inverted light file when it has a transparent background, else the plate
 HEADERS = ("a", "b", "c")
-UPDATED_LINES = ("full", "time", "issues")
+# TVNOTICE2-297 (owner 27.10): place = "updated · <the board's place> <time>", the approved preview wording and the new default;
+#              full stays a choice (an installation or a board that stored it keeps it)
+UPDATED_LINES = ("place", "full", "time", "issues")
 SPACE_USES = ("bigger", "more", "mix")
 NIGHT_LOGOS = ("auto", "plate", "invert")
 #  weather_days (owner 2026-10-25): the forecast row of the weather block - 0 = as before (the entity's forecast entries, up to
 #              `weather.hours`; the factory default, so nothing changes), 1 = today only (no forecast row), 2..5 = today and the
 #              next days, one cell per local day (a source with fewer days shows the days it has)
 WEATHER_DAYS = (0, 1, 2, 3, 4, 5)
+#  idle_logo (owner 27.10, TVNOTICE2-297): the board with no notice to show - sw = the clock and the SmplWise logo as before (default),
+#              both = the developer (company) logo is drawn in the idle message too
+IDLE_LOGOS = ("sw", "both")
 # TVOPT-295 (owner 2026-10-25): an installation-wide default for each of these choices (settings `notices.tv.*`, edited with
 # notices.boards). A board's display JSON holds a key only when the board chose its own value; a board without it - every board
 # saved before, every new board - follows the installation default, which starts at c / full / bigger / auto / 0 (the screen as it was).
-TV_CHOICES: dict[str, tuple[Any, ...]] = {"header": HEADERS, "updated": UPDATED_LINES, "space": SPACE_USES, "night_logo": NIGHT_LOGOS, "weather_days": WEATHER_DAYS}
-TV_FACTORY: dict[str, Any] = {"header": "c", "updated": "full", "space": "bigger", "night_logo": "auto", "weather_days": 0}
+TV_CHOICES: dict[str, tuple[Any, ...]] = {"header": HEADERS, "updated": UPDATED_LINES, "space": SPACE_USES, "night_logo": NIGHT_LOGOS, "weather_days": WEATHER_DAYS, "idle_logo": IDLE_LOGOS}
+TV_FACTORY: dict[str, Any] = {"header": "c", "updated": "place", "space": "bigger", "night_logo": "auto", "weather_days": 0, "idle_logo": "sw"}
 TV_SETTING: dict[str, str] = {k: f"notices.tv.{k}" for k in TV_CHOICES}
 
 

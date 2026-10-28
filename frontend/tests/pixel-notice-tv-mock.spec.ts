@@ -63,7 +63,8 @@ for (const c of CASES) {
     const a = await mock.screenshot();
     const page = await ctx.newPage();
     const base = (test.info().project.use.baseURL as string | undefined) || process.env.SW_BASE_URL || 'http://127.0.0.1:4173/';
-    await serveFeed(page, lobbyFeed({ ...c.product, blocks: { clock: true, hebdate: false, welcome: true, weather: true, info: [], promo: false, news: true, company_logo: false } }));
+    // TVNOTICE2-297: the v4 mock-up's footer reads "updated <time> · <board name>" (the full wording); the default is now the preview wording
+    await serveFeed(page, lobbyFeed({ updated: 'full', ...c.product, blocks: { clock: true, hebdate: false, welcome: true, weather: true, info: [], promo: false, news: true, company_logo: false } }));
     await page.goto(new URL(tvUrl(), base).toString());
     await settled(page);
     const b = await page.screenshot();

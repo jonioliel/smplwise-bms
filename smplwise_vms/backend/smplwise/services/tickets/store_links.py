@@ -60,7 +60,8 @@ def contact(conn: sqlite3.Connection, contact_id: str | None) -> dict[str, Any] 
 
 def contacts(conn: sqlite3.Connection, *, query: str = "", kind: str | None = None, include_inactive: bool = True,
              include_erased: bool = False, limit: int = 500) -> list[dict[str, Any]]:
-    where: list[str] = []
+    # EXTERNALBUILD-297 (CR-VISITOR105 D2): a visitor a host invited lives only in the visitor screens, never in the tickets directory
+    where: list[str] = ["NOT EXISTS (SELECT 1 FROM access_visitor_invites vi WHERE vi.visitor_contact_id = ticket_contacts.id)"]
     args: list[Any] = []
     if not include_erased:
         where.append("erased_at IS NULL")

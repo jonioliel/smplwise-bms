@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-27T11:58:22.450238+00:00
+Generated: 2026-10-27T23:57:13.273545+00:00
 
-Tasks: 258 | Requirements: 367 | Tests: 384 | Screens: 32
+Tasks: 268 | Requirements: 377 | Tests: 394 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,13 +12,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 - DONE: 38
 - IN_PROGRESS: 7
 - READY: 2
-- REVIEW: 65
+- REVIEW: 75
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 164
+- V1: 174
 - V2: 29
 - V3: 2
 
@@ -296,3 +296,13 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [WHOIN034-295](tasks/WHOIN034-295.md) | V1 | REVIEW | Who is in the building (board r034) and the geofence / beacon / Wi-Fi editors on screen (board r035), 2.16.0 | — |
 | [GATEAUDIT-297](tasks/GATEAUDIT-297.md) | V1 | REVIEW | Gate audit and cleanup: classify the repeatedly failing / flaky / obsolete tests of the last 35 gate and nightly runs, remove duplicates, fix the bubble-freeze leftovers, re-take stale visual baselines, refresh the gate baselines | — |
 | [GATELANES-297](tasks/GATELANES-297.md) | V1 | REVIEW | Gate lanes: pixel baselines for classic + domus only (tesla / crystal get a structural smoke), archive the September owner-round live specs, a non-blocking timing lane for the wall-clock tests | — |
+| [WISKEYA06-297](tasks/WISKEYA06-297.md) | V1 | REVIEW | WisKey A06 (T06, W-031, board r152): identity source + role + scope -> admission, working-state mapping (fakes) | — |
+| [EXTERNALBUILD-297](tasks/EXTERNALBUILD-297.md) | V1 | REVIEW | External access built to full scope (X0-X6 of EXTERNALSPEC-297 + one-time code + CR-VISITOR105 visitors), fakes only, OFF by default | — |
+| [DOORWRITE-297](tasks/DOORWRITE-297.md) | V1 | REVIEW | Door-window program written from Arx to WisKey (board r129): validate, read-back proof, drift, retries, dry run, write again | — |
+| [XSECFIX-297](tasks/XSECFIX-297.md) | V1 | REVIEW | Security review 2026-10-27 (phone apps): the four medium findings M1-M4 - presence gate exact match, device credentials end on sign-out, failure limiter per source, arx://open waits for the app lock | — |
+| [MOTIONSETTING-297](tasks/MOTIONSETTING-297.md) | V1 | REVIEW | Motion setting ui.motion (auto | full | reduced), separate from the skin and the scheme | — |
+| [SPLITSWITCH2-297](tasks/SPLITSWITCH2-297.md) | V1 | REVIEW | Emergency-buttons switch is a setting (owner q48): default on, admin-only, audited, confirmed when turned off; a gate on the build flags, never an activation | — |
+| [CURVEDGATE-297](tasks/CURVEDGATE-297.md) | V1 | REVIEW | Curved walls stage 1a: the two live curved-wall browser specs (evidence-curved-walls, evidence-curve-points) join the release gate's fixture phase | — |
+| [XSECFOLLOW-297](tasks/XSECFOLLOW-297.md) | V1 | REVIEW | Security review 2026-10-27 follow-ups of XSECFIX-297: the presence block on WebSockets, phone credentials end on a password change / reset and a forced second factor, ?do=run and Android tests | — |
+| [SUPPLIERDOCS-297](tasks/SUPPLIERDOCS-297.md) | V1 | REVIEW | Supplier certificate reading, slice 1: text-layer PDFs into proposed fields decided field by field (OFF by default, PROVISIONAL on owner questions q52-q56) | — |
+| [SUPPLIERDOCS2-297](tasks/SUPPLIERDOCS2-297.md) | V1 | REVIEW | Supplier documents: migration renumbered to 0182 after release/2241, merge of release/2241, security review with fixes F1-F3 and F6 | — |

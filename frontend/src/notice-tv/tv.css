@@ -220,6 +220,11 @@ body.box #host { background: #000; }
 .empty span { font-size: calc(34px * var(--fs)); color: var(--ink-3); }
 #cv[data-empty="1"] .it, #cv[data-empty="1"] .dots { display: none !important; }
 #cv[data-empty="1"] .empty { display: flex; }
+/* TVNOTICE2-297: the idle board with the developer logo too (idle_logo both) - the logo above the message; an explicit choice, so it shows
+   even where the header's company-logo block is off */
+.empty .idl { display: flex; margin-block-end: 8px; }
+#cv .empty .idl .lg.company { block-size: calc(96px * var(--lgco, var(--lg, 1))); max-inline-size: 60%; visibility: visible; }
+.empty .idl .lg.company img { block-size: 100%; inline-size: auto; max-inline-size: 100%; object-fit: contain; }
 
 /* building status: a quiet line of text in the footer, a dot per state */
 .chips { display: flex; flex-wrap: wrap; gap: 8px calc(44px * var(--fs)); min-inline-size: 0; overflow: hidden; block-size: calc(40px * var(--fs)); align-content: start; }
@@ -460,6 +465,18 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 #cv.portrait .ann [data-size="m"] .ann-t { font-size: 54px; }
 #cv.portrait .ann [data-size="s"] .ann-t { font-size: 40px; }
 .ann .ann-t + .ann-t { padding-block-start: 32px; border-block-start: 1px solid rgba(246, 238, 232, .22); }
+/* ANNOUNCE-297: four full-length languages (the automatic translation makes that realistic) get one more, smaller step and tighter gaps */
+.ann [data-size="xs"] .ann-t { font-size: 32px; }
+#cv.portrait .ann [data-size="xs"] .ann-t { font-size: 32px; }
+.ann [data-size="xs"].ann-in { gap: 24px; }
+.ann [data-size="xs"] .ann-body { gap: 20px; }
+.ann [data-size="xs"] .ann-t + .ann-t { padding-block-start: 18px; }
+/* ANNOUNCE-297: a block the sender took from the automatic translation says so, in its own language, under its text */
+.ann .ann-mt { display: block; margin-block-start: .35em; font-size: max(22px, .3em); font-weight: 500; letter-spacing: .02em; opacity: .72; }
+/* a short fade when the overlay appears; none at all under reduced motion */
+#cv[data-ann="1"] .ann, #cv[data-ann="crit"] .ann { animation: annin .24s cubic-bezier(0.23, 1, 0.32, 1) both; }
+@keyframes annin { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #cv .ann { animation: none !important; transition: none !important; } }
 /* ===== TVOPT-295: the one-row header (display.header a / b) and the "updated" line (display.updated) =====
    a: the company logo, a hairline and the greeting at the inline start; SmplWise and the status at the inline end of the same row.
    b: the greeting centred; SmplWise over the status at the end. The separate bottom row goes away (template 1 keeps it only for the
@@ -484,6 +501,21 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 .hd.one[data-h="b"] .lg.company { justify-self: start; }
 .hd.one[data-h="b"] .hw { justify-self: center; }
 .hd.one[data-h="b"] .hs { justify-self: end; }
+/* TVNOTICE-297: worst-case data never widens the row. The page grid had one implicit `auto` column, so a long place name (nowrap)
+   grew the column past the canvas and pushed the greeting and SmplWise off the screen. With the one-row header the column is the
+   canvas width; the name gives way (ellipsis), the two logos and the status keep their size, and the "updated" line is capped. */
+#cv[data-header="a"] .pg, #cv[data-header="b"] .pg { grid-template-columns: minmax(0, 1fr); }
+.hd.one { min-inline-size: 0; }
+.hd.one .hst { min-inline-size: 0; }
+.hd.one .live { min-inline-size: 0; max-inline-size: 340px; } /* the place name has the priority in the row; the board name is secondary */
+.hd.one .live .lt { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hd.one[data-h="b"] { grid-template-columns: minmax(max-content, 1fr) minmax(0, max-content) minmax(max-content, 1fr); }
+.hd.one[data-h="b"] .hw { justify-self: stretch; justify-content: center; }
+#cv.portrait .hd.one .live { max-inline-size: 280px; }
+/* portrait a: the caption stands over the place name (as b does), so the name keeps a readable width beside two logos */
+#cv.portrait .hd.one[data-h="a"] .hw { flex-direction: column; align-items: flex-start; gap: 2px; }
+#cv.portrait .hd.one[data-h="a"] .hw b { max-inline-size: 100%; }
+#cv.portrait .hd.one[data-h="b"] .hw { min-inline-size: 0; }
 /* the greeting left the side column: the clock opens the column, the weather closes it */
 #cv[data-header="a"][data-tpl="1"] .side .clock, #cv[data-header="b"][data-tpl="1"] .side .clock { margin-block-start: 0; }
 #cv[data-header="a"] .ft:empty, #cv[data-header="b"] .ft:empty { display: none; }

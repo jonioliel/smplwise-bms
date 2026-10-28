@@ -72,7 +72,7 @@ def test_no_value_in_any_answer_log_or_audit_row(settings, caplog):
     listing = client.get(BASE)
     assert listing.status_code == 200
     seen.append(listing.text)
-    assert {s["name"] for s in listing.json()["secrets"]} == set(VALUES) | {"ha_users_token", "announce_cloud_key"}  # USR1-263: + the store-only home-system users token; ANNOUNCE-295: + the cloud speech key
+    assert {s["name"] for s in listing.json()["secrets"]} == set(VALUES) | {"ha_users_token", "announce_cloud_key", "announce_translate_key"}  # USR1-263: + the store-only home-system users token; ANNOUNCE-295: + the cloud speech key; ANNOUNCE-297: + the translation key
     assert all(set(s) == {"name", "label_he", "label_en", "restart_required", "testable", "configured", "state", "source", "updated_at",
                           "updated_by", "updated_by_name"} for s in listing.json()["secrets"])
     r = client.delete(f"{BASE}/openai_api_key")

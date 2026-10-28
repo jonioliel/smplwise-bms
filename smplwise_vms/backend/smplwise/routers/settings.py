@@ -76,6 +76,11 @@ DEFAULTS: dict[str, str] = {
     # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
     "ui.skin": "classic",
     "ui.scheme": "light",
+    # MOTIONSETTING-297 (owner 2026-10-27): the motion setting, separate from the skin and the scheme - auto (follow the operating
+    # system's reduced-motion choice) | full (ignore that reduction for non-essential motion) | reduced (zero durations, press scale 1,
+    # the same thing the OS reduction does). Per installation; frontend/src/design/apply.ts reads it (data-motion on <html>).
+    "ui.motion": "auto",
+    "ui.rail_tone": "auto",  # SKINCOMP-297: auto | dark - the dark (navy) rail of a skin that has one (Arx Infra = direction D); RAIL_TONES in frontend/src/design/skins/index.ts
     # 2.4.4 (owner 2026-10-10): the product's accent colour and the colour of a switch that is on - "default" (the skin's own: the
     # system blue of the classic look) | a preset id (ios_green = the earlier glass mockup's green) | "#rrggbb". services/brand_colors.py;
     # applied by the frontend on the DU1 token layer (design/brand.ts). Per installation.
@@ -471,6 +476,11 @@ DEFAULTS: dict[str, str] = {
     "maintenance.vendor_missing_insurance_mark": "true",
     "maintenance.vendor_insurance_warn_days": "30",
     "maintenance.file_max_per_task": "10",
+    # SUPPLIERDOCS-297 (provisional, owner questions q52-q56 open): reading an attached supplier certificate (text-layer PDF) into
+    # PROPOSED fields that a person confirms one by one. OFF by default; needs the maintenance module. While off every
+    # /api/v1/maintenance/docread* and .../files/{id}/read|extraction route answers 404 feature_disabled. No OCR, no model.
+    # A security review of the reader boundary gates switching it on in a release (CR-OCR119 section 6).
+    "docread.enabled": "false",
     # NVRMASK-295: privacy-mask writes to the NVR (preview + guarded apply). OFF by default: a mask blacks out live view AND the
     # recording. While off the preview and apply routes answer 409 feature_disabled; the read and the undo of earlier changes stay.
     "nvr.privacy_mask_write": "false",
@@ -520,6 +530,10 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     # DEFAULTS and not patchable here: the switches themselves live behind /doors/windows/settings and /doors/emergency/settings.
     out["doors.ui.tab"] = "on" if (get_setting(conn, "doors.windows.enabled") == "on" or get_setting(conn, "doors.emergency.enabled") == "on") else "off"
     out["ui.skin"] = stored_skin(out["ui.skin"])  # BUBBLE-FREEZE-295: a stored frozen skin reads as the fallback (the row is left as it is)
+    if out.get("ui.motion") not in ("auto", "full", "reduced"):  # MOTIONSETTING-297: a corrupt value reads as the default
+        out["ui.motion"] = DEFAULTS["ui.motion"]
+    if out.get("ui.rail_tone") not in ("auto", "dark"):  # SKINCOMP-297: a corrupt value reads as the default
+        out["ui.rail_tone"] = "auto"
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     if out.get("ui.tickets_section_row") not in ("hide_single", "always"):  # SERVICEIA1-295: a corrupt value reads as the default
         out["ui.tickets_section_row"] = "hide_single"
@@ -772,6 +786,8 @@ class SettingsPatch(BaseModel):
     ui_automations_view: str | None = Field(default=None, pattern="^(rows|cards)$", alias="ui.automations_view")
     ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble|crystal|infra|soft)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts (SKINFOUND-297: infra, soft)
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
+    ui_motion: str | None = Field(default=None, pattern="^(auto|full|reduced)$", alias="ui.motion")  # MOTIONSETTING-297; keep in step with MOTION_MODES in frontend/src/design/apply.ts
+    ui_rail_tone: str | None = Field(default=None, pattern="^(auto|dark)$", alias="ui.rail_tone")  # SKINCOMP-297: keep in step with RAIL_TONES in frontend/src/design/skins/index.ts
 
     @field_validator("ui_skin")
     @classmethod
@@ -985,6 +1001,7 @@ class SettingsPatch(BaseModel):
     maintenance_vendor_missing_insurance_mark: str | None = Field(default=None, pattern="^(true|false)$", alias="maintenance.vendor_missing_insurance_mark")
     maintenance_vendor_insurance_warn_days: str | None = Field(default=None, pattern=LEAD_DAYS_PATTERN, alias="maintenance.vendor_insurance_warn_days")
     maintenance_file_max_per_task: str | None = Field(default=None, pattern=r"^([1-9]|[1-4][0-9]|50)$", alias="maintenance.file_max_per_task")
+    docread_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="docread.enabled")  # SUPPLIERDOCS-297 (OFF by default)
 
     model_config = {"populate_by_name": True}
 
@@ -1301,6 +1318,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         current_maint = get_setting(conn, "maintenance.enabled", DEFAULTS["maintenance.enabled"]) or DEFAULTS["maintenance.enabled"]
         if changes["maintenance.enabled"] != ("true" if current_maint == "true" else "false"):
             maintenance_switch = changes["maintenance.enabled"]
+    docread_switch = None  # SUPPLIERDOCS-297: the document-reading switch gets its own audit row when it actually changes
+    if "docread.enabled" in changes:
+        current_dr = get_setting(conn, "docread.enabled", DEFAULTS["docread.enabled"]) or DEFAULTS["docread.enabled"]
+        if changes["docread.enabled"] != ("true" if current_dr == "true" else "false"):
+            docread_switch = changes["docread.enabled"]
     emergency_switch = None  # CR-EMERG104: the module switch gets its own audit row when it actually changes
     if "emergency_readiness.enabled" in changes:
         current_em = get_setting(conn, "emergency_readiness.enabled", DEFAULTS["emergency_readiness.enabled"]) or DEFAULTS["emergency_readiness.enabled"]
@@ -1409,6 +1431,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
     if maintenance_switch is not None:
         audit(conn, actor=principal, action="maintenance.module.enable" if maintenance_switch == "true" else "maintenance.module.disable", decision="allowed",
               resource_type="installation", resource_id="maintenance", request_id=getattr(request.state, "correlation_id", None))
+    if docread_switch is not None:
+        audit(conn, actor=principal, action="docread.enable" if docread_switch == "true" else "docread.disable", decision="allowed",
+              resource_type="installation", resource_id="docread", request_id=getattr(request.state, "correlation_id", None))
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
     return {"settings": read_settings(conn, private=True), "can_edit": True, **_capacity_info(conn)}

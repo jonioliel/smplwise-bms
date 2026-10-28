@@ -14,7 +14,7 @@ import {
   type VersionRow,
 } from '../api/automations';
 import { commandId } from '../api/request-id';
-import { areaLine, fieldDefaults, missingFields, type FieldChoice, cardChips, confirmLine, deletedText, floorLine, keepText, runRows, whenText, type DrawerView } from './automations-logic';
+import { addressAction, areaLine, fieldDefaults, missingFields, type FieldChoice, cardChips, confirmLine, deletedText, floorLine, keepText, runRows, whenText, type DrawerView } from './automations-logic';
 import type { TrashRow } from '../api/automations';
 
 export type DrawerResult = { text: string; tone: 'ok' | 'error'; action?: { label: string; run: () => void } };
@@ -512,14 +512,17 @@ export class AutomationDrawer extends LitElement {
     try { this.dry = await autoApi().dryRun(it.kind, it.id); } catch (err) { this.say(mapAutomationError(err).message, 'error'); this.go('detail'); } finally { this.dryBusy = false; }
   }
 
-  /** A card's menu asked for run / copy / delete: open that confirmation (the dialogs live here), then tell the screen to clear the address. */
+  /** A card's menu asked for run / copy / delete: open that confirmation (the dialogs live here, run included), then tell the screen to clear the address. */
   private applyAction() {
     const it = this.item;
     const a = this.action;
     if (!it || !a) return;
-    if (a === 'run' && it.can.run) void this.run();
-    else if (a === 'copy' && it.can.copy) { this.copyName = `${it.name} (עותק)`; this.confirm = 'copy'; }
-    else if (a === 'delete' && it.can.delete) this.confirm = 'delete';
+    // XSECFIX-297 (review M4): an address never runs anything by itself - `?do=run` (a card menu, but also any link, e.g. `arx://open`
+    // from another app) only opens the run confirmation; the run needs the user's tap on it (XSECFOLLOW-297: the rule is
+    // automations-logic.addressAction, covered by tests/unit-xsecfollow-297.spec.ts)
+    const open = addressAction(a, it.can);
+    if (open === 'copy') this.copyName = `${it.name} (עותק)`;
+    if (open) this.confirm = open;
     this.fire('action-done');
   }
 

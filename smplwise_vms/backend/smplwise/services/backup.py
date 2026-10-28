@@ -100,6 +100,8 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    "fleet_report_log",
                                    # MAINT215B: the certificate files (the bytes are on the data volume and do not travel) and the reminder log (runtime history)
                                    "maint_files", "maint_reminder_log",
+                                   # SUPPLIERDOCS-297: document-reading proposals - short-lived drafts tied to maint_files (which do not travel)
+                                   "doc_extractions",
                                    # APPREFRESH2-295: the single-use device-key proof nonces
                                    "app_refresh_nonces",
                                    # APPREFRESH3-295: the device-key pins - a restore must neither drop one (a new key would bind without

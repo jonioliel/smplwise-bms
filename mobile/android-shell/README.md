@@ -142,6 +142,11 @@ no screen lock or biometrics at all any more (it says so); any other "cannot aut
   is refused). When a site is already open the list asks first ("לפתוח את הקישור?" - it may be an intercom call). A
   link to any other address is never opened or added by itself: the list shows the **full address** with the warning
   "הוסף רק אם אתה מכיר את מי שמפעיל את השרת" and "הוסף שרת".
+- XSECFIX-297 (security review 2026-10-27, M4): a link never opens a site behind the app lock. While the lock is due the
+  link waits and opens only after the unlock (the site screen itself also defers its first page load until then). A link
+  whose address asks the site to do something (a `do` parameter in its query or `#` route, e.g. `?do=run`) is never
+  opened by itself: the list asks "לפתוח את הקישור?" with the full address. The site, for its part, only opens its run
+  confirmation for `?do=run` and never runs from an address.
 - Plain `https://` links (for example from WhatsApp or e-mail) open in the browser, not in the app: the app declares no
   verified https links, because the servers are known only at run time.
 

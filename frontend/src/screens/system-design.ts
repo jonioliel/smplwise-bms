@@ -7,9 +7,9 @@ import { describeError } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
-import { SELECTABLE_SKIN_IDS, SKINS, type SkinId } from '../design/skins';
+import { RAIL_TONES, SELECTABLE_SKIN_IDS, SKINS, type RailTone, type SkinId } from '../design/skins';
 import { skinTable } from '../design/css';
-import { SCHEMES, installationDesign, onDesign, ownSchemeChoice, saveDemoDesign, setInstallationDesign, setOwnScheme, type Scheme, type Theme } from '../design/apply';
+import { MOTION_MODES, SCHEMES, installationDesign, onDesign, ownSchemeChoice, saveDemoDesign, setInstallationDesign, setOwnScheme, type MotionMode, type Scheme, type Theme } from '../design/apply';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { t } from '../i18n/he';
@@ -17,6 +17,9 @@ import { BACKGROUND_MODES, BACKGROUND_SLOTS, customBackgroundUrl, installationBa
 import { deleteBackground, uploadBackground } from '../api/background';
 
 const SCHEME_LABEL: Record<Scheme, string> = { light: 'בהיר', dark: 'כהה', auto: 'אוטומטי' };
+const MOTION_LABEL: Record<MotionMode, string> = { auto: 'אוטומטי', full: 'מלא', reduced: 'מופחת' };
+/** SKINCOMP-297: `ui.rail_tone` - the skin's own rail or its dark (navy) rail. */
+const RAIL_LABEL: Record<RailTone, string> = { auto: 'כמו הסגנון', dark: 'כהה' };
 const BG_LABEL: Record<BackgroundMode, () => string> = { builtin: () => t('background.builtin'), none: () => t('background.none'), custom: () => t('background.custom') };
 
 function systemDark(): boolean {
@@ -41,6 +44,9 @@ export class SystemDesign extends LitElement {
   readonly bubbleSkin = new SkinController(this);
   @state() private draftSkin: SkinId = installationDesign().skin;
   @state() private draftScheme: Scheme = installationDesign().scheme;
+  @state() private draftMotion: MotionMode = installationDesign().motion;
+  /** SKINCOMP-297: the rail tone (offered only for a skin that has a dark rail - Arx Infra). */
+  @state() private draftRail: RailTone = installationDesign().rail;
   @state() private own: Scheme | null = ownSchemeChoice();
   /** CRY: the installation's background choice (saved with the button) and this user's own (saved at once). */
   @state() private draftBackground: BackgroundMode = installationBackground().mode;
@@ -371,11 +377,13 @@ export class SystemDesign extends LitElement {
       void getSettings()
         .then((r) => {
           this.canEdit = r.can_edit;
-          setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme']);
+          setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme'], r.settings['ui.motion'], r.settings['ui.rail_tone']);
           setInstallationBackground(r.settings['ui.background'], r.settings['ui.background_images']);
           const d = installationDesign();
           this.draftSkin = d.skin;
           this.draftScheme = d.scheme;
+          this.draftMotion = d.motion;
+          this.draftRail = d.rail;
           this.draftBackground = installationBackground().mode;
         })
         .catch(() => undefined);
@@ -390,7 +398,7 @@ export class SystemDesign extends LitElement {
 
   private get dirty(): boolean {
     const d = installationDesign();
-    return d.skin !== this.draftSkin || d.scheme !== this.draftScheme || installationBackground().mode !== this.draftBackground;
+    return d.skin !== this.draftSkin || d.scheme !== this.draftScheme || d.motion !== this.draftMotion || d.rail !== this.draftRail || installationBackground().mode !== this.draftBackground;
   }
 
   private async save() {
@@ -398,12 +406,12 @@ export class SystemDesign extends LitElement {
     this.error = '';
     try {
       if (isApi()) {
-        const r = await patchSettings({ 'ui.skin': this.draftSkin, 'ui.scheme': this.draftScheme, 'ui.background': this.draftBackground });
+        const r = await patchSettings({ 'ui.skin': this.draftSkin, 'ui.scheme': this.draftScheme, 'ui.motion': this.draftMotion, 'ui.rail_tone': this.draftRail, 'ui.background': this.draftBackground });
         invalidateSettings();
-        setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme']);
+        setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme'], r.settings['ui.motion'], r.settings['ui.rail_tone']);
         setInstallationBackground(r.settings['ui.background'], r.settings['ui.background_images']);
       } else {
-        saveDemoDesign(this.draftSkin, this.draftScheme);
+        saveDemoDesign(this.draftSkin, this.draftScheme, this.draftMotion, this.draftRail);
         saveDemoBackground(this.draftBackground);
       }
       this.message = 'המראה נשמר';
@@ -527,6 +535,16 @@ export class SystemDesign extends LitElement {
           )}
         </div>
       </div>
+      <div class="row"><span class="lbl">תנועה<span class="muted">אוטומטי עוקב אחרי הגדרת המכשיר; מלא מתעלם ממנה; מופחת מבטל תנועה</span></span>
+        <span class="seg" role="group" aria-label="תנועה">
+          ${MOTION_MODES.map((m) => html`<button type="button" data-motion-option=${m} aria-pressed=${this.draftMotion === m ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftMotion = m)}>${MOTION_LABEL[m]}</button>`)}
+        </span></div>
+      ${SKINS[this.draftSkin].darkRail
+        ? html`<div class="row" data-rail-row><span class="lbl">סרגל הניווט<span class="muted">כהה = סרגל כחול-כהה גם במראה הבהיר</span></span>
+            <span class="seg" role="group" aria-label="סרגל הניווט">
+              ${RAIL_TONES.map((r) => html`<button type="button" data-rail-option=${r} aria-pressed=${this.draftRail === r ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftRail = r)}>${RAIL_LABEL[r]}</button>`)}
+            </span></div>`
+        : nothing}
       <div class="row"><span class="lbl">צבעוניות של המערכת<span class="muted">ברירת המחדל לכל המשתמשים; אוטומטי עוקב אחרי המכשיר</span></span>
         <span class="seg" role="group" aria-label="צבעוניות של המערכת">
           ${SCHEMES.map((s) => html`<button type="button" data-scheme-option=${s} aria-pressed=${this.draftScheme === s ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftScheme = s)}>${SCHEME_LABEL[s]}</button>`)}

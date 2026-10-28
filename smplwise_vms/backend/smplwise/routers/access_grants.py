@@ -40,7 +40,11 @@ GRANTSMIN-295 (the Arx-only leftovers; services/access_external.py):
 GRANTS3-295 (services/access_cards.py, services/access_history.py):
 - POST   /access-grants/{id}/card               write the card of an active card grant (the number in memory only; behind the cards switch)
 - POST   /access-grants/{id}/card/capture       a card read at a reader - 409 while the capture lease route is not released
-- GET    /access-grants/{id}/history            the owner's per-grant history (system administrators; ids and closed codes only)"""
+- GET    /access-grants/{id}/history            the owner's per-grant history (system administrators; ids and closed codes only)
+EXTERNALBUILD-297 (services/access_readiness.py, services/access_visitors.py):
+- GET    /access-grants/readiness               the read-only readiness check (system administrators)
+- POST   /access-grants and /approve            also take `code_mode` (window | single_entry: the one-time code)
+- the visitor routes live in routers/access_visitors.py"""
 from __future__ import annotations
 
 import sqlite3
@@ -86,6 +90,7 @@ class GrantIn(BaseModel):
     notes: str | None = Field(default=None, max_length=ar.NOTES_MAX)
     told: bool = False
     approve_now: bool = False
+    code_mode: Literal["window", "single_entry"] | None = None  # EXTERNALBUILD-297: a window code (default) or a one-time code
 
 
 class ApproveIn(BaseModel):
@@ -95,6 +100,7 @@ class ApproveIn(BaseModel):
     valid_from: str | None = Field(default=None, max_length=20)
     valid_until: str | None = Field(default=None, max_length=20)
     told: bool = False  # "the person was told" (the privacy notice), for a grant without an arrival-page acknowledgement
+    code_mode: Literal["window", "single_entry"] | None = None  # EXTERNALBUILD-297: the approver may turn a window code into a one-time code
 
 
 class RevisionIn(BaseModel):
@@ -297,6 +303,20 @@ def get_settings(request: Request, principal: Principal = Depends(current_princi
     return {**ag.settings_view(conn), **ax.settings_view(conn)}
 
 
+@router.get("/access-grants/readiness")
+def get_readiness(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """EXTERNALBUILD-297 (X1): the read-only readiness check (system administrator) - which prerequisites of the external access are in
+    place and which are missing, in plain Hebrew. Sends nothing to WisKey, WhatsApp or a station; changes nothing."""
+    from ..services import access_readiness
+
+    require(conn, principal, "system.configure", INSTALLATION)
+    if not is_system_admin(conn, principal.user_id):
+        audit(conn, actor=principal, action="access.grant.readiness", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
+              request_id=_rid(request))
+        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לצפות בבדיקת המוכנות.")
+    return access_readiness.readiness(conn, _db(request))
+
+
 @router.put("/access-grants/settings")
 def put_settings(body: SettingsIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     db = _db(request)
@@ -399,7 +419,7 @@ def request_grant(body: GrantIn, request: Request, principal: Principal = Depend
             ar.precheck_approve_now(conn, principal, scope, body.contact_id, body.told, _rid(request))
         g, outcome = ag.request_grant(conn, actor=principal, requested_by=principal.user_id, contact_id=body.contact_id,
                                       source_kind="ticket" if body.ticket_id else "manual", source_ref=body.ticket_id, assignment_id=None, scope=scope,
-                                      request_id=_rid(request), purpose=purpose, notes=notes)
+                                      request_id=_rid(request), purpose=purpose, notes=notes, code_mode=body.code_mode)
         if body.told:
             ar.record_requester_notice(conn, principal, g["id"], _rid(request))
         now_step = body.approve_now and outcome != "merged"
@@ -444,7 +464,7 @@ def _answer(request: Request, principal: Principal, g: dict[str, Any]) -> dict[s
 @router.post("/access-grants/{grant_id}/approve")
 def approve(body: ApproveIn, request: Request, grant_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     g = ag.approve(_db(request), principal, grant_id, body.revision, doors=body.doors, valid_from=body.valid_from, valid_until=body.valid_until, told=body.told,
-                   request_id=_rid(request))
+                   request_id=_rid(request), code_mode=body.code_mode)
     return _answer(request, principal, g)
 
 

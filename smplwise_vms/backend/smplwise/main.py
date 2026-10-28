@@ -271,6 +271,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         maintenance_reminders.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("maintenance janitor failed", exc_info=True)
+    try:  # SUPPLIERDOCS-297: document-reading drafts past their retention, and those of removed files (hourly inside)
+        from .services.docread import service as docread_service
+
+        docread_service.janitor(db)
+    except Exception:  # noqa: BLE001
+        log.warning("docread janitor failed", exc_info=True)
     try:  # CR-EMERG104: the readiness history (a row only when the verdict or an item changed, or once a day); nothing while the module is off
         from .services.emergency import service as emergency_service
 
@@ -708,6 +714,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_grants as access_grants_router
 
     app.include_router(access_grants_router.router, prefix=api, tags=["access"])  # CR-ARX-WISKEY-SHARED-IDENTITY: external-person door grants (off; go-live not permitted)
+    from .routers import access_visitors as access_visitors_router
+
+    app.include_router(access_visitors_router.router, prefix=api, tags=["access"])  # EXTERNALBUILD-297 / CR-VISITOR105: visitor invitations (off by default)
     from .routers import wiskey_switches as wiskey_switches_router
 
     app.include_router(wiskey_switches_router.router, prefix=api, tags=["access"])  # SMALLFIXA-295 (review 3 G-01/G-03): the wiskey.acr5_* switch writer (system administrator)
@@ -806,6 +815,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(maintenance_router.open_router, prefix=api, tags=["maintenance"])  # GET /maintenance/module: answers while the module is off
     app.include_router(maintenance_router.router, prefix=api, tags=["maintenance"])  # ledger, plans, rounds, supplier documents, tags (off by default)
+    from .routers import docread as docread_router  # SUPPLIERDOCS-297: reading an attached certificate into proposed fields (off by default)
+
+    app.include_router(docread_router.open_router, prefix=api, tags=["docread"])  # GET /maintenance/docread/module
+    app.include_router(docread_router.router, prefix=api, tags=["docread"])
     from .routers import emergency_readiness as emergency_router  # CR-EMERG104: the read-only emergency readiness view (off by default)
 
     app.include_router(emergency_router.open_router, prefix=api, tags=["emergency-readiness"])  # GET /emergency-readiness/module answers while the module is off
