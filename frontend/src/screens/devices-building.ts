@@ -2292,7 +2292,7 @@ export class DevicesBuilding extends LitElement {
     }
     .fcard header h2 {
       margin: 0;
-      font-size: 20px;
+      font-size: var(--sw-fs-2xl);
       font-weight: 800;
       color: var(--sw-heading);
       letter-spacing: -0.025em;
