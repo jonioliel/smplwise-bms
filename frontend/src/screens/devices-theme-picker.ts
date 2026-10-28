@@ -46,24 +46,41 @@ export class DevicesThemePicker extends LitElement {
       flex-wrap: wrap;
       gap: 10px;
     }
+    /* R5-DEVICES-297: a swatch is a raised key (shadow 1, no outline); the chosen one carries the accent ring and a deeper shadow;
+       a press sinks it, hover for a fine pointer only */
     button.theme {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      padding: 6px;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-md);
-      background: var(--sw-surface);
+      gap: 8px;
+      padding: 8px;
+      border: 2px solid transparent;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+      box-shadow: var(--sw-shadow-1);
       color: var(--sw-text);
       font: inherit;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-base);
       text-align: start;
       cursor: pointer;
-      inline-size: 164px;
+      inline-size: 184px;
+      transition: transform var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-med) var(--sw-ease), border-color var(--sw-t-med) var(--sw-ease);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      button.theme:hover:not(:disabled) {
+        box-shadow: var(--sw-shadow-2);
+      }
+    }
+    button.theme:active:not(:disabled) {
+      transform: scale(var(--sw-press-scale, 1));
     }
     button.theme[aria-pressed='true'] {
       border-color: var(--sw-accent);
-      box-shadow: 0 0 0 2px var(--sw-accent-soft);
+      box-shadow: var(--sw-shadow-2), 0 0 0 3px var(--sw-accent-soft);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button.theme {
+        transition-duration: 0.01ms;
+      }
     }
     button.theme:disabled {
       cursor: default;
@@ -72,7 +89,7 @@ export class DevicesThemePicker extends LitElement {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 4px;
-      block-size: 64px;
+      block-size: 76px;
     }
     .prev {
       border-radius: var(--sw-r-sm);
@@ -109,7 +126,8 @@ export class DevicesThemePicker extends LitElement {
       align-items: baseline;
       gap: 6px;
       padding-inline: 2px;
-      font-weight: var(--sw-fw-medium);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
     }
     .cap .muted {
       overflow: hidden;

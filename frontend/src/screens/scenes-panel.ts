@@ -103,7 +103,7 @@ export class ScenesPanel extends LitElement {
       backdrop-filter: var(--dv-surface-blur);
       border: 1px solid var(--dv-border);
       border-radius: var(--sw-r-2xl);
-      box-shadow: var(--dv-shadow-1);
+      box-shadow: var(--dv-shadow-2);
     }
     .scard.hid {
       opacity: 0.7;
@@ -132,9 +132,9 @@ export class ScenesPanel extends LitElement {
       font-size: var(--sw-fs-2xl);
     }
     .badge {
-      font-size: var(--sw-fs-xs);
-      font-weight: 600;
-      padding: 3px 10px;
+      font-size: var(--sw-fs-sm);
+      font-weight: 700;
+      padding: 5px 11px;
       border-radius: 999px;
       background: var(--dv-surface-3);
       color: var(--dv-text-2);
@@ -188,12 +188,14 @@ export class ScenesPanel extends LitElement {
         opacity: 1;
       }
     }
+    /* R5-DEVICES-297: the scene's name is the card's heading (2xl/800); the section title above the group stays as it was */
     h3 {
       margin: 6px 0 0;
-      font-size: var(--sw-fs-xl);
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      line-height: 1.3;
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      color: var(--sw-heading, var(--dv-text));
+      letter-spacing: -0.02em;
+      line-height: 1.2;
     }
     .sub {
       font-size: var(--sw-fs-base);

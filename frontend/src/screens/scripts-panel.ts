@@ -56,7 +56,7 @@ export class ScriptsPanel extends LitElement {
       backdrop-filter: var(--dv-surface-blur);
       border: 1px solid var(--dv-border);
       border-radius: var(--sw-r-2xl);
-      box-shadow: var(--dv-shadow-1);
+      box-shadow: var(--dv-shadow-2);
     }
     .pcard.running {
       border-color: var(--dv-accent);
@@ -71,12 +71,14 @@ export class ScriptsPanel extends LitElement {
       flex: 1;
       min-inline-size: 0;
     }
+    /* R5-DEVICES-297: the script's name is the card's heading (2xl/800) */
     h3 {
       margin: 0;
-      font-size: var(--sw-fs-xl);
-      font-weight: 700;
-      letter-spacing: -0.015em;
-      line-height: 1.25;
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      color: var(--sw-heading, var(--dv-text));
+      letter-spacing: -0.02em;
+      line-height: 1.2;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -143,13 +145,15 @@ export class ScriptsPanel extends LitElement {
       flex-wrap: wrap;
       align-items: center;
       gap: 8px 12px;
-      font-size: var(--sw-fs-base);
+      font-size: var(--sw-fs-md);
       color: var(--dv-text-2);
     }
     .runl {
       display: inline-flex;
       align-items: center;
       gap: 7px;
+      font-weight: 600;
+      color: var(--dv-text);
     }
     .chip.live {
       background: var(--dv-accent-soft);

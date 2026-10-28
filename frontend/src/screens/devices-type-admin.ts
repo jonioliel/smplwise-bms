@@ -67,23 +67,42 @@ export class DevicesTypeAdmin extends LitElement {
     }
     .note,
     .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
     }
     .manual {
-      font-weight: var(--sw-fw-semibold);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-accent-text, var(--sw-text));
     }
+    /* R5-DEVICES-297: the table reads at the base size with a heading row and roomy cells; the name is bold */
     table {
       inline-size: 100%;
-      border-collapse: collapse;
-      font-size: var(--sw-fs-sm);
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: var(--sw-fs-base);
     }
     th,
     td {
       text-align: start;
-      padding: 6px 8px;
+      padding: 10px 10px;
       border-block-end: 1px solid var(--sw-border);
       vertical-align: middle;
+    }
+    th {
+      background: var(--sw-surface-2);
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: var(--sw-fw-bold);
+      white-space: nowrap;
+    }
+    th:first-child {
+      border-start-start-radius: var(--sw-r-md);
+    }
+    th:last-child {
+      border-start-end-radius: var(--sw-r-md);
+    }
+    td:nth-child(2) {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading, var(--sw-text));
     }
     td select {
       min-inline-size: 180px;
@@ -126,15 +145,18 @@ export class DevicesTypeAdmin extends LitElement {
         grid-template-columns: auto minmax(0, 1fr);
         gap: 4px 10px;
         align-items: center;
-        padding: 8px 10px;
-        border: 1px solid var(--sw-border);
+        padding: 10px 12px;
+        border: 0;
+        background: var(--sw-surface-2);
         border-radius: var(--sw-r-md);
-        min-block-size: 44px;
+        min-block-size: 48px;
+        font-weight: var(--sw-fw-semibold);
       }
       .card .sub {
         grid-column: 2;
-        font-size: var(--sw-fs-xs);
-        color: var(--sw-text-3);
+        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-regular);
+        color: var(--sw-text-2);
       }
       .card select,
       .card .bulk-on {

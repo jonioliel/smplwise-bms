@@ -53,11 +53,14 @@ export class AutomationCard extends LitElement {
       backdrop-filter: var(--dv-surface-blur);
       border: 1px solid var(--dv-border);
       border-radius: var(--sw-r-2xl);
-      box-shadow: var(--dv-shadow-1);
+      box-shadow: var(--dv-shadow-2);
       transition: box-shadow var(--mm-motion) var(--mm-ease), transform var(--mm-motion) var(--mm-ease), border-color var(--mm-motion);
     }
-    .acard:hover {
-      box-shadow: var(--dv-shadow-2);
+    /* R5-DEVICES-297: the card is the top step (shadow 2 at rest); hover only for a fine pointer */
+    @media (hover: hover) and (pointer: fine) {
+      .acard:hover {
+        box-shadow: var(--dv-shadow-3, var(--dv-shadow-2));
+      }
     }
     .acard:focus-within {
       border-color: color-mix(in srgb, var(--dv-accent) 55%, transparent);
@@ -82,10 +85,11 @@ export class AutomationCard extends LitElement {
     }
     h3 {
       margin: 0;
-      font-size: var(--sw-fs-xl);
-      font-weight: 700;
-      letter-spacing: -0.015em;
-      line-height: 1.25;
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      color: var(--sw-heading, var(--dv-text));
+      letter-spacing: -0.02em;
+      line-height: 1.2;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -171,7 +175,7 @@ export class AutomationCard extends LitElement {
       align-items: center;
       gap: 8px 12px;
       margin-block-start: auto;
-      font-size: var(--sw-fs-base);
+      font-size: var(--sw-fs-md);
       color: var(--dv-text-2);
     }
     .run {
@@ -179,6 +183,8 @@ export class AutomationCard extends LitElement {
       align-items: center;
       gap: 7px;
       font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      color: var(--dv-text);
     }
     a.why {
       display: inline-flex;

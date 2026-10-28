@@ -95,11 +95,12 @@ export class ScheduleActions extends LitElement {
       gap: 10px;
       align-items: flex-start;
       min-block-size: 48px;
-      padding: 10px 12px;
-      border: 1px solid var(--dv-border);
-      border-radius: var(--sw-r-lg);
-      background: var(--dv-surface);
+      padding: 10px 14px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-md);
+      background: var(--dv-surface-2);
       font-size: var(--sw-fs-md);
+      font-weight: 600;
       cursor: pointer;
     }
     label.opt:has(input:checked) {
@@ -352,18 +353,22 @@ export class ScheduleDrawer extends LitElement {
     .stack > * {
       flex: none;
     }
+    /* R5-DEVICES-297: the enable row is the drawer's lead control - a raised key (shadow 1) with a heading-size label */
     .swrow {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      min-block-size: 52px;
-      padding: 8px 14px;
-      border-radius: var(--sw-r-lg);
-      background: var(--dv-surface);
-      border: 1px solid var(--dv-border);
-      font-size: var(--sw-fs-lg);
-      font-weight: 600;
+      min-block-size: 56px;
+      padding: 8px 16px;
+      border-radius: var(--sw-r-md);
+      background: var(--dv-surface-2);
+      border: 1px solid transparent;
+      box-shadow: var(--dv-shadow-1);
+      font-size: var(--sw-fs-xl);
+      font-weight: 700;
+      color: var(--sw-heading, var(--dv-text));
+      letter-spacing: -0.01em;
     }
     .chips {
       display: flex;
@@ -371,13 +376,17 @@ export class ScheduleDrawer extends LitElement {
       gap: 6px;
       align-items: center;
     }
+    /* R5-DEVICES-297: the slot's time is a display figure */
     .slot .w {
-      font-weight: 700;
+      font-weight: 800;
+      font-size: var(--sw-fs-xl);
+      color: var(--sw-heading, var(--dv-text));
+      letter-spacing: -0.02em;
       font-variant-numeric: tabular-nums;
       direction: ltr;
       unicode-bidi: isolate;
       flex: none;
-      min-inline-size: 86px;
+      min-inline-size: 96px;
       text-align: end;
     }
     .slot .acts {
@@ -410,20 +419,23 @@ export class ScheduleDrawer extends LitElement {
       border-color: color-mix(in srgb, var(--dv-warning) 40%, transparent);
       background: linear-gradient(var(--dv-warning-soft), var(--dv-warning-soft)), var(--dv-surface);
     }
+    /* R5-DEVICES-297: the next-run and last-run rows are wells; the time on them is bold */
     .li {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      min-block-size: 44px;
-      padding: 8px 12px;
-      border-radius: var(--sw-r-lg);
-      background: var(--dv-surface);
-      border: 1px solid var(--dv-border);
-      font-size: var(--sw-fs-base);
+      min-block-size: 46px;
+      padding: 8px 14px;
+      border-radius: var(--sw-r-md);
+      background: var(--dv-surface-2);
+      border: 1px solid transparent;
+      font-size: var(--sw-fs-md);
+      font-weight: 500;
     }
     .li span:last-child {
-      color: var(--dv-text-2);
+      color: var(--dv-text);
+      font-weight: 700;
       font-variant-numeric: tabular-nums;
       flex: none;
     }

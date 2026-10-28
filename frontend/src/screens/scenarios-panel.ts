@@ -61,15 +61,19 @@ export class ScenariosPanel extends LitElement {
     :host { display: block; block-size: 100%; }
     .wrap { display: flex; flex-direction: column; gap: 12px; block-size: 100%; min-block-size: 0; }
     .grid { flex: 1; min-block-size: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); grid-auto-rows: 118px; gap: 12px; overflow: hidden; }
-    .card { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: var(--sw-r-lg, 20px); cursor: pointer; text-align: start; border: 1px solid var(--dv-border); background: var(--dv-surface); color: var(--dv-text); font: inherit; min-inline-size: 0; }
+    /* R5-DEVICES-297: a scenario card is the top step (shadow 2, no outline), its name a heading, its state a filled pill; the card
+       sinks on pointer-down, hover for a fine pointer only */
+    .card { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: var(--sw-r-lg, 20px); cursor: pointer; text-align: start; border: 1px solid var(--dv-border); background: var(--mm-sheen), var(--dv-surface); box-shadow: var(--dv-shadow-2); color: var(--dv-text); font: inherit; min-inline-size: 0; transition: transform var(--sw-t-fast, 120ms) var(--sw-ease, ease-out), box-shadow var(--mm-motion, 200ms) var(--mm-ease, ease-out); }
     .card:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: 2px; }
-    .card b { font-size: var(--sw-fs-md, 15px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card:active { transform: scale(var(--sw-press-scale, 1)); }
+    @media (hover: hover) and (pointer: fine) { .card:hover { box-shadow: var(--dv-shadow-3, var(--dv-shadow-2)); } }
+    .card b { font-size: var(--sw-fs-xl); font-weight: 800; color: var(--sw-heading, var(--dv-text)); letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .row { display: flex; align-items: center; gap: 8px; min-inline-size: 0; }
-    .meta { color: var(--dv-text-2); font-size: var(--sw-fs-sm, 13px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .st { font-size: var(--sw-fs-xs, 12px); padding: 2px 8px; border-radius: 999px; background: var(--dv-surface-3); color: var(--dv-text-2); white-space: nowrap; }
+    .meta { color: var(--dv-text-2); font-size: var(--sw-fs-base); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .st { display: inline-flex; align-items: center; min-block-size: 26px; font-size: var(--sw-fs-sm); font-weight: 700; padding: 0 10px; border-radius: 999px; background: var(--dv-surface-3); color: var(--dv-text-2); white-space: nowrap; }
     .st.ok { background: var(--dv-success-soft); color: var(--au-ok-text, var(--dv-success)); }
     .st.warn { background: var(--dv-warning-soft); color: var(--au-warn-text, var(--dv-warning)); }
-    .st.bad { background: var(--dv-danger-soft); color: var(--dv-danger); }
+    .st.bad { background: var(--dv-danger-soft); color: var(--au-bad-text, var(--dv-danger)); }
     .mods { display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden; }
     .pager { display: flex; justify-content: center; align-items: center; gap: 10px; color: var(--dv-text-2); font-size: var(--sw-fs-sm, 13px); }
     .kill { padding: 8px 12px; border-radius: var(--sw-r-md, 12px); background: var(--dv-danger-soft); color: var(--dv-danger); }
@@ -78,7 +82,8 @@ export class ScenariosPanel extends LitElement {
     .ed { display: grid; gap: 12px; }
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .tree { display: grid; gap: 6px; }
-    .grp { border-inline-start: 3px solid var(--dv-accent-soft); padding-inline-start: 10px; display: grid; gap: 6px; }
+    /* R5-DEVICES-297: a group is a well, not a side-tab accent border (impeccable detect) */
+    .grp { background: var(--dv-surface-2); border-radius: var(--sw-r-md, 12px); padding: 8px 10px; display: grid; gap: 6px; }
     .grp-h { display: flex; gap: 6px; align-items: center; }
     .leaf { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; border-radius: var(--sw-r-md, 12px); background: var(--dv-surface-2); }
     .leaf select, .leaf input, .act select, .act input, .ed input, .ed select, .ed textarea { font: inherit; color: var(--dv-text); background: var(--dv-surface); border: 1px solid var(--dv-border); border-radius: var(--dv-radius-control, 10px); padding: 4px 8px; min-inline-size: 0; }

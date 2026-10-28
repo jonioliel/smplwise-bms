@@ -27,14 +27,19 @@ export class AutomationRow extends LitElement {
   @state() private menu = false;
 
   static styles = [bubbleChrome, ...automationsStyles, css`
+    /* R5-DEVICES-297: a row is a well (one tone step down, rounded, no hairline) inside the glass list; the name is a heading; an
+       automation that is off sits a step deeper; the row sinks on pointer-down (the skin's press scale), hover for a fine pointer only */
     :host {
       display: block;
       position: relative;
       min-inline-size: 0;
-      border-block-end: 1px solid var(--dv-border);
+      margin: 2px 6px;
+    }
+    :host(:first-of-type) {
+      margin-block-start: 6px;
     }
     :host(:last-of-type) {
-      border-block-end: 0;
+      margin-block-end: 6px;
     }
     :host([data-menu]) {
       z-index: 20;
@@ -45,20 +50,35 @@ export class AutomationRow extends LitElement {
       grid-template-columns: 44px minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(120px, 0.8fr) 40px;
       align-items: center;
       gap: var(--sw-s-3);
-      min-block-size: 52px;
+      min-block-size: 56px;
       padding-inline: var(--sw-s-4);
-      transition: background-color var(--mm-motion) var(--mm-ease);
+      border-radius: var(--sw-r-md);
+      background: var(--dv-surface-2);
+      transition: background-color var(--mm-motion) var(--mm-ease), transform var(--sw-t-fast, 120ms) var(--sw-ease, ease-out);
+    }
+    .ar.off {
+      background: var(--dv-surface-3);
+    }
+    .ar:active {
+      transform: scale(var(--sw-press-scale, 1));
+      background: var(--sw-pressed-wash, var(--dv-surface-3));
     }
     @media (hover: hover) and (pointer: fine) {
       .ar:hover {
-        background: var(--dv-surface-2);
+        background: var(--dv-surface-3);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ar {
+        transition-duration: 0.01ms;
       }
     }
     a.name {
       display: block;
-      font-weight: 600;
-      font-size: var(--sw-fs-md);
-      color: var(--dv-text);
+      font-weight: 700;
+      font-size: var(--sw-fs-lg);
+      color: var(--sw-heading, var(--dv-text));
+      letter-spacing: -0.01em;
       text-decoration: none;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -96,8 +116,8 @@ export class AutomationRow extends LitElement {
       align-items: center;
       gap: 6px;
       min-inline-size: 0;
-      font-size: var(--sw-fs-sm);
-      color: var(--dv-text-2);
+      font-size: var(--sw-fs-base);
+      color: var(--dv-text);
     }
     .sent .ic {
       flex: none;
@@ -112,6 +132,9 @@ export class AutomationRow extends LitElement {
     .ar.off .sent {
       color: var(--dv-text-2);
     }
+    .ar.off .name {
+      font-weight: 600;
+    }
     .ar.off .sent {
       opacity: 0.7;
     }
@@ -120,8 +143,9 @@ export class AutomationRow extends LitElement {
       align-items: center;
       gap: 7px;
       min-inline-size: 0;
-      font-size: var(--sw-fs-sm);
-      color: var(--dv-text-2);
+      font-size: var(--sw-fs-base);
+      font-weight: 600;
+      color: var(--dv-text);
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
       overflow: hidden;
@@ -129,7 +153,7 @@ export class AutomationRow extends LitElement {
     }
     .run.bad {
       color: var(--sw-danger-text);
-      font-weight: 600;
+      font-weight: 700;
     }
     .ctl,
     .ops {
