@@ -255,3 +255,33 @@ def test_h3_the_installer_stores_the_staged_digest_and_refuses_a_newer_tree(sett
     assert st["wiskey_native"]["state"] == "staged"
     with app.state.db.connection() as conn:
         assert get_setting(conn, wai.STAGED_DIGEST_KEY) == wai.source_digest(BUNDLE)
+
+# ================================================================ H4: the bridge starts the native component only for an auto-install entry
+
+def test_h4_the_native_setup_is_gated_on_the_auto_install_entry_flag() -> None:
+    from types import SimpleNamespace
+
+    from keyrot_harness import load_bridge
+
+    bridge = load_bridge()
+
+    def hass(*loaded: str) -> Any:
+        return SimpleNamespace(config=SimpleNamespace(components=set(loaded)))
+
+    def entry(**data: Any) -> Any:
+        return SimpleNamespace(data={"addon_url": "http://synthetic", "pairing_code": "synthetic", **data})
+
+    assert bridge.native_setup_wanted(hass(), entry()) is False  # paired by hand / ordinary discovery: never
+    assert bridge.native_setup_wanted(hass(), entry(wiskey_auto_install="true")) is False  # only the exact flag
+    assert bridge.native_setup_wanted(hass(), entry(wiskey_auto_install=True)) is True
+    assert bridge.native_setup_wanted(hass("hikvision_intercom"), entry(wiskey_auto_install=True)) is False  # already loaded
+
+
+def test_h4_only_the_auto_install_discovery_writes_the_entry_flag() -> None:
+    for root in (REPO / "custom_components" / "smplwise_bridge", REPO / "smplwise_vms" / "integration" / "smplwise_bridge"):
+        src = (root / "config_flow.py").read_text(encoding="utf-8")
+        assert src.count("CONF_WISKEY_AUTO_INSTALL: True") == 2, root  # the auto-install create + the auto-install update of an entry
+        assert "**({CONF_WISKEY_AUTO_INSTALL: True} if auto else {})" in src and 'auto = cfg.get("wiskey_auto_install") is True' in src
+        user = src.split("async def async_step_user", 1)[1].split("async def async_step_hassio", 1)[0]
+        confirm = src.split("async def async_step_hassio_confirm", 1)[1].split("class SmplwiseBridgeOptionsFlow", 1)[0]
+        assert "WISKEY" not in user and "WISKEY" not in confirm

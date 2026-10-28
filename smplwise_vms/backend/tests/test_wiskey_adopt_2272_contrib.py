@@ -332,13 +332,15 @@ def test_bridge_sets_up_the_staged_native_component_without_failing_itself() -> 
     src = ast.unparse(fn)
     assert "async_setup_component(hass, NATIVE_DOMAIN, {})" in src and not any(isinstance(n, ast.Raise) for n in ast.walk(fn))
     setup = next(n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == "async_setup_entry")
-    assert "await _async_setup_native(hass)" in ast.unparse(setup)
+    # review H4: gated on the automatic-install entry flag and started as a task, never awaited by the entry setup
+    assert "if native_setup_wanted(hass, entry):" in ast.unparse(setup)
+    assert "hass.async_create_task(_async_setup_native(hass))" in ast.unparse(setup) and "await _async_setup_native" not in ast.unparse(setup)
 
 
 def test_config_flow_auto_install_pairs_without_the_confirmation_form() -> None:
     src = (BRIDGE / "config_flow.py").read_text(encoding="utf-8")
-    assert 'if cfg.get("wiskey_auto_install") is True:' in src
-    block = src.split('if cfg.get("wiskey_auto_install") is True:', 1)[1].split("return await self.async_step_hassio_confirm()", 1)[0]
+    assert 'auto = cfg.get("wiskey_auto_install") is True' in src and "        if auto:\n" in src
+    block = src.split("        if auto:\n", 1)[1].split("return await self.async_step_hassio_confirm()", 1)[0]
     assert "_try_pair(url, code)" in block and "async_create_entry" in block and "async_abort(reason=err)" in block
     for name in ("strings.json", "translations/en.json", "translations/he.json"):
         abort = json.loads((BRIDGE / name).read_text(encoding="utf-8"))["config"]["abort"]

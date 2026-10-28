@@ -52,7 +52,7 @@ start-up). Turning the switch on is an owner decision for the joint session (own
 
 | Delivered path | Adoption | Deviation from the delivery |
 |---|---|---|
-| `custom_components/smplwise_bridge/__init__.py` | `_async_setup_native`: sets up a staged `hikvision_intercom` after the bridge entry | a failed / missing native setup is logged, never raised (the delivery raised `wiskey_automatic_setup_failed`, which would take the bridge down) |
+| `custom_components/smplwise_bridge/__init__.py` | `_async_setup_native`: sets up a staged `hikvision_intercom` after the bridge entry | a failed / missing native setup is logged, never raised (the delivery raised `wiskey_automatic_setup_failed`, which would take the bridge down); review H4: only for an entry carrying `wiskey_auto_install: true` (written only by the automatic-install discovery), only when the component is not loaded, started with `hass.async_create_task` (never awaited) |
 | `custom_components/smplwise_bridge/config_flow.py` | `wiskey_auto_install: true` in the Supervisor discovery pairs (signed ping) and creates the entry without the form | abort texts added (en/he); mirror synced |
 | `frontend/owner28-harness.html`, `owner28-playwright.config.ts`, `tests/owner28-playback.spec.ts` | moved to `frontend/tests/owner28/` + `frontend/playwright.owner28.config.ts`, spec renamed `*.owner28.ts` | outside the product build and the main suite; outputs under `test-results/owner28`; clip = delivered `synthetic-video.mp4` (sha256 `08a75da5...`) |
 | `smplwise_vms/backend/smplwise/main.py` | janitor `reconcile_due` (hourly) + start-up `activate_software` | both gated by the switch; wired in step 5 |
