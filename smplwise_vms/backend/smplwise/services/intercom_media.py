@@ -950,7 +950,9 @@ class WiskeyBridgeTalkChannel:
             self.publication_end = "expired"
         elif code in self.SECURITY_ENDS:
             self.publication_end = code
-        elif link is None or getattr(link, "closed", False):
+        elif code is None and (link is None or getattr(link, "closed", False)):
+            # a link that closed with no native end recorded is a lost connection; a link torn down AFTER a natural end (review M1)
+            # keeps that end's admitted tail
             self.publication_end = "connection_closed"
         return self.publication_end is None
 
@@ -1285,6 +1287,7 @@ class TalkSession:
     frames: int = 0
     presses: int = 0
     stop_requested: str | None = None
+    publication_end: str | None = None  # WISKEY-MAC-ADOPT-298 review M2: the native security end that stopped the station's sound
 
     @property
     def ref(self) -> str:
