@@ -181,7 +181,7 @@ No export source exists here, and labels / logical refs are not a substitute.
 | W6 | `test_wiskey_adopt_2272_installer.py`, `test_bridge_install.py` | step 5 tree | 14 PASS (JUnit) |
 | B1 | `npx playwright test -c playwright.owner28.config.ts` (bundled Chromium, `--mute-audio`, synthetic sockets) | `287d99a2f` | 2 PASS (desktop, mobile): MSE frame + WebAudio RMS, mute / unmute, AudioContext closed on expiry |
 | R1 | `run_smart.py tsc` (runner) | `287d99a2f` | tsc ok |
-| R2 | `run_smart.py backend` (runner, full backend suite, started 28.10 22:45) | `287d99a2f` | NOT_COMPLETED when this record was written (still running after ~2 h; not stopped). Result NOT_MEASURED here - read the runner output before relying on it |
+| R2 | `run_smart.py backend` (runner, full backend suite, started 28.10 22:45) | `287d99a2f` | FAILED: exit 1 after ~2 h, both shard summaries EMPTY (no test counts, no failure names reported back) - cause NOT_DIAGNOSED (could be a runner / shard timeout or real failures); re-run before relying on it |
 
 Not run: the delivery's `reproduce_isolated.py` (WisKey-side recipe; needs a WisKey checkout at `0a099c53` and a HA python): NOT_RUN.
 Full frontend Playwright suite, add-on image build (`npm run build:addon`), any live / device test: NOT_RUN.
