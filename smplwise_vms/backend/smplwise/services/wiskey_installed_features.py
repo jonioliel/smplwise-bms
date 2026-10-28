@@ -163,7 +163,8 @@ EVENT_CONTRACT = "wiskey-event-cursor.v1"
 PAGE_KEYS = frozenset({"contract", "schema_version", "state", "reason", "records", "cursor", "reset_cursor", "has_more", "all_delivered",
                        "source"})
 RESET_REASONS = ("source_replaced", "cursor_ahead", "retention_gap")
-CURSOR_KEY = "wiskey.events.cursor"  # {"cursor", "source", "pending_reset"} - no event content
+CURSOR_KEY = "wiskey.events.cursor"  # {"cursor", "source", "pending_reset", "gaps"} - no event content
+GAP_HISTORY = 32  # review L2: acknowledged gaps kept (reason + times only)
 SEEN_LIMIT = 4096  # event ids kept for de-duplication (at-least-once delivery)
 PAGE_LIMIT_MAX = 500
 
@@ -232,19 +233,40 @@ class EventCursor:
         self.conn = conn
         conn.execute("CREATE TABLE IF NOT EXISTS wiskey_event_seen (event_id TEXT PRIMARY KEY, seq INTEGER NOT NULL)")
 
-    def state(self) -> dict[str, Any]:
+    def _doc(self) -> dict[str, Any]:
         from ..db import get_setting
 
         try:
             doc = json.loads(get_setting(self.conn, CURSOR_KEY) or "{}")
         except ValueError:
             doc = {}
-        return {"cursor": doc.get("cursor"), "source": doc.get("source"), "pending_reset": doc.get("pending_reset")}
+        return doc if isinstance(doc, dict) else {}
 
-    def _store(self, doc: dict[str, Any]) -> None:
+    def state(self) -> dict[str, Any]:
+        doc = self._doc()
+        gaps = doc.get("gaps") if isinstance(doc.get("gaps"), list) else []
+        return {"cursor": doc.get("cursor"), "source": doc.get("source"), "pending_reset": doc.get("pending_reset"),
+                "last_gap": gaps[-1] if gaps else None, "gaps": gaps}
+
+    def _store(self, update: dict[str, Any]) -> None:
+        """Review L2: merged into the stored document - the gap history (`gaps`) survives every later cursor move."""
         from ..db import set_setting
 
+        doc = self._doc()
+        doc.pop("last_gap", None)  # superseded by `gaps` (derived in state())
+        doc.update({k: v for k, v in update.items() if k not in ("gaps", "last_gap")})
         set_setting(self.conn, CURSOR_KEY, json.dumps(doc, separators=(",", ":")))
+
+    def _record_gap(self, pending: dict[str, Any]) -> dict[str, Any]:
+        from ..db import set_setting
+
+        doc = self._doc()
+        gaps = doc.get("gaps") if isinstance(doc.get("gaps"), list) else []
+        gap = {"reason": pending.get("reason"), "observed_at": pending.get("observed_at"), "acknowledged_at": _now(), "delivered": False}
+        doc["gaps"] = (gaps + [gap])[-GAP_HISTORY:]
+        doc.pop("last_gap", None)
+        set_setting(self.conn, CURSOR_KEY, json.dumps(doc, separators=(",", ":")))
+        return gap
 
     def _seen(self, event_id: str) -> bool:
         return self.conn.execute("SELECT 1 FROM wiskey_event_seen WHERE event_id = ?", (event_id,)).fetchone() is not None
@@ -263,10 +285,17 @@ class EventCursor:
         if st["pending_reset"] is not None:  # a gap was reported and not acknowledged yet: nothing more is read past it
             return PullResult("reset_pending", st["pending_reset"]["reason"], 0, 0, False, False)
         page = read_page(await client.events(st["cursor"], limit))
+        if page.state == "page" and st["source"] is not None and page.source != st["source"]:
+            # review L2: a page from ANOTHER source than the stored cursor's is a discontinuity WisKey did not announce - nothing of it
+            # is handed on; it is recorded like a reset (adopting it starts the new source from its beginning: reset cursor None)
+            self._store({"pending_reset": {"reason": "source_mismatch", "reset_cursor": None, "source": page.source, "observed_at": _now()}})
+            self.conn.commit()
+            log.warning("wiskey events: the page's source differs from the stored cursor's; the gap is recorded, not delivered")
+            return PullResult("reset_required", "source_mismatch", 0, 0, False, False)
         if page.state == "reset_required":
             # the gap is recorded (never "all delivered"); the reset cursor is adopted only by acknowledge_reset()
-            self._store({**st, "pending_reset": {"reason": page.reason, "reset_cursor": page.reset_cursor, "source": page.source,
-                                                 "observed_at": _now()}})
+            self._store({"pending_reset": {"reason": page.reason, "reset_cursor": page.reset_cursor, "source": page.source,
+                                           "observed_at": _now()}})
             self.conn.commit()
             log.warning("wiskey events: reset required (%s); the gap is recorded, not delivered", page.reason)
             return PullResult("reset_required", page.reason, 0, 0, False, False)
@@ -296,8 +325,8 @@ class EventCursor:
         pending = st["pending_reset"]
         if pending is None:
             return None
-        self._store({"cursor": pending["reset_cursor"], "source": pending["source"], "pending_reset": None,
-                     "last_gap": {"reason": pending["reason"], "acknowledged_at": _now()}})
+        self._record_gap(pending)  # review L2: a durable, bounded history of every acknowledged gap
+        self._store({"cursor": pending["reset_cursor"], "source": pending["source"], "pending_reset": None})
         self.conn.commit()
         return {"reason": pending["reason"], "delivered": False}
 

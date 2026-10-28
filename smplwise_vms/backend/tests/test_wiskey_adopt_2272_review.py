@@ -572,3 +572,43 @@ def test_l1_a_partly_failed_page_never_hands_an_event_on_twice() -> None:
     assert handled == ["e1"] and cur.state()["cursor"] is None  # the cursor did not move past the failure
     again = asyncio.run(cur.pull(client, handler))
     assert handled == ["e1", "e2", "e3"] and (again.delivered, again.duplicates) == (2, 1) and cur.state()["cursor"] == "c3"
+
+# ================================================================ L2: the source is compared, the gap history is durable
+
+def test_l2_a_page_from_another_source_is_a_recorded_gap_not_a_delivery() -> None:
+    import asyncio
+
+    from smplwise.services import wiskey_installed_features as wif
+    from test_wiskey_adopt_2272_features import Client, _db, _page
+
+    conn = _db()
+    cur = wif.EventCursor(conn)
+    handled: list[str] = []
+    first = _page([(1, "e1")], "c1")
+    other = {**_page([(1, "x1")], "x1"), "source": "c" * 32}  # WisKey's history was replaced without a reset_required
+    client = Client(first, other, other)
+    asyncio.run(cur.pull(client, lambda e: handled.append(e["id"])))
+    r = asyncio.run(cur.pull(client, lambda e: handled.append(e["id"])))
+    assert (r.state, r.reason, r.delivered) == ("reset_required", "source_mismatch", 0) and handled == ["e1"]
+    assert asyncio.run(cur.pull(client, lambda e: handled.append(e["id"]))).state == "reset_pending"
+    assert cur.acknowledge_reset() == {"reason": "source_mismatch", "delivered": False}
+    st = cur.state()
+    assert st["source"] == "c" * 32 and st["cursor"] is None and st["last_gap"]["reason"] == "source_mismatch"
+
+
+def test_l2_the_gap_history_survives_later_pages_and_is_bounded() -> None:
+    import asyncio
+
+    from smplwise.services import wiskey_installed_features as wif
+    from test_wiskey_adopt_2272_features import Client, _db, _page, _reset
+
+    conn = _db()
+    cur = wif.EventCursor(conn)
+    for i in range(wif.GAP_HISTORY + 3):
+        asyncio.run(cur.pull(Client(_reset("retention_gap")), lambda e: None))
+        cur.acknowledge_reset()
+        # the next page moves the cursor; the history must not be lost by that store
+        asyncio.run(cur.pull(Client({**_page([(1, f"e{i}")], f"c{i}"), "source": "b" * 32}), lambda e: None))
+    st = cur.state()
+    assert len(st["gaps"]) == wif.GAP_HISTORY and st["last_gap"]["reason"] == "retention_gap" and st["cursor"] == f"c{wif.GAP_HISTORY + 2}"
+    assert all(g["delivered"] is False and g["acknowledged_at"] for g in st["gaps"])
