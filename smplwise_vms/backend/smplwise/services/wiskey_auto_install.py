@@ -379,7 +379,8 @@ def activate_software(db: Any) -> bool:
     if not switch_on_db(db):
         return False
     try:
-        read_installation()
+        if read_checked_installation()["readiness"] != "ready":
+            return False
     except InstallationError:
         return False
     from . import intercom_messaging, wa_pacing
@@ -410,6 +411,161 @@ def source_digest(source: Path) -> str:
         digest.update(path.relative_to(source).as_posix().encode("utf-8"))
         digest.update(path.read_bytes())
     return digest.hexdigest()
+
+
+# ---------------------------------------------------------------- step 5: the installer (staging, restart by digest, reconcile)
+
+PIN_NAME = NATIVE_DOMAIN + ".pin.json"
+NATIVE: dict[str, Any] = {"state": "off", "code": None, "version": None, "restart": None}  # secret-free, no path
+
+
+def native_source(bridge_source: Path | None) -> Path | None:
+    """The pinned native bundle next to the bridge copy: the image's /app/integration/hikvision_intercom, SW_NATIVE_SRC (development),
+    or the repository's smplwise_vms/integration/hikvision_intercom."""
+    env = os.environ.get("SW_NATIVE_SRC")
+    candidates = [Path(env)] if env else []
+    if bridge_source is not None:
+        candidates.append(Path(bridge_source).parent / NATIVE_DOMAIN)
+    parents = Path(__file__).resolve().parents
+    if len(parents) > 4:
+        candidates.append(parents[3] / "integration" / NATIVE_DOMAIN)  # smplwise_vms/integration in a checkout
+    for c in candidates:
+        if (c / "manifest.json").is_file():
+            return c
+    return None
+
+
+def _tree_files(root: Path) -> dict[str, str]:
+    return {NATIVE_DOMAIN + "/" + p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(root.rglob("*")) if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"}
+
+
+def verify_pin(source: Path) -> dict[str, Any]:
+    """The bundle must be byte-exact to its pin file (`hikvision_intercom.pin.json` next to it, written when the delivery was staged):
+    a changed or partial image copy is never installed. Returns the pin (product CODE, version)."""
+    try:
+        pin = json.loads((source.parent / PIN_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise InstallationError("native_pin_missing") from None
+    files = _tree_files(source)
+    tree = hashlib.sha256()
+    for name in sorted(files):
+        tree.update(name.encode("utf-8") + b"\0" + files[name].encode("ascii") + b"\n")
+    if not isinstance(pin, dict) or pin.get("files") != files or pin.get("tree_sha256") != tree.hexdigest():
+        raise InstallationError("native_pin_mismatch")
+    return pin
+
+
+def stage_native_bundle(config_root: Path, source: Path) -> str:
+    """The delivery's `install_native_bundle`, by content: copy the pinned bundle into `<config>/custom_components/hikvision_intercom`
+    when the installed tree differs from it (a stable version label never hides a new source). `up_to_date` | `staged`."""
+    from .bridge_install import _copy_tree
+
+    verify_pin(source)
+    target = Path(config_root) / "custom_components" / NATIVE_DOMAIN
+    if target.is_dir() and source_digest(target) == source_digest(source):
+        return "up_to_date"
+    (Path(config_root) / "custom_components").mkdir(exist_ok=True)
+    _copy_tree(source, target)
+    return "staged"
+
+
+def request_component_restart(db: Any, settings: Any, source: Path, *, conn: Any = None) -> str:
+    """ONE platform restart per staged source digest, durably claimed BEFORE the call: a lost or failed answer is never replayed
+    (`restart_unknown`); the same digest again is `already_requested`. Only with the switch on (the caller checks)."""
+    from ..db import get_setting, set_setting, unlocked
+    from ..errors import ApiError
+    from . import ha_client
+
+    value = source_digest(source)
+
+    def claim(c: Any) -> bool:
+        if get_setting(c, RESTART_DIGEST_KEY) == value:
+            return False
+        set_setting(c, RESTART_DIGEST_KEY, value)
+        return True
+
+    if conn is None:
+        with db.write_aside(label="wiskey restart claim") as c:
+            claimed = claim(c)
+    else:
+        claimed = claim(conn)  # `unlocked(conn)` below commits it before the call leaves
+    if not claimed:
+        return "already_requested"
+    try:
+        if conn is None:
+            ha_client.call_service(settings, "homeassistant", "restart", {})
+        else:
+            with unlocked(conn):
+                ha_client.call_service(settings, "homeassistant", "restart", {})
+    except ApiError:
+        return "restart_unknown"  # the claimed digest forbids a blind replay
+    return "requested"
+
+
+def installer_step(db: Any, settings: Any, config_root: Path, bridge_source: Path | None, *, conn: Any = None, restart: bool) -> dict[str, Any]:
+    """Called by `bridge_install.install` after the bridge copy. Switch off: nothing (state `off`). Switch on: verify the pin, stage
+    the native bundle, and - when the copy changed something and `restart` is asked - one restart per digest. Never raises; never
+    blocks the bridge's own install / discovery."""
+    if (conn is not None and not switch_on(conn)) or (conn is None and not switch_on_db(db)):
+        NATIVE.update(state="off", code=None, restart=None)
+        return dict(NATIVE)
+    source = native_source(bridge_source)
+    if source is None:
+        NATIVE.update(state="source_missing", code="native_bundle_missing", restart=None)
+        return dict(NATIVE)
+    try:
+        NATIVE["version"] = json.loads((source / "manifest.json").read_text(encoding="utf-8")).get("version")
+        staged = stage_native_bundle(config_root, source)
+        NATIVE.update(state=staged, code=None)
+        if restart and staged == "staged":
+            NATIVE["restart"] = request_component_restart(db, settings, source, conn=conn)
+    except InstallationError as exc:
+        NATIVE.update(state="error", code=exc.code)
+    except (OSError, ValueError) as exc:
+        NATIVE.update(state="error", code=f"copy_failed:{type(exc).__name__}")
+    return dict(NATIVE)
+
+
+def reconcile_installation(db: Any, settings: Any) -> str:
+    """The hourly janitor step (delivery `reconcile_installation`): with the switch on and a ready manifest, sync the template registry
+    from WisKey's signed `whatsapp/template_registry_v1` when the direct join selects it; without a manifest, re-announce the bridge
+    (the announcement itself only carries a code while one waits to be paired). Returns a closed outcome."""
+    if not switch_on_db(db):
+        return "off"
+    try:
+        read_checked_installation()
+    except InstallationError:
+        from .bridge_install import announce_discovery
+
+        announce_discovery(db, settings)
+        return "manifest_not_ready"
+    from . import wiskey_direct_join
+
+    join = wiskey_direct_join.JOIN
+    if join is None or not join.selected("whatsapp/template_registry_v1"):
+        return "registry_not_selected"
+    reply = join.capture_port.call("whatsapp/template_registry_v1", {}, timeout_s=10)
+    try:
+        sync_native_templates(db, dict(reply))
+    except InstallationError:
+        return "registry_invalid"  # the stored registry stays as it was (never reset by a bad reply)
+    return "registry_synced"
+
+
+RECONCILE_EVERY_S = 3600.0
+_last_reconcile: dict[str, float] = {"at": float("-inf")}
+
+
+def reconcile_due(db: Any, settings: Any, *, now: float | None = None) -> str | None:
+    """The janitor's entry: `reconcile_installation` at most once an hour (None when not due)."""
+    import time
+
+    t = time.monotonic() if now is None else now
+    if t - _last_reconcile["at"] < RECONCILE_EVERY_S:
+        return None
+    _last_reconcile["at"] = t
+    return reconcile_installation(db, settings)
 
 
 def sync_native_templates(db: Any, reply: Any) -> int:
