@@ -412,6 +412,88 @@ export class InvestigateHistoryMap extends LitElement {
         grid-template-columns: 1fr;
       }
     }
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): a 26/700 title; the time bar is the status field of the screen (the recorded
+       tone with its own hairline from the token - the fixed #cddcff was a light line on the dark scheme) and the chosen time its display
+       digit (20/700, tabular, interface face); the plan is the hero (shadow 2); the event rows are wells and the one at the chosen time a
+       filled accent field; press feedback on the rows; hover only with a fine pointer. */
+    h1 {
+      font-size: var(--sw-fs-3xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-2);
+    }
+    .bar {
+      padding: 12px 16px;
+      border-color: var(--sw-recorded);
+      box-shadow: var(--sw-shadow-2);
+      font-weight: var(--sw-fw-medium);
+      border-radius: var(--sw-r-lg);
+    }
+    .time {
+      font-family: inherit;
+      font-size: var(--sw-fs-3xl); /* loop 2: the chosen time is the display digit of this screen */
+      font-weight: var(--sw-fw-bold);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      color: var(--sw-recorded-text);
+    }
+    .stage {
+      box-shadow: var(--sw-shadow-2);
+      --sw-map-bg: var(--sw-surface-3); /* loop 2: the ground a tone step down, the plan floats */
+      border-color: transparent;
+    }
+    .chip {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      background: var(--sw-menu-surface); /* a HUD panel keeps the opaque menu surface (unit-menu-lint): weight from the accent edge + ink */
+      border: 2px solid var(--sw-accent);
+      color: var(--sw-accent-text);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .chip sw-icon {
+      color: inherit;
+    }
+    .hist {
+      background: color-mix(in srgb, var(--sw-purple) 14%, var(--sw-menu-surface));
+      font-weight: var(--sw-fw-bold);
+    }
+    .legend {
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-medium);
+    }
+    dd {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    dt {
+      color: var(--sw-text-2);
+    }
+    .evl a {
+      background: var(--sw-surface-2);
+      border-color: transparent;
+      transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .evl a:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .evl a.hit {
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .evl .s {
+      color: var(--sw-text-2);
+    }
+    .tlbar {
+      font-weight: var(--sw-fw-medium);
+    }
     @media (max-width: 767px) {
       .head,
       .bar,

@@ -258,6 +258,110 @@ export class ExploreFloors extends LitElement {
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 12px;
     }
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the floor rows are the hero objects - large radius, a 17/700 heading, the
+       counts as a 13/500 line with tabular digits; the selected floor is a FILLED accent field with the accent edge and shadow 2
+       (not a 3 px halo around a white card). Press on pointer-down; hover only with a fine pointer. */
+    .pic {
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .floor {
+      padding: 12px 16px;
+      border-color: transparent;
+      border-radius: var(--sw-r-lg);
+      transition: border-color var(--sw-t-hover) var(--sw-ease-color), background var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .floor:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .floor.on {
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+      box-shadow: var(--sw-shadow-2);
+    }
+    @media (hover: none) {
+      .floor:hover {
+        border-color: transparent;
+        box-shadow: var(--sw-shadow-1);
+      }
+      .floor.on:hover {
+        border-color: var(--sw-accent);
+        box-shadow: var(--sw-shadow-2);
+      }
+    }
+    .title {
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      letter-spacing: -0.01em;
+    }
+    .floor.on .title {
+      color: var(--sw-accent-text);
+    }
+    .counts {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-2);
+      margin-block-start: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    .floor.on .counts {
+      color: var(--sw-text);
+    }
+    .empty {
+      background: var(--sw-surface-2);
+      font-weight: var(--sw-fw-medium);
+    }
+    dd {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    dt {
+      color: var(--sw-text-2);
+    }
+    /* R5-MAPS-297 loop 2: three steps, not one - the unselected floors are WELLS (surface 2, no shadow, no edge), the selected floor is the
+       one hero (accent field, 2 px accent edge, shadow 2), the heading 20/700 and the counts 14/500 with 700 digits. */
+    .floor {
+      background: var(--sw-surface-2);
+      box-shadow: none;
+      border-width: 2px;
+      padding: 14px 18px;
+    }
+    .floor.on {
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+      box-shadow: var(--sw-shadow-2);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .floor:hover:not(.on) {
+        background: var(--sw-surface-3);
+        border-color: transparent;
+        box-shadow: none;
+      }
+    }
+    .title {
+      font-size: var(--sw-fs-2xl);
+      /* break-ui (shots/final/floors-worst-*): a 90-character unbreakable name ran out of the row; a name wraps to two lines at most */
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+    }
+    .counts {
+      overflow-wrap: anywhere;
+    }
+    .counts {
+      font-size: var(--sw-fs-md);
+    }
+    .pic {
+      inline-size: 124px;
+      block-size: 80px;
+    }
   `;
 
   connectedCallback() {

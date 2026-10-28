@@ -609,6 +609,130 @@ export class ExplorePlanEditor extends LitElement {
     .shortcuts-row span {
       color: var(--sw-text-2);
     }
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the plan is the hero (shadow 2), the tool rail a raised panel whose active tool is
+       the accent FIELD (a disabled tool dims by its ink, never by fading the box); the save state is a filled pill (saved = the success field,
+       unsaved = the stale field) instead of a 7 px dot beside grey text; the legend in the body ink with 10 px dots; keys and values in the
+       side cards read at a glance. Press on pointer-down; hover only with a fine pointer. */
+    .mapwrap {
+      box-shadow: var(--sw-shadow-2);
+      /* loop 2: the map ground a tone step down (the desk), the plan sheet floats, the rail and chips read as raised */
+      --sw-map-bg: var(--sw-surface-3);
+    }
+    .rail {
+      box-shadow: var(--sw-shadow-3);
+    }
+    .rail button {
+      transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .rail button.on {
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse);
+    }
+    .rail button:active:not(:disabled),
+    .bar button.icon:active:not(:disabled),
+    .list button:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .bar button.icon {
+      transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+    }
+    @media (hover: none) {
+      .rail button:hover:not(.on) {
+        background: transparent;
+        color: var(--sw-text-2);
+      }
+      .bar button.icon:hover:not(.on) {
+        background: var(--sw-surface);
+        color: var(--sw-text-2);
+      }
+      .list button:hover:not(.on) {
+        background: var(--sw-surface);
+        border-color: var(--sw-border);
+      }
+    }
+    .bar {
+      font-size: var(--sw-fs-sm);
+    }
+    .autosave {
+      padding: 3px 10px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-success-soft);
+      color: var(--sw-success-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .autosave.dirty {
+      background: var(--sw-stale-soft);
+      color: var(--sw-stale-text);
+    }
+    .autosave i,
+    .autosave.dirty i {
+      background: currentColor;
+    }
+    /* a HUD panel keeps the opaque menu surface (owner 2026-10-13, unit-menu-lint): the chip's weight comes from a 2 px accent edge and the
+       accent ink, not from an accent fill */
+    .floorchip {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      background: var(--sw-menu-surface);
+      border: 2px solid var(--sw-accent);
+      color: var(--sw-accent-text);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .floorchip sw-icon {
+      color: inherit;
+    }
+    .legend {
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .legend i {
+      inline-size: 12px;
+      block-size: 12px;
+    }
+    .autosave {
+      font-size: var(--sw-fs-sm);
+      padding: 4px 12px;
+    }
+    .list button {
+      transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      font-size: var(--sw-fs-sm);
+    }
+    .list button.on {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-accent-text);
+    }
+    /* a circuit row's colour as a 10 px dot in front of the name, not a 4 px coloured side edge (impeccable "side-tab") */
+    .list button[data-circuit-row]::before {
+      content: '';
+      inline-size: 10px;
+      block-size: 10px;
+      border-radius: 50%;
+      background: var(--kc, var(--sw-accent));
+      flex: none;
+    }
+    .list button[data-circuit-row] > span:first-of-type {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .kv {
+      font-weight: var(--sw-fw-medium);
+    }
+    .kv .k {
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-regular);
+    }
+    .row .lbl {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .row .muted {
+      font-weight: var(--sw-fw-regular);
+      color: var(--sw-text-2);
+    }
     .list {
       display: flex;
       flex-direction: column;

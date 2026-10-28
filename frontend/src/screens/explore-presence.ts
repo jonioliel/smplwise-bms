@@ -149,6 +149,38 @@ export class ExplorePresence extends LitElement {
       .kpi { padding: 8px 10px; }
       .kpi b { font-size: var(--sw-fs-xl); }
     }
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the counters carry display digits (26/700) and the pressed counter is a FILLED
+       field in its own colour (not a 2 px ring); the map panel is the hero (large radius, shadow 2), the people rows are wells with a
+       600 name; press feedback on pointer-down for the counters, the chips and the keys; hover only with a fine pointer. */
+    .top h1 { font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.02em; }
+    .top .sub { font-weight: var(--sw-fw-medium); }
+    .kpi {
+      border-radius: var(--sw-r-lg); padding: 12px 16px;
+      transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none;
+    }
+    .kpi b { font-size: var(--sw-fs-3xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.02em; }
+    .kpi span.l { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); }
+    /* loop 2: the unpressed counters are WELLS (surface 2, no edge, no shadow) so the pressed one - a filled field in its colour with a 2 px edge
+       and shadow 2 - is the one hero; the dot grows to 14 px */
+    .kpi { background: var(--sw-surface-2); border: 2px solid transparent; box-shadow: none; }
+    .kpi .dot { inline-size: 14px; block-size: 14px; }
+    .kpi[aria-pressed='true'] { background: color-mix(in srgb, var(--c) 16%, var(--sw-surface)); border-color: var(--c); box-shadow: var(--sw-shadow-2); }
+    .stage { --sw-map-bg: var(--sw-surface-3); }
+    @media (hover: hover) and (pointer: fine) { .kpi:not([aria-pressed='true']):not([data-k='hidden']):hover { background: var(--sw-surface-3); } }
+    .kpi:active:not([data-k='hidden']), .chips button:active, .btn:active, .seg button:active { transform: scale(var(--sw-press-scale)); }
+    .chips button, .btn, .seg button { transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    @media (hover: none) { .btn:hover { background: var(--sw-surface); } }
+    .panel { border-radius: var(--sw-r-lg); }
+    .body > .panel:first-child { box-shadow: var(--sw-shadow-2); }
+    .lhead h2 { font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
+    ul { display: grid; gap: 6px; align-content: start; }
+    li { padding: 8px 10px; border-block-end: 0; border-radius: var(--sw-r-sm); background: var(--sw-surface-2); }
+    .who b { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
+    .counts div { padding: 8px 10px; border-block-end: 0; border-radius: var(--sw-r-sm); background: var(--sw-surface-2); }
+    .counts b { font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
+    .empty h2 { font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
+    .empty .art { background: var(--sw-surface-2); color: var(--sw-text-2); }
   `, bubbleChrome];
 
   private stopSession?: () => void;

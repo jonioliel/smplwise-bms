@@ -4,6 +4,7 @@
  * state and passes callbacks; its shadow root provides the shared classes (.row, .two, .note, .btns, .err).
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
+import '../components/sw-icon';
 import type { CalibrationHint, CopyCandidate, GeometryIssue, IfcImportReport } from '../api/geometry';
 import { OUTSIDE_MAIN_HE, isOutsideMain, outsideMainSummary, type CandidateSet, type CandKind, type CandSource, type CandState, objectsSummary } from '../map/candidates';
 import { connectorTargets, currentTarget, isTwinCopy, otherFloorOf, type LinkTargetFloor } from '../map/connector-targets';
@@ -923,8 +924,8 @@ export function renderLibraryPanel(v: LibraryView, a: LibraryActions): TemplateR
           @dragstart=${(e: DragEvent) => e.dataTransfer?.setData('text/x-sw-item', i.id)} @click=${() => a.pick(i)} @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && a.pick(i)}>
           <span class="nm">${i.names.he}${i.custom ? html` <span class="muted">מותאם</span>` : nothing}</span>
           <span class="muted ltr">${i.size.w_m}×${i.size.d_m} m</span>
-          <button class="fav ${v.favorites.includes(i.id) ? 'on' : ''}" data-lib-fav=${i.id} aria-label="מועדף" @click=${(e: Event) => { e.stopPropagation(); a.toggleFavorite(i.id); }}>★</button>
-        </div>`) : html`<div class="note">${v.category === 'recent' ? 'עדיין לא הוצבו פריטים בדפדפן הזה.' : v.category === 'favorites' ? 'סמן ★ ליד פריט כדי לשמור אותו כאן.' : 'לא נמצאו פריטים.'}</div>`}
+          <button class="fav ${v.favorites.includes(i.id) ? 'on' : ''}" data-lib-fav=${i.id} aria-label="מועדף" aria-pressed=${v.favorites.includes(i.id) ? 'true' : 'false'} @click=${(e: Event) => { e.stopPropagation(); a.toggleFavorite(i.id); }}><sw-icon name="star" size=${14}></sw-icon></button>
+        </div>`) : html`<div class="note">${v.category === 'recent' ? 'עדיין לא הוצבו פריטים בדפדפן הזה.' : v.category === 'favorites' ? 'סמן את הכוכב ליד פריט כדי לשמור אותו כאן.' : 'לא נמצאו פריטים.'}</div>`}
     </div>
     ${found.length > LIB_ROWS ? html`<div class="note" data-lib-more>מוצגים ${LIB_ROWS} · חפש או בחר קטגוריה</div>` : nothing}
     ${v.phone ? html`<div class="note">בטלפון: הצבה והזזה של עצם בודד; מערכים וציור קירות בדסקטופ.</div>` : nothing}
@@ -1687,7 +1688,7 @@ export function renderCircuitPanel(v: CircuitView, a: CircuitActions): TemplateR
   const sel = v.sel;
   return html`<sw-card heading="מעגלי תאורה" subheading=${v.membersMode ? (v.placing ? circuitPlacingHint(v.placing) : CIRCUIT_MEMBERS_HINT) : 'כמה מנורות על ישות מפסק אחת'} data-circuit-panel data-studio-save=${v.saveState}>
     ${v.doc.circuits.length
-      ? html`<div class="list">${v.doc.circuits.map((k) => html`<button class=${sel?.id === k.id ? 'on' : ''} data-circuit-row=${k.id} style=${`border-inline-start: 4px solid ${circuitVar(k.color_token)}`} @click=${() => a.select(sel?.id === k.id ? null : k.id)}>
+      ? html`<div class="list">${v.doc.circuits.map((k) => html`<button class=${sel?.id === k.id ? 'on' : ''} data-circuit-row=${k.id} style=${`--kc: ${circuitVar(k.color_token)}`} @click=${() => a.select(sel?.id === k.id ? null : k.id)}>
           <span>${k.name}</span><span class="note ltr" style="margin:0">${k.member_ids.length} · ${v.power(k)} W · ${k.switch_entity_id}</span>
         </button>`)}</div>`
       : html`<div class="note">עדיין אין מעגלים בקומה.</div>`}
@@ -2047,8 +2048,10 @@ export const studioPanelStyles = css`
   .note.warn {
     color: var(--sw-text);
     background: var(--sw-warning-soft);
-    border-inline-start: 3px solid var(--sw-warning);
-    padding-inline: 4px;
+    /* R5-MAPS-297: the warning as a filled field with an inset hairline, not a 3 px coloured side edge (impeccable "side-tab") */
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-warning) 60%, transparent);
+    border-radius: var(--sw-r-xs);
+    padding-inline: 6px;
     font-weight: 600;
   }
   .dcand .linkbtn {
@@ -2092,5 +2095,89 @@ export const studioPanelStyles = css`
     cursor: pointer;
     font: inherit;
     line-height: 1;
+  }
+  /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): an issue is a FILLED status field (danger / warning soft with an inset hairline),
+     not a white box with a coloured outline; section labels and the measured value read as headings / display digits (the measurement in the
+     interface face with tabular digits - monospace stays for code, taste-skill); the favourite star is a drawn icon; press feedback on every
+     chip, mode and row; hover only with a fine pointer. */
+  .modes button,
+  .btnlink,
+  .panelchips button,
+  .issue,
+  .libitem,
+  .linkbtn,
+  .libitem .fav {
+    transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .modes button:active:not(:disabled),
+  .btnlink:active,
+  .panelchips button:active:not(:disabled),
+  .issue:active:not(:disabled),
+  .libitem:active,
+  .libitem .fav:active {
+    transform: scale(var(--sw-press-scale));
+  }
+  .modes button.on,
+  .panelchips button.on {
+    font-weight: var(--sw-fw-semibold);
+  }
+  .issue.error {
+    background: var(--sw-danger-soft);
+    border-color: transparent;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-danger) 55%, transparent);
+  }
+  .issue.warning {
+    background: var(--sw-warning-soft);
+    border-color: transparent;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-warning) 60%, transparent);
+  }
+  .issue.error .muted,
+  .issue.warning .muted {
+    color: var(--sw-text);
+  }
+  .ilbl,
+  .selhead > b,
+  .selhead > strong {
+    font-size: var(--sw-fs-md);
+    font-weight: var(--sw-fw-bold);
+    color: var(--sw-heading);
+  }
+  .measure-val {
+    font-family: inherit;
+    font-size: var(--sw-fs-2xl);
+    font-weight: var(--sw-fw-bold);
+    color: var(--sw-heading);
+    letter-spacing: -0.01em;
+  }
+  .libitem.on {
+    font-weight: var(--sw-fw-semibold);
+    color: var(--sw-accent-text);
+  }
+  .libitem .fav {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 28px;
+    block-size: 28px;
+    border-radius: var(--sw-r-xs);
+  }
+  .libitem .fav.on {
+    background: var(--sw-warning-soft);
+  }
+  @media (hover: none) {
+    .libitem:hover:not(.on) {
+      background: var(--sw-surface);
+      border-color: var(--sw-border);
+    }
+  }
+  .badge {
+    background: var(--sw-accent-soft);
+    border-color: transparent;
+    font-weight: var(--sw-fw-semibold);
+  }
+  .dcand.bad {
+    border-radius: var(--sw-r-xs);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-danger) 55%, transparent);
   }
 `;

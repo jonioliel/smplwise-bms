@@ -328,6 +328,72 @@ export class ExplorePlanImport extends LitElement {
         display: none;
       }
     }
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the stage is the hero step (large radius, shadow 2); the drop zone and the
+       preview are wells on the scheme's own surface (the preview and the page thumbnails were a fixed #f3f5f9 - a light box in the dark
+       scheme); the picked page is a FILLED accent field, not a halo; press feedback on the page tiles and the asset rows. */
+    .stage {
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .drop {
+      background: var(--sw-surface-2);
+      border-radius: var(--sw-r-lg);
+      font-weight: var(--sw-fw-medium);
+    }
+    .drop strong {
+      display: block;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .drop .ic {
+      background: transparent;
+      border: 1.5px dashed var(--sw-border-strong);
+      color: var(--sw-text-2);
+    }
+    .drop.over,
+    .drop:hover {
+      color: var(--sw-text);
+    }
+    @media (hover: none) {
+      .drop:hover:not(.over) {
+        border-color: var(--sw-border-strong);
+        background: var(--sw-surface-2);
+      }
+    }
+    .pg {
+      transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .pg:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .pg.on {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: none;
+    }
+    .pg img,
+    .preview {
+      background: var(--sw-surface-2);
+    }
+    .ok {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .assets button {
+      transition: background var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+    }
+    .assets button:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    table.map th {
+      color: var(--sw-text);
+    }
     @media (max-width: 1023px) {
       .layout {
         grid-template-columns: minmax(0, 1fr);
@@ -850,7 +916,7 @@ export class ExplorePlanImport extends LitElement {
       default:
         return html`
           ${this.version
-            ? html`<div class="ok">✓ הגרסה נשמרה (${this.version.width_px}×${this.version.height_px} px) · ${this.version.status === 'published' ? 'פורסמה — היא הרקע של הקומה' : 'טיוטה — עורכי הקומה רואים אותה, צופים עדיין לא'}</div>
+            ? html`<div class="ok"><sw-icon name="check" size=${14}></sw-icon>הגרסה נשמרה (${this.version.width_px}×${this.version.height_px} px) · ${this.version.status === 'published' ? 'פורסמה — היא הרקע של הקומה' : 'טיוטה — עורכי הקומה רואים אותה, צופים עדיין לא'}</div>
                 <div class="preview" style="min-block-size:220px"><img src=${resourceUrl(this.version.image_url)} alt="רקע התוכנית" /></div>`
             : html`<div class="note">סיכום: ${a?.original_name} · עמוד ${this.page} · סיבוב ${this.rotation}° · חיתוך ${Math.round(this.crop.w * 100)}%×${Math.round(this.crop.h * 100)}%. השמירה מייצרת רקע נגזר; המקור לא משתנה.</div>`}
           <div class="row">
