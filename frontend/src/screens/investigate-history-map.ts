@@ -208,29 +208,25 @@ export class InvestigateHistoryMap extends LitElement {
     .grow {
       flex: 1;
     }
-    /* R5-INVESTIGATE-297: the time strip is the page's control, not a footnote - a raised strip (surface, shadow 2) with the instant as a
-       20 px / 800 tabular numeral */
+    /* R5 assembly (owner decision 2026-10-28, option a): the time bar is the MAPS look - these are the pre-R5 base rules, and the
+       R5-MAPS-297 block further down turns them into the recorded-tone status field with the 26 px recorded-tone time */
     .bar {
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin: 0 24px 12px;
-      padding: 10px 16px;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-lg);
-      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+      gap: 10px;
+      margin: 0 24px 10px;
+      padding: 8px 12px;
+      background: var(--sw-recorded-soft);
+      border: 1px solid #cddcff;
+      border-radius: var(--sw-r-md);
       font-size: var(--sw-fs-sm);
       flex-wrap: wrap;
     }
     .time {
+      font-family: var(--sw-font-mono);
       direction: ltr;
-      font-weight: 800;
-      font-size: var(--sw-fs-2xl);
-      letter-spacing: -0.02em;
-      line-height: 1.1;
-      font-variant-numeric: tabular-nums;
-      color: var(--sw-heading);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-accent-text);
     }
     input[type='range'] {
       inline-size: 260px;

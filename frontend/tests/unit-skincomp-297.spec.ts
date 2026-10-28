@@ -52,8 +52,8 @@ test('the other skins are untouched: no rail / elevator override, no dark rail, 
     for (const marker of ['--sw-rail-', 'arx kpi', 'arx rail', 'soft 6', 'soft 7', 'soft 8']) expect(s.rules, `${id} rules carry ${marker}`).not.toContain(marker);
     expect(skinTable(id, true)).toEqual(skinTable(id)); // the dark-rail table of a skin without one is its plain table
   }
-  expect(SKINS.classic.tokens).toEqual({});
-  expect(SKINS.classic.rules).toBe('');
+  // R5 assembly: classic is no longer empty - the owner-approved polish rounds (POLISH-CLASSIC-DOMUS-297, POLISH-BOLD-297) gave it its
+  // own tokens and rules. What SKINCOMP guards (no rail / elevator override, no dark rail, no Arx rule) is checked for it in the loop above.
   // the generated CSS has a dark-rail block for infra only
   const css = tokensCss();
   expect(css.match(/\[data-rail="dark"\]/g)?.length).toBe(3); // infra's light block, its dark block and the OS-dark twin
