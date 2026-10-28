@@ -12,3 +12,7 @@ No file was touched by more than one side, so no conflict and no manual resoluti
 branches share no files with each other; both merged onto the R5 base unchanged. R5 look and the frozen UI
 structure (menus, tabs, logos, titles, order of controls) are therefore exactly as each approved branch
 left them. No snapshots were updated.
+
+## Base movement
+release/2270-r5-fixes moved from 658e9eb1d to 95137aa7d while assembling (sw-camera-tile.ts, devices-schedules.ts).
+Re-merged with --no-ff, clean, no overlap with the two merged branches.
