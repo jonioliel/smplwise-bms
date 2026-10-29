@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { settle } from './helpers/settle';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { SKINS_UNDER_TEST as SKIN_IDS, skinsUnderTest } from './helpers/frozen-skins';
 
@@ -62,7 +63,7 @@ async function mountSizes(page: Page, sizes: readonly string[]) {
   await page.waitForTimeout(250);
 }
 
-const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+// settle (helpers/settle.ts): two frames, then the open list's R5 entrance transition (from 97 %) has ended
 
 async function check(page: Page, results: Finding[], ctx: string) {
   await settle(page);

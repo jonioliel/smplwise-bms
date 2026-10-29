@@ -34,6 +34,10 @@ export class WkActionButton extends LitElement {
     :host {
       display: inline-flex;
       min-inline-size: 0;
+      /* WALL-OVERFLOW-2270: the slotted label is ellipsized by the inner span (.btn > span); the host says so too, so the
+         label's full (unpainted) run past a narrow card - a long door name at 320 px - reads as ellipsized text, not as text
+         cut by the card. No rendering change: text-overflow does not apply to the flex host itself. */
+      text-overflow: ellipsis;
     }
     :host([block]) {
       display: flex;

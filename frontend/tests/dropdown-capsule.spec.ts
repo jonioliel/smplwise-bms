@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { settle } from './helpers/settle';
 import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // Unreleased (owner request 2026-10-04): the `capsule` dropdown style and the SIZE dial (dd-size: sm / md / lg).
@@ -221,6 +222,7 @@ test.describe('closed and open look', () => {
     await mount(page, ['capsule:md']);
     const chipW = (await chip(page, 'capsule:md').boundingBox())!.width;
     await chip(page, 'capsule:md').click();
+    await settle(page); // the open list grows from 97 % (R5 motion): measure it at rest
     const r = await measure(page, 'capsule:md', (root) => {
       const pp = root.querySelector('.pop') as HTMLElement;
       const ps = getComputedStyle(pp);
@@ -375,6 +377,7 @@ test.describe('the size dial', () => {
       await page.evaluate(() => document.querySelectorAll('#stage sw-tabs').forEach((e) => e.remove()));
       await mount(page, [`capsule:${z}`]);
       await chip(page, `capsule:${z}`).click();
+      await settle(page); // the open list grows from 97 % (R5 motion): measure it at rest
       got[z] = await measure(page, `capsule:${z}`, (root) => {
         const ch = root.querySelector('.chip') as HTMLElement;
         const row = root.querySelector('[role=option]') as HTMLElement;
@@ -414,6 +417,7 @@ test.describe('the size dial', () => {
       const b = await chip(page, 'capsule:sm').boundingBox();
       expect(b!.height, `${w}: the sm chip box`).toBeGreaterThanOrEqual(44);
       await chip(page, 'capsule:sm').click();
+      await settle(page); // the open list grows from 97 % (R5 motion): measure it at rest
       const rows = await tabs(page, 'capsule:sm').locator('sw-dropdown [role=option]').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
       for (const h of rows) expect(h, `${w}: an sm row`).toBeGreaterThanOrEqual(44);
       await page.keyboard.press('Escape');
@@ -645,6 +649,7 @@ test.describe('capsule polish: the ring thickness and the open-panel width (comp
       await mount(page, [`capsule:${size}`], extra);
       const chipW = (await chip(page, `capsule:${size}`).boundingBox())!.width;
       await chip(page, `capsule:${size}`).click();
+      await settle(page); // the open list grows from 97 % (R5 motion): measure it at rest
       const w = await measure(page, `capsule:${size}`, (root) => root.querySelector('.pop')!.getBoundingClientRect().width);
       await page.keyboard.press('Escape');
       return { w, chipW };

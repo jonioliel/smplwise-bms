@@ -51,11 +51,28 @@ async function seedCurved() {
   expect((await draft()).doc.schema_version).toBe('2.1');
   expect((await api.post(`api/v1/plan-versions/${ids.version}/geometry/publish`)).status()).toBe(200);
 }
+/** GATE-FIX2-2270: the shell's "complete the setup" row (sw-app .setuphint, 52 px with its margins) arrives with
+ * GET /setup/state a few hundred ms after the editor and pushes the whole screen down; a click aimed from the geometry
+ * measured before it misses the wall by 52 px. The clicks wait for that response and for the canvas to stop moving. */
+async function settledCanvas(page: Page) {
+  const canvas = page.locator(`${ED} sw-plan-canvas`);
+  let last = '';
+  for (let i = 0; i < 30; i++) {
+    const b = await canvas.boundingBox();
+    const now = b ? `${b.x},${b.y},${b.width},${b.height}` : '';
+    if (now && now === last) return;
+    last = now;
+    await page.waitForTimeout(100);
+  }
+}
 async function openStructure(page: Page) {
+  const setup = page.waitForResponse((r) => r.url().includes('/setup/state'), { timeout: 10000 }).catch(() => null);
   await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
   await expect(page.locator(`${ED} sw-plan-canvas [data-wall]`)).not.toHaveCount(0, { timeout: 20000 });
   await page.locator(`${ED} [data-tool="structure"]`).click();
   await expect(page.locator(`${ED} [data-studio-panel]`)).toHaveCount(1);
+  await setup;
+  await settledCanvas(page);
 }
 
 test.describe.serial('plan editor: curved walls', () => {

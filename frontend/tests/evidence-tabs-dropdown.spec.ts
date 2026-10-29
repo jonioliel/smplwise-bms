@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { settle } from './helpers/settle';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -87,7 +88,8 @@ test.describe('sw-dropdown', () => {
     await expect(opts.nth(0)).toHaveAttribute('aria-selected', 'true');
     await expect(opts.nth(1)).toContainText('(3)');
     await expect(opts.nth(3)).not.toContainText('(');
-    // every option is a 44 px target
+    // every option is a 44 px target (measured at rest: the R5 list enters from 97 %, GATE-FIX-2270)
+    await settle(page);
     for (const h of await opts.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))) expect(h).toBeGreaterThanOrEqual(44);
   });
 
@@ -168,6 +170,7 @@ test.describe('sw-dropdown', () => {
     await mountDropdown(page);
     await page.locator('#stage').evaluate((el) => (el.style.alignItems = 'flex-start')); // the start edge in RTL = the right edge
     await chip(page).click();
+    await settle(page); // the open list grows from 97 % (R5 motion): measure it at rest
     const [cr, pr, vw] = await page.evaluate(() => {
       const root = document.querySelector('#dd')!.shadowRoot!;
       const c = root.querySelector('.chip')!.getBoundingClientRect();

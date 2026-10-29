@@ -49,13 +49,16 @@ export class GenLogPage extends LitElement {
     .lg .kpi .v small { font-size: var(--sw-fs-xs); font-weight: 400; color: var(--sw-text-2); }
     .lg .kpi .s { font-size: var(--sw-fs-xs); color: var(--sw-text-2); overflow-wrap: anywhere; }
     .lg .split { display: grid; grid-template-columns: minmax(0, 3fr) minmax(220px, 1fr); gap: 12px; align-items: start; }
-    .lg .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 8px 12px; }
+    /* GATE-FIX-2270: the R5 round grew the severity chip (13 px, 20 px line) and the KPI figures, so the page of runs sized for the
+       viewport ran 23 px past a 1024 x 768 screen (a control screen never scrolls): the run rows take 2 px less block padding and
+       the pager - whose buttons are 44 px under 1100 px - drops its own block padding */
+    .lg .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 2px 12px; }
     .lg .fe { display: grid; gap: 6px; padding: 10px 12px; font-size: var(--sw-fs-sm); }
     .lg .fe > div { display: flex; justify-content: space-between; gap: 8px; }
     .lg td .why { display: block; font-size: var(--sw-fs-2xs); color: var(--sw-text-3); }
     .lg .seg button { white-space: nowrap; }
     .lg .row select { inline-size: auto; min-inline-size: 150px; flex: none; }
-    .lg table.t td { padding: 7px 12px; }
+    .lg table.t td { padding: 5px 12px; }
     @media (max-width: 900px) { .lg .split { grid-template-columns: minmax(0, 1fr); } }
     /* the phone keeps start, kind, duration and fuel: no sideways scrolling either */
     @media (max-width: 767px) { .lg table.t th:nth-child(4), .lg table.t td:nth-child(4), .lg table.t th:nth-child(6), .lg table.t td:nth-child(6), .lg table.t th:nth-child(7), .lg table.t td:nth-child(7) { display: none; } }
