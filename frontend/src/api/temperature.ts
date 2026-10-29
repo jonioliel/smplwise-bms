@@ -3,7 +3,7 @@
  * (smplwise_vms/backend/smplwise/routers/temperature.py). Read-only against the infrastructure: nothing is ever sent to a device.
  * Operator routes carry friendly sensor names; entity ids come only to holders of infra.temperature.manage (owner decision 7).
  */
-import { ApiError, apiUrl, del, get, post, put, type ApiErrorBody } from './client';
+import { api, ApiError, apiUrl, del, get, post, put, type ApiErrorBody } from './client';
 import { dispositionName, saveBlob } from './tickets-costs';
 
 export type UnitKind = 'fridge' | 'freezer' | 'coldroom' | 'pharma' | 'server' | 'room';
@@ -569,6 +569,8 @@ export interface RecipientsResponse {
   vendors: ReportRecipient[];
   send_hours: { from: string; to: string };
   attachment: string;
+  /** TEMPREPORT-297: the summary to a system user carries a temporary link to his PDF (mode on and this sender may send links) */
+  user_attachment?: string;
   attachment_modes: string[];
   /** TEMPVENDOR-295: vendor reports on / e-mail on (both off by default) */
   vendor_reports?: { enabled: boolean; email: boolean };
@@ -633,6 +635,9 @@ export interface ReportLink {
   max_opens: number;
   state: 'live' | 'expired' | 'revoked' | 'used';
   created_by: string | null;
+  /** TEMPREPORT-297: the link went out inside a WhatsApp report, to this recipient (display name) */
+  sent?: boolean;
+  recipient?: string | null;
 }
 export interface ReportLinksResponse {
   available: boolean;
@@ -666,6 +671,8 @@ export function reportLinkBody(p: ReportParams): Record<string, unknown> {
 export const getReportLinks = () => get<ReportLinksResponse>(`${B}/report/links`);
 export const createReportLink = (p: ReportParams) => post<ReportLinkCreated>(`${B}/report/links`, reportLinkBody(p));
 export const revokeReportLink = (id: string) => del(`${B}/report/links/${enc(id)}`);
+/** TEMPREPORT-297 (Settings): revoke every live link at once - a manager all of them, anyone else his own. */
+export const revokeAllReportLinks = () => api<{ revoked: number }>(`${B}/report/links`, { method: 'DELETE' });
 export const sendReportLink = (id: string) => post<LinkSendResponse>(`${B}/report/links/${enc(id)}/send`, {});
 
 /** The PDF (the browser's own download). */

@@ -116,7 +116,8 @@ routing: `GET|PUT /alerts`.
 
 ## 9. Open items the owner asked to keep (do not forget)
 
-1. **Document sending on WhatsApp (TODO, owner 2026-10-19).** Today the summary is text only because the transport
+1. **Document sending on WhatsApp (TODO, owner 2026-10-19; the LINK option built in TEMPREPORT-297, owner 2026-10-27 - section 15; the
+   attached-file option still waits for the file contract).** Today the summary is text only because the transport
    (`whatsapp.send_message`) cannot carry a document. To add the PDF itself, a temporary signed download link or an attached HTML report
    later: (a) give the transport the capability (a media service of the WhatsApp integration, or a signed short-lived link route),
    (b) add the mode to `temperature_whatsapp.ATTACHMENT_MODES` and `temperature.CHOICES["report_attachment"]`, (c) return the payload from
@@ -222,3 +223,13 @@ ledger, `WhatsAppChannel` (`whatsapp.send_message`, text only) and `notify_whats
   gained `whatsapp.available`.
 * **Audit**: `infra.temperature.report.link.send` - counts and per-recipient user id, status and reason code; never a number, the text or the link.
 * **Dialog**: a "send by WhatsApp" button on the link row (only when the server says it is available) and one short status per recipient.
+
+## 15. TEMPREPORT-297: the report as a document over WhatsApp, by temporary link (pilot/TEMPREPORT-297, owner 2026-10-27)
+
+Section 9 item 1, the link option, for SYSTEM USERS in the ordinary report send (one-off and scheduled): with `report_attachment = link`
+(now a control in Settings, `none` by default) and `reports.documents` on, and when the sender holds `infra.temperature.report_link_send`,
+each recipient's message carries a temporary, hash-only, read-only link to HIS PDF (the units he may see); lifetime / downloads from
+`report_link_hours` / `report_link_max_opens`. No new public route (the existing `/t/api/doc` pair), no migration. New internal route
+`DELETE /report/links` (revoke all, Settings); Settings lists the live links with recipient, validity and downloads. Audit
+`infra.temperature.report.document.send` (sender, recipient id + label, time, document id, outcome; never a number, the text or the link).
+The attached-file adapter is designed (null implementation) in `CR-TEMPREPORT-297.md` section 4. Details, tests and limits: `CR-TEMPREPORT-297.md`.
