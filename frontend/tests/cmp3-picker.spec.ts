@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { settle } from './helpers/settle';
 import { mock, openAndPlay } from './playback-stall-mock';
 
 // CMP3 (owner decisions 2026-10-05): (1) the camera picker's foot ("נקה" / "סיום") is part of the phone variant too: 44 px targets and no
@@ -20,6 +21,7 @@ test.describe('CMP3: the camera picker', () => {
       await page.setViewportSize({ width: w, height: 800 });
       await open(page);
       await pick(page).locator('.chip').click();
+      await settle(page); // the open list grows from 97 % (R5 motion): measure it at rest
       const foot = pick(page).locator('[data-dd-foot]');
       await expect(foot).toBeVisible();
       for (const sel of ['[data-dd-clear]', '[data-dd-done]']) {

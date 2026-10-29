@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { settle } from './helpers/settle';
 import { skinsUnderTest, skipIfFrozen } from './helpers/frozen-skins';
 
 // 0.1.157 round B (DD3): what the approved mockups show and round A skipped, plus the test gaps the review found.
@@ -379,6 +380,7 @@ test.describe('the mockups\' per-skin notes', () => {
       await stage(page, skin);
       await mount(page, ['pill', 'text']);
       await chip(page, 'pill').click();
+      await settle(page); // the open list grows from 97 % (R5 motion): measure it at rest
       const r = await popOf(page, 'pill').evaluate((el) => {
         const cs = getComputedStyle(el);
         const w = el.getBoundingClientRect().width;
@@ -389,6 +391,7 @@ test.describe('the mockups\' per-skin notes', () => {
       expect(r.blur, `${skin} list has no blur`).toBe('none');
       await page.keyboard.press('Escape');
       await chip(page, 'text').click();
+      await settle(page); // the open list grows from 97 % (R5 motion): measure it at rest
       expect((await popOf(page, 'text').evaluate((el) => el.getBoundingClientRect().width)), `${skin} text list width`).toBeGreaterThanOrEqual(240);
       await page.keyboard.press('Escape');
     }
