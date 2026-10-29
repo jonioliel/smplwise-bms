@@ -43,6 +43,12 @@ export class ExploreSites extends LitElement {
       aspect-ratio: 16 / 10;
       overflow: hidden;
     }
+    /* SITENAME-2272: on a phone the picture is wider than tall, so a card with up to three name lines stays compact */
+    @media (max-width: 520px) {
+      .pic {
+        aspect-ratio: 2 / 1;
+      }
+    }
     .pic sw-scene {
       position: absolute;
       inset: 0;
