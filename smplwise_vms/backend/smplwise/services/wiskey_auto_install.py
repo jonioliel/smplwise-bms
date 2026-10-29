@@ -554,36 +554,32 @@ def stage_native_bundle(config_root: Path, source: Path, staged_digest: str | No
 
 
 def request_component_restart(db: Any, settings: Any, source: Path, *, conn: Any = None) -> str:
-    """ONE platform restart per staged source digest, durably claimed BEFORE the call: a lost or failed answer is never replayed
-    (`restart_unknown`); the same digest again is `already_requested`. Only with the switch on (the caller checks)."""
-    from ..db import get_setting, set_setting, unlocked
+    """ONE platform restart per staged source digest, claimed durably BEFORE the call (WisKey R2 align: through the generation journal,
+    `wiskey_install_generation` - claim and outcome are compare-and-set on the generation and the claim token, the lock is not held
+    during the call). A lost or failed answer is `restart_unknown`; the same digest again is `already_requested`; a request whose
+    generation was superseded meanwhile is `superseded` (nothing is recorded for it). Only with the switch on (the caller checks)."""
+    from ..db import unlocked
     from ..errors import ApiError
     from . import ha_client
+    from . import wiskey_install_generation as gen
 
     value = source_digest(source)
-
-    def claim(c: Any) -> bool:
-        if get_setting(c, RESTART_DIGEST_KEY) == value:
-            return False
-        set_setting(c, RESTART_DIGEST_KEY, value)
-        return True
-
-    if conn is None:
-        with db.write_aside(label="wiskey restart claim") as c:
-            claimed = claim(c)
-    else:
-        claimed = claim(conn)  # `unlocked(conn)` below commits it before the call leaves
-    if not claimed:
-        return "already_requested"
+    generation_id = gen.begin(db, conn, value)
+    claim = gen.claim_restart(db, conn, generation_id, value)
+    if claim is None:
+        current = gen.read(db, conn)
+        return "already_requested" if current is not None and current.get("generation_id") == generation_id else "superseded"
+    ok = True
     try:
         if conn is None:
             ha_client.call_service(settings, "homeassistant", "restart", {})
         else:
-            with unlocked(conn):
+            with unlocked(conn):  # commits the claim before the call leaves
                 ha_client.call_service(settings, "homeassistant", "restart", {})
     except ApiError:
-        return "restart_unknown"  # the claimed digest forbids a blind replay
-    return "requested"
+        ok = False  # the claimed digest forbids a blind replay
+    gen.finish_restart(db, conn, generation_id, claim, ok)  # stale (a newer generation) -> nothing recorded
+    return "requested" if ok else "restart_unknown"
 
 
 def _staged_digest(db: Any, conn: Any) -> str | None:
@@ -658,11 +654,16 @@ def reconcile_installation(db: Any, settings: Any) -> str:
     join = wiskey_direct_join.JOIN
     if join is None or not join.selected("whatsapp/template_registry_v1"):
         return "registry_not_selected"
+    from . import wiskey_install_generation as gen
+
+    journal = gen.read(db)  # the generation this reconcile belongs to, read BEFORE the outside I/O
     reply = join.capture_port.call("whatsapp/template_registry_v1", {}, timeout_s=10)
     try:
         sync_native_templates(db, dict(reply))
     except InstallationError:
         return "registry_invalid"  # the stored registry stays as it was (never reset by a bad reply)
+    if journal is not None:  # WIN-R2-ARX-GEN-01 (c): the proof is merged only for the same generation (CAS); a newer install is untouched
+        gen.record_proof(db, str(journal["generation_id"]), "reconcile", "registry_synced")
     return "registry_synced"
 
 
