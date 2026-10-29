@@ -212,7 +212,7 @@ test('home widget: hidden elevators are out, the alerts filter lists only fire /
 
 test('home config: the elevators widget is appended last, tolerant parsing, absent unless the viewer sees an elevator', () => {
   const d = defaultConfig();
-  expect(d.order.slice(-5)).toEqual(['elevators', 'temperature', 'generators', 'doors', 'notices']); // phase 3 temperatures, then GENWIDGET 2.9.3 generators
+  expect(d.order.slice(-6)).toEqual(['elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']); // phase 3 temperatures, then GENWIDGET 2.9.3 generators
   expect(d.elevators).toEqual({ on: true, sizes: { a: 'm', b: 's', c: 'm' }, label: '', phone_on: null, phone_size: null, mode: 'combined', hidden: [], filter: 'all' });
   const c = configOf({ elevators: { mode: 'both', hidden: ['e1', 'e1', 'bad id', 7], filter: 'nope' } });
   expect([c.elevators.mode, c.elevators.hidden, c.elevators.filter]).toEqual(['both', ['e1'], 'all']);
@@ -266,7 +266,7 @@ test('review L6: moves count only the listed widgets (the elevators widget left 
   const listed = order.filter((id) => id !== 'elevators' && id !== 'temperature' && id !== 'generators' && id !== 'doors' && id !== 'notices'); // phase 3: the temperatures widget is appended after it
   // "move down" of the last LISTED widget: nothing to move past (the hidden elevators widget is not a neighbour)
   expect(moveAmong(order, listed, 'launcher', listed.length)).toEqual(order);
-  expect(moveAmong(order, listed, 'agenda', listed.indexOf('launcher')).slice(-7)).toEqual(['launcher', 'agenda', 'elevators', 'temperature', 'generators', 'doors', 'notices']);
+  expect(moveAmong(order, listed, 'agenda', listed.indexOf('launcher')).slice(-8)).toEqual(['launcher', 'agenda', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']);
   const mid: typeof order = ['clock', 'elevators', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher'];
   const listedMid = mid.filter((id) => id !== 'elevators');
   expect(moveAmong(mid, listedMid, 'weather', 0).slice(0, 3)).toEqual(['weather', 'clock', 'elevators']);

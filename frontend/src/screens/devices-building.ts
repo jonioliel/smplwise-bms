@@ -18,6 +18,8 @@ import { generatorsAvailable } from '../generator/home-widget-model';
 import { loadHomeDoorsChecked } from '../door-windows/access'; // DOORWIN2-295: the home doors widget
 import { doorsWidgetAvailable, type DoorsWidgetData } from '../door-windows/home-widget-model';
 import { doorWindowsTabOn, noticesModuleOn } from '../shell/nav';
+import { getBuildingPresence, type BuildingSnapshot } from '../api/building-presence'; // PRESENCE-2280: the home presence widget
+import { presenceWidgetAvailable } from './building-presence-widget';
 import { loadHomeNoticesChecked, noticesWidgetAvailable, noticesWidgetOffered, type NoticesWidgetData } from '../notices/home-widget'; // NOTICEPAGE-295: the home notice board widget
 import type { LiveSummaryItem } from '../api/generator';
 import '../components/sw-state-panel';
@@ -53,7 +55,6 @@ import { phoneRestricted } from '../shell/phone';
 import { notifyScreenViews, registerScreenView } from '../shell/screen-view';
 import './home-widgets';
 import './home-ambient-bar';
-import './building-presence-card';
 import { AMBIENT_WIDGETS } from './home-ambient-bar';
 import { infoStyleFor, loadScreenDisplay, BULK_IDLE_DEFAULT, FLOOR_TITLE_LINES_DEFAULT, INFO_STYLE_DEFAULT, type BulkIdle, type FloorTitleLines, type InfoStyle } from '../api/screen-display';
 import {
@@ -1113,6 +1114,8 @@ export class DevicesBuilding extends LitElement {
   @state() private doorsData: DoorsWidgetData = { windows: null, emergency: null };
   /** NOTICEPAGE-295: the notices widget's data (none = no widget at all); polled by the live controller below. */
   @state() private noticesData: NoticesWidgetData = { notices: null, emptyMode: 'hide' };
+  /** PRESENCE-2280: the building presence answer (null = not read, or the caller may not see it: then there is no presence widget at all). */
+  @state() private presenceSnap: BuildingSnapshot | null = null;
   /** HOMELIVE-295: ONE controller for every live read of this screen (the tree, the elevators, the temperature units, the generators): polls
    * only while the page is visible and online, catches up on visibility / focus / pageshow / online, backs off on failures (api/live-refresh.ts). */
   private readonly live = new LiveController();
@@ -1461,7 +1464,7 @@ export class DevicesBuilding extends LitElement {
     return resolveWidgets(h.config, h.direction, h.data, { editing: this.lay.editing, quickAllowed: this.quickInfo(t).allowed, phone: this.isPhone, mediaAvailable: this.mediaScreens === null ? undefined : this.mediaScreens > 0,
       elevatorsAvailable: !!this.elevators?.length, temperatureAvailable: this.tempWidget && this.tempUnits.length > 0,
       generatorsAvailable: generatorsAvailable(this.generators), doorsAvailable: doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()),
-      noticesAvailable: (this.lay.editing ? noticesWidgetOffered : noticesWidgetAvailable)(this.noticesData, noticesModuleOn()) });
+      noticesAvailable: (this.lay.editing ? noticesWidgetOffered : noticesWidgetAvailable)(this.noticesData, noticesModuleOn()), presenceAvailable: this.presenceOffered() });
   }
 
   /** CR-015: whether the home's media widget has anything to show - the approved screens of this user (the same question the widget
@@ -1531,6 +1534,7 @@ export class DevicesBuilding extends LitElement {
     poll('generators', () => this.loadGenerators(), () => generatorsAvailable(this.generators) || this.firstReadFailed.has('generators'), () => !generatorsAvailable(this.generators));
     poll('doors', () => this.loadDoors(), () => doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()) || (doorWindowsTabOn() && this.firstReadFailed.has('doors')), () => !doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()));
     poll('notices', () => this.loadNotices(), () => noticesWidgetOffered(this.noticesData, noticesModuleOn()) || (noticesModuleOn() && this.firstReadFailed.has('notices')), () => !noticesWidgetOffered(this.noticesData, noticesModuleOn()));
+    poll('presence', () => this.loadPresence(), () => this.presenceMayRead(), () => !this.presenceOffered());
     this.live.add({ id: 'tree', run: () => this.reloadTree(), pollMs: () => (haPushLive() ? 300_000 : 60_000), enabled: () => isApi() && !this.forbidden && !this.lay.editing });
     this.live.onChange(() => this.requestUpdate());
     this.live.start();
@@ -1569,6 +1573,27 @@ export class DevicesBuilding extends LitElement {
     return this.noteRead('notices', d !== null);
   }
 
+  /** PRESENCE-2280: the caller holds presence.building.view (without it nothing is asked at all). */
+  private presenceMayRead(): boolean {
+    return isApi() && canAnywhere('presence.building.view');
+  }
+
+  /** PRESENCE-2280: the presence widget exists only for a permitted caller while the server reports an enabled, configured module shown as a card. */
+  private presenceOffered(): boolean {
+    return this.presenceMayRead() && presenceWidgetAvailable(this.presenceSnap);
+  }
+
+  /** PRESENCE-2280: the presence widget - read every 30 s while permitted; a failed read keeps the last answer (nothing is invented). */
+  private async loadPresence(): Promise<boolean> {
+    if (!this.presenceMayRead()) return true;
+    try {
+      this.presenceSnap = await getBuildingPresence();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** UXREST2-295: the home widgets whose own read failed (home-widgets draws a failure panel with a retry in each one's slot). */
   @state() private failedWidgets: WidgetId[] = [];
   private setWidgetFailed(id: WidgetId, failed: boolean) {
@@ -1603,7 +1628,7 @@ export class DevicesBuilding extends LitElement {
   private renderWidgets(t: DeviceTree, h: HomeView, items: WidgetItem[], layout: 'hero' | 'side' | 'row' | 'snap' | 'stack' | 'two') {
     if (!items.length) return nothing;
     return html`<home-widgets layout=${layout} ?quick-hidden=${!this.lay.editing && this.screen.quick_card === 'hide'} .items=${items} .config=${h.config} .data=${h.data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')}
-      .elevators=${this.elevators ?? []} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .doors=${this.doorsData} .notices=${this.noticesData} .failed=${this.failedWidgets}
+      .elevators=${this.elevators ?? []} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .doors=${this.doorsData} .notices=${this.noticesData} .presence=${this.presenceOffered() ? this.presenceSnap : null} .failed=${this.failedWidgets}
       @home-widget-retry=${this.onWidgetRetry} @home-widget-size=${this.onWidgetSize} @home-widget-toggle=${this.onWidgetToggle} @home-widget-move=${this.onWidgetMove} @home-widget-edit=${this.onWidgetEdit} @home-quick=${this.onQuick}></home-widgets>`;
   }
 
@@ -1685,7 +1710,7 @@ export class DevicesBuilding extends LitElement {
     const names = new Map(t.floors.map((f) => [f.floor_id, f.name]));
     const floors = this.floorsOf(t).map((f) => ({ id: f.floor_id, name: names.get(f.floor_id) ?? f.floor_id }));
     const areas = this.floorsOf(t).flatMap((f) => f.areas.map((a) => ({ id: a.area_id, name: a.name, floor: f.name, counts: a.counts })));
-    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())}
+    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())} ?presence=${this.presenceOffered()}
       @home-draft=${this.onDraft} @home-reset=${this.onHomeReset} @home-edit-open=${(e: CustomEvent<{ id: WidgetId | '' }>) => (this.openWidget = e.detail.id)}></home-edit-panel>
       ${this.screenDraft
         ? html`<section class="hs-edit" data-home-screen-edit aria-label=${hs('heading')}><h3>${hs('heading')}</h3>
@@ -2799,6 +2824,7 @@ export class DevicesBuilding extends LitElement {
     void this.loadGenerators().then((ok) => this.live.markRead('generators', ok));
     void this.loadDoors().then((ok) => this.live.markRead('doors', ok));
     void this.loadNotices().then((ok) => this.live.markRead('notices', ok));
+    void this.loadPresence().then((ok) => this.live.markRead('presence', ok));
     // the view choice (cards | tiles) lives in the user menu, not on the page (home redesign follow-up)
     this.registerView();
     void this.prefsReady.then(() => this.registerView()); // K88: the plan view appears once plan.surfaces says so
@@ -2869,7 +2895,7 @@ export class DevicesBuilding extends LitElement {
     this.noteTimer = this.fitTimer = 0;
     window.removeEventListener('resize', this.onResize);
     this.live.stop();
-    for (const id of ['elevators', 'temperature', 'generators', 'doors', 'notices', 'tree']) this.live.remove(id);
+    for (const id of ['elevators', 'temperature', 'generators', 'doors', 'notices', 'presence', 'tree']) this.live.remove(id);
     window.removeEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
     this.offView?.();
     this.offView = null;
@@ -2998,7 +3024,6 @@ export class DevicesBuilding extends LitElement {
         ? html`<sw-state-panel icon="building" data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים'} hint=${t.scoped ? 'מוצגות רק הקומות שבהרשאתך.' : 'המבנה יופיע כאן כשיוגדרו קומות ואזורים.'}></sw-state-panel>`
         : nothing}
       ${this.lay.editing ? this.renderHomeEdit(t) : nothing}
-      <building-presence-card></building-presence-card>
       ${this.layout === 'cards' ? this.renderCards(t, sideLayout) : this.layout === 'plan' ? this.renderPlan(t, sideLayout) : this.renderTiles(t, sideLayout)}`;
     // owner notes 2026-09-30: no "ערוך פריסה" button here (the user menu's "עריכת המסך הראשי" opens `?edit=1`); the header
     // row carries only a "not synced" chip when the state is NOT fine, and a small refresh icon

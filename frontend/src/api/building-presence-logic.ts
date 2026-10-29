@@ -89,6 +89,9 @@ export function cardView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Je
   return { show: true, tone: 'neutral', big: BP.unknown, sub: BP.cardNoInfo, rooms: rows };
 }
 
+/** PRESENCE-2280: whether the home presence widget exists at all (enabled + configured + display "card"; the caller's permission is checked by the screen). */
+export const presenceWidgetAvailable = (s: BuildingSnapshot | null | undefined): boolean => cardView(s).show;
+
 /**
  * The plan map's chip of one room: "פעיל" / "ריק מ־HH:MM" / "אין מידע" (a room whose sensor does not report). Null when the master switch or
  * the map option is off, when nothing is configured, or when no tagged sensor sits in the room. No legend filter (owner decision): the list is

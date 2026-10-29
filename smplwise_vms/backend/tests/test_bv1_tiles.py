@@ -60,7 +60,7 @@ def _patch(c: TestClient, body: dict, **kw):
 
 def test_defaults_append_the_new_widgets_off_screen_and_keep_the_cards():
     cfg = home_config.default_config()
-    assert cfg["order"][-7:] == ["agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices"]
+    assert cfg["order"][-8:] == ["agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence"]
     assert cfg["agenda"] == {"on": True, "sizes": {"a": "m", "b": "m", "c": "m"}, "label": "", "phone_on": None, "phone_size": None, "calendars": [], "days": 7}
     assert cfg["launcher"] == {"on": True, "sizes": {"a": "m", "b": "s", "c": "m"}, "label": "", "phone_on": None, "phone_size": None, "items": []}
     assert cfg["clock"]["style"] == "card" and cfg["weather"]["style"] == "card"  # today's pixels: the card

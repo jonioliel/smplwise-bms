@@ -107,7 +107,7 @@ test.describe('PRESENCE-2280 layout vs mockup', () => {
     test(`${scheme}: home card - state word, rooms (capped), link to the map; hidden when the display is not "card"`, async ({ page, request }) => {
       await setup(page, request);
       await open(page, '/devices', scheme);
-      const card = page.locator('[data-building-presence-card-home]');
+      const card = page.locator('[data-home-widget="presence"]');
       await expect(card).toBeVisible({ timeout: 20000 });
       await expect(page.locator('[data-building-presence-big]')).toHaveText('פעיל');
       const chips = await page.locator('[data-building-rooms] .r').count();
@@ -126,7 +126,7 @@ test.describe('PRESENCE-2280 layout vs mockup', () => {
     await setup(page, request);
     await page.setViewportSize({ width: 390, height: 844 });
     await open(page, '/devices', 'light');
-    await expect(page.locator('[data-building-presence-card-home]')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('[data-home-widget="presence"]')).toBeVisible({ timeout: 20000 });
     // the mocked answer has 4 rooms: nothing is hidden, so there is no "more" chip
     await expect(page.locator('[data-building-more-rooms]')).toHaveCount(0);
     expect(await page.locator('[data-building-rooms] .r').count()).toBeLessThanOrEqual(4);

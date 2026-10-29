@@ -11,13 +11,13 @@ const at = (h: number) => new Date(NOW.getTime() + h * 3600_000).toISOString();
 test.describe('BV1: config', () => {
   test('the new widgets are appended with their defaults, the clock / weather carry a style, an old config reads whole', () => {
     const c = defaultConfig();
-    expect(c.order.slice(-7)).toEqual(['agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices']);
+    expect(c.order.slice(-8)).toEqual(['agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']);
     expect(c.agenda).toEqual({ on: true, sizes: { a: 'm', b: 'm', c: 'm' }, label: '', phone_on: null, phone_size: null, calendars: [], days: 7 });
     expect(c.launcher).toEqual({ on: true, sizes: { a: 'm', b: 's', c: 'm' }, label: '', phone_on: null, phone_size: null, items: [] });
     expect(c.clock.style).toBe('card');
     expect(c.weather.style).toBe('card');
     const old = configOf({ order: ['quick', 'clock'], clock: { on: true, mode: 'time' } });
-    expect(old.order).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices']);
+    expect(old.order).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']);
     expect(old.clock.style).toBe('card');
     expect(WIDGET_IDS).toContain('agenda');
   });

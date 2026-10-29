@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { BuildingPresenceSettings, BuildingSnapshot, PresenceCandidate } from '../src/api/building-presence';
-import { cardView, chipView, clockText, zoneChip, zoneTone, filterSensors, pageSlice, groupByRoom, settingsProblem, toggledTags } from '../src/api/building-presence-logic';
+import { presenceWidgetAvailable, cardView, chipView, clockText, zoneChip, zoneTone, filterSensors, pageSlice, groupByRoom, settingsProblem, toggledTags } from '../src/api/building-presence-logic';
 
 // BUILDING-PRESENCE-2271: the chip is invisible without tagged sensors, green only while occupied, and never reads an unknown as empty.
 
@@ -129,4 +129,14 @@ test.describe('PRESENCE-2280 mockup alignment (tone, table filter, paging)', () 
     expect(pageSlice([], 1, 6)).toEqual({ items: [], page: 1, pages: 1 });
     expect(pageSlice([1, 2, 3], -4, 2).page).toBe(1);
   });
+});
+
+// PRESENCE-2280: the home widget exists only for an enabled, configured module whose display is "card" (the caller's permission is checked by the screen)
+test('the presence widget is available only for a configured module shown as a card', () => {
+  const card = { ...cfg, home_display: 'card' as const };
+  expect(presenceWidgetAvailable(null)).toBe(false);
+  expect(presenceWidgetAvailable(snap({ settings: card, status: 'occupied' }))).toBe(true);
+  expect(presenceWidgetAvailable(snap({ settings: { ...card, home_display: 'chip' }, status: 'occupied' }))).toBe(false);
+  expect(presenceWidgetAvailable(snap({ settings: { ...card, home_display: 'off' }, status: 'occupied' }))).toBe(false);
+  expect(presenceWidgetAvailable({ configured: false, settings: card })).toBe(false);
 });

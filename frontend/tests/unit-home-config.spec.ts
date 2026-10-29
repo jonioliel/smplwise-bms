@@ -35,7 +35,7 @@ function cfg() {
 test.describe('home config', () => {
   test('the default: control centre sizes per direction, every widget on, the order of the mockup', () => {
     const c = defaultConfig();
-    expect(c.order).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices']); // media (CR-015) is appended
+    expect(c.order).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']); // media (CR-015) is appended
     expect(WIDGET_IDS.every((w) => c[w].on)).toBe(true);
     expect(c.clock.sizes).toEqual({ a: 'l', b: 'm', c: 'm' });
     expect(c.alarm.sizes).toEqual({ a: 'm', b: 's', c: 'm' });
@@ -45,14 +45,14 @@ test.describe('home config', () => {
 
   test('configOf takes what the server sent, tolerates anything missing or foreign, and round-trips', () => {
     const c = cfg();
-    c.order = ['quick', 'clock', 'weather', 'shabbat', 'alarm', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices'];
+    c.order = ['quick', 'clock', 'weather', 'shabbat', 'alarm', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence'];
     c.weather.sources = { temperature: 'sensor.outdoor' };
     c.calendar.extras = [{ entity_id: 'binary_sensor.issur', label: 'איסור' }];
     expect(configOf(configBody(c))).toEqual(c);
     expect(sameConfig(configOf(JSON.parse(JSON.stringify(c))), c)).toBe(true);
     // a partial / hand-edited / newer value never breaks: defaults fill in, unknown things are dropped
     const odd = configOf({ order: ['weather', 'nope', 'weather'], clock: { mode: 'analog', sizes: { a: 'huge' } }, weather: { fields: ['humidity', 'sunshine'], forecast: '9', sources: { condition: 'sensor.x', humidity: 'sensor.h' } }, calendar: { extras: [{ entity_id: '' }, 5] } });
-    expect(odd.order).toEqual(['weather', 'clock', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices']);
+    expect(odd.order).toEqual(['weather', 'clock', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']);
     expect(odd.clock.mode).toBe('datetime');
     expect(odd.clock.sizes.a).toBe('l');
     expect(odd.weather.fields).toEqual(['humidity']);
@@ -105,8 +105,8 @@ test.describe('home config', () => {
 
   test('moveWidget and moveId keep the list whole and clamp', () => {
     const o = defaultConfig().order;
-    expect(moveWidget(o, 'alarm', 0)).toEqual(['alarm', 'clock', 'weather', 'shabbat', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices']);
-    expect(moveWidget(o, 'clock', 99)).toEqual(['weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'clock']);
+    expect(moveWidget(o, 'alarm', 0)).toEqual(['alarm', 'clock', 'weather', 'shabbat', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']);
+    expect(moveWidget(o, 'clock', 99)).toEqual(['weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence', 'clock']);
     expect(moveWidget(o, 'clock', -5)).toBe(o);
     expect(moveWidget(o, 'clock', 0)).toBe(o);
     expect(moveId(['a', 'b', 'c'], 'a', 2)).toEqual(['b', 'c', 'a']);
@@ -229,7 +229,7 @@ test.describe('home config', () => {
     expect(personalBody(PERSONAL_EMPTY)).toBeNull();
     const p = personalOf({ direction: 'c', order: ['quick', 'nope'], widgets: { clock: { size: 's', on: false }, weather: { size: 'xx' }, nope: { on: true } } });
     expect(p.direction).toBe('c');
-    expect(p.order).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices']);
+    expect(p.order).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']);
     expect(p.widgets).toEqual({ clock: { size: 's', on: false } });
     expect(personalBody(p)).toEqual({ direction: 'c', phone_layout: null, order: p.order, widgets: p.widgets });
     expect(personalOf({ phone_layout: 'two' }).phone_layout).toBe('two');
@@ -297,7 +297,7 @@ test.describe('home config', () => {
     expect(c.media).toEqual({ on: true, sizes: { a: 'm', b: 's', c: 'm' }, label: '', phone_on: null, phone_size: null });
     // a config saved before the widget existed reads back with it, last, on
     const old = configOf({ order: ['quick', 'clock'], clock: { on: false } });
-    expect(old.order).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices']);
+    expect(old.order).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']);
     expect(old.media.on).toBe(true);
     // no entity of its own: whatever the server sends beyond the common keys is dropped
     expect(configOf({ media: { on: false, entity: 'media_player.tv', sizes: { b: 'l' } } }).media).toEqual({ ...c.media, on: false, sizes: { a: 'm', b: 'l', c: 'm' } });
