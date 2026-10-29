@@ -80,19 +80,17 @@ def read_job(raw: Any, *, operation_id: str) -> JobView:
     return JobView(operation_id, state, "unknown", code or "invalid_response")
 
 
-def ensure_job_schema(conn: sqlite3.Connection) -> None:
-    conn.execute("CREATE TABLE IF NOT EXISTS wiskey_template_jobs (operation_id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, "
-                 "template_id TEXT, person_id TEXT, state TEXT NOT NULL, outcome TEXT NOT NULL, code TEXT, created_at TEXT NOT NULL, "
-                 "updated_at TEXT NOT NULL)")
+# review L3: both tables (`wiskey_template_jobs`, `wiskey_event_seen`) come from this numbered migration - nothing here runs DDL
+MIGRATION = "0183_wiskey_installed_features.sql"
 
 
 class TemplateJobs:
     """Arx's side of WisKey's durable queue: a local row BEFORE the enqueue leaves (so a lost answer is never enqueued again), then
-    WisKey's job document. Only ids, states and codes are kept - never a phone number, a parameter value or a template body."""
+    WisKey's job document. Only ids, states and codes are kept - never a phone number, a parameter value or a template body. The table
+    is migration 0183's (`MIGRATION`)."""
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
-        ensure_job_schema(conn)
 
     def row(self, operation_id: str) -> dict[str, Any] | None:
         r = self.conn.execute("SELECT operation_id, request_id, state, outcome, code FROM wiskey_template_jobs WHERE operation_id = ?",
@@ -230,8 +228,7 @@ class EventCursor:
     on)."""
 
     def __init__(self, conn: sqlite3.Connection) -> None:
-        self.conn = conn
-        conn.execute("CREATE TABLE IF NOT EXISTS wiskey_event_seen (event_id TEXT PRIMARY KEY, seq INTEGER NOT NULL)")
+        self.conn = conn  # `wiskey_event_seen` is migration 0183's (review L3)
 
     def _doc(self) -> dict[str, Any]:
         from ..db import get_setting

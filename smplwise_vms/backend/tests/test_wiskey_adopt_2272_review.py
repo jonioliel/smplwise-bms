@@ -492,12 +492,12 @@ def test_m7_concurrent_enqueue_returns_the_recorded_state_never_a_false_not_sent
     import sqlite3
 
     from smplwise.services import wiskey_installed_features as wif
-    from test_wiskey_adopt_2272_features import Client, _job, _tpl
+    from test_wiskey_adopt_2272_features import Client, _job, _tpl, apply_installed_features_migration
 
     path = tmp_path / "jobs.db"
     first, second = sqlite3.connect(path), sqlite3.connect(path)
-    for c in (first, second):
-        c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+    first.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+    apply_installed_features_migration(first)
     a, b = wif.TemplateJobs(first), wif.TemplateJobs(second)
     real_row = b.row
     calls = {"n": 0}
@@ -612,3 +612,22 @@ def test_l2_the_gap_history_survives_later_pages_and_is_bounded() -> None:
     st = cur.state()
     assert len(st["gaps"]) == wif.GAP_HISTORY and st["last_gap"]["reason"] == "retention_gap" and st["cursor"] == f"c{wif.GAP_HISTORY + 2}"
     assert all(g["delivered"] is False and g["acknowledged_at"] for g in st["gaps"])
+
+# ================================================================ L3: a numbered migration, no runtime DDL
+
+def test_l3_the_tables_come_from_migration_0183_and_the_consumers_run_no_ddl(settings: Any) -> None:
+    import inspect
+
+    from smplwise.db import MIGRATIONS_DIR
+    from smplwise.services import wiskey_installed_features as wif
+
+    names = sorted(p.name for p in Path(MIGRATIONS_DIR).glob("018*.sql"))
+    assert wif.MIGRATION in names and wif.MIGRATION.startswith("0183_") and not any(n.startswith("0183_") and n != wif.MIGRATION for n in names)
+    assert "CREATE TABLE" not in inspect.getsource(wif).upper().replace("NOTHING HERE RUNS DDL", "")
+    app = _app(settings)
+    with app.state.db.connection() as conn:
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        assert {"wiskey_template_jobs", "wiskey_event_seen"} <= tables
+        assert conn.execute("SELECT 1 FROM schema_migrations WHERE version = 183").fetchone() is not None
+        jobs = wif.TemplateJobs(conn)
+        assert jobs.row("absent") is None

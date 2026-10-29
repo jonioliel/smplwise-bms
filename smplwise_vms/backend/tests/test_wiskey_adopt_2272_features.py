@@ -14,9 +14,19 @@ from smplwise.services import wiskey_direct_discovery as dd
 from smplwise.services import wiskey_installed_features as wif
 
 
+def apply_installed_features_migration(conn: sqlite3.Connection) -> None:
+    """Review L3: the tables come from the numbered migration (the consumers run no DDL)."""
+    from pathlib import Path
+
+    from smplwise.db import MIGRATIONS_DIR
+
+    conn.executescript((Path(MIGRATIONS_DIR) / wif.MIGRATION).read_text(encoding="utf-8"))
+
+
 def _db() -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:")
     conn.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)")
+    apply_installed_features_migration(conn)
     return conn
 
 
