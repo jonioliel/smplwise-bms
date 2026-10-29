@@ -1778,7 +1778,7 @@ export class HomeWidgetsView extends LitElement {
       case 'doors':
         return html`${renderDoors({ data: this.doors, editing: this.editing, now: this.now, openEmergency: () => (this.doorSheet = true), shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it)}<span style="display:contents"><door-emergency-sheet .open=${this.doorSheet} .data=${this.doors.emergency} @close=${() => (this.doorSheet = false)} @changed=${() => this.emit('home-widget-retry', { id: 'doors' })}></door-emergency-sheet></span>`;
       case 'presence':
-        return renderPresence({ snap: this.presence, editing: this.editing, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
+        return renderPresence({ snap: this.presence, editing: this.editing, compact: this.layout === 'row', shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       case 'notices':
         return renderNotices({ data: this.notices, editing: this.editing, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       default:
