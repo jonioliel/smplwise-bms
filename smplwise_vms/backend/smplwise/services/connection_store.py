@@ -699,3 +699,22 @@ def apply_at_startup(db: Any, settings: Settings) -> tuple[Settings, bool]:
     if effective.nvr_connection_state == "unreadable":
         log.warning("the stored NVR connection cannot be decrypted (key missing or changed); the NVR is treated as not configured until the password is entered again")
     return effective, differ
+
+
+# ---------------------------------------------------------------- calendar guest details (CALENDARS-298 section 3.6 / 9)
+# The same key file and `v1:` format; associated data `"cal_guest|<event id>|<seq>|<name|phone>"` - a blob moved to another entry, guest
+# slot or field does not decrypt. Personal data of guests booked on behalf of a customer or class; erased by the retention job.
+
+def _cal_guest_aad(event_id: str, seq: int, field: str) -> bytes:
+    if not isinstance(event_id, str) or not 1 <= len(event_id) <= 64 or any(ord(ch) < 32 or ord(ch) == 127 or ch == "|" for ch in event_id) \
+            or field not in ("name", "phone") or not isinstance(seq, int) or isinstance(seq, bool):
+        raise SecretError("not a secret field")
+    return f"cal_guest|{event_id}|{seq}|{field}".encode("utf-8")
+
+
+def seal_calendar_guest(data_dir: Path, event_id: str, seq: int, field: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _cal_guest_aad(event_id, seq, field), plaintext)
+
+
+def open_calendar_guest(data_dir: Path, event_id: str, seq: int, field: str, blob: str) -> str:
+    return _open(_Home(data_dir), _cal_guest_aad(event_id, seq, field), blob)

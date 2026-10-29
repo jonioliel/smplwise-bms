@@ -429,6 +429,15 @@ PERMISSION_LABELS: dict[str, str] = {
     "notices.boards": "לוח הודעות: לוחות תצוגה (קישורים והגדרות מסך)",
     # NOTICEDEL-295: real deletion of a published or archived notice (a draft is deleted by its writer). site_admin + system_admin; not delegable by default.
     "notices.delete": "לוח הודעות: מחיקה סופית של הודעה",
+    # CALENDARS-298 section 6.1 (module OFF by default): installation permissions; the per-calendar roles (view / book / edit / manage) sit on top.
+    "calendar.view": "יומנים: צפייה",
+    "calendar.book": "יומנים: יצירת אירועים והזמנות שלי",
+    "calendar.book_for_others": "יומנים: הזמנה בשם צוות, חוג או לקוח",
+    "calendar.manage": "יומנים: ניהול יומנים (יצירה, מנהלים, תפקידים)",
+    "calendar.maintenance": "יומנים: חלונות תחזוקה",
+    "calendar.guests": "יומנים: צפייה בפרטי אורחים (שם וטלפון)",
+    "calendar.configure": "יומנים: הגדרות המודול",
+    "calendar.connect": "יומנים: חיבור יומנים חיצוניים ופידים",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update",
                       "users.ha_manage", "identity.local.manage", "bridge.key.rotate", "partner.manage"}  # rbac.assign is delegable (T082); USR1: users.ha_manage; USR2: identity.local.manage (system_admin only, never in a custom role)
@@ -440,6 +449,7 @@ SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directo
 # (a delegated administrator cannot hand out building-wide hold-open or emergency rights unless the owner adds them to `rbac.delegable_roles`).
 DEFAULT_DELEGABLE = ["viewer", "operator", "tickets_view", "tickets_create", "tickets_manage", "door_windows_guard",  # CR-038 8.2: the three plain ticket grants
                      "notices_manage", "notices_push", "notices_boards",  # CR-NOTICE106 section 6: the notice board's grants are delegable
+                     "calendar_booker", "calendar_on_behalf",  # CALENDARS-298 section 6.1: the two plain booking grants are delegable
                      "announcer"]  # ANNOUNCE-295 (owner 2026-10-25): easy to hand out; every announcement is audited
 NEVER_DELEGABLE = {"system_admin", "site_admin"}
 SENSITIVE: list[str] = list(json.loads((Path(__file__).resolve().parents[1] / "roles.json").read_text(encoding="utf-8")).get("sensitive_permissions_not_implied", []))
