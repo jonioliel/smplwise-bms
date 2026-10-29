@@ -688,6 +688,7 @@ function skinCompany(dark: boolean): string {
   if (!hasCompany() || display().blocks.company_logo === false) return '';
   const mode = nightLogoMode(nightLogoOf(display()), feed?.board.brand?.dark_mode ?? 'invert', !!companySrc.dark, companyAlpha);
   const pick = chooseCompanyLogo({ light: companySrc.light || null, dark: companySrc.dark || null }, mode, dark);
+  if (!pick) return '';
   const name = esc(feed?.board.brand?.name || feed?.board.building || '');
   return '<span class="nb-co" data-tr="' + pick.treatment + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></span>';
 }

@@ -505,7 +505,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   }
 
   /** Sign trivision: N vertical prisms turn, in the reading direction, each showing a strip of the old and the new face. */
-  function buildSlats(host: HTMLElement, faces: (HTMLElement | null)[], o: { enterOnly?: boolean }): HTMLElement {
+  function buildSlats(host: HTMLElement, faces: (HTMLElement | null)[], o: { enterOnly?: boolean; exitOnly?: boolean }): HTMLElement {
     const Wd = host.clientWidth;
     const Hh = host.clientHeight;
     const N = slatCount(S.portrait);
