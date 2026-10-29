@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { LOBBY_NOTICES, TOKEN, lobbyFeed, serveFeed, tvUrl } from './notice-tv-fixtures';
+import { LOBBY_NOTICES, lobbyFeed, serveFeed, tvUrl } from './notice-tv-fixtures';
 import type { Display, Feed, FeedNotice } from '../src/notice-tv/tv-logic';
 
 // NOTICEBOARD-STYLES-2300 (release 2.30.0): the Ink (e-paper station display) and Sign (wayfinding signage) notice-board styles on the product TV page,
@@ -155,7 +155,7 @@ for (const skin of SKINS) {
       });
       const floor = skin === 'ink' ? 46 * 0.64 : 44 * 0.64;
       // a short body: full size
-      await open(page, { skin, notices: [mk('a', 1)], display: { hold: 'a' } });
+      await open(page, { skin, notices: [mk('a', 1, 'שיפוץ בלובי')], display: { hold: 'a' } });
       expect((await fs()).s).toBe(1);
       // a long body: smaller than 1, at least the floor, shown whole (no cut)
       await open(page, { skin, notices: [mk('a', 5)], display: { hold: 'a' } });
@@ -274,7 +274,9 @@ for (const skin of SKINS) {
       await expect(page.locator('#nbk')).toHaveAttribute('data-ann', '1');
       await expect(page.locator('#nbk .nb-ann .nb-al > div')).toHaveCount(4);
       await expect(page.locator('#nbk .nb-ann')).toContainText('Machine translation');
-      await expect(page.locator('#nbk .nb-ann')).toContainText('תרגום אוטומטי');
+      await expect(page.locator('#nbk .nb-ann')).toContainText('Машинный перевод');
+      await expect(page.locator('#nbk .nb-ann')).toContainText('ترجمة آلية');
+      await expect(page.locator('#nbk .nb-ann .nb-al > div[lang="he"] small')).not.toContainText('אוטומטי'); // the source language carries no mark
       await expect(page.locator('#nbk .nb-ann .nb-lock')).toContainText('09:40');
       await expect(page.locator('#nbk .nb-ann .nb-al > div[lang="en"]')).toHaveAttribute('dir', 'ltr');
       await expectClean(page);
@@ -304,21 +306,25 @@ for (const skin of SKINS) {
       await expectClean(page);
     });
 
-    test('the network line: live, then "not updated since" after missed polls', async ({ page }) => {
-      test.setTimeout(60_000);
+    test('the network line: live, then "not updated since" after three missed polls', async ({ page }) => {
       const feed = lobbyFeed({ theme: 'day', design: skin });
-      feed.board.announce_poll_s = 2;
       let ok = true;
-      await page.route('**/api/v1/notices/display/lobby', (r) => (ok
-        ? r.fulfill({ status: 200, contentType: 'application/json', headers: { ETag: '"17"' }, body: JSON.stringify(feed) })
+      await page.route('**/api/v1/notices/boards/b1/preview', (r) => (ok
+        ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(feed) })
         : r.fulfill({ status: 503, body: '' })));
       await page.setViewportSize({ width: 1920, height: 1080 });
-      await page.goto(new URL(`notice-tv.html?board=lobby&n=${++opened}&nbrot=60#t=${TOKEN}`, base()).toString());
+      await page.goto(new URL(`notice-tv.html?board=lobby&clock=fixed&embed=1&preview=b1&n=${++opened}`, base()).toString());
       await page.waitForSelector('#nbk[data-ready="1"] .nb-st .nb-msg', { state: 'attached' });
       await expect(page.locator('#nbk .nb-live')).toHaveAttribute('data-net', 'live');
+      await expect(page.locator('#nbk .nb-live .nb-st8')).toContainText('עודכן');
       ok = false;
-      await expect(page.locator('#nbk .nb-live')).toHaveAttribute('data-net', 'stale', { timeout: 25_000 });
+      for (let i = 0; i < 3; i++) {
+        await page.evaluate(() => window.postMessage({ smplwise: 'tv', display: {} }, location.origin));
+        await page.waitForTimeout(400);
+      }
+      await expect(page.locator('#nbk .nb-live')).toHaveAttribute('data-net', 'stale');
       await expect(page.locator('#nbk .nb-live .nb-st8')).toContainText('לא מעודכן מ-');
+      await expectClean(page);
     });
   });
 }

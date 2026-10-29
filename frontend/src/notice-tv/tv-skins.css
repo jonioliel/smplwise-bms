@@ -349,6 +349,8 @@
 #nbk[data-skin="ink"] .nb-ft[data-news="0"] .nb-tk, #nbk[data-skin="sign"] .nb-ft[data-news="0"] .nb-tk { display: none; }
 #nbk[data-skin="sign"] .nb-ft[data-news="0"] { grid-template-rows: minmax(0, 1fr); }
 #nbk[data-skin="sign"][data-orient="p"] .nb-ft[data-news="0"] { grid-template-rows: minmax(0, 1fr); }
+/* one notice or none: no list (the style rules of the list come later in this sheet and have the same weight as the first rule, so this one is final) */
+#nbk[data-q="0"] .nb-q { display: none !important; }
 /* the late-night dim (display.night): the same brightness variable the other designs read */
 #nbk[data-night="1"] { filter: brightness(var(--night-b, .58)) saturate(.9); }
 /* the board sits in the page's host next to the classic canvas; only one of the two is shown */
