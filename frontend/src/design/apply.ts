@@ -36,6 +36,15 @@ export type MotionMode = 'auto' | 'full' | 'reduced';
 export const MOTION_MODES: readonly MotionMode[] = ['auto', 'full', 'reduced'];
 export const isMotionMode = (v: unknown): v is MotionMode => v === 'auto' || v === 'full' || v === 'reduced';
 
+/**
+ * 2.29.0: the installation's entrance-animation setting `ui.entry_animations` (on | off, default on). The classic and domus skins let
+ * a screen's panels fade in with a small rise (polish-motion.ts ENTER_RULES); `off` zeroes the three entrance tokens through
+ * `data-enter="off"` on <html> (css.ts), so the panels simply appear. Independent of `ui.motion`.
+ */
+export type EnterMode = 'on' | 'off';
+export const ENTER_MODES: readonly EnterMode[] = ['on', 'off'];
+export const isEnterMode = (v: unknown): v is EnterMode => v === 'on' || v === 'off';
+
 const CACHE_KEY = 'sw.ui.design'; // the installation's last known { skin, scheme, motion }: applied at once on the next load (no flash)
 const OWN_SCHEME_KEY = 'sw.ui.scheme'; // this browser's own scheme choice
 
@@ -45,6 +54,8 @@ interface Installation {
   motion: MotionMode;
   /** SKINCOMP-297: `ui.rail_tone`. */
   rail: RailTone;
+  /** 2.29.0: `ui.entry_animations`. */
+  enter: EnterMode;
 }
 
 function read(key: string): string | null {
@@ -63,7 +74,7 @@ function write(key: string, value: string | null) {
   }
 }
 
-let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light', motion: 'auto', rail: 'auto' };
+let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light', motion: 'auto', rail: 'auto', enter: 'on' };
 let ownScheme: Scheme | null = null;
 let queryOverride: { skin: SkinId | null; scheme: Scheme | null; motion: MotionMode | null } = { skin: null, scheme: null, motion: null };
 let sheet: CSSStyleSheet | null = null;
@@ -78,6 +89,7 @@ function loadStored() {
     if (c && isScheme(c.scheme)) installation.scheme = c.scheme;
     if (c && isMotionMode(c.motion)) installation.motion = c.motion;
     if (c && isRailTone(c.rail)) installation.rail = c.rail;
+    if (c && isEnterMode(c.enter)) installation.enter = c.enter;
   } catch {
     /* a corrupt cache reads as the defaults */
   }
@@ -116,6 +128,36 @@ export const resolvedTheme = (): Theme => {
   return s === 'auto' ? (systemDark() ? 'dark' : 'light') : s;
 };
 
+/**
+ * 2.29.0: the motion setting reaches EVERY component, including the ones whose CSS carries literal durations instead of the duration
+ * tokens. When the motion in force is reduced (`ui.motion` = reduced, or auto under the OS prefers-reduced-motion; `full` ignores the
+ * OS), one shared constructable sheet is adopted by the page and every Lit shadow root and zeroes every animation and transition
+ * (iteration count 1, so a looping animation cannot flicker at ~0 ms). Colour/opacity state changes still happen, just instantly.
+ */
+export const REDUCED_ALL_CSS =
+  '*,*::before,*::after{animation-duration:0.01ms !important;animation-delay:0s !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;transition-delay:0s !important;scroll-behavior:auto !important}';
+let motionSheet: CSSStyleSheet | null = null;
+let motionQuery: MediaQueryList | null = null;
+let motionSheetOn = false;
+/** True when the motion in force is reduced. */
+export function motionReduced(): boolean {
+  const m = currentMotion();
+  if (m === 'reduced') return true;
+  if (m === 'full') return false;
+  try {
+    return !!motionQuery?.matches;
+  } catch {
+    return false;
+  }
+}
+function syncMotionSheet() {
+  if (!motionSheet) return;
+  const on = motionReduced();
+  if (on === motionSheetOn) return;
+  motionSheetOn = on;
+  motionSheet.replaceSync(on ? REDUCED_ALL_CSS : '');
+}
+
 function apply() {
   const root = document.documentElement;
   const skin = currentSkin();
@@ -124,6 +166,8 @@ function apply() {
   if (root.getAttribute('data-theme') !== theme) root.setAttribute('data-theme', theme);
   const motion = currentMotion();
   if (root.getAttribute('data-motion') !== motion) root.setAttribute('data-motion', motion);
+  if (root.getAttribute('data-enter') !== installation.enter) root.setAttribute('data-enter', installation.enter);
+  syncMotionSheet();
   // SKINCOMP-297: the dark rail of the skin (Arx Infra, direction D) - the attribute only while the skin has one and the tone asks for it
   if (darkRailOn(skin, installation.rail)) {
     if (root.getAttribute('data-rail') !== 'dark') root.setAttribute('data-rail', 'dark');
@@ -159,22 +203,23 @@ export function onDesign(fn: () => void): () => void {
 }
 
 /** The installation's `ui.skin` / `ui.scheme` / `ui.motion` / `ui.rail_tone` as the product settings carry them (unknown or missing values keep the current ones). */
-export function setInstallationDesign(skin: unknown, scheme: unknown, motion?: unknown, rail?: unknown) {
+export function setInstallationDesign(skin: unknown, scheme: unknown, motion?: unknown, rail?: unknown, enter?: unknown) {
   const next: Installation = {
     skin: resolveSkin(skin) ?? installation.skin,
     scheme: isScheme(scheme) ? scheme : installation.scheme,
     motion: isMotionMode(motion) ? motion : installation.motion,
     rail: isRailTone(rail) ? rail : installation.rail,
+    enter: isEnterMode(enter) ? enter : installation.enter,
   };
-  if (next.skin === installation.skin && next.scheme === installation.scheme && next.motion === installation.motion && next.rail === installation.rail) return;
+  if (next.skin === installation.skin && next.scheme === installation.scheme && next.motion === installation.motion && next.rail === installation.rail && next.enter === installation.enter) return;
   installation = next;
   write(CACHE_KEY, JSON.stringify(installation));
   apply();
 }
 
 /** The static demo (no backend) keeps "the installation's" choice in this browser: same cache, same effect. */
-export function saveDemoDesign(skin: SkinId, scheme: Scheme, motion: MotionMode = installation.motion, rail: RailTone = installation.rail) {
-  installation = { skin: resolveSkin(skin) ?? DEFAULT_SKIN, scheme, motion, rail };
+export function saveDemoDesign(skin: SkinId, scheme: Scheme, motion: MotionMode = installation.motion, rail: RailTone = installation.rail, enter: EnterMode = installation.enter) {
+  installation = { skin: resolveSkin(skin) ?? DEFAULT_SKIN, scheme, motion, rail, enter };
   write(CACHE_KEY, JSON.stringify(installation));
   apply();
 }
@@ -214,12 +259,20 @@ export function bootDesign() {
   }
   try {
     sheet = new CSSStyleSheet();
+    try {
+      motionSheet = new CSSStyleSheet();
+      motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      motionQuery.addEventListener('change', () => syncMotionSheet());
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, motionSheet];
+    } catch {
+      motionSheet = null;
+    }
     // createRenderRoot is protected in Lit's typings; the patch only wraps it
     const proto = ReactiveElement.prototype as unknown as { createRenderRoot(): ShadowRoot | HTMLElement };
     const original = proto.createRenderRoot;
     proto.createRenderRoot = function patched(this: unknown) {
       const root = original.call(this);
-      if (sheet && 'adoptedStyleSheets' in root) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+      if (sheet && 'adoptedStyleSheets' in root) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet, ...(motionSheet ? [motionSheet] : [])];
       return root;
     };
   } catch {

@@ -73,6 +73,8 @@ export function tokensCss(): string {
   // (<html data-motion="full">), and (b) always when it chose `reduced` (data-motion="reduced"): reduced == the OS reduction, byte for byte
   css += `@media (prefers-reduced-motion: reduce){:root:not([data-motion="full"]),:root[data-skin]:not([data-motion="full"]){${REDUCED_MOTION_DECLS}}}\n`;
   css += `:root[data-motion="reduced"],:root[data-skin][data-motion="reduced"]{${REDUCED_MOTION_DECLS}}\n`;
+  // 2.29.0: `ui.entry_animations` = off (<html data-enter="off">): the panel entrance of the classic / domus (and Arx) skins collapses to nothing
+  css += ':root[data-enter="off"],:root[data-skin][data-enter="off"]{--sw-enter-ms:0ms !important;--sw-enter-y:0px !important;--sw-stagger:0ms !important}\n';
   // reduced transparency: the translucent layers of every skin become their solid twins
   css += '@media (prefers-reduced-transparency: reduce){:root,:root[data-skin]{--sw-sheet-alpha:1 !important;--sw-glass-blur:none;--sw-glass-blur-nav:none;--sw-glass-blur-sheet:none;--sw-backdrop-blur:none}}\n';
   return css;

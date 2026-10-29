@@ -762,7 +762,7 @@ export class SecurityAlarm extends LitElement {
     }
     .keys button:active {
       background: var(--sw-accent-soft);
-      transform: scale(0.96);
+      transform: scale(0.97);
     }
     .keys button[data-key='clear'],
     .keys button[data-key='back'] {
