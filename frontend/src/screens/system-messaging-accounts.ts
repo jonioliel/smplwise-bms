@@ -188,6 +188,9 @@ export class SystemMessagingAccounts extends LitElement {
       white-space: normal;
       max-inline-size: 100%;
       box-sizing: border-box;
+      /* GATE-FIX-2270: a wrapped warning is a short block, not a pill - a 999 px radius put the last word of a two-line warning
+         into the rounded corner (domus 1024 px); one line still reads as a rounded tag */
+      border-radius: var(--sw-r-md);
     }
     .usegroup {
       border-block-start: 1px solid var(--sw-border);
