@@ -2,11 +2,12 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
-import { getAlertSettings, getReportRecipients, getSettings, putAlertSettings, putSettings, type AlertChannel, type AlertKind, type AlertSettings, type Escalation, type SettingsResponse } from '../api/temperature';
+import { getAlertSettings, getReportLinks, getReportRecipients, getSettings, putAlertSettings, putSettings, revokeAllReportLinks, revokeReportLink, type AlertChannel, type AlertKind,
+  type AlertSettings, type Escalation, type ReportLink, type SettingsResponse } from '../api/temperature';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
 import { ticketsEnabled } from '../tickets/gate';
-import { dateInputLang } from '../api/day-format';
+import { dateInputLang, dayTimeText } from '../api/day-format';
 
 type Val = boolean | number | string | string[];
 const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
@@ -27,14 +28,17 @@ const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
     ['explain_power_lookback_min', 'explainPowerLookback'], ['explain_compressor_off_min', 'explainCompOff'], ['explain_gap_min', 'explainGap'], ['explain_spike_max_min', 'explainSpikeMax'],
     ['explain_spike_jump', 'explainSpikeJump'], ['explain_neighbor_rise', 'explainNbRise'], ['explain_neighbor_scope', 'explainNbScope'], ['explain_min_score', 'explainMinScore']] },
   // TEMPLINK-295: the temporary report download link (off by default)
-  { title: 'setLink', keys: [['report_link_enabled', 'linkEnabled'], ['report_link_hours', 'linkHours'], ['report_link_max_opens', 'linkMaxOpens'], ['report_link_per_hour', 'linkPerHour']] },
+  { title: 'setLink', keys: [['report_link_enabled', 'linkEnabled'], ['report_link_hours', 'linkHours'], ['report_link_max_opens', 'linkMaxOpens'], ['report_link_per_hour', 'linkPerHour'],
+    // TEMPREPORT-297: the WhatsApp summary carries the temporary link (off = 'none' by default)
+    ['report_attachment', 'linkAttach']] },
   // WALINK-295: the link as a plain-text WhatsApp message (off by default); the recipients are chosen below it
   { title: 'setLinkWa', keys: [['report_link_wa_enabled', 'linkWaEnabled'], ['report_link_wa_window_h', 'linkWaWindow'], ['report_link_wa_text_he', 'linkWaTextHe'], ['report_link_wa_text_en', 'linkWaTextEn'],
     ['report_link_wa_recipients', 'linkWaRecipients']] },
   { title: 'retention', keys: [['retention_days', 'retention']] },
 ];
 const KIND_LABEL: Record<AlertKind, TtKey> = { alarm: 'kindAlarm', warning: 'kindWarning', offline: 'kindOffline', health: 'kindHealth' };
-const CHOICE_LABEL: Record<string, TtKey> = { area: 'grpArea', none: 'grpNone', 'explain_neighbor_scope:area': 'scopeArea', 'explain_neighbor_scope:all': 'scopeAll' };
+const CHOICE_LABEL: Record<string, TtKey> = { area: 'grpArea', none: 'grpNone', 'explain_neighbor_scope:area': 'scopeArea', 'explain_neighbor_scope:all': 'scopeAll',
+  'report_attachment:none': 'attNone', 'report_attachment:link': 'attLink' };
 const CH_LABEL: Record<AlertChannel, TtKey> = { push: 'chPush', app: 'chApp', email: 'chEmail', whatsapp: 'chWhatsapp' };
 
 /**
@@ -50,6 +54,8 @@ export class TempSettings extends LitElement {
   @state() private alerts: AlertSettings | null = null;
   /** WALINK-295: the users offered as link recipients */
   @state() private users: { id: string; name: string }[] = [];
+  /** TEMPREPORT-297: the live report links (null = the caller may not list them) */
+  @state() private links: ReportLink[] | null = null;
   /** phase 3 (idea 4): the escalation chain being edited (saved as a whole) */
   @state() private esc: Escalation | null = null;
   @state() private err = '';
@@ -98,12 +104,45 @@ export class TempSettings extends LitElement {
     } catch {
       this.users = [];
     }
+    await this.loadLinks();
     try {
       this.alerts = await getAlertSettings();
       this.esc = this.alerts.escalation ? structuredClone(this.alerts.escalation) : null;
     } catch {
       this.alerts = null;
     }
+  }
+
+  private async loadLinks() {
+    try {
+      this.links = (await getReportLinks()).links.filter((l) => l.state === 'live');
+    } catch {
+      this.links = null;
+    }
+  }
+
+  private async revokeLinks(id?: string) {
+    this.err = '';
+    this.ok = '';
+    try {
+      if (id) await revokeReportLink(id);
+      else await revokeAllReportLinks();
+      this.ok = tt('repLinkRevoked');
+    } catch (e) {
+      this.err = describeError(e);
+    }
+    await this.loadLinks();
+  }
+
+  /** TEMPREPORT-297: the live links (who it went to, until when, downloads) with revoke per link and for all of them. */
+  private linksBlock() {
+    const ls = this.links;
+    if (!ls) return nothing;
+    return html`<div class="row wide" data-temp-links><span>${tt('linkLive', { n: ls.length })}</span>
+      ${ls.length ? html`<button type="button" class="btn sm" data-links-revoke-all @click=${() => this.revokeLinks()}>${tt('linkRevokeAll')}</button>` : nothing}</div>
+      ${ls.map((l) => html`<div class="row wide" data-link=${l.id}><span>${l.recipient ?? l.filename} · ${tt('repLinkUntil', { t: dayTimeText(new Date(l.expires_at)) })} ·
+        ${tt('linkOpens', { n: l.opens, m: l.max_opens })}</span>
+        <button type="button" class="btn sm ghost" data-link-revoke @click=${() => this.revokeLinks(l.id)}>${tt('repLinkRevoke')}</button></div>`)}`;
   }
 
   private async saveEscalation() {
@@ -203,7 +242,7 @@ export class TempSettings extends LitElement {
     if (!this.s) return this.err ? html`<p class="err">${this.err}</p>` : html`<div class="skl" style="block-size:120px"></div>`;
     const a = this.alerts;
     return html`<div class="panel" data-temp-settings><h3>${tt('setTitle')}</h3><p class="hint">${tt('setIntro')}</p>
-        ${GROUPS.map((g) => html`<h4>${tt(g.title)}</h4><div class="grid">${g.keys.filter(([k]) => ticketsEnabled() || !k.startsWith('ticket_')).map(([k, label]) => html`<div class=${k === 'report_link_wa_recipients' || k.startsWith('report_link_wa_text') ? 'row wide' : 'row'}><span>${tt(label)}${label === 'minutes' ? ` (${k.replace(/_/g, ' ')})` : ''}</span>${this.input(k)}</div>`)}</div>`)}
+        ${GROUPS.map((g) => html`<h4>${tt(g.title)}</h4><div class="grid">${g.keys.filter(([k]) => ticketsEnabled() || !k.startsWith('ticket_')).map(([k, label]) => html`<div class=${k === 'report_link_wa_recipients' || k.startsWith('report_link_wa_text') ? 'row wide' : 'row'}><span>${tt(label)}${label === 'minutes' ? ` (${k.replace(/_/g, ' ')})` : ''}</span>${this.input(k)}</div>`)}${g.title === 'setLink' ? this.linksBlock() : nothing}</div>`)}
         <div class="bar" style="margin-top:12px"><button type="button" class="btn pri" ?disabled=${this.busy} data-temp-settings-save @click=${() => this.save()}>${tt('save')}</button>
           ${this.err ? html`<span class="err" role="alert">${this.err}</span>` : nothing}${this.ok ? html`<span class="okm" role="status">${this.ok}</span>` : nothing}</div></div>
       ${a ? html`<div class="panel" data-temp-alerts><h3>${tt('alertsTitle')}</h3><p class="hint">${tt('alertsIntro')}${a.can_edit ? '' : ` · ${tt('readOnly')}`}</p>

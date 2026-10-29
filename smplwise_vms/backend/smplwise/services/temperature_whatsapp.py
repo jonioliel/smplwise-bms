@@ -17,11 +17,11 @@ Nothing here stores, logs or audits a phone number or the message text: a send r
 is rebuilt from the data at send time.
 
 DEFERRED by the owner (docs/changes/CR-INFRA-TEMPERATURE.md section 9, open items - do not forget):
-* DOCUMENT SENDING - the PDF itself, a temporary signed link, or an attached HTML report. The transport sends text only today
-  (`whatsapp.send_message`). The switch is the installation setting `report_attachment` (ATTACHMENT_MODES; only "none" is accepted until a
-  transport supports one): `attachment_for()` is the single seam that will return the document for a send, and `process()` already passes
-  its result to `_send()`; turning a mode on needs the transport capability + the mode added to ATTACHMENT_MODES - no rework of the queue,
-  schedules or dialog.
+* DOCUMENT SENDING - the transport sends text only (`whatsapp.send_message`). The switch is the installation setting `report_attachment`
+  (ATTACHMENT_MODES, "none" by default). Mode "link" (TEMPVENDOR-295 for vendors, TEMPREPORT-297 for system users, owner 2026-10-27): the
+  recipient's PDF becomes a temporary, hash-only, read-only download (out_documents) and the text carries the link - for a system user only
+  when the sender holds `infra.temperature.report_link_send`. `attachment_for()` is the single seam; the attached-file mode is designed in
+  docs/changes/CR-TEMPREPORT-297.md and waits for the WhatsApp file contract.
 * VENDORS (TEMPVENDOR-295, CR-VENDORQ2-295 section 3): an external contact is reached ONLY through the tickets message queue
   (`contact_reports.queue`, outbox purpose `report`; services/temperature_vendor_reports.py is the registered provider). OFF by default behind
   `reports.to_contacts` (+ `reports.email` for e-mail, `reports.documents` for the link). The channel (WhatsApp or e-mail) is chosen per vendor
@@ -47,9 +47,10 @@ from .timeutil import iso_utc, parse_utc
 log = logging.getLogger("smplwise.temperature.whatsapp")
 
 USE_KEY = "infra.temperature.reports"
+LINK_SEND_PERM = "infra.temperature.report_link_send"  # TEMPREPORT-297: the sender's permission for a link in a system user's message
 MODULE = "temperature"
 CHANNEL = "whatsapp"
-ATTACHMENT_MODES: tuple[str, ...] = ("none", "link")    # "link" (TEMPVENDOR-295): a vendor gets the PDF by a temporary link; future: "pdf" | "html" (owner TODO)
+ATTACHMENT_MODES: tuple[str, ...] = ("none", "link")    # "link": vendors (TEMPVENDOR-295) and system users (TEMPREPORT-297) get the PDF by a temporary link; "file" waits for the file contract
 RANGE_KEYS: tuple[str, ...] = ("24h", "7d", "30d", "week", "month", "prev_week", "prev_month")
 FREQS: tuple[str, ...] = ("daily", "weekly", "monthly")
 PER_PASS = 5                                            # sends tried per 60 s pass (the account pacing holds the rest)
@@ -144,8 +145,10 @@ def recipients(conn: sqlite3.Connection) -> dict[str, Any]:
             first = next((c for c in VENDOR_CHANNELS if ch[c] == "ok"), None)
             v.update(channels=ch, selectable=first is not None, channel=first or "whatsapp", reason=None if first else ch["whatsapp"])
         vendors.append(v)
-    link = on and t.load_defaults(conn).get("report_attachment") == "link" and _documents_on(conn)
-    return {"users": users, "vendors": vendors, "attachment": "link" if link else "none", "attachment_modes": list(ATTACHMENT_MODES),
+    mode = link_mode(conn)
+    link = on and mode
+    return {"users": users, "vendors": vendors, "attachment": "link" if link else "none", "user_attachment": "link" if mode else "none",
+            "attachment_modes": list(ATTACHMENT_MODES),
             "vendor_reports": {"enabled": on, "email": on and contact_reports.email_enabled(conn)}}
 
 
@@ -311,24 +314,59 @@ def schedules(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 
 # ---------------------------------------------------------------- the worker pass (called from the temperature runtime every 60 s)
 
+def link_mode(conn: sqlite3.Connection) -> bool:
+    """The attachment mode "link" (installation setting `report_attachment`, "none" by default) AND `reports.documents` (the public listener's
+    document switch of the tickets module). Both are off by default."""
+    return t.load_defaults(conn).get("report_attachment", "none") == "link" and _documents_on(conn)
+
+
+def may_send_link(conn: sqlite3.Connection, sender_id: str | None) -> bool:
+    """TEMPREPORT-297: a system user's message carries the report link only when the person the send is made on behalf of (the one-off sender, or
+    the schedule's creator) holds `infra.temperature.report_link_send` NOW. Fails closed."""
+    from ..rbac import INSTALLATION, authorize
+    from .notify_visibility import principal_of
+
+    if not sender_id:
+        return False
+    try:
+        p = principal_of(conn, sender_id)
+        return p is not None and authorize(conn, p, LINK_SEND_PERM, INSTALLATION).allowed
+    except Exception:  # noqa: BLE001 - an unknown user / a database before the permission: no link
+        return False
+
+
 def wants_document(conn: sqlite3.Connection, row: dict[str, Any]) -> bool:
-    """TEMPVENDOR-295: mode "link" (installation setting `report_attachment`) AND `reports.documents` (the temporary-link switch of the tickets
-    module) - and only for a vendor: a system user has the PDF in the system."""
-    return (row.get("recipient_kind") == "vendor" and t.load_defaults(conn).get("report_attachment", "none") == "link" and _documents_on(conn))
+    """TEMPVENDOR-295: a vendor row while the link mode is on. TEMPREPORT-297: a system user's row too, when the sender may send links
+    (`may_send_link`); without the permission the user gets the text summary as before ("available in the system")."""
+    if not row or not link_mode(conn):
+        return False
+    if row.get("recipient_kind") == "vendor":
+        return True
+    return row.get("recipient_kind") == "user" and bool(row.get("user_id")) and may_send_link(conn, row.get("created_by"))
 
 
 def attachment_for(conn: sqlite3.Connection, row: dict[str, Any], model: dict[str, Any], *, pdf: bytes | None = None, now: dt.datetime | None = None) -> Any:
-    """THE seam of document sending. Mode "none" (default) and every system-user send: None. Mode "link" + a vendor row + `pdf` (the rendered
-    report): the PDF is minted as a snapshot in `outbound_documents` for THIS contact (a temporary link, hours / opens from `reports.*`) and its
-    id is returned for the queue (`document_id`). The caller holds the write transaction. Refusals raise `out_documents.DocumentRefused`.
-    The "html" / attached-file modes wait for CONTRACT-WHATSAPP-DOCUMENT-SEND-295.md."""
+    """THE seam of document sending (the "link" adapter; see docs/changes/CR-TEMPREPORT-297.md for the attached-file adapter, which waits for
+    the WhatsApp file contract). Mode "none" (default): None. Mode "link" + `pdf` (the rendered report): the PDF is minted as a snapshot in
+    `outbound_documents` for THIS recipient (a temporary link; the token is derived, only its hash is stored) and its id is returned.
+    * a vendor row: recipient_kind `contact`, hours / opens from `reports.*`; the id goes to the queue (`document_id`);
+    * a system user's row (TEMPREPORT-297): recipient_kind `user`, hours / opens from `report_link_hours` / `report_link_max_opens`; the
+      caller turns the id into the link line of the text.
+    The caller holds the write transaction. Refusals raise `out_documents.DocumentRefused`."""
     if pdf is None or not row or not wants_document(conn, row):
         return None
     from . import temperature_report as rep
     from .tickets import out_documents
 
+    at = now or dt.datetime.now(dt.timezone.utc)
+    if row.get("recipient_kind") == "user":
+        d = t.load_defaults(conn)
+        doc = out_documents.mint(conn, module=MODULE, source_id=row["id"], recipient_kind="user", recipient_id=row["user_id"], media_type="application/pdf",
+                                 filename=rep.filename(model), content=pdf, created_by=row.get("created_by"), now=at,
+                                 hours=int(d["report_link_hours"]), max_opens=int(d["report_link_max_opens"]))
+        return doc["id"]
     doc = out_documents.mint(conn, module=MODULE, source_id=row["id"], recipient_kind="contact", recipient_id=row["contact_id"], media_type="application/pdf",
-                             filename=rep.filename(model), content=pdf, created_by=row.get("created_by"), now=now or dt.datetime.now(dt.timezone.utc))
+                             filename=rep.filename(model), content=pdf, created_by=row.get("created_by"), now=at)
     return doc["id"]
 
 
@@ -483,6 +521,85 @@ def _hand_off_vendor(db: Database, r: dict[str, Any], ts: float, now: dt.datetim
     out["skipped"] += 1
 
 
+def _recipient_label(conn: sqlite3.Connection, user_id: str | None) -> str | None:
+    """The recipient's display name for the audit row (a label, never a number)."""
+    if not user_id:
+        return None
+    r = conn.execute("SELECT username, display_name FROM users WHERE id = ?", (user_id,)).fetchone()
+    return (r["display_name"] or r["username"]) if r else None
+
+
+def _user_document_audit(conn: sqlite3.Connection, r: dict[str, Any], doc_id: str | None, decision: str, status: str, reason: str | None,
+                         extra: dict[str, Any] | None = None) -> None:
+    """`infra.temperature.report.document.send`: who sent (the sender's user id), to which recipient (user id + display name), when (the audit
+    time), the document id, the outcome. Never the number, the text, the link or the token; the downloads are counted on the document row and
+    each one is audited by out_documents (`report.document.open`)."""
+    from ..audit import audit
+
+    audit(conn, actor=None, action="infra.temperature.report.document.send", decision=decision, resource_type="outbound_document" if doc_id else "infra_temp_report_send",
+          resource_id=doc_id or r["id"], reason=reason if decision == "denied" else None,
+          details={"send_id": r["id"], "sender": r.get("created_by"), "recipient": r.get("user_id"), "recipient_label": _recipient_label(conn, r.get("user_id")),
+                   "status": status, "reason": reason, **(extra or {})})
+
+
+def _user_document(db: Database, r: dict[str, Any], model: dict[str, Any], ts: float, now: dt.datetime, out: dict[str, int]) -> dict[str, Any] | None:
+    """TEMPREPORT-297: render the recipient's PDF (outside any write transaction), mint it for him and derive the link. Returns {id, url, until,
+    expires_at, max_opens}, or None after recording a retry (the PDF engine is busy) or a skip (too large / no public address / documents off)."""
+    from . import temperature_pdf
+    from .tickets import links as tlinks
+    from .tickets import out_documents
+
+    attempts = int(r["attempts"] or 0) + 1
+    why: str | None = None
+    pdf: bytes | None = None
+    try:
+        pdf = temperature_pdf.render(model)
+    except temperature_pdf.PdfError as e:
+        if e.code in ("pdf_page_limit", "pdf_too_large"):
+            why = "document_too_large"
+        elif attempts < 4:
+            with db.connection(label="temperature.wa.retry") as conn:
+                conn.execute("UPDATE infra_temp_report_sends SET status = 'retry', reason = ?, attempts = ?, not_before = ? WHERE id = ?",
+                             (e.code, attempts, iso_utc(now + dt.timedelta(minutes=5 * attempts)), r["id"]))
+            out["retry"] += 1
+            return None
+        else:
+            why = e.code
+    if why is None:
+        with db.connection(label="temperature.wa.document") as conn:
+            doc_id: str | None = None
+            try:
+                doc_id = attachment_for(conn, r, model, pdf=pdf, now=now)
+                row = out_documents.row(conn, doc_id) if doc_id else None
+                if row is None:
+                    raise out_documents.DocumentRefused("documents_off")
+                link = out_documents.url(conn, row)
+                return {"id": doc_id, "url": link, "until": parse_utc(row["expires_at"]), "expires_at": row["expires_at"], "max_opens": int(row["max_opens"])}
+            except out_documents.DocumentRefused as e:
+                why = e.code
+            except tlinks.PublicUrlError:
+                why = "public_link_unavailable"
+            if doc_id:
+                out_documents.revoke(conn, doc_id, "send_failed", now)
+    with db.connection(label="temperature.wa.document_skip") as conn:
+        _user_document_audit(conn, r, None, "denied", "skipped", why)
+    _finish(db, r["id"], "skipped", why, ts, attempts=attempts)
+    out["skipped"] += 1
+    return None
+
+
+def _user_document_done(db: Database, r: dict[str, Any], doc: dict[str, Any], status: str, reason: str | None, units: int, now: dt.datetime) -> None:
+    """After the send: a message that surely did not leave revokes its link (a retry mints a fresh one); `unknown_outcome` may have left, so the
+    link stays live until it expires. One audit row either way."""
+    from .tickets import out_documents
+
+    with db.connection(label="temperature.wa.document_done") as conn:
+        if status != "sent" and reason != "unknown_outcome":
+            out_documents.revoke(conn, doc["id"], "send_failed", now)
+        _user_document_audit(conn, r, doc["id"], "allowed" if status == "sent" else "denied", status, reason,
+                             {"units": units, "expires_at": doc["expires_at"], "max_opens": doc["max_opens"]})
+
+
 def process(db: Database, now_ts: float | None = None) -> dict[str, int]:
     """One pass: due schedules become send rows; due rows are sent inside the send hours (else held until the next opening). A system user's row is sent
     here; a vendor's row is handed to the tickets message queue (`_hand_off_vendor`) and closed later by the provider."""
@@ -516,21 +633,31 @@ def process(db: Database, now_ts: float | None = None) -> dict[str, int]:
             _hand_off_vendor(db, r, ts, now, out)
             continue
         req = json.loads(r["request_json"])
+        doc_wanted = False
         with db.connection(mode="read", label="temperature.wa.build") as conn:
             found = resolve_number(conn, r["user_id"]) if r["user_id"] else None
             if found is None or found.consent != "granted":
                 why = "no_address" if found is None else "no_consent"
                 model = None
             else:
-                units, doors = _visible_units(conn, r["user_id"], req["units"])
+                units, doors = _visible_units(conn, r["user_id"], req["units"])  # the RECIPIENT's scope: the link carries nothing he may not see
                 why = None if units else "no_reach"
-                model = rep.build(conn, units, doors, int(req["from"]), int(req["to"]), req.get("lang") or found.lang, ts, chart=False, events=False, signature=False) if units else None
-                attachment = attachment_for(conn, r, model) if model else None
+                doc_wanted = bool(units) and wants_document(conn, r)
+                model = (rep.build(conn, units, doors, int(req["from"]), int(req["to"]), req.get("lang") or found.lang, ts, chart=doc_wanted, events=doc_wanted,
+                                   signature=False) if units else None)
         if why or model is None:
             _finish(db, r["id"], "skipped", why, ts, attempts=r["attempts"])
             out["skipped"] += 1
             continue
-        status, reason = _send(db, r, found.digits, rep.text_summary(model), attachment, now)  # type: ignore[union-attr]
+        doc: dict[str, Any] | None = None
+        if doc_wanted:
+            doc = _user_document(db, r, model, ts, now, out)
+            if doc is None:
+                continue  # retried later or skipped (recorded); the text never leaves without the document the mode promises
+        text = rep.text_summary(model, link=doc["url"], until=doc["until"]) if doc else rep.text_summary(model)
+        status, reason = _send(db, r, found.digits, text, doc["id"] if doc else None, now)  # type: ignore[union-attr]
+        if doc:
+            _user_document_done(db, r, doc, status, reason, len(model["units"]), now)
         attempts = int(r["attempts"] or 0) + 1
         if status == "retry" and attempts < 4:
             with db.connection(label="temperature.wa.retry") as conn:
