@@ -631,3 +631,56 @@ def test_l3_the_tables_come_from_migration_0183_and_the_consumers_run_no_ddl(set
         assert conn.execute("SELECT 1 FROM schema_migrations WHERE version = 183").fetchone() is not None
         jobs = wif.TemplateJobs(conn)
         assert jobs.row("absent") is None
+
+# ================================================================ L4: the resources writer
+
+def _resources_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    root = tmp_path / "ha"
+    (root / ".storage").mkdir(parents=True)
+    monkeypatch.setenv("SW_HA_CONFIG_DIR", str(root))
+    return root
+
+
+def test_l4_a_failed_write_leaves_no_temporary_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+
+    from test_wiskey_adopt_2272_install import SYNTH_RESOURCES
+
+    root = _resources_root(tmp_path, monkeypatch)
+
+    def failing_replace(*_a: Any, **_k: Any) -> None:
+        raise OSError("synthetic: disk full")
+
+    monkeypatch.setattr(os, "replace", failing_replace)
+    with pytest.raises(OSError):
+        wai.write_resources(json.loads(json.dumps(SYNTH_RESOURCES)))
+    folder = root / ".storage" / "hikvision_intercom.arx_installation"
+    assert not list(folder.glob(".resources.*.tmp")) and not (folder / "resources.json").exists()
+
+
+def test_l4_the_directory_is_fsynced_after_the_rename(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from test_wiskey_adopt_2272_install import SYNTH_RESOURCES
+
+    _resources_root(tmp_path, monkeypatch)
+    synced: list[Path] = []
+    real = wai._fsync_dir
+    monkeypatch.setattr(wai, "_fsync_dir", lambda d: synced.append(d) or real(d))
+    target = wai.write_resources(json.loads(json.dumps(SYNTH_RESOURCES)))
+    assert synced == [target.parent] and target.is_file()
+
+
+def test_l4_a_symlinked_installation_directory_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from test_wiskey_adopt_2272_install import SYNTH_RESOURCES
+
+    root = _resources_root(tmp_path, monkeypatch)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    try:
+        (root / ".storage" / "hikvision_intercom.arx_installation").symlink_to(elsewhere, target_is_directory=True)
+    except OSError:
+        pytest.skip("this workstation cannot create a directory symlink (Windows without the privilege)")
+    before = elsewhere.stat().st_mode
+    with pytest.raises(wai.InstallationError) as exc:
+        wai.write_resources(json.loads(json.dumps(SYNTH_RESOURCES)))
+    assert exc.value.code == "private_installation_required"
+    assert list(elsewhere.iterdir()) == [] and elsewhere.stat().st_mode == before  # nothing written, no chmod through the link

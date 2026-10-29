@@ -283,20 +283,45 @@ def write_resources(value: Any, config_root: Path | str | None = None) -> Path:
 
     doc = check_resources(value)
     target = manifest_path(config_root).with_name("resources.json")
-    target.parent.mkdir(parents=True, exist_ok=True)
+    parent = target.parent
+    if parent.is_symlink():
+        raise InstallationError("private_installation_required")  # review L4: never chmod / write through a symlinked directory
+    parent.mkdir(parents=True, exist_ok=True)
+    if parent.is_symlink() or not parent.is_dir():
+        raise InstallationError("private_installation_required")
     try:
-        os.chmod(target.parent, 0o700)
+        os.chmod(parent, 0o700)
     except OSError:
         pass
     tmp = target.with_name(f".resources.{secrets.token_hex(6)}.tmp")
-    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
     try:
-        os.write(fd, json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0), 0o600)
+        try:
+            os.write(fd, json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(tmp, target)
+    except BaseException:
+        try:  # review L4: a failed write never leaves its private temporary file behind
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+    _fsync_dir(parent)  # review L4: the rename itself is durable
+    return target
+
+
+def _fsync_dir(directory: Path) -> None:
+    """fsync a directory after a rename (POSIX; Windows has no directory descriptor - nothing to do there)."""
+    flag = getattr(os, "O_DIRECTORY", None)
+    if flag is None:
+        return
+    fd = os.open(str(directory), os.O_RDONLY | flag)
+    try:
         os.fsync(fd)
     finally:
         os.close(fd)
-    os.replace(tmp, target)
-    return target
 
 
 def read_resources(config_root: Path | str | None = None) -> dict[str, Any]:
