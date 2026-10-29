@@ -442,7 +442,9 @@ test.describe('review fixes (demo data)', () => {
       const b = q('.badge');
       const line = q('.line');
       const overlap = !(b.right <= line.left || b.left >= line.right || b.bottom <= line.top || b.top >= line.bottom);
-      return { sameLine: Math.abs(v.top - l.top) < 8, overlap, h: k.getBoundingClientRect().height };
+      // R5-LIVE-297: the value is a display numeral (24 px) on the label's BASELINE, so their tops differ by ~10 px; one line = the
+      // two boxes share a vertical centre (a label pushed to the next line would sit a whole line lower)
+      return { sameLine: Math.abs((v.top + v.bottom) / 2 - (l.top + l.bottom) / 2) < 8, overlap, h: k.getBoundingClientRect().height };
     });
     expect(g.sameLine).toBe(true);
     expect(g.overlap).toBe(false);
