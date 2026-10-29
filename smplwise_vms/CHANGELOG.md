@@ -1,5 +1,25 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.27.0 (pilot) — New design round: home, areas and the area window, system, live, investigation, media and energy, devices, maps
+**After installing:** no database migration and no new setting turns on by itself; going back to 2.25.0 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה ושום הגדרה חדשה לא נדלקת מעצמה; חזרה ל-2.25.0 בטוחה.
+
+### What was added - מה נוסף
+- **English:** The new design round (R5) on top of the redesigned home: the home screen, the areas and the area window, and the system settings and users; the live cameras and the camera wall; investigation (events, search, cases); electricity, temperature, elevators and multimedia; schedules, automations, scenes, scripts and themes; and the maps (sites, floors, map, import, editor, history, presence). Menus, tabs, widgets and the floors tree keep their structure.
+- **עברית:** סבב העיצוב החדש (R5) מעל מסך הבית המעוצב מחדש: מסך הבית, האזורים וחלון האזור, ההגדרות והמשתמשים; המצלמות החיות וקיר המצלמות; חקירה (אירועים, חיפוש, תיקים); חשמל, טמפרטורה, מעליות ומולטימדיה; לוחות זמנים, אוטומציות, סצנות, סקריפטים וערכות נושא; והמפות (אתרים, קומות, מפה, ייבוא, עורך, היסטוריה, נוכחות). התפריטים, הלשוניות, הווידג'טים ועץ הקומות שומרים על המבנה שלהם.
+
+### What was fixed - מה תוקן
+- **English:** Layout in small windows after the design round: device cards and the temperature widget no longer overflow at phone widths, the live wall fits its screen on desktop, tablet and phone, the automations list no longer scrolls, ticket mode keys are no longer clipped, and the navigation size setting is drawn exactly as chosen. Panels that slide in no longer trap pop-up dialogs under later cards.
+- **עברית:** פריסה בחלונות קטנים אחרי סבב העיצוב: כרטיסי התקנים ווידג'ט הטמפרטורה כבר לא גולשים ברוחב טלפון, קיר המצלמות מתאים למסך במחשב, בטאבלט ובטלפון, רשימת האוטומציות כבר לא נגללת, מקשי מצב הפניות כבר לא נחתכים, וגודל הניווט שבחרת מצויר בדיוק כפי שנבחר. פאנלים שנכנסים בהחלקה כבר לא לוכדים דיאלוגים מתחת לכרטיסים הבאים.
+
+### Known limits - מגבלות ידועות
+- **English:** Some visual comparison images of the live wall may differ by a few pixels and are refreshed in the next version. The building cross-section and the 3D plan accent are not part of this version.
+- **עברית:** תמונות השוואה חזותיות מסוימות של קיר המצלמות עשויות להיות שונות בכמה פיקסלים ויתרעננו בגרסה הבאה. חתך הבניין לא חלק מגרסה זו.
+
+### Tests and release gate - בדיקות ושער השחרור
+- **English:** Full tier gate on the fix branch: the backend (18,117 tests), the dev-server browser tests (978), the pixel tests (132), tsc, the build and the release check all passed; the browser preview and fixture lanes had two real failures (the phone wall column maths and a timing race in two plan editor tests), fixed on the release branch and re-run green on the runner.
+- **עברית:** שער רמה מלאה על ענף התיקונים: הבקאנד (18,117 בדיקות), בדיקות הדפדפן על שרת הפיתוח (978), בדיקות הפיקסלים (132), tsc, הבנייה ובדיקת השחרור עברו; בריצת הדפדפן והמתקן היו שני כשלים אמיתיים (חישוב עמודות קיר הטלפון ומרוץ תזמון בשתי בדיקות עורך התוכנית), שתוקנו בענף השחרור ורצו שוב ירוק על הרץ.
+
 ## 2.25.0 (pilot) — Design foundations (skin contract, Arx component rules, optional dark navigation rail), home widgets fix, TV notice board and announcement choices, two security follow-ups, supplier certificate reading (off)
 **After installing:** one additive database migration, 0182 (proposals read from supplier documents); going back to 2.24.1 is safe, it never reads it. Nothing new turns on by itself: supplier document reading stays off, announcement translation stays off until it is switched on with the recorded approval, and the navigation rail stays in its normal tone. One visible default changes: a notice board that never saved its own "updated" wording now shows the approved wording (place and time) instead of time and board name; boards and installations that saved a wording keep it.
 - **עברית:** אחרי ההתקנה: מיגרציה תוספתית אחת למסד הנתונים, 0182 (הצעות שנקראו ממסמכי ספקים); חזרה ל-2.24.1 בטוחה, היא לא קוראת אותה. שום דבר חדש לא נדלק מעצמו: קריאת מסמכי ספקים נשארת כבויה, תרגום ההכרזות נשאר כבוי עד שמפעילים אותו עם האישור הרשום, וסרגל הניווט נשאר בגוון הרגיל. ברירת מחדל גלויה אחת משתנה: לוח הודעות שמעולם לא שמר נוסח משלו לשורת "עודכן" מציג עכשיו את הנוסח שאושר (מקום ושעה) במקום שעה ושם הלוח; לוחות והתקנות ששמרו נוסח שומרים אותו.
