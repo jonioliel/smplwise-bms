@@ -30,7 +30,7 @@ CAP_MIN = int(os.environ.get("GATE_CAP_MIN", "1800"))
 CAP_MAX = int(os.environ.get("GATE_CAP_MAX", "14400"))
 HIGH_LOAD = float(os.environ.get("GATE_LATE_LOAD1", "30"))       # plan: load above 30 = a probable run fault, not a bug
 LOW_MEM_MB = 2500
-SKIP_MARKS = (".pre-gate2", ".gate2-first", ".selection", "quarantine", "gate_status", ".early")
+SKIP_MARKS = (".checkpoint", ".pre-gate2", ".gate2-first", ".selection", "quarantine", "gate_status", ".early")
 
 
 def mode_of(doc: dict) -> str:

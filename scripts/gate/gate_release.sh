@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # THE release-gate entry point (GATE-FAST-2291, item 2): one command, one rule. Runs the gate-2 wrapper (release_gate2.sh), which holds
 # the locks, selects by change and runs the engine; this wrapper only decides FULL or SELECT first, with gate_entry.py.
-#   gate_release.sh <branch> [--full] [--base <ref>] [--after <red gate report .json>] [--accept-stale-nightly]
+#   gate_release.sh <branch> [--full] [--resume] [--base <ref>] [--after <red gate report .json>] [--accept-stale-nightly]
 #                   [--dry-run [--root <checkout>]] [--depth N] [--keep-heavy] [-- <extra engine args>]
 # The rule (gate_entry.py rule):
 #   * the fast (change-based) gate is OFF until the lead creates the flag file ~/.gate_fast_enabled (owner answer 2A: only after the
