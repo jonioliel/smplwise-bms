@@ -169,11 +169,11 @@ def test_connection_body_is_validated_and_never_takes_a_password(cc):
     for bad in ({"provider": "dropbox", "label": "x"}, {"provider": "google", "label": ""}, {"provider": "google", "label": "x", "scope": "admin"},
                 {"provider": "google", "label": "x", "password": "hunter2"}, {"provider": "google", "label": "x", "client_secret": "s"}):
         assert cc.post(f"{API}/calendar/connections", json=bad).status_code == 422, bad
-    r = ok(cc.post(f"{API}/calendar/connections", json={"provider": "google", "label": "x"}), 201)
+    r = ok(cc.post(f"{API}/calendar/connections", json={"provider": "google", "label": "LABEL-PRIVATE"}), 201)
     assert r["connection"]["scope"] == "read" and r["connection"]["state"] == "ok" and r["setup_steps"]
     with db(cc).connection() as x:
-        a = x.execute("SELECT details FROM audit_log WHERE action = 'calendar.connection.add'").fetchone()
-        assert a is not None and "x" not in (a[0] or "").replace("google", "").replace("read", "")  # ids and provider only, not the label
+        a = x.execute("SELECT details_json FROM audit_log WHERE action = 'calendar.connection.add'").fetchone()
+        assert a is not None and "LABEL-PRIVATE" not in (a[0] or "") and "google" in a[0]  # ids and provider only, not the label
 
 
 def test_unknown_connection_is_a_404_and_listing_calendars_uses_the_adapter(cc, fake):
