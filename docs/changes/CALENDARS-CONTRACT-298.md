@@ -4,8 +4,9 @@
 **Status:** PROPOSED - phase 0 (written contract + mockup round). Branch `pilot/CALENDARS-P0-298` from `main` @ 83a7c795f (v2.25.0).
 No product code, no migration file, no test, no runner job, no account, no OAuth registration and no network call to any calendar
 provider was made to write this. **Nothing here is an approval to build phase 1 or to connect any external calendar.**
-**Migration:** PROVISIONAL `0183_calendars.sql` (head on `main` is `0182_doc_extractions.sql`), one file, section 14; the lead
-renumbers at integration.
+**Migration:** `0190_calendars.sql` (phase 1 build, pilot/CALENDARS-P1-2300). The number 0190 was chosen on purpose: `0183` is a known
+collision on other branches; 0183-0189 are left free for them and the migration runner has no contiguity rule (it applies every file whose
+version is not recorded). The lead may still renumber at integration. Section 14.
 **Mockup:** `private/design-system-2026-10-27/round6/calendars/index.html` (gitignored; local file only, invented data).
 **Plan it implements:** `private/planning/PLAN_R112_CALENDARS_ROOMS_2026-10-28.md` + the owner decisions of 2026-10-29 (section 1).
 
@@ -49,6 +50,24 @@ renumbers at integration.
 | D8 | Automations triggered by bookings: triggers + disabled templates, contract only | 10.3 |
 | D9 | WisKey visitor access codes later; a nullable link field in the model only | 3.2 (`visitor_invite_id`), 10.5 |
 | D10 | Guest/customer name and phone kept 30 days after the event then erased (owner-configurable), plus a label | 9 |
+
+### 1A. Changes after the owner answers of 2026-10-29 (round 6, binding; they supersede the text of later sections where they differ)
+
+| # | Was in this contract | Now (owner answer) | Effect |
+|---|---|---|---|
+| C1 | Q4 per-calendar overlap override: contract assumed "any value", owner first said "only stricter" | Owner confirmed: a calendar manager may change the overlap policy in BOTH directions (stricter or looser than the installation value), and the installation value is changeable in settings | `overlap_override` takes any value; set by `manage` members of that calendar |
+| C2 | A `pending` request HOLDS its slot (`pending_holds_slot` default true) | A pending request does NOT hold the slot. The FIRST entry that is `confirmed` holds it. A later overlapping request is not refused: it becomes `pending` and goes to the calendar manager for approval, flagged `contested`. The approvals list shows how many requesters compete for each window. The manager (calendar / area / system) prioritises | `pending_holds_slot` default **false**; new setting `contested_requests` = `queue` (default) or `reject` (the old 409); approving a contested request needs an explicit `displace_existing` decision; `competing_count` in the request list |
+| C3 | D7: maintenance wins by default (`override_notify`) | Maintenance does NOT automatically win over an earlier entry. Priority is a setting. Default `first_holds`: a maintenance window over a confirmed entry is saved `pending` for the manager's decision (same queue as C2); the other values (`override_notify`, `block`, `ask`) remain selectable | `calendar.maintenance_overlap` default `first_holds` |
+| C4 | D10 / section 9: guest retention 30 days, range 1-365 | Retention is fully configurable (0-3650 days; 0 = erase when the entry ends) and the owner may also destroy ALL guest personal data at once | new `POST /calendar/guests/purge` (`calendar.configure`, audited, counts only) |
+| C5 | Question 1: mockup chose (a) | Default stays A (tab inside the main group); a setting lets the owner switch to B (own rail button) | setting `menu_position` = `a` (default) or `b`; returned by the module state route |
+| C6 | Question 8: holiday eve | Regular day by default, changeable in settings | setting `holiday_eve_as_holiday` default false |
+| C7 | Question 2 | Calendars are created by site manager and system admin | unchanged (`calendar.manage` is held by site_admin and system_admin) |
+| C8 | Question 3 / 12 Google scope: narrow events scope | Full calendar scope; everything approved up front, no extra approval prompts in Arx | phase 5 (not built in phase 1) |
+| C9 | 12.4: Arx wins on room calendars; external edits that break the rules are reverted | Calendars must stay editable outside Arx and Arx adapts. Every external change is accepted in both directions. When an external change conflicts with an Arx entry, BOTH are kept and flagged for a decision (`sync_flag = conflict`), nothing is reverted or deleted | phase 5; the `cal_events.sync_flag` column exists from phase 1 |
+| C10 | Question 11 | Connecting external calendars is a permission the owner can hand out | new grant role `calendar_connect` (`calendar.connect`); not in `DEFAULT_DELEGABLE` |
+| C11 | Questions 6, 9, 10, 12 | Public booking link: not now. Door display: later. Module name fixed "יומנים". "Room booked now" schedule condition: yes, phase 3 | no change to phase 1 |
+| C12 | Question 14 | The bumped organizer chooses an alternative himself; maintenance does not always win | `displaced` state and alternatives as in section 7; auto-move not built |
+| C13 | Migration number | `0190_calendars.sql` | header and section 14 |
 
 Precedence (CLAUDE.md): approved change request > `MASTER_SPEC_HE.md` and `docs/security/` > `AGENTS.md` > this document. The plan
 (`PLAN_R112...`) proposed `rooms.*` permissions and a single room resource table; D3 and D5 replace that with "every bookable thing is
@@ -280,7 +299,7 @@ the module renamable (question 19.10); otherwise plain "יומנים:".
 
 New single-permission grant roles (pattern of `tickets_*` / `notices_*`): `calendar_booker` (`calendar.view` + `calendar.book`),
 `calendar_on_behalf` (`calendar.book_for_others`), `calendar_manager` (`calendar.manage`), `calendar_maintenance`
-(`calendar.maintenance`). `DEFAULT_DELEGABLE` gains `calendar_booker` and `calendar_on_behalf` only.
+(`calendar.maintenance`). `DEFAULT_DELEGABLE` gains `calendar_booker` and `calendar_on_behalf` only. A fifth grant role `calendar_connect` (`calendar.connect`, C10) exists for the owner to hand out; it is not delegable.
 `sensitive_permissions_not_implied` (roles.json) gains `calendar.maintenance`, `calendar.guests`, `calendar.connect`.
 `calendar.connect` joins the owner-only set reviewed with `SYSTEM_PERMISSIONS` (question 19.11).
 
@@ -362,9 +381,11 @@ rejected | expired | withdrawn --reopen (manager, 7 days)--> pending
 | `rejected` / `expired` / `withdrawn` | reopen by manager within 7 days | `pending` | `manage` | `calendar.request.new` |
 
 Rules:
-- A `pending` entry HOLDS its slot (conflict checks treat it as busy) so two requests cannot both be approved; a second request for
-  the same slot gets `409 conflict` with the pending one shown as "בהמתנה לאישור". Setting `calendar.pending_holds_slot` (default true;
-  false = first approved wins, the other pending ones are auto-rejected with a note).
+- (Changed by C2.) A `pending` entry does NOT hold its slot by default: the first `confirmed` entry holds it, and a later overlapping request
+  becomes a `pending`, `contested` request for the manager (setting `calendar.contested_requests`, default `queue`; `reject` answers
+  `409 conflict`). Approving a contested request while a confirmed entry still holds the window needs `displace_existing: true`
+  (the earlier entries become `displaced`, their organizers choose an alternative) - otherwise `409 slot_held`. Setting
+  `calendar.pending_holds_slot` (default **false**; true = pending entries block others, the pre-round-6 behaviour).
 - Approve re-checks conflicts inside the transaction (a maintenance window may have arrived meanwhile).
 - An event holding rooms (3.3): each room row is decided independently; the event is "חלקית מאושר" until every room row is decided;
   the organizer may drop a rejected room and keep the rest.
@@ -382,7 +403,8 @@ Installation setting `calendar.maintenance_overlap` (per-calendar `overlap_overr
 
 | Value | Hebrew (settings) | Behaviour when the window overlaps confirmed/pending entries |
 |---|---|---|
-| `override_notify` (**default**) | התחזוקה גוברת ומודיעים למארגנים | Save succeeds; every overlapping entry (incl. buffers) becomes `displaced`; organizers get `calendar.booking.displaced` with alternatives; managers of the rooms get a digest |
+| `first_holds` (**default**, C3) | הראשון שאושר מחזיק, התחזוקה מחכה להחלטת המנהל | Save succeeds as `pending` + `contested`; nothing is displaced until the manager approves with `displace_existing` |
+| `override_notify` | התחזוקה גוברת ומודיעים למארגנים | Save succeeds; every overlapping entry (incl. buffers) becomes `displaced`; organizers get `calendar.booking.displaced` with alternatives; managers of the rooms get a digest |
 | `block` | אי אפשר להציב תחזוקה מעל הזמנה | Save is refused: `409 maintenance_overlap` with the list of overlapping entries (title only if visible to the planner, else "תפוס") and the nearest free windows of the same length |
 | `ask` | לשאול בכל חלון | The dialog shows the overlap list and asks: "התחזוקה גוברת" or "לא להציב"; the chosen mode is stored in `maint_overlap_mode`; the API requires `overlap_decision` in the body when overlaps exist (`422 overlap_decision_required` otherwise) |
 
@@ -403,8 +425,9 @@ Rules:
   details), up to 20 guests, name 1-80, phone E.164 (Israeli local formats normalised). A privacy hint is shown in the dialog.
 - Storage: sealed columns in `cal_guest_details` (3.6); never in `cal_events`, never in notifications, feeds, provider pushes, logs,
   audit rows, exports or automation payloads.
-- Retention: `calendar.guest_retention_days` - default **30**, 1-365, owner-configurable (`calendar.configure`); `0` is not allowed
-  (the dialog simply does not offer guest fields when the setting `calendar.guest_details_enabled` is false).
+- Retention: `calendar.guest_retention_days` - default **30**, 0-3650, owner-configurable (`calendar.configure`; C4: `0` = erase when the entry
+  ends). `POST /calendar/guests/purge` destroys every guest record now. The dialog does not offer guest fields when
+  `calendar.guest_details_enabled` is false.
   `erase_after = end of the event (series: end of the last occurrence, recomputed when the series is cut or extended) + N days`.
 - The janitor step `calendar_retention.janitor()` is called from `main.janitor_tick` at most once an hour per process (pattern of
   `services/pending_retention.py`): it NULLs the sealed columns and `phone_index`, sets `erased_at`, one transaction per event, one audit row
@@ -505,11 +528,14 @@ Phase 7: "ההזמנות שלי", a room's day, approve/reject from the app chan
 
 ```json
 { "enabled": false,
-  "maintenance_overlap": "override_notify",
+  "maintenance_overlap": "first_holds",
+  "contested_requests": "queue",
+  "menu_position": "a",
+  "holiday_eve_as_holiday": false,
   "guest_details_enabled": true,
   "guest_details_kinds": ["customer", "class"],
   "guest_retention_days": 30,
-  "pending_holds_slot": true,
+  "pending_holds_slot": false,
   "editors_bypass_approval": true,
   "default_room_buffer_after_min": 10,
   "series_horizon_days": 400,
@@ -566,7 +592,7 @@ backoff to 60 min on errors; `410 / invalid sync token` -> full resync of the wi
 
 ### 12.4 Two-way rules (dedicated calendars only)
 
-- Room and maintenance calendars: **Arx wins**. An external create/edit that conflicts or violates hours/approval is not applied; the
+- (Superseded by C9: external changes are accepted both ways; a conflict keeps BOTH entries and flags them. The rule below is the pre-round-6 text and is NOT built.) Room and maintenance calendars: **Arx wins**. An external create/edit that conflicts or violates hours/approval is not applied; the
   external event is reverted (for an edit) or deleted (for a create) and the connection owner gets a notice. An external create that
   passes the rules becomes a booking `pending` (if the calendar needs approval) or `confirmed`, organizer = the connection owner, label
   "מיומן חיצוני".
@@ -652,7 +678,7 @@ Order of checks on every route: signed in -> module switch (404) -> calendar vis
 
 ## 14. Migration plan
 
-- One file `0183_calendars.sql` (provisional number): all tables of section 3 (incl. the sync tables, empty until phases 4-6), indexes,
+- One file `0190_calendars.sql` (C13): all tables of section 3 (incl. the sync tables, empty until phases 4-6), indexes,
   the settings default row, the new permissions in the built-in roles (roles.json, not SQL) and the grant roles.
 - Additive only; nothing existing is altered. The module is OFF after migration; no data is created except the settings document.
 - Ticket visit / maintenance task projections are back-filled by a one-time job when the owner maps a department/maintenance calendar
