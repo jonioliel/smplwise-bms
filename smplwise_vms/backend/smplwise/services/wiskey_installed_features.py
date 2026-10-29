@@ -40,6 +40,7 @@ def _now() -> str:
 JOB_STATES = ("queued", "dispatching", "completed", "cancelled", "unknown")
 JOB_KEYS = frozenset({"schema_version", "state", "result", "operation_id", "replay_available"})
 TTL_MAX_S = 300
+TERMINAL_OUTCOMES = ("accepted", "not_sent")  # review L6: a recorded terminal outcome is final
 
 
 @dataclass(frozen=True)
@@ -139,20 +140,25 @@ class TemplateJobs:
         self._note(view)
         return view
 
+    def _settle(self, view: JobView) -> JobView:
+        """Review L6: a job already recorded as terminal (`accepted` / `not_sent`) is never downgraded - a later unreadable, unknown or
+        contradicting document leaves the record (and the answer) as it was."""
+        seen = self.row(view.operation_id)
+        if seen is None:
+            return view
+        if seen["outcome"] in TERMINAL_OUTCOMES:
+            return JobView(view.operation_id, seen["state"], seen["outcome"], seen["code"])
+        self._note(view)
+        return view
+
     async def refresh(self, client: Any, operation_id: str) -> JobView:
         raw = await client.call("whatsapp/template_job_v1", {"operation_id": operation_id})
-        view = read_job(raw, operation_id=operation_id)
-        if self.row(operation_id) is not None:
-            self._note(view)
-        return view
+        return self._settle(read_job(raw, operation_id=operation_id))
 
     async def cancel(self, client: Any, operation_id: str) -> JobView:
         """Only a still-queued job can be cancelled (WisKey decides); the answer is read like any job document."""
         raw = await client.call("whatsapp/template_cancel_v1", {"operation_id": operation_id})
-        view = read_job(raw, operation_id=operation_id)
-        if self.row(operation_id) is not None:
-            self._note(view)
-        return view
+        return self._settle(read_job(raw, operation_id=operation_id))
 
 
 # ================================================================ the durable event cursor (events/resume_v1)

@@ -684,3 +684,50 @@ def test_l4_a_symlinked_installation_directory_is_refused(tmp_path: Path, monkey
         wai.write_resources(json.loads(json.dumps(SYNTH_RESOURCES)))
     assert exc.value.code == "private_installation_required"
     assert list(elsewhere.iterdir()) == [] and elsewhere.stat().st_mode == before  # nothing written, no chmod through the link
+
+# ================================================================ L6: purpose / slots kept by the sync; a terminal job never downgraded
+
+def test_l6_the_sync_keeps_the_purpose_and_slots_of_an_existing_native_row(settings: Any) -> None:
+    app = _app(settings)
+    wai.sync_native_templates(app.state.db, _registry(_item("acct-a", "r1")))
+    with app.state.db.write_aside() as conn:
+        (ref,) = wts.load_registry(conn)
+        doc = {**wts.ref_doc(ref), "purpose": "consent_request", "params": ["name", "link"]}
+        wts.store_registry(conn, wts.validate_registry([doc])[0])
+    wai.sync_native_templates(app.state.db, _registry({**_item("acct-a", "r1"), "expected_template_revision": 5}))
+    with app.state.db.connection() as conn:
+        (after,) = wts.load_registry(conn)
+    assert (after.id, after.purpose, after.params, after.wiskey_revision) == (ref.id, "consent_request", ("name", "link"), 5)
+
+
+@pytest.mark.parametrize("terminal", [
+    {"state": "accepted", "code": "provider_accepted", "provider_accepted": True},
+    {"state": "not_sent", "code": "queue_expired", "retry_after_s": None},
+])
+def test_l6_refresh_and_cancel_never_downgrade_a_terminal_job(terminal: dict[str, Any]) -> None:
+    import asyncio
+
+    from smplwise.services import wiskey_installed_features as wif
+    from test_wiskey_adopt_2272_features import Client, _db, _job, _tpl
+
+    jobs = wif.TemplateJobs(_db())
+    client = Client(_job("completed", terminal), None, _job("unknown", {"state": "unknown", "code": "ack_lost_no_replay"}),
+                    _job("cancelled", {"state": "not_sent", "code": "cancelled_before_dispatch"}))
+    first = asyncio.run(jobs.enqueue(client, _tpl(), ttl_s=60))
+    assert first.outcome in wif.TERMINAL_OUTCOMES
+    for step in (jobs.refresh, jobs.refresh, jobs.cancel):  # malformed, unknown, a contradicting cancel
+        view = asyncio.run(step(client, "op-1"))
+        assert (view.state, view.outcome, view.code) == (first.state, first.outcome, first.code)
+    assert jobs.row("op-1")["outcome"] == first.outcome
+
+
+def test_l6_a_pending_job_still_moves_on() -> None:
+    import asyncio
+
+    from smplwise.services import wiskey_installed_features as wif
+    from test_wiskey_adopt_2272_features import Client, _db, _job, _tpl
+
+    jobs = wif.TemplateJobs(_db())
+    client = Client(_job("queued"), _job("completed", {"state": "accepted", "code": "provider_accepted", "provider_accepted": True}))
+    assert asyncio.run(jobs.enqueue(client, _tpl(), ttl_s=60)).outcome == "pending"
+    assert asyncio.run(jobs.refresh(client, "op-1")).outcome == "accepted" and jobs.row("op-1")["outcome"] == "accepted"
