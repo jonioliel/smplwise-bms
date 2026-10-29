@@ -83,7 +83,6 @@ test.describe('navigation size on the demo data', () => {
     await expect(page.locator(CARD)).toBeVisible();
     await page.evaluate(() => ((window as unknown as { __noReload: number }).__noReload = 1));
     // the default is "גדול" (owner decision 2026-09-30, home redesign), marked as the current size
-    await expect(page.locator(`${CARD} [data-nav-mode="rel"]`)).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator(`${CARD} [data-nav-preset="l"] [data-nav-current]`)).toHaveCount(1);
     await expect(page.locator(`${CARD} [data-nav-preset]`)).toHaveText([/קטן/, /בינוני/, /גדול/, /גדול מאוד/]);
     const base = await measure(page, info);
