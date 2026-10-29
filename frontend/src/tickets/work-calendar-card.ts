@@ -90,6 +90,22 @@ export class TicketsWorkCalendarCard extends LitElement {
       padding-inline-start: 16px;
       border-inline-start: 2px solid var(--dv-border, var(--sw-border));
     }
+    /* GATE-FIX-2270: a department's mode row already sits inside the departments well (R5-SYSTEM-297 made every .row a well):
+       no second well around it, and its three keys (now 16/600) move under the department's name when the row is too narrow,
+       instead of being cut (320 px) or leaving the well (1024 px) */
+    .nested .row {
+      flex-wrap: wrap;
+      padding-inline: 0;
+      background: transparent;
+    }
+    @media (max-width: 767px) {
+      .nested {
+        padding-inline-start: 10px;
+      }
+      .nested .seg button {
+        padding-inline: 8px;
+      }
+    }
     textarea.in {
       inline-size: 100%;
       box-sizing: border-box;
