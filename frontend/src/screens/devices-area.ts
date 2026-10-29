@@ -379,6 +379,9 @@ const AREA_DESIGN = css`
       grid-row: auto;
       margin: 0;
       padding: 10px 12px;
+      /* GATE-FIX-2270: the R5 card title (larger, bold) and the semibold "turn all on / off" keys no longer fit one 320 px line;
+         the keys drop under the title instead of widening the section past the screen (sw-card: --sw-card-head-wrap) */
+      --sw-card-head-wrap: wrap;
     }
     :host([data-area-design]) .grid:not(.lay-grid) > sw-card .tiles {
       grid-template-columns: repeat(2, minmax(0, 1fr));
