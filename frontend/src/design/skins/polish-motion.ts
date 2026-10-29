@@ -45,7 +45,7 @@ export const POLISH_MOTION_TOKENS: TokenTable = {
  */
 export const ENTER_RULES = `
 @keyframes sw-enter { from { opacity: 0; transform: translateY(var(--sw-enter-y)); } }
-:host(sw-card), :host(sw-kpi), :host(sw-table), :host(home-widgets) .wg, :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(sw-state-panel) { animation: sw-enter var(--sw-enter-ms) var(--sw-ease) both; }
+:host(sw-card), :host(sw-kpi), :host(sw-table), :host(home-widgets) .wg, :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(sw-state-panel) { animation: sw-enter var(--sw-enter-ms) var(--sw-ease) backwards; }
 :host(sw-card:nth-child(2)), :host(sw-kpi:nth-child(2)), :host(home-widgets) .wg:nth-child(2), :host(devices-building) section.fcard:nth-child(2), :host(devices-building) a.tile:nth-child(2) { animation-delay: var(--sw-stagger); }
 :host(sw-card:nth-child(3)), :host(sw-kpi:nth-child(3)), :host(home-widgets) .wg:nth-child(3), :host(devices-building) section.fcard:nth-child(3), :host(devices-building) a.tile:nth-child(3) { animation-delay: calc(var(--sw-stagger) * 2); }
 :host(sw-card:nth-child(n + 4)), :host(sw-kpi:nth-child(n + 4)), :host(home-widgets) .wg:nth-child(n + 4), :host(devices-building) section.fcard:nth-child(n + 4), :host(devices-building) a.tile:nth-child(n + 4) { animation-delay: calc(var(--sw-stagger) * 3); }
