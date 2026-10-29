@@ -100,6 +100,30 @@ for (const vp of VPS) {
   }
 }
 
+// Touch targets (owner rule: 44 x 44): every control of the editor - the head's buttons, the eye / arrows / chevron of each row, the apply-to
+// switch, "show more", the footer keys and the alert switch (measured on its padded host) - reaches 44 px in both directions at all three viewports.
+for (const vp of VPS) {
+  test(`edit mode · ${vp.name} ${vp.w}x${vp.h}: every control is at least 44 x 44`, async ({ page }, info) => {
+    test.skip(info.project.name !== 'desktop', 'the spec sets its own three viewports');
+    const sheet = await openEdit(page, vp);
+    await sheet.locator('[data-ed-expand="sensors"]').click();
+    await page.waitForTimeout(300);
+    const small = await sheet.evaluate((host) => {
+      const root = host.shadowRoot as ShadowRoot;
+      const bad: string[] = [];
+      for (const e of Array.from(root.querySelectorAll('button, a[href], [role="switch"], sw-toggle, input, select')) as HTMLElement[]) {
+        if (e.matches('[role="switch"]') && e.getRootNode() !== root) continue;
+        const cs = getComputedStyle(e);
+        const b = e.getBoundingClientRect();
+        if (cs.display === 'none' || cs.visibility === 'hidden' || !b.width || !b.height) continue;
+        if (b.width < 43.5 || b.height < 43.5) bad.push(`${e.tagName.toLowerCase()}${e.className ? '.' + String(e.className).trim().split(/\s+/).join('.') : ''}[${Array.from(e.attributes).map((x) => x.name).filter((n) => n.startsWith('data-')).join(',')}] ${Math.round(b.width)}x${Math.round(b.height)}`);
+      }
+      return bad;
+    });
+    expect(small, 'controls under 44 px').toEqual([]);
+  });
+}
+
 test('edit mode: reduced motion still opens the editor with the footer on screen (phone)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'the spec sets its own three viewports');
   await page.emulateMedia({ reducedMotion: 'reduce' });

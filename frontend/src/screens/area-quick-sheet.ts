@@ -815,7 +815,7 @@ export class AreaQuickSheet extends LitElement {
         letter-spacing: 0;
         vertical-align: middle;
       }
-      /* a 375 px row: five 32 px controls + the name; the "hidden" word gives way to the dimmed row and the closed eye */
+      /* a 375 px row: four 44 px controls + the name; the "hidden" word gives way to the dimmed row and the closed eye */
       :host([mode='sheet']) .er {
         gap: 2px;
         padding-inline: 4px;
@@ -869,7 +869,7 @@ export class AreaQuickSheet extends LitElement {
         display: flex;
         align-items: center;
         gap: 6px;
-        min-block-size: 38px;
+        min-block-size: 48px; /* a 44 px control and 2 px of air on each side */
         padding: 2px 6px;
         border-radius: var(--sw-r-md);
         background: var(--sw-surface-2);
@@ -885,7 +885,8 @@ export class AreaQuickSheet extends LitElement {
       }
       .er.it {
         margin-inline-start: 24px;
-        min-block-size: 34px;
+        min-block-size: 46px; /* the 44 px control inside the 1 px edge */
+        padding-block: 0;
         background: transparent;
         border: 1px solid var(--sw-border);
       }
@@ -918,8 +919,8 @@ export class AreaQuickSheet extends LitElement {
       .mv,
       .grip,
       .exp {
-        inline-size: 32px;
-        block-size: 32px;
+        inline-size: 44px; /* a touch target is 44 x 44 at every width (owner rule); the 375 px row drops the drag handle to make room */
+        block-size: 44px;
         flex: none;
         display: grid;
         place-items: center;
@@ -953,20 +954,35 @@ export class AreaQuickSheet extends LitElement {
         transform: rotate(180deg);
       }
       .exp-gap {
-        inline-size: 32px;
+        inline-size: 44px;
         flex: none;
       }
-      @media (max-width: 767px) {
-        .eye,
-        .mv,
-        .grip,
-        .exp {
-          inline-size: 40px;
-          block-size: 40px;
-        }
-        .exp-gap {
-          inline-size: 40px;
-        }
+      /* 375 px: eye + two arrows + chevron are four 44 px controls; the drag handle is hidden there (the arrows reorder; a finger on a 44 px
+         handle was the fifth control that left the name no room) */
+      :host([mode='sheet']) .grip {
+        display: none;
+      }
+      /* the editor's other controls reach 44 px too: the apply-to switch, "show more", the footer keys, the head's buttons, the sheet's handle,
+         the alert switch (its host is padded to 44 x 44; a press on the padding flips it) */
+      :host([data-editing]) .ib,
+      :host([data-editing]) .qb,
+      .seg button,
+      .more {
+        min-block-size: 44px;
+      }
+      :host([data-editing]) .ib {
+        inline-size: 44px;
+        block-size: 44px;
+      }
+      :host([data-editing]) .grab {
+        block-size: 44px;
+      }
+      .more {
+        padding-inline: 12px;
+      }
+      .ed-side sw-toggle {
+        padding: 10px 1px;
+        box-sizing: content-box;
       }
       @media (hover: hover) and (pointer: fine) {
         .eye:hover,
@@ -994,7 +1010,7 @@ export class AreaQuickSheet extends LitElement {
         font: inherit;
         font-size: var(--sw-fs-sm);
         cursor: pointer;
-        padding: 6px 8px;
+        padding: 6px 12px;
       }
       .ed-side {
         display: flex;
@@ -1044,7 +1060,7 @@ export class AreaQuickSheet extends LitElement {
       }
       .seg button {
         flex: 1 1 0;
-        min-block-size: 36px;
+        min-block-size: 44px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
