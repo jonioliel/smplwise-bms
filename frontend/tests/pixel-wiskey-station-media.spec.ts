@@ -22,8 +22,18 @@ async function toDrawer(page: Page, skin: string, over: Partial<StationMediaMock
   await installStationMediaMock(page, base, newMediaMock({ mode: 'video_talk', ...over }));
   await openStations(page, { skin, scheme });
   await page.waitForSelector(`${SCREEN} [data-wk-stations][data-wk-state="ready"]`, { timeout: 30_000 });
+  // GATE-FIX-2270 (the STATIONS-FLAKE-2270 cause in this spec): the drawer shot shows the page behind it, and the click that opens
+  // the drawer scrolls its card into view from wherever the R5 entrance motion has it at that moment. Let the entrance finish first,
+  // and on the desktop put the shell's scroll back where every desktop baseline was taken (the top) once the drawer is open.
+  await settlePage(page);
   await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="${station}"] button.open`).click();
   await expect(page.locator(`${SCREEN} sw-drawer[data-wk-drawer]`)).toHaveAttribute('open', '');
+  if (page.viewportSize()?.width === 1440) {
+    await page.evaluate(() => {
+      const main = document.querySelector('sw-app')?.shadowRoot?.querySelector('main');
+      if (main) main.scrollTop = 0;
+    });
+  }
   await page.evaluate(() => document.fonts.ready);
 }
 
