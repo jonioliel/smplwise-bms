@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { BuildingPresenceSettings, BuildingSnapshot, PresenceCandidate } from '../src/api/building-presence';
-import { cardView, chipView, clockText, zoneChip, groupByRoom, settingsProblem, toggledTags } from '../src/api/building-presence-logic';
+import { cardView, chipView, clockText, zoneChip, zoneTone, filterSensors, pageSlice, groupByRoom, settingsProblem, toggledTags } from '../src/api/building-presence-logic';
 
 // BUILDING-PRESENCE-2271: the chip is invisible without tagged sensors, green only while occupied, and never reads an unknown as empty.
 
@@ -101,4 +101,32 @@ test('retention stays 0..365', () => {
   expect(settingsProblem({ ...cfg, retention_days: 365 })).toBeNull();
   expect(settingsProblem({ ...cfg, retention_days: 366 })).toEqual({ field: 'retention_days' });
   expect(settingsProblem({ ...cfg, retention_days: 1.5 })).toEqual({ field: 'retention_days' });
+});
+
+
+test.describe('PRESENCE-2280 mockup alignment (tone, table filter, paging)', () => {
+  const snap = (over: Record<string, unknown> = {}) => ({ configured: true, settings: { map_tint: true }, rooms: [
+    { area_id: 'a', name: 'א', status: 'occupied', sensors: 1, empty_since: null }, { area_id: 'b', name: 'ב', status: 'clear', sensors: 1, empty_since: '2026-10-29T08:00:00Z' }, { area_id: 'c', name: 'ג', status: 'unknown', sensors: 1, empty_since: null },
+  ], ...over }) as never;
+  test('zoneTone follows the room status and is null without a room, a snapshot or when the map option is off', () => {
+    expect(zoneTone(snap(), 'a')).toBe('occupied');
+    expect(zoneTone(snap(), 'b')).toBe('clear');
+    expect(zoneTone(snap(), 'c')).toBe('unknown');
+    expect(zoneTone(snap(), 'zzz')).toBeNull();
+    expect(zoneTone(snap(), null)).toBeNull();
+    expect(zoneTone(null, 'a')).toBeNull();
+    expect(zoneTone(snap({ settings: { map_tint: false } }), 'a')).toBeNull();
+    expect(zoneTone(snap({ configured: false }), 'a')).toBeNull();
+  });
+  const cand = (id: string, tagged: boolean, area: string | null = null) => ({ entity_id: id, name: id, area_id: area, area_name: area, device_class: 'occupancy', tagged, state: 'on' }) as never;
+  test('filterSensors keeps the tagged first and filters by tag; pageSlice clamps and always has one page', () => {
+    const l = [cand('z', false, 'א'), cand('y', true, 'ב'), cand('x', true, 'א')];
+    expect(filterSensors(l, 'all').map((c) => (c as { entity_id: string }).entity_id)).toEqual(['x', 'y', 'z']);
+    expect(filterSensors(l, 'tagged')).toHaveLength(2);
+    expect(filterSensors(l, 'untagged')).toHaveLength(1);
+    const p = pageSlice([1, 2, 3, 4, 5], 9, 2);
+    expect(p).toEqual({ items: [5], page: 3, pages: 3 });
+    expect(pageSlice([], 1, 6)).toEqual({ items: [], page: 1, pages: 1 });
+    expect(pageSlice([1, 2, 3], -4, 2).page).toBe(1);
+  });
 });

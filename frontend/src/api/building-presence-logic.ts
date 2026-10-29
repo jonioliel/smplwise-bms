@@ -54,16 +54,20 @@ export function toggledTags(list: readonly PresenceCandidate[], entityId: string
   return [...ids].sort();
 }
 
-/** Candidates grouped by room (area name) for the settings list, rooms alphabetical, the unplaced last. */
-export function groupByRoom(list: readonly PresenceCandidate[]): { room: string; items: PresenceCandidate[] }[] {
-  const by = new Map<string, PresenceCandidate[]>();
-  for (const c of list) {
-    const key = c.area_name || '';
-    by.set(key, [...(by.get(key) ?? []), c]);
-  }
-  return [...by.entries()]
-    .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b, 'he')))
-    .map(([room, items]) => ({ room: room || BP.noRoom, items }));
+export type SensorFilter = 'all' | 'tagged' | 'untagged';
+
+/** The settings table's rows for a filter: tagged first (by room, then name), the rest after. */
+export function filterSensors(list: readonly PresenceCandidate[], f: SensorFilter): PresenceCandidate[] {
+  const keep = list.filter((c) => (f === 'tagged' ? c.tagged : f === 'untagged' ? !c.tagged : true));
+  const room = (c: PresenceCandidate) => c.area_name ?? '\uffff';
+  return [...keep].sort((a, b) => Number(b.tagged) - Number(a.tagged) || room(a).localeCompare(room(b), 'he') || a.name.localeCompare(b.name, 'he'));
+}
+
+/** One page of a list (1-based, clamped); `pages` is at least 1. The table pages instead of scrolling (no scrolling in control screens). */
+export function pageSlice<T>(items: readonly T[], page: number, size: number): { items: T[]; page: number; pages: number } {
+  const pages = Math.max(1, Math.ceil(items.length / Math.max(1, size)));
+  const p = Math.min(Math.max(1, Math.floor(page) || 1), pages);
+  return { items: items.slice((p - 1) * size, p * size), page: p, pages };
 }
 
 export interface CardRoom { name: string; text: string; tone: 'ok' | 'neutral' | 'unknown' }
@@ -97,4 +101,24 @@ export function zoneChip(s: BuildingSnapshot | null | undefined, areaId: string 
   if (r.status === 'occupied') return BP.occupied;
   if (r.status === 'clear') return clockText(r.empty_since, zone) ? BP.emptySince(clockText(r.empty_since, zone)) : BP.empty;
   return BP.unknown;
+}
+
+/** The occupancy tone of one room for the plan map (same rules as `zoneChip`): drives the chip's look and the green tint of an active room. */
+export function zoneTone(s: BuildingSnapshot | null | undefined, areaId: string | null | undefined): 'occupied' | 'clear' | 'unknown' | null {
+  if (!s || !s.configured || s.settings?.map_tint === false || !areaId) return null;
+  const r = (s.rooms ?? []).find((x) => x.area_id === areaId);
+  if (!r) return null;
+  return r.status === 'occupied' ? 'occupied' : r.status === 'clear' ? 'clear' : 'unknown';
+}
+
+/** Candidates grouped by room (area name), rooms alphabetical, the unplaced last (kept for the unit spec and any list that groups). */
+export function groupByRoom(list: readonly PresenceCandidate[]): { room: string; items: PresenceCandidate[] }[] {
+  const by = new Map<string, PresenceCandidate[]>();
+  for (const c of list) {
+    const key = c.area_name || '';
+    by.set(key, [...(by.get(key) ?? []), c]);
+  }
+  return [...by.entries()]
+    .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b, 'he')))
+    .map(([room, items]) => ({ room: room || BP.noRoom, items }));
 }

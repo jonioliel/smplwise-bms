@@ -4,12 +4,15 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-dialog';
+import '../components/sw-drawer';
+import '../components/sw-field';
+import '../components/sw-pager';
 import { describeError } from '../api/client';
 import {
   EMPTY_RANGE, HOLD_RANGE, RETENTION_RANGE, getPresenceCandidates, getPresenceHistory, purgePresenceHistory, putPresenceRoom, putPresenceSettings, putPresenceTags,
   type BuildingPresenceSettings, type HomeDisplay, type PresenceCandidate, type PresenceHistorySummary, type PresenceRoomOption,
 } from '../api/building-presence';
-import { groupByRoom, settingsProblem, toggledTags } from '../api/building-presence-logic';
+import { filterSensors, pageSlice, settingsProblem, toggledTags, type SensorFilter } from '../api/building-presence-logic';
 import { BP } from '../i18n/building-presence';
 
 const DEFAULT_CFG: BuildingPresenceSettings = { enabled: false, hold_seconds: 60, empty_minutes: 10, retention_days: 30, home_display: 'chip', map_tint: true };
@@ -32,6 +35,16 @@ export class SystemBuildingPresence extends LitElement {
   @state() private message = '';
   @state() private error = '';
   @state() private confirmPurge = false;
+  /** Mockup round 7: the sensor list is a filtered, paged table (no scrolling list); the "..." of a row opens the tag editor drawer. */
+  @state() private filter: SensorFilter = 'all';
+  @state() private page = 1;
+  @state() private editId = '';
+  @state() private narrow = false;
+  private mq = window.matchMedia('(max-width: 700px)');
+  private onMq = () => {
+    this.narrow = this.mq.matches;
+    this.page = 1;
+  };
 
   static styles = css`
     :host {
@@ -44,17 +57,121 @@ export class SystemBuildingPresence extends LitElement {
       color: var(--sw-heading, var(--sw-text));
       margin-block: 10px 4px;
     }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 6px 16px;
-    }
-    .sensor {
+    .bar {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       flex-wrap: wrap;
+      margin-block-end: 8px;
+    }
+    .tbl {
+      display: grid;
+      gap: 6px;
+    }
+    .sensor {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1.3fr) minmax(0, 1fr) 124px 36px;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-radius-md, 12px);
+      background: var(--sw-surface);
       font-size: var(--sw-fs-md);
+      min-block-size: 46px;
+    }
+    .sensor[data-tagged='false'] {
+      background: transparent;
+    }
+    .sensor .nm {
+      display: grid;
+      min-inline-size: 0;
+    }
+    .sensor .nm b {
+      font-weight: var(--sw-fw-semibold);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sensor select {
+      inline-size: 100%;
+      max-inline-size: none;
+    }
+    .st {
+      justify-self: start;
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-sm);
+      white-space: nowrap;
+      color: var(--sw-text-2);
+      background: var(--sw-surface);
+    }
+    .st[data-st='on'] {
+      color: var(--sw-success-text);
+      background: var(--sw-success-soft);
+      border-color: transparent;
+      font-weight: var(--sw-fw-semibold);
+    }
+    .st[data-st='na'] {
+      border-style: dashed;
+      color: var(--sw-text-3);
+    }
+    .more {
+      inline-size: 32px;
+      block-size: 32px;
+      border-radius: 50%;
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      cursor: pointer;
+      font-weight: var(--sw-fw-bold);
+      line-height: 1;
+    }
+    .more:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-block-start: 8px;
+    }
+    .field {
+      display: grid;
+      gap: 4px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .field select {
+      max-inline-size: none;
+    }
+    @media (max-width: 700px) {
+      .sensor {
+        grid-template-columns: 24px minmax(0, 1fr) auto 36px;
+        grid-template-areas: 'c n s m' '. r r r';
+        row-gap: 6px;
+      }
+      .sensor > .ck {
+        grid-area: c;
+      }
+      .sensor > .nm {
+        grid-area: n;
+      }
+      .sensor > .rm {
+        grid-area: r;
+      }
+      .sensor > .st {
+        grid-area: s;
+      }
+      .sensor > .more {
+        grid-area: m;
+      }
     }
     .muted {
       color: var(--sw-text-muted);
@@ -82,11 +199,58 @@ export class SystemBuildingPresence extends LitElement {
     }
     .seg {
       display: inline-flex;
-      gap: 4px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      padding: 2px;
+      background: var(--sw-surface-2);
+      flex-wrap: wrap;
+    }
+    .seg button {
+      border: 0;
+      background: transparent;
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      padding: 4px 14px;
+      border-radius: var(--sw-r-pill);
+      color: var(--sw-text-2);
+      cursor: pointer;
     }
     .seg button[aria-pressed='true'] {
-      font-weight: var(--sw-fw-bold);
-      border-color: var(--sw-accent);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .seg button:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 2px;
+    }
+    input[type='checkbox'] {
+      accent-color: var(--sw-accent);
+      inline-size: 18px;
+      block-size: 18px;
+    }
+    /* mockup: the sensor table is the wide column, the times and the history sit beside it */
+    @media (min-width: 1280px) {
+      :host {
+        grid-template-columns: minmax(0, 1fr) 340px;
+        align-items: start;
+      }
+      [data-building-presence-master] {
+        grid-column: 1 / -1;
+      }
+      [data-building-presence-card] {
+        grid-column: 1;
+        grid-row: 2 / span 2;
+      }
+      [data-building-presence-settings] {
+        grid-column: 2;
+        grid-row: 2;
+      }
+      [data-building-history] {
+        grid-column: 2;
+        grid-row: 3;
+      }
     }
     .ok {
       color: var(--sw-success-text);
@@ -98,7 +262,14 @@ export class SystemBuildingPresence extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.narrow = this.mq.matches;
+    this.mq.addEventListener('change', this.onMq);
     void this.load();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.mq.removeEventListener('change', this.onMq);
   }
 
   private async load() {
@@ -181,24 +352,55 @@ export class SystemBuildingPresence extends LitElement {
 
   private renderSensors(list: PresenceCandidate[]) {
     const tagged = list.filter((c) => c.tagged).length;
-    return html`<sw-card heading=${BP.heading} subheading=${tagged ? `${tagged} ${BP.tagged}` : BP.subheading} data-building-presence-card>
+    const filtered = filterSensors(list, this.filter);
+    const size = this.narrow ? 5 : 6;
+    const pg = pageSlice(filtered, this.page, size);
+    const chip = (v: SensorFilter, label: string) => html`<button type="button" aria-pressed=${String(this.filter === v)} data-building-filter=${v} @click=${() => { this.filter = v; this.page = 1; }}>${label}</button>`;
+    return html`<sw-card heading=${BP.heading} subheading=${tagged ? `${tagged} ${BP.tagged} · ${list.length} ${BP.found}` : BP.subheading} data-building-presence-card>
+      <div class="bar"><span class="seg" role="group" aria-label=${BP.filterLabel}>${chip('all', BP.filterAll)}${chip('tagged', BP.filterTagged)}${chip('untagged', BP.filterUntagged)}</span></div>
       ${list.length ? nothing : html`<div class="muted">${BP.noSensors}</div>`}
-      ${groupByRoom(list).map(
-        (g) => html`<div class="room">${g.room}</div>
-          <div class="grid">${g.items.map(
-            (c) => html`<div class="sensor" data-building-sensor=${c.entity_id}>
-              <label><input type="checkbox" .checked=${c.tagged} ?disabled=${!this.editable || this.busy} @change=${(e: Event) => void this.toggleTag(c.entity_id, (e.target as HTMLInputElement).checked)} />${c.name}</label>
-              <span class="muted">${BP.stateWord(c.state)}</span>
-              ${c.tagged && this.editable
-                ? html`<select data-building-room aria-label=${BP.roomPick} ?disabled=${this.busy} @change=${(e: Event) => void this.setRoom(c.entity_id, (e.target as HTMLSelectElement).value)}>
-                    <option value="" ?selected=${!c.placed}>${BP.ownRoom}</option>
-                    ${this.rooms.map((r) => html`<option value=${r.area_id} ?selected=${!!c.placed && c.area_id === r.area_id}>${r.name}</option>`)}</select>`
-                : nothing}
-            </div>`,
-          )}</div>`,
-      )}
-      <div class="row muted">${BP.tagNote}</div>
+      <div class="tbl" data-building-table>${pg.items.map((c) => this.renderRow(c))}</div>
+      <div class="foot"><span class="muted">${BP.tagNote}</span>${pg.pages > 1 ? html`<sw-pager .page=${pg.page} .pages=${pg.pages} @page-change=${(e: CustomEvent<{ page: number }>) => (this.page = e.detail.page)}></sw-pager>` : nothing}</div>
+      ${this.renderEditor(list)}
     </sw-card>`;
+  }
+
+  private stateChip(c: PresenceCandidate) {
+    const st = c.state === 'on' ? 'on' : c.state === 'off' ? 'off' : 'na';
+    return html`<span class="st" data-st=${st} data-building-state>${BP.stateWord(c.state)}</span>`;
+  }
+
+  private roomSelect(c: PresenceCandidate, attr: string) {
+    return html`<sw-field><select data-building-room=${attr} aria-label=${BP.roomPick} ?disabled=${this.busy || !this.editable} @change=${(e: Event) => void this.setRoom(c.entity_id, (e.target as HTMLSelectElement).value)}>
+      <option value="" ?selected=${!c.placed}>${BP.ownRoom}</option>
+      ${this.rooms.map((r) => html`<option value=${r.area_id} ?selected=${!!c.placed && c.area_id === r.area_id}>${r.name}</option>`)}</select></sw-field>`;
+  }
+
+  private renderRow(c: PresenceCandidate) {
+    const edit = this.editable && c.tagged;
+    return html`<div class="sensor" data-building-sensor=${c.entity_id} data-tagged=${String(c.tagged)}>
+      <label class="ck"><input type="checkbox" aria-label=${c.name} .checked=${c.tagged} ?disabled=${!this.editable || this.busy} @change=${(e: Event) => void this.toggleTag(c.entity_id, (e.target as HTMLInputElement).checked)} /></label>
+      <span class="nm"><b title=${c.name}>${c.name}</b><span class="muted">${BP.kindWord(c.device_class)}</span></span>
+      <span class="rm">${edit ? this.roomSelect(c, 'row') : html`<span class="muted">${c.area_name ?? BP.noRoom}</span>`}</span>
+      ${this.stateChip(c)}
+      <button type="button" class="more" data-building-more aria-label=${`${BP.editTitle}: ${c.name}`} ?disabled=${!edit} @click=${() => (this.editId = c.entity_id)}>···</button>
+    </div>`;
+  }
+
+  /** The tag editor (mockup "settings-editor"): the sensor's name as the platform reports it, its room, what it says now, and remove-tag.
+   * Per-sensor "active when" and hold are NOT stored by the server yet (the hold is building-wide), so they are not offered. */
+  private renderEditor(list: PresenceCandidate[]) {
+    const c = list.find((x) => x.entity_id === this.editId);
+    if (!c) return nothing;
+    return html`<sw-drawer modal .open=${true} heading=${c.name} subheading=${c.area_name ?? BP.noRoom} data-building-editor @close=${() => (this.editId = '')}>
+      <div class="field">${BP.stateNow}<div>${this.stateChip(c)}</div></div>
+      <label class="field">${BP.roomPick}${this.roomSelect(c, 'editor')}</label>
+      <div class="priv">${BP.tagNote}</div>
+      <div slot="footer" class="row">
+        <sw-button variant="danger" data-building-untag ?disabled=${this.busy || !this.editable} @click=${() => { const id = c.entity_id; this.editId = ''; void this.toggleTag(id, false); }}>${BP.removeTag}</sw-button>
+        <sw-button @click=${() => (this.editId = '')}>${BP.close}</sw-button>
+      </div>
+    </sw-drawer>`;
   }
 
   private renderTimes() {
@@ -207,8 +409,8 @@ export class SystemBuildingPresence extends LitElement {
       html`<button type="button" aria-pressed=${String(this.cfg.home_display === v)} data-building-home=${v} ?disabled=${!this.editable || this.busy} @click=${() => void this.patch({ home_display: v })}>${label}</button>`;
     return html`<sw-card heading=${BP.timesHeading} data-building-presence-settings>
       <div class="row">
-        <label>${BP.holdLabel} <input type="number" data-building-hold min=${HOLD_RANGE.min} max=${HOLD_RANGE.max} step="1" .value=${String(this.cfg.hold_seconds)} ?disabled=${!this.editable || this.busy} @input=${(e: Event) => this.num('hold_seconds', e)} /> ${BP.holdUnit}</label>
-        <label>${BP.emptyLabel} <input type="number" data-building-empty min=${EMPTY_RANGE.min} max=${EMPTY_RANGE.max} step="1" .value=${String(this.cfg.empty_minutes)} ?disabled=${!this.editable || this.busy} @input=${(e: Event) => this.num('empty_minutes', e)} /> ${BP.emptyUnit}</label>
+        <label>${BP.holdLabel} <sw-field inline><input type="number" data-building-hold min=${HOLD_RANGE.min} max=${HOLD_RANGE.max} step="1" .value=${String(this.cfg.hold_seconds)} ?disabled=${!this.editable || this.busy} @input=${(e: Event) => this.num('hold_seconds', e)} /></sw-field> ${BP.holdUnit}</label>
+        <label>${BP.emptyLabel} <sw-field inline><input type="number" data-building-empty min=${EMPTY_RANGE.min} max=${EMPTY_RANGE.max} step="1" .value=${String(this.cfg.empty_minutes)} ?disabled=${!this.editable || this.busy} @input=${(e: Event) => this.num('empty_minutes', e)} /></sw-field> ${BP.emptyUnit}</label>
         ${this.editable ? html`<sw-button size="sm" data-building-save ?disabled=${this.busy || !!bad} @click=${() => void this.patch({ hold_seconds: this.cfg.hold_seconds, empty_minutes: this.cfg.empty_minutes })}>${BP.save}</sw-button>` : nothing}
       </div>
       <div class="row"><span>${BP.homeLabel}</span><span class="seg" role="group">${seg('card', BP.homeCard)}${seg('chip', BP.homeChip)}${seg('off', BP.homeOff)}</span></div>
@@ -223,7 +425,7 @@ export class SystemBuildingPresence extends LitElement {
     const oldest = h?.oldest ? new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit' }).format(new Date(h.oldest)) : '—';
     return html`<sw-card heading=${BP.historyHeading} data-building-history>
       <div class="row">
-        <label>${BP.retentionLabel} <input type="number" data-building-retention min=${RETENTION_RANGE.min} max=${RETENTION_RANGE.max} step="1" .value=${String(this.cfg.retention_days)} ?disabled=${!this.editable || this.busy} @input=${(e: Event) => this.num('retention_days', e)} /> ${BP.retentionUnit}</label>
+        <label>${BP.retentionLabel} <sw-field inline><input type="number" data-building-retention min=${RETENTION_RANGE.min} max=${RETENTION_RANGE.max} step="1" .value=${String(this.cfg.retention_days)} ?disabled=${!this.editable || this.busy} @input=${(e: Event) => this.num('retention_days', e)} /></sw-field> ${BP.retentionUnit}</label>
         ${this.editable ? html`<sw-button size="sm" data-building-retention-save ?disabled=${this.busy || bad} @click=${() => void this.patch({ retention_days: this.cfg.retention_days })}>${BP.save}</sw-button>` : nothing}
       </div>
       <div class="priv" data-building-privacy>${BP.privacy}</div>

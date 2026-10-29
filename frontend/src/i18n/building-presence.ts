@@ -58,6 +58,19 @@ const he = {
   cardNoInfo: 'החיישנים לא מדווחים',
   cardNote: 'חדרים, לא אנשים · בלי שמות',
   updated: (hhmm: string) => `עודכן ${hhmm}`,
+  // mockup alignment
+  found: 'נמצאו',
+  filterLabel: 'סינון חיישנים',
+  filterAll: 'הכל',
+  filterTagged: 'מסומנים',
+  filterUntagged: 'לא מסומנים',
+  kindWord: (k: string | null) => (k === 'motion' ? 'חיישן תנועה' : 'חיישן נוכחות'),
+  editTitle: 'עריכת סימון',
+  stateNow: 'מצב עכשיו',
+  removeTag: 'הסרת הסימון',
+  close: 'סגירה',
+  moreRooms: (n: number) => `ועוד ${n}`,
+  onMap: 'במפה',
 };
 type Key = keyof typeof he;
 
@@ -78,6 +91,9 @@ const en: Partial<Record<Key, unknown>> = {
   purgeConfirm: 'Delete', cancel: 'Cancel', purged: 'History deleted', tab: 'Building sensors', timesHeading: 'Times and display',
   cardSub: (n: number, of: number) => `${n} of ${of} rooms with a sensor are active`, cardAllEmpty: (of: number) => `All ${of} rooms are empty`,
   cardNoInfo: 'The sensors are not reporting', cardNote: 'Rooms, not people · no names', updated: (hhmm: string) => `Updated ${hhmm}`,
+  found: 'found', filterLabel: 'Filter sensors', filterAll: 'All', filterTagged: 'Tagged', filterUntagged: 'Not tagged',
+  kindWord: (k: string | null) => (k === 'motion' ? 'Motion sensor' : 'Presence sensor'), editTitle: 'Edit tag', stateNow: 'State now', removeTag: 'Remove tag', close: 'Close',
+  moreRooms: (n: number) => `+${n} more`, onMap: 'On the map',
 };
 
 export const BP: typeof he = new Proxy(he, {

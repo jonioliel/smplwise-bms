@@ -29,9 +29,16 @@ and the settings page stay available to `system.configure` so the owner can prep
 `pilot/WISKEY-ADOPT-2272`; it was left unchanged and must be renumbered at integration (next free after the highest on the integration branch;
 0190 and 0194 are taken elsewhere). 0195 only needs `presence_building_sensors` to exist before it runs, so the order 0183 -> 0195 must be kept.
 
-## Known deviations from the mockup / not done
-- The card sits above the floor cards on the overview, not in the widget row (the widget grid is a separate configurable layout system).
-- The unknown map chip is a text chip; the dashed outline was not added to the canvas.
-- Tag editor drawer (per-sensor "active when presence/motion", per-sensor hold) is not built: tagging, room choice and the building-wide hold are.
-- Rooms with a sensor are not tinted by this module; the existing class-based room tint of the map is unchanged.
-- Not run: browser/pixel/layout specs, full suites, the runner, a real phone, the other skins.
+## Mockup build check (29.10, round 7 `presence/`)
+Fixed after the visual comparison: plan-map chips now follow the mockup (active = solid green pill with a small people glyph and the room tinted green; empty =
+solid neutral pill; no data = dashed outline); the settings sensor list is a paged table (6 rows, 5 on a phone) with a state chip per sensor, an all / tagged /
+not-tagged filter and a "..." that opens the tag editor drawer (room, state now, remove tag); on wide screens the times and history sit beside the table; the
+home card caps its room chips and links to the map. Spec: `tests/evidence-presence-2280-layout.spec.ts` (fixture group `devices_floor`).
+
+## Still different from the mockup / not done
+- The card sits above the floor cards on the overview, not in the widget row (the widget grid is a separate configurable layout system: a new widget kind
+  touches `home-config`, the edit panel and the stored layout). Owner decision needed.
+- The home card lists room chips; the mockup shows a per-floor breakdown.
+- Tag editor: only room, state now and remove-tag. Per-sensor "active when presence / motion", per-sensor hold and a display name need server fields
+  (migration + API) and are not stored yet.
+- Not run: the other skins, a real phone, pixel baselines for the new UI (none exist yet; none were created).

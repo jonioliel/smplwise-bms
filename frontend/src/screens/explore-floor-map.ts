@@ -27,7 +27,7 @@ import { snapshotUrl, type Transport } from '../api/media';
 import { entryFloor, findFloor, loadTree, type CatalogTree } from '../api/catalog';
 import { canAnywhere, isApi, nvrLess } from '../api/session';
 import { getBuildingPresence, type BuildingSnapshot } from '../api/building-presence';
-import { POLL_MS as PRESENCE_POLL_MS, zoneChip } from '../api/building-presence-logic';
+import { POLL_MS as PRESENCE_POLL_MS, zoneChip, zoneTone } from '../api/building-presence-logic';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import type { Anchor } from '../api/types';
@@ -3195,7 +3195,7 @@ export class ExploreFloorMap extends LitElement {
         .selectedIds=${this.multi ? this.picked : []}
         .boxSelect=${this.multi}
         @box-select=${(e: CustomEvent<{ ids: string[] }>) => this.addPicks(e.detail.ids)}
-        .zones=${this.layers.has('zones') ? zonesWithChips(b.zones).map((z) => ({ ...z, chip: z.chip ?? zoneChip(this.presenceSnap, z.area_id) })) : []}
+        .zones=${this.layers.has('zones') ? zonesWithChips(b.zones).map((z) => ({ ...z, chip: z.chip ?? zoneChip(this.presenceSnap, z.area_id), chipTone: z.chip ? undefined : zoneTone(this.presenceSnap, z.area_id) ?? undefined })) : []}
         .floorImage=${b.floorImages}
         .hideFloorImage=${!this.layers.has('photo')}
         .roomStates=${this.roomStateLayer}

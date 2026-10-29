@@ -41,7 +41,8 @@
       "seed": "frontend/tests/fixtures/seed_floor_plan.py",
       "pw_env": {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1"},
       "specs": {
-        "evidence-custom-roles.spec.ts": {"gate": false, "projects": ["desktop"]}
+        "evidence-custom-roles.spec.ts": {"gate": false, "projects": ["desktop"]},
+        "evidence-presence-2280-layout.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]}
       }
     },
     "arx": {

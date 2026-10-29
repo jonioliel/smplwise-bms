@@ -59,6 +59,22 @@ export class BuildingPresenceCard extends LitElement {
     .card[data-tone='ok'] .lamp {
       background: var(--sw-success-text);
     }
+    .foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .map {
+      color: var(--sw-accent-text, var(--sw-accent));
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      text-decoration: none;
+    }
+    .map:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 2px;
+    }
     .sub,
     .note {
       font-size: var(--sw-fs-sm);
@@ -79,6 +95,10 @@ export class BuildingPresenceCard extends LitElement {
     }
     .r[data-tone='ok'] {
       color: var(--sw-success-text);
+    }
+    .r.more {
+      color: var(--sw-text-2);
+      border-style: dashed;
     }
     .r[data-tone='unknown'] {
       border-style: dashed;
@@ -113,12 +133,14 @@ export class BuildingPresenceCard extends LitElement {
     this.toggleAttribute('data-on', v.show);
     if (!v.show) return nothing;
     const at = clockText(this.snap?.at);
+    // the home is a control screen: it never scrolls, so the room chips are capped (the full list is on the map)
+    const cap = window.matchMedia('(max-width: 700px)').matches ? 4 : 8;
     return html`<section class="card" data-tone=${v.tone} data-building-presence-card-home aria-label=${BP.heading}>
       <div class="head"><sw-icon name="users" size=${15}></sw-icon>${BP.heading}<span class="grow"></span>${at ? BP.updated(at) : nothing}</div>
       <div class="state"><span class="lamp" aria-hidden="true"></span><span data-building-presence-big>${v.big}</span></div>
       <div class="sub">${v.sub}</div>
-      <div class="rooms">${v.rooms.map((r) => html`<span class="r" data-tone=${r.tone}>${r.name} · ${r.text}</span>`)}</div>
-      <div class="note">${BP.cardNote}</div>
+      <div class="rooms" data-building-rooms>${v.rooms.slice(0, cap).map((r) => html`<span class="r" data-tone=${r.tone}>${r.name} · ${r.text}</span>`)}${v.rooms.length > cap ? html`<span class="r more" data-building-more-rooms>${BP.moreRooms(v.rooms.length - cap)}</span>` : nothing}</div>
+      <div class="foot"><span class="note">${BP.cardNote}</span><a class="map" href="#/explore" data-building-card-map>${BP.onMap}</a></div>
     </section>`;
   }
 }
