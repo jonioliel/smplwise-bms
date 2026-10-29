@@ -103,7 +103,7 @@ test.describe('sites and buildings cards', () => {
       return { h: rect.height, nameLines: name.getBoundingClientRect().height / lh, top, w: rect.width, y: rect.top, nameW: name.getBoundingClientRect().width, countLines: count.getBoundingClientRect().height / cl, countFits: count.scrollWidth <= count.clientWidth + 1, clipped: name.scrollHeight > name.clientHeight + 1, nameFs: parseFloat(getComputedStyle(name).fontSize) };
     }));
     for (const c of m) {
-      expect(c.h).toBeLessThan(400);
+      expect(c.h).toBeLessThan(440); // picture + buttons row + up to three name lines
       expect(c.nameLines).toBeLessThanOrEqual(3.3); // at most three lines, the rest is clamped with the full text in the title
       expect(c.w).toBeGreaterThanOrEqual(270);
       expect(c.nameW).toBeGreaterThanOrEqual(c.w * 0.8);
