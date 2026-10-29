@@ -116,10 +116,11 @@ for (const skin of SKINS) {
       expect(r.n).toBeGreaterThanOrEqual(3);
       expect(r.n).toBeLessThanOrEqual(4);
       expect(r.n + r.more).toBe(LOBBY_NOTICES.length - 1); // every other notice is a row or counted
+      const rows169 = r.n;
       await expect(page.locator('#nbk .nb-q h2')).toContainText('בהמשך');
       await open(page, { skin, w: 1280, h: 800 });
       r = await rows();
-      expect(r.n).toBeGreaterThanOrEqual(4);
+      expect(r.n).toBeGreaterThanOrEqual(rows169); // the taller tablet canvas never shows fewer rows (rows that do not fit are dropped, then counted)
       expect(r.n).toBeLessThanOrEqual(5);
       expect(r.n + r.more).toBe(LOBBY_NOTICES.length - 1);
       await open(page, { skin, w: 1080, h: 1920 });
