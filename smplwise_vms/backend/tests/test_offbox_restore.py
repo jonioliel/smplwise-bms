@@ -355,6 +355,7 @@ def test_every_destination_kind_round_trips_into_a_fresh_data_directory(world, m
     listed = offbox_restore.list_copies(dest)
     assert [c["name"] for c in listed] == [w.obj]
     ring = {ob.key_id(key): key}  # B holds only the exported key
+    assert w.cb.get("/api/v1/me").status_code == 200  # the administrator of B exists before the restore, as in the screen flow
     with w.app_b.state.db.connection() as conn:
         meta = offbox_restore.prepare(dest, w.obj, w.sb, current_schema=backup_svc.schema_version(conn), keys=ring)
         assert meta["plain_sha256"] == ob.sha256_file(archive), "the decrypted archive is byte-identical to the original"
