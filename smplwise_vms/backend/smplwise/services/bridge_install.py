@@ -152,6 +152,9 @@ def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connectio
 def install(db: Database, settings: Settings, force: bool = False, announce: bool = True, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
     """Copy the integration into Home Assistant's config directory when missing/outdated (or forced).
     `conn` is the request transaction when called from a handler (a nested connection would wait on it)."""
+    if conn is None:
+        with db.connection(label="automatic WisKey installation") as owned:
+            return install(db,settings,force,announce,owned)
     with _lock:
         STATE["last_run"] = now_iso()
         STATE["last_error"] = None
@@ -172,7 +175,10 @@ def install(db: Database, settings: Settings, force: bool = False, announce: boo
         STATE["installed_version"] = installed
         STATE["installed_at"] = _marker(target).get("at") if installed else None
         try:
-            if force or installed != STATE["source_version"]:
+            from .wiskey_distribution_digest import digest
+            if force or not target.is_dir() or digest(src)!=digest(target):
+                from .wiskey_native_projection import invalidate
+                invalidate(cfg)
                 (cfg / "custom_components").mkdir(exist_ok=True)
                 n = _copy_tree(src, target)
                 at = now_iso()
@@ -183,14 +189,14 @@ def install(db: Database, settings: Settings, force: bool = False, announce: boo
             STATE["last_error"] = f"copy_failed:{type(exc).__name__}"
             log.warning("bridge integration copy failed: %s", type(exc).__name__)
             return status(db, conn)
-        # WISKEY-ADOPT-2272: the pinned WisKey native bundle next to the bridge (staging, one restart per digest) - only with the
-        # `wiskey.auto_install` switch on; it never blocks the bridge's own copy or its announcement
-        from . import wiskey_auto_install as wai
+    # WISKEY-ADOPT-2272: the pinned WisKey native bundle next to the bridge (staging, one restart per digest) - only with the
+    # `wiskey.auto_install` switch on; it never blocks the bridge's own copy or its announcement
+    from . import wiskey_auto_install as wai
 
-        wai.installer_step(db, settings, cfg, src, conn=conn, restart=announce)
-        if announce:
-            announce_discovery(db, settings, conn)
-        return status(db, conn)
+    wai.installer_step(db, settings, cfg, src, conn=conn, restart=announce)
+    if announce:
+        announce_discovery(db, settings, conn)
+    return status(db, conn)
 
 
 def run_startup(db: Database, settings: Settings) -> None:

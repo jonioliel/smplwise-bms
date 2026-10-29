@@ -7,14 +7,16 @@ directory) with ONE GrantRef per paired bridge entry (`authority_mode = permanen
 READS it: it never creates, renews or edits a grant, and nothing here asks the owner for a key, an id, a GrantRef or a template ref.
 The config directory is the add-on's mapping (`bridge_install.ha_config_dir`: `/homeassistant`, legacy `/config`).
 
-What the delivery does on its own and what Arx keeps behind ONE switch (`wiskey.auto_install`, default OFF, no screen):
+What the delivery does on its own and what Arx keeps behind ONE switch (`wiskey.auto_install`, default OFF, no screen; owner decision
+confirmed 29.10 for 2.27.2, it overrides the R3 delivery's "automatic, no switch" policy - docs/changes/WISKEY-R3-2272.md):
 - reading the manifest, validating it and reporting its state: always (read-only, no I/O towards WisKey);
 - staging the pinned native bundle into the config directory, the bridge's automatic-install discovery flag, the one restart per
-  source digest, filling the unset station provider (`auto`; every feature switch is an owner step - review M1) and the template
-  registry sync: ONLY with the switch on. Until the
-  owner turns it on (joint session, owner28 OWNER-JOINT-LIVE), the installation stays exactly as it is - no WisKey release reaches the
-  owner's system, no restart, no switch moves, nothing is sent.
-Setup / restart / reconcile never open a door and never send a message by themselves (delivery `installer_effects`).
+  source digest, the readiness observation, the existing-WhatsApp source export, filling the unset station provider (`auto`; every
+  feature switch is an owner step - review M1) and the template registry sync: ONLY with the switch on.
+- a foreign / already installed `hikvision_intercom` (installed by hand, edited, or newer) is left exactly as it is
+  (`native_foreign_installed` / `native_newer_installed`); a tree Arx staged and then replaces is kept as `.smplwise-backup`.
+Arx journal decides generation/claim/restart; Native executes the signed claim and reports readiness. Setup / restart / reconcile never
+open a door, never start a microphone session and never send a message by themselves.
 """
 from __future__ import annotations
 
@@ -427,8 +429,8 @@ def activate_software(db: Any) -> bool:
                 set_setting(conn, key, value)
                 audit(conn, actor=None, action=AUDIT_ACTIVATE, decision="allowed", resource_type="setting", resource_id=key,
                       details={"key": key, "before": None, "after": value})
-    # the code-level template permit (`intercom_messaging_adapter.TEMPLATE_SEND_SUPPORTED`) is NOT flipped here: a real WhatsApp send
-    # stays a joint owner session decision (owner28 OWNER-JOINT-LIVE); the delivery set it True at start-up
+    # R3 delivery also switched on template send, people messaging, pacing and the code-level send permit here: NOT adopted (owner
+    # decision: every feature switch and the permit `intercom_messaging_adapter.TEMPLATE_SEND_SUPPORTED` stay joint-session owner steps)
     return True
 
 
@@ -549,37 +551,78 @@ def stage_native_bundle(config_root: Path, source: Path, staged_digest: str | No
         if staged_digest is None or current != staged_digest:
             return "native_foreign_installed"
     (Path(config_root) / "custom_components").mkdir(exist_ok=True)
+    from .wiskey_native_projection import invalidate
+    invalidate(config_root)
     _swap_with_backup(source, target)
     return "staged"
 
 
-def request_component_restart(db: Any, settings: Any, source: Path, *, conn: Any = None) -> str:
-    """ONE platform restart per staged source digest, claimed durably BEFORE the call (WisKey R2 align: through the generation journal,
-    `wiskey_install_generation` - claim and outcome are compare-and-set on the generation and the claim token, the lock is not held
-    during the call). A lost or failed answer is `restart_unknown`; the same digest again is `already_requested`; a request whose
-    generation was superseded meanwhile is `superseded` (nothing is recorded for it). Only with the switch on (the caller checks)."""
+def request_component_restart(db: Any, settings: Any, source: Path, *, conn: Any = None, trace=None) -> str:
+    """Arx journal is the ONE controller. Native v2 only executes the captured claim."""
     from ..db import unlocked
-    from ..errors import ApiError
-    from . import ha_client
     from . import wiskey_install_generation as gen
-
-    value = source_digest(source)
-    generation_id = gen.begin(db, conn, value)
-    claim = gen.claim_restart(db, conn, generation_id, value)
+    from . import wiskey_native_projection as projection
+    context=projection.context(source)
+    value=projection.pair_digest(context[1]) if context else source_digest(source)
+    if context:
+        previous=gen.read(db,conn)
+        if previous is None or previous["digest"]!=value:projection.invalidate(context[0])
+        projection.migrate_r2(db,conn,context[0],context[1],source_digest(source))
+    generation_id=gen.begin(db,conn,value)
+    claim=gen.claim_restart(db,conn,generation_id,value)
     if claim is None:
-        current = gen.read(db, conn)
-        return "already_requested" if current is not None and current.get("generation_id") == generation_id else "superseded"
-    ok = True
+        current=gen.read(db,conn)
+        return "already_requested" if current is not None and current.get("generation_id")==generation_id else "superseded"
+    ok=True;boot=None
+    def outside():
+        if context:
+            doc=projection.publish(db,context[0],context[1],generation_id=generation_id,claim=claim)
+            if doc is None:raise InstallationError("restart_claim_stale")
+        return dispatch_claimed_restart(db,settings,context,generation_id,claim,value,trace=trace)
     try:
-        if conn is None:
-            ha_client.call_service(settings, "homeassistant", "restart", {})
+        if conn is None:boot=outside()
         else:
-            with unlocked(conn):  # commits the claim before the call leaves
-                ha_client.call_service(settings, "homeassistant", "restart", {})
-    except ApiError:
-        ok = False  # the claimed digest forbids a blind replay
-    gen.finish_restart(db, conn, generation_id, claim, ok)  # stale (a newer generation) -> nothing recorded
+            with unlocked(conn):boot=outside()
+    except Exception:
+        ok=False  # ambiguity is retained, never replayed
+    gen.finish_restart(db,conn,generation_id,claim,ok)
+    if context:
+        # Projection is evidence of committed state, never a second decision.
+        if conn is None:projection.publish(db,context[0],context[1],generation_id=generation_id,claim=claim,restart_boot_id=boot)
+        else:
+            with unlocked(conn):projection.publish(db,context[0],context[1],generation_id=generation_id,claim=claim,restart_boot_id=boot)
     return "requested" if ok else "restart_unknown"
+
+
+def dispatch_claimed_restart(db,settings,context,generation_id,claim,digest,*,trace=None):
+    """Select one transport under the SAME durable Arx claim; no fallback after I/O."""
+    from . import ha_client
+    if context:
+        cfg,expected=context
+        try:manifest=read_checked_installation(cfg)
+        except InstallationError:manifest=None
+        if manifest is not None and "installation/request_restart_v2" in manifest["commands"]:
+            async def native():
+                client=InstalledWiskeyClient(settings,cfg)
+                try:
+                    await client.connect()
+                    from . import wiskey_r2_contracts
+                    prior=wiskey_r2_contracts.read_readiness(await client.call("installation/readiness_v1",{}),client.manifest)
+                    from .wiskey_native_projection import publish,save_observation
+                    publish(db,cfg,expected,generation_id=generation_id,claim=claim,restart_boot_id=prior["boot_id"])
+                    from . import wiskey_install_generation as gen
+                    save_observation(db,gen.read(db),prior,"before_dispatch")
+                    if trace is not None:trace("dispatch_native_v2")
+                    result=await client.call("installation/request_restart_v2",{"schema_version":2,"generation_id":generation_id,"claim_id":claim,"source_digest":digest,"expected":expected})
+                    if (type(result) is not dict or result.get("contract")!="wiskey-installation-restart.v2" or result.get("generation_id")!=generation_id or result.get("claim_id")!=claim or result.get("state") not in {"accepted","already_recorded"} or result.get("execution_state")!="accepted" or result.get("replay_available") is not False):raise InstallationError("restart_execution_invalid")
+                    return result["request_boot_id"]
+                finally:await client.close()
+            return asyncio.run(native())
+    # First bootstrap before the Native route is loaded: original selected HA
+    # service channel, exactly once, with its existing authentication and timeout.
+    if trace is not None:trace("dispatch_original_ha_service")
+    ha_client.call_service(settings,"homeassistant","restart",{})
+    return None
 
 
 def _staged_digest(db: Any, conn: Any) -> str | None:
@@ -622,7 +665,25 @@ def installer_step(db: Any, settings: Any, config_root: Path, bridge_source: Pat
             return dict(NATIVE)
         _store_staged_digest(db, conn, source_digest(source))
         NATIVE.update(state=staged, code=None)
-        if restart and staged == "staged":
+        from . import wiskey_native_projection as projection, wiskey_install_generation as gen
+        context=projection.context(source)
+        if context:
+            projection.migrate_r2(db,conn,config_root,context[1],source_digest(source))
+            gid=gen.begin(db,conn,projection.pair_digest(context[1]))
+            from ..db import unlocked
+            if conn is None:projection.publish(db,config_root,context[1],generation_id=gid)
+            else:
+                with unlocked(conn):projection.publish(db,config_root,context[1],generation_id=gid)
+        # Same existing integration, read-only metadata export. Missing metadata
+        # never blocks authority/events/readiness or overwrites resources.json.
+        def export_source():
+            from .wiskey_existing_whatsapp_source import export
+            try:export(db,config_root)
+            except (ValueError,OSError):log.warning("existing WhatsApp source export unavailable; previous export preserved")
+        if conn is None:export_source()
+        else:
+            with unlocked(conn):export_source()
+        if restart and (staged == "staged" or context and gen.read(db,conn)["state"]==gen.STAGED):
             NATIVE["restart"] = request_component_restart(db, settings, source, conn=conn)
     except InstallationError as exc:
         NATIVE.update(state="error", code=exc.code)
@@ -679,6 +740,14 @@ def reconcile_due(db: Any, settings: Any, *, now: float | None = None) -> str | 
     if t - _last_reconcile["at"] < RECONCILE_EVERY_S:
         return None
     _last_reconcile["at"] = t
+    if not switch_on_db(db):
+        return reconcile_installation(db, settings)  # "off": no readiness observation, no installation effect with the switch off
+    proof=observe_readiness(db,settings)
+    if proof not in {"ready","not_mapped"}:return proof
+    if proof=="ready":
+        activate_software(db)
+        from . import wiskey_direct_join
+        if wiskey_direct_join.JOIN is None:wiskey_direct_join.startup(db,settings)
     return reconcile_installation(db, settings)
 
 
@@ -833,3 +902,70 @@ def installed_snapshot(settings: Any, station_id: str, config_root: Path | str |
         if exc.code in SNAPSHOT_CODES_FALLBACK:
             return None
         raise
+
+
+def route_snapshot(settings: Any, station_id: str) -> tuple[bytes, str] | None:
+    """The one place both still routes (`GET /access-control/stations/{id}/thumbnail.jpg` and the entry-center door cards'
+    `GET /intercom/stations/{id}/camera-snapshot.jpg`) ask the installed WisKey for a still (WISKEY-R3-2272, nine-ask 5).
+    THE CALLER CHECKS THE SWITCH (`switch_on`) first. None = the native side has no still for this station (zero cameras, no entity,
+    not supported): the caller keeps its own path. Any other native answer (ambiguous camera, source changed, bad contract, transport) is a closed 503
+    `intercom_snapshot_not_ready` - no first-camera guess and no cause text. Run it in a worker thread (own event loop)."""
+    from ..errors import ApiError
+
+    try:
+        return installed_snapshot(settings, station_id)
+    except Exception:  # noqa: BLE001 - closed answer, never the cause text
+        raise ApiError(503, "intercom_snapshot_not_ready", "Installed station snapshot is not ready.") from None
+
+
+READINESS_DEADLINE_S=120.0  # observation policy, not a measured recovery SLA
+READ_BACKOFF_S=(0.25,0.5,1.0,2.0,5.0)
+
+
+def observe_readiness(db,settings,*,deadline_s=READINESS_DEADLINE_S):
+    """Only READ retries. Deadline/UNKNOWN never issue another restart."""
+    import time
+    from .bridge_install import ha_config_dir
+    from . import wiskey_install_generation as gen,wiskey_r2_contracts as contracts
+    cfg=ha_config_dir()
+    if cfg is None:return "not_mapped"
+    journal=gen.read(db)
+    if journal is None:return "generation_missing"
+    async def read():
+        client=InstalledWiskeyClient(settings,cfg)
+        try:
+            await client.connect()
+            raw=await client.call("installation/readiness_v1",{})
+            answer=contracts.read_readiness(raw,client.manifest)
+            if answer["generation_id"]!=journal["generation_id"]:raise InstallationError("installation_generation_changed")
+            if "installation/capability_preflight_v1" in client.manifest["commands"]:
+                preflight=await client.call("installation/capability_preflight_v1",{})
+                from .wiskey_runtime_preflight import save_preflight
+                save_preflight(db,preflight)
+            return answer
+        finally:await client.close()
+    end=time.monotonic()+(0 if deadline_s is None else max(0,deadline_s));attempt=0
+    while True:
+        try:
+            async def bounded_read():
+                if deadline_s is None:return await read()
+                return await asyncio.wait_for(read(),max(.001,end-time.monotonic()))
+            answer=asyncio.run(bounded_read())
+            if answer["state"]=="ready":
+                from ..db import get_setting
+                from .wiskey_native_projection import EVIDENCE_KEY
+                with db.connection(mode="read") as conn:evidence=json.loads(get_setting(conn,EVIDENCE_KEY) or '{}')
+                if evidence.get("generation_id")!=journal["generation_id"] or evidence.get("expected")!=answer["expected"]:
+                    raise InstallationError("installation_generation_changed")
+                if journal["claim"] is not None and evidence.get("restart_boot_id")==answer["boot_id"]:
+                    raise InstallationError("restart_not_observed")
+                if gen.record_proof(db,journal["generation_id"],"reconcile","readiness_verified")==gen.STALE:return "superseded"
+                from .wiskey_native_projection import save_observation
+                save_observation(db,journal,answer,"ready")
+                return "ready"
+        except Exception:answer=None
+        if time.monotonic()>=end:
+            from .wiskey_native_projection import save_observation
+            save_observation(db,journal,answer,"deadline" if deadline_s is not None else "not_ready")
+            return "readiness_deadline" if deadline_s is not None else "not_ready"
+        time.sleep(min(READ_BACKOFF_S[min(attempt,len(READ_BACKOFF_S)-1)],max(0,end-time.monotonic())));attempt+=1

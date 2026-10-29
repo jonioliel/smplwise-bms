@@ -2,7 +2,7 @@
 
 DOMAIN = "hikvision_intercom"
 MAX_AUDIO_SESSIONS = 3
-VERSION = "2.0.0-rc.38"
+VERSION = "2.0.0-rc.39+arx-align.20261029.04"
 PLATFORMS = ("binary_sensor", "sensor", "camera", "lock", "event")
 DEFAULT_IDLE_INTERVAL = 2.0
 DEFAULT_ACTIVE_INTERVAL = 0.75

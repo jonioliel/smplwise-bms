@@ -90,9 +90,9 @@ def test_event_retention_is_what_the_install_reports_and_never_a_guarantee() -> 
 
 def test_code_table_is_compact_complete_and_unknown_codes_stay_unknown() -> None:
     t = r2.public_outcomes()
-    assert len(t["CODES"]) == 914 and len(t["OUTCOME_CONTRACT_ROWS"]) == 54 and t["UNRECOGNIZED_VALUE"]["wire_code_must_not_be_rewritten"] is True
+    assert len(t["CODES"]) == 926 and len(t["OUTCOME_CONTRACT_ROWS"]) == 54 and t["UNRECOGNIZED_VALUE"]["wire_code_must_not_be_rewritten"] is True
     assert r2.outcome_known("Unauthorized") and not r2.outcome_known("invented_code") and not r2.outcome_known(None)
-    assert "sources" not in json.dumps(t)[:200] and (REPO / "contracts/wiskey/r2/public_outcomes.compact.json").stat().st_size < 200_000
+    assert "sources" not in json.dumps(t)[:200] and (REPO / "contracts/wiskey/alignment-v1/public_outcomes.v2.compact.json").stat().st_size < 200_000
 
 
 def test_shipped_schemas_are_valid_json_schemas_and_refs_resolve() -> None:

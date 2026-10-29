@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/v1/installation-readiness.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "const": "wiskey-installation-readiness.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "state": {
+      "enum": [
+        "ready",
+        "not_ready"
+      ]
+    },
+    "reason": {
+      "enum": [
+        null,
+        "generation_missing",
+        "generation_invalid",
+        "generation_not_installed",
+        "bridge_not_loaded",
+        "distribution_digest_mismatch",
+        "generation_or_distribution_unavailable",
+        "restart_pending",
+        "restart_request_failed"
+      ]
+    },
+    "generation_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "boot_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "process_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expected": {
+      "$ref": "definitions.json#/$defs/ComponentDigests"
+    },
+    "staged": {
+      "$ref": "definitions.json#/$defs/ComponentDigests"
+    },
+    "installed": {
+      "$ref": "definitions.json#/$defs/ComponentDigests"
+    },
+    "loaded": {
+      "type": "object",
+      "properties": {
+        "smplwise_bridge": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hikvision_intercom": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "bridge_boot_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "restart": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "enum": [
+                "not_requested",
+                "requested",
+                "failed",
+                "unknown",
+                "completed"
+              ]
+            },
+            "boot_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "state",
+            "boot_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "connection_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "bridge_entry_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "installation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "grant_ref": {
+      "$ref": "definitions.json#/$defs/GrantRef"
+    },
+    "cloud_resources_state": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "contract",
+    "schema_version",
+    "state",
+    "reason",
+    "generation_id",
+    "boot_id",
+    "process_id",
+    "expected",
+    "staged",
+    "installed",
+    "loaded",
+    "bridge_boot_id",
+    "restart",
+    "connection_ref",
+    "bridge_entry_id",
+    "installation_id",
+    "grant_ref",
+    "cloud_resources_state"
+  ],
+  "additionalProperties": false
+}

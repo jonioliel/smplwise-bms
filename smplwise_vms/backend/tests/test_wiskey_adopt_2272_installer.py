@@ -72,7 +72,10 @@ def test_switch_on_stages_the_pinned_bundle_and_requests_one_restart_per_digest(
     assert wai.source_digest(target) == wai.source_digest(BUNDLE)
     assert supervisor["restart"] == [("homeassistant", "restart")] and supervisor["discovery"][0]["wiskey_auto_install"] is True
     with app.state.db.connection() as conn:
-        assert get_setting(conn, wai.RESTART_DIGEST_KEY) == wai.source_digest(BUNDLE)
+        # WISKEY-R3-2272: the restart intent is keyed by the digest of the PAIR (bridge + native), not the native tree alone
+        from smplwise.services import wiskey_native_projection as proj
+
+        assert get_setting(conn, wai.RESTART_DIGEST_KEY) == proj.pair_digest(proj.context(BUNDLE)[1])
     again = bridge_install.install(app.state.db, settings)  # same source: up to date, no second restart
     assert again["wiskey_native"]["state"] == "up_to_date" and supervisor["restart"] == [("homeassistant", "restart")]
     assert "path" not in str(again["wiskey_native"]).lower() and str(ha_cfg) not in str(again["wiskey_native"])

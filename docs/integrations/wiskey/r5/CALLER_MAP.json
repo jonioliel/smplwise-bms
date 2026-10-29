@@ -1,10 +1,10 @@
 {
  "schema": "wkr5-caller-map.v1",
- "catalog_source_sha256": "15ad9de70fd5929053d1aeba60b0c33e723ef8197624e0f43544db4571e589bf",
- "implementation_input_CODE": "0a099c53d359a1bffdf9e63f31d2433f1c9445a4",
+ "catalog_source_sha256": "3123d20d086856f981f22c0604a4e951350482587d530a6e9a2c054898a4642e",
+ "implementation_input_CODE": "4407121a8ad9df2bbebc07161808bbbc2664b592",
  "method": "string-literal scan of smplwise_vms/backend/smplwise/**/*.py; a caller candidate is not a send, an acceptance or an installation",
- "family_count": 43,
- "command_count": 286,
+ "family_count": 44,
+ "command_count": 294,
  "families": {
   "acceptance": {
    "commands": {
@@ -487,6 +487,13 @@
      "owner_excluded_write": false,
      "arx_callers": []
     },
+    "events/retention_policy_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
     "events/support": {
      "row_kind": "COMMAND",
      "direct_envelope": "wiskey-bridge-command.v1",
@@ -684,6 +691,61 @@
     "smplwise/services/wiskey_channels.py"
    ]
   },
+  "installation": {
+   "commands": {
+    "installation/capability_preflight_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
+     ]
+    },
+    "installation/readiness_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
+     ]
+    },
+    "installation/request_restart_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "installation/request_restart_v2": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
+     ]
+    },
+    "installation/retire_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "installation/template_source_status_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/wiskey_auto_install.py"
+   ]
+  },
   "investigations": {
    "commands": {
     "investigations/query": {
@@ -709,14 +771,14 @@
      "row_kind": "COMMAND",
      "direct_envelope": "wiskey-bridge-command.v1",
      "discovered_for_native_owner": true,
-     "owner_excluded_write": false,
+     "owner_excluded_write": true,
      "arx_callers": []
     },
     "jobs/approval_request": {
      "row_kind": "COMMAND",
      "direct_envelope": "wiskey-bridge-command.v1",
      "discovered_for_native_owner": true,
-     "owner_excluded_write": false,
+     "owner_excluded_write": true,
      "arx_callers": []
     },
     "jobs/approval_review": {
@@ -813,6 +875,15 @@
       "smplwise/services/wiskey_media_contract.py"
      ]
     },
+    "media/station_snapshot_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
+     ]
+    },
     "media/stream_lease": {
      "row_kind": "COMMAND",
      "direct_envelope": "wiskey-bridge-command.v1",
@@ -861,6 +932,7 @@
    },
    "arx_callers": [
     "smplwise/services/intercom_client.py",
+    "smplwise/services/wiskey_auto_install.py",
     "smplwise/services/wiskey_channels.py",
     "smplwise/services/wiskey_media_contract.py"
    ]
@@ -2477,7 +2549,9 @@
      "direct_envelope": "wiskey-bridge-command.v1",
      "discovered_for_native_owner": true,
      "owner_excluded_write": false,
-     "arx_callers": []
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
+     ]
     },
     "whatsapp/template_send_v1": {
      "row_kind": "COMMAND",

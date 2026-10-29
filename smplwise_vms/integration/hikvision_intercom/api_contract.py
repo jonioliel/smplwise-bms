@@ -7,6 +7,11 @@ from .arx_preview_features import published
 API_VERSION = 1
 MIN_CLIENT = 0  # Legacy clients remain compatible with the existing command shapes.
 CAPABILITIES = [
+    "installation_readiness_v1",
+    "installation_retirement_v1",
+    "installation_restart_v1",
+    "station_snapshot_v1",
+    "event_retention_policy_v1",
     "permanent_local_installation_v1",
     "durable_template_jobs_v1",
     "durable_event_cursor_v1",
@@ -76,6 +81,9 @@ def contract(commands: list[str]) -> dict:
 
 READ_COMMANDS = frozenset(
     {
+        "installation/readiness_v1",
+        "events/retention_policy_v1",
+        "media/station_snapshot_v1",
         "platform/get",
         "platform/capacity",
         "platform/config_pending",

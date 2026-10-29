@@ -47,6 +47,13 @@ class BridgeExecutionBinding:
         self.check_terminal_origin()
         host, _origin, _ports, _epoch, _user, _connection, deadline = _EXECUTIONS[self]
         owner = BridgeCommandHost._owner(host)
+        authority = owner.namespace.get("native_auto_installation")
+        if (
+            authority is not None
+            and authority.state["entries"].get(_epoch.entry.entry_id, {}).get("retired_generation")
+            is not None
+        ):
+            raise Refusal("installation_retired")
         if owner.auth.clock().now >= deadline:
             raise Refusal("Unauthorized")
         return owner.repository
@@ -165,6 +172,15 @@ class VerifiedBridgePrincipal:
         host, proof, command, issued, expires, _user, _connection, epoch = record
         owner = BridgeCommandHost._owner(host)
         owner.auth.check(proof)
+        authority = owner.namespace.get("native_auto_installation")
+        if (
+            authority is not None
+            and authority.state["entries"].get(epoch.entry.entry_id, {}).get("retired_generation")
+            is not None
+            and command
+            not in {"installation/retire_v1", "users/service_write_status_v1", "features/result"}
+        ):
+            raise Refusal("installation_retired")
         now = owner.auth.clock().now
         if (
             proof.body["kind"] != KIND
@@ -496,8 +512,16 @@ async def dispatch_legacy_bridge(hass, connection, message, command, schema, fie
 
         async def execute():
             return await _dispatch_bridge_principal(
-                hass, connection, message, command, schema, fields,
-                principal, parameters, None, None
+                hass,
+                connection,
+                message,
+                command,
+                schema,
+                fields,
+                principal,
+                parameters,
+                None,
+                None,
             )
 
         return await dispatch_service(hass, principal, metadata, parameters, execute)

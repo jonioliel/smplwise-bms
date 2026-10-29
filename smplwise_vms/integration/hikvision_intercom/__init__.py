@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import os as _distribution_os
+import uuid as _distribution_uuid
 from importlib.util import find_spec
+from pathlib import Path as _DistributionPath
 from typing import TYPE_CHECKING
 
 from .const import DOMAIN
+from .installation_files import digest as _distribution_digest
+
+LOADED_DISTRIBUTION = _distribution_digest(_DistributionPath(__file__).parent)
+LOADED_BOOT_ID = _distribution_uuid.uuid4().hex
+LOADED_PROCESS_ID = _distribution_os.getpid()
 
 # Standalone protocol tools intentionally do not require installing HA.
 if find_spec("homeassistant") is not None:

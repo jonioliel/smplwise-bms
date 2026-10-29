@@ -4,13 +4,14 @@ finding WIN-R2-ARX-GEN-01 fixed in Arx's own code - docs/changes/WISKEY-R2-ALIGN
 One journal document per Arx install (setting `wiskey.installation.generation`, never in a backup: prefix `wiskey.installation.`):
 {generation_id, digest, state, claim, proof, updated}. A generation is one staged source digest. Rules:
 
-* every read-modify-write runs under ONE shared process lock AND inside a write transaction (BEGIN IMMEDIATE), so a read and the write
+* every read-modify-write acquires the original DB writer BEFORE the shared process lock and runs inside a write transaction (BEGIN IMMEDIATE), so a read and the write
   that follows it can not be separated by another thread or process;
 * every update is a compare-and-set on (generation_id, expected state, claim token); a mismatch changes nothing and says `stale`;
 * the lock is released BEFORE any outside I/O (platform restart call, WisKey registry read); the outcome is applied afterwards by a
   fresh CAS, so a late result of generation A can never mark or overwrite generation B;
 * nothing here has an effect by itself: callers are behind `wiskey.auto_install` (default OFF).
 """
+
 from __future__ import annotations
 
 import json
@@ -23,11 +24,20 @@ from typing import Any, Callable, Iterator
 GENERATION_KEY = "wiskey.installation.generation"
 RESTART_DIGEST_KEY = "wiskey.installation.restart_digest"  # kept in step with the journal (older readers / tests)
 
-STAGED, CLAIMED, REQUESTED, UNKNOWN = "staged", "restart_claimed", "restart_requested", "restart_unknown"
+STAGED, CLAIMED, REQUESTED, UNKNOWN = (
+    "staged",
+    "restart_claimed",
+    "restart_requested",
+    "restart_unknown",
+)
 STALE = "stale"
 
-JOURNAL_LOCK = threading.RLock()  # the one shared lock of every journal read-modify-write
-_test_hook: Callable[[str], None] | None = None  # tests only: called inside the critical section, never set in production
+JOURNAL_LOCK = (
+    threading.RLock()
+)  # the one shared lock of every journal read-modify-write
+_test_hook: Callable[[str], None] | None = (
+    None  # tests only: called inside the critical section, never set in production
+)
 
 
 def _hook(point: str) -> None:
@@ -54,14 +64,20 @@ def _load(conn: Any) -> dict[str, Any] | None:
         doc = json.loads(raw)
     except ValueError:
         return None
-    return doc if isinstance(doc, dict) and isinstance(doc.get("generation_id"), str) else None
+    return (
+        doc
+        if isinstance(doc, dict) and isinstance(doc.get("generation_id"), str)
+        else None
+    )
 
 
 def _store(conn: Any, doc: dict[str, Any]) -> None:
     from ..db import set_setting
 
     doc["updated"] = round(time.time(), 3)
-    set_setting(conn, GENERATION_KEY, json.dumps(doc, sort_keys=True, separators=(",", ":")))
+    set_setting(
+        conn, GENERATION_KEY, json.dumps(doc, sort_keys=True, separators=(",", ":"))
+    )
 
 
 def read(db: Any, conn: Any = None) -> dict[str, Any] | None:
@@ -76,13 +92,19 @@ def begin(db: Any, conn: Any, digest: str) -> str:
     that supersedes the old one. A legacy restart claim for the same digest (setting only, no journal) is carried over as claimed."""
     from ..db import get_setting
 
-    with JOURNAL_LOCK:
-        with _tx(db, conn, "wiskey generation begin") as c:
+    with _tx(db, conn, "wiskey generation begin") as c:
+        with JOURNAL_LOCK:
             cur = _load(c)
             _hook("begin:read")
             if cur is not None and cur.get("digest") == digest:
                 return str(cur["generation_id"])
-            doc: dict[str, Any] = {"generation_id": uuid.uuid4().hex, "digest": digest, "state": STAGED, "claim": None, "proof": None}
+            doc: dict[str, Any] = {
+                "generation_id": uuid.uuid4().hex,
+                "digest": digest,
+                "state": STAGED,
+                "claim": None,
+                "proof": None,
+            }
             if get_setting(c, RESTART_DIGEST_KEY) == digest:
                 doc.update(state=UNKNOWN, claim="legacy")
             _store(c, doc)
@@ -94,11 +116,16 @@ def claim_restart(db: Any, conn: Any, generation_id: str, digest: str) -> str | 
     not current, is not `staged`, or the digest was already claimed (so two requests can never both go out)."""
     from ..db import set_setting
 
-    with JOURNAL_LOCK:
-        with _tx(db, conn, "wiskey generation claim") as c:
+    with _tx(db, conn, "wiskey generation claim") as c:
+        with JOURNAL_LOCK:
             cur = _load(c)
             _hook("claim:read")
-            if cur is None or cur.get("generation_id") != generation_id or cur.get("digest") != digest or cur.get("state") != STAGED:
+            if (
+                cur is None
+                or cur.get("generation_id") != generation_id
+                or cur.get("digest") != digest
+                or cur.get("state") != STAGED
+            ):
                 return None
             token = uuid.uuid4().hex
             cur.update(state=CLAIMED, claim=token)
@@ -110,11 +137,16 @@ def claim_restart(db: Any, conn: Any, generation_id: str, digest: str) -> str | 
 def finish_restart(db: Any, conn: Any, generation_id: str, claim: str, ok: bool) -> str:
     """Apply the outcome of the restart call (made OUTSIDE the lock) by CAS on (generation, claim, state `restart_claimed`).
     A superseded generation or a foreign claim returns `stale` and writes nothing."""
-    with JOURNAL_LOCK:
-        with _tx(db, conn, "wiskey generation finish") as c:
+    with _tx(db, conn, "wiskey generation finish") as c:
+        with JOURNAL_LOCK:
             cur = _load(c)
             _hook("finish:read")
-            if cur is None or cur.get("generation_id") != generation_id or cur.get("claim") != claim or cur.get("state") != CLAIMED:
+            if (
+                cur is None
+                or cur.get("generation_id") != generation_id
+                or cur.get("claim") != claim
+                or cur.get("state") != CLAIMED
+            ):
                 return STALE
             cur["state"] = REQUESTED if ok else UNKNOWN
             _store(c, cur)
@@ -127,12 +159,16 @@ def record_proof(db: Any, generation_id: str, intent: str, outcome: str) -> str:
     overwritten by A's proof. The state / claim / digest are never touched by a proof."""
     if intent not in ("reconcile",):
         return STALE
-    with JOURNAL_LOCK:
-        with _tx(db, None, "wiskey generation proof") as c:
+    with _tx(db, None, "wiskey generation proof") as c:
+        with JOURNAL_LOCK:
             cur = _load(c)
             _hook("proof:read")
             if cur is None or cur.get("generation_id") != generation_id:
                 return STALE
-            cur["proof"] = {"intent": intent, "outcome": outcome, "at": round(time.time(), 3)}
+            cur["proof"] = {
+                "intent": intent,
+                "outcome": outcome,
+                "at": round(time.time(), 3),
+            }
             _store(c, cur)
             return "recorded"

@@ -22,5 +22,5 @@
     "httpx==0.28.1",
     "cryptography>=48.0.1,<51"
   ],
-  "version": "2.0.0-rc.38"
+  "version": "2.0.0-rc.39+arx-align.20261029.04"
 }

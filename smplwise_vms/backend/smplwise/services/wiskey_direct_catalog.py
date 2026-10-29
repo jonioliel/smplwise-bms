@@ -29,7 +29,11 @@ OWNER_EXCLUDED_WRITES: the job-approval WRITES (owner decision before 28.10). WI
 installation, "no artificial allowlist of targets/fields/actions for the installed Arx") conflicts with it; review M2 keeps the exclusion
 unless `wiskey.auto_install` is on, and the owner confirms in writing before turning it on. WisKey's own business approvals, schema, CAS
 and authority checks stay authoritative. The contradiction is recorded in docs/changes/WISKEY-ADOPT-2272.md; Arx has no caller of either
-write."""
+write.
+WISKEY-R3-2272 (R3 delivery 07_jobs_approval): WisKey's own signed-actor, `confirmed`, revision, 24h-review and different-approver rules stay
+authoritative inside Native; the two writes raise a revision without starting a job and `review_id` is read only from read-review. The
+delivery's assembled file emptied OWNER_EXCLUDED_WRITES for good; Arx keeps review M2 (excluded unless the installation switch is on),
+in line with the owner's 29.10 decision that every installation effect stays behind `wiskey.auto_install`."""
 from __future__ import annotations
 
 import hashlib

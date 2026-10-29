@@ -116,13 +116,9 @@ def station_thumbnail(request: Request, auth: ia.Authority = Depends(_gate(READ)
     if not station.get("camera_entity"):
         raise ApiError(404, "intercom_no_camera", "Station has no camera entity.")
     headers = {"Cache-Control": "private, no-store", "X-Snapshot-Stale": "false"}
-    if wai.switch_on(auth.conn):
-        try:
-            still = wai.installed_snapshot(settings, station_id)
-        except Exception:  # noqa: BLE001 - closed answer, never the cause text
-            raise ApiError(503, "intercom_snapshot_not_ready", "Installed station snapshot is not ready.") from None
-        if still is not None:
-            return Response(still[0], media_type=still[1], headers=headers)
+    still = wai.route_snapshot(settings, station_id) if wai.switch_on(auth.conn) else None
+    if still is not None:
+        return Response(still[0], media_type=still[1], headers=headers)
     provider = im.provider_for(settings, auth.conn)
     try:
         descriptor = im.MEDIA.descriptor(provider, auth.conn, settings, station)

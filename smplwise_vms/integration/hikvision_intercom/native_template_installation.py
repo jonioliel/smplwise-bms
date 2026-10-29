@@ -331,7 +331,8 @@ class NativeTemplateInstallation:
         if self.poll_timer is not None:
             self.poll_timer.cancel()
             self.poll_timer = None
-        self.remove()
+        remove, self.remove = self.remove, lambda: None
+        remove()
         tasks = tuple(task for task in self.tasks if task is not asyncio.current_task())
         for task in tasks:
             task.cancel()

@@ -705,3 +705,14 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         await Store(hass, 1, f"{DOMAIN}_keys_{entry.entry_id}").async_remove()
     except Exception as exc:  # noqa: BLE001
         _LOGGER.warning("bridge key store not removed (%s)", type(exc).__name__)
+
+
+# Import-time distribution observation only; decisions remain in Arx SQLite (WisKey R3 alignment: the loaded pair digest the
+# native readiness reader compares with the installed and staged ones).
+from pathlib import Path as _DistributionPath
+from uuid import uuid4 as _distribution_uuid
+from os import getpid as _distribution_pid
+from .wiskey_distribution_digest import digest as _distribution_digest
+LOADED_DISTRIBUTION = _distribution_digest(_DistributionPath(__file__).parent)
+LOADED_BOOT_ID = _distribution_uuid().hex
+LOADED_PROCESS_ID = _distribution_pid()

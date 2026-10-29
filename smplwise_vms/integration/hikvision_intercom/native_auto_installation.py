@@ -19,6 +19,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.util.file import write_utf8_file_atomic
 
+from .access.models import AccessError
 from .const import DOMAIN
 from .storage import AccessStore
 from .trusted_actions.validation import Refusal, reference
@@ -79,6 +80,7 @@ class NativeAutoInstallation:
         registry = self.hass.data[DOMAIN]["native_peer_registry"]
         if (
             row is None
+            or row.get("retired_generation") is not None
             or row["repository_id"] != registry.repository_id
             or row["pairing_sha256"]
             != hashlib.sha256(entry.data.get("pairing_code", "").encode()).hexdigest()
@@ -86,6 +88,63 @@ class NativeAutoInstallation:
         ):
             raise Refusal("installation_identity_changed")
         return dict(row["grant_ref"])
+
+    def generation(self):
+        try:
+            from .installation_controller import read_projection
+
+            value = read_projection(self.hass.config.config_dir)
+            return value["generation_id"] if value["phase"] == "installed" else None
+        except (OSError, ValueError, KeyError, AccessError):
+            return None
+
+    async def retire(self, entry):
+        async with self.lock:
+            old = self.state["entries"].get(entry.entry_id)
+            if old is None or old.get("retired_generation") is None:
+                self.grant(entry)
+                state = json.loads(json.dumps(self.state))
+                state["entries"][entry.entry_id]["retired_generation"] = (
+                    self.generation() or "unmanaged"
+                )
+                # Persist the native authority fence before cleanup and peer retirement.
+                await self.store.async_save(state)
+                self.state = state
+            elif (
+                entry.state is not ConfigEntryState.LOADED
+                or old["repository_id"]
+                != self.hass.data[DOMAIN]["native_peer_registry"].repository_id
+                or old["pairing_sha256"]
+                != hashlib.sha256(entry.data.get("pairing_code", "").encode()).hexdigest()
+            ):
+                raise Refusal("installation_identity_changed")
+            templates = self.hass.data[DOMAIN].get("native_template_installation")
+            if templates is not None:
+                await templates.close()
+                templates.state = "retired"
+            registry = self.hass.data[DOMAIN]["native_peer_registry"]
+            owner = "arx-service:" + entry.entry_id
+            binding = f"bridge:{entry.entry_id}:{owner}"
+            head = registry._stable()["heads"][binding]
+            if registry._stable()["versions"][binding][str(head)]["active"]:
+                await registry.provision(
+                    binding,
+                    expected_revision=head,
+                    verified_peer_ref="smplwise_bridge:" + entry.entry_id,
+                    query_owner_id=owner,
+                    active=False,
+                    historical_read=True,
+                    transport_entry_id=entry.entry_id,
+                )
+            path = Path(self.hass.config.path(RELATIVE_PATH))
+            await self.hass.async_add_executor_job(lambda: path.unlink(missing_ok=True))
+            return {
+                "contract": "wiskey-installation-retirement.v1",
+                "schema_version": 1,
+                "state": "retired",
+                "history": "preserved",
+                "replay_available": False,
+            }
 
     async def reconcile(self):
         async with self.lock:
@@ -106,14 +165,25 @@ class NativeAutoInstallation:
                     continue
                 digest = hashlib.sha256(material.encode()).hexdigest()
                 old = current["entries"].get(entry.entry_id)
-                if old is None or (old["repository_id"], old["pairing_sha256"]) != (
-                    registry.repository_id,
-                    digest,
+                reactivating = old is not None and old.get("retired_generation") is not None
+                if reactivating and (
+                    self.generation() is None or self.generation() == old["retired_generation"]
+                ):
+                    continue
+                if (
+                    old is None
+                    or reactivating
+                    or (old["repository_id"], old["pairing_sha256"])
+                    != (
+                        registry.repository_id,
+                        digest,
+                    )
                 ):
                     ref = "installation:" + uuid4().hex
                     old = {
                         "repository_id": registry.repository_id,
                         "pairing_sha256": digest,
+                        "retired_generation": None,
                         "grant_ref": {
                             "authority_ref": ref,
                             "authority_revision": 1,
@@ -128,17 +198,17 @@ class NativeAutoInstallation:
                 binding = f"bridge:{entry.entry_id}:{owner}"
                 table = registry._stable()
                 head = table["heads"].get(binding)
-                if head is None:
+                if head is None or reactivating:
                     await registry.provision(
                         binding,
-                        expected_revision=0,
+                        expected_revision=head or 0,
                         verified_peer_ref="smplwise_bridge:" + entry.entry_id,
                         query_owner_id=owner,
                         active=True,
                         historical_read=True,
                         transport_entry_id=entry.entry_id,
                     )
-                    head = 1
+                    head = (head or 0) + 1
                 version = registry._stable()["versions"][binding][str(head)]
                 if not version["active"] or version.get("transport_entry_id") != entry.entry_id:
                     raise Refusal("installation_peer_generation_changed")
@@ -204,14 +274,19 @@ async def setup_auto_installation(hass):
     state = await store.async_load()
     if state is None:
         state = {
-            "schema_version": 1,
+            "schema_version": 2,
             "installation_id": "installation:" + secrets.token_hex(16),
             "entries": {},
         }
+    if isinstance(state, dict) and state.get("schema_version") == 1:
+        state = json.loads(json.dumps(state))
+        state["schema_version"] = 2
+        for row in state.get("entries", {}).values():
+            row["retired_generation"] = None
     if (
         type(state) is not dict
         or set(state) != {"schema_version", "installation_id", "entries"}
-        or state["schema_version"] != 1
+        or state["schema_version"] != 2
         or not isinstance(state["entries"], dict)
     ):
         raise Refusal("installation_storage_invalid")
@@ -220,7 +295,9 @@ async def setup_auto_installation(hass):
         reference(entry_id)
         if (
             type(row) is not dict
-            or set(row) != {"repository_id", "pairing_sha256", "grant_ref"}
+            or set(row) != {"repository_id", "pairing_sha256", "grant_ref", "retired_generation"}
+            or row["retired_generation"] is not None
+            and not isinstance(row["retired_generation"], str)
             or type(row["pairing_sha256"]) is not str
             or len(row["pairing_sha256"]) != 64
             or any(char not in "0123456789abcdef" for char in row["pairing_sha256"])

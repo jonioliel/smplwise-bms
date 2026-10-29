@@ -1,0 +1,8 @@
+{
+  "format": "wiskey-r2-intent-archive.v1",
+  "schema_version": 1,
+  "records": [],
+  "legacy_restart_digest": null,
+  "mapped_pair_digest": null,
+  "unversioned_extra": true
+}

@@ -49,7 +49,7 @@ def read_readiness(reply: Any, manifest: dict[str, Any] | None = None) -> dict[s
     reconnect, never trust an answer of another installation)."""
     if (type(reply) is not dict or set(reply) != _READINESS_KEYS or reply["contract"] != "wiskey-installation-readiness.v1"
             or type(reply["schema_version"]) is not int or reply["schema_version"] != 1
-            or reply["state"] not in ("ready", "not_ready") or reply["reason"] not in READY_REASONS):
+            or reply["state"] not in ("ready", "not_ready") or not (reply["reason"] is None or type(reply["reason"]) is str) or reply["reason"] not in READY_REASONS):
         raise _bad()
     for key in ("boot_id", "connection_ref", "bridge_entry_id", "installation_id"):
         if type(reply[key]) is not str or not _ID.match(reply[key]):
@@ -65,7 +65,7 @@ def read_readiness(reply: Any, manifest: dict[str, Any] | None = None) -> dict[s
     if restart is not None and (type(restart) is not dict or set(restart) != {"state", "boot_id"} or restart["state"] not in RESTART_STATES
                                 or not (restart["boot_id"] is None or type(restart["boot_id"]) is str)):
         raise _bad()
-    expected, staged, installed = (_digests(reply[k]) for k in ("expected", "staged", "installed"))
+    expected, staged, installed = (_digests(reply[k], partial=reply["state"] != "ready") for k in ("expected", "staged", "installed"))
     loaded = _digests(reply["loaded"], partial=True)
     if reply["state"] == "ready":
         # ready = the four digest sets agree for both components, in one process, with a verified bridge boot and a generation
@@ -102,7 +102,7 @@ def read_event_retention(reply: Any) -> dict[str, Any]:
     return reply
 
 
-OUTCOMES_PATH = Path(__file__).resolve().parents[4] / "contracts" / "wiskey" / "r2" / "public_outcomes.compact.json"
+OUTCOMES_PATH = Path(__file__).resolve().parents[4] / "contracts" / "wiskey" / "alignment-v1" / "public_outcomes.v2.compact.json"
 
 
 @lru_cache(maxsize=1)
