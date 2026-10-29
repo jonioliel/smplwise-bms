@@ -157,7 +157,7 @@ const rules = `
 /* domus 2 - the rail is a floating glass panel 12px off the edges; the brand tile; the floating corner pill; the phone dock */
 :host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-xl); background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-app) .brand-tile { background: linear-gradient(145deg, var(--sw-accent), var(--sw-accent-hover)); border-radius: var(--sw-r-sm); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
-:host(sw-app) a.item.a { border-radius: var(--sw-r-md); font-size: 11px; }
+:host(sw-app) a.item.a { border-radius: var(--sw-r-md); font-size: var(--nav-label, 11px); }
 :host(sw-app) a.item.active { background: var(--sw-surface-2); box-shadow: var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight); font-weight: var(--sw-fw-bold); }
 :host(sw-app) .float .pillrow { background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
 /* domus 2b - the search panel hangs over the page like a menu: opaque, nothing blurred behind it (owner 2026-10-13); the corner pill above keeps its glass */

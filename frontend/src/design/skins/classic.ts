@@ -136,7 +136,7 @@ const rules = `
 /* classic 7 - the rail sits on the canvas; the current area is a raised white key (the segmented thumb's material), its label a step heavier */
 :host(sw-app) nav.rail.rail { background: transparent; border-inline-end-color: transparent; }
 :host(sw-app) a.item.active { background: var(--sw-surface); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
-:host(sw-app) a.item.a { font-size: 11px; }
+:host(sw-app) a.item.a { font-size: var(--nav-label, 11px); }
 :host(sw-app) a.item.a.active { font-weight: var(--sw-fw-bold); }
 /* classic 8 - tables: a quiet caption row, tabular figures, a hairline under the header a step stronger than the row rules */
 :host(sw-table) th { font-weight: var(--sw-fw-bold); letter-spacing: 0.02em; color: var(--sw-text-2); border-block-end-color: var(--sw-border-strong); }
