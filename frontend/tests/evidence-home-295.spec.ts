@@ -193,7 +193,8 @@ test.describe('the owner answers are settings', () => {
     await expect(b.locator('[data-tree-sheet]')).toHaveCount(0);
     await expect(b.locator('section.fcard[data-floor-card="yd"]')).toBeVisible();
     await b.locator('a.arow[data-area-row="garden"]').click();
-    await expect(b.locator('[data-area-sheet="garden"][data-area-sheet-mode="sheet"]')).toBeVisible();
+    // AREAPOPUP-297: the phone's area sheet is the area quick-control pop-up in its bottom-sheet shape (it replaced the old sheet)
+    await expect(b.locator('area-quick-sheet[data-area-quick="garden"][mode="sheet"][open] [data-qc-panel][data-qc-mode="sheet"]')).toBeVisible();
     await shot(page, 'cards-area-sheet-light-m');
     await open(page, { mode: 'tiles', vp: 'm', state: 'site', q: '&hs_phone_area=full' });
     await b.locator('a.tile[data-area="lobby"] .name').click();
