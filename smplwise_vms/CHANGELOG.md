@@ -1,5 +1,17 @@
 # Changelog — SmplWise Arx add-on
 
+## (DRAFT) Calendars - server side (no version bump yet)
+**After installing:** one additive database migration (0183, new calendar tables only; no existing table is changed). The calendars module and external calendar sync are OFF by default; nothing changes visibly until an administrator turns the module on.
+- **עברית:** אחרי ההתקנה: מיגרציה אחת תוספתית (0183, טבלאות יומנים חדשות בלבד; שום טבלה קיימת לא משתנה). מודול היומנים והסנכרון ליומנים חיצוניים כבויים כברירת מחדל; דבר לא משתנה לעין עד שמנהל מדליק את המודול.
+
+### What was added - מה נוסף
+- **English:** Calendars server: calendars, events and bookings, recurrence, approvals, maintenance windows, guest details (sealed, erased after retention), per-calendar roles, new calendar.* permissions and role presets, and the external calendar sync engine (no real provider connected yet).
+- **עברית:** שרת היומנים: יומנים, אירועים והזמנות, חזרתיות, אישורים, חלונות תחזוקה, פרטי אורחים (מוצפנים, נמחקים בתום תקופת השמירה), תפקידים לכל יומן, הרשאות calendar.* חדשות ותפקידים מוכנים, ומנוע סנכרון ליומנים חיצוניים (עדיין בלי ספק אמיתי מחובר).
+
+### What was fixed - מה תוקן
+- **English:** A flaky elevators history test is pinned to fixed instants (test-only change).
+- **עברית:** בדיקת היסטוריית מעליות לא יציבה נקבעה על רגעים קבועים (שינוי בבדיקה בלבד).
+
 ## 2.27.1 (pilot) — Security and WisKey screens redesigned, phone home shows every floor, navigation size simplified, people table and service overview fixes
 **After installing:** no database migration and no new setting turns on by itself; going back to 2.27.0 is safe.
 - **עברית:** אחרי ההתקנה: אין מיגרציה ושום הגדרה חדשה לא נדלקת מעצמה; חזרה ל-2.27.0 בטוחה.
