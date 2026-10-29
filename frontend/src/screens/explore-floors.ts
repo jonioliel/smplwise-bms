@@ -23,6 +23,14 @@ import { buildScene, isoPoint, isoProjection, keepIsos, type IsoScene } from '..
 import { floorLinks, type FloorLinkDoc } from '../map/connector-targets';
 import { DEFAULT_FLOOR_HEIGHT_M, floorHeight } from '../map/geometry';
 import { PhoneWidth } from '../shell/phone';
+import { isApi } from '../api/session';
+import { parseRoute } from '../router';
+import { xt } from '../i18n/xsection';
+import '../xsection/sw-xsection';
+import { xsTile, xsTileStyles } from '../xsection/sw-xsection';
+import { demoBuilding, demoSignals, loadXsData, sectionLinksOf, type XsData } from '../xsection/xs-data';
+import { fireReport, onFire, setFireMock } from '../xsection/fire-store';
+import { linksFold, listStep, nearFloors, onXsOptions, phonePlaceFor, signalsOf, xsFromParams, xsOptions, type FloorSignal, type XsOptions } from '../xsection/xs-model';
 
 type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | null;
 
@@ -43,6 +51,12 @@ export class ExploreFloors extends LitElement {
   /** T087: the true isometric of every floor with a published structure, one document read per version (cached here). */
   @state() private isos = new Map<string, IsoScene | null>();
   private isoPending = new Set<string>();
+  /** 2.29.0: the building cross-section - the installation's options (ui.xs), the per-floor signals' sources, the phone sheet, and the row / card hover that links the two. */
+  @state() private xsData: XsData | null = null;
+  @state() private sheetOpen = false;
+  @state() private hoverId: string | null = null;
+  private stopXs?: () => void;
+  private stopFire?: () => void;
   /** T085: the connectors of each published structure (by version), for the links between floors. */
   @state() private linkDocs = new Map<string, FloorLinkDoc>();
 
@@ -117,7 +131,7 @@ export class ExploreFloors extends LitElement {
     </sw-card>`;
   }
 
-  static styles = css`
+  static styles = [xsTileStyles, css`
     .links {
       display: flex;
       gap: 18px;
@@ -362,15 +376,244 @@ export class ExploreFloors extends LitElement {
       inline-size: 124px;
       block-size: 80px;
     }
-  `;
+    /* 2.29.0: the cross-section beside the list. The list is frozen (no scroll): its cards share the height and shrink in steps; the section takes the free area. */
+    :host {
+      display: block;
+      block-size: 100%;
+    }
+    sw-page {
+      block-size: 100%;
+      box-sizing: border-box;
+    }
+    .tabsrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .fl {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
+      min-block-size: 0;
+      block-size: 100%;
+    }
+    .fl.beside {
+      grid-template-columns: minmax(0, 720px) minmax(0, 1fr);
+    }
+    .fl.beside.right .xscol {
+      order: -1;
+    }
+    .xscol {
+      min-inline-size: 0;
+      min-block-size: 0;
+      block-size: 100%;
+      max-block-size: 100%;
+    }
+    @media (max-width: 1023px) {
+      .fl.beside {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+      }
+    }
+    .list {
+      min-block-size: 0;
+      max-inline-size: none;
+    }
+    .cards {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-block-size: 0;
+    }
+    .cards[data-cols='2'] {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .frow {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .frow > .floor {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .floor.hl:not(.on) {
+      background: var(--sw-surface-3);
+    }
+    /* the steps: the more floors, the smaller the card (no scrolling) */
+    .cards[data-step='1'] { gap: 8px; }
+    .cards[data-step='1'] .floor { padding: 10px 16px; }
+    .cards[data-step='1'] .title { font-size: var(--sw-fs-xl); }
+    .cards[data-step='1'] .counts { font-size: var(--sw-fs-sm); }
+    .cards[data-step='1'] sw-floor-iso { display: none; }
+    .cards[data-step='2'] { gap: 6px; }
+    .cards[data-step='2'] .floor { padding: 7px 14px; border-radius: var(--sw-r-md); }
+    .cards[data-step='2'] .title { font-size: var(--sw-fs-lg); }
+    .cards[data-step='2'] .counts { font-size: var(--sw-fs-xs); }
+    .cards[data-step='2'] sw-floor-iso, .cards[data-step='2'] .chev { display: none; }
+    .cards[data-step='3'] { gap: 4px; }
+    .cards[data-step='3'] .floor { padding: 4px 12px; border-radius: var(--sw-r-sm); border-width: 1.5px; }
+    .cards[data-step='3'] .title { font-size: var(--sw-fs-md); -webkit-line-clamp: 1; line-clamp: 1; }
+    .cards[data-step='3'] .counts, .cards[data-step='3'] sw-floor-iso, .cards[data-step='3'] .chev { display: none; }
+    .linkrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      min-inline-size: 0;
+    }
+    .linkrow .lt { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); white-space: nowrap; }
+    .linkrow .ll { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .xssheet { block-size: min(72dvh, 640px); min-block-size: 360px; }
+    .xsbtn { margin-inline-start: auto; }
+    @media (max-width: 767px) {
+      .fl { block-size: auto; }
+      .floor { padding: 10px 12px; gap: 10px; }
+      .frow .floor sw-floor-iso { display: none; }
+      .frow .floor .chev { display: none; }
+      .title { font-size: var(--sw-fs-xl); }
+      .counts { font-size: var(--sw-fs-sm); }
+      .cards[data-step='1'] .title, .cards[data-step='2'] .title { font-size: var(--sw-fs-md); }
+      .cards[data-step='3'] .title { font-size: var(--sw-fs-sm); }
+      .xscol { display: none; }
+    }
+  `];
 
   connectedCallback() {
     super.connectedCallback();
     void this.reload();
+    this.stopXs = onXsOptions(() => this.requestUpdate());
+    this.stopFire = onFire(() => this.requestUpdate());
+    void loadXsData().then((d) => (this.xsData = d));
+  }
+
+  disconnectedCallback() {
+    this.stopXs?.();
+    this.stopFire?.();
+    super.disconnectedCallback();
   }
 
   protected updated(changed: Map<string, unknown>) {
     if (changed.has('buildingId') && changed.get('buildingId') !== undefined) this.selected = null;
+  }
+
+  /** The options in force: the installation's (ui.xs); the static demo and the specs may override single options from the route (`?xs_phone_place=card`). */
+  private xsEff(): XsOptions {
+    return isApi() ? xsOptions() : xsFromParams(xsOptions(), parseRoute().params);
+  }
+
+  /** `?xsdemo=16` (static demo only): a synthetic building of N floors, for the many-floor layouts. */
+  private demoN(): number {
+    if (isApi()) return 0;
+    const n = Number(parseRoute().params.get('xsdemo'));
+    return Number.isInteger(n) && n > 3 && n <= 40 ? n : 0;
+  }
+
+  /** Does the section sit beside the list (a computer or a tablet, option not off)? Then the building drawing makes room for it. */
+  private sectionBeside(): boolean {
+    return !this.phone.matches && this.xsEff().desktop_place !== 'off';
+  }
+
+  private signalsFor(floors: Floor[]): FloorSignal[] {
+    if (!isApi() || this.xsData?.demo) return demoSignals([...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order));
+    return signalsOf(floors, this.xsData?.tree ?? null, this.xsData?.people ?? null);
+  }
+
+  /** A card or a section row was pressed: the first press selects, a second press on the selected floor opens its map (option click = open: at once). */
+  private pickFloor(id: string, fromSection = false) {
+    const open = this.selected === id || (fromSection && this.xsEff().click === 'open');
+    if (open) navigate(`/explore/floors/${id}`);
+    else this.selected = id;
+  }
+
+  private linksFor(floors: Floor[]) {
+    const docs = floors.map((f) => (f.published_version_id ? this.linkDocs.get(f.published_version_id) : undefined)).filter((d): d is FloorLinkDoc => !!d);
+    return floorLinks(docs, floors.map((f) => ({ id: f.id, name: f.name })));
+  }
+
+  /** The floors tab: the frozen list of cards (shrinking in steps, never scrolling), the links, the actions - and the cross-section in the free area. */
+  private renderFloorsTab(floors: Floor[], sel: Floor | null, demo: boolean) {
+    const tree = this.tree!;
+    const o = this.xsEff();
+    const phone = this.phone.matches;
+    const sigs = this.signalsFor(floors);
+    const sigOf = new Map(sigs.map((x) => [x.id, x]));
+    const links = this.linksFor(floors);
+    const secLinks = links.length ? sectionLinksOf(links) : demo || !isApi() ? [{ kind: 'stairs' as const, label: 'מדרגות', floors: sigs.map((x) => x.id) }] : [];
+    const mock = parseRoute().params.get('firemock');
+    if (o.fire_ui) setFireMock(mock, sigs);
+    else setFireMock(null);
+    const fire = o.fire_ui ? fireReport().floors : null;
+    const place = phone ? phonePlaceFor(o.phone_place, floors.length) : 'none';
+    const { step, cols } = listStep(floors.length);
+    const shown = o.many === 'near' ? nearFloors(floors, sel?.id ?? null, 2) : floors;
+    const folded = linksFold(o.links, floors.length, window.innerHeight) || phone;
+    const withTile = phone && place === 'side';
+    const cards = shown.map((f) => {
+      const card = html`<button class="floor ${sel?.id === f.id ? 'on' : ''} ${this.hoverId === f.id ? 'hl' : ''}" data-floor-card=${f.id} @click=${() => this.pickFloor(f.id)} @pointerenter=${(e: PointerEvent) => e.pointerType === 'mouse' && (this.hoverId = f.id)} @pointerleave=${(e: PointerEvent) => e.pointerType === 'mouse' && (this.hoverId = null)} aria-pressed=${sel?.id === f.id}>
+        <div class="txt">
+          <div class="title">${bidi(f.name)}</div>
+          <div class="counts">${f.camera_count} מצלמות${f.shared_camera_count ? html` <span class="shared" data-floor-shared=${f.id}>(+${f.shared_camera_count} משותפות)</span>` : nothing} · ${f.anchor_count} פריטים במפה · מפלס ${ltrNum(f.level)}${f.has_plan ? '' : ' · אין תוכנית עדיין'}${f.draft_version_id ? ' · טיוטה ממתינה לפרסום' : ''}</div>
+        </div>
+        <sw-floor-iso data-floor-iso=${f.id} .rooms=${tree.source === 'demo' ? demoRooms(f.id) : []} .iso=${this.isoFor(f)} ?selected=${sel?.id === f.id} ?empty=${!f.has_plan} width=${128}></sw-floor-iso>
+        <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>
+      </button>`;
+      const sg = sigOf.get(f.id);
+      return withTile && sg ? html`<div class="frow">${card}${xsTile(sg, o, sel?.id === f.id, () => this.pickFloor(f.id))}</div>` : card;
+    });
+    const actions = html`<div class="actions" data-floor-actions>
+      ${this.phone.restricted('structure')
+        ? nothing
+        : html`<div>
+            <sw-button icon="plus" @click=${() => this.openDialog({ kind: 'floor' })}>קומה חדשה</sw-button>
+            <sw-button variant="ghost" icon="building" @click=${() => this.openDialog({ kind: 'building' })}>מבנה חדש</sw-button>
+          </div>`}
+      ${sel
+        ? html`<div>
+            ${this.phone.restricted('structure')
+              ? nothing
+              : html`<sw-button variant="ghost" icon="edit" @click=${() => this.openDialog({ kind: 'rename', floor: sel })}>עריכה</sw-button>
+                <sw-button variant="ghost" icon="trash" @click=${() => this.openDialog({ kind: 'delete', floor: sel, force: false })}>מחיקה</sw-button>
+                <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>${sel.has_plan ? 'תוכנית חדשה' : 'העלאת תוכנית'}</sw-button>`}
+            ${sel.has_plan || sel.draft_version_id ? nothing : html`<sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button>`}
+            <sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${sel.id}`)}>פתח את ${sel.name}</sw-button>
+          </div>`
+        : nothing}
+    </div>`;
+    const section = html`<sw-xsection .floors=${sigs} .links=${secLinks} .opts=${o} .fire=${fire} selectedId=${sel?.id ?? ''} hoverId=${this.hoverId ?? ''}
+      @xs-pick=${(e: CustomEvent<{ id: string }>) => this.pickFloor(e.detail.id, true)} @xs-hover=${(e: CustomEvent<{ id: string | null }>) => (this.hoverId = e.detail.id)}></sw-xsection>`;
+    const beside = this.sectionBeside();
+    const list = html`<div class="list" data-floor-list data-step=${step} data-cols=${cols} data-many=${o.many}>
+      ${floors.length ? nothing : html`<div class="empty">${this.phone.restricted('structure') ? 'למבנה הזה אין עדיין קומות. הוספת קומות ותוכניות זמינה במחשב.' : 'למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).'}<div style="margin-block-start:10px"><sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button></div></div>`}
+      ${phone && place === 'card' ? html`<sw-xs-compact .floors=${sigs} .opts=${o} selectedId=${sel?.id ?? ''} @xs-open-sheet=${() => (this.sheetOpen = true)}></sw-xs-compact>` : nothing}
+      <div class="cards" data-step=${step} data-cols=${cols}>${cards}</div>
+      ${folded ? this.renderLinksFolded(links) : this.renderLinks(floors)}
+      ${this.error && !this.dialog ? html`<div class="err">${this.error}</div>` : nothing}
+      ${actions}
+    </div>`;
+    return html`<div class="fl ${beside ? `beside ${o.desktop_place}` : ''}" data-xs-place=${phone ? place : beside ? o.desktop_place : 'off'}>
+      ${list}
+      ${beside ? html`<aside class="xscol" data-xs-col>${section}</aside>` : nothing}
+      ${this.sheetOpen && phone && floors.length
+        ? html`<sw-dialog open heading=${xt('sectionSheetTitle')} data-xs-sheet @close=${() => (this.sheetOpen = false)}>
+            <div class="xssheet">${section}</div>
+            <sw-button slot="footer" variant="ghost" @click=${() => (this.sheetOpen = false)}>${xt('close')}</sw-button>
+          </sw-dialog>`
+        : nothing}
+    </div>`;
+  }
+
+  /** "Links between floors" folded to one row (option A, when space is short): the lines are drawn on the section instead. */
+  private renderLinksFolded(links: ReturnType<typeof floorLinks>) {
+    if (!links.length) return nothing;
+    return html`<div class="linkrow" data-floor-links-folded><sw-icon name="layers" size=${14}></sw-icon><span class="lt">${xt('linksTitle')}</span>
+      <span class="ll">${links.map((l) => `${l.kindLabel}: ${l.a.label} ↔ ${l.b?.label ?? l.farLabel}${l.b ? '' : ` ${xt('linksPending')}`}`).join(' · ')}</span></div>`;
   }
 
   private async reload() {
@@ -462,50 +705,20 @@ export class ExploreFloors extends LitElement {
         </sw-state-panel>
       </sw-page>`;
     }
-    const { site, building } = ctx;
+    const { site } = ctx;
+    const building = this.demoN() ? demoBuilding(this.demoN(), ctx.building) : ctx.building;
     const floors = building.floors ?? [];
     const sel = floors.find((f) => f.id === this.selected) ?? floors[0] ?? null;
     const totalCams = floors.reduce((n, f) => n + f.camera_count, 0);
     const tree = this.tree;
     return html`
       <sw-page heading=${building.name} subheading=${`${site.address || site.name} · ${floors.length} קומות${tree.source === 'demo' ? ' · נתוני הדגמה' : ''}`} crumbs=${`אתרים | ${site.name} | ${building.name}`}>
-        <div slot="actions" class="pic"><sw-scene kind="building"></sw-scene></div>
-        <sw-tabs .items=${[{ id: 'floors', label: 'קומות', count: floors.length }, { id: 'cameras', label: 'מצלמות', count: totalCams }, { id: 'details', label: 'פרטים' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+        ${this.sectionBeside() ? nothing : html`<div slot="actions" class="pic"><sw-scene kind="building"></sw-scene></div>`}
+        <div class="tabsrow"><sw-tabs .items=${[{ id: 'floors', label: 'קומות', count: floors.length }, { id: 'cameras', label: 'מצלמות', count: totalCams }, { id: 'details', label: 'פרטים' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+          ${this.phone.matches && this.tab === 'floors' && this.xsEff().phone_place === 'sheet' && floors.length ? html`<sw-button class="xsbtn" size="sm" variant="ghost" data-xs-sheet-btn @click=${() => (this.sheetOpen = true)}>${xt('sectionOpenBtn')}</sw-button>` : nothing}
+        </div>
         ${this.tab === 'floors'
-          ? html`<div class="list">
-              ${floors.length ? nothing : html`<div class="empty">${this.phone.restricted('structure') ? 'למבנה הזה אין עדיין קומות. הוספת קומות ותוכניות זמינה במחשב.' : 'למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).'}<div style="margin-block-start:10px"><sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button></div></div>`}
-              ${floors.map(
-                (f) => html`<button class="floor ${sel?.id === f.id ? 'on' : ''}" @click=${() => (sel?.id === f.id ? navigate(`/explore/floors/${f.id}`) : (this.selected = f.id))} aria-pressed=${sel?.id === f.id}>
-                  <div class="txt">
-                    <div class="title">${bidi(f.name)}</div>
-                    <div class="counts">${f.camera_count} מצלמות${f.shared_camera_count ? html` <span class="shared" data-floor-shared=${f.id}>(+${f.shared_camera_count} משותפות)</span>` : nothing} · ${f.anchor_count} פריטים במפה · מפלס ${ltrNum(f.level)}${f.has_plan ? '' : ' · אין תוכנית עדיין'}${f.draft_version_id ? ' · טיוטה ממתינה לפרסום' : ''}</div>
-                  </div>
-                  <sw-floor-iso data-floor-iso=${f.id} .rooms=${tree.source === 'demo' ? demoRooms(f.id) : []} .iso=${this.isoFor(f)} ?selected=${sel?.id === f.id} ?empty=${!f.has_plan} width=${128}></sw-floor-iso>
-                  <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>
-                </button>`,
-              )}
-              ${this.renderLinks(floors)}
-              ${this.error && !this.dialog ? html`<div class="err">${this.error}</div>` : nothing}
-              <div class="actions" data-floor-actions>
-                ${this.phone.restricted('structure')
-                  ? nothing
-                  : html`<div>
-                      <sw-button icon="plus" @click=${() => this.openDialog({ kind: 'floor' })}>קומה חדשה</sw-button>
-                      <sw-button variant="ghost" icon="building" @click=${() => this.openDialog({ kind: 'building' })}>מבנה חדש</sw-button>
-                    </div>`}
-                ${sel
-                  ? html`<div>
-                      ${this.phone.restricted('structure')
-                        ? nothing
-                        : html`<sw-button variant="ghost" icon="edit" @click=${() => this.openDialog({ kind: 'rename', floor: sel })}>עריכה</sw-button>
-                          <sw-button variant="ghost" icon="trash" @click=${() => this.openDialog({ kind: 'delete', floor: sel, force: false })}>מחיקה</sw-button>
-                          <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>${sel.has_plan ? 'תוכנית חדשה' : 'העלאת תוכנית'}</sw-button>`}
-                      ${sel.has_plan || sel.draft_version_id ? nothing : html`<sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button>`}
-                      <sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${sel.id}`)}>פתח את ${sel.name}</sw-button>
-                    </div>`
-                  : nothing}
-              </div>
-            </div>`
+          ? this.renderFloorsTab(floors, sel, tree.source === 'demo')
           : this.tab === 'cameras'
             ? html`<div class="cams">${floors.map((f) => html`<sw-card heading=${bidi(f.name)} subheading="${f.camera_count} מצלמות" interactive @click=${() => navigate(`/explore/floors/${f.id}`)}></sw-card>`)}</div>`
             : html`<sw-card heading="פרטי המבנה">

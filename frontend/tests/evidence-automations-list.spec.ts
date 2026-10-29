@@ -88,7 +88,7 @@ test.describe('the list (installer)', () => {
     }
     await open(page, '/devices/automations');
     await ready(page);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'מפה סינופטית', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
     await expect(scr(page).locator('[data-auto-title]')).toHaveText('אוטומציות');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
@@ -1025,13 +1025,13 @@ test.describe('with a session: permissions, the setting, the push frame and what
     expect(await rowTabs(page)).toEqual([]);
     st.perms = [...VIEWER_PERMS, 'automation.manage'];
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     st.perms = [...VIEWER_PERMS, 'script.run'];
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     st.perms = [...VIEWER_PERMS, 'schedule.view', 'automation.manage'];
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     // the settings tab
     st.perms = [...VIEWER_PERMS, 'automation.manage'];
     await openApi(page, '/system/diagnostics');
