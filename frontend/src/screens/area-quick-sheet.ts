@@ -239,6 +239,13 @@ export class AreaQuickSheet extends LitElement {
       :host([mode='sheet'][open][data-shown]) .panel {
         transform: translateY(var(--qc-rest, 38%));
       }
+      /* AREAEDIT-2290: the editor's footer (reset / cancel / save) must always be on screen. The browsing sheet is a full-height panel
+         pushed down by its detent (its lower part is cropped; the list scrolls); the editor panel is only as tall as the visible part. */
+      :host([mode='sheet'][data-editing]) .panel {
+        inset-block-start: 0;
+        inset-block-end: auto;
+        block-size: calc(100dvh - var(--qc-rest, 0px));
+      }
       :host([data-dragging]) .panel {
         transition: none !important;
       }
@@ -782,7 +789,19 @@ export class AreaQuickSheet extends LitElement {
       }
 
       /* ---- AREAEDIT-2290: the editor (same panel; hide + order). Tokens only; green is never used here, the switch is accent blue ---- */
+      /* the name keeps its ellipsis, the "editing" label never leaves; on the phone the head carries only the close button while editing */
+      h2 {
+        display: flex;
+        align-items: center;
+        min-inline-size: 0;
+      }
+      h2 .hn {
+        min-inline-size: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       h2 .editing {
+        flex: none;
         display: inline-flex;
         align-items: center;
         gap: 4px;
@@ -795,6 +814,18 @@ export class AreaQuickSheet extends LitElement {
         font-weight: var(--sw-fw-semibold);
         letter-spacing: 0;
         vertical-align: middle;
+      }
+      /* a 375 px row: five 32 px controls + the name; the "hidden" word gives way to the dimmed row and the closed eye */
+      :host([mode='sheet']) .er {
+        gap: 2px;
+        padding-inline: 4px;
+      }
+      :host([mode='sheet']) .er .hidtag {
+        display: none;
+      }
+      :host([mode='sheet'][data-editing]) [data-qc-expand],
+      :host([mode='sheet'][data-editing]) [data-qc-open-screen] {
+        display: none;
       }
       .ed {
         position: relative;
@@ -813,16 +844,25 @@ export class AreaQuickSheet extends LitElement {
         flex-direction: column;
         gap: 12px;
       }
-      :host(:not([mode='sheet'])) .ed-main {
+      /* two columns (list + side) only where there is room: the pop-up and the widened drawer; the 480 px drawer and the phone stack them */
+      :host([mode='popup']) .ed-main,
+      :host([mode='drawer'][data-expanded]) .ed-main {
         flex-direction: row;
         align-items: flex-start;
       }
-      :host(:not([mode='sheet'])) .ed-list {
+      :host([mode='popup']) .ed-list,
+      :host([mode='drawer'][data-expanded]) .ed-list {
         flex: 1 1 auto;
         min-inline-size: 0;
       }
+      .ed-list {
+        min-inline-size: 0;
+      }
+      .ed-side {
+        flex: none;
+      }
       :host([mode='popup']) .ed-side,
-      :host([data-expanded]) .ed-side {
+      :host([mode='drawer'][data-expanded]) .ed-side {
         flex: 0 0 240px;
       }
       .er {
@@ -1053,6 +1093,26 @@ export class AreaQuickSheet extends LitElement {
         border-block-start: 1px solid var(--sw-border);
         background: var(--sw-surface-solid);
       }
+      .ed-foot .qb {
+        white-space: nowrap;
+        flex: none;
+      }
+      :host([mode='sheet']) .ed-foot {
+        padding-inline: 12px;
+        gap: 6px;
+      }
+      :host([mode='sheet']) .ed-foot .qb {
+        padding-inline: 12px;
+      }
+      .ed-side sw-toggle {
+        --sw-toggle-on: var(--sw-accent); /* the editor's switch is accent blue, never the success green */
+      }
+      :host([data-editing]) .sub {
+        white-space: normal;
+      }
+      :host([mode='drawer']:not([data-expanded])) .ed-foot .lockn {
+        display: none; /* the narrow drawer has no room for the note; the head's hint and the disabled controls say it */
+      }
       .ed-foot .lockn {
         display: inline-flex;
         align-items: center;
@@ -1161,6 +1221,7 @@ export class AreaQuickSheet extends LitElement {
 
   protected updated(changed: PropertyValues<this>) {
     this.toggleAttribute('data-expanded', this.expanded && this.mode !== 'sheet');
+    this.toggleAttribute('data-editing', this.editing);
     this.toggleAttribute('data-ltr', getComputedStyle(this.parentElement ?? document.documentElement).direction === 'ltr');
     this.applyRest();
     if (changed.has('open') || (changed.has('area') && this.open)) {
@@ -1745,7 +1806,7 @@ export class AreaQuickSheet extends LitElement {
         <header>
           <span class="ring" ?data-on=${on}><sw-icon .name=${this.icon} size=${20}></sw-icon></span>
           <div class="ttl">
-            <h2>${a ? bidi(a.name) : ''}${this.editing ? html`<span class="editing" data-qc-editing><sw-icon name="edit" size=${12}></sw-icon>${hs('qcEditing')}</span>` : nothing}</h2>
+            <h2><span class="hn">${a ? bidi(a.name) : ''}</span>${this.editing ? html`<span class="editing" data-qc-editing><sw-icon name="edit" size=${12}></sw-icon>${hs('qcEditing')}</span>` : nothing}</h2>
             <span class="sub">${this.editing ? html`<span class="ed-hint">${this.mode === 'sheet' ? hs('qcEditHintPhone') : hs('qcEditHintDesk')}</span>` : [this.floorName ? html`<span>${bidi(this.floorName)}</span>` : '', temp ? html`<span><b>${temp}</b></span>` : '', c ? html`<span>${ltrNum(c.entities)} ${hs('qcDevicesLabel')}</span>` : ''].filter((x) => x !== '').map((x, i) => (i ? html` · ${x}` : x))}</span>
           </div>
           <span class="acts">
