@@ -92,6 +92,10 @@ interface VideoCodecs {
   checked_at: string | null;
 }
 
+/** WISKEY-ADOPT-2272 review L9: "install / update" also stages WisKey's native component when the automatic installation is on, and then
+ *  requests ONE Home Assistant restart - the button says so (text only). */
+export const BRIDGE_INSTALL_RESTART_WARNING = 'כשהתקנת WisKey האוטומטית פעילה, "התקן / עדכן" עלול להפעיל מחדש את Home Assistant';
+
 /** SET-polish: one line under the page title per sub-tab - what the tab is about, as the title now names the tab. */
 const TAB_SUB: Record<string, string> = {
   general: 'המראה של המערכת, הניווט, הזמן והאינטגרציות',
@@ -654,7 +658,7 @@ export class SystemDiagnostics extends LitElement {
     if (!i) return nothing;
     const kind = i.state === 'active' ? 'live' : i.state === 'installed_pending' || i.state === 'update_pending' ? 'stale' : i.state === 'error' ? 'error' : 'unknown';
     const label = i.state === 'active' ? 'פעילה' : i.state === 'installed_pending' ? 'ממתינה ל־Restart' : i.state === 'update_pending' ? 'עדכון ממתין' : i.state === 'error' ? 'שגיאה' : i.state === 'not_installed' ? 'לא הותקנה' : 'לא זמין';
-    return html`<div class="row"><span class="lbl">התקנת האינטגרציה ב־Home Assistant<span class="muted">${this.integrationText(i)}${i.discovery_posted_at ? ` · הוכרזה ל־Supervisor ${fmtTime(i.discovery_posted_at)}` : ''}</span></span><span class="end"><sw-badge kind=${kind} label=${label}></sw-badge>${this.canEdit && !onRemote() && i.state !== 'not_available' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.installBridgeNow()}>התקן / עדכן</sw-button>` : nothing}</span></div>`;
+    return html`<div class="row"><span class="lbl">התקנת האינטגרציה ב־Home Assistant<span class="muted">${this.integrationText(i)}${i.discovery_posted_at ? ` · הוכרזה ל־Supervisor ${fmtTime(i.discovery_posted_at)}` : ''} · ${BRIDGE_INSTALL_RESTART_WARNING}</span></span><span class="end"><sw-badge kind=${kind} label=${label}></sw-badge>${this.canEdit && !onRemote() && i.state !== 'not_available' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.installBridgeNow()}>התקן / עדכן</sw-button>` : nothing}</span></div>`;
   }
 
   private renderHa() {

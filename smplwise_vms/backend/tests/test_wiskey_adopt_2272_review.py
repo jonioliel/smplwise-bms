@@ -731,3 +731,14 @@ def test_l6_a_pending_job_still_moves_on() -> None:
     client = Client(_job("queued"), _job("completed", {"state": "accepted", "code": "provider_accepted", "provider_accepted": True}))
     assert asyncio.run(jobs.enqueue(client, _tpl(), ttl_s=60)).outcome == "pending"
     assert asyncio.run(jobs.refresh(client, "op-1")).outcome == "accepted" and jobs.row("op-1")["outcome"] == "accepted"
+
+# ================================================================ L9: the generic install button warns that it may restart the platform
+
+def test_l9_the_bridge_install_button_warns_about_the_restart() -> None:
+    src = (REPO / "frontend/src/screens/system-diagnostics.ts").read_text(encoding="utf-8")
+    assert "export const BRIDGE_INSTALL_RESTART_WARNING = '" in src
+    warning = src.split("export const BRIDGE_INSTALL_RESTART_WARNING = '", 1)[1].split("';", 1)[0]
+    assert "להפעיל מחדש את Home Assistant" in warning and "WisKey" in warning
+    row = next(line for line in src.splitlines() if "this.installBridgeNow()" in line and "<sw-button" in line)
+    assert "${BRIDGE_INSTALL_RESTART_WARNING}" in row  # in the same row as the button (text only, same structure)
+    assert row.count("<sw-button") == 1 and "התקן / עדכן" in row
