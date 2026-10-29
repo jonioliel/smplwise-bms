@@ -201,12 +201,52 @@ No export source exists here, and labels / logical refs are not a substitute.
 Not run: the delivery's `reproduce_isolated.py` (WisKey-side recipe; needs a WisKey checkout at `0a099c53` and a HA python): NOT_RUN.
 Full frontend Playwright suite, add-on image build (`npm run build:addon`), any live / device test: NOT_RUN.
 
+## Review findings and fixes
+
+An independent review of the branch at `bd5080282` (fixes on top of `33ecbb0da`, one commit per finding, each with a regression test in
+`smplwise_vms/backend/tests/test_wiskey_adopt_2272_review.py` unless noted).
+
+| Finding | Status | Commit | What changed / why |
+|---|---|---|---|
+| H1 registry sync replaced the whole `messaging.wa_templates` (admin rows erased, an empty reply wiped it) | fixed | `cf123cbf4` | merge: only `native_*` rows are replaced, admin rows kept; an empty reply is refused (`native_registry_empty`); an unreadable stored registry is never overwritten; one audit row per applied sync (counts only) |
+| H2 `wiskey.auto_install`, `wiskey.installation.restart_digest`, `wiskey.events.cursor` travelled in backups | fixed | `617fed3a0` | `backup.SETTINGS_KEEP` + prefix `wiskey.installation.` (never exported, never restored); doc claim corrected |
+| H3 staging overwrote any differing `hikvision_intercom` (possible silent downgrade, no backup) | fixed | `90517bba6` | stage only when missing or equal to the digest Arx staged last (`wiskey.installation.staged_digest`); newer semver refused (`native_newer_installed`), other trees refused (`native_foreign_installed`); previous tree kept as `hikvision_intercom.smplwise-backup` |
+| H4 the bridge set up `hikvision_intercom` on every entry setup when the folder existed, awaited | fixed | `55912945c` | only for an entry with `wiskey_auto_install: true` (written only by the automatic-install discovery, create or update) and when not loaded; `hass.async_create_task`, never awaited; mirror synced |
+| M1 `activate_software` switched several features on without audit | fixed | `a5b9a902d` | fills only `access.station_media_provider = auto` (the direct join needs it), one audit row per filled key; the rest documented as owner steps |
+| M2 `OWNER_EXCLUDED_WRITES` emptied for every installation | fixed | `6a3bd06c4` | `jobs/approval_decide` / `jobs/approval_request` excluded unless `wiskey.auto_install` is on (live reader installed by the join); the owner must confirm in writing before turning the switch on (this document, WKWRITE-295-ADOPTION-MAP.md, WKR5-295.md) |
+| M3 the admin PUT accepted `account` (skipping availability and the configured-account rule) | fixed | `e9225565c` | `account` only on `native_*` rows; stripped from the admin PUT (native rows skipped and kept); the route uses a native account only with the switch on and the account in WisKey's list of the last signed sync (`wiskey.installation.native_accounts`) |
+| M4 `InstalledWiskeyClient.connect` used `PURPOSE_TALK` | fixed | `d0d3adad6` | `PURPOSE_COMMAND` |
+| M5 no re-announce in `waiting_for_arx_bridge` | fixed | `1b62105db` | any readiness other than `ready` announces and returns `manifest_not_ready` |
+| M6 bridge still 0.10.0 (an existing copy would not refresh) | fixed | `04c2dba64` | 0.10.1 (manifest, `const.VERSION`, card, mirror, the bridge tests' pins); `install()` copies when the installed version differs; `BRIDGE_KAV_REQUIRED` stays 0.10.0 (a minimum) |
+| M7 concurrent enqueue of one operation returned a false `not_sent` | fixed | `0f1dfa690` | on `IntegrityError`: roll back, re-read by operation id and return the recorded state; another operation's request id -> `unknown` |
+| M8 `installer_step` let e.g. `sqlite3.OperationalError` escape (500) | fixed | `da4a716d7` | any other exception -> `state=error, code=installer_failed` (type logged, no text) |
+| L1 event ids remembered only after the whole page | fixed | `4cb113245` | each id remembered right after its handler returned |
+| L2 `page.source` not compared; `last_gap` lost on the next store | fixed | `7ad82128a` | a page from another source is a recorded gap (`source_mismatch`); the cursor document is merged; bounded durable `gaps` history (32) |
+| L3 runtime `CREATE TABLE IF NOT EXISTS` | fixed | `f66dba290` | migration `0183_wiskey_installed_features.sql`. Numbering: this branch and `origin/main` both end at 0182, release_check needs a contiguous sequence (0184 failed `test_migrations_263_upgrade`), so 0183. **Collision to resolve at merge**: `pilot/BUILDING-PRESENCE-2271` (not merged) also uses 0183 - whichever merges second renumbers |
+| L4 `write_resources`: temp file left on failure, no directory fsync, chmod through a symlink | fixed | `e274750de` | temp removed on any failure, `O_NOFOLLOW`, directory fsync (POSIX), symlinked folder refused before chmod (the symlink test is skipped on this Windows workstation) |
+| L6 sync hard-coded `notice` / `[]`; refresh / cancel could downgrade a terminal job | fixed | `cf123cbf4` (sync), `6b0ba89c2` | a native row keeps its stored purpose / slots (the signed reply carries neither: a NEW row still starts as `notice` / `[]`); a recorded `accepted` / `not_sent` is final |
+| L9 the generic install button did not say it may restart the platform | fixed | `020f627b0` | warning text in the same row (text only); test is source-level + `tsc --noEmit` |
+| L5, L7, L8 | not in this brief | - | not handed to this fix round; not assessed here |
+
+Tests actually run for this round (workstation, Python 3.12 `.venv` pytest, `-m "not timing_lane"`):
+
+| Run | Scope | Code | Result |
+|---|---|---|---|
+| RV1 | per-fix targeted runs while fixing (each finding's tests + the suites it touches; bridge version pins: 14 bridge suites, 710 passed, 1 skipped) | each fix commit | PASS |
+| RV2 | 23 suites: all `test_wiskey_adopt_2272_*`, native bundle, bridge install, keyrot harness, wkr5, wkjoin, mac_adopt_298 (+review), tplv2, wa_template_send_w11, wk4adopt, f3c_tpl, migrations_263_upgrade, db_template, backup, bkpfix, bridge_config_drift, lovelace_card, smallfixa switches | `020f627b0` (code of the fixes) | 601 passed, 3 skipped (Windows: symlink / POSIX mode bits) |
+| RV3 | `tsc --noEmit` (frontend, workstation, the main checkout's node_modules linked) | `020f627b0` | ok |
+
+A wider workstation run (97 backend files that import any touched module) was started and stopped by me at ~5% (too slow for the
+workstation): NOT_RUN. Not done in this round: the full backend suite and any runner run (a release gate occupies the runner) -
+NOT_RUN; no browser check of the L9 text; no live / device action.
+
 ## Owner-side and open items
 
 - Installation at the owner: NOT_PERFORMED. Live / device: NOT_MEASURED. Door / microphone / speaker / real WhatsApp / new HA user: not
   touched (joint session with the owner present, with notices).
-- Decision for the owner: turning `wiskey.auto_install` on (it stages WisKey rc.38 over whatever `hikvision_intercom` the platform runs
-  and requests one platform restart) - only in the joint session.
+- Decision for the owner: turning `wiskey.auto_install` on (it stages WisKey rc.38 when no `hikvision_intercom` is installed or the
+  installed one is the tree Arx staged - a newer or foreign tree is refused and left as it is, review H3 - and requests one platform
+  restart) - only in the joint session, after the written confirmation for the job-approval writes (review M2).
 - Contradiction recorded: `OWNER_EXCLUDED_WRITES` (earlier owner decision) vs owner28 "no allowlist" - review M2: the exclusion holds
   unless `wiskey.auto_install` is on; **the owner must confirm in writing** (before the switch is turned on) that Arx may write
   `jobs/approval_decide` / `jobs/approval_request`.
