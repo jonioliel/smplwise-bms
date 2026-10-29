@@ -6,7 +6,7 @@
  */
 import { apiUrl, del, get, patch, post, upload } from './client';
 
-export type BackupKind = 'manual' | 'upload' | 'auto-pre-upgrade' | 'auto-daily' | string;
+export type BackupKind = 'manual' | 'upload' | 'auto-pre-upgrade' | 'auto-daily' | 'auto-pre-restore' | string;
 
 export interface BackupEntry {
   name: string;
@@ -42,6 +42,7 @@ export const KIND_LABEL: Record<string, string> = {
   upload: 'הועלה',
   'auto-pre-upgrade': 'אוטומטי · לפני עדכון',
   'auto-daily': 'אוטומטי · יומי',
+  'auto-pre-restore': 'אוטומטי · לפני שחזור',
 };
 
 export const TABLE_LABEL: Record<string, string> = {

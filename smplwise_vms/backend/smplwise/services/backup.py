@@ -126,7 +126,7 @@ if NEVER_EXPORTED_TABLES & set(PROJECT_TABLES + ACCESS_TABLES + OPTIONAL_TABLES[
     raise RuntimeError("a never-exported table is listed for backup")
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"], "floor_images": ["path"], "plan_bakes": ["path"], **_energy_backup.FILE_COLUMNS}
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
-KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7}
+KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7, "auto-pre-restore": 3}  # OFFBOX-RESTORE-2300: the safety archive written before a restore from an off-box copy
 SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at",
                  "multimedia.ma_direct",  # CR-016 17.3: the Music Assistant server address (its token is a file outside the archive)
                  "nvr.legacy_import_done",  # CR-022 section 7: a restore never re-arms the one-time import of the add-on options

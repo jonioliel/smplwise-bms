@@ -9,13 +9,17 @@ import { ApiError, describeError } from '../api/client';
 import {
   CONFIG_FIELDS, SECRET_FIELDS, blankTarget, checkTarget, createTarget, deleteTarget, drillStatus, exportKey, importKey, offboxStatus, pushTarget,
   rotateKey, runDrill, setDrillMonthly, setTargetEnabled, toRequest, updateTarget,
-  type DrillStatus, type OffboxRun, type OffboxStatus, type OffboxTarget, type OffboxTargetIn,
+  discardRestore, listCopies, prepareRestore, restoreFromCopy, restoreReady,
+  type OffboxCopy, type OffboxPrepared, type DrillStatus, type OffboxRun, type OffboxStatus, type OffboxTarget, type OffboxTargetIn,
 } from '../api/backup-offbox';
 import { keyExportReady, obt, obtError, type ObtKey } from '../i18n/backup-offbox';
+import { obr, obrError } from '../i18n/backup-offbox-restore';
+import { fmtBytes } from '../api/backup';
+import { invalidateSettings } from '../api/prefs';
 import { settingsStyles } from '../styles/settings';
 import { dayMonthTimeText } from '../api/day-format';
 
-type Dialog = null | 'export' | 'rotate' | { remove: OffboxTarget };
+type Dialog = null | 'export' | 'rotate' | { remove: OffboxTarget } | { restore: OffboxTarget };
 
 /**
  * DATASTORE-295 phase 2: Settings › אבחון › גיבוי ושחזור - the off-box targets (S3-compatible / SFTP), the encryption key (export once,
@@ -36,6 +40,14 @@ export class SwOffboxBackup extends LitElement {
   @state() private shownKey = '';
   @state() private copied = false;
   @state() private importText = '';
+  // OFFBOX-RESTORE-2300: the restore-from-copy dialog (list the copies, download + verify, confirm)
+  @state() private copies: OffboxCopy[] | null = null;
+  @state() private pick = '';
+  @state() private prep: OffboxPrepared | null = null;
+  @state() private rAccess = true;
+  @state() private rPassword = '';
+  @state() private rSkip = false;
+  @state() private rErr = '';
   private poll: number | undefined;
 
   connectedCallback() {
@@ -156,6 +168,8 @@ export class SwOffboxBackup extends LitElement {
         <sw-button size="sm" variant="ghost" ?disabled=${!!b} data-offbox-dry @click=${() => void this.dry(t)}>${obt('dryRun')}</sw-button>
         <sw-button size="sm" variant="primary" icon="upload" ?disabled=${!!b || this.status?.running} data-offbox-push
           @click=${() => void this.act(`push:${t.id}`, () => pushTarget(t.id), obt('pushStarted'))}>${obt('pushNow')}</sw-button>
+        <sw-button size="sm" variant="ghost" icon="download" ?disabled=${!!b || !this.status?.key.active} data-offbox-restore-open
+          @click=${() => void this.openRestore(t)}>${obr('open')}</sw-button>
         <sw-button size="sm" variant="ghost" ?disabled=${!!b} data-offbox-edit @click=${() => this.edit(t)}>${obt('edit')}</sw-button>
         <sw-button size="sm" variant="ghost" icon="trash" ?disabled=${!!b} data-offbox-remove @click=${() => { this.dialog = { remove: t }; }}>${obt('remove')}</sw-button>
       </div>
@@ -233,7 +247,105 @@ export class SwOffboxBackup extends LitElement {
     }
   }
 
+  private async openRestore(t: OffboxTarget) {
+    this.dialog = { restore: t };
+    this.copies = null;
+    this.pick = '';
+    this.prep = null;
+    this.rErr = '';
+    try {
+      this.copies = (await listCopies(t.id)).copies;
+      this.pick = this.copies[0]?.name ?? '';
+    } catch (err) {
+      this.copies = [];
+      this.rErr = err instanceof ApiError ? obrError(err.code) : describeError(err);
+    }
+  }
+
+  private async doPrepare(t: OffboxTarget) {
+    if (!this.pick) return;
+    this.busy = 'prepare';
+    this.rErr = '';
+    try {
+      this.prep = await prepareRestore(t.id, this.pick);
+    } catch (err) {
+      this.rErr = err instanceof ApiError ? obrError(err.code) : describeError(err);
+    } finally {
+      this.busy = '';
+    }
+  }
+
+  private async doRestore() {
+    const p = this.prep;
+    if (!p || !restoreReady(this.confirm, !!this.busy)) return;
+    this.busy = 'restore';
+    this.rErr = '';
+    try {
+      const r = await restoreFromCopy({ stage_id: p.id, confirm: this.confirm, scope: this.rAccess ? 'project+access' : 'project',
+        ...(this.rPassword ? { backup_password: this.rPassword } : {}), ...(this.rSkip ? { skip_sensitive: true } : {}) });
+      this.prep = null;
+      this.rPassword = '';
+      invalidateSettings();
+      this.closeDialog();
+      this.msg = { ok: true, text: obr('done', { name: r.object, n: Object.keys(r.tables).length, files: r.files, safety: r.safety_archive.name }) };
+      await this.load();
+    } catch (err) {
+      this.rErr = err instanceof ApiError ? (err.body.details?.can_skip ? describeError(err) : obrError(err.code)) : describeError(err);
+      this.rPassword = '';
+    } finally {
+      this.busy = '';
+    }
+  }
+
+  private renderRestore(t: OffboxTarget) {
+    const p = this.prep;
+    const when = (c: OffboxCopy) => (c.stamp ? this.when(c.stamp) : '');
+    return html`<sw-dialog open heading=${obr('title')} subheading=${t.name} data-offbox-restore-dialog @close=${() => this.closeDialog()}>
+      ${this.rErr ? html`<div class="msg err" role="alert" data-offbox-restore-err>${this.rErr}</div>` : nothing}
+      ${p
+        ? html`<div class="msg ok" role="status">${obr('verified')}</div>
+            <div class="row"><span class="lbl">${obr('summary_version')}</span><span class="end"><code data-ltr>${p.app_version ?? '-'}</code></span></div>
+            <div class="row"><span class="lbl">${obr('summary_schema')}</span><span class="end"><code data-ltr>${p.schema_version}</code></span></div>
+            <div class="row"><span class="lbl">${obr('summary_tables')}</span><span class="end">${Object.keys(p.tables).length} / ${p.files}</span></div>
+            <div class="row"><span class="lbl">${obr('summary_key')}</span><span class="end"><code data-ltr>${p.key_id}</code></span></div>
+            <div class="msg warn" role="note">${obr('warnDestructive')}</div>
+            <label class="ack"><input type="checkbox" data-offbox-restore-access .checked=${this.rAccess}
+              @change=${(e: Event) => { this.rAccess = (e.target as HTMLInputElement).checked; }} /><span>${obr('includeAccess')}</span></label>
+            ${p.sensitive === 'encrypted'
+              ? html`<label class="row"><span class="lbl">${obr('password')}</span><input class="ctl" type="password" autocomplete="off" data-offbox-restore-password
+                  .value=${this.rPassword} ?disabled=${this.rSkip} @input=${(e: Event) => { this.rPassword = (e.target as HTMLInputElement).value; }} /></label>
+                <label class="ack"><input type="checkbox" data-offbox-restore-skip .checked=${this.rSkip}
+                  @change=${(e: Event) => { this.rSkip = (e.target as HTMLInputElement).checked; }} /><span>${obr('skipSensitive')}</span></label>`
+              : nothing}
+            <div class="muted">${obr('confirmHint')}</div>
+            <input class="confirm-in" data-ltr data-offbox-restore-confirm placeholder="RESTORE" .value=${this.confirm}
+              @input=${(e: Event) => { this.confirm = (e.target as HTMLInputElement).value; }} />`
+        : this.copies === null
+          ? html`<div class="muted">${obr('loading')}</div>`
+          : this.copies.length === 0
+            ? html`<div class="muted" data-offbox-restore-none>${obr('none')}</div>`
+            : html`<div class="muted">${obr('pick')}</div>
+              ${this.copies.slice(0, 5).map((c, i) => html`<label class="ack" data-offbox-copy=${c.name}><input type="radio" name="offbox-copy" .checked=${this.pick === c.name}
+                  @change=${() => { this.pick = c.name; }} /><span><code data-ltr>${c.name}</code><span class="muted"> · ${fmtBytes(c.bytes)}${when(c) ? ` · ${when(c)}` : ''}${i === 0 ? ` · ${obr('newest')}` : ''}</span></span></label>`)}`}
+      <div slot="footer">
+        ${p
+          ? html`<sw-button variant="danger" icon="download" ?disabled=${!restoreReady(this.confirm, !!this.busy)} data-offbox-restore-go
+              @click=${() => void this.doRestore()}>${this.busy === 'restore' ? obr('restoring') : obr('restore')}</sw-button>`
+          : html`<sw-button variant="primary" icon="download" ?disabled=${!this.pick || !!this.busy} data-offbox-prepare
+              @click=${() => void this.doPrepare(t)}>${this.busy === 'prepare' ? obr('preparing') : obr('prepare')}</sw-button>`}
+        <sw-button variant="ghost" @click=${() => this.closeDialog()}>${obr('cancel')}</sw-button>
+      </div>
+    </sw-dialog>`;
+  }
+
   private closeDialog() {
+    if (this.prep) void discardRestore(this.prep.id).catch(() => undefined);
+    this.prep = null;
+    this.copies = null;
+    this.pick = '';
+    this.rErr = '';
+    this.rPassword = '';
+    this.rSkip = false;
     this.dialog = null;
     this.confirm = '';
     this.acked = false;
@@ -244,6 +356,7 @@ export class SwOffboxBackup extends LitElement {
   private renderDialog() {
     const d = this.dialog;
     if (!d) return nothing;
+    if (typeof d === 'object' && 'restore' in d) return this.renderRestore(d.restore);
     if (typeof d === 'object') {
       return html`<sw-dialog open heading=${obt('remove')} subheading=${d.remove.name} data-offbox-remove-dialog @close=${() => this.closeDialog()}>
         <div class="muted">${obt('removeConfirm')}</div>
