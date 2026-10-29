@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 // SKINCOMP-297 (owner 2026-10-27): the component rules of the Arx skins in a real browser, demo mode (no backend). For Arx Infra and Arx
 // Soft: the KPI tile is dot · number · word (no icon box), the rail reads the --sw-rail-* tokens; for Arx Soft only: pill buttons, the
 // 51 x 31 switch. Option D: the rail tone "dark" (saved in הגדרות › כללי › מראה המערכת) paints Arx Infra's rail navy, is ignored by Soft
-// and by classic. Classic keeps its own components (the 30 px icon box, the 42 x 24 switch, the 8 px button radius, the white rail).
+// and by classic. Classic keeps its own components (the 30 px icon box, the 42 x 24 switch, the 8 px button radius, the rail on the canvas).
 // No pixel baselines (owner: not yet).
 //   SW_BASE_URL=http://127.0.0.1:4802/ npx playwright test tests/smoke-skincomp-297.spec.ts --project=desktop --workers=1
 
@@ -65,11 +65,13 @@ test.describe('SKINCOMP-297: the Arx component rules and the dark rail', () => {
     for (const scheme of ['light', 'dark']) {
       await load(page, `skin=classic&scheme=${scheme}`);
       const c = await probe(page);
-      expect(c.kpis.map((k) => `${k.w}x${k.h}`), `classic/${scheme} icon boxes`).toEqual(['30x30', '32x32']);
+      // POLISH-BOLD-297 (41a2a7879, owner-approved R5, classic rule 3): the compact counter's icon sits in a 34 px tile (was 32)
+      expect(c.kpis.map((k) => `${k.w}x${k.h}`), `classic/${scheme} icon boxes`).toEqual(['30x30', '34x34']);
       expect(c.kpis[0].glyph).toBe('visible');
       expect(c.kpis[0].dir).toBe('column');
       expect(`${c.toggle.w}x${c.toggle.h}`, `classic/${scheme} switch`).toBe('42x24');
-      expect(c.btns, `classic/${scheme} buttons`).toEqual(['8px', '6px']);
+      // POLISH-BOLD-297: radii one step rounder in classic (--sw-r-sm 10 px, --sw-r-xs 7 px; were 8 / 6)
+      expect(c.btns, `classic/${scheme} buttons`).toEqual(['10px', '7px']);
 
       for (const id of ['infra', 'soft']) {
         await load(page, `skin=${id}&scheme=${scheme}`);
@@ -135,7 +137,9 @@ test.describe('SKINCOMP-297: the Arx component rules and the dark rail', () => {
       await load(page, `skin=${id}&scheme=light`);
       const r = await rail(page);
       expect(r.tone, id).toBeNull();
-      if (id === 'classic') expect(r.bg, 'classic rail').toBe('rgb(255, 255, 255)');
+      // POLISH-BOLD-297 (41a2a7879, owner-approved R5, classic rule 7): the classic rail sits on the canvas (no fill of its own) - and
+      // never the dark tone's navy
+      if (id === 'classic') expect(r.bg, 'classic rail').toBe('rgba(0, 0, 0, 0)');
     }
 
     // back to the skin's own rail
