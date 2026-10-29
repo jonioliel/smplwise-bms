@@ -39,6 +39,7 @@ export class HomeAmbientBar extends LitElement {
       align-items: center;
       gap: var(--sw-s-4);
       min-block-size: var(--sw-ctl-h-lg);
+      box-sizing: border-box; /* GATE-FIX-2270: one control row high, its 1 px border included (R5 large control = 40 px; it drew 42) */
       padding-inline: var(--sw-s-3);
       border-radius: var(--sw-r-pill);
       background: var(--sw-surface);
