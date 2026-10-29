@@ -29,6 +29,35 @@ const readyCards = async (page: Page) => {
   await expect(page.locator(`${SCREEN} [data-wk-still] img`).first()).toBeVisible();
 };
 
+/**
+ * STATIONS-FLAKE-2270: a modal shot shows the page behind it, so the scroll of the shell's scroll container (`sw-app` main; the
+ * document itself never scrolls) is part of the picture - and it was left to Playwright's click. The click scrolls its target into
+ * view from wherever the target is at that moment: during the screen's entrance (R5 motion: every card fades in from a 6 px rise,
+ * held there by `animation-fill-mode: both` through its stagger delay) the same click centres the card 6 px lower, and a click
+ * attempt that is retried scrolls again with another alignment (end / center / start). So the page behind the dialog sat at one of
+ * several offsets from run to run (seen: 588 / 594 / 957 on the phone's release shot, 220 / 588 on the announcement shot).
+ * Now: wait until the entrance has finished (settlePage: no running animation, layout quiet), put the lobby card at a fixed
+ * place in the scroll container before the click (so the click has nothing to scroll), and put it back there before the shot (so a
+ * retried click cannot leave its own scroll in the picture). The offsets are the ones the Linux baselines were taken at.
+ */
+const LOBBY = `${SCREEN} [data-wk-grid] [data-wk-station="lobby"]`;
+const LOBBY_TOP: Record<'release' | 'announce', Record<string, number>> = {
+  release: { desktop: 305, mobile: 136 },
+  announce: { desktop: 305, mobile: 510 },
+};
+
+async function pinLobby(page: Page, info: TestInfo, shot: keyof typeof LOBBY_TOP) {
+  await settlePage(page);
+  const y = LOBBY_TOP[shot][info.project.name];
+  await page.locator(LOBBY).evaluate((card, at) => {
+    const main = document.querySelector('sw-app')?.shadowRoot?.querySelector('main');
+    if (!main) throw new Error('the shell scroll container (sw-app main) is missing');
+    const top = card.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
+    main.scrollTop = Math.max(0, Math.round(top - at));
+  }, y);
+  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+}
+
 async function shoot(page: Page, info: TestInfo, name: string) {
   await settlePage(page);
   const file = `${name}-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
@@ -79,8 +108,10 @@ test.describe('pixel: the stations and doors screen', () => {
     test.skip(info.project.name === 'tablet', 'desktop and phone only');
     await toScreen(page, 'classic');
     await readyCards(page);
-    await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="lobby"] [data-wk-door="lobby/1"]`).click();
+    await pinLobby(page, info, 'release');
+    await page.locator(`${LOBBY} [data-wk-door="lobby/1"]`).click();
     await expect(page.locator(`${SCREEN} sw-dialog[data-wk-release-dialog]`)).toHaveAttribute('open', '');
+    await pinLobby(page, info, 'release');
     await shoot(page, info, 'stations-classic-release');
     await page.locator(`${SCREEN} [data-wk-release-confirm]`).click();
     await expect(page.locator(`${SCREEN} [data-wk-grid] [data-wk-result="lobby"]`)).toContainText('פתיחה נשלחה');
@@ -91,10 +122,12 @@ test.describe('pixel: the stations and doors screen', () => {
     test.skip(info.project.name === 'tablet', 'desktop and phone only');
     await toScreen(page, 'classic');
     await readyCards(page);
-    await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="lobby"] [data-wk-announce-at="lobby"]`).click();
+    await pinLobby(page, info, 'announce');
+    await page.locator(`${LOBBY} [data-wk-announce-at="lobby"]`).click();
     const dlg = page.locator(`${SCREEN} wk-announce-dialog`);
     await dlg.locator('[data-wk-phrase]').first().click();
     await expect(dlg.locator('[data-wk-announce-send]')).not.toHaveAttribute('disabled', '');
+    await pinLobby(page, info, 'announce');
     await shoot(page, info, 'stations-classic-announce');
     await dlg.locator('[data-wk-announce-send]').click();
     await expect(dlg.locator('[data-wk-announce-result]')).toContainText('ההכרזה נשלחה');
