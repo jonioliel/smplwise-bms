@@ -73,8 +73,8 @@ for (const mode of ['cards', 'tiles'] as const) {
       await shot(page, `${mode}-normal-dark-${vp}`);
       if (vp !== 'm') expect(await overflowY(page)).toBeLessThanOrEqual(1);
       else {
-        await expect(b.locator('[data-phone-floors]')).toBeVisible(); // one floor at a time + the tree button
-        await expect(b.locator(mode === 'cards' ? 'section.fcard[data-floor-card]' : 'section.floor[data-floor]')).toHaveCount(1);
+        await expect(b.locator('[data-phone-floors]')).toBeVisible(); // the floor switch ("all floors" first, the default) + the tree button
+        expect(await b.locator(mode === 'cards' ? 'section.fcard[data-floor-card]' : 'section.floor[data-floor]').count()).toBeGreaterThanOrEqual(2); // every floor, stacked (owner 2026-10-29)
       }
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
     });
