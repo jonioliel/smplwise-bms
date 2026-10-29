@@ -190,6 +190,10 @@ def sync_cameras(settings: Settings, conn: sqlite3.Connection, actor: Any | None
             if row["source_ref"] not in keys:
                 conn.execute("UPDATE cameras SET status = 'offline', enabled = 0, updated_at = ? WHERE id = ? AND (status != 'offline' OR enabled = 1)", (now, row["id"]))
                 removed += 1
+    if is_frigate:  # reviews / events stored before their camera existed (first poll raced the first import) get their camera now
+        from .recorders import frigate_events
+
+        frigate_events.backfill_cameras(conn, rid)
     audit(conn, actor=actor, action="cameras.sync", decision="allowed", resource_type="recorder", resource_id=rid, request_id=request_id,
           details={"channels": len(channels), "created": created, "updated": updated, "model": info.get("model"), "reason": reason,
                    **({"replaced": replaced} if replaced else {}), **({"removed_from_recorder": removed} if removed else {})})
