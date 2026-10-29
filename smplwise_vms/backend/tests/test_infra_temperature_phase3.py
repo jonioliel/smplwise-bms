@@ -435,7 +435,7 @@ def test_home_widget_config_has_the_elevators_shape():
     from smplwise.services import home_config
 
     cfg = home_config.default_config()
-    assert cfg["order"][-4:] == ["temperature", "generators", "doors", "notices", "presence"] and cfg["temperature"]["mode"] == "combined" and cfg["temperature"]["hidden"] == []
+    assert cfg["order"][-5:] == ["temperature", "generators", "doors", "notices", "presence"] and cfg["temperature"]["mode"] == "combined" and cfg["temperature"]["hidden"] == []
     ok = home_config.normalise({"temperature": {"mode": "cards", "hidden": ["u1", "u1"], "filter": "alerts"}})["temperature"]
     assert (ok["mode"], ok["hidden"], ok["filter"]) == ("cards", ["u1"], "alerts")
     for bad in ({"mode": "x"}, {"hidden": ["bad id!"]}, {"filter": "some"}, {"entity": "sensor.x"}):

@@ -39,7 +39,7 @@ def test_generators_widget_is_appended_last_with_no_options():
     # G2FIX-295: DOORWIN2-295 appended the `doors` widget after it; generators stays right before it, still after every older widget
     assert home_config.WIDGET_IDS[-6:] == ("elevators", "temperature", "generators", "doors", "notices", "presence")
     cfg = home_config.default_config()
-    assert cfg["order"][-3:] == ["generators", "doors", "notices", "presence"]
+    assert cfg["order"][-4:] == ["generators", "doors", "notices", "presence"]
     assert cfg["generators"] == {"on": True, "sizes": {"a": "m", "b": "s", "c": "m"}, "label": "", "phone_on": None, "phone_size": None}
     ok = home_config.normalise({"generators": {"on": False, "sizes": {"a": "l"}, "label": "חשמל חירום", "phone_size": "s"}})["generators"]
     assert (ok["on"], ok["sizes"]["a"], ok["label"], ok["phone_size"]) == (False, "l", "חשמל חירום", "s")
