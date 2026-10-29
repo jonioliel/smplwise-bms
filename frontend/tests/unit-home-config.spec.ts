@@ -293,7 +293,7 @@ test.describe('home config', () => {
 
   test('the media widget (CR-015): appended last, the common settings only, absent when the caller has no screen', () => {
     const c = defaultConfig();
-    expect(WIDGET_IDS[WIDGET_IDS.length - 2]).toBe('doors'); // GENWIDGET 2.9.3 appended after the temperatures (phase 3)
+    expect(WIDGET_IDS[WIDGET_IDS.length - 3]).toBe('doors'); // GENWIDGET 2.9.3 appended after the temperatures (phase 3)
     expect(c.media).toEqual({ on: true, sizes: { a: 'm', b: 's', c: 'm' }, label: '', phone_on: null, phone_size: null });
     // a config saved before the widget existed reads back with it, last, on
     const old = configOf({ order: ['quick', 'clock'], clock: { on: false } });
