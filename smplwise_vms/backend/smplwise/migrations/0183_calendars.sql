@@ -1,6 +1,6 @@
 -- CALENDARS-298 phase 1 (docs/changes/CALENDARS-CONTRACT-298.md, section 3 and 14): calendars, events and bookings, per-calendar roles, the approval
--- log, sealed guest details, the occurrence cache and the (empty until phases 4-6) sync tables. Number 0190 on purpose: 0183 is a known collision
--- on other branches; 0183-0189 stay free for them (the runner applies every file whose version is not recorded).
+-- log, sealed guest details, the occurrence cache and the (empty until phases 4-6) sync tables. Number 0183 (renumbered from a provisional 0190 at the 2.28.0 train; train-departure order, no gaps).
+-- (if another branch departs first the lead re-sequences at assembly).
 -- Additive only: no existing table is altered. The module is OFF after this migration (`calendar.settings` is not written; a missing document
 -- reads as defaults with enabled=false). Instants are UTC ISO-8601 text. cal_events.visitor_invite_id is a plain text column (no FK) so the
 -- rollback (DROP the cal_* tables) leaves nothing behind.

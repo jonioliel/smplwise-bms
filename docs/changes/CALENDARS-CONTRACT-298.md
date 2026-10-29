@@ -4,8 +4,8 @@
 **Status:** PROPOSED - phase 0 (written contract + mockup round). Branch `pilot/CALENDARS-P0-298` from `main` @ 83a7c795f (v2.25.0).
 No product code, no migration file, no test, no runner job, no account, no OAuth registration and no network call to any calendar
 provider was made to write this. **Nothing here is an approval to build phase 1 or to connect any external calendar.**
-**Migration:** `0190_calendars.sql` (phase 1 build, pilot/CALENDARS-P1-2300). The number 0190 was chosen on purpose: `0183` is a known
-collision on other branches; 0183-0189 are left free for them and the migration runner has no contiguity rule (it applies every file whose
+**Migration:** `0183_calendars.sql` (phase 1 build, pilot/CALENDARS-P1-2300). Renumbered from the provisional 0190 to 0183 (next free after main's 0182; owner decision: train-departure order, release_check forbids gaps).
+Re-sequenced by the lead at assembly if another migration departs first. (Original note: the migration runner applies every file whose
 version is not recorded). The lead may still renumber at integration. Section 14.
 **Mockup:** `private/design-system-2026-10-27/round6/calendars/index.html` (gitignored; local file only, invented data).
 **Plan it implements:** `private/planning/PLAN_R112_CALENDARS_ROOMS_2026-10-28.md` + the owner decisions of 2026-10-29 (section 1).
@@ -67,7 +67,7 @@ version is not recorded). The lead may still renumber at integration. Section 14
 | C10 | Question 11 | Connecting external calendars is a permission the owner can hand out | new grant role `calendar_connect` (`calendar.connect`); not in `DEFAULT_DELEGABLE` |
 | C11 | Questions 6, 9, 10, 12 | Public booking link: not now. Door display: later. Module name fixed "יומנים". "Room booked now" schedule condition: yes, phase 3 | no change to phase 1 |
 | C12 | Question 14 | The bumped organizer chooses an alternative himself; maintenance does not always win | `displaced` state and alternatives as in section 7; auto-move not built |
-| C13 | Migration number | `0190_calendars.sql` | header and section 14 |
+| C13 | Migration number | `0183_calendars.sql` | header and section 14 |
 
 Precedence (CLAUDE.md): approved change request > `MASTER_SPEC_HE.md` and `docs/security/` > `AGENTS.md` > this document. The plan
 (`PLAN_R112...`) proposed `rooms.*` permissions and a single room resource table; D3 and D5 replace that with "every bookable thing is
@@ -712,7 +712,7 @@ Order of checks on every route: signed in -> module switch (404) -> calendar vis
 
 ## 14. Migration plan
 
-- One file `0190_calendars.sql` (C13): all tables of section 3 (incl. the sync tables, empty until phases 4-6), indexes,
+- One file `0183_calendars.sql` (C13): all tables of section 3 (incl. the sync tables, empty until phases 4-6), indexes,
   the settings default row, the new permissions in the built-in roles (roles.json, not SQL) and the grant roles.
 - Additive only; nothing existing is altered. The module is OFF after migration; no data is created except the settings document.
 - Ticket visit / maintenance task projections are back-filled by a one-time job when the owner maps a department/maintenance calendar

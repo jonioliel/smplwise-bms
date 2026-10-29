@@ -112,12 +112,12 @@ def test_settings_defaults_validation_and_fail_closed(cc):
     assert ok(cc.get(f"{API}/calendar/module"))["enabled"] is False
 
 
-def test_migration_0190_creates_the_tables(cc):
+def test_migration_0183_creates_the_tables(cc):
     with db(cc).connection() as c:
         names = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'cal_%'")}
         assert {"cal_calendars", "cal_events", "cal_event_rooms", "cal_members", "cal_approvals", "cal_guest_details", "cal_occurrences", "cal_connections", "cal_sync_bindings",
                 "cal_sync_map", "cal_feeds"} <= names
-        assert c.execute("SELECT 1 FROM schema_migrations WHERE version = 190").fetchone()
+        assert c.execute("SELECT 1 FROM schema_migrations WHERE version = 183").fetchone()
 
 
 # ---------------------------------------------------------------- calendars and members
