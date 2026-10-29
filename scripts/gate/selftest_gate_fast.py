@@ -14,11 +14,26 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 TMP = Path(tempfile.mkdtemp(prefix="gate_fast_selftest_"))
+# HERMETIC: nothing of the machine the test runs on may leak in. Every GATE_* knob of the caller is dropped, HOME /
+# USERPROFILE point into the temp dir (so ~/smplwise-results, ~/.gate_fast_enabled, the holder and lock files are never
+# the real ones), and the seed budgets used by the assertions are the test's OWN fixture (not the file next to the script,
+# which differs between the workstation and the runner).
+for _k in [k for k in os.environ if k.startswith("GATE_")]:
+    del os.environ[_k]
+for _k in ("HOME", "USERPROFILE"):
+    os.environ[_k] = str(TMP / "home")
 os.environ["GATE_HOME"] = str(TMP / "home")
 os.environ["GATE_RESULTS_DIR"] = str(TMP / "results")
+os.environ["GATE_HOLDER_FILE"] = str(TMP / "home" / "holder.json")
+os.environ["GATE_LOCK_FILE"] = str(TMP / "home" / "gate.lock")
+os.environ["GATE_FAST_FLAG"] = str(TMP / "home" / "fast_flag")
 (TMP / "home").mkdir()
 (TMP / "results").mkdir()
 sys.path.insert(0, str(HERE))
+SEED = TMP / "seed_budgets.json"
+SEED.write_text(json.dumps({"modes": {
+    "full": {"tsc": 120, "build": 120, "playwright-pool": 9000, "backend-wait": 1800},
+    "select": {"tsc": 120, "build": 120, "playwright-pool": 3300, "backend-wait": 900}}}), encoding="utf-8")
 BAD = []
 
 
@@ -45,7 +60,7 @@ try:
 
     # ---- item 4: budgets, cap, lateness
     R = TMP / "results"
-    seed_b = gb.derive_budgets(R, "select")
+    seed_b = gb.derive_budgets(R, "select", SEED)
     check("seed budgets used without history", seed_b["playwright-pool"]["source"] == "seed" and seed_b["playwright-pool"]["budget_s"] == 3300)
     cap_seed = gb.total_cap(seed_b)
     check("cap = sum x 1.5 clamped", cap_seed == min(gb.CAP_MAX, max(gb.CAP_MIN, round(sum(v["budget_s"] for v in seed_b.values()) * 1.5))), str(cap_seed))
@@ -53,9 +68,9 @@ try:
         "selection": {"reduced": {"backend": "10 of 100"}}, "phases": [{"name": "tsc", "seconds": 100}, {"name": "playwright-pool", "seconds": 2000}]})
     wj(R / "gate_release-y_bbb2222.json", {"branch": "release/y", "sha": "bbb2222", "tier": "L", "verdict": "fail", "finished": ts(2),
         "selection": {"reduced": {"backend": "10 of 100"}}, "phases": [{"name": "tsc", "seconds": 9999}]})
-    h = gb.derive_budgets(R, "select")
+    h = gb.derive_budgets(R, "select", SEED)
     check("history: previous passed run x 1.25, failed run ignored", h["tsc"]["budget_s"] == 125 and h["playwright-pool"]["budget_s"] == 2500, str(h["tsc"]))
-    check("history of the other mode is not used for full", gb.derive_budgets(R, "full")["tsc"]["source"] == "seed")
+    check("history of the other mode is not used for full", gb.derive_budgets(R, "full", SEED)["tsc"]["source"] == "seed")
     n = gb.late_note("tsc", 400, 125, load1=45.0, mem_mb=9000)
     check("lateness note names the overload cause", n["late_s"] == 275 and "overload" in n["cause"] and "מאחר" in n["he"])
     check("lateness note without load = more work", "more work" in gb.late_note("tsc", 400, 125, 5, 9000)["cause"])
