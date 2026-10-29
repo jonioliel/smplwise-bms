@@ -150,6 +150,113 @@ try:
     ej2 = json.loads((TMP / "results" / "gate_release-z_ddd4444.early.json").read_text(encoding="utf-8"))
     check("early report names the failing test and has no verdict key", "layout-noscroll-297" in em and "verdict" not in ej2 and ej2["failures"])
     check("early report is never read as a gate history report", rg.gate_history("x@y", []) is not None)
+    # ---- item 5: checkpoint + resume (engine functions, no process started)
+    rg.COUNTS.clear(); rg.ITEMS.clear()
+    rg.RESUME = True
+    rg.TAG, rg.BR = "release-c", "release/c"
+    rg.STATE["sha"] = "eee5555"
+    rg.TIER, rg.SELECT_BASE = "L", ""
+    rg.ckpt_init("e" * 40)
+    with rg.Recording("preview_a", "sigA"):
+        rg.count("preview", "pass", 5); rg.count("preview", "fail"); rg.item("preview", "a.spec.ts:1 x", "FAIL", "failed again alone")
+    with rg.Recording("backend", "bsig"):
+        rg.count("backend", "pass", 100)
+    try:
+        with rg.Recording("crashed", "s"):
+            raise RuntimeError("boom")
+    except RuntimeError:
+        pass
+    check("a crashed unit is not committed", "crashed" not in rg.CKPT["units"])
+    tot_before = (dict(rg.COUNTS["preview"]), len(rg.ITEMS))
+    rg.COUNTS.clear(); rg.ITEMS.clear()
+    rg.ckpt_init("e" * 40)      # a new run of the same sha with --resume loads the file
+    check("same sha: units come back from the file", set(rg.CKPT["units"]) == {"preview_a", "backend"})
+    check("reusable only with the same signature", rg.ckpt_reusable("backend", "bsig") and not rg.ckpt_reusable("backend", "other"))
+    rg.ckpt_apply("preview_a"); rg.ckpt_apply("backend")
+    check("resumed unit merges the same counts and items", rg.COUNTS["preview"] == tot_before[0] and len(rg.ITEMS) == tot_before[1] and rg.COUNTS["backend"]["pass"] == 100)
+    rg.ckpt_init("f" * 40)
+    check("different sha: nothing is reused", rg.CKPT["units"] == {})
+    rg.ckpt_init("e" * 40)      # (the f-run overwrote the file with an empty unit list: write the units again)
+    with rg.Recording("preview_a", "sigA"):
+        rg.count("preview", "fail")
+    with rg.Recording("backend", "bsig"):
+        rg.count("backend", "pass", 1)
+    rg.RERUN_FAILED = True
+    rg.ckpt_init("e" * 40)
+    check("rerun-failed: a unit with failures runs again, a clean one does not", not rg.ckpt_reusable("preview_a", "sigA") and rg.ckpt_reusable("backend", "bsig"))
+    rg.RESUME = rg.RERUN_FAILED = False
+
+    # ---- item 6: spec lint
+    import lint_spec_waits as lw
+    bad = "test('x', async ({page}) => {\n  await page.click('#open');\n  const r = await el.boundingBox();\n});\n"
+    good = "test('x', async ({page}) => {\n  await page.click('#open');\n  await settle(page);\n  const r = await el.boundingBox();\n});\n"
+    far = "test('x', async ({page}) => {\n  await page.click('#open');\n" + "  await foo();\n" * 9 + "  const r = await el.boundingBox();\n});\n"
+    sup = "test('x', async ({page}) => {\n  await page.click('#open');\n  // lint-wait: ok\n  const r = await el.boundingBox();\n});\n"
+    split = "test('a', async () => {\n  await page.click('#o');\n});\ntest('b', async () => {\n  const r = await el.boundingBox();\n});\n"
+    check("lint flags a measure right after a click", len(lw.lint_text(bad)) == 1 and lw.lint_text(bad)[0][:2] == (2, 3))
+    check("lint accepts settle(), distance, suppression, other test", not lw.lint_text(good) and not lw.lint_text(far) and not lw.lint_text(sup) and not lw.lint_text(split))
+
+    # ---- item 9: Hebrew summary
+    import gate_summary as gs
+    rep = {"verdict": "fail", "resources": {"max_load1": 45.0}, "items": [
+        {"category": "preview", "status": "FAIL", "id": "a.spec.ts:1", "reason": "page.goto: Timeout 30000ms exceeded"},
+        {"category": "backend", "status": "FAIL", "id": "tests/test_x.py::t", "reason": "failed twice"},
+        {"category": "preview", "status": "FLAKY", "id": "b.spec.ts:2", "reason": "own retry passed"},
+        {"category": "dev", "status": "FAIL", "id": "c.spec.ts:3", "reason": "did not run (no time left to retry)"},
+        {"category": "tsc", "status": "FAIL", "id": "tsc --noEmit", "reason": "rc=2"}]}
+    sm = gs.summarize(rep)
+    kinds = {i["id"]: gs.classify_item(i, 45.0)[0] for i in rep["items"]}
+    check("summary: timeout under load 45 = run problem", kinds["a.spec.ts:1"] == "run")
+    check("summary: failed twice = real, tsc = real, no time = run, flaky = run", kinds["tests/test_x.py::t"] == "real" and kinds["tsc --noEmit"] == "real"
+          and kinds["c.spec.ts:3"] == "run" and kinds["b.spec.ts:2"] == "run")
+    check("summary line is Hebrew and says likely", "כנראה" in sm["line"] and "אדום" in sm["line"] and "2 כשלים כנראה אמיתיים" in sm["line"], sm["line"])
+    check("same timeout on a calm machine is not blamed on the run", gs.classify_item(rep["items"][0], 3.0)[0] == "unclear")
+
+    # ---- item 7: one quarantine list
+    import gate_quarantine as gq
+    qp = TMP / "q.json"
+    today = dt.date(2026, 10, 30)
+    e = gq.add_entry(qp, "test_flaky.py", "backend", "T-9", "lead", "waits for X", 21, today)
+    check("quarantine add: expiry is added + 21 days", e["expires"] == "2026-11-20")
+    for kw in ({"days": 22}, {"owner": ""}, {"reason": ""}):
+        a = dict(match="m2", category="backend", ticket="T", owner="o", reason="r", days=21)
+        a.update(kw)
+        try:
+            gq.add_entry(qp, a["match"], a["category"], a["ticket"], a["owner"], a["reason"], a["days"], today)
+            ok = False
+        except ValueError:
+            ok = True
+        check(f"quarantine add refuses {list(kw)[0]}", ok)
+    try:
+        gq.add_entry(qp, "test_flaky.py", "backend", "T", "o", "r", 5, today)
+        dup = False
+    except ValueError:
+        dup = True
+    check("quarantine add refuses a duplicate", dup)
+    wj(R / "quarantine.json", {"entries": [{"id": "tests/test_other.py::t", "category": "backend", "gates": ["a", "b"]}, {"id": "tests/test_flaky.py::t", "category": "backend", "gates": ["a"]}]})
+    ls = "\n".join(gq.listing(qp, R, None, today))
+    check("one listing: managed entry + auto candidate without owner (covered one hidden)", "test_flaky.py" in ls and "test_other.py" in ls and ls.count("test_flaky.py") == 1, ls)
+    check("expired entries are pruned into history", len(gq.prune(qp, dt.date(2026, 12, 1))) == 1 and json.loads(qp.read_text())["history"])
+    gq.add_entry(qp, "test_flaky.py", "backend", "T-9", "lead", "again", 21, today)
+    ents, _ = gq.g2v.load_quarantine(qp, today)
+    rr = {"verdict": "fail", "items": [{"category": "backend", "status": "FAIL", "id": "tests/test_flaky.py::t"}]}
+    c1 = gq.g2v.classify(rr, ents)
+    check("all-quarantined red is recognised for the one re-run alone", c1["quarantined"] and not c1["real"])
+    rr["items"].append({"category": "preview", "status": "FAIL", "id": "z.spec.ts:1"})
+    check("a non-quarantined failure alongside = real", gq.g2v.classify(rr, ents)["real"])
+
+    # ---- item 8: who holds the machine
+    import gate_holder as gh
+    hp = TMP / "holder.json"
+    check("no holder: free", gh.guard("agent", hp, lambda p: True, lambda: False)[0] == 0)
+    gh.claim("gate", "release gate release/z", "release_gate2.sh release/z", os.getpid(), hp)
+    rc, msg = gh.guard("agent", hp, lambda p: True, lambda: False)
+    check("gate holds the machine: refused (75) with a Hebrew message naming the holder", rc == 75 and "השער רץ" in msg and "release/z" in msg, msg)
+    check("a dead holder pid does not block", gh.guard("agent", hp, lambda p: False, lambda: False)[0] == 0)
+    check("lock held without a holder file still blocks", gh.guard("agent", TMP / "none.json", lambda p: False, lambda: True)[0] == 75)
+    gh.claim("agent", "some agent", "pytest", os.getpid(), hp)
+    check("an agent holder does not block another agent", gh.guard("agent", hp, lambda p: True, lambda: False)[0] == 0)
+    check("release removes only our own holder", not gh.release(123456, hp) and gh.release(os.getpid(), hp))
 finally:
     shutil.rmtree(TMP, ignore_errors=True)
 

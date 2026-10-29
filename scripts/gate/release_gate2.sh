@@ -40,6 +40,7 @@ while [ $# -gt 0 ]; do
     --after) AFTER="${2:-}"; shift 2;;
     --full) FULL=1; shift;;
     --keep-heavy) export GATE2_DEFER_HEAVY=0; shift;;
+    --resume) export GATE_RESUME=1; shift;;       # GATE-FAST-2291: reuse the finished units of an earlier run of the SAME sha (checkpoint file)
     --depth) DEPTH="${2:-}"; shift 2;;
     --accept-stale-nightly) STALE_OK=1; shift;;
     --dry-run) DRY=1; shift;;
@@ -95,7 +96,9 @@ exec 8>"$HOME/.smplwise-tests.lock"
 flock -n 8 || { echo "the nightly/manual test run holds ~/.smplwise-tests.lock"; exit 3; }
 MADE_PENDING=0
 if [ ! -e "$HOME/.gate-pending" ]; then touch "$HOME/.gate-pending"; MADE_PENDING=1; fi
-trap '[ "$MADE_PENDING" = 1 ] && rm -f "$HOME/.gate-pending"' EXIT
+# GATE-FAST-2291 (item 8): say who holds the machine; agent test runs (run_guarded.sh / gate_holder.py guard) are refused meanwhile
+[ -f "$G2/gate_holder.py" ] && "$PY3" "$G2/gate_holder.py" claim --kind gate --who "release gate $BR" --what "release_gate2.sh $BR" --pid $$ >/dev/null 2>&1
+trap '[ "$MADE_PENDING" = 1 ] && rm -f "$HOME/.gate-pending"; [ -f "$G2/gate_holder.py" ] && "$PY3" "$G2/gate_holder.py" release --pid $$ >/dev/null 2>&1' EXIT
 
 for f in release_gate.py select_tests.py; do
   [ -f "$V1/$f" ] || { echo "the v1 gate is not installed in $V1 ($f missing)"; exit 2; }

@@ -32,7 +32,7 @@ sys.path.insert(0, str(HERE))
 import gate_entry as ge          # noqa: E402
 import gate2_verdict as g2v      # noqa: E402
 
-SKIP = (".pre-gate2", ".gate2-first", ".selection", ".early", "quarantine", "gate_status")
+SKIP = (".checkpoint", ".pre-gate2", ".gate2-first", ".selection", ".early", "quarantine", "gate_status")
 
 
 def reports(results: Path, last: int) -> list[tuple[Path, dict]]:

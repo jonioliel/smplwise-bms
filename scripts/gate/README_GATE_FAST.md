@@ -54,3 +54,22 @@ analysis: `docs/release/GATE_V2_REPLAY.md`.
 Real gate run with the early stage and budgets (timings, the real early-list cost against the 8 minute target, `max_worker_seconds` tuning),
 fail-fast kill of the backend shards, the derived cap values from real history, `gate_release.sh` end to end (flock paths, `--dry-run`), and the
 back-comparison numbers themselves. The seed budgets are estimates, not measurements.
+
+## Items 5 to 9 (added)
+
+| File | Item | Role |
+|---|---|---|
+| engine: `Recording`, `ckpt_*`, `--resume` / `GATE_RESUME=1` | 5 | checkpoint `gate_<b>_<sha>.checkpoint.json`: the backend (one unit) and every Playwright job (settled at once, one unit each) are saved when finished. `--resume` on the SAME full sha reuses them; a different sha, tier or selection base reuses nothing. `GATE_RESUME_RERUN_FAILED=1` also re-runs units that had failures. Pixel, fixture and visual jobs are not checkpointed (re-run). A killed gate loses the unit in flight and the backend if it had not finished collecting |
+| `lint_spec_waits.py` + engine phase `spec-lint` | 6 | heuristic: a click followed within 8 lines by a size/position read with no `settle(page)` / wait. Only spec files ADDED since the base (`--select-base`, else origin/main) fail the gate, as category `lint`, before any test runs. `// lint-wait: ok` suppresses; `GATE_SPEC_LINT=0` switches off; `--all` reports the old debt (104 findings at this commit, informational) |
+| `gate_quarantine.py` | 7 | ONE list = `gate2_quarantine.json` (reason, owner, ticket, expiry at most 21 days); the engine's auto queue is shown as candidates without effect; `list`, `add`, `prune`. The re-run alone / second red = real logic is the existing `gate2_verdict.py` (rc 10) |
+| `gate_holder.py`, `run_guarded.sh`, wrapper edits | 8 | the gate wrappers write `~/.smplwise-machine-holder.json` (who, what, since, pid) and remove it on exit; `run_guarded.sh "<agent>" <cmd>` or `gate_holder.py guard` refuses with a Hebrew message (exit 75) while a gate holds the machine. A raw command that skips the wrapper cannot be stopped |
+| `gate_summary.py` + report/status | 9 | Hebrew section at the top of the report and one line in `gate_status.json`: real defects versus run problems, each with a "likely" cause (passed alone, timeout under load above 30, no time left, failed twice, deterministic phases) |
+
+Install (same convention): `scp` `gate_summary.py lint_spec_waits.py gate_holder.py` to `~/` with the engine (`release_gate.py` imports them from its own directory),
+and `gate_holder.py gate_quarantine.py run_guarded.sh` to `~/gate2/` (`release_gate2.sh` also copies nothing else new; `release_gate.sh` looks for `gate_holder.py` next to itself, so put it in `~/` too).
+`chmod +x ~/gate2/run_guarded.sh`. Then add to the top of `run_remote.sh` / `run_smart.py` (private, not in this repo): `python3 ~/gate2/gate_holder.py guard --who "<agent>" || exit 75`.
+Resume example: `gate_release.sh release/2271 --resume` (the wrapper passes `GATE_RESUME=1`; the sha must not have changed).
+Quarantine: `python3 ~/gate2/gate_quarantine.py list --known ~/known_issues.json`.
+
+Not validated on the runner: resume after a real kill, the inline settle of pool jobs under load (it replaces the settle step after the pool),
+the lint phase inside a real gate, the holder file with real flock and wrapper traps, the thresholds of the Hebrew classification.

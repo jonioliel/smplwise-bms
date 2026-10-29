@@ -77,6 +77,11 @@ except Exception:   # noqa: BLE001 - the engine runs without budgets when the he
 BUDGETS = {}        # phase name -> {budget_s, source}, filled in main()
 LATE = []           # lateness notes (gate_budget.late_note), reported at once in gate_status.json and at the end in the report
 LATE_SEEN = set()   # phases already reported while running
+try:
+    import gate_summary as GS
+except Exception:   # noqa: BLE001
+    GS = None
+LATE_LINT_ENABLED = os.environ.get("GATE_SPEC_LINT", "1") != "0"   # item 6: new specs that measure right after a click without settle()
 EARLY = {}          # early layout stage facts (specs, seconds, failures, stopped), written to the report
 EARLY_FILE = "gate_early_layout.json"
 TAG = ""
@@ -245,14 +250,116 @@ def wait_http(url, secs):
     return False
 
 
+_REC = threading.local()   # GATE-FAST-2291: a unit of work records its own count()/item() calls (checkpoint)
+
+
 def count(cat, key, n=1):
     with _LOCK:
         COUNTS.setdefault(cat, {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 0})[key] += n
+    rec = getattr(_REC, "rec", None)
+    if rec is not None:
+        rec["counts"].setdefault(cat, {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 0})[key] += n
 
 
 def item(cat, ident, st, reason=""):
+    row = {"category": cat, "id": ident, "status": st, "reason": reason[:300]}
     with _LOCK:
-        ITEMS.append({"category": cat, "id": ident, "status": st, "reason": reason[:300]})
+        ITEMS.append(row)
+    rec = getattr(_REC, "rec", None)
+    if rec is not None:
+        rec["items"].append(dict(row))
+
+
+# ---------------------------------------------------------------- checkpoint + resume (GATE-FAST-2291, item 5)
+RESUME = os.environ.get("GATE_RESUME") == "1"                      # --resume: reuse the finished units of the SAME full sha
+RERUN_FAILED = os.environ.get("GATE_RESUME_RERUN_FAILED") == "1"   # with --resume: units that had failures run again
+CKPT = {"sha": "", "units": {}, "resumed": [], "ran": []}
+CKPT_LOCK = threading.RLock()
+
+
+def ckpt_path():
+    return RES / f"gate_{TAG}_{STATE['sha']}.checkpoint.json"
+
+
+def ckpt_init(full_sha):
+    """Always start a checkpoint for this sha; with --resume load the units of an earlier run of the SAME full sha only."""
+    CKPT.update(sha=full_sha, units={}, resumed=[], ran=[])
+    if RESUME and ckpt_path().exists():
+        try:
+            doc = json.loads(ckpt_path().read_text(encoding="utf-8"))
+            if doc.get("sha") == full_sha and doc.get("tier") == TIER and doc.get("select_base", "") == SELECT_BASE:
+                CKPT["units"] = doc.get("units", {})
+        except (OSError, ValueError):
+            pass
+    ckpt_save()
+
+
+def ckpt_save():
+    with CKPT_LOCK:
+        try:
+            write_json(ckpt_path(), {"branch": BR, "sha": CKPT["sha"], "tier": TIER, "select_base": SELECT_BASE, "updated": now(), "units": CKPT["units"]})
+        except Exception:   # noqa: BLE001 - a checkpoint write never fails the gate
+            pass
+
+
+def ckpt_reusable(key, sig):
+    u = CKPT["units"].get(key)
+    return bool(RESUME and u and u.get("sig") == sig and (u.get("clean") or not RERUN_FAILED))
+
+
+def ckpt_apply(key):
+    """Merge a finished unit's counts and items into this run (the unit is not run again)."""
+    u = CKPT["units"][key]
+    with _LOCK:
+        for cat, c in u["counts"].items():
+            tgt = COUNTS.setdefault(cat, {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 0})
+            for k, v in c.items():
+                tgt[k] += v
+        ITEMS.extend(dict(i) for i in u["items"])
+    CKPT["resumed"].append(key)
+
+
+class Recording:
+    """with Recording(key, sig): ... - everything count()/item() see in this thread becomes the unit; committed when the block ends cleanly."""
+    def __init__(self, key, sig):
+        self.key, self.sig = key, sig
+
+    def __enter__(self):
+        self.t = time.time()
+        self.rec = {"counts": {}, "items": []}
+        _REC.rec = self.rec
+        return self
+
+    def __exit__(self, et, ev, tb):
+        _REC.rec = None
+        if et is None:
+            clean = not any(c.get("fail", 0) for c in self.rec["counts"].values())
+            with CKPT_LOCK:
+                CKPT["units"][self.key] = {"sig": self.sig, "counts": self.rec["counts"], "items": self.rec["items"], "clean": clean,
+                                           "seconds": int(time.time() - self.t), "done": now()}
+                CKPT["ran"].append(self.key)
+            ckpt_save()
+        return False
+
+
+def spec_lint_phase(wt, logd):
+    """Item 6: the spec files ADDED since the base are linted (lint_spec_waits.py, heuristic); a finding is a FAIL of category lint,
+    reported before any test runs. Silent when the helper is missing; a lint crash never fails the gate."""
+    try:
+        import lint_spec_waits as L
+        with Phase("spec-lint", "spec lint: new specs that measure right after a click"):
+            for f in L.new_specs(wt, SELECT_BASE or VISUAL_BASE):
+                for c, m, txt in L.lint_text(f.read_text(encoding="utf-8", errors="replace")):
+                    count("lint", "fail")
+                    item("lint", f"{f.name}:{m}", "FAIL", f"geometry read {m - c} line(s) after a click with no animation wait (settle(page)); {txt}"[:300])
+    except ImportError:
+        pass
+    except Exception as e:   # noqa: BLE001
+        print(f"spec lint skipped: {type(e).__name__}: {e}")
+
+
+def job_sig(j):
+    return f"{j['cat']}|{','.join(sorted(j['names']))}|{','.join(j['projects'])}|{j['workers']}"
 
 
 class Phase:
@@ -1278,7 +1385,9 @@ def run_frontend_v2(wt, fe, logd, cls, dead):
         if j["kind"] == "pw":
             rows, rc, to = run_pw(fe, j["names"], j["projects"], urls[j["cat"]], logd, j["label"], workers=j["workers"],
                                   grep_invert="pixel-stable" if j["cat"] == "preview" else None, timeout=left())
-            return [(j["cat"], rows, rc, to, j["label"])]
+            with Recording(j["label"], job_sig(j)):   # GATE-FAST-2291: settled at once = a finished, checkpointed unit (resume skips it)
+                settle(j["cat"], rows, rc, to, fe, logd, urls[j["cat"]], {}, j["label"])
+            return []
         if j["kind"] == "pixel":
             out = []
             for i, name in enumerate(j["names"]):
@@ -1305,10 +1414,22 @@ def run_frontend_v2(wt, fe, logd, cls, dead):
             for cat, rows, rc, to, lab in r or []:
                 settle(cat, rows, rc, to, fe, logd, urls[cat], {}, lab)
 
+    def take_resumed(jl):
+        """--resume: jobs finished in an earlier run of the same sha are merged from the checkpoint and not run again."""
+        keep = []
+        for j in jl:
+            if j["kind"] == "pw" and ckpt_reusable(j["label"], job_sig(j)):
+                ckpt_apply(j["label"])
+            else:
+                keep.append(j)
+        return keep
+
     try:
         early_jobs = [j for j in early_jobs if j["cat"] in urls]
-        if early_jobs:    # the early layout stage: first in the queue, in parallel with the backend shards already running
-            first = len(ITEMS)
+        early_all = early_jobs
+        first = len(ITEMS)
+        early_jobs = take_resumed(early_jobs)
+        if early_all:    # the early layout stage: first in the queue, in parallel with the backend shards already running
             EARLY.update(specs=sorted(early), jobs=[j["label"] for j in early_jobs], failfast=EARLY_FAILFAST, stopped=False)
             status("running", f"early layout stage: {len(early)} specs, {len(early_jobs)} jobs")
             with Phase("early-layout", "early layout stage (Playwright, dist preview)"):
@@ -1324,6 +1445,7 @@ def run_frontend_v2(wt, fe, logd, cls, dead):
                 write_early_report(bad)
                 raise SystemExit(f"early layout stage failed ({len(bad)} failing test(s) after one retry alone): the gate stopped at once, "
                                  f"see gate_{TAG}_{STATE['sha']}.early.md")
+        jobs = take_resumed(jobs)
         status("running", f"Playwright pool: {len(jobs)} jobs, {slots} worker slots")
         with Phase("playwright-pool", "Playwright pool (v2)"):
             res = run_pool(jobs, slots, runner)
@@ -1500,6 +1622,13 @@ def write_reports(sha, verdict, extra):
     title = "מסלול התזמון (לא חוסם, GATELANES-297)" if LANE else "שער שחרור"
     md = [f"# {title}: {BR} @ {sha}", "", f"## פסק דין: **{heb}**", "",
           f"- דרגה: {TIER} | התחלה: {STARTED} | סיום: {fin} | משך: {dur // 60} דקות {dur % 60} שניות", ""]
+    if GS:   # item 9: real defects versus run problems, with the likely cause
+        try:
+            md += GS.to_markdown(GS.summarize(doc))
+        except Exception:   # noqa: BLE001 - a summary helper never changes the verdict
+            pass
+    if extra.get("checkpoint", {}).get("reused_units"):
+        md += [f"> המשך (resume): {len(extra['checkpoint']['reused_units'])} יחידות מריצה קודמת על אותו sha לא הורצו שוב.", ""]
     if TIMEDEP:
         md += [f"> **אזהרה:** {len(TIMEDEP)} בדיקות תלויות-שעה (שעות שקט) נכשלו בגלל שעת ההרצה ולכן סומנו KNOWN ולא נבדקו באמת. להריץ את השער שוב בשעות היום לפני שחרור.", ""]
     if ALLOW_DROP:
@@ -1620,11 +1749,19 @@ def main():
     if LANE:   # the timing lane: only the backend files with a timing_lane test (pytest -m timing_lane inside them)
         only = lane_backend_files(wt / "smplwise_vms" / "backend")
         extra["lane"] = {"name": "timing", "backend_files": sorted(only), "tag": LANE_TAG, "mark": LANE_MARK, "blocking": False}
+    ckpt_init(subprocess.run(["git", "-C", str(wt), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip() or sha)
+    bsig = "backend|" + (",".join(sorted(only)) if only else "all")
+    backend_resumed = TIER in ("M", "L") and not SKIP_BACKEND and ckpt_reusable("backend", bsig)
+    if backend_resumed:
+        ckpt_apply("backend")
+        extra["backend_resumed"] = True
     try:
+        if LATE_LINT_ENABLED:
+            spec_lint_phase(wt, logd)
         with Phase("modules", "node modules"):
             if not need_modules(wt, logd / "npm.log"):
                 hard_fail.append("npm ci failed")
-        if TIER in ("M", "L") and not SKIP_BACKEND:
+        if TIER in ("M", "L") and not SKIP_BACKEND and not backend_resumed:
             if SCHEDULE == "v2":
                 n = max(1, knob("GATE_BACKEND_SHARDS", 3, 6))
                 with Phase("backend-start", f"backend: {n} shards started (v2)"):
@@ -1717,7 +1854,7 @@ def main():
         else:
             hard_fail.append("build failed: Playwright not run")
         if procs:
-            with Phase("backend-wait", "backend: collecting"):
+            with Phase("backend-wait", "backend: collecting"), Recording("backend", bsig):
                 backend_finish(procs, wt, logd)
                 procs = None
                 extra["backend_files"] = nbackend
@@ -1736,6 +1873,7 @@ def main():
     extra["resources"] = dict(RESOURCES)
     if EARLY:
         extra["early_layout"] = dict(EARLY)
+    extra["checkpoint"] = {"resume_requested": RESUME, "reused_units": list(CKPT["resumed"]), "units_run": len(CKPT["ran"]), "file": ckpt_path().name}
     if BUDGETS:
         extra["budgets"] = {"mode": "select" if SELECT_BASE else "full", "phases": BUDGETS,
                             "total_cap_s": GB.total_cap(BUDGETS) if GB else None, "used_cap_s": TOTAL, "late": list(LATE)}
@@ -1762,6 +1900,11 @@ def main():
         parts.append("count-drop check WAIVED")
     dur = int(time.time() - T0)
     summary = f"{'PASS' if verdict == 'pass' else 'FAIL'} in {dur // 60}m: " + "; ".join(parts)
+    if GS:
+        try:
+            summary += " | " + GS.summarize({"verdict": verdict, "items": ITEMS, "resources": dict(RESOURCES)})["line"]
+        except Exception:   # noqa: BLE001
+            pass
     if VISUAL_INFO.get("diffs") and VISUAL != "block":
         summary += f" | WARNING (non-blocking): {len(VISUAL_INFO['diffs'])} visual difference(s), see the report's visual section"
     if TIMEDEP:
@@ -1875,7 +2018,7 @@ def seed_from(logs_dir, source):
 def main_cli(argv):
     if argv[:1] == ["--seed-from"] and len(argv) >= 2:
         return seed_from(argv[1], argv[2] if len(argv) > 2 else "")
-    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE, SCHEDULE, SELECT_BASE
+    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE, SCHEDULE, SELECT_BASE, RESUME
     args = list(argv)
     plan_root = None
     while args:
@@ -1902,6 +2045,8 @@ def main_cli(argv):
             if not ALLOW_DROP:
                 print('--allow-count-drop needs a reason, e.g. --allow-count-drop "removed the legacy specs on purpose"')
                 return 2
+        elif a == "--resume":
+            RESUME = True
         elif a == "--visual":
             VISUAL = "warn"
         elif a == "--no-visual":
