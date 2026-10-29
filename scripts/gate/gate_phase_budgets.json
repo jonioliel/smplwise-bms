@@ -1,0 +1,13 @@
+{
+  "_comment": "Seed budgets (seconds) per engine phase, used only for phases that no previous passed report of the same mode has timed. THESE ARE ESTIMATES from docs/release/GATE_V2.md and the 2.27.0 overhaul plan, NOT measurements; the first green gate replaces them with previous x 1.25 (gate_budget.py). full = no selection; select = a diff-selection gate.",
+  "modes": {
+    "full": {
+      "select": 60, "modules": 180, "backend-start": 60, "tsc": 120, "build": 120, "release_check": 60,
+      "early-layout": 600, "early-layout-settle": 120, "playwright-pool": 9000, "playwright-settle": 600, "backend-wait": 1800
+    },
+    "select": {
+      "select": 60, "modules": 180, "backend-start": 60, "tsc": 120, "build": 120, "release_check": 60,
+      "early-layout": 480, "early-layout-settle": 120, "playwright-pool": 3300, "playwright-settle": 300, "backend-wait": 900
+    }
+  }
+}

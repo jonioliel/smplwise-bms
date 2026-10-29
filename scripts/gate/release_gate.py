@@ -68,6 +68,17 @@ KNOWN_FILE = HOME / "known_issues.json"
 TOTAL = int(os.environ.get("GATE_TOTAL_SECS", "5400"))
 T0 = time.time()
 DEADLINE = T0 + TOTAL - 150
+# GATE-FAST-2291: per-phase budgets + lateness report (gate_budget.py) and the early layout stage (gate_early_layout.json); both optional files
+try:
+    sys.path.insert(0, str(HERE))
+    import gate_budget as GB
+except Exception:   # noqa: BLE001 - the engine runs without budgets when the helper is not installed next to it
+    GB = None
+BUDGETS = {}        # phase name -> {budget_s, source}, filled in main()
+LATE = []           # lateness notes (gate_budget.late_note), reported at once in gate_status.json and at the end in the report
+LATE_SEEN = set()   # phases already reported while running
+EARLY = {}          # early layout stage facts (specs, seconds, failures, stopped), written to the report
+EARLY_FILE = "gate_early_layout.json"
 TAG = ""
 PW_WORKERS = os.environ.get("GATE_PW_WORKERS", "3")
 SKIP_BACKEND = os.environ.get("GATE_SKIP_BACKEND") == "1"
@@ -140,7 +151,7 @@ def status(state, summary=None, finished=None):
         STATE["summary"] = summary
     write_json(STATUS, {"branch": BR, "sha": STATE["sha"], "tier": TIER, "state": state, "phase": STATE["phase"],
                         "started": STARTED, "finished": finished, "updated": now(), "pid": os.getpid(),
-                        "elapsed_s": int(time.time() - T0), "summary": STATE["summary"]})
+                        "elapsed_s": int(time.time() - T0), "summary": STATE["summary"], "late": STATE.get("late", [])})
 
 
 def left():
@@ -251,12 +262,43 @@ class Phase:
     def __enter__(self):
         STATE["phase"] = self.name
         self.t = time.time()
+        STATE["phase_t0"] = self.t
         status("running", self.label)
         return self
 
     def __exit__(self, *a):
-        PHASES.append({"name": self.name, "seconds": int(time.time() - self.t)})
+        secs = int(time.time() - self.t)
+        ent = {"name": self.name, "seconds": secs}
+        b = (BUDGETS.get(self.name) or {}).get("budget_s")
+        if b:
+            ent["budget_s"] = b
+            if secs > b and GB:
+                if self.name in LATE_SEEN:   # already reported while running: replace that note with the final one
+                    LATE[:] = [n for n in LATE if n["phase"] != self.name]
+                LATE.append(GB.late_note(self.name, secs, b, RESOURCES.get("max_load1"), RESOURCES.get("min_mem_available_mb")))
+                ent["late_s"] = LATE[-1]["late_s"]
+                note_late()
+        PHASES.append(ent)
         return False
+
+
+def note_late():
+    """Publish the lateness notes at once in gate_status.json (dashboard) - the summary line carries the newest."""
+    STATE["late"] = [n["en"] for n in LATE][-5:]
+    status("running", LATE[-1]["en"] if LATE else None)
+
+
+def check_running_phase_late():
+    """Heartbeat hook: the phase that is running right now is already past its budget -> report it once, without waiting for its end."""
+    name, t0 = STATE.get("phase"), STATE.get("phase_t0")
+    b = (BUDGETS.get(name) or {}).get("budget_s") if name else None
+    if not (GB and b and t0) or name in LATE_SEEN:
+        return
+    secs = int(time.time() - t0)
+    if secs > b:
+        LATE_SEEN.add(name)
+        LATE.append(GB.late_note(name, secs, b, RESOURCES.get("max_load1"), RESOURCES.get("min_mem_available_mb"), running=True))
+        note_late()
 
 
 # ---------------------------------------------------------------- known issues
@@ -1208,9 +1250,13 @@ def v1_estimate(cls, costs, tier, skip_dev, pixel_est):
 def run_frontend_v2(wt, fe, logd, cls, dead):
     """v2: preview and dev servers up together, every job in one pool, then every failure settled (retried alone) in order."""
     slots = knob("GATE_PW_SLOTS", 12, 12)
-    jobs = v2_jobs(cls, prior_costs(), TIER, SKIP_DEV)
+    costs = prior_costs()
+    early = pick_early(cls, costs)                 # GATE-FAST-2291: the early layout stage runs first, the main pool without it
+    cls_main = dict(cls, rest={k: v for k, v in cls["rest"].items() if k not in early}) if early else cls
+    jobs = v2_jobs(cls_main, costs, TIER, SKIP_DEV)
+    early_jobs = plan_early_jobs(cls, early, costs)
     urls, servers = {}, []
-    if any(j["cat"] in ("preview", "pixel") for j in jobs):
+    if early_jobs or any(j["cat"] in ("preview", "pixel") for j in jobs):
         port = free_port()
         vp, ok = start_vite(fe, "preview", port, logd, dead)
         servers.append(vp)
@@ -1250,22 +1296,105 @@ def run_frontend_v2(wt, fe, logd, cls, dead):
         visual_block(wt, fe, logd, dead)
         return []
 
-    status("running", f"Playwright pool: {len(jobs)} jobs, {slots} worker slots")
-    with Phase("playwright-pool", "Playwright pool (v2)"):
-        res = run_pool(jobs, slots, runner)
-    with Phase("playwright-settle", "Playwright: retry failures alone"):
-        for j in _order(jobs):
-            r = res.get(j["label"], (None, 0, 0))[0]
+    def settle_jobs(jl, res_):
+        for j in _order(jl):
+            r = res_.get(j["label"], (None, 0, 0))[0]
             if isinstance(r, BaseException):
                 count(j["cat"], "fail"); item(j["cat"], j["label"], "FAIL", f"job crashed: {type(r).__name__}: {str(r)[:150]}")
                 continue
             for cat, rows, rc, to, lab in r or []:
                 settle(cat, rows, rc, to, fe, logd, urls[cat], {}, lab)
-    for vp in servers:
-        reap(vp)
-    return {"slots": slots, "jobs": [{"label": j["label"], "cat": j["cat"], "workers": j["workers"], "files": len(j["names"]),
-                                      "est_s": round(j["est"]), "start_s": res.get(j["label"], (0, None, None))[1],
-                                      "wall_s": res.get(j["label"], (0, None, None))[2]} for j in _order(jobs)]}
+
+    try:
+        early_jobs = [j for j in early_jobs if j["cat"] in urls]
+        if early_jobs:    # the early layout stage: first in the queue, in parallel with the backend shards already running
+            first = len(ITEMS)
+            EARLY.update(specs=sorted(early), jobs=[j["label"] for j in early_jobs], failfast=EARLY_FAILFAST, stopped=False)
+            status("running", f"early layout stage: {len(early)} specs, {len(early_jobs)} jobs")
+            with Phase("early-layout", "early layout stage (Playwright, dist preview)"):
+                res_e = run_pool(early_jobs, slots, runner)
+            with Phase("early-layout-settle", "early layout stage: retry failures alone"):
+                settle_jobs(early_jobs, res_e)
+            bad = [i for i in ITEMS[first:] if i["status"] == "FAIL"]
+            EARLY.update(seconds=int(time.time() - T0), failures=len(bad),
+                         jobs_detail=[{"label": j["label"], "workers": j["workers"], "files": len(j["names"]),
+                                       "wall_s": res_e.get(j["label"], (0, None, None))[2]} for j in _order(early_jobs)])
+            if bad and EARLY_FAILFAST == "stop":
+                EARLY["stopped"] = True
+                write_early_report(bad)
+                raise SystemExit(f"early layout stage failed ({len(bad)} failing test(s) after one retry alone): the gate stopped at once, "
+                                 f"see gate_{TAG}_{STATE['sha']}.early.md")
+        status("running", f"Playwright pool: {len(jobs)} jobs, {slots} worker slots")
+        with Phase("playwright-pool", "Playwright pool (v2)"):
+            res = run_pool(jobs, slots, runner)
+        with Phase("playwright-settle", "Playwright: retry failures alone"):
+            settle_jobs(jobs, res)
+    finally:
+        for vp in servers:
+            reap(vp)
+    return {"slots": slots, "early": len(early_jobs),
+            "jobs": [{"label": j["label"], "cat": j["cat"], "workers": j["workers"], "files": len(j["names"]),
+                      "est_s": round(j["est"]), "start_s": res.get(j["label"], (0, None, None))[1],
+                      "wall_s": res.get(j["label"], (0, None, None))[2]} for j in _order(jobs)]}
+
+
+EARLY_FAILFAST = (os.environ.get("GATE_EARLY_FAILFAST") or "stop").strip().lower()   # stop (owner answer 1A) | continue
+
+
+def pick_early(cls, costs):
+    """{spec file: classification entry} of the early layout stage: the dist-preview specs matching gate_early_layout.json, in the
+    pattern order, until max_worker_seconds of recorded cost (60 s for a spec nobody timed). {} when the stage is off or the file is
+    missing. Pure: reads the JSON next to the engine only."""
+    import fnmatch
+    if os.environ.get("GATE_EARLY_LAYOUT", "1") == "0" or LANE or TIER == "S":
+        return {}
+    try:
+        cfg = json.loads((HERE / EARLY_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    cap, used, out = float(cfg.get("max_worker_seconds", 3300)), 0.0, {}
+    for pat in cfg.get("include", []):
+        for name in sorted(cls["rest"]):
+            if name in out or not fnmatch.fnmatch(name, pat):
+                continue
+            c = costs.get(name, 60.0)
+            if used + c > cap:
+                continue
+            out[name] = cls["rest"][name]
+            used += c
+    return out
+
+
+def plan_early_jobs(cls, early, costs):
+    """Playwright jobs of the early stage (labels early_*): the same grouping as the main pool, but a short chunk target so
+    the stage runs wide and ends in minutes."""
+    if not early:
+        return []
+    target = knob("GATE_EARLY_TARGET_SECS", 240, 240)
+    jobs = plan_pw_jobs("preview", early, costs, target, knob("GATE_W1_MAX_CHUNKS", 3, 8), knob("GATE_PW_MAX_WORKERS", int(PW_WORKERS), 6), int(PW_WORKERS))
+    for j in jobs:
+        j["label"] = "early_" + j["label"]
+    return jobs
+
+
+def write_early_report(bad):
+    """The immediate report of a failed early layout stage: gate_<tag>_<sha>.early.md/.json. NOT a gate verdict file (no verdict key)."""
+    sha = STATE["sha"]
+    base = RES / f"gate_{TAG}_{sha}.early"
+    elapsed = int(time.time() - T0)
+    doc = {"early_layout_report": True, "branch": BR, "sha": sha, "elapsed_s": elapsed, "failfast": EARLY_FAILFAST,
+           "specs": EARLY.get("specs", []), "failures": [{"category": i["category"], "id": i["id"], "reason": i.get("reason", "")} for i in bad],
+           "resources": dict(RESOURCES), "started": STARTED, "written": now()}
+    write_json(Path(str(base) + ".json"), doc)
+    md = [f"# שלב פריסה מוקדם נכשל: {BR} @ {sha}", "",
+          f"- השער נעצר מיד (fail-fast, החלטת הבעלים 1א). זמן מתחילת השער: {elapsed // 60} דקות {elapsed % 60} שניות.",
+          f"- {len(bad)} כשלים אחרי ריצה חוזרת אחת לבד, מתוך {len(EARLY.get('specs', []))} קבצי פריסה בשלב.",
+          f"- עומס מרבי {RESOURCES.get('max_load1')}, זיכרון פנוי מינימלי {RESOURCES.get('min_mem_available_mb')} MB "
+          f"(עומס מעל 30 עם פסק זמן טעינה = כנראה תקלת ריצה, לא באג).", "",
+          "## הכשלים", ""] + [f"- [{i['category']}] {i['id']}" + (f" - {i.get('reason', '')}" if i.get("reason") else "") for i in bad] + \
+         ["", "בדיקות השרת והדפדפן המלא לא הושלמו. אחרי התיקון: הרצה חוזרת ממוקדת (--after) או שער מחדש.",
+          "To keep collecting failures instead of stopping: GATE_EARLY_FAILFAST=continue."]
+    Path(str(base) + ".md").write_text("\n".join(md) + "\n", encoding="utf-8")
 
 
 def summarize_visual(rows):
@@ -1384,7 +1513,17 @@ def write_reports(sha, verdict, extra):
         md.append(f"| {k} | {v['pass']} | {v['fail']} | {v['flaky']} | {v['known']} | {v['skipped']} | {bcols} |")
     for w in extra.get("baseline_warnings", []):
         md += ["", f"> אזהרה: {w}"]
-    md += ["", "## שלבים", ""] + [f"- {p['name']}: {p['seconds']} שניות" for p in PHASES]
+    md += ["", "## שלבים", ""] + [f"- {p['name']}: {p['seconds']} שניות" + (f" (תקציב {p['budget_s']}" + (f", איחור {p['late_s']}" if p.get("late_s") else "") + ")" if p.get("budget_s") else "")
+                                 for p in PHASES]
+    if LATE:
+        md += ["", f"## איחורים לעומת התקציב: {len(LATE)}", ""] + [f"- {n['he']}" for n in LATE]
+        if extra.get("budgets"):
+            b = extra["budgets"]
+            md += [f"- תקרה כוללת בשימוש: {b.get('used_cap_s')} שניות; תקרה נגזרת מסכום התקציבים: {b.get('total_cap_s')} שניות"]
+    if extra.get("early_layout"):
+        e = extra["early_layout"]
+        md += ["", "## שלב פריסה מוקדם", "", f"- {len(e.get('specs', []))} קבצים, כשלים אחרי ריצה חוזרת: {e.get('failures', 0)}, מדיניות כשל: {e.get('failfast')}"
+               + (", **השער נעצר בשלב זה**" if e.get("stopped") else "")]
     if extra.get("selection"):
         s = extra["selection"]
         md += ["", "## בחירת בדיקות לפי השינוי (selection)", ""]
@@ -1445,12 +1584,19 @@ def main():
             try:
                 status("running")
                 sample_resources()
+                check_running_phase_late()
             except Exception:
                 pass
 
     threading.Thread(target=heartbeat, daemon=True).start()
     wt, sha = setup_worktree()
     STATE["sha"] = sha
+    if GB:   # GATE-FAST-2291: budgets = the last passed report of this mode x 1.25, else the seed (estimates); lateness is reported, never fatal
+        try:
+            BUDGETS.update(GB.derive_budgets(RES, "select" if SELECT_BASE else "full", HERE / GB.SEED_NAME))
+        except Exception as e:   # noqa: BLE001
+            BUDGETS.clear()
+            print(f"phase budgets unavailable: {type(e).__name__}: {e}")
     logd = RES / f"gate_{TAG}_{sha}.logs"
     logd.mkdir(exist_ok=True)
     for old in logd.glob("*"):
@@ -1588,6 +1734,11 @@ def main():
         # the budget is GATE_TOTAL_SECS (90 min for a gate, ~225 min for the nightly): say the real one (GATEAUDIT-297)
         hard_fail.append(f"{TOTAL // 60}-minute budget exhausted: the run is incomplete")
     extra["resources"] = dict(RESOURCES)
+    if EARLY:
+        extra["early_layout"] = dict(EARLY)
+    if BUDGETS:
+        extra["budgets"] = {"mode": "select" if SELECT_BASE else "full", "phases": BUDGETS,
+                            "total_cap_s": GB.total_cap(BUDGETS) if GB else None, "used_cap_s": TOTAL, "late": list(LATE)}
     try:   # the fix-ticket queue: first-run failures in two consecutive gates (report section + ~/smplwise-results/quarantine.json)
         extra["quarantine"] = quarantine(gate_history(f"{BR}@{sha}", ITEMS))
         write_json(RES / "quarantine.json", {"updated": now(), "gate": f"{BR}@{sha}", "entries": extra["quarantine"]})
@@ -1598,7 +1749,10 @@ def main():
     if LANE:   # a handful of tagged tests: the release counts do not apply (GATELANES-297)
         extra["baseline_warnings"] = ["timing lane: no count-baseline check (non-blocking lane, docs/testing/GATE_LANES.md)"]
     else:
-        extra["baseline_warnings"] = check_baselines(baseline, TIER) if baseline else ["no gate_baselines.json found: the count-drop check was NOT applied"]
+        if EARLY.get("stopped"):   # the early stage stopped the gate: the other categories never ran, a count drop would only be noise
+            extra["baseline_warnings"] = ["early layout stage failed (fail-fast): the gate stopped early, the count-drop check was NOT applied"]
+        else:
+            extra["baseline_warnings"] = check_baselines(baseline, TIER) if baseline else ["no gate_baselines.json found: the count-drop check was NOT applied"]
     verdict = compute_verdict(hard_fail)
     for h in hard_fail:
         item("gate", h, "FAIL", "")

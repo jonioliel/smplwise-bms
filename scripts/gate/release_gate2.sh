@@ -102,7 +102,7 @@ for f in release_gate.py select_tests.py; do
 done
 cp -p "$V1/release_gate.py" "$G2/release_gate.py"
 cp -p "$V1/select_tests.py" "$G2/select_tests_v1.py"
-for f in gate_baselines.json gate_durations.json; do [ -f "$V1/$f" ] && cp -p "$V1/$f" "$G2/$f"; done
+for f in gate_baselines.json gate_durations.json gate_budget.py gate_phase_budgets.json gate_early_layout.json; do [ -f "$V1/$f" ] && cp -p "$V1/$f" "$G2/$f"; done   # GATE-FAST-2291: budgets + early layout list travel with the engine
 [ -f "$G2/select_tests.py" ] || { echo "the gate-2 shim $G2/select_tests.py is missing (install step, GATE_V2.md section 7)"; exit 2; }
 grep -q "gate2_select" "$G2/select_tests.py" || { echo "$G2/select_tests.py is not the gate-2 shim"; exit 2; }
 
@@ -121,6 +121,9 @@ if [ "$FULL" = 0 ] && [ -z "$AFTER" ] && [ "$STALE_OK" = 0 ]; then
   fi
 fi
 
+# GATE-FAST-2291 (item 4): the total cap is derived = sum of the per-phase budgets x 1.5 (gate_budget.py); an explicit GATE_TOTAL_SECS wins;
+# without the helper / seed the old fixed defaults apply (7200 select, 12000 full)
+derived_cap() { local c; c="$("$PY3" "$G2/gate_budget.py" cap --results "$RES" --mode "$1" 2>/dev/null)" && [ -n "$c" ] && printf %s "$c" || printf %s "$2"; }
 WT="$HOME/work/gate-$TAG"         # the engine's own worktree path; we hold the gate lock, so nobody else uses it
 if [ ! -e "$WT/.git" ]; then
   git -C "$REPO" worktree prune
@@ -142,9 +145,9 @@ if [ "$FULL" = 0 ]; then
   printf '%s\n' "$PLAN" | grep -q "pixel: no frontend/src change" && ENGINE+=(--no-visual)
   ENGINE+=(--select-base "$BASE")
   export GATE_SELECT_ENABLE=1
-  : "${GATE_TOTAL_SECS:=7200}"
+  : "${GATE_TOTAL_SECS:=$(derived_cap select 7200)}"
 else
-  : "${GATE_TOTAL_SECS:=12000}"
+  : "${GATE_TOTAL_SECS:=$(derived_cap full 12000)}"
 fi
 [ -z "$AFTER" ] || export GATE2_AFTER_REPORT="$(readlink -f "$AFTER")"
 export GATE_SCHEDULE=v2 GATE_TOTAL_SECS GATE2_COSTS="${GATE2_COSTS:-$G2/gate2_costs.json}"
