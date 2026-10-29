@@ -684,6 +684,19 @@ export class SystemSecurityCameras extends LitElement {
         inline-size: 44px;
         block-size: 44px;
       }
+      /* GATE-FIX-2270: at a tablet width the R5 band (13 px / 700 labels) and the 15 px / 800 name widened the table past its card
+         (a sideways scroll at 820 px); there the labels keep the compact 11 px size and the name and the main stream's codec and
+         resolution the table's own size (the name still bold) - all still in the heading ink */
+      th {
+        font-size: var(--sw-fs-xs);
+      }
+      tbody tr.first td[data-col='camera'] .cam {
+        font-size: inherit;
+      }
+      tbody tr.first td[data-col='codec'],
+      tbody tr.first td[data-col='resolution'] {
+        font-weight: var(--sw-fw-regular);
+      }
     }
   `, bubbleChrome];
 
