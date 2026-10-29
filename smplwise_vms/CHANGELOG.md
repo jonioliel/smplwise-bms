@@ -1,5 +1,25 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.27.1 (pilot) — Security and WisKey screens redesigned, phone home shows every floor, navigation size simplified, people table and service overview fixes
+**After installing:** no database migration and no new setting turns on by itself; going back to 2.27.0 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה ושום הגדרה חדשה לא נדלקת מעצמה; חזרה ל-2.27.0 בטוחה.
+
+### What was added - מה נוסף
+- **English:** The security and WisKey screens (people, entry log, stations, schedules, alarm areas) follow the new design round, a step bolder; the service management overview fits the desktop screen.
+- **עברית:** מסכי האבטחה ו-WisKey (אנשים, יומן כניסות, תחנות, לוחות זמנים, אזורי אזעקה) בעיצוב החדש, מעט נועז יותר; מסך סקירת ניהול השירות נכנס במסך שולחני.
+
+### What was fixed - מה תוקן
+- **English:** On a phone the home screen now opens on "all floors" first (the floor switch and the tree stay on top; picking a floor shows that floor alone). The free-form menu size mode is removed, the four preset sizes remain. The user menu no longer leaves a hidden section after going back in. The people table fits its box at 1000-1199 px, and a very long name no longer pushes other columns out.
+- **עברית:** בטלפון מסך הבית נפתח כעת על "כל הקומות" (מחליף הקומות והעץ נשארים למעלה; בחירת קומה מציגה אותה לבדה). מצב הגודל החופשי של התפריט הוסר, ארבעת הגדלים המוכנים נשארו. תפריט המשתמש כבר לא משאיר מקטע מוסתר אחרי חזרה פנימה. טבלת האנשים נכנסת במסגרתה ברוחב 1000-1199 פיקסלים, ושם ארוך מאוד כבר לא דוחף עמודות אחרות החוצה.
+
+### Known limits - מגבלות ידועות
+- **English:** A site name that is very long can still be cut after two lines on a narrow site card (the full name shows on hover); a fix follows. Some live-wall comparison images differ by a few pixels and are refreshed in a later version.
+- **עברית:** שם אתר ארוך מאוד עדיין עלול להיחתך אחרי שתי שורות בכרטיס אתר צר (השם המלא מופיע בריחוף); תיקון בהמשך. חלק מתמונות ההשוואה של קיר המצלמות שונות בכמה פיקסלים ויתרעננו בגרסה מאוחרת יותר.
+
+### Tests and release gate - בדיקות ושער השחרור
+- **English:** Full tier gate on this branch: backend 18,115 passed (3 flaky, 0 failed), browser tests on the build 15,422 passed (5 flaky, 0 failed), dev-server 982 passed, fixture 28 passed, tsc, build and release check passed. The pixel baselines of the access and WisKey screens were stale for the new design; they were refreshed (161 images) and the 7 pixel files re-run on the runner: 133 passed, 0 failed.
+- **עברית:** שער רמה מלאה על ענף זה: בקאנד 18,115 עברו (3 לא יציבות, 0 נכשלו), בדיקות דפדפן על הגרסה הבנויה 15,422 עברו (5 לא יציבות, 0 נכשלו), שרת פיתוח 982, בדיקות עם שרת מדומה 28, tsc, בנייה ובדיקת שחרור עברו. תמונות הבסיס של מסכי הכניסות ו-WisKey היו ישנות לעיצוב החדש; רועננו (161 תמונות) ושבעת קובצי הפיקסלים הורצו מחדש על הרנר: 133 עברו, 0 נכשלו.
+
 ## 2.27.0 (pilot) — New design round: home, areas and the area window, system, live, investigation, media and energy, devices, maps
 **After installing:** no database migration and no new setting turns on by itself; going back to 2.25.0 is safe.
 - **עברית:** אחרי ההתקנה: אין מיגרציה ושום הגדרה חדשה לא נדלקת מעצמה; חזרה ל-2.25.0 בטוחה.
