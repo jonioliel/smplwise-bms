@@ -1,5 +1,13 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.27.3 (DRAFT) — Live video for an existing Frigate recorder no longer depends on the add-on option, and the reason is shown
+**After installing:** no database migration and no setting changes by itself; going back is safe. Live video starts for Frigate cameras that have a matching stream once Arx's own go2rtc address (`go2rtc_url`) is set.
+- **עברית:** אחרי ההתקנה: אין מיגרציה ושום הגדרה לא משתנה מעצמה; חזרה אחורה בטוחה. שידור חי יתחיל למצלמות Frigate שיש להן זרם מתאים כשכתובת ה-go2rtc של ארקס (`go2rtc_url`) מוגדרת.
+
+### What was fixed - מה תוקן
+- **English:** A Frigate recorder that already exists now gets live video even when the add-on option `frigate_enabled` is off (the option only decides whether NEW Frigate recorders can be created). Before, every Frigate camera silently fell back to a still picture. The Frigate status screen now says in one line why there is no live video (switched off for the recorder, `go2rtc_url` missing, Frigate lists no streams, no stream matches, or only some cameras have one). The still picture of a Frigate camera is re-read at least every 5 seconds instead of every 60, an old copy shown because Frigate failed is never older than 5 minutes, and the tile says "old picture" when it is one. A `<camera>_sub` stream is used for small tiles when Frigate lists it (nothing is created anywhere).
+- **עברית:** מקליט Frigate שכבר קיים מקבל כעת שידור חי גם כשאפשרות התוסף `frigate_enabled` כבויה (האפשרות קובעת רק אם אפשר ליצור מקליטי Frigate חדשים). קודם כל מצלמות Frigate חזרו בשקט לתמונה בלבד. מסך הסטטוס של Frigate אומר כעת בשורה אחת למה אין שידור חי (כבוי למקליט, חסר `go2rtc_url`, Frigate לא מפרסם זרמים, אין זרם מתאים, או שרק לחלק מהמצלמות יש). תמונת הסטילס של מצלמת Frigate נקראת מחדש לפחות כל 5 שניות במקום 60, עותק ישן שמוצג כי Frigate נכשל אינו ישן מ-5 דקות, והאריח כותב "תמונה ישנה" כשזה המצב. זרם `<מצלמה>_sub` משמש לאריחים קטנים כשהוא קיים ב-Frigate (שום זרם לא נוצר בשום מקום).
+
 ## 2.27.1 (pilot) — Security and WisKey screens redesigned, phone home shows every floor, navigation size simplified, people table and service overview fixes
 **After installing:** no database migration and no new setting turns on by itself; going back to 2.27.0 is safe.
 - **עברית:** אחרי ההתקנה: אין מיגרציה ושום הגדרה חדשה לא נדלקת מעצמה; חזרה ל-2.27.0 בטוחה.

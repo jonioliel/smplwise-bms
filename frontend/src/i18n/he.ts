@@ -582,6 +582,15 @@ export const he = {
       live: 'וידאו חי',
       liveOf: 'מצלמות מתוך',
       liveNone: 'תמונות מתעדכנות בלבד',
+      liveWhy: 'סיבה',
+      liveReason: {
+        off: 'השידור החי כבוי בהגדרות המקליט (restream).',
+        no_go2rtc_url: 'כתובת go2rtc של המערכת לא הוגדרה (go2rtc_url).',
+        no_streams: 'Frigate לא מפרסם זרמי restream (בדקו את הגדרות go2rtc ב־Frigate).',
+        no_match: 'אין זרם restream שמתאים למצלמות.',
+        partial: 'רק לחלק מהמצלמות יש זרם restream.',
+        flag_off: 'השידור החי כבוי באפשרות התוסף frigate_enabled.',
+      },
       lastEvent: 'אירוע אחרון',
       lastEventNone: 'עדיין לא התקבלו אירועים',
       eventsStale: 'קריאת האירועים מהמקליט נעצרה',
@@ -745,6 +754,7 @@ export const he = {
     live: {
       stillLabel: 'תמונה מתעדכנת',
       stillLabelEvery: 'תמונה מתעדכנת כל',
+      stillStale: 'תמונה ישנה - אין תמונה חדשה מהמקליט',
       seconds: 'שנ׳',
       stillHint: 'המקליט הזה אינו משדר וידאו חי',
       stillExplain: 'למצלמה הזו אין כרגע וידאו חי, ולכן מוצגת תמונה שמתעדכנת כל {n} שניות. הווידאו החי יופיע כאן מעצמו כשיהיה זמין.',

@@ -52,8 +52,12 @@ def test_pick_uses_only_listed_names_tied_to_the_camera():
 def test_plan_and_summary_reasons(settings, monkeypatch):
     doc = {"version_ok": True, "restream_streams": ["cam_front"], "summary": {"cameras": [{"key": "cam_front", "enabled": True}, {"key": "cam_yard", "enabled": True}]}}
     s = dataclasses.replace(settings_for(settings), go2rtc_url=GO2RTC)
+    # 2.27.3: the add-on flag does not gate live video of an existing Frigate recorder
     monkeypatch.setattr(frs, "flag_on", lambda: False)
-    assert frs.live_plan(s, doc) == {} and frs.summary(s, doc)["reason"] == "flag_off"
+    assert frs.live_plan(s, doc) == {"cam_front": {"main": "cam_front", "sub": "cam_front"}}
+    assert frs.summary(s, doc)["reason"] == "partial" and frs.summary(s, doc)["flag"] is False
+    nogo = dataclasses.replace(s, go2rtc_url=None)
+    assert frs.live_plan(nogo, doc) == {} and frs.summary(nogo, doc)["reason"] == "no_go2rtc_url" and frs.summary(nogo, doc)["mode"] == "still"
     monkeypatch.setattr(frs, "flag_on", lambda: True)
     assert frs.live_plan(s, doc) == {"cam_front": {"main": "cam_front", "sub": "cam_front"}}
     sm = frs.summary(s, doc)
@@ -151,6 +155,7 @@ class FakeGo2rtc:
 
 def _on(world, monkeypatch, *, restream=True):
     monkeypatch.setattr(frs, "flag_on", lambda: True)
+    world.app.state.settings = dataclasses.replace(world.app.state.settings, go2rtc_url=GO2RTC)  # live video needs Arx's own go2rtc
     world.fake.restream = restream
     assert world.c.get(f"{BASE}/status?refresh=true").status_code == 200  # re-read Frigate: the go2rtc stream list is part of discovery
     go = FakeGo2rtc()
@@ -200,15 +205,20 @@ def test_a_restream_that_disappears_removes_only_our_streams(world, monkeypatch)
     assert r["removed"] == 2 and [n for n in go.streams if n.startswith("smplwise_")] == [] and "intercom_door_1" in go.streams
 
 
-def test_flag_off_or_switch_off_creates_nothing(world, monkeypatch):
+def test_flag_off_does_not_block_an_existing_frigate_recorder(world, monkeypatch):
     go, s = _on(world, monkeypatch)
     monkeypatch.setattr(frs, "flag_on", lambda: False)
     with world.app.state.db.connection() as conn:
         r = autosync.ensure_streams(s, conn, reason="manual")
+    assert r["created"] > 0 and any(n.startswith("smplwise_") for n in go.streams)
+
+
+def test_recorder_switch_off_creates_nothing(world, monkeypatch):
+    go, s = _on(world, monkeypatch)
+    s = dataclasses.replace(s, nvr_extra={**(s.nvr_extra or {}), "restream": "off"})
+    with world.app.state.db.connection() as conn:
+        r = autosync.ensure_streams(s, conn, reason="manual")
     assert r["created"] == 0 and go.writes == []
-    cams = world.get("/api/v1/cameras").json()["cameras"]
-    assert {c.get("live_kind") for c in cams if c["recorder_id"] == "nvr-1" and c["enabled"]} == {"still"}
-    assert world.get(f"{BASE}/status").json()["live"]["reason"] == "flag_off"
 
 
 def test_a_colliding_name_is_refused_and_the_run_goes_on(world, monkeypatch):
@@ -328,3 +338,13 @@ def test_f1_an_unreachable_frigate_is_retried_with_backoff_once_per_recorder_and
     world.fake.down = False
     with world.app.state.db.connection() as conn:
         assert autosync.ensure_streams(s, conn, reason="startup")["unchanged"] == 2
+
+
+def test_status_says_why_there_is_no_live_video_when_go2rtc_is_missing(world, monkeypatch):
+    monkeypatch.setattr(frs, "flag_on", lambda: False)  # the add-on flag is irrelevant for an existing Frigate recorder
+    world.app.state.settings = dataclasses.replace(world.app.state.settings, go2rtc_url=None)
+    world.fake.restream = True
+    live = world.c.get(f"{BASE}/status?refresh=true").json()["live"]
+    assert live["mode"] == "still" and live["reason"] == "no_go2rtc_url" and live["flag"] is False
+    cams = world.get("/api/v1/cameras").json()["cameras"]
+    assert {c.get("live_kind") for c in cams if c["recorder_id"] == "nvr-1" and c["enabled"]} == {"still"}

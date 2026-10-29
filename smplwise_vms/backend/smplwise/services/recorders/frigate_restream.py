@@ -14,7 +14,9 @@ Rules:
   ports): Frigate's restream on the go2rtc host's port 8554 IS go2rtc's own restream and is refused.
 - Only stream names Frigate itself lists, matching a strict pattern, and tied to that camera (the camera key, `<key>_sub` /
   `<key>_main`, or a name in the camera's own `live.streams`) are used. No guess, no fixed formula.
-- The feature flag (`frigate_enabled`, `SW_FRIGATE=1`) gates it, and the connection extra `restream` = `off` switches it off per recorder.
+- The feature flag (`frigate_enabled`, `SW_FRIGATE=1`) only makes the Frigate recorder TYPE selectable (creating NEW recorders, registry.py);
+  it does NOT gate live video of a Frigate recorder that already exists (2.27.3: it used to, which silently left every camera on a still).
+  The connection extra `restream` = `off` switches it off per recorder, and Arx's own go2rtc must be configured (`go2rtc_url`).
 - Credentials: Frigate's restream has no authentication unless its go2rtc config sets `rtsp.username/password`. The extra
   `restream_auth` = `account` sends the Frigate connection's user and password in the RTSP URL (server-side only, like every
   NVR source); default `none`. The password then also travels over RTSP (cleartext Basic is possible on the LAN) and sits in go2rtc's
@@ -67,11 +69,12 @@ def auth_mode(settings: Settings) -> str:
 
 
 def disabled_reason(settings: Settings) -> str | None:
-    """Why live video through the restream is not offered for this recorder at all (None = it may be)."""
-    if not flag_on():
-        return "flag_off"
+    """Why live video through the restream is not offered for this recorder at all (None = it may be). The `frigate_enabled` flag is NOT
+    a reason: it only gates creating new Frigate recorders, and this is only ever asked about a recorder that already is one."""
     if mode(settings) == "off":
         return "off"
+    if not str(getattr(settings, "go2rtc_url", "") or "").strip():
+        return "no_go2rtc_url"
     return None
 
 
@@ -133,7 +136,7 @@ def summary(settings: Settings, doc: dict[str, Any] | None) -> dict[str, Any]:
         elif len(p) < len(cams):
             why = "partial"
     return {"mode": "restream" if p else "still", "cameras_live": len(p), "cameras_total": len(cams), "reason": why,
-            "setting": mode(settings), "port": port(settings), "auth": auth_mode(settings)}
+            "setting": mode(settings), "port": port(settings), "auth": auth_mode(settings), "flag": flag_on()}
 
 
 def source_url(settings: Settings, stream: str) -> str:

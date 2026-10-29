@@ -75,6 +75,10 @@ test('the capability summary reads in plain Hebrew: version, cameras (enabled of
   expect(bare.some((r) => r.key === 'retention')).toBe(false);
   // a restream the server found is said
   expect(capabilitiesOf({ ...STATUS, live: { mode: 'restream' } }, CAMS).restream).toBe(true);
+  const why = capabilitiesOf({ ...STATUS, live: { mode: 'still', cameras_live: 0, cameras_total: 3, reason: 'no_go2rtc_url' } }, CAMS);
+  const whyRows = Object.fromEntries(summaryRows(why).map((r) => [r.key, r.value]));
+  expect(whyRows['live-reason']).toContain('go2rtc_url');
+  expect(Object.keys(Object.fromEntries(summaryRows(capabilitiesOf({ ...STATUS, live: { mode: 'restream', cameras_live: 3, cameras_total: 3, reason: null } }, CAMS)).map((r) => [r.key, 1])))).not.toContain('live-reason');
 });
 
 test('the connection test before saving knows the version and the camera count only: the card shows those and leaves out the rest', () => {
