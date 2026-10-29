@@ -92,12 +92,21 @@ test('domus blobs: before / after screenshots and measured contrast of a page ti
       });
       const hex = (h: string) => (/^#[0-9a-f]{6}$/i.test(h) ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) : rgb(h));
       const centres: Record<string, Record<string, number>> = {};
+      // GATE-FIX-2270: the R5-MAPS-297 hero layout (5fad95ab0, 2b13910b3) puts the sites scene (sw-scene) over the lower half of the
+      // phone screen, so the cool bloom point (4%, vh - 90) landed on the drawn ground (#3e7440), not on the canvas. The bloom centres are sampled from a shot with the screen's content
+      // hidden (the canvas and the shell only); the title / subtitle contrasts below still use the real screenshot.
+      let pngC = png1;
       if (png1) {
+        await page.evaluate(() => document.querySelector('sw-app')?.shadowRoot?.querySelector('explore-sites')?.setAttribute('style', 'visibility:hidden'));
+        pngC = PNG ? PNG.sync.read(await page.screenshot()) : null;
+        await page.evaluate(() => document.querySelector('sw-app')?.shadowRoot?.querySelector('explore-sites')?.removeAttribute('style'));
+      }
+      if (pngC) {
         for (const [name, x, y] of [['warm bloom (90%, top)', vw * 0.9, 2], ['cool bloom (4%, bottom)', vw * 0.04, vp === 'phone' ? vh - 90 : vh - 2]] as const) {
           const X = Math.round(x * dpr);
           const Y = Math.round(y * dpr);
-          const i = (Y * png1.width + X) * 4;
-          const bg = [png1.data[i], png1.data[i + 1], png1.data[i + 2]];
+          const i = (Y * pngC.width + X) * 4;
+          const bg = [pngC.data[i], pngC.data[i + 1], pngC.data[i + 2]];
           centres[name] = Object.fromEntries(Object.entries(tokens).map(([n, c]) => [n, Number(ratio(hex(c), bg).toFixed(2))]));
           centres[name].bg = Number(`0x${bg.map((v) => v.toString(16).padStart(2, '0')).join('')}`);
         }
