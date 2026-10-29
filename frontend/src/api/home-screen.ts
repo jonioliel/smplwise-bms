@@ -15,6 +15,7 @@ import { invalidateSettings, productSettings } from './prefs';
 import { isApi } from './session';
 import type { DeviceArea, DeviceCounts, DeviceFloor } from './devices';
 import type { InfoStyle } from './screen-display';
+import { popupOf, type PopupState } from './popup-layout';
 
 export type SummaryKind = 'lights' | 'switches' | 'covers' | 'climate' | 'heating' | 'media' | 'locks' | 'sensors' | 'cameras' | 'alarm';
 export const SUMMARY_KINDS: readonly SummaryKind[] = ['lights', 'switches', 'covers', 'climate', 'heating', 'media', 'locks', 'sensors', 'cameras', 'alarm'];
@@ -35,6 +36,8 @@ export type ManyFloors = 'more' | 'tree_scroll';
 export type BuildingOffTablet = 'hide' | 'keep';
 export type QuickCard = 'show' | 'hide';
 export type PhoneFloors = 'selector' | 'all';
+/** AREAEDIT-2290: a section's sensor the manager hid appears in the area pop-up, red, only while it is in alarm (show), or stays hidden (hide). */
+export type PopupAlert = 'show' | 'hide';
 
 /** The single-choice options: every value, in the order the settings show them (the first is not necessarily the default). */
 export const CHOICES = {
@@ -49,6 +52,7 @@ export const CHOICES = {
   building_off_tablet: ['hide', 'keep'],
   quick_card: ['show', 'hide'],
   phone_floors: ['selector', 'all'],
+  popup_alert: ['show', 'hide'],
 } as const;
 export type ChoiceKey = keyof typeof CHOICES;
 export const CHOICE_KEYS = Object.keys(CHOICES) as ChoiceKey[];
@@ -66,6 +70,7 @@ export const CHOICE_DEFAULTS = {
   building_off_tablet: 'hide',
   quick_card: 'show',
   phone_floors: 'selector',
+  popup_alert: 'show',
 } as const;
 
 export interface HomeScreenOptions {
@@ -86,9 +91,13 @@ export interface HomeScreenOptions {
   quick_card: QuickCard;
   /** FIX2232A-295: a phone shows one floor with the floor switch + tree button (selector) or every floor stacked down the page (all). */
   phone_floors: PhoneFloors;
+  /** AREAEDIT-2290: whether a hidden sensor that goes into alarm shows in the area pop-up (red) until the alarm ends. */
+  popup_alert: PopupAlert;
+  /** AREAEDIT-2290: the area pop-up layout - a site default and one override per area (api/popup-layout.ts). */
+  popup: PopupState;
 }
 
-export const HOME_SCREEN_DEFAULT: HomeScreenOptions = { summary_tiles: null, area_quick: {}, ...CHOICE_DEFAULTS };
+export const HOME_SCREEN_DEFAULT: HomeScreenOptions = { summary_tiles: null, area_quick: {}, ...CHOICE_DEFAULTS, popup: { version: 0, site: null, areas: {} } };
 
 /** The user's own choices (home.personal.screen). */
 export interface PersonalScreen {
@@ -113,7 +122,7 @@ export function homeScreenOf(raw: unknown): HomeScreenOptions {
       o = {};
     }
   } else if (raw && typeof raw === 'object') o = raw as Record<string, unknown>;
-  const out: HomeScreenOptions = { ...HOME_SCREEN_DEFAULT, area_quick: {} };
+  const out: HomeScreenOptions = { ...HOME_SCREEN_DEFAULT, area_quick: {}, popup: popupOf(o.popup) };
   out.summary_tiles = o.summary_tiles === null || o.summary_tiles === undefined ? null : kinds(o.summary_tiles, SUMMARY_KINDS);
   if (o.area_quick && typeof o.area_quick === 'object' && !Array.isArray(o.area_quick)) {
     for (const [id, v] of Object.entries(o.area_quick as Record<string, unknown>)) {

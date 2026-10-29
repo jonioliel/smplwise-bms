@@ -9,17 +9,23 @@ import './devices-camera-card';
 import type { IconName } from '../components/sw-icon';
 import { deepFocusables } from '../components/sw-drawer';
 import { lockScrollChain } from '../components/scroll-lock';
-import { canAnywhere, isApi } from '../api/session';
+import { can, canAnywhere, isApi } from '../api/session';
 import { ApiError } from '../api/client';
 import { fmtTime, subscribeHa } from '../api/ha';
 import { getDevicesArea, type CardId, type DeviceArea, type DeviceAreaDetail, type DeviceRow } from '../api/devices';
 import type { BulkKind } from '../api/device-bulk';
 import { activateScene, automations, type Item } from '../api/automations';
+import { HOME_SCREEN_DEFAULT, loadHomeScreen, type HomeScreenOptions, type PopupAlert } from '../api/home-screen';
+import { EMPTY_LAYOUT, POPUP_ITEM_SECTIONS, isVersionConflict, savePopupLayout, type PopupLayout } from '../api/popup-layout';
+import { invalidateSettings } from '../api/prefs';
 import { listSchedules, type Schedule } from '../api/schedules';
 import { EVENT_LABEL, listEvents, type VmsEvent } from '../api/events';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { hs, type HsKey } from '../i18n/home-screen';
 import { deg, DeviceControls, deviceControlStyles, EQUIPMENT_DOMAINS, rowLabel } from './devices-controls';
+import {
+  EditRow, buildLayout, editItems, editSections, hiddenCount, isAlarming, isTechnical, layoutFor, moveTo, nothingVisible, shownItems, shownSections, toggleItem, toggleSection, withItemOrder, withSectionOrder,
+} from './area-quick-edit-logic';
 import {
   CLOSE_MS, OPEN_MS, SPRING_FLICK, SPRING_OPEN, controllableRows, detentHeight, dragOffset, flipFrom, flipTransform, peekSections, releaseDetent, sectionsFor, sensorRows,
   sideSectionsAllowed, springLinear, type Box, type Detent, type QuickMode, type QuickSection,
@@ -87,6 +93,19 @@ export class AreaQuickSheet extends LitElement {
   @state() private schedules: Schedule[] = [];
   @state() private events: VmsEvent[] = [];
   @state() private sceneBusy = '';
+  // AREAEDIT-2290: the installation's pop-up layout and the editor (managers only; the server stays the authority)
+  @state() private opts: HomeScreenOptions = HOME_SCREEN_DEFAULT;
+  @state() private editing = false;
+  @state() private draft: PopupLayout = EMPTY_LAYOUT;
+  @state() private applyTo: 'area' | 'site' = 'area';
+  @state() private alertDraft: PopupAlert = 'show';
+  @state() private openSec: string | null = null;
+  @state() private moreItems = false;
+  @state() private confirmReset = false;
+  @state() private saving = false;
+  @state() private saveError = '';
+  @state() private conflict = false;
+  private edDrag: { list: string; id: string; pid: number } | null = null;
 
   private ctl = new DeviceControls(this, () => this.scheduleReload());
   private opener: HTMLElement | null = null;
@@ -761,6 +780,344 @@ export class AreaQuickSheet extends LitElement {
           animation-duration: 1.4s;
         }
       }
+
+      /* ---- AREAEDIT-2290: the editor (same panel; hide + order). Tokens only; green is never used here, the switch is accent blue ---- */
+      h2 .editing {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin-inline-start: 10px;
+        padding: 2px 8px;
+        border-radius: var(--sw-r-pill);
+        background: var(--sw-accent-soft);
+        color: var(--sw-accent-text);
+        font-size: var(--sw-fs-xs);
+        font-weight: var(--sw-fw-semibold);
+        letter-spacing: 0;
+        vertical-align: middle;
+      }
+      .ed {
+        position: relative;
+        flex: 1 1 auto;
+        min-block-size: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .ed-main {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow-y: auto; /* only when the sections do not fit (an accordion keeps it rare); the footer never scrolls away */
+        overflow-x: hidden;
+        padding: 4px 20px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      :host(:not([mode='sheet'])) .ed-main {
+        flex-direction: row;
+        align-items: flex-start;
+      }
+      :host(:not([mode='sheet'])) .ed-list {
+        flex: 1 1 auto;
+        min-inline-size: 0;
+      }
+      :host([mode='popup']) .ed-side,
+      :host([data-expanded]) .ed-side {
+        flex: 0 0 240px;
+      }
+      .er {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-block-size: 38px;
+        padding: 2px 6px;
+        border-radius: var(--sw-r-md);
+        background: var(--sw-surface-2);
+        margin-block-end: 4px;
+        font-size: var(--sw-fs-md);
+        color: var(--sw-text);
+      }
+      .er.off .nm {
+        color: var(--sw-text-3);
+      }
+      .er.off {
+        opacity: 0.7;
+      }
+      .er.it {
+        margin-inline-start: 24px;
+        min-block-size: 34px;
+        background: transparent;
+        border: 1px solid var(--sw-border);
+      }
+      .er .nm {
+        min-inline-size: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: var(--sw-fw-semibold);
+      }
+      .er .meta,
+      .er .hidtag {
+        font-size: var(--sw-fs-xs);
+        color: var(--sw-text-3);
+        white-space: nowrap;
+      }
+      .er .tag {
+        font-size: var(--sw-fs-xs);
+        padding: 1px 6px;
+        border-radius: var(--sw-r-pill);
+        background: var(--sw-surface);
+        border: 1px solid var(--sw-border);
+        color: var(--sw-text-2);
+        white-space: nowrap;
+      }
+      .grow {
+        flex: 1 1 auto;
+      }
+      .eye,
+      .mv,
+      .grip,
+      .exp {
+        inline-size: 32px;
+        block-size: 32px;
+        flex: none;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 0;
+        border-radius: var(--sw-r-md);
+        background: transparent;
+        color: var(--sw-text-2);
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .grip {
+        cursor: grab;
+        touch-action: none; /* a finger on the handle reorders; it never scrolls the list or drags the sheet */
+      }
+      :host([data-ed-dragging]) .grip {
+        cursor: grabbing;
+      }
+      .eye[aria-pressed='true'] {
+        color: var(--sw-accent-text);
+      }
+      .mv:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+      .exp sw-icon {
+        transition: transform var(--sw-t-fast) var(--sw-ease);
+      }
+      .exp[aria-expanded='true'] sw-icon {
+        transform: rotate(180deg);
+      }
+      .exp-gap {
+        inline-size: 32px;
+        flex: none;
+      }
+      @media (max-width: 767px) {
+        .eye,
+        .mv,
+        .grip,
+        .exp {
+          inline-size: 40px;
+          block-size: 40px;
+        }
+        .exp-gap {
+          inline-size: 40px;
+        }
+      }
+      @media (hover: hover) and (pointer: fine) {
+        .eye:hover,
+        .mv:hover:not(:disabled),
+        .grip:hover,
+        .exp:hover {
+          background: var(--sw-hover-wash);
+          color: var(--sw-text);
+        }
+      }
+      .eye:focus-visible,
+      .mv:focus-visible,
+      .grip:focus-visible,
+      .exp:focus-visible,
+      .more:focus-visible,
+      .seg button:focus-visible {
+        outline: var(--sw-focus-w) solid var(--sw-focus);
+        outline-offset: var(--sw-focus-offset);
+      }
+      .more {
+        margin-inline-start: 24px;
+        border: 0;
+        background: transparent;
+        color: var(--sw-accent-text);
+        font: inherit;
+        font-size: var(--sw-fs-sm);
+        cursor: pointer;
+        padding: 6px 8px;
+      }
+      .ed-side {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .ed-side .fld {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .ed-side .fld.tgrow {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .ed-side b {
+        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-semibold);
+        color: var(--sw-text);
+      }
+      .ed-side small,
+      .ed-side .fine {
+        font-size: var(--sw-fs-xs);
+        color: var(--sw-text-3);
+        line-height: 1.4;
+      }
+      .ed-side .fine {
+        display: flex;
+        gap: 6px;
+        align-items: flex-start;
+      }
+      .vh {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+      }
+      .seg {
+        display: flex;
+        padding: 3px;
+        gap: 3px;
+        border-radius: var(--sw-r-md);
+        background: var(--sw-surface-2);
+      }
+      .seg button {
+        flex: 1 1 0;
+        min-block-size: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        border: 0;
+        border-radius: var(--sw-r-sm, var(--sw-r-md));
+        background: transparent;
+        color: var(--sw-text-2);
+        font: inherit;
+        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-semibold);
+        cursor: pointer;
+      }
+      .seg button.on {
+        background: var(--sw-surface-solid);
+        color: var(--sw-text);
+        box-shadow: var(--sw-shadow-1);
+      }
+      .seg button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .sitewarn,
+      .warn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px;
+        border-radius: var(--sw-r-md);
+        background: var(--sw-warning-soft, var(--sw-surface-2));
+        color: var(--sw-text);
+        font-size: var(--sw-fs-xs);
+        line-height: 1.4;
+      }
+      .warn {
+        margin-inline: 20px;
+        margin-block-end: 6px;
+        flex-wrap: wrap;
+      }
+      .ed-foot {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+        border-block-start: 1px solid var(--sw-border);
+        background: var(--sw-surface-solid);
+      }
+      .ed-foot .lockn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: var(--sw-fs-xs);
+        color: var(--sw-text-3);
+      }
+      .qb.pri {
+        background: var(--sw-accent);
+        border-color: var(--sw-accent);
+        color: var(--sw-text-inverse);
+      }
+      .ed-foot .qb:focus-visible,
+      .warn .qb:focus-visible,
+      .cf .qb:focus-visible {
+        outline: var(--sw-focus-w) solid var(--sw-focus);
+        outline-offset: var(--sw-focus-offset);
+      }
+      .cf-scrim {
+        position: absolute;
+        inset: 0;
+        background: var(--sw-overlay);
+        z-index: 2;
+      }
+      .cf {
+        position: absolute;
+        z-index: 3;
+        inset-inline: 20px;
+        inset-block-end: 20px;
+        padding: 16px;
+        border-radius: var(--sw-r-xl);
+        background: var(--sw-surface-solid);
+        border: 1px solid var(--sw-border-strong);
+        box-shadow: var(--sw-shadow-3);
+      }
+      .cf h3 {
+        margin: 0 0 6px;
+        font-size: var(--sw-fs-lg);
+        color: var(--sw-heading);
+      }
+      .cf p {
+        margin: 0 0 12px;
+        font-size: var(--sw-fs-md);
+        color: var(--sw-text-2);
+      }
+      .cf .row2 {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      /* a hidden sensor that is in alarm: shown for as long as it alarms, red (only an alarm is red) */
+      .sv.alarm {
+        background: var(--sw-danger-soft);
+        outline: 1px solid color-mix(in srgb, var(--sw-danger) 55%, transparent);
+        outline-offset: -1px;
+      }
+      .sv.alarm b {
+        color: var(--sw-danger-text);
+      }
+      .sv.alarm em {
+        font-style: normal;
+        font-size: var(--sw-fs-xs);
+        color: var(--sw-danger-text);
+        line-height: 1.3;
+      }
     `,
   ];
 
@@ -793,6 +1150,8 @@ export class AreaQuickSheet extends LitElement {
         this.schedules = [];
         this.events = [];
         this.error = '';
+        this.editing = false;
+        this.confirmReset = false;
       }
     }
     if (changed.has('mode') || changed.has('open')) {
@@ -834,6 +1193,8 @@ export class AreaQuickSheet extends LitElement {
   }
 
   private onClose() {
+    this.editing = false;
+    this.confirmReset = false;
     this.toggleAttribute('data-shown', false);
     this.removeAttribute('data-flick');
     this.releaseScroll?.();
@@ -891,6 +1252,14 @@ export class AreaQuickSheet extends LitElement {
       const path = e.composedPath();
       if (path.some((n) => n instanceof Element && (n.tagName === 'SW-DIALOG' || n.tagName === 'DEVICES-BULK-DIALOG'))) return;
       e.preventDefault();
+      if (this.confirmReset) {
+        this.confirmReset = false;
+        return;
+      }
+      if (this.editing) {
+        this.cancelEdit();
+        return;
+      }
       this.closedByKey = true;
       this.close();
       return;
@@ -1065,7 +1434,12 @@ export class AreaQuickSheet extends LitElement {
       if (seq !== this.loadSeq) return;
       if (!this.detail) this.error = hs('qcLoadFailed');
     }
-    if (!quiet) void this.loadSide(a, seq);
+    if (!quiet) {
+      void this.loadSide(a, seq);
+      void loadHomeScreen().then((o) => {
+        if (seq === this.loadSeq && !this.editing) this.opts = o;
+      });
+    }
   }
 
   /** The side lists, each behind its permission and each tolerant of a 403 (hidden) or a failure (hidden) - the server is the authority. */
@@ -1109,17 +1483,251 @@ export class AreaQuickSheet extends LitElement {
     location.hash = `#/devices/areas/${encodeURIComponent(a.area_id)}`;
   }
 
+
+  // ------------------------------------------------------------------------------------------------ AREAEDIT-2290: the editor
+
+  private startEdit() {
+    if (!this.canEdit) return;
+    this.draft = this.layout;
+    this.applyTo = 'area';
+    this.alertDraft = this.opts.popup_alert;
+    this.openSec = null;
+    this.moreItems = false;
+    this.confirmReset = false;
+    this.saveError = '';
+    this.conflict = false;
+    this.editing = true;
+    if (this.mode === 'sheet') this.detent = 'full'; // the editor needs the whole sheet
+    void this.updateComplete.then(() => (this.renderRoot.querySelector('[data-qc-ed-save]') as HTMLElement | null)?.focus({ preventScroll: true }));
+  }
+
+  private cancelEdit() {
+    this.editing = false;
+    this.confirmReset = false;
+    this.saveError = '';
+    this.conflict = false;
+  }
+
+  private get listedSections(): EditRow[] {
+    return editSections(this.availableSections, this.draft);
+  }
+
+  private edToggleSection(id: string) {
+    this.draft = toggleSection(this.draft, id);
+  }
+
+  private edToggleItem(sec: string, id: string) {
+    const order = editItems(this.itemRows(sec), sec, this.draft).map((x) => x.row.entity_id);
+    this.draft = toggleItem(this.draft, sec, id, order);
+  }
+
+  /** Move a section or an item: `list` = 'sections' or the section id; `to` = the index it lands on. */
+  private edMove(list: string, id: string, to: number) {
+    const ids = list === 'sections' ? this.listedSections.map((r) => r.id) : editItems(this.itemRows(list), list, this.draft).map((x) => x.row.entity_id);
+    const next = moveTo(ids, ids.indexOf(id), to);
+    this.draft = list === 'sections' ? withSectionOrder(this.draft, next) : withItemOrder(this.draft, list, next);
+  }
+
+  private edStep(list: string, id: string, delta: -1 | 1) {
+    const ids = list === 'sections' ? this.listedSections.map((r) => r.id) : editItems(this.itemRows(list), list, this.draft).map((x) => x.row.entity_id);
+    this.edMove(list, id, ids.indexOf(id) + delta);
+  }
+
+  private onGripKey(e: KeyboardEvent, list: string, id: string) {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    this.edStep(list, id, e.key === 'ArrowUp' ? -1 : 1);
+    void this.updateComplete.then(() => (this.renderRoot.querySelector(`[data-ed-grip="${CSS.escape(id)}"]`) as HTMLElement | null)?.focus({ preventScroll: true }));
+  }
+
+  private onGripDown(e: PointerEvent, list: string, id: string) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation(); // the sheet's own drag listens on the panel: a handle never drags the sheet
+    this.edDrag = { list, id, pid: e.pointerId };
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* no capture */
+    }
+    this.toggleAttribute('data-ed-dragging', true);
+  }
+
+  private onGripMove(e: PointerEvent) {
+    const d = this.edDrag;
+    if (!d || e.pointerId !== d.pid) return;
+    const rows = [...this.renderRoot.querySelectorAll(`[data-ed-list="${CSS.escape(d.list)}"] > [data-ed-row]`)] as HTMLElement[];
+    const at = rows.findIndex((r) => {
+      const b = r.getBoundingClientRect();
+      return e.clientY >= b.top && e.clientY <= b.bottom;
+    });
+    const from = rows.findIndex((r) => r.dataset.edRow === d.id);
+    if (at >= 0 && from >= 0 && at !== from) this.edMove(d.list, d.id, at);
+  }
+
+  private onGripUp(e: PointerEvent) {
+    if (!this.edDrag || e.pointerId !== this.edDrag.pid) return;
+    this.edDrag = null;
+    this.toggleAttribute('data-ed-dragging', false);
+  }
+
+  private async saveEdit(force = false) {
+    if (this.saving || !this.area) return;
+    const toSite = this.applyTo === 'site';
+    const layout = buildLayout(this.draft, this.listedSections.map((r) => r.id));
+    const installation = can('system.configure');
+    const alert = installation && this.alertDraft !== this.opts.popup_alert ? this.alertDraft : undefined;
+    this.saving = true;
+    this.saveError = '';
+    try {
+      const r = await savePopupLayout(toSite ? null : this.area.area_id, this.opts.popup.version, layout, { force, alert });
+      this.opts = { ...this.opts, popup: r.popup, popup_alert: r.popup_alert };
+      this.editing = false;
+      this.conflict = false;
+    } catch (err) {
+      if (isVersionConflict(err)) this.conflict = true;
+      else this.saveError = err instanceof ApiError && err.status === 403 ? err.message : hs('qcSaveFailed');
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  /** "Reload": take what the other manager saved, keep the editor open on it. */
+  private async reloadEdit() {
+    invalidateSettings();
+    this.opts = await loadHomeScreen(true);
+    this.draft = this.layout;
+    this.alertDraft = this.opts.popup_alert;
+    this.conflict = false;
+  }
+
+  private doReset() {
+    this.draft = EMPTY_LAYOUT;
+    this.confirmReset = false;
+    this.openSec = null;
+  }
+
+  private renderEditor() {
+    const a = this.area!;
+    const rows = this.listedSections;
+    const phone = this.mode === 'sheet';
+    const site = this.applyTo === 'site';
+    const installation = can('system.configure');
+    const label = (id: string) => (id === 'quick' ? hs('qcQuickLabel') : hs(SECTION_LABEL[id as Exclude<QuickSection, 'quick'>]));
+    const eye = (hidden: boolean, name: string, onClick: () => void) =>
+      html`<button type="button" class="eye" data-ed-eye aria-pressed=${String(!hidden)} aria-label=${hidden ? hs('qcShowIt', { name }) : hs('qcHideIt', { name })} title=${hidden ? hs('qcShowIt', { name }) : hs('qcHideIt', { name })} @click=${onClick}><sw-icon name=${hidden ? 'eyeOff' : 'eye'} size=${16}></sw-icon></button>`;
+    const mv = (list: string, id: string, i: number, n: number) => html`
+      <button type="button" class="mv" data-ed-up aria-label=${hs('qcMoveUp')} title=${hs('qcMoveUp')} ?disabled=${i === 0} @click=${() => this.edStep(list, id, -1)}><sw-icon name="arrowUp" size=${14}></sw-icon></button>
+      <button type="button" class="mv" data-ed-down aria-label=${hs('qcMoveDown')} title=${hs('qcMoveDown')} ?disabled=${i === n - 1} @click=${() => this.edStep(list, id, 1)}><sw-icon name="arrowDown" size=${14}></sw-icon></button>`;
+    const grip = (list: string, id: string) =>
+      html`<button type="button" class="grip" data-ed-grip=${id} aria-label=${hs('qcDragHandle')} title=${hs('qcDragHandle')} @pointerdown=${(e: PointerEvent) => this.onGripDown(e, list, id)} @pointermove=${(e: PointerEvent) => this.onGripMove(e)} @pointerup=${(e: PointerEvent) => this.onGripUp(e)} @pointercancel=${(e: PointerEvent) => this.onGripUp(e)} @keydown=${(e: KeyboardEvent) => this.onGripKey(e, list, id)}><sw-icon name="grip" size=${15}></sw-icon></button>`;
+    const itemSection = (id: string) => (POPUP_ITEM_SECTIONS as readonly string[]).includes(id) && this.itemRows(id).length > 0;
+    const limit = phone ? 4 : 6;
+    const renderItems = (sec: string) => {
+      const items = editItems(this.itemRows(sec), sec, this.draft);
+      const shown = this.moreItems ? items : items.slice(0, limit);
+      return html`<div class="ed-items" role="list" data-ed-list=${sec} aria-label=${hs('qcItemsOf', { name: label(sec) })}>
+        ${repeat(shown, (x) => x.row.entity_id, (x, i) => html`<div class=${classMap({ er: true, it: true, off: x.hidden })} role="listitem" data-ed-row=${x.row.entity_id}>
+          ${grip(sec, x.row.entity_id)}${eye(x.hidden, x.row.name, () => this.edToggleItem(sec, x.row.entity_id))}
+          <span class="nm">${bidi(x.row.name)}</span>${sec === 'sensors' && isTechnical(x.row) ? html`<span class="tag" data-ed-tech>${hs('qcTechTag')}</span>` : nothing}${x.hidden ? html`<span class="hidtag">${hs('qcHiddenTag')}</span>` : nothing}
+          <span class="grow"></span>${mv(sec, x.row.entity_id, i, items.length)}</div>`)}
+        ${items.length > limit && !this.moreItems ? html`<button type="button" class="more" data-ed-more @click=${() => (this.moreItems = true)}>${hs('qcShowMoreN', { n: items.length - limit })}</button>` : nothing}
+      </div>`;
+    };
+    return html`<div class="ed" data-qc-editor>
+      <div class="ed-main">
+        <div class="ed-list" role="list" data-ed-list="sections" aria-label=${hs('qcEditTitle')}>
+          ${repeat(rows, (r) => r.id, (r, i) => {
+            const open = this.openSec === r.id;
+            const hc = hiddenCount(this.draft, r.id);
+            return html`<div class=${classMap({ er: true, sr: true, off: r.hidden, open })} role="listitem" data-ed-row=${r.id}>
+                ${grip('sections', r.id)}${eye(r.hidden, label(r.id), () => this.edToggleSection(r.id))}
+                <span class="nm">${label(r.id)}</span>${hc ? html`<span class="meta">· ${hs('qcHiddenN', { n: hc })}</span>` : nothing}${r.hidden ? html`<span class="hidtag">${hs('qcHiddenTag')}</span>` : nothing}
+                <span class="grow"></span>${mv('sections', r.id, i, rows.length)}
+                ${itemSection(r.id) ? html`<button type="button" class="exp" data-ed-expand=${r.id} aria-expanded=${String(open)} aria-label=${hs('qcItemsOf', { name: label(r.id) })} @click=${() => { this.openSec = open ? null : r.id; this.moreItems = false; }}><sw-icon name="chevronDown" size=${14}></sw-icon></button>` : html`<span class="exp-gap"></span>`}
+              </div>${open ? renderItems(r.id) : nothing}`;
+          })}
+        </div>
+        <aside class="ed-side">
+          <div class="fld">
+            <b class=${phone ? 'vh' : ''}>${hs('qcApplyTo')}</b>
+            <div class="seg" role="radiogroup" aria-label=${hs('qcApplyTo')}>
+              <button type="button" role="radio" aria-checked=${String(!site)} class=${classMap({ on: !site })} data-ed-apply="area" @click=${() => (this.applyTo = 'area')}><sw-icon name="pin" size=${13}></sw-icon>${hs('qcApplyArea')}</button>
+              <button type="button" role="radio" aria-checked=${String(site)} class=${classMap({ on: site })} data-ed-apply="site" ?disabled=${!installation} @click=${() => (this.applyTo = 'site')}><sw-icon name="home" size=${13}></sw-icon>${hs('qcApplySite')}</button>
+            </div>
+            ${site ? html`<div class="sitewarn" data-ed-sitewarn><sw-icon name="warning" size=${13}></sw-icon><span>${hs('qcSiteWarn')}</span></div>` : phone ? nothing : html`<small>${hs('qcAreaNote', { name: a.name })}</small>`}
+          </div>
+          ${installation ? html`<div class="fld tgrow"><div><b>${hs('qcAlertTitle')}</b>${phone ? nothing : html`<small>${this.alertDraft === 'show' ? hs('qcAlertOn') : hs('qcAlertOff')}</small>`}</div>
+            <sw-toggle data-ed-alert .checked=${this.alertDraft === 'show'} label=${hs('qcAlertTitle')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => (this.alertDraft = e.detail.checked ? 'show' : 'hide')}></sw-toggle></div>` : nothing}
+          ${phone ? nothing : html`<div class="fine"><sw-icon name="info" size=${13}></sw-icon><span>${hs('qcFine')}</span></div>`}
+        </aside>
+      </div>
+      ${nothingVisible(rows) ? html`<div class="warn" data-ed-allhidden role="status"><sw-icon name="warning" size=${13}></sw-icon>${hs('qcAllHiddenWarn')}</div>` : nothing}
+      ${this.saveError ? html`<div class="warn" data-ed-error role="alert">${this.saveError}</div>` : nothing}
+      ${this.conflict ? html`<div class="warn" data-ed-conflict role="alert"><span>${hs('qcConflict')}</span><button type="button" class="qb" data-ed-reload @click=${() => void this.reloadEdit()}>${hs('qcReload')}</button><button type="button" class="qb main" data-ed-force @click=${() => void this.saveEdit(true)}>${hs('qcOverwrite')}</button></div>` : nothing}
+      <footer class="ed-foot">
+        <button type="button" class="qb" data-ed-reset @click=${() => (this.confirmReset = true)}>${hs('qcResetBtn')}</button>
+        ${phone ? nothing : html`<span class="lockn"><sw-icon name="lock" size=${13}></sw-icon>${hs('qcLockNote')}</span>`}
+        <span class="grow"></span>
+        <button type="button" class="qb" data-ed-cancel @click=${() => this.cancelEdit()}>${hs('qcCancel')}</button>
+        <button type="button" class="qb pri" data-qc-ed-save ?disabled=${this.saving} @click=${() => void this.saveEdit()}>${site ? hs('qcSaveSite') : hs('qcSaveArea')}</button>
+      </footer>
+      ${this.confirmReset ? html`<div class="cf-scrim" @click=${() => (this.confirmReset = false)}></div>
+        <div class="cf" role="alertdialog" aria-labelledby="qc-cf-t" data-ed-confirm><h3 id="qc-cf-t">${hs('qcResetTitle')}</h3><p>${site ? hs('qcResetBodySite') : hs('qcResetBody')}</p>
+          <div class="row2"><button type="button" class="qb" data-ed-confirm-no @click=${() => (this.confirmReset = false)}>${hs('qcCancel')}</button><button type="button" class="qb pri" data-ed-confirm-yes @click=${() => this.doReset()}>${hs('qcResetGo')}</button></div></div>` : nothing}
+    </div>`;
+  }
+
   // ------------------------------------------------------------------------------------------------ render
 
-  private get cameras(): DeviceRow[] {
+  /** Every camera this person may see here (before the layout hides or orders them). */
+  private get allCameras(): DeviceRow[] {
     const allowed = sideSectionsAllowed((p) => !isApi() || canAnywhere(p));
     if (!allowed.cameras) return [];
-    return (this.detail?.cards.security?.entities ?? []).filter((r) => r.kind === 'camera' && r.available).slice(0, 4);
+    return (this.detail?.cards.security?.entities ?? []).filter((r) => r.kind === 'camera' && r.available);
+  }
+
+  private get cameras(): DeviceRow[] {
+    return shownItems(this.allCameras, 'cameras', this.layout, false).rows.slice(0, 4);
+  }
+
+  private get layout(): PopupLayout {
+    return layoutFor(this.opts.popup, this.area?.area_id);
+  }
+
+  /** The editor shows to a manager only: the server refuses a save from anyone else (system.configure on the area's scope). */
+  private get canEdit(): boolean {
+    return isApi() && canAnywhere('system.configure') && !!this.area;
+  }
+
+  /** The items of a section that this person may see, before the layout (what the editor lists). */
+  private itemRows(s: string): DeviceRow[] {
+    const d = this.detail;
+    if (s === 'sensors') return sensorRows(d?.cards.sensors, Infinity);
+    if (s === 'cameras') return this.allCameras;
+    return controllableRows(d?.cards[s as CardId], EQUIPMENT_DOMAINS);
+  }
+
+  /** A hidden sensor is in alarm now and the installation shows such a sensor: the sensors section appears for it. */
+  private get alarmingHidden(): boolean {
+    if (this.opts.popup_alert !== 'show') return false;
+    const hid = this.layout.items.sensors?.hidden ?? [];
+    return this.itemRows('sensors').some((r) => hid.includes(r.entity_id) && isAlarming(r));
+  }
+
+  /** Every section this person may see (before the layout), in today's order. */
+  private get availableSections(): QuickSection[] {
+    const d = this.detail;
+    return sectionsFor({ cards: d?.cards ?? null, cameras: this.allCameras.length, scenes: this.scenes.length, schedules: this.schedules.length, events: this.events.length, canBulk: this.canBulk && !!this.area && (d?.can_bulk ?? true) }, EQUIPMENT_DOMAINS);
   }
 
   private get sections(): QuickSection[] {
-    const d = this.detail;
-    const all = sectionsFor({ cards: d?.cards ?? null, cameras: this.cameras.length, scenes: this.scenes.length, schedules: this.schedules.length, events: this.events.length, canBulk: this.canBulk && !!this.area && (d?.can_bulk ?? true) }, EQUIPMENT_DOMAINS);
+    const lay = this.layout;
+    const showAlert = this.opts.popup_alert === 'show';
+    // the layout hides / orders what this person may already see; a section whose every item is hidden drops out
+    const all = shownSections(this.availableSections, lay, this.alarmingHidden).filter(
+      (s) => !(POPUP_ITEM_SECTIONS as readonly string[]).includes(s) || shownItems(this.itemRows(s), s, lay, showAlert && s === 'sensors').rows.length > 0,
+    );
     return this.mode === 'sheet' && this.detent === 'peek' ? peekSections(all) : all;
   }
 
@@ -1137,16 +1745,17 @@ export class AreaQuickSheet extends LitElement {
         <header>
           <span class="ring" ?data-on=${on}><sw-icon .name=${this.icon} size=${20}></sw-icon></span>
           <div class="ttl">
-            <h2>${a ? bidi(a.name) : ''}</h2>
-            <span class="sub">${[this.floorName ? html`<span>${bidi(this.floorName)}</span>` : '', temp ? html`<span><b>${temp}</b></span>` : '', c ? html`<span>${ltrNum(c.entities)} ${hs('qcDevicesLabel')}</span>` : ''].filter((x) => x !== '').map((x, i) => (i ? html` · ${x}` : x))}</span>
+            <h2>${a ? bidi(a.name) : ''}${this.editing ? html`<span class="editing" data-qc-editing><sw-icon name="edit" size=${12}></sw-icon>${hs('qcEditing')}</span>` : nothing}</h2>
+            <span class="sub">${this.editing ? html`<span class="ed-hint">${this.mode === 'sheet' ? hs('qcEditHintPhone') : hs('qcEditHintDesk')}</span>` : [this.floorName ? html`<span>${bidi(this.floorName)}</span>` : '', temp ? html`<span><b>${temp}</b></span>` : '', c ? html`<span>${ltrNum(c.entities)} ${hs('qcDevicesLabel')}</span>` : ''].filter((x) => x !== '').map((x, i) => (i ? html` · ${x}` : x))}</span>
           </div>
           <span class="acts">
+            ${this.canEdit && !this.editing ? html`<button type="button" class="ib" data-qc-edit aria-label=${hs('qcEditTitle')} title=${hs('qcEditTitle')} @click=${() => this.startEdit()}><sw-icon name="edit" size=${17}></sw-icon></button>` : nothing}
             <button type="button" class="ib" data-qc-expand aria-label=${expandLabel} title=${expandLabel} aria-pressed=${String(expandedNow)} @click=${() => this.toggleExpand()}><sw-icon name="expand" size=${17}></sw-icon></button>
             ${a ? html`<a class="ib" href=${`#/devices/areas/${encodeURIComponent(a.area_id)}`} data-qc-open-screen aria-label=${hs('qcOpenScreen')} title=${hs('qcOpenScreen')} @click=${(e: Event) => this.openScreen(e)}><sw-icon name="chevron" size=${17}></sw-icon></a>` : nothing}
             <button type="button" class="ib" data-qc-close aria-label=${hs('close')} title=${hs('close')} @click=${() => this.close()}><sw-icon name="close" size=${18}></sw-icon></button>
           </span>
         </header>
-        <div class="body" data-qc-body><div class="cols">${this.renderBody()}</div></div>
+        ${this.editing ? this.renderEditor() : html`<div class="body" data-qc-body><div class="cols">${this.renderBody()}</div></div>`}
       </section>`;
   }
 
@@ -1154,17 +1763,17 @@ export class AreaQuickSheet extends LitElement {
     if (this.error && !this.detail) return html`<div class="note" data-qc-error>${this.error}</div>`;
     if (!this.detail) return html`<div class="spin" role="status" aria-label="טוען"></div>`;
     const secs = this.sections;
-    if (!secs.length) return html`<div class="note" data-qc-empty>${hs('qcEmpty')}</div>`;
+    if (!secs.length) return html`<div class="note" data-qc-empty>${this.availableSections.length ? hs('qcEmptyLayout') : hs('qcEmpty')}</div>`;
     return repeat(secs, (s) => s, (s) => this.renderSection(s));
   }
 
   private renderSection(s: QuickSection) {
-    const d = this.detail!;
     if (s === 'quick') return this.renderQuick();
     const head = (n: number) => html`<div class="sh"><sw-icon .name=${SECTION_ICON[s]} size=${13}></sw-icon>${hs(SECTION_LABEL[s])}<span class="n">${ltrNum(n)}</span></div>`;
     if (s === 'sensors') {
-      const rows = sensorRows(d.cards.sensors);
-      return html`<div class="sec" data-qc-section="sensors">${head(rows.length)}<div class="sens">${rows.map((r) => this.renderSensor(r))}</div></div>`;
+      const shown = shownItems(this.itemRows('sensors'), 'sensors', this.layout, this.opts.popup_alert === 'show');
+      const rows = shown.rows.slice(0, 6);
+      return html`<div class="sec" data-qc-section="sensors">${head(rows.length)}<div class="sens">${rows.map((r) => this.renderSensor(r, shown.revealed.has(r.entity_id)))}</div></div>`;
     }
     if (s === 'cameras') {
       const cams = this.cameras;
@@ -1185,7 +1794,7 @@ export class AreaQuickSheet extends LitElement {
         (ev) => html`<div class="line" data-qc-event=${ev.id}><sw-icon name="camera" size=${13}></sw-icon><span class="nm">${EVENT_LABEL[ev.type] ?? ev.type}${ev.camera_name ? ` · ${bidi(ev.camera_name)}` : ''}</span><span class="tm">${fmtTime(ev.occurred_at)}</span></div>`,
       )}</div></div>`;
     }
-    const rows = controllableRows(d.cards[s as CardId], EQUIPMENT_DOMAINS);
+    const rows = shownItems(this.itemRows(s), s, this.layout, false).rows;
     return html`<div class="sec" data-qc-section=${s}>${head(rows.length)}<div class="rows">${repeat(rows, (r) => r.entity_id, (r) => this.renderRow(r, s as CardId))}</div></div>`;
   }
 
@@ -1203,9 +1812,9 @@ export class AreaQuickSheet extends LitElement {
     </div>`;
   }
 
-  private renderSensor(r: DeviceRow) {
+  private renderSensor(r: DeviceRow, revealed = false) {
     const value = r.domain === 'sensor' && r.value !== null && r.value !== undefined ? `${ltrNum(Number.isInteger(r.value) ? r.value : r.value.toFixed(1))}${r.unit ? ` ${r.unit}` : ''}` : rowLabel(r);
-    return html`<div class="sv" data-qc-sensor=${r.entity_id} title=${r.name}><b>${value}</b><span>${bidi(r.name)}</span></div>`;
+    return html`<div class=${classMap({ sv: true, alarm: revealed })} data-qc-sensor=${r.entity_id} data-qc-alarm=${revealed ? 'true' : nothing} title=${revealed ? `${r.name} - ${hs('qcRevealed')}` : r.name}><b>${value}</b><span>${bidi(r.name)}</span>${revealed ? html`<em>${hs('qcRevealed')}</em>` : nothing}</div>`;
   }
 
   private renderRow(raw: DeviceRow, card: CardId) {
