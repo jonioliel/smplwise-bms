@@ -51,7 +51,7 @@ export function weatherIcon(condition: string): WeatherIcon {
 export function isEventWhen(when: string, permanent: string): boolean {
   const w = (when || '').trim();
   if (!w || w === permanent) return false;
-  if (/^(עד|until)\b/i.test(w)) return false;
+  if (/^(עד|until)(\s|$)/i.test(w)) return false; // (no \b: it is ASCII-only and never matches after a Hebrew word)
   return /\d{1,2}\.\d{1,2}|\d{1,2}:\d{2}/.test(w);
 }
 
