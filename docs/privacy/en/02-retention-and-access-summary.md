@@ -4,6 +4,8 @@ Status: DRAFT, factual. Not legal advice. Verified against `origin/integ/290` @ 
 (version 2.24.1, 2026-10-27). `B/` = `smplwise_vms/backend/smplwise/`.
 "Default" means the value in the code when nobody changed a setting. Items marked **REQUIRES COUNSEL REVIEW** carry an id (C1...) listed in `../README.md`.
 
+**Re-checked 2026-10-29 (LEGAL-PACK-2291) against `origin/main` @ `8bd92456a` (version 2.27.1):** only the changes listed in `legal-pack/CHANGELOG_2026-10-29_HE.md` were made; the rest of the document was spot-checked against the code, not re-read line by line.
+
 ## 1. Retention: what the code deletes by itself, and when
 
 | Data | Deleted automatically | Mechanism (file) | Can the organisation change it? |
@@ -41,6 +43,8 @@ Status: DRAFT, factual. Not legal advice. Verified against `origin/integ/290` @ 
 | Phone-app sign-in codes and sessions | codes 1 day after expiry; revoked sessions 30 days; ended refresh-token families 30 days | `B/services/app_session.py`, `B/services/app_refresh.py` | no |
 | Camera event thumbnails and `events` rows | `events.retention_days`, default 30 (1-3650) | `B/main.py` janitor, `B/services/thumbnails.py` | yes |
 | People-counting samples (numbers per area, no person) | `occupancy.retention_days`, default 7 (1-90); all samples deleted when the feature is switched off | `B/services/zone_counts.py` `prune`, `janitor` | yes (setting) |
+| Supplier-document reading drafts (row S of document 01) | 14 days after the last activity on the draft, or with its file (`RETENTION_DAYS = 14`, hourly janitor); the feature is off by default | `B/services/docread/service.py` `janitor`, `B/main.py` | no (fixed) |
+| Building-presence history (row T; **upcoming, not in the current main**) | `retention_days` 0-365 (0 = nothing recorded); everything erased when the master switch is turned off | branch `pilot/PRESENCE-2280`, `building_presence_history.py` | yes (planned) |
 | Voice-announcement log (who, text, targets) | 90 days; queued announcements dropped after 24 h | `B/services/announcements.py` `prune(days=90)`, `QUEUE_EXPIRE_H` | no (fixed) |
 | Emergency contacts | **never automatically**; manual delete blanks name, phone, e-mail and user link and keeps the row as a tombstone. The readiness history (verdicts and counts only) follows `history_keep_days` (default 365, 30-3650) | `B/services/emergency/service.py` `delete_contact` | contacts: n/a. **REQUIRES COUNSEL REVIEW (C3)** |
 | Notices and their read receipts | archived or expired notices are soft-deleted after `notices.retention_days` (default 365, 30-3650) and purged 30 days later with their read receipts; a published notice without an end date that is never archived is never swept, so its read receipts stay | `B/services/notices/store.py` `retention_sweep` | yes (setting) |

@@ -4,6 +4,8 @@ Status: TEMPLATE, DRAFT. Not legal advice. The organisation fills the `[BRACKETS
 The whole template is **REQUIRES COUNSEL REVIEW (C2, C3, C4)**: whether a notice is required, to whom, in which form, and with which mandatory content under the law that applies
 to the organisation is a legal question this repository does not answer. Product facts re-verified against `origin/release/2241` @ `f1ef67c68` (2026-10-27).
 
+**Re-checked 2026-10-29 (LEGAL-PACK-2291) against `origin/main` @ `8bd92456a` (version 2.27.1):** only the changes listed in `legal-pack/CHANGELOG_2026-10-29_HE.md` were made; the rest of the document was spot-checked against the code, not re-read line by line.
+
 How this relates to the texts the product already shows (do not contradict them):
 
 - Technician notice `n2` on the vendor arrival page, the one-line text inside the entry-code message, and the short notice in the phone-number confirmation message to a technician:
@@ -41,6 +43,8 @@ service requests, people with door access, emergency contacts, and staff who use
 | Staff reading the notice board (only if switched on) | which notice each person read and when; [shown to managers by name / as counts only] | [PURPOSE] **REQUIRES COUNSEL REVIEW (C17)** |
 | Emergency contacts (only if switched on) | name, role, phone, e-mail | [PURPOSE, e.g. emergency readiness] **REQUIRES COUNSEL REVIEW (C3)** |
 | Staff making voice announcements (only if switched on) | who announced, the text and where it was played, kept 90 days | [PURPOSE] **REQUIRES COUNSEL REVIEW (C14)** |
+| Staff and others named in a supplier certificate read by the document reader (only if switched on) | proposed field values and short snippets, kept 14 days after the last activity | [PURPOSE] |
+| Staff and others named in an announcement text sent to an automatic translation service (only if switched on) | the Hebrew announcement text goes to the translation provider chosen in settings; [name the provider] | [PURPOSE] **REQUIRES COUNSEL REVIEW (C14)** |
 | People appearing in camera frames | event pictures taken from the recorder at the event time | [PURPOSE] **REQUIRES COUNSEL REVIEW (C13)** |
 
 Each row above corresponds to the verified data list in `01-data-processing-summary.md`; edit it to match what is actually switched on at the site.

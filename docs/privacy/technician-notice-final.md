@@ -3,7 +3,7 @@
 Status: **PENDING LEGAL REVIEW.** The owner approved this wording (reported 2026-10-20) as the text to ship; counsel has not reviewed it (counsel items C2, C3, C5 in
 [README.md](README.md)). Not legal advice. The feature `access.external_grants` is OFF by default. Since 2026-10-21 (owner decision, ECCACT-295)
 `GO_LIVE_PERMITTED` is `True`, so a system administrator **can** switch the feature on in the settings; nothing in this document switches it on.
-(Corrected 2026-10-27; the earlier text said the permit stays `False`. Re-verified against `origin/release/2241` @ `f1ef67c68`.)
+(Corrected 2026-10-27; the earlier text said the permit stays `False`. Re-verified against `origin/release/2241` @ `f1ef67c68`, and checked again on 2026-10-29 against `origin/main` @ `8bd92456a`: the constants, the four texts and the wiring are unchanged.)
 The UI shows the texts without any status marking: this status lives in documents only.
 
 ## Where each text lives (code-owned, never editable)

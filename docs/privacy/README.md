@@ -1,9 +1,9 @@
 # Privacy documents for an organisation using SmplWise Arx / מסמכי פרטיות לארגון המשתמש ב-SmplWise Arx
 
 Status: DRAFT, documents and text only (no product code changed). Not legal advice; nothing here promises compliance with any law. Facts were first verified on
-`origin/integ/290` @ `018795f96` (2026-10-19) and **re-verified on `origin/release/2241` @ `f1ef67c68` (version 2.24.1, 2026-10-27)** by reading the code and
+`origin/integ/290` @ `018795f96` (2026-10-19) and **re-verified on `origin/release/2241` @ `f1ef67c68` (version 2.24.1, 2026-10-27) and checked again on `origin/main` @ `8bd92456a` (version 2.27.1, 2026-10-29, LEGAL-PACK-2291)** by reading the code and
 migrations; they cite file paths. Every statement that needs a lawyer is marked **REQUIRES COUNSEL REVIEW (Cn)**.
-סטטוס: טיוטה, מסמכים וטקסט בלבד (לא שונה קוד מוצר). אין זו חוות דעת משפטית ואין כאן הבטחה לעמידה בדין. העובדות אומתו מחדש מול `origin/release/2241` @ `f1ef67c68` (גרסה 2.24.1, 27.10.2026); כל קביעה שדורשת יועץ משפטי מסומנת.
+סטטוס: טיוטה, מסמכים וטקסט בלבד (לא שונה קוד מוצר). אין זו חוות דעת משפטית ואין כאן הבטחה לעמידה בדין. העובדות אומתו מחדש מול `origin/release/2241` @ `f1ef67c68` (גרסה 2.24.1, 27.10.2026) ונבדקו שוב מול `origin/main` @ `8bd92456a` (גרסה 2.27.1, 29.10.2026); כל קביעה שדורשת יועץ משפטי מסומנת.
 
 Source of the task: backlog item `privacy-org-documents` (decision 10 of the technician-privacy decisions of 2026-10-18: a database-definition template, a retention policy, an incident-procedure line).
 The lawyer-bound analysis stays in the internal legal pack and is not copied here.
@@ -26,7 +26,7 @@ Related security material: `docs/security/` (identity and RBAC, dependency and s
 
 ## Counsel-review items / פריטים לבחינת יועץ משפטי
 
-C1-C13 are unchanged from 2026-10-19. C14-C17 were added on 2026-10-27 because the code added features that raise questions C1-C13 do not cover.
+C1-C13 are unchanged from 2026-10-19. C14-C17 were added on 2026-10-27 (C14 widened on 2026-10-29) because the code added features that raise questions C1-C13 do not cover.
 
 | Id | Question (not answered here) | Where marked |
 |---|---|---|
@@ -43,14 +43,14 @@ C1-C13 are unchanged from 2026-10-19. C14-C17 were added on 2026-10-27 because t
 | C11 | Requests from people: who may ask, identity checks, deadlines, fees, exemptions, completeness of a manual export, what to tell the person | 02, 03, 05, 06 |
 | C12 | Incident duties: whom to notify, thresholds, deadlines | 05 |
 | C13 | Camera frames / event pictures and any surveillance-specific duties (video itself is outside Arx) | 01, 04 |
-| C14 | Voice announcements: announcement text sent to an outside speech service (the optional cloud engine is fixed to OpenAI; a Home Assistant speech engine may itself be a cloud service), processing agreement, transfer abroad; emergency-announcement text kept in the audit log | 01, 04, 05 |
+| C14 | Voice announcements: announcement text sent to an outside speech service (the optional cloud engine is fixed to OpenAI; a Home Assistant speech engine may itself be a cloud service), processing agreement, transfer abroad; emergency-announcement text kept in the audit log; (added 2026-10-29) the optional automatic translation of announcements, which sends the Hebrew text to a translation provider (default: the free Google endpoint, no key; or an OpenAI-compatible one) after an approval is recorded | 01, 04, 05 |
 | C15 | Partner API: disclosure of ticket text (on by default per token) and, optionally, requester/assignee names to an outside system chosen by the organisation; agreement with that party; whether the default is acceptable | 01, 04, 05 |
 | C16 | Visitor invitations: what visitors must be told (the code has no visitor-specific notice; the host's optional "told" tick is stored as the technician notice version `n2`); the visitor's number confirmed through the host; 30-day default erase of name and number while entry rows stay | 01, 02, 04 |
 | C17 | Staff visibility features: notice-board read receipts that show managers each reader's name and time (names on by default), and the "who is in the building" list that names staff placed by the phone app (names on by default, self opt-out); employment-law implications | 01, 04 |
 
 ## Places where the code does not match an existing notice, brief or decision / אי-התאמות
 
-Re-verified on `origin/release/2241` @ `f1ef67c68` (2026-10-27). Items 1-6 are the list of 2026-10-19 with their current state; items 7-11 are new.
+Re-verified on `origin/release/2241` @ `f1ef67c68` (2026-10-27) and checked again on `origin/main` @ `8bd92456a` (2026-10-29): items 1-11 still hold exactly as written (each was re-opened in the code on 2026-10-29); items 12-14 are new. Items 1-6 are the list of 2026-10-19 with their current state; items 7-11 were added on 2026-10-27.
 `B/` = `smplwise_vms/backend/smplwise/`.
 
 1. **OPEN - Closed tickets are never purged automatically.** `purge_after` is written on the ticket (closed + `retention.closed_days`, default 730, clamped 90-3650, on the automatic-close path,
@@ -86,3 +86,11 @@ Re-verified on `origin/release/2241` @ `f1ef67c68` (2026-10-27). Items 1-6 are t
     personal-data export; read marks of a published notice without an end date that is never archived are never swept (`B/services/notices/store.py` `retention_sweep`).
 11. **NEW - Emergency contacts have no automatic deletion.** `emergency_contacts` rows (name, role, phone, e-mail, optional user link) are blanked only by a manual delete (`B/services/emergency/service.py`
     `delete_contact`); the user link is not cleared by the local-account purge. (C3)
+12. **NEW (2026-10-29) - Announcements can be machine-translated by an outside provider.** `announce.translate.enabled` is `false` by default; turning it on needs an approval recorded with who and when,
+    per provider; the default provider is the free Google endpoint (`translate.googleapis.com`, no key), the alternative an OpenAI-compatible endpoint fixed in code. The Hebrew text leaves the building
+    for each translation (`B/services/announce_translate.py`). (C14)
+13. **NEW (2026-10-29) - Supplier-document reading exists, off by default.** `docread.enabled` is `false`; text-layer PDFs only, no OCR and no model; proposals (short snippets, never the document text) are
+    deleted 14 days after the last activity (`B/services/docread/service.py`, mig 0182). A security review gates switching it on in a release (comment in `B/routers/settings.py`). Rows of document 01: S.
+14. **UPCOMING, not in `main` (2026-10-29) - building presence.** Anonymous room / building occupancy from sensors the administrator tags, with an optional history (time, room, status; no person), planned for
+    2.28.0 on branches `pilot/BUILDING-PRESENCE-2271` and `pilot/PRESENCE-2280` (read only). Off by default, switched on by the system administrator. Per-person presence stays the separate, existing
+    phone-app feature (rows G, N). Not described as live anywhere in these documents; row T of document 01.

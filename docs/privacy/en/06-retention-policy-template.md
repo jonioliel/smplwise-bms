@@ -15,6 +15,8 @@ and last reviewed on [DATE]. Version [N].
 "Product behaviour" is verified against `origin/integ/290` @ `018795f96` (2026-10-19) and re-verified against `origin/release/2241` @ `f1ef67c68` (2026-10-27); details and file paths are in
 `02-retention-and-access-summary.md`. Rows for features that are off at the site can be deleted.
 
+**Re-checked 2026-10-29 (LEGAL-PACK-2291) against `origin/main` @ `8bd92456a` (version 2.27.1):** only the changes listed in `legal-pack/CHANGELOG_2026-10-29_HE.md` were made; the rest of the document was spot-checked against the code, not re-read line by line.
+
 | Data | Product behaviour | Configurable in the product? | Our period | Our manual step and who |
 |---|---|---|---|---|
 | Directory persons: contacts, vendors, accepted technicians | never deleted automatically; erase by hand; "needs review" report lists pending technicians after `directory.review_pending_days` (default 30) and idle ones after `directory.review_idle_months` (default 12), with a yearly January reminder | review thresholds yes; automatic deletion no | [e.g. review every __ months] | [e.g. building manager works the report: reject-and-delete / delete-now] |
@@ -33,6 +35,7 @@ and last reviewed on [DATE]. Version [N].
 | Camera event pictures and events | 30 days by default | yes, `events.retention_days` | [__] | none |
 | People-counting samples (no person) | 7 days by default | yes, `occupancy.retention_days` (1-90) | [__] | none |
 | Voice-announcement log | 90 days | no | per product | none |
+| Supplier-document reading drafts | 14 days after the last activity | no | per product | none |
 | Emergency contacts | never deleted automatically; manual delete | no | [__] | [who reviews the list, how often] **REQUIRES COUNSEL REVIEW (C3)** |
 | Notices and read receipts | archived/expired notices removed after 365 days by default, read receipts 30 days later; notices without an end date that are never archived are kept | yes, `notices.retention_days` (30-3650) | [__] | [who archives old notices] |
 | Partner tokens and delivery logs (if a partner is connected) | ended tokens 90 days; delivery log 30 days | no | per product | [who removes partner clients no longer used] |

@@ -6,6 +6,8 @@ Facts first verified on `origin/integ/290` @ `018795f96` (2026-10-19) and re-ver
 `smplwise_vms/backend/smplwise/`. Every statement that needs a lawyer is marked **REQUIRES COUNSEL REVIEW** and carries an id
 (C1, C2, ...); the full list is in `../README.md`.
 
+**Re-checked 2026-10-29 (LEGAL-PACK-2291) against `origin/main` @ `8bd92456a` (version 2.27.1):** only the changes listed in `legal-pack/CHANGELOG_2026-10-29_HE.md` were made; the rest of the document was spot-checked against the code, not re-read line by line.
+
 ## 1. Where the data lives
 
 - SmplWise Arx runs as a Home Assistant add-on on a server at the customer's site. Its database is one local SQLite file,
@@ -21,7 +23,7 @@ Facts first verified on `origin/integ/290` @ `018795f96` (2026-10-19) and re-ver
 
 ## 2. Categories of personal data
 
-"Table" names are SQLite tables; "mig" is the migration file under `B/migrations/` that defines them. Rows K-R were added on 2026-10-27.
+"Table" names are SQLite tables; "mig" is the migration file under `B/migrations/` that defines them. Rows K-R were added on 2026-10-27; rows S-T on 2026-10-29.
 
 | # | Category | Data subjects | Fields kept (verified) | Table / mig | Switch |
 |---|---|---|---|---|---|
@@ -43,6 +45,8 @@ Facts first verified on `origin/integ/290` @ `018795f96` (2026-10-19) and re-ver
 | P | Notice-board read receipts | staff who read a notice | notice id, user id, read time | `notice_reads` / mig 0165 | `notices.enabled`, default false (`B/services/notices/model.py`) |
 | Q | Partner API | ticket requesters and assignees; the partner system | partner clients, tokens (SHA-256 hash and last 4 characters only; last use time, last caller IP address, request count), webhook endpoints (URL and secret sealed with AES-256-GCM), delivery log, links between partner ids and tickets | `partner_*` / mig 0169 | `partner.api`, `partner.webhooks`, default off and **cannot be turned on in this build** (`GO_LIVE_PERMITTED = False` in `B/services/partner/core.py`) |
 | R | Access-rights compliance export | people in the door system | nothing stored: a file generated on request listing person id, name, employee number, category, stations, doors, groups, schedule, read from the door system | none | `access.compliance_export`, default off (`B/services/compliance_export.py`) |
+| S | Supplier-document reading proposals (maintenance module) | staff who ask for a reading; anyone named in an attached certificate | proposed field values only (each with a scrubbed snippet of at most 80 characters, never the document text), file hash, state, who asked and who decided, purge date; text-layer PDFs only (no OCR, no model) | `doc_extractions` / mig 0182 | `docread.enabled`, default false, needs the maintenance module; drafts are deleted 14 days after their last activity or with their file (`B/services/docread/service.py`, `B/routers/docread.py`) |
+| T | Building presence, anonymous - **UPCOMING, not in the current main (planned 2.28.0)** | none identifiable | the presence sensors the administrator tags (entity ids); when history is switched on, one row per change: time, room, status occupied / clear / unknown - no person, phone, picture or sensor id | `presence_building_sensors`, `presence_building_history` / mig 0183, 0195 (branches `pilot/BUILDING-PRESENCE-2271`, `pilot/PRESENCE-2280`, read only here) | master switch off by default, switched on by the system administrator; history days configurable (0 = none); switching off erases the history. Per-person presence is not part of it |
 
 Wi-Fi reports in category G: setting `presence.wifi_match_mode`, default `phone` - the phone decides whether it is on a configured
 network and no network fingerprint is stored (a hash sent by an older app is dropped); `server` - the phone sends a salted SHA-256 hash of
@@ -112,7 +116,7 @@ visitor received. **REQUIRES COUNSEL REVIEW (C16)**.
 settings, energy and water billing accounts and bills, maintenance records, cases, ...) and the access tables (`ACCESS_TABLES`: users, local
 credentials, passkeys, groups, bindings, ...), optionally the audit log and events. Password hashes and HMAC keys travel only inside the section
 encrypted with the administrator's backup password. The ticket tables (contacts, tickets, access grants) are **not** in `PROJECT_TABLES`; the
-code comment says they are "operational data". The tables of rows K, L, O and P are not in the backup lists; the partner tables are in
+code comment says they are "operational data". The tables of rows K, L, O, P and S are not in the backup lists; the partner tables are in
 `NEVER_EXPORTED_TABLES`. Automatic backups kept: 5 "pre-upgrade" and 7 "daily" (`KEEP`); manual and uploaded ones are never removed by the code.
 A backup taken before a deletion still contains the deleted rows if the deleted rows were in scope; for tickets nothing extra is done
 (`B/services/tickets/deletion.py` docstring).
@@ -134,6 +138,7 @@ files Arx wrote are removed. Where the zip files and off-box copies are, and who
 | E-mail (SMTP) | notification and ticket e-mails if configured | `B/services/notify_email.py`, `B/services/tickets/channel_email.py` | off unless configured |
 | Home Assistant | user identity (Ingress), entities/devices/areas, the WhatsApp integration, and speech for voice announcements (`tts.speak`) | `docs/security/HA_IDENTITY_RBAC_HE.md`, `B/services/announcements.py` | the host administrator can reach data outside Arx's own access control (same document, section 2); the speech engine chosen in Home Assistant may itself be a cloud service. **REQUIRES COUNSEL REVIEW (C14)** |
 | Cloud speech engine (OpenAI) | the announcement text | `B/services/announce_engine.py` (`CLOUD_URL` fixed to `api.openai.com`, model `gpt-4o-mini-tts`) | off by default (`announce.cloud_enabled`); the playback step of this engine is not built yet, and whether the text is sent before it fails was not verified. **REQUIRES COUNSEL REVIEW (C14)** |
+| Automatic translation of announcements (stage C) | the Hebrew announcement text, to be translated into Arabic / English / Russian | `B/services/announce_translate.py` (`GOOGLE_URL`, host `translate.googleapis.com`, the default provider, no key; or provider `cloud`: an OpenAI-compatible endpoint fixed to `api.openai.com`, model `gpt-4o-mini`, key in the secrets store) | off by default (`announce.translate.enabled`); switching on needs an approval recorded with who and when, per provider; the operator sees and may edit every translation before sending, and the machine-translated mark is stored with the text; at most 20 calls a minute. **REQUIRES COUNSEL REVIEW (C14)** |
 | Off-box backup target | encrypted daily backups | `B/services/backup_offbox.py`, `offbox_s3.py`, `offbox_sftp.py` | operator and location chosen by the administrator. **REQUIRES COUNSEL REVIEW (C8)** |
 | Partner system | ticket title and description (on by default per token), requester/assignee names (off by default), temperature and elevator data; the partner can create tickets; never phone, e-mail, doors, access, cameras, users or audit | `B/services/partner/core.py` (`PERSONAL_DEFAULTS`, `NEVER_SCOPES`), `reads.py`, `webhooks.py` | cannot be turned on in this build. **REQUIRES COUNSEL REVIEW (C15)** |
 
@@ -144,5 +149,6 @@ hashed tokens and sessions; rate limits on codes and links; fixed code-owned mes
 (`B/services/tickets/contacts.py` docstring); public pages answer a uniform 404 on any failure
 (`docs/security/TICKETS_PUBLIC_SURFACE_REVIEW_CHECKLIST.md`); encrypted off-box backups (section 4); optional automatic purge of disabled local
 accounts and a personal-data export for local accounts (`B/services/local_privacy.py`, both off by default; see document 02);
+a password change, or a second-factor rule that forces a code, also ends every phone's device token and push registration of that user (`B/routers/local_identity.py` / `B/services/local_identity.py`, `_end_phone_credentials`; `B/routers/second_factor.py`);
 dependency and secrets audit in `docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md`.
 Whether these measures satisfy any legal security standard: **REQUIRES COUNSEL REVIEW (C4)**.

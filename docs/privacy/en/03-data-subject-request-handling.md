@@ -7,6 +7,8 @@ set one (`NOTICE_TEXT` / `notice_text` in `B/services/access_grants.py`); this d
 who may ask, what must be answered, deadlines, identity checks, fees, exemptions, what may be refused - is **REQUIRES COUNSEL REVIEW (C11)**; the steps
 below only describe what the product can and cannot do today.
 
+**Re-checked 2026-10-29 (LEGAL-PACK-2291) against `origin/main` @ `8bd92456a` (version 2.27.1):** only the changes listed in `legal-pack/CHANGELOG_2026-10-29_HE.md` were made; the rest of the document was spot-checked against the code, not re-read line by line.
+
 ## 1. Receive and record
 
 1. Write down: date received, how (phone, mail, in person), the person's name as they gave it, what they ask (see / correct / delete / other).
