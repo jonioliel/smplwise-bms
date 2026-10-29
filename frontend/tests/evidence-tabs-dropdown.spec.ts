@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { settle } from './helpers/settle';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -168,6 +169,7 @@ test.describe('sw-dropdown', () => {
     await mountDropdown(page);
     await page.locator('#stage').evaluate((el) => (el.style.alignItems = 'flex-start')); // the start edge in RTL = the right edge
     await chip(page).click();
+    await settle(page); // the open list grows from 97 % (R5 motion): measure it at rest
     const [cr, pr, vw] = await page.evaluate(() => {
       const root = document.querySelector('#dd')!.shadowRoot!;
       const c = root.querySelector('.chip')!.getBoundingClientRect();
