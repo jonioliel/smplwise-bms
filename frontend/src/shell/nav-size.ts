@@ -149,6 +149,12 @@ export function navSize(): NavSize {
   return own ?? installation;
 }
 
+/** True while nobody chose a size: no own value and the installation keeps the built-in default (a skin may then draw its
+ * own rail label size; any saved choice - even the same preset - is drawn exactly as chosen). */
+export function navSizeIsBuiltIn(): boolean {
+  return own === null && installation === NAV_DEFAULT;
+}
+
 export function installationNavSize(): NavSize {
   return installation;
 }
