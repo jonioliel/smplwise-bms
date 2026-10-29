@@ -1019,10 +1019,10 @@ test.describe('with a session: permissions, the setting, the push frame and what
   test('the tab is for automation.manage, a script run or a scene activation (decision 1b); the settings tab for system.configure; automations.enabled off hides it', async ({ page }) => {
     st.perms = VIEWER_PERMS;
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
     st.perms = [...VIEWER_PERMS, 'automation.view']; // the removed permission opens nothing
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
     st.perms = [...VIEWER_PERMS, 'automation.manage'];
     await openApi(page, '/devices/building');
     expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
@@ -1043,7 +1043,7 @@ test.describe('with a session: permissions, the setting, the push frame and what
     st.perms = [...VIEWER_PERMS, 'automation.manage'];
     st.settings = { 'automations.enabled': 'false' };
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
   });
 
   test('the list answers from the real routes; the toggle, the run and the delete send what the contract says', async ({ page }) => {
@@ -1131,7 +1131,7 @@ test.describe('with a session: permissions, the setting, the push frame and what
     await expect.poll(async () => (await rowTabs(page)).includes('אוטומציות')).toBe(true); // the settings tab stays; the home tab goes
     await page.evaluate(() => { location.hash = '#/devices/building'; });
     await page.waitForTimeout(400);
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
   });
 });
 

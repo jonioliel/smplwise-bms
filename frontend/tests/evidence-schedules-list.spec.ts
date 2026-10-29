@@ -668,7 +668,7 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
   test('schedule.view adds the tab; without a schedule permission the home screen has no tab row', async ({ page }) => {
     st.perms = VIEWER_PERMS;
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
     st.perms = [...VIEWER_PERMS, 'schedule.view'];
     await openApi(page, '/devices/building');
     await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
@@ -685,13 +685,13 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
   test('schedules.enabled off hides the tab; ui.tabs orders and hides the home tabs', async ({ page }) => {
     st.settings = { 'schedules.enabled': 'false' };
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
     st.settings = { 'ui.tabs': { devices: { order: ['automations', 'building'], hidden: [] } } };
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['קברניט', 'מבט על']);
+    await expect.poll(() => rowTabs(page)).toEqual(['קברניט', 'מבט על', 'מפה סינופטית']);
     st.settings = { 'ui.tabs': { devices: { order: [], hidden: ['building'] } } };
     await openApi(page, '/devices/schedules');
-    expect(await rowTabs(page)).toEqual([]); // one tab left: no row
+    expect(await rowTabs(page)).toEqual(['מפה סינופטית', 'קברניט']);
   });
 
   test('the user menu keeps "עריכת המסך הראשי" on the overview tab, where the row is hidden', async ({ page }) => {

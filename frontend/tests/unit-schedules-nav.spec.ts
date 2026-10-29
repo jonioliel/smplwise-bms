@@ -140,7 +140,7 @@ test('ui.tabs `devices`: order and hidden; קברניט becomes the entry when "
   expect(visibleAreas(true, can).find((a) => a.id === 'devices')?.href).toBe(SCHEDULES_HREF);
   applyTabsConfig({ 'ui.tabs': { devices: { order: [], hidden: ['building'] } } });
   expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['synoptic', 'automations']);
-  expect(visibleAreas(true, can).find((a) => a.id === 'devices')?.href).toBe(SCHEDULES_HREF);
+  expect(visibleAreas(true, can).find((a) => a.id === 'devices')?.href).toBe('#/devices/synoptic'); // the synoptic map is the first tab left
   // hiding both never empties the row: the permitted tabs are shown after all
   applyTabsConfig({ 'ui.tabs': { devices: { order: [], hidden: ['building', 'synoptic', 'automations'] } } });
   expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'synoptic', 'automations']);

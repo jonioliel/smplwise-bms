@@ -133,7 +133,7 @@ test.describe('synoptic map tab', () => {
     await expect(page.locator('[data-syn-col="fire"]')).toHaveCount(0);
     await expect(page.locator('[data-fire-bar]')).toHaveCount(0);
     await open(page, `${SYN}?xsdemo=6&xs_fire_ui=1&xs_fire_column=dashed`);
-    await expect(page.locator('[data-fire-nc]')).toBeVisible();
+    await expect(page.locator('[data-fire-nc]').first()).toBeVisible();
   });
 
   test('a row selects, and the detail line offers to open the floor', async ({ page }) => {
