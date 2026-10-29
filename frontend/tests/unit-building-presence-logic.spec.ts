@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
-import type { BuildingSnapshot, PresenceCandidate } from '../src/api/building-presence';
-import { chipView, clockText, groupByRoom, settingsProblem, toggledTags } from '../src/api/building-presence-logic';
+import type { BuildingPresenceSettings, BuildingSnapshot, PresenceCandidate } from '../src/api/building-presence';
+import { cardView, chipView, clockText, zoneChip, groupByRoom, settingsProblem, toggledTags } from '../src/api/building-presence-logic';
 
 // BUILDING-PRESENCE-2271: the chip is invisible without tagged sensors, green only while occupied, and never reads an unknown as empty.
 
-const cfg = { hold_seconds: 60, empty_minutes: 10 };
+const cfg: BuildingPresenceSettings = { enabled: true, hold_seconds: 60, empty_minutes: 10, retention_days: 30, home_display: 'chip', map_tint: true };
 const snap = (o: Partial<BuildingSnapshot>): BuildingSnapshot => ({ configured: true, settings: cfg, ...o });
 const cand = (id: string, area: string | null, tagged = false): PresenceCandidate => ({ entity_id: id, name: id, area_id: area, area_name: area, device_class: 'occupancy', tagged, state: 'off' });
 
@@ -60,4 +60,45 @@ test('rooms are grouped alphabetically with the unplaced last', () => {
   const g = groupByRoom([cand('binary_sensor.x', null), cand('binary_sensor.b', 'מסדרון'), cand('binary_sensor.a', 'לובי'), cand('binary_sensor.a2', 'לובי')]);
   expect(g.map((x) => x.room)).toEqual(['לובי', 'מסדרון', 'ללא חדר']);
   expect(g[0].items).toHaveLength(2);
+});
+
+// PRESENCE-2280: display setting (card / chip / off), the home card, the plan-map chips, the retention range.
+const room = (id: string, status: 'occupied' | 'clear' | 'unknown', since: string | null = null) => ({ area_id: id, name: `room ${id}`, status, sensors: 1, empty_since: since });
+
+test('the chip yields to the card and to "off"', () => {
+  expect(chipView(snap({ status: 'occupied', occupied_rooms: 2 })).show).toBe(true);
+  expect(chipView(snap({ status: 'occupied', settings: { ...cfg, home_display: 'card' } })).show).toBe(false);
+  expect(chipView(snap({ status: 'occupied', settings: { ...cfg, home_display: 'off' } })).show).toBe(false);
+});
+
+test('the card appears only for display = card, with a state word, a quiet line and the rooms', () => {
+  const card = { ...cfg, home_display: 'card' as const };
+  expect(cardView(snap({ status: 'occupied' })).show).toBe(false);
+  expect(cardView(null).show).toBe(false);
+  expect(cardView({ configured: false, settings: card }).show).toBe(false);
+  const v = cardView(snap({ settings: card, status: 'occupied', occupied_rooms: 1, rooms: [room('a', 'occupied'), room('b', 'clear', '2026-10-28T09:05:00Z'), room('c', 'unknown')] }), 'UTC');
+  expect(v).toMatchObject({ show: true, tone: 'ok', big: 'פעיל', sub: '1 מתוך 3 חדרים עם חיישן פעילים' });
+  expect(v.rooms.map((r) => r.text)).toEqual(['פעיל', 'ריק מ־09:05', 'אין מידע']);
+  expect(v.rooms.map((r) => r.tone)).toEqual(['ok', 'neutral', 'unknown']);
+  expect(cardView(snap({ settings: card, status: 'clear', rooms: [room('a', 'clear')] })).big).toBe('ריק');
+  expect(cardView(snap({ settings: card, status: 'unknown', rooms: [room('a', 'unknown')] })).tone).toBe('neutral');
+});
+
+test('plan-map chips: occupied, empty since, unknown; none when off, untracked or switched away', () => {
+  const s = snap({ rooms: [room('a', 'occupied'), room('b', 'clear', '2026-10-28T09:05:00Z'), room('c', 'unknown')] });
+  expect(zoneChip(s, 'a', 'UTC')).toBe('פעיל');
+  expect(zoneChip(s, 'b', 'UTC')).toBe('ריק מ־09:05');
+  expect(zoneChip(s, 'c', 'UTC')).toBe('אין מידע');
+  expect(zoneChip(s, 'zzz')).toBeNull();
+  expect(zoneChip(s, null)).toBeNull();
+  expect(zoneChip(null, 'a')).toBeNull();
+  expect(zoneChip({ configured: false, enabled: false, settings: cfg }, 'a')).toBeNull();
+  expect(zoneChip({ ...s, settings: { ...cfg, map_tint: false } }, 'a')).toBeNull();
+});
+
+test('retention stays 0..365', () => {
+  expect(settingsProblem({ ...cfg, retention_days: 0 })).toBeNull();
+  expect(settingsProblem({ ...cfg, retention_days: 365 })).toBeNull();
+  expect(settingsProblem({ ...cfg, retention_days: 366 })).toEqual({ field: 'retention_days' });
+  expect(settingsProblem({ ...cfg, retention_days: 1.5 })).toEqual({ field: 'retention_days' });
 });

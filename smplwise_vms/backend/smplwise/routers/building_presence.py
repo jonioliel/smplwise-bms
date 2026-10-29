@@ -20,6 +20,7 @@ from ..errors import ApiError, forbidden, validation
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..remote_channel import is_remote
 from ..services import building_presence as bp
+from ..services import building_presence_history as bph
 from ..services import ha_sync
 
 router = APIRouter()
@@ -40,8 +41,18 @@ class SensorsIn(BaseModel):
 
 class SettingsIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    enabled: bool | None = None
     hold_seconds: int | None = None
     empty_minutes: int | None = None
+    retention_days: int | None = None
+    home_display: str | None = None
+    map_tint: bool | None = None
+
+
+class RoomIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    entity_id: str
+    area_id: str | None = None
 
 
 @router.get("/presence/building")
@@ -95,4 +106,41 @@ def set_building_settings(body: SettingsIn, request: Request, principal: Princip
         except ValueError as exc:
             raise validation("ערך לא תקין.", field=str(exc)) from None
         audit(conn, actor=principal, action="presence.building.settings", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request), details=cfg)
+        if "enabled" in body.model_fields_set and body.enabled is False:  # switching OFF stops the history and erases it (nothing about the past is kept)
+            bph.purge(conn)
         return {"settings": cfg}
+
+
+@router.put("/presence/building/room")
+def set_building_sensor_room(body: RoomIn, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """Place a tagged sensor in a room (area_id) or back to its own (null) (system.configure; audited)."""
+    with request.app.state.db.connection(label="presence.building.room") as conn:
+        touch_user(conn, principal)
+        require(conn, principal, bp.CONFIGURE, INSTALLATION)
+        try:
+            bp.set_room(conn, body.entity_id, body.area_id)
+        except LookupError as exc:
+            raise validation("חיישן או חדר לא מוכרים.", ref=str(exc)) from None
+        audit(conn, actor=principal, action="presence.building.room", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+              details={"entity_id": body.entity_id, "area_id": body.area_id})
+        return bp.list_for_settings(conn)
+
+
+@router.get("/presence/building/history")
+def building_history(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """How much history is kept (count, oldest) and for how long (system.configure)."""
+    with request.app.state.db.connection(mode="read", label="presence.building.history") as conn:
+        touch_user(conn, principal)
+        require(conn, principal, bp.CONFIGURE, INSTALLATION)
+        return bph.summary(conn)
+
+
+@router.delete("/presence/building/history")
+def purge_building_history(request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """Erase the whole presence history now (system.configure; audited with the number of rows)."""
+    with request.app.state.db.connection(label="presence.building.purge") as conn:
+        touch_user(conn, principal)
+        require(conn, principal, bp.CONFIGURE, INSTALLATION)
+        n = bph.purge(conn)
+        audit(conn, actor=principal, action="presence.building.purge", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request), details={"rows": n})
+        return {"deleted": n, **bph.summary(conn)}

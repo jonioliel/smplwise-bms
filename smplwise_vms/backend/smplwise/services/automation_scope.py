@@ -279,7 +279,7 @@ class Ctx:
         """BUILDING-PRESENCE-2271: the presence sensors the owner tagged (empty = the cockpit's building-presence blocks do not exist)."""
         from . import building_presence as bp
 
-        return tuple(bp.tagged_ids(self.conn))
+        return tuple(bp.tagged_ids(self.conn)) if bp.is_enabled(self.conn) else ()  # PRESENCE-2280: master switch off = not offered
 
     @property
     def presence_entity(self) -> str | None:

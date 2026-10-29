@@ -3,7 +3,7 @@
  * Green is reserved for status: only an occupied building is `ok`; empty and unknown are neutral.
  */
 import { BP } from '../i18n/building-presence';
-import { EMPTY_RANGE, HOLD_RANGE, type BuildingPresenceSettings, type BuildingSnapshot, type PresenceCandidate } from './building-presence';
+import { EMPTY_RANGE, HOLD_RANGE, RETENTION_RANGE, type BuildingPresenceSettings, type BuildingSnapshot, type PresenceCandidate } from './building-presence';
 
 export interface ChipView { show: boolean; tone: 'ok' | 'neutral'; text: string }
 
@@ -18,6 +18,7 @@ export function clockText(iso: string | null | undefined, zone = 'Asia/Jerusalem
 /** Nothing at all unless the server says sensors are tagged (`configured`); a stale or unknown answer never reads as empty. */
 export function chipView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Jerusalem'): ChipView {
   if (!s || !s.configured) return { show: false, tone: 'neutral', text: '' };
+  if (s.settings?.home_display === 'card' || s.settings?.home_display === 'off') return { show: false, tone: 'neutral', text: '' };
   if (s.status === 'occupied') {
     const n = s.occupied_rooms ?? 0;
     return { show: true, tone: 'ok', text: n > 0 ? `${BP.occupied} · ${BP.occupiedRooms(n)}` : BP.occupied };
@@ -32,13 +33,14 @@ export function chipView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Je
 /** The chip's polling gap: a quiet 30 s while visible. */
 export const POLL_MS = 30_000;
 
-export interface SettingsProblem { field: 'hold_seconds' | 'empty_minutes'; }
+export interface SettingsProblem { field: 'hold_seconds' | 'empty_minutes' | 'retention_days'; }
 
 /** Whole numbers inside the server's ranges, or the first field that is not. */
-export function settingsProblem(s: BuildingPresenceSettings): SettingsProblem | null {
+export function settingsProblem(s: Pick<BuildingPresenceSettings, 'hold_seconds' | 'empty_minutes'> & Partial<BuildingPresenceSettings>): SettingsProblem | null {
   const ok = (v: unknown, lo: number, hi: number) => typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
   if (!ok(s.hold_seconds, HOLD_RANGE.min, HOLD_RANGE.max)) return { field: 'hold_seconds' };
   if (!ok(s.empty_minutes, EMPTY_RANGE.min, EMPTY_RANGE.max)) return { field: 'empty_minutes' };
+  if (s.retention_days !== undefined && !ok(s.retention_days, RETENTION_RANGE.min, RETENTION_RANGE.max)) return { field: 'retention_days' };
   return null;
 }
 
@@ -62,4 +64,37 @@ export function groupByRoom(list: readonly PresenceCandidate[]): { room: string;
   return [...by.entries()]
     .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b, 'he')))
     .map(([room, items]) => ({ room: room || BP.noRoom, items }));
+}
+
+export interface CardRoom { name: string; text: string; tone: 'ok' | 'neutral' | 'unknown' }
+export interface CardView { show: boolean; tone: 'ok' | 'neutral'; big: string; sub: string; rooms: CardRoom[] }
+
+/** The overview card (display = card): the state word, one quiet line and the rooms with a sensor. Nothing unless the server says configured. */
+export function cardView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Jerusalem'): CardView {
+  const none: CardView = { show: false, tone: 'neutral', big: '', sub: '', rooms: [] };
+  if (!s || !s.configured || s.settings?.home_display !== 'card') return none;
+  const rooms = (s.rooms ?? []).filter((r) => r.name);
+  const placed = rooms.length;
+  const rows: CardRoom[] = rooms.map((r) => ({
+    name: r.name ?? '',
+    tone: r.status === 'occupied' ? 'ok' : r.status === 'clear' ? 'neutral' : 'unknown',
+    text: r.status === 'occupied' ? BP.occupied : r.status === 'clear' ? (clockText(r.empty_since, zone) ? BP.emptySince(clockText(r.empty_since, zone)) : BP.empty) : BP.unknown,
+  }));
+  if (s.status === 'occupied') return { show: true, tone: 'ok', big: BP.occupied, sub: BP.cardSub(s.occupied_rooms ?? 0, placed), rooms: rows };
+  if (s.status === 'clear') return { show: true, tone: 'neutral', big: BP.empty, sub: BP.cardAllEmpty(placed), rooms: rows };
+  return { show: true, tone: 'neutral', big: BP.unknown, sub: BP.cardNoInfo, rooms: rows };
+}
+
+/**
+ * The plan map's chip of one room: "פעיל" / "ריק מ־HH:MM" / "אין מידע" (a room whose sensor does not report). Null when the master switch or
+ * the map option is off, when nothing is configured, or when no tagged sensor sits in the room. No legend filter (owner decision): the list is
+ * in the settings only.
+ */
+export function zoneChip(s: BuildingSnapshot | null | undefined, areaId: string | null | undefined, zone = 'Asia/Jerusalem'): string | null {
+  if (!s || !s.configured || s.settings?.map_tint === false || !areaId) return null;
+  const r = (s.rooms ?? []).find((x) => x.area_id === areaId);
+  if (!r) return null;
+  if (r.status === 'occupied') return BP.occupied;
+  if (r.status === 'clear') return clockText(r.empty_since, zone) ? BP.emptySince(clockText(r.empty_since, zone)) : BP.empty;
+  return BP.unknown;
 }

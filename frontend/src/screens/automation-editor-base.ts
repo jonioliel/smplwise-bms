@@ -24,6 +24,7 @@ import { formFor, formStyles, type FormCtx, type PickerRequest } from './automat
 // KAV079-295: the editors' extension (wall buttons, pre-save checks, the on-device test, the manual merge)
 import { extFlags, precheckWarnings, saveMode, warningsHeading } from '../api/automations-ext';
 import { extFormStyles } from './automation-ext-forms';
+import './automation-presence-forms';
 import { extDialogStyles } from './automation-ext-dialogs';
 import {
   EMPTY_CATALOG, MODE_LABEL, MODE_SUMMARY, ROOT, TYPES_OF, TYPE_POP_TITLE, addBlock, allLists, blockIcon, buildEnv, canMove, canonicalOf, capReached, clone, diffDrafts, duplicateBlock, freshDraftUids, grantText, issueLine, locate, lockedFingerprints,

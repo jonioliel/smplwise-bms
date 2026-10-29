@@ -195,6 +195,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         presence_svc.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("presence janitor failed", exc_info=True)
+    try:  # PRESENCE-2280: building-presence transitions (only while the master switch is on) and their retention
+        from .services import building_presence_history as bph
+
+        bph.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("building presence history failed", exc_info=True)
     try:  # PARTNERAPI113-295: token expiry / creator-gone notices, purge of ended tokens, the delivery log and old outbox rows
         from .services.partner import core as partner_core, webhooks as partner_webhooks
 

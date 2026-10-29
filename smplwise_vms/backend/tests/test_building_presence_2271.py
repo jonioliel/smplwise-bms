@@ -77,6 +77,8 @@ def world(settings):
     bind(c, settings, "sam", "site_admin", "installation", "*")
     c.get(f"{API}/me", headers=as_user("nobody"))
     db = Database(settings.db_path)
+    with db.connection() as conn:  # 2.28.0: the master switch is OFF by default; these tests are about the module while it is on
+        bp.set_config(conn, {"enabled": True})
     return app, c, db, ids
 
 
@@ -243,16 +245,15 @@ def test_settings_validation(world):
     _, c, _, _ = world
     assert c.put(f"{API}/presence/building/settings", json={"empty_minutes": 0}).status_code == 422
     assert c.put(f"{API}/presence/building/settings", json={"hold_seconds": 99999}).status_code == 422
-    assert c.put(f"{API}/presence/building/settings", json={"hold_seconds": 5, "empty_minutes": 30}).json()["settings"] == {"hold_seconds": 5, "empty_minutes": 30}
-    assert c.put(f"{API}/presence/building/settings", json={"empty_minutes": 7}).json()["settings"] == {"hold_seconds": 5, "empty_minutes": 7}
+    assert c.put(f"{API}/presence/building/settings", json={"hold_seconds": 5, "empty_minutes": 30}).json()["settings"]["empty_minutes"] == 30
+    assert c.put(f"{API}/presence/building/settings", json={"empty_minutes": 7}).json()["settings"]["hold_seconds"] == 5
 
 
-def test_no_history_table_and_no_person_data(world):
+def test_history_table_holds_no_person_data(world):
     _, c, db, _ = world
     with db.connection(mode="read") as conn:
-        cols = [r[1] for r in conn.execute("PRAGMA table_info(presence_building_sensors)")]
-        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'presence_building%'")]
-    assert cols == ["entity_id", "added_by", "added_at"] and tables == ["presence_building_sensors"]
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(presence_building_history)")]
+    assert cols == ["id", "at", "scope", "area_id", "area_name", "status"]
 
 
 # ---------------------------------------------------------------- permission registry

@@ -26,13 +26,17 @@ VIEW = "presence.building.view"
 CONFIGURE = "system.configure"
 CLASSES = ("occupancy", "presence", "motion", "moving")
 SETTINGS_KEY = "presence.building.config"
-DEFAULTS = {"hold_seconds": 60, "empty_minutes": 10}
-LIMITS = {"hold_seconds": (0, 3600), "empty_minutes": (1, 1440)}
+# PRESENCE-2280: `enabled` is the master switch (OFF by default; the system administrator turns it on in Settings > Presence). `retention_days`
+# (0 = keep no history), `home_display` (the overview: a card, the thin line or nothing), `map_tint` (rooms painted on the plan).
+DEFAULTS: dict[str, Any] = {"enabled": False, "hold_seconds": 60, "empty_minutes": 10, "retention_days": 30, "home_display": "chip", "map_tint": True}
+LIMITS = {"hold_seconds": (0, 3600), "empty_minutes": (1, 1440), "retention_days": (0, 365)}
+CHOICES = {"home_display": ("card", "chip", "off")}
+FLAGS = ("enabled", "map_tint")
 MAX_SENSORS = 200
 UNKNOWN_STATES = {None, "", "unknown", "unavailable"}
 
 
-def get_config(conn: sqlite3.Connection) -> dict[str, int]:
+def get_config(conn: sqlite3.Connection) -> dict[str, Any]:
     try:
         stored = json.loads(get_setting(conn, SETTINGS_KEY, "") or "{}")
     except ValueError:
@@ -43,10 +47,20 @@ def get_config(conn: sqlite3.Connection) -> dict[str, int]:
             v = stored.get(k)
             if isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi:
                 out[k] = v
+        for k, choices in CHOICES.items():
+            if stored.get(k) in choices:
+                out[k] = stored[k]
+        for k in FLAGS:
+            if isinstance(stored.get(k), bool):
+                out[k] = stored[k]
     return out
 
 
-def set_config(conn: sqlite3.Connection, values: dict[str, Any]) -> dict[str, int]:
+def is_enabled(conn: sqlite3.Connection) -> bool:
+    return bool(get_config(conn)["enabled"])
+
+
+def set_config(conn: sqlite3.Connection, values: dict[str, Any]) -> dict[str, Any]:
     cfg = get_config(conn)
     for k, (lo, hi) in LIMITS.items():
         if k in values and values[k] is not None:
@@ -54,6 +68,16 @@ def set_config(conn: sqlite3.Connection, values: dict[str, Any]) -> dict[str, in
             if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
                 raise ValueError(k)
             cfg[k] = v
+    for k, choices in CHOICES.items():
+        if k in values and values[k] is not None:
+            if values[k] not in choices:
+                raise ValueError(k)
+            cfg[k] = values[k]
+    for k in FLAGS:
+        if k in values and values[k] is not None:
+            if not isinstance(values[k], bool):
+                raise ValueError(k)
+            cfg[k] = values[k]
     set_setting(conn, SETTINGS_KEY, json.dumps(cfg, separators=(",", ":")))
     return cfg
 
@@ -122,14 +146,40 @@ def _iso(d: dt.datetime) -> str:
     return d.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def overrides(conn: sqlite3.Connection) -> dict[str, str]:
+    return {r["entity_id"]: r["area_override"] for r in conn.execute("SELECT entity_id, area_override FROM presence_building_sensors WHERE area_override IS NOT NULL")}
+
+
+def area_name_of(conn: sqlite3.Connection, area_id: str) -> str | None:
+    r = conn.execute("SELECT area_name FROM ha_entities WHERE area_id = ? AND area_name IS NOT NULL LIMIT 1", (area_id,)).fetchone()
+    return r["area_name"] if r else None
+
+
+def rooms_known(conn: sqlite3.Connection) -> list[dict[str, str]]:
+    return [{"area_id": r["area_id"], "name": r["area_name"]} for r in conn.execute(
+        "SELECT DISTINCT area_id, area_name FROM ha_entities WHERE area_id IS NOT NULL AND area_name IS NOT NULL AND removed_at IS NULL ORDER BY area_name")]
+
+
+def set_room(conn: sqlite3.Connection, entity_id: str, area_id: str | None) -> None:
+    """Place a TAGGED sensor in a room (or back to the room the mirror knows). LookupError for an untagged sensor or an unknown room."""
+    if conn.execute("SELECT 1 FROM presence_building_sensors WHERE entity_id = ?", (entity_id,)).fetchone() is None:
+        raise LookupError(entity_id)
+    if area_id is not None and area_name_of(conn, area_id) is None:
+        raise LookupError(area_id)
+    conn.execute("UPDATE presence_building_sensors SET area_override = ? WHERE entity_id = ?", (area_id, entity_id))
+
+
 def snapshot(conn: sqlite3.Connection, now: dt.datetime | None = None, fresh: bool = True) -> dict[str, Any]:
     """The live aggregate. `configured: false` (and nothing else of substance) while no sensor is tagged."""
     now = now or dt.datetime.now(dt.timezone.utc)
-    ids = tagged_ids(conn)
     cfg = get_config(conn)
+    if not cfg["enabled"]:  # PRESENCE-2280: the master switch is off - nothing is read, nothing is shown
+        return {"configured": False, "enabled": False, "settings": cfg}
+    ids = tagged_ids(conn)
     if not ids:
-        return {"configured": False, "settings": cfg}
+        return {"configured": False, "enabled": True, "settings": cfg}
     rows = _rows(conn, ids)
+    over = overrides(conn)
     sensors: list[dict[str, Any]] = []
     rooms: dict[str, dict[str, Any]] = {}
     clear_times: list[dt.datetime] = []
@@ -140,6 +190,8 @@ def snapshot(conn: sqlite3.Connection, now: dt.datetime | None = None, fresh: bo
         else:
             status, clear_at = sensor_state(r["state"], r["last_changed"], now, cfg["hold_seconds"], fresh and bool(r["available"]))
             area_id, area_name, name, since = r["area_id"], r["area_name"], r["name"] or eid, r["last_changed"]
+            if eid in over:  # the owner placed this sensor in a room of his own choosing
+                area_id, area_name = over[eid], area_name_of(conn, over[eid])
         if clear_at:
             clear_times.append(clear_at)
         sensors.append({"entity_id": eid, "name": name, "area_id": area_id, "status": status, "since": since})
@@ -158,6 +210,7 @@ def snapshot(conn: sqlite3.Connection, now: dt.datetime | None = None, fresh: bo
     empty_minutes = max(0, int((now - empty_since).total_seconds() // 60)) if empty_since else None
     return {
         "configured": True,
+        "enabled": True,
         "fresh": bool(fresh),
         "status": status,
         "occupied_rooms": sum(1 for r in room_list if r["status"] == "occupied"),
@@ -183,7 +236,12 @@ def list_for_settings(conn: sqlite3.Connection) -> dict[str, Any]:
         items.append({"entity_id": eid, "name": (r["name"] if r is not None else None) or eid, "area_id": r["area_id"] if r is not None else None,
                       "area_name": r["area_name"] if r is not None else None, "device_class": r["device_class"] if r is not None else None,
                       "tagged": True, "state": r["state"] if r is not None else None})
-    return {"sensors": items, "settings": get_config(conn)}
+    over = overrides(conn)
+    for it in items:
+        if it["entity_id"] in over:
+            it["area_id"], it["area_name"] = over[it["entity_id"]], area_name_of(conn, over[it["entity_id"]])
+            it["placed"] = True
+    return {"sensors": items, "rooms": rooms_known(conn), "settings": get_config(conn)}
 
 
 def replace_tags(conn: sqlite3.Connection, entity_ids: list[str], actor_id: str | None) -> tuple[list[str], list[str]]:

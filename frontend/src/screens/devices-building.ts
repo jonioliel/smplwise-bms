@@ -53,6 +53,7 @@ import { phoneRestricted } from '../shell/phone';
 import { notifyScreenViews, registerScreenView } from '../shell/screen-view';
 import './home-widgets';
 import './home-ambient-bar';
+import './building-presence-card';
 import { AMBIENT_WIDGETS } from './home-ambient-bar';
 import { infoStyleFor, loadScreenDisplay, BULK_IDLE_DEFAULT, FLOOR_TITLE_LINES_DEFAULT, INFO_STYLE_DEFAULT, type BulkIdle, type FloorTitleLines, type InfoStyle } from '../api/screen-display';
 import {
@@ -2997,6 +2998,7 @@ export class DevicesBuilding extends LitElement {
         ? html`<sw-state-panel icon="building" data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים'} hint=${t.scoped ? 'מוצגות רק הקומות שבהרשאתך.' : 'המבנה יופיע כאן כשיוגדרו קומות ואזורים.'}></sw-state-panel>`
         : nothing}
       ${this.lay.editing ? this.renderHomeEdit(t) : nothing}
+      <building-presence-card></building-presence-card>
       ${this.layout === 'cards' ? this.renderCards(t, sideLayout) : this.layout === 'plan' ? this.renderPlan(t, sideLayout) : this.renderTiles(t, sideLayout)}`;
     // owner notes 2026-09-30: no "ערוך פריסה" button here (the user menu's "עריכת המסך הראשי" opens `?edit=1`); the header
     // row carries only a "not synced" chip when the state is NOT fine, and a small refresh icon
