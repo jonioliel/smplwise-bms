@@ -15,7 +15,7 @@ import { SKINS_UNDER_TEST } from './helpers/frozen-skins';
 const VIEWS: [number, number][] = [[2000, 950], [1440, 900], [1024, 768], [390, 844]];
 const ROWS: Record<string, string[]> = {
   top: ['clock', 'weather', 'elevators', 'generators', 'shabbat'],
-  infra: ['temperature', 'doors', 'notices', 'elevators', 'generators'],
+  infra: ['temperature', 'doors', 'notices', 'presence', 'elevators', 'generators'],
 };
 /** The tallest a card of the row band may grow (2.23.x drew the top row at ~113 px; 2.24.0 drew it at ~250 px). The 1024 infra row
  * carries the harness's extreme -1234.6° reading, which puts the unit's name under it. */

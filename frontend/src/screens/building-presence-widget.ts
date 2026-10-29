@@ -10,7 +10,7 @@ import { BP } from '../i18n/building-presence';
  * round-7 mockup). One state word with a lamp (green only while occupied), one quiet line, the rooms that have a sensor as wrapping chips and
  * a note that the numbers are rooms, not people. Read-only. It is ABSENT (edit mode too, no ghost) unless the caller holds
  * presence.building.view and the server reports an enabled, configured module whose home display is "card" (`presenceWidgetAvailable`).
- * Sizes: small = state + the quiet line, medium = + up to 4 room chips (2 in the compact row band), large = + up to 8 (4 there). The home never scrolls, so the chips are capped
+ * Sizes: small = state + the quiet line, medium = + up to 4 room chips (none in the compact row band), large = + up to 8 (2 there). The home never scrolls, so the chips are capped
  * (the full list is on the map).
  */
 
@@ -50,7 +50,7 @@ export const PRESENCE_WIDGET_STYLES = css`
 export function renderPresence(h: PresenceWidgetHost, it: WidgetItem): TemplateResult {
   const v = cardView(h.snap);
   const at = clockText(h.snap?.at);
-  const cap = h.compact ? Math.floor(CHIPS[it.size] / 2) : CHIPS[it.size];
+  const cap = h.compact ? (it.size === 'l' ? 2 : 0) : CHIPS[it.size];
   const link = html`<a href="#/explore" data-building-card-map aria-disabled=${String(h.editing)} tabindex=${h.editing ? -1 : 0}>${BP.onMap}</a>`;
   const head = html`<div class="pr-h"><sw-icon name="users" size="15"></sw-icon><b>${it.title}</b>${link}</div>`;
   const rooms = cap && v.rooms.length
