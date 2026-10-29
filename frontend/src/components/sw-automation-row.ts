@@ -33,13 +33,15 @@ export class AutomationRow extends LitElement {
       display: block;
       position: relative;
       min-inline-size: 0;
-      margin: 2px 6px;
+      /* GATE-FIX-2270: 1 px apart, 4 px at the list's ends, and the 52 px row: twelve wells fit a 1440 x 900 screen with no scroll (a
+         control screen never scrolls - owner rule; the 56 px row with 2 / 6 px margins scrolled the page by 46 px) */
+      margin: 1px 6px;
     }
     :host(:first-of-type) {
-      margin-block-start: 6px;
+      margin-block-start: 4px;
     }
     :host(:last-of-type) {
-      margin-block-end: 6px;
+      margin-block-end: 4px;
     }
     :host([data-menu]) {
       z-index: 20;
@@ -50,7 +52,7 @@ export class AutomationRow extends LitElement {
       grid-template-columns: 44px minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(120px, 0.8fr) 40px;
       align-items: center;
       gap: var(--sw-s-3);
-      min-block-size: 56px;
+      min-block-size: 52px;
       padding-inline: var(--sw-s-4);
       border-radius: var(--sw-r-md);
       background: var(--dv-surface-2);

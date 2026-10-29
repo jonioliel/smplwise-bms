@@ -5,8 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 // UI round 1b (owner 2026-09-30): the size of the navigation (side rail and phone bottom bar) is a setting -
 // הגדרות › כללי › גודל הניווט: an installation default and a personal override (personal wins, "ברירת מחדל של המערכת"
-// clears it), "יחסי" (four presets scaled together, the current one marked) or "חופשי" (icon, label / no labels, item height
-// independently), a live mini rail and bottom bar, applied to the running shell without a reload.
+// clears it), "יחסי" (four presets scaled together, the current one marked) (the free mode was removed 2026-10-27: owner decision, home direction A), a live mini rail and bottom bar, applied to the running shell without a reload.
 //   1. the demo data (no backend: the personal value lives in this browser) - what each preset measures in the real shell;
 //   2. a mocked backend - what is sent to PUT /me/prefs and PATCH /settings and which value wins.
 // The value's validation is the backend's job: smplwise_vms/backend/tests/test_nav_size.py.
@@ -60,14 +59,6 @@ async function measure(page: Page, info: { project: { name: string } }) {
   }, phone(info));
 }
 
-async function setRange(page: Page, sel: string, value: number) {
-  await page.locator(`${CARD} ${sel}`).evaluate((el, v) => {
-    const i = el as HTMLInputElement;
-    i.value = String(v);
-    i.dispatchEvent(new Event('input', { bubbles: true }));
-  }, value);
-}
-
 // what each preset stands for (shell/nav-size.ts PRESET_DIMS; the desktop rail is item width + 14 wide)
 const PRESETS = {
   s: { icon: 18, label: 10, item: 46, rail: 66, avatar: 24, bar: 44 },
@@ -92,7 +83,6 @@ test.describe('navigation size on the demo data', () => {
     await expect(page.locator(CARD)).toBeVisible();
     await page.evaluate(() => ((window as unknown as { __noReload: number }).__noReload = 1));
     // the default is "גדול" (owner decision 2026-09-30, home redesign), marked as the current size
-    await expect(page.locator(`${CARD} [data-nav-mode="rel"]`)).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator(`${CARD} [data-nav-preset="l"] [data-nav-current]`)).toHaveCount(1);
     await expect(page.locator(`${CARD} [data-nav-preset]`)).toHaveText([/קטן/, /בינוני/, /גדול/, /גדול מאוד/]);
     const base = await measure(page, info);
@@ -149,61 +139,12 @@ test.describe('navigation size on the demo data', () => {
     }
   });
 
-  test('חופשי: icon, label and item on their own without a proportion lock; labels off; nothing clipped', async ({ page }, info) => {
+  test('there is no free mode: only the four presets are offered (owner decision 2026-10-27)', async ({ page }) => {
     await open(page, '/system/diagnostics');
-    await page.locator(`${CARD} [data-nav-mode="free"]`).click();
-    await expect(page.locator(`${CARD} [data-nav-free]`)).toBeVisible();
-    // it starts from the size in use
-    await expect(page.locator(`${CARD} [data-free-icon]`)).toHaveValue(String(PRESETS.l.icon)); // the large preset is the default now
-    await setRange(page, '[data-free-icon]', 34);
-    await setRange(page, '[data-free-label]', 9);
-    await setRange(page, '[data-free-item]', 60);
-    const pv = page.locator(`${CARD} [data-nav-preview]`);
-    await expect(pv).toHaveAttribute('data-icon', '34');
-    await expect(pv).toHaveAttribute('data-label', '9');
-    await expect(pv).toHaveAttribute('data-item', '60');
-    await page.locator(`${CARD} [data-nav-save]`).click();
-    let m = await measure(page, info);
-    expect(m.icon).toBe(iconOf(info, 34)); // a big icon with a small label and a mid item: independent
-    if (phone(info)) {
-      expect(m.labelPx).toBeCloseTo(9, 1);
-      expect(m.minTarget).toBeGreaterThanOrEqual(44);
-    } else {
-      expect(m.labelPx).toBeCloseTo(9, 1);
-      expect(m.item.h).toBeGreaterThanOrEqual(60);
-      expect(m.item.h).toBeLessThan(PRESETS.xl.item); // not the xl preset's proportions
-    }
-    expect(m.clipped).toBe(false);
-    // labels off: no label text, the links keep their names, the rail gets narrower
-    const withLabels = m.nav.w;
-    await page.locator(`${CARD} [data-free-labels]`).uncheck();
-    await expect(page.locator(`${CARD} [data-free-label]`)).toHaveCount(0);
-    await expect(pv).toHaveAttribute('data-label', '0');
-    await page.locator(`${CARD} [data-nav-save]`).click();
-    m = await measure(page, info);
-    expect(m.labelShown).toBe(false);
-    await expect(page.locator(phone(info) ? 'sw-app nav.bottom a[data-nav="security"]' : 'sw-app nav.rail a[data-nav="security"]')).toHaveAttribute('aria-label', 'אבטחה');
-    if (!phone(info)) expect(m.nav.w).toBeLessThanOrEqual(withLabels);
-    // the widest label sets the rail width: a big label size grows the rail, the label stays whole
-    await page.locator(`${CARD} [data-free-labels]`).check();
-    // the phone bar shares 390 px between the area tabs (one more since the multimedia entry) and the account: its labels are
-    // ellipsized by design, so the "label stays whole" check uses the largest size that fits there ("מולטימדיה" is the widest label)
-    await setRange(page, '[data-free-label]', phone(info) ? 12 : 16);
-    await setRange(page, '[data-free-icon]', 14);
-    await setRange(page, '[data-free-item]', 36);
-    await page.locator(`${CARD} [data-nav-save]`).click();
-    m = await measure(page, info);
-    expect(m.clipped).toBe(false);
-    if (phone(info)) expect(m.minTarget).toBeGreaterThanOrEqual(44); // the phone keeps 44 px whatever is chosen
-    else expect(m.nav.w).toBeGreaterThanOrEqual(60);
-    // the extremes
-    await setRange(page, '[data-free-icon]', 40);
-    await setRange(page, '[data-free-item]', 96);
-    await page.locator(`${CARD} [data-nav-save]`).click();
-    m = await measure(page, info);
-    expect(m.icon).toBe(iconOf(info, 40));
-    expect(m.clipped).toBe(false);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+    await expect(page.locator(CARD)).toBeVisible();
+    await expect(page.locator(`${CARD} [data-nav-mode]`)).toHaveCount(0);
+    await expect(page.locator(`${CARD} [data-nav-free]`)).toHaveCount(0);
+    await expect(page.locator(`${CARD} [data-nav-preset]`)).toHaveCount(4);
   });
 
   test('"ברירת מחדל של המערכת" clears the personal size', async ({ page }, info) => {
@@ -225,7 +166,7 @@ test.describe('navigation size on the demo data', () => {
 
 const ALL = ['video.live', 'map.read', 'entity.state.read', 'devices.read', 'alarm.view', 'events.read', 'system.configure'];
 const XL = { mode: 'rel', preset: 'xl' };
-const FREE = { mode: 'free', icon: 26, label: 12, item: 60 };
+const S = { mode: 'rel', preset: 's' };
 const M = { mode: 'rel', preset: 'm' };
 
 class Mock {
@@ -299,16 +240,13 @@ test.describe('navigation size with a (mocked) backend', () => {
     await expect.poll(async () => (await measure(page, info)).icon).toBe(iconOf(info, PRESETS.xl.icon));
     // the personal override: PUT /me/prefs, wins over the installation's
     await open(page, '/system/diagnostics');
-    await page.locator(`${CARD} [data-nav-mode="free"]`).click();
-    await setRange(page, '[data-free-icon]', 26);
-    await setRange(page, '[data-free-label]', 12);
-    await setRange(page, '[data-free-item]', 60);
+    await page.locator(`${CARD} [data-nav-preset="s"]`).click();
     await page.locator(`${CARD} [data-nav-save]`).click();
     await expect.poll(() => mock.puts.length).toBe(1);
-    expect(mock.puts[0]).toEqual({ 'ui.nav_size': FREE });
-    await expect.poll(async () => (await measure(page, info)).icon).toBe(iconOf(info, 26));
+    expect(mock.puts[0]).toEqual({ 'ui.nav_size': S });
+    await expect.poll(async () => (await measure(page, info)).icon).toBe(iconOf(info, PRESETS.s.icon));
     await open(page, '/devices/building');
-    await expect.poll(async () => (await measure(page, info)).icon).toBe(iconOf(info, 26)); // server copy, personal wins
+    await expect.poll(async () => (await measure(page, info)).icon).toBe(iconOf(info, PRESETS.s.icon)); // server copy, personal wins
     // "ברירת מחדל של המערכת": null to the server, the installation's size (xl) applies again
     await open(page, '/system/diagnostics');
     await page.locator(`${CARD} [data-nav-reset]`).click();

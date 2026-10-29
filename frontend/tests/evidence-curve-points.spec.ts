@@ -49,11 +49,29 @@ async function clearWalls() {
   const g = await draft();
   expect((await api.put(`api/v1/plan-versions/${ids.version}/geometry`, { data: { doc: { ...g.doc, walls: [], openings: [] }, base_revision: g.geometry.revision } })).status()).toBe(200);
 }
+/** GATE-FIX2-2270: the shell's "complete the setup" row (sw-app .setuphint, 52 px with its margins) arrives with
+ * GET /setup/state a few hundred ms after the editor and pushes the whole screen down. A click aimed from the
+ * geometry measured before it landed 52 px too high (point 0: y 0.52 instead of 0.6), so the clicks wait for that
+ * response and for the canvas to stop moving. */
+async function settledCanvas(page: Page) {
+  const canvas = page.locator(`${ED} sw-plan-canvas`);
+  let last = '';
+  for (let i = 0; i < 30; i++) {
+    const b = await canvas.boundingBox();
+    const now = b ? `${b.x},${b.y},${b.width},${b.height}` : '';
+    if (now && now === last) return;
+    last = now;
+    await page.waitForTimeout(100);
+  }
+}
 async function openStructure(page: Page) {
+  const setup = page.waitForResponse((r) => r.url().includes('/setup/state'), { timeout: 10000 }).catch(() => null);
   await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
   await expect(page.locator(`${ED} sw-plan-canvas`)).toHaveCount(1, { timeout: 20000 });
   await page.locator(`${ED} [data-tool="structure"]`).click();
   await expect(page.locator(`${ED} [data-studio-panel]`)).toHaveCount(1, { timeout: 15000 });
+  await setup;
+  await settledCanvas(page);
 }
 async function newWalls(before: number): Promise<Wall[]> {
   const d = await draft();

@@ -15,7 +15,7 @@ import { openAlertsText } from './sw-user-menu';
 import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from './nav-order';
 import { findScreenEdit, onScreenEdits, screenEdits } from './screen-edit';
 import { findScreenView, onScreenViews, screenViews } from './screen-view';
-import { loadNavSize, navCssVars, navDims, navSize, onNavSize, setInstallationNavSize, type NavDims } from './nav-size';
+import { loadNavSize, navCssVars, navDims, navSize, navSizeIsBuiltIn, onNavSize, setInstallationNavSize, type NavDims } from './nav-size';
 import { onPairChip, pairChip } from './tab-pair';
 import type { TabItem } from '../components/sw-tabs';
 import { HYBRID_MAX_ITEMS, ddPanelOf, ddPlaceOf, ddRingOf, ddSizeOf, ddStyleOf, loadTabsMode, onTabsMode, setInstallationTabsMode, tabModeOf, type DdPanel, type DdRing, type DdSize, type DdStyle } from './tabs-mode';
@@ -2220,6 +2220,10 @@ export class SwApp extends LitElement {
    * user menu and the alert banner sit beside it), and whether labels show at all. */
   private applyNavSize() {
     for (const [k, v] of Object.entries(navCssVars(this.nav))) this.style.setProperty(k, v);
+    // GATE-FIX-2270: the classic / domus polish draws the rail label at 11 px only while no size was chosen (the approved R5
+    // look); a chosen size - preset or free - reaches the label exactly. The skins read var(--nav-label-polish, var(--nav-label)).
+    if (navSizeIsBuiltIn()) this.style.setProperty('--nav-label-polish', '11px');
+    else this.style.removeProperty('--nav-label-polish');
     this.style.setProperty('--sw-bottomnav-h', `${this.nav.bar}px`);
     this.toggleAttribute('data-nolabels', !this.nav.labels);
     const rail = this.renderRoot.querySelector<HTMLElement>('nav.rail');

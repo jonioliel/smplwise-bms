@@ -3129,7 +3129,7 @@ export class DevicesBuilding extends LitElement {
     if (!t.floors.length && !t.unassigned.counts.entities) return nothing;
     const all = this.floorsOf(t);
     const shown = this.selected === 'all' ? all : all.filter((f) => f.floor_id === this.selected);
-    const phoneOne = this.isPhone && !this.lay.editing && !this.phoneAll; // HOME-295: a phone shows one floor at a time (the floor switch, the tree sheet)
+    const phoneOne = this.isPhone && !this.lay.editing && !this.phoneAll && this.selected !== 'all'; // HOME-295: a phone shows one floor at a time once a floor is picked; the first, default choice is every floor (owner 2026-10-29)
     const floors = phoneOne ? [this.phoneFloorOf(all)].filter((f): f is DeviceFloor => !!f) : shown.length ? shown : all; // a floor that vanished from the tree: back to everything
     const loose = !phoneOne && (this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped);
     return html`<div class="split" data-layout-view="tiles" data-fit=${this.fit} ?data-no-tree=${noTree}>
@@ -3157,7 +3157,7 @@ export class DevicesBuilding extends LitElement {
     const max = floorCardsMax(window.innerWidth);
     let cols = '';
     if (this.phoneAll) floors = all;
-    else if (this.isPhone && !this.lay.editing) floors = [this.phoneFloorOf(all)].filter((f): f is DeviceFloor => !!f);
+    else if (this.isPhone && !this.lay.editing && this.selected !== 'all') floors = [this.phoneFloorOf(all)].filter((f): f is DeviceFloor => !!f);
     else if (!this.lay.editing && !this.gridAttrs('fcards').on && this.selected === 'all' && window.innerWidth >= 900) {
       // the floors share ONE row (the mockup: three floors = three columns), at most `max` of them
       floors = floorCardsSplit(all, 'all', max).shown;
@@ -3618,7 +3618,7 @@ export class DevicesBuilding extends LitElement {
     return html`<div class="pfl" data-phone-floors>
       <button type="button" class="treebtn" data-phone-tree aria-haspopup="dialog" @click=${() => (this.treeSheet = true)}><sw-icon name="list" size=${16}></sw-icon>${hs('tree')}</button>
       ${floors.length > 1
-        ? html`<span class="segs" role="group" aria-label=${hs('floorsLabel')}>${floors.map((f) => html`<button type="button" data-phone-floor=${f.floor_id} aria-pressed=${String(f.floor_id === cur?.floor_id)} @click=${() => (this.selected = f.floor_id)}>${bidi(f.name)}</button>`)}</span>`
+        ? html`<span class="segs" role="group" aria-label=${hs('floorsLabel')}><button type="button" data-phone-floor="all" aria-pressed=${String(this.selected === 'all')} @click=${() => (this.selected = 'all')}>${hs('allFloors')}</button>${floors.map((f) => html`<button type="button" data-phone-floor=${f.floor_id} aria-pressed=${String(this.selected !== 'all' && f.floor_id === cur?.floor_id)} @click=${() => (this.selected = f.floor_id)}>${bidi(f.name)}</button>`)}</span>`
         : nothing}
     </div>`;
   }
