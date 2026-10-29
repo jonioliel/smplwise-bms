@@ -35,6 +35,7 @@ const he = {
   openBlinds: 'פתח תריסים',
   closeBlinds: 'סגור תריסים',
   floorsLabel: 'קומה',
+  allFloors: 'כל הקומות',
   // the settings
   heading: 'אפשרויות המסך הראשי',
   sub: 'ברירות המחדל לכל המשתמשים במתקן. כל שינוי נשמר מיד.',
@@ -159,6 +160,7 @@ const en: Record<HsKey, string> = {
   openBlinds: 'Open blinds',
   closeBlinds: 'Close blinds',
   floorsLabel: 'Floor',
+  allFloors: 'All floors',
   heading: 'Home screen options',
   sub: 'The defaults for every user of this installation. Every change is saved at once.',
   defaultView: 'Default view',

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { settle } from './helpers/settle';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -75,6 +76,7 @@ async function openChip(page: Page, which: number, how: 'click' | 'key') {
     await chip.asElement()!.focus();
     await page.keyboard.press('ArrowDown');
   }
+  await settle(page); // the open list grows from 97 % (R5 motion): measure it at rest
   return dd;
 }
 

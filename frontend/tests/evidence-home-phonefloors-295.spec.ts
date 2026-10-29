@@ -34,8 +34,11 @@ for (const state of ['site', 'many']) {
     const n = Number(await b.locator('[data-floor-count]').first().getAttribute('data-floor-count'));
     expect(n).toBeGreaterThanOrEqual(3);
     await expect(b.locator('[data-phone-floors]')).toBeVisible();
-    await expect(b.locator('[data-phone-floor]')).toHaveCount(n);
-    await expect(b.locator('section.fcard[data-floor-card]:not(.loose)')).toHaveCount(1); // unchanged: one floor at a time
+    await expect(b.locator('[data-phone-floor]')).toHaveCount(n + 1); // "all floors" first, then one chip per floor
+    await expect(b.locator('[data-phone-floor="all"]')).toHaveAttribute('aria-pressed', 'true'); // owner 2026-10-29: the default is every floor
+    await expect(b.locator('section.fcard[data-floor-card]:not(.loose)')).toHaveCount(n);
+    await b.locator('[data-phone-floor]:not([data-phone-floor="all"])').first().click();
+    await expect(b.locator('section.fcard[data-floor-card]:not(.loose)')).toHaveCount(1); // a picked floor: that floor alone
 
     await open(page, 'm', state, '&hs_phone_floors=all');
     await expect(b.locator('[data-phone-floors]')).toHaveCount(0);

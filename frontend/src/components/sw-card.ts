@@ -55,6 +55,8 @@ export class SwCard extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      /* a host may let the actions drop under the title when both do not fit one line (default: one line, as before) */
+      flex-wrap: var(--sw-card-head-wrap, nowrap);
       gap: 10px;
       margin-block-end: 10px;
     }

@@ -370,6 +370,59 @@ export class SwCameraTile extends LitElement {
       inline-size: 9px;
       block-size: 9px;
     }
+    /* R5 fix (phone): the 60 px ring in a ~100 px tall two-column tile was flex-shrunk into an oval; the ring never shrinks, and on a
+       phone the down tile keeps the earlier 44 px ring and smaller type (the filled field and the solid ring stay) */
+    .off .ring {
+      flex: none;
+    }
+    @media (max-width: 767px) {
+      :host(:not([compact])) .off {
+        gap: 6px;
+        font-size: var(--sw-fs-xs);
+      }
+      :host(:not([compact])) .off .ring {
+        inline-size: 44px;
+        block-size: 44px;
+      }
+      :host(:not([compact])) .off .ring sw-icon {
+        inline-size: 20px;
+        block-size: 20px;
+      }
+      :host(:not([compact])) .off .label {
+        font-size: var(--sw-fs-base);
+      }
+    }
+    /* R5 fix: the name and the floor line share one footer row with a real gap - the larger R5 type made two absolutely placed
+       labels overlap on a phone; the floor line gives way first (ellipsis), the name keeps its room */
+    .foot {
+      position: absolute;
+      inset-inline: 10px;
+      inset-block-end: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-inline-size: 0;
+    }
+    :host([compact]) .foot {
+      inset-inline: 8px;
+      inset-block-end: 6px;
+    }
+    .foot .label {
+      position: static;
+      flex: 0 1 auto;
+      min-inline-size: 0;
+      max-inline-size: none;
+    }
+    .foot .meta,
+    .foot .stamp {
+      position: static;
+      flex: 0 100 auto;
+      min-inline-size: 0;
+      margin-inline-start: auto;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .stamp {
       position: absolute;
       inset-inline-end: 10px;
@@ -446,8 +499,10 @@ export class SwCameraTile extends LitElement {
       <div class="shade"></div>
       ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' ? html`<span class="demo" data-snapshot-label data-still=${this.stillRefresh > 0 ? 'refreshing' : nothing}>${this.stillRefresh > 0 ? (this.compact ? he.frigate.live.stillLabel : `${he.frigate.live.stillLabelEvery} ${Math.round(stillIntervalMs(this.stillRefresh) / 1000)} ${he.frigate.live.seconds}`) : this.snapshotOnly ? 'תמונה · לחץ לצפייה חיה' : 'צילום'}</span>` : nothing}
       ${this.state === 'stale' || this.state === 'recorded' || this.state === 'historic' ? html`<sw-badge class="pill" onImage kind=${this.state}></sw-badge>` : nothing}
-      ${this.name ? html`<span class="label"><span class="dot"></span>${this.name}</span>` : nothing}
-      ${this.stamp ? html`<span class="stamp">${this.stamp}</span>` : this.meta && !this.compact ? html`<span class="meta">${this.meta}</span>` : nothing}
+      <div class="foot">
+        ${this.name ? html`<span class="label"><span class="dot"></span>${this.name}</span>` : nothing}
+        ${this.stamp ? html`<span class="stamp">${this.stamp}</span>` : this.meta && !this.compact ? html`<span class="meta">${this.meta}</span>` : nothing}
+      </div>
     `;
   }
 }

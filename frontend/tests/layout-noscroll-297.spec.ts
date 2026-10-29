@@ -5,6 +5,7 @@ import { installElectricityMock } from './electricity-mocks';
 import { installTicketsMock } from './tickets-mocks';
 import { installBoardMock } from './tickets-board-mocks';
 import { mockWall } from './wall-count-mock';
+import { installOverviewMock } from './tickets-overview-mocks';
 
 // NOSCROLL-297 (owner rule 2026-10-24: control screens never scroll on a desktop; they fit the viewport). The design audit of 2026-10-27
 // found four desktop control screens that still scrolled the page: the live overview, the camera wall, the electricity meters and the
@@ -24,7 +25,7 @@ const VIEWPORTS = [
 const SCHEMES = ['light', 'dark'] as const;
 const SHOTS = process.env.NOSCROLL_SHOTS ?? '';
 
-type Mock = 'demo' | 'wall' | 'elec' | 'tickets' | 'board';
+type Mock = 'demo' | 'wall' | 'elec' | 'tickets' | 'board' | 'overview' | 'overview-worst';
 interface Case {
   id: string;
   hash: string;
@@ -42,6 +43,10 @@ const CASES: Case[] = [
   { id: 'tickets-mine', hash: '/tickets/mine', mock: 'tickets', ready: 'tickets-list ticket-card:not([skeleton])' },
   { id: 'tickets-all', hash: '/tickets/all', mock: 'tickets', ready: 'tickets-list ticket-card:not([skeleton])' },
   { id: 'tickets-board', hash: '/tickets/board', mock: 'board', ready: 'tickets-board ticket-card:not([skeleton])' },
+  // OVERVIEWFIT-297: the service management overview (a board of widgets: two rows on the screen, the rest on the next pages); the payments
+  // widget is the last read, so it marks every widget drawn. 'worst' = 25 departments with long names, 8x the requests, 30 handler rows.
+  { id: 'tickets-overview', hash: '/tickets/overview', mock: 'overview', ready: 'tickets-overview [data-widget="payments"]' },
+  { id: 'tickets-overview-worst', hash: '/tickets/overview', mock: 'overview-worst', ready: 'tickets-overview [data-widget="payments"]' },
 ];
 
 async function open(page: Page, c: Case, skin: string, scheme: string) {
@@ -50,7 +55,8 @@ async function open(page: Page, c: Case, skin: string, scheme: string) {
   else if (c.mock === 'wall') await mockWall(page);
   else if (c.mock === 'elec') await installElectricityMock(page);
   else if (c.mock === 'tickets') await installTicketsMock(page);
-  else await installBoardMock(page);
+  else if (c.mock === 'board') await installBoardMock(page);
+  else await installOverviewMock(page, { worst: c.mock === 'overview-worst' });
   await page.addInitScript((kv) => {
     try {
       localStorage.clear();

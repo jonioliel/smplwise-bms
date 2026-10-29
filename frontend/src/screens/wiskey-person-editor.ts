@@ -995,9 +995,12 @@ export class WiskeyPersonEditor extends LitElement {
       flex: 1;
     }
     h3 {
+      /* R5-SECURITY: the dialog's heading 20/800 in the heading ink */
       margin: 0;
-      font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-2xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--sw-heading, var(--sw-text));
     }
     .sub {
       color: var(--sw-text-3);
@@ -1041,10 +1044,12 @@ export class WiskeyPersonEditor extends LitElement {
       gap: 12px;
       min-inline-size: 0;
     }
+    /* R5-SECURITY: each section is a well (a tone step, no edge, radius lg); its legend 14.5/700 in the heading ink */
     fieldset {
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      padding: 10px 12px 12px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+      padding: 10px 14px 14px;
       margin: 0;
       display: flex;
       flex-direction: column;
@@ -1056,9 +1061,15 @@ export class WiskeyPersonEditor extends LitElement {
       align-items: center;
       gap: 6px;
       padding: 0 6px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    sw-badge {
       font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-bold);
+      line-height: 18px;
+      padding-block: 2px;
     }
     .grid2 {
       display: grid;
@@ -1125,9 +1136,11 @@ export class WiskeyPersonEditor extends LitElement {
       }
     }
     .card-row {
-      border: 1px dashed var(--sw-border);
-      border-radius: var(--sw-r-sm);
-      padding: 8px 10px;
+      border: 1px solid transparent;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      padding: 10px 12px;
       display: flex;
       flex-direction: column;
       gap: 6px;

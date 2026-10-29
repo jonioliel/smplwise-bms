@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { settle } from './helpers/settle';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,6 +80,7 @@ test('dropdown: one select, 44 px chip and rows, every sub-page listed, current 
   const before = ((await chip.textContent()) ?? '').trim();
   expect(before.length).toBeGreaterThan(0);
   await chip.click();
+  await settle(page); // the open list grows from 97 % (R5 motion): measure it at rest
   const opts = page.locator('sw-tabs[data-settings-tabs] >> sw-dropdown >> [role="option"]');
   await expect(opts).toHaveCount(s!.items);
   const hs = await opts.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));

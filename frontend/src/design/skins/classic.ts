@@ -104,8 +104,8 @@ const tokens: TokenTable = {
 
 const rules = `
 /* classic 1 - a key: raised (a vertical gradient, the 1 px light top edge, the two-layer shadow); pressed: sunk into a well */
-:host(sw-button) button, :host(sw-chip) button { background: linear-gradient(180deg, var(--sw-surface), var(--sw-surface-2)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }
-:host(sw-button[variant='primary']) button, :host(sw-chip[selected]) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 86%, #ffffff), var(--sw-accent-hover)); border-color: var(--sw-accent-hover); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.14); }
+:host(sw-button) button, :host(sw-chip) button { background: linear-gradient(180deg, var(--sw-surface), var(--sw-surface-2)) var(--sw-surface); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }
+:host(sw-button[variant='primary']) button, :host(sw-chip[selected]) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 86%, #ffffff), var(--sw-accent-hover)) var(--sw-accent-hover); border-color: var(--sw-accent-hover); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.14); }
 :host(sw-button[variant='ghost']) button { background: transparent; box-shadow: none; }
 :host(sw-button[variant='danger']) button { background: linear-gradient(180deg, var(--sw-surface), var(--sw-danger-soft)); }
 :host(sw-button) button:active:not(:disabled), :host(sw-chip) button:active:not(:disabled) { background: var(--sw-surface-2); box-shadow: inset 0 2px 3px rgba(16, 24, 40, 0.14); }
@@ -136,7 +136,7 @@ const rules = `
 /* classic 7 - the rail sits on the canvas; the current area is a raised white key (the segmented thumb's material), its label a step heavier */
 :host(sw-app) nav.rail.rail { background: transparent; border-inline-end-color: transparent; }
 :host(sw-app) a.item.active { background: var(--sw-surface); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
-:host(sw-app) a.item.a { font-size: 11px; }
+:host(sw-app) a.item.a { font-size: var(--nav-label-polish, var(--nav-label, 11px)); }
 :host(sw-app) a.item.a.active { font-weight: var(--sw-fw-bold); }
 /* classic 8 - tables: a quiet caption row, tabular figures, a hairline under the header a step stronger than the row rules */
 :host(sw-table) th { font-weight: var(--sw-fw-bold); letter-spacing: 0.02em; color: var(--sw-text-2); border-block-end-color: var(--sw-border-strong); }

@@ -40,8 +40,16 @@ function storedQuality(): 'auto' | 'main' | 'sub' {
   }
 }
 
-/** The wall grid's own CSS gap on desktop (`.grid { gap: 12px }` below); the fit maths uses the same value. */
-const WALL_GAP = 12;
+/** The wall grid's own CSS gap on desktop (R5-LIVE-297: `.grid { gap: 14px }` from 768 px, below); the fit maths
+ * uses the same value. WALL-OVERFLOW-2270: R5 widened the CSS gap to 14 px but this stayed 12, so every row gap
+ * after the first made the fitted wall 2 px taller than the room measured for it (a page scroll of 2-8 px). */
+const WALL_GAP = 14;
+/** The phone wall grid's CSS gap (`@media (max-width: 767px) { .grid { gap: 8px } }`, below). */
+const WALL_GAP_PHONE = 8;
+/** GATE-FIX2-2270: the gap the fit maths uses is the one the grid really renders at this width - 8 px below
+ * 768 px, 14 px from 768 px (WALL-OVERFLOW-2270 moved the desktop constant to 14 and the phone column maths with
+ * it, so a manual 3-column phone wall came out 4.7 px narrower per tile than the width it fills). */
+const wallGap = () => (window.innerWidth < 768 ? WALL_GAP_PHONE : WALL_GAP);
 const COUNT_KEY = 'sw.wall.count';
 const VIEWS = [
   { id: 'all', label: 'כל המצלמות' },
@@ -486,10 +494,11 @@ export class LiveWall extends LitElement {
    * before searching, so in practice only the manual-column path reaches this with a tiny or unmeasured `h`).
    * Shared by the automatic search (bestFit) and a manual column choice, so both size tiles identically. */
   private fitTile(spans: number[], cols: number, w: number, h: number): number {
-    const byWidth = (w - WALL_GAP * (cols - 1)) / cols;
+    const gap = wallGap();
+    const byWidth = (w - gap * (cols - 1)) / cols;
     if (h <= 120) return byWidth;
     const rows = simulateStrictRows(spans.map((s) => Math.min(s, cols)), cols);
-    const byHeight = ((h - WALL_GAP * Math.max(0, rows - 1)) / rows) * (16 / 9);
+    const byHeight = ((h - gap * Math.max(0, rows - 1)) / rows) * (16 / 9);
     return Math.min(byWidth, byHeight);
   }
 
@@ -852,7 +861,7 @@ export class LiveWall extends LitElement {
     // phone gap is 8px, not 12). A spanned tile's exact one-row ratio needs the rendered width, so it falls back
     // to the 16N:9 approximation when that width is not known.
     const tilePx = fit && (this.colsOverride || window.innerWidth >= 768) ? fit.tile : 0;
-    const gapPx = window.innerWidth < 768 ? 8 : WALL_GAP;
+    const gapPx = wallGap();
     // hotfix: on the remote channel the budget is min(installation cap, remote.max_live_streams of this sign-in)
     const remoteCap = remoteVideo() ? Number(this.settings?.['remote.max_live_streams'] ?? 16) : null;
     const cap = effectiveLiveCap(this.settings?.['media.max_live_sessions'] ?? 16, remoteCap);

@@ -41,7 +41,7 @@ export const TEMPERATURE_WIDGET_STYLES = css`
   .wg-temp .dots i { inline-size: 12px; block-size: 12px; border-radius: 50%; background: var(--tw); display: inline-block; }
   .wg-temp .dots i[data-look='off'] { border-radius: 3px; } /* sensor offline: a square, not only a colour */
   .wg-temp .lst { display: grid; gap: 6px; }
-  .tw-row { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-base); color: inherit; text-decoration: none; min-inline-size: 0; border-radius: 10px; padding: 4px 6px; margin-inline: -2px; }
+  .tw-row { display: flex; align-items: center; gap: 8px; font-size: var(--sw-fs-base); color: inherit; text-decoration: none; min-inline-size: 0; border-radius: 10px; padding: 4px; } /* GATE-FIX-2270: no negative inline margin - the row (and its hover fill) stays inside the list box; the text keeps its 4 px inset */
   /* POLISH-CONTROL-297: a row and a card are links - they answer hover (fine pointers only), the press and the keyboard with the product's
      focus ring (transform and colour only, token durations - zero under reduced motion) */
   .tw-row, .tw-card { transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }

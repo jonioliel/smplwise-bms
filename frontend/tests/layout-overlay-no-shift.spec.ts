@@ -140,6 +140,9 @@ test.describe('overlays never move the page behind them', () => {
     expectSame(before, await snap(page, 'home'), 'lights panel open');
     await page.keyboard.press('Escape');
     await expect(page.locator('sw-app devices-building devices-tiles-panel sw-drawer')).not.toHaveAttribute('open', '');
+    // POLISH-BOLD-297: a hovered tile lifts 2 px (--sw-hover-lift) - the pointer that clicked the tile is still over it; move it off so
+    // the comparison sees the page, not the hover state
+    await page.mouse.move(2, 2);
     await page.waitForTimeout(500);
     await expect(body).toHaveAttribute('data-fit', fit!);
     await shot(page, 'home-lights-2-closed');

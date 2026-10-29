@@ -55,18 +55,20 @@ const shared = css`
   .row:last-child {
     border-block-end: 0;
   }
+  /* R5-SECURITY: the setting's name 14/700 in the heading ink, its note 12.5 */
   .lbl {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    font-size: var(--sw-fs-sm);
-    font-weight: var(--sw-fw-medium);
+    font-size: var(--sw-fs-md);
+    font-weight: var(--sw-fw-bold);
+    color: var(--sw-heading, var(--sw-text));
     min-inline-size: 0;
     flex: 1 1 260px;
   }
   .muted {
     color: var(--sw-text-3);
-    font-size: var(--sw-fs-xs);
+    font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-regular);
   }
   .ltr {

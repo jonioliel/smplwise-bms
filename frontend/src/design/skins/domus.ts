@@ -157,7 +157,7 @@ const rules = `
 /* domus 2 - the rail is a floating glass panel 12px off the edges; the brand tile; the floating corner pill; the phone dock */
 :host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-xl); background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-app) .brand-tile { background: linear-gradient(145deg, var(--sw-accent), var(--sw-accent-hover)); border-radius: var(--sw-r-sm); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
-:host(sw-app) a.item.a { border-radius: var(--sw-r-md); font-size: 11px; }
+:host(sw-app) a.item.a { border-radius: var(--sw-r-md); font-size: var(--nav-label-polish, var(--nav-label, 11px)); }
 :host(sw-app) a.item.active { background: var(--sw-surface-2); box-shadow: var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight); font-weight: var(--sw-fw-bold); }
 :host(sw-app) .float .pillrow { background: var(--sw-glass-sheen), var(--sw-surface); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); }
 /* domus 2b - the search panel hangs over the page like a menu: opaque, nothing blurred behind it (owner 2026-10-13); the corner pill above keeps its glass */
@@ -176,9 +176,9 @@ const rules = `
 :host(devices-building) .tree-row { border-radius: var(--sw-r-pill); padding-block: 8px; }
 :host(devices-building) .tree-row.selected { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
 /* domus 6 - keys: round, raised (a vertical gradient, the light top edge, the dark lower edge of the bevel), pressed = sunk; pill chips */
-:host(sw-button) button { border-radius: var(--sw-r-sm); background: linear-gradient(180deg, var(--sw-surface-2-solid), var(--sw-surface-solid)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 -1px 0 rgba(15, 23, 42, 0.07); }
-:host(sw-chip) button { border-radius: var(--sw-r-pill); background: linear-gradient(180deg, var(--sw-surface-2-solid), var(--sw-surface-solid)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 -1px 0 rgba(15, 23, 42, 0.07); }
-:host(sw-button[variant='primary']) button, :host(sw-chip[selected]) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 84%, #ffffff), var(--sw-accent-hover)); border-color: var(--sw-accent-hover); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(0, 0, 0, 0.14); }
+:host(sw-button) button { border-radius: var(--sw-r-sm); background: linear-gradient(180deg, var(--sw-surface-2-solid), var(--sw-surface-solid)) var(--sw-surface-solid); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 -1px 0 rgba(15, 23, 42, 0.07); }
+:host(sw-chip) button { border-radius: var(--sw-r-pill); background: linear-gradient(180deg, var(--sw-surface-2-solid), var(--sw-surface-solid)) var(--sw-surface-solid); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), inset 0 -1px 0 rgba(15, 23, 42, 0.07); }
+:host(sw-button[variant='primary']) button, :host(sw-chip[selected]) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 84%, #ffffff), var(--sw-accent-hover)) var(--sw-accent-hover); border-color: var(--sw-accent-hover); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(0, 0, 0, 0.14); }
 :host(sw-button[variant='ghost']) button { background: transparent; box-shadow: none; }
 :host(sw-button) button:active:not(:disabled), :host(sw-chip) button:active:not(:disabled) { background: var(--sw-surface-3-solid); box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.16); }
 :host(sw-button[variant='primary']) button:active:not(:disabled), :host(sw-chip[selected]) button:active:not(:disabled) { background: var(--sw-accent-hover); box-shadow: 0 2px 6px color-mix(in srgb, var(--sw-accent) 24%, transparent), inset 0 2px 4px rgba(0, 0, 0, 0.24); }
