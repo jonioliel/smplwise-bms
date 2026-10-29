@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { settle } from './helpers/settle';
 import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // 0.1.157 (owner decision 2026-10-03: all six dropdown styles approved): the `dd-style` of sw-dropdown / sw-tabs, the resolver
@@ -232,6 +233,7 @@ test.describe('every style renders (sw-dropdown inside sw-tabs)', () => {
     const opt = async () => {
       const tabs = page.locator('#stage sw-tabs[data-t=pill]');
       await tabs.locator('sw-dropdown .chip').click();
+      await settle(page); // GATE-FIX-2270: the R5 list enters from 97 %; measure it at rest
       const h = await tabs.locator('sw-dropdown [role=option]').first().evaluate((e) => Math.round(e.getBoundingClientRect().height));
       await page.keyboard.press('Escape');
       return h;
