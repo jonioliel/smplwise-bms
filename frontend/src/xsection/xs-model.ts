@@ -233,7 +233,8 @@ export function phonePlaceFor(opt: PhonePlace, floors: number): PhonePlace | 'no
 }
 
 /** The size step of the frozen list's cards for n floors (no scrolling, option A): 0 = full, 3 = the smallest; two columns from 17 floors. */
-export function listStep(n: number): { step: 0 | 1 | 2 | 3; cols: 1 | 2 } {
+export function listStep(n: number, narrow = false): { step: 0 | 1 | 2 | 3; cols: 1 | 2 } {
+  if (narrow && n > 12) return { step: 3, cols: 2 }; // a phone is short: one column of 13+ cards would scroll
   if (n <= 6) return { step: 0, cols: 1 };
   if (n <= 9) return { step: 1, cols: 1 };
   if (n <= 12) return { step: 2, cols: 1 };

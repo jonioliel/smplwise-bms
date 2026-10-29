@@ -551,7 +551,7 @@ export class ExploreFloors extends LitElement {
     else setFireMock(null);
     const fire = o.fire_ui ? fireReport().floors : null;
     const place = phone ? phonePlaceFor(o.phone_place, floors.length) : 'none';
-    const { step, cols } = listStep(floors.length);
+    const { step, cols } = listStep(floors.length, phone);
     const shown = o.many === 'near' ? nearFloors(floors, sel?.id ?? null, 2) : floors;
     const folded = linksFold(o.links, floors.length, window.innerHeight) || phone;
     const withTile = phone && place === 'side';

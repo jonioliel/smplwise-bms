@@ -231,10 +231,10 @@ test.describe('קברניט with a session: the gates and a stored ui.tabs', () 
     await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
   });
 
-  test('neither right: no קברניט tab and no tab row', async ({ page }) => {
+  test('neither right: no קברניט tab (the synoptic map is offered with devices.read)', async ({ page }) => {
     st.perms = VIEWER_PERMS;
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
   });
 
   test('a stored ui.tabs of the old layout migrates: no dead "תזמונים" tab, no hidden segment', async ({ page }) => {

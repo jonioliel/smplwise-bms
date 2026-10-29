@@ -132,7 +132,7 @@ test.describe('synoptic map tab', () => {
     await expect(page.locator('[data-syn-col]').first()).toBeVisible();
     await expect(page.locator('[data-syn-col="fire"]')).toHaveCount(0);
     await expect(page.locator('[data-fire-bar]')).toHaveCount(0);
-    await open(page, `${SYN}?xsdemo=6&xs_fire_column=dashed`);
+    await open(page, `${SYN}?xsdemo=6&xs_fire_ui=1&xs_fire_column=dashed`);
     await expect(page.locator('[data-fire-nc]')).toBeVisible();
   });
 
@@ -194,9 +194,12 @@ test.describe('fire-alarm UI (demo source only - no fire detection exists)', () 
     await expect(bar).toHaveClass(/ackd/);
   });
 
-  test('alarm_bar=home draws the bar only on the home screens', async ({ page }) => {
-    await open(page, `/#/system/diagnostics?xsdemo=4&firemock=alarm&xs_fire_ui=1&xs_alarm_bar=home`);
-    await expect(page.locator('sw-app')).toBeVisible();
+  test('alarm_bar: everywhere draws the bar on any screen, home only on the home screens', async ({ page }) => {
+    await open(page, `${SYN}?xsdemo=4&firemock=alarm&xs_fire_ui=1`);
+    await expect(page.locator('[data-fire-bar]')).toBeVisible();
+    await page.evaluate(() => { location.hash = '#/system/diagnostics?xsdemo=4&firemock=alarm&xs_fire_ui=1'; });
+    await expect(page.locator('[data-fire-bar]')).toBeVisible();
+    await page.evaluate(() => { location.hash = '#/system/diagnostics?xsdemo=4&firemock=alarm&xs_fire_ui=1&xs_alarm_bar=home'; });
     await expect(page.locator('[data-fire-bar]')).toHaveCount(0);
   });
 

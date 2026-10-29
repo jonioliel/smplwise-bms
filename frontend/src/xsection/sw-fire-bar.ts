@@ -3,9 +3,9 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { xt } from '../i18n/xsection';
 import { xi } from './xs-icons';
 import { acknowledgeFire, fireAck, fireReport, floorName, onFire } from './fire-store';
-import { ACK_HOLD_MS, alarmFloors, mayAcknowledge, xsOptions, onXsOptions, type XsOptions } from './xs-model';
-import { can, session } from '../api/session';
-import { navigate } from '../router';
+import { ACK_HOLD_MS, alarmFloors, mayAcknowledge, xsFromParams, xsOptions, onXsOptions, type XsOptions } from './xs-model';
+import { can, isApi, session } from '../api/session';
+import { navigate, parseRoute } from '../router';
 
 /**
  * The acknowledge control of a fire alarm (owner decision 9 and 10): a long press of 1.2 seconds (default; a press then "Yes, received" and a single
@@ -106,7 +106,9 @@ export class SwFireBar extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.stop.push(onFire(() => this.requestUpdate()), onXsOptions(() => this.requestUpdate()));
+    const again = () => this.requestUpdate();
+    window.addEventListener('hashchange', again);
+    this.stop.push(onFire(again), onXsOptions(again), () => window.removeEventListener('hashchange', again));
   }
   disconnectedCallback() {
     this.stop.forEach((s) => s());
@@ -115,7 +117,8 @@ export class SwFireBar extends LitElement {
   }
 
   render() {
-    const o = xsOptions();
+    // the static demo (no backend) honours the same `?xs_*` overrides as the screens; with a backend the stored option is the only source
+    const o = isApi() ? xsOptions() : xsFromParams(xsOptions(), parseRoute().params);
     const rep = fireReport();
     const ids = o.fire_ui ? alarmFloors(rep) : [];
     if (!ids.length) return nothing;
