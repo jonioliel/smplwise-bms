@@ -88,7 +88,8 @@ test.describe('sw-dropdown', () => {
     await expect(opts.nth(0)).toHaveAttribute('aria-selected', 'true');
     await expect(opts.nth(1)).toContainText('(3)');
     await expect(opts.nth(3)).not.toContainText('(');
-    // every option is a 44 px target
+    // every option is a 44 px target (measured at rest: the R5 list enters from 97 %, GATE-FIX-2270)
+    await settle(page);
     for (const h of await opts.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))) expect(h).toBeGreaterThanOrEqual(44);
   });
 
