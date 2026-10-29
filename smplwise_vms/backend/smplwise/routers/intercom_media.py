@@ -97,6 +97,49 @@ def live_path(station_id: str, profile: str) -> str:
 
 # ---------------------------------------------------------------- what the drawer may offer
 
+@router.get("/access-control/stations/{station_id}/thumbnail.jpg")
+def station_thumbnail(request: Request, auth: ia.Authority = Depends(_gate(READ)), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)):
+    """WISKEY-R2-ALIGN-2272 (nine-ask 5): one current still of a station for the overview / drawer. `access.read` on the station chain
+    (the same gate as `/media`); no stream source, credential or address reaches the browser; `private, no-store`. First the installed
+    WisKey snapshot - only with `wiskey.auto_install` on - then Arx's own lease path (one frame of the leased stream, by name only)."""
+    from fastapi.responses import Response
+
+    from ..services import go2rtc
+    from ..services import wiskey_auto_install as wai
+
+    settings = settings_of(request)
+    feed_state, station = _visible_station(settings, auth, station_id)
+    if feed_state != "ready":
+        raise ApiError(503, "intercom_unavailable", "Station data is not current.")
+    if not station.get("online"):
+        raise ApiError(503, "intercom_station_offline", "Station is offline.")
+    if not station.get("camera_entity"):
+        raise ApiError(404, "intercom_no_camera", "Station has no camera entity.")
+    headers = {"Cache-Control": "private, no-store", "X-Snapshot-Stale": "false"}
+    if wai.switch_on(auth.conn):
+        try:
+            still = wai.installed_snapshot(settings, station_id)
+        except Exception:  # noqa: BLE001 - closed answer, never the cause text
+            raise ApiError(503, "intercom_snapshot_not_ready", "Installed station snapshot is not ready.") from None
+        if still is not None:
+            return Response(still[0], media_type=still[1], headers=headers)
+    provider = im.provider_for(settings, auth.conn)
+    try:
+        descriptor = im.MEDIA.descriptor(provider, auth.conn, settings, station)
+    except im.Unavailable as exc:
+        raise ApiError(503, "intercom_media_unavailable", "Station media is unavailable.", details={"reason": exc.code}) from None
+    if not descriptor.profiles:
+        raise ApiError(409, "intercom_no_video", "No supported native video profile.")
+    name = provider.video_stream(auth.conn, settings, station, descriptor.default_profile)
+    try:
+        data = go2rtc.Go2rtc(settings).frame_existing(name)
+        if descriptor.expired():  # a lease that expired during the awaited upstream read
+            raise ApiError(409, "intercom_media_expired", "Media descriptor expired.")
+        return Response(data, media_type="image/jpeg", headers=headers)
+    finally:
+        im.release_leased_streams(settings, station_id)
+
+
 @router.get("/access-control/stations/{station_id}/media")
 def station_media(request: Request, auth: ia.Authority = Depends(_gate(READ)), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
     """`state`: `off` (the setting; the drawer keeps the still and the classic panel), `unavailable` (+ `reason`: `feed`,

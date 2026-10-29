@@ -1,0 +1,183 @@
+{
+  "version": "1.0.0",
+  "source": {
+    "WisKey": "cc50b3b15460944c5c55450f47a2b23d77b6e686",
+    "Arx_base": "83a7c795f82bd2d62ea1fa9d0465fa3b655a090c",
+    "Arx_kind": "source+patch; NOT an adopted/integrated Arx artifact",
+    "Arx_modified_file_identity": "00_summary/arx-contribution/CHANGE_INDEX.json"
+  },
+  "bindings": [
+    {
+      "operation": "station mapping",
+      "route_or_entity": "Native overview, stations/list, stations/get; Arx /api/v1/access-control/stations",
+      "auth": "original signed installed authority; Arx access.read/session chain",
+      "request": {
+        "station_id": "Returned id only; never synthesized from name/address"
+      },
+      "response": "station entities.camera, entities.online/call_status/ringing, online/call_state/last_seen/last_poll_ms, observations.snapshot/video_channel; consumer maps camera_entity",
+      "source": {
+        "WisKey": "682df74a0d68773e748a1c3a31e665008895f634",
+        "Arx_base": "83a7c795f82bd2d62ea1fa9d0465fa3b655a090c",
+        "Arx_kind": "source+patch; NOT an adopted/integrated Arx artifact",
+        "Arx_modified_file_identity": "00_summary/arx-contribution/CHANGE_INDEX.json"
+      },
+      "paths": [
+        "custom_components/hikvision_intercom/websocket.py",
+        "smplwise_vms/backend/smplwise/services/intercom_sync.py"
+      ],
+      "symbols": [
+        "overview",
+        "SYNC.served"
+      ]
+    },
+    {
+      "operation": "thumbnail/snapshot",
+      "route_or_entity": "GET /api/v1/access-control/stations/{station_id}/thumbnail.jpg",
+      "auth": "Original current_principal_ro + access.read on station chain",
+      "request": {},
+      "response": "Bounded image/jpeg or image/png bytes, private no-store, X-Snapshot-Stale:false. No URL credentials/RTSP source. Native snapshot first; original video-provider/go2rtc lease fallback only when native snapshot unsupported.",
+      "source": {
+        "WisKey": "682df74a0d68773e748a1c3a31e665008895f634",
+        "Arx_base": "83a7c795f82bd2d62ea1fa9d0465fa3b655a090c",
+        "Arx_kind": "source+patch; NOT an adopted/integrated Arx artifact",
+        "Arx_modified_file_identity": "00_summary/arx-contribution/CHANGE_INDEX.json"
+      },
+      "paths": [
+        "smplwise_vms/backend/smplwise/routers/intercom_media.py",
+        "smplwise_vms/backend/smplwise/services/wiskey_auto_install.py"
+      ],
+      "symbols": [
+        "station_thumbnail",
+        "installed_snapshot"
+      ]
+    },
+    {
+      "operation": "native image",
+      "route_or_entity": "media/station_snapshot_v1",
+      "auth": "Installed authority and original station lookup",
+      "request": {
+        "station_id": "Current station.id"
+      },
+      "response": "wiskey-station-snapshot.v1; original HA camera.async_get_image(entity, timeout10,width480,height320), best-effort dimensions; JPEG/PNG 1..600000 bytes, base64<=800000. Original coordinator/client provides image. No fake hardware capability.",
+      "source": {
+        "WisKey": "682df74a0d68773e748a1c3a31e665008895f634",
+        "Arx_base": "83a7c795f82bd2d62ea1fa9d0465fa3b655a090c",
+        "Arx_kind": "source+patch; NOT an adopted/integrated Arx artifact",
+        "Arx_modified_file_identity": "00_summary/arx-contribution/CHANGE_INDEX.json"
+      },
+      "paths": [
+        "custom_components/hikvision_intercom/station_snapshot.py",
+        "custom_components/hikvision_intercom/camera.py"
+      ],
+      "symbols": [
+        "snapshot",
+        "IntercomCamera.async_camera_image"
+      ]
+    },
+    {
+      "operation": "supported legacy proxy",
+      "route_or_entity": "Original HA /api/camera_proxy/{entity_id}; current UI binds Arx thumbnail route above",
+      "auth": "HA authenticated camera access or original private token; never expose owner token",
+      "request": {
+        "entity_id": "Actual returned entities.camera"
+      },
+      "response": "Existing HA image handler; no fabricated station-specific HA endpoint. Native bridge directly invokes original HA image API; browser uses Arx proxy.",
+      "source": {
+        "WisKey": "682df74a0d68773e748a1c3a31e665008895f634",
+        "Arx_base": "83a7c795f82bd2d62ea1fa9d0465fa3b655a090c",
+        "Arx_kind": "source+patch; NOT an adopted/integrated Arx artifact",
+        "Arx_modified_file_identity": "00_summary/arx-contribution/CHANGE_INDEX.json"
+      },
+      "paths": [
+        "homeassistant/components/camera/__init__.py",
+        "smplwise_vms/backend/smplwise/routers/intercom_media.py"
+      ],
+      "symbols": [
+        "CameraImageView",
+        "station_thumbnail"
+      ]
+    },
+    {
+      "operation": "open drawer",
+      "route_or_entity": "frontend WisKeyStations.open(id); no network route invented",
+      "auth": "Existing session",
+      "request": {
+        "id": "Current selected station.id"
+      },
+      "response": "Select/syncRoute, load descriptor and thumbnail; no getUserMedia on drawer open.",
+      "source": {
+        "WisKey": "682df74a0d68773e748a1c3a31e665008895f634",
+        "Arx_base": "83a7c795f82bd2d62ea1fa9d0465fa3b655a090c",
+        "Arx_kind": "source+patch; NOT an adopted/integrated Arx artifact",
+        "Arx_modified_file_identity": "00_summary/arx-contribution/CHANGE_INDEX.json"
+      },
+      "paths": [
+        "frontend/src/screens/wiskey-stations.ts"
+      ],
+      "symbols": [
+        "open"
+      ]
+    },
+    {
+      "operation": "descriptor and video",
+      "route_or_entity": "GET /api/v1/access-control/stations/{station_id}/media; WS returned video.paths[profile]",
+      "auth": "access.read + video.live for live; original station chain/session",
+      "request": {
+        "profile": "Returned profile id; original default profile"
+      },
+      "response": "Descriptor state off/unavailable/ready, reason, video/talk/listen/expires_at; original WS live relay/go2rtc; browser MSE video, no private_rtsp_source. Native media/station_descriptor + media/stream_lease original.",
+      "source": {
+        "WisKey": "682df74a0d68773e748a1c3a31e665008895f634",
+        "Arx_base": "83a7c795f82bd2d62ea1fa9d0465fa3b655a090c",
+        "Arx_kind": "source+patch; NOT an adopted/integrated Arx artifact",
+        "Arx_modified_file_identity": "00_summary/arx-contribution/CHANGE_INDEX.json"
+      },
+      "paths": [
+        "smplwise_vms/backend/smplwise/routers/intercom_media.py",
+        "smplwise_vms/backend/smplwise/services/intercom_media.py"
+      ],
+      "symbols": [
+        "station_media",
+        "StationLease",
+        "provider_for"
+      ]
+    },
+    {
+      "operation": "talk and listen",
+      "route_or_entity": "POST /api/v1/access-control/stations/{station_id}/talk; returned WS path; POST /api/v1/access-control/talk/{session_id}/stop",
+      "auth": "access.call original principal; own session, permission rechecked",
+      "request": {
+        "station_id": "Selected existing station"
+      },
+      "response": "Original station floor/mute/idle/terminal/expiry; G711 frames and separate WebAudio downlink alongside MSE video. Mic only owner-started talk. Stop closes and releases resources.",
+      "source": {
+        "WisKey": "682df74a0d68773e748a1c3a31e665008895f634",
+        "Arx_base": "83a7c795f82bd2d62ea1fa9d0465fa3b655a090c",
+        "Arx_kind": "source+patch; NOT an adopted/integrated Arx artifact",
+        "Arx_modified_file_identity": "00_summary/arx-contribution/CHANGE_INDEX.json"
+      },
+      "paths": [
+        "smplwise_vms/backend/smplwise/routers/intercom_media.py",
+        "frontend/src/wiskey/talk-session.ts"
+      ],
+      "symbols": [
+        "talk_start",
+        "talk_stop",
+        "ReceiveDownlink"
+      ]
+    }
+  ],
+  "fallbacks": {
+    "offline": "503 intercom_station_offline; do not present stale still as fresh",
+    "no_camera": "404 intercom_no_camera",
+    "no_video": "409 intercom_no_video when video fallback lacks profiles; native still can work independently of video",
+    "busy": "Original media descriptor busy/talk single owner refusal; do not force a second talk",
+    "expired": "409 intercom_media_expired; discard lease/frame, obtain a fresh original descriptor only for current explicit view",
+    "stale": "503 intercom_unavailable when served feed not ready; no cached image claimed current"
+  },
+  "browser_selection": "Thumbnail for grid/poster. Start live only within existing drawer viewing lifecycle; close leases on terminal/unmount. Existing station/media and HA subscriptions preserved.",
+  "testing": "Original Arx consumer route/HA-go2rtc device I/O synthetic fixtures; native original HA camera direct bridge synthetic JPEG. Original UI typecheck. Not Arx adoption or actual image measurement.",
+  "installation": "automatic software settings video_talk/auto/listen enabled in activate_software; preserves session/business scope; no owner configuration inputs.",
+  "browser_receipt": "../00_summary/runs/STATION-BROWSER-FINAL-02/results.xml",
+  "browser_scope": "Original card render with synthetic station, real browser image failure/no-camera fallback, original proxy URL, no microphone on open. Initial harness bare-import failure retained; followup passes. Browser test-results output files changed; exact output-only classification retained, original source_bytes_unchanged=false not overwritten."
+}

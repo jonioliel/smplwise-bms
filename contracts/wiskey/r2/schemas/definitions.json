@@ -1,0 +1,881 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/v1/definitions.json",
+  "$comment": "Reference library only; public instance schemas are exactly SCHEMA_INDEX entries.",
+  "$defs": {
+    "GrantRef": {
+      "type": "object",
+      "properties": {
+        "authority_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "authority_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "scope_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "grant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "grant_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "permission_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "authority_ref",
+        "authority_revision",
+        "scope_ref",
+        "grant_id",
+        "grant_revision",
+        "permission_revision"
+      ],
+      "additionalProperties": false
+    },
+    "InstallationEntry": {
+      "type": "object",
+      "properties": {
+        "entry_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "repository_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "query_owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "grant_ref": {
+          "$ref": "definitions.json#/$defs/GrantRef"
+        },
+        "authority_mode": {
+          "const": "permanent_full_installation"
+        },
+        "expires_at": {
+          "type": "null"
+        },
+        "coverage": {
+          "const": "all_current_and_future_supported_capabilities_and_resources"
+        },
+        "service_contract": {
+          "const": "wiskey-native-service-write.v2"
+        },
+        "peer_binding_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "peer_binding_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "direct_path": {
+          "const": "/api/hikvision_intercom/arx_bridge/v1/ws"
+        },
+        "pairing_material": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "entry_id",
+        "repository_id",
+        "query_owner_id",
+        "grant_ref",
+        "authority_mode",
+        "expires_at",
+        "coverage",
+        "service_contract",
+        "peer_binding_ref",
+        "peer_binding_revision",
+        "direct_path",
+        "pairing_material"
+      ],
+      "additionalProperties": false
+    },
+    "CloudAccount": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "api_version": {
+          "type": "string",
+          "pattern": "^v[1-9][0-9]?\\.0$"
+        },
+        "business_id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,31}$"
+        },
+        "phone_number_id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,31}$"
+        },
+        "token": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^[!-~]+$"
+        }
+      },
+      "required": [
+        "account",
+        "api_version",
+        "business_id",
+        "phone_number_id",
+        "token"
+      ],
+      "additionalProperties": false
+    },
+    "ApprovedTemplate": {
+      "type": "object",
+      "properties": {
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "account": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "ui_language": {
+          "enum": [
+            "he",
+            "en"
+          ]
+        },
+        "template_id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,31}$"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,127}$"
+        },
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(?:_[A-Z]{2})?$"
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "parameter_fields": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "display_name",
+              "employee_no",
+              "pin",
+              "valid_from",
+              "valid_until"
+            ]
+          },
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "reference",
+        "revision",
+        "account",
+        "ui_language",
+        "template_id",
+        "name",
+        "language",
+        "body",
+        "parameter_fields"
+      ],
+      "additionalProperties": false
+    },
+    "ServiceMetadataV2": {
+      "type": "object",
+      "properties": {
+        "contract": {
+          "const": "wiskey-native-service-write.v2"
+        },
+        "role": {
+          "const": "access_manager"
+        },
+        "actor_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "authority_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "scope_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "grant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "operation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "authority_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "grant_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "permission_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "target_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "null for create; exact current person revision otherwise"
+        }
+      },
+      "required": [
+        "actor_id",
+        "authority_ref",
+        "authority_revision",
+        "contract",
+        "grant_id",
+        "grant_revision",
+        "operation_id",
+        "permission_revision",
+        "request_id",
+        "role",
+        "scope_ref",
+        "target_ref",
+        "target_revision"
+      ],
+      "additionalProperties": false
+    },
+    "ServiceReceipt": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "person_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "central_state": {
+          "enum": [
+            "saved",
+            "unchanged_pin_generated_not_saved"
+          ]
+        },
+        "device_application": {
+          "const": "not_proven"
+        }
+      },
+      "required": [
+        "user_id",
+        "person_revision",
+        "central_state",
+        "device_application"
+      ],
+      "additionalProperties": false
+    },
+    "EventRecord": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "station_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40
+        },
+        "received_at": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40
+        },
+        "time_source": {
+          "enum": [
+            "device",
+            "received"
+          ]
+        },
+        "employee_no": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "person_name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "door": {
+          "enum": [
+            null,
+            1,
+            2
+          ]
+        },
+        "api_door": {
+          "enum": [
+            null,
+            1,
+            2
+          ]
+        },
+        "authentication": {
+          "enum": [
+            "card",
+            "pin",
+            "unknown"
+          ]
+        },
+        "result": {
+          "enum": [
+            "granted",
+            "denied",
+            "unknown"
+          ]
+        },
+        "event_type": {
+          "enum": [
+            "access_granted",
+            "access_denied",
+            "door_unlocked",
+            "door_locked",
+            "contact_open",
+            "contact_closed",
+            "unlock_exception",
+            "attempt_limit",
+            "unlock_record",
+            "door_not_opened",
+            "door_not_closed",
+            "unknown",
+            "ring"
+          ]
+        },
+        "major": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "minor": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "card": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^••••.{0,4}$"
+        },
+        "recovered": {
+          "type": "boolean"
+        },
+        "source": {
+          "enum": [
+            "stream",
+            "query",
+            "call_status"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "station_id",
+        "timestamp",
+        "received_at",
+        "time_source",
+        "employee_no",
+        "person_name",
+        "door",
+        "api_door",
+        "authentication",
+        "result",
+        "event_type",
+        "major",
+        "minor",
+        "card",
+        "recovered",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "EventSequence": {
+      "type": "object",
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "event": {
+          "$ref": "definitions.json#/$defs/EventRecord"
+        }
+      },
+      "required": [
+        "sequence",
+        "event"
+      ],
+      "additionalProperties": false
+    },
+    "CursorResponse": {
+      "type": "object",
+      "properties": {
+        "contract": {
+          "const": "wiskey-event-cursor.v1"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "state": {
+          "enum": [
+            "page",
+            "reset_required"
+          ]
+        },
+        "reason": {
+          "enum": [
+            null,
+            "retention_gap",
+            "source_replaced",
+            "cursor_ahead"
+          ]
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "definitions.json#/$defs/EventSequence"
+          },
+          "maxItems": 500
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 160
+        },
+        "reset_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 160
+        },
+        "has_more": {
+          "type": "boolean"
+        },
+        "all_delivered": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        }
+      },
+      "required": [
+        "contract",
+        "schema_version",
+        "state",
+        "reason",
+        "records",
+        "cursor",
+        "reset_cursor",
+        "has_more",
+        "all_delivered",
+        "source"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "page"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "type": "null"
+              },
+              "reset_cursor": {
+                "type": "null"
+              },
+              "cursor": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "reason": {
+                "enum": [
+                  "retention_gap",
+                  "source_replaced",
+                  "cursor_ahead"
+                ]
+              },
+              "records": {
+                "maxItems": 0
+              },
+              "reset_cursor": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "has_more": {
+                "const": false
+              },
+              "all_delivered": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "ResultFrame": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "type": {
+              "const": "result"
+            },
+            "success": {
+              "const": true
+            },
+            "result": {}
+          },
+          "required": [
+            "id",
+            "type",
+            "success",
+            "result"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "type": {
+              "const": "result"
+            },
+            "success": {
+              "const": false
+            },
+            "error": {
+              "$ref": "definitions.json#/$defs/Error"
+            }
+          },
+          "required": [
+            "id",
+            "type",
+            "success",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "EventFrame": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "type": {
+          "const": "event"
+        },
+        "event": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "event"
+      ],
+      "additionalProperties": false
+    },
+    "UserPatch": {
+      "type": "object",
+      "properties": {
+        "door_permissions": {
+          "type": "object"
+        },
+        "permission_overrides": {
+          "type": "object"
+        },
+        "access_policy_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "profile": {
+          "type": "object"
+        },
+        "group_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "photo": {},
+        "phone": {
+          "type": "string"
+        },
+        "access_category": {
+          "enum": [
+            "staff",
+            "visitor",
+            "contractor"
+          ]
+        },
+        "responsible_person": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "access_purpose": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "access_timing_draft": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "access_timing_policy": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "employee_no": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "user_type": {
+          "const": "normal"
+        },
+        "valid_from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "valid_until": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pin": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{1,128}$"
+        },
+        "cards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+              },
+              "card_no": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "card_type": {
+                "const": "normalCard"
+              },
+              "enabled": {
+                "type": "boolean"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "maxItems": 255
+        },
+        "assignments": {
+          "type": "object",
+          "maxProperties": 100,
+          "additionalProperties": {
+            "type": "object"
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "ComponentDigests": {
+      "type": "object",
+      "properties": {
+        "smplwise_bridge": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "hikvision_intercom": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

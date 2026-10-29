@@ -789,3 +789,47 @@ def read_template_outcome_v3(reply: Any) -> dict[str, Any]:
 async def send_installed_template_v3(client: InstalledWiskeyClient, template: dict[str, Any]) -> dict[str, Any]:
     reply = await client.call("whatsapp/template_send_v3", {"schema_version": 3, "template": template})
     return read_template_outcome_v3(reply)
+
+
+SNAPSHOT_CODES_FALLBACK = frozenset({"snapshot_not_supported", "snapshot_entity_unavailable", "snapshot_unavailable"})
+
+
+def installed_snapshot(settings: Any, station_id: str, config_root: Path | str | None = None) -> tuple[bytes, str] | None:
+    """WISKEY-R2-ALIGN-2272 (nine-ask 5): one still of a station through the installed WisKey (`media/station_snapshot_v1`, closed
+    `wiskey-station-snapshot.v1`, JPEG / PNG 1..600000 bytes). None = the native side cannot give one (the caller falls back to Arx's own
+    lease path). The caller checks the switch; the read needs no grant write. Runs its own event loop (call it from a worker thread)."""
+    import base64
+
+    from .bridge_install import ha_config_dir
+    from .wiskey_media_bridge import MediaBridgeError
+
+    root = config_root if config_root is not None else ha_config_dir()
+    if root is None:
+        return None
+
+    async def obtain() -> tuple[bytes, str]:
+        client = InstalledWiskeyClient(settings, root)
+        try:
+            await client.connect()
+            reply = await client.call("media/station_snapshot_v1", {"station_id": station_id})
+        finally:
+            await client.close()
+        if (type(reply) is not dict or set(reply) != {"contract", "schema_version", "station_id", "entity_id", "content_type", "encoding", "image", "observed_at"}
+                or reply["contract"] != "wiskey-station-snapshot.v1" or type(reply["schema_version"]) is not int or reply["schema_version"] != 1
+                or reply["station_id"] != station_id or reply["encoding"] != "base64" or reply["content_type"] not in ("image/jpeg", "image/png")
+                or type(reply["image"]) is not str or len(reply["image"]) > 800000):
+            raise ValueError("snapshot_contract_invalid")
+        try:
+            data = base64.b64decode(reply["image"], validate=True)
+        except ValueError:
+            raise ValueError("snapshot_contract_invalid") from None
+        if not 1 <= len(data) <= 600000:
+            raise ValueError("snapshot_contract_invalid")
+        return data, str(reply["content_type"])
+
+    try:
+        return asyncio.run(obtain())
+    except MediaBridgeError as exc:
+        if exc.code in SNAPSHOT_CODES_FALLBACK:
+            return None
+        raise
