@@ -957,11 +957,6 @@ export class AreaQuickSheet extends LitElement {
         inline-size: 44px;
         flex: none;
       }
-      /* 375 px: eye + two arrows + chevron are four 44 px controls; the drag handle is hidden there (the arrows reorder; a finger on a 44 px
-         handle was the fifth control that left the name no room) */
-      :host([mode='sheet']) .grip {
-        display: none;
-      }
       /* the editor's other controls reach 44 px too: the apply-to switch, "show more", the footer keys, the head's buttons, the sheet's handle,
          the alert switch (its host is padded to 44 x 44; a press on the padding flips it) */
       :host([data-editing]) .ib,
@@ -1231,6 +1226,7 @@ export class AreaQuickSheet extends LitElement {
       }
     }
     if (changed.has('mode') || changed.has('open')) {
+      if (this.mode === 'sheet' && this.editing) this.editing = false; // a resize to phone width closes the editor
       if (this.open && this.mode === 'sheet') this.expanded = false;
     }
   }
@@ -1774,7 +1770,8 @@ export class AreaQuickSheet extends LitElement {
 
   /** The editor shows to a manager only: the server refuses a save from anyone else (system.configure on the area's scope). */
   private get canEdit(): boolean {
-    return isApi() && canAnywhere('system.configure') && !!this.area;
+    // the editor is not offered on a phone (the sheet mode): hiding / ordering is a tablet and desktop task (owner 2026-10-30)
+    return this.mode !== 'sheet' && isApi() && canAnywhere('system.configure') && !!this.area;
   }
 
   /** The items of a section that this person may see, before the layout (what the editor lists). */

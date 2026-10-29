@@ -7,7 +7,7 @@ import { installBubbleMock, AREA_PERMS } from './bubble-mocks';
 // reference viewports: the footer (reset / cancel / save) is ALWAYS inside the viewport, the document never scrolls, the name and the
 // "editing" label are not clipped, and the side column (apply-to, the alert switch) keeps a real width.
 // Edit mode is only offered with a live API session and system.configure: the specs mock the API (tests/bubble-mocks.ts), no backend.
-// Only the desktop project runs it: the spec sets its own three viewports.
+// The layout tests run in the desktop project only (the spec sets its own viewports); the phone / tablet checks run in every project.
 //   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/layout-area-popup-edit-2290.spec.ts --project=desktop
 // Screenshots (local only): SW_EDIT_SHOTS=<dir>.
 
@@ -17,6 +17,21 @@ const VPS = [
   { name: 'tablet', w: 768, h: 1024 },
   { name: 'desktop', w: 1440, h: 900 },
 ] as const;
+// The editor is not offered on a phone (owner 2026-10-30): the layout and 44 px contracts cover the tablet and the desktop.
+const EDIT_VPS = VPS.filter((v) => v.name !== 'phone');
+
+async function openArea(page: Page, vp: (typeof VPS)[number]) {
+  await installBubbleMock(page, { perms: [...AREA_PERMS, 'system.configure'] });
+  await page.setViewportSize({ width: vp.w, height: vp.h });
+  await page.goto(`./?design=a&skin=bubble&scheme=light#/devices/building`);
+  const row = page.locator('sw-app devices-building').locator('[data-area-row="living"]:visible, a.tile[data-area="living"]:visible').first();
+  await row.waitFor({ timeout: 15_000 });
+  await row.click();
+  const sheet = page.locator('sw-app devices-building area-quick-sheet[open]');
+  await expect(sheet.locator('[data-qc-panel]')).toBeVisible();
+  await page.waitForTimeout(700); // the spring settles
+  return sheet;
+}
 
 async function openEdit(page: Page, vp: (typeof VPS)[number], dark = false) {
   await installBubbleMock(page, { perms: [...AREA_PERMS, 'system.configure'] });
@@ -35,7 +50,7 @@ async function openEdit(page: Page, vp: (typeof VPS)[number], dark = false) {
   return sheet;
 }
 
-for (const vp of VPS) {
+for (const vp of EDIT_VPS) {
   for (const dark of [false, true]) {
     test(`edit mode ֲ· ${vp.name} ${vp.w}x${vp.h} ֲ· ${dark ? 'dark' : 'light'}: footer on screen, no page scroll, title and side column intact`, async ({ page }, info) => {
       test.skip(info.project.name !== 'desktop', 'the spec sets its own three viewports');
@@ -82,16 +97,6 @@ for (const vp of VPS) {
       const list = (await sheet.locator('.ed-list').boundingBox())!;
       const overlap = list.x < side.x + side.width - 0.5 && side.x < list.x + list.width - 0.5 && list.y < side.y + side.height - 0.5 && side.y < list.y + list.height - 0.5;
       expect(overlap, 'the list and the side column overlap').toBe(false);
-      // "show more": the phone lists the first four devices of an expanded section, the rest behind a button
-      if (vp.name === 'phone') {
-        await sheet.locator('[data-ed-expand="sensors"]').click();
-        await expect(sheet.locator('[data-ed-list="sensors"] [data-ed-row]')).toHaveCount(4);
-        await expect(sheet.locator('[data-ed-more]')).toBeVisible();
-        await sheet.locator('[data-ed-more]').click();
-        await expect(sheet.locator('[data-ed-list="sensors"] [data-ed-row]')).toHaveCount(8);
-        const box2 = (await save.boundingBox())!;
-        expect(box2.y + box2.height).toBeLessThanOrEqual(vp.h + 0.5); // still on screen with a long list (the list scrolls, the footer stays)
-      }
       if (SHOTS) {
         fs.mkdirSync(SHOTS, { recursive: true });
         await page.screenshot({ path: path.join(SHOTS, `30-edit-${vp.name}-${dark ? 'dark' : 'light'}.png`) });
@@ -102,7 +107,7 @@ for (const vp of VPS) {
 
 // Touch targets (owner rule: 44 x 44): every control of the editor - the head's buttons, the eye / arrows / chevron of each row, the apply-to
 // switch, "show more", the footer keys and the alert switch (measured on its padded host) - reaches 44 px in both directions at all three viewports.
-for (const vp of VPS) {
+for (const vp of EDIT_VPS) {
   test(`edit mode · ${vp.name} ${vp.w}x${vp.h}: every control is at least 44 x 44`, async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'the spec sets its own three viewports');
     const sheet = await openEdit(page, vp);
@@ -124,10 +129,21 @@ for (const vp of VPS) {
   });
 }
 
-test('edit mode: reduced motion still opens the editor with the footer on screen (phone)', async ({ page }, info) => {
-  test.skip(info.project.name !== 'desktop', 'the spec sets its own three viewports');
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  const sheet = await openEdit(page, VPS[0]);
-  const box = (await sheet.locator('[data-qc-ed-save]').boundingBox())!;
-  expect(box.y + box.height).toBeLessThanOrEqual(812.5);
+// Phone: no edit entry, edit mode cannot be entered (not by the button, not programmatically), the pop-up still works read-only. Runs in every project.
+test('edit mode: phone 375x812 offers no edit entry and refuses programmatic entry; the pop-up stays read-only', async ({ page }) => {
+  const sheet = await openArea(page, VPS[0]);
+  await expect(sheet).toHaveAttribute('mode', 'sheet');
+  await expect(sheet.locator('[data-qc-edit]')).toHaveCount(0);
+  await sheet.evaluate((host) => (host as unknown as { startEdit: () => void }).startEdit());
+  await page.waitForTimeout(300);
+  await expect(sheet.locator('[data-qc-editor]')).toHaveCount(0);
+  await expect(sheet).not.toHaveAttribute('data-editing', '');
+  await expect(sheet.locator('[data-qc-body]')).toBeVisible();
+});
+
+test('edit mode: tablet keeps the edit entry with the drag handle and the arrows', async ({ page }) => {
+  const sheet = await openEdit(page, VPS[1]);
+  await sheet.locator('[data-ed-expand="sensors"]').click();
+  await expect(sheet.locator('[data-ed-list="sensors"] .grip').first()).toBeVisible();
+  await expect(sheet.locator('[data-ed-list="sensors"] .mv').first()).toBeVisible();
 });
