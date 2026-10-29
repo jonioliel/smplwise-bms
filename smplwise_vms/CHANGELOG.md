@@ -1,5 +1,10 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.27.3 (DRAFT) — Frigate events keep their camera
+### What was fixed - מה תוקן
+- **English:** Frigate review items and events that arrived before the cameras were imported (first start) no longer stay without a camera: after every camera import they are linked to their camera, so their playback and recordings open.
+- **עברית:** פריטי סקירה ואירועים של Frigate שהגיעו לפני ייבוא המצלמות (בהפעלה הראשונה) כבר לא נשארים בלי מצלמה: אחרי כל ייבוא מצלמות הם מקושרים למצלמה שלהם, ולכן ההשמעה וההקלטות שלהם נפתחות.
+
 ## 2.27.1 (pilot) — Security and WisKey screens redesigned, phone home shows every floor, navigation size simplified, people table and service overview fixes
 **After installing:** no database migration and no new setting turns on by itself; going back to 2.27.0 is safe.
 - **עברית:** אחרי ההתקנה: אין מיגרציה ושום הגדרה חדשה לא נדלקת מעצמה; חזרה ל-2.27.0 בטוחה.
