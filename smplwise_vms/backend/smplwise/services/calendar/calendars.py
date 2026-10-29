@@ -41,6 +41,12 @@ def user_label(conn: sqlite3.Connection, user_id: str | None) -> dict[str, str] 
     return {"id": user_id, "name": (r["display_name"] or r["username"]) if r else ""}
 
 
+def sync_of(conn: sqlite3.Connection, cal: sqlite3.Row) -> dict[str, Any] | None:
+    """The binding of a calendar to an external one (contract 13.1 `sync`), or None. Never carries a reference or a token."""
+    r = conn.execute("SELECT b.direction, b.detail, b.dedicated, c.provider, c.state FROM cal_sync_bindings b JOIN cal_connections c ON c.id = b.connection_id WHERE b.calendar_id = ?", (cal["id"],)).fetchone()
+    return None if r is None else {"state": r["state"], "provider": r["provider"], "direction": r["direction"], "detail": r["detail"], "dedicated": bool(r["dedicated"])}
+
+
 def serialize(conn: sqlite3.Connection, cal: sqlite3.Row, role: str | None) -> dict[str, Any]:
     pending = conn.execute("SELECT COUNT(*) FROM (SELECT event_id FROM cal_event_rooms WHERE room_calendar_id = ? AND state = 'pending' "
                            "UNION SELECT id FROM cal_events WHERE calendar_id = ? AND state = 'pending' AND override_of IS NULL "
@@ -53,7 +59,7 @@ def serialize(conn: sqlite3.Connection, cal: sqlite3.Row, role: str | None) -> d
         "buffer_before_min": cal["buffer_before_min"], "buffer_after_min": cal["buffer_after_min"], "slot_step_min": cal["slot_step_min"],
         "min_minutes": cal["min_minutes"], "max_minutes": cal["max_minutes"], "lead_min": cal["lead_min"], "horizon_days": cal["horizon_days"],
         "hours_mode": cal["hours_mode"], "hours_json": json.loads(cal["hours_json"]) if cal["hours_json"] else None, "holiday_rule": cal["holiday_rule"],
-        "overlap_override": cal["overlap_override"], "sync": None, "pending_count": pending, "archived": bool(cal["archived_at"]), "revision": cal["revision"],
+        "overlap_override": cal["overlap_override"], "sync": sync_of(conn, cal), "pending_count": pending, "archived": bool(cal["archived_at"]), "revision": cal["revision"],
     }
 
 

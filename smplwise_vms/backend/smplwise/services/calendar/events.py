@@ -301,7 +301,7 @@ def serialize(ctx: Ctx, ev: sqlite3.Row, cal: sqlite3.Row, role: str | None) -> 
         "on_behalf_label": ev["on_behalf_label"] if level != "busy" else None, "on_behalf_kind": ev["on_behalf_kind"] if level == "full" else None,
         "headcount": ev["headcount"] if level == "full" else None, "equipment_req": json.loads(ev["equipment_req_json"] or "[]") if level == "full" else None,
         "organizer": user_label(conn, ev["organizer_user_id"]) if level != "busy" else None, "automation_hold": bool(ev["automation_hold"]) if level == "full" else None,
-        "revision": ev["revision"], "recurring": bool(ev["rrule"] or ev["override_of"]),
+        "revision": ev["revision"], "recurring": bool(ev["rrule"] or ev["override_of"]), "source": ev["source"], "sync_flag": ev["sync_flag"] if strong else None,
         "can": {"edit": bool(org and ev["state"] in ("pending", "confirmed") and role and model.ROLE_RANK[role] >= 1) or strong,
                 "cancel": bool(org or strong), "approve": bool(role == "manage")},
         "rooms": [{"room_calendar_id": r["room_calendar_id"], "state": r["state"], "contested": bool(r["contested"])} for r in

@@ -608,6 +608,40 @@ test user, paste client id/secret into Arx (secrets store), press "התחבר" a
 registration, redirect URL, delegated `Calendars.ReadWrite` (or `Calendars.Read`), client secret into Arx, consent. Arx shows these
 steps as a checklist; it creates nothing at the provider.
 
+### 12.6 Phase 2 (server only) - what is built, what is not
+
+Built (branch `pilot/CALENDARS-P2-2300`, no UI): `services/calendar_sync/` = `adapter.py` (the provider-neutral protocol, errors `SyncError` /
+`NeedsReauth` / `RateLimited`, plain values only), `registry.py` (provider -> factory; production registers NOTHING, so a provider without an
+adapter answers `adapter_unavailable` and never touches a network), `fake.py` (in-memory provider: sync tokens, etags, tombstones, 410,
+injected failures, a `user_*` side), `engine.py` (pull, push, collisions, back-off, lease, scheduler step). Routes (`routers/calendar_sync.py`,
+module gate, `calendar.connect` at installation scope, audited with ids only):
+
+| Method | Path | Notes |
+|---|---|---|
+| GET / POST | `/calendar/connections` | POST `{provider, label, scope}`; any other key (a password, a secret) is refused 422; at most 50 |
+| GET | `/calendar/connections/{id}/calendars` | via the adapter; 409 `adapter_unavailable` |
+| POST | `/calendar/connections/{id}/pause` / `resume` | owner or system admin; `needs_reauth` has no resume (a new authorisation is the only way out) |
+| POST | `/calendar/connections/{id}/sync` | owner or admin; rate limit `sync_manual_min_interval_s` (default 60) -> 429 `rate_limited` |
+| DELETE | `/calendar/connections/{id}` | best-effort revoke, bindings and map removed, Arx entries stay |
+| PUT | `/calendar/calendars/{cid}/binding` | `connection_id: null` removes; needs `edit`+ in the calendar; `two_way` only when `dedicated`; export/two_way only over a `read_write` connection; the external reference is sealed |
+| POST | `/calendar/events/{eid}/sync-resolve` | `{revision, resolution: keep\|cancel}` for an entry flagged by the sync; `edit`+ |
+
+New settings (section 11, all validated, all audited through `calendar.settings.update`): `sync_enabled` (true), `sync_poll_min` (5, 2-60),
+`sync_accept_external` (true), `sync_external_delete` (`cancel` | `flag`, default `cancel`), `sync_google_scope` (`full` | `events`, default
+`full`; read by the Google adapter in phase 5), `sync_manual_min_interval_s` (60). Audit: `calendar.connection.add|pause|resume|sync|remove`,
+`calendar.binding.set`, `calendar.sync.flag|cancel|error|resolve` (ids and counts only).
+
+Behaviour (C9): inbound creates / edits / deletes are accepted; an inbound entry that collides with a CONFIRMED entry keeps both and sets
+`sync_flag = 'conflict'` on both (cleared automatically when a later edit removes the collision, or by `sync-resolve`); an entry deleted outside
+Arx is cancelled in Arx, or - with `sync_external_delete = flag` - kept and flagged `deleted_external` and NOT re-published until a human
+resolves it. Imported entries are `kind = external`, organizer = the connection owner, label "מיומן חיצוני", state `confirmed` (so the first
+holds rule applies to them like any other confirmed entry). A pushed event returning with the stored etag is ignored (loop prevention).
+
+Not built: OAuth authorize / callback / client-secret routes, iCal feeds (`/calendar/feeds`, `/calendar/feed/{token}.ics`), every real adapter,
+series (RRULE) import and series edits from outside (an inbound change to a series entry is ignored; provider recurrences arrive expanded),
+overrides of single occurrences are not exported, the engine holds the write transaction while an adapter runs (fine for the fake; a network
+adapter must split pull / apply / push first).
+
 ## 13. API (all under the module gate; JSON; errors `{code, message_he, details}`; every write audited)
 
 Order of checks on every route: signed in -> module switch (404) -> calendar visibility (uniform 404) -> role/permission (audited 403)

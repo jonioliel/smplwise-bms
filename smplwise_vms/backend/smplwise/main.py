@@ -295,6 +295,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         calendar_jobs.tick(db)
     except Exception:  # noqa: BLE001
         log.warning("calendar janitor failed", exc_info=True)
+    try:  # CALENDARS-298 phase 2: due external-calendar syncs (polling, at most once a minute per process; nothing while the module or sync is off)
+        from .services.calendar import jobs as calendar_jobs
+
+        calendar_jobs.sync_tick(db, settings.data_dir)
+    except Exception:  # noqa: BLE001
+        log.warning("calendar sync tick failed", exc_info=True)
     try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
         from .services import messaging_runtime
 
@@ -845,6 +851,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(calendar_router.open_router, prefix=api, tags=["calendar"])  # module state, settings, guest purge: answer while the module is off
     app.include_router(calendar_router.router, prefix=api, tags=["calendar"])
+    from .routers import calendar_sync as calendar_sync_router  # CALENDARS-298 phase 2: external calendar connections, bindings, manual sync (no real provider yet)
+
+    app.include_router(calendar_sync_router.router, prefix=api, tags=["calendar"])
     from .routers import transit as transit_router  # BUSTIMES-295: הגדרות › תחבורה ציבורית (stops, catalogue, health); the TV digest is a notices display route
 
     app.include_router(transit_router.router, prefix=api, tags=["transit"])

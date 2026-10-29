@@ -51,6 +51,12 @@ SETTINGS_DEFAULTS: dict[str, Any] = {
     "maintenance_task_calendar": None,
     "notify_confirmations": False,
     "feeds_enabled": False,
+    "sync_enabled": True,  # P2: the external-sync engine (C8/C9); nothing runs without a connection a `calendar.connect` holder created
+    "sync_poll_min": 5,  # contract 12.3: 2-60
+    "sync_accept_external": True,  # C9: external changes are accepted in both directions; off = pull is skipped (export only)
+    "sync_external_delete": "cancel",  # C9: an entry deleted outside Arx is cancelled in Arx (`cancel`) or kept and flagged (`flag`)
+    "sync_google_scope": "full",  # C8: full calendar scope, no extra approval prompts in Arx (`full` | `events`)
+    "sync_manual_min_interval_s": 60,  # contract 12.3: manual "sync now" rate limit
     "default_hours": {"weekdays": [7, 1, 2, 3, 4], "start": "07:00", "end": "19:00"},  # stand-in for the SLACAL working-hours calendar (phase 3)
 }
 
@@ -223,6 +229,13 @@ def settings_doc(doc: dict[str, Any]) -> dict[str, Any]:
         raise Invalid("ticket_visit_calendar_by_department: object", "ticket_visit_calendar_by_department")
     if s["maintenance_task_calendar"] is not None and not isinstance(s["maintenance_task_calendar"], str):
         raise Invalid("maintenance_task_calendar: id or null", "maintenance_task_calendar")
+    for f in ("sync_enabled", "sync_accept_external"):
+        if not isinstance(s[f], bool):
+            raise Invalid(f"{f}: true or false", f)
+    s["sync_poll_min"] = _int(s["sync_poll_min"], "sync_poll_min", 2, 60)
+    s["sync_external_delete"] = _choice(s["sync_external_delete"], "sync_external_delete", ("cancel", "flag"))
+    s["sync_google_scope"] = _choice(s["sync_google_scope"], "sync_google_scope", ("full", "events"))
+    s["sync_manual_min_interval_s"] = _int(s["sync_manual_min_interval_s"], "sync_manual_min_interval_s", 0, 3600)
     s["default_hours"] = hours_doc(s["default_hours"], "default_hours")
     return s
 

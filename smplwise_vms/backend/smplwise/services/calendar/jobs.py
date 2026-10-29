@@ -56,3 +56,32 @@ def tick(db: Database) -> None:
     except Exception:  # noqa: BLE001 - housekeeping never stops the janitor tick
         log.warning("calendar janitor failed", exc_info=True)
 
+
+
+def sync_run(db: Database, data_dir, now: dt.datetime | None = None) -> dict:
+    """Phase 2: every due external-calendar sync (polling; nothing while the module or `sync_enabled` is off, nothing without a connection)."""
+    from ..calendar_sync import engine  # noqa: PLC0415
+
+    now = now or dt.datetime.now(dt.timezone.utc)
+    with db.connection(label="calendar.sync") as conn:
+        settings = model.read_settings(conn)
+        if not settings["enabled"] or not settings["sync_enabled"]:
+            return {}
+        return engine.run_due(conn, data_dir, settings, now)
+
+
+_last_sync_tick = 0.0
+
+
+def sync_tick(db: Database, data_dir) -> None:
+    """At most once per minute per process; the connections' own `next_sync_at` (poll_min, jitter, back-off) decides who is due."""
+    global _last_sync_tick
+    import time  # noqa: PLC0415
+
+    if _last_sync_tick and time.monotonic() - _last_sync_tick < 55:
+        return
+    _last_sync_tick = time.monotonic()
+    try:
+        sync_run(db, data_dir)
+    except Exception:  # noqa: BLE001 - housekeeping never stops the janitor tick
+        log.warning("calendar sync failed", exc_info=True)

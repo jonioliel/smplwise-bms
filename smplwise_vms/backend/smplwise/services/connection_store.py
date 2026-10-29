@@ -718,3 +718,20 @@ def seal_calendar_guest(data_dir: Path, event_id: str, seq: int, field: str, pla
 
 def open_calendar_guest(data_dir: Path, event_id: str, seq: int, field: str, blob: str) -> str:
     return _open(_Home(data_dir), _cal_guest_aad(event_id, seq, field), blob)
+
+
+# ---------------------------------------------------------------- calendar sync bindings (CALENDARS-298 section 12 / 3.7)
+# The external calendar reference and the provider sync token of a binding; associated data `"cal_sync|<binding id>|<ref|token>"`.
+
+def _cal_sync_aad(binding_id: str, field: str) -> bytes:
+    if not isinstance(binding_id, str) or not 1 <= len(binding_id) <= 64 or any(ord(ch) < 32 or ord(ch) == 127 or ch == "|" for ch in binding_id) or field not in ("ref", "token"):
+        raise SecretError("not a secret field")
+    return f"cal_sync|{binding_id}|{field}".encode("utf-8")
+
+
+def seal_calendar_sync(data_dir: Path, binding_id: str, field: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _cal_sync_aad(binding_id, field), plaintext)
+
+
+def open_calendar_sync(data_dir: Path, binding_id: str, field: str, blob: str) -> str:
+    return _open(_Home(data_dir), _cal_sync_aad(binding_id, field), blob)
