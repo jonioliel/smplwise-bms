@@ -241,7 +241,7 @@ test.describe('קברניט with a session: the gates and a stored ui.tabs', () 
     st.perms = [...VIEWER_PERMS, 'schedule.view'];
     st.settings = { 'ui.tabs': { devices: { order: ['schedules', 'building', 'automations'], hidden: ['schedules'] } } };
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט', 'מפה סינופטית']); // a stored order that predates the synoptic tab keeps its order and the new tab follows it;
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect.poll(() => hashOf(page)).toBe('#/devices/schedules');
     await expect(page.locator('sw-app devices-schedules [data-sched-grid]')).toBeVisible();
