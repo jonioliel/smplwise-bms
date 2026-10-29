@@ -10,7 +10,7 @@ import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import {
-  NAV_PRESETS, NAV_PRESET_LABEL, NAV_RANGE, freeFrom, installationNavSize, navCssVars, navDims, navSize, onNavSize, ownNavSize,
+  NAV_PRESETS, NAV_PRESET_LABEL, installationNavSize, navCssVars, navDims, navSize, onNavSize, ownNavSize,
   sameNavSize, saveOwnNavSize, setInstallationNavSize, type NavSize,
 } from '../shell/nav-size';
 import { SkinController } from '../design/skin';
@@ -117,40 +117,6 @@ export class SystemNavSize extends LitElement {
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
-    }
-    .free {
-      display: grid;
-      gap: 10px;
-      padding: 10px 0;
-    }
-    .free label {
-      display: grid;
-      grid-template-columns: 110px minmax(120px, 1fr) 56px;
-      align-items: center;
-      gap: 10px;
-      min-block-size: 36px;
-    }
-    .free input[type='range'] {
-      inline-size: 100%;
-      accent-color: var(--sw-accent);
-      min-block-size: 24px;
-    }
-    .free output {
-      direction: ltr;
-      text-align: end;
-      color: var(--sw-text-2);
-      font-variant-numeric: tabular-nums;
-    }
-    .free .check {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      grid-template-columns: none;
-    }
-    .free .check input {
-      inline-size: 18px;
-      block-size: 18px;
-      accent-color: var(--sw-accent);
     }
     .stage {
       display: flex;
@@ -290,17 +256,6 @@ export class SystemNavSize extends LitElement {
     this.error = '';
   }
 
-  private setMode(mode: 'rel' | 'free') {
-    if (this.draft.mode === mode) return;
-    this.draft = mode === 'free' ? freeFrom(this.draft) : { mode: 'rel', preset: nearestPreset(this.draft) };
-  }
-
-  private setFree(patch: Partial<{ icon: number; label: number; item: number }>) {
-    const f = freeFrom(this.draft);
-    this.draft = { ...f, ...patch };
-    this.message = '';
-  }
-
   private get dirty(): boolean {
     return !sameNavSize(this.draft, this.storedOf(this.target)) || (this.target === 'own' && ownNavSize() === null);
   }
@@ -351,17 +306,6 @@ export class SystemNavSize extends LitElement {
       )}</span></div>`;
   }
 
-  private renderFree() {
-    const f = freeFrom(this.draft);
-    const labelsOn = f.label > 0;
-    return html`<div class="free" data-nav-free>
-      <label><span>גודל האייקון</span><input type="range" data-free-icon min=${NAV_RANGE.icon[0]} max=${NAV_RANGE.icon[1]} step="1" .value=${String(f.icon)} @input=${(e: Event) => this.setFree({ icon: Number((e.target as HTMLInputElement).value) })} /><output>${f.icon}px</output></label>
-      <label class="check"><input type="checkbox" data-free-labels ?checked=${labelsOn} @change=${(e: Event) => this.setFree({ label: (e.target as HTMLInputElement).checked ? 11 : 0 })} /><span>להציג שמות מתחת לאייקונים</span></label>
-      ${labelsOn ? html`<label><span>גודל השם</span><input type="range" data-free-label min=${NAV_RANGE.label[0]} max=${NAV_RANGE.label[1]} step="1" .value=${String(f.label)} @input=${(e: Event) => this.setFree({ label: Number((e.target as HTMLInputElement).value) })} /><output>${f.label}px</output></label>` : nothing}
-      <label><span>גובה הפריט</span><input type="range" data-free-item min=${NAV_RANGE.item[0]} max=${NAV_RANGE.item[1]} step="1" .value=${String(f.item)} @input=${(e: Event) => this.setFree({ item: Number((e.target as HTMLInputElement).value) })} /><output>${f.item}px</output></label>
-    </div>`;
-  }
-
   private renderPreview() {
     const d = navDims(this.draft);
     const vars = Object.entries(navCssVars(d)).map(([k, v]) => `${k}:${v}`).join(';');
@@ -389,12 +333,7 @@ export class SystemNavSize extends LitElement {
               <button type="button" data-nav-target="installation" aria-pressed=${this.target === 'installation' ? 'true' : 'false'} @click=${() => this.setTarget('installation')}>ברירת מחדל של המערכת</button>
             </span></div>`
         : nothing}
-      <div class="row"><span class="lbl">אופן הבחירה</span>
-        <span class="seg" role="group" aria-label="אופן הבחירה">
-          <button type="button" data-nav-mode="rel" aria-pressed=${this.draft.mode === 'rel' ? 'true' : 'false'} @click=${() => this.setMode('rel')}>יחסי</button>
-          <button type="button" data-nav-mode="free" aria-pressed=${this.draft.mode === 'free' ? 'true' : 'false'} @click=${() => this.setMode('free')}>חופשי</button>
-        </span></div>
-      ${this.draft.mode === 'rel' ? this.renderRel() : this.renderFree()}
+      ${this.renderRel()}
       ${this.renderPreview()}
       <div class="foot">
         <sw-button variant="primary" size="sm" icon="check" data-nav-save ?disabled=${!this.dirty || this.busy} @click=${() => void this.save()}>שמור</sw-button>
@@ -404,13 +343,6 @@ export class SystemNavSize extends LitElement {
       </div>
     </sw-card>`;
   }
-}
-
-/** The preset closest to a free value's icon size (switching from חופשי back to יחסי). */
-function nearestPreset(s: NavSize): 's' | 'm' | 'l' | 'xl' {
-  if (s.mode === 'rel') return s.preset;
-  const icons = { s: 18, m: 20, l: 25, xl: 30 } as const;
-  return (Object.entries(icons) as ['s' | 'm' | 'l' | 'xl', number][]).reduce((best, e) => (Math.abs(e[1] - s.icon) < Math.abs(icons[best] - s.icon) ? e[0] : best), 'm' as 's' | 'm' | 'l' | 'xl');
 }
 
 declare global {
