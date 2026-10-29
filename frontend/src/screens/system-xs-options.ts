@@ -121,7 +121,7 @@ export class SystemXsOptions extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const r = await patchSettings({ 'ui.xs': this.draft });
+      const r = await patchSettings({ 'ui.xs': { ...this.draft } as Record<string, unknown> });
       invalidateSettings();
       setXsOptions(r.settings['ui.xs']);
       applySynopticHidden(xsOptions().syn_tab);
