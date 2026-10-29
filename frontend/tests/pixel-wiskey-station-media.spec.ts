@@ -28,7 +28,7 @@ async function toDrawer(page: Page, skin: string, over: Partial<StationMediaMock
   await settlePage(page);
   await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="${station}"] button.open`).click();
   await expect(page.locator(`${SCREEN} sw-drawer[data-wk-drawer]`)).toHaveAttribute('open', '');
-  // the phone's lobby baseline (no-talk) shows the lobby card at the top edge of the screen behind the sheet; the gate card's shots
+  // the phone's lobby baseline (no-talk) shows the lobby card 1 px above the top edge of the screen behind the sheet; the gate card's shots
   // (talking, busy, drawer) already land at one offset once the entrance has settled and are left as they are
   const phone = page.viewportSize()?.width === 390;
   if (!phone || station === 'lobby') {
@@ -36,7 +36,7 @@ async function toDrawer(page: Page, skin: string, over: Partial<StationMediaMock
       const main = document.querySelector('sw-app')?.shadowRoot?.querySelector('main');
       if (!main) return;
       main.scrollTop = at === null ? 0 : Math.max(0, Math.round(main.scrollTop + card.getBoundingClientRect().top - at));
-    }, phone ? 0 : null);
+    }, phone ? -1 : null);
     await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
   }
   await page.evaluate(() => document.fonts.ready);
