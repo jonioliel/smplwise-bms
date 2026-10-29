@@ -331,6 +331,44 @@ def test_a_frigate_error_on_a_still_is_a_json_error_not_a_leak(world):
     assert r.status_code == 503 and r.json()["code"] == "source_unavailable"
 
 
+def _age_the_stored_still(world, camera_id, seconds):
+    import os
+
+    f = world.s.data_dir / "snapshots" / f"{camera_id}.jpg"
+    t = f.stat().st_mtime - seconds
+    os.utime(f, (t, t))
+    frigate_io.clear_stills()  # the short in-memory cache is not what is under test
+
+
+def test_frigate_still_file_is_not_held_for_the_whole_configured_age(world):
+    cams = world.cams()
+    url = f"/api/v1/cameras/{cams['cam_yard']}/snapshot.jpg"
+    first = world.c.get(url)
+    assert first.status_code == 200 and int(first.headers["X-Snapshot-Age"]) <= 1
+    _age_the_stored_still(world, cams["cam_yard"], 30)  # well inside snapshots.max_age_s (60), beyond the Frigate cap
+    again = world.c.get(url)
+    assert again.status_code == 200 and int(again.headers["X-Snapshot-Age"]) <= 1, "a new frame was read, not the 30 s old file"
+    assert "X-Snapshot-Stale" not in again.headers
+
+
+def test_an_old_frigate_still_is_served_marked_but_capped(world):
+    cams = world.cams()
+    url = f"/api/v1/cameras/{cams['cam_yard']}/snapshot.jpg"
+    assert world.c.get(url).status_code == 200
+    world.fake.latest_status = 500
+    _age_the_stored_still(world, cams["cam_yard"], 30)
+    r = world.c.get(url)
+    assert r.status_code == 200 and r.headers["X-Snapshot-Stale"] == "true" and int(r.headers["X-Snapshot-Age"]) >= 30
+    _age_the_stored_still(world, cams["cam_yard"], frigate_io.STALE_MAX_S + 60)
+    r = world.c.get(url)
+    assert r.status_code == 503, "a copy older than the cap is an error, not a picture that lies"
+
+
+def test_still_age_helpers():
+    assert frigate_io.file_max_age(60) == frigate_io.FILE_MAX_AGE_S and frigate_io.file_max_age(2) == 2.0 and frigate_io.file_max_age(0) == 1.0
+    assert frigate_io.stale_servable(10) and not frigate_io.stale_servable(frigate_io.STALE_MAX_S + 1)
+
+
 # ---------------------------------------------------------------------------------------------- recordings and playback
 
 def test_recordings_coverage_policy_and_density(world):

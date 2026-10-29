@@ -303,6 +303,15 @@ export const frigateEn: FrigateText = {
     live: 'Live video',
     liveOf: 'cameras of',
     liveNone: 'Refreshing stills only',
+    liveWhy: 'Reason',
+    liveReason: {
+      off: 'Live video is switched off in the recorder settings (restream).',
+      no_go2rtc_url: "Arx's own go2rtc address is not configured (go2rtc_url).",
+      no_streams: 'Frigate publishes no restream streams (check the go2rtc settings in Frigate).',
+      no_match: 'No restream stream matches the cameras.',
+      partial: 'Only some cameras have a restream stream.',
+      flag_off: 'Live video is switched off by the add-on option frigate_enabled.',
+    },
     lastEvent: 'Last event',
     lastEventNone: 'No events received yet',
     eventsStale: 'Reading events from the recorder has stopped',
@@ -464,6 +473,7 @@ export const frigateEn: FrigateText = {
   live: {
     stillLabel: 'Refreshing still',
     stillLabelEvery: 'Still refreshes every',
+    stillStale: 'Old picture - no new picture from the recorder',
     seconds: 's',
     stillHint: 'This recorder does not stream live video',
     stillExplain: 'This camera has no live video right now, so a picture that refreshes every {n} seconds is shown. Live video appears here by itself once it is available.',

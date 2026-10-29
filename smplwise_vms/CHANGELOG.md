@@ -1,9 +1,17 @@
 # Changelog — SmplWise Arx add-on
 
-## 2.27.3 (DRAFT) — Frigate events keep their camera
+## 2.27.2 (DRAFT) — Site-name clip fix, Frigate review camera backfill, Frigate live video decoupled from the add-on option with a visible reason
+**After installing:** no database migration and no setting changes by itself; going back is safe. Live video starts for Frigate cameras that have a matching stream once Arx's own go2rtc address (`go2rtc_url`) is set.
+- **עברית:** אחרי ההתקנה: אין מיגרציה ושום הגדרה לא משתנה מעצמה; חזרה אחורה בטוחה. שידור חי יתחיל למצלמות Frigate שיש להן זרם מתאים כשכתובת ה-go2rtc של ארקס (`go2rtc_url`) מוגדרת.
+
 ### What was fixed - מה תוקן
+- **English:** A site name now always fits its site card: the name takes the full width, scales with the card and may use up to three lines; the count stays on one line and the buttons sit on their own aligned row (phone cards use a 2:1 picture so a three-line card stays within the compact height).
+- **עברית:** שם אתר תמיד נכנס בכרטיס האתר: השם תופס את כל הרוחב, מתכוונן לכרטיס ויכול לתפוס עד שלוש שורות; הספירה נשארת בשורה אחת והכפתורים בשורה נפרדת ומיושרת (בטלפון כרטיס האתר משתמש בתמונה ביחס 2:1 כדי שכרטיס של שלוש שורות יישאר בגובה הקומפקטי).
 - **English:** Frigate review items and events that arrived before the cameras were imported (first start) no longer stay without a camera: after every camera import they are linked to their camera, so their playback and recordings open.
 - **עברית:** פריטי סקירה ואירועים של Frigate שהגיעו לפני ייבוא המצלמות (בהפעלה הראשונה) כבר לא נשארים בלי מצלמה: אחרי כל ייבוא מצלמות הם מקושרים למצלמה שלהם, ולכן ההשמעה וההקלטות שלהם נפתחות.
+- **English:** A Frigate recorder that already exists now gets live video even when the add-on option `frigate_enabled` is off (the option only decides whether NEW Frigate recorders can be created). Before, every Frigate camera silently fell back to a still picture. The Frigate status screen now says in one line why there is no live video (switched off for the recorder, `go2rtc_url` missing, Frigate lists no streams, no stream matches, or only some cameras have one). The still picture of a Frigate camera is re-read at least every 5 seconds instead of every 60, an old copy shown because Frigate failed is never older than 5 minutes, and the tile says "old picture" when it is one. A `<camera>_sub` stream is used for small tiles when Frigate lists it (nothing is created anywhere).
+- **עברית:** מקליט Frigate שכבר קיים מקבל כעת שידור חי גם כשאפשרות התוסף `frigate_enabled` כבויה (האפשרות קובעת רק אם אפשר ליצור מקליטי Frigate חדשים). קודם כל מצלמות Frigate חזרו בשקט לתמונה בלבד. מסך הסטטוס של Frigate אומר כעת בשורה אחת למה אין שידור חי (כבוי למקליט, חסר `go2rtc_url`, Frigate לא מפרסם זרמים, אין זרם מתאים, או שרק לחלק מהמצלמות יש). תמונת הסטילס של מצלמת Frigate נקראת מחדש לפחות כל 5 שניות במקום 60, עותק ישן שמוצג כי Frigate נכשל אינו ישן מ-5 דקות, והאריח כותב "תמונה ישנה" כשזה המצב. זרם `<מצלמה>_sub` משמש לאריחים קטנים כשהוא קיים ב-Frigate (שום זרם לא נוצר בשום מקום).
+
 
 ## 2.27.1 (pilot) — Security and WisKey screens redesigned, phone home shows every floor, navigation size simplified, people table and service overview fixes
 **After installing:** no database migration and no new setting turns on by itself; going back to 2.27.0 is safe.
