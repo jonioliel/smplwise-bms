@@ -75,7 +75,8 @@ export class DevicesSynoptic extends LitElement {
     .shdr { padding: 0 12px; color: var(--sw-text-3); font-size: 12px; font-weight: var(--sw-fw-semibold); }
     .shdr span { display: inline-flex; gap: 5px; align-items: center; min-inline-size: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .srows { display: flex; flex-direction: column; justify-content: flex-start; gap: 5px; min-block-size: 0; container-type: size; }
-    .srow { flex: 1 1 0; min-block-size: 0; max-block-size: 76px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--sw-surface-2); text-align: start; color: inherit; font: inherit; cursor: pointer; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
+    .srow, nav.tree button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+        .srow { flex: 1 1 0; min-block-size: 0; max-block-size: 76px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--sw-surface-2); text-align: start; color: inherit; font: inherit; cursor: pointer; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
     .srow:active { transform: scale(var(--sw-press-scale, 0.98)); }
     @media (hover: hover) and (pointer: fine) { .srow:hover:not([aria-pressed='true']) { background: var(--sw-surface-3); } }
     .srow[aria-pressed='true'] { background: var(--sw-accent-soft); box-shadow: inset 0 0 0 2px var(--sw-accent); }
@@ -273,7 +274,7 @@ export class DevicesSynoptic extends LitElement {
       const fz = rep.floors[f.id];
       rows.push(html`<button class="srow sgrid" style="--cols:${cols.length};--pcols:${phoneCols.length}" data-syn-row=${f.id} aria-pressed=${this.sel === f.id} data-temp=${tt ?? ''} ?data-off=${f.nodata} data-fire=${fz && fz.state !== 'ok' ? fz.state : ''} @click=${() => this.pick(f.id)}
         aria-label=${`${f.name}${f.nodata ? `, ${xt('noData')}` : ''}${fz?.state === 'alarm' ? `, ${xt('fireAlarm')} (${xt('fireDemo')})` : ''}`}>
-        <span class="nm"><span class="t" dir="auto">${bidi(f.name)}</span><span class="s">${f.nodata ? xt('noDataSince') : xt('level', { n: ltrNum(f.level) })}</span></span>
+        <span class="nm"><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span><span class="s">${f.nodata ? xt('noDataSince') : xt('level', { n: ltrNum(f.level) })}</span></span>
         ${cols.map((c) => (this.isPhoneCol(c) ? this.cell(c, f, o, rep) : html`<span class="hide-phone">${this.cell(c, f, o, rep)}</span>`))}
       </button>`);
     });

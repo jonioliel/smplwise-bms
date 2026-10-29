@@ -75,7 +75,9 @@ export class SwXSection extends LitElement {
       .body { min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
       .body.has-shafts { padding-block-start: 22px; }
       .stack { container-type: size; position: relative; min-block-size: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
-      .row { position: relative; flex: 1 1 0; min-block-size: 0; max-block-size: 132px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(150px, auto); align-items: center; gap: 14px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--sw-surface-2); text-align: start; color: inherit; font: inherit; cursor: pointer; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), box-shadow var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
+      .row, .xtile { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+          .row { position: relative; flex: 1 1 0; min-block-size: 0; max-block-size: 132px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(150px, auto); align-items: center; gap: 14px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--sw-surface-2); text-align: start; color: inherit; font: inherit; cursor: pointer; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), box-shadow var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
       .row:active { transform: scale(var(--sw-press-scale, 0.98)); }
       @media (hover: hover) and (pointer: fine) { .row:hover:not(.sel), .row.hl:not(.sel) { background: var(--sw-surface-3); } }
       .nm { min-inline-size: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
@@ -166,7 +168,7 @@ export class SwXSection extends LitElement {
     const sel = this.selectedId === f.id;
     return html`<button class="row ${f.level < 0 ? 'below' : ''} ${sel ? 'sel' : ''} ${this.hoverId === f.id ? 'hl' : ''}" style="--i:${index}" data-xs-row=${f.id} aria-pressed=${sel} aria-label=${label}
         data-temp=${t ?? ''} ?data-off=${f.nodata} data-fire=${alarm ? 'alarm' : ''} @click=${() => this.pick(f.id)} @pointerenter=${(e: PointerEvent) => e.pointerType === 'mouse' && this.hover(f.id)} @pointerleave=${(e: PointerEvent) => e.pointerType === 'mouse' && this.hover(null)}>
-      <span class="nm"><span class="t" dir="auto">${bidi(f.name)}</span><span class="s">${sub}</span></span>
+      <span class="nm"><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span><span class="s">${sub}</span></span>
       ${panes(f, 10)}
       <span class="val">
         ${alarm ? html`<span class="chip hot" style="background:var(--sw-danger);color:#fff">${xi('flame')}<span class="w">${xt('fireAlarm')}</span></span>` : nothing}
