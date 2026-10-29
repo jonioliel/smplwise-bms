@@ -147,8 +147,9 @@ export function updatedLineParts(u: 'place' | 'full', c: { label: string; place:
 
 // ---------------------------------------------------------------- BOARDV2-297: the V2 board (owner-approved mock-up 2026-10-26)
 
-/** classic = the board as before; v2 = the V2 board (40 px margins, weather under the date, a fixed bus area per layout, Heebo, gold). */
-export type Design = 'classic' | 'v2';
+/** classic = the board as before; v2 = the V2 board (40 px margins, weather under the date, a fixed bus area per layout, Heebo, gold);
+ * NOTICEBOARD-STYLES-2300: ink = the e-paper station display, sign = the wayfinding signage (maintenance-area styles; neither is a default). */
+export type Design = 'classic' | 'v2' | 'ink' | 'sign';
 /** The V2 layout: side = an information column (clock, date, weather, bus panel); strip = a full-width bus row; slide = a full-stage bus slide. */
 export type BoardLayout = 'side' | 'strip' | 'slide';
 /** The tenant logo's height in the V2 header: auto = the system logo settings, else 72 / 96 / 120 / 144 px. */
@@ -156,7 +157,7 @@ export type CoSize = 'auto' | 's' | 'm' | 'l' | 'xl';
 /** The portrait V2 board below the clock row: the bus panel first, or the notices first. */
 export type PortraitOrder = 'bus' | 'notices';
 export type NextRow = 'show' | 'hide';
-export const DESIGNS: Design[] = ['classic', 'v2'];
+export const DESIGNS: Design[] = ['classic', 'v2', 'ink', 'sign'];
 export const BOARD_LAYOUTS: BoardLayout[] = ['side', 'strip', 'slide'];
 export const CO_SIZES: CoSize[] = ['auto', 's', 'm', 'l', 'xl'];
 export const PORTRAIT_ORDERS: PortraitOrder[] = ['bus', 'notices'];
@@ -255,12 +256,12 @@ const STRINGS = {
   he: {
     welcome: 'ברוכים הבאים', urgent: 'הודעה דחופה', alert: 'חשוב', paused: 'מושהה', news: 'חדשות', empty: 'אין הודעות כרגע', niceDay: 'יום נעים',
     gone: 'הלוח אינו פעיל', goneHint: 'פנו להנהלת הבניין', offline: 'הלוח מנותק מהמערכת · מוצגות ההודעות האחרונות', staleFrom: 'לא מעודכן מ-{t}',
-    updated: 'עודכן', more: 'ועוד {n} הודעות', permanent: 'קבוע', until: 'עד {d}', today: 'היום', tomorrow: 'מחר', candles: 'כניסת שבת {t}', poweredBy: 'מופעל על ידי SmplWise Arx',
+    updated: 'עודכן', more: 'ועוד {n} הודעות', permanent: 'קבוע', next: 'בהמשך', ofN: '{i} מתוך {n}', slideWord: 'שקופית', infoWord: 'מידע', annUrgent: 'הודעה קולית דחופה', annNormal: 'הודעה קולית', shownUntil: 'מוצג עד {t}', until: 'עד {d}', today: 'היום', tomorrow: 'מחר', candles: 'כניסת שבת {t}', poweredBy: 'מופעל על ידי SmplWise Arx',
   },
   en: {
     welcome: 'Welcome', urgent: 'Urgent notice', alert: 'Important', paused: 'Paused', news: 'News', empty: 'No notices right now', niceDay: 'Have a nice day',
     gone: 'This board is not active', goneHint: 'Please contact the building management', offline: 'The board is offline · showing the last notices',
-    staleFrom: 'Not updated since {t}', updated: 'Updated', more: '{n} more notices', permanent: 'Ongoing', until: 'Until {d}', today: 'today',
+    staleFrom: 'Not updated since {t}', updated: 'Updated', more: '{n} more notices', permanent: 'Ongoing', next: 'Up next', ofN: '{i} of {n}', slideWord: 'Slide', infoWord: 'Info', annUrgent: 'Urgent voice announcement', annNormal: 'Voice announcement', shownUntil: 'Shown until {t}', until: 'Until {d}', today: 'today',
     tomorrow: 'tomorrow', candles: 'Candle lighting {t}', poweredBy: 'Powered by SmplWise Arx',
   },
 };

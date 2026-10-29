@@ -33,7 +33,7 @@ def _fd(client, slug, token):
 
 
 def test_the_v2_choices_and_their_factory_defaults():
-    assert model.DESIGNS == ("classic", "v2")
+    assert model.DESIGNS == ("classic", "v2", "ink", "sign")  # NOTICEBOARD-STYLES-2300 added ink / sign
     assert model.BOARD_LAYOUTS == ("side", "strip", "slide")
     assert model.CO_SIZES == ("auto", "s", "m", "l", "xl")
     assert model.PORTRAIT_ORDERS == ("bus", "notices")
