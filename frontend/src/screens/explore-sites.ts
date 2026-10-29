@@ -302,6 +302,36 @@ export class ExploreSites extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
+    /* SITENAME-2272: a site name always fits its card. The card is the size container; the action buttons take their own row at the
+       top end (so the name gets the full card width and the buttons align across a row), the name shrinks with the card width and may
+       use three lines (the full text stays in the title attribute), and the count line never wraps. */
+    .info {
+      container-type: inline-size;
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: 4px;
+    }
+    .info .acts {
+      grid-row: 1;
+      justify-content: flex-end;
+      min-block-size: 36px;
+    }
+    .info .txt {
+      grid-row: 2;
+    }
+    .info b.clamp2 {
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+      font-size: clamp(var(--sw-fs-lg), 7.2cqi, var(--sw-fs-2xl));
+      line-height: 1.25;
+      overflow-wrap: break-word;
+      word-break: normal;
+      hyphens: auto;
+    }
+    .info small:not(.clamp2) {
+      white-space: nowrap;
+      font-size: clamp(var(--sw-fs-sm), 5.2cqi, var(--sw-fs-lg));
+      padding-inline: 10px;
+    }
     .brow small {
       display: inline-block;
       padding: 2px 10px;
