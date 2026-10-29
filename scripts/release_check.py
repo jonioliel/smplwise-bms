@@ -32,6 +32,17 @@ def find(pattern: str, text: str) -> str | None:
     return m.group(1) if m else None
 
 
+def changelog_head(text: str) -> str | None:
+    """The newest RELEASED section: a heading marked DRAFT (a section written ahead of its release, version files not bumped yet) is
+    not the head. At release prep the version files are bumped and the DRAFT mark removed together; bumping without removing it
+    leaves the head on the previous version and 'one version everywhere' fails, so a draft can never be released by accident."""
+    for line in text.splitlines():
+        m = re.match(r"## (\d+\.\d+\.\d+)(.*)$", line)
+        if m and not re.search(r"\bDRAFT\b", m.group(2)):
+            return m.group(1)
+    return None
+
+
 def dir_identical(a: Path, b: Path) -> tuple[bool, list[str]]:
     diffs: list[str] = []
 
@@ -68,7 +79,7 @@ def run_checks(root: Path) -> dict[str, Any]:
     cfg_v = find(r'^version:\s*"([^"]+)"', read(addon / "config.yaml"))
     docker_v = find(r'io\.hass\.version="([^"]+)"', read(addon / "Dockerfile"))
     py_v = find(r'^__version__\s*=\s*"([^"]+)"', read(addon / "backend" / "smplwise" / "__init__.py"))
-    ch_v = find(r"^## (\d+\.\d+\.\d+)", read(addon / "CHANGELOG.md"))
+    ch_v = changelog_head(read(addon / "CHANGELOG.md"))
     inv_v = find(r"^Version (\d+\.\d+\.\d+)", read(root / "contracts" / "API_INVENTORY.md"))
     versions = {"config.yaml": cfg_v, "Dockerfile": docker_v, "__init__.py": py_v, "CHANGELOG head": ch_v, "API inventory": inv_v}
     same = cfg_v is not None and all(v == cfg_v for v in versions.values())

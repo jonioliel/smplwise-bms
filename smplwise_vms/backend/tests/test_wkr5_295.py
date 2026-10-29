@@ -26,9 +26,9 @@ from smplwise.services import wiskey_media_bridge as bridge
 from smplwise.services.wiskey_capture_port import PortError
 
 # WISKEY-MAC-ADOPT-298 item E: the FINAL Mac catalog of 27.10 (04_vectors_catalog/catalog/COMMAND_CATALOG.jsonl) replaces the R5 one
-# WISKEY-ADOPT-2272: the owner28 catalog (00_summary/runs/CATALOG-FINAL-08/catalog/COMMAND_CATALOG.jsonl, CODE 0a099c53)
-ORIGINAL_CATALOG_SHA256 = "15ad9de70fd5929053d1aeba60b0c33e723ef8197624e0f43544db4571e589bf"  # owner28 COMMAND_CATALOG.jsonl bytes
-CODE = "0a099c53d359a1bffdf9e63f31d2433f1c9445a4"
+# WISKEY-R3-2272: the R3 catalog (superset of the owner28 one; 294 commands in 44 families, CODE 4407121a) - the pins follow the adopted file
+ORIGINAL_CATALOG_SHA256 = "3123d20d086856f981f22c0604a4e951350482587d530a6e9a2c054898a4642e"  # the adopted COMMAND_CATALOG.jsonl bytes
+CODE = "4407121a8ad9df2bbebc07161808bbbc2664b592"
 
 
 @pytest.fixture(autouse=True)
@@ -61,9 +61,9 @@ def sent(server: JoinServer) -> list[str]:
 def test_catalog_counts_names_not_lines_and_skips_provenance() -> None:
     c = wdc.load()
     lines = [json.loads(x) for x in wdc.CATALOG_PATH.read_text(encoding="utf-8").splitlines() if x.strip()]
-    assert len(lines) == 287 and lines[0]["kind"] == "CATALOG_PROVENANCE"
-    assert c.command_count == 286 and c.registered_count == 282 and c.discovered_count == 281
-    assert len(c.families) == 43 and "direct" in c.families
+    assert len(lines) == 295 and lines[0]["kind"] == "CATALOG_PROVENANCE"
+    assert c.command_count == 294 and c.registered_count == 290 and c.discovered_count == 289
+    assert len(c.families) == 44 and "direct" in c.families
     assert c.code == CODE and c.source_sha256 == ORIGINAL_CATALOG_SHA256
     direct_only = sorted(e.command for e in c.entries() if e.row_kind == "DIRECT_ONLY_COMMAND")
     assert direct_only == ["direct/capabilities", "direct/capabilities_v2", "direct/time", "peer_identity/get"]
@@ -103,9 +103,9 @@ def test_a_malformed_catalog_is_refused_whole(mutate: Any, code: str) -> None:
 def test_the_caller_map_covers_every_catalog_family() -> None:
     path = Path(__file__).resolve().parents[3] / "docs" / "integrations" / "wiskey" / "r5" / "CALLER_MAP.json"
     m = json.loads(path.read_text(encoding="utf-8"))
-    assert m["catalog_source_sha256"] == ORIGINAL_CATALOG_SHA256 and m["family_count"] == 43 and m["command_count"] == 286
+    assert m["catalog_source_sha256"] == ORIGINAL_CATALOG_SHA256 and m["family_count"] == 44 and m["command_count"] == 294
     assert set(m["families"]) == set(wdc.load().families)
-    assert sum(len(f["commands"]) for f in m["families"].values()) == 286
+    assert sum(len(f["commands"]) for f in m["families"].values()) == 294
 
 
 # ================================================================ the discovery reader

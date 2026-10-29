@@ -1,5 +1,6 @@
 """Read-only local namespace probe, stored independently of pair readiness."""
 import json,shutil,subprocess
+from .child_env import minimal_env
 from .wiskey_auto_install import InstallationError
 
 
@@ -7,7 +8,7 @@ def local():
     binary=shutil.which('ffmpeg');version=None
     if binary:
         try:
-            result=subprocess.run([binary,'-version'],capture_output=True,text=True,timeout=2)
+            result=subprocess.run([binary,'-version'],capture_output=True,text=True,timeout=2,env=minimal_env())
             if result.returncode==0:version=result.stdout.splitlines()[0][:256]
         except (OSError,subprocess.TimeoutExpired):pass
     return {'namespace':'arx_addon','ffmpeg':{'available':binary is not None,'version':version},'external_go2rtc_namespace':'not_measured'}

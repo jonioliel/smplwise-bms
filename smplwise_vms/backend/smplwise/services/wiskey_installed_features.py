@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Mapping
 
+from ..db import commit_now, rollback_now
+
 log = logging.getLogger("smplwise.wiskey.installed")
 
 _REF_MAX = 128
@@ -101,7 +103,7 @@ class TemplateJobs:
     def _note(self, view: JobView) -> None:
         self.conn.execute("UPDATE wiskey_template_jobs SET state = ?, outcome = ?, code = ?, updated_at = ? WHERE operation_id = ?",
                           (view.state, view.outcome, view.code, _now(), view.operation_id))
-        self.conn.commit()
+        commit_now(self.conn, keep_reading=False)
 
     async def enqueue(self, client: Any, template: Mapping[str, Any], *, ttl_s: int, template_id: str | None = None,
                       person_id: str | None = None) -> JobView:
@@ -117,12 +119,12 @@ class TemplateJobs:
             self.conn.execute("INSERT INTO wiskey_template_jobs (operation_id, request_id, template_id, person_id, state, outcome, code, "
                               "created_at, updated_at) VALUES (?, ?, ?, ?, 'unknown', 'unknown', 'enqueue_in_flight', ?, ?)",
                               (op, req, template_id, person_id, now, now))
-            self.conn.commit()
+            commit_now(self.conn, keep_reading=False)
         except sqlite3.IntegrityError:
             # review M7: a concurrent enqueue of the same operation won the row - its record is the answer (never a false not_sent);
             # a request id recorded for ANOTHER operation leaves this one unknown
             try:
-                self.conn.rollback()
+                rollback_now(self.conn)
             except sqlite3.Error:
                 pass
             seen = self.row(op)
@@ -292,14 +294,14 @@ class EventCursor:
             # review L2: a page from ANOTHER source than the stored cursor's is a discontinuity WisKey did not announce - nothing of it
             # is handed on; it is recorded like a reset (adopting it starts the new source from its beginning: reset cursor None)
             self._store({"pending_reset": {"reason": "source_mismatch", "reset_cursor": None, "source": page.source, "observed_at": _now()}})
-            self.conn.commit()
+            commit_now(self.conn, keep_reading=False)
             log.warning("wiskey events: the page's source differs from the stored cursor's; the gap is recorded, not delivered")
             return PullResult("reset_required", "source_mismatch", 0, 0, False, False)
         if page.state == "reset_required":
             # the gap is recorded (never "all delivered"); the reset cursor is adopted only by acknowledge_reset()
             self._store({"pending_reset": {"reason": page.reason, "reset_cursor": page.reset_cursor, "source": page.source,
                                            "observed_at": _now()}})
-            self.conn.commit()
+            commit_now(self.conn, keep_reading=False)
             log.warning("wiskey events: reset required (%s); the gap is recorded, not delivered", page.reason)
             return PullResult("reset_required", page.reason, 0, 0, False, False)
         fresh, dup = [], 0
@@ -316,9 +318,9 @@ class EventCursor:
             # review L1: remembered as soon as ITS handler returned - a later failure on the page re-reads the page (the cursor did not
             # move) and the events already handed on are dropped as duplicates instead of being handed on twice
             self._remember([rec["event"]["id"]])
-            self.conn.commit()
+            commit_now(self.conn, keep_reading=False)
         self._store({"cursor": page.cursor, "source": page.source, "pending_reset": None})
-        self.conn.commit()
+        commit_now(self.conn, keep_reading=False)
         return PullResult("page", None, len(fresh), dup, page.has_more, page.all_delivered)
 
     def acknowledge_reset(self) -> dict[str, Any] | None:
@@ -330,7 +332,7 @@ class EventCursor:
             return None
         self._record_gap(pending)  # review L2: a durable, bounded history of every acknowledged gap
         self._store({"cursor": pending["reset_cursor"], "source": pending["source"], "pending_reset": None})
-        self.conn.commit()
+        commit_now(self.conn, keep_reading=False)
         return {"reason": pending["reason"], "delivered": False}
 
 

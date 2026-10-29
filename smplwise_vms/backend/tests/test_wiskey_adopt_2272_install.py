@@ -70,14 +70,24 @@ def test_the_manifest_schema_is_closed(over: dict[str, Any], code: str) -> None:
     assert exc.value.code == code
 
 
+def _private(p: Path) -> None:
+    try:
+        p.parent.chmod(0o700)
+        p.chmod(0o600)
+    except OSError:
+        pass
+
+
 def test_a_manifest_with_nan_or_too_large_is_refused(ha_root: Path) -> None:  # noqa: F811
     p = ha_root / wai.RELATIVE_PATH
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text('{"x": NaN}', encoding="utf-8")
+    _private(p)  # the mode check comes first (POSIX): without 0600 / 0700 the file is refused for its mode, never reaching its content
     with pytest.raises(wai.InstallationError) as exc:
         wai.read_checked_installation()
     assert exc.value.code == "installation_invalid"
     p.write_bytes(b" " * (wai.MANIFEST_MAX_BYTES + 1))
+    _private(p)
     with pytest.raises(wai.InstallationError) as exc2:
         wai.read_checked_installation()
     assert exc2.value.code == "installation_too_large"

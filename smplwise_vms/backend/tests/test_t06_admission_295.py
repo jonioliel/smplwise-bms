@@ -217,7 +217,23 @@ def test_the_only_modules_that_reach_a_signing_call_are_the_known_ones():
     assert callers == {"intercom_media.py", "wiskey_capture_direct.py", "wiskey_capture_port.py", "wiskey_direct_join.py", "wiskey_feature_direct.py",
                        "wiskey_media_bridge.py", "wiskey_native_write.py", "wiskey_talk_pump.py", "wiskey_template_direct.py",
                        "wiskey_capture_map.py", "wiskey_peer.py", "wiskey_peer_query.py", "wiskey_people_csv.py", "wiskey_native_feed.py",
-                       "wiskey_program_direct.py"}, callers  # WISKEY-OWNER26-297: G-DOOR-WINDOWS (W-023)
+                       "wiskey_program_direct.py",  # WISKEY-OWNER26-297: G-DOOR-WINDOWS (W-023)
+                       "wiskey_auto_install.py"}, callers  # WISKEY-R3-2272: the installed client; its commands are pinned below
+
+
+def test_the_installed_client_sends_only_the_pinned_installation_and_read_commands():
+    """WISKEY-R3-2272: `wiskey_auto_install.InstalledWiskeyClient.call` is a generic pass-through to the signing seam, so what the module
+    itself puts on it is pinned by name. None is a door / people / program write: three are installation reads or the one restart under the
+    durable Arx claim (reconcile, behind `wiskey.auto_install`, default off), one is a station still (routes check `access.read` on the
+    station chain and the switch), one is the template send v3 (no production caller yet; a caller must add its own admission)."""
+    import ast as _ast
+
+    src = (SERVICES / "wiskey_auto_install.py").read_text(encoding="utf-8")
+    literal = {n.args[0].value for n in _ast.walk(_ast.parse(src)) if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+               and n.func.attr == "call" and n.args and isinstance(n.args[0], _ast.Constant) and isinstance(n.args[0].value, str)}
+    assert literal == {"installation/readiness_v1", "installation/request_restart_v2", "installation/capability_preflight_v1",
+                       "media/station_snapshot_v1", "whatsapp/template_send_v3", "whatsapp/template_enqueue_v1",
+                       "whatsapp/template_registry_v1"}, literal
 
 
 def test_no_router_reaches_a_writer_or_an_adapter_except_through_the_join():

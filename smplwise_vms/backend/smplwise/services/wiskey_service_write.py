@@ -56,6 +56,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from ..db import commit_now
+
 log = logging.getLogger("smplwise.wiskey_service_write")
 
 CONTRACT = "wiskey-native-service-write.v1"
@@ -443,7 +445,7 @@ class Journal:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
         ensure_schema(conn)
-        conn.commit()
+        commit_now(conn, keep_reading=False)
 
     def get(self, repository_id: str, operation_id: str) -> JournalRow | None:
         r = self.conn.execute(f"SELECT {_COLS} FROM wiskey_service_write_journal WHERE repository_id=? AND operation_id=?",
