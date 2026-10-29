@@ -50,7 +50,10 @@ exec 9>"$HOME/.smplwise-gate.lock"
 flock -n 9 || { echo "another release gate is running"; exit 3; }
 exec 8>"$HOME/.smplwise-tests.lock"
 flock -n 8 || { echo "the nightly/manual test run holds ~/.smplwise-tests.lock"; exit 3; }
-TOTAL="${GATE_TOTAL_SECS:-5400}"
+# GATE-FAST-2291 (item 4): without an explicit GATE_TOTAL_SECS the cap is derived (sum of the phase budgets x 1.5, gate_budget.py next to this
+# script); the old fixed 5400 is the fallback when the helper or its seed is missing
+DERIVED="$(python3 "$DIR/gate_budget.py" cap --results "$HOME/smplwise-results" --mode full 2>/dev/null)"
+TOTAL="${GATE_TOTAL_SECS:-${DERIVED:-5400}}"
 timeout -k 30 "$TOTAL" python3 "$DIR/release_gate.py" "$@"
 RC=$?
 # GATELANES-297 timing lane (docs/testing/GATE_LANES.md): the '@timing-lane' / timing_lane tests this gate left out run AFTER it, in the
