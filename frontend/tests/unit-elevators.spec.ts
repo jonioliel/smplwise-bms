@@ -263,7 +263,7 @@ test('review L5: a user hides elevators in ADDITION to the installation list', (
 
 test('review L6: moves count only the listed widgets (the elevators widget left out without elevators)', () => {
   const order = defaultConfig().order; // ... 'agenda', 'launcher', 'elevators', 'temperature', 'generators'
-  const listed = order.filter((id) => id !== 'elevators' && id !== 'temperature' && id !== 'generators' && id !== 'doors' && id !== 'notices'); // phase 3: the temperatures widget is appended after it
+  const listed = order.filter((id) => id !== 'elevators' && id !== 'temperature' && id !== 'generators' && id !== 'doors' && id !== 'notices' && id !== 'presence'); // phase 3: the temperatures widget is appended after it
   // "move down" of the last LISTED widget: nothing to move past (the hidden elevators widget is not a neighbour)
   expect(moveAmong(order, listed, 'launcher', listed.length)).toEqual(order);
   expect(moveAmong(order, listed, 'agenda', listed.indexOf('launcher')).slice(-8)).toEqual(['launcher', 'agenda', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']);
