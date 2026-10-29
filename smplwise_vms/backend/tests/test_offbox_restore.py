@@ -141,10 +141,10 @@ def test_restore_into_an_existing_installation_brings_back_the_project_and_keeps
 
 def test_a_retried_restore_with_a_wrong_password_keeps_the_stage_and_leaves_no_extra_safety_archive(world):
     w = world
+    time.sleep(1.1)  # object names carry the second: the sealed copy gets a name of its own
     r = w.c.post("/api/v1/backups", json={"note": "sealed", "backup_password": "correct horse battery staple"})
     assert r.status_code == 201, r.text
-    time.sleep(1.1)
-    assert offbox_runtime.run_push(w.db, w.settings, w.tid, trigger="manual")["ok"]
+    assert offbox_runtime.run_push(w.db, w.settings, w.tid, trigger="manual", archive=backup_svc.backups_dir(w.settings) / r.json()["name"])["ok"]
     tid = _b_target(w)
     _b_import_key(w)
     newest = w.cb.get(f"{URL}/targets/{tid}/copies").json()["copies"][0]["name"]
