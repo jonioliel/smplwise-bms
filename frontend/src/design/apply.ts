@@ -133,9 +133,13 @@ export const resolvedTheme = (): Theme => {
  * tokens. When the motion in force is reduced (`ui.motion` = reduced, or auto under the OS prefers-reduced-motion; `full` ignores the
  * OS), one shared constructable sheet is adopted by the page and every Lit shadow root and zeroes every animation and transition
  * (iteration count 1, so a looping animation cannot flicker at ~0 ms). Colour/opacity state changes still happen, just instantly.
+ * Transitions are zeroed to exactly 0s, never a tiny positive duration: `transition-property` defaults to `all`, so a non-zero
+ * duration on `*` would CREATE a transition on every element that had none - every layout change (padding, width on a media
+ * query flip at resize) then lingers at its old value until the next animation frame (fix/TICKETS-LAYOUT-2290: the shell's tab
+ * row kept its 300 px desktop corner reserve at 320 px and the layout guards saw main overflow by 10 px).
  */
 export const REDUCED_ALL_CSS =
-  '*,*::before,*::after{animation-duration:0.01ms !important;animation-delay:0s !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;transition-delay:0s !important;scroll-behavior:auto !important}';
+  '*,*::before,*::after{animation-duration:0.01ms !important;animation-delay:0s !important;animation-iteration-count:1 !important;transition-duration:0s !important;transition-delay:0s !important;scroll-behavior:auto !important}';
 let motionSheet: CSSStyleSheet | null = null;
 let motionQuery: MediaQueryList | null = null;
 let motionSheetOn = false;
