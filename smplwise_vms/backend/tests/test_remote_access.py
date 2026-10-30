@@ -521,6 +521,8 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("GET", "/api/v1/notices/display/{slug}"), ("GET", "/api/v1/notices/display/{slug}/logo/company"), ("GET", "/api/v1/b/{slug}"),
                      # NOTICESLIDES-295: the slide pictures and the building photo are read with the board token, like the logo
                      ("GET", "/api/v1/notices/display/{slug}/slide/{slide_id}"), ("GET", "/api/v1/notices/display/{slug}/photo"),
+                     # LOBBY-STYLES-2300: the night building photo of the luxury lobby styles, read with the board token like the day photo
+                     ("GET", "/api/v1/notices/display/{slug}/photo-night"),
                      # NOTICERSS-295: a news source's logo on the board, read with the board token like the other display pictures
                      ("GET", "/api/v1/notices/display/{slug}/news-logo/{source_id}"),
                      # BUSTIMES-295: the board's bus-times feed is read with the board token like the other display routes (uniform 404 on remote)
