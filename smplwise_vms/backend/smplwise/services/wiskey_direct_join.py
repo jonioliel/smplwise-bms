@@ -444,6 +444,15 @@ class DirectJoin:
             return False
         return self.session.connect_ready(command=command)
 
+    def configured(self) -> bool:
+        """DOORLIVE-2310: the CONFIG half of the selection rule only - (1) the provider is `auto` and (2) the key signs. No socket, no discovery,
+        no I/O beyond the cached readers; never raises. Readiness screens and switch gates use it (a dropped socket must not disable an
+        emergency control); every SEND still needs `selected(command)`."""
+        try:
+            return bool(self._provider_ok() and self._key_ok())
+        except Exception:  # noqa: BLE001
+            return False
+
     def template_or_none(self) -> Any:
         from .wiskey_template_direct import V1_COMMAND
 

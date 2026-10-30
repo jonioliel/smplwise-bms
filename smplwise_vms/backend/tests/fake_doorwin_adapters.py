@@ -66,6 +66,7 @@ class ScriptedEmergencyEngine:
     script: dict[str, list[str]] = field(default_factory=dict)
     release_script: dict[str, list[str]] = field(default_factory=dict)
     open_supported: bool = True
+    lock_supported: bool = True
     simulated: bool = False
     calls: list[dict[str, Any]] = field(default_factory=list)
 

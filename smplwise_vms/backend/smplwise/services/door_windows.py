@@ -1245,6 +1245,9 @@ class Worker:
             sync(db, settings, now)
         door_windows_watch.watch(db, settings, now)
         door_emergency.retry_tick(db, settings, now)
+        from . import door_engine_live
+
+        door_engine_live.tick(db, now)  # DOORLIVE-2310: no contact with the access system during an incident -> a notice (reads and notifies only)
 
     def _run(self, db: Database, settings: Any) -> None:
         while not self._stop.is_set():
