@@ -615,14 +615,14 @@ def test_l2_the_gap_history_survives_later_pages_and_is_bounded() -> None:
 
 # ================================================================ L3: a numbered migration, no runtime DDL
 
-def test_l3_the_tables_come_from_migration_0183_and_the_consumers_run_no_ddl(settings: Any) -> None:
+def test_l3_the_tables_come_from_migration_0186_and_the_consumers_run_no_ddl(settings: Any) -> None:
     import inspect
 
     from smplwise.db import MIGRATIONS_DIR
     from smplwise.services import wiskey_installed_features as wif
 
     names = sorted(p.name for p in Path(MIGRATIONS_DIR).glob("018*.sql"))
-    assert wif.MIGRATION in names and wif.MIGRATION.startswith("0183_") and not any(n.startswith("0183_") and n != wif.MIGRATION for n in names)
+    assert wif.MIGRATION in names and wif.MIGRATION.startswith("0186_") and not any(n.startswith("0186_") and n != wif.MIGRATION for n in names)
     assert "CREATE TABLE" not in inspect.getsource(wif).upper().replace("NOTHING HERE RUNS DDL", "")
     app = _app(settings)
     with app.state.db.connection() as conn:
