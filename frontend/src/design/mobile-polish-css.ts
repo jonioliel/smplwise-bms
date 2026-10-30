@@ -108,21 +108,9 @@ summary {
   :host(sw-button[size='sm']) button::after {
     inset: -4px 0;
   }
-  /* the switch draws 42 x 24; its hit rect becomes 50 x 44 (::before is free: the thumb is ::after) */
-  :host(sw-toggle) button::before {
-    content: '';
-    position: absolute;
-    inset: -10px -4px;
-  }
-  /* a filter chip draws 28 px high; 44 px to the finger */
-  :host(sw-chip) button {
-    position: relative;
-  }
-  :host(sw-chip) button::after {
-    content: '';
-    position: absolute;
-    inset: -8px 0;
-  }
+  /* (POLISH-PHONE-2310: no slop on sw-chip - it already carries the shared centred 44 x 44 hit of styles/focus-policy.ts (.sw-hit), which
+     a 0-inline slop here would narrow; none on sw-toggle - a ::before wider than the 42 px track is scrollable overflow and trips the
+     layout guards' clipped-content check at 320 px) */
 
   /* the pop-ups measure the visible viewport (dvh), never the one with the browser chrome collapsed (vh): a centred pop-up no longer
      runs under the URL bar on the first paint */
