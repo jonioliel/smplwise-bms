@@ -19,3 +19,8 @@ Skills were invoked through the Skill tool. Findings come from reading the real 
 
 ## Not changed on purpose
 Layout, density steps, columns, settings and defaults; no scrolling added; he/en strings untouched; fire-detection column rules (hidden until connected).
+
+## Verification (run on the runner via run_smart.py, commit 12760fb6a)
+- tsc: ok.
+- evidence-xsection-synoptic: desktop 28 passed / 1 skipped; tablet 12 passed / 17 skipped; mobile 11 passed / 18 skipped (skips are project-scoped tests). 0 failed.
+- NOT_RUN: screenshots/visual-diff against the mock-up shots, pixel baselines, other specs, full backend suite, real-device check.
