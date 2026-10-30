@@ -36,6 +36,11 @@ contiguous today. **Renumbering note:** train 1 (`release/2280-train`) adds `018
 `0183_wiskey_installed_features.sql` to `0186_wiskey_installed_features.sql` (content unchanged; its DDL uses `IF NOT EXISTS`; it was never
 released, so no installed database carries the old number) and re-run `tests/test_migrations.py` and `tests/test_release_check.py`.
 
+**Done in round 2 (2026-10-30):** `origin/main` (v2.28.0, `eda683371`) was merged into this branch (`b185d62f7`) and the file was
+renamed `0186_wiskey_installed_features.sql` (`d72cebccf`, byte-identical content; its header comment still tells the history of the
+number 0183). `wiskey_installed_features.MIGRATION` and the L3 review test follow it; `scripts/release_check.py` reports the sequence
+contiguous (186 files, last 0186). Receipts: `docs/evidence/WISKEY-RC4-2310/round2/`.
+
 ## Adoption map (20 paths)
 
 Counts: **adopted as-is 16, adapted 4, superseded as a whole 0, rejected as a whole 0.** Two hunks inside adapted paths are superseded by
@@ -118,6 +123,36 @@ Exact dependency: a WisKey Native 2.0.1-rc.4 **installed in the owner's HA** who
 already-valid owner pairing/ECC peer mapping that admits Arx — created by the normal owner flow, never by Arx and never for a test.
 Responsible: **owner** (installation and pairing, by a separate instruction), **WisKey** (the Native feature host and its mapping),
 then **Arx** (the read-only `selected` probe in the separately authorised phase). Until then the measured refusal remains the only fact.
+
+## Round 2 — WisKey Windows review (review branch commit 8d57fad905d94f85c189a334a69edc78ff034469)
+
+### WIN-ARX-RC4-DEADLINE-01 (P1) — fixed in `887344fb0`
+
+Finding (static on WisKey's side): `LiveEmergencyEngine._engine` ran `selected` / `features_or_none` before any budget existed; after
+`call_with_deadline` returned UNKNOWN the daemon kept waiting in the selection, and the inner `DirectEmergencyEngine._run` then opened a
+fresh 6 s budget and could admit and send a `features/start` that never left before the deadline. Same on release.
+
+Reproduced synthetically on `8c7c22a48` by the new test before the fix (receipt `round2/deadline_red_8c7c22a48.*`, EXIT CODE 1:
+3 failed / 2 passed — a late hold `features/start` and a late release start were sent after UNKNOWN). Fix, no new engine/journal/scheduler:
+
+| File | Change |
+|------|--------|
+| `services/wiskey_call_budget.py` | `until(end)` enters an absolute end; `scope()` = `until(now + s)`; both only shorten (`min`). `now()`, `deadline()`, injectable `_clock`. |
+| `services/door_emergency.py` | `call_with_deadline` fixes the end BEFORE the daemon thread starts and runs the call inside `until(end)`; a spent budget inside is UNKNOWN `end_to_end_deadline`. |
+| `services/door_engine_live.py` | apply/release enter the budget (the caller's end, shortened to `transport_timeout_s`, never extended) before selection and re-check it after; a wait that spent it starts nothing. Kind check, `lock_supported=False` and the permit-free release unchanged. |
+| `services/wiskey_emergency_direct.py` | one budget re-check right before the admit (`client.start`). |
+| `tests/test_wiskey_rc4_deadline_2310.py` | new, 5 tests (see the module docstring). |
+
+Kept: UNKNOWN / partial-commit classification, actor/incident/target validation, release available with the business permit off.
+A timeout does not cancel I/O already sent; it only stops new effects.
+
+### Native bundle (packaging question)
+
+The embedded Native is still `2.0.0-rc.39+arx-align.20261029.04`, product `4407121a8ad9df2bbebc07161808bbbc2664b592`, 377 files
+(`smplwise_vms/integration/hikvision_intercom.pin.json`); it is not the manual rc.4 package (382 files, `ffa92eecb`). Not swapped.
+Source fact: the embedded tree carries the emergency v2 contract but not `features/emergency_event_status_v1`, which the adopted
+`DirectEmergencyEngine._read_durable` (C03) calls; against rc.39 that read fails closed (the attempt stays UNKNOWN). The required
+package type (managed bundle in the image vs. owner-installed manual profile) is undecided.
 
 ## Remainders (unchanged by this work)
 

@@ -1,0 +1,5 @@
+tests/test_owner30_doors.py
+tests/test_wkr5_295_emergency.py
+tests/test_wkr5_295.py
+tests/test_bridge_install.py
+tests/test_wkcap_295.py
