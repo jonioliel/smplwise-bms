@@ -40,6 +40,7 @@ while [ $# -gt 0 ]; do
     --after) AFTER="${2:-}"; shift 2;;
     --full) FULL=1; shift;;
     --keep-heavy) export GATE2_DEFER_HEAVY=0; shift;;
+    --resume) export GATE_RESUME=1; shift;;       # GATE-FAST-2291: reuse the finished units of an earlier run of the SAME sha (checkpoint file)
     --depth) DEPTH="${2:-}"; shift 2;;
     --accept-stale-nightly) STALE_OK=1; shift;;
     --dry-run) DRY=1; shift;;
@@ -95,14 +96,16 @@ exec 8>"$HOME/.smplwise-tests.lock"
 flock -n 8 || { echo "the nightly/manual test run holds ~/.smplwise-tests.lock"; exit 3; }
 MADE_PENDING=0
 if [ ! -e "$HOME/.gate-pending" ]; then touch "$HOME/.gate-pending"; MADE_PENDING=1; fi
-trap '[ "$MADE_PENDING" = 1 ] && rm -f "$HOME/.gate-pending"' EXIT
+# GATE-FAST-2291 (item 8): say who holds the machine; agent test runs (run_guarded.sh / gate_holder.py guard) are refused meanwhile
+[ -f "$G2/gate_holder.py" ] && "$PY3" "$G2/gate_holder.py" claim --kind gate --who "release gate $BR" --what "release_gate2.sh $BR" --pid $$ >/dev/null 2>&1
+trap '[ "$MADE_PENDING" = 1 ] && rm -f "$HOME/.gate-pending"; [ -f "$G2/gate_holder.py" ] && "$PY3" "$G2/gate_holder.py" release --pid $$ >/dev/null 2>&1' EXIT
 
 for f in release_gate.py select_tests.py; do
   [ -f "$V1/$f" ] || { echo "the v1 gate is not installed in $V1 ($f missing)"; exit 2; }
 done
 cp -p "$V1/release_gate.py" "$G2/release_gate.py"
 cp -p "$V1/select_tests.py" "$G2/select_tests_v1.py"
-for f in gate_baselines.json gate_durations.json; do [ -f "$V1/$f" ] && cp -p "$V1/$f" "$G2/$f"; done
+for f in gate_baselines.json gate_durations.json gate_budget.py gate_phase_budgets.json gate_early_layout.json; do [ -f "$V1/$f" ] && cp -p "$V1/$f" "$G2/$f"; done   # GATE-FAST-2291: budgets + early layout list travel with the engine
 [ -f "$G2/select_tests.py" ] || { echo "the gate-2 shim $G2/select_tests.py is missing (install step, GATE_V2.md section 7)"; exit 2; }
 grep -q "gate2_select" "$G2/select_tests.py" || { echo "$G2/select_tests.py is not the gate-2 shim"; exit 2; }
 
@@ -121,6 +124,9 @@ if [ "$FULL" = 0 ] && [ -z "$AFTER" ] && [ "$STALE_OK" = 0 ]; then
   fi
 fi
 
+# GATE-FAST-2291 (item 4): the total cap is derived = sum of the per-phase budgets x 1.5 (gate_budget.py); an explicit GATE_TOTAL_SECS wins;
+# without the helper / seed the old fixed defaults apply (7200 select, 12000 full)
+derived_cap() { local c; c="$("$PY3" "$G2/gate_budget.py" cap --results "$RES" --mode "$1" 2>/dev/null)" && [ -n "$c" ] && printf %s "$c" || printf %s "$2"; }
 WT="$HOME/work/gate-$TAG"         # the engine's own worktree path; we hold the gate lock, so nobody else uses it
 if [ ! -e "$WT/.git" ]; then
   git -C "$REPO" worktree prune
@@ -142,9 +148,9 @@ if [ "$FULL" = 0 ]; then
   printf '%s\n' "$PLAN" | grep -q "pixel: no frontend/src change" && ENGINE+=(--no-visual)
   ENGINE+=(--select-base "$BASE")
   export GATE_SELECT_ENABLE=1
-  : "${GATE_TOTAL_SECS:=7200}"
+  : "${GATE_TOTAL_SECS:=$(derived_cap select 7200)}"
 else
-  : "${GATE_TOTAL_SECS:=12000}"
+  : "${GATE_TOTAL_SECS:=$(derived_cap full 12000)}"
 fi
 [ -z "$AFTER" ] || export GATE2_AFTER_REPORT="$(readlink -f "$AFTER")"
 export GATE_SCHEDULE=v2 GATE_TOTAL_SECS GATE2_COSTS="${GATE2_COSTS:-$G2/gate2_costs.json}"
