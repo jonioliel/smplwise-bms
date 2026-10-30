@@ -1,0 +1,51 @@
+HEAD=23f3f17af5e8d79d8322635178ed1608e5fb3261
+2026-10-30T12:17:02Z
+$ /c/cloude/smplwisebms/.venv/Scripts/python.exe -m pytest -p no:cacheprovider -rfE --junitxml=shard_0.junit.xml $(cat shard_0.files)
+........................................................................ [ 12%]
+........................................................................ [ 24%]
+........................................................................ [ 36%]
+........................................................................ [ 48%]
+.................................................F...................... [ 60%]
+...................ss................................................... [ 72%]
+.............................................F.......................... [ 84%]
+........................................................................ [ 96%]
+....................                                                     [100%]
+================================== FAILURES ===================================
+_______________________ test_program_writes_are_pinned ________________________
+
+    def test_program_writes_are_pinned():
+        _, _, writes = scan()
+>       assert writes == ENGINE_WRITES, f"program write sites changed: {sorted(writes ^ ENGINE_WRITES)}"
+E       AssertionError: program write sites changed: [('smplwise/services/wiskey_selected_readonly.py', 'stations/technical_program_action'), ('smplwise/services/wiskey_selected_readonly.py', 'stations/technical_program_save')]
+E       assert frozenset({('...ogram_save')}) == frozenset({('...ogram_save')})
+E         
+E         Extra items in the left set:
+E         ('smplwise/services/wiskey_selected_readonly.py', 'stations/technical_program_action')
+E         ('smplwise/services/wiskey_selected_readonly.py', 'stations/technical_program_save')
+E         Use -v to get more diff
+
+tests\test_fake_doorwin_closed_rule_sr1.py:137: AssertionError
+_________________ test_e_the_runtime_catalog_is_the_final_one _________________
+
+    def test_e_the_runtime_catalog_is_the_final_one() -> None:
+        c = wdc.load()
+        # WISKEY-ADOPT-2272 supersedes the 27.10 catalog with the owner28 one (CODE 0a099c53): a superset of every command checked here
+        assert (c.source_sha256, c.code) == ("3123d20d086856f981f22c0604a4e951350482587d530a6e9a2c054898a4642e",
+                                             "4407121a8ad9df2bbebc07161808bbbc2664b592")  # WISKEY-R3-2272: rc.39 catalog
+>       assert c.registered_count == 290 and c.command_count == 294 and len(c.families) == 44
+E       AssertionError: assert (292 == 290)
+E        +  where 292 = Catalog(code='4407121a8ad9df2bbebc07161808bbbc2664b592', source_sha256='3123d20d086856f981f22c0604a4e951350482587d530a...ily='features', envelope='wiskey-bridge-command.v1', discovered=True, transport_mode='native_bridge_legacy_business'))).registered_count
+
+tests\test_wiskey_mac_adopt_298.py:448: AssertionError
+============================== warnings summary ===============================
+..\..\..\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\cloude\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_fake_doorwin_closed_rule_sr1.py::test_program_writes_are_pinned
+FAILED tests/test_wiskey_mac_adopt_298.py::test_e_the_runtime_catalog_is_the_final_one
+2 failed, 592 passed, 2 skipped, 1 warning in 738.60s (0:12:18)
+EXIT=1
+2026-10-30T12:29:45Z

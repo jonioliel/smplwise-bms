@@ -65,6 +65,18 @@ patch's after-file it is only by newer Arx code that was already on this line (R
 | 19 | `smplwise_vms/integration/smplwise_bridge/__init__.py` | adopted as-is | Mirror of 1 (`sync_integration.py --check` passes). |
 | 20 | `smplwise_vms/integration/smplwise_bridge/wiskey_distribution_digest.py` | adopted as-is | Mirror of 2. |
 
+### Our tests aligned with the adopted behaviour (commit 9020a3b34)
+
+The targeted run on 23f3f17af found 3 failures out of 3563, all caused by deliberate rc.4 behaviour that our older pins did not know:
+
+- `test_fake_doorwin_closed_rule_sr1::test_program_writes_are_pinned` — `wiskey_selected_readonly.py` names
+  `technical_program_save/action`. Reviewed against SR-1: the names are used only for `join.selected(name)`, the catalog lookup and
+  `transport_refusal(name)`. The only command it calls is `features/status`. The two sites are pinned.
+- `test_wiskey_mac_adopt_298::test_e_the_runtime_catalog_is_the_final_one` — it now pins the catalog FILE (290 registered / 294) and
+  asserts that the rc.4 runtime `load()` adds exactly the two emergency event commands.
+- `test_wiskey_owner26_callers_297::test_program_errors_map_to_the_engine_kinds` — a non-CAS signed refusal of a program save is now
+  `unknown`, not `refused`. The rc.4 change (row 14) is adopted, because nothing proves the program was not written.
+
 ## Fixture
 
 The test read `Path(__file__).resolve().parents[4]/'contracts/event_status.result.v1.valid.json'` (a sibling folder of the Mac clone).
@@ -72,6 +84,21 @@ The exact delivered file is staged at `smplwise_vms/backend/tests/fixtures/wiske
 sha256 `8b6087a4a49c2baad397e9f071ef8d1afe4f92e64d343173e21afbd96e43b02f`, unchanged). The test now reads it from there and asserts the
 size and SHA-256 before use. `.gitattributes` marks `tests/fixtures/wiskey/*.json` `-text` (byte-exact). New hashes of the changed test
 and of the run are in `docs/evidence/WISKEY-RC4-2310/RECEIPTS.json`.
+
+## Test runs (this workstation only; receipts in `docs/evidence/WISKEY-RC4-2310/RECEIPTS.json`)
+
+Python 3.12.10 (`C:\cloude\smplwisebms\.venv`, a venv of `%LOCALAPPDATA%\Programs\Python\Python312`), cwd `smplwise_vms/backend`.
+
+| Run | Code SHA | Result |
+|---|---|---|
+| Source suite (C-ARX-FINAL-04 file list: owner30_doors, wkr5_295_emergency, wkr5_295, bridge_install, wkcap_295) | 23f3f17af | 100 passed |
+| Targeted round 1: 116 files (`wiskey*`, `wk*`, `door*`, `bridge*`, digest, `migrat*`, `release_check`), 6 shards | 23f3f17af | 3560 passed, 3 failed, 7 skipped |
+| Shards 0 and 4 re-run after the pin alignment | 9020a3b34 | 594 + 635 passed, 5 skipped |
+| Targeted effective at 9020a3b34 | 9020a3b34 | 3563 passed, 0 failed, 7 skipped |
+| `scripts/sync_integration.py --check`, `scripts/wiskey_posix_digest.py` (both bridge copies, staged Native tree) | 23f3f17af | exit 0; the two bridge copies have the same digest; the three digest modules are byte-identical |
+
+NOT_RUN: full backend suite, UI build/screenshots (no UI change), Ubuntu runner, anything live. WisKey's 168/100/32 PASS
+receipts are theirs; our 100 in the source suite is an independent run on Arx code.
 
 ## Item 3 — verified positive connection of the current feature host (manual path)
 
