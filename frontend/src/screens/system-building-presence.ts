@@ -175,7 +175,7 @@ export class SystemBuildingPresence extends LitElement {
       }
       input[type='number'],
       select {
-        font-size: 16px;
+        font-size: var(--sw-fs-xl); /* no zoom-in on focus on a phone (needs >= 16px; the xl tier is 17-19px) */
       }
     }
     .foot {
