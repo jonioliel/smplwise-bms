@@ -111,6 +111,10 @@ export interface ProductSettings {
   'exports.max_mb'?: number;
   /** BACKUP-HASH-ENC: the minimum length of the backup password (8-64, default 12; 8 is the server's hard floor). */
   'backup.password_min'?: number;
+  /** OFFBOX-RESTORE-2300 (owner 2026-10-30): the initial scope of a restore from an off-box copy (default project+access). */
+  'backup.offbox_restore_scope'?: 'project' | 'project+access';
+  /** OFFBOX-RESTORE-2300 (owner 2026-10-30): a local restore writes the pre-restore safety backup first (default on). */
+  'backup.safety_before_local_restore'?: 'on' | 'off';
   'exports.retention_days'?: number;
   'events.retention_days'?: number;
   /** DEVHIST (CR-032): how long the device activity rows (the long-press popup) are kept, 7-365 days, default 90. */

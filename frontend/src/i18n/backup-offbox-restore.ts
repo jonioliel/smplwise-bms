@@ -40,6 +40,19 @@ const he = {
   err_destination_unavailable: 'היעד לא זמין.',
   err_push_running: 'העברה אחרת רצה כרגע.',
   err_other: 'הפעולה נדחתה.',
+  // owner decisions 2026-10-30: the safety backup's password, the local safety backup switch, the scope default
+  safetyPassword: 'סיסמה לגיבוי הביטחון',
+  safetyHint: 'אופציונלי. בלעדיה גיבוי הביטחון נשמר בלי סיסמאות החשבונות המקומיים',
+  safetyPlaceholder: 'לפחות {n} תווים',
+  safetyOff: 'גיבוי הביטחון לפני שחזור כבוי בהגדרות: השחזור לא ישאיר נקודת חזרה.',
+  localSafety: 'גיבוי ביטחון לפני שחזור',
+  localSafetyHint: 'לפני כל שחזור נשמר גיבוי של המצב הנוכחי (שלושת האחרונים נשמרים)',
+  scopeDefault: 'שחזור מעותק כולל משתמשים והרשאות',
+  scopeDefaultHint: 'הבחירה ההתחלתית בחלון השחזור; אפשר לשנות בכל שחזור',
+  saved: 'ההגדרה נשמרה',
+  safetyDone: 'גיבוי הביטחון: {safety}',
+  err_safety_password_weak: 'הסיסמה לגיבוי הביטחון צריכה לפחות {n} תווים.',
+  err_safety_password_too_long: 'הסיסמה לגיבוי הביטחון ארוכה מדי.',
 };
 
 type Key = keyof typeof he;
@@ -81,6 +94,18 @@ const en: Record<Key, string> = {
   err_destination_unavailable: 'The target is not reachable.',
   err_push_running: 'Another transfer is running.',
   err_other: 'The action was refused.',
+  safetyPassword: 'Safety backup password',
+  safetyHint: 'Optional. Without it the safety backup leaves out the local accounts’ passwords',
+  safetyPlaceholder: 'At least {n} characters',
+  safetyOff: 'The safety backup before a restore is off in the settings: this restore leaves no way back.',
+  localSafety: 'Safety backup before a restore',
+  localSafetyHint: 'Every restore first saves a backup of the current state (the last three are kept)',
+  scopeDefault: 'Restoring from a copy includes users and permissions',
+  scopeDefaultHint: 'The initial choice in the restore dialog; each restore can change it',
+  saved: 'Setting saved',
+  safetyDone: 'Safety backup: {safety}',
+  err_safety_password_weak: 'The safety backup password needs at least {n} characters.',
+  err_safety_password_too_long: 'The safety backup password is too long.',
 };
 
 export type ObrKey = Key;
@@ -97,7 +122,13 @@ export function obr(key: Key, vars?: Record<string, string | number>, lang: 'he'
   return vars ? raw.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : raw;
 }
 
-export function obrError(code: string | null | undefined, lang: 'he' | 'en' = obrLang()): string {
+export function obrError(code: string | null | undefined, lang: 'he' | 'en' = obrLang(), vars?: Record<string, string | number>): string {
   const k = `err_${code ?? ''}` as Key;
-  return k in he ? obr(k, undefined, lang) : obr('err_other', undefined, lang);
+  return k in he ? obr(k, vars, lang) : obr('err_other', undefined, lang);
+}
+
+/** A refused restore in words: a refused safety password names the minimum in force (the server's `details.min_chars`). */
+export function obrApiError(code: string, details: Record<string, unknown> | undefined, lang: 'he' | 'en' = obrLang()): string {
+  const n = typeof details?.min_chars === 'number' ? details.min_chars : 12;
+  return obrError(code, lang, { n });
 }

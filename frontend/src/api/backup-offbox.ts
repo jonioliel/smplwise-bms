@@ -184,8 +184,28 @@ export const listCopies = (targetId: string) => get<{ target_id: string; copies:
 export const prepareRestore = (target_id: string, object: string) => post<OffboxPrepared>('backups/offbox/restore/prepare', { target_id, object });
 export const discardRestore = (stageId: string) => del(`backups/offbox/restore/${encodeURIComponent(stageId)}`);
 /** The destructive step: the typed word is part of the request and the server refuses anything else. */
-export const restoreFromCopy = (body: { stage_id: string; confirm: string; scope: 'project' | 'project+access'; backup_password?: string; skip_sensitive?: boolean }) =>
+export const restoreFromCopy = (body: { stage_id: string; confirm: string; scope: RestoreScope; backup_password?: string; skip_sensitive?: boolean;
+  safety_backup_password?: string }) =>
   post<OffboxRestored>('backups/offbox/restore', { mode: 'replace', ...body });
+
+// ---- owner decisions 2026-10-30: the restore defaults are settings, each with a default
+
+export type RestoreScope = 'project' | 'project+access';
+
+/** `backup.offbox_restore_scope`: the initial choice of the restore-from-copy dialog. Default (and any unknown value): project + access. */
+export function scopeFromSetting(v: unknown): RestoreScope {
+  return v === 'project' ? 'project' : 'project+access';
+}
+
+/** `backup.safety_before_local_restore`: a local restore writes the safety backup first. Default (and any unknown value): on. */
+export function localSafetyOn(v: unknown): boolean {
+  return v !== 'off';
+}
+
+/** The safety backup's password travels only when typed, in its own field (never mixed with the copy's backup password). */
+export function safetyBody(pw: string): { safety_backup_password?: string } {
+  return pw ? { safety_backup_password: pw } : {};
+}
 
 /** The restore button works only with the typed word and no request in flight. */
 export function restoreReady(typed: string, busy: boolean): boolean {

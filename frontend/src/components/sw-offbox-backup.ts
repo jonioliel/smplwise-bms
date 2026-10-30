@@ -9,13 +9,14 @@ import { ApiError, describeError } from '../api/client';
 import {
   CONFIG_FIELDS, SECRET_FIELDS, blankTarget, checkTarget, createTarget, deleteTarget, drillStatus, exportKey, importKey, offboxStatus, pushTarget,
   rotateKey, runDrill, setDrillMonthly, setTargetEnabled, toRequest, updateTarget,
-  discardRestore, listCopies, prepareRestore, restoreFromCopy, restoreReady,
+  discardRestore, listCopies, prepareRestore, restoreFromCopy, restoreReady, safetyBody, scopeFromSetting, type RestoreScope,
   type OffboxCopy, type OffboxPrepared, type DrillStatus, type OffboxRun, type OffboxStatus, type OffboxTarget, type OffboxTargetIn,
 } from '../api/backup-offbox';
 import { keyExportReady, obt, obtError, type ObtKey } from '../i18n/backup-offbox';
-import { obr, obrError } from '../i18n/backup-offbox-restore';
+import { obr, obrApiError, obrError } from '../i18n/backup-offbox-restore';
 import { fmtBytes } from '../api/backup';
-import { invalidateSettings } from '../api/prefs';
+import { invalidateSettings, productSettings } from '../api/prefs';
+import { patchSettings } from '../api/media';
 import { settingsStyles } from '../styles/settings';
 import { dayMonthTimeText } from '../api/day-format';
 
@@ -48,11 +49,43 @@ export class SwOffboxBackup extends LitElement {
   @state() private rPassword = '';
   @state() private rSkip = false;
   @state() private rErr = '';
+  // owner decisions 2026-10-30: the safety backup's own password (never kept after a request), the scope default (a setting)
+  @state() private rSafety = '';
+  @state() private scopeDefault: RestoreScope = 'project+access';
+  @state() private minChars = 12;
   private poll: number | undefined;
 
   connectedCallback() {
     super.connectedCallback();
     void this.load();
+    void this.loadPrefs();
+  }
+
+  /** The restore defaults (settings with defaults): an unreadable answer keeps the defaults. */
+  private async loadPrefs(force = false) {
+    try {
+      const s = await productSettings(force);
+      this.scopeDefault = scopeFromSetting(s['backup.offbox_restore_scope']);
+      const n = Number(s['backup.password_min'] ?? 12);
+      this.minChars = Number.isFinite(n) ? Math.max(8, Math.min(64, Math.round(n))) : 12;
+    } catch {
+      /* the defaults stay */
+    }
+  }
+
+  private async saveScopeDefault(on: boolean) {
+    const scope: RestoreScope = on ? 'project+access' : 'project';
+    const before = this.scopeDefault;
+    this.scopeDefault = scope;
+    await this.act('scope', async () => {
+      try {
+        await patchSettings({ 'backup.offbox_restore_scope': scope });
+        invalidateSettings();
+      } catch (err) {
+        this.scopeDefault = before;
+        throw err;
+      }
+    }, obr('saved'));
   }
 
   disconnectedCallback() {
@@ -253,6 +286,8 @@ export class SwOffboxBackup extends LitElement {
     this.pick = '';
     this.prep = null;
     this.rErr = '';
+    this.rAccess = this.scopeDefault === 'project+access';
+    this.rSafety = '';
     try {
       this.copies = (await listCopies(t.id)).copies;
       this.pick = this.copies[0]?.name ?? '';
@@ -282,16 +317,20 @@ export class SwOffboxBackup extends LitElement {
     this.rErr = '';
     try {
       const r = await restoreFromCopy({ stage_id: p.id, confirm: this.confirm, scope: this.rAccess ? 'project+access' : 'project',
-        ...(this.rPassword ? { backup_password: this.rPassword } : {}), ...(this.rSkip ? { skip_sensitive: true } : {}) });
+        ...(this.rPassword ? { backup_password: this.rPassword } : {}), ...(this.rSkip ? { skip_sensitive: true } : {}), ...safetyBody(this.rSafety) });
       this.prep = null;
       this.rPassword = '';
+      this.rSafety = '';
       invalidateSettings();
       this.closeDialog();
       this.msg = { ok: true, text: obr('done', { name: r.object, n: Object.keys(r.tables).length, files: r.files, safety: r.safety_archive.name }) };
       await this.load();
     } catch (err) {
-      this.rErr = err instanceof ApiError ? (err.body.details?.can_skip ? describeError(err) : obrError(err.code)) : describeError(err);
+      this.rErr = err instanceof ApiError
+        ? (err.code.startsWith('safety_password_') ? obrApiError(err.code, err.body.details) : err.body.details?.can_skip ? describeError(err) : obrError(err.code))
+        : describeError(err);
       this.rPassword = '';
+      this.rSafety = '';
     } finally {
       this.busy = '';
     }
@@ -304,10 +343,12 @@ export class SwOffboxBackup extends LitElement {
       ${this.rErr ? html`<div class="msg err" role="alert" data-offbox-restore-err>${this.rErr}</div>` : nothing}
       ${p
         ? html`<div class="msg ok" role="status">${obr('verified')}</div>
-            <div class="row"><span class="lbl">${obr('summary_version')}</span><span class="end"><code data-ltr>${p.app_version ?? '-'}</code></span></div>
-            <div class="row"><span class="lbl">${obr('summary_schema')}</span><span class="end"><code data-ltr>${p.schema_version}</code></span></div>
-            <div class="row"><span class="lbl">${obr('summary_tables')}</span><span class="end">${Object.keys(p.tables).length} / ${p.files}</span></div>
-            <div class="row"><span class="lbl">${obr('summary_key')}</span><span class="end"><code data-ltr>${p.key_id}</code></span></div>
+            <dl class="row facts" data-offbox-restore-facts>
+              <div><dt>${obr('summary_version')}</dt><dd><code data-ltr>${p.app_version ?? '-'}</code></dd></div>
+              <div><dt>${obr('summary_schema')}</dt><dd><code data-ltr>${p.schema_version}</code></dd></div>
+              <div><dt>${obr('summary_tables')}</dt><dd class="num">${Object.keys(p.tables).length} / ${p.files}</dd></div>
+              <div><dt>${obr('summary_key')}</dt><dd><code data-ltr>${p.key_id}</code></dd></div>
+            </dl>
             <div class="msg warn" role="note">${obr('warnDestructive')}</div>
             <label class="ack"><input type="checkbox" data-offbox-restore-access .checked=${this.rAccess}
               @change=${(e: Event) => { this.rAccess = (e.target as HTMLInputElement).checked; }} /><span>${obr('includeAccess')}</span></label>
@@ -317,6 +358,9 @@ export class SwOffboxBackup extends LitElement {
                 <label class="ack"><input type="checkbox" data-offbox-restore-skip .checked=${this.rSkip}
                   @change=${(e: Event) => { this.rSkip = (e.target as HTMLInputElement).checked; }} /><span>${obr('skipSensitive')}</span></label>`
               : nothing}
+            <label class="row" data-offbox-restore-safety-row><span class="lbl">${obr('safetyPassword')}<span class="muted">${obr('safetyHint')}</span></span>
+              <input class="ctl" type="password" autocomplete="new-password" data-offbox-restore-safety placeholder=${obr('safetyPlaceholder', { n: this.minChars })}
+                .value=${this.rSafety} @input=${(e: Event) => { this.rSafety = (e.target as HTMLInputElement).value; }} /></label>
             <div class="muted">${obr('confirmHint')}</div>
             <input class="confirm-in" data-ltr data-offbox-restore-confirm placeholder="RESTORE" .value=${this.confirm}
               @input=${(e: Event) => { this.confirm = (e.target as HTMLInputElement).value; }} />`
@@ -345,6 +389,7 @@ export class SwOffboxBackup extends LitElement {
     this.pick = '';
     this.rErr = '';
     this.rPassword = '';
+    this.rSafety = '';
     this.rSkip = false;
     this.dialog = null;
     this.confirm = '';
@@ -439,6 +484,9 @@ export class SwOffboxBackup extends LitElement {
         ${this.form ? this.renderForm() : html`<div class="actions">
           <sw-button size="sm" icon="plus" data-offbox-add="s3" @click=${() => this.edit(undefined, 's3')}>${obt('addS3')}</sw-button>
           <sw-button size="sm" icon="plus" data-offbox-add="sftp" @click=${() => this.edit(undefined, 'sftp')}>${obt('addSftp')}</sw-button></div>`}
+        <div class="row" data-offbox-scope-default><span class="lbl">${obr('scopeDefault')}<span class="muted">${obr('scopeDefaultHint')}</span></span>
+          <sw-toggle ?checked=${this.scopeDefault === 'project+access'} label=${obr('scopeDefault')} labelHidden ?disabled=${!!this.busy} data-offbox-scope-toggle
+            @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveScopeDefault(e.detail.checked)}></sw-toggle></div>
         ${this.msg ? html`<div class="msg ${this.msg.ok ? 'ok' : 'err'}" role=${this.msg.ok ? 'status' : 'alert'} data-offbox-msg>${this.msg.text}</div>` : nothing}
       </sw-card>
       ${this.renderKey()}
@@ -467,6 +515,12 @@ export class SwOffboxBackup extends LitElement {
     [data-ltr] { direction: ltr; text-align: start; }
     .end { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     code { font-family: var(--sw-font-mono, monospace); }
+    /* OFFBOX-RESTORE-2300: the verified copy's facts in ONE well (four cells, one line where the dialog is wide), so the restore dialog
+       holds the safety password row without scrolling on a tablet or a phone */
+    .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px 16px; margin: 0; }
+    .facts dt { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+    .facts dd { margin: 0; font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); overflow-wrap: anywhere; }
+    .facts .num { font-variant-numeric: tabular-nums; }
   `];
 }
 

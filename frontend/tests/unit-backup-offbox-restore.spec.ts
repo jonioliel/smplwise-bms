@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { OBR_KEYS, OBR_TABLES, obr, obrError } from '../src/i18n/backup-offbox-restore';
-import { restoreReady } from '../src/api/backup-offbox';
+import { localSafetyOn, restoreReady, safetyBody, scopeFromSetting } from '../src/api/backup-offbox';
 
 // OFFBOX-RESTORE-2300: the words of "restore from an off-box copy" exist in Hebrew and English with the same placeholders, every
 // refusal code the server can answer has words, and the destructive button needs the typed word.
@@ -34,4 +34,34 @@ test('the restore button needs exactly the typed word and no request in flight',
   expect(restoreReady('restore', false)).toBe(false);
   expect(restoreReady('', false)).toBe(false);
   expect(restoreReady('RESTORE', true)).toBe(false);
+});
+
+// Owner decisions 2026-10-30: the restore defaults are settings with defaults, and the safety backup takes an optional password.
+test('the off-box restore scope defaults to project + access unless the setting says project', () => {
+  expect(scopeFromSetting(undefined)).toBe('project+access');
+  expect(scopeFromSetting('')).toBe('project+access');
+  expect(scopeFromSetting('nonsense')).toBe('project+access');
+  expect(scopeFromSetting('project+access')).toBe('project+access');
+  expect(scopeFromSetting('project')).toBe('project');
+});
+
+test('the safety backup before a local restore is on unless the setting says off', () => {
+  expect(localSafetyOn(undefined)).toBe(true);
+  expect(localSafetyOn('on')).toBe(true);
+  expect(localSafetyOn('maybe')).toBe(true);
+  expect(localSafetyOn('off')).toBe(false);
+});
+
+test('the safety password is sent only when typed, under its own field', () => {
+  expect(safetyBody('')).toEqual({});
+  expect(safetyBody('a long enough password')).toEqual({ safety_backup_password: 'a long enough password' });
+});
+
+test('a refused safety password has its own words, naming the minimum', () => {
+  for (const lang of ['he', 'en'] as const) {
+    expect(obrError('safety_password_weak', lang)).not.toBe(obr('err_other', undefined, lang));
+    expect(obrError('safety_password_too_long', lang)).not.toBe(obr('err_other', undefined, lang));
+  }
+  expect(obr('err_safety_password_weak', { n: 12 }, 'en')).toContain('12');
+  expect(obr('err_safety_password_weak', { n: 12 }, 'he')).toContain('12');
 });
