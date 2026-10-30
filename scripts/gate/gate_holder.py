@@ -3,12 +3,14 @@
 since when; while a RELEASE GATE holds it, agent test runs are refused with a Hebrew message. Agents that bypass the wrapper are not
 stopped (nothing can stop a raw command): the written rule for agents stays, this is the polite, automatic part.
 
-  gate_holder.py claim --kind gate|agent --who "<name>" --what "<what runs>" [--pid N]   write the file (the gate wrappers do this)
+  gate_holder.py claim --kind gate|entry|agent --who "<name>" --what "<what runs>" [--pid N]   write the file (the gate wrappers do this)
   gate_holder.py release [--pid N]                                                         remove it (only if it is ours when --pid given)
   gate_holder.py guard [--who "<name>"]    exit 0 = free (or only agents), exit 75 = a gate holds the machine (Hebrew message on stdout)
   gate_holder.py show                      print the holder, if any
 
 Agent wrapper:  gate_holder.py guard --who "<agent>" && <the test command>     (see run_guarded.sh)
+Kind "entry" (ENTRY-CHECK-2310): branch_check.sh, the pre-train entry check, holds the machine like a gate (a selection run whose timing
+and load matter), so agent test runs are refused while it runs too, with their own message.
 The gate lock itself (~/.smplwise-gate.lock, flock) is also checked when the holder file is missing or stale (POSIX only).
 """
 from __future__ import annotations
@@ -101,6 +103,10 @@ def guard(who: str = "", path: Path = HOLDER, alive=pid_alive, lock_held=gate_lo
         m = minutes_since(h.get("since", ""))
         return BUSY, (f"השער רץ, מי מחזיק את המכונה: {h.get('who', '?')} ({h.get('what', '')}), מאז {h.get('since', '?')}"
                       + (f" (לפני {m} דקות)" if m is not None else "") + ". ריצת בדיקות של סוכן נחסמה כדי לא לעכב את השער. לנסות שוב אחרי שהשער מסתיים.")
+    if h and h.get("kind") == "entry" and alive(int(h.get("pid") or 0)):
+        m = minutes_since(h.get("since", ""))
+        return BUSY, (f"בדיקת כניסה לרכבת רצה, מי מחזיק את המכונה: {h.get('who', '?')} ({h.get('what', '')}), מאז {h.get('since', '?')}"
+                      + (f" (לפני {m} דקות)" if m is not None else "") + ". ריצת בדיקות של סוכן נחסמה כדי לא להעמיס עליה. לנסות שוב אחרי שהיא מסתיימת.")
     if lock_held():
         return BUSY, "השער רץ (הנעילה ~/.smplwise-gate.lock תפוסה), מי מחזיק את המכונה: לא ידוע (אין קובץ מחזיק). ריצת בדיקות של סוכן נחסמה."
     return 0, ""
@@ -109,7 +115,7 @@ def guard(who: str = "", path: Path = HOLDER, alive=pid_alive, lock_held=gate_lo
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("cmd", choices=["claim", "release", "guard", "show"])
-    ap.add_argument("--kind", default="agent", choices=["gate", "agent"])
+    ap.add_argument("--kind", default="agent", choices=["gate", "entry", "agent"])
     ap.add_argument("--who", default="")
     ap.add_argument("--what", default="")
     ap.add_argument("--pid", type=int)

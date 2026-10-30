@@ -183,6 +183,12 @@ if fl:
     for i in fl[:20]:
         print(f"- [{i['category']}] {i['id'][:180]}")
 P
+  # ENTRY-CHECK-2310 (owner 30.10 night): every nightly report lists the ONE quarantine list - active entries (ticket, expiry <= 7 days),
+  # EXPIRED ones (their tests count as failures again) and invalid ones. Information only here: the engine verdict above is unchanged.
+  GQ="${SW_GATE2_DIR:-$HOME/gate2}/gate_quarantine.py"
+  if [ -f "$GQ" ]; then
+    { echo; python3 "$GQ" md --file "${SW_QUARANTINE_FILE:-$(dirname "$GQ")/gate2_quarantine.json}"; } >> "$OUT" 2>>"$LOGD/engine.log"
+  fi
   # GATESPEED-293 safety net: this FULL run (no selection) against the release gates that ran a diff selection
   # (--select-base): every nightly red in a file such a run dropped is listed in <date>_selection-audit.md
   SEL="$(dirname "$ENGINE")/select_tests.py"
