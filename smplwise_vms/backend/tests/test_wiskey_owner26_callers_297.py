@@ -32,13 +32,14 @@ from smplwise.services.wiskey_feature_direct import DirectFeatureClient, Feature
 
 
 def test_no_activation_constant_is_flipped_by_this_adoption():
-    assert door_automation.GO_LIVE_PERMITTED is False
-    assert dwe.LIVE_ENGINE_BUILT is False and dwe.GO_LIVE_PERMITTED is True and dwe.live_ready() is False
+    # DOORLIVE-2310 (owner decisions 2026-10-30): the door permits/flags are in the regular release (switches OFF); the other constants stay as they were
+    assert door_automation.GO_LIVE_PERMITTED is True
+    assert dwe.LIVE_ENGINE_BUILT is False and dwe.GO_LIVE_PERMITTED is True and dwe.program_ready() is True and dwe.emergency_ready() is True
     assert cm.MAPPING_ENABLED is False and capture_lease.GO_LIVE_PERMITTED is False
     from smplwise.services import intercom_messaging_adapter as ima
 
     assert ima.TEMPLATE_SEND_SUPPORTED is False
-    assert isinstance(dwe.window_engine(None), dwe.PreparedEngine), "tier D until the owner activates the program engine"
+    assert dwe.window_engine(None).tier == "program", "the program engine is built in; `doors.windows.enabled` (OFF) is the activation"
 
 
 # ======================================================================================================================================

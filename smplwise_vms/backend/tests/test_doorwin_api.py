@@ -21,7 +21,8 @@ def test_everything_ships_off(pw):
     assert s["doors.windows.enabled"] == "off" and s["doors.windows.exterior_allowed"] == "false"
     e = pw.get("/doors/emergency/settings").json()["settings"]
     assert (e["doors.emergency.enabled"], e["doors.emergency.open_enabled"], e["doors.emergency.automations"]) == ("off", "off", "off")
-    assert e["go_live_permitted"] is False and e["open_available"] is False
+    # DOORLIVE-2310: `pw` models the rollback build (engine flags off): nothing can act
+    assert e["go_live_permitted"] is False and e["open_available"] is False and e["lock_available"] is False
     st = pw.get("/doors/windows/state").json()
     assert st["enabled"] is False and st["tier"] == "prepared" and st["go_live_permitted"] is False
 
