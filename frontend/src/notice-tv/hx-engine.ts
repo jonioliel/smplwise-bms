@@ -423,7 +423,7 @@ export function createHx(api: EngineApi): Hx {
         const from = inp().lang === 'en' ? 'inset(0 100% 0 0)' : 'inset(0 0 0 100%)';
         last = track(el.animate([{ clipPath: from }, { clipPath: 'inset(0 0 0 0)' }], { duration: 1150, delay: 260, easing: E_OUT, fill: 'backwards' }));
       }
-      return last.finished.then(() => undefined, () => undefined);
+      return (last as Animation | undefined)?.finished.then(() => undefined, () => undefined) ?? Promise.resolve();
     }
     // ambient level 'off' (a device measured too slow): one composited move for the whole notice instead of per-line / per-word
     if (X.fx === 'off') {
