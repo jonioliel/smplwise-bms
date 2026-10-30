@@ -4,9 +4,10 @@ import path from 'node:path';
 
 // PRESENCE-DESIGN-2300: the building presence home card (beside the clock and alarm cards, in the layout the home picks for the width) and
 // its settings page, in every state (loading / empty / error / ready, plus unknown, one room and a 500-room worst case), light and dark,
-// at the three reference widths (projects desktop 1440, tablet 1024, mobile 390). Harness: tests/presence-design-harness (needs the Vite
-// DEV server - the harness imports /src/; a preview build has no tests/ page). Invented data only, no backend.
-//   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/evidence-presence-design-2300.spec.ts
+// at the three reference widths (projects desktop 1440, tablet 1024, mobile 390). Harness: tests/presence-design-harness. Invented data only.
+// Needs the Vite dev server (the harness imports /src/; a preview build has no tests/ page; the gate's classifier reads this line, so the
+// phrase stays on one line - split across two comment lines it was missed and the spec ran against the preview build and timed out).
+//   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/evidence-presence-design-2300.spec.ts --project=desktop --project=tablet --project=mobile
 // PD_SHOTS=<dir> also writes one screenshot per case (docs/evidence/PRESENCE-DESIGN-2300/<phase>).
 const SHOTS = process.env.PD_SHOTS;
 const LONG = 'חיישן נוכחות בחדר הישיבות הגדול של הנהלת המבנה הצפוני';
