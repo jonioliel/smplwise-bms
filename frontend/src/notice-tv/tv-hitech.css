@@ -242,7 +242,7 @@
 #nbk[data-skin="axis"] .nb-take .nb-ttl { font-weight: 600; }
 #nbk[data-skin="axis"] .nb-ann .nb-al > div { border-block-start: 3px solid var(--ink); }
 #nbk[data-skin="axis"] .nb-ann .nb-al > div:first-child p { font-weight: 600; letter-spacing: -0.01em; }
-#nbk[data-skin="axis"][data-long="1"][data-orient="l"] .nb-st { bottom: 150px; }
+#nbk[data-skin="axis"][data-long="1"][data-orient="l"] .nb-st { bottom: 150px; left: 96px; inline-size: auto; }
 #nbk[data-skin="axis"][data-orient="p"] .nb-gclock { bottom: auto; top: 250px; left: -20px; font-size: 600px; line-height: 0.92; }
 #nbk[data-skin="axis"][data-orient="p"] .nb-gclock .nb-gt { display: grid; grid-template-columns: auto auto; }
 #nbk[data-skin="axis"][data-orient="p"] .nb-brand { top: 64px; right: 72px; max-inline-size: 560px; }

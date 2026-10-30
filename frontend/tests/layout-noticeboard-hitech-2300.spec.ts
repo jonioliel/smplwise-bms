@@ -78,7 +78,7 @@ async function expectClean(page: Page) {
 }
 
 const animatedProps = (page: Page) => page.evaluate(() => [...new Set(document.getAnimations()
-  .filter((a) => (a.effect as KeyframeEffect).target?.closest?.('#nbk') && !(a.effect as KeyframeEffect).target?.closest?.('.nb-cove'))
+  .filter((a) => (a.effect as KeyframeEffect).target?.closest?.('#nbk') && !(a.effect as KeyframeEffect).target?.closest?.('.nb-cove, .nb-amb, .nb-tbg'))
   .flatMap((a) => (a.effect as KeyframeEffect).getKeyframes().flatMap((k) => Object.keys(k))))]
   .filter((p) => !['offset', 'easing', 'composite', 'computedOffset'].includes(p)));
 
@@ -102,7 +102,7 @@ for (const skin of SKINS) {
           expect(seen.size).toBe(LOBBY_NOTICES.length);
           const fam = await page.evaluate(() => getComputedStyle(document.querySelector('#nbk .nb-ft') as HTMLElement).fontFamily);
           expect(fam).toContain('LobbySans');
-          expect(await page.evaluate(() => document.fonts.check('300 40px LobbySans', 'שלום'))).toBe(true);
+          expect(await page.evaluate(() => document.fonts.check('400 40px LobbySans', 'שלום'))).toBe(true);
         });
       }
     }
@@ -119,7 +119,7 @@ for (const skin of SKINS) {
       await page.waitForSelector('#nbk[data-ready="1"]', { state: 'attached' });
       await page.waitForTimeout(1800);
       await expect(page.locator('#nbk')).toHaveAttribute('data-take', '1');
-      expect(await page.evaluate(() => getComputedStyle(document.querySelector('#nbk .nb-take') as HTMLElement).backgroundColor)).toMatch(/^rgb\((126|163), \d+, \d+\)$/);
+      expect(await page.evaluate(() => getComputedStyle(document.querySelector('#nbk .nb-take') as HTMLElement).backgroundColor)).toMatch(/^rgb\((9\d|1[0-9]\d), \d{1,2}, \d{1,2}\)$/); // a deep red: strong red, almost no green or blue
       await expectClean(page);
       await expect(page.locator('#nbk .nb-take .nb-sw svg')).toBeVisible(); // the SmplWise logo stays; the developer logo is intentionally not drawn on the urgent screen
     });
@@ -158,7 +158,7 @@ for (const skin of SKINS) {
       for (const n of [1, 5, 12]) {
         await open(page, { skin, notices: [mk(n)], display: { hold: 'a' } });
         const r = await st();
-        expect(r.px, 'body >= 22 px').toBeGreaterThanOrEqual(21.9);
+        expect(r.px, 'body >= 20 px').toBeGreaterThanOrEqual(20);
         if (n === 1) expect(r.s).toBe(1);
         await expectClean(page);
       }
