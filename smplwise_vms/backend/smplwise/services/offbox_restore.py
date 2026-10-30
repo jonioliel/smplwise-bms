@@ -37,7 +37,7 @@ from typing import Any
 from ..config import Settings
 from . import backup as backup_svc
 from . import backup_sensitive as sens
-from . import offbox_keys
+from . import offbox_keys, restore_safety
 from .backup_offbox import OBJECT_RE, STAMP_RE, Destination, OffboxError, check_name, header_key_id, open_file, sha256_file
 
 log = logging.getLogger("smplwise.backup.offbox.restore")
@@ -46,7 +46,7 @@ STAGE_DIR = "offbox_restore"
 STAGE_TTL_S = 30 * 60
 STAGE_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 SPACE_MARGIN_BYTES = 64 * 1024 * 1024
-SAFETY_KIND = "auto-pre-restore"
+SAFETY_KIND = restore_safety.SAFETY_KIND
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -234,18 +234,21 @@ def load_stage(settings: Settings, stage_id: str) -> tuple[dict[str, Any], Path]
 # ---------------------------------------------------------------- step 2: safety archive + the existing restore
 
 
-def restore_staged(settings: Settings, conn: sqlite3.Connection, stage_id: str, *, mode: str = "replace", scope: str = "project",
+def restore_staged(settings: Settings, conn: sqlite3.Connection, stage_id: str, *, mode: str = "replace", scope: str | None = None,
                    actor_user_id: str | None = None, backup_password: str | None = None, skip_sensitive: bool = False,
                    safety_password: str | None = None, process_hooks: bool = True) -> dict[str, Any]:
     """STEP 2. The caller has obtained the operator's explicit confirmation. Writes the pre-restore safety archive, runs
     `backup.restore` in the caller's transaction and, on success, removes the stage. Returns {"safety": <entry>, "meta": ..., "result": ...}.
     Anything `backup.restore` raises (ValueError, SensitiveError) propagates AFTER the safety archive made for this attempt is removed
-    again and with the stage kept, so the operator can retry (a password typed wrongly) without downloading again."""
+    again and with the stage kept, so the operator can retry (a password typed wrongly) without downloading again. `scope=None` takes the
+    setting `backup.offbox_restore_scope` (default "project+access"); the scope used is returned as "scope"."""
+    scope = scope or restore_safety.default_scope(conn)
     meta, archive = load_stage(settings, stage_id)
     if int(meta.get("schema_version") or 0) > backup_svc.schema_version(conn):
         raise OffboxError("schema_newer", "the staged copy is newer than this installation; update the add-on first")
+    restore_safety.check_password(conn, safety_password)  # `safety_password_*` before anything is written
     try:
-        safety = backup_svc.create(settings, conn, SAFETY_KIND, f"before restore from off-box copy {meta.get('object')}", backup_password=safety_password)
+        safety = restore_safety.write(settings, conn, f"before restore from off-box copy {meta.get('object')}", safety_password)
     except (OffboxError, sens.SensitiveError):
         raise
     except Exception as exc:  # noqa: BLE001 - a restore without its way back is never started
@@ -254,11 +257,11 @@ def restore_staged(settings: Settings, conn: sqlite3.Connection, stage_id: str, 
         result = backup_svc.restore(settings, conn, archive, mode, scope, actor_user_id=actor_user_id, backup_password=backup_password,
                                     skip_sensitive=skip_sensitive, process_hooks=process_hooks)
     except BaseException:
-        (backup_svc.backups_dir(settings) / safety["name"]).unlink(missing_ok=True)
+        restore_safety.remove(settings, safety)
         raise
     backup_svc.prune(settings)
     discard(settings, stage_id)
-    return {"safety": {k: safety[k] for k in ("name", "bytes", "created_at")}, "meta": meta, "result": result}
+    return {"safety": restore_safety.summary(safety), "meta": meta, "result": result, "scope": scope}
 
 
 # ---------------------------------------------------------------- from a saved target (the API's way in)
@@ -373,7 +376,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--password-env", help="NAME of an environment variable holding the backup password of the copy's encrypted section")
     ap.add_argument("--skip-sensitive", action="store_true", help="restore without the encrypted section (local accounts then need an administrator link)")
     ap.add_argument("--mode", choices=["replace", "merge"], default="replace")
-    ap.add_argument("--scope", choices=["project", "project+access"], default="project+access")
+    ap.add_argument("--scope", choices=list(restore_safety.SCOPES), default=None,
+                    help="default: the installation's setting backup.offbox_restore_scope (project+access when unset)")
     ap.add_argument("--out", help="fetch: where to write the verified, decrypted archive (.zip)")
     ap.add_argument("--confirm", default="", help="restore: must be RESTORE")
     ap.add_argument("--json", action="store_true")
@@ -428,6 +432,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         password = os.environ.get(args.password_env) if args.password_env else None
         with db.connection() as conn:
+            args.scope = args.scope or restore_safety.default_scope(conn)
             out = restore_staged(settings, conn, meta["id"], mode=args.mode, scope=args.scope, actor_user_id=None, backup_password=password,
                                  skip_sensitive=args.skip_sensitive, process_hooks=False)
             from ..audit import audit

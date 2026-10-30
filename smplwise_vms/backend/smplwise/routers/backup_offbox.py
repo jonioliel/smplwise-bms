@@ -357,10 +357,12 @@ class RestoreFromIn(BaseModel):
     stage_id: str = Field(min_length=1, max_length=64)
     confirm: str = ""
     mode: str = Field(default="replace", pattern="^(replace|merge)$")
-    scope: str = Field(default="project", pattern=r"^(project|project\+access)$")
+    # None: the setting `backup.offbox_restore_scope` (default "project+access"; owner decision 2026-10-30)
+    scope: str | None = Field(default=None, pattern=r"^(project|project\+access)$")
     backup_password: SecretStr | None = None
     skip_sensitive: bool = False
-    # the pre-restore safety archive normally omits the sensitive section; with a password it carries it (sealed)
+    # the pre-restore safety archive normally omits the sensitive section; with a password it carries it (sealed).
+    # A weak / oversized one is refused as `safety_password_weak` / `safety_password_too_long` before anything is written.
     safety_backup_password: SecretStr | None = None
 
 
@@ -454,7 +456,7 @@ def restore_from_copy(body: RestoreFromIn, request: Request, principal: Principa
     meta, result = out["meta"], out["result"]
     audit(conn, actor=principal, action="backup.offbox.restore", decision="allowed", resource_type="backup_offbox_target", resource_id=meta.get("target_id") or "",
           request_id=_rid(request),
-          details={"object": meta["object"], "key_id": meta["key_id"], "safety": out["safety"]["name"], "mode": body.mode, "scope": body.scope,
+          details={"object": meta["object"], "key_id": meta["key_id"], "safety": out["safety"]["name"], "mode": body.mode, "scope": out["scope"],
                    "tables": result["tables"], "files": result["files"],
                    "sensitive": {k: result["sensitive"][k] for k in ("state", "restored", "skipped", "plaintext_ignored")}})
     switch = result.get("update_apply_enabled") or {}
@@ -462,4 +464,4 @@ def restore_from_copy(body: RestoreFromIn, request: Request, principal: Principa
           request_id=_rid(request), reason="kept_on_restore",
           details={"via": "offbox_restore", "backup": meta["object"], "mode": body.mode, "to": switch.get("kept"), "kept": switch.get("kept"),
                    "archive": switch.get("archive"), "archive_differed": bool(switch.get("differed"))})
-    return {"object": meta["object"], "safety_archive": out["safety"], **result}
+    return {"object": meta["object"], "safety_archive": out["safety"], "scope": out["scope"], **result}
