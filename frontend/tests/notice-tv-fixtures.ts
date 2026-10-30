@@ -70,3 +70,27 @@ export async function settled(page: Page): Promise<void> {
   });
   await page.waitForTimeout(1200); // the 1 s item fade of the stage
 }
+
+/**
+ * The lobby styles (hi-tech / luxury, LOBBY-STYLES-2300): wait until a turn of the rotation has really settled instead of sleeping a
+ * fixed time (a busy gate machine runs the transitions late): the shown title is not `prev`, only one notice is left on the stage (the
+ * old one has left and been removed), and no finite animation is still running on the stage or the urgent layer (the ambient loops are
+ * endless and do not count). Returns the shown title (the urgent layer's while it holds the screen).
+ */
+export async function lobbyTurn(page: Page, prev: string, timeout = 15_000): Promise<string> {
+  const h = await page.waitForFunction((p) => {
+    const nb = document.getElementById('nbk');
+    if (!nb) return null;
+    const tk = nb.dataset.take === '1' ? nb.querySelector('.nb-take .nb-ttl') : null;
+    const msgs = nb.querySelectorAll('.nb-st > .nb-msg:not(.nb-prep):not(.nb-ghost)');
+    const t = ((tk ?? msgs[msgs.length - 1]?.querySelector('.nb-ttl')) as HTMLElement | null | undefined)?.textContent?.trim() ?? '';
+    if (!t || t === p) return null;
+    if (msgs.length > 1 || nb.querySelector('.nb-st > .nb-msg[data-leaving]')) return null;
+    const busy = document.getAnimations().some((a) => {
+      const tg = (a.effect as KeyframeEffect | null)?.target as Element | null | undefined;
+      return !!tg && !!tg.closest('#nbk .nb-st, #nbk .nb-take') && a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity;
+    });
+    return busy ? null : t;
+  }, prev, { timeout, polling: 100 });
+  return (await h.jsonValue()) as string;
+}
