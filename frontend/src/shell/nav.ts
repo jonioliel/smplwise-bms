@@ -704,10 +704,39 @@ export function applySynopticHidden(on: boolean | null | undefined): boolean {
 }
 export const synopticTabOff = (): boolean => SYNOPTIC_OFF;
 
+/** CALENDARS-UI-2310: the calendars module ("יומנים"). Its screens answer at two addresses - #/calendars/<view> (the side rail entry) and
+ * #/devices/calendars/<view> (the tab of the home area) - so a viewer who reaches it from either keeps the navigation he came from. Where it
+ * is offered is the installation's setting `menu_position` (rail, the default / home_tab / both; owner 2026-10-30 night); a viewer without the
+ * home area (a tenant with calendars only, owner answer 25) always gets the rail entry. Off until GET /calendar/module says otherwise
+ * (calendars/access.ts), the static demo too. */
+export const CALENDARS_HREF = '#/calendars/cal';
+export const CALENDARS_HOME_HREF = '#/devices/calendars/cal';
+export const CALENDARS_SETTINGS_HREF = '#/system/calendars';
+export const CALENDAR_SYNC_SETTINGS_HREF = '#/system/calendar-sync';
+let CALENDARS_ON = false;
+let CALENDARS_PLACEMENT: 'rail' | 'home_tab' | 'both' = 'rail';
+/** Called by calendars/access.ts with the module state; re-applied by the shell after HIDDEN_HREFS is rebuilt. */
+export function applyCalendarsNav(on: boolean, placement: 'rail' | 'home_tab' | 'both' = CALENDARS_PLACEMENT): void {
+  const tabOn = on && placement !== 'rail';
+  const changed = on !== CALENDARS_ON || placement !== CALENDARS_PLACEMENT || HIDDEN_HREFS.has(CALENDARS_HOME_HREF) === tabOn;
+  CALENDARS_ON = on;
+  CALENDARS_PLACEMENT = placement;
+  if (tabOn) HIDDEN_HREFS.delete(CALENDARS_HOME_HREF);
+  else HIDDEN_HREFS.add(CALENDARS_HOME_HREF);
+  if (changed) for (const l of tabsListeners) l();
+}
+export const calendarsModuleOn = (): boolean => CALENDARS_ON;
+export const calendarsPlacement = (): 'rail' | 'home_tab' | 'both' => CALENDARS_PLACEMENT;
+/** The base address the calendars screens build their links on: the one the viewer is on. */
+export const calendarsBase = (r: RouteState | null): string => (r?.mode === 'devices' ? '#/devices/calendars' : '#/calendars');
+export const CALENDARS_AREA: AreaEntry = { id: 'calendars', icon: 'calendar', label: 'יומנים', href: CALENDARS_HREF };
+
 export const DEVICES_TABS: TabItem[] = [
   { id: 'building', label: 'מבט על', href: '#/devices/building' },
   // 2.29.0 (owner decision 6, 2026-10-29): the synoptic map is the tab BETWEEN מבט על and קברניט; the installation may switch it off (ui.xs syn_tab)
   { id: 'synoptic', get label() { return xsText('synTab'); }, href: SYNOPTIC_HREF },
+  // CALENDARS-UI-2310: "יומנים" between מבט על and קברניט while the installation puts it in the home menu (hidden by default: HIDDEN_HREFS)
+  { id: 'calendars', label: 'יומנים', href: CALENDARS_HOME_HREF },
   { id: 'automations', label: 'קברניט', href: SCHEDULES_HREF },
   // CR-NOTICE106 put לוח הודעות here; NOTICEADD-295 (owner decision 2026-10-24) moved it to the rail (NOTICES_AREA)
   // ANNOUNCE-295: הכרזות - offered to holders of media.announce (TAB_PERMISSIONS); the screen itself says when the feature is off
@@ -1112,7 +1141,7 @@ export function areaDot(id: string): boolean {
 }
 
 // NOTICEADD-295: 'notices' is the rail entry of the notice board (NOTICES_AREA) - not a movable tab (NavTabId) and without a tab row
-export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices' | 'multimedia' | 'infra' | 'tickets' | 'notices';
+export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices' | 'multimedia' | 'infra' | 'tickets' | 'notices' | 'calendars';
 export type SecuritySection = 'live' | 'investigate' | 'alarm';
 
 export interface AreaEntry {
@@ -1213,6 +1242,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
   infra: INFRA_TABS,
   tickets: TICKETS_TABS,
   notices: [], // NOTICEADD-295: one page, no tab row
+  calendars: [], // CALENDARS-UI-2310: the screen draws its own view tabs (the approved mock-up)
   system: [
     { id: 'general', label: 'כללי', href: '#/system/diagnostics' },
     // CR-008 P3: per-user push notifications - every signed-in user may set their own (no TAB_PERMISSIONS entry)
@@ -1242,6 +1272,9 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'multimedia', label: 'מולטימדיה', href: MULTIMEDIA_SETTINGS_HREF },
     // CR-023: prices and VAT, business details, data retention of the electricity module (energy.manage, or system.configure for the retention)
     { id: 'infra', label: 'תשתיות', href: INFRA_SETTINGS_HREF },
+    // CALENDARS-UI-2310: the calendars module's settings (calendar.configure) and its external connections (calendar.connect)
+    { id: 'calendars', label: 'יומנים', href: CALENDARS_SETTINGS_HREF },
+    { id: 'calendar-sync', label: 'חיבורי יומן', href: CALENDAR_SYNC_SETTINGS_HREF },
     // CR-038: the tickets module's settings (the switch and the display: system.configure; the name, departments and grants: tickets.configure)
     { id: 'tickets', get label() { return tt('settingsTab'); }, href: TICKETS_SETTINGS_HREF },
     // CR-038 S5a: which linked WhatsApp account sends for which use (installation-level; read system.configure, edit messaging.accounts.manage)
@@ -1266,6 +1299,7 @@ export function areaOf(r: RouteState | null): AreaId | null {
   if (!r?.mode) return null;
   if (r.mode === 'live' || r.mode === 'investigate' || r.mode === 'security') return 'security';
   if (r.mode === 'devices' && r.segments[1] === 'notices') return 'notices'; // NOTICEADD-295: the rail's notice board entry
+  if (r.mode === 'calendars') return 'calendars'; // CALENDARS-UI-2310: the rail entry (the home tab's address stays in the home area)
   return r.mode;
 }
 
@@ -1287,7 +1321,7 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'wiskey':
       return wiskeyActiveTab(r);
     case 'devices':
-      return s[1] === 'schedules' || s[1] === 'automations' ? 'automations' : s[1] === 'synoptic' ? 'synoptic' : 'building'; // 0.1.154: the schedules are a segment of קברניט
+      return s[1] === 'schedules' || s[1] === 'automations' ? 'automations' : s[1] === 'synoptic' ? 'synoptic' : s[1] === 'calendars' ? 'calendars' : 'building'; // 0.1.154: the schedules are a segment of קברניט
     case 'infra':
       return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : s[1] === 'temperature' ? 'temperature' : s[1] === 'water' ? 'water' : 'electricity';
     case 'tickets':
@@ -1414,7 +1448,7 @@ export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Re
 
 /** Tabs the owner hid in the settings (0.1.61: the AI search); filled by the shell once the product settings load. */
 // CR-NOTICE106: the notice board tab until the session says the module is on; FIX2200: the same for the הכרזות tab (announce.enabled)
-export const HIDDEN_HREFS = new Set<string>(['#/devices/notices', '#/devices/announce']);
+export const HIDDEN_HREFS = new Set<string>(['#/devices/notices', '#/devices/announce', '#/devices/calendars/cal']);
 
 /** הגדרות › מסך פתיחה (0.1.68): the route the UI lands on when the address carries none. */
 export const START_ROUTES: Record<string, string> = { explore: '/explore/floors/f0', live: '/live', wall: '/live/wall', events: '/investigate/events', playback: '/investigate/playback', devices: '/devices/building' };
@@ -1456,6 +1490,10 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // CR-NOTICE106: the notice board page needs no entry (every signed-in user reads the notices of his audience; the server decides),
   // its settings page: the module switch and defaults need system.configure, the TV boards notices.boards (each part by its own right)
   [NOTICES_SETTINGS_HREF]: ['system.configure', 'notices.boards'],
+  // CALENDARS-UI-2310: the module's settings (calendar.configure; holders of calendar.view read them) and its connections (calendar.connect)
+  [CALENDARS_SETTINGS_HREF]: ['calendar.configure'],
+  [CALENDAR_SYNC_SETTINGS_HREF]: ['calendar.connect'],
+  [CALENDARS_HOME_HREF]: ['calendar.view'],
   [TRANSIT_SETTINGS_HREF]: ['system.configure', 'notices.boards'], // BUSTIMES-295: reading the stops; every write needs system.configure (the server decides)
   [SYNOPTIC_HREF]: ['devices.read'], // 2.29.0: the board reads devices/tree (the server narrows it to the caller's floors)
   [ANNOUNCE_HREF]: ['media.announce'], // ANNOUNCE-295: POST announcements needs it (installation scope on the server)
@@ -1669,7 +1707,18 @@ export function visibleAreas(api: boolean, can?: Can, order: readonly string[] =
     return [{ ...n, href: entryHref(n.href, tabs, n.id) }];
   });
   // ui.tabs "areas": areas the admin hid leave the rail and the bottom bar (the order stays the user's)
-  return withNoticesArea(api ? configureTabs('areas', list, false) : list, rank);
+  // answer 25: a viewer who cannot read the building's devices has no real home screen - a tenant of the calendars only
+  return withCalendarsArea(withNoticesArea(api ? configureTabs('areas', list, false) : list, rank), api && !!can && !can('devices.read'));
+}
+
+/** CALENDARS-UI-2310: the rail entry "יומנים" right after ראשי (the approved mock-up, nav B) while the module is on and the installation puts
+ * it on the rail (rail / both) - or, whatever the setting, for a tenant of the calendars only (owner answer 25: no home area, or a home
+ * screen without devices.read, which shows him nothing). Not a movable tab. */
+export function withCalendarsArea(list: AreaEntry[], tenant = false): AreaEntry[] {
+  if (!CALENDARS_ON) return list;
+  const home = list.findIndex((n) => n.id === 'devices');
+  if (CALENDARS_PLACEMENT === 'home_tab' && home >= 0 && !tenant) return list;
+  return [...list.slice(0, home + 1), CALENDARS_AREA, ...list.slice(home + 1)];
 }
 
 /** NOTICEADD-295: the notice board's rail entry joins while the module is on (applyNoticesHidden; the static demo keeps it off like the

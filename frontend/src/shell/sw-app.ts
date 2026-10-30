@@ -70,6 +70,10 @@ import '../screens/tickets-rfqs'; // TKRFQ2 (2.6.1): requests for quotation (#/t
 import '../screens/tickets-maintenance'; // CR-MAINT215 slice 2: the maintenance section (#/tickets/maintenance/<page>)
 import '../maintenance/close-prompt'; // MAINT215B: asks the closer whether to mark the plan done when a request a plan opened is closed
 import { refreshMaintenance } from '../maintenance/access'; // CR-MAINT215 slice 2: the section's switch for the navigation
+import { refreshCalendars, wireCalendars } from '../calendars/access'; // CALENDARS-UI-2310: the module's switch and placement for the navigation
+import '../calendars/cal-page'; // CALENDARS-UI-2310: יומנים (#/calendars/... and #/devices/calendars/...)
+import '../screens/system-calendars'; // CALENDARS-UI-2310: הגדרות › יומנים
+import '../screens/system-calendar-sync'; // CALENDARS-UI-2310: הגדרות › חיבורי יומן
 import { startRfqQuestions } from '../tickets/rfq-questions-store'; // RFQQUESTIONS: the nav badge of vendor questions
 import { rt } from '../tickets/rfq-text';
 import '../tickets/vendor-accounts'; // TK258: "חשבון ספקים" (#/tickets/accounts)
@@ -1931,6 +1935,7 @@ export class SwApp extends LitElement {
       if (!applyTicketsHidden({ 'tickets.enabled': s.mode === 'demo' ? 'false' : String(!!s.me?.modules?.tickets) })) startRfqQuestions(); // RFQQUESTIONS: the nav badge
       applyNoticesHidden(s.mode === 'api' && !!s.me?.modules?.notices); // CR-NOTICE106: the notice board tab (OFF by default, the static demo too)
       applyAnnounceHidden(s.mode === 'api' && !!s.me?.modules?.announce); // FIX2200: the הכרזות tab follows announce.enabled (OFF by default, the static demo too)
+      wireCalendars(); // CALENDARS-UI-2310: the module asks GET /calendar/module on every session (OFF in the navigation until it answers)
       setTicketNames(s.me?.modules?.tickets_name);
       startIncidents(s.mode === 'api' && !!s.me?.modules?.incidents); // CR-LIVEEVENT100: the open-incident pill / dots (OFF by default, the static demo too)
       setReadinessChip(s.mode === 'api' ? s.me?.readiness : null); // CR-READY96: the score chip on the settings entry (configure holders only)
@@ -1997,6 +2002,7 @@ export class SwApp extends LitElement {
           void refreshInsightsVisibility(); // CR-INSIGHT215: the reports tab appears once a part is on for this viewer
           void refreshTemperatureVisibility(); // CR-INFRA-TEMPERATURE 2.9.1: the temperatures tab appears once a unit is defined (always for a manager)
           void refreshMaintenance(); // CR-MAINT215 slice 2: the maintenance section appears while its module is on (maintenance.view)
+          void refreshCalendars(); // CALENDARS-UI-2310: HIDDEN_HREFS was just rebuilt - the home tab / rail entry follow the module state again
           void refreshWaterVisibility(); // CR-WATER78: the water tab appears while the module is on and the viewer holds water.view
           void refreshGeneratorVisibility(); // CR-031: the generator tab appears when a generator is detected (or to a manager)
           void refreshInfraVisibility(); // CR-023: "תשתיות" appears when there are meters or the user may manage them
@@ -2798,6 +2804,8 @@ export class SwApp extends LitElement {
         if (s[1] === 'schedules') return html`<system-schedules></system-schedules>`; // הגדרות › תזמונים (CR-014)
         if (s[1] === 'wall') return html`<system-wall></system-wall>`; // הגדרות › מסכי קיר (CR-030)
         if (s[1] === 'notices') return html`<system-notices .boardId=${s[2] ?? ''}></system-notices>`; // הגדרות › לוח הודעות (CR-NOTICE106)
+        if (s[1] === 'calendars') return html`<system-calendars .route=${r}></system-calendars>`; // CALENDARS-UI-2310: הגדרות › יומנים
+        if (s[1] === 'calendar-sync') return html`<system-calendar-sync></system-calendar-sync>`; // CALENDARS-UI-2310: הגדרות › חיבורי יומן
         if (s[1] === 'transit') return html`<system-transit></system-transit>`; // הגדרות › תחבורה ציבורית (BUSTIMES-295)
         if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
@@ -2864,6 +2872,7 @@ export class SwApp extends LitElement {
         // the list, which stays mounted underneath (closing the sheet returns to the item's drawer or the list without a reload).
         if (s[1] === 'synoptic') return html`<devices-synoptic></devices-synoptic>`; // 2.29.0: ראשי › מפה סינופטית
         if (s[1] === 'notices') return html`<devices-notices></devices-notices>`; // CR-NOTICE106: לוח הודעות (the screen checks the module and the rights)
+        if (s[1] === 'calendars') return html`<calendars-page .route=${r}></calendars-page>`; // CALENDARS-UI-2310: יומנים as a tab of the home area
         if (s[1] === 'announce') return html`<devices-announce></devices-announce>`; // ANNOUNCE-295: הכרזות (the screen checks the right and the switch)
         if (s[1] === 'automations') return html`<devices-automations .kavarnit=${kavarnitSegments(this.session.mode === 'api', canNav)}></devices-automations>`;
         return html`<devices-building></devices-building>`;
@@ -2888,6 +2897,9 @@ export class SwApp extends LitElement {
           queueMicrotask(() => window.location.replace(target ?? '#/infra/electricity/meters'));
         }
         return html`<infra-electricity .route=${r}></infra-electricity>`;
+      case 'calendars':
+        // CALENDARS-UI-2310: the rail entry's address; the screen checks the module and the rights itself
+        return html`<calendars-page .route=${r}></calendars-page>`;
       case 'tickets':
         // CR-038: #/tickets/<id> is a ticket on the full screen (D18); #/tickets/<mine|department|all> the list with its drawer (?t=) and the
         // create form (?new=1). #/tickets opens this user's first visible scope tab. The screens answer "the module is off" themselves.
@@ -3183,7 +3195,7 @@ export class SwApp extends LitElement {
           this.orderOpen = true;
           this.pushOverlay();
         }}>${this.renderMenuPills()}</sw-user-menu>
-      <sw-nav-order .open=${this.orderOpen} .tabs=${visibleAreas(api, canNav, this.navOrder).filter((a) => a.id !== 'notices') /* NOTICEADD-295: follows מולטימדיה, not movable */} .order=${[...this.navOrder]}
+      <sw-nav-order .open=${this.orderOpen} .tabs=${visibleAreas(api, canNav, this.navOrder).filter((a) => a.id !== 'notices' && a.id !== 'calendars') /* NOTICEADD-295: follows מולטימדיה, not movable; CALENDARS-UI-2310: follows ראשי */} .order=${[...this.navOrder]}
         .onSave=${(o: string[]) => saveNavOrder(o)} .onReset=${() => resetNavOrder()}
         @close=${() => {
           if (!this.orderOpen) return;
