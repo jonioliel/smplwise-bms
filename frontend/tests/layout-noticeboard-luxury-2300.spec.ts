@@ -33,6 +33,8 @@ interface Open {
   logo?: boolean;
   /** the building photos: day, night, both or none */
   photos?: 'both' | 'day' | 'none';
+  /** a running clock (the news changes, the drift runs) instead of the fixed one */
+  live?: boolean;
 }
 
 async function open(page: Page, o: Open): Promise<Feed> {
@@ -49,7 +51,8 @@ async function open(page: Page, o: Open): Promise<Feed> {
   await page.route('**/assets/photo-day.svg', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: PHOTO('DAYIMG', '#d9cdb8', '#8c7a5b') }));
   await page.route('**/assets/photo-night.svg', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: PHOTO('NIGHTIMG', '#0c1426', '#3a3350') }));
   await serveFeed(page, feed);
-  await page.goto(new URL(tvUrl([o.q ?? '', 'n=' + ++opened].filter(Boolean).join('&')), base()).toString());
+  const url = tvUrl([o.q ?? '', 'n=' + ++opened].filter(Boolean).join('&'));
+  await page.goto(new URL(o.live ? url.replace('&clock=fixed', '') : url, base()).toString());
   await page.waitForSelector('#nbk[data-ready="1"]', { state: 'attached' });
   await page.evaluate(async () => { await document.fonts.ready; });
   await page.waitForTimeout(o.logo || photos !== 'none' ? 900 : 500);
@@ -130,8 +133,8 @@ for (const skin of SKINS) {
           if (skin === 'gallery') expect(fam).toContain('LobbyFrank');
           if (skin === 'concierge') expect(fam).toContain('LobbyDavid');
           if (skin === 'stone') expect(fam).toContain('Heebo');
-          expect(await page.evaluate(() => document.fonts.check('400 40px LobbyFrank', 'שלום'))).toBe(true);
-          expect(await page.evaluate(() => document.fonts.check('400 40px LobbyDavid', 'שלום'))).toBe(true);
+          const face = skin === 'gallery' ? 'LobbyFrank' : skin === 'concierge' ? 'LobbyDavid' : 'Heebo';
+          expect(await page.evaluate((f) => document.fonts.check('400 40px ' + f, 'שלום'), face)).toBe(true);
         });
       }
     }
@@ -188,7 +191,7 @@ for (const skin of SKINS) {
     });
 
     test('motion is composite-only; the Ken Burns drift is on (always) for the photo styles', async ({ page }) => {
-      await open(page, { skin, notices: NORMAL });
+      await open(page, { skin, notices: NORMAL, live: true, display: { hold: NORMAL[0].id } });
       await expect(page.locator('#nbk')).toHaveAttribute('data-kb', '1');
       await cmd(page, 'next');
       await page.waitForTimeout(250);
@@ -286,7 +289,7 @@ for (const skin of SKINS) {
     });
 
     test('the news: one small headline at a time, changing with a fade', async ({ page }) => {
-      await open(page, { skin, notices: NORMAL });
+      await open(page, { skin, notices: NORMAL, live: true, display: { hold: NORMAL[0].id } });
       const on = () => page.$$eval('#nbk .nb-ft .nb-it.nb-on', (l) => l.map((x) => (x.textContent || '').trim()));
       const a = await on();
       expect(a.length).toBe(1);

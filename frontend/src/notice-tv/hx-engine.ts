@@ -753,7 +753,9 @@ export function createHx(api: EngineApi): Hx {
   function applied(first: boolean): void {
     if (lux()) {
       // the luxury drift (Ken Burns, parallax) is always on: it follows only reduced motion and an explicit frozen / off, never the measurement
-      root.dataset.kb = lobbyDrift(inp().liveBg, api.rm()) && !api.opts.fixed ? '1' : '0';
+      const kb = lobbyDrift(inp().liveBg, api.rm());
+      root.dataset.kb = kb ? '1' : '0';
+      root.dataset.kbrun = kb && !api.opts.fixed ? '1' : '0'; // a fixed clock (screenshots, specs) holds still
       lxChrome();
       return;
     }
