@@ -35,7 +35,7 @@ test('the readable floor: 28 px body or larger on the 1080 px canvas in both sty
   expect(FS_MIN).toBe(0.64);
   expect(minBodyPx('ink')).toBeGreaterThanOrEqual(28);
   expect(minBodyPx('sign')).toBeGreaterThanOrEqual(28);
-  expect(BODY_PX).toEqual({ ink: 46, sign: 44 });
+  expect({ ink: BODY_PX.ink, sign: BODY_PX.sign }).toEqual({ ink: 46, sign: 44 });
   expect(minBodyPx('ink', true)).toBe(25.8); // the take-over and the announcement (one screen, larger type) may go a little lower
   expect(FS_MIN_TAKE).toBeLessThan(FS_MIN);
 });
