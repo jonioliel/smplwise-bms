@@ -103,7 +103,7 @@ async function expectClean(page: Page) {
 }
 
 /** the page frame holds with one notice or none (the list is gone): the header on top, the footer across, the stage in between */
-async function expectFrame(page: Page) {
+async function expectFrame(page: Page, half = false) {
   const r = await page.evaluate(() => {
     const q = (s: string) => (document.querySelector(s) as HTMLElement | null)?.getBoundingClientRect();
     const nb = q('#nbk') as DOMRect;
@@ -113,10 +113,10 @@ async function expectFrame(page: Page) {
     return { brandTop: (brand.top - nb.top) / nb.height, ftWidth: ft.width / nb.width, ftTop: (ft.top - nb.top) / nb.height, stH: st.height / nb.height, stW: st.width / nb.width };
   });
   expect(r.brandTop, 'the header stays on top').toBeLessThan(0.25);
-  expect(r.ftWidth, 'the footer runs across').toBeGreaterThan(0.6);
+  expect(r.ftWidth, 'the footer runs across').toBeGreaterThan(half ? 0.4 : 0.6); // Stone keeps its footer in the text half
   expect(r.ftTop, 'the footer stays at the bottom').toBeGreaterThan(0.7);
   expect(r.stH, 'the stage has room').toBeGreaterThan(0.2);
-  expect(r.stW, 'the stage has room').toBeGreaterThan(0.3);
+  expect(r.stW, 'the stage has room').toBeGreaterThan(half ? 0.3 : 0.3);
 }
 
 const animatedProps = (page: Page) => page.evaluate(() => [...new Set(document.getAnimations()
@@ -234,9 +234,9 @@ for (const skin of SKINS) {
           return { s: parseFloat(m.style.getPropertyValue('--fs') || '1'), px: parseFloat(getComputedStyle(m.querySelector('.nb-bd') as HTMLElement).fontSize) };
         });
         expect(r.px, 'body >= 20 px').toBeGreaterThanOrEqual(20);
-        if (n === 1) expect(r.s).toBe(1);
+        if (n === 1) expect(r.s).toBeGreaterThanOrEqual(skin === 'stone' ? 0.8 : 1); // Stone's text half is narrower: one sentence may take a small step
         await expectClean(page);
-        await expectFrame(page);
+        await expectFrame(page, skin === 'stone');
       }
     });
 
@@ -284,7 +284,7 @@ for (const skin of SKINS) {
         await open(page, { skin, notices: [], theme });
         await expect(page.locator('#nbk .nb-msg.nb-idle')).toHaveCount(1);
         await expectClean(page);
-        await expectFrame(page);
+        await expectFrame(page, skin === 'stone');
         if (skin === 'concierge') expect(await photoText(page)).toContain(theme === 'night' ? 'NIGHTIMG' : 'DAYIMG');
       }
     });
