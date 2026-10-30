@@ -160,33 +160,6 @@ for (const skin of SKINS) {
         const r = await st();
         expect(r.px, 'body >= 20 px').toBeGreaterThanOrEqual(20);
         if (n === 1) expect(r.s).toBe(1);
-        if (skin === 'axis') {
-          const dbg = await page.evaluate(() => {
-            const m = document.querySelector('#nbk .nb-st > .nb-msg:not(.nb-prep)') as HTMLElement;
-            const t = m.querySelector('.nb-txt') as HTMLElement;
-            const bd = m.querySelector('.nb-bd') as HTMLElement;
-            const ttl = m.querySelector('.nb-ttl') as HTMLElement;
-            const st = (document.querySelector('#nbk .nb-st') as HTMLElement).getBoundingClientRect();
-            return [m.className, m.style.cssText, t.scrollHeight, t.clientHeight, bd.getBoundingClientRect().height, ttl.getBoundingClientRect().height, bd.getBoundingClientRect().width, st.height, getComputedStyle(bd).fontSize, getComputedStyle(t).display, getComputedStyle(m).position].join(' | ');
-          });
-          console.log('DBG n=' + n + ' ' + dbg);
-          const sweep = await page.evaluate(() => {
-            const m = document.querySelector('#nbk .nb-st > .nb-msg:not(.nb-prep)') as HTMLElement;
-            const t = m.querySelector('.nb-txt') as HTMLElement;
-            const root = document.getElementById('nbk') as HTMLElement;
-            const out: string[] = [];
-            for (const f of [1, 0.84, 0.7, 0.55]) {
-              m.style.setProperty('--fs', String(f));
-              out.push(f + ':' + t.scrollHeight + '/' + t.clientHeight);
-            }
-            m.dataset.cols = '2';
-            for (const f of [1, 0.7, 0.55]) { m.style.setProperty('--fs', String(f)); out.push('c2 ' + f + ':' + t.scrollHeight + '/' + t.clientHeight); }
-            root.dataset.long = '1';
-            for (const f of [1, 0.7, 0.55]) { m.style.setProperty('--fs', String(f)); out.push('L ' + f + ':' + t.scrollHeight + '/' + t.clientHeight); }
-            return out.join(' ');
-          });
-          console.log('SWEEP n=' + n + ' ' + sweep);
-        }
         await expectClean(page);
       }
     });
