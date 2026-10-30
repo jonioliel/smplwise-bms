@@ -59,7 +59,7 @@ async function expectClean(page: Page) {
     const bad: string[] = [];
     for (const el of nb.querySelectorAll<HTMLElement>('.nb-msg .nb-txt, .nb-q ol, .nb-take .nb-tm, .nb-ann .nb-al > div')) {
       if (el.offsetParent === null) continue;
-      if (el.scrollHeight > el.clientHeight + 2) bad.push('overflow ' + el.className);
+      if (el.scrollHeight > el.clientHeight + 2) bad.push('overflow ' + el.className + ' ' + el.scrollHeight + '/' + el.clientHeight + ' long=' + nb.dataset.long + ' cols=' + (el.closest('.nb-msg') as HTMLElement | null)?.dataset.cols + ' fit=' + (el.closest('.nb-msg') as HTMLElement | null)?.dataset.fit + ' ' + innerWidth + 'x' + innerHeight);
     }
     const small: string[] = [];
     const walker = document.createTreeWalker(nb, NodeFilter.SHOW_TEXT);
