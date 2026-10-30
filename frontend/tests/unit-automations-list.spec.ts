@@ -363,13 +363,14 @@ test.describe('navigation (the shell module, node only)', () => {
   };
   test.afterEach(() => applyAutomationsHidden({}));
 
+  // 2.29.0 (owner decision 6, 2026-10-29): the synoptic map tab (devices.read, on by default) sits between מבט על and קברניט
   test('the tab is for automation.manage, a script run or a scene activation at any scope (decision 1b); the settings tab for system.configure at the installation', () => {
-    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read')))).toEqual(['building']);
-    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'automation.manage')))).toEqual(['building', 'automations']);
-    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'automation.view')))).toEqual(['building']); // the removed permission opens nothing
-    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'devices.control')))).toEqual(['building', 'automations']); // scenes
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read')))).toEqual(['building', 'synoptic']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'automation.manage')))).toEqual(['building', 'synoptic', 'automations']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'automation.view')))).toEqual(['building', 'synoptic']); // the removed permission opens nothing
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'devices.control')))).toEqual(['building', 'synoptic', 'automations']); // scenes
     expect(ids(visibleTabs(DEVICES_TABS, true, only('script.manage')))).toEqual(['automations']);
-    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'script.run')))).toEqual(['building', 'automations']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'script.run')))).toEqual(['building', 'synoptic', 'automations']);
     expect(ids(visibleTabs(DEVICES_TABS, true, only('automation.manage', 'schedule.view')))).toEqual(['automations']); // 0.1.154: one tab, קברניט, whose first segment is the schedules
     expect(ids(visibleTabs(DEVICES_TABS, true, only('automation.manage')))).toEqual(['automations']); // whoever may edit sees them
     expect(tabAllowed(AUTOMATIONS_SETTINGS_HREF, only('system.configure'))).toBe(true);
@@ -387,11 +388,11 @@ test.describe('navigation (the shell module, node only)', () => {
     const can = only('devices.read', 'automation.manage');
     expect(applyAutomationsHidden({ 'automations.enabled': 'false' })).toBe(true);
     expect(HIDDEN_HREFS.has(AUTOMATIONS_HREF)).toBe(true);
-    expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'synoptic']);
     applyAutomationsHidden({ 'automations.enabled': 'false' });
     expect(heard).toBe(1);
     expect(applyAutomationsHidden({ 'automations.enabled': 'true' })).toBe(false);
-    expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'automations']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'synoptic', 'automations']);
     expect(heard).toBe(2);
     expect(applyAutomationsHidden(undefined)).toBe(false);
     stop();

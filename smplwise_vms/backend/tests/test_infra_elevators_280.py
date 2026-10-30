@@ -372,11 +372,20 @@ def test_history_segments_and_window():
 
 def test_list_with_history_and_its_refusals(owner):
     c, db, _, eid = owner
+    import datetime as dt
     import time
 
-    tick(db, time.time() - 600)
+    from smplwise.services.timeutil import iso_utc
+
+    now = time.time()
+    # Time control (flaky on the runner 2026-10-29): the fault sensor's `last_changed` used to be the instant add_entity ran, so the "fault" row
+    # landed in the wall-clock second of the request; the route's window ends at that same second and a zero-length trailing segment is dropped
+    # by design (history() keeps only end > at). Pin every instant well inside the window instead of leaning on how fast the test runs.
+    tick(db, now - 600)
     set_state(db, OWNER["fault"], "on")
-    tick(db, time.time())
+    with db.connection() as conn:
+        conn.execute("UPDATE ha_entities SET last_changed = ? WHERE entity_id = ?", (iso_utc(dt.datetime.fromtimestamp(now - 300, dt.timezone.utc)), OWNER["fault"]))
+    tick(db, now - 120)  # 480 s after the first pass: record_gap sees the stretch, but the last row is not older than the heartbeat, so no `unknown` row
     assert c.get(f"{API}?history=5").status_code == 422
     assert "history" not in c.get(API).json()["elevators"][0]  # only on request
     got = c.get(f"{API}?history=24").json()["elevators"][0]

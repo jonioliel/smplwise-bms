@@ -41,6 +41,9 @@ test.describe('tickets deletion evidence', () => {
   });
 
   test('the drawer: the danger action, the dialog (number + reason), the drawer closes and the row leaves', async ({ page }) => {
+    // GATE-2280: five full page loads (two skins x two schemes, then the delete run) and thirteen screenshots; on the phone project (DPR 2.6)
+    // that is 55-59 s on the 2.27.2 build and on the 2.28.0 train alike (measured 30.10) - the 60 s default was never enough for it
+    test.setTimeout(150_000);
     for (const skin of ['classic', 'domus'])
       for (const scheme of ['light', 'dark'] as const) {
         await go(page, `/tickets/mine?t=${A02}`, {}, scheme, skin);

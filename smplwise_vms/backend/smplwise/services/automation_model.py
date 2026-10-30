@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping
 
 from . import automation_policy as pol
+from . import building_presence_blocks as bpb
 from . import wall_buttons as wb
 from .automation_policy import MASK, has_mask, has_template, first_template, is_entity_id, is_number, mask_secrets, secret_kind
 from .automation_text import (  # noqa: F401  (re-exported for the callers)
@@ -273,6 +274,11 @@ def _split_critical(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
 
 # ---------------------------------------------------------------- parse: triggers
 
+def _tpl_trigger_extra(r: Mapping[str, Any]) -> bool:
+    """True when a template trigger carries a key the building-empty trigger does not (then it stays a locked template)."""
+    return bool(set(r) - {"trigger", "platform", "id", "value_template", "for", *_CARRY_KEYS})
+
+
 def parse_trigger(raw: Any, ctx: ModelContext | None = None) -> Block:
     ctx = ctx or ModelContext()
     pre = _preflight(raw, "trigger", ctx, True)
@@ -286,6 +292,10 @@ def parse_trigger(raw: Any, ctx: ModelContext | None = None) -> Block:
         if ctx.wall_buttons and not has_template(raw) and wb.is_button_trigger(raw):  # KAV079-295: a wall-button press, typed while the setting is on
             return _finish(_button_block(raw, ctx), "trigger", ctx)
         return mk_locked(raw, "device", "trigger", ctx)
+    if typ == "template" and ctx.presence_sensors and not _tpl_trigger_extra(r):  # BUILDING-PRESENCE-2271: the building-empty trigger this module writes
+        typed = bpb.parse_trigger(r, _parse_duration(r.get("for")))
+        if typed:
+            return _finish({"uid": _uid(ctx), "kind": "typed", "raw": raw, **typed, **({"id": r["id"]} if isinstance(r.get("id"), str) else {})}, "trigger", ctx)
     if typ == "template":
         return mk_locked(raw, "template", "trigger", ctx)
     if "." in typ:
@@ -378,6 +388,10 @@ def parse_condition(raw: Any, ctx: ModelContext | None = None, in_group: bool = 
         return _locked_for(raw, "condition", ctx, "unknown")
     if typ == "device":
         return mk_locked(raw, "device", "condition", ctx)
+    if typ == "template" and ctx.presence_sensors and not (set(r) - {"condition", "value_template", *_CARRY_KEYS}):  # BUILDING-PRESENCE-2271
+        typed = bpb.parse_condition(r)
+        if typed:
+            return _finish({"uid": _uid(ctx), "kind": "typed", "raw": raw, **typed}, "condition", ctx)
     if typ == "template":
         return mk_locked(raw, "template", "condition", ctx)
 
@@ -755,6 +769,8 @@ def _build_trigger(b: Block) -> Raw:
             out["offset"] = _fmt_offset(b["offset_min"])
     elif t == "homeassistant":
         out["trigger"], out["event"] = "homeassistant", "start"
+    elif t == bpb.TRIGGER_TYPE:  # BUILDING-PRESENCE-2271
+        out = bpb.build_trigger(b)
     elif t == "button":  # KAV079-295: the press word of the stored family, the button number inside the stored subtype
         ha_type = wb.type_for(str(b.get("ha_type") or ""), str(b.get("press") or ""))
         ha_sub = wb.subtype_for(str(b.get("ha_subtype") or ""), int(b.get("button") or 0)) if isinstance(b.get("button"), int) else None
@@ -832,6 +848,8 @@ def _build_condition(b: Block, ctx: ModelContext) -> Raw:
         if not ctx.shabbat_sensor:
             raise ModelError("shabbat_sensor_missing", "no Shabbat sensor is configured")
         return {"condition": "state", "entity_id": [ctx.shabbat_sensor], "state": "on" if b["mode"] == "only_holy_days" else "off"}
+    if t == bpb.CONDITION_TYPE:  # BUILDING-PRESENCE-2271
+        return bpb.build_condition(b)
     if t == "presence":  # KAV079-295
         if not ctx.presence_entity:
             raise ModelError("presence_entity_missing", "no presence entity is configured")
@@ -883,7 +901,7 @@ def _reparse(raw: Any, section: str, ctx: ModelContext) -> Block:
 def _plain_ctx(ctx: ModelContext) -> ModelContext:
     """The context for the internal comparison parses: no names, no uids that burn the counter, no template text."""
     return ModelContext(allowed_actions=ctx.allowed_actions, shabbat_sensor=ctx.shabbat_sensor, template_text=False, uid=lambda: "_",
-                        wall_buttons=ctx.wall_buttons, presence_entity=ctx.presence_entity)
+                        wall_buttons=ctx.wall_buttons, presence_entity=ctx.presence_entity, presence_sensors=ctx.presence_sensors)
 
 
 def emit_block(block: Block, section: str, ctx: ModelContext | None = None) -> Any:
@@ -1309,13 +1327,15 @@ def block_changed(block: Block, section: str, ctx: ModelContext | None = None) -
 
 
 def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Iterable[str] | None = None, shabbat_sensor: str | None = None,
-                   allowed_actions: Iterable[str] | None = None, presence_entity: str | None = None, wall_buttons: bool = False) -> list[dict[str, str]]:
+                   allowed_actions: Iterable[str] | None = None, presence_entity: str | None = None, wall_buttons: bool = False,
+                   presence_sensors: Iterable[str] | None = None) -> list[dict[str, str]]:
     """Validation of a draft with the caps of section 2.2 (the issues carry the dotted block path of `walk_draft`). A typed block that still equals its
     stored `raw` is not re-judged by the argument and notify rules (an old step stays saveable). Pure: permissions, scope and Home Assistant's own
     validation are the caller's."""
     out: list[dict[str, str]] = []
     allowed = list(allowed_actions) if allowed_actions is not None else None
-    vctx = ModelContext(shabbat_sensor=shabbat_sensor, allowed_actions=allowed, presence_entity=presence_entity, wall_buttons=wall_buttons)
+    tagged = list(presence_sensors) if presence_sensors is not None else []
+    vctx = ModelContext(shabbat_sensor=shabbat_sensor, allowed_actions=allowed, presence_entity=presence_entity, wall_buttons=wall_buttons, presence_sensors=tuple(tagged))
     notify = list(notify_targets) if notify_targets is not None else None
     if kind == "scene":
         d = draft
@@ -1394,6 +1414,9 @@ def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Itera
 
         if w.section == "trigger":
             need(b["type"] in ("state", "numeric_state") and not b["entity_ids"], "entity_required", "בחרו מכשיר")
+            if b["type"] == bpb.TRIGGER_TYPE and fresh:  # BUILDING-PRESENCE-2271
+                for code, msg in bpb.validate(b, "trigger", tagged, bool(tagged)):
+                    need(True, code, msg)
             if b["type"] == "numeric_state":
                 need(b.get("above") is None and b.get("below") is None, "value_required", "הגדירו ערך")
             if b["type"] == "time":
@@ -1409,6 +1432,9 @@ def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Itera
             t = b["type"]
             if t in ("state", "numeric_state"):
                 need(not b["entity_ids"], "entity_required", "בחרו מכשיר")
+            if t == bpb.CONDITION_TYPE and fresh:  # BUILDING-PRESENCE-2271
+                for code, msg in bpb.validate(b, "condition", tagged, bool(tagged)):
+                    need(True, code, msg)
             if t == "numeric_state":
                 need(b.get("above") is None and b.get("below") is None, "value_required", "הגדירו ערך")
             if t == "state":

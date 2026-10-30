@@ -119,6 +119,9 @@ export interface PlanZone {
   /** CR-009: a room shown on two floors carries a small chip naming the floor its surface is on ("רצפה בקומה -1"), on
    * both maps (owner decision 2); null / absent = none. */
   chip?: string | null;
+  /** PRESENCE-2280: the occupancy tone of the chip (building presence). occupied = green solid pill + the room tinted; clear = neutral solid pill; unknown = dashed
+   * outline ("אין מידע"). Absent = the plain CR-009 floor chip. */
+  chipTone?: 'occupied' | 'clear' | 'unknown';
 }
 
 /** Area-weighted polygon centroid in the polygon's own units (vertex mean for degenerate rings). */
@@ -730,6 +733,43 @@ export class SwPlanCanvas extends LitElement {
       text-anchor: middle;
       direction: rtl;
       unicode-bidi: plaintext;
+    }
+    /* PRESENCE-2280 (mockup round 7): the occupancy chip - green only for "active", neutral solid for empty, dashed for "no data" */
+    .zone .zchip[data-tone='occupied'] rect {
+      fill: color-mix(in srgb, var(--sw-success) 20%, var(--sw-menu-surface));
+      stroke: var(--sw-success-text);
+      stroke-opacity: 0.55;
+      stroke-dasharray: none;
+    }
+    .zone .zchip[data-tone='occupied'] text {
+      fill: var(--sw-success-text);
+      font-weight: 700;
+    }
+    .zone .zchip[data-tone='occupied'] .pi {
+      fill: none;
+      stroke: var(--sw-success-text);
+      stroke-width: 1.2;
+      stroke-linecap: round;
+    }
+    .zone .zchip[data-tone='clear'] rect {
+      fill: var(--sw-menu-surface);
+      stroke: var(--sw-border-strong, var(--sw-border));
+      stroke-opacity: 1;
+      stroke-dasharray: none;
+    }
+    .zone .zchip[data-tone='unknown'] rect {
+      fill: var(--sw-menu-surface);
+      stroke: var(--sw-text-3);
+      stroke-opacity: 0.9;
+    }
+    .zone .zchip[data-tone='unknown'] text {
+      fill: var(--sw-text-3);
+    }
+    .zone .ptint {
+      pointer-events: none;
+      stroke: none;
+      fill: var(--sw-success);
+      fill-opacity: 0.16;
     }
     .zone .zchip rect {
       fill: color-mix(in srgb, var(--zc) 14%, var(--sw-menu-surface));
@@ -1678,6 +1718,7 @@ export class SwPlanCanvas extends LitElement {
          @click=${(e: Event) => this.selectZone(z, e)} @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && this.selectZone(z, e)}>
         <polygon data-zone-body points=${pts} stroke-width=${((selected ? 2.2 : 1.4) * inv).toFixed(2)} @pointerdown=${(e: PointerEvent) => this.onZoneBodyPointerDown(z, e)} />
         ${this.renderZoneState(z, pts, live, c)}
+        ${z.chipTone === 'occupied' ? svg`<polygon class="ptint" data-building-tint="occupied" data-zone-id=${z.id} points=${pts} />` : nothing}
         ${this.zoneLabels && z.name && labelFits
           ? svg`<g transform="translate(${this.zoneLabelPoint(z, live, c).x.toFixed(1)} ${this.zoneLabelPoint(z, live, c).y.toFixed(1)}) scale(${inv})">
               <rect class="zl-bg" x=${-lw / 2} y="-10" width=${lw} height="20" rx="10" />
@@ -1721,10 +1762,13 @@ export class SwPlanCanvas extends LitElement {
   private renderZoneChip(z: PlanZone, chip: string, live: { x: number; y: number }[], c: { x: number; y: number }) {
     const inv = 1 / this.scale;
     const at = this.zoneLabelPoint(z, live, c);
-    const cw = Math.max(40, chip.length * 6.2 + 14);
+    const icon = z.chipTone === 'occupied' ? 14 : 0;
+    const cw = Math.max(40, chip.length * 6.2 + 14 + icon);
     const dy = (z.name && this.zoneLabels ? 20 : 0) + (this.roomStates?.rooms[z.id]?.temperature != null ? 22 : 0);
-    return svg`<g class="zchip" data-zone-chip=${z.id} transform="translate(${at.x.toFixed(1)} ${(at.y + dy * inv).toFixed(1)}) scale(${inv})">
-      <rect x=${-cw / 2} y="-8" width=${cw} height="16" rx="8" /><text y="3.5">${chip}</text>
+    // the occupied chip carries a small "people" glyph at the start of the text (right in RTL), drawn in plain strokes
+    return svg`<g class="zchip" data-zone-chip=${z.id} data-tone=${z.chipTone ?? nothing} transform="translate(${at.x.toFixed(1)} ${(at.y + dy * inv).toFixed(1)}) scale(${inv})">
+      <rect x=${-cw / 2} y="-8" width=${cw} height="16" rx="8" /><text y="3.5" x=${icon ? -icon / 2 + 1 : 0}>${chip}</text>
+      ${icon ? svg`<g class="pi" transform=${`translate(${cw / 2 - 9} 0)`}><circle cx="-2" cy="-2" r="1.8" /><path d="M-5.2 3.2 q3.2 -4 6.4 0" /><circle cx="2.6" cy="-1.4" r="1.3" /></g>` : nothing}
     </g>`;
   }
 

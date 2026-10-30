@@ -13,7 +13,8 @@
         "entity.state.read",
         "video.live",
         "media.read",
-        "presence.report"
+        "presence.report",
+        "calendar.view"
       ]
     },
     {
@@ -66,7 +67,9 @@
         "infra.temperature.ack",
         "presence.report",
         "tickets.view",
-        "tickets.create"
+        "tickets.create",
+        "calendar.view",
+        "calendar.book"
       ]
     },
     {
@@ -86,7 +89,8 @@
         "views.edit",
         "catalog.manage",
         "media.read",
-        "presence.report"
+        "presence.report",
+        "calendar.view"
       ]
     },
     {
@@ -187,6 +191,7 @@
         "reports.building",
         "presence.report",
         "history.presence",
+        "presence.building.view",
         "tickets.view",
         "tickets.create",
         "tickets.manage",
@@ -195,7 +200,12 @@
         "notices.view",
         "notices.manage",
         "notices.push",
-        "notices.delete"
+        "notices.delete",
+        "calendar.view",
+        "calendar.book",
+        "calendar.book_for_others",
+        "calendar.manage",
+        "calendar.maintenance"
       ]
     },
     {
@@ -333,6 +343,7 @@
         "reports.building",
         "presence.report",
         "history.presence",
+        "presence.building.view",
         "presence.sensors.view",
         "presence.view",
         "tickets.view",
@@ -354,7 +365,15 @@
         "notices.manage",
         "notices.push",
         "notices.boards",
-        "notices.delete"
+        "notices.delete",
+        "calendar.view",
+        "calendar.book",
+        "calendar.book_for_others",
+        "calendar.manage",
+        "calendar.maintenance",
+        "calendar.guests",
+        "calendar.configure",
+        "calendar.connect"
       ]
     },
     {
@@ -539,6 +558,42 @@
         "devices.read",
         "media.announce"
       ]
+    },
+    {
+      "id": "calendar_booker",
+      "name_he": "יומנים: הזמנות שלי",
+      "permissions": [
+        "calendar.view",
+        "calendar.book"
+      ]
+    },
+    {
+      "id": "calendar_on_behalf",
+      "name_he": "יומנים: הזמנה בשם צוות, חוג או לקוח",
+      "permissions": [
+        "calendar.book_for_others"
+      ]
+    },
+    {
+      "id": "calendar_manager",
+      "name_he": "יומנים: ניהול יומנים",
+      "permissions": [
+        "calendar.manage"
+      ]
+    },
+    {
+      "id": "calendar_maintenance",
+      "name_he": "יומנים: חלונות תחזוקה",
+      "permissions": [
+        "calendar.maintenance"
+      ]
+    },
+    {
+      "id": "calendar_connect",
+      "name_he": "יומנים: חיבור יומנים חיצוניים",
+      "permissions": [
+        "calendar.connect"
+      ]
     }
   ],
   "sensitive_permissions_not_implied": [
@@ -579,6 +634,7 @@
     "schedule.sensitive",
     "notify.manage",
     "presence.view",
+    "fire.acknowledge",
     "automation.manage",
     "scene.manage",
     "script.manage",
@@ -624,7 +680,10 @@
     "demo.run",
     "demo.run_anywhere",
     "bridge.key.rotate",
-    "partner.manage"
+    "partner.manage",
+    "calendar.maintenance",
+    "calendar.guests",
+    "calendar.connect"
   ],
   "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."
 }

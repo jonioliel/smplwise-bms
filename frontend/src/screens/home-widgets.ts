@@ -29,6 +29,8 @@ import type { LiveSummaryItem } from '../api/generator';
 import { DOORS_WIDGET_STYLES, renderDoors } from '../door-windows/home-widget'; // DOORWIN2-295
 import type { DoorsWidgetData } from '../door-windows/home-widget-model';
 import { NOTICES_WIDGET_STYLES, renderNotices, type NoticesWidgetData } from '../notices/home-widget'; // NOTICEPAGE-295
+import { PRESENCE_WIDGET_STYLES, renderPresence } from './building-presence-widget'; // PRESENCE-2280
+import type { BuildingSnapshot } from '../api/building-presence';
 import '../door-windows/emergency';
 
 /** The Bubble skin (phase C, 2026-10-02; the approved board docs/design/mockups/bubble-taste/home.html): the status widgets are
@@ -224,6 +226,8 @@ export class HomeWidgetsView extends LitElement {
   @state() private doorSheet = false;
   /** NOTICEPAGE-295: the notices active for the viewer (the home screen reads and polls them; null = none to show). */
   @property({ attribute: false }) notices: NoticesWidgetData = { notices: null, emptyMode: 'hide' };
+  /** PRESENCE-2280: the building presence answer (the home screen reads and polls it; null = none to show). */
+  @property({ attribute: false }) presence: BuildingSnapshot | null = null;
   /** UXREST2-295: the widgets whose own read failed (the screen reads elevators / temperature / generators); each draws a failure panel with a
    * retry (`home-widget-retry {id}`) in its own slot and the other widgets are untouched. */
   @property({ attribute: false }) failed: WidgetId[] = [];
@@ -1479,7 +1483,7 @@ export class HomeWidgetsView extends LitElement {
     /* WIDGETFIX-298: the infrastructure cards (elevators, temperature, generator, doors, notices) are a heading, a highlight and a list
        written one under the other; the row band's card is a flex ROW (built for the clock / weather), which laid those parts side by
        side and squeezed the names to 0 px. In the row band they keep their own top-to-bottom order. */
-    :host([layout='row']) .wg:is(.wg-elev, .wg-temp, .wg-gen, .wg-doors, .wg-notices) {
+    :host([layout='row']) .wg:is(.wg-elev, .wg-temp, .wg-gen, .wg-doors, .wg-notices, .wg-pres) {
       flex-direction: column;
       align-items: stretch;
       justify-content: center;
@@ -1569,7 +1573,7 @@ export class HomeWidgetsView extends LitElement {
         scroll-behavior: auto;
       }
     }
-  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES, TEMPERATURE_WIDGET_STYLES, GENERATOR_WIDGET_STYLES, DOORS_WIDGET_STYLES, NOTICES_WIDGET_STYLES];
+  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES, TEMPERATURE_WIDGET_STYLES, GENERATOR_WIDGET_STYLES, DOORS_WIDGET_STYLES, NOTICES_WIDGET_STYLES, PRESENCE_WIDGET_STYLES];
 
   connectedCallback() {
     super.connectedCallback();
@@ -1773,6 +1777,8 @@ export class HomeWidgetsView extends LitElement {
         return renderGenerators({ generators: this.generators, editing: this.editing, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       case 'doors':
         return html`${renderDoors({ data: this.doors, editing: this.editing, now: this.now, openEmergency: () => (this.doorSheet = true), shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it)}<span style="display:contents"><door-emergency-sheet .open=${this.doorSheet} .data=${this.doors.emergency} @close=${() => (this.doorSheet = false)} @changed=${() => this.emit('home-widget-retry', { id: 'doors' })}></door-emergency-sheet></span>`;
+      case 'presence':
+        return renderPresence({ snap: this.presence, editing: this.editing, compact: this.layout === 'row', shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       case 'notices':
         return renderNotices({ data: this.notices, editing: this.editing, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       default:

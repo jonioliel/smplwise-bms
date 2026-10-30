@@ -49,19 +49,19 @@ test('the home area has one tab array; its hrefs and the section registry', () =
   expect(AREA_TABS.devices).toBe(DEVICES_TABS);
   // 0.1.154: two tabs, "מבט על" and "קברניט" (id `automations`, whose first segment is the schedules); the tab opens on the schedules by default
   // NOTICEADD-295: לוח הודעות left this row for the rail (NOTICES_AREA, owner decision 2026-10-24); ANNOUNCE-295: + הכרזות (media.announce)
-  expect(DEVICES_TABS.map((t) => t.href)).toEqual(['#/devices/building', SCHEDULES_HREF, '#/devices/announce']);
-  expect(DEVICES_TABS.map((t) => t.label)).toEqual(['מבט על', 'קברניט', 'הכרזות']);
+  expect(DEVICES_TABS.map((t) => t.href)).toEqual(['#/devices/building', '#/devices/synoptic', SCHEDULES_HREF, '#/devices/announce']);
+  expect(DEVICES_TABS.map((t) => t.label)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט', 'הכרזות']);
   expect(sectionIdOf(DEVICES_TABS)).toBe('devices');
   const def = TAB_SECTIONS.find((s) => s.id === 'devices');
   expect(def?.label).toBe('ראשי');
-  expect(ids(def!.tabs())).toEqual(['building', 'automations', 'announce']);
+  expect(ids(def!.tabs())).toEqual(['building', 'synoptic', 'automations', 'announce']);
   expect(ids(AREA_TABS.system)).toContain('schedules'); // the settings page keeps its own tab
 });
 
 test('the schedules segment needs schedule.view or schedule.manage at any scope; the settings tab system.configure at the installation', () => {
-  expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read')))).toEqual(['building']);
-  expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.view')))).toEqual(['building', 'automations']);
-  expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.manage')))).toEqual(['building', 'automations']);
+  expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read')))).toEqual(['building', 'synoptic']);
+  expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.view')))).toEqual(['building', 'synoptic', 'automations']);
+  expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.manage')))).toEqual(['building', 'synoptic', 'automations']);
   expect(ids(visibleTabs(DEVICES_TABS, true, only('schedule.view')))).toEqual(['automations']); // no devices.read: only קברניט
   // default segment: with schedules offered the tab opens on them; without, on the automations
   expect(visibleTabs(DEVICES_TABS, true, only('schedule.view'))[0].href).toBe(SCHEDULES_HREF);
@@ -84,20 +84,20 @@ test('the schedules segment needs schedule.view or schedule.manage at any scope;
 
 test('the static demo shows every tab whatever the permissions (הכרזות only while the announcements switch is on)', () => {
   // FIX2200 (owner 2026-10-25): הכרזות follows announce.enabled, OFF by default (the demo too)
-  expect(ids(visibleTabs(DEVICES_TABS, false))).toEqual(['building', 'automations']);
+  expect(ids(visibleTabs(DEVICES_TABS, false))).toEqual(['building', 'synoptic', 'automations']);
   try {
     applyAnnounceHidden(true);
-    expect(ids(visibleTabs(DEVICES_TABS, false))).toEqual(['building', 'automations', 'announce']);
-    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.view', 'media.announce')))).toEqual(['building', 'automations', 'announce']);
-    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.view')))).toEqual(['building', 'automations']); // the switch on is not the right
+    expect(ids(visibleTabs(DEVICES_TABS, false))).toEqual(['building', 'synoptic', 'automations', 'announce']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.view', 'media.announce')))).toEqual(['building', 'synoptic', 'automations', 'announce']);
+    expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.view')))).toEqual(['building', 'synoptic', 'automations']); // the switch on is not the right
   } finally {
     applyAnnounceHidden(false);
   }
-  expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.view', 'media.announce')))).toEqual(['building', 'automations']);
+  expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'schedule.view', 'media.announce')))).toEqual(['building', 'synoptic', 'automations']);
 });
 
 test('a user without schedule or automation rights sees one tab (so no tab row): the home screen exactly as before', () => {
-  expect(visibleTabs(DEVICES_TABS, true, only('devices.read')).length).toBe(1);
+  expect(visibleTabs(DEVICES_TABS, true, only('devices.read')).length).toBe(2);
 });
 
 test('the home area stays in the rail and opens on the schedules when they are the only tab', () => {
@@ -117,16 +117,16 @@ test('schedules.enabled = false hides the segment for everyone (HIDDEN_HREFS) an
   const can = only('devices.read', 'schedule.view');
   expect(applySchedulesHidden({ 'schedules.enabled': 'false' })).toBe(true);
   expect(HIDDEN_HREFS.has(SCHEDULES_HREF)).toBe(true);
-  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building']);
+  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'synoptic']);
   // schedules off but the automations on: קברניט stays and opens on the automations
   const both = only('devices.read', 'schedule.view', 'automation.manage');
   expect(kavarnitSegments(true, both)).toEqual({ schedules: false, automations: true });
-  expect(visibleTabs(DEVICES_TABS, true, both).map((t) => [t.id, t.href])).toEqual([['building', '#/devices/building'], ['automations', AUTOMATIONS_HREF]]);
+  expect(visibleTabs(DEVICES_TABS, true, both).map((t) => [t.id, t.href])).toEqual([['building', '#/devices/building'], ['synoptic', '#/devices/synoptic'], ['automations', AUTOMATIONS_HREF]]);
   applySchedulesHidden({ 'schedules.enabled': 'false' }); // unchanged: nobody is told again
   expect(heard).toBe(1);
   expect(applySchedulesHidden({ 'schedules.enabled': 'true' })).toBe(false);
-  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'automations']);
-  expect(visibleTabs(DEVICES_TABS, true, both)[1].href).toBe(SCHEDULES_HREF);
+  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'synoptic', 'automations']);
+  expect(visibleTabs(DEVICES_TABS, true, both)[2].href).toBe(SCHEDULES_HREF);
   expect(heard).toBe(2);
   expect(applySchedulesHidden(undefined)).toBe(false); // absent = on
   expect(applySchedulesHidden({ 'schedules.enabled': false })).toBe(true); // a stored boolean reads like the string
@@ -136,14 +136,14 @@ test('schedules.enabled = false hides the segment for everyone (HIDDEN_HREFS) an
 test('ui.tabs `devices`: order and hidden; קברניט becomes the entry when "מבט על" is hidden', () => {
   const can = only('devices.read', 'schedule.view');
   applyTabsConfig({ 'ui.tabs': { devices: { order: ['automations', 'building'], hidden: [] } } });
-  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['automations', 'building']);
+  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['automations', 'building', 'synoptic']);
   expect(visibleAreas(true, can).find((a) => a.id === 'devices')?.href).toBe(SCHEDULES_HREF);
   applyTabsConfig({ 'ui.tabs': { devices: { order: [], hidden: ['building'] } } });
-  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['automations']);
-  expect(visibleAreas(true, can).find((a) => a.id === 'devices')?.href).toBe(SCHEDULES_HREF);
+  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['synoptic', 'automations']);
+  expect(visibleAreas(true, can).find((a) => a.id === 'devices')?.href).toBe('#/devices/synoptic'); // the synoptic map is the first tab left
   // hiding both never empties the row: the permitted tabs are shown after all
-  applyTabsConfig({ 'ui.tabs': { devices: { order: [], hidden: ['building', 'automations'] } } });
-  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'automations']);
+  applyTabsConfig({ 'ui.tabs': { devices: { order: [], hidden: ['building', 'synoptic', 'automations'] } } });
+  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'synoptic', 'automations']);
   // hiding is presentation only: a hidden tab's permission is not touched
   applyTabsConfig({ 'ui.tabs': { devices: { order: [], hidden: ['automations'] } } });
   expect(tabAllowed(SCHEDULES_HREF, can)).toBe(true);
@@ -156,12 +156,12 @@ test('0.1.154 migration: a stored "schedules" entry of `devices` is dropped, and
   expect(normalizeTabsConfig({ devices: { order: ['schedules'], hidden: ['schedules'] } })).toEqual({});
   expect(normalizeTabsConfig({ system: { order: ['schedules', 'general'], hidden: [] } })).toEqual({ system: { order: ['schedules', 'general'], hidden: [] } }); // the settings tab of the same name is untouched
   applyTabsConfig({ 'ui.tabs': { devices: { order: ['schedules', 'building'], hidden: ['schedules'] } } });
-  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'automations']); // no dead tab, no hidden segment
+  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'synoptic', 'automations']); // no dead tab, no hidden segment
   expect(tabsConfig().devices).toEqual({ order: ['building'], hidden: [] });
   // the stored hidden "automations" (the old tab of that name) does not remove קברניот while the schedules are offered
   applyTabsConfig({ 'ui.tabs': { devices: { order: [], hidden: ['automations'] } } });
-  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'automations']);
-  expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'automation.manage')))).toEqual(['building']); // ...but it still hides the automations alone
+  expect(ids(visibleTabs(DEVICES_TABS, true, can))).toEqual(['building', 'synoptic', 'automations']);
+  expect(ids(visibleTabs(DEVICES_TABS, true, only('devices.read', 'automation.manage')))).toEqual(['building', 'synoptic']); // ...but it still hides the automations alone
 });
 
 test('the active tab and the crumbs of the schedule routes (list, drawer, editor): the schedules are a segment of קברניט', () => {
