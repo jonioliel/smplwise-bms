@@ -573,6 +573,15 @@ def report_link_revoke(link_id: str = Path(min_length=1, max_length=64), princip
         raise _link_error(e) from None
 
 
+@router.delete(f"{API}/report/links")
+def report_links_revoke_all(principal: Principal = Depends(_link_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """TEMPREPORT-297: revoke every live temperature report link at once (Settings). A manager revokes all of them, anyone else his own."""
+    from ..services import temperature_report_link as rl
+
+    n = rl.revoke_all(conn, principal.user_id, principal, authorize(conn, principal, MANAGE, INSTALLATION).allowed, dt.datetime.fromtimestamp(now_ts(), dt.timezone.utc))
+    return {"revoked": n}
+
+
 @router.post(f"{API}/report/links/{{link_id}}/send")
 def report_link_send(request: Request, link_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(_link_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """WALINK-295: send a live link as a plain-text WhatsApp message to the configured recipients (installation settings). The answer is typed per
@@ -595,7 +604,10 @@ def report_recipients(principal: Principal = Depends(_manage_ro), conn: sqlite3.
     from ..services.tickets import messaging as tmsg
 
     w = tmsg.send_window(conn, None)
-    return {**twa.recipients(conn), "send_hours": {"from": w.start.strftime("%H:%M"), "to": w.end.strftime("%H:%M")}}
+    out = twa.recipients(conn)
+    if out.get("user_attachment") == "link" and not authorize(conn, principal, LINK_SEND, INSTALLATION).allowed:
+        out["user_attachment"] = "none"  # TEMPREPORT-297: this sender's messages to system users carry no link
+    return {**out, "send_hours": {"from": w.start.strftime("%H:%M"), "to": w.end.strftime("%H:%M")}}
 
 
 @router.post(f"{API}/report/send", status_code=202)

@@ -69,6 +69,7 @@ See the closing report of the task (exact counts). Backend: `tests/test_tempvend
 ## Known limits / open items
 
 * `report_attachment = link` is set through the temperature settings API only (there is no control for it in the UI; "no new capabilities").
+  Superseded by TEMPREPORT-297 (2026-10-27): Settings > Infrastructure > Temperatures has the control, and the mode now also covers system users.
 * The attached-file (WhatsApp document) and `html` modes still wait for the WhatsApp file contract.
 * The dialog is manager-only (`infra.temperature.manage`), as before; no separate permission for sending to vendors was added.
 * A document is a snapshot taken at hand-off; the text is rebuilt when the message leaves (after a night hold the text can be a few hours

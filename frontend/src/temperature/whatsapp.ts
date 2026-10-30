@@ -222,7 +222,7 @@ export class TempWa extends LitElement {
     const unitName = new Map(this.units.map((u) => [u.id, u.name]));
     return html`<div class="ovl" @click=${() => this.close()}></div>
       <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="wa-title" data-temp-wa>
-        <div class="wh"><div class="t"><h2 id="wa-title">${tt('waTitle')}</h2><small>${tt('waSub')}</small></div>
+        <div class="wh"><div class="t"><h2 id="wa-title">${tt('waTitle')}</h2><small>${tt(this.rec?.user_attachment === 'link' ? 'waSubLink' : 'waSub')}</small></div>
           <button type="button" class="btn icb" aria-label=${tt('close')} @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></div>
         <div class="wb">
           <div class="field"><span class="lbl">${tt('waRecipients')}</span>
