@@ -289,7 +289,7 @@ for (const skin of SKINS) {
     });
 
     test('the news: one small headline at a time, changing with a fade', async ({ page }) => {
-      await open(page, { skin, notices: NORMAL, live: true, display: { hold: NORMAL[0].id } });
+      await open(page, { skin, notices: NORMAL, live: true });
       const on = () => page.$$eval('#nbk .nb-ft .nb-it.nb-on', (l) => l.map((x) => (x.textContent || '').trim()));
       const a = await on();
       expect(a.length).toBe(1);

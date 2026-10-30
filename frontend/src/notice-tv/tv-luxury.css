@@ -254,6 +254,15 @@
 #nbk[data-skin="stone"][data-orient="p"] .nb-ph { inset: -20px -30px auto; block-size: 830px; }
 #nbk[data-skin="stone"][data-orient="p"] .nb-ph img { object-position: 62% 40%; }
 
+/* a very long notice: the "Up next" list makes room - the stage takes its row as well (the list is hidden) */
+#nbk[data-skin="gallery"][data-long="1"] .nb-st { grid-row: 2 / 4; grid-column: 1; }
+#nbk[data-skin="concierge"][data-long="1"] .nb-st { grid-area: 2 / 1 / 4 / 4; }
+#nbk[data-skin="concierge"][data-long="1"][data-orient="p"] .nb-st { grid-area: 3 / 1 / 5 / 3; }
+#nbk[data-skin="stone"][data-long="1"] .nb-st { grid-row: 2 / 4; }
+#nbk[data-skin="gallery"][data-long="1"] .nb-msg { padding-block-end: 0; }
+#nbk[data-skin="gallery"][data-long="1"][data-orient="p"] .nb-st { grid-row: 4 / 6; grid-column: 1 / 3; }
+#nbk[data-skin="stone"][data-long="1"][data-orient="p"] .nb-st { grid-row: 3 / 5; grid-column: 1 / 3; }
+
 /* the developer logo: the board's logo-size setting (auto / small / large), as on Ink, Sign and V2 */
 #nbk[data-fam="luxury"] .nb-brand .nb-co { block-size: 58px; max-inline-size: 200px; }
 #nbk[data-skin="concierge"] .nb-brand .nb-co { block-size: 54px; }
