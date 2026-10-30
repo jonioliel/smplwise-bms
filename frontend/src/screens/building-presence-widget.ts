@@ -32,7 +32,7 @@ export const PRESENCE_WIDGET_STYLES = css`
   .wg-pres .pr-h b { font-weight: inherit; flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wg-pres .pr-h a { display: inline-flex; align-items: center; min-block-size: 44px; margin-block: -10px; padding-inline: 4px; flex: none; color: var(--sw-accent-text, var(--sw-accent)); text-decoration: none; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); }
   .wg-pres .pr-h a[aria-disabled='true'] { pointer-events: none; }
-  .wg-pres .pr-h a:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 2px; border-radius: 8px; }
+  .wg-pres .pr-h a:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 2px; border-radius: var(--sw-r-sm); }
   .wg-pres .pr-state { display: flex; align-items: center; gap: 10px; font-size: var(--sw-fs-xl, 22px); font-weight: var(--sw-fw-bold); line-height: 1.15; }
   .wg-pres .pr-lamp { inline-size: 12px; block-size: 12px; border-radius: 50%; flex: none; background: var(--sw-text-3); }
   .wg-pres[data-tone='ok'] .pr-lamp { background: var(--sw-success); box-shadow: 0 0 0 4px var(--sw-success-soft, transparent); }
