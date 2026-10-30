@@ -279,15 +279,13 @@ export function createHx(api: EngineApi): Hx {
     }
     return 0;
   }
-  function makeMsg(it: Item | null): HTMLElement {
-    const el = buildMsg(it);
-    el.classList.add('nb-prep');
-    el.style.visibility = 'hidden';
-    api.stage().append(el);
+  function fitAll(el: HTMLElement, it: Item | null): number {
+    const keep = root.dataset.long;
+    root.dataset.long = '0';
+    delete el.dataset.long;
     let f = fitInto(el);
     // still too long: measure it against the larger stage it gets when the queue steps aside (set and reset in one task: never painted)
     if (f < 0.77 && it) {
-      const prev = root.dataset.long;
       root.dataset.long = '1';
       el.dataset.long = '1';
       delete el.dataset.cols;
@@ -299,8 +297,16 @@ export function createHx(api: EngineApi): Hx {
         root.dataset.long = '0';
         f = fitInto(el);
       }
-      root.dataset.long = prev || '0';
     }
+    root.dataset.long = keep || '0';
+    return f;
+  }
+  function makeMsg(it: Item | null): HTMLElement {
+    const el = buildMsg(it);
+    el.classList.add('nb-prep');
+    el.style.visibility = 'hidden';
+    api.stage().append(el);
+    const f = fitAll(el, it);
     el.dataset.fit = String(f);
     return el;
   }
@@ -449,6 +455,8 @@ export function createHx(api: EngineApi): Hx {
     if (!S.idle && animate && !api.opts.fixed && X.fx !== 'off') queueIn();
     root.dataset.kind = S.idle ? 'idle' : (el.dataset.kind ?? 'perm');
     root.dataset.long = !S.idle && el.dataset.long === '1' ? '1' : '0';
+    // the stage is laid out for real now (fonts, kind, long): when the prepared fit no longer holds, fit again
+    if (!S.idle && overflows(el)) { el.dataset.fit = String(fitAll(el, it)); root.dataset.long = el.dataset.long === '1' ? '1' : '0'; }
     if (skin() === 'prism') fieldImage(it?.slide ? inp().imgOf(it.slide) : '', animate);
     if (!animate) {
       olds.forEach((o) => o.remove());
