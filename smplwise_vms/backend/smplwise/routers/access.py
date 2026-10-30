@@ -159,6 +159,10 @@ PERMISSION_LABELS: dict[str, str] = {
     # the map (a floor-scoped holder sees that floor only; a person placed on a site only needs installation scope). system_admin only by
     # default and SENSITIVE (a custom role names it among its sensitive permissions): it shows where named people are right now.
     "presence.view": "צפייה במי שנמצא במבנה (מסך מי במבנה)",
+    # 2.29.0 (owner decision 10, 2026-10-29): fire.acknowledge - a NEW, SEPARATE permission to acknowledge a fire alarm on the building board. SENSITIVE and held by no built-in role
+    # (a custom role names it explicitly). Fire detection is NOT a product feature yet: no integration reports a fire, so nothing on the server checks this permission today; the
+    # frontend alarm UI (off by default, option ui.xs fire_ui) reads it from /me and is demo-only until an integration exists.
+    "fire.acknowledge": "אישור קבלת אזעקת אש (לוח הבניין; אין עדיין חיבור לגילוי אש)",
     # CR-TIMESCRUB101 section 6/7 (owner-approved 2026-10-24): the PAST of the presence sensors (motion / occupancy / presence) on the
     # historical map's time scrub - it tells who was where, so it is not implied by devices.read: floor scope, site_admin and system_admin
     # by default, in sensitive_permissions_not_implied; every serving writes one audit row per (user, floor, day) (history.presence.view).

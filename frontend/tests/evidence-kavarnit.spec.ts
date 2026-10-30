@@ -35,7 +35,7 @@ test.describe('קברניט (demo mode)', () => {
     await openDemo(page, '/devices/building');
     // NOTICEADD-295: the notice board left the home tab row (it is a rail entry now); FIX2200: הכרזות hides while announce.enabled is off -
     // OFF by default, the static demo too (the feature-on case is under "with a session")
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']);
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'מפה סינופטית', 'קברניט']);
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect.poll(() => hashOf(page)).toBe('#/devices/schedules');
     await expect(page.locator('sw-app devices-schedules')).toHaveCount(1);
@@ -167,7 +167,7 @@ test.describe('קברניט with a session: the gates and a stored ui.tabs', () 
 
   test('both gates open: the tab opens on the schedules, whose strip leads on to the automations', async ({ page }) => {
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect.poll(() => hashOf(page)).toBe('#/devices/schedules');
     await expect(page.locator('sw-app devices-schedules [data-sched-grid]')).toBeVisible();
@@ -177,7 +177,7 @@ test.describe('קברניט with a session: the gates and a stored ui.tabs', () 
   test('schedules.enabled off: the segment is gone and the tab opens on the automations', async ({ page }) => {
     st.settings = { 'schedules.enabled': 'false' };
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect.poll(() => hashOf(page)).toBe('#/devices/automations');
     await expect(page.locator('sw-app devices-automations')).toHaveCount(1);
@@ -187,7 +187,7 @@ test.describe('קברניט with a session: the gates and a stored ui.tabs', () 
   test('no schedule permission: the tab opens on the automations', async ({ page }) => {
     st.perms = [...VIEWER_PERMS, 'automation.manage'];
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect.poll(() => hashOf(page)).toBe('#/devices/automations');
     await expect(page.locator('sw-app devices-automations button[data-segment="schedules"]')).toHaveCount(0);
@@ -196,7 +196,7 @@ test.describe('קברניט with a session: the gates and a stored ui.tabs', () 
   test('only the schedules (no automation right): one segment, so no strip', async ({ page }) => {
     st.perms = [...VIEWER_PERMS, 'schedule.view'];
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect(page.locator('sw-app devices-schedules [data-sched-grid]')).toBeVisible();
     await expect(page.locator('sw-app devices-schedules [data-kavarnit-segments]')).toHaveCount(0);
@@ -207,20 +207,20 @@ test.describe('קברניט with a session: the gates and a stored ui.tabs', () 
     st.perms = [...st.perms, 'media.announce'];
     st.announce = true;
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט', 'הכרזות']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט', 'הכרזות']);
     await openApi(page, '/devices/schedules');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט', 'הכרזות']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט', 'הכרזות']);
     await openApi(page, '/devices/automations');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט', 'הכרזות']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט', 'הכרזות']);
   });
 
   test('announcements off: no הכרזות tab even for a media.announce holder; the address still opens the screen', async ({ page }) => {
     st.perms = [...st.perms, 'media.announce'];
     st.announce = false;
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     await openApi(page, '/devices/schedules');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     await openApi(page, '/devices/announce');
     await expect(page.locator('sw-app devices-announce')).toHaveCount(1);
   });
@@ -228,20 +228,20 @@ test.describe('קברניט with a session: the gates and a stored ui.tabs', () 
   test('announcements on without media.announce: no הכרזות tab', async ({ page }) => {
     st.announce = true;
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
   });
 
-  test('neither right: no קברניט tab and no tab row', async ({ page }) => {
+  test('neither right: no קברניט tab (the synoptic map is offered with devices.read)', async ({ page }) => {
     st.perms = VIEWER_PERMS;
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
   });
 
   test('a stored ui.tabs of the old layout migrates: no dead "תזמונים" tab, no hidden segment', async ({ page }) => {
     st.perms = [...VIEWER_PERMS, 'schedule.view'];
     st.settings = { 'ui.tabs': { devices: { order: ['schedules', 'building', 'automations'], hidden: ['schedules'] } } };
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט', 'מפה סינופטית']); // a stored order that predates the synoptic tab keeps its order and the new tab follows it;
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect.poll(() => hashOf(page)).toBe('#/devices/schedules');
     await expect(page.locator('sw-app devices-schedules [data-sched-grid]')).toBeVisible();
@@ -251,7 +251,7 @@ test.describe('קברניט with a session: the gates and a stored ui.tabs', () 
     st.perms = [...VIEWER_PERMS, 'schedule.view'];
     st.settings = { 'ui.tabs': { devices: { order: [], hidden: ['automations'] } } };
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     await openApi(page, '/devices/schedules');
     await expect(page.locator('sw-app devices-schedules [data-sched-grid]')).toBeVisible();
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');

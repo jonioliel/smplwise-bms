@@ -634,6 +634,7 @@
     "schedule.sensitive",
     "notify.manage",
     "presence.view",
+    "fire.acknowledge",
     "automation.manage",
     "scene.manage",
     "script.manage",

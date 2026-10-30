@@ -51,6 +51,7 @@ import './system-look'; // Bubble foundation: הגדרות › כללי › מר
 import './system-plan-view'; // CR-029 ST7 UI: הגדרות › מפה › תצוגה ריאליסטית (plan.view, the person's own dials, the site location)
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
+import './system-xs-options'; // 2.29.0: הגדרות › כללי › חתך הבניין והמפה הסינופטית
 import './system-presence'; // CR-027: הגדרות › אפליקציה לנייד
 import './system-brand-logos'; // LOGOS-295: הגדרות › כללי › מראה המערכת › לוגו ושם המערכת (company logo, size, dark background, tab title)
 import './system-brand-installer'; // WHITELABEL097-295: הגדרות › כללי › מראה המערכת › מיתוג מתקין (default off)
@@ -823,6 +824,7 @@ export class SystemDiagnostics extends LitElement {
       ${BUBBLE_SCREENS_ENABLED ? html`<system-look></system-look>` : nothing}
       <system-nav-size></system-nav-size>
       <system-mobile-options></system-mobile-options>
+      <system-xs-options></system-xs-options>
       <sw-card heading="זמן ומיקום">
         <div class="row"><span class="lbl">אזור זמן לתצוגה<span class="muted">פנימית הכל UTC; שעון קיץ לפי התאריך המבוקש</span></span><sw-field class="ctl"><select><option>(UTC+02:00) Asia/Jerusalem</option></select></sw-field></div>
         ${NVR ? nothing : html`<div class="row"><span class="lbl">פרופיל זמן של ה־NVR<span class="muted">נקבע לפי ראיות לדגם ולקושחה</span></span><sw-field class="ctl"><select><option>hikvision · ds-76xx · שעון מקומי</option></select></sw-field></div>`}

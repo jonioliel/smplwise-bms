@@ -20,6 +20,7 @@ import { he } from '../i18n/he'; // TABSET-293: the generator's page names (the 
 import { mt } from '../i18n/maintenance'; // CR-MAINT215 slice 2: the maintenance section's label
 import { ix } from '../i18n/insights'; // CR-INSIGHT215: the building report page's label
 import { tr as trTab0 } from '../i18n/transit'; // BUSTIMES-295: the public-transport tab's label
+import { xt as xsText } from '../i18n/xsection'; // 2.29.0: the synoptic tab's label
 import { pt } from '../i18n/presence'; // WHOIN034-295: the "מי במבנה" tab's label
 import { it as incText } from '../i18n/incidents'; // CR-LIVEEVENT100: the live event tab's label
 
@@ -688,8 +689,25 @@ export const ANNOUNCE_HREF = '#/devices/announce';
  * rest. The tab opens on the schedules segment when it is offered, else on the automations (`kavarnitSegments`, applied in
  * `permittedTabs`); the static href below is that default (the static demo has no gates). With only one tab visible the tab row does not
  * appear at all, so a user without those rights sees the home screen exactly as before. */
+/** 2.29.0: the synoptic map (ראשי › מפה סינופטית) and the wall screen's separate address (a fixed control-room display, no shell). */
+export const SYNOPTIC_HREF = '#/devices/synoptic';
+export const SYNOPTIC_WALL_HREF = '#/kiosk/synoptic';
+let SYNOPTIC_OFF = false;
+/** The option `ui.xs` syn_tab (on by default): the tab leaves the home area while it is off. The address still opens the screen. Re-applied by the shell after HIDDEN_HREFS is rebuilt. */
+export function applySynopticHidden(on: boolean | null | undefined): boolean {
+  SYNOPTIC_OFF = on === false;
+  const was = HIDDEN_HREFS.has(SYNOPTIC_HREF);
+  if (SYNOPTIC_OFF) HIDDEN_HREFS.add(SYNOPTIC_HREF);
+  else HIDDEN_HREFS.delete(SYNOPTIC_HREF);
+  if (was !== SYNOPTIC_OFF) for (const l of tabsListeners) l();
+  return SYNOPTIC_OFF;
+}
+export const synopticTabOff = (): boolean => SYNOPTIC_OFF;
+
 export const DEVICES_TABS: TabItem[] = [
   { id: 'building', label: 'מבט על', href: '#/devices/building' },
+  // 2.29.0 (owner decision 6, 2026-10-29): the synoptic map is the tab BETWEEN מבט על and קברניט; the installation may switch it off (ui.xs syn_tab)
+  { id: 'synoptic', get label() { return xsText('synTab'); }, href: SYNOPTIC_HREF },
   { id: 'automations', label: 'קברניט', href: SCHEDULES_HREF },
   // CR-NOTICE106 put לוח הודעות here; NOTICEADD-295 (owner decision 2026-10-24) moved it to the rail (NOTICES_AREA)
   // ANNOUNCE-295: הכרזות - offered to holders of media.announce (TAB_PERMISSIONS); the screen itself says when the feature is off
@@ -1269,7 +1287,7 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'wiskey':
       return wiskeyActiveTab(r);
     case 'devices':
-      return s[1] === 'schedules' || s[1] === 'automations' ? 'automations' : 'building'; // 0.1.154: the schedules are a segment of קברניט
+      return s[1] === 'schedules' || s[1] === 'automations' ? 'automations' : s[1] === 'synoptic' ? 'synoptic' : 'building'; // 0.1.154: the schedules are a segment of קברניט
     case 'infra':
       return s[1] === 'generator' ? 'generator' : s[1] === 'elevators' ? 'elevators' : s[1] === 'temperature' ? 'temperature' : s[1] === 'water' ? 'water' : 'electricity';
     case 'tickets':
@@ -1439,6 +1457,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // its settings page: the module switch and defaults need system.configure, the TV boards notices.boards (each part by its own right)
   [NOTICES_SETTINGS_HREF]: ['system.configure', 'notices.boards'],
   [TRANSIT_SETTINGS_HREF]: ['system.configure', 'notices.boards'], // BUSTIMES-295: reading the stops; every write needs system.configure (the server decides)
+  [SYNOPTIC_HREF]: ['devices.read'], // 2.29.0: the board reads devices/tree (the server narrows it to the caller's floors)
   [ANNOUNCE_HREF]: ['media.announce'], // ANNOUNCE-295: POST announcements needs it (installation scope on the server)
   // CR-036 S10: access.admin.read at ANY scope (a station-scoped administrator sees the status of their stations; the server narrows every read)
   [ACCESS_CONTROL_SETTINGS_HREF]: ['access.admin.read'],

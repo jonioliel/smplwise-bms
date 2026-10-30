@@ -88,7 +88,7 @@ test.describe('the list (installer)', () => {
     }
     await open(page, '/devices/automations');
     await ready(page);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'מפה סינופטית', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
     await expect(scr(page).locator('[data-auto-title]')).toHaveText('אוטומציות');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
@@ -1019,19 +1019,19 @@ test.describe('with a session: permissions, the setting, the push frame and what
   test('the tab is for automation.manage, a script run or a scene activation (decision 1b); the settings tab for system.configure; automations.enabled off hides it', async ({ page }) => {
     st.perms = VIEWER_PERMS;
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
     st.perms = [...VIEWER_PERMS, 'automation.view']; // the removed permission opens nothing
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
     st.perms = [...VIEWER_PERMS, 'automation.manage'];
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     st.perms = [...VIEWER_PERMS, 'script.run'];
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     st.perms = [...VIEWER_PERMS, 'schedule.view', 'automation.manage'];
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
     // the settings tab
     st.perms = [...VIEWER_PERMS, 'automation.manage'];
     await openApi(page, '/system/diagnostics');
@@ -1043,7 +1043,7 @@ test.describe('with a session: permissions, the setting, the push frame and what
     st.perms = [...VIEWER_PERMS, 'automation.manage'];
     st.settings = { 'automations.enabled': 'false' };
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
   });
 
   test('the list answers from the real routes; the toggle, the run and the delete send what the contract says', async ({ page }) => {
@@ -1131,7 +1131,7 @@ test.describe('with a session: permissions, the setting, the push frame and what
     await expect.poll(async () => (await rowTabs(page)).includes('אוטומציות')).toBe(true); // the settings tab stays; the home tab goes
     await page.evaluate(() => { location.hash = '#/devices/building'; });
     await page.waitForTimeout(400);
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
   });
 });
 
