@@ -265,13 +265,13 @@ const STRINGS = {
   he: {
     welcome: 'ברוכים הבאים', urgent: 'הודעה דחופה', alert: 'חשוב', paused: 'מושהה', news: 'חדשות', empty: 'אין הודעות כרגע', niceDay: 'יום נעים',
     gone: 'הלוח אינו פעיל', goneHint: 'פנו להנהלת הבניין', offline: 'הלוח מנותק מהמערכת · מוצגות ההודעות האחרונות', staleFrom: 'לא מעודכן מ-{t}',
-    updated: 'עודכן', more: 'ועוד {n} הודעות', permanent: 'קבוע', next: 'בהמשך', ofN: '{i} מתוך {n}', slideWord: 'שקופית', infoWord: 'מידע', annUrgent: 'הודעה קולית דחופה', annNormal: 'הודעה קולית', shownUntil: 'מוצג עד {t}', until: 'עד {d}', today: 'היום', tomorrow: 'מחר', candles: 'כניסת שבת {t}', poweredBy: 'מופעל על ידי SmplWise Arx',
+    updated: 'עודכן', more: 'ועוד {n} הודעות', permanent: 'קבוע', next: 'בהמשך', ofN: '{i} מתוך {n}', slideWord: 'שקופית', infoWord: 'מידע', annUrgent: 'הודעה קולית דחופה', annNormal: 'הודעה קולית', shownUntil: 'מוצג עד {t}', until: 'עד {d}', today: 'היום', tomorrow: 'מחר', candles: 'כניסת שבת {t}', urgentWord: 'דחוף', greetMorning: 'בוקר טוב', greetNoon: 'צהריים טובים', greetEvening: 'ערב טוב', greetNight: 'לילה טוב', fromMgmt: 'מהנהלת הבניין', poweredBy: 'מופעל על ידי SmplWise Arx',
   },
   en: {
     welcome: 'Welcome', urgent: 'Urgent notice', alert: 'Important', paused: 'Paused', news: 'News', empty: 'No notices right now', niceDay: 'Have a nice day',
     gone: 'This board is not active', goneHint: 'Please contact the building management', offline: 'The board is offline · showing the last notices',
     staleFrom: 'Not updated since {t}', updated: 'Updated', more: '{n} more notices', permanent: 'Ongoing', next: 'Up next', ofN: '{i} of {n}', slideWord: 'Slide', infoWord: 'Info', annUrgent: 'Urgent voice announcement', annNormal: 'Voice announcement', shownUntil: 'Shown until {t}', until: 'Until {d}', today: 'today',
-    tomorrow: 'tomorrow', candles: 'Candle lighting {t}', poweredBy: 'Powered by SmplWise Arx',
+    tomorrow: 'tomorrow', candles: 'Candle lighting {t}', urgentWord: 'Urgent', greetMorning: 'Good morning', greetNoon: 'Good afternoon', greetEvening: 'Good evening', greetNight: 'Good night', fromMgmt: 'From the building management', poweredBy: 'Powered by SmplWise Arx',
   },
 };
 export type StrKey = keyof typeof STRINGS.he;

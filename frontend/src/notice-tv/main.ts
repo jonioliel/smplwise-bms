@@ -18,6 +18,8 @@
  */
 import './tv.css';
 import './tv-v2.css'; // BOARDV2-297: the V2 board, scoped to #cv[data-design="v2"] (loaded after tv.css on purpose)
+import './tv-fonts.css'; // LOBBY-STYLES-2300: the OFL lobby fonts, inlined (the TV page reaches no other file)
+import './tv-hitech.css'; // LOBBY-STYLES-2300: Lumen, Axis, Prism
 import './tv-skins.css'; // NOTICEBOARD-STYLES-2300: the Ink and Sign styles, scoped to #nbk (their own root; every class is nb-prefixed)
 import { overlayHtml, overlayKey, pollMs, visibleNow } from '../announce/screen-overlay'; // ANNOUNCEB-295: the announcement overlay's pure rules
 import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo (developer kit artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
@@ -123,7 +125,7 @@ function v2On(): boolean {
 /** The design in force: the board's `design` (own value, else the installation default), or the `?design=` test hook. NOTICEBOARD-STYLES-2300: also ink / sign. */
 function designNow(): Design {
   const q = Q.get('design');
-  if (q === 'v2' || q === 'classic' || q === 'ink' || q === 'sign') return q;
+  if (q === 'v2' || q === 'classic' || isSkin(q)) return q as Design;
   return tv2Of(display(), 'design');
 }
 
@@ -690,7 +692,7 @@ function skinCompany(dark: boolean): string {
   const pick = chooseCompanyLogo({ light: companySrc.light || null, dark: companySrc.dark || null }, mode, dark);
   if (!pick) return '';
   const name = esc(feed?.board.brand?.name || feed?.board.building || '');
-  return '<span class="nb-co" data-tr="' + pick.treatment + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></span>';
+  return '<span class="nb-co" data-co="' + tv2Of(display(), 'co_size') + '" data-tr="' + pick.treatment + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></span>';
 }
 
 function leaveSkin(): void {
@@ -726,7 +728,11 @@ function renderSkin(skin: Skin, theme: 'day' | 'night', urgentNow: FeedNotice | 
     force: d.layout === 'portrait' || d.layout === 'landscape' ? d.layout : '',
     building: feed.board.building || feed.board.name || '',
     place: d.place || '',
-    weather: d.blocks.weather && w ? { t: w.now.t, icon: w.now.condition, text: w.now.text } : null,
+    weather: d.blocks.weather && w ? { t: w.now.t, icon: w.now.condition, text: w.now.text, hours: (w.hours ?? []).slice(0, 5).map((x) => ({ at: x.at, t: x.t })) } : null,
+    liveBg: tv2Of(d, 'live_bg'),
+    urgentScreen: tv2Of(d, 'urgent_screen'),
+    systemsStatus: tv2Of(d, 'systems_status'),
+    sun: feed.sun,
     info: feed.info ?? [],
     news: d.blocks.news ? feed.news ?? [] : [],
     items,

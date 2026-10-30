@@ -14,9 +14,10 @@
  */
 import { swLogoSvg } from '../design/sw-logo-art';
 import { MACHINE_MARK, dirOf, type ScreenAnnouncement } from '../announce/screen-overlay';
-import { esc, str, type FeedNotice, type FeedSlide, type Item, type Net } from './tv-logic';
+import { esc, str, type FeedNotice, type FeedSlide, type Item, type LiveBg, type Net, type SystemsStatus, type UrgentScreen } from './tv-logic';
+import { createHx, type Hx } from './hx-engine';
 import {
-  FS_MIN, FS_MIN_TAKE, GHOST_MS, GHOST_OPACITY, LANG_NAME, bestScale, canvasOf, infoIcon, isEventWhen, queueMax, queueRows, slatCount, tickSeconds, weatherIcon,
+  familyOf, FS_MIN, FS_MIN_TAKE, GHOST_MS, GHOST_OPACITY, LANG_NAME, bestScale, canvasOf, infoIcon, isEventWhen, queueMax, queueRows, slatCount, tickSeconds, weatherIcon,
   type InfoIcon, type Skin,
 } from './skin-logic';
 
@@ -28,7 +29,12 @@ export interface SkinInput {
   force: 'portrait' | 'landscape' | '';
   building: string;
   place: string;
-  weather: { t: number; icon: string; text: string } | null;
+  weather: { t: number; icon: string; text: string; hours?: { at: string; t: number }[] } | null;
+  /** LOBBY-STYLES-2300: the lobby styles' behaviour settings and the day's sun times (Prism's sky) */
+  liveBg: LiveBg;
+  urgentScreen: UrgentScreen;
+  systemsStatus: SystemsStatus;
+  sun?: { rise: string; set: string };
   info: { kind: string; label: string; state: 'ok' | 'warn' | 'alarm' | 'off'; text: string }[];
   news: { source: string; title: string }[];
   /** the rotation: the urgent notices first, then the others, then the promo slides (no bus-times slide: the styles do not draw one) */
@@ -52,6 +58,20 @@ export interface SkinInput {
   drift: boolean;
   night: boolean;
   nightB: number;
+}
+
+/** What a style plug-in (hx-engine.ts) may use of the engine. */
+export interface EngineState {
+  i: number; items: Item[]; idle: boolean; busy: boolean; take: string; ann: string; timer: number; prepT: number; ready: boolean;
+  prep: { i: number; el: HTMLElement; fx: HTMLElement | null } | null;
+}
+export interface EngineApi {
+  root: HTMLElement; S: EngineState; opts: SkinOpts;
+  inp(): SkinInput; stage(): HTMLElement; $<T extends HTMLElement>(sel: string): T;
+  h(tag: string, cls: string, html?: string): HTMLElement;
+  track(a: Animation): Animation; rm(): boolean; paused(): boolean; rotSeconds(): number;
+  queue(): void; schedule(): void; dropPrep(): void; cancelAll(): void;
+  liveHtml(): string; logo(dark: boolean): string;
 }
 
 export interface SkinOpts {
@@ -117,11 +137,12 @@ const h = (tag: string, cls: string, html?: string): HTMLElement => {
 
 export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   root.innerHTML =
-    '<div class="nb-shift"><div class="nb-pg"><header class="nb-hd"></header><main class="nb-st"></main><aside class="nb-q"></aside><footer class="nb-ft"></footer></div></div>' +
+    '<div class="nb-fld" aria-hidden="true"><div class="nb-amb"><i class="nb-l1"></i><i class="nb-l2"></i><i class="nb-l3"></i></div></div><div class="nb-gclock" aria-hidden="true"></div>' +
+    '<div class="nb-shift"><div class="nb-pg"><header class="nb-hd"></header><main class="nb-st"></main><aside class="nb-q"></aside><div class="nb-cove" aria-hidden="true"><i></i></div><footer class="nb-ft"></footer></div></div>' +
     '<div class="nb-take" role="alert"></div><div class="nb-ann" role="alert" aria-live="assertive"></div><div class="nb-gone"><b></b><span></span></div>';
   root.setAttribute('role', 'region');
 
-  const S = {
+  const S: EngineState & Record<string, any> = {
     inp: null as SkinInput | null,
     sig: '',
     i: 0,
@@ -153,6 +174,15 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   const rtl = (): boolean => inp().lang !== 'en';
   const rm = (): boolean => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const paused = (): boolean => S.userPaused || S.held >= 0;
+  const fam = (): string => (S.inp ? familyOf(S.inp.skin) : 'station');
+  const hitech = (): boolean => fam() === 'hitech';
+  let hx: Hx | null = null;
+  const api: EngineApi = {
+    root, S: S as EngineState, opts, inp, stage, $, h, rm,
+    track: (a) => track(a), paused: () => paused(), rotSeconds: () => (opts.rot > 0 ? opts.rot : tickSeconds(inp().rotateS)),
+    queue: () => queue(), schedule: () => schedule(), dropPrep: () => dropPrep(), cancelAll: () => cancelAll(), liveHtml: () => liveHtml(), logo: (d) => logo(d),
+  };
+  const getHx = (): Hx => (hx ??= createHx(api));
   const W = (): { urgent: string; alert: string; info: string } => ({ urgent: str(inp().lang, 'urgent'), alert: str(inp().lang, 'alert'), info: str(inp().lang, 'infoWord') });
 
   // ------------------------------------------------------------------ icons
@@ -193,6 +223,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
 
   // ------------------------------------------------------------------ header and footer
   function header(): void {
+    if (hitech()) { getHx().header(); return; }
     const i = inp();
     const c = i.clock();
     const w = i.weather;
@@ -215,6 +246,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   }
 
   function footer(): void {
+    if (hitech()) { getHx().footer(); return; }
     const i = inp();
     const ink = i.skin === 'ink';
     const news = i.news.map((n) => '<span class="nb-it">' + txn(n.title) + '<em dir="auto">' + esc(n.source) + '</em></span>').join('');
@@ -232,6 +264,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
 
   /** One headline at a time, a new one every 8 s: Ink = a two-step partial refresh, Sign = the blank beat of a message sign. */
   function setupTicker(): void {
+    if (hitech()) { getHx().setupTicker(); return; }
     clearInterval(S.newsT);
     const its = [...root.querySelectorAll<HTMLElement>('.nb-tk .nb-track .nb-it')];
     if (!its.length) return;
@@ -370,12 +403,13 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
     const { rows, more } = queueRows(items, S.i, queueMax(S.portrait, S.ratio10));
     const li = rows.map(({ item }) => {
       const n = item.n;
+      if (hitech()) return '<li dir="auto" data-sev="' + n.severity + '">' + txn(n.title) + '</li>';
       const label = item.slide ? esc(str(i.lang, 'slideWord')) : txn(i.whenOf(n));
       return i.skin === 'ink'
         ? '<li data-sev="' + n.severity + '"><i class="nb-sq"></i><b dir="auto">' + txn(n.title) + '</b><span dir="auto">' + label + '</span></li>'
         : '<li data-sev="' + n.severity + '" data-kind="' + (item.slide ? 'slide' : 'msg') + '"><b dir="auto">' + txn(n.title) + '</b><span dir="auto">' + label + '</span></li>';
     }).join('');
-    q.innerHTML = '<h2>' + esc(str(i.lang, 'next')) + '<small>' + esc(str(i.lang, 'ofN', { i: S.i + 1, n: items.length })).replace(/(\d+)/g, '<span class="nb-num">$1</span>') + '</small></h2><ol>' + li + '</ol>';
+    q.innerHTML = hitech() ? '<h2>' + esc(str(i.lang, 'next')) + '<span class="nb-pos nb-num" dir="ltr">' + (S.i + 1) + ' / ' + items.length + '</span></h2><ol>' + li + '</ol>' : '<h2>' + esc(str(i.lang, 'next')) + '<small>' + esc(str(i.lang, 'ofN', { i: S.i + 1, n: items.length })).replace(/(\d+)/g, '<span class="nb-num">$1</span>') + '</small></h2><ol>' + li + '</ol>';
     // drop rows from the end until the list fits its column (never scroll, never clip), then say how many wait
     const ol = q.querySelector('ol') as HTMLElement;
     let hidden = more;
@@ -592,6 +626,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   const current = (): HTMLElement | null => stage().querySelector(':scope > .nb-msg:not(.nb-ghost):not(.nb-prep)');
 
   function makeMsg(i: number): HTMLElement {
+    if (hitech()) return getHx().makeMsg(S.idle ? null : S.items[i]);
     const el = S.idle ? buildMsg(null, S.idleFace) : buildMsg(S.items[i]);
     el.classList.add('nb-prep');
     el.style.visibility = 'hidden';
@@ -602,6 +637,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
 
   function prepare(i: number): void {
     if (S.take || S.ann || paused() || S.anims.length) return;
+    if (hitech() && S.items[i]?.n.severity === 'critical') return; // an urgent notice is a take-over layer, not a prepared message
     dropPrep();
     const el = makeMsg(i);
     const cur = current();
@@ -617,6 +653,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
       window.setTimeout(() => showAt(i, animate), 0);
       return;
     }
+    if (hitech()) { S.i = i; getHx().show(i, animate); return; }
     const st = stage();
     let el: HTMLElement;
     let fx: HTMLElement | null = null;
@@ -703,6 +740,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   }
 
   function setTake(n: FeedNotice | null): void {
+    if (hitech()) { getHx().setTake(n); return; }
     const tk = $('.nb-take');
     const id = n ? n.id : '';
     if (id === S.take) return;
@@ -836,7 +874,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   // ------------------------------------------------------------------ apply
   function signature(i: SkinInput): string {
     return JSON.stringify([
-      i.skin, i.dark, i.lang, i.force, S.W, S.H, i.building, i.place, i.weather, i.info, i.news, i.rotateS, i.company, i.idleCompany,
+      i.skin, i.dark, i.lang, i.force, i.urgentScreen, i.systemsStatus, S.W, S.H, i.building, i.place, i.weather, i.info, i.news, i.rotateS, i.company, i.idleCompany,
       i.items.map((x) => [x.n.id, x.n.title, x.n.body, x.n.severity, x.dwell, i.whenOf(x.n), x.slide ? i.imgOf(x.slide) : '']),
     ]);
   }
@@ -882,6 +920,8 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
       const first = !S.inp;
       S.inp = input;
       root.dataset.skin = input.skin;
+      root.dataset.fam = familyOf(input.skin);
+      if (hx && familyOf(input.skin) !== 'hitech') { hx.dispose(); hx = null; }
       root.dataset.theme = input.dark ? 'dark' : 'light';
       root.dir = input.lang === 'en' ? 'ltr' : 'rtl';
       root.lang = input.lang;
@@ -900,8 +940,10 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
       setTake(input.takeover);
       setAnn(input.announcement);
       root.dataset.ready = '1';
+      if (first) S.ready = true;
+      if (hitech()) getHx().applied(first || !root.dataset.fxinit);
+      root.dataset.fxinit = hitech() ? '1' : '';
       if (first) {
-        S.ready = true;
         if (!opts.fixed) {
           driftT = window.setInterval(drift, 45_000);
           cleanT = window.setInterval(clean, 600_000);
@@ -913,11 +955,12 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
       if (!S.inp) return;
       if (cmd === 'next') step(1);
       else if (cmd === 'prev') step(-1);
-      else if (cmd === 'pause') S.userPaused = true;
-      else if (cmd === 'play') { S.userPaused = false; S.held = -1; schedule(); } else if (cmd === 'toggle') {
+      else if (cmd === 'pause') { S.userPaused = true; hx?.pause(); }
+      else if (cmd === 'play') { S.userPaused = false; S.held = -1; schedule(); hx?.resume(); } else if (cmd === 'toggle') {
         S.userPaused = !paused();
         if (!S.userPaused) S.held = -1;
         schedule();
+        if (S.userPaused) hx?.pause(); else hx?.resume();
       }
       root.dataset.paused = paused() ? '1' : '0';
     },
@@ -929,6 +972,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
       const c = t.clock();
       const time = c.t;
       root.querySelectorAll('[data-nb-time]').forEach((e) => { if (e.textContent !== time) e.textContent = time; });
+      hx?.tick(c);
       root.querySelectorAll('[data-nb-date]').forEach((e) => { if (e.textContent !== c.d) e.textContent = c.d; });
       if (t.net !== S.inp.net || t.live.time !== S.inp.live.time) {
         S.inp = { ...S.inp, net: t.net, live: t.live };
@@ -955,6 +999,9 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
       clearTimeout(S.prepT);
       clearTimeout(S.idleT);
       clearInterval(S.newsT);
+      hx?.dispose();
+      hx = null;
+      root.dataset.fxinit = '';
       clearInterval(driftT);
       clearInterval(cleanT);
       root.hidden = true;
