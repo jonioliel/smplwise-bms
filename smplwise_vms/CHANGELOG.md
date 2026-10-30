@@ -1,5 +1,29 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.29.0 (pilot) - Lobby styles, restore from an off-box copy, presence and cross-section polish
+**After installing:** no database migration. Restoring from an off-box copy and the new lobby styles change nothing until an administrator uses them. The local restore now restores the project and access settings by default (a setting; owner decision 30.10). The new entrance-animation setting follows the system's reduced-motion preference. Going back to 2.28.0 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. שחזור מעותק חיצוני וסגנונות הלובי החדשים לא משנים דבר עד שמנהל המערכת משתמש בהם. שחזור מקומי משחזר כעת כברירת מחדל את הפרויקט ואת הגדרות הגישה (הגדרה; החלטת הבעלים 30.10). הגדרת אנימציית הכניסה החדשה מכבדת את העדפת התנועה המופחתת של המערכת. חזרה ל-2.28.0 בטוחה.
+
+### What was added - מה נוסף
+- **English:** Lobby screen styles: three luxury styles (Gallery, Concierge, Stone) with a day and a night building photo, three hi-tech styles (Lumen, Axis, Prism), and the Ink and Sign board styles for maintenance areas; bundled open-licence Hebrew fonts; live background, systems row and urgent-screen settings.
+- **עברית:** סגנונות למסך הלובי: שלושה סגנונות יוקרה (גלריה, קונסיירז', אבן) עם תמונת בניין ליום וללילה, שלושה סגנונות הייטק (לומן, אקסיס, פריזמה), וסגנונות הלוח דיו ושלט לאזורי תחזוקה; גופנים עבריים ברישיון פתוח בתוך התוסף; הגדרות רקע חי, שורת מערכות ומסך דחוף.
+- **English:** Restore an installation from an encrypted off-box copy in two steps (prepare and verify, then restore with a typed confirmation). A safety archive is written before every restore, with an optional safety password. Restore defaults are settings.
+- **עברית:** שחזור התקנה מעותק חיצוני מוצפן בשני שלבים (הכנה ואימות, ואז שחזור עם אישור מוקלד). לפני כל שחזור נכתב ארכיון ביטחון, עם סיסמת ביטחון אופציונלית. ברירות המחדל של השחזור הן הגדרות.
+- **English:** Motion: one press feel everywhere, reduced motion reaches every component, and a new entrance-animation setting.
+- **עברית:** תנועה: תחושת לחיצה אחידה בכל המערכת, תנועה מופחתת חלה על כל רכיב, והגדרה חדשה לאנימציית כניסה.
+
+### What was improved - מה שופר
+- **English:** Building presence: the home card uses the shared widget heading, room chips keep their state visible with long names, and the settings page shows loading and error states (a failed read no longer shows the switch as off), with 44 px touch targets on phones.
+- **עברית:** נוכחות במבנה: כרטיס הבית משתמש בכותרת הווידג'ט המשותפת, תגי החדרים שומרים על המצב גלוי גם עם שמות ארוכים, ודף ההגדרות מציג מצבי טעינה ושגיאה (קריאה שנכשלה כבר לא מציגה את המתג ככבוי), עם יעדי מגע של 44 פיקסלים בטלפון.
+- **English:** Building cross-section: better contrast, press feedback, selection ring and hover on the tree.
+- **עברית:** חתך הבניין: ניגודיות טובה יותר, משוב לחיצה, טבעת בחירה וריחוף בעץ.
+- **English:** The users table stays inside its card with long names and many groups.
+- **עברית:** טבלת המשתמשים נשארת בתוך הכרטיס גם עם שמות ארוכים וקבוצות רבות.
+
+### Behind the scenes - מאחורי הקלעים
+- **English:** Faster and more reliable release checks (one entry, resume, one quarantine list), six stabilised tests, refreshed desktop screenshots for four screens, runner clean-up, and documents (motion rules, security reviews, legal package sources). Apple signing material can never be committed.
+- **עברית:** בדיקות שחרור מהירות ואמינות יותר (כניסה אחת, המשך מנקודת עצירה, רשימת הסגר אחת), שש בדיקות שיוצבו, צילומי מסך מעודכנים לארבעה מסכים במחשב, ניקוי הרנר ומסמכים (כללי תנועה, סקירות אבטחה, מקורות החבילה המשפטית). חומרי חתימה של אפל לעולם לא ייכנסו למאגר.
+
 ## 2.28.0 (pilot) - Calendars server, building presence widget, area pop-up editor, building cross-section with synoptic map
 **After installing:** three additive database migrations (0183 calendars, 0184 building presence, 0185 presence history; new tables and one new column only, no existing data is changed). The **calendars module and external calendar sync are OFF by default**, and the **building presence module is OFF by default** (an administrator turns it on in Settings > Presence > Building sensors, and tags the sensors there); nothing changes visibly until then. The **fire-alarm UI is OFF by default** (installation option `fire_ui`); **no fire detection exists** in this release, so the fire column stays hidden and the alarm bar is only a labelled demo source. The cross-section and the synoptic map tab need no migration (installation option `ui.xs`). Going back to 2.27.2 is safe: the added tables are simply left unused.
 - **עברית:** אחרי ההתקנה: שלוש מיגרציות תוספתיות (0183 יומנים, 0184 נוכחות במבנה, 0185 היסטוריית נוכחות; טבלאות חדשות ועמודה אחת חדשה בלבד, שום נתון קיים לא משתנה). **מודול היומנים והסנכרון ליומנים חיצוניים כבויים כברירת מחדל**, ו**מודול הנוכחות במבנה כבוי כברירת מחדל** (מנהל המערכת מדליק אותו בהגדרות > נוכחות > חיישני מבנה ומתייג שם את החיישנים); דבר לא משתנה לעין עד אז. **ממשק אזעקת האש כבוי כברירת מחדל** (אפשרות ההתקנה `fire_ui`); **אין בגרסה זו זיהוי אש כלל**, ולכן עמודת האש נשארת מוסתרת ושורת ההתראות היא מקור הדגמה מסומן בלבד. החתך והלשונית של המפה הסינופטית לא דורשים מיגרציה (אפשרות ההתקנה `ui.xs`). חזרה ל-2.27.2 בטוחה: הטבלאות שנוספו פשוט נשארות בלי שימוש.
