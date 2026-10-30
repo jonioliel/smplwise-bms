@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/alignment-v1/r2-intent-archive.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schema_version",
+    "records",
+    "legacy_restart_digest",
+    "mapped_pair_digest"
+  ],
+  "properties": {
+    "format": {
+      "const": "wiskey-r2-intent-archive.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sha256",
+          "document"
+        ],
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "document": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "legacy_restart_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mapped_pair_digest": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      ]
+    }
+  }
+}

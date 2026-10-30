@@ -22,9 +22,9 @@ def _t(v: str) -> tuple[int, ...]:
 
 def test_bridge_is_090_in_every_place_and_both_copies_are_identical():
     for root in (SRC, MIRROR):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.0", root
-        assert 'VERSION = "0.10.0"' in (root / "const.py").read_text(encoding="utf-8"), root
-        assert "const VERSION = '0.10.0'" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8"), root
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.1", root
+        assert 'VERSION = "0.10.1"' in (root / "const.py").read_text(encoding="utf-8"), root
+        assert "const VERSION = '0.10.1'" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8"), root
     files = sorted(p.relative_to(SRC).as_posix() for p in SRC.rglob("*") if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
     mirror_files = sorted(p.relative_to(MIRROR).as_posix() for p in MIRROR.rglob("*") if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
     assert files == mirror_files

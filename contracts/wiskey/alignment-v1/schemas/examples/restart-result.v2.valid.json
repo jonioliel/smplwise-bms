@@ -1,0 +1,10 @@
+{
+  "contract": "wiskey-installation-restart.v2",
+  "schema_version": 2,
+  "state": "accepted",
+  "generation_id": "synthetic-generation",
+  "claim_id": "synthetic-claim",
+  "request_boot_id": "synthetic-boot",
+  "execution_state": "accepted",
+  "replay_available": false
+}

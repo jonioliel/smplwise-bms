@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "reference_library": "definitions.json",
+  "reference_library_sha256": "81573584599a37c36475642146737823fcd587e1ec0bf4534feed18e6fa9a3f2",
+  "preserved_legacy_schema_sha256": "866da35d537169002ac31410b270fee120aaa525e427dac8cfb0f6214fffcb9a",
+  "local_refs_only": true,
+  "schemas": [
+    {
+      "path": "installation.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/installation.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "8463b80f9d23853b0dcac0cf33d831cc23bc81f794bdca9d7f62038a4814ebff"
+    },
+    {
+      "path": "resources.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/resources.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "7177d44f468106d5f4160cc6f280361e58eba2dc313dbe904d1ca650a95d89d6"
+    },
+    {
+      "path": "service-metadata.v2.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/service-metadata.v2.schema.json",
+      "version": "1.0.0",
+      "sha256": "fe251ab2127597eedeb39724f071c92c84a1fc965297e0a05d315aef1670e131"
+    },
+    {
+      "path": "service-operation.v2.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/service-operation.v2.schema.json",
+      "version": "1.0.0",
+      "sha256": "bb0520dc6d3bb079d4b2dbdb38337bce7bad24caf8ab81385f5f9fb3a6710ce6"
+    },
+    {
+      "path": "service-result.v2.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/service-result.v2.schema.json",
+      "version": "1.0.0",
+      "sha256": "792230b3f7422eebf1b267a96e0d711ff9fb584a0c39e8061710a9d190ecb416"
+    },
+    {
+      "path": "event-record.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/event-record.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "28b77de664443486639d36b38e38bee8f52228fc192083e0d765f520e6a15ca2"
+    },
+    {
+      "path": "events-resume-request.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/events-resume-request.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "e368740d52a87a657fd440055f4127520e5bc88e151940a1bc0ad2395b8dd4b2"
+    },
+    {
+      "path": "events-resume-response.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/events-resume-response.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "365e821da2c8abe511b420e4833dd3ad31b38115bd9d22b7f8480305fb0c4c90"
+    },
+    {
+      "path": "signed-event-envelope.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/signed-event-envelope.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "abf2061bca2cfaaaa3b971e25431fa00e37aad205c155d249ff1b513a721f21c"
+    },
+    {
+      "path": "signed-result-envelope.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/signed-result-envelope.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "9d745f195543bb4e6c9d5a159db733422c091c5c0cd1a2d091047c8fd8ba644c"
+    },
+    {
+      "path": "event-retention.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/event-retention.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "e17244920d45122ab5af78910833a2efcdffa61c9808b8316e5355ef90b625b3"
+    },
+    {
+      "path": "installation-readiness.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/installation-readiness.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "e397f66b780df956997c06b650ec5e27396c9f9ede2507726f9aa73f6301d4fa"
+    },
+    {
+      "path": "installation-restart.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/installation-restart.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "84dcb9bb374933bffb9af230603670b7ee3d588dcc916f0e4de4fb2e3c88cd59"
+    },
+    {
+      "path": "installation-retirement.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/installation-retirement.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "9a806e12b71a5e4fdaa7535d1529577d4ea55bcedb499cefa9389b8994f79eaf"
+    },
+    {
+      "path": "station-snapshot.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/station-snapshot.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "f6fea283bc87a0d344a063030196a356dd18fc2571199d03b04c0c2d2ea46961"
+    },
+    {
+      "path": "installation-generation.v1.schema.json",
+      "$id": "https://wiskey.invalid/contracts/arx/v1/installation-generation.v1.schema.json",
+      "version": "1.0.0",
+      "sha256": "d7afcfeb657c44448093e59b1591a830d2f76ec7605cf3618a5de6cc611d1a05"
+    }
+  ],
+  "contextual_invariants": [
+    "HMAC and current connection challenge",
+    "installation repository/entry identity and exactly one installed local bridge for Arx",
+    "CAS/person/source revisions and original build_user business fields",
+    "account/reference uniqueness and approved-template positional body/account mapping",
+    "cursor source authentication/order and persisted snapshot completeness",
+    "same intention never replayed after UNKNOWN; a correct schema is never sending authority"
+  ],
+  "service_operation_scope": "Parameters plus explicit routing command, stripped before original wire dispatch. data has the original websocket.USER_FIELDS syntactic field set and primary JSON types; repository.permission_data/build_user supply nested permissions/schedules/profile/CAS/validity invariants. Unsupported protected fields are refused by original route policy; schema acceptance is not business acceptance. Original v1/v2 metadata schema preserved in legacy/.",
+  "signed_event_scope": "Original frame.event is unmodified route-specific event payload, not automatically EventRecord. Persistent EventRecord is nested in events/resume pages. HMAC uses actual frame bytes and current challenge; all sample signatures are public synthetic placeholders and are NOT authentic evidence."
+}

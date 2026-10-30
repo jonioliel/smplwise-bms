@@ -1,0 +1,26 @@
+{
+  "contract": [],
+  "schema_version": 1,
+  "namespace": "ha_core",
+  "global_ha_health": "not_assessed",
+  "dependencies": {
+    "ffmpeg": {
+      "available": false,
+      "version": null
+    },
+    "libturbojpeg": {
+      "available": false,
+      "version": null
+    },
+    "pymicro_vad": {
+      "available": false,
+      "version": null
+    }
+  },
+  "paths": {
+    "native_grant_events_g711": "independent_of_these_dependencies",
+    "camera_jpeg_resize": "original_image_only_bounded",
+    "ha_ffmpeg_paths": "ffmpeg_missing",
+    "assist_pipeline": "required_dependency_missing"
+  }
+}

@@ -13,6 +13,9 @@ Status values:
   transport belongs to the engine named for its family.
 - **REMAINING** - no Arx caller yet; the named engine must call it. No family is excluded because Arx has no screen for it.
 - **EXCLUDED** - `jobs/approval_decide`, `jobs/approval_request`: approval writes deferred by the owner; the read `jobs/approval_review` stays available.
+  WISKEY-ADOPT-2272 review M2: the exclusion holds on every installation unless the automatic installation switch `wiskey.auto_install`
+  is on (`wiskey_direct_catalog.INSTALLATION_SWITCH`); the owner must confirm IN WRITING that Arx may write job approvals before that
+  switch is turned on. Arx has no caller of either write.
 - **ALIAS** - the five old `audio/*` commands are legacy panel aliases; the audio engine is reached through the signed W10
   `media/talk_*` commands (services/wiskey_media_contract.py). Arx never calls the aliases.
 

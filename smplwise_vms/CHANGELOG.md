@@ -1,5 +1,28 @@
 # Changelog — SmplWise Arx add-on
 
+## Next WisKey release (DRAFT - not released, version number assigned at release prep) — WisKey alignment: the rc.39 native component, a single restart decision, readiness and the station still
+**After installing:** one database migration (the installed-client tables; its number is fixed at release prep). Nothing WisKey-related turns on by itself: every installation effect stays behind the one setting `wiskey.auto_install`, which is OFF by default. A WisKey integration already installed in Home Assistant (for example by hand) is never overwritten, backed up or restarted for. - **עברית:** אחרי ההתקנה: מיגרציה אחת (טבלאות הלקוח המותקן; המספר ייקבע בהכנת הגרסה). שום דבר של WisKey לא נדלק מעצמו: כל פעולת התקנה נשארת מאחורי ההגדרה היחידה `wiskey.auto_install`, שכבויה כברירת מחדל. אינטגרציית WisKey שכבר מותקנת ב-Home Assistant (למשל ידנית) לא נדרסת, לא מגובה ולא גורמת לאתחול.
+
+### What was added - מה נוסף
+- **English:** The add-on image carries the WisKey native component version 2.0.0-rc.39+arx-align.20261029.04 (377 files, pinned file by file, with the label to product to archive mapping recorded; the earlier rc.38 builds that shared one label are kept apart).
+- **עברית:** תמונת התוספת נושאת את רכיב WisKey המקורי בגרסה 2.0.0-rc.39+arx-align.20261029.04 (377 קבצים, נעולים קובץ-קובץ, עם מיפוי תווית-מוצר-ארכיון; בניות rc.38 הקודמות שחלקו תווית אחת נשמרות נפרדות).
+- **English:** One restart decision: Arx's own journal decides the generation and the single restart claim, releases its locks before any network call, and asks the native component to execute that exact claim; a lost answer is never replayed. Readiness (installed, staged, expected and loaded component digests equal) is read back and recorded as evidence, and a runtime capability check is saved.
+- **עברית:** החלטת אתחול אחת: היומן של Arx מחליט על הדור ועל בקשת האתחול היחידה, משחרר נעילות לפני כל קריאת רשת, ומבקש מהרכיב המקורי לבצע בדיוק את הבקשה הזו; תשובה שאבדה לא נשלחת שוב. מוכנות (תקליטי הרכיב המותקן, המוכן, הצפוי והטעון זהים) נקראת חזרה ונרשמת כראיה, ובדיקת יכולות זמן ריצה נשמרת.
+- **English:** Station still: the door cards use the installed WisKey still first when the setting is on (no guessing between cameras; an ambiguous or changed source is refused), and the add-on's own path otherwise; `thumbnail.jpg` serves the same still.
+- **עברית:** תמונת עמדה: כרטיסי הדלת משתמשים קודם בתמונה של WisKey המותקנת כשההגדרה דולקת (בלי ניחוש בין מצלמות; מקור עמום או שהתחלף נדחה), ובמסלול של התוספת עצמה אחרת; `thumbnail.jpg` מגיש את אותה תמונה.
+- **English:** The existing WhatsApp integration's accounts are exported as a private, read-only descriptor for WisKey (only with the setting on); no template metadata is invented and no message is sent.
+- **עברית:** חשבונות אינטגרציית WhatsApp הקיימת מיוצאים כתיאור פרטי לקריאה בלבד עבור WisKey (רק כשההגדרה דולקת); לא ממציאים נתוני תבניות ולא שולחים הודעה.
+
+### What was fixed - מה תוקן
+- **English:** The restart claim, the outcome and the readiness proof can no longer overwrite a newer installation generation (lock order: database first, then the journal lock).
+- **עברית:** בקשת האתחול, התוצאה והוכחת המוכנות כבר לא יכולות לדרוס דור התקנה חדש יותר (סדר נעילות: מסד הנתונים ואז נעילת היומן).
+- **English:** The bridge integration is re-copied when its content differs, not only when its version label differs.
+- **עברית:** אינטגרציית הגשר מועתקת מחדש כשהתוכן שלה שונה, לא רק כשתווית הגרסה שונה.
+
+### Known limits - מגבלות ידועות
+- **English:** Installation at the owner and live behaviour are NOT_MEASURED; no automatic installation without the setting (owner decision); template send, people messaging and the send permit stay owner steps; the component digest WisKey quotes could not be reproduced from the delivered archive (the per-file pin matches); the cloud template export remains blocked on WisKey's side.
+- **עברית:** ההתקנה אצל הבעלים וההתנהגות החיה לא נמדדו; אין התקנה אוטומטית בלי ההגדרה (החלטת הבעלים); שליחת תבניות, הודעות לאנשים והיתר השליחה נשארים צעדי בעלים; תקליטור הרכיב ש-WisKey מצטטת לא שוחזר מהארכיון שנמסר (הנעילה קובץ-קובץ תואמת); ייצוא התבניות מהענן עדיין חסום בצד של WisKey.
+
 ## 2.27.2 (pilot) — Site-name clip fix, Frigate review camera backfill, Frigate live video decoupled from the add-on option with a visible reason
 **After installing:** no database migration and no setting changes by itself; going back is safe. Live video starts for Frigate cameras that have a matching stream once Arx's own go2rtc address (`go2rtc_url`) is set.
 - **עברית:** אחרי ההתקנה: אין מיגרציה ושום הגדרה לא משתנה מעצמה; חזרה אחורה בטוחה. שידור חי יתחיל למצלמות Frigate שיש להן זרם מתאים כשכתובת ה-go2rtc של ארקס (`go2rtc_url`) מוגדרת.

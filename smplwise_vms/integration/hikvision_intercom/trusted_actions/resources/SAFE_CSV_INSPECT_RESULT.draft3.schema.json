@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wiskey:arx:seven:safe_csv_inspect_result-draft3",
+  "x-status": "DRAFT3_WRITTEN_PLANNING_RECEIVED_OFF",
+  "x-runtime-enabled": false,
+  "x-validation": "VALIDATION_NOT_RUN; stdlib structural/refs only",
+  "type": "object",
+  "properties": {
+    "profile_schema_version": {
+      "const": "wiskey-arx-safe-csv-draft.3"
+    },
+    "headers": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "display_name",
+          "valid_from",
+          "valid_until",
+          "group_ids"
+        ]
+      }
+    },
+    "field_mapping": {
+      "type": "object",
+      "properties": {
+        "display_name": {
+          "const": "display_name"
+        },
+        "valid_from": {
+          "const": "valid_from"
+        },
+        "valid_until": {
+          "const": "valid_until"
+        },
+        "group_ids": {
+          "const": "group_ids"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "permission_revision": {
+      "type": "integer",
+      "minimum": 0,
+      "x-strict-lexical-rule": "future validator must reject bool/nonintegral or coerced values as agreed; schema alone not Python exact-type proof"
+    },
+    "selection_revision": {
+      "const": "rev2"
+    }
+  },
+  "required": [
+    "profile_schema_version",
+    "headers",
+    "field_mapping",
+    "permission_revision",
+    "selection_revision"
+  ],
+  "additionalProperties": false,
+  "x-predicate": "mapping keyset must equal chosen headers; known canonical field names only; no free input headers echoed",
+  "x-legacy": "new document only; classic CSV/old schemas unchanged"
+}

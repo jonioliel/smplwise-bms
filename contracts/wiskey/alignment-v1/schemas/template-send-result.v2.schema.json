@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/alignment-v1/template-send-result.v2.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "state",
+    "code",
+    "provider_accepted",
+    "delivery",
+    "retry_permitted"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "state": {
+      "enum": [
+        "accepted",
+        "not_sent",
+        "unknown"
+      ]
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provider_accepted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "delivery": {
+      "const": "unknown"
+    },
+    "retry_permitted": {
+      "const": false
+    }
+  }
+}

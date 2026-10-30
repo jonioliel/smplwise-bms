@@ -307,6 +307,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         wiskey_direct_join.janitor()
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("wiskey lineage janitor failed", exc_info=True)
+    try:  # WISKEY-ADOPT-2272: WisKey's automatic installation (registry sync / re-announce) - hourly inside; `off` unless wiskey.auto_install = on
+        from .services import wiskey_auto_install
+
+        wiskey_auto_install.reconcile_due(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("wiskey installation reconcile failed", exc_info=True)
     try:  # CR-038 S5b: the ticket outbox (90 days) and inbound (30 days) retention, hourly inside
         from .services.tickets.messaging import RUNTIME as tickets_messaging
 
@@ -963,6 +969,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # WKINT-295: WisKey's direct API behind the people-write / capture / template ports - installed ONLY when the installation chose
         # `access.station_media_provider = auto` AND the pairing key signs (else nothing at all: no lineage, no transport, no thread);
         # one lineage per process, its scope recovered once the direct socket authenticates (in the background, never blocking start)
+        from .services import wiskey_auto_install
+
+        # WISKEY-ADOPT-2272: fills the unset station provider (`auto`, the one setting the installation needs - review M1) once WisKey's
+        # installation manifest is ready - only with wiskey.auto_install = on; audited; never overrides an owner value, never switches a
+        # feature on, never opens the template send permit, never sends or actuates
+        try:
+            await run_in_threadpool(wiskey_auto_install.activate_software, app.state.db)
+        except Exception:  # noqa: BLE001 - start-up never fails on it
+            log.warning("wiskey installation activation failed", exc_info=True)
         _wkjoin = await run_in_threadpool(wiskey_direct_join.startup, app.state.db, settings)
         if _wkjoin is not None:
             threading.Thread(target=_wkjoin.recover_now, name="wiskey-join-recover", daemon=True).start()

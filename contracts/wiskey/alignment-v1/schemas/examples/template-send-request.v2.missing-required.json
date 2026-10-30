@@ -1,0 +1,11 @@
+{
+  "request_id": "synthetic-request",
+  "operation_id": "synthetic-operation",
+  "recipient_ref": "synthetic-person",
+  "expected_person_revision": 1,
+  "account": "synthetic-account",
+  "template_name": "synthetic_template",
+  "language": "en",
+  "template_ref": "synthetic-template",
+  "expected_template_revision": 1
+}

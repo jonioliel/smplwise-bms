@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/v1/resources.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "wiskey-local-template-resources.v1"
+    },
+    "accounts": {
+      "type": "array",
+      "items": {
+        "$ref": "definitions.json#/$defs/CloudAccount"
+      },
+      "minItems": 1,
+      "maxItems": 128
+    },
+    "templates": {
+      "type": "array",
+      "items": {
+        "$ref": "definitions.json#/$defs/ApprovedTemplate"
+      },
+      "minItems": 1,
+      "maxItems": 128
+    }
+  },
+  "required": [
+    "format",
+    "accounts",
+    "templates"
+  ],
+  "additionalProperties": false
+}

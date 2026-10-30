@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wiskey:arx:seven:safe_csv_export_page-draft3",
+  "x-status": "DRAFT3_WRITTEN_PLANNING_RECEIVED_OFF",
+  "x-runtime-enabled": false,
+  "x-validation": "VALIDATION_NOT_RUN; stdlib structural/refs only",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "wiskey-arx-safe-csv-draft.3"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "snapshot_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+    },
+    "export_revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+    },
+    "permission_revision": {
+      "type": "integer",
+      "minimum": 0,
+      "x-strict-lexical-rule": "future validator must reject bool/nonintegral or coerced values as agreed; schema alone not Python exact-type proof"
+    },
+    "selection_revision": {
+      "const": "rev2"
+    },
+    "snapshot_mode": {
+      "const": "revision_checked"
+    },
+    "records": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "$ref": "SAFE_CSV_PUBLIC_ROW.draft3.schema.json"
+      }
+    },
+    "rejected_records": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "properties": {
+          "person_reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+          },
+          "error": {
+            "const": "invalid_field"
+          },
+          "field": {
+            "enum": [
+              "display_name",
+              "valid_from",
+              "valid_until",
+              "group_ids",
+              "person_id",
+              "profile_revision"
+            ]
+          },
+          "origin": {
+            "enum": [
+              "source_guard",
+              "handler",
+              "delegate",
+              "dispatcher"
+            ]
+          },
+          "stage": {
+            "enum": [
+              "pre_dispatch",
+              "post_dispatch",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "person_reference",
+          "error",
+          "field",
+          "origin",
+          "stage"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "page_record_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 500
+    },
+    "export_complete": {
+      "type": "boolean"
+    },
+    "has_more": {
+      "type": "boolean"
+    },
+    "next_cursor_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+    }
+  },
+  "required": [
+    "schema_version",
+    "generated_at",
+    "snapshot_id",
+    "export_revision",
+    "permission_revision",
+    "selection_revision",
+    "snapshot_mode",
+    "records",
+    "rejected_records",
+    "page_record_count",
+    "export_complete",
+    "has_more"
+  ],
+  "additionalProperties": false,
+  "x-byte-budget": "final JSON UTF8 incl public metadata<=1048576 before transport/compression; predicate only, not source guard",
+  "x-relations": "page_record_count=len(records)+len(rejected_records)<=500; has_more implies cursor; stale cancels whole export; completion only after all pages consistent",
+  "x-legacy": "new document only; classic CSV/old schemas unchanged",
+  "x-snapshot": "per-page sorted public(person_id,user.revision) vector equality for authorized set, before and after page construction; permission/selection revisions equal; no atomic snapshot claim"
+}

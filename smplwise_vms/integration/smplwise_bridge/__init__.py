@@ -79,7 +79,7 @@ from homeassistant.helpers.storage import Store
 
 from .cast_service import async_handle_cast_stream, note_origin
 from .config_service import async_handle_config_item
-from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
+from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, CONF_WISKEY_AUTO_INSTALL, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
                     SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_LEASE_EVENT, SERVICE_LEASE_REQUEST, SERVICE_MEDIA_QUERY, SERVICE_ROTATE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
 from . import lease_service
 # WKA-295: the documented public port of the capture lease for the WisKey consumer (docs/changes/WKA-295-LEASE-PORT.md), re-exported
@@ -644,7 +644,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(entry.add_update_listener(options_updated))
     hass.async_create_task(push_directory())
+    if native_setup_wanted(hass, entry):
+        hass.async_create_task(_async_setup_native(hass))  # review H4: never awaited - the bridge entry's setup does not wait on it
     return True
+
+
+NATIVE_DOMAIN = "hikvision_intercom"
+
+
+def native_setup_wanted(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Review H4: the bridge sets the native component up ONLY for an entry the add-on's automatic-install discovery created / updated
+    (`wiskey_auto_install` in the entry data - written by no other path), and only when the component is not loaded already. Any other
+    bridge entry (paired by hand or by the ordinary discovery) never starts it, staged folder or not."""
+    if entry.data.get(CONF_WISKEY_AUTO_INSTALL) is not True:
+        return False
+    return NATIVE_DOMAIN not in hass.config.components
+
+
+async def _async_setup_native(hass: HomeAssistant) -> bool:
+    """0.10.x (WISKEY-ADOPT-2272, WisKey owner28 delivery): when the add-on staged the WisKey native integration next to the bridge, the
+    bridge sets it up itself - no owner step, no form - for an automatic-install entry only (`native_setup_wanted`). The native setup is
+    what writes WisKey's private installation manifest; the bridge never creates a grant. No staged component: nothing happens. A failed
+    native setup is logged and never takes the bridge down (the delivery raised here; Arx keeps the bridge's own services available
+    instead). Started as a task (review H4), never awaited by the entry setup."""
+    try:
+        manifest = Path(hass.config.path("custom_components", NATIVE_DOMAIN, "manifest.json"))
+        if not await hass.async_add_executor_job(manifest.is_file):
+            return False
+        from homeassistant.setup import async_setup_component
+
+        done = await async_setup_component(hass, NATIVE_DOMAIN, {})
+    except Exception as exc:  # noqa: BLE001 - the bridge stays up; the add-on reads the native state from the manifest
+        _LOGGER.warning("native intercom setup failed (%s)", type(exc).__name__)
+        return False
+    if not done:
+        _LOGGER.warning("native intercom setup did not complete")
+    return bool(done)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -670,3 +705,14 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         await Store(hass, 1, f"{DOMAIN}_keys_{entry.entry_id}").async_remove()
     except Exception as exc:  # noqa: BLE001
         _LOGGER.warning("bridge key store not removed (%s)", type(exc).__name__)
+
+
+# Import-time distribution observation only; decisions remain in Arx SQLite (WisKey R3 alignment: the loaded pair digest the
+# native readiness reader compares with the installed and staged ones).
+from pathlib import Path as _DistributionPath
+from uuid import uuid4 as _distribution_uuid
+from os import getpid as _distribution_pid
+from .wiskey_distribution_digest import digest as _distribution_digest
+LOADED_DISTRIBUTION = _distribution_digest(_DistributionPath(__file__).parent)
+LOADED_BOOT_ID = _distribution_uuid().hex
+LOADED_PROCESS_ID = _distribution_pid()

@@ -770,6 +770,10 @@ def startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | No
     lease_events.set_transport(join.lease_transport)
     wts.TRANSPORT_PROVIDER = join.template_or_none
     wts.TRANSPORT_V2_PROVIDER = join.template_v2_or_none
+    from . import wiskey_auto_install
+
+    # WISKEY-ADOPT-2272 review M2: the job-approval writes stay excluded unless the automatic installation switch is on (read live)
+    catalog.INSTALLATION_SWITCH = lambda: wiskey_auto_install.switch_on_db(db)
     JOIN = join
     log.info("wiskey direct join installed (%s = auto, key signs); the direct path is used while its socket authenticates", PROVIDER_KEY)
     return join
@@ -782,6 +786,7 @@ def shutdown() -> None:
     from . import wa_template_send as wts
 
     join, JOIN = JOIN, None
+    catalog.INSTALLATION_SWITCH = None  # review M2: back to the exclusion
     if join is None:
         return
     if lease_events.TRANSPORT is join.lease_transport:

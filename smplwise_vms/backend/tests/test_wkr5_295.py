@@ -25,8 +25,10 @@ from smplwise.services import wiskey_direct_join as join
 from smplwise.services import wiskey_media_bridge as bridge
 from smplwise.services.wiskey_capture_port import PortError
 
-ORIGINAL_CATALOG_SHA256 = "f707d1a15252e08f87596a1296b476f366d8718f884c5857756f1a6c63f431d7"  # Mac R5 COMMAND_CATALOG.jsonl bytes
-CODE = "fa05c60b001ad1af092a9e43e8f9170388e708c3"
+# WISKEY-MAC-ADOPT-298 item E: the FINAL Mac catalog of 27.10 (04_vectors_catalog/catalog/COMMAND_CATALOG.jsonl) replaces the R5 one
+# WISKEY-R3-2272: the R3 catalog (superset of the owner28 one; 294 commands in 44 families, CODE 4407121a) - the pins follow the adopted file
+ORIGINAL_CATALOG_SHA256 = "3123d20d086856f981f22c0604a4e951350482587d530a6e9a2c054898a4642e"  # the adopted COMMAND_CATALOG.jsonl bytes
+CODE = "4407121a8ad9df2bbebc07161808bbbc2664b592"
 
 
 @pytest.fixture(autouse=True)
@@ -59,12 +61,12 @@ def sent(server: JoinServer) -> list[str]:
 def test_catalog_counts_names_not_lines_and_skips_provenance() -> None:
     c = wdc.load()
     lines = [json.loads(x) for x in wdc.CATALOG_PATH.read_text(encoding="utf-8").splitlines() if x.strip()]
-    assert len(lines) == 278 and lines[0]["kind"] == "CATALOG_PROVENANCE"
-    assert c.command_count == 277 and c.registered_count == 274 and c.discovered_count == 270
-    assert len(c.families) == 43 and "direct" in c.families
+    assert len(lines) == 295 and lines[0]["kind"] == "CATALOG_PROVENANCE"
+    assert c.command_count == 294 and c.registered_count == 290 and c.discovered_count == 289
+    assert len(c.families) == 44 and "direct" in c.families
     assert c.code == CODE and c.source_sha256 == ORIGINAL_CATALOG_SHA256
     direct_only = sorted(e.command for e in c.entries() if e.row_kind == "DIRECT_ONLY_COMMAND")
-    assert direct_only == ["direct/capabilities", "direct/time", "peer_identity/get"]
+    assert direct_only == ["direct/capabilities", "direct/capabilities_v2", "direct/time", "peer_identity/get"]
 
 
 def test_envelope_is_decided_per_command_from_the_catalog_row() -> None:
@@ -77,6 +79,7 @@ def test_envelope_is_decided_per_command_from_the_catalog_row() -> None:
         assert wdc.envelope_for(name) == bridge.KIND
     assert all(e.envelope != bridge.DIRECT_PROTOCOL for e in c.entries())  # the transport protocol is never a bridge.kind
     assert wdc.direct_refusal("audio/start") == "not_a_direct_command"
+    # WISKEY-ADOPT-2272 review M2: the job-approval writes stay excluded unless the automatic installation switch is on
     assert wdc.direct_refusal("jobs/approval_decide") == wdc.direct_refusal("jobs/approval_request") == "owner_excluded"
     assert wdc.direct_refusal("jobs/list") is None and wdc.direct_refusal("jobs/approval_review") is None  # reads stay available
 
@@ -100,9 +103,9 @@ def test_a_malformed_catalog_is_refused_whole(mutate: Any, code: str) -> None:
 def test_the_caller_map_covers_every_catalog_family() -> None:
     path = Path(__file__).resolve().parents[3] / "docs" / "integrations" / "wiskey" / "r5" / "CALLER_MAP.json"
     m = json.loads(path.read_text(encoding="utf-8"))
-    assert m["catalog_source_sha256"] == ORIGINAL_CATALOG_SHA256 and m["family_count"] == 43 and m["command_count"] == 277
+    assert m["catalog_source_sha256"] == ORIGINAL_CATALOG_SHA256 and m["family_count"] == 44 and m["command_count"] == 294
     assert set(m["families"]) == set(wdc.load().families)
-    assert sum(len(f["commands"]) for f in m["families"].values()) == 277
+    assert sum(len(f["commands"]) for f in m["families"].values()) == 294
 
 
 # ================================================================ the discovery reader
@@ -115,7 +118,7 @@ def _cap(server: JoinServer | None = None, **over: Any) -> dict[str, Any]:
 
 def test_capabilities_reader_is_closed_and_never_takes_envelope_as_kind() -> None:
     cap = dd.read_capabilities(_cap(), "ref-1")
-    assert cap.lists("users/create") and not cap.lists("audio/start") and not cap.lists("jobs/approval_decide")
+    assert cap.lists("users/create") and not cap.lists("audio/start")
     bad = _cap()
     bad["commands"] = [{**bad["commands"][0], "envelope": "wiskey-bridge-command.v1"}, *bad["commands"][1:]]
     with pytest.raises(dd.DiscoveryError) as exc:
@@ -178,9 +181,9 @@ def test_a_command_missing_from_discovery_keeps_the_existing_path_and_is_never_w
     assert (exc.value.outcome, exc.value.code) == ("not_sent", "command_not_discovered") and len(env.server.received) == before
 
 
-def test_audio_and_owner_excluded_commands_are_never_written_on_the_direct_envelope(env: Any) -> None:
-    for command, code in (("audio/start", "not_a_direct_command"), ("jobs/approval_decide", "owner_excluded"),
-                          ("jobs/approval_request", "owner_excluded")):
+def test_audio_commands_are_never_written_on_the_direct_envelope(env: Any) -> None:
+    # WISKEY-ADOPT-2272: the job-approval writes are no longer excluded on the Arx side (owner28); the HA-body audio aliases still are
+    for command, code in (("audio/start", "not_a_direct_command"), ("audio/send", "not_a_direct_command")):
         with pytest.raises(cp.WiskeyCommandError) as exc:
             asyncio.run(env.cmd.send_signed(command, {}, operation_id=None))
         assert (exc.value.outcome, exc.value.code) == (cp.NOT_SENT, code)

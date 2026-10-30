@@ -1,0 +1,62 @@
+{
+  "contract": "wiskey-event-cursor.v1",
+  "source": "cc50b3b15460944c5c55450f47a2b23d77b6e686:custom_components/hikvision_intercom/event_resume.py",
+  "read_effective_policy": {
+    "command": "events/retention_policy_v1",
+    "parameters": {},
+    "response_contract": "wiskey-event-retention.v1",
+    "schema": "../02_json_schemas/schemas/event-retention.v1.schema.json"
+  },
+  "defaults": {
+    "days": 30,
+    "count": 5000,
+    "bytes": null
+  },
+  "configured_policy_ranges": {
+    "days": [
+      1,
+      365
+    ],
+    "count": [
+      100,
+      20000
+    ],
+    "bytes": [
+      262144,
+      25165824
+    ]
+  },
+  "actual_policy": "Read effective.{days,count,bytes} on the current original manager; defaults are not measured installation policy. Count/bytes may evict records before days.",
+  "age_basis": "received_at",
+  "order": "local acceptance sequence, not station timestamp or a total device chronology",
+  "delivery": "at least once; consumer dedup event.id",
+  "resume_request": {
+    "cursor": null,
+    "limit": "integer1..500"
+  },
+  "reset": {
+    "reasons": [
+      "retention_gap",
+      "source_replaced",
+      "cursor_ahead"
+    ],
+    "records": [],
+    "all_delivered": false,
+    "reset_cursor": "Opaque current high-water mark: explicit consumer acknowledgement accepts discontinuity, never proves old loss delivered"
+  },
+  "invalid_current_source_cursor": "invalid_cursor on malformed/MAC mismatch, no fabricated page",
+  "durability": "Exact deep page image persisted under original save lock before success; save failure never yields a success cursor. Concurrent arrivals retain their own later sequence.",
+  "restart": "Same original source/key/positions persist; duplicate page reads possible, never exactly-once.",
+  "migration": "Original retained rows receive local acceptance positions when old storage lacks durable_resume; pre-migration evicted events cannot be reconstructed. all_delivered is scoped to the saved current source high-water image, never all historical/device events.",
+  "schemas": [
+    "../02_json_schemas/schemas/event-record.v1.schema.json",
+    "../02_json_schemas/schemas/events-resume-request.v1.schema.json",
+    "../02_json_schemas/schemas/events-resume-response.v1.schema.json",
+    "../02_json_schemas/schemas/signed-event-envelope.v1.schema.json",
+    "../02_json_schemas/schemas/signed-result-envelope.v1.schema.json"
+  ],
+  "prior_original_receipts": [
+    "ac30174f776a641b466103d86f141476f61a5f98:docs/owner-development-2026-10-28/mac-auto-install-completion/00_summary/runs/DISCOVERY-EVENTS-01",
+    "ac30174f776a641b466103d86f141476f61a5f98:docs/owner-development-2026-10-28/mac-auto-install-completion/00_summary/runs/FINAL-REGISTERED-WIRE-07"
+  ]
+}

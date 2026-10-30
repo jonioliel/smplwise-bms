@@ -69,7 +69,9 @@ def put_template_send_settings(request: Request, principal: Principal = Depends(
     if "enabled" in body.model_fields_set and not isinstance(body.enabled, bool):
         problems.append({"path": "enabled", "code": "not_a_boolean"})
     if "templates" in body.model_fields_set:
-        refs, tp = wts.validate_registry(body.templates)
+        # WISKEY-ADOPT-2272 review M3: an administrator row never carries an account (stripped) and the signed sync's `native_*` rows
+        # are kept as stored (skipped here) - a native account is only ever the one WisKey's signed registry names
+        refs, tp = wts.admin_registry_input(body.templates)
         problems += tp
     if problems:
         raise ApiError(422, "template_send_invalid", "הגדרות שליחת התבנית אינן תקינות.", details={"errors": problems})
@@ -79,9 +81,15 @@ def put_template_send_settings(request: Request, principal: Principal = Depends(
         if "enabled" in body.model_fields_set and wts.switch_on(w) != body.enabled:
             wts.store_switch(w, body.enabled)
             changed.append("enabled")
-        if refs is not None and refs != wts.load_registry(w):
-            wts.store_registry(w, refs)
-            changed.append("templates")
+        if refs is not None:
+            stored = wts.load_registry(w)
+            merged, mp = wts.validate_registry([wts.ref_doc(r) for r in refs] + [wts.ref_doc(r) for r in stored if wts.is_native(r)])
+            if mp:
+                raise ApiError(422, "template_send_invalid", "הגדרות שליחת התבנית אינן תקינות.",
+                               details={"errors": [{"path": "templates", "code": p["code"]} for p in mp]})
+            if merged != stored:
+                wts.store_registry(w, merged)
+                changed.append("templates")
         audit(w, actor=principal, action=AUDIT_SETTINGS, decision="allowed", resource_type="installation", resource_id="messaging",
               request_id=base._rid(request), details={"changed": changed, "enabled": wts.switch_on(w), "templates": len(wts.load_registry(w))})
         out = flow.status_of(w)
@@ -109,10 +117,21 @@ def _context(act: base._Act, template_id: str) -> dict[str, Any]:
     tpl = next((t for t in wts.load_registry(conn) if t.id == template_id), None)
     rec = act.person()
     person = rec["person"]
-    status = MESSAGING.status(act.settings, act.principal.user_id)
-    account, problem = MESSAGING.account_for(status, M.read_settings(conn)["account"])
-    if status.get("available") is not True:
-        account = None
+    if tpl is not None and tpl.account is not None:
+        # WISKEY-ADOPT-2272: a reference synced from WisKey's signed native registry names its own native account. Review M3: only
+        # while the automatic installation is on AND the account is in WisKey's account list of the last signed sync - otherwise the
+        # send is blocked (`account_unavailable`), never sent on an account nobody verified
+        from ..services import wiskey_auto_install as wai
+
+        if wai.switch_on(conn) and tpl.account in wai.native_accounts(conn):
+            account, problem = tpl.account, None
+        else:
+            account, problem = None, "native_account_unknown"
+    else:
+        status = MESSAGING.status(act.settings, act.principal.user_id)
+        account, problem = MESSAGING.account_for(status, M.read_settings(conn)["account"])
+        if status.get("available") is not True:
+            account = None
     revision = person.get("revision") if type(person.get("revision")) is int and person.get("revision") >= 1 else None
     token = flow.binding_token(tpl=tpl, person_id=act.person_id, person_revision=revision, account=account) if tpl is not None else None
     return {"tpl": tpl, "rec": rec, "person": person, "account": account, "problem": problem, "revision": revision, "token": token,

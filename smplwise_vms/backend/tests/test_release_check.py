@@ -31,6 +31,14 @@ def test_repository_is_release_consistent(tmp_path):
     assert json.loads(out.read_text(encoding="utf-8"))["version"] == res["version"]
 
 
+def test_a_draft_section_is_not_the_changelog_head():
+    text = "# Changelog\n\n## 2.27.2 (DRAFT - not released, version files not bumped) - x\n\n## 2.25.0 (pilot) - y\n\n## 2.24.0\n"
+    assert rc.changelog_head(text) == "2.25.0"
+    assert rc.changelog_head("## 3.0.0 - released\n## 2.9.0\n") == "3.0.0"
+    assert rc.changelog_head("## 1.0.0 (draft: no)\n") == "1.0.0"  # only the upper-case marker counts
+    assert rc.changelog_head("## 1.0.0 DRAFT\n") is None
+
+
 def test_mismatched_versions_fail(tmp_path):
     root = tmp_path / "repo"
     (root / "smplwise_vms" / "backend" / "smplwise" / "migrations").mkdir(parents=True)

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "integration": "ha-whatsapp",
+  "service": "whatsapp.send_message",
+  "service_fields": [
+    "account",
+    "target",
+    "message"
+  ],
+  "accounts": [
+    {
+      "account": "synthetic-existing",
+      "service_account": "synthetic-account-entry"
+    }
+  ],
+  "template_metadata": "not_exposed_by_send_service",
+  "templates": [],
+  "missing_fields": [
+    "approved_template_reference",
+    "template_revision",
+    "account_binding",
+    "approved_body",
+    "language",
+    "ordered_parameter_fields",
+    "approval_provenance"
+  ],
+  "cloud_credentials": "not_applicable_to_this_service_interface"
+}

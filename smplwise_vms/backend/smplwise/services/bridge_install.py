@@ -120,20 +120,27 @@ def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connectio
     already configured and a discovery would only push a code into its entry."""
     if not ha_client.supervisor_token():
         return False
+    from . import wiskey_auto_install as wai
+
     if conn is not None:
         secret = _discovery_code(conn)
+        auto = wai.switch_on(conn)
     else:
         with db.connection() as c:
             secret = _discovery_code(c)
+            auto = wai.switch_on(c)
     if not secret:
         STATE["discovery_posted_at"] = None
         return False
+    # WISKEY-ADOPT-2272 (WisKey owner28): with the automatic installation switched on, the announcement asks the bridge to pair
+    # without its confirmation form (the add-on's own authenticated Supervisor discovery); otherwise unchanged
+    config = {"addon_url": addon_url(), "pairing_code": secret, **({"wiskey_auto_install": True} if auto else {})}
     try:
         if conn is not None:
             with unlocked(conn):  # the Supervisor call runs without the request's write lock
-                ha_client.post_discovery(settings, DOMAIN, {"addon_url": addon_url(), "pairing_code": secret})
+                ha_client.post_discovery(settings, DOMAIN, config)
         else:
-            ha_client.post_discovery(settings, DOMAIN, {"addon_url": addon_url(), "pairing_code": secret})
+            ha_client.post_discovery(settings, DOMAIN, config)
     except ApiError as exc:
         STATE["last_error"] = f"discovery:{exc.code}"
         log.warning("bridge discovery announcement failed: %s", exc.code)
@@ -145,6 +152,9 @@ def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connectio
 def install(db: Database, settings: Settings, force: bool = False, announce: bool = True, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
     """Copy the integration into Home Assistant's config directory when missing/outdated (or forced).
     `conn` is the request transaction when called from a handler (a nested connection would wait on it)."""
+    if conn is None:
+        with db.connection(label="automatic WisKey installation") as owned:
+            return install(db,settings,force,announce,owned)
     with _lock:
         STATE["last_run"] = now_iso()
         STATE["last_error"] = None
@@ -165,7 +175,10 @@ def install(db: Database, settings: Settings, force: bool = False, announce: boo
         STATE["installed_version"] = installed
         STATE["installed_at"] = _marker(target).get("at") if installed else None
         try:
-            if force or installed != STATE["source_version"]:
+            from .wiskey_distribution_digest import digest
+            if force or not target.is_dir() or digest(src)!=digest(target):
+                from .wiskey_native_projection import invalidate
+                invalidate(cfg)
                 (cfg / "custom_components").mkdir(exist_ok=True)
                 n = _copy_tree(src, target)
                 at = now_iso()
@@ -176,9 +189,14 @@ def install(db: Database, settings: Settings, force: bool = False, announce: boo
             STATE["last_error"] = f"copy_failed:{type(exc).__name__}"
             log.warning("bridge integration copy failed: %s", type(exc).__name__)
             return status(db, conn)
-        if announce:
-            announce_discovery(db, settings, conn)
-        return status(db, conn)
+    # WISKEY-ADOPT-2272: the pinned WisKey native bundle next to the bridge (staging, one restart per digest) - only with the
+    # `wiskey.auto_install` switch on; it never blocks the bridge's own copy or its announcement
+    from . import wiskey_auto_install as wai
+
+    wai.installer_step(db, settings, cfg, src, conn=conn, restart=announce)
+    if announce:
+        announce_discovery(db, settings, conn)
+    return status(db, conn)
 
 
 def run_startup(db: Database, settings: Settings) -> None:
@@ -221,4 +239,7 @@ def status(db: Database | None = None, conn: sqlite3.Connection | None = None) -
     d["up_to_date"] = bool(d["source_version"]) and d["installed_version"] == d["source_version"]
     d["state"] = _state(d)
     d["addon_url"] = addon_url()
+    from . import wiskey_auto_install as wai
+
+    d["wiskey_native"] = dict(wai.NATIVE)  # WISKEY-ADOPT-2272: off / staged / up_to_date / source_missing / error (+ code), no path
     return d

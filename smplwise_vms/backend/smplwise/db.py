@@ -619,6 +619,14 @@ def commit_now(conn: sqlite3.Connection, *, keep_reading: bool = True) -> None:
         conn.execute("BEGIN")
 
 
+def rollback_now(conn: sqlite3.Connection) -> None:
+    """Drop the open transaction (if any) and hand the write lock on, without starting another one - THE way to roll back by
+    hand (a bare conn.rollback() keeps this process's write gate; tests/test_db_gate.py forbids it outside db.py)."""
+    if conn.in_transaction:
+        conn.execute("ROLLBACK")
+    _end_hold(conn)
+
+
 def rollback_and_restart(conn: sqlite3.Connection) -> None:
     """Drop everything this write transaction wrote and start a fresh one (queued like any writer)."""
     if conn.in_transaction:

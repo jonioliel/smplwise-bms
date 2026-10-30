@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wiskey:arx:seven:safe_csv_export-draft3",
+  "x-status": "DRAFT3_WRITTEN_PLANNING_RECEIVED_OFF",
+  "x-runtime-enabled": false,
+  "x-validation": "VALIDATION_NOT_RUN; stdlib structural/refs only",
+  "type": "object",
+  "properties": {
+    "intent_action": {
+      "const": "users/csv_export"
+    },
+    "profile_schema_version": {
+      "const": "wiskey-arx-safe-csv-draft.3"
+    },
+    "selection_revision": {
+      "const": "rev2"
+    },
+    "page_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500
+    },
+    "cursor_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+    }
+  },
+  "required": [
+    "intent_action",
+    "profile_schema_version",
+    "selection_revision",
+    "page_size"
+  ],
+  "additionalProperties": false,
+  "x-interface": "new safe producer candidate; current classic export has no fields/filter/pagination and must not be called as this contract",
+  "x-budget": "500 proposed per page, not source cap or permission; first page has no cursor, subsequent page requires immutable cursor and fresh Arx decision",
+  "x-legacy": "new document only; classic CSV/old schemas unchanged"
+}
