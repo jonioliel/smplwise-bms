@@ -7,7 +7,7 @@ import { NOW, digest } from './bustimes-fixtures';
 //   npx playwright test -c playwright.unit.config.ts tests/unit-boardv2-297.spec.ts
 
 test('the V2 options: unknown or absent values read as the factory (the board as before), a board value wins over the default', () => {
-  expect(TV2_FACTORY).toEqual({ design: 'classic', board_layout: 'side', co_size: 'auto', portrait_order: 'bus', next_row: 'show' });
+  expect(TV2_FACTORY).toEqual({ design: 'classic', board_layout: 'side', co_size: 'auto', portrait_order: 'bus', next_row: 'show', live_bg: 'auto', systems_status: 'problems', urgent_screen: 'style' });
   expect(tv2DefaultsOf(undefined)).toEqual(TV2_FACTORY);
   expect(tv2DefaultsOf({ design: 'v3', board_layout: 'strip', co_size: 2 })).toEqual({ ...TV2_FACTORY, board_layout: 'strip' });
   expect(tv2Of({ design: 'v2' }, 'design')).toBe('v2');

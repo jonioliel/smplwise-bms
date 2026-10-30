@@ -5,7 +5,7 @@ import '../components/sw-icon';
 import '../components/sw-dialog';
 import { describeError } from '../api/client';
 import {
-  boardPhotoUrl, boardSlides, createSlide, deleteBoardPhoto, deleteSlide, deleteSlideImage, patchSlide, putBoardPhoto, putSlideImage, slideImageUrl,
+  boardPhotoNightUrl, boardPhotoUrl, boardSlides, createSlide, deleteBoardPhoto, deleteBoardPhotoNight, deleteSlide, deleteSlideImage, patchSlide, putBoardPhoto, putBoardPhotoNight, putSlideImage, slideImageUrl,
   type Board, type Slide, type SlidesDoc,
 } from '../api/notices';
 import { nt } from '../i18n/notices';
@@ -58,6 +58,8 @@ export class NoticeDisplaySlides extends LitElement {
 
   @property({ attribute: false }) display!: Display;
   @property({ attribute: false }) boardId = '';
+  /** LOBBY-STYLES-2300: the board's effective design is a luxury style (it shows the building photo, day and night) */
+  @property({ type: Boolean }) lux = false;
   @property({ attribute: false }) boards: Board[] = [];
 
   @state() private doc: SlidesDoc | null = null;
@@ -147,12 +149,14 @@ export class NoticeDisplaySlides extends LitElement {
     }
   }
 
-  private async photo(file: File | null): Promise<void> {
+  private async photo(file: File | null, night = false): Promise<void> {
     this.busy = true;
     this.err = '';
     try {
-      const doc = file ? await putBoardPhoto(this.boardId, file) : await deleteBoardPhoto(this.boardId);
-      this.doc = { ...(this.doc ?? doc), photo: doc.photo };
+      const doc = night
+        ? (file ? await putBoardPhotoNight(this.boardId, file) : await deleteBoardPhotoNight(this.boardId))
+        : (file ? await putBoardPhoto(this.boardId, file) : await deleteBoardPhoto(this.boardId));
+      this.doc = { ...(this.doc ?? doc), photo: doc.photo, photo_night: doc.photo_night };
       this.changed();
     } catch (e) {
       this.err = describeError(e);
@@ -201,6 +205,7 @@ export class NoticeDisplaySlides extends LitElement {
     const rotate = this.display.rotate_s || 12;
     const total = slides.reduce((n, s) => n + (s.seconds || rotate), 0);
     const photo = this.doc?.photo;
+    const photoNight = this.doc?.photo_night;
     return html`<div class="blk" data-slides>
         <div class="head"><label class="ck"><input type="checkbox" data-promo .checked=${!!this.display.blocks.promo} @change=${(e: Event) => this.emitPromo((e.target as HTMLInputElement).checked)}>${nt('slidesBlock')}</label>
           <span class="st num" data-slides-count>${nt('slidesCount', { n: slides.length, s: total })}</span></div>
@@ -208,7 +213,7 @@ export class NoticeDisplaySlides extends LitElement {
             <div class="cap"><b>${s.title}</b><sw-button size="sm" data-slide-edit @click=${() => this.openEdit(s)}>${nt('edit')}</sw-button></div></div>`)}
           <button class="slide add" data-slide-new ?disabled=${slides.length >= limit} title=${nt('slideLimit', { n: limit })} @click=${() => this.openNew()}><div class="im add"><sw-icon name="plus" size="22"></sw-icon></div><div class="cap"><b>${nt('slideNew')}</b></div></button></div>
       </div>
-      ${this.display.template === 2 ? html`<div class="blk" data-photo-block><span class="ck"><b>${nt('photoBlock')}</b></span>
+      ${this.display.template === 2 || this.lux ? html`<div class="blk" data-photo-block><span class="ck"><b>${nt('photoBlock')}</b></span>
         <div class="photo"><div class="th">${photo?.has ? html`<img alt="" data-photo-img src=${boardPhotoUrl(this.boardId, photo.stamp)}>` : html`<sw-icon name="image" size="22"></sw-icon>`}</div>
           <sw-button size="sm" icon="image" data-photo-pick ?disabled=${this.busy} @click=${() => (this.renderRoot.querySelector('[data-photo-file]') as HTMLInputElement).click()}>${photo?.has ? nt('photoReplace') : nt('photoUpload')}</sw-button>
           ${photo?.has ? html`<sw-button size="sm" variant="ghost" data-photo-remove ?disabled=${this.busy} @click=${() => this.photo(null)}>${nt('photoRemove')}</sw-button>` : nothing}
@@ -219,6 +224,16 @@ export class NoticeDisplaySlides extends LitElement {
             if (f) void this.photo(f);
           }}></div>
         ${!this.dlg && this.err ? html`<p class="err" role="alert" data-photo-error>${this.err}</p>` : nothing}</div>` : nothing}
+      ${this.lux ? html`<div class="blk" data-photo-night-block><span class="ck"><b>${nt('photoNightBlock')}</b></span><span class="hint">${nt('photoNightHint')}</span>
+        <div class="photo"><div class="th">${photoNight?.has ? html`<img alt="" data-photo-night-img src=${boardPhotoNightUrl(this.boardId, photoNight.stamp)}>` : html`<sw-icon name="image" size="22"></sw-icon>`}</div>
+          <sw-button size="sm" icon="image" data-photo-night-pick ?disabled=${this.busy} @click=${() => (this.renderRoot.querySelector('[data-photo-night-file]') as HTMLInputElement).click()}>${photoNight?.has ? nt('photoReplace') : nt('photoUpload')}</sw-button>
+          ${photoNight?.has ? html`<sw-button size="sm" variant="ghost" data-photo-night-remove ?disabled=${this.busy} @click=${() => this.photo(null, true)}>${nt('photoRemove')}</sw-button>` : nothing}
+          <input type="file" data-photo-night-file accept="image/jpeg,image/png" @change=${(e: Event) => {
+            const el = e.target as HTMLInputElement;
+            const f = el.files?.[0];
+            el.value = '';
+            if (f) void this.photo(f, true);
+          }}></div></div>` : nothing}
       ${this.dialog()}`;
   }
 

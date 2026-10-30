@@ -60,16 +60,18 @@ def count_on(conn: sqlite3.Connection, board_id: str) -> int:
                            WHERE l.board_id = ? AND s.kind = 'slide'""", (board_id,)).fetchone()[0]
 
 
-def photo_row(conn: sqlite3.Connection, board_id: str) -> sqlite3.Row | None:
+def photo_row(conn: sqlite3.Connection, board_id: str, night: bool = False) -> sqlite3.Row | None:
+    """The building photo of a board. LOBBY-STYLES-2300: a second photo (the building at night, for the luxury lobby styles) is the same
+    `kind = 'photo'` row linked with position 1 - no migration; position 0 is the day photo of template 2 and of the luxury styles."""
     return conn.execute("""SELECT s.* FROM notice_board_slides l JOIN notice_slides s ON s.id = l.slide_id
-                           WHERE l.board_id = ? AND s.kind = 'photo' ORDER BY s.created_at DESC LIMIT 1""", (board_id,)).fetchone()
+                           WHERE l.board_id = ? AND s.kind = 'photo' AND l.position = ? ORDER BY s.created_at DESC LIMIT 1""", (board_id, 1 if night else 0)).fetchone()
 
 
 def image_of(conn: sqlite3.Connection, board_id: str, row_id: str | None, kind: str) -> tuple[str, bytes, str] | None:
     """(mime, bytes, stamp) of a slide picture shown by this board, or the board's photo (row_id None). A slide the board does not
     show answers None, so a token of one board never reads another board's pictures."""
-    if kind == "photo":
-        r = photo_row(conn, board_id)
+    if kind in ("photo", "photo-night"):
+        r = photo_row(conn, board_id, kind == "photo-night")
     else:
         r = conn.execute("""SELECT s.* FROM notice_board_slides l JOIN notice_slides s ON s.id = l.slide_id
                             WHERE l.board_id = ? AND s.id = ? AND s.kind = 'slide'""", (board_id, row_id or "")).fetchone()
@@ -81,8 +83,8 @@ def image_of(conn: sqlite3.Connection, board_id: str, row_id: str | None, kind: 
         return None
 
 
-def feed_block(conn: sqlite3.Connection, board: dict[str, Any], *, public: bool, logo_base: str = "") -> tuple[list[dict[str, Any]], str]:
-    """(`slides[]`, the photo URL or '') of one board. `public` = the URLs go through the board-token routes (the TV); otherwise
+def feed_block(conn: sqlite3.Connection, board: dict[str, Any], *, public: bool, logo_base: str = "") -> tuple[list[dict[str, Any]], str, str]:
+    """(`slides[]`, the day photo URL or '', the night photo URL or '') of one board. `public` = the URLs go through the board-token routes (the TV); otherwise
     (the Settings preview) through the signed-in stamped routes."""
     slug = board["slug"]
     out: list[dict[str, Any]] = []
@@ -94,12 +96,14 @@ def feed_block(conn: sqlite3.Connection, board: dict[str, Any], *, public: bool,
             item["image"] = (f"{logo_base}api/v1/notices/display/{slug}/slide/{s['id']}?v={s['stamp']}" if public
                              else f"api/v1/notices/promo-slides/{s['id']}/image?v={s['stamp']}")
         out.append(item)
-    p = photo_row(conn, board["id"])
-    photo = ""
-    if p is not None and p["image_b64"]:
-        photo = (f"{logo_base}api/v1/notices/display/{slug}/photo?v={p['image_stamp']}" if public
-                 else f"api/v1/notices/boards/{board['id']}/photo?v={p['image_stamp']}")
-    return out, photo
+    urls = []
+    for night, leaf in ((False, "photo"), (True, "photo-night")):
+        p = photo_row(conn, board["id"], night)
+        urls.append("")
+        if p is not None and p["image_b64"]:
+            urls[-1] = (f"{logo_base}api/v1/notices/display/{slug}/{leaf}?v={p['image_stamp']}" if public
+                        else f"api/v1/notices/boards/{board['id']}/{leaf}?v={p['image_stamp']}")
+    return out, urls[0], urls[1]
 
 
 def newest_stamp(conn: sqlite3.Connection, board_id: str) -> str:
@@ -241,22 +245,24 @@ def remove_image(conn: sqlite3.Connection, actor: str, slide_id: str) -> None:
     _touch_boards(conn, boards_of(conn).get(slide_id, []))
 
 
-def put_photo(conn: sqlite3.Connection, actor: str, board_id: str, raw: bytes) -> str:
-    """Sanitise and store the building photo of one board (replaces the previous one). Raises LogoError when refused."""
+def put_photo(conn: sqlite3.Connection, actor: str, board_id: str, raw: bytes, night: bool = False) -> str:
+    """Sanitise and store the building photo of one board (replaces the previous one of that variant). Raises LogoError when refused."""
     mime, data = sanitize_image(raw, max_bytes=PHOTO_IMAGE_BYTES, max_side=PHOTO_IMAGE_SIDE)
-    drop_photo(conn, board_id)
+    drop_photo(conn, board_id, night)
     pid = new_id()
     now = now_iso()
     conn.execute("INSERT INTO notice_slides(id, kind, created_by, created_at, updated_by, updated_at) VALUES (?, 'photo', ?, ?, ?, ?)", (pid, actor, now, actor, now))
-    conn.execute("INSERT INTO notice_board_slides(board_id, slide_id, position) VALUES (?, ?, 0)", (board_id, pid))
+    conn.execute("INSERT INTO notice_board_slides(board_id, slide_id, position) VALUES (?, ?, ?)", (board_id, pid, 1 if night else 0))
     stamp = _store_image(conn, pid, actor, mime, data)
     _touch_boards(conn, [board_id])
     return stamp
 
 
-def drop_photo(conn: sqlite3.Connection, board_id: str) -> bool:
+def drop_photo(conn: sqlite3.Connection, board_id: str, night: bool | None = None) -> bool:
+    """Remove the building photo: the day one (night=False), the night one (night=True), or both (night=None, the default; a deleted board)."""
     ids = [r[0] for r in conn.execute("""SELECT s.id FROM notice_board_slides l JOIN notice_slides s ON s.id = l.slide_id
-                                         WHERE l.board_id = ? AND s.kind = 'photo'""", (board_id,)).fetchall()]
+                                         WHERE l.board_id = ? AND s.kind = 'photo' AND (? IS NULL OR l.position = ?)""",
+                                      (board_id, None if night is None else 1, None if night is None else (1 if night else 0))).fetchall()]
     for i in ids:
         conn.execute("DELETE FROM notice_board_slides WHERE slide_id = ?", (i,))
         conn.execute("DELETE FROM notice_slides WHERE id = ?", (i,))
@@ -266,8 +272,8 @@ def drop_photo(conn: sqlite3.Connection, board_id: str) -> bool:
 
 
 def drop_board(conn: sqlite3.Connection, board_id: str) -> None:
-    """A deleted board: its photo goes, its slides stay in the library (another board may show them)."""
-    drop_photo(conn, board_id)
+    """A deleted board: its photos go, its slides stay in the library (another board may show them)."""
+    drop_photo(conn, board_id, None)
     conn.execute("DELETE FROM notice_board_slides WHERE board_id = ?", (board_id,))
 
 

@@ -373,6 +373,10 @@ class TvDefaultsIn(BaseModel):
     co_size: str | None = None
     portrait_order: str | None = None
     next_row: str | None = None
+    # LOBBY-STYLES-2300: the lobby styles' behaviour settings
+    live_bg: str | None = None
+    systems_status: str | None = None
+    urgent_screen: str | None = None
 
 
 @router.get("/notices/tv-defaults")
@@ -1032,6 +1036,8 @@ def _slides_out(conn: sqlite3.Connection, board_id: str | None = None) -> dict[s
     if board_id:
         p = sl.photo_row(conn, board_id)
         out["photo"] = {"has": bool(p and p["image_b64"]), "stamp": (p["image_stamp"] if p else "") or ""}
+        pn = sl.photo_row(conn, board_id, True)
+        out["photo_night"] = {"has": bool(pn and pn["image_b64"]), "stamp": (pn["image_stamp"] if pn else "") or ""}
     return out
 
 
@@ -1117,11 +1123,13 @@ def put_board_slides(board_id: str, body: SlideOrderIn, request: Request, princi
 
 
 @router.put("/notices/boards/{board_id}/photo")
+@router.put("/notices/boards/{board_id}/photo-night")
 async def put_board_photo(board_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _board_or_404(conn, board_id)
+    night = request.url.path.endswith("/photo-night")  # LOBBY-STYLES-2300: the building at night (same table, link position 1)
     data = await file.read(sl.PHOTO_IMAGE_BYTES + 1)
     try:
-        sl.put_photo(conn, principal.user_id, board_id, data)
+        sl.put_photo(conn, principal.user_id, board_id, data, night)
     except LogoError as exc:
         raise ApiError(422, "image_refused", IMAGE_REFUSED.get(str(exc), "התמונה נדחתה."), details={"reason": str(exc)})
     audit(conn, actor=principal, action="notices.photo.update", decision="allowed", resource_type="notice_board", resource_id=board_id, request_id=_rid(request))
@@ -1129,17 +1137,19 @@ async def put_board_photo(board_id: str, request: Request, file: UploadFile = Fi
 
 
 @router.delete("/notices/boards/{board_id}/photo")
+@router.delete("/notices/boards/{board_id}/photo-night")
 def delete_board_photo(board_id: str, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _board_or_404(conn, board_id)
-    sl.drop_photo(conn, board_id)
+    sl.drop_photo(conn, board_id, request.url.path.endswith("/photo-night"))
     audit(conn, actor=principal, action="notices.photo.delete", decision="allowed", resource_type="notice_board", resource_id=board_id, request_id=_rid(request))
     return _slides_out(conn, board_id)
 
 
 @router.get("/notices/boards/{board_id}/photo")
-def get_board_photo(board_id: str, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+@router.get("/notices/boards/{board_id}/photo-night")
+def get_board_photo(board_id: str, request: Request, principal: Principal = Depends(_boards_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     _board_or_404(conn, board_id)
-    got = sl.image_of(conn, board_id, None, "photo")
+    got = sl.image_of(conn, board_id, None, "photo-night" if request.url.path.endswith("/photo-night") else "photo")
     if got is None:
         raise ApiError(404, "not_found", "אין תמונה.")
     return Response(got[1], media_type=got[0], headers={"Cache-Control": "private, max-age=60"})
@@ -1155,3 +1165,9 @@ def display_slide(slug: str, slide_id: str, request: Request) -> Response:
 def display_photo(slug: str, request: Request) -> Response:
     req = disp.Request(slug=slug, token=request.headers.get("x-board-token"), client=_client(request), remote=_is_remote(request))
     return _respond(_display_service(request).image(req, "photo"))
+
+
+@display_router.get("/notices/display/{slug}/photo-night")
+def display_photo_night(slug: str, request: Request) -> Response:
+    req = disp.Request(slug=slug, token=request.headers.get("x-board-token"), client=_client(request), remote=_is_remote(request))
+    return _respond(_display_service(request).image(req, "photo-night"))

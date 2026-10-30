@@ -644,7 +644,7 @@ export class SystemNotices extends LitElement {
               <option value="">${nt('holdNone')}</option>${active.map((n) => html`<option value=${n.id}>${n.title}</option>`)}</select><span class="hint">${nt('holdHint')}</span></div>
             <p class="hint">${nt('dwellNote')}</p></div>
           <notice-display-transit .display=${d} .v2Layout=${((e2) => (e2.design === 'v2' ? e2.board_layout : null))(effectiveTv2(d, this.tv2Defaults()))} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-transit>
-          <notice-display-slides .display=${d} .boardId=${this.detail!.board.id} .boards=${this.boards} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)} @slides-changed=${() => this.pushPreview()}></notice-display-slides>
+          <notice-display-slides .display=${d} .lux=${['gallery', 'concierge', 'stone'].includes(effectiveTv2(d, this.tv2Defaults()).design)} .boardId=${this.detail!.board.id} .boards=${this.boards} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)} @slides-changed=${() => this.pushPreview()}></notice-display-slides>
         </div></div>
     </div>`;
   }

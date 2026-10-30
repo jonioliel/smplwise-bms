@@ -265,7 +265,7 @@ test('board page: the V2 design and its options switch the preview; the V2-only 
   const frame = page.frameLocator('sw-app system-notices iframe[data-preview]');
   await expect(frame.locator('#cv')).toHaveAttribute('data-design', 'classic');
   const seg = (name: string) => root.locator(`notice-display-design [data-seg="${name}"]`);
-  await expect(seg('design').locator('button')).toHaveCount(3); // default, previous, V2
+  await expect(seg('design').locator('button')).toHaveCount(5); // default, previous, V2, Ink, Sign (NOTICEBOARD-STYLES-2300)
   await expect(seg('board-layout').locator('button')).toHaveCount(4);
   await expect(seg('co-size').locator('button')).toHaveCount(6);
   await expect(seg('portrait-order').locator('button')).toHaveCount(3);
