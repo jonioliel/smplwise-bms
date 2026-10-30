@@ -142,14 +142,15 @@ test('no explaining sentence and no platform name in any language', () => {
 
 // ---------------------------------------------------------------- the config plumbing
 
+// PRESENCE-2280 (db39f1e7c): the building presence widget is appended after notices, so doors is third from the end now
 test('the doors widget is appended last, absent unless offered, and its config is the common one', () => {
-  expect(WIDGET_IDS[WIDGET_IDS.length - 2]).toBe('doors');
+  expect(WIDGET_IDS[WIDGET_IDS.length - 3]).toBe('doors');
   expect(WIDGET_NAME.doors).toBe('דלתות');
   const cfg = defaultConfig();
-  expect(cfg.order.at(-2)).toBe('doors');
+  expect(cfg.order.at(-3)).toBe('doors');
   expect(cfg.doors.on).toBe(true);
   const old = configOf({ order: ['quick', 'clock'] });
-  expect(old.order.at(-2)).toBe('doors');
+  expect(old.order.at(-3)).toBe('doors');
   const hd: HomeData = { weather: null, sensors: {}, alarm: null, forecast: [] } as unknown as HomeData;
   const ids = (o: Parameters<typeof resolveWidgets>[3]) => resolveWidgets(cfg, 'a', hd, o).map((i) => i.id);
   expect(ids({ editing: true })).not.toContain('doors');

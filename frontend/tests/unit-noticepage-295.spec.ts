@@ -93,13 +93,15 @@ test('widget: absent unless the module is on and the read worked; the last widge
   expect(noticesWidgetOffered({ notices: [], emptyMode: 'hide' }, true)).toBe(true);
   expect(noticesWidgetOffered({ notices: null, emptyMode: 'hide' }, true)).toBe(false);
   expect(noticesWidgetOffered({ notices: [], emptyMode: 'hide' }, false)).toBe(false);
-  expect(WIDGET_IDS[WIDGET_IDS.length - 1]).toBe('notices');
+  // PRESENCE-2280 (db39f1e7c): the building presence widget is appended after notices (absent unless the module is on), so notices is second to last
+  expect(WIDGET_IDS[WIDGET_IDS.length - 2]).toBe('notices');
+  expect(WIDGET_IDS[WIDGET_IDS.length - 1]).toBe('presence');
   expect(WIDGET_NAME.notices).toBe('לוח הודעות');
   const cfg = defaultConfig();
   expect(cfg.notices).toMatchObject({ on: true, sizes: { a: 'm', b: 's', c: 'm' } });
-  // a saved order from before the widget existed keeps its look: the widget lands last
+  // a saved order from before the widget existed keeps its look: the widget lands at the end (just before presence)
   const old = configOf({ order: ['quick', 'clock'] });
-  expect(old.order[old.order.length - 1]).toBe('notices');
+  expect(old.order[old.order.length - 2]).toBe('notices');
   const data = { weather: null, sensors: {}, names: {} } as unknown as HomeData;
   const ids = (opts: { noticesAvailable?: boolean }) => resolveWidgets(cfg, 'a', data, { generatorsAvailable: false, ...opts }).map((w) => w.id);
   expect(ids({})).not.toContain('notices');
