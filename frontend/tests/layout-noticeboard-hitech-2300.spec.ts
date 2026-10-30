@@ -170,6 +170,22 @@ for (const skin of SKINS) {
             return [m.className, m.style.cssText, t.scrollHeight, t.clientHeight, bd.getBoundingClientRect().height, ttl.getBoundingClientRect().height, bd.getBoundingClientRect().width, st.height, getComputedStyle(bd).fontSize, getComputedStyle(t).display, getComputedStyle(m).position].join(' | ');
           });
           console.log('DBG n=' + n + ' ' + dbg);
+          const sweep = await page.evaluate(() => {
+            const m = document.querySelector('#nbk .nb-st > .nb-msg:not(.nb-prep)') as HTMLElement;
+            const t = m.querySelector('.nb-txt') as HTMLElement;
+            const root = document.getElementById('nbk') as HTMLElement;
+            const out: string[] = [];
+            for (const f of [1, 0.84, 0.7, 0.55]) {
+              m.style.setProperty('--fs', String(f));
+              out.push(f + ':' + t.scrollHeight + '/' + t.clientHeight);
+            }
+            m.dataset.cols = '2';
+            for (const f of [1, 0.7, 0.55]) { m.style.setProperty('--fs', String(f)); out.push('c2 ' + f + ':' + t.scrollHeight + '/' + t.clientHeight); }
+            root.dataset.long = '1';
+            for (const f of [1, 0.7, 0.55]) { m.style.setProperty('--fs', String(f)); out.push('L ' + f + ':' + t.scrollHeight + '/' + t.clientHeight); }
+            return out.join(' ');
+          });
+          console.log('SWEEP n=' + n + ' ' + sweep);
         }
         await expectClean(page);
       }
