@@ -106,7 +106,7 @@
 #nbk[data-fam="luxury"] .nb-ft .nb-co { block-size: 30px; color: var(--mute); }
 
 /* ---------- GALLERY (editorial / museum) ---------- */
-#nbk[data-skin="gallery"] .nb-pg { padding: 64px 104px 52px; grid-template-columns: minmax(0, 1fr) 120px 600px; grid-template-rows: auto minmax(0, 1fr) auto auto;
+#nbk[data-fam="luxury"][data-skin="gallery"] .nb-pg { padding: 64px 104px 52px; grid-template-columns: minmax(0, 1fr) 120px 600px; grid-template-rows: auto minmax(0, 1fr) auto auto;
   grid-template-areas: "brand . time" "st . ph" "q . wx" "ft ft ft"; }
 #nbk[data-skin="gallery"] .nb-brand { grid-area: brand; padding-block-end: 30px; }
 #nbk[data-skin="gallery"] .nb-brand .nb-nm b { font-family: var(--serif); font-size: 46px; line-height: 1.1; }
@@ -128,7 +128,7 @@
 #nbk[data-skin="gallery"] .nb-msg.nb-idle .nb-big { font-size: 150px; line-height: 1; }
 #nbk[data-skin="gallery"] .nb-msg.nb-idle .nb-sub { font-family: var(--serif); font-size: 64px; margin-block-start: 18px; color: var(--ink2); order: 2; }
 #nbk[data-skin="gallery"] .nb-msg.nb-idle .nb-line { font-size: 32px; margin-block-start: 48px; color: var(--ink2); order: 3; }
-#nbk[data-skin="gallery"][data-orient="p"] .nb-pg { padding: 72px 88px 56px; column-gap: 48px; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 760px auto minmax(0, 1fr) auto auto;
+#nbk[data-fam="luxury"][data-skin="gallery"][data-orient="p"] .nb-pg { padding: 72px 88px 56px; column-gap: 48px; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 760px auto minmax(0, 1fr) auto auto;
   grid-template-areas: "brand time" "ph ph" "wx wx" "st st" "q q" "ft ft"; }
 #nbk[data-skin="gallery"][data-orient="p"] .nb-ph { margin-inline-start: 150px; }
 #nbk[data-skin="gallery"][data-orient="p"] .nb-wx { padding: 16px 150px 0 0; margin-block-end: 40px; }
@@ -139,7 +139,7 @@
 #nbk[data-skin="gallery"][data-orient="p"] .nb-time .nb-d { display: none; }
 
 /* ---------- CONCIERGE (a classic hotel: symmetry, a double hairline frame, brass) ---------- */
-#nbk[data-skin="concierge"] .nb-pg { padding: 52px 96px 44px; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; column-gap: 40px;
+#nbk[data-fam="luxury"][data-skin="concierge"] .nb-pg { padding: 52px 96px 44px; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; column-gap: 40px;
   grid-template-areas: "time brand wx" "st st st" "q q q" "ft ft ft"; }
 #nbk[data-skin="concierge"] .nb-brand { grid-area: brand; flex-direction: column; gap: 10px; text-align: center; padding-block-end: 34px; max-inline-size: 900px; }
 #nbk[data-skin="concierge"] .nb-brand .nb-nm { align-items: center; max-inline-size: 100%; }
@@ -179,7 +179,7 @@
 #nbk[data-skin="concierge"] .nb-msg.nb-idle .nb-line { font-family: var(--serif); font-size: 36px; color: var(--ink2); margin-block-start: 14px; }
 #nbk[data-skin="concierge"][data-theme="dark"] .nb-arch img { filter: brightness(.86); }
 #nbk[data-skin="concierge"] .nb-msg .nb-bldg { order: 0; inline-size: 380px; block-size: 460px; max-block-size: none; border-radius: 190px 190px 0 0; margin-block-end: 64px; flex-shrink: 0; }
-#nbk[data-skin="concierge"][data-orient="p"] .nb-pg { padding: 72px 72px 56px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+#nbk[data-fam="luxury"][data-skin="concierge"][data-orient="p"] .nb-pg { padding: 72px 72px 56px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   grid-template-areas: "brand brand" "time wx" "st st" "q q" "ft ft"; }
 #nbk[data-skin="concierge"][data-orient="p"] .nb-ph, #nbk[data-skin="concierge"][data-orient="p"] .nb-ph[data-has="0"] { grid-area: 3 / 1 / 5 / 3; }
 #nbk[data-skin="concierge"][data-orient="p"] .nb-st { grid-area: 3 / 1 / 4 / 3; }
@@ -210,7 +210,7 @@
 #nbk[data-skin="stone"] .nb-ph[data-has="0"] { display: block; background: #3A3833; }
 #nbk[data-skin="stone"] .nb-ph img { object-position: 80% 62%; }
 #nbk[data-skin="stone"][data-theme="dark"] .nb-ph[data-dim="0"] img { filter: none; }
-#nbk[data-skin="stone"] .nb-pg { padding: 0; grid-template-columns: 900px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-areas: "brand ." "st ." "q time" "ft wx"; }
+#nbk[data-fam="luxury"][data-skin="stone"] .nb-pg { padding: 0; grid-template-columns: 900px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-areas: "brand ." "st ." "q time" "ft wx"; }
 #nbk[data-skin="stone"] .nb-brand, #nbk[data-skin="stone"] .nb-time, #nbk[data-skin="stone"] .nb-wx, #nbk[data-skin="stone"] .nb-st, #nbk[data-skin="stone"] .nb-q, #nbk[data-skin="stone"] .nb-ft { position: relative; z-index: 3; }
 #nbk[data-skin="stone"] .nb-brand, #nbk[data-skin="stone"] .nb-ft { padding-inline: 92px; }
 #nbk[data-skin="stone"] .nb-brand { grid-area: brand; padding-block: 76px 56px; }
@@ -243,7 +243,7 @@
 #nbk[data-skin="stone"] .nb-msg.nb-idle .nb-line { font-size: 32px; margin-block-start: 30px; color: var(--ink2); order: 3; }
 #nbk[data-skin="stone"][data-orient="p"] .nb-slab { inset-block: auto 0; left: 0; inline-size: auto; block-size: calc(100% - 780px); }
 #nbk[data-skin="stone"][data-orient="p"] .nb-scrim { inset: 0 0 auto 0; block-size: 780px; background: linear-gradient(to top, rgba(12,11,10,.8) 0%, rgba(12,11,10,.66) 34%, rgba(12,11,10,.3) 58%, rgba(12,11,10,0) 80%); }
-#nbk[data-skin="stone"][data-orient="p"] .nb-pg { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 780px auto minmax(0, 1fr) auto auto; grid-template-areas: "time wx" "brand brand" "st st" "q q" "ft ft"; }
+#nbk[data-fam="luxury"][data-skin="stone"][data-orient="p"] .nb-pg { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 780px auto minmax(0, 1fr) auto auto; grid-template-areas: "time wx" "brand brand" "st st" "q q" "ft ft"; }
 #nbk[data-skin="stone"][data-orient="p"] .nb-time { justify-self: start; align-items: flex-start; padding: 0 76px 48px 0; text-align: right; }
 #nbk[data-skin="stone"][data-orient="p"] .nb-time .nb-t { font-size: 190px; }
 #nbk[data-skin="stone"][data-orient="p"] .nb-wx { align-self: end; padding: 0 76px 56px; }

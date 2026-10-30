@@ -102,6 +102,23 @@ async function expectClean(page: Page) {
   expect(r.scroll, 'the page does not scroll').toBe(false);
 }
 
+/** the page frame holds with one notice or none (the list is gone): the header on top, the footer across, the stage in between */
+async function expectFrame(page: Page) {
+  const r = await page.evaluate(() => {
+    const q = (s: string) => (document.querySelector(s) as HTMLElement | null)?.getBoundingClientRect();
+    const nb = q('#nbk') as DOMRect;
+    const brand = q('#nbk .nb-brand') as DOMRect;
+    const ft = q('#nbk .nb-ft') as DOMRect;
+    const st = q('#nbk .nb-st') as DOMRect;
+    return { brandTop: (brand.top - nb.top) / nb.height, ftWidth: ft.width / nb.width, ftTop: (ft.top - nb.top) / nb.height, stH: st.height / nb.height, stW: st.width / nb.width };
+  });
+  expect(r.brandTop, 'the header stays on top').toBeLessThan(0.25);
+  expect(r.ftWidth, 'the footer runs across').toBeGreaterThan(0.6);
+  expect(r.ftTop, 'the footer stays at the bottom').toBeGreaterThan(0.7);
+  expect(r.stH, 'the stage has room').toBeGreaterThan(0.2);
+  expect(r.stW, 'the stage has room').toBeGreaterThan(0.3);
+}
+
 const animatedProps = (page: Page) => page.evaluate(() => [...new Set(document.getAnimations()
   .filter((a) => (a.effect as KeyframeEffect).target?.closest?.('#nbk') && !(a.effect as KeyframeEffect).target?.closest?.('.nb-lay'))
   .flatMap((a) => (a.effect as KeyframeEffect).getKeyframes().flatMap((k) => Object.keys(k))))]
@@ -219,6 +236,7 @@ for (const skin of SKINS) {
         expect(r.px, 'body >= 20 px').toBeGreaterThanOrEqual(20);
         if (n === 1) expect(r.s).toBe(1);
         await expectClean(page);
+        await expectFrame(page);
       }
     });
 
@@ -266,6 +284,7 @@ for (const skin of SKINS) {
         await open(page, { skin, notices: [], theme });
         await expect(page.locator('#nbk .nb-msg.nb-idle')).toHaveCount(1);
         await expectClean(page);
+        await expectFrame(page);
         if (skin === 'concierge') expect(await photoText(page)).toContain(theme === 'night' ? 'NIGHTIMG' : 'DAYIMG');
       }
     });
