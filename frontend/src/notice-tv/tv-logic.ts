@@ -75,6 +75,10 @@ export interface Display {
   co_size?: CoSize | null;
   portrait_order?: PortraitOrder | null;
   next_row?: NextRow | null;
+  /** LOBBY-STYLES-2300 */
+  live_bg?: LiveBg | null;
+  systems_status?: SystemsStatus | null;
+  urgent_screen?: UrgentScreen | null;
 }
 
 export type Saver = 'off' | 'wash' | 'cycle' | 'wave' | 'ambient';

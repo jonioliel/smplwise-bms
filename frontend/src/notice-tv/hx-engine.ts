@@ -82,7 +82,6 @@ export function createHx(api: EngineApi): Hx {
     newsT: 0,
     img: null as HTMLImageElement | null,
   };
-  const speed = (): number => 1;
 
   // ------------------------------------------------------------------ clock digits (each digit sits in its own mask and rolls)
   function setDigits(el: HTMLElement | null, t: string): void {

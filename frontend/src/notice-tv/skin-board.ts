@@ -444,7 +444,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   // ------------------------------------------------------------------ transitions (composite only)
   const track = (a: Animation): Animation => {
     S.anims.push(a);
-    a.finished.then(() => { S.anims = S.anims.filter((x) => x !== a); }, () => {});
+    a.finished.then(() => { S.anims = S.anims.filter((x: Animation) => x !== a); }, () => {});
     return a;
   };
 
