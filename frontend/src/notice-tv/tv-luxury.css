@@ -231,7 +231,7 @@
 #nbk[data-skin="stone"] .nb-q li { max-inline-size: none; padding: 0; border: 0; flex-shrink: 0; }
 #nbk[data-skin="stone"] .nb-ft { grid-area: ft; padding-block: 30px 60px; flex-direction: column; align-items: stretch; gap: 16px; }
 #nbk[data-skin="stone"] .nb-ft .nb-info { gap: 28px; flex-wrap: wrap; row-gap: 6px; }
-#nbk[data-skin="stone"] .nb-ft .nb-news { order: 2; }
+#nbk[data-skin="stone"] .nb-ft .nb-news { order: 2; flex: 0 0 auto; block-size: 1.5em; }
 #nbk[data-skin="stone"] .nb-ft .nb-live { order: 3; justify-content: space-between; }
 #nbk[data-skin="stone"] .nb-time { grid-area: time; color: var(--photo-ink); align-self: end; align-items: flex-end; justify-self: end; padding: 0 100px 0 96px; }
 #nbk[data-skin="stone"] .nb-time .nb-t { font-weight: 200; font-size: 230px; letter-spacing: -.02em; line-height: .9; }
@@ -256,7 +256,8 @@
 
 /* a very long notice: the "Up next" list makes room - the stage takes its row as well (the list is hidden) */
 /* Gallery, landscape: the stage also takes the photo's column for this turn (the photo steps aside) */
-#nbk[data-skin="gallery"][data-long="1"][data-orient="l"] .nb-st { grid-row: 2; grid-column: 1 / 4; }
+#nbk[data-skin="gallery"][data-long="1"][data-orient="l"] .nb-st { overflow: visible; }
+#nbk[data-skin="gallery"][data-long="1"][data-orient="l"] .nb-msg { inset-inline-end: -720px; }
 #nbk[data-skin="gallery"][data-long="1"][data-orient="l"] .nb-ph { visibility: hidden; }
 #nbk[data-skin="concierge"][data-long="1"] .nb-st { grid-area: 2 / 1 / 4 / 4; }
 #nbk[data-skin="concierge"][data-long="1"][data-orient="p"] .nb-st { grid-area: 3 / 1 / 5 / 3; }

@@ -422,7 +422,9 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
       if (hidden > 0) ol.insertAdjacentHTML('beforeend', '<li class="nb-more">' + esc(str(i.lang, 'more', { n: hidden })) + '</li>');
     };
     moreLi();
-    while (ol.scrollHeight > ol.clientHeight + 1 && ol.querySelectorAll('li:not(.nb-more)').length > 1) {
+    // the luxury rows run in one line: a title squeezed under ~220 px says nothing, so the last row goes instead of being cut to three letters
+    const squeezed = (): boolean => familyOf(i.skin) === 'luxury' && [...ol.querySelectorAll<HTMLElement>('li:not(.nb-more)')].some((x) => x.clientWidth < 220 && x.scrollWidth > x.clientWidth);
+    while ((ol.scrollHeight > ol.clientHeight + 1 || squeezed()) && ol.querySelectorAll('li:not(.nb-more)').length > 1) {
       const all = ol.querySelectorAll('li:not(.nb-more)');
       all[all.length - 1].remove();
       hidden++;
