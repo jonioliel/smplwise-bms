@@ -197,7 +197,7 @@ def test_lock_is_hidden_and_refused_when_the_engine_has_no_lock_command(settings
     w.emergency_on()
     st = w.get("/doors/emergency/state").json()
     assert st["can"]["lock"] is False and st["scopes"]["lock_secure"] == [] and st["scopes"]["open"], "OPEN stays, LOCK is gone"
-    assert w.get("/doors/emergency/settings").json()["lock_available"] is False
+    assert w.get("/doors/emergency/settings").json()["settings"]["lock_available"] is False
     r = w.press("lock_secure")
     assert r.status_code == 409 and r.json()["code"] == "lock_unavailable"
     assert w.emergency.calls == [] and not w.rows("SELECT id FROM door_emergency_incidents")
