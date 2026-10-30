@@ -141,7 +141,7 @@ def test_two_building_photos_day_and_night_share_the_table_and_replace_only_thei
     assert out["photo"]["stamp"] != out["photo_night"]["stamp"]
     # replacing one variant leaves the other alone, and never stacks
     assert _put(client, bid, "photo-night", _img(color=(9, 9, 9))).status_code == 200
-    with Database(settings.db_path).connect() as c:
+    with Database(settings.db_path).connection() as c:
         rows = c.execute("SELECT l.position FROM notice_board_slides l JOIN notice_slides s ON s.id = l.slide_id WHERE s.kind = 'photo' AND l.board_id = ? ORDER BY 1", (bid,)).fetchall()
     assert [r[0] for r in rows] == [0, 1]
     assert client.get(f"{API}/notices/boards/{bid}/photo").status_code == 200
