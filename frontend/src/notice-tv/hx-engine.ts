@@ -499,10 +499,8 @@ export function createHx(api: EngineApi): Hx {
   /** Prism: the urgent field grows out of the colour field (its own rectangle on this canvas). */
   function fieldRect(): string {
     const f = root.querySelector<HTMLElement>('.nb-fld');
-    const fr = root.querySelector<HTMLElement>('.nb-fld .nb-amb');
-    if (!f || !fr) return 'inset(0 0 0 0)';
-    const w = Number(getComputedStyle(root).getPropertyValue('--fw').replace('px', '')) || f.offsetWidth * 0.46;
-    return root.dataset.orient === 'p' ? 'inset(0 0 ' + (f.offsetHeight - (Number(getComputedStyle(root).getPropertyValue('--fh').replace('px', '')) || f.offsetHeight * 0.4)) + 'px 0)' : 'inset(0 ' + (f.offsetWidth - w) + 'px 0 0)';
+    if (!f) return 'inset(0 0 0 0)';
+    return root.dataset.orient === 'p' ? 'inset(0 0 ' + Math.max(0, root.clientHeight - f.offsetHeight) + 'px 0)' : 'inset(0 ' + Math.max(0, root.clientWidth - f.offsetWidth) + 'px 0 0)';
   }
   function liveStyle(el: HTMLElement): { opacity: string; transform: string } {
     const cs = getComputedStyle(el);

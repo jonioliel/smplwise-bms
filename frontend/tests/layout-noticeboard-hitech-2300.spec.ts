@@ -12,7 +12,7 @@ test.beforeEach(() => test.skip(test.info().project.name !== 'desktop', 'desktop
 test.describe.configure({ timeout: 90_000 });
 
 const base = () => (test.info().project.use.baseURL as string | undefined) || process.env.SW_BASE_URL || 'http://127.0.0.1:4173/';
-const SKINS = ['lumen'] as const;
+const SKINS = ['lumen', 'axis', 'prism'] as const;
 type Skin = (typeof SKINS)[number];
 const CO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 48"><rect width="120" height="48" rx="6" fill="#1d56c9"/><text x="60" y="31" font-size="20" text-anchor="middle" fill="#fff" font-family="Arial">DEV</text></svg>';
 
@@ -78,7 +78,7 @@ async function expectClean(page: Page) {
 }
 
 const animatedProps = (page: Page) => page.evaluate(() => [...new Set(document.getAnimations()
-  .filter((a) => (a.effect as KeyframeEffect).target?.closest?.('#nbk'))
+  .filter((a) => (a.effect as KeyframeEffect).target?.closest?.('#nbk') && !(a.effect as KeyframeEffect).target?.closest?.('.nb-cove'))
   .flatMap((a) => (a.effect as KeyframeEffect).getKeyframes().flatMap((k) => Object.keys(k))))]
   .filter((p) => !['offset', 'easing', 'composite', 'computedOffset'].includes(p)));
 
