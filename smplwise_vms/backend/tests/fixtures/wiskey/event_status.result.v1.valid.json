@@ -1,0 +1,39 @@
+{
+  "contract": "wiskey-emergency-event-status.v1",
+  "schema_version": 1,
+  "event_ref": "synthetic-event",
+  "state": "found",
+  "records": [
+    {
+      "operation_id": "synthetic-operation",
+      "request_id": "00000000-0000-4000-8000-000000000001",
+      "revision": 1,
+      "descriptor_epoch": "synthetic-epoch",
+      "kind": "wiskey-emergency-event.v2",
+      "command": "hold_open",
+      "trigger": "manual",
+      "retry_of": null,
+      "targets": [
+        {
+          "station_id": "synthetic-station",
+          "api_relay": 1,
+          "physical_relay": 1,
+          "mapping_revision": 1,
+          "recorded_phase": "attempted",
+          "outcome": "unknown",
+          "duplicate": false,
+          "prior_operation": null,
+          "recovery_obligation": true,
+          "release_recorded": false,
+          "release_outcome": null
+        }
+      ]
+    }
+  ],
+  "physical_result": "unknown",
+  "observed_device": null,
+  "replay_available": false,
+  "absence_is_never_sent_proof": false,
+  "reader_boot_id": "synthetic-reader-boot",
+  "reader_process_id": 12345
+}

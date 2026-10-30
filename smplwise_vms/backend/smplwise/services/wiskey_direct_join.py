@@ -135,6 +135,13 @@ class DirectCommandSession:
 
     async def call(self, command: str, parameters: Mapping[str, Any], *, timeout: float) -> dict[str, Any]:
         """One request on the session loop. MediaBridgeError with outcome not_sent | refused | unknown (`closed` never escapes)."""
+        from . import wiskey_call_budget as budget
+        if budget.active():
+            timeout = budget.remaining(timeout)
+        async with asyncio.timeout(timeout):
+            return await self._call_with_budget(command, parameters, timeout=timeout)
+
+    async def _call_with_budget(self, command: str, parameters: Mapping[str, Any], *, timeout: float) -> dict[str, Any]:
         if not isinstance(parameters, Mapping):
             raise bridge.MediaBridgeError("invalid_parameters", "not_sent")
         refusal = catalog.direct_refusal(command)  # HA-body audio commands and the owner-excluded job-approval writes: never written
@@ -146,6 +153,8 @@ class DirectCommandSession:
             refusal = self.discovery.transport_refusal(link.connection_ref, command)
             if refusal is not None:
                 raise bridge.MediaBridgeError(refusal, "not_sent")
+        from . import wiskey_call_budget as budget
+        timeout = budget.remaining(timeout) if budget.active() else timeout
         try:
             return await link.call_command(command, dict(parameters), kind=envelope_kind(command), timeout=timeout)
         except bridge.MediaBridgeError as exc:
@@ -200,6 +209,12 @@ class DirectCommandSession:
             if close is not None:
                 close()
             raise bridge.MediaBridgeError("wrong_thread", "not_sent")
+        from . import wiskey_call_budget as budget
+        try:
+            timeout = budget.remaining(timeout) if budget.active() else timeout
+        except budget.DeadlineExpired:
+            coro.close()
+            raise
         return self.runner.run(coro, timeout)
 
     def connect_ready(self, timeout: float = DEFAULT_TIMEOUT_S, command: str | None = None) -> bool:
@@ -298,7 +313,9 @@ class DirectCapturePort:
 
     def call(self, command: str, parameters: Mapping[str, Any], *, timeout_s: float) -> Mapping[str, Any]:
         try:
-            return self.session.run_sync(self.session.call(command, parameters, timeout=timeout_s), timeout_s + RUN_MARGIN_S)
+            from . import wiskey_call_budget as budget
+            timeout_s = budget.remaining(timeout_s) if budget.active() else timeout_s
+            return self.session.run_sync(self.session.call(command, parameters, timeout=timeout_s), timeout_s if budget.active() else timeout_s + RUN_MARGIN_S)
         except bridge.MediaBridgeError as exc:
             raise PortError(exc.code, _outcome(exc)) from None
         except Exception as exc:  # noqa: BLE001
@@ -352,6 +369,27 @@ def websocket_media_opener(settings: Any) -> Callable[[str, Mapping[str, str], f
         return await websockets.connect(url, **kw)
 
     return open_media
+
+
+class SelectedFeaturePort:
+    """Same Join predicate at the original feature adapter boundary, every call.
+
+    This is a port wrapper, not another engine/authority/dispatcher. Selection
+    may connect/discover through the same bounded session before identity is
+    read. A disabled provider is never bypassed by the installed factory.
+    """
+    def __init__(self, join):
+        self.join = join
+
+    def identity(self):
+        if not self.join.selected("features/start"):
+            raise PortError("transport_not_selected", "not_sent")
+        return self.join.capture_port.identity()
+
+    def call(self, command, parameters, *, timeout_s):
+        if not self.join.selected(command):
+            raise PortError("transport_not_selected", "not_sent")
+        return self.join.capture_port.call(command, parameters, timeout_s=timeout_s)
 
 
 # ---------------------------------------------------------------- the selection wrappers (existing path otherwise)
@@ -502,12 +540,13 @@ class DirectJoin:
         return self.features_or_none()
 
     def emergency_engine(self, connect: Callable[[], Any]) -> Any:
-        """A `DirectEmergencyEngine` (wiskey-emergency-event.v2) over this join's features. NOT installed here: making it the process's
-        emergency engine (`wiskey_emergency_direct.install`) and any real door action are the owner's separate instruction."""
+        """The existing `DirectEmergencyEngine` over this Join's selected feature port. Source startup installs this factory;
+        business/live permissions remain separate and unchanged. No effect is sent by construction."""
         from .wiskey_emergency_direct import DirectEmergencyEngine
         from .wiskey_feature_direct import DirectFeatureClient, FeatureAdapters
 
-        adapters = self._features or FeatureAdapters(DirectFeatureClient(self.capture_port), self.capture_port)
+        port = SelectedFeaturePort(self)
+        adapters = FeatureAdapters(DirectFeatureClient(port), port)
         return DirectEmergencyEngine(adapters, connect)
 
     # -- people writes (NativePeopleWriter) ------------------------------------------------------------------------------------------
@@ -784,6 +823,9 @@ def startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | No
     # WISKEY-ADOPT-2272 review M2: the job-approval writes stay excluded unless the automatic installation switch is on (read live)
     catalog.INSTALLATION_SWITCH = lambda: wiskey_auto_install.switch_on_db(db)
     JOIN = join
+    # WISKEY-RC4-2310: the owner30 contribution installed `join.emergency_engine(...)` as the process's emergency engine here. Superseded by
+    # DOORLIVE-2310: `door_engine_live.startup` (called right after this) installs `LiveEmergencyEngine`, which resolves the CURRENT join on every
+    # call, re-checks `selected("features/start")` and delegates to the same `emergency_engine()` (now over the rc.4 SelectedFeaturePort).
     log.info("wiskey direct join installed (%s = auto, key signs); the direct path is used while its socket authenticates", PROVIDER_KEY)
     return join
 

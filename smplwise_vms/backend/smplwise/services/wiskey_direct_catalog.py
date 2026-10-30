@@ -160,7 +160,15 @@ def parse(text: str) -> Catalog:
 
 @lru_cache(maxsize=1)
 def load(path: str | None = None) -> Catalog:
-    return parse(Path(path or CATALOG_PATH).read_text(encoding="utf-8"))
+    catalog = parse(Path(path or CATALOG_PATH).read_text(encoding="utf-8"))
+    if path is not None:
+        return catalog
+    extra = tuple(_entry({"kind": "COMMAND", "command": name, "wire_schema": NATIVE_WIRE,
+        "discovered_for_native_owner": True, "direct_dispatch_available": True,
+        "transport_mode": "native_bridge_legacy_business"}) for name in
+        ("features/emergency_event_status_v1", "features/emergency_secure_v1"))
+    return Catalog(catalog.code, catalog.source_sha256, catalog.registered_count + len(extra),
+        catalog.discovered_count + len(extra), catalog.entries() + extra)
 
 
 def file_sha256(path: str | None = None) -> str:

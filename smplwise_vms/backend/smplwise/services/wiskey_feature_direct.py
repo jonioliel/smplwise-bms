@@ -231,6 +231,11 @@ def read_media(raw: Any) -> MediaPreparation:
     return MediaPreparation(raw["preparation_ref"], op if _ref(op) else None, raw["state"], raw["expires_at"], tuple(steps))
 
 
+def _rpc_timeout(maximum):
+    from . import wiskey_call_budget as budget
+    return budget.remaining(maximum) if budget.active() else maximum
+
+
 # ---------------------------------------------------------------- the client
 
 def _commit(conn: sqlite3.Connection) -> None:
@@ -263,9 +268,14 @@ class DirectFeatureClient:
 
     def _finish_start(self, conn: sqlite3.Connection, request_id: str, command: str, params: dict[str, Any]) -> StartOutcome:
         try:
-            raw = self.port.call(command, params, timeout_s=START_TIMEOUT_S)
+            raw = self.port.call(command, params, timeout_s=_rpc_timeout(START_TIMEOUT_S))
         except PortError as exc:
             state = {"not_sent": "refused", "refused": "refused"}.get(exc.outcome, "unknown")
+            if exc.outcome == "refused" and params.get("request", {}).get("feature") == "emergency_buttons":
+                # Original Native may have started an operation before its
+                # final auth/current-host recheck rejects publication. No
+                # commit-stage proof exists in the old signed error envelope.
+                state = "unknown"
             fx.settle_feature(conn, request_id, state, "not_sent" if exc.outcome == "not_sent" else exc.code)
             _commit(conn)
             return StartOutcome("not_sent" if exc.outcome == "not_sent" else state, None, exc.code)
@@ -284,23 +294,31 @@ class DirectFeatureClient:
         if not _ref(operation_ref):
             raise FeatureWireError("invalid_fields", "not_sent")
         try:
-            raw = self.port.call("features/result", {"operation_ref": operation_ref}, timeout_s=READ_TIMEOUT_S)
+            raw = self.port.call("features/result", {"operation_ref": operation_ref}, timeout_s=_rpc_timeout(READ_TIMEOUT_S))
         except PortError as exc:
             raise FeatureWireError(exc.code, exc.outcome) from None
         return read_result(raw, operation_ref)
+
+    def event_status(self, event_ref, station_id, door, mapping_revision):
+        try:
+            raw = self.port.call("features/emergency_event_status_v1", {"event_ref": event_ref,
+                "station_id": station_id, "door": door, "mapping_revision": mapping_revision}, timeout_s=_rpc_timeout(READ_TIMEOUT_S))
+        except PortError as exc:
+            raise FeatureWireError(exc.code, exc.outcome) from None
+        return read_event_status(raw, event_ref)
 
     def cancel(self, operation_ref: str) -> CancelResult:
         if not _ref(operation_ref):
             raise FeatureWireError("invalid_fields", "not_sent")
         try:
-            raw = self.port.call("features/cancel", {"operation_ref": operation_ref}, timeout_s=CANCEL_TIMEOUT_S)
+            raw = self.port.call("features/cancel", {"operation_ref": operation_ref}, timeout_s=_rpc_timeout(CANCEL_TIMEOUT_S))
         except PortError as exc:
             raise FeatureWireError(exc.code, exc.outcome) from None
         return read_cancel(raw, operation_ref)
 
     def status(self) -> Mapping[str, Any]:
         try:
-            raw = self.port.call("features/status", {}, timeout_s=READ_TIMEOUT_S)
+            raw = self.port.call("features/status", {}, timeout_s=_rpc_timeout(READ_TIMEOUT_S))
         except PortError as exc:
             raise FeatureWireError(exc.code, exc.outcome) from None
         if not isinstance(raw, Mapping):
@@ -319,7 +337,7 @@ class DirectFeatureClient:
         if subscription is not None:
             params["subscription"] = subscription
         try:
-            raw = self.port.call("features/prepare_media", params, timeout_s=START_TIMEOUT_S)
+            raw = self.port.call("features/prepare_media", params, timeout_s=_rpc_timeout(START_TIMEOUT_S))
         except PortError as exc:
             fx.settle_feature(conn, body["request_id"], "refused" if exc.outcome != "unknown" else "unknown", "not_sent" if exc.outcome == "not_sent" else exc.code)
             _commit(conn)
@@ -458,3 +476,43 @@ class FeatureAdapters:
 
     def prepare_media(self, conn: sqlite3.Connection, body: dict[str, Any], snapshot: dict[str, Any]) -> MediaPreparation:
         return self.client.prepare_media(conn, body, snapshot)
+
+
+_EVENT_ROOT = {"contract", "schema_version", "event_ref", "state", "records", "physical_result", "observed_device", "replay_available", "absence_is_never_sent_proof", "reader_boot_id", "reader_process_id"}
+_EVENT_RECORD = {"operation_id", "request_id", "revision", "descriptor_epoch", "kind", "command", "trigger", "retry_of", "targets"}
+_EVENT_TARGET = {"station_id", "api_relay", "physical_relay", "mapping_revision", "recorded_phase", "outcome", "duplicate", "prior_operation", "recovery_obligation", "release_recorded", "release_outcome"}
+_EVENT_PHASES = {"prepared", "attempted", "acknowledged", "unknown", "denied", "duplicate", "superseded", "release_registered", "tombstone_only"}
+
+def read_event_status(raw, event_ref):
+    """Closed v1 durable READ; verified transport remains mandatory. Absence is no not-sent proof."""
+    def revision(value):
+        return type(value) is int and 1 <= value < 2**53
+    def require(ok):
+        if not ok:
+            raise ValueError("invalid_event_status")
+    try:
+        require(isinstance(raw, Mapping) and set(raw) == _EVENT_ROOT)
+        require(raw["contract"] == "wiskey-emergency-event-status.v1" and type(raw["schema_version"]) is int and raw["schema_version"] == 1)
+        require(raw["event_ref"] == event_ref and raw["state"] in {"found", "not_found"})
+        require(raw["physical_result"] == "unknown" and raw["observed_device"] is None)
+        require(raw["replay_available"] is False and raw["absence_is_never_sent_proof"] is False)
+        require(raw["reader_boot_id"] is None or _ref(raw["reader_boot_id"]))
+        require(revision(raw["reader_process_id"]))
+        require(isinstance(raw["records"], list) and bool(raw["records"]) == (raw["state"] == "found"))
+        for record in raw["records"]:
+            require(isinstance(record, Mapping) and set(record) == _EVENT_RECORD)
+            require(all(_ref(record[k]) for k in ("operation_id", "request_id", "descriptor_epoch")) and revision(record["revision"]))
+            require(record["kind"] in {"wiskey-emergency-event.v1", "wiskey-emergency-event.v2"})
+            require(record["command"] in {"hold_open", "release"} and record["trigger"] in {"manual", "fire"})
+            require(record["retry_of"] is None or _ref(record["retry_of"]))
+            require(isinstance(record["targets"], list) and 1 <= len(record["targets"]) <= 200)
+            for target in record["targets"]:
+                require(isinstance(target, Mapping) and set(target) == _EVENT_TARGET and _ref(target["station_id"]))
+                require(all(type(target[k]) is int and target[k] in {1, 2} for k in ("api_relay", "physical_relay")) and revision(target["mapping_revision"]))
+                require(target["recorded_phase"] in _EVENT_PHASES and target["outcome"] == ("unknown" if target["recorded_phase"] == "attempted" else target["recorded_phase"]))
+                require(all(type(target[k]) is bool for k in ("duplicate", "recovery_obligation", "release_recorded")))
+                require(target["prior_operation"] is None or _ref(target["prior_operation"]))
+                require(target["release_outcome"] is None or target["release_outcome"] in _EVENT_PHASES)
+        return raw
+    except (AssertionError, KeyError, TypeError, ValueError):
+        raise FeatureWireError("invalid_event_status", "unknown") from None

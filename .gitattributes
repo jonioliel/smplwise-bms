@@ -22,3 +22,6 @@ docs/integrations/wiskey/catalog/**/LICENSE -text
 
 # WisKey native integration bundle (WISKEY-ADOPT-2272): byte-exact to the delivered archive; its pin file lists every SHA-256.
 smplwise_vms/integration/hikvision_intercom/** -text
+
+# WISKEY-RC4-2310: the delivered synthetic WisKey contract fixture is byte-exact (size + SHA-256 are checked by the test).
+smplwise_vms/backend/tests/fixtures/wiskey/*.json -text

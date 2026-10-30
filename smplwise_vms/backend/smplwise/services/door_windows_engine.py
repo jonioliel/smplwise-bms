@@ -89,7 +89,7 @@ def live_ready() -> bool:
 class EngineError(Exception):
     def __init__(self, kind: str, code: str = "") -> None:
         super().__init__(kind)
-        self.kind = kind if kind in ERROR_KINDS else "refused"
+        self.kind = kind if kind in ERROR_KINDS else "unknown"
         self.code = (code or "")[:64]
 
 
@@ -112,8 +112,8 @@ class ProgramState:
 
     @property
     def idle(self) -> bool:
-        """The ONLY confirmation of a relock Arx accepts: the engine's own status of an EXISTING program (CR-039 4.4 step 2). A missing
-        program is no evidence either way (it may have been removed by hand): never a confirmation."""
+        """Software restoration evidence for an EXISTING program only (CR-039 4.4 step 2). It does not observe a physical bolt/door or prove
+        entry denial. A missing program supplies no restoration evidence either."""
         return self.exists and self.status == "idle" and not self.owned
 
 

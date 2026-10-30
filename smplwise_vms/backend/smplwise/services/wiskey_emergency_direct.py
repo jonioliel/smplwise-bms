@@ -129,6 +129,11 @@ def outcome_of(token: str | None) -> dwe.DoorOutcome:
 
 # ---------------------------------------------------------------- the engine
 
+def _remaining(maximum):
+    from . import wiskey_call_budget as budget
+    return budget.remaining(maximum)
+
+
 class DirectEmergencyEngine:
     simulated = False
     open_supported = True  # hold_open / release exist in v2; `lock_secure` does not
@@ -152,11 +157,21 @@ class DirectEmergencyEngine:
 
     # -- EmergencyEngine ---------------------------------------------------------------------------------------------------------------
     def apply(self, kind: str, station_id: str, relay: int, request_id: str, reason: str) -> dwe.DoorOutcome:  # noqa: ARG002 - the reason is Arx's own audit text
+        if not dwe.go_live_permitted():
+            raise dwe.EngineError("not_permitted", "door_emergency_not_permitted")
         if kind != "open":
             raise dwe.EngineError("not_implemented", "emergency_secure_not_in_event_v2")
         return self._run("hold_open", station_id, relay, event_ref_of(request_id), request_id)
 
     def release(self, kind: str, station_id: str, relay: int, request_id: str) -> dwe.DoorOutcome:
+        from . import wiskey_call_budget as budget
+        try:
+            with budget.scope(self.transport_timeout_s):
+                return self._release_budgeted(kind, station_id, relay, request_id)
+        except budget.DeadlineExpired:
+            return dwe.DoorOutcome("unknown", "end_to_end_deadline")
+
+    def _release_budgeted(self, kind: str, station_id: str, relay: int, request_id: str) -> dwe.DoorOutcome:
         if kind != "open":  # a LOCK is never mapped to release (and release of a LOCK would re-activate schedules)
             raise dwe.EngineError("not_implemented", "emergency_secure_not_in_event_v2")
         with self.connect() as conn:
@@ -167,6 +182,14 @@ class DirectEmergencyEngine:
 
     # -- one decision ------------------------------------------------------------------------------------------------------------------
     def _run(self, command: str, station_id: str, relay: int, event_ref: str, request_id: str) -> dwe.DoorOutcome:
+        from . import wiskey_call_budget as budget
+        try:
+            with budget.scope(self.transport_timeout_s):
+                return self._run_budgeted(command, station_id, relay, event_ref, request_id)
+        except budget.DeadlineExpired:
+            return dwe.DoorOutcome("unknown", "end_to_end_deadline")
+
+    def _run_budgeted(self, command: str, station_id: str, relay: int, event_ref: str, request_id: str) -> dwe.DoorOutcome:
         with self.connect() as conn:
             self._reconcile(conn, event_ref, station_id, relay)
             holds = attempts(conn, event_ref, "hold_open", station_id, relay)
@@ -210,7 +233,7 @@ class DirectEmergencyEngine:
                 scope_ref=scope_ref_of(command, station_id, relay), parameter_reference=event_ref,
                 params={"station_id": station_id, "relay": relay, "mapping_revision": row.revision, "policy_ref": POLICY_REF}, now=now,
                 source_epoch=str(ctx.authority_revision), actor_session_active=ctx.actor_session_active, targets=[(station_id, relay)], private_input=private,
-                execution_expires_at=now + timedelta(seconds=EXEC_WINDOW_S))
+                execution_expires_at=now + timedelta(seconds=min(EXEC_WINDOW_S, _remaining(EXEC_WINDOW_S))))
         except FeatureWireError as exc:
             return dwe.DoorOutcome("refused", exc.code)
         needs = HOLD_NEEDS if command == "hold_open" else RELEASE_NEEDS
@@ -235,7 +258,9 @@ class DirectEmergencyEngine:
             if token is not None:
                 return outcome_of(token)
             if i + 1 < self.polls:
-                self.sleep(self.poll_gap_s)
+                from . import wiskey_call_budget as budget
+                self.sleep(min(self.poll_gap_s, budget.remaining(self.poll_gap_s)))
+                budget.remaining()  # recheck after waiting before another READ
         return dwe.DoorOutcome("unknown", "running")  # still live at the host: the intent stays `sent`, never retried while live
 
     def _read(self, conn: sqlite3.Connection, request_id: str, operation_ref: str, event_ref: str, command: str) -> str | None:
@@ -268,10 +293,38 @@ class DirectEmergencyEngine:
                     continue
                 op = operation_of(conn, a.request_id)
                 if op is not None:
-                    self._read(conn, a.request_id, op, event_ref, command)
+                    token = self._read(conn, a.request_id, op, event_ref, command)
+                    if token is None:
+                        self._read_durable(conn, a, event_ref, command, station_id, relay)
                 elif now >= fx.absolute_time(a.request_expires_at):
                     fx.settle_feature(conn, a.request_id, "unknown", "no_answer")  # sent, never answered: UNKNOWN (not resent as is; a retry is a NEW request)
                     _commit(conn)
+
+    def _read_durable(self, conn, attempt, event_ref, command, station_id, relay):
+        mapping = fx.relay_row(conn, station_id, relay)
+        if mapping is None:
+            return
+        try:
+            raw = self.client.event_status(event_ref, station_id, relay, mapping.revision)
+        except FeatureWireError:
+            return  # no absent record is ever a never-sent proof
+        for record in raw["records"]:
+            if record.get("operation_id") != attempt.operation_id or record.get("request_id") != attempt.request_id or record.get("command") != command:
+                continue
+            targets = record.get("targets")
+            if not isinstance(targets, list) or len(targets) != 1:
+                return
+            row = targets[0]
+            if row.get("station_id") != station_id or row.get("physical_relay") != relay or row.get("mapping_revision") != mapping.revision:
+                return
+            token = row.get("outcome")
+            if token == "acknowledged":
+                fx.settle_feature(conn, attempt.request_id, "accepted", "acknowledged")
+                _commit(conn)
+            elif token in {"denied", "superseded"}:
+                fx.settle_feature(conn, attempt.request_id, "refused", token)
+                _commit(conn)
+            return
 
 
 def _commit(conn: sqlite3.Connection) -> None:

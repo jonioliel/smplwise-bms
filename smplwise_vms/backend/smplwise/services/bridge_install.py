@@ -25,6 +25,7 @@ from ..db import Database, get_setting, now_iso, unlocked
 from ..errors import ApiError
 from . import bridge_keys as bk
 from . import ha_bridge, ha_client
+from .wiskey_distribution_digest import digest as distribution_digest, files as distribution_files
 
 log = logging.getLogger("smplwise.bridge")
 
@@ -84,12 +85,28 @@ def _marker(target: Path) -> dict[str, Any]:
         return {}
 
 
+def _manual_owner_profile(cfg: Path | None) -> bool:
+    return bool(cfg and ((cfg / "hikvision_intercom_manual_upgrade.json").exists()
+        or (cfg / "hikvision_intercom_manual_upgrade.json").is_symlink()
+        or (cfg / "custom_components/hikvision_intercom/_manual_upgrade_profile.json").exists()))
+
+
+def _target_digest(target: Path) -> str | None:
+    try:
+        return distribution_digest(target)
+    except (OSError, ValueError):
+        return None
+
+
 def _copy_tree(src: Path, dst: Path) -> int:
     """Fresh copy next to the target, then swap (Home Assistant only reads custom components at start-up)."""
+    expected = distribution_digest(src)  # rejects links/collisions before copy
     tmp = dst.with_name(dst.name + ".smplwise-new")
     if tmp.exists():
         shutil.rmtree(tmp)
-    shutil.copytree(src, tmp, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", MARKER))
+    shutil.copytree(src, tmp, symlinks=True, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", MARKER))
+    if distribution_digest(tmp) != expected:
+        raise OSError("component_copy_digest_mismatch")
     if dst.exists():
         old = dst.with_name(dst.name + ".smplwise-old")
         if old.exists():
@@ -118,6 +135,8 @@ def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connectio
     """Tell the Supervisor that the bridge service is available (Home Assistant shows it as discovered). Only while a fresh pairing code
     waits to be paired (first install or a re-pair): once the code is adopted into the key set nothing is announced (K-01) - the bridge is
     already configured and a discovery would only push a code into its entry."""
+    if _manual_owner_profile(ha_config_dir()):
+        return False
     if not ha_client.supervisor_token():
         return False
     from . import wiskey_auto_install as wai
@@ -170,13 +189,17 @@ def install(db: Database, settings: Settings, force: bool = False, announce: boo
         if not cfg:
             STATE["last_error"] = "ha_config_not_mapped"
             return status(db, conn)
+        if _manual_owner_profile(cfg):
+            STATE["last_error"] = "manual_owner_upgrade_profile"
+            return status(db, conn)
         target = cfg / "custom_components" / DOMAIN
         installed = read_version(target) if target.is_dir() else None
         STATE["installed_version"] = installed
         STATE["installed_at"] = _marker(target).get("at") if installed else None
         try:
-            from .wiskey_distribution_digest import digest
-            if force or not target.is_dir() or digest(src)!=digest(target):
+            # WISKEY-RC4-2310: re-copy on a forced run, a missing target, a different version label OR different content (rc.4 portable
+            # digest); an installed tree the digest refuses (a link, a case alias, no manifest) counts as different and is replaced.
+            if force or not target.is_dir() or installed != STATE["source_version"] or distribution_digest(src) != _target_digest(target):
                 from .wiskey_native_projection import invalidate
                 invalidate(cfg)
                 (cfg / "custom_components").mkdir(exist_ok=True)
@@ -185,7 +208,7 @@ def install(db: Database, settings: Settings, force: bool = False, announce: boo
                 (target / MARKER).write_text(json.dumps({"version": STATE["source_version"], "at": at, "files": n}), encoding="utf-8")
                 STATE.update(installed_version=STATE["source_version"], installed_at=at, installed_now=True)
                 log.info("bridge integration %s copied into Home Assistant's custom_components (%d files); restart Home Assistant to load it", STATE["source_version"], n)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:  # ValueError: the source tree is refused by the digest (link, alias, no manifest)
             STATE["last_error"] = f"copy_failed:{type(exc).__name__}"
             log.warning("bridge integration copy failed: %s", type(exc).__name__)
             return status(db, conn)
@@ -211,7 +234,7 @@ def run_startup(db: Database, settings: Settings) -> None:
 
 
 def _state(d: dict[str, Any]) -> str:
-    if d["last_error"] in ("source_missing", "ha_config_not_mapped") or not d["config_dir"]:
+    if d["last_error"] in ("source_missing", "ha_config_not_mapped", "manual_owner_upgrade_profile") or not d["config_dir"]:
         return "not_available"
     if d["last_error"] and str(d["last_error"]).startswith("copy_failed"):
         return "error"

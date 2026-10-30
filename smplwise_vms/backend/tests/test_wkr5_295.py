@@ -59,7 +59,8 @@ def sent(server: JoinServer) -> list[str]:
 # ================================================================ the catalog (W5-CATALOG-01, W5-API-01)
 
 def test_catalog_counts_names_not_lines_and_skips_provenance() -> None:
-    c = wdc.load()
+    c = wdc.parse(wdc.CATALOG_PATH.read_text(encoding="utf-8"))
+    assert wdc.load().command_count == c.command_count + 2
     lines = [json.loads(x) for x in wdc.CATALOG_PATH.read_text(encoding="utf-8").splitlines() if x.strip()]
     assert len(lines) == 295 and lines[0]["kind"] == "CATALOG_PROVENANCE"
     assert c.command_count == 294 and c.registered_count == 290 and c.discovered_count == 289

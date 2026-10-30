@@ -54,6 +54,11 @@ SERVICE_WRITE_CAP = {"contract": "wiskey-native-service-write.v1", "schema_versi
                      "default_authority": "denied_without_current_native_owner_grant"}
 TALK_AUDIO_CAP = {"schema": "arx.station_talk_audio.v1", "transport": "signed_ws_pcmu_v1", "opt_in": "media/talk_open.parameters.listen",
                   "default": False}
+# WISKEY-RC4-2310 (WisKey owner30 contribution, rc.4): reader revision 2 names the two closed historical v1 shapes explicitly - the core
+# alone, and the core plus all three metadata blocks that Native already emits. This reader accepts both (and, per review M3, an older
+# WisKey that omits some blocks); any other top-level key is still refused. No wire document changes.
+READER_REVISION = 2
+_NATIVE_V1_KEYS = _CAP_KEYS | _CAP_OPTIONAL
 _CMD_KEYS = {"name", "envelope", "api_contract", "explicit_parameter_version"}
 _TIME_KEYS = {"schema_version", "server_utc", "max_ts_skew_seconds", "max_issued_future_seconds", "max_command_ttl_seconds"}
 _LIFECYCLE_V1 = {"kid_in_v1": False, "event_cursor_resume": False, "reconnect_adopts_old_resources": False}

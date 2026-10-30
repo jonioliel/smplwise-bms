@@ -454,18 +454,23 @@ def test_a_live_attempt_is_never_retried(env):
     assert eng.apply("open", "st-a", 1, "req-1:st-a:1", "").state == "acknowledged" and len(starts(port)) == 1
 
 
-def test_when_the_host_refuses_a_live_parent_the_chain_is_unchanged_and_nothing_is_invented(env):
+def test_legacy_fake_retry_parent_live_is_not_a_current_native_no_effect_proof(env):
+    # This fake-only code is not emitted by current Native. The original test
+    # expected every verified error to prove pre-effect refusal. Preserve that
+    # source and FAIL in the receipt; current adapter must remain conservative.
     port = FakeDirectPort()
     eng = engine_for(env, port)
-    port.start_script = ["timeout"]  # sent, no reply; the host's task is still live
+    port.start_script = ["timeout"]
     assert eng.apply("open", "st-a", 1, "req-1:st-a:1", "").state == "unknown"
     out = eng.apply("open", "st-a", 1, "req-1:st-a:1", "")
-    assert out == dwe.DoorOutcome("refused", "retry_parent_live")
+    assert out == dwe.DoorOutcome("unknown", "retry_parent_live")
     rows = intents(env)
-    assert [r["state"] for r in rows] == ["unknown", "refused"] and rows[1]["code"] == "retry_parent_live"
-    port.mark_unknown("op-1")  # the original task is gone (restart): a retry is now authorised
-    assert eng.apply("open", "st-a", 1, "req-1:st-a:1", "").state == "acknowledged"
-    assert starts(port)[2]["policy_snapshot"]["private_input"]["retry_of"] == rows[0]["operation_id"]
+    assert [r["state"] for r in rows] == ["unknown", "unknown"]
+    assert rows[1]["code"] == "retry_parent_live"
+    # No manufactured not-sent proof or third OPEN. Matching recovery RELEASE
+    # remains an explicit separate action and keeps both original UNKNOWNs.
+    assert eng.release("open", "st-a", 1, "req-1:r:st-a:1").state == "acknowledged"
+    assert [r["state"] for r in intents(env)][:2] == ["unknown", "unknown"]
 
 
 def test_a_durable_release_wins_over_an_old_apply_and_a_retry(env):

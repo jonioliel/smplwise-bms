@@ -293,6 +293,9 @@ def _begin_immediate(conn: sqlite3.Connection, label: str, wait_s: float | None 
     ordinary writers (SEC246 L3: a device command's record, see WriteGate.acquire)."""
     started = time.monotonic()
     budget = BUSY_TIMEOUT_S if wait_s is None else max(0.0, min(float(wait_s), BUSY_TIMEOUT_S))
+    from .services import wiskey_call_budget as call_budget
+    if call_budget.active():
+        budget = call_budget.remaining(budget)
     full_ms = int(conn.execute("PRAGMA busy_timeout").fetchone()[0])  # the connection's own (BUSY_TIMEOUT_S unless a caller set less)
     gate = _conn_gate.get(id(conn)) if WRITE_GATE else None
     if gate is not None and id(conn) not in _gate_tokens:
@@ -404,14 +407,16 @@ class Database:
         self.demo = demo
 
     def _open(self, durable: bool = True) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.path, timeout=BUSY_TIMEOUT_S, isolation_level=None, check_same_thread=False)
+        from .services import wiskey_call_budget as call_budget
+        wait = call_budget.remaining(BUSY_TIMEOUT_S) if call_budget.active() else BUSY_TIMEOUT_S
+        conn = sqlite3.connect(self.path, timeout=wait, isolation_level=None, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         # FULL: every commit is fsynced (a committed audit row survives a power cut); NORMAL for the mirror writes of
         # device data opened with durable=False (see the module docstring)
         conn.execute(f"PRAGMA synchronous={'FULL' if durable else 'NORMAL'}")
         conn.execute("PRAGMA foreign_keys=ON")
-        conn.execute(f"PRAGMA busy_timeout={int(BUSY_TIMEOUT_S * 1000)}")
+        conn.execute(f"PRAGMA busy_timeout={max(1, int(wait * 1000))}")
         conn.execute(f"PRAGMA journal_size_limit={WAL_TRUNCATE_BYTES}")  # a reset WAL is cut back to this size
         return conn
 

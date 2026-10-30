@@ -81,6 +81,9 @@ from .cast_service import async_handle_cast_stream, note_origin
 from .config_service import async_handle_config_item
 from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, CONF_WISKEY_AUTO_INSTALL, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
                     SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_LEASE_EVENT, SERVICE_LEASE_REQUEST, SERVICE_MEDIA_QUERY, SERVICE_ROTATE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
+from .wiskey_distribution_digest import digest as distribution_digest
+LOADED_DISTRIBUTION = distribution_digest(Path(__file__).parent)
+
 from . import lease_service
 # WKA-295: the documented public port of the capture lease for the WisKey consumer (docs/changes/WKA-295-LEASE-PORT.md), re-exported
 # from the package root. These are lease_service's / lease_contract's own objects (no wrapper, no second registry); the submodule path
