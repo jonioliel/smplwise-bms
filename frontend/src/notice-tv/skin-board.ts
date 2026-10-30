@@ -35,6 +35,9 @@ export interface SkinInput {
   urgentScreen: UrgentScreen;
   systemsStatus: SystemsStatus;
   sun?: { rise: string; set: string };
+  /** the luxury styles' building photo (day) and the one at night (blob URLs; '' = none, the day one is darkened at night) */
+  photo?: string;
+  photoNight?: string;
   info: { kind: string; label: string; state: 'ok' | 'warn' | 'alarm' | 'off'; text: string }[];
   news: { source: string; title: string }[];
   /** the rotation: the urgent notices first, then the others, then the promo slides (no bus-times slide: the styles do not draw one) */
@@ -138,7 +141,7 @@ const h = (tag: string, cls: string, html?: string): HTMLElement => {
 export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   root.innerHTML =
     '<div class="nb-fld" aria-hidden="true"><div class="nb-amb"><i class="nb-l1"></i><i class="nb-l2"></i><i class="nb-l3"></i></div></div><div class="nb-gclock" aria-hidden="true"></div>' +
-    '<div class="nb-shift"><div class="nb-pg"><header class="nb-hd"></header><main class="nb-st"></main><aside class="nb-q"></aside><div class="nb-cove" aria-hidden="true"><i></i></div><footer class="nb-ft"></footer></div></div>' +
+    '<div class="nb-shift"><div class="nb-pg"><figure class="nb-ph" aria-hidden="true"></figure><div class="nb-scrim" aria-hidden="true"></div><div class="nb-slab" aria-hidden="true"><div class="nb-glass"></div></div><header class="nb-hd"></header><main class="nb-st"></main><aside class="nb-q"></aside><div class="nb-cove" aria-hidden="true"><i></i></div><footer class="nb-ft"></footer></div></div>' +
     '<div class="nb-take" role="alert"></div><div class="nb-ann" role="alert" aria-live="assertive"></div><div class="nb-gone"><b></b><span></span></div>';
   root.setAttribute('role', 'region');
 
@@ -175,7 +178,8 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   const rm = (): boolean => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const paused = (): boolean => S.userPaused || S.held >= 0;
   const fam = (): string => (S.inp ? familyOf(S.inp.skin) : 'station');
-  const hitech = (): boolean => fam() === 'hitech';
+  /** the lobby families (hi-tech and luxury) run on the plug-in engine; ink and sign on the station code below */
+  const hitech = (): boolean => fam() !== 'station';
   let hx: Hx | null = null;
   const api: EngineApi = {
     root, S: S as EngineState, opts, inp, stage, $, h, rm,
@@ -637,7 +641,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
 
   function prepare(i: number): void {
     if (S.take || S.ann || paused() || S.anims.length) return;
-    if (hitech() && S.items[i]?.n.severity === 'critical') return; // an urgent notice is a take-over layer, not a prepared message
+    if (hitech() && S.items[i] && getHx().takes(S.items[i])) return; // an urgent notice that takes the screen is a layer, not a prepared message
     dropPrep();
     const el = makeMsg(i);
     const cur = current();
@@ -874,7 +878,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   // ------------------------------------------------------------------ apply
   function signature(i: SkinInput): string {
     return JSON.stringify([
-      i.skin, i.dark, i.lang, i.force, i.urgentScreen, i.systemsStatus, S.W, S.H, i.building, i.place, i.weather, i.info, i.news, i.rotateS, i.company, i.idleCompany,
+      i.skin, i.dark, i.lang, i.force, i.urgentScreen, i.systemsStatus, i.photo ?? '', i.photoNight ?? '', S.W, S.H, i.building, i.place, i.weather, i.info, i.news, i.rotateS, i.company, i.idleCompany,
       i.items.map((x) => [x.n.id, x.n.title, x.n.body, x.n.severity, x.dwell, i.whenOf(x.n), x.slide ? i.imgOf(x.slide) : '']),
     ]);
   }
@@ -921,7 +925,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
       S.inp = input;
       root.dataset.skin = input.skin;
       root.dataset.fam = familyOf(input.skin);
-      if (hx && familyOf(input.skin) !== 'hitech') { hx.dispose(); hx = null; }
+      if (hx && familyOf(input.skin) === 'station') { hx.dispose(); hx = null; }
       root.dataset.theme = input.dark ? 'dark' : 'light';
       root.dir = input.lang === 'en' ? 'ltr' : 'rtl';
       root.lang = input.lang;

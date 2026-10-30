@@ -20,6 +20,7 @@ import './tv.css';
 import './tv-v2.css'; // BOARDV2-297: the V2 board, scoped to #cv[data-design="v2"] (loaded after tv.css on purpose)
 import './tv-fonts.css'; // LOBBY-STYLES-2300: the OFL lobby fonts, inlined (the TV page reaches no other file)
 import './tv-hitech.css'; // LOBBY-STYLES-2300: Lumen, Axis, Prism
+import './tv-luxury.css'; // LOBBY-STYLES-2300: Gallery, Concierge, Stone
 import './tv-skins.css'; // NOTICEBOARD-STYLES-2300: the Ink and Sign styles, scoped to #nbk (their own root; every class is nb-prefixed)
 import { overlayHtml, overlayKey, pollMs, visibleNow } from '../announce/screen-overlay'; // ANNOUNCEB-295: the announcement overlay's pure rules
 import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo (developer kit artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
@@ -68,6 +69,8 @@ let companyAlpha = false; // TVOPT-295: the light file has a transparent backgro
 const slideSrc = new Map<string, string>(); // feed image URL -> blob URL
 let photoUrl = '';
 let photoSrc = '';
+let photoNightUrl = ''; // LOBBY-STYLES-2300: the building at night (luxury lobby styles)
+let photoNightSrc = '';
 let lastControl = -1;
 let forceTheme = '';
 // BUSTIMES-295: the bus-times digest (the server's, from its cache), when it arrived (a stopwatch: the building may be offline) and the
@@ -733,6 +736,8 @@ function renderSkin(skin: Skin, theme: 'day' | 'night', urgentNow: FeedNotice | 
     urgentScreen: tv2Of(d, 'urgent_screen'),
     systemsStatus: tv2Of(d, 'systems_status'),
     sun: feed.sun,
+    photo: photoSrc,
+    photoNight: photoNightSrc,
     info: feed.info ?? [],
     news: d.blocks.news ? feed.news ?? [] : [],
     items,
@@ -1246,6 +1251,12 @@ async function loadMedia(doc: Feed): Promise<void> {
     if (photoSrc) URL.revokeObjectURL(photoSrc);
     photoSrc = photo ? await fetchBlob(photo) : '';
     photoUrl = photo;
+  }
+  const night = doc.board.display?.photo_night || '';
+  if (night !== photoNightUrl || (night && !photoNightSrc)) {
+    if (photoNightSrc) URL.revokeObjectURL(photoNightSrc);
+    photoNightSrc = night ? await fetchBlob(night) : '';
+    photoNightUrl = night;
   }
 }
 

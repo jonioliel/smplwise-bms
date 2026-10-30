@@ -4,7 +4,7 @@
  * 2026-10-30 (both are selectable board designs; neither is a default; the long body SHRINKS to fit; the "Up next" list; the urgent take-over).
  * No DOM here: unit specs run it in Node, the DOM engine (skin-board.ts) imports it.
  */
-import type { LiveBg, Severity, UrgentScreen } from './tv-logic';
+import type { LiveBg, Severity, SystemsStatus, UrgentScreen } from './tv-logic';
 
 /** ink / sign = the maintenance-area styles (NOTICEBOARD-STYLES-2300); lumen / axis / prism = the hi-tech lobby styles and
  * gallery / concierge / stone = the classic-luxury lobby styles (LOBBY-STYLES-2300). All eight run on one engine (skin-board.ts). */
@@ -188,3 +188,20 @@ export function lineBreaks(tops: readonly number[]): number[][] {
 
 /** Columns of a long body (characters of the body text): two above 380, three above 1100 on a landscape screen. */
 export const colsFor = (chars: number, landscape: boolean): 1 | 2 | 3 => (chars > 1100 && landscape ? 3 : chars > 380 ? 2 : 1);
+
+// ---------------------------------------------------------------------------------------------------------------- luxury (Gallery, Concierge, Stone)
+
+/** The building photo the luxury styles draw: by day the day photo; at night the night photo, or - with only one uploaded - the same photo, darkened. */
+export function lobbyPhoto(dark: boolean, day: string, night: string): { src: string; dim: boolean } {
+  if (dark && night) return { src: night, dim: false };
+  return { src: day || night, dim: dark && !!day && !night };
+}
+
+/** Owner 2026-10-30: the luxury background motion (the slow Ken Burns drift, Stone's parallax) is always on; only reduced motion and the
+ * administrator's explicit "frozen" / "off" stop it (the auto measurement does not touch it). */
+export const lobbyDrift = (liveBg: LiveBg, reducedMotion: boolean): boolean => !reducedMotion && liveBg !== 'frozen' && liveBg !== 'off';
+
+/** The building-systems row of the luxury styles: only what is wrong ("problems", the default) or everything ("always"). */
+export function systemsShown<T extends { state: string }>(info: T[], setting: SystemsStatus): T[] {
+  return setting === 'always' ? info : info.filter((x) => x.state === 'warn' || x.state === 'alarm');
+}

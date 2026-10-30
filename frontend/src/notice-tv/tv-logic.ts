@@ -67,6 +67,8 @@ export interface Display {
   idle_logo?: IdleLogo | null;
   /** NOTICESLIDES-295: the building photo of template 2 (a URL the feed adds only when one is uploaded) */
   photo?: string;
+  /** LOBBY-STYLES-2300: the building at night; only the luxury lobby styles use it */
+  photo_night?: string;
   /** BUSTIMES-295: this screen's public-transport block (absent on a board saved before 2.22.0 = off) */
   transit?: Partial<TransitScreen>;
   /** BOARDV2-297: the V2 board options (same rules as the TVOPT-295 keys: own value, else the installation default) */

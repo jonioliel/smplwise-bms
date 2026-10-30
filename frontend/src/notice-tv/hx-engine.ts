@@ -9,7 +9,7 @@
  * degraded on a slow device (skin-logic.ts: fxStep). Nothing scrolls; no inline style attributes are written in markup (the page's CSP).
  */
 import { esc, str, type FeedNotice, type Item } from './tv-logic';
-import { HX_STEPS, colsFor, fxLevelFor, fxStart, fxStep, greetingKey, skyOf, urgentInRotation, type FxLevel, type FxState } from './skin-logic';
+import { HX_STEPS, colsFor, familyOf, fxLevelFor, fxStart, fxStep, greetingKey, lobbyDrift, lobbyPhoto, skyOf, systemsShown, urgentInRotation, type FxLevel, type FxState } from './skin-logic';
 import { digitsHtml, hoursRow, metaHtml, tx, words } from './hx-parts';
 import type { EngineApi } from './skin-board';
 
@@ -49,6 +49,8 @@ export interface Hx {
   show(i: number, animate: boolean): void;
   /** the external (first-minute) urgent take-over, or none */
   setTake(n: FeedNotice | null): void;
+  /** does this item take the whole screen during its own turn (an urgent notice under the style's rule)? */
+  takes(it: Item | undefined): boolean;
   /** the clock moved (called every few seconds by the page) */
   tick(c: { t: string }): void;
   /** the input changed: the sky, the ambient level, the cove */
@@ -62,6 +64,8 @@ export function createHx(api: EngineApi): Hx {
   const { root, S, h } = api;
   const inp = api.inp;
   const skin = (): string => inp().skin;
+  /** Gallery, Concierge, Stone: the quiet luxury family shares this engine (its own header, photo layer, motion and urgent rule) */
+  const lux = (): boolean => familyOf(inp().skin) === 'luxury';
   const sp = (() => {
     const lin = typeof CSS !== 'undefined' && !!CSS.supports && CSS.supports('transition-timing-function', 'linear(0, 1)');
     const m = { reveal: spring(1, 0.62), settle: spring(1, 0.9), word: spring(0.82, 0.5), panel: spring(1, 0.5) };
@@ -81,6 +85,9 @@ export function createHx(api: EngineApi): Hx {
     fxT: 0,
     newsT: 0,
     img: null as HTMLImageElement | null,
+    photoKey: '',
+    para: 0,
+    slideSrc: '',
   };
 
   // ------------------------------------------------------------------ clock digits (each digit sits in its own mask and rolls)
@@ -136,6 +143,13 @@ export function createHx(api: EngineApi): Hx {
       '<div class="nb-brand">' + i.company + '<div class="nb-nm"><b dir="auto" title="' + esc(i.building) + '">' + esc(i.building) + '</b><span dir="auto" title="' + esc(i.place) + '">' + esc(i.place) + '</span></div></div>' +
       '<div class="nb-time"><span class="nb-t nb-num" dir="ltr" data-nb-digits></span><span class="nb-d" data-nb-date>' + esc(c.d) + '</span></div>' +
       '<div class="nb-wx" data-has="' + (w ? '1' : '0') + '">' + (w ? '<span class="nb-tmp nb-num" dir="ltr">' + w.t + '°</span><span class="nb-tx" dir="auto">' + esc(w.text) + '</span>' + hours : '') + '</div>';
+    if (lux()) {
+      const t = hd.querySelector<HTMLElement>('.nb-t');
+      if (t) { t.textContent = c.t; t.dataset.t = c.t; }
+      api.$('.nb-gclock').innerHTML = '';
+      lxChrome();
+      return;
+    }
     setDigits(hd.querySelector('.nb-t'), c.t);
     const gc = api.$('.nb-gclock');
     gc.innerHTML = i.skin === 'axis' ? '<span class="nb-gt nb-num" dir="ltr"></span>' : '';
@@ -149,7 +163,8 @@ export function createHx(api: EngineApi): Hx {
   function footer(): void {
     const i = inp();
     const news = i.news.map((n) => '<span class="nb-it" dir="auto"><em dir="auto">' + esc(n.source) + '</em><span class="nb-tl" dir="auto">' + tx(n.title) + '</span></span>').join('');
-    const info = i.info.map((x) => '<li data-state="' + esc(x.state) + '"><i aria-hidden="true"></i><b dir="auto">' + esc(x.label) + '</b><span dir="auto">' + esc(x.text) + '</span></li>').join('');
+    const shown = lux() ? systemsShown(i.info, i.systemsStatus) : i.info;
+    const info = shown.map((x) => '<li data-state="' + esc(x.state) + '"><i aria-hidden="true"></i><b dir="auto">' + esc(x.label) + '</b><span dir="auto">' + esc(x.text) + '</span></li>').join('');
     const ft = api.$('.nb-ft');
     ft.dataset.news = i.news.length ? '1' : '0';
     ft.innerHTML = '<ul class="nb-info">' + info + '</ul><div class="nb-news" aria-label="' + esc(str(i.lang, 'news')) + '"><div class="nb-track">' + news + '</div></div>' +
@@ -184,6 +199,11 @@ export function createHx(api: EngineApi): Hx {
       const nw = its[k];
       old.classList.remove('nb-on');
       nw.classList.add('nb-on');
+      if (lux()) {
+        old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, easing: E_SOFT });
+        nw.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 900, delay: api.rm() ? 0 : 300, easing: E_SOFT, fill: 'backwards' });
+        return;
+      }
       if (api.rm()) {
         nw.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500, easing: E_SOFT });
         return;
@@ -200,13 +220,25 @@ export function createHx(api: EngineApi): Hx {
     const word = it.slide ? '' : n.severity === 'critical' ? str(i.lang, 'urgent') : n.severity === 'alert' ? str(i.lang, 'alert') : '';
     const when = it.slide ? str(i.lang, 'fromMgmt') : i.whenOf(n) || str(i.lang, 'permanent');
     const src = it.slide ? i.imgOf(it.slide) : '';
-    const img = src ? '<figure class="nb-pic"><img src="' + esc(src) + '" alt=""></figure>' : '';
-    return '<div class="nb-txt">' + metaHtml({ severity: n.severity, word, when }) + '<h1 class="nb-ttl" dir="auto" data-src="' + esc(n.title) + '">' + words(i.skin, n.title) + '</h1><p class="nb-bd" dir="auto">' + tx(n.body) + '</p></div>' + img;
+    // luxury: a slide's picture goes to the photo frame (Gallery, Stone) or into the arch beside the text (Concierge)
+    const img = src && (!lux() || i.skin === 'concierge') ? '<figure class="nb-pic"><img src="' + esc(src) + '" alt=""></figure>' : '';
+    const rl = i.skin === 'concierge' ? '<span class="nb-rl" aria-hidden="true"></span>' : '';
+    return '<div class="nb-txt">' + metaHtml({ severity: n.severity, word, when }) + '<h1 class="nb-ttl" dir="auto" data-src="' + esc(n.title) + '">' + words(i.skin, n.title) + '</h1>' + rl + '<p class="nb-bd" dir="auto">' + tx(n.body) + '</p></div>' + img;
   }
   function idleHtml(): string {
     const i = inp();
     const hr = hourOf(i.clock().t);
     const greet = str(i.lang, greetingKey(hr));
+    if (lux()) {
+      // as the mock-up: Gallery sets the date like a title page, Concierge and Stone welcome (Concierge under an arch with the building)
+      const line = '<span class="nb-line">' + esc(str(i.lang, 'empty')) + ' · ' + esc(str(i.lang, 'niceDay')) + '</span>';
+      if (i.skin === 'gallery') {
+        const [wd, dm] = i.clock().d.split(/,\s*/);
+        return '<div class="nb-txt"><h1 class="nb-ttl nb-big" dir="auto">' + esc(wd ?? '') + '</h1><span class="nb-sub">' + esc(dm ?? '') + '</span>' + line + '</div>';
+      }
+      const arch = i.skin === 'concierge' && photoNow().src ? '<figure class="nb-pic nb-arch"><img src="' + esc(photoNow().src) + '" alt=""></figure>' : '';
+      return '<div class="nb-txt">' + arch + '<h1 class="nb-ttl nb-big" dir="auto">' + esc(str(i.lang, 'welcome')) + '</h1>' + line + '</div>';
+    }
     return '<div class="nb-txt"><h1 class="nb-ttl nb-big" dir="auto" data-src="' + esc(greet) + '">' + words(i.skin, greet) + '</h1><p class="nb-bd">' + esc(str(i.lang, 'empty')) + ' · ' + esc(str(i.lang, 'niceDay')) + '</p></div>';
   }
   function buildMsg(it: Item | null): HTMLElement {
@@ -306,19 +338,93 @@ export function createHx(api: EngineApi): Hx {
     el.classList.add('nb-prep');
     el.style.visibility = 'hidden';
     api.stage().append(el);
-    const f = fitAll(el, it);
+    let f = fitAll(el, it);
+    // Concierge in portrait: a notice that fits at full size gets the building under an arch above its title (dropped again when it would not fit)
+    if (inp().skin === 'concierge' && root.dataset.orient === 'p' && it && !it.slide && f === 1 && photoNow().src) {
+      el.insertAdjacentHTML('afterbegin', '<figure class="nb-pic nb-arch nb-bldg"><img src="' + esc(photoNow().src) + '" alt=""></figure>');
+      if (overflows(el)) { el.querySelector('.nb-bldg')?.remove(); f = fitAll(el, it); }
+    }
     el.dataset.fit = String(f);
     return el;
+  }
+
+  // ------------------------------------------------------------------ luxury: the building photo (day / night), slide pictures, Ken Burns, parallax
+  function photoNow(): { src: string; dim: boolean } {
+    const i = inp();
+    return lobbyPhoto(i.dark, i.photo ?? '', i.photoNight ?? '');
+  }
+  /** Put the photo layer in place for the current theme and photos (called with every header draw and every input change). */
+  function lxChrome(): void {
+    const ph = root.querySelector<HTMLElement>('.nb-ph');
+    if (!ph) return;
+    const { src, dim } = photoNow();
+    ph.dataset.has = src ? '1' : '0';
+    ph.dataset.dim = dim ? '1' : '0';
+    root.dataset.photo = src ? '1' : '0';
+    const glass = root.querySelector<HTMLElement>('.nb-glass');
+    if (glass) glass.style.setProperty('background-image', src ? 'url("' + src + '")' : 'none');
+    const key = src + '|' + X.slideSrc;
+    if (key === X.photoKey) return;
+    X.photoKey = key;
+    swapLayer(X.slideSrc || src, false);
+  }
+  /** Cross-fade the photo frame to another picture (a slide's, or back to the building). */
+  function swapLayer(src: string, animate: boolean): void {
+    const ph = root.querySelector<HTMLElement>('.nb-ph');
+    if (!ph) return;
+    const cur = ph.querySelector<HTMLElement>('.nb-lay');
+    if (cur && cur.querySelector('img')?.getAttribute('src') === src) return;
+    if (!src) { cur?.remove(); return; }
+    const lay = h('div', 'nb-lay', '<img alt="" src="' + esc(src) + '">');
+    ph.append(lay);
+    if (!cur) return;
+    if (!animate) { cur.remove(); return; }
+    track(lay.animate([{ opacity: 0 }, { opacity: 1 }], { duration: api.rm() ? 500 : 1200, easing: E_SOFT, fill: 'backwards' })).finished.then(() => cur.remove(), () => cur.remove());
+  }
+  /** Gallery and Stone: a slide's picture takes the frame for its turn. */
+  function lxSlide(src: string, animate: boolean): void {
+    if (inp().skin === 'concierge') return;
+    X.slideSrc = src;
+    X.photoKey = photoNow().src + '|' + src;
+    swapLayer(src || photoNow().src, animate && S.ready);
+  }
+  /** Stone: the picture moves 16 px sideways with every turn (parallax; never under reduced motion). */
+  function parallax(): void {
+    if (inp().skin !== 'stone' || api.rm() || !lobbyDrift(inp().liveBg, false)) return;
+    const ph = root.querySelector<HTMLElement>('.nb-ph');
+    if (!ph) return;
+    const from = X.para;
+    X.para = X.para ? 0 : -16;
+    track(ph.animate([{ transform: 'translateX(' + from + 'px)' }, { transform: 'translateX(' + X.para + 'px)' }], { duration: 1600, easing: E_IO, fill: 'forwards' }));
   }
 
   // ------------------------------------------------------------------ choreography per style
   const track = api.track;
   const parts = (el: HTMLElement): HTMLElement[] => [...el.querySelectorAll<HTMLElement>('.nb-txt > .nb-meta, .nb-txt > .nb-bd, .nb-pic')];
+  /** luxury: the pieces of a notice in reading order (title, meta, body); the idle face is its own children */
+  const lparts = (el: HTMLElement): HTMLElement[] => (el.classList.contains('nb-idle') ? [...el.querySelectorAll<HTMLElement>('.nb-txt > *')] : [...el.querySelectorAll<HTMLElement>('.nb-txt > .nb-ttl, .nb-txt > .nb-meta, .nb-txt > .nb-bd')]);
 
   function enter(el: HTMLElement): Promise<void> {
     if (api.rm()) return track(el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500, easing: E_SOFT, fill: 'backwards' })).finished.then(() => undefined, () => undefined);
     let last: Animation | undefined;
     const s = skin();
+    if (lux()) {
+      // owner 2026-10-30: the luxury background motion is always on; nothing here depends on the ambient level
+      if (s === 'gallery') {
+        // the title, then the body, then the time line, 90 ms apart, each rising 14 px out of the paper
+        lparts(el).forEach((p, k) => { last = track(p.animate([{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 950, delay: 320 + k * 90, easing: E_OUT, fill: 'backwards' })); });
+      } else if (s === 'concierge') {
+        // the card comes up through the background; the short brass rule is drawn out from the middle
+        last = track(el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 1100, delay: 380, easing: E_SOFT, fill: 'backwards' }));
+        const rl = el.querySelector<HTMLElement>('.nb-rl');
+        if (rl) track(rl.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 900, delay: 760, easing: E_OUT, fill: 'backwards' }));
+      } else {
+        // stone: the text is uncovered in the reading direction
+        const from = inp().lang === 'en' ? 'inset(0 100% 0 0)' : 'inset(0 0 0 100%)';
+        last = track(el.animate([{ clipPath: from }, { clipPath: 'inset(0 0 0 0)' }], { duration: 1150, delay: 260, easing: E_OUT, fill: 'backwards' }));
+      }
+      return last.finished.then(() => undefined, () => undefined);
+    }
     // ambient level 'off' (a device measured too slow): one composited move for the whole notice instead of per-line / per-word
     if (X.fx === 'off') {
       last = track(el.animate([{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], { duration: 700, delay: 200, easing: E_OUT, fill: 'backwards' }));
@@ -358,10 +464,10 @@ export function createHx(api: EngineApi): Hx {
       a.cancel();
     }
     const rm = api.rm();
-    const d = rm ? 280 : 380;
+    const d = rm ? 280 : lux() ? (skin() === 'concierge' ? 600 : 480) : 380;
     const s = skin();
     let a: Animation;
-    if (rm) a = el.animate([{ opacity: live }, { opacity: 0 }], { duration: d, easing: E_SOFT, fill: 'forwards' });
+    if (rm || lux()) a = el.animate([{ opacity: live }, { opacity: 0 }], { duration: d, easing: E_SOFT, fill: 'forwards' });
     else if (s === 'lumen') a = el.animate([{ opacity: live, transform: 'none' }, { opacity: 0, transform: 'translateY(-28px)' }], { duration: d, easing: E_OUT, fill: 'forwards' });
     else if (s === 'axis') a = el.animate([{ opacity: live, transform: 'none' }, { opacity: 0, transform: 'translateX(40px)' }], { duration: d, easing: E_OUT, fill: 'forwards' });
     else a = el.animate([{ opacity: live, clipPath: 'inset(0 0 0 0)' }, { opacity: 0.2, clipPath: 'inset(100% 0 0 0)' }], { duration: d * 1.1, easing: E_OUT, fill: 'forwards' });
@@ -370,6 +476,7 @@ export function createHx(api: EngineApi): Hx {
 
   /** Lumen: the recessed light line measures the notice's time on the wall (linear: progress must not ease). */
   function cove(): void {
+    if (skin() !== 'lumen') return;
     const bar = root.querySelector<HTMLElement>('.nb-cove i');
     if (!bar) return;
     bar.getAnimations().forEach((a) => a.cancel());
@@ -458,6 +565,10 @@ export function createHx(api: EngineApi): Hx {
     // the stage is laid out for real now (fonts, kind, long): when the prepared fit no longer holds, fit again
     if (!S.idle && overflows(el)) { el.dataset.fit = String(fitAll(el, it)); root.dataset.long = el.dataset.long === '1' ? '1' : '0'; }
     if (skin() === 'prism') fieldImage(it?.slide ? inp().imgOf(it.slide) : '', animate);
+    if (lux()) {
+      lxSlide(it?.slide ? inp().imgOf(it.slide) : '', animate);
+      if (animate) parallax();
+    }
     if (!animate) {
       olds.forEach((o) => o.remove());
       api.schedule();
@@ -483,7 +594,7 @@ export function createHx(api: EngineApi): Hx {
     const word = esc(str(i.lang, 'urgent'));
     return '<div class="nb-tbg" aria-hidden="true"><i></i><i></i><i></i></div><div class="nb-lsweep" aria-hidden="true"></div>' + (i.skin === 'axis' ? '<div class="nb-tg" aria-hidden="true">' + esc(str(i.lang, 'urgentWord')) + '</div>' : '') +
       '<div class="nb-tw"><div class="nb-th"><span class="nb-tl"><i class="nb-sq" aria-hidden="true"></i>' + word + '</span><span class="nb-tt nb-num" data-nb-time>' + esc(c.t) + '</span></div>' +
-      '<div class="nb-tm"><h1 class="nb-ttl" dir="auto" data-src="' + esc(n.title) + '">' + words(i.skin, n.title) + '</h1><p class="nb-bd" dir="auto">' + tx(n.body) + '</p><p class="nb-when" dir="auto">' + tx(i.whenOf(n)) + '</p></div>' +
+      '<div class="nb-tm"><h1 class="nb-ttl" dir="auto" data-src="' + esc(n.title) + '">' + words(i.skin, n.title) + '</h1>' + (i.skin === 'concierge' ? '<span class="nb-rl" aria-hidden="true"></span>' : '') + '<p class="nb-bd" dir="auto">' + tx(n.body) + '</p><p class="nb-when" dir="auto">' + tx(i.whenOf(n)) + '</p></div>' +
       '<div class="nb-tf"><span dir="auto">' + esc(i.building + (i.place ? ' · ' + i.place : '')) + '</span>' + api.logo(true) + '</div></div>';
   }
   function fitTake(el: HTMLElement): void {
@@ -533,7 +644,7 @@ export function createHx(api: EngineApi): Hx {
     const s = skin();
     if (s === 'prism') track(tk.animate([{ clipPath: fieldRect() }, { clipPath: 'inset(0 0 0 0)' }], { duration: 760, easing: sp.panel.ease }));
     else if (s === 'axis') track(tk.animate([{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }], { duration: sp.panel.ms, easing: sp.panel.ease }));
-    else track(tk.animate([{ opacity: +live.opacity < 1 && root.dataset.take === '1' ? +live.opacity : 0 }, { opacity: 1 }], { duration: 420, easing: E_OUT }));
+    else track(tk.animate([{ opacity: +live.opacity < 1 && root.dataset.take === '1' ? +live.opacity : 0 }, { opacity: 1 }], { duration: lux() ? 600 : 420, easing: E_OUT }));
     const sw = tk.querySelector<HTMLElement>('.nb-lsweep');
     if (sw && X.fx !== 'off') track(sw.animate([{ transform: 'translateX(120%)' }, { transform: 'translateX(-220%)' }], { duration: 1400, delay: 250, easing: E_IO }));
     [...tk.querySelectorAll<HTMLElement>('.nb-ttl .nb-li, .nb-ttl .nb-wi')].forEach((l, j) => {
@@ -630,11 +741,22 @@ export function createHx(api: EngineApi): Hx {
 
   // ------------------------------------------------------------------ the clock, the input, the pauses
   function tick(c: { t: string }): void {
+    if (lux()) {
+      const t = root.querySelector<HTMLElement>('.nb-hd .nb-t');
+      if (t && t.dataset.t !== c.t) { t.textContent = c.t; t.dataset.t = c.t; }
+      return;
+    }
     setDigits(root.querySelector('.nb-hd .nb-t'), c.t);
     ghostDigits(c.t);
     setSky();
   }
   function applied(first: boolean): void {
+    if (lux()) {
+      // the luxury drift (Ken Burns, parallax) is always on: it follows only reduced motion and an explicit frozen / off, never the measurement
+      root.dataset.kb = lobbyDrift(inp().liveBg, api.rm()) && !api.opts.fixed ? '1' : '0';
+      lxChrome();
+      return;
+    }
     setSky();
     if (first) {
       X.measured = api.opts.fixed ? 'low' : fxStart(navigator.hardwareConcurrency || 4);
@@ -651,6 +773,7 @@ export function createHx(api: EngineApi): Hx {
   };
   try { void document.fonts?.ready.then(refit); document.fonts?.addEventListener?.('loadingdone', refit); } catch { /* no font API: keep the first fit */ }
   return {
+    takes: wantsRotTake,
     header,
     footer,
     setupTicker,

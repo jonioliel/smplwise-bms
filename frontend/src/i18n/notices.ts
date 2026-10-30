@@ -336,6 +336,8 @@ const he = {
   photoUpload: 'העלאת תמונה',
   photoReplace: 'החלפת התמונה',
   photoRemove: 'הסרה',
+  photoNightBlock: 'תמונת הבניין בלילה',
+  photoNightHint: 'אפשר להעלות תמונה שנייה; בלעדיה תמונת היום מוחשכת בלילה.',
   // NOTICEPAGE-295: the places tree, the "מי קרא" sheet and the home widget
   places: 'מקומות',
   placeSelect: 'מקום',
@@ -468,6 +470,8 @@ const en: Partial<Record<Key, string>> = {
   slideRemovePicture: 'Remove the picture', slideBoards: 'Shown on boards', slideDelete: 'Delete the slide', slideDeleteConfirm: 'Delete the slide?',
   slideLimit: 'Up to {n} slides per board', slideFile: 'JPEG or PNG', photoBlock: 'Building photo', photoUpload: 'Upload a photo', photoReplace: 'Replace the photo',
   photoRemove: 'Remove',
+  photoNightBlock: 'Building photo at night',
+  photoNightHint: 'An optional second photo; without it the day photo is darkened at night.',
   places: 'Places', placeSelect: 'Place', allPlaces: 'Whole building', foldPlace: 'Collapse {name}', unfoldPlace: 'Expand {name}', readsOf: 'Who read: {title}', readsList: 'List',
   readsLoadError: 'The list could not be loaded', readsNone: 'No recipients', segReadShort: 'Read', segUnreadShort: 'Not read yet',colName: 'Name', colPlace: 'Place', colReadAt: 'Read', widgetAll: 'All', widgetEmpty: 'No active notices',
   widgetNew: 'New', widgetUntil: 'Until {d}',
