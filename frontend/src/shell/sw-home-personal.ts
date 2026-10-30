@@ -15,6 +15,9 @@ import { loadHomeDoors } from '../door-windows/access'; // DOORWIN2-295
 import { loadHomeNoticesChecked, noticesWidgetOffered } from '../notices/home-widget'; // NOTICEPAGE-295
 import { doorsWidgetAvailable } from '../door-windows/home-widget-model';
 import { doorWindowsTabOn, noticesModuleOn } from './nav';
+import { getBuildingPresence } from '../api/building-presence'; // PRESENCE-2280
+import { presenceWidgetAvailable } from '../screens/building-presence-widget';
+import { canAnywhere, isApi } from '../api/session';
 import { MODE_KEY, personalHidden } from '../elevators/model';
 import { elt } from '../i18n/elevators';
 import { effectiveRows, loadPersonalRow, personalDiff, savePersonalRow, type AreaRowPersonal } from '../api/area-row';
@@ -53,6 +56,8 @@ export class SwHomePersonal extends LitElement {
   @state() private doors = false;
   /** NOTICEPAGE-295: whether this user is offered the notices widget (false = not offered here at all). */
   @state() private notices = false;
+  /** PRESENCE-2280: whether this user is offered the building presence widget. */
+  @state() private presence = false;
   /** HOME-295: the installation's home screen options (whether users may choose their own summary tiles). */
   @state() private screenSite: HomeScreenOptions = HOME_SCREEN_DEFAULT;
 
@@ -166,6 +171,7 @@ export class SwHomePersonal extends LitElement {
     if (temperatureAccess().view) void listUnits(false).then((r) => (this.tempUnits = r.home_widget === false ? 0 : r.units.length)).catch(() => (this.tempUnits = 0));
     void loadHomeGenerators().then((g) => (this.generators = generatorsAvailable(g)));
     void loadHomeDoors().then((d) => (this.doors = doorsWidgetAvailable(d, doorWindowsTabOn())));
+    if (isApi() && canAnywhere('presence.building.view')) void getBuildingPresence().then((s) => (this.presence = presenceWidgetAvailable(s))).catch(() => (this.presence = false));
     void loadHomeNoticesChecked().then((d) => (this.notices = !!d && noticesWidgetOffered(d, noticesModuleOn())));
   }
 
@@ -315,7 +321,7 @@ export class SwHomePersonal extends LitElement {
 
   /** The widgets offered here: the elevators / generators widget only to a user who sees one (no such device = the module is never named). */
   private get offered(): WidgetId[] {
-    return this.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.tempUnits > 0) && (id !== 'generators' || this.generators) && (id !== 'doors' || this.doors) && (id !== 'notices' || this.notices));
+    return this.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.tempUnits > 0) && (id !== 'generators' || this.generators) && (id !== 'doors' || this.doors) && (id !== 'notices' || this.notices) && (id !== 'presence' || this.presence));
   }
 
   /** `to` is a place among the OFFERED widgets (review L6, GENWIDGET 2.9.3: a widget left out of the list is skipped, like the home editor). */

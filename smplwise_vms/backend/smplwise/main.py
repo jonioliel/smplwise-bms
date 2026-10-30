@@ -195,6 +195,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         presence_svc.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("presence janitor failed", exc_info=True)
+    try:  # PRESENCE-2280: building-presence transitions (only while the master switch is on) and their retention
+        from .services import building_presence_history as bph
+
+        bph.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("building presence history failed", exc_info=True)
     try:  # PARTNERAPI113-295: token expiry / creator-gone notices, purge of ended tokens, the delivery log and old outbox rows
         from .services.partner import core as partner_core, webhooks as partner_webhooks
 
@@ -637,6 +643,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import presence as presence_router
 
     app.include_router(presence_router.router, prefix=api, tags=["presence"])  # CR-027: the phone app - device registration, presence / sensor reports, the required-sensors policy
+    from .routers import building_presence as building_presence_router
+
+    app.include_router(building_presence_router.router, prefix=api, tags=["presence"])  # BUILDING-PRESENCE-2271: anonymous room / building occupancy from the tagged presence sensors (invisible while none is tagged)
     from .routers import app_refresh as app_refresh_router
 
     app.include_router(app_refresh_router.router, prefix=api, tags=["identity"])  # APPREFRESH-295: the phone app's persistent sign-in (switch security.app_refresh, default off)

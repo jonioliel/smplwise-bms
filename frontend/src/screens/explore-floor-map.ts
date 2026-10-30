@@ -25,7 +25,9 @@ import { PhoneWidth, phoneRestricted } from '../shell/phone';
 import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
 import { snapshotUrl, type Transport } from '../api/media';
 import { entryFloor, findFloor, loadTree, type CatalogTree } from '../api/catalog';
-import { isApi, nvrLess } from '../api/session';
+import { canAnywhere, isApi, nvrLess } from '../api/session';
+import { getBuildingPresence, type BuildingSnapshot } from '../api/building-presence';
+import { POLL_MS as PRESENCE_POLL_MS, zoneChip, zoneTone } from '../api/building-presence-logic';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import type { Anchor } from '../api/types';
@@ -1469,8 +1471,23 @@ export class ExploreFloorMap extends LitElement {
    * The same permission the button had: the floor's own edit right (the static demo has no bundle and offers it too). */
   private offScreenEdit: (() => void) | null = null;
 
+  /** PRESENCE-2280: the building-presence answer (rooms with a tagged sensor get a status chip); null while the module is off or not allowed. */
+  @state() private presenceSnap: BuildingSnapshot | null = null;
+  private presenceTimer = 0;
+  private async loadPresence() {
+    try {
+      this.presenceSnap = await getBuildingPresence();
+    } catch {
+      // a failed read keeps the last answer
+    }
+  }
+
   connectedCallback() {
     super.connectedCallback();
+    if (isApi() && canAnywhere('presence.building.view')) {
+      void this.loadPresence();
+      this.presenceTimer = window.setInterval(() => { if (!document.hidden) void this.loadPresence(); }, PRESENCE_POLL_MS);
+    }
     this.offScreenEdit = registerScreenEdit({ id: 'floor-map-edit', label: 'עריכת המפה', icon: 'edit', can: () => !phoneRestricted('structure') && (this.bundle ? this.bundle.permissions.edit : !isApi()), run: () => navigate(`/explore/floors/${this.floorId}/edit`) });
     this.narrow = this.mq.matches;
     this.mq.addEventListener('change', this.onMq);
@@ -1480,6 +1497,7 @@ export class ExploreFloorMap extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.clearInterval(this.presenceTimer);
     this.offScreenEdit?.();
     this.offScreenEdit = null;
     window.removeEventListener('keydown', this.onKey);
@@ -3177,7 +3195,7 @@ export class ExploreFloorMap extends LitElement {
         .selectedIds=${this.multi ? this.picked : []}
         .boxSelect=${this.multi}
         @box-select=${(e: CustomEvent<{ ids: string[] }>) => this.addPicks(e.detail.ids)}
-        .zones=${this.layers.has('zones') ? zonesWithChips(b.zones) : []}
+        .zones=${this.layers.has('zones') ? zonesWithChips(b.zones).map((z) => ({ ...z, chip: z.chip ?? zoneChip(this.presenceSnap, z.area_id), chipTone: z.chip ? undefined : zoneTone(this.presenceSnap, z.area_id) ?? undefined })) : []}
         .floorImage=${b.floorImages}
         .hideFloorImage=${!this.layers.has('photo')}
         .roomStates=${this.roomStateLayer}

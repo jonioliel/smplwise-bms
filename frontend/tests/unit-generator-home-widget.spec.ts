@@ -127,13 +127,13 @@ test('links: the widget opens the generator screen (the nav route), a row its ge
 });
 
 test('home config: generators is appended last, has no options, and is absent unless the viewer sees a generator (edit mode too)', () => {
-  expect(WIDGET_IDS[WIDGET_IDS.length - 3]).toBe('generators'); // DOORWIN2-295 appended `doors` after it
+  expect(WIDGET_IDS[WIDGET_IDS.length - 4]).toBe('generators'); // DOORWIN2-295 appended `doors` after it
   expect(WIDGET_NAME.generators).toBe('גנרטור');
   const d = defaultConfig();
-  expect(d.order.slice(-5)).toEqual(['elevators', 'temperature', 'generators', 'doors', 'notices']);
+  expect(d.order.slice(-6)).toEqual(['elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']);
   expect(d.generators).toEqual({ on: true, sizes: { a: 'm', b: 's', c: 'm' }, label: '', phone_on: null, phone_size: null });
   const old = configOf({ order: ['quick', 'clock'] });
-  expect(old.order.slice(-5)).toEqual(['elevators', 'temperature', 'generators', 'doors', 'notices']);
+  expect(old.order.slice(-6)).toEqual(['elevators', 'temperature', 'generators', 'doors', 'notices', 'presence']);
   expect(configOf({ generators: { on: false, sizes: { a: 'l' } } }).generators.on).toBe(false);
   const data: HomeData = { weather: null, sensors: {}, alarm: null, forecast: [] } as unknown as HomeData;
   const ids = (o: Parameters<typeof resolveWidgets>[3]) => resolveWidgets(d, 'a', data, o).map((i) => i.id);

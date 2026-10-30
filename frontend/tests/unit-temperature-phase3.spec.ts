@@ -99,7 +99,7 @@ test('the wizard body carries the optional power sensor', () => {
 });
 
 test('the home widget: appended last, absent without units, hidden units and the alerts filter', () => {
-  expect(WIDGET_IDS.slice(-4)).toEqual(['temperature', 'generators', 'doors', 'notices']); // GENWIDGET 2.9.3 appended the generators after it
+  expect(WIDGET_IDS.slice(-5)).toEqual(['temperature', 'generators', 'doors', 'notices', 'presence']); // GENWIDGET 2.9.3 appended the generators after it
   const cfg = defaultConfig();
   expect(cfg.temperature).toEqual({ on: true, sizes: { a: 'm', b: 's', c: 'm' }, label: '', phone_on: null, phone_size: null, mode: 'combined', hidden: [], filter: 'all' });
   const data = { weather: null, sensors: {}, alarm: null } as never;

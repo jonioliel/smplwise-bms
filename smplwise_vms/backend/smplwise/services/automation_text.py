@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Collection, Iterable, Mapping
 
 from . import automation_policy as policy
+from . import building_presence_blocks as bpb
 
 Block = Mapping[str, Any]
 _UNDEF = object()
@@ -37,6 +38,9 @@ class ModelContext:
     # entity is the typed `presence` block (the Shabbat pattern of CR-014)
     wall_buttons: bool = False
     presence_entity: str | None = None
+    # BUILDING-PRESENCE-2271: the presence sensors the owner tagged (services/building_presence.py). Non-empty switches on the typed `building_empty`
+    # trigger and `room_occupied` condition (services/building_presence_blocks.py); empty = a stored step of that shape stays a locked template
+    presence_sensors: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------- small helpers (JavaScript-like formatting of numbers)
@@ -312,6 +316,8 @@ def trigger_sentence(b: Block, ctx: ModelContext | None = None) -> str:
         return f"{abs(off)} דק׳ {'לפני' if off < 0 else 'אחרי'} ה{word}" if off else f"ב{word}"
     if t == "homeassistant":
         return "כשהמערכת עולה"
+    if t == "building_empty":  # BUILDING-PRESENCE-2271
+        return bpb.trigger_sentence(b)
     if t == "button":  # KAV079-295: a wall button / switch press
         did = b.get("device_id")
         name = (ctx.device_name(did) if ctx.device_name and isinstance(did, str) else None) or "מפסק"
@@ -362,6 +368,8 @@ def condition_sentence(b: Block, ctx: ModelContext | None = None) -> str:
         return f"לא ({' וגם '.join(condition_sentence(c, ctx) for c in b['conditions'])})"
     if t == "shabbat":
         return "בשבת וחג בלבד" if b["mode"] == "only_holy_days" else "לא בשבת וחג"
+    if t == "room_occupied":  # BUILDING-PRESENCE-2271
+        return bpb.condition_sentence(b, list(ctx.presence_sensors) or None, ctx.names)
     if t == "presence":  # KAV079-295: "who is in the building"
         return "אין אף אחד במבנה" if b.get("mode") == "nobody" else "יש מישהו במבנה"
     return b.get("label", "")

@@ -4,6 +4,7 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-field';
+import './system-building-presence';
 import { describeError } from '../api/client';
 import { dayTimeText } from '../api/day-format';
 import {
@@ -15,11 +16,12 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { parseRoute, replaceRoute } from '../router';
 import { pt } from '../i18n/presence';
+import { BP } from '../i18n/building-presence';
 import './system-presence-places'; // WHOIN034-295: the place editors and the "מי במבנה" thresholds
 
 /** WHOIN034-295: the pages of הגדרות › אפליקציה לנייד. */
-type Page = 'general' | 'places' | 'screen';
-const pageOf = (v: string | null): Page => (v === 'places' || v === 'screen' ? v : 'general');
+type Page = 'general' | 'places' | 'screen' | 'building';
+const pageOf = (v: string | null): Page => (v === 'places' || v === 'screen' || v === 'building' ? v : 'general');
 
 const DEMO: PresenceSettings = {
   enabled: false, mode: 'continuous', interval_s: 60, distance_filter_m: 50, notice_text: '', notice_version: 1, sensors_allowed: [...SENSOR_KEYS], intervals_s: {},
@@ -333,7 +335,8 @@ export class SystemPresence extends LitElement {
   render() {
     const editable = this.canEdit && isApi();
     const seg = (p: Page, key: 'segGeneral' | 'segPlaces' | 'segScreen') => html`<button type="button" aria-pressed=${String(this.page === p)} data-presence-page=${p} @click=${() => this.setPage(p)}>${pt(key)}</button>`;
-    const pages = html`<div class="seg" role="group" data-presence-pages>${seg('general', 'segGeneral')}${seg('places', 'segPlaces')}${seg('screen', 'segScreen')}</div>`;
+    const pages = html`<div class="seg" role="group" data-presence-pages>${seg('general', 'segGeneral')}${seg('places', 'segPlaces')}${seg('screen', 'segScreen')}<button type="button" aria-pressed=${String(this.page === 'building')} data-presence-page="building" @click=${() => this.setPage('building')}>${BP.tab}</button></div>`;
+    if (this.page === 'building') return html`${pages}<system-building-presence ?editable=${editable}></system-building-presence>`;
     if (this.page === 'places') return html`${pages}<system-presence-places .settings=${this.saved} ?editable=${editable} @saved=${(e: CustomEvent<PresenceSettings>) => this.adopt(e.detail)}></system-presence-places>`;
     if (this.page === 'screen') return html`${pages}<system-presence-screen .settings=${this.saved} ?editable=${editable} @saved=${(e: CustomEvent<PresenceSettings>) => this.adopt(e.detail)}></system-presence-screen>`;
     return html`${pages}${this.renderGeneral(editable)}`;
