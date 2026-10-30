@@ -31,7 +31,6 @@ import {
   visibleAreas,
   visibleSections,
   visibleTabs,
-  applyTicketsHidden,
   type Can,
 } from '../src/shell/nav';
 import { entryFloor, type CatalogTree } from '../src/api/catalog';
@@ -71,12 +70,6 @@ test.beforeEach(() => {
 
 test.afterEach(() => {
   applyTabsConfig({}); // the config is module state: every test starts from the built-in tabs
-});
-
-// TESTDEBT-295: the tickets switch is module state too, and a worker runs several spec files in one process: a file that left the module on
-// (unit-rfq-questions did) made 'the tickets area is off by default' fail depending on which files shared the worker.
-test.beforeEach(() => {
-  applyTicketsHidden({});
 });
 
 test('normalizeTabsConfig keeps only well-formed sections and ids and never throws', () => {
