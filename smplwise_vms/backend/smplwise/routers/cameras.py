@@ -166,14 +166,18 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{camera_id}.jpg"
     stale_ok = path.exists()
+    from ..services.recorders import frigate_io
+
+    rs = camera_settings(settings, cam)
+    is_frigate = frigate_io.handles(rs)
+    if is_frigate:  # 2.27.3: a Frigate still is not held for the whole configured age (the screens refresh every ~10 s), and an old copy has a cap
+        max_age = frigate_io.file_max_age(max_age)
+        stale_ok = stale_ok and frigate_io.stale_servable(now_ts() - path.stat().st_mtime)
     fresh = stale_ok and (now_ts() - path.stat().st_mtime) < max_age
     if not fresh:
         try:
             with unlocked(conn):
                 from ..services.recorders import vendor_io
-
-                rs = camera_settings(settings, cam)
-                from ..services.recorders import frigate_io
 
                 if frigate_io.handles(rs):  # NN5 F1: the latest frame of a Frigate camera through its adapter (credentials stay server-side)
                     data = frigate_io.snapshot(rs, cam["recorder_id"], cam["source_ref"] or str(cam["channel"]))
@@ -183,9 +187,10 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
         except ApiError as exc:
             if not stale_ok:
                 raise
-            return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=10", "X-Snapshot-Stale": "true", "X-Snapshot-Error": exc.code})
+            return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=10", "X-Snapshot-Stale": "true", "X-Snapshot-Error": exc.code,
+                                                                                 "X-Snapshot-Age": str(int(now_ts() - path.stat().st_mtime))})
     age = int(now_ts() - path.stat().st_mtime)
-    return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": f"private, max-age={max(1, max_age - age)}", "X-Snapshot-Age": str(age)})
+    return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": f"private, max-age={max(1, int(max_age) - age)}", "X-Snapshot-Age": str(age)})
 
 
 def now_ts() -> float:

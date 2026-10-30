@@ -304,8 +304,7 @@ existing player (WebRTC / MSE through the authorised relay, `video.live`) works 
   switching it on or moving its port is a new destination of the stored password, so the password must be typed again. Note (2.6.3 delta review F-2): with `account` the password also travels over RTSP into go2rtc's stream source - cleartext Basic on the LAN is possible, the source is visible via go2rtc's `GET /api/streams` and logged by go2rtc < 1.9.14 on create; same model as the NVR sources).
 Without a restream the camera stays a refreshing still: the media route still answers 409 `live_not_available` with `fallback: still`;
 the camera list now marks each Frigate camera `live_kind: stream | still` from the cached discovery (no I/O), and the live camera page
-explains a still in one plain Hebrew line. `GET .../status` `live` = `{mode, cameras_live, cameras_total, reason (flag_off | off |
-no_streams | no_match | partial | null), setting, port, auth}`; the settings summary shows "וידאו חי: N מצלמות מתוך M".
+explains a still in one plain Hebrew line. `GET .../status` `live` = `{mode, cameras_live, cameras_total, reason (off | no_go2rtc_url | no_streams | no_match | partial | null; since 2.27.3 `flag_off` is no longer produced - the add-on flag only gates creating new Frigate recorders, and `flag` is reported for information), setting, port, auth}`; the settings summary shows "וידאו חי: N מצלמות מתוך M".
 
 **Events.** The poll was already always on; but a connected WebSocket slowed it to 60 s even though the `reviews` frame shape is NOT
 VERIFIED - a socket carrying only status / motion frames left the event log up to a minute behind. Now the 60 s cadence applies only
@@ -351,3 +350,7 @@ and a runtime go2rtc stream, each removed afterwards; report section 8. Only PTZ
 Second run (2026-10-21): the supervised first session was repeated through Arx's own API (recorder in TLS pin mode, RBAC denials for a viewer,
 every write class switched on one at a time, change-log undo, first-write rule). All steps PASS and the raw YAML ended byte-identical to the
 saved original; see section 6 of the live report. No code changed in this run.
+
+
+### Runbook note (2.27.3): small tiles want a `<key>_sub` stream
+Arx already prefers a stream named `<camera key>_sub` (then a further `live.streams` entry) for the sub profile and falls back to the main stream when none exists. To give the wall a light stream, the OWNER adds a `<key>_sub` stream (and a `sub` stream on the camera) in Frigate's own go2rtc / camera config. Arx never creates or edits streams in Frigate or go2rtc for this.

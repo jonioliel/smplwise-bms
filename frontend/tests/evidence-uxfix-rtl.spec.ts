@@ -97,12 +97,19 @@ test.describe('sites and buildings cards', () => {
       const lh = parseFloat(getComputedStyle(name).lineHeight) || 20;
       const top = btn ? btn.getBoundingClientRect().top - c.getBoundingClientRect().top : -1;
       const rect = c.getBoundingClientRect();
-      return { h: rect.height, nameLines: name.getBoundingClientRect().height / lh, top, w: rect.width, y: rect.top };
+      const count = c.querySelector('.txt > small:not(.clamp2)') as HTMLElement;
+      const cl = parseFloat(getComputedStyle(count).lineHeight) || 20;
+      // SITENAME-2272: the name takes the card width, the count stays on one line, and the name is never cut below three lines
+      return { h: rect.height, nameLines: name.getBoundingClientRect().height / lh, top, w: rect.width, y: rect.top, nameW: name.getBoundingClientRect().width, countLines: count.getBoundingClientRect().height / cl, countFits: count.scrollWidth <= count.clientWidth + 1, clipped: name.scrollHeight > name.clientHeight + 1, nameFs: parseFloat(getComputedStyle(name).fontSize) };
     }));
     for (const c of m) {
-      expect(c.h).toBeLessThan(400);
-      expect(c.nameLines).toBeLessThanOrEqual(3.2); // two clamped lines; the name block reserves 2.6em
+      expect(c.h).toBeLessThan(440); // picture + buttons row + up to three name lines
+      expect(c.nameLines).toBeLessThanOrEqual(3.3); // at most three lines, the rest is clamped with the full text in the title
       expect(c.w).toBeGreaterThanOrEqual(270);
+      expect(c.nameW).toBeGreaterThanOrEqual(c.w * 0.8);
+      expect(c.countLines).toBeLessThanOrEqual(1.8);
+      expect(c.countFits).toBe(true);
+      expect(c.nameFs).toBeGreaterThanOrEqual(16);
     }
     // the buttons of the cards in one row sit at the same height
     const row = m.filter((c) => Math.abs(c.y - m[0].y) < 2);

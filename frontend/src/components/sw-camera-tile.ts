@@ -51,6 +51,9 @@ export class SwCameraTile extends LitElement {
    * itself, never faster than 5 s, never while the tab is hidden or the tile is out of view, and says so ("תמונה מתעדכנת"). 0 = off. */
   @property({ type: Number }) stillRefresh = 0;
   @state() private stillBust = 0;
+  /** the server marked the last still it sent as an old copy (X-Snapshot-Stale): no new frame could be had */
+  @state() private stillStale = false;
+  @state() private stillBlob = '';
   private stillAt = 0;
   private stillInView = true;
   private stillTimer = 0;
@@ -77,6 +80,9 @@ export class SwCameraTile extends LitElement {
   }
 
   private stopStill() {
+    if (this.stillBlob) URL.revokeObjectURL(this.stillBlob);
+    this.stillBlob = '';
+    this.stillStale = false;
     window.clearInterval(this.stillTimer);
     this.stillTimer = 0;
     this.stillObs?.disconnect();
@@ -88,9 +94,29 @@ export class SwCameraTile extends LitElement {
     const now = Date.now();
     if (stillDue({ hidden: document.hidden, inView: this.stillInView, lastAt: this.stillAt, now, intervalMs: stillIntervalMs(this.stillRefresh) })) {
       this.stillAt = now;
-      this.stillBust = now;
+      void this.refreshStill(now);
     }
   };
+
+  /** One request per refresh: the picture is read with fetch (so the response header X-Snapshot-Stale is visible) and shown from a
+   * blob URL; when the read fails the image falls back to loading the URL itself, as before. The first picture is the plain image. */
+  private async refreshStill(bust: number) {
+    const url = withBust(this.poster, bust);
+    try {
+      const r = await fetch(url, { credentials: 'same-origin' });
+      if (!r.ok) throw new Error(String(r.status));
+      const blob = await r.blob();
+      if (this.stillRefresh <= 0) return;
+      const old = this.stillBlob;
+      this.stillBlob = URL.createObjectURL(blob);
+      this.stillStale = r.headers.get('X-Snapshot-Stale') === 'true';
+      if (old) URL.revokeObjectURL(old);
+    } catch {
+      this.stillBlob = '';
+      this.stillStale = false;
+      this.stillBust = bust;
+    }
+  }
 
   static styles = css`
     :host {
@@ -494,10 +520,10 @@ export class SwCameraTile extends LitElement {
       ${real === 'live'
         ? html`<sw-live-player .cameraId=${this.cameraId} .livePath=${this.livePath} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop || encodeGop(this.encoding)} .autoProfile=${this.autoProfile} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
         : real === 'poster'
-          ? html`<img class="poster" src=${this.stillRefresh > 0 ? withBust(this.poster, this.stillBust) : this.poster} alt="" loading="lazy" />`
+          ? html`<img class="poster" src=${this.stillRefresh > 0 ? this.stillBlob || withBust(this.poster, this.stillBust) : this.poster} alt="" loading="lazy" />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}
       <div class="shade"></div>
-      ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' ? html`<span class="demo" data-snapshot-label data-still=${this.stillRefresh > 0 ? 'refreshing' : nothing}>${this.stillRefresh > 0 ? (this.compact ? he.frigate.live.stillLabel : `${he.frigate.live.stillLabelEvery} ${Math.round(stillIntervalMs(this.stillRefresh) / 1000)} ${he.frigate.live.seconds}`) : this.snapshotOnly ? 'תמונה · לחץ לצפייה חיה' : 'צילום'}</span>` : nothing}
+      ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' ? html`<span class="demo" data-snapshot-label data-still=${this.stillRefresh > 0 ? (this.stillStale ? 'stale' : 'refreshing') : nothing}>${this.stillRefresh > 0 && this.stillStale ? he.frigate.live.stillStale : this.stillRefresh > 0 ? (this.compact ? he.frigate.live.stillLabel : `${he.frigate.live.stillLabelEvery} ${Math.round(stillIntervalMs(this.stillRefresh) / 1000)} ${he.frigate.live.seconds}`) : this.snapshotOnly ? 'תמונה · לחץ לצפייה חיה' : 'צילום'}</span>` : nothing}
       ${this.state === 'stale' || this.state === 'recorded' || this.state === 'historic' ? html`<sw-badge class="pill" onImage kind=${this.state}></sw-badge>` : nothing}
       <div class="foot">
         ${this.name ? html`<span class="label"><span class="dot"></span>${this.name}</span>` : nothing}
