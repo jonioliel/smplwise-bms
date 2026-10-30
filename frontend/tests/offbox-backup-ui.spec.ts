@@ -251,3 +251,21 @@ test('local restore: a safety backup first, with its own optional password; the 
   await expect(page.locator('[data-restore-safety-off]')).toBeVisible();
   await expect(page.locator('[data-restore-safety]')).toHaveCount(0);
 });
+
+// Owner answer 2026-10-30: the LOCAL restore dialog also starts from "project + access", driven by `backup.local_restore_scope`.
+test('local restore: users and permissions start from the setting (default on), and the default is a switch', async ({ page }) => {
+  const mock = await setup(page);
+  await open(page);
+  await page.locator('[data-backup-restore]').first().click();
+  await expect(page.locator('[data-restore-access]')).toHaveAttribute('checked', '');
+  await page.locator('[data-restore-confirm]').fill('RESTORE');
+  await page.locator('[data-restore-go]').click();
+  await expect.poll(() => mock.calls.find((c) => c.path === `backups/${LOCAL_BACKUP.name}/restore`)?.body).toMatchObject({ scope: 'project+access' });
+  await page.locator('[data-backup-local-scope]').click();
+  await expect.poll(() => mock.calls.find((c) => c.method === 'PATCH' && c.path === 'settings')?.body).toEqual({ 'backup.local_restore_scope': 'project' });
+  await page.locator('[data-backup-restore]').first().click();
+  await expect(page.locator('[data-restore-access]')).not.toHaveAttribute('checked', '');
+  const local = page.locator('sw-dialog').filter({ has: page.locator('[data-restore-access]') });
+  const overflow = await local.evaluate((el) => { const b = el.shadowRoot?.querySelector('.body') as HTMLElement | null; return b ? b.scrollHeight - b.clientHeight : -1; });
+  expect(overflow, 'the local restore dialog body does not scroll').toBeLessThanOrEqual(1);
+});

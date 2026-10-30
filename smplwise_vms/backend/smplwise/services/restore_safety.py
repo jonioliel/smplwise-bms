@@ -2,6 +2,8 @@
 
   backup.offbox_restore_scope         the scope a restore from an off-box copy uses when the request names none, and the screen's
                                       initial choice: "project+access" (default) or "project".
+  backup.local_restore_scope          the same for a LOCAL restore (an archive in backups/): "project+access" (default) or "project"
+                                      (owner answer 2026-10-30; a setting of its own, so the two kinds of restore can differ).
   backup.safety_before_local_restore  "on" (default): a LOCAL restore (an archive in backups/) also writes the safety archive first.
 
 The safety archive is an ordinary backup of kind `auto-pre-restore` (kept: the newest 3, backup.KEEP). Without a password it omits the
@@ -21,6 +23,8 @@ SAFETY_KIND = "auto-pre-restore"
 SCOPE_SETTING = "backup.offbox_restore_scope"
 SCOPE_DEFAULT = "project+access"
 SCOPES = ("project", "project+access")
+LOCAL_SCOPE_SETTING = "backup.local_restore_scope"
+LOCAL_SCOPE_DEFAULT = "project+access"
 LOCAL_SAFETY_SETTING = "backup.safety_before_local_restore"
 LOCAL_SAFETY_DEFAULT = "on"
 
@@ -35,6 +39,12 @@ def default_scope(conn: sqlite3.Connection) -> str:
     """The scope of a restore from an off-box copy when none is named; an unreadable stored value reads as the default."""
     v = _get(conn, SCOPE_SETTING)
     return v if v in SCOPES else SCOPE_DEFAULT
+
+
+def local_scope(conn: sqlite3.Connection) -> str:
+    """The scope of a LOCAL restore when none is named; an unreadable stored value reads as the default."""
+    v = _get(conn, LOCAL_SCOPE_SETTING)
+    return v if v in SCOPES else LOCAL_SCOPE_DEFAULT
 
 
 def local_safety_enabled(conn: sqlite3.Connection) -> bool:

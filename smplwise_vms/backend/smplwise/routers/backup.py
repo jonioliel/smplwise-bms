@@ -36,7 +36,8 @@ class CreateIn(BaseModel):
 
 class RestoreIn(BaseModel):
     mode: str = Field(default="replace", pattern="^(replace|merge)$")
-    scope: str = Field(default="project", pattern="^(project|project\\+access)$")
+    # None: the setting `backup.local_restore_scope` (default "project+access"; owner answer 2026-10-30)
+    scope: str | None = Field(default=None, pattern="^(project|project\\+access)$")
     confirm: str = ""
     backup_password: SecretStr | None = None
     # the operator's explicit choice to restore WITHOUT the encrypted section (local accounts then need an administrator's link)
@@ -209,6 +210,7 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
         raise ApiError(422, "confirm_required", "לאישור השחזור יש להקליד RESTORE.")
     p = _path(request, name)
     st = settings_of(request)
+    scope = body.scope or restore_safety.local_scope(conn)
     safety = None
     try:
         if restore_safety.local_safety_enabled(conn):  # OFFBOX-RESTORE-2300: a way back, written before anything is replaced
@@ -221,7 +223,7 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
                 raise ApiError(409, "safety_failed", "לא ניתן היה לכתוב גיבוי ביטחון לפני השחזור, ולכן השחזור לא התחיל.",
                                details={"error": type(exc).__name__}) from None
         try:
-            result = svc.restore(st, conn, p, body.mode, body.scope, actor_user_id=principal.user_id,
+            result = svc.restore(st, conn, p, body.mode, scope, actor_user_id=principal.user_id,
                                  backup_password=_secret(body.backup_password), skip_sensitive=body.skip_sensitive)
         except BaseException:
             restore_safety.remove(st, safety)
@@ -232,7 +234,7 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
         raise ApiError(409, "restore_refused", f"השחזור נדחה: {exc}")
     if safety:
         svc.prune(st)
-    audit(conn, actor=principal, action="backup.restore", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request), details={"mode": body.mode, "scope": body.scope, "tables": result["tables"], "files": result["files"],
+    audit(conn, actor=principal, action="backup.restore", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request), details={"mode": body.mode, "scope": scope, "tables": result["tables"], "files": result["files"],
                    "safety": safety["name"] if safety else None,
                    **({"roles_pruned": result["roles_pruned"]} if result.get("roles_pruned") else {}),
                    "sensitive": {k: result["sensitive"][k] for k in ("state", "restored", "skipped", "plaintext_ignored")},

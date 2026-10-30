@@ -261,7 +261,7 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_key_reset_notice_title", 
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_attestation", "security.app_refresh_attestation_min_level",
                                  "security.app_refresh_attestation_android_roots"}
 # OFFBOX-RESTORE-2300 (owner 2026-10-30): the restore defaults and the local safety-archive switch are this installation's policy
-SETTINGS_KEEP = SETTINGS_KEEP | {"backup.offbox_restore_scope", "backup.safety_before_local_restore"}
+SETTINGS_KEEP = SETTINGS_KEEP | {"backup.offbox_restore_scope", "backup.local_restore_scope", "backup.safety_before_local_restore"}
 
 
 def _kept_setting(key: Any) -> bool:

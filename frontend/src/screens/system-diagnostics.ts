@@ -32,7 +32,7 @@ import '../components/sw-kpi';
 import { TILE_LAYOUT_LABEL, TILE_LAYOUTS, resolveTileLayout, setInstallationTileLayout, setTileLayoutOverride, tileLayoutOverride, type TileLayoutSetting } from '../api/tile-layout';
 import { bpt } from '../i18n/backup-password';
 import { obr, obrApiError } from '../i18n/backup-offbox-restore';
-import { localSafetyOn, safetyBody } from '../api/backup-offbox';
+import { localSafetyOn, safetyBody, scopeFromSetting } from '../api/backup-offbox';
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, getMeterBackup, listBackups, restoreBackup, setMeterBackup, uploadBackup, type BackupEntry, type MeterBackupSetting } from '../api/backup';
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
@@ -1464,6 +1464,22 @@ export class SystemDiagnostics extends LitElement {
   }
 
   /** OFFBOX-RESTORE-2300: `backup.safety_before_local_restore` (default on), saved at once like the other switches. */
+  /** OFFBOX-RESTORE-2300 (owner answer 2026-10-30): `backup.local_restore_scope` (default project+access), saved at once. */
+  private async toggleLocalScope(on: boolean) {
+    this.localSafetyBusy = true;
+    this.error = '';
+    try {
+      const r = await patchSettings({ 'backup.local_restore_scope': on ? 'project+access' : 'project' });
+      this.settings = r.settings;
+      invalidateSettings();
+      this.backupMsg = obr('saved');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.localSafetyBusy = false;
+    }
+  }
+
   private async toggleLocalSafety(on: boolean) {
     this.localSafetyBusy = true;
     this.error = '';
@@ -1519,7 +1535,7 @@ export class SystemDiagnostics extends LitElement {
   private openRestore(b: BackupEntry) {
     this.restoreTarget = b;
     this.restoreMode = 'replace';
-    this.restoreAccess = false;
+    this.restoreAccess = scopeFromSetting(this.settings?.['backup.local_restore_scope']) === 'project+access'; // owner answer 2026-10-30: a setting, default on
     this.restoreConfirm = '';
     this.restorePassword = '';
     this.restoreSkip = false;
@@ -1612,7 +1628,7 @@ export class SystemDiagnostics extends LitElement {
     return html`<sw-dialog open heading="שחזור גיבוי" subheading=${b.name} @close=${() => (this.restoreTarget = null)}>
       <div class="row"><span class="lbl">אופן השחזור<span class="muted">${this.restoreMode === 'replace' ? 'הנתונים הנוכחיים של הפרויקט מוחלפים במה שבגיבוי' : 'רק פריטים שחסרים היום מתווספים; הקיימים נשארים'}</span></span>
         <select data-restore-mode @change=${(e: Event) => (this.restoreMode = (e.target as HTMLSelectElement).value as 'replace' | 'merge')}><option value="replace" ?selected=${this.restoreMode === 'replace'}>החלפה</option><option value="merge" ?selected=${this.restoreMode === 'merge'}>מיזוג</option></select></div>
-      <div class="row"><span class="lbl">כולל משתמשים והרשאות<span class="muted">ברירת המחדל: רק נתוני הפרויקט. ההרשאות שלך נשמרות בכל מקרה.</span></span><sw-toggle ?checked=${this.restoreAccess} label="כולל הרשאות" labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => (this.restoreAccess = e.detail.checked)}></sw-toggle></div>
+      <div class="row"><span class="lbl">${obr('accessLabel')}<span class="muted">${obr('accessHint')}</span></span><sw-toggle data-restore-access ?checked=${this.restoreAccess} label=${obr('accessLabel')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => (this.restoreAccess = e.detail.checked)}></sw-toggle></div>
       ${this.renderRestoreSensitive(b)}
       ${this.renderRestoreSafety()}
       <div class="muted" style="margin-block-start:8px">הגיבוי מגרסה ${b.app_version ?? '?'} מ־${this.fmtWhen(b.created_at)}. השחזור נרשם באודיט. לאישור הקלד <code>RESTORE</code>:</div>
@@ -1631,6 +1647,9 @@ export class SystemDiagnostics extends LitElement {
           <input class="note-in" type="password" autocomplete="new-password" data-backup-password placeholder=${bpt('createPlaceholder', { n: this.backupMin() })} .value=${this.backupPassword} @input=${(e: Event) => (this.backupPassword = (e.target as HTMLInputElement).value)} /></div>
         <div class="row" data-backup-min-row><span class="lbl">${bpt('minLabel')}<span class="muted">${bpt('minHint')}</span></span>
           <input class="note-in" type="number" min="8" max="64" data-ltr data-backup-min ?disabled=${!isApi() || !this.canEdit || this.backupMinBusy} .value=${String(this.backupMin())} @change=${(e: Event) => void this.saveBackupMin(e.target as HTMLInputElement)} /></div>
+        <div class="row" data-backup-local-scope-row><span class="lbl">${obr('localScope')}<span class="muted">${obr('localScopeHint')}</span></span>
+          <sw-toggle data-backup-local-scope ?checked=${scopeFromSetting(this.settings?.['backup.local_restore_scope']) === 'project+access'} ?disabled=${!isApi() || !this.canEdit || this.localSafetyBusy}
+            label=${obr('localScope')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleLocalScope(e.detail.checked)}></sw-toggle></div>
         <div class="row" data-backup-local-safety-row><span class="lbl">${obr('localSafety')}<span class="muted">${obr('localSafetyHint')}</span></span>
           <sw-toggle data-backup-local-safety ?checked=${localSafetyOn(this.settings?.['backup.safety_before_local_restore'])} ?disabled=${!isApi() || !this.canEdit || this.localSafetyBusy}
             label=${obr('localSafety')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleLocalSafety(e.detail.checked)}></sw-toggle></div>

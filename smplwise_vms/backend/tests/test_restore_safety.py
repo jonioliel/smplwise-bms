@@ -127,3 +127,29 @@ def test_the_setting_turns_the_local_safety_archive_off(bx):
     r = _restore(bx, name, backup_password=PW, safety_backup_password=SAFETY_PW)
     assert r.status_code == 200, r.text
     assert r.json()["safety_archive"] is None and _safety_files(bx.settings) == []
+
+
+# ---------------------------------------------------------------- owner answer 2026-10-30: the LOCAL restore scope is a setting too
+
+
+def test_the_local_restore_scope_default_is_pinned(client):
+    assert restore_safety.LOCAL_SCOPE_SETTING == "backup.local_restore_scope" and restore_safety.LOCAL_SCOPE_DEFAULT == "project+access"
+    assert DEFAULTS["backup.local_restore_scope"] == "project+access"
+    assert "backup.local_restore_scope" in svc.SETTINGS_KEEP
+    assert client.get("/api/v1/settings").json()["settings"]["backup.local_restore_scope"] == "project+access"
+    assert client.patch("/api/v1/settings", json={"backup.local_restore_scope": "all"}).status_code == 422
+
+
+def test_a_local_restore_without_a_scope_uses_the_setting(bx):
+    name = _export(bx).json()["name"]
+    body = {"mode": "replace", "confirm": "RESTORE", "backup_password": PW}
+    r = bx.admin.post(f"/api/v1/backups/{name}/restore", json=body)
+    assert r.status_code == 200, r.text
+    assert r.json()["scope"] == "project+access"
+    assert bx.admin.patch("/api/v1/settings", json={"backup.local_restore_scope": "project"}).status_code == 200
+    r = bx.admin.post(f"/api/v1/backups/{name}/restore", json=body)
+    assert r.status_code == 200, r.text
+    assert r.json()["scope"] == "project" and '\\"scope\\": \\"project\\"' in _audit_text(bx.db, "backup.restore")
+    # an explicit scope still wins
+    r = bx.admin.post(f"/api/v1/backups/{name}/restore", json={**body, "scope": "project+access"})
+    assert r.status_code == 200 and r.json()["scope"] == "project+access"

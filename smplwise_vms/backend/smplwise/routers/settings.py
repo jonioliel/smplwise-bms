@@ -383,6 +383,7 @@ DEFAULTS: dict[str, str] = {
     # none is named (and the screen's initial choice), and whether a LOCAL restore writes the pre-restore safety archive first.
     # Installation policy: never exported or restored (backup.SETTINGS_KEEP).
     "backup.offbox_restore_scope": "project+access",  # project | project+access
+    "backup.local_restore_scope": "project+access",  # project | project+access (owner answer 2026-10-30)
     "backup.safety_before_local_restore": "on",  # on | off
     "security.local_link_ttl_h": "72",  # 1-168: first-login / reset link lifetime
     # USR2-FIX F2: the per-(account, network) delay and the per-account ceiling lock behave the same in both modes; the value only names
@@ -947,6 +948,7 @@ class SettingsPatch(BaseModel):
     privacy_personal_export: str | None = Field(default=None, pattern="^(on|off)$", alias="privacy.personal_export")  # IDENT146
     backup_password_min: int | None = Field(default=None, ge=8, le=64, alias="backup.password_min")  # BACKUP-HASH-ENC: hard floor 8
     backup_offbox_restore_scope: str | None = Field(default=None, pattern=r"^(project|project\+access)$", alias="backup.offbox_restore_scope")  # OFFBOX-RESTORE-2300
+    backup_local_restore_scope: str | None = Field(default=None, pattern=r"^(project|project\+access)$", alias="backup.local_restore_scope")  # OFFBOX-RESTORE-2300
     backup_safety_before_local_restore: str | None = Field(default=None, pattern="^(on|off)$", alias="backup.safety_before_local_restore")  # OFFBOX-RESTORE-2300
     security_local_link_ttl_h: int | None = Field(default=None, ge=1, le=168, alias="security.local_link_ttl_h")
     security_local_lock_mode: str | None = Field(default=None, pattern="^(delay|lock)$", alias="security.local_lock_mode")
