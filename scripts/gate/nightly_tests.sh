@@ -35,9 +35,14 @@ DIR="$HOME/smplwisebms"; RESULTS="$HOME/smplwise-results"; NRES="$RESULTS/nightl
 ENGINE="${SW_NIGHTLY_ENGINE:-$HOME/nightly-gate/release_gate.py}"
 MAX_MIN="${SW_NIGHTLY_MAX_MIN:-240}"
 BRANCH_MAX_MIN="${SW_NIGHTLY_BRANCH_MAX_MIN:-225}"   # engine budget per branch (the tier-L gate itself needs about 151 min)
+# NIGHTLY-2250-297: the nightly runs the v2 schedule by default (SW_NIGHTLY_SCHEDULE=v1 is the rollback). v1 runs the preview phase
+# and the dev-server phase one after the other, so one slow dev phase (120 min on 2026-10-27 against 39 on 10-28: the heavy layout
+# specs and their alone-retries) pushed the run into the 225 min engine budget ("budget exhausted"). v2 (6 backend shards, one
+# Playwright pool, dev specs as pool jobs, largest first) has been the release gates' schedule in the 2.23.0 to 2.25.0 gates (full runs 84-131 min).
+SCHEDULE="${SW_NIGHTLY_SCHEDULE:-v2}"
 if [ "$DRY" -eq 1 ]; then
   if [ "$#" -gt 0 ]; then echo "branches: $*"; else echo "branches: main"; fi
-  echo "flags: backend-only=$BO frontend-only=$FO no-dev=$ND; hard limit ${MAX_MIN} min; per-branch engine budget ${BRANCH_MAX_MIN} min; lock wait ${SW_NIGHTLY_LOCK_WAIT:-10800} s"
+  echo "flags: backend-only=$BO frontend-only=$FO no-dev=$ND; hard limit ${MAX_MIN} min; per-branch engine budget ${BRANCH_MAX_MIN} min; schedule ${SCHEDULE}; lock wait ${SW_NIGHTLY_LOCK_WAIT:-10800} s"
   echo "engine: $ENGINE ($([ -f "$ENGINE" ] && echo present || echo MISSING)); workers per Playwright process: ${GATE_PW_WORKERS:-3}"; exit 0
 fi
 mkdir -p "$RESULTS"
@@ -143,7 +148,7 @@ for BR in "${BRANCHES[@]}"; do
   # GATESPEED-293: SW_NIGHTLY_SCHEDULE=v2 runs the nightly on the v2 schedule (6 shards on tmpfs, one Playwright pool); default v1.
   # The nightly is the safety net of --select-base, so it must FINISH: in 2026-10-16..20 every nightly hit the 117 min engine
   # budget (the backend was cut, e.g. 3564 of ~12000 tests on 10-20); raise SW_NIGHTLY_MAX_MIN / SW_NIGHTLY_BRANCH_MAX_MIN or use v2
-  GATE_SCHEDULE="${SW_NIGHTLY_SCHEDULE:-v1}" GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL=off \
+  GATE_SCHEDULE="$SCHEDULE" GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL=off \
   GATE_SKIP_BACKEND=$([ "$FO" -eq 1 ] && echo 1 || echo 0) GATE_SKIP_DEV=$([ "$ND" -eq 1 ] && echo 1 || echo 0) \
     timeout -k 30 "$BUDGET" python3 "$ENGINE" "$BR" --tier L --no-visual > "$LOGD/engine.log" 2>&1; ERC=$?
   END=$(date +%s)
