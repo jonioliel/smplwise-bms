@@ -113,6 +113,10 @@ class ProductWorld:
         if go_live:
             monkeypatch.setattr(dwe, "GO_LIVE_PERMITTED", True)
             monkeypatch.setattr(dwe, "LIVE_ENGINE_BUILT", True)
+        else:  # DOORLIVE-2310: the release builds both engines in; `go_live=False` models a build with the engine flags OFF (rollback layer 2)
+            monkeypatch.setattr(dwe, "PROGRAM_ENGINE_BUILT", False)
+            monkeypatch.setattr(dwe, "EMERGENCY_ENGINE_BUILT", False)
+            monkeypatch.setattr(dwe, "LIVE_ENGINE_BUILT", False)
         self.t = [start or dt.datetime(2026, 11, 2, 6, 0, tzinfo=dt.timezone.utc)]  # Monday 08:00 in Asia/Jerusalem (UTC+2 after 25.10)
         self.now = (lambda: world.clock.now()) if world is not None else (lambda: self.t[0])
         monkeypatch.setattr(router, "now_utc", self.now)
