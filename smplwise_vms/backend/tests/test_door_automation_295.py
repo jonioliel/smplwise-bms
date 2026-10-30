@@ -380,16 +380,22 @@ def test_arm_is_refused_while_the_kill_switch_is_on(world):
 
 # ================================================================ the feature switch and the live sender
 
-def test_feature_switch_cannot_be_turned_on_in_this_build(world):
+def test_feature_switch_is_off_by_default_with_the_permit_in_the_build(world):
+    """DOORLIVE-2310 (owner decision 2026-10-30, item 6): the permit is in the regular release; the administrator switch stays OFF until an administrator
+    turns it on, and the permit turned off again refuses the switch (the rollback build)."""
     c = world["c"]
-    assert door_automation.GO_LIVE_PERMITTED is False
-    r = c.put(f"{API}/door-automations/settings", json={"feature": "on", "confirmed": True})
-    assert r.status_code == 409 and r.json()["code"] == "door_automation_not_permitted", r.text
+    assert door_automation.GO_LIVE_PERMITTED is True
     st = c.get(f"{API}/door-automations/status").json()
-    assert st["feature"] == "off" and st["go_live_permitted"] is False and st["available"] is False and st["killed"] is False
+    assert st["feature"] == "off" and st["go_live_permitted"] is True and st["available"] is False and st["killed"] is False
     assert c.put(f"{API}/door-automations/settings", json={"feature": "off", "confirmed": True}).status_code == 200
     out = door_automation.LiveSender().open(operator=door_automation.operator_of("x", "x"), station_id=ENTRY, relay=1, request_id="r", not_after=MONDAY_9)
     assert out == ("not_sent", "transport_not_selected")  # WISKEY-OWNER26-297: the Native sender, no direct connection selected here
+
+
+def test_feature_switch_is_refused_in_a_build_without_the_permit(world, monkeypatch):
+    monkeypatch.setattr(door_automation, "GO_LIVE_PERMITTED", False)
+    r = world["c"].put(f"{API}/door-automations/settings", json={"feature": "on", "confirmed": True})
+    assert r.status_code == 409 and r.json()["code"] == "door_automation_not_permitted", r.text
 
 
 def test_an_armed_block_with_the_feature_off_records_a_refusal_and_sends_nothing(world):
