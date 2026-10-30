@@ -40,3 +40,18 @@ test('there is no rule for "full" beyond the exclusion, and no skin sets a data-
   expect(css.match(/data-motion="reduced"/g)?.length).toBe(2);
   expect(SKIN_IDS.length).toBeGreaterThan(5); // the registry is read by the same css (tokensCss) - nothing per skin was added for motion
 });
+
+// 2.29.0 (owner 2026-10-29): the entrance animation setting `ui.entry_animations` and the all-components reduced-motion sheet.
+test('entry animations off prints one rule that zeroes the three entrance tokens, for the root and every skin', () => {
+  const line = lines.find((l) => l.startsWith(':root[data-enter="off"]')) ?? '';
+  expect(line).toContain(':root[data-skin][data-enter="off"]');
+  for (const n of ['--sw-enter-ms:0ms', '--sw-enter-y:0px', '--sw-stagger:0ms']) expect(line, n).toContain(`${n} !important`);
+  expect(css.match(/data-enter="off"/g)?.length).toBe(2);
+});
+
+test('the shared reduced sheet zeroes literal durations and stops loops from flickering', async () => {
+  const { REDUCED_ALL_CSS } = await import('../src/design/apply');
+  expect(REDUCED_ALL_CSS).toContain('animation-duration:0.01ms !important');
+  expect(REDUCED_ALL_CSS).toContain('transition-duration:0.01ms !important');
+  expect(REDUCED_ALL_CSS).toContain('animation-iteration-count:1 !important');
+});

@@ -142,6 +142,13 @@ export const en = {
     disabledRun: 'The update was not sent: updating from Arx was switched off before it was sent.',
     saved: 'Saved',
   },
+  // 2.29.0: Settings > General > System look > Entrance animation (ui.entry_animations)
+  entryAnim: {
+    label: 'Entrance animation',
+    note: 'The panels and cards of a screen fade in with a small rise. Off = they appear at once. On by default',
+    on: 'On',
+    off: 'Off',
+  },
   background: {
     label: 'Background',
     note: 'Shown by the Crystal style; day and night follow the colour scheme',

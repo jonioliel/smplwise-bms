@@ -9,7 +9,7 @@ import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import { RAIL_TONES, SELECTABLE_SKIN_IDS, SKINS, type RailTone, type SkinId } from '../design/skins';
 import { skinTable } from '../design/css';
-import { MOTION_MODES, SCHEMES, installationDesign, onDesign, ownSchemeChoice, saveDemoDesign, setInstallationDesign, setOwnScheme, type MotionMode, type Scheme, type Theme } from '../design/apply';
+import { ENTER_MODES, MOTION_MODES, SCHEMES, installationDesign, onDesign, ownSchemeChoice, saveDemoDesign, setInstallationDesign, setOwnScheme, type EnterMode, type MotionMode, type Scheme, type Theme } from '../design/apply';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { t } from '../i18n/he';
@@ -47,6 +47,8 @@ export class SystemDesign extends LitElement {
   @state() private draftMotion: MotionMode = installationDesign().motion;
   /** SKINCOMP-297: the rail tone (offered only for a skin that has a dark rail - Arx Infra). */
   @state() private draftRail: RailTone = installationDesign().rail;
+  /** 2.29.0: the panel entrance animation (`ui.entry_animations`). */
+  @state() private draftEnter: EnterMode = installationDesign().enter;
   @state() private own: Scheme | null = ownSchemeChoice();
   /** CRY: the installation's background choice (saved with the button) and this user's own (saved at once). */
   @state() private draftBackground: BackgroundMode = installationBackground().mode;
@@ -377,13 +379,14 @@ export class SystemDesign extends LitElement {
       void getSettings()
         .then((r) => {
           this.canEdit = r.can_edit;
-          setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme'], r.settings['ui.motion'], r.settings['ui.rail_tone']);
+          setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme'], r.settings['ui.motion'], r.settings['ui.rail_tone'], r.settings['ui.entry_animations']);
           setInstallationBackground(r.settings['ui.background'], r.settings['ui.background_images']);
           const d = installationDesign();
           this.draftSkin = d.skin;
           this.draftScheme = d.scheme;
           this.draftMotion = d.motion;
           this.draftRail = d.rail;
+          this.draftEnter = d.enter;
           this.draftBackground = installationBackground().mode;
         })
         .catch(() => undefined);
@@ -398,7 +401,7 @@ export class SystemDesign extends LitElement {
 
   private get dirty(): boolean {
     const d = installationDesign();
-    return d.skin !== this.draftSkin || d.scheme !== this.draftScheme || d.motion !== this.draftMotion || d.rail !== this.draftRail || installationBackground().mode !== this.draftBackground;
+    return d.skin !== this.draftSkin || d.scheme !== this.draftScheme || d.motion !== this.draftMotion || d.rail !== this.draftRail || d.enter !== this.draftEnter || installationBackground().mode !== this.draftBackground;
   }
 
   private async save() {
@@ -406,12 +409,12 @@ export class SystemDesign extends LitElement {
     this.error = '';
     try {
       if (isApi()) {
-        const r = await patchSettings({ 'ui.skin': this.draftSkin, 'ui.scheme': this.draftScheme, 'ui.motion': this.draftMotion, 'ui.rail_tone': this.draftRail, 'ui.background': this.draftBackground });
+        const r = await patchSettings({ 'ui.skin': this.draftSkin, 'ui.scheme': this.draftScheme, 'ui.motion': this.draftMotion, 'ui.rail_tone': this.draftRail, 'ui.entry_animations': this.draftEnter, 'ui.background': this.draftBackground });
         invalidateSettings();
-        setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme'], r.settings['ui.motion'], r.settings['ui.rail_tone']);
+        setInstallationDesign(r.settings['ui.skin'], r.settings['ui.scheme'], r.settings['ui.motion'], r.settings['ui.rail_tone'], r.settings['ui.entry_animations']);
         setInstallationBackground(r.settings['ui.background'], r.settings['ui.background_images']);
       } else {
-        saveDemoDesign(this.draftSkin, this.draftScheme, this.draftMotion, this.draftRail);
+        saveDemoDesign(this.draftSkin, this.draftScheme, this.draftMotion, this.draftRail, this.draftEnter);
         saveDemoBackground(this.draftBackground);
       }
       this.message = 'המראה נשמר';
@@ -538,6 +541,10 @@ export class SystemDesign extends LitElement {
       <div class="row"><span class="lbl">תנועה<span class="muted">אוטומטי עוקב אחרי הגדרת המכשיר; מלא מתעלם ממנה; מופחת מבטל תנועה</span></span>
         <span class="seg" role="group" aria-label="תנועה">
           ${MOTION_MODES.map((m) => html`<button type="button" data-motion-option=${m} aria-pressed=${this.draftMotion === m ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftMotion = m)}>${MOTION_LABEL[m]}</button>`)}
+        </span></div>
+      <div class="row" data-enter-row><span class="lbl">${t('entryAnim.label')}<span class="muted">${t('entryAnim.note')}</span></span>
+        <span class="seg" role="group" aria-label=${t('entryAnim.label')}>
+          ${ENTER_MODES.map((m) => html`<button type="button" data-enter-option=${m} aria-pressed=${this.draftEnter === m ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftEnter = m)}>${t(m === 'on' ? 'entryAnim.on' : 'entryAnim.off')}</button>`)}
         </span></div>
       ${SKINS[this.draftSkin].darkRail
         ? html`<div class="row" data-rail-row><span class="lbl">סרגל הניווט<span class="muted">כהה = סרגל כחול-כהה גם במראה הבהיר</span></span>

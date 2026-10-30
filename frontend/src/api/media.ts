@@ -205,6 +205,8 @@ export interface ProductSettings {
   'ui.motion'?: 'auto' | 'full' | 'reduced';
   /** SKINCOMP-297: the rail tone - `auto` (the skin's own rail) or `dark` (the skin's dark rail where it has one: Arx Infra = direction D). */
   'ui.rail_tone'?: 'auto' | 'dark';
+  /** 2.29.0: the panel entrance animation of the classic / domus skins (default on); design/apply.ts. */
+  'ui.entry_animations'?: 'on' | 'off';
   /** 2.4.4: the accent colour and the switch-on colour - 'default' | a preset id | '#rrggbb' (design/brand.ts). */
   'ui.accent'?: string;
   'ui.toggle_on'?: string;

@@ -537,7 +537,7 @@ export const remoteStyles = css`
     border-color: var(--mr-border-strong);
   }
   .rchip:active {
-    transform: scale(0.96);
+    transform: scale(0.97);
   }
   .rchip[aria-current='true'] {
     border-color: var(--mr-accent);
