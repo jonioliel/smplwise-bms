@@ -634,6 +634,14 @@ export function createHx(api: EngineApi): Hx {
     }
     setFx();
   }
+  // the lobby fonts load after the first fit (the page is built before the glyphs arrive): fit the shown notice again once they are in
+  const refit = (): void => {
+    for (const el of api.stage().querySelectorAll<HTMLElement>('.nb-msg:not(.nb-prep)')) {
+      if (el.dataset.fit === undefined) continue;
+      el.dataset.fit = String(fitInto(el));
+    }
+  };
+  try { void document.fonts?.ready.then(refit); document.fonts?.addEventListener?.('loadingdone', refit); } catch { /* no font API: keep the first fit */ }
   return {
     header,
     footer,
@@ -650,6 +658,7 @@ export function createHx(api: EngineApi): Hx {
       X.coveAnim?.play();
     },
     dispose() {
+      try { document.fonts?.removeEventListener?.('loadingdone', refit); } catch { /* ignore */ }
       X.fxRun++;
       clearTimeout(X.fxT);
       clearInterval(X.newsT);
