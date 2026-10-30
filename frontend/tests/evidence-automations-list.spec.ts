@@ -1215,6 +1215,10 @@ test.describe('the editors over the list (S3 x S4 wiring)', () => {
 test.describe('evidence matrix: the three kinds and the settings tab at 1440 / 820 / 390, light and dark', () => {
   for (const scheme of ['light', 'dark'] as const) {
     test(`automations, scenes, scripts and הגדרות › אוטומציות (${scheme}); no product name`, async ({ page }) => {
+      // GATE-2280: twelve full page loads and twelve screenshots (three sizes, four screens each; nine in dark); on the phone project (DPR 2.6) that is
+      // 55-66 s on the 2.27.2 build and on the 2.28.0 train alike (measured 30.10: same load times, the screenshots cost ~2x desktop) -
+      // the 60 s default was never this test's budget, the same as the five-load test above (120 s)
+      test.setTimeout(150_000);
       for (const size of ['1440', '820', '390'] as const) {
         await open(page, '/devices/automations', size, { scheme });
         await ready(page);
