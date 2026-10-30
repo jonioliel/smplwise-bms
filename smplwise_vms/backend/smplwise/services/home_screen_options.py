@@ -22,6 +22,10 @@ present). Every choice the owner answered is only the DEFAULT; each one is a key
                     | keep
   quick_card        show (default: the home's "quick actions" widget - the lights-off / all-off pills - is drawn) | hide (the widget is
                     absent; the summary tiles and the floor menu carry the same actions and the next card takes the whole row)
+  popup_alert       show (default: a sensor the manager hid in the area pop-up appears there, red, while it is in alarm) | hide
+                    (stays hidden; the alert still arrives as a notice) - AREAEDIT-2290
+  popup             {version, site, areas} - the area pop-up layout (sections / sensors hidden and ordered): a site default plus one
+                    override per area, versioned for the editor's conflict check (services/popup_layout.py) - AREAEDIT-2290
   phone_floors      selector (default: a phone shows one floor at a time, with the floor switch and the tree button) | all (every floor
                     card stacked one after another down the page; no switch, no tree button). Tablet and desktop are unchanged
 
@@ -53,6 +57,7 @@ CHOICES: dict[str, tuple[str, ...]] = {
     "building_off_tablet": ("hide", "keep"),
     "quick_card": ("show", "hide"),
     "phone_floors": ("selector", "all"),
+    "popup_alert": ("show", "hide"),
 }
 
 DEFAULT: dict[str, Any] = {
@@ -69,6 +74,8 @@ DEFAULT: dict[str, Any] = {
     "building_off_tablet": "hide",
     "quick_card": "show",
     "phone_floors": "selector",
+    "popup_alert": "show",
+    "popup": {"version": 0, "site": None, "areas": {}},
 }
 KEYS: tuple[str, ...] = tuple(DEFAULT)
 
@@ -133,6 +140,10 @@ def normalize(value: Any, base: dict[str, Any] | None = None) -> dict[str, Any]:
         out["summary_tiles"] = None if given["summary_tiles"] is None else _kinds(given["summary_tiles"], SUMMARY_KINDS, "home.screen.summary_tiles")
     if "area_quick" in given:
         out["area_quick"] = _area_quick(given["area_quick"], "home.screen.area_quick")
+    if "popup" in given:
+        from . import popup_layout
+
+        out["popup"] = popup_layout.normalize_popup(given["popup"])
     for key in CHOICES:
         if key in given:
             out[key] = _choice(given[key], key, f"home.screen.{key}")

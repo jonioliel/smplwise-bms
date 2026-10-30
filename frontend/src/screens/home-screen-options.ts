@@ -32,6 +32,7 @@ const LABEL_KEY: Record<ChoiceKey, HsKey> = {
   building_off_tablet: 'buildingOff',
   quick_card: 'quickCard',
   phone_floors: 'phoneFloors',
+  popup_alert: 'popupAlert',
 };
 const VALUE_PREFIX: Record<ChoiceKey, string> = {
   summary_chooser: 'chooser_',
@@ -45,6 +46,7 @@ const VALUE_PREFIX: Record<ChoiceKey, string> = {
   building_off_tablet: 'bo_',
   quick_card: 'qc_',
   phone_floors: 'pf_',
+  popup_alert: 'pa_',
 };
 const QUICK_LABEL: Record<QuickKind, HsKey> = { lights: 'qLights', climate: 'qClimate', covers: 'qCovers', switches: 'qSwitches' };
 const QUICK_ICON: Record<QuickKind, string> = { lights: 'light', climate: 'snow', covers: 'layers', switches: 'bolt' };
