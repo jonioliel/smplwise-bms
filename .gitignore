@@ -49,3 +49,10 @@ smplwise_vms/downloads/*
 frontend/visual-out/
 # CR-038 S4: the handler page's local build (the add-on's copy is smplwise_vms/www-public/, committed at release)
 dist-public/
+exports/
+
+# Apple signing and push material (never commit)
+*.p8
+*.p12
+*.mobileprovision
+ExportOptions*.plist
