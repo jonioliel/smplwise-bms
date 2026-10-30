@@ -1,6 +1,6 @@
 # Changelog — SmplWise Arx add-on
 
-## 2.27.2 (DRAFT) — Site-name clip fix, Frigate review camera backfill, Frigate live video decoupled from the add-on option with a visible reason
+## 2.27.2 (pilot) — Site-name clip fix, Frigate review camera backfill, Frigate live video decoupled from the add-on option with a visible reason
 **After installing:** no database migration and no setting changes by itself; going back is safe. Live video starts for Frigate cameras that have a matching stream once Arx's own go2rtc address (`go2rtc_url`) is set.
 - **עברית:** אחרי ההתקנה: אין מיגרציה ושום הגדרה לא משתנה מעצמה; חזרה אחורה בטוחה. שידור חי יתחיל למצלמות Frigate שיש להן זרם מתאים כשכתובת ה-go2rtc של ארקס (`go2rtc_url`) מוגדרת.
 
