@@ -323,7 +323,7 @@ def occurrences(ctx: Ctx, start: dt.datetime, end: dt.datetime, *, calendars: li
     if not want:
         return {"occurrences": [], "truncated": False}
     marks = ",".join("?" * len(want))
-    rows = conn.execute(f"SELECT o.*, e.kind, e.title, e.on_behalf_label, e.organizer_user_id, e.rrule, e.override_of, e.revision, e.calendar_id AS home FROM cal_occurrences o JOIN cal_events e ON e.id = o.event_id "
+    rows = conn.execute(f"SELECT o.*, e.kind, e.title, e.on_behalf_label, e.organizer_user_id, e.rrule, e.override_of, e.revision, e.calendar_id AS home, e.sync_flag, e.contested AS ev_contested FROM cal_occurrences o JOIN cal_events e ON e.id = o.event_id "
                         f"WHERE o.holder_calendar_id IN ({marks}) AND o.occ_start < ? AND o.occ_end > ? ORDER BY o.occ_start, o.event_id LIMIT 2001",
                         (*want, model.iso(end), model.iso(start))).fetchall()
     out = []
@@ -335,7 +335,10 @@ def occurrences(ctx: Ctx, start: dt.datetime, end: dt.datetime, *, calendars: li
         out.append({"occurrence_id": f"{r['event_id']}@{r['local_start']}@{r['holder_calendar_id']}", "event_id": r["event_id"], "calendar_id": r["holder_calendar_id"],
                     "room_calendar_ids": [r["room_calendar_id"]] if r["room_calendar_id"] else [], "start": r["occ_start"], "end": r["occ_end"], "state": r["state"], "kind": r["kind"],
                     "title": r["title"] if level != "busy" else None, "on_behalf_label": r["on_behalf_label"] if level != "busy" else None,
-                    "organizer": user_label(conn, r["organizer_user_id"]) if level != "busy" else None, "recurring": bool(r["rrule"] or r["override_of"])})
+                    "organizer": user_label(conn, r["organizer_user_id"]) if level != "busy" else None, "recurring": bool(r["rrule"] or r["override_of"]),
+                    # CALENDARS-UI-2310: the marks the views draw - a contested request, and a sync flag (only for `edit`+, who may resolve it)
+                    "contested": bool(r["ev_contested"]) and r["state"] == "pending",
+                    "sync_flag": r["sync_flag"] if role and model.ROLE_RANK[role] >= model.ROLE_RANK["edit"] else None})
     return {"occurrences": out, "truncated": len(rows) > 2000}
 
 
@@ -379,6 +382,17 @@ def _series_has(conn: sqlite3.Connection, ev: sqlite3.Row, settings: dict[str, A
     return any(o.key == ostart for o in occ.event_occurrences(conn, ev, settings, now, window_days=800))
 
 
+def _cancel_window(ctx: Ctx, settings: dict[str, Any], ev: sqlite3.Row, role: str | None, body: dict[str, Any], now: dt.datetime) -> None:
+    """Owner answer 14 as a setting (`resident_cancel_until`): an organizer without the edit role cancels a confirmed entry only until the
+    chosen time before its start (start | 1h | 24h). Editors and managers are not limited; a pending request may always be withdrawn."""
+    lead = model.CANCEL_UNTIL_MIN[settings["resident_cancel_until"]]
+    if not lead or ev["state"] != "confirmed" or (role and model.ROLE_RANK[role] >= model.ROLE_RANK["edit"]):
+        return
+    start = _parse_start_utc(ev, body["occurrence_start"]) if body.get("occurrence_start") and ev["rrule"] else model.parse_utc(ev["starts_at"], "s")
+    if start - dt.timedelta(minutes=lead) <= now < start:
+        raise ApiError(409, "cancel_too_late", "עבר המועד האחרון לביטול. מנהל היומן יכול לבטל.", details={"until_min": lead})
+
+
 def cancel(ctx: Ctx, settings: dict[str, Any], eid: str, body: dict[str, Any], now: dt.datetime) -> dict[str, Any]:
     conn, p = ctx.conn, ctx.principal
     ev, cal, role = get_row(ctx, eid)
@@ -388,6 +402,7 @@ def cancel(ctx: Ctx, settings: dict[str, Any], eid: str, body: dict[str, Any], n
     stamp = model.iso(now)
     if ev["state"] not in ("pending", "confirmed", "displaced"):
         raise ApiError(409, "bad_state", "אי אפשר לבטל אירוע במצב הזה.", details={"state": ev["state"]})
+    _cancel_window(ctx, settings, ev, role, body, now)
     if scope == "series":
         if not ev["rrule"] and model.parse_utc(ev["ends_at"], "e") <= now:
             raise _422("past_immutable", "אי אפשר לבטל אירוע שכבר הסתיים.")
