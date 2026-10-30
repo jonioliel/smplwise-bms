@@ -84,6 +84,16 @@ test('the card appears only for display = card, with a state word, a quiet line 
   expect(cardView(snap({ settings: card, status: 'unknown', rooms: [room('a', 'unknown')] })).tone).toBe('neutral');
 });
 
+test('PRESENCE-DESIGN-2300: the card line reads right for one room, no room and large counts', () => {
+  const card = { ...cfg, home_display: 'card' as const };
+  expect(cardView(snap({ settings: card, status: 'clear', rooms: [room('a', 'clear')] })).sub).toBe('החדר היחיד עם חיישן ריק');
+  expect(cardView(snap({ settings: card, status: 'occupied', occupied_rooms: 1, rooms: [room('a', 'occupied')] })).sub).toBe('החדר היחיד עם חיישן פעיל');
+  expect(cardView(snap({ settings: card, status: 'clear', rooms: [] })).sub).toBe('אין עדיין חדר עם חיישן');
+  const many = Array.from({ length: 1500 }, (_, i) => room(`r${i}`, 'clear'));
+  expect(cardView(snap({ settings: card, status: 'clear', rooms: many })).sub).toBe('כל 1,500 החדרים ריקים');
+  expect(cardView(snap({ settings: card, status: 'occupied', occupied_rooms: 1234, rooms: many })).sub).toBe('1,234 מתוך 1,500 חדרים עם חיישן פעילים');
+});
+
 test('plan-map chips: occupied, empty since, unknown; none when off, untracked or switched away', () => {
   const s = snap({ rooms: [room('a', 'occupied'), room('b', 'clear', '2026-10-28T09:05:00Z'), room('c', 'unknown')] });
   expect(zoneChip(s, 'a', 'UTC')).toBe('פעיל');
