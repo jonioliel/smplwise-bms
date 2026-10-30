@@ -22,6 +22,7 @@ class Hanging:
 
     simulated = False
     open_supported = True
+    lock_supported = True
 
     def __init__(self, hang: set[str], gate: threading.Event) -> None:
         self.hang, self.gate = hang, gate
@@ -138,6 +139,7 @@ def test_a_release_landing_mid_dispatch_stops_every_later_apply(em, monkeypatch)
     class ReleasedDuringTheFirstCall:
         simulated = False
         open_supported = True
+        lock_supported = True
 
         def __init__(self) -> None:
             self.calls: list[tuple[str, str]] = []

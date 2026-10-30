@@ -132,6 +132,7 @@ def outcome_of(token: str | None) -> dwe.DoorOutcome:
 class DirectEmergencyEngine:
     simulated = False
     open_supported = True  # hold_open / release exist in v2; `lock_secure` does not
+    lock_supported = False  # DOORLIVE-2310: no `lock_secure` command in v2 - the LOCK control is hidden and refused (door_emergency.lock_available)
     transport_timeout_s = 6.0  # < door_emergency.ENGINE_DEADLINE_S (8 s)
     # WKR5-295 unit E: every call after an UNKNOWN attempt is a NEW attempt (new Request + operation, retry_of, same event fence); a live
     # attempt answers `attempt_live` and sends nothing; a durable release wins. door_emergency.v2_new_attempts reads this flag to let

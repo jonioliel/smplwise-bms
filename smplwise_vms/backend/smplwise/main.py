@@ -981,6 +981,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _wkjoin = await run_in_threadpool(wiskey_direct_join.startup, app.state.db, settings)
         if _wkjoin is not None:
             threading.Thread(target=_wkjoin.recover_now, name="wiskey-join-recover", daemon=True).start()
+        # DOORLIVE-2310: the door engines go live behind OFF switches - the Direct emergency engine becomes the process's emergency engine (it sends only over
+        # the selected join) and an incident still active from before this start is flagged for verification (never re-sent). Changes no switch.
+        from .services import door_engine_live
+
+        await run_in_threadpool(door_engine_live.startup, app.state.db, settings)
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.start(app.state.db, settings)  # CR-023: one poll a minute of the meters from the state mirror (read-only)
@@ -1142,6 +1147,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         intercom_consent.RELEASER.stop()  # WA-CONSENT-LINK: no new release starts; due rows stay due for the next start
         from .services import wiskey_direct_join as _wkj
 
+        from .services import door_engine_live as _del
+
+        _del.uninstall()
         _wkj.shutdown()  # WKINT-295: the existing transports come back; the lineage closes (a no-op when nothing was installed)
         intercom_sync.SYNC.shutdown()
         intercom_sync.SYNC.journal = None  # R5-A6: nothing is sent after shutdown; unresolved rows stay for the next process

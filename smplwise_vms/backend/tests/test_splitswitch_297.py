@@ -26,12 +26,13 @@ def _flags(monkeypatch, *, legacy: bool = False, program: bool = False, emergenc
 
 # ---------------------------------------------------------------- shipped: both off, legacy off
 
-def test_both_new_flags_ship_off_and_the_legacy_flag_is_unchanged():
-    assert "\nPROGRAM_ENGINE_BUILT = False" in SRC and "\nEMERGENCY_ENGINE_BUILT = False" in SRC and "\nLIVE_ENGINE_BUILT = False" in SRC
-    assert dwe.PROGRAM_ENGINE_BUILT is False and dwe.EMERGENCY_ENGINE_BUILT is False and dwe.LIVE_ENGINE_BUILT is False
-    assert dwe.program_ready() is False and dwe.emergency_ready() is False and dwe.live_ready() is False
-    assert de.live_ok() is False
-    assert isinstance(dwe._window_engine(None), dwe.PreparedEngine)
+def test_both_flags_ship_built_in_and_the_legacy_flag_is_unchanged():
+    """DOORLIVE-2310: both per-feature flags are True in the release (activation = the OFF-by-default switches); the legacy combined flag stays False."""
+    assert "\nPROGRAM_ENGINE_BUILT = True" in SRC and "\nEMERGENCY_ENGINE_BUILT = True" in SRC and "\nLIVE_ENGINE_BUILT = False" in SRC
+    assert dwe.PROGRAM_ENGINE_BUILT is True and dwe.EMERGENCY_ENGINE_BUILT is True and dwe.LIVE_ENGINE_BUILT is False
+    assert dwe.program_ready() is True and dwe.emergency_ready() is True and dwe.live_ready() is True
+    assert de.live_ok() is True
+    assert dwe._window_engine(None).tier == "program"
 
 
 def test_no_reader_uses_the_legacy_combined_flag_directly():

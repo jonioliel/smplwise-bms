@@ -174,6 +174,14 @@ SOURCES: tuple[Source, ...] = (
        who="managers", subject="door", resolve_text="מצב החירום הסתיים", app=True),
     _s("door.emergency.partial", "חירום: לא כל הדלתות אישרו", "doors", "critical", "חירום: לא כל הדלתות אישרו",
        "{failed} מתוך {count} דלתות לא אישרו.", who="managers", subject="door", resolve_text="מצב החירום הסתיים"),
+    # DOORLIVE-2310 (plan G6 / G10): after a restart the incident is still in effect - verify against the access system; and: no contact with the access
+    # system while an incident is active. Both resolve with the incident.
+    _s("door.emergency.verify", "חירום: יש לאמת מול מערכת הכניסה", "doors", "critical", "מצב חירום פעיל אחרי הפעלה מחדש",
+       "{kind} ל־{count} דלתות ({scope}) עדיין בתוקף במערכת. יש לאמת את מצב הדלתות במערכת הכניסה ולשחרר אם צריך.", who="managers", subject="door",
+       resolve_text="מצב החירום הסתיים"),
+    _s("door.emergency.link_lost", "חירום: אין קשר עם מערכת הכניסה", "doors", "critical", "אין קשר עם מערכת הכניסה בזמן מצב חירום",
+       "{kind} ({scope}): אין קשר עם מערכת הכניסה, לא ניתן לאשר או לשחרר. יש לפעול ידנית בדלתות.", who="managers", subject="door",
+       resolve_text="הקשר חזר"),
     _s("door.emergency.released", "מצב חירום הסתיים", "doors", "alert", "מצב החירום הסתיים", "{kind} שוחרר ({scope}).", who="managers",
        subject="door", resolves=False),
     _s("door.emergency.drill", "תרגיל חירום בדלתות", "doors", "info", "תרגיל חירום", "תרגיל {kind} ({scope}) - ללא פעולה אמיתית.",

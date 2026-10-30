@@ -157,6 +157,18 @@ def open_available(settings: Any, conn: sqlite3.Connection | None = None) -> boo
         return False
 
 
+def lock_available(settings: Any, conn: sqlite3.Connection | None = None) -> bool:
+    """DOORLIVE-2310 (owner decision 2026-10-30, item 4): whether the LIVE engine can LOCK doors (`lock_secure`). False for the WisKey v2
+    engine (no such command): the LOCK control is hidden and a real LOCK start is refused. A release of a LOCK that exists is unaffected;
+    drills run against the simulation and never ask."""
+    if not live_ok(conn):
+        return False
+    try:
+        return getattr(dwe.emergency_engine(settings), "lock_supported", False) is True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def enabled(conn: sqlite3.Connection) -> bool:
     return setting(conn, ENABLED) == "on" and live_ok(conn)
 
@@ -168,7 +180,7 @@ def open_enabled(conn: sqlite3.Connection, settings: Any) -> bool:
 def settings_view(conn: sqlite3.Connection, settings: Any) -> dict[str, Any]:
     return {**{k: setting(conn, k) for k in SETTINGS}, "go_live_permitted": live_ok(conn), "live_engine_built": dwe.emergency_engine_built(),
             "emergency_engine_built": dwe.emergency_engine_built(), "build_ready": dwe.emergency_ready(),  # build_ready: permit + engine flag, before the settings switch
-            "open_available": open_available(settings, conn),
+            "open_available": open_available(settings, conn), "lock_available": lock_available(settings, conn),
             "attested": attested(conn), "attestation": {"version": ATTESTATION_VERSION, "text": ATTESTATION_TEXT_HE}}
 
 
@@ -371,6 +383,8 @@ def prepare(conn: sqlite3.Connection, settings: Any, principal: Principal, *, ac
             raise _refuse(conn, principal, audit_action, 409, "emergency_off", "לחצני החירום כבויים.")
         if kind == "open" and not open_enabled(conn, settings):
             raise _refuse(conn, principal, audit_action, 409, "open_unavailable", "פתיחת חירום אינה זמינה.")
+        if kind == "lock_secure" and not lock_available(settings, conn):  # DOORLIVE-2310: no WisKey command for a LOCK
+            raise _refuse(conn, principal, audit_action, 409, "lock_unavailable", "נעילת חירום אינה זמינה: אין פקודה מתאימה במערכת הכניסה.")
     if action == "start":
         target = scope_target(scope_type, scope_id)
         if not authorize(conn, principal, PERMISSION[kind], target).allowed:
@@ -434,6 +448,8 @@ def start(conn: sqlite3.Connection, settings: Any, principal: Principal, *, toke
             raise _refuse(conn, principal, audit_action, 409, "emergency_off", "לחצני החירום כבויים.")
         if kind == "open" and not open_enabled(conn, settings):
             raise _refuse(conn, principal, audit_action, 409, "open_unavailable", "פתיחת חירום אינה זמינה.")
+        if kind == "lock_secure" and not lock_available(settings, conn):  # DOORLIVE-2310
+            raise _refuse(conn, principal, audit_action, 409, "lock_unavailable", "נעילת חירום אינה זמינה: אין פקודה מתאימה במערכת הכניסה.")
     limited = _start_rate(conn, principal.user_id, drill, now)
     if limited:
         raise _refuse(conn, principal, "door.emergency.rate_limited", 429, "rate_limited", "יותר מדי הפעלות חירום בזמן קצר.", limit=limited)

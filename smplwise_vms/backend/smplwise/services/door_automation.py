@@ -45,7 +45,10 @@ log = logging.getLogger("smplwise.door_automation")
 # The owner's SEPARATE go-live permit, enforced in code (the capture-lease / external-grants pattern): while False the feature
 # switch cannot be turned on and the live sender refuses. Flipped only by the commit that carries the owner's written permit
 # AND a reviewed live sender - never by a setting, an environment variable or a version.
-GO_LIVE_PERMITTED = False
+# DOORLIVE-2310 (owner decision 2026-10-30, item 6): door_automation is in scope and the permit is in the regular release. The administrator switch
+# `doors.automation_open` stays OFF by default (and `doors.automation_kill` stops every block); the live sender is WisKey's Native `door_automations`
+# feature over the SELECTED direct connection only (services/wiskey_auto_door.py): without a selected connection nothing is sent.
+GO_LIVE_PERMITTED = True
 
 AUTOMATE = "access.doors.automate"
 FLAG_KEY = "doors.automation_open"  # off (default) | on; `doors.*` never travels in a backup (CR-033 section 9)

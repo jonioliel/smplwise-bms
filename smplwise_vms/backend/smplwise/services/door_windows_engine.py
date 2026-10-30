@@ -37,8 +37,14 @@ LIVE_ENGINE_BUILT = False
 # WisKey) and the emergency buttons. They are now two independent build flags, both OFF. `LIVE_ENGINE_BUILT` is kept as the legacy
 # combined flag: a build that sets it True keeps today's behaviour (both on), exactly as before the split. Readers use
 # `program_ready()` / `emergency_ready()`; nothing reads `LIVE_ENGINE_BUILT` directly any more.
-PROGRAM_ENGINE_BUILT = False
-EMERGENCY_ENGINE_BUILT = False
+# DOORLIVE-2310 (owner decisions 2026-10-30, items 2-3): the two engines are BUILT into the regular release - the Direct adapters are wired
+# (services/door_engine_live.py installs them at startup) - and activation is by the administrator switches only, all OFF by default:
+# `doors.windows.enabled` (programs; no rule exists until an administrator acts), `doors.emergency.enabled` + `doors.emergency.open_enabled`
+# (+ the life-safety attestation), `doors.automation_open` (door_automation). Each flag is independent; setting one False in a build again
+# restores the tier-D PreparedEngine / the refusing emergency engine for that feature alone. Without a selected direct connection nothing is
+# sent (`not_sent`) and the emergency OPEN is not offered (`open_supported` False).
+PROGRAM_ENGINE_BUILT = True
+EMERGENCY_ENGINE_BUILT = True
 
 ERROR_KINDS = ("not_permitted", "not_implemented", "not_sent", "unknown", "refused", "revision_conflict")
 PROGRAM_STATUSES = ("idle", "opening", "held_acknowledged", "restoring", "unknown")
@@ -151,6 +157,7 @@ class EmergencyEngine(Protocol):
 
     simulated: bool
     open_supported: bool
+    lock_supported: bool  # DOORLIVE-2310 (owner decision 2026-10-30, item 4): False = no WisKey command exists for `lock_secure`; the LOCK control is hidden
 
     def apply(self, kind: str, station_id: str, relay: int, request_id: str, reason: str) -> DoorOutcome: ...
 
@@ -214,6 +221,7 @@ class WiskeyEmergencyEngine:
 
     simulated = False
     open_supported = False
+    lock_supported = False
     # DW-03 (review 3): the W13-e transport's own per-call timeout. It must end a call BEFORE door_emergency.ENGINE_DEADLINE_S (8 s), so a
     # thread of the hard per-call deadline (door_emergency.call_with_deadline) never outlives it for long. No transport exists yet.
     transport_timeout_s = 6.0
@@ -251,6 +259,7 @@ class DrillEngine:
     script: dict[str, str] = field(default_factory=dict)  # "station:relay" -> outcome
     simulated: bool = True
     open_supported: bool = True
+    lock_supported: bool = True  # a drill rehearses both kinds (never reaches a station)
     calls: list[tuple[str, str, str, int]] = field(default_factory=list)
 
     def _answer(self, phase: str, kind: str, station_id: str, relay: int) -> DoorOutcome:

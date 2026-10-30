@@ -288,8 +288,9 @@ def test_the_shipped_build_keeps_windows_prepared_with_the_real_factory(settings
     windows on plans in tier D: no engine write fails, nothing is `planned`, no "window not started" alarm at the window's start."""
     from smplwise.services import door_windows_engine as dwe
 
+    # DOORLIVE-2310: the release builds the engines in; this test models the ROLLBACK build (engine flags off) with the real factory
+    pw = ProductWorld(settings, monkeypatch, go_live=False, start=T_START)  # go_live=False sets the engine flags off
     assert dwe.GO_LIVE_PERMITTED is True and dwe.LIVE_ENGINE_BUILT is False and dwe.live_ready() is False
-    pw = ProductWorld(settings, monkeypatch, go_live=False, start=T_START)
     monkeypatch.setattr(dwe, "WINDOW_ENGINE_FACTORY", dwe._window_engine)  # the factory as shipped, not the world's injected engine
     assert isinstance(dwe.window_engine(None), dwe.PreparedEngine)
     pw.windows_on()
