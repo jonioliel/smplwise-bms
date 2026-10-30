@@ -255,7 +255,9 @@
 #nbk[data-skin="stone"][data-orient="p"] .nb-ph img { object-position: 62% 40%; }
 
 /* a very long notice: the "Up next" list makes room - the stage takes its row as well (the list is hidden) */
-#nbk[data-skin="gallery"][data-long="1"] .nb-st { grid-row: 2 / 4; grid-column: 1; }
+/* Gallery, landscape: the stage also takes the photo's column for this turn (the photo steps aside) */
+#nbk[data-skin="gallery"][data-long="1"][data-orient="l"] .nb-st { grid-row: 2; grid-column: 1 / 4; }
+#nbk[data-skin="gallery"][data-long="1"][data-orient="l"] .nb-ph { visibility: hidden; }
 #nbk[data-skin="concierge"][data-long="1"] .nb-st { grid-area: 2 / 1 / 4 / 4; }
 #nbk[data-skin="concierge"][data-long="1"][data-orient="p"] .nb-st { grid-area: 3 / 1 / 5 / 3; }
 #nbk[data-skin="stone"][data-long="1"] .nb-st { grid-row: 2 / 4; }
