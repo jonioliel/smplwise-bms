@@ -97,11 +97,30 @@ class LiveEmergencyEngine:
             self._inner_for = joined
         return self._inner
 
+    # WIN-ARX-RC4-DEADLINE-01: the selection below may wait (connect, discovery). It runs INSIDE the call's one absolute budget - the
+    # caller's (`door_emergency.call_with_deadline` fixed it before its thread started), shortened to `transport_timeout_s` from here
+    # when that is earlier, never extended. After the selection the budget is checked again: a wait that spent it starts NO new effect
+    # (UNKNOWN `end_to_end_deadline`; nothing was admitted, nothing sent). The inner engine's own scopes only shorten the same end.
+    # A RELEASE stays free of any switch or permit; only the kind and the selection gate it, as before.
+    def _budgeted(self, kind: str, call: Callable[[Any], dwe.DoorOutcome]) -> dwe.DoorOutcome:
+        from . import wiskey_call_budget as budget
+
+        if kind != "open":
+            raise dwe.EngineError("not_implemented", "emergency_secure_not_in_event_v2")
+        try:
+            with budget.scope(self.transport_timeout_s):
+                budget.remaining()
+                engine = self._engine(kind)
+                budget.remaining()  # the selection wait did not spend the budget
+                return call(engine)
+        except budget.DeadlineExpired:
+            return dwe.DoorOutcome("unknown", "end_to_end_deadline")
+
     def apply(self, kind: str, station_id: str, relay: int, request_id: str, reason: str) -> dwe.DoorOutcome:
-        return self._engine(kind).apply(kind, station_id, relay, request_id, reason)
+        return self._budgeted(kind, lambda engine: engine.apply(kind, station_id, relay, request_id, reason))
 
     def release(self, kind: str, station_id: str, relay: int, request_id: str) -> dwe.DoorOutcome:
-        return self._engine(kind).release(kind, station_id, relay, request_id)
+        return self._budgeted(kind, lambda engine: engine.release(kind, station_id, relay, request_id))
 
 
 def install(db: Any, settings: Any = None) -> LiveEmergencyEngine | None:  # noqa: ARG001 - settings kept for the factory signature

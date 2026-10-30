@@ -610,16 +610,27 @@ _INFLIGHT = threading.BoundedSemaphore(INFLIGHT_MAX)
 
 def call_with_deadline(fn: Any, deadline_s: float) -> dwe.DoorOutcome:
     """DW-03 (3): run one engine call on its own daemon thread and wait at most `deadline_s`. A call that has not answered is UNKNOWN
-    `deadline` (never refused, never acknowledged); its late answer is discarded. An exception of the call is raised to the caller."""
+    `deadline` (never refused, never acknowledged); its late answer is discarded. An exception of the call is raised to the caller.
+
+    WIN-ARX-RC4-DEADLINE-01: the ONE absolute end of the call is fixed here, BEFORE the daemon thread starts, and the call runs inside it
+    (`wiskey_call_budget.until`) - the selection / connection wait, the metadata and database reads, the inner engine and its I/O all
+    spend that same budget; nothing after it opens a fresh one. Once it is spent no new effect is started; an I/O already sent is not
+    cancelled by this (its answer is simply not waited for)."""
+    from . import wiskey_call_budget as budget
+
     slots = _INFLIGHT  # the call frees the slot it took, even when the module's cap was replaced meanwhile (a late hung call)
     if not slots.acquire(blocking=False):
         return dwe.DoorOutcome("unknown", "not_sent:lane_full")
     box: dict[str, Any] = {}
     done = threading.Event()
+    end = budget.now() + float(deadline_s)  # fixed before dispatch: a late-starting thread never gets a deadline of its own
 
     def run() -> None:
         try:
-            box["out"] = fn()
+            with budget.until(end):
+                box["out"] = fn()
+        except budget.DeadlineExpired:  # the budget was spent before an effect could start
+            box["out"] = dwe.DoorOutcome("unknown", "end_to_end_deadline")
         except BaseException as exc:  # noqa: BLE001 - handed to the waiting caller
             box["exc"] = exc
         finally:

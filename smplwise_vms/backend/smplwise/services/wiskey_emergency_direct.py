@@ -239,6 +239,7 @@ class DirectEmergencyEngine:
         needs = HOLD_NEEDS if command == "hold_open" else RELEASE_NEEDS
         if not needs <= set(snapshot["permissions"]):
             return dwe.DoorOutcome("refused", "permission_missing")
+        _remaining(None)  # WIN-ARX-RC4-DEADLINE-01: the one budget is re-checked right before the admit; spent = nothing admitted, nothing sent
         try:
             started = self.client.start(conn, body, snapshot)
         except FeatureWireError as exc:
