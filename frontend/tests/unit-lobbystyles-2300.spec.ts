@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { DESIGNS, LIVE_BGS, SYSTEMS_STATUSES, TV2_FACTORY, URGENT_SCREENS, effectiveTv2, tv2Of } from '../src/notice-tv/tv-logic';
 import {
-  HX_STEPS, colsFor, familyOf, fxLevelFor, fxStart, fxStep, greetingKey, isSkin, lineBreaks, lobbyDwell, minBodyPx, skyOf, urgentInRotation, type FxState,
+  HX_STEPS, colsFor, familyOf, fxLevelFor, fxStart, fxStep, greetingKey, isSkin, lineBreaks, lobbyDwell, minBodyPx, skyOf, urgentInRotation, lobbyDrift, lobbyPhoto, systemsShown, type FxState,
 } from '../src/notice-tv/skin-logic';
 import { digitsHtml, numIso, words } from '../src/notice-tv/hx-parts';
 import { spring } from '../src/notice-tv/hx-engine';
@@ -119,4 +119,21 @@ test('the spring curve is a linear() that ends at 1', () => {
   expect(s.ms).toBeLessThan(1500);
   expect(s.ease.startsWith('linear(0')).toBe(true);
   expect(s.ease.endsWith('1)')).toBe(true);
+});
+
+test('luxury: the night photo, the single darkened photo, the always-on drift, the systems row only on problems', () => {
+  expect(lobbyPhoto(false, 'd', 'n')).toEqual({ src: 'd', dim: false });
+  expect(lobbyPhoto(true, 'd', 'n')).toEqual({ src: 'n', dim: false });
+  expect(lobbyPhoto(true, 'd', '')).toEqual({ src: 'd', dim: true });
+  expect(lobbyPhoto(false, '', 'n')).toEqual({ src: 'n', dim: false });
+  expect(lobbyPhoto(true, '', '')).toEqual({ src: '', dim: false });
+  expect(lobbyDrift('auto', false)).toBe(true);
+  expect(lobbyDrift('full', false)).toBe(true);
+  expect(lobbyDrift('auto', true)).toBe(false);
+  expect(lobbyDrift('frozen', false)).toBe(false);
+  expect(lobbyDrift('off', false)).toBe(false);
+  const info = [{ state: 'ok' }, { state: 'warn' }, { state: 'alarm' }, { state: 'off' }];
+  expect(systemsShown(info, 'problems').map((x) => x.state)).toEqual(['warn', 'alarm']);
+  expect(systemsShown(info, 'always')).toHaveLength(4);
+  expect(systemsShown([{ state: 'ok' }], 'problems')).toEqual([]);
 });
