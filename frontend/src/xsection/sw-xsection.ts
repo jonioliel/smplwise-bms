@@ -72,6 +72,8 @@ export class SwXSection extends LitElement {
       .chip.hot { background: color-mix(in srgb, var(--sw-heat) 16%, var(--sw-surface)); color: var(--sw-text); }
       .chip.cold { background: color-mix(in srgb, var(--sw-cool) 16%, var(--sw-surface)); color: var(--sw-text); }
       .chip.off { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-border-strong); color: var(--sw-text-3); }
+      /* white on --sw-danger is 3.8:1; the darker mix is 5.3:1 (ui-ux-pro-max contrast pass) */
+      .chip.alarm { background: color-mix(in srgb, var(--sw-danger) 80%, #000); color: #fff; font-weight: var(--sw-fw-bold); }
       .body { min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
       .body.has-shafts { padding-block-start: 22px; }
       .stack { container-type: size; position: relative; min-block-size: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
@@ -91,6 +93,8 @@ export class SwXSection extends LitElement {
       .deg { min-inline-size: 64px; text-align: end; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: var(--sw-heading); line-height: 1; direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
       .deg small { font-size: 0.6em; font-weight: 700; color: var(--sw-text-3); }
       .deg.none { color: var(--sw-text-3); }
+      .row[data-temp='hot'] .deg { color: color-mix(in srgb, var(--sw-heat) 62%, var(--sw-heading)); }
+      .row[data-temp='cold'] .deg { color: color-mix(in srgb, var(--sw-cool) 62%, var(--sw-heading)); }
       .row[data-temp='hot'] { background: color-mix(in srgb, var(--sw-heat) 12%, var(--sw-surface-2)); }
       .row[data-temp='cold'] { background: color-mix(in srgb, var(--sw-cool) 12%, var(--sw-surface-2)); }
       .row[data-off] { background: repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--sw-border) 55%, transparent) 7px 8px), var(--sw-surface-2); box-shadow: inset 0 0 0 1px var(--sw-border-strong); }
@@ -98,9 +102,12 @@ export class SwXSection extends LitElement {
       .row[data-fire='alarm'] { background: color-mix(in srgb, var(--sw-danger) 14%, var(--sw-surface)); box-shadow: inset 0 0 0 2px var(--sw-danger); }
       .row.below:not([data-off]):not([data-temp]):not([data-fire]) { background: color-mix(in srgb, var(--sw-surface-2) 70%, var(--sw-surface-3)); }
       .row.sel { background: var(--sw-accent-soft); box-shadow: inset 0 0 0 2px var(--sw-accent); }
+      .row.sel[data-fire='alarm'] { box-shadow: inset 0 0 0 2px var(--sw-accent), inset 0 0 0 4px color-mix(in srgb, var(--sw-danger) 45%, transparent); }
       .row.sel::after { content: ''; position: absolute; inset-inline-start: -7px; top: 50%; inline-size: 12px; block-size: 12px; margin-block-start: -6px; background: var(--sw-accent); border-radius: 2px; transform: rotate(45deg); }
+      @media (prefers-reduced-motion: no-preference) { .row.sel::after { animation: xs-notch 160ms var(--sw-ease, ease) backwards; } }
+      @keyframes xs-notch { from { opacity: 0; transform: rotate(45deg) scale(0.4); } }
       .ground { position: relative; flex: none; block-size: 2px; margin: 4px 6px; border-radius: 2px; background: var(--sw-border-strong); }
-      .ground span { position: absolute; inset-inline-end: 0; top: 50%; transform: translateY(-50%); padding: 0 8px; background: var(--sw-surface); color: var(--sw-text-3); font-size: 11.5px; font-weight: 600; border-radius: 999px; line-height: 18px; box-shadow: inset 0 0 0 1px var(--sw-border); }
+      .ground span { position: absolute; inset-inline-end: 0; top: 50%; transform: translateY(-50%); padding: 0 8px; background: var(--sw-surface); color: var(--sw-text-3); font-size: 12px; font-weight: 600; border-radius: 999px; line-height: 18px; box-shadow: inset 0 0 0 1px var(--sw-border); }
       .shafts { display: flex; gap: 6px; min-block-size: 0; }
       .shaft { position: relative; inline-size: 26px; display: flex; flex-direction: column; gap: 6px; }
       .shaft .hd { position: absolute; top: -24px; inset-inline-start: 50%; transform: translateX(-50%); color: var(--sw-text-3); }
@@ -115,7 +122,7 @@ export class SwXSection extends LitElement {
       .shaft .c.bot::before { bottom: 50%; }
       .shaft .c.in::after { content: ''; position: absolute; inset-inline-start: 50%; top: 50%; inline-size: 8px; block-size: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--sw-surface); box-shadow: inset 0 0 0 2px var(--sw-accent); }
       .shaft .c.in.pend::after { box-shadow: inset 0 0 0 2px var(--sw-text-3); background: var(--sw-surface-2); }
-      .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--sw-text-3); }
+      .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--sw-text-3); }
       .legend span { display: inline-flex; align-items: center; gap: 5px; }
       .legend i { inline-size: 10px; block-size: 10px; border-radius: 3px; background: var(--sw-border-strong); }
       .legend i.cold { background: var(--sw-cool); }
@@ -141,9 +148,9 @@ export class SwXSection extends LitElement {
       .stack[data-d='s'] .row.sel::after { inline-size: 9px; block-size: 9px; margin-block-start: -4.5px; inset-inline-start: -5px; }
       .stack[data-d='s'] .ground { margin-block: 2px; }
       /* entrance: fade only unless motion is allowed and the option is on */
-      .stack[data-enter] .row { animation: xs-fade 160ms var(--sw-ease, ease) both; }
+      .stack[data-enter] .row { animation: xs-fade 160ms var(--sw-ease, ease) backwards; }
       @media (prefers-reduced-motion: no-preference) {
-        .stack[data-enter='rise'] .row { animation: xs-rise 260ms var(--sw-ease, ease) both; animation-delay: calc(var(--i, 0) * var(--step, 20ms) * 0.4); }
+        .stack[data-enter='rise'] .row { animation: xs-rise 260ms var(--sw-ease, ease) backwards; animation-delay: calc(var(--i, 0) * var(--step, 20ms) * 0.4); }
       }
       @keyframes xs-fade { from { opacity: 0; } to { opacity: 1; } }
       @keyframes xs-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -171,7 +178,7 @@ export class SwXSection extends LitElement {
       <span class="nm"><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span><span class="s">${sub}</span></span>
       ${panes(f, 10)}
       <span class="val">
-        ${alarm ? html`<span class="chip hot" style="background:var(--sw-danger);color:#fff">${xi('flame')}<span class="w">${xt('fireAlarm')}</span></span>` : nothing}
+        ${alarm ? html`<span class="chip alarm">${xi('flame')}<span class="w">${xt('fireAlarm')}</span></span>` : nothing}
         ${f.nodata ? html`<span class="chip off">${xi('offline')}<span class="w">${xt('noData')}</span></span>` : t === 'hot' ? html`<span class="chip hot">${xi('flame')}<span class="w">${xt('hot')}</span></span>` : t === 'cold' ? html`<span class="chip cold">${xi('snow')}<span class="w">${xt('cold')}</span></span>` : nothing}
         ${f.nodata ? nothing : html`<span class="chip ${f.lit ? 'warm' : ''} lc">${xi('light')}<b>${litText(f)}</b></span>`}
         ${deg(f)}
@@ -241,7 +248,9 @@ export class SwXsCompact extends LitElement {
   static styles = css`
     :host { display: block; }
     button { inline-size: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 16px; background: var(--sw-surface); box-shadow: var(--sw-shadow-1); border: 1px solid var(--sw-border); text-align: start; font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
+    button { transition: transform var(--sw-t-press, 100ms) var(--sw-ease, ease), box-shadow var(--sw-t-hover, 120ms) var(--sw-ease-color, ease); }
     button:active { transform: scale(var(--sw-press-scale, 0.98)); }
+    @media (hover: hover) and (pointer: fine) { button:hover { box-shadow: var(--sw-shadow-2, var(--sw-shadow-1)); } }
     b.tt { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; color: var(--sw-heading); }
     .xi { inline-size: 14px; block-size: 14px; flex: none; }
     .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-block-start: 6px; }
@@ -289,9 +298,9 @@ export class SwXsCompact extends LitElement {
 
 /** The tile's styles, included by the host that draws tiles beside its cards (explore-floors). */
 export const xsTileStyles = css`
-  .xtile { inline-size: 54px; flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-radius: var(--sw-r-md); background: var(--sw-surface-2); padding: 0; font: inherit; color: var(--sw-heading); font-size: 12.5px; font-weight: 700; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; min-block-size: 44px; }
+  .xtile { inline-size: 54px; flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-radius: var(--sw-r-md); background: var(--sw-surface-2); padding: 0; font: inherit; color: var(--sw-heading); font-size: 12.5px; font-weight: 700; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; min-block-size: 44px; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); }
   .xtile:active { transform: scale(var(--sw-press-scale, 0.98)); }
-  .xtile .tv { font-size: 11.5px; font-weight: 600; color: var(--sw-text-2); direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+  .xtile .tv { font-size: 12px; font-weight: 600; color: var(--sw-text-2); direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
   .xtile[data-temp='hot'] { background: color-mix(in srgb, var(--sw-heat) 16%, var(--sw-surface)); }
   .xtile[data-temp='cold'] { background: color-mix(in srgb, var(--sw-cool) 16%, var(--sw-surface)); }
   .xtile[data-off] { background: repeating-linear-gradient(135deg, transparent 0 5px, var(--sw-border) 5px 6px), var(--sw-surface-2); }

@@ -95,7 +95,7 @@ export class SwFireBar extends LitElement {
     .tx { min-inline-size: 0; flex: 1 1 220px; display: flex; flex-direction: column; gap: 1px; }
     .tx b { font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .tx span { opacity: 0.95; overflow-wrap: anywhere; }
-    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(255, 255, 255, 0.35) 5px 6px), rgba(0, 0, 0, 0.25); font-size: 11.5px; font-weight: 700; }
+    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(255, 255, 255, 0.35) 5px 6px), rgba(0, 0, 0, 0.25); font-size: 12px; font-weight: 700; }
     .ac { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
         .lnk { min-block-size: 40px; padding: 0 14px; border-radius: 999px; border: 0; background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7); color: #fff; font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
