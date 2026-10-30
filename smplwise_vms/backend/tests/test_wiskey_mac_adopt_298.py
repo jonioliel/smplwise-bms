@@ -441,7 +441,11 @@ def test_d_peer_result_classes_are_closed() -> None:
 # ================================================================ E: the final catalog and capabilities
 
 def test_e_the_runtime_catalog_is_the_final_one() -> None:
-    c = wdc.load()
+    # WISKEY-RC4-2310: the pins below are the catalog FILE's; the rc.4 runtime `load()` adds exactly the two emergency event commands
+    c = wdc.parse(wdc.CATALOG_PATH.read_text(encoding="utf-8"))
+    runtime = wdc.load()
+    assert runtime.registered_count == c.registered_count + 2 and runtime.command_count == c.command_count + 2
+    assert runtime.get("features/emergency_event_status_v1") is not None and runtime.get("features/emergency_secure_v1") is not None
     # WISKEY-ADOPT-2272 supersedes the 27.10 catalog with the owner28 one (CODE 0a099c53): a superset of every command checked here
     assert (c.source_sha256, c.code) == ("3123d20d086856f981f22c0604a4e951350482587d530a6e9a2c054898a4642e",
                                          "4407121a8ad9df2bbebc07161808bbbc2664b592")  # WISKEY-R3-2272: rc.39 catalog

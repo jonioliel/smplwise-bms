@@ -77,6 +77,10 @@ PINNED_HA_LOCK = frozenset({
 ENGINE_WRITES: frozenset[tuple[str, str]] = frozenset({
     ("smplwise/services/wiskey_program_direct.py", "stations/technical_program_save"),
     ("smplwise/services/wiskey_program_direct.py", "stations/technical_program_action"),
+    # WISKEY-RC4-2310 (reviewed against SR-1): the rc.4 read-only probe names the two program commands only to READ whether the join
+    # selects them (`join.selected(name)`) and whether the catalog lists them; it never calls them (its only call is `features/status`).
+    ("smplwise/services/wiskey_selected_readonly.py", "stations/technical_program_save"),
+    ("smplwise/services/wiskey_selected_readonly.py", "stations/technical_program_action"),
 })
 TIMER_SHAPED = re.compile(r"(^door_windows_watch|_watch$|watchdog|scheduler|_tick$|_ticker$|_jobs?$|^notify_sources$)")
 

@@ -105,7 +105,9 @@ def test_program_without_a_selected_connection_sends_nothing():
     assert e.value.kind == "not_sent"
 
 
-@pytest.mark.parametrize("error, kind", [(PortError("revision_conflict", "refused"), "revision_conflict"), (PortError("station_unloaded", "refused"), "refused"),
+# WISKEY-RC4-2310 (owner30 contribution, adopted): a signed refusal other than the program CAS code carries no commit-stage proof (the
+# original handler may already have persisted the program), so it is UNKNOWN - never "refused / not written".
+@pytest.mark.parametrize("error, kind", [(PortError("revision_conflict", "refused"), "revision_conflict"), (PortError("station_unloaded", "refused"), "unknown"),
                                          (PortError("timeout", "unknown"), "unknown"), (PortError("wiskey_direct_not_connected", "not_sent"), "not_sent")])
 def test_program_errors_map_to_the_engine_kinds(error, kind):
     with pytest.raises(dwe.EngineError) as e:
