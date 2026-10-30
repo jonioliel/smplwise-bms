@@ -262,6 +262,11 @@
 #nbk[data-skin="concierge"][data-long="1"] .nb-st { grid-area: 2 / 1 / 4 / 4; }
 #nbk[data-skin="concierge"][data-long="1"][data-orient="p"] .nb-st { grid-area: 3 / 1 / 5 / 3; }
 #nbk[data-skin="stone"][data-long="1"] .nb-st { grid-row: 2 / 4; }
+/* Stone, landscape: a very long notice widens the text slab over the photo (the clock steps down) so the columns have room */
+#nbk[data-skin="stone"][data-long="1"][data-orient="l"] .nb-slab { inline-size: 1280px; }
+#nbk[data-fam="luxury"][data-skin="stone"][data-long="1"][data-orient="l"] .nb-pg { grid-template-columns: 1280px minmax(0, 1fr); }
+#nbk[data-skin="stone"][data-long="1"][data-orient="l"] .nb-ph { right: 1240px; }
+#nbk[data-skin="stone"][data-long="1"][data-orient="l"] .nb-time .nb-t { font-size: 130px; }
 #nbk[data-skin="gallery"][data-long="1"] .nb-msg { padding-block-end: 0; }
 #nbk[data-skin="gallery"][data-long="1"][data-orient="p"] .nb-st { grid-row: 4 / 6; grid-column: 1 / 3; }
 #nbk[data-skin="stone"][data-long="1"][data-orient="p"] .nb-st { grid-row: 3 / 5; grid-column: 1 / 3; }
