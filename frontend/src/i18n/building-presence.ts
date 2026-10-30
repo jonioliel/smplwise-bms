@@ -1,5 +1,8 @@
 import { ptLang } from './presence';
 
+/** PRESENCE-DESIGN-2300: a count with the locale's group separator (1,284), never a raw number. */
+const num = (n: number) => new Intl.NumberFormat(ptLang() === 'en' ? 'en-US' : 'he-IL').format(n);
+
 /**
  * BUILDING-PRESENCE-2271 / PRESENCE-2280: the words of the building-presence chip and card (overview), the plan-map chips and the settings page.
  * Hebrew first; English follows the document language (a missing English key falls back to the Hebrew). Short, no paragraphs, no platform
@@ -53,8 +56,9 @@ const he = {
   purged: 'ההיסטוריה נמחקה',
   tab: 'חיישנים במבנה',
   timesHeading: 'זמנים ותצוגה',
-  cardSub: (n: number, of: number) => `${n} מתוך ${of} חדרים עם חיישן פעילים`,
-  cardAllEmpty: (of: number) => `כל ${of} החדרים ריקים`,
+  // PRESENCE-DESIGN-2300 (break-ui): one room and no room read as words, never "כל 1 החדרים"
+  cardSub: (n: number, of: number) => (of === 1 ? 'החדר היחיד עם חיישן פעיל' : `${num(n)} מתוך ${num(of)} חדרים עם חיישן פעילים`),
+  cardAllEmpty: (of: number) => (of === 0 ? 'אין עדיין חדר עם חיישן' : of === 1 ? 'החדר היחיד עם חיישן ריק' : `כל ${num(of)} החדרים ריקים`),
   cardNoInfo: 'החיישנים לא מדווחים',
   cardNote: 'חדרים, לא אנשים · בלי שמות',
   updated: (hhmm: string) => `עודכן ${hhmm}`,
@@ -69,8 +73,13 @@ const he = {
   stateNow: 'מצב עכשיו',
   removeTag: 'הסרת הסימון',
   close: 'סגירה',
-  moreRooms: (n: number) => `ועוד ${n}`,
+  moreRooms: (n: number) => `ועוד ${num(n)}`,
   onMap: 'במפה',
+  // PRESENCE-DESIGN-2300: the settings page's own loading and error states (a failed read never shows the switch as "off")
+  loading: 'טוען את הגדרות הנוכחות',
+  loadFailed: 'לא ניתן לקרוא את הגדרות הנוכחות',
+  retry: 'נסה שוב',
+  count: (n: number) => num(n),
 };
 type Key = keyof typeof he;
 
@@ -89,11 +98,13 @@ const en: Partial<Record<Key, unknown>> = {
   rowsKept: 'Records kept', oldest: 'Oldest', purge: 'Delete all history', purgeTitle: 'Delete all presence history?',
   purgeBody: (n: number) => `${n} records will be deleted. This cannot be undone. The current state on the map and home screen is not affected.`,
   purgeConfirm: 'Delete', cancel: 'Cancel', purged: 'History deleted', tab: 'Building sensors', timesHeading: 'Times and display',
-  cardSub: (n: number, of: number) => `${n} of ${of} rooms with a sensor are active`, cardAllEmpty: (of: number) => `All ${of} rooms are empty`,
+  cardSub: (n: number, of: number) => (of === 1 ? 'The only room with a sensor is active' : `${num(n)} of ${num(of)} rooms with a sensor are active`),
+  cardAllEmpty: (of: number) => (of === 0 ? 'No room has a sensor yet' : of === 1 ? 'The only room with a sensor is empty' : `All ${num(of)} rooms are empty`),
   cardNoInfo: 'The sensors are not reporting', cardNote: 'Rooms, not people · no names', updated: (hhmm: string) => `Updated ${hhmm}`,
   found: 'found', filterLabel: 'Filter sensors', filterAll: 'All', filterTagged: 'Tagged', filterUntagged: 'Not tagged',
   kindWord: (k: string | null) => (k === 'motion' ? 'Motion sensor' : 'Presence sensor'), editTitle: 'Edit tag', stateNow: 'State now', removeTag: 'Remove tag', close: 'Close',
-  moreRooms: (n: number) => `+${n} more`, onMap: 'On the map',
+  moreRooms: (n: number) => `+${num(n)} more`, onMap: 'On the map',
+  loading: 'Loading the presence settings', loadFailed: 'The presence settings could not be read', retry: 'Try again', count: (n: number) => num(n),
 };
 
 export const BP: typeof he = new Proxy(he, {
