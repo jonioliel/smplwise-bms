@@ -266,12 +266,20 @@ class Ctx:
         the name of a device outside their reach). `code_view` decides whether a template's text travels in its locked block."""
         name_of = (lambda e: self.name_of(e) if self.access.can_read_state(e) else e) if (names_scoped and self.principal is not None) else self.name_of
         return model.ModelContext(names=name_of, notify_name=self.notify_name, device_name=self.device_name, shabbat_sensor=self.shabbat_sensor or None, allowed_actions=self.allowed_actions(),
-                                  template_text=code_view, wall_buttons=self.wall_buttons, presence_entity=self.presence_entity)
+                                  template_text=code_view, wall_buttons=self.wall_buttons, presence_entity=self.presence_entity,
+                                  presence_sensors=self.presence_sensors)
 
     # KAV079-295: the two model switches of the editors' extension (both default off / empty)
     @property
     def wall_buttons(self) -> bool:
         return self.cfg.get("automations.wall_buttons_editable") == "true"
+
+    @property
+    def presence_sensors(self) -> tuple[str, ...]:
+        """BUILDING-PRESENCE-2271: the presence sensors the owner tagged (empty = the cockpit's building-presence blocks do not exist)."""
+        from . import building_presence as bp
+
+        return tuple(bp.tagged_ids(self.conn)) if bp.is_enabled(self.conn) else ()  # PRESENCE-2280: master switch off = not offered
 
     @property
     def presence_entity(self) -> str | None:

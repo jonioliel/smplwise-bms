@@ -16,7 +16,7 @@ from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from . import ui_background
-from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, home_screen_options, intercom_authority, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors
+from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, home_screen_options, intercom_authority, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors, xs_options
 
 router = APIRouter()
 
@@ -141,6 +141,9 @@ DEFAULTS: dict[str, str] = {
     # owner 2026-09-30 (phone UX guards): which kinds of management the phone UI (< 768 px) hides - a JSON object of booleans,
     # shape and defaults in services/mobile_options.py; read back as an object. A UX guard only: permissions are unchanged.
     "ui.mobile": '{"hide_structure":true,"hide_layout_editor":false,"hide_wall_arrange":false,"hide_settings_writes":false,"hide_permissions":false,"hide_control_images":true}',
+    # 2.29.0 (owner decisions 2026-10-29): the building cross-section, the synoptic map and the (off by default) fire-alarm UI - one JSON object of options,
+    # shape and defaults in services/xs_options.py; read back as an object. Fire detection is NOT a product feature: fire_ui only prepares the UI.
+    "ui.xs": json.dumps(xs_options.DEFAULT, separators=(",", ":")),
     # owner 2026-10-01 (the person dots and the recording bars were both blue): the colour of each thing the investigation timeline
     # draws - a JSON object {recording, motion, person, vehicle, door, line, offline: palette name | #rrggbb}, shape and
     # defaults in services/timeline_colors.py; read back as an object. Applied by the frontend as custom properties.
@@ -561,6 +564,7 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     out["ui.dd_panel"] = dd_style.stored_panel(out["ui.dd_panel"])
     out["ui.dd_panel_groups"] = dd_style.stored_panel_groups(out["ui.dd_panel_groups"])
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
+    out["ui.xs"] = _stored_xs(out["ui.xs"])
     out["timeline.colors"] = _stored_timeline_colors(out["timeline.colors"])
     for key in brand_colors.KEYS:  # a corrupt stored colour never reaches the page as CSS
         out[key] = brand_colors.stored(out[key], key)
@@ -615,6 +619,14 @@ def _stored_mobile(raw: Any) -> dict[str, bool]:
         return mobile_options.normalize(json.loads(raw) if isinstance(raw, str) else raw)
     except ValueError:
         return dict(mobile_options.DEFAULT)
+
+
+def _stored_xs(raw: Any) -> dict[str, Any]:
+    """The stored ui.xs as an object with every key; a corrupt or foreign value reads as the defaults."""
+    try:
+        return xs_options.normalize(json.loads(raw) if isinstance(raw, str) else raw)
+    except ValueError:
+        return dict(xs_options.DEFAULT)
 
 
 def _stored_timeline_colors(raw: Any) -> dict[str, str]:
@@ -821,6 +833,7 @@ class SettingsPatch(BaseModel):
     ui_dd_panel: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.PANELS) + ")$", alias="ui.dd_panel")
     ui_dd_panel_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_panel_groups")  # validated in full by services/dd_style.py
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
+    ui_xs: dict[str, Any] | None = Field(default=None, alias="ui.xs")  # validated in full by services/xs_options.py (2.29.0)
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     ui_look: dict[str, Any] | None = Field(default=None, alias="ui.look")  # validated in full by services/look.py (every dial required)
     ui_palettes: list[dict[str, Any]] | None = Field(default=None, alias="ui.palettes")  # validated in full (shape; contrast is warn-only) by services/palettes.py
@@ -1114,6 +1127,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["ui.mobile"] = mobile_options.normalize(changes["ui.mobile"])
         except ValueError as exc:
             raise ApiError(422, "validation", "אפשרויות נייד: ערך לא תקין.", details={"ui.mobile": str(exc)})
+    if "ui.xs" in changes:
+        try:
+            changes["ui.xs"] = xs_options.normalize(changes["ui.xs"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "אפשרויות חתך הבניין: ערך לא תקין.", details={"ui.xs": str(exc)})
     if "timeline.colors" in changes:
         try:
             changes["timeline.colors"] = timeline_colors.normalize(changes["timeline.colors"])
@@ -1386,7 +1404,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "plan.surfaces", "plan.view", "plan.bakes", "devices.area_row", "devices.floor_row", "home.screen", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "ui.xs", "timeline.colors", "schedules.classes", "plan.surfaces", "plan.view", "plan.bakes", "devices.area_row", "devices.floor_row", "home.screen", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if "schedules.classes" in changes:
         set_setting(conn, CLASSES_REV_KEY, "2")  # from now on the list is read as saved (the 2026-10-04 classes can be switched off)
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now

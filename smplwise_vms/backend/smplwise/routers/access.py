@@ -152,10 +152,17 @@ PERMISSION_LABELS: dict[str, str] = {
     # switch, the allowed sensors, the employee notice, the required-sensors policy, retention) are system.configure.
     "presence.report": "רישום המכשיר הנייד שלי ודיווח נוכחות",
     "presence.sensors.view": "צפייה במכשירים הניידים של כולם ובמה שהם משתפים",
+    # BUILDING-PRESENCE-2271 (board r339): the anonymous "is the building / a room occupied" signal of the sensors the owner tagged (no person,
+    # no phone). Administrators and site managers by default; the cockpit's trigger / condition read the same sensors.
+    "presence.building.view": "צפייה בנוכחות במבנה ובחדרים (אנונימי, מחיישני נוכחות מסומנים)",
     # WHOIN034-295 (board r034): presence.view opens "מי במבנה" - who the phone app currently places inside, by floor and area. Scoped like
     # the map (a floor-scoped holder sees that floor only; a person placed on a site only needs installation scope). system_admin only by
     # default and SENSITIVE (a custom role names it among its sensitive permissions): it shows where named people are right now.
     "presence.view": "צפייה במי שנמצא במבנה (מסך מי במבנה)",
+    # 2.29.0 (owner decision 10, 2026-10-29): fire.acknowledge - a NEW, SEPARATE permission to acknowledge a fire alarm on the building board. SENSITIVE and held by no built-in role
+    # (a custom role names it explicitly). Fire detection is NOT a product feature yet: no integration reports a fire, so nothing on the server checks this permission today; the
+    # frontend alarm UI (off by default, option ui.xs fire_ui) reads it from /me and is demo-only until an integration exists.
+    "fire.acknowledge": "אישור קבלת אזעקת אש (לוח הבניין; אין עדיין חיבור לגילוי אש)",
     # CR-TIMESCRUB101 section 6/7 (owner-approved 2026-10-24): the PAST of the presence sensors (motion / occupancy / presence) on the
     # historical map's time scrub - it tells who was where, so it is not implied by devices.read: floor scope, site_admin and system_admin
     # by default, in sensitive_permissions_not_implied; every serving writes one audit row per (user, floor, day) (history.presence.view).
@@ -429,6 +436,15 @@ PERMISSION_LABELS: dict[str, str] = {
     "notices.boards": "לוח הודעות: לוחות תצוגה (קישורים והגדרות מסך)",
     # NOTICEDEL-295: real deletion of a published or archived notice (a draft is deleted by its writer). site_admin + system_admin; not delegable by default.
     "notices.delete": "לוח הודעות: מחיקה סופית של הודעה",
+    # CALENDARS-298 section 6.1 (module OFF by default): installation permissions; the per-calendar roles (view / book / edit / manage) sit on top.
+    "calendar.view": "יומנים: צפייה",
+    "calendar.book": "יומנים: יצירת אירועים והזמנות שלי",
+    "calendar.book_for_others": "יומנים: הזמנה בשם צוות, חוג או לקוח",
+    "calendar.manage": "יומנים: ניהול יומנים (יצירה, מנהלים, תפקידים)",
+    "calendar.maintenance": "יומנים: חלונות תחזוקה",
+    "calendar.guests": "יומנים: צפייה בפרטי אורחים (שם וטלפון)",
+    "calendar.configure": "יומנים: הגדרות המודול",
+    "calendar.connect": "יומנים: חיבור יומנים חיצוניים ופידים",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update",
                       "users.ha_manage", "identity.local.manage", "bridge.key.rotate", "partner.manage"}  # rbac.assign is delegable (T082); USR1: users.ha_manage; USR2: identity.local.manage (system_admin only, never in a custom role)
@@ -440,6 +456,7 @@ SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directo
 # (a delegated administrator cannot hand out building-wide hold-open or emergency rights unless the owner adds them to `rbac.delegable_roles`).
 DEFAULT_DELEGABLE = ["viewer", "operator", "tickets_view", "tickets_create", "tickets_manage", "door_windows_guard",  # CR-038 8.2: the three plain ticket grants
                      "notices_manage", "notices_push", "notices_boards",  # CR-NOTICE106 section 6: the notice board's grants are delegable
+                     "calendar_booker", "calendar_on_behalf",  # CALENDARS-298 section 6.1: the two plain booking grants are delegable
                      "announcer"]  # ANNOUNCE-295 (owner 2026-10-25): easy to hand out; every announcement is audited
 NEVER_DELEGABLE = {"system_admin", "site_admin"}
 SENSITIVE: list[str] = list(json.loads((Path(__file__).resolve().parents[1] / "roles.json").read_text(encoding="utf-8")).get("sensitive_permissions_not_implied", []))

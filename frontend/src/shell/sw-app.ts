@@ -83,6 +83,9 @@ import '../screens/live-wall';
 import '../screens/live-camera';
 import '../screens/live-views';
 import '../screens/kiosk-wall';
+import '../screens/devices-synoptic'; // 2.29.0
+import '../xsection/sw-fire-bar'; // 2.29.0: the alarm bar (off unless the option fire_ui is on)
+import { setXsOptions, xsOptions } from '../xsection/xs-model';
 import '../screens/system-wall';
 import '../screens/system-notices'; // CR-NOTICE106: הגדרות › לוח הודעות
 import '../screens/system-transit'; // BUSTIMES-295: הגדרות › תחבורה ציבורית
@@ -131,7 +134,7 @@ import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../api/setup-hint';
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
-import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, isTicketsEntryAddress, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, applyNoticesHidden, applyAnnounceHidden, areaDot, incidentsOpen, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
+import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, isTicketsEntryAddress, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, applyNoticesHidden, applyAnnounceHidden, applySynopticHidden, areaDot, incidentsOpen, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
 import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
 import { DD_CHIPS, DD_COLLIDE_MS, DD_FIT_FRAMES, DD_FIT_STABLE, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
@@ -1967,6 +1970,7 @@ export class SwApp extends LitElement {
           setCustomPalettes(ps['ui.palettes']); // the installation's custom colour palettes (a palette id in the look dial may point at one)
           setInstallationTabsMode(ps as unknown as Record<string, unknown>); // ui.tabs_mode(+_groups): tabs / hybrid / dropdown (0.1.153)
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
+          setXsOptions(ps['ui.xs']); // 2.29.0: the cross-section and the synoptic map options (הגדרות › כללי › חתך הבניין)
           applyPlaybackDisplay(ps); // the helper line and the diagnostics block of the recording screens
           applyTimelineColors(ps['timeline.colors']); // the investigation timeline's colours (הגדרות › וידאו ומדיה › צבעי ציר הזמן)
           applyInstallationColors(ps['ui.accent'], ps['ui.toggle_on']); // 2.4.4: the installation's accent and switch-on colours (design/brand.ts)
@@ -1988,6 +1992,7 @@ export class SwApp extends LitElement {
           if (!applyTicketsHidden(ps as unknown as Record<string, unknown>)) startRfqQuestions(); // tickets.enabled (CR-038): the optional tickets area (+ RFQQUESTIONS: the nav badge)
           applyNoticesHidden(this.session.mode === 'api' && !!this.session.me?.modules?.notices); // CR-NOTICE106: HIDDEN_HREFS was just rebuilt
           applyAnnounceHidden(this.session.mode === 'api' && !!this.session.me?.modules?.announce); // FIX2200: the same for the הכרזות tab
+          applySynopticHidden(xsOptions().syn_tab); // 2.29.0: HIDDEN_HREFS was just rebuilt - the synoptic tab follows ui.xs syn_tab
           void refreshElevatorsVisibility(); // CR-INFRA-ELEVATORS: the elevators tab appears once an elevator is defined
           void refreshInsightsVisibility(); // CR-INSIGHT215: the reports tab appears once a part is on for this viewer
           void refreshTemperatureVisibility(); // CR-INFRA-TEMPERATURE 2.9.1: the temperatures tab appears once a unit is defined (always for a manager)
@@ -2756,6 +2761,7 @@ export class SwApp extends LitElement {
     if (s[0] === 'styleguide' && s[1] === 'bubble' && BUBBLE_SCREENS_ENABLED) return html`<bubble-demo></bubble-demo>`; // Bubble foundation: the components' demo page (fixture)
     if (s[0] === 'styleguide') return html`<styleguide-screen></styleguide-screen>`;
     if (s[0] === 'screens') return html`<screens-index></screens-index>`;
+    if (s[0] === 'kiosk' && s[1] === 'synoptic') return html`<devices-synoptic wall></devices-synoptic>`; // 2.29.0: the wall screen of the synoptic map (a separate address, no shell)
     if (s[0] === 'kiosk') return html`<kiosk-wall></kiosk-wall>`;
     switch (r.mode) {
       case 'live':
@@ -2856,6 +2862,7 @@ export class SwApp extends LitElement {
         // CR-017: "אוטומציות" - the list (automations, scenes, scripts), its drawer, the trash AND the editors are one element that reads the address itself:
         // the routes `.../<id>/edit` and `.../new/edit?kind=&template=` open S4's editor sheet (<automation-builder> / <script-editor> / <scene-editor>) over
         // the list, which stays mounted underneath (closing the sheet returns to the item's drawer or the list without a reload).
+        if (s[1] === 'synoptic') return html`<devices-synoptic></devices-synoptic>`; // 2.29.0: ראשי › מפה סינופטית
         if (s[1] === 'notices') return html`<devices-notices></devices-notices>`; // CR-NOTICE106: לוח הודעות (the screen checks the module and the rights)
         if (s[1] === 'announce') return html`<devices-announce></devices-announce>`; // ANNOUNCE-295: הכרזות (the screen checks the right and the switch)
         if (s[1] === 'automations') return html`<devices-automations .kavarnit=${kavarnitSegments(this.session.mode === 'api', canNav)}></devices-automations>`;
@@ -3419,10 +3426,12 @@ export class SwApp extends LitElement {
   }
 
   render() {
-    if (this.wallMode()) return html`<sw-wall></sw-wall>`;
-    if (this.route?.segments[0] === 'kiosk') return html`<main style="block-size:100dvh">${this.renderScreen()}</main>`;
-    if (this.embedded()) return html`<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;
-    return this.renderA();
+    // 2.29.0: the red fire-alarm bar sits over every screen (the wall display, the kiosk and the embed included); it draws nothing unless the option `fire_ui` is on and an alarm is reported
+    const bar = html`<sw-fire-bar .home=${this.route?.mode === 'devices'}></sw-fire-bar>`;
+    if (this.wallMode()) return html`${bar}<sw-wall></sw-wall>`;
+    if (this.route?.segments[0] === 'kiosk') return html`${bar}<main style="block-size:100dvh">${this.renderScreen()}</main>`;
+    if (this.embedded()) return html`${bar}<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;
+    return html`${bar}${this.renderA()}`;
   }
 }
 

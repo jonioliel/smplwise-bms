@@ -181,6 +181,30 @@ def apply_review(conn: "sqlite3.Connection", recorder_id: str, item: Any, lookup
     return Applied(review=dict(review), event=event, created=created, changed=changed or created, notify=notify)
 
 
+def backfill_cameras(conn: "sqlite3.Connection", recorder_id: str) -> dict[str, int]:
+    """After a camera import: give the review rows and the mirrored Frigate events that were stored while their camera did not exist
+    yet (the first poll can run in the same second as the first import) the camera they belong to. Resolved through the same
+    lookup as `apply_review`; a Frigate camera name that still does not resolve is left alone, and a non-empty camera_id is never
+    changed. Idempotent: a second run finds nothing to do."""
+    lookup = _camera_lookup(conn, recorder_id)
+    reviews = events = 0
+    for r in conn.execute("SELECT review_id, source_ref, event_id FROM frigate_reviews WHERE recorder_id = ? AND (camera_id IS NULL OR camera_id = '')", (recorder_id,)).fetchall():
+        cam = lookup(r["source_ref"])
+        if not cam:
+            continue
+        reviews += conn.execute("UPDATE frigate_reviews SET camera_id = ? WHERE recorder_id = ? AND review_id = ? AND (camera_id IS NULL OR camera_id = '')",
+                                (cam["id"], recorder_id, r["review_id"])).rowcount
+    for e in conn.execute(
+        "SELECT e.id, r.source_ref FROM events e JOIN frigate_reviews r ON r.recorder_id = e.recorder_id AND r.event_id = e.id "
+        "WHERE e.source = ? AND e.recorder_id = ? AND (e.camera_id IS NULL OR e.camera_id = '')", (SOURCE, recorder_id)).fetchall():
+        cam = lookup(e["source_ref"])
+        if not cam:
+            continue
+        events += conn.execute("UPDATE events SET camera_id = ?, channel = ? WHERE id = ? AND (camera_id IS NULL OR camera_id = '')",
+                               (cam["id"], cam["channel"], e["id"])).rowcount
+    return {"reviews": reviews, "events": events}
+
+
 def review_view(row: Any, *, reviewed: bool | None = None) -> dict[str, Any]:
     """The API shape of a stored review row (no path, no URL: the thumbnail is fetched through Arx by id)."""
     d = dict(row)

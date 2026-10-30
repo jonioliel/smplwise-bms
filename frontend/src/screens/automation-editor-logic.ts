@@ -70,6 +70,7 @@ export function buildEnv(status: AutomationsStatus, catalog: AutomationCatalog):
       // KAV079-295: the extension's model switches (absent on an older server = off)
       wallButtons: !!catalog.extension?.wall_buttons,
       presenceEntity: catalog.extension?.presence_entity ?? null,
+      presenceSensors: catalog.extension?.building_presence?.sensors ?? [],
       deviceName: (id) => wallDeviceNames.get(id) ?? null,
     },
     notifyActions: catalog.notify_targets.length ? catalog.notify_targets.map((n) => n.action) : null,

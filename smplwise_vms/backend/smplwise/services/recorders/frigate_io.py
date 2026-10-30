@@ -17,6 +17,21 @@ from .. import nvr
 from .frigate import VENDOR, FrigateAdapter
 
 STILL_TTL_S = 2.0
+# 2.27.3: the /data copy of a Frigate camera's picture (routers/cameras.py snapshot route) lives at most this long however high
+# `snapshots.max_age_s` is (the screens refresh a Frigate still every ~10 s; a 60 s file made the picture look frozen), and an old copy
+# served because Frigate failed is never older than STALE_MAX_S (beyond it the error is shown instead of a picture that lies).
+FILE_MAX_AGE_S = 5
+STALE_MAX_S = 300
+
+
+def file_max_age(configured: int | float) -> float:
+    """Seconds a stored picture of a Frigate camera counts as fresh: the configured age, never above FILE_MAX_AGE_S."""
+    return float(min(max(1, configured), FILE_MAX_AGE_S))
+
+
+def stale_servable(age_s: float) -> bool:
+    """Whether an old stored picture may still be served when Frigate cannot give a new one."""
+    return age_s <= STALE_MAX_S
 STILL_MAX_INFLIGHT = 4          # concurrent latest.jpg reads per recorder: Frigate re-encodes each one (study risk R4)
 STILL_HEIGHT_MIN, STILL_HEIGHT_MAX = 120, 1440
 STILL_CACHE_MAX = 64

@@ -80,6 +80,7 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   calendar: svg`<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>`,
   trash: svg`<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>`,
   eye: svg`<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`,
+  eyeOff: svg`<path d="M2 12s3.5-6 10-6c1.2 0 2.3.2 3.3.6M22 12s-3.5 6-10 6c-1.2 0-2.3-.2-3.3-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18"/>`,
   cpu: svg`<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>`,
   snow: svg`<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="m9.5 4.8 2.5 2.2 2.5-2.2M9.5 19.2l2.5-2.2 2.5 2.2"/>`,
   flame: svg`<path d="M12 3c.8 3.4 5 5.6 5 10a5 5 0 0 1-10 0c0-2 .9-3.2 2.1-4.2.1 1.4.7 2.2 1.6 2.6C10.2 8.6 10.7 5.6 12 3z"/>`,

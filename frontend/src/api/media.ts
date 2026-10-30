@@ -51,6 +51,8 @@ export interface ProductSettings {
   'ui.dd_panel_groups'?: Record<string, string>;
   /** The phone UX guards (הגדרות › כללי › אפשרויות נייד, owner 2026-09-30): which kinds of management the phone UI hides - shell/phone.ts. */
   'ui.mobile'?: Record<string, boolean>;
+  /** 2.29.0: the cross-section / synoptic map / fire-alarm-UI options (הגדרות › כללי › חתך הבניין), one object - xsection/xs-model.ts, backend services/xs_options.py. */
+  'ui.xs'?: Record<string, unknown>;
   /** The colour of each thing the investigation timeline draws (owner 2026-10-01): option -> palette name | #rrggbb; api/timeline-colors.ts. */
   'timeline.colors'?: Record<string, string>;
   /** Who sees the timeline's helper line / the recording screen's diagnostics block (owner 2026-10-01): all | installers | hidden; api/playback-display.ts. */

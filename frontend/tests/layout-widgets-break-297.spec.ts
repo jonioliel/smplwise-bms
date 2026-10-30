@@ -14,7 +14,7 @@ import { SKINS_UNDER_TEST } from './helpers/frozen-skins';
 const WIDTHS = [240, 280, 320, 360];
 const SIZES = ['s', 'm', 'l'] as const;
 const DATASETS = ['normal', 'worst', 'empty'] as const;
-const FIXED = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'agenda', 'temperature', 'generators', 'doors', 'notices', 'launcher'];
+const FIXED = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'agenda', 'temperature', 'generators', 'doors', 'notices', 'presence', 'launcher'];
 const WIDGETS = FIXED;
 const SHOTS = process.env.WB_SHOTS;
 

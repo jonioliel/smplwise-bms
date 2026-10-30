@@ -77,12 +77,19 @@ function build(ds: Dataset) {
     windows: empty ? null : { enabled: true, tier: 'program', go_live_permitted: false, settings: {}, can: { manage: true, cancel: true, configure: false }, doors: doorRows, rules: [], occurrences: occ, now: NOW.toISOString(), foreign_paused: worst ? [{ door: 's1:0', station_id: 's1', relay: 0, label: LONG_HE, incident_id: 'i1', paused_at: iso(-1) }] : [] },
     emergency: empty ? null : { enabled: true, open_enabled: true, hold_ms: 1500, can: { lock: true, open: true }, active: null, home_widget: true },
   };
-  return { cfg, data, temp, gens, doors, notices };
+  // PRESENCE-2280: the building presence answer (worst: long and unbreakable room names, a dozen rooms; empty: nothing configured)
+  const roomNames = worst ? [LONG_HE, UNB, MIX, 'א', 'לובי', 'חדר ישיבות ' + 'ב'.repeat(30), 'מסדרון', 'מטבחון', 'כניסה', 'חניון', 'גג', 'מחסן'] : ['לובי', 'כניסה', 'חניון'];
+  const presence = empty ? null : {
+    configured: true, enabled: true, fresh: true, status: 'occupied' as const, occupied_rooms: 2, at: iso(0),
+    settings: { enabled: true, retention_days: 30, home_display: 'card' as const, map_tint: true, hold_seconds: 60, empty_minutes: 30 },
+    rooms: roomNames.map((n, i) => ({ area_id: `a${i}`, name: n, status: (['occupied', 'clear', 'unknown'] as const)[i % 3], sensors: 1, empty_since: i % 3 === 1 ? iso(-40) : null })),
+  };
+  return { cfg, data, temp, gens, doors, notices, presence };
 }
 
 const root = document.getElementById('root') as HTMLElement;
 root.style.cssText = 'display:block;min-height:100vh;background:var(--sw-bg);color:var(--sw-text);font-family:var(--sw-font);padding:8px';
-const TITLES: Record<string, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', agenda: 'יומן', launcher: 'משגר מהיר', temperature: 'טמפרטורות', generators: 'גנרטור', doors: 'דלתות', notices: 'לוח הודעות', media: 'מולטימדיה' };
+const TITLES: Record<string, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', agenda: 'יומן', launcher: 'משגר מהיר', temperature: 'טמפרטורות', generators: 'גנרטור', doors: 'דלתות', presence: 'נוכחות במבנה', notices: 'לוח הודעות', media: 'מולטימדיה' };
 
 /** Mount one widget. Resolves when rendered. */
 (window as unknown as Record<string, unknown>).wbMount = async (id: WidgetId, size: Size, ds: Dataset, width: number, opts: { editing?: boolean; layout?: string } = {}) => {
@@ -94,7 +101,7 @@ const TITLES: Record<string, string> = { clock: 'שעון', weather: 'מזג א�
   el.config = b.cfg;
   el.data = b.data;
   const qa = { lights_off: true, all_off: true };
-  const found = resolveWidgets(b.cfg, 'a', b.data, { editing: ds === 'empty', quickAllowed: qa, elevatorsAvailable: false, temperatureAvailable: true, generatorsAvailable: true, doorsAvailable: true, noticesAvailable: true, mediaAvailable: false }).find((x) => x.id === id);
+  const found = resolveWidgets(b.cfg, 'a', b.data, { editing: ds === 'empty', quickAllowed: qa, elevatorsAvailable: false, temperatureAvailable: true, generatorsAvailable: true, doorsAvailable: true, noticesAvailable: true, presenceAvailable: true, mediaAvailable: false }).find((x) => x.id === id);
   el.items = found ? [{ ...found, size, title: ds === 'worst' ? LONG_HE : found.title || TITLES[id] || id }] : [];
   el.editing = ds === 'empty';
   el.layout = opts.layout ?? 'stack';
@@ -103,6 +110,7 @@ const TITLES: Record<string, string> = { clock: 'שעון', weather: 'מזג א�
   el.generators = b.gens;
   el.doors = b.doors;
   el.notices = { notices: b.notices, emptyMode: 'line' };
+  el.presence = b.presence;
   el.alarmLink = true;
   cell.append(el);
   root.replaceChildren(cell);
@@ -124,7 +132,7 @@ const TITLES: Record<string, string> = { clock: 'שעון', weather: 'מזג א�
   const el = document.createElement('home-widgets') as unknown as HTMLElement & Record<string, unknown>;
   el.config = b.cfg;
   el.data = b.data;
-  const found = resolveWidgets(b.cfg, 'a', b.data, { quickAllowed: { lights_off: true, all_off: true }, elevatorsAvailable: true, temperatureAvailable: true, generatorsAvailable: true, doorsAvailable: true, noticesAvailable: true, mediaAvailable: false });
+  const found = resolveWidgets(b.cfg, 'a', b.data, { quickAllowed: { lights_off: true, all_off: true }, elevatorsAvailable: true, temperatureAvailable: true, generatorsAvailable: true, doorsAvailable: true, noticesAvailable: true, presenceAvailable: true, mediaAvailable: false });
   el.items = ids.map((id) => found.find((x) => x.id === id)).filter((x) => !!x).map((x) => (opts.size ? { ...x!, size: opts.size } : x!));
   el.editing = !!opts.editing;
   el.layout = opts.layout ?? 'row';
@@ -134,6 +142,7 @@ const TITLES: Record<string, string> = { clock: 'שעון', weather: 'מזג א�
   el.generators = b.gens;
   el.doors = b.doors;
   el.notices = { notices: b.notices, emptyMode: 'line' };
+  el.presence = b.presence;
   el.elevators = [
     { id: 'e1', name: 'מעלית צפונית', area_id: null, area_name: null, state: 'out_of_service', reason: 'out_of_service', partial: false, stale: false, since: new Date(Date.now() - 72 * 60_000).toISOString(), roles: ['out_of_service'], flags: { out_of_service: true }, extras: [] },
     { id: 'e2', name: 'מעלית דרומית', area_id: null, area_name: null, state: 'active', reason: 'active', partial: false, stale: false, since: new Date(Date.now() - 3 * 3600_000).toISOString(), roles: ['out_of_service'], flags: { out_of_service: false }, extras: [] },

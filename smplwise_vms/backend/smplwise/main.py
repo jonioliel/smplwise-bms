@@ -21,7 +21,7 @@ from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
-from .routers import access, access_control, access_groups, alarm, doors as doors_router, anchors, automations, backup, brand as brand_router, white_label as white_label_router, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_ifc as plan_ifc_router, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
+from .routers import access, access_control, access_groups, alarm, doors as doors_router, anchors, automations, backup, brand as brand_router, white_label as white_label_router, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, popup_layout as popup_layout_router, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_ifc as plan_ifc_router, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
 
 log = logging.getLogger("smplwise")
 
@@ -195,6 +195,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         presence_svc.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("presence janitor failed", exc_info=True)
+    try:  # PRESENCE-2280: building-presence transitions (only while the master switch is on) and their retention
+        from .services import building_presence_history as bph
+
+        bph.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("building presence history failed", exc_info=True)
     try:  # PARTNERAPI113-295: token expiry / creator-gone notices, purge of ended tokens, the delivery log and old outbox rows
         from .services.partner import core as partner_core, webhooks as partner_webhooks
 
@@ -289,6 +295,18 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         notices_store.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("notices janitor failed", exc_info=True)
+    try:  # CALENDARS-298: guest personal data past its retention is erased (always); expiry / done / the nightly cache roll while the module is on
+        from .services.calendar import jobs as calendar_jobs
+
+        calendar_jobs.tick(db)
+    except Exception:  # noqa: BLE001
+        log.warning("calendar janitor failed", exc_info=True)
+    try:  # CALENDARS-298 phase 2: due external-calendar syncs (polling, at most once a minute per process; nothing while the module or sync is off)
+        from .services.calendar import jobs as calendar_jobs
+
+        calendar_jobs.sync_tick(db, settings.data_dir)
+    except Exception:  # noqa: BLE001
+        log.warning("calendar sync tick failed", exc_info=True)
     try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
         from .services import messaging_runtime
 
@@ -581,6 +599,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(scenarios_router.router, prefix=api, tags=["scenarios"])  # XSCENARIO109-295: cross-module scenarios (OFF; never a door or device action)
     app.include_router(devices.router, prefix=api, tags=["devices"])
+    app.include_router(popup_layout_router.router, prefix=api, tags=["devices"])  # AREAEDIT-2290: the area pop-up layout (system.configure)
     app.include_router(device_layouts.router, prefix=api, tags=["devices"])
     app.include_router(device_cameras.router, prefix=api, tags=["devices"])
     app.include_router(multimedia.router, prefix=api, tags=["multimedia"])  # CR-015: מולטימדיה - מסכים ושלט (/api/v1/multimedia; /api/v1/media is the camera video router)
@@ -625,6 +644,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import presence as presence_router
 
     app.include_router(presence_router.router, prefix=api, tags=["presence"])  # CR-027: the phone app - device registration, presence / sensor reports, the required-sensors policy
+    from .routers import building_presence as building_presence_router
+
+    app.include_router(building_presence_router.router, prefix=api, tags=["presence"])  # BUILDING-PRESENCE-2271: anonymous room / building occupancy from the tagged presence sensors (invisible while none is tagged)
     from .routers import app_refresh as app_refresh_router
 
     app.include_router(app_refresh_router.router, prefix=api, tags=["identity"])  # APPREFRESH-295: the phone app's persistent sign-in (switch security.app_refresh, default off)
@@ -835,6 +857,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(notices_router.display_router, prefix=api, tags=["notices"])  # the TV feed: no login, X-Board-Token
     app.include_router(notices_router.router, prefix=api, tags=["notices"])
     app.include_router(notices_router.page_router)  # GET /b/{slug}: the static TV page (before the www mount)
+    from .routers import calendar as calendar_router  # CALENDARS-298: יומנים - calendars, bookings, approvals, maintenance windows (module OFF by default)
+
+    app.include_router(calendar_router.open_router, prefix=api, tags=["calendar"])  # module state, settings, guest purge: answer while the module is off
+    app.include_router(calendar_router.router, prefix=api, tags=["calendar"])
+    from .routers import calendar_sync as calendar_sync_router  # CALENDARS-298 phase 2: external calendar connections, bindings, manual sync (no real provider yet)
+
+    app.include_router(calendar_sync_router.router, prefix=api, tags=["calendar"])
     from .routers import transit as transit_router  # BUSTIMES-295: הגדרות › תחבורה ציבורית (stops, catalogue, health); the TV digest is a notices display route
 
     app.include_router(transit_router.router, prefix=api, tags=["transit"])

@@ -141,7 +141,7 @@ test.describe('the schedules list (demo mode)', () => {
   test('cards: the header (title, floors, state filter with counts), "today", one card per schedule; the home tabs', async ({ page }, info) => {
     await open(page, '/devices/schedules');
     await ready(page);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'מפה סינופטית', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
     await expect(cardsOf(page)).toHaveCount(14);
     await expect(scr(page).locator('h1[data-sched-title]')).toHaveText('תזמונים');
@@ -487,7 +487,7 @@ test.describe('the home tabs and the settings page (demo mode)', () => {
   test('"מבט על" is the home screen as it was, the first of two tabs (the layout editor\'s row rule is under "with a session")', async ({ page }, info) => {
     await open(page, '/devices/building');
     await expect(page.locator('sw-app devices-building')).toHaveCount(1);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'מפה סינופטית', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('מבט על');
     await shot(page, '20-home-overview-tab', info);
     await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
@@ -668,10 +668,10 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
   test('schedule.view adds the tab; without a schedule permission the home screen has no tab row', async ({ page }) => {
     st.perms = VIEWER_PERMS;
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
     st.perms = [...VIEWER_PERMS, 'schedule.view'];
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
   });
 
   test('schedule.manage without devices.read: the home area opens on the schedules, one tab, no row', async ({ page }) => {
@@ -685,13 +685,13 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
   test('schedules.enabled off hides the tab; ui.tabs orders and hides the home tabs', async ({ page }) => {
     st.settings = { 'schedules.enabled': 'false' };
     await openApi(page, '/devices/building');
-    expect(await rowTabs(page)).toEqual([]);
+    expect(await rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית']);
     st.settings = { 'ui.tabs': { devices: { order: ['automations', 'building'], hidden: [] } } };
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['קברניט', 'מבט על']);
+    await expect.poll(() => rowTabs(page)).toEqual(['קברניט', 'מבט על', 'מפה סינופטית']);
     st.settings = { 'ui.tabs': { devices: { order: [], hidden: ['building'] } } };
     await openApi(page, '/devices/schedules');
-    expect(await rowTabs(page)).toEqual([]); // one tab left: no row
+    expect(await rowTabs(page)).toEqual(['מפה סינופטית', 'קברניט']);
   });
 
   test('the user menu keeps "עריכת המסך הראשי" on the overview tab, where the row is hidden', async ({ page }) => {
@@ -699,7 +699,7 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     await expect(page.locator('sw-app devices-building')).toHaveCount(1);
     await expect(page.locator('sw-app .subnav sw-tabs')).toHaveCount(0);
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט']);
   });
 
   test('toggle, bulk and delete send the contract\'s requests', async ({ page }) => {
