@@ -7,6 +7,8 @@ import '../components/sw-dialog';
 import '../components/sw-drawer';
 import '../components/sw-field';
 import '../components/sw-pager';
+import '../components/sw-icon';
+import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import {
   EMPTY_RANGE, HOLD_RANGE, RETENTION_RANGE, getPresenceCandidates, getPresenceHistory, purgePresenceHistory, putPresenceRoom, putPresenceSettings, putPresenceTags,
@@ -40,6 +42,8 @@ export class SystemBuildingPresence extends LitElement {
   @state() private page = 1;
   @state() private editId = '';
   @state() private narrow = false;
+  /** PRESENCE-DESIGN-2300: the first read failed (not a refusal) - an error panel with a retry, never the switch drawn as "off". */
+  @state() private loadFailed = '';
   private mq = window.matchMedia('(max-width: 700px)');
   private onMq = () => {
     this.narrow = this.mq.matches;
@@ -70,7 +74,7 @@ export class SystemBuildingPresence extends LitElement {
     }
     .sensor {
       display: grid;
-      grid-template-columns: 24px minmax(0, 1.3fr) minmax(0, 1fr) 124px 36px;
+      grid-template-columns: 24px minmax(0, 1.3fr) minmax(0, 1fr) 124px 44px;
       align-items: center;
       gap: 10px;
       padding: 6px 10px;
@@ -134,6 +138,46 @@ export class SystemBuildingPresence extends LitElement {
       opacity: 0.5;
       cursor: default;
     }
+    /* PRESENCE-DESIGN-2300: a drawn icon instead of a "···" glyph, pressed feedback, focus ring */
+    .more {
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .more:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .more,
+      .seg button {
+        transition: transform 120ms var(--sw-ease-out, ease-out), background-color var(--sw-t-state, 200ms) var(--sw-ease, ease);
+      }
+      .more:not(:disabled):active,
+      .seg button:not(:disabled):active {
+        transform: scale(0.96);
+      }
+    }
+    /* mobile-native: a finger gets 44 px targets and 16 px inputs (no zoom on focus) */
+    @media (pointer: coarse) {
+      .more {
+        inline-size: 44px;
+        block-size: 44px;
+      }
+      .seg button {
+        min-block-size: 40px;
+        padding-inline: 16px;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+      }
+      input[type='number'],
+      select {
+        font-size: 16px;
+      }
+    }
     .foot {
       display: flex;
       align-items: center;
@@ -153,7 +197,7 @@ export class SystemBuildingPresence extends LitElement {
     }
     @media (max-width: 700px) {
       .sensor {
-        grid-template-columns: 24px minmax(0, 1fr) auto 36px;
+        grid-template-columns: 24px minmax(0, 1fr) auto 44px;
         grid-template-areas: 'c n s m' '. r r r';
         row-gap: 6px;
       }
@@ -273,6 +317,7 @@ export class SystemBuildingPresence extends LitElement {
   }
 
   private async load() {
+    this.loadFailed = '';
     try {
       const r = await getPresenceCandidates();
       this.list = r.sensors;
@@ -280,9 +325,18 @@ export class SystemBuildingPresence extends LitElement {
       this.cfg = { ...DEFAULT_CFG, ...r.settings };
       if (this.cfg.enabled) this.hist = await getPresenceHistory();
     } catch (err) {
-      this.list = [];
-      if (!(err instanceof Error && /403|אין הרשאה/.test(err.message))) this.error = describeError(err);
+      // a refusal shows nothing (a viewer); any other failure is an error state, because the real switch position is unknown
+      if (err instanceof Error && /403|אין הרשאה/.test(err.message)) this.list = [];
+      else {
+        this.list = null;
+        this.loadFailed = describeError(err) || BP.loadFailed;
+      }
     }
+  }
+
+  private retry() {
+    this.loadFailed = '';
+    void this.load();
   }
 
   private async run(fn: () => Promise<void>, flash = BP.saved) {
@@ -380,10 +434,10 @@ export class SystemBuildingPresence extends LitElement {
     const edit = this.editable && c.tagged;
     return html`<div class="sensor" data-building-sensor=${c.entity_id} data-tagged=${String(c.tagged)}>
       <label class="ck"><input type="checkbox" aria-label=${c.name} .checked=${c.tagged} ?disabled=${!this.editable || this.busy} @change=${(e: Event) => void this.toggleTag(c.entity_id, (e.target as HTMLInputElement).checked)} /></label>
-      <span class="nm"><b title=${c.name}>${c.name}</b><span class="muted">${BP.kindWord(c.device_class)}</span></span>
+      <span class="nm"><b title=${c.name} dir="auto">${c.name}</b><span class="muted">${BP.kindWord(c.device_class)}</span></span>
       <span class="rm">${edit ? this.roomSelect(c, 'row') : html`<span class="muted">${c.area_name ?? BP.noRoom}</span>`}</span>
       ${this.stateChip(c)}
-      <button type="button" class="more" data-building-more aria-label=${`${BP.editTitle}: ${c.name}`} ?disabled=${!edit} @click=${() => (this.editId = c.entity_id)}>···</button>
+      <button type="button" class="more" data-building-more aria-label=${`${BP.editTitle}: ${c.name}`} ?disabled=${!edit} @click=${() => (this.editId = c.entity_id)}><sw-icon name="more" size="18"></sw-icon></button>
     </div>`;
   }
 
@@ -429,7 +483,7 @@ export class SystemBuildingPresence extends LitElement {
         ${this.editable ? html`<sw-button size="sm" data-building-retention-save ?disabled=${this.busy || bad} @click=${() => void this.patch({ retention_days: this.cfg.retention_days })}>${BP.save}</sw-button>` : nothing}
       </div>
       <div class="priv" data-building-privacy>${BP.privacy}</div>
-      <div class="row muted"><span>${BP.rowsKept}: <b data-building-rows>${h?.rows ?? 0}</b></span><span>${BP.oldest}: <b>${oldest}</b></span></div>
+      <div class="row muted"><span>${BP.rowsKept}: <b data-building-rows>${BP.count(h?.rows ?? 0)}</b></span><span>${BP.oldest}: <b>${oldest}</b></span></div>
       ${this.editable ? html`<div class="row"><sw-button size="sm" variant="danger" data-building-purge ?disabled=${this.busy || !h?.rows} @click=${() => (this.confirmPurge = true)}>${BP.purge}</sw-button></div>` : nothing}
       ${this.confirmPurge
         ? html`<sw-dialog open heading=${BP.purgeTitle} data-building-purge-dialog @close=${() => (this.confirmPurge = false)}>
@@ -441,7 +495,9 @@ export class SystemBuildingPresence extends LitElement {
   }
 
   render() {
-    if (this.list === null) return nothing;
+    // PRESENCE-DESIGN-2300: the page has a loading and an error state of its own (it used to be blank, then drew a failed read as "off")
+    if (this.loadFailed) return html`<sw-state-panel state="error" heading=${BP.loadFailed} hint=${this.loadFailed} actionLabel=${BP.retry} data-building-load-error @action=${() => this.retry()}></sw-state-panel>`;
+    if (this.list === null) return this.editable ? html`<sw-state-panel state="loading" compact heading=${BP.loading} data-building-loading></sw-state-panel>` : nothing;
     if (!this.editable && !this.cfg.enabled) return nothing;
     return html`${this.renderMaster()}${this.cfg.enabled ? html`${this.renderSensors(this.list)}${this.renderTimes()}${this.renderHistory()}` : nothing}`;
   }
