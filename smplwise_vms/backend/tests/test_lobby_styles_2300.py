@@ -113,3 +113,71 @@ def test_the_lobby_options_need_the_boards_permission(client, settings):
     bind(client, settings, "omer", "notices_boards", "installation", "*")
     r = client.patch(f"{API}/notices/boards/{bid}", json={"display": {"design": "lumen", "urgent_screen": "always"}}, headers=as_user("omer"))
     assert r.status_code == 200 and r.json()["board"]["display"]["urgent_screen"] == "always"
+
+
+# ---------------------------------------------------------------- the day and the night building photo (luxury styles; no migration)
+
+def _img(w=1200, h=800, color=(30, 80, 120)) -> bytes:
+    import io
+
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (w, h), color).save(buf, format="JPEG", quality=70)
+    return buf.getvalue()
+
+
+def _put(client, bid, leaf, data):
+    return client.put(f"{API}/notices/boards/{bid}/{leaf}", files={"file": ("p.jpg", data, "image/jpeg")})
+
+
+def test_two_building_photos_day_and_night_share_the_table_and_replace_only_their_own(client, settings):
+    from smplwise.db import Database
+    _enable(client)
+    made = _board(client)
+    bid = made["board"]["id"]
+    assert _put(client, bid, "photo", _img()).status_code == 200
+    out = _put(client, bid, "photo-night", _img(color=(5, 10, 40))).json()
+    assert out["photo"]["has"] is True and out["photo_night"]["has"] is True
+    assert out["photo"]["stamp"] != out["photo_night"]["stamp"]
+    # replacing one variant leaves the other alone, and never stacks
+    assert _put(client, bid, "photo-night", _img(color=(9, 9, 9))).status_code == 200
+    with Database(settings.db_path).connect() as c:
+        rows = c.execute("SELECT l.position FROM notice_board_slides l JOIN notice_slides s ON s.id = l.slide_id WHERE s.kind = 'photo' AND l.board_id = ? ORDER BY 1", (bid,)).fetchall()
+    assert [r[0] for r in rows] == [0, 1]
+    assert client.get(f"{API}/notices/boards/{bid}/photo").status_code == 200
+    assert client.get(f"{API}/notices/boards/{bid}/photo-night").status_code == 200
+    out = client.delete(f"{API}/notices/boards/{bid}/photo-night").json()
+    assert out["photo"]["has"] is True and out["photo_night"]["has"] is False
+    assert client.get(f"{API}/notices/boards/{bid}/photo-night").status_code == 404
+    assert client.get(f"{API}/notices/boards/{bid}/photo").status_code == 200
+    out = client.delete(f"{API}/notices/boards/{bid}/photo").json()
+    assert out["photo"]["has"] is False
+
+
+@pytest.mark.parametrize("style,carried", [("classic", False), ("lumen", False), ("gallery", True), ("concierge", True), ("stone", True)])
+def test_the_feed_carries_the_photos_for_the_luxury_styles_only(client, style, carried):
+    _enable(client)
+    made = _board(client)
+    bid = made["board"]["id"]
+    _put(client, bid, "photo", _img())
+    _put(client, bid, "photo-night", _img(color=(5, 10, 40)))
+    assert client.patch(f"{API}/notices/boards/{bid}", json={"display": {"design": style}}).status_code == 200
+    d = _display(client, made)
+    if carried:
+        assert d["photo"].startswith("api/v1/notices/display/lobby/photo?v=")
+        assert d["photo_night"].startswith("api/v1/notices/display/lobby/photo-night?v=")
+        h = {"X-Board-Token": made["token"]}
+        assert client.get(f"{API}/notices/display/lobby/photo-night", headers=h).status_code == 200
+        assert client.get(f"{API}/notices/display/lobby/photo-night").status_code == 404  # no token
+    else:
+        assert "photo" not in d and "photo_night" not in d
+
+
+def test_a_board_with_one_photo_carries_no_night_url(client):
+    _enable(client)
+    made = _board(client)
+    bid = made["board"]["id"]
+    _put(client, bid, "photo", _img())
+    client.patch(f"{API}/notices/boards/{bid}", json={"display": {"design": "stone"}})
+    d = _display(client, made)
+    assert "photo" in d and "photo_night" not in d  # the TV darkens the one photo at night

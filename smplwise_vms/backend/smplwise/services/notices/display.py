@@ -199,11 +199,13 @@ def build_feed(conn: sqlite3.Connection, board: dict[str, Any], now: dt.datetime
     if chips:
         doc["info"] = chips
     # NOTICESLIDES-295: the promo slides (only while the board's `promo` block is on) and the building photo of template 2
-    cards, photo = slides.feed_block(conn, board, public=public, logo_base=logo_base)
+    cards, photo, photo_night = slides.feed_block(conn, board, public=public, logo_base=logo_base)
     if disp["blocks"].get("promo") and cards:
         doc["slides"] = cards
-    if photo and disp.get("template") == 2:
-        doc["board"]["display"] = {**disp, "photo": photo}
+    # LOBBY-STYLES-2300: the luxury lobby styles show the building photo (day, and a night one when uploaded) whatever the template is
+    if (photo or photo_night) and (disp.get("template") == 2 or disp.get("design") in model.LUXURY_DESIGNS):
+        extra = {k: v for k, v in (("photo", photo), ("photo_night", photo_night)) if v}
+        doc["board"]["display"] = {**disp, **extra}
     stamps.append(_stamp(slides.newest_stamp(conn, board["id"])))
     try:
         ctl = json.loads(board.get("control_json") or "{}")

@@ -76,6 +76,7 @@ TV_SETTING: dict[str, str] = {k: f"notices.tv.{k}" for k in TV_CHOICES}
 #  urgent_screen:  how an urgent notice takes the screen - style = the style decides (hi-tech: the whole screen while it is in the rotation;
 #                  luxury: the whole screen in its first minute, then a regular message marked urgent), minute = first minute only, always
 DESIGNS = ("classic", "v2", "ink", "sign", "lumen", "axis", "prism", "gallery", "concierge", "stone")
+LUXURY_DESIGNS = ("gallery", "concierge", "stone")  # LOBBY-STYLES-2300: the luxury family (never the default for a new residential building)
 LIVE_BGS = ("auto", "full", "frozen", "off")
 SYSTEMS_STATUS = ("problems", "always")
 URGENT_SCREENS = ("style", "minute", "always")
