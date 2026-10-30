@@ -149,7 +149,13 @@ export function updatedLineParts(u: 'place' | 'full', c: { label: string; place:
 
 /** classic = the board as before; v2 = the V2 board (40 px margins, weather under the date, a fixed bus area per layout, Heebo, gold);
  * NOTICEBOARD-STYLES-2300: ink = the e-paper station display, sign = the wayfinding signage (maintenance-area styles; neither is a default). */
-export type Design = 'classic' | 'v2' | 'ink' | 'sign';
+export type Design = 'classic' | 'v2' | 'ink' | 'sign' | 'lumen' | 'axis' | 'prism' | 'gallery' | 'concierge' | 'stone';
+/** LOBBY-STYLES-2300: live background of the lobby styles (auto = measured on the screen and degraded; full / frozen / off = fixed by the administrator). */
+export type LiveBg = 'auto' | 'full' | 'frozen' | 'off';
+/** The building systems line of the luxury styles: only when something is wrong (default), or always. */
+export type SystemsStatus = 'problems' | 'always';
+/** How an urgent notice takes the screen: the style decides (hi-tech: while in the rotation; luxury: first minute), first minute only, or always. */
+export type UrgentScreen = 'style' | 'minute' | 'always';
 /** The V2 layout: side = an information column (clock, date, weather, bus panel); strip = a full-width bus row; slide = a full-stage bus slide. */
 export type BoardLayout = 'side' | 'strip' | 'slide';
 /** The tenant logo's height in the V2 header: auto = the system logo settings, else 72 / 96 / 120 / 144 px. */
@@ -157,17 +163,20 @@ export type CoSize = 'auto' | 's' | 'm' | 'l' | 'xl';
 /** The portrait V2 board below the clock row: the bus panel first, or the notices first. */
 export type PortraitOrder = 'bus' | 'notices';
 export type NextRow = 'show' | 'hide';
-export const DESIGNS: Design[] = ['classic', 'v2', 'ink', 'sign'];
+export const DESIGNS: Design[] = ['classic', 'v2', 'ink', 'sign', 'lumen', 'axis', 'prism', 'gallery', 'concierge', 'stone'];
+export const LIVE_BGS: LiveBg[] = ['auto', 'full', 'frozen', 'off'];
+export const SYSTEMS_STATUSES: SystemsStatus[] = ['problems', 'always'];
+export const URGENT_SCREENS: UrgentScreen[] = ['style', 'minute', 'always'];
 export const BOARD_LAYOUTS: BoardLayout[] = ['side', 'strip', 'slide'];
 export const CO_SIZES: CoSize[] = ['auto', 's', 'm', 'l', 'xl'];
 export const PORTRAIT_ORDERS: PortraitOrder[] = ['bus', 'notices'];
 export const NEXT_ROWS: NextRow[] = ['show', 'hide'];
 export const CO_SIZE_PX: Record<Exclude<CoSize, 'auto'>, number> = { s: 72, m: 96, l: 120, xl: 144 };
 
-export interface Tv2Defaults { design: Design; board_layout: BoardLayout; co_size: CoSize; portrait_order: PortraitOrder; next_row: NextRow }
-export const TV2_FACTORY: Tv2Defaults = { design: 'classic', board_layout: 'side', co_size: 'auto', portrait_order: 'bus', next_row: 'show' };
-export const TV2_KEYS = ['design', 'board_layout', 'co_size', 'portrait_order', 'next_row'] as const;
-const TV2_ALLOWED: { [K in keyof Tv2Defaults]: readonly Tv2Defaults[K][] } = { design: DESIGNS, board_layout: BOARD_LAYOUTS, co_size: CO_SIZES, portrait_order: PORTRAIT_ORDERS, next_row: NEXT_ROWS };
+export interface Tv2Defaults { design: Design; board_layout: BoardLayout; co_size: CoSize; portrait_order: PortraitOrder; next_row: NextRow; live_bg: LiveBg; systems_status: SystemsStatus; urgent_screen: UrgentScreen }
+export const TV2_FACTORY: Tv2Defaults = { design: 'classic', board_layout: 'side', co_size: 'auto', portrait_order: 'bus', next_row: 'show', live_bg: 'auto', systems_status: 'problems', urgent_screen: 'style' };
+export const TV2_KEYS = ['design', 'board_layout', 'co_size', 'portrait_order', 'next_row', 'live_bg', 'systems_status', 'urgent_screen'] as const;
+const TV2_ALLOWED: { [K in keyof Tv2Defaults]: readonly Tv2Defaults[K][] } = { design: DESIGNS, board_layout: BOARD_LAYOUTS, co_size: CO_SIZES, portrait_order: PORTRAIT_ORDERS, next_row: NEXT_ROWS, live_bg: LIVE_BGS, systems_status: SYSTEMS_STATUSES, urgent_screen: URGENT_SCREENS };
 
 /** One V2 option of a display (the feed always carries the effective value; an unknown or absent one reads as the factory value). */
 export function tv2Of<K extends keyof Tv2Defaults>(d: Partial<Record<K, unknown>> | null | undefined, k: K): Tv2Defaults[K] {

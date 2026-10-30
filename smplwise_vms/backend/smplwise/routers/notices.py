@@ -373,6 +373,10 @@ class TvDefaultsIn(BaseModel):
     co_size: str | None = None
     portrait_order: str | None = None
     next_row: str | None = None
+    # LOBBY-STYLES-2300: the lobby styles' behaviour settings
+    live_bg: str | None = None
+    systems_status: str | None = None
+    urgent_screen: str | None = None
 
 
 @router.get("/notices/tv-defaults")

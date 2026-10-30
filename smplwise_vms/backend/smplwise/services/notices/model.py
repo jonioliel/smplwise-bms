@@ -68,13 +68,25 @@ TV_SETTING: dict[str, str] = {k: f"notices.tv.{k}" for k in TV_CHOICES}
 #  co_size:        the tenant (company) logo's height in the V2 header - auto = the system logo settings, s / m / l / xl = 72 / 96 / 120 / 144 px
 #  portrait_order: the portrait V2 board below the clock row - bus = the bus panel, then the notices; notices = the notices first
 #  next_row:       the "next arrivals" line of each bus row - show / hide
-DESIGNS = ("classic", "v2", "ink", "sign")
+#                  LOBBY-STYLES-2300: lumen / axis / prism (hi-tech lobby styles) and gallery / concierge / stone (classic luxury lobby styles); never defaults
+#  live_bg:        the ambient (moving) background of the lobby styles - auto = measured on the screen itself and degraded to frozen / off on a weak
+#                  TV (default), full = always moving, frozen = still, off = no ambient layer
+#  systems_status: the building systems line (elevators, generator, parking) of the luxury styles - problems = only when something is wrong
+#                  (default), always = also when everything is fine
+#  urgent_screen:  how an urgent notice takes the screen - style = the style decides (hi-tech: the whole screen while it is in the rotation;
+#                  luxury: the whole screen in its first minute, then a regular message marked urgent), minute = first minute only, always
+DESIGNS = ("classic", "v2", "ink", "sign", "lumen", "axis", "prism", "gallery", "concierge", "stone")
+LIVE_BGS = ("auto", "full", "frozen", "off")
+SYSTEMS_STATUS = ("problems", "always")
+URGENT_SCREENS = ("style", "minute", "always")
 BOARD_LAYOUTS = ("side", "strip", "slide")
 CO_SIZES = ("auto", "s", "m", "l", "xl")
 PORTRAIT_ORDERS = ("bus", "notices")
 NEXT_ROWS = ("show", "hide")
-TV2_CHOICES: dict[str, tuple[Any, ...]] = {"design": DESIGNS, "board_layout": BOARD_LAYOUTS, "co_size": CO_SIZES, "portrait_order": PORTRAIT_ORDERS, "next_row": NEXT_ROWS}
-TV2_FACTORY: dict[str, Any] = {"design": "classic", "board_layout": "side", "co_size": "auto", "portrait_order": "bus", "next_row": "show"}
+TV2_CHOICES: dict[str, tuple[Any, ...]] = {"design": DESIGNS, "board_layout": BOARD_LAYOUTS, "co_size": CO_SIZES, "portrait_order": PORTRAIT_ORDERS, "next_row": NEXT_ROWS,
+                                           "live_bg": LIVE_BGS, "systems_status": SYSTEMS_STATUS, "urgent_screen": URGENT_SCREENS}
+TV2_FACTORY: dict[str, Any] = {"design": "classic", "board_layout": "side", "co_size": "auto", "portrait_order": "bus", "next_row": "show",
+                               "live_bg": "auto", "systems_status": "problems", "urgent_screen": "style"}
 TV2_SETTING: dict[str, str] = {k: f"notices.tv2.{k}" for k in TV2_CHOICES}
 ALL_TV_CHOICES: dict[str, tuple[Any, ...]] = {**TV_CHOICES, **TV2_CHOICES}
 ALL_TV_FACTORY: dict[str, Any] = {**TV_FACTORY, **TV2_FACTORY}

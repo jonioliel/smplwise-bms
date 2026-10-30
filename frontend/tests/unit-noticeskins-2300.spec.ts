@@ -9,7 +9,7 @@ import {
 //   npx playwright test -c playwright.unit.config.ts tests/unit-noticeskins-2300.spec.ts
 
 test('the designs: classic, v2, ink, sign - and the factory stays classic (neither style is a default)', () => {
-  expect(DESIGNS).toEqual(['classic', 'v2', 'ink', 'sign']);
+  expect(DESIGNS.slice(0, 4)).toEqual(['classic', 'v2', 'ink', 'sign']); // LOBBY-STYLES-2300 appended the six lobby styles
   expect(TV2_FACTORY.design).toBe('classic');
   expect(tv2Of({ design: 'ink' }, 'design')).toBe('ink');
   expect(tv2Of({ design: 'sign' }, 'design')).toBe('sign');

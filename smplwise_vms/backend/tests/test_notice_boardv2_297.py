@@ -12,8 +12,8 @@ from conftest import as_user, bind
 from smplwise.services.notices import model
 
 API = "/api/v1"
-KEYS = ("design", "board_layout", "co_size", "portrait_order", "next_row")
-FACTORY = {"design": "classic", "board_layout": "side", "co_size": "auto", "portrait_order": "bus", "next_row": "show"}
+KEYS = ("design", "board_layout", "co_size", "portrait_order", "next_row", "live_bg", "systems_status", "urgent_screen")  # the last three: LOBBY-STYLES-2300
+FACTORY = {"design": "classic", "board_layout": "side", "co_size": "auto", "portrait_order": "bus", "next_row": "show", "live_bg": "auto", "systems_status": "problems", "urgent_screen": "style"}
 
 
 def _enable(client):
@@ -33,7 +33,7 @@ def _fd(client, slug, token):
 
 
 def test_the_v2_choices_and_their_factory_defaults():
-    assert model.DESIGNS == ("classic", "v2", "ink", "sign")  # NOTICEBOARD-STYLES-2300 added ink / sign
+    assert model.DESIGNS[:4] == ("classic", "v2", "ink", "sign")  # NOTICEBOARD-STYLES-2300 added ink / sign; LOBBY-STYLES-2300 the six lobby styles
     assert model.BOARD_LAYOUTS == ("side", "strip", "slide")
     assert model.CO_SIZES == ("auto", "s", "m", "l", "xl")
     assert model.PORTRAIT_ORDERS == ("bus", "notices")
@@ -68,7 +68,7 @@ def test_boards_follow_the_v2_defaults_until_they_choose(client):
     assert r.status_code == 200 and r.json()["tv2_defaults"] == FACTORY
     assert client.get(f"{API}/notices/settings").json()["settings"]["tv2_defaults"] == FACTORY
 
-    want = {"design": "v2", "board_layout": "strip", "co_size": "l", "portrait_order": "notices", "next_row": "hide"}
+    want = {**FACTORY, "design": "v2", "board_layout": "strip", "co_size": "l", "portrait_order": "notices", "next_row": "hide"}
     r = client.put(f"{API}/notices/tv-defaults", json=want)
     assert r.status_code == 200 and r.json()["tv2_defaults"] == want
     assert _fd(client, "lobby", old["token"]) == want

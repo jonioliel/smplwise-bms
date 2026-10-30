@@ -1,7 +1,7 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import {
-  BOARD_LAYOUTS, CO_SIZES, DESIGNS, NEXT_ROWS, PORTRAIT_ORDERS, TV2_FACTORY, effectiveTv2,
+  BOARD_LAYOUTS, CO_SIZES, DESIGNS, LIVE_BGS, NEXT_ROWS, PORTRAIT_ORDERS, SYSTEMS_STATUSES, TV2_FACTORY, URGENT_SCREENS, effectiveTv2,
   type Display, type Tv2Defaults,
 } from '../notice-tv/tv-logic';
 import { nt, type NtKey } from '../i18n/notices';
@@ -14,8 +14,11 @@ const ROWS: { key: Key; seg: string; label: NtKey; values: readonly string[] }[]
   { key: 'co_size', seg: 'co-size', label: 'coSizeLabel', values: CO_SIZES },
   { key: 'portrait_order', seg: 'portrait-order', label: 'portraitOrderLabel', values: PORTRAIT_ORDERS },
   { key: 'next_row', seg: 'next-row', label: 'nextRowLabel', values: NEXT_ROWS },
+  { key: 'live_bg', seg: 'live-bg', label: 'liveBgLabel', values: LIVE_BGS },
+  { key: 'systems_status', seg: 'systems-status', label: 'systemsStatusLabel', values: SYSTEMS_STATUSES },
+  { key: 'urgent_screen', seg: 'urgent-screen', label: 'urgentScreenLabel', values: URGENT_SCREENS },
 ];
-const TEXT: Record<Key, string> = { design: 'design_', board_layout: 'boardLayout_', co_size: 'coSize_', portrait_order: 'portraitOrder_', next_row: 'nextRow_' };
+const TEXT: Record<Key, string> = { design: 'design_', board_layout: 'boardLayout_', co_size: 'coSize_', portrait_order: 'portraitOrder_', next_row: 'nextRow_', live_bg: 'liveBg_', systems_status: 'systemsStatus_', urgent_screen: 'urgentScreen_' };
 const text = (k: Key, v: string): string => nt(`${TEXT[k]}${v}` as NtKey);
 
 /**
@@ -42,7 +45,8 @@ export class NoticeDisplayDesign extends LitElement {
 
   private row(r: (typeof ROWS)[number], own: string | null, v2: boolean) {
     const board = this.mode === 'board';
-    const off = board && r.key !== 'design' && !v2; // the installation defaults stay editable before the switch
+    const lobby = r.key === 'live_bg' || r.key === 'systems_status' || r.key === 'urgent_screen'; // the lobby styles' behaviour: always editable
+    const off = board && r.key !== 'design' && !lobby && !v2; // the installation defaults stay editable before the switch
     const dflt = text(r.key, this.defaults[r.key]);
     const label = r.key === 'board_layout' && !board ? nt('boardLayoutDefaultLabel') : nt(r.label);
     const note = off ? nt('v2Only') : board && own === null ? nt('tvDefaultNow', { v: dflt }) : '';
@@ -60,8 +64,8 @@ export class NoticeDisplayDesign extends LitElement {
     const own = (k: Key): string | null => (board ? ((d[k] as string | null | undefined) ?? null) : this.defaults[k]);
     const eff = board ? effectiveTv2(d, this.defaults) : this.defaults;
     const v2 = eff.design === 'v2';
-    const [a, b, c, e, f] = ROWS.map((r) => this.row(r, own(r.key), v2));
-    return html`<div class="r" data-tv2>${a}${b}</div><div class="r">${c}${e}</div><div class="r">${f}</div>`;
+    const [a, b, c, e, f, g, i, j] = ROWS.map((r) => this.row(r, own(r.key), v2));
+    return html`<div class="r" data-tv2>${a}${b}</div><div class="r">${c}${e}</div><div class="r">${f}</div><div class="r" data-lobby>${g}${i}</div><div class="r">${j}</div>`;
   }
 }
 
