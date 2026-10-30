@@ -53,6 +53,9 @@ export class DevicesSynoptic extends LitElement {
     nav.tree { padding: 10px; display: flex; flex-direction: column; gap: 4px; overflow: hidden; align-self: stretch; }
     nav.tree button { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 0; border-radius: var(--sw-r-sm); background: transparent; font: inherit; color: var(--sw-text); text-align: start; cursor: pointer; min-block-size: 36px; min-inline-size: 0; touch-action: manipulation; }
     nav.tree button[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+    nav.tree button { transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); }
+    nav.tree button:active { transform: scale(var(--sw-press-scale, 0.98)); }
+    @media (hover: hover) and (pointer: fine) { nav.tree button[aria-pressed='false']:hover { background: var(--sw-surface-2); } }
     nav.tree .nm { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     nav.tree .lit { color: var(--sw-text-3); font-size: 12px; font-variant-numeric: tabular-nums; direction: ltr; display: inline-flex; gap: 3px; align-items: center; }
     .xi { inline-size: 14px; block-size: 14px; flex: none; }
@@ -76,7 +79,7 @@ export class DevicesSynoptic extends LitElement {
     .shdr span { display: inline-flex; gap: 5px; align-items: center; min-inline-size: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .srows { display: flex; flex-direction: column; justify-content: flex-start; gap: 5px; min-block-size: 0; container-type: size; }
     .srow, nav.tree button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-        .srow { flex: 1 1 0; min-block-size: 0; max-block-size: 76px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--sw-surface-2); text-align: start; color: inherit; font: inherit; cursor: pointer; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
+        .srow { flex: 1 1 0; min-block-size: 0; max-block-size: 76px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--sw-surface-2); text-align: start; color: inherit; font: inherit; cursor: pointer; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), box-shadow var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
     .srow:active { transform: scale(var(--sw-press-scale, 0.98)); }
     @media (hover: hover) and (pointer: fine) { .srow:hover:not([aria-pressed='true']) { background: var(--sw-surface-3); } }
     .srow[aria-pressed='true'] { background: var(--sw-accent-soft); box-shadow: inset 0 0 0 2px var(--sw-accent); }
@@ -84,10 +87,11 @@ export class DevicesSynoptic extends LitElement {
     .srow[data-temp='cold'] { background: color-mix(in srgb, var(--sw-cool) 12%, var(--sw-surface-2)); }
     .srow[data-off] { background: repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--sw-border) 55%, transparent) 7px 8px), var(--sw-surface-2); box-shadow: inset 0 0 0 1px var(--sw-border-strong); }
     .srow[data-fire='alarm'] { background: color-mix(in srgb, var(--sw-danger) 14%, var(--sw-surface)); box-shadow: inset 0 0 0 2px var(--sw-danger); }
+    .srow[aria-pressed='true'][data-fire='alarm'] { box-shadow: inset 0 0 0 2px var(--sw-accent), inset 0 0 0 4px color-mix(in srgb, var(--sw-danger) 45%, transparent); }
     .srow[data-fire='fault'] { outline: 1.5px dashed var(--sw-border-strong); outline-offset: -1.5px; }
     .nm { min-inline-size: 0; display: flex; flex-direction: column; gap: 1px; }
     .nm .t { font-size: clamp(10px, calc(100cqh / var(--n, 6) * 0.3), var(--sw-fs-md)); font-weight: var(--sw-fw-bold); color: var(--sw-heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .nm .s { font-size: 12px; color: var(--sw-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nm .s { font-size: 12.5px; color: var(--sw-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cell { min-inline-size: 0; display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; font-size: clamp(10px, calc(100cqh / var(--n, 6) * 0.3), 15px); }
     .cell b { font-weight: var(--sw-fw-bold); direction: ltr; unicode-bidi: isolate; }
     .cell.muted { color: var(--sw-text-3); }
@@ -96,8 +100,8 @@ export class DevicesSynoptic extends LitElement {
     .deg { font-size: clamp(11px, calc(100cqh / var(--n, 6) * 0.42), 24px); font-weight: 800; color: var(--sw-heading); direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
     .deg small { font-size: 0.6em; color: var(--sw-text-3); }
     .deg.none { color: var(--sw-text-3); }
-    [data-temp='hot'] .deg { color: var(--sw-heat); }
-    [data-temp='cold'] .deg { color: var(--sw-cool); }
+    [data-temp='hot'] .deg { color: color-mix(in srgb, var(--sw-heat) 62%, var(--sw-heading)); }
+    [data-temp='cold'] .deg { color: color-mix(in srgb, var(--sw-cool) 62%, var(--sw-heading)); }
     .fac { display: inline-flex; gap: 2px; padding: 2px; border-radius: 5px; background: var(--sw-border); block-size: clamp(8px, calc(100cqh / var(--n, 6) * 0.3), 22px); }
     .fac i { inline-size: 7px; border-radius: 2px; background: var(--sw-surface-2); }
     .fac i.on { background: color-mix(in srgb, var(--sw-lit) 82%, var(--sw-surface)); }
@@ -110,8 +114,8 @@ export class DevicesSynoptic extends LitElement {
     .detail .grow { flex: 1; min-inline-size: 0; }
     .empty { display: grid; place-items: center; padding: 24px; color: var(--sw-text-3); }
     .nc { display: flex; gap: 8px; align-items: center; color: var(--sw-text-2); font-size: 12.5px; }
-    .alarmpanel { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--sw-danger); color: #fff; }
-    .alarmpanel.ackd { background: color-mix(in srgb, var(--sw-danger) 80%, #000); }
+    .alarmpanel { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--sw-r-md); background: color-mix(in srgb, var(--sw-danger) 80%, #000); color: #fff; }
+    .alarmpanel.ackd { background: color-mix(in srgb, var(--sw-danger) 66%, #000); }
     .alarmpanel .tx { flex: 1 1 220px; min-inline-size: 0; display: flex; flex-direction: column; }
     .alarmpanel .tag { display: inline-flex; padding: 1px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); font-size: 11.5px; font-weight: 700; margin-inline-start: 8px; }
     .alarmpanel .lnk { min-block-size: 40px; padding: 0 14px; border-radius: 999px; border: 0; background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
