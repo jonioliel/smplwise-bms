@@ -447,7 +447,13 @@ class FeatureAdapters:
         if not _judged_is_actor(actor, principals):
             raise FeatureWireError("Unauthorized", "not_sent")  # W031-295: the policy is judged for exactly the actor the wire names
         if spec.needs_targets:
-            tgt = list(targets) if targets is not None else ([(params["station_id"], params["relay"])] if "relay" in params else [])
+            if targets is not None:
+                tgt = list(targets)
+            elif "relay" in params:  # WISKEY-RC5-2310: params.relay is the door's PHYSICAL relay; the grant's target is its api relay
+                door = fx.relay_row_for_door(conn, params["station_id"], params["relay"])
+                tgt = [(door.station_id, door.api_relay)] if door is not None else []
+            else:
+                tgt = []
         else:
             tgt = []
         rows = tuple(rows)
@@ -467,6 +473,13 @@ class FeatureAdapters:
             raise FeatureWireError(exc.code, "not_sent") from None
         snapshot = build_policy_snapshot(identity=self.port.identity(), request=body, doc=doc, source_epoch=source_epoch, now=now,
                                          actor_session_active=actor_session_active, private_input=private_input, rows=rows)
+        if spec.needs_targets and "relay" in params:
+            # WISKEY-RC5-2310: WisKey's `_primary` (arx_door_execution / arx_emergency_execution) binds the request to exactly one grant by
+            # station_id, physical_relay == params.relay and mapping_revision; a request it would refuse never leaves (nothing stored, nothing sent).
+            bound = [g for g in doc.stations if g.station_id == params.get("station_id") and g.physical_relay == params.get("relay")
+                     and g.mapping_revision == params.get("mapping_revision")]
+            if len(bound) != 1:
+                raise FeatureWireError("binding_denied", "not_sent")
         return body, snapshot
 
     def start(self, conn: sqlite3.Connection, body: dict[str, Any], snapshot: dict[str, Any], *, subscription: int | None = None) -> StartOutcome:

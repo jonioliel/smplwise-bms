@@ -43,6 +43,7 @@ def env(settings):
     e.admin = e.principal("joni")
     with e.db.connection() as conn:
         fx.set_relay_map(conn, station_id="st-a", api_relay=1, physical_relay=2, confirmed_by=e.admin.user_id, expected_revision=0)
+        fx.set_relay_map(conn, station_id="st-a", api_relay=2, physical_relay=1, confirmed_by=e.admin.user_id, expected_revision=0)  # WISKEY-RC5-2310: a door is its PHYSICAL relay; the crossed map covers both
     return e
 
 

@@ -222,7 +222,7 @@ class DirectEmergencyEngine:
             ctx = self.context(conn, request_id)
         except FeatureWireError as exc:
             return dwe.DoorOutcome("refused", exc.code)
-        row = fx.relay_row(conn, station_id, relay)
+        row = fx.relay_row_for_door(conn, station_id, relay)  # WISKEY-RC5-2310: `relay` is the door's physical relay
         if row is None:
             return dwe.DoorOutcome("refused", "relay_map_missing")
         now = self.clock()
@@ -231,8 +231,8 @@ class DirectEmergencyEngine:
             body, snapshot = self.adapters.prepare(
                 conn, feature=FEATURE, actor=ctx.actor, principals=ctx.principals, authority_ref=ctx.authority_ref, authority_revision=ctx.authority_revision,
                 scope_ref=scope_ref_of(command, station_id, relay), parameter_reference=event_ref,
-                params={"station_id": station_id, "relay": relay, "mapping_revision": row.revision, "policy_ref": POLICY_REF}, now=now,
-                source_epoch=str(ctx.authority_revision), actor_session_active=ctx.actor_session_active, targets=[(station_id, relay)], private_input=private,
+                params={"station_id": station_id, "relay": row.physical_relay, "mapping_revision": row.revision, "policy_ref": POLICY_REF}, now=now,
+                source_epoch=str(ctx.authority_revision), actor_session_active=ctx.actor_session_active, targets=[(station_id, row.api_relay)], private_input=private,
                 execution_expires_at=now + timedelta(seconds=min(EXEC_WINDOW_S, _remaining(EXEC_WINDOW_S))))
         except FeatureWireError as exc:
             return dwe.DoorOutcome("refused", exc.code)
@@ -302,11 +302,11 @@ class DirectEmergencyEngine:
                     _commit(conn)
 
     def _read_durable(self, conn, attempt, event_ref, command, station_id, relay):
-        mapping = fx.relay_row(conn, station_id, relay)
+        mapping = fx.relay_row_for_door(conn, station_id, relay)  # WISKEY-RC5-2310: WisKey reads the history by the physical door
         if mapping is None:
             return
         try:
-            raw = self.client.event_status(event_ref, station_id, relay, mapping.revision)
+            raw = self.client.event_status(event_ref, station_id, mapping.physical_relay, mapping.revision)
         except FeatureWireError:
             return  # no absent record is ever a never-sent proof
         for record in raw["records"]:
@@ -316,7 +316,8 @@ class DirectEmergencyEngine:
             if not isinstance(targets, list) or len(targets) != 1:
                 return
             row = targets[0]
-            if row.get("station_id") != station_id or row.get("physical_relay") != relay or row.get("mapping_revision") != mapping.revision:
+            if (row.get("station_id") != station_id or row.get("api_relay") != mapping.api_relay or row.get("physical_relay") != mapping.physical_relay
+                    or row.get("mapping_revision") != mapping.revision):
                 return
             token = row.get("outcome")
             if token == "acknowledged":

@@ -261,6 +261,15 @@ def relay_row(conn: sqlite3.Connection, station_id: str, api_relay: int) -> Rela
     return RelayRow(station_id, api_relay, r[0], r[1]) if r and r[2] == 1 else None
 
 
+def relay_row_for_door(conn: sqlite3.Connection, station_id: str, physical_relay: int) -> RelayRow | None:
+    """The active map row of an Arx DOOR. Arx keys a door by WisKey's `physical_index` (door_windows._sync_doors); WisKey binds a request by
+    `params.relay == grant.physical_relay` and a grant by its `api_relay` (WISKEY-RC5-2310). None when no row, or more than one active row,
+    names that physical relay (WisKey refuses a duplicate physical relay in a snapshot as well)."""
+    rows = conn.execute("SELECT api_relay, revision FROM wiskey_relay_map WHERE station_id=? AND physical_relay=? AND active=1",
+                        (station_id, physical_relay)).fetchall()
+    return RelayRow(station_id, rows[0][0], physical_relay, rows[0][1]) if len(rows) == 1 else None
+
+
 # ---------------------------------------------------------------- the current policy (Arx RBAC is the only authority)
 
 @dataclass(frozen=True)

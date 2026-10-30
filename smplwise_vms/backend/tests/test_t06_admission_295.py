@@ -628,6 +628,7 @@ def fenv(settings):
     with e.db.connection() as conn:
         for sid in ("st-a", "st-b"):
             fx.set_relay_map(conn, station_id=sid, api_relay=1, physical_relay=2, confirmed_by=admin.user_id, expected_revision=0)
+            fx.set_relay_map(conn, station_id=sid, api_relay=2, physical_relay=1, confirmed_by=admin.user_id, expected_revision=0)  # WISKEY-RC5-2310: a door is its PHYSICAL relay; the crossed map covers both
     e.admin = admin
     e.settings = settings
     return e
