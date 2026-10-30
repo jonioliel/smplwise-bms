@@ -20,6 +20,7 @@ from ..db import set_setting
 from ..services import backup as svc
 from ..services import backup_drill as drill
 from ..services import backup_sensitive as sens
+from ..services import restore_safety
 
 router = APIRouter()
 
@@ -35,11 +36,15 @@ class CreateIn(BaseModel):
 
 class RestoreIn(BaseModel):
     mode: str = Field(default="replace", pattern="^(replace|merge)$")
-    scope: str = Field(default="project", pattern="^(project|project\\+access)$")
+    # None: the setting `backup.local_restore_scope` (default "project+access"; owner answer 2026-10-30)
+    scope: str | None = Field(default=None, pattern="^(project|project\\+access)$")
     confirm: str = ""
     backup_password: SecretStr | None = None
     # the operator's explicit choice to restore WITHOUT the encrypted section (local accounts then need an administrator's link)
     skip_sensitive: bool = False
+    # OFFBOX-RESTORE-2300 (owner 2026-10-30): seals the sensitive section of the pre-restore safety archive (written first while the
+    # setting `backup.safety_before_local_restore` is on, the default). Never echoed, logged or audited.
+    safety_backup_password: SecretStr | None = None
 
 
 SENSITIVE_MESSAGES = {
@@ -56,6 +61,12 @@ def _sensitive_error(exc: sens.SensitiveError) -> ApiError:
     if exc.code == "backup_password_weak":  # the minimum in force (setting `backup.password_min`) is named in the message
         n = exc.min_chars or sens.PASSWORD_MIN_CHARS
         return ApiError(422, exc.code, f"סיסמת הגיבוי צריכה לפחות {n} תווים.", details={"can_skip": False, "min_chars": n})
+    # OFFBOX-RESTORE-2300: the password of the pre-restore safety archive (refused before anything is written)
+    if exc.code == "safety_password_weak":
+        n = exc.min_chars or sens.PASSWORD_MIN_CHARS
+        return ApiError(422, exc.code, f"הסיסמה לגיבוי הביטחון צריכה לפחות {n} תווים.", details={"can_skip": False, "min_chars": n, "field": "safety_backup_password"})
+    if exc.code == "safety_password_too_long":
+        return ApiError(422, exc.code, "הסיסמה לגיבוי הביטחון ארוכה מדי.", details={"can_skip": False, "field": "safety_backup_password"})
     return ApiError(422 if exc.code == "backup_password_too_long" else 409, exc.code,
                     SENSITIVE_MESSAGES.get(exc.code, "השחזור נדחה."), details={"can_skip": can_skip})
 
@@ -198,14 +209,33 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
     if body.confirm != "RESTORE":
         raise ApiError(422, "confirm_required", "לאישור השחזור יש להקליד RESTORE.")
     p = _path(request, name)
+    st = settings_of(request)
+    scope = body.scope or restore_safety.local_scope(conn)
+    safety = None
     try:
-        result = svc.restore(settings_of(request), conn, p, body.mode, body.scope, actor_user_id=principal.user_id,
-                             backup_password=_secret(body.backup_password), skip_sensitive=body.skip_sensitive)
+        if restore_safety.local_safety_enabled(conn):  # OFFBOX-RESTORE-2300: a way back, written before anything is replaced
+            restore_safety.check_password(conn, _secret(body.safety_backup_password))
+            try:
+                safety = restore_safety.write(st, conn, f"before restore of {name}", _secret(body.safety_backup_password))
+            except sens.SensitiveError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - a restore without its way back is never started
+                raise ApiError(409, "safety_failed", "לא ניתן היה לכתוב גיבוי ביטחון לפני השחזור, ולכן השחזור לא התחיל.",
+                               details={"error": type(exc).__name__}) from None
+        try:
+            result = svc.restore(st, conn, p, body.mode, scope, actor_user_id=principal.user_id,
+                                 backup_password=_secret(body.backup_password), skip_sensitive=body.skip_sensitive)
+        except BaseException:
+            restore_safety.remove(st, safety)
+            raise
     except sens.SensitiveError as exc:
         raise _sensitive_error(exc) from None
     except ValueError as exc:
         raise ApiError(409, "restore_refused", f"השחזור נדחה: {exc}")
-    audit(conn, actor=principal, action="backup.restore", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request), details={"mode": body.mode, "scope": body.scope, "tables": result["tables"], "files": result["files"],
+    if safety:
+        svc.prune(st)
+    audit(conn, actor=principal, action="backup.restore", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request), details={"mode": body.mode, "scope": scope, "tables": result["tables"], "files": result["files"],
+                   "safety": safety["name"] if safety else None,
                    **({"roles_pruned": result["roles_pruned"]} if result.get("roles_pruned") else {}),
                    "sensitive": {k: result["sensitive"][k] for k in ("state", "restored", "skipped", "plaintext_ignored")},
                    **({"passwords": {k: result["passwords"][k] for k in ("restored", "kept_current", "need_reset_count", "legacy_plaintext")}} if result.get("passwords") else {})})
@@ -215,4 +245,4 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
           request_id=_rid(request), reason="kept_on_restore",
           details={"via": "restore", "backup": name, "mode": body.mode, "to": switch.get("kept"), "kept": switch.get("kept"),
                    "archive": switch.get("archive"), "archive_differed": bool(switch.get("differed"))})
-    return {"name": name, **result}
+    return {"name": name, **result, "safety_archive": restore_safety.summary(safety)}

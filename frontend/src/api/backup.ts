@@ -6,7 +6,7 @@
  */
 import { apiUrl, del, get, patch, post, upload } from './client';
 
-export type BackupKind = 'manual' | 'upload' | 'auto-pre-upgrade' | 'auto-daily' | string;
+export type BackupKind = 'manual' | 'upload' | 'auto-pre-upgrade' | 'auto-daily' | 'auto-pre-restore' | string;
 
 export interface BackupEntry {
   name: string;
@@ -35,6 +35,8 @@ export interface RestoreResult {
   created_at: string | null;
   sensitive?: { state: 'encrypted' | 'omitted' | 'legacy'; restored: boolean; skipped: string | null; plaintext_ignored: number };
   passwords?: { restored: number; kept_current: number; need_reset: string[]; need_reset_count: number; legacy_plaintext: boolean } | null;
+  /** OFFBOX-RESTORE-2300: the pre-restore safety backup (null while `backup.safety_before_local_restore` is off). */
+  safety_archive?: { name: string; bytes: number; created_at: string } | null;
 }
 
 export const KIND_LABEL: Record<string, string> = {
@@ -42,6 +44,7 @@ export const KIND_LABEL: Record<string, string> = {
   upload: 'הועלה',
   'auto-pre-upgrade': 'אוטומטי · לפני עדכון',
   'auto-daily': 'אוטומטי · יומי',
+  'auto-pre-restore': 'אוטומטי · לפני שחזור',
 };
 
 export const TABLE_LABEL: Record<string, string> = {
@@ -62,7 +65,8 @@ export const TABLE_LABEL: Record<string, string> = {
 export const listBackups = () => get<{ backups: BackupEntry[]; policy: Record<string, number>; bytes: number; schema_version: number }>('backups');
 export const createBackup = (body: { note?: string; include_audit?: boolean; include_events?: boolean; backup_password?: string } = {}) => post<BackupEntry>('backups', body);
 export const deleteBackup = (name: string) => del(`backups/${encodeURIComponent(name)}`);
-export const restoreBackup = (name: string, body: { mode: 'replace' | 'merge'; scope: 'project' | 'project+access'; confirm: string; backup_password?: string; skip_sensitive?: boolean }) =>
+export const restoreBackup = (name: string, body: { mode: 'replace' | 'merge'; scope: 'project' | 'project+access'; confirm: string; backup_password?: string; skip_sensitive?: boolean;
+  safety_backup_password?: string }) =>
   post<RestoreResult>(`backups/${encodeURIComponent(name)}/restore`, body);
 export const backupDownloadUrl = (name: string) => apiUrl(`backups/${encodeURIComponent(name)}/download`);
 export function uploadBackup(file: File) {

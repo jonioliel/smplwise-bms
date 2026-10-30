@@ -145,3 +145,69 @@ export const importKey = (key: string) => post<OffboxStatus['key']>('backups/off
 export const drillStatus = () => get<DrillStatus>('backups/drill');
 export const runDrill = (target_id?: string) => post<{ started: boolean }>('backups/drill', target_id ? { target_id } : {});
 export const setDrillMonthly = (monthly: boolean) => put<DrillStatus>('backups/drill/schedule', { monthly });
+
+// ---- OFFBOX-RESTORE-2300: restore the installation FROM an encrypted off-box copy (two steps: prepare, then confirm)
+
+export interface OffboxCopy {
+  name: string;
+  bytes: number;
+  /** The archive time stamp from the object name (ISO, UTC), or null. */
+  stamp: string | null;
+}
+
+export interface OffboxPrepared {
+  id: string;
+  object: string;
+  key_id: string;
+  sealed_sha256: string;
+  plain_sha256: string;
+  plain_bytes: number;
+  app_version: string | null;
+  schema_version: number;
+  kind: string | null;
+  archive_created_at: string | null;
+  tables: Record<string, number>;
+  files: number;
+  sensitive: 'encrypted' | 'omitted' | 'legacy' | null;
+  warnings: string[];
+  expires_in_s: number;
+}
+
+export interface OffboxRestored {
+  object: string;
+  safety_archive: { name: string; bytes: number; created_at: string };
+  tables: Record<string, number>;
+  files: number;
+}
+
+export const listCopies = (targetId: string) => get<{ target_id: string; copies: OffboxCopy[] }>(`backups/offbox/targets/${encodeURIComponent(targetId)}/copies`);
+export const prepareRestore = (target_id: string, object: string) => post<OffboxPrepared>('backups/offbox/restore/prepare', { target_id, object });
+export const discardRestore = (stageId: string) => del(`backups/offbox/restore/${encodeURIComponent(stageId)}`);
+/** The destructive step: the typed word is part of the request and the server refuses anything else. */
+export const restoreFromCopy = (body: { stage_id: string; confirm: string; scope: RestoreScope; backup_password?: string; skip_sensitive?: boolean;
+  safety_backup_password?: string }) =>
+  post<OffboxRestored>('backups/offbox/restore', { mode: 'replace', ...body });
+
+// ---- owner decisions 2026-10-30: the restore defaults are settings, each with a default
+
+export type RestoreScope = 'project' | 'project+access';
+
+/** `backup.offbox_restore_scope`: the initial choice of the restore-from-copy dialog. Default (and any unknown value): project + access. */
+export function scopeFromSetting(v: unknown): RestoreScope {
+  return v === 'project' ? 'project' : 'project+access';
+}
+
+/** `backup.safety_before_local_restore`: a local restore writes the safety backup first. Default (and any unknown value): on. */
+export function localSafetyOn(v: unknown): boolean {
+  return v !== 'off';
+}
+
+/** The safety backup's password travels only when typed, in its own field (never mixed with the copy's backup password). */
+export function safetyBody(pw: string): { safety_backup_password?: string } {
+  return pw ? { safety_backup_password: pw } : {};
+}
+
+/** The restore button works only with the typed word and no request in flight. */
+export function restoreReady(typed: string, busy: boolean): boolean {
+  return typed === 'RESTORE' && !busy;
+}
