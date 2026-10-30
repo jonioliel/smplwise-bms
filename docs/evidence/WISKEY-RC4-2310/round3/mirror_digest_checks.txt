@@ -1,0 +1,32 @@
+HEAD=e584d1533b68e8e2e85b13f2bde4d2531da6b74a
+START=2026-10-30T22:41:40Z
+$ /c/Users/jon/AppData/Local/Programs/Python/Python312/python.exe scripts/sync_integration.py --check
+integration mirror is up to date
+EXIT CODE=0
+$ /c/Users/jon/AppData/Local/Programs/Python/Python312/python.exe scripts/wiskey_posix_digest.py custom_components/smplwise_bridge  (summary: digest, file count)
+wiskey-posix-tree-sha256.v1 f6f7eaa762861fc3524d1383463b54d8d123d9c5ec39b82a713fde943ba4c1f8 28
+EXIT CODE=0
+$ /c/Users/jon/AppData/Local/Programs/Python/Python312/python.exe scripts/wiskey_posix_digest.py smplwise_vms/integration/smplwise_bridge  (summary: digest, file count)
+wiskey-posix-tree-sha256.v1 f6f7eaa762861fc3524d1383463b54d8d123d9c5ec39b82a713fde943ba4c1f8 28
+EXIT CODE=0
+$ /c/Users/jon/AppData/Local/Programs/Python/Python312/python.exe scripts/wiskey_posix_digest.py smplwise_vms/integration/hikvision_intercom  (summary: digest, file count)
+wiskey-posix-tree-sha256.v1 00df5e151fa8dc30be983389af8f3b483e709e74060663f9a85dcf889dc5c459 377
+EXIT CODE=0
+# rc.5 trees, extracted read-only into a scratch directory (not in this repository; the embedded bundle is unchanged)
+$ /c/Users/jon/AppData/Local/Programs/Python/Python312/python.exe -I scripts/wiskey_posix_digest.py <scratch>/manual_tree/custom_components/hikvision_intercom   (from WISKEY_MANUAL_EXISTING_2.0.1-rc.5.zip, 382 files)
+wiskey-posix-tree-sha256.v1 fa0aa0ece26760aaab4b319239b9231fe60dfb3a753a352033615b43dd888f45 382
+EXIT CODE=0
+$ /c/Users/jon/AppData/Local/Programs/Python/Python312/python.exe -I scripts/wiskey_posix_digest.py <scratch>/native_src/custom_components/hikvision_intercom   (git archive bc2d8574, 381 files)
+wiskey-posix-tree-sha256.v1 8af9a99e3476f32bf8eb56e557977077776bebe7e0e89ec9d9c2752d523d0be2 381
+EXIT CODE=0
+$ diff -rq manual_tree native_src (component dirs)
+Only in <scratch>/manual_tree/custom_components/hikvision_intercom: _manual_upgrade_profile.json
+EXIT CODE=1
+$ /c/Users/jon/AppData/Local/Programs/Python/Python312/python.exe scripts/release_check.py
+  [ok] release package document present: C:\cloude\smplwise-rc4\docs\release\RELEASE_PACKAGE_V1.md
+  [ok] known-limits sources present: RESOURCE_BUDGET.md, LIVE_REVIEW_2026-09-17_HE.md, DOCS.md
+  [ok] git tag for this version: v2.28.0 exists
+  [ok] backend tests present: 789 test files
+RESULT: ready for the owner's approval
+EXIT CODE=0
+END=2026-10-30T22:41:54Z

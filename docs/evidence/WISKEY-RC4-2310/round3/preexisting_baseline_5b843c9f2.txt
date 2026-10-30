@@ -1,0 +1,43 @@
+HEAD=5b843c9f2789ec87c1e1b04e68473bdea8c532d4
+DIRTY=0
+START=2026-10-30T22:57:11Z
+$ python -m pytest -p no:cacheprovider -rfE tests/test_t06_work_states_297.py::test_no_production_module_reads_features_status_as_a_result_or_a_go_live   (temporary detached worktree of this repository at 5b843c9f2)
+F                                                                        [100%]
+================================== FAILURES ===================================
+__ test_no_production_module_reads_features_status_as_a_result_or_a_go_live ___
+
+    def test_no_production_module_reads_features_status_as_a_result_or_a_go_live():
+        """`DirectFeatureClient.status()` returns WisKey's raw capability map. A static `active: true` there proves nothing, so no product code may
+        call it; a future caller must be reviewed against this note (WisKey T06) and added here deliberately."""
+        callers = []
+        for path in SERVICES.rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            if not any(k in text for k in ("wiskey_feature_direct", "DirectFeatureClient", "FeatureAdapters", "features/status")):
+                continue  # only modules that can reach the feature client (a generic `.status()` elsewhere is unrelated)
+            tree = ast.parse(text)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "status" and not node.args and not node.keywords:
+                    callers.append(f"{path.relative_to(SERVICES).as_posix()}:{node.lineno}")
+                if isinstance(node, ast.Constant) and node.value == "features/status":
+                    callers.append(f"{path.relative_to(SERVICES).as_posix()}:{node.lineno}:literal")
+        allowed = {"services/wiskey_feature_direct.py"}  # the client itself (COMMANDS tuple + status())
+        foreign = sorted(c for c in callers if c.split(":")[0] not in allowed)
+>       assert foreign == [], foreign
+E       AssertionError: ['services/wiskey_selected_readonly.py:25:literal', 'services/wiskey_selected_readonly.py:26:literal', 'services/wiskey_selected_readonly.py:33:literal']
+E       assert ['services/wi...y:33:literal'] == []
+E         
+E         Left contains 3 more items, first extra item: 'services/wiskey_selected_readonly.py:25:literal'
+E         Use -v to get more diff
+
+tests\test_t06_work_states_297.py:185: AssertionError
+============================== warnings summary ===============================
+..\..\..\..\..\..\..\..\..\..\..\..\..\cloude\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\cloude\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_t06_work_states_297.py::test_no_production_module_reads_features_status_as_a_result_or_a_go_live
+1 failed, 1 warning in 7.91s
+END=2026-10-30T22:57:42Z
+EXIT CODE=1

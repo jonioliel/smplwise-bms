@@ -154,6 +154,61 @@ Source fact: the embedded tree carries the emergency v2 contract but not `featur
 `DirectEmergencyEngine._read_durable` (C03) calls; against rc.39 that read fails closed (the attempt stays UNKNOWN). The required
 package type (managed bundle in the image vs. owner-installed manual profile) is undecided.
 
+## Round 3 (2026-10-31) — WisKey rc.5 host-assembly intake: consumer/ABI check + one Arx-side fix
+
+Inputs read only (fetch + `git archive` into a scratch directory; nothing checked out, merged or installed):
+
+| Input | Identity (verified here) |
+|---|---|
+| Windows intake | `codex/wiskey-windows-host-assembly-intake-2026-10-30` @ `ae3d677a854519e739190b8a847caf85abf10214`; archive 81608 bytes, sha256 `fbffb25d…f8053e8` (recomputed, equal) |
+| Mac follow-up | `codex/wiskey-mac-host-assembly-followup-2026-10-30` @ `5439ffa465ad5afb86242b05bf6b70ebb45deb4d`; archive 27749810 bytes, sha256 `690041f9…85fc6a79` (recomputed, equal) |
+| Native product | `bc2d8574543701c55b4380418b1909ffc1838d8d`, label `2.0.1-rc.5` (ancestor of the Mac follow-up head) |
+| Manual package | `WISKEY_MANUAL_EXISTING_2.0.1-rc.5.zip` from the Mac archive: 1718764 bytes, sha256 `648f6fd6…2efd8c1fb`, 382 files; `scripts/wiskey_posix_digest.py` over it = `fa0aa0ec…dd888f45` (equal to the delivered component digest); its 381 Native files are byte-identical to `git archive bc2d8574` (only `_manual_upgrade_profile.json` differs) |
+
+rc.4 -> rc.5 Native delta (`git diff ffa92eecb..bc2d8574 -- custom_components`): `access/native_emergency_recovery.py`,
+`native_emergency_recovery_host.py` (startup binding covers exactly the entries with `managed_locks`; a relay-less entry gets no invented
+StationGrant; a newly managed relay cancels readiness), `const.py` / `manifest.json` (label). No wire command, request field or answer field
+that Arx reads changed. The consumer table is in the owner reply (`private/planning/REPLY_TO_WISKEY_RC5_HOST_2026-10-31_HE.md`).
+
+### WISKEY-RC5-2310 — the door relay is WisKey's physical relay (fixed)
+
+Found while mapping the relay/StationGrant consumers (pre-existing; not introduced by rc.5). Arx keys every door by WisKey's
+`physical_index` (`door_windows._sync_doors`, the automation door list). WisKey binds a station-scoped request by
+`params.relay == grant.physical_relay` and `params.mapping_revision == grant.mapping_revision` (`access/arx_door_execution.py:265-281`
+`_primary` at bc2d8574; same rule in `arx_emergency_execution.py:141` / `arx_emergency_event_execution.py:156`), needs the grant
+`(station, api_relay, physical_relay, revision)` to be a row of its startup mapping (`native_emergency_recovery_host.py:606-643`), and reads
+the C07 history by the physical door (`emergency_status_api.py:58-70`). The three Arx callers looked the relay map up by **api** relay with
+the door's physical relay. With a crossed map (api 1 -> physical 2, api 2 -> physical 1) a door automation sent the OTHER physical relay
+(a consistent grant WisKey would execute), and an emergency hold was refused `binding_denied`; with an identity map nothing changed.
+In production the map has no writer yet (relay map content is an open ECCACT item), so this was latent.
+
+| File | Change |
+|------|--------|
+| `services/wiskey_feature_exec.py` | `relay_row_for_door(conn, station, physical_relay)`: the single active row naming that physical relay (none or ambiguous -> None). |
+| `services/wiskey_emergency_direct.py` | apply/release: map row by the door's physical relay; `params.relay = row.physical_relay`, target `(station, row.api_relay)`. C07 read: `door = row.physical_relay`; a history target settles only when station, api_relay, physical_relay and revision all match. |
+| `services/wiskey_auto_door.py` | same lookup; target `(station, mapped.api_relay)`. |
+| `services/wiskey_feature_direct.py` | `FeatureAdapters.prepare`: default target of a relay request = the api relay of the physical door; after the snapshot, a request that does not bind exactly one grant (station, physical relay, revision) is refused `binding_denied` / `not_sent` (nothing stored, nothing sent). |
+| `tests/test_wiskey_rc5_relay_binding_2310.py` | new, 9 tests (crossed map: lookup, emergency hold, missing row, C07 read door + api match, adapter guard, default target, door automation). |
+| `tests/test_wkcap_295.py`, `test_t06_work_states_297.py`, `test_wiskeya06_297.py`, `test_t06_admission_295.py` | fixture only: the crossed map now has both rows (api 2 -> physical 1 added); their doors are physical relay 1, which the old fixture never mapped. |
+
+Receipts: `docs/evidence/WISKEY-RC4-2310/round3/` (RECEIPTS.json, outputs, junit, file lists; Windows workstation, not the runner):
+
+| Run | SHA | Result | EXIT CODE |
+|-----|-----|--------|-----------|
+| new relay test, red (before the fix) | `5b843c9f2` + the test file only | 8 failed, 1 passed | 1 |
+| new relay test, green | `e584d1533` | 9 passed | 0 |
+| deadline test (WIN-ARX-RC4-DEADLINE-01) | `e584d1533` | 5 passed | 0 |
+| source suite (5 files) | `e584d1533` | 100 passed | 0 |
+| targeted shards 0-5 (round-2 lists, 116 files) | `e584d1533` | 3563 passed, 0 failed, 7 skipped | 0 each |
+| touched/related files (6) | `e584d1533` | 301 passed, 3 xfailed, 1 failed (pre-existing) | 1 |
+| that failing test at `5b843c9f2` | `5b843c9f2` | 1 failed | 1 |
+
+The one failure is pre-existing and outside this change: `test_t06_work_states_297::test_no_production_module_reads_features_status_as_a_result_or_a_go_live`
+flags `services/wiskey_selected_readonly.py:25,26,33` (the owner30 read-only probe adopted in round 1 reads `features/status`). That test file is
+not in the round-2 targeted lists. Left as is and reported to the owner. `sync_integration --check`, digests and `release_check`: EXIT CODE 0
+(`round3/mirror_digest_checks.txt`); the embedded Native bundle is unchanged (377 files, `00df5e15…`).
+Kept: UNKNOWN/partial-commit classification, the one deadline (WIN-ARX-RC4-DEADLINE-01, `887344fb0`), no replay, LOCK hidden.
+
 ## Remainders (unchanged by this work)
 
 - B03 HAOS/Supervisor native backup/restore: BLOCKED_RESOURCE / NOT_MEASURED (lab).
