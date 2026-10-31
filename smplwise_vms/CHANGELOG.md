@@ -1,5 +1,27 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.31.0 (pilot) - Calendars, compact presence card, synoptic map from the home system, Google Drive backup, security updates
+**After installing:** two database migrations (0186 Google Drive backup targets, 0187 floor links to the home system); existing rows are kept. The calendars module and Google Drive backup are off by default. Phone photos saved as MPO are stored as their first picture. Going back to 2.30.0 needs the database backup taken before the update.
+- **עברית:** אחרי ההתקנה: שתי מיגרציות של מסד הנתונים (0186 יעדי גיבוי ל-Google Drive, 0187 קישור קומות למערכת הבית); השורות הקיימות נשמרות. מודול היומנים וגיבוי Google Drive כבויים כברירת מחדל. תמונות טלפון בפורמט MPO נשמרות כתמונה הראשונה שבהן. חזרה ל-2.30.0 דורשת את גיבוי מסד הנתונים שנלקח לפני העדכון.
+
+### What was added - מה נוסף
+- **English:** Calendars: month, week and day views, a rooms timeline, booking, approvals (contested requests, displacing needs the calendar manager), maintenance, calendar management, settings and calendar connections, and a resident flow on the phone. Every owner decision is a setting.
+- **עברית:** יומנים: תצוגות חודש, שבוע ויום, ציר זמן לחדרים, הזמנה, אישורים (בקשות מתנגשות, דחיקה דורשת את מנהל היומן), תחזוקה, ניהול יומנים, הגדרות וחיבורי יומנים, ומסלול לדייר בטלפון. כל החלטה של הבעלים היא הגדרה.
+- **English:** The synoptic map and the building cross-section read every floor of the home system: floors match automatically by level on a one-building site, and a floor link editor lets you link floors and add or remove areas by hand.
+- **עברית:** המפה הסינופטית וחתך הבניין קוראים את כל הקומות ממערכת הבית: קומות מותאמות אוטומטית לפי מפלס באתר עם בניין אחד, ועורך קישור קומות מאפשר לקשר קומות ולהוסיף או להסיר אזורים ידנית.
+- **English:** Off-box backup to Google Drive (off by default; the owner connects his own Google account).
+- **עברית:** גיבוי חיצוני ל-Google Drive (כבוי כברירת מחדל; הבעלים מחבר את חשבון ה-Google שלו).
+
+### What was improved - מה שופר
+- **English:** The building presence card is a compact strip of active rooms (four styles, empty rooms, details and "empty since" are settings) and never taller than its neighbours; the area window shows the room status.
+- **עברית:** כרטיס הנוכחות הוא רצועה קומפקטית של חדרים פעילים (ארבעה סגנונות; חדרים ריקים, פרטים ו"ריק מ-" הם הגדרות) ולעולם לא גבוה מהכרטיסים לידו; חלון האזור מציג את מצב החדר.
+- **English:** Phone polish: 16 px search text (no zoom on focus), dropdowns stay inside the screen. Dialogs keep the keyboard focus inside.
+- **עברית:** ליטוש לטלפון: טקסט חיפוש בגודל 16 פיקסלים (בלי זום בהקלדה), תפריטים נפתחים נשארים בתוך המסך. חלונות קופצים שומרים את המיקוד בתוכם.
+
+### Security - אבטחה
+- **English:** Image library Pillow 13 and SFTP library paramiko 5 (security fixes); uploads open only the expected image formats. Temperature report links: separate switches for system users and for names in shared PDFs (off by default), revocation when a WhatsApp number changes, no caching. The add-on base image is pinned to an exact digest.
+- **עברית:** ספריית התמונות Pillow 13 וספריית ה-SFTP paramiko 5 (תיקוני אבטחה); העלאות פותחות רק את סוגי התמונה הצפויים. קישורי דוח טמפרטורה: מתגים נפרדים למשתמשי מערכת ולשמות ב-PDF משותף (כבויים כברירת מחדל), ביטול כשמספר הוואטסאפ משתנה, בלי שמירה במטמון. תמונת הבסיס של התוסף ננעלה לגרסה מדויקת.
+
 ## 2.30.0 (pilot) - Worst-case screens, release entry check, licence and security audit
 **After installing:** no database migration. No setting changes. Going back to 2.29.0 is safe.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים ואין שינוי בהגדרות. חזרה ל-2.29.0 בטוחה.
