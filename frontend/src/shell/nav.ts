@@ -718,16 +718,17 @@ let CALENDARS_PLACEMENT: 'rail' | 'home_tab' | 'both' = 'rail';
 /** Called by calendars/access.ts with the module state; re-applied by the shell after HIDDEN_HREFS is rebuilt. */
 export function applyCalendarsNav(on: boolean, placement: 'rail' | 'home_tab' | 'both' = CALENDARS_PLACEMENT): void {
   const tabOn = on && placement !== 'rail';
-  const changed = on !== CALENDARS_ON || placement !== CALENDARS_PLACEMENT || HIDDEN_HREFS.has(CALENDARS_HOME_HREF) === tabOn || HIDDEN_HREFS.has(CALENDARS_SETTINGS_HREF) === on;
+  const changed = on !== CALENDARS_ON || placement !== CALENDARS_PLACEMENT || HIDDEN_HREFS.has(CALENDARS_HOME_HREF) === tabOn
+    || HIDDEN_HREFS.has(CALENDARS_SETTINGS_HREF) || HIDDEN_HREFS.has(CALENDAR_SYNC_SETTINGS_HREF) === on;
   CALENDARS_ON = on;
   CALENDARS_PLACEMENT = placement;
   if (tabOn) HIDDEN_HREFS.delete(CALENDARS_HOME_HREF);
   else HIDDEN_HREFS.add(CALENDARS_HOME_HREF);
-  // the module's two settings entries exist only while the module is on (a short settings column otherwise: layout-settings-nav-fit-402)
-  for (const h of [CALENDARS_SETTINGS_HREF, CALENDAR_SYNC_SETTINGS_HREF]) {
-    if (on) HIDDEN_HREFS.delete(h);
-    else HIDDEN_HREFS.add(h);
-  }
+  // CAL-SWITCH-REACH-2321: Settings › "יומנים" holds the module's ON switch, so it is offered whatever the module state (calendar.configure
+  // decides, TAB_PERMISSIONS) - hiding it while off left nobody a way to switch the module on. Only "חיבורי יומן" waits for the module.
+  HIDDEN_HREFS.delete(CALENDARS_SETTINGS_HREF);
+  if (on) HIDDEN_HREFS.delete(CALENDAR_SYNC_SETTINGS_HREF);
+  else HIDDEN_HREFS.add(CALENDAR_SYNC_SETTINGS_HREF);
   if (changed) for (const l of tabsListeners) l();
 }
 export const calendarsModuleOn = (): boolean => CALENDARS_ON;
@@ -1453,7 +1454,7 @@ export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Re
 
 /** Tabs the owner hid in the settings (0.1.61: the AI search); filled by the shell once the product settings load. */
 // CR-NOTICE106: the notice board tab until the session says the module is on; FIX2200: the same for the הכרזות tab (announce.enabled)
-export const HIDDEN_HREFS = new Set<string>(['#/devices/notices', '#/devices/announce', '#/devices/calendars/cal', '#/system/calendars', '#/system/calendar-sync']);
+export const HIDDEN_HREFS = new Set<string>(['#/devices/notices', '#/devices/announce', '#/devices/calendars/cal', '#/system/calendar-sync']);
 
 /** הגדרות › מסך פתיחה (0.1.68): the route the UI lands on when the address carries none. */
 export const START_ROUTES: Record<string, string> = { explore: '/explore/floors/f0', live: '/live', wall: '/live/wall', events: '/investigate/events', playback: '/investigate/playback', devices: '/devices/building' };
@@ -1631,8 +1632,8 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
   // FIX2200: the הכרזות tab follows the announcements switch in the static demo too (OFF there, like the notice board)
-  // CALENDARS-UI-2310: the module's two settings entries follow the module in the static demo too (off there: a short settings column)
-  if (!api && items === AREA_TABS.system && !CALENDARS_ON) return offered.filter((t) => t.href !== CALENDARS_SETTINGS_HREF && t.href !== CALENDAR_SYNC_SETTINGS_HREF);
+  // CALENDARS-UI-2310 / CAL-SWITCH-REACH-2321: "חיבורי יומן" follows the module in the static demo too (off there); "יומנים" (the switch) stays
+  if (!api && items === AREA_TABS.system && !CALENDARS_ON) return offered.filter((t) => t.href !== CALENDAR_SYNC_SETTINGS_HREF);
   // CALENDARS-UI-2310: the home tab "יומנים" only while the module is on and placed in the home menu (home_tab / both) - the demo too
   if (!api && items === DEVICES_TABS) {
     const calTab = CALENDARS_ON && CALENDARS_PLACEMENT !== 'rail';
