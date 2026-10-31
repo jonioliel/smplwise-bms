@@ -15,7 +15,17 @@ export interface CalMockOptions {
 }
 export interface CalMock { calls: { method: string; path: string; body: unknown }[] }
 
-export const HOME_PERMS = ['devices.read', 'calendar.view', 'calendar.book'];
+/** The settings document's defaults (the same values as src/calendars/demo.ts). */
+const settingsDoc = (enabled: boolean, menu_position: string) => ({
+  enabled, maintenance_overlap: 'first_holds', contested_requests: 'queue', pending_holds_slot: false, menu_position, holiday_eve_as_holiday: false,
+  guest_details_enabled: true, guest_details_kinds: ['class', 'customer'], guest_retention_days: 30, editors_bypass_approval: true, default_room_buffer_after_min: 10,
+  series_horizon_days: 400, max_calendars: 500, notify_confirmations: false, contested_order: 'first_come', allow_displace: true, displace_approver: 'calendar_manager',
+  override_scope: 'both', phone_time_picker: 'grid', reauth_mode: 'reauth_and_continue', sync_conflict_display: 'side_by_side', tablet_panels: 'collapse',
+  resident_pending_display: 'count', resident_cancel_until: 'start', resident_rooms: 'bookable', purge_confirm: 'type_word', loading_style: 'skeleton',
+  default_approval_timeout_h: 2, reopen_days: 7, sync_external_delete: 'cancel',
+});
+
+export const HOME_PERMS =['devices.read', 'calendar.view', 'calendar.book'];
 
 export async function installCalendarsMock(page: Page, o: CalMockOptions = {}): Promise<CalMock> {
   const perms = o.perms ?? HOME_PERMS;
@@ -29,6 +39,8 @@ export async function installCalendarsMock(page: Page, o: CalMockOptions = {}): 
     const p = new URL(req.url()).pathname.replace(/^.*\/api\/v1\//, '');
     st.calls.push({ method: req.method(), path: p, body: req.method() === 'GET' ? null : req.postDataJSON?.() ?? null });
     if (p === 'calendar/module') return json(route, { enabled: o.enabled ?? true, menu_position: o.placement ?? 'rail', can });
+    // like the backend's open_router: the settings document answers while the module is off (that page holds the module's switch)
+    if (p === 'calendar/settings' && req.method() === 'GET') return json(route, { settings: settingsDoc(o.enabled ?? true, o.placement ?? 'rail'), can_configure: can.configure });
     if (o.enabled === false) return json(route, { code: 'feature_disabled', user_message: 'כבוי', retryable: false, correlation_id: 'm', details: {} }, 404);
     if (p === 'calendar/calendars') return json(route, { calendars: [cal('a', 'חדר ישיבות אלון'), cal('b', 'חדר ישיבות ברוש')] });
     if (p === 'calendar/occurrences') return json(route, { occurrences: [], truncated: false });

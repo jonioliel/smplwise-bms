@@ -194,7 +194,7 @@ export class CalendarsPage extends LitElement {
     const a = this.access;
     if (a.enabled === false && isApi()) {
       return html`<h1 class="vh">יומנים</h1><div class="center"><sw-state-panel icon="calendar" state="empty" data-cal-state="off" heading="מודול היומנים כבוי"
-        hint=${a.can.configure ? 'אפשר להפעיל אותו בהגדרות ‹ יומנים.' : 'מנהל המערכת יכול להפעיל אותו.'} actionLabel=${a.can.configure ? 'להגדרות' : ''}
+        hint=${a.can.configure ? 'אפשר להפעיל אותו בהגדרות ‹ יומנים.' : 'מנהל המערכת יכול להפעיל אותו.'} actionLabel=${a.can.configure ? 'הפעלת מודול היומנים' : '' /* CAL-SWITCH-REACH-2321: leads to Settings › יומנים, the module's switch */}
         @action=${() => (location.hash = CALENDARS_SETTINGS_HREF)}></sw-state-panel></div>`;
     }
     if (a.enabled && !a.can.view) return html`<h1 class="vh">יומנים</h1><div class="center"><sw-state-panel state="forbidden" data-cal-state="forbidden" heading="אין לך גישה ליומנים"></sw-state-panel></div>`;

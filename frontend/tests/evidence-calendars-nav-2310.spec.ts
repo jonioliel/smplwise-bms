@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { url } from './generator-mocks';
-import { installCalendarsMock } from './calendars-mocks';
+import { HOME_PERMS, installCalendarsMock } from './calendars-mocks';
 
 // CALENDARS-UI-2310: where "יומנים" lives (owner 2026-10-30 night: a setting - the side rail entry by default, a tab of the home area's top
 // menu between מבט על and קברניט, or both; answer 25: a tenant with calendars only always gets its own button) and the page's own states,
@@ -60,6 +60,29 @@ test.describe('calendars placement and module states', () => {
     await open(page, '/calendars/cal');
     await expect(railEntry(page)).toHaveCount(0);
     await expect(page.locator('sw-app calendars-page [data-cal-state="off"]')).toBeVisible();
+  });
+
+  // CAL-SWITCH-REACH-2321: the switch must stay reachable while the module is off
+  test('module off + calendar.configure: the panel offers "הפעלת מודול היומנים" and Settings › יומנים is there', async ({ page }) => {
+    await installCalendarsMock(page, { enabled: false, can: { configure: true }, perms: [...HOME_PERMS, 'system.configure', 'calendar.configure', 'calendar.connect'] });
+    await open(page, '/calendars/cal');
+    const panel = page.locator('sw-app calendars-page [data-cal-state="off"]');
+    await expect(panel).toHaveAttribute('actionlabel', 'הפעלת מודול היומנים');
+    await panel.locator('sw-button').click();
+    await expect(page).toHaveURL(/#\/system\/calendars$/);
+    await expect(page.locator('sw-app system-calendars [data-calset="enabled"]').first()).toBeAttached({ timeout: 20_000 });
+    if (!phone()) {
+      const nav = page.locator('sw-app system-nav');
+      await expect(nav.locator('a[href="#/system/calendars"]')).toBeVisible();
+      await expect(nav.locator('a[href="#/system/calendar-sync"]')).toHaveCount(0);
+    }
+    await page.screenshot({ path: test.info().outputPath('calendars-off-settings.png') });
+  });
+
+  test('module off without calendar.configure: no button', async ({ page }) => {
+    await installCalendarsMock(page, { enabled: false });
+    await open(page, '/calendars/cal');
+    await expect(page.locator('sw-app calendars-page [data-cal-state="off"]')).toHaveAttribute('actionlabel', '');
   });
 
   test('no calendar.view: the page is not available', async ({ page }) => {
