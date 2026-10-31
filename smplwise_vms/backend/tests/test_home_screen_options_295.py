@@ -20,7 +20,8 @@ def test_defaults_are_the_owners_answers():
     d = hso.default()
     assert d == {"summary_tiles": None, "summary_chooser": "admin", "area_quick": {}, "row_actions": "quick", "tile_blinds": "pct", "tile_climate": "both",
                  "phone_area": "sheet", "desktop_area": "drawer", "floor_off": "menu", "many_floors": "more", "building_off_tablet": "hide", "quick_card": "show", "phone_floors": "selector",
-                 "popup_alert": "show", "popup": {"version": 0, "site": None, "areas": {}}}
+                 "popup_alert": "show", "popup": {"version": 0, "site": None, "areas": {}},
+                 "site_entry": "site", "site_entry_building": "", "site_off_shared": "exclude"}  # MULTIBUILDING-HOME-2330
     assert hso.stored("") == d and hso.stored(None) == d and hso.stored("{not json") == d and hso.stored('{"floor_off": "neon"}') == d
 
 

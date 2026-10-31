@@ -39,8 +39,15 @@ def site_row(r: sqlite3.Row) -> dict[str, Any]:
     return {"id": r["id"], "name": r["name"], "address": r["address"], "timezone": r["timezone"], "sort_order": r["sort_order"], "updated_at": r["updated_at"], "image_url": _image_url("site", r)}
 
 
+def _is_shared(r: sqlite3.Row) -> bool:
+    try:
+        return bool(r["is_shared"])
+    except (IndexError, KeyError):  # before migration 0188
+        return False
+
+
 def building_row(r: sqlite3.Row) -> dict[str, Any]:
-    return {"id": r["id"], "site_id": r["site_id"], "name": r["name"], "sort_order": r["sort_order"], "updated_at": r["updated_at"], "image_url": _image_url("building", r)}
+    return {"id": r["id"], "site_id": r["site_id"], "name": r["name"], "sort_order": r["sort_order"], "updated_at": r["updated_at"], "image_url": _image_url("building", r), "is_shared": _is_shared(r)}
 
 
 # ---------- photos (R1) ----------
@@ -304,6 +311,8 @@ class BuildingIn(BaseModel):
 class BuildingPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     sort_order: int | None = None
+    # MULTIBUILDING-HOME-2330: the site's shared building ("משותף") - listed last on the home screen, unchecked in "כבה הכל באתר"
+    is_shared: bool | None = None
 
 
 @router.post("/sites/{site_id}/buildings", status_code=201)
@@ -321,6 +330,8 @@ def update_building(building_id: str, body: BuildingPatch, request: Request, pri
     get_building(conn, building_id)
     require(conn, principal, P_CONTENT, ("building", building_id))
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "is_shared" in fields:
+        fields["is_shared"] = 1 if fields["is_shared"] else 0
     if fields:
         sets = ", ".join(f"{k} = ?" for k in fields)
         conn.execute(f"UPDATE buildings SET {sets}, updated_at = ? WHERE id = ?", (*fields.values(), now_iso(), building_id))

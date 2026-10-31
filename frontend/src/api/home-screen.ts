@@ -53,6 +53,9 @@ export const CHOICES = {
   quick_card: ['show', 'hide'],
   phone_floors: ['selector', 'all'],
   popup_alert: ['show', 'hide'],
+  // MULTIBUILDING-HOME-2330: a site of several buildings only - where the home opens, and whether "כבה הכל באתר" checks the shared building
+  site_entry: ['site', 'last', 'fixed'],
+  site_off_shared: ['exclude', 'include'],
 } as const;
 export type ChoiceKey = keyof typeof CHOICES;
 export const CHOICE_KEYS = Object.keys(CHOICES) as ChoiceKey[];
@@ -71,6 +74,8 @@ export const CHOICE_DEFAULTS = {
   quick_card: 'show',
   phone_floors: 'selector',
   popup_alert: 'show',
+  site_entry: 'site',
+  site_off_shared: 'exclude',
 } as const;
 
 export interface HomeScreenOptions {
@@ -95,14 +100,25 @@ export interface HomeScreenOptions {
   popup_alert: PopupAlert;
   /** AREAEDIT-2290: the area pop-up layout - a site default and one override per area (api/popup-layout.ts). */
   popup: PopupState;
+  /** MULTIBUILDING-HOME-2330: where the home opens on a multi-building site (site = the whole site, last = the last building on this
+   * device, fixed = site_entry_building), and whether "כבה הכל באתר" checks the shared building by default. */
+  site_entry: SiteEntry;
+  site_entry_building: string;
+  site_off_shared: SiteOffShared;
 }
+export type SiteEntry = 'site' | 'last' | 'fixed';
+export type SiteOffShared = 'exclude' | 'include';
 
-export const HOME_SCREEN_DEFAULT: HomeScreenOptions = { summary_tiles: null, area_quick: {}, ...CHOICE_DEFAULTS, popup: { version: 0, site: null, areas: {} } };
+export const HOME_SCREEN_DEFAULT: HomeScreenOptions = { summary_tiles: null, area_quick: {}, ...CHOICE_DEFAULTS, popup: { version: 0, site: null, areas: {} }, site_entry_building: '' };
 
 /** The user's own choices (home.personal.screen). */
 export interface PersonalScreen {
   summary_tiles?: SummaryKind[];
   phone_area?: PhoneArea;
+  /** MULTIBUILDING-HOME-2330: this user's own entry view and fixed building (absent = the installation's), and "הסתר משותף". */
+  site_entry?: SiteEntry;
+  site_entry_building?: string;
+  hide_shared?: boolean;
 }
 
 function kinds<T extends string>(v: unknown, allowed: readonly T[]): T[] | null {
@@ -134,6 +150,7 @@ export function homeScreenOf(raw: unknown): HomeScreenOptions {
     const v = o[key];
     if ((CHOICES[key] as readonly string[]).includes(v as string)) (out as unknown as Record<string, unknown>)[key] = v;
   }
+  if (typeof o.site_entry_building === 'string') out.site_entry_building = o.site_entry_building;
   return out;
 }
 
@@ -144,6 +161,9 @@ export function personalScreenOf(raw: unknown): PersonalScreen {
   const t = kinds(o.summary_tiles, SUMMARY_KINDS);
   if (t) out.summary_tiles = t;
   if (CHOICES.phone_area.includes(o.phone_area as PhoneArea)) out.phone_area = o.phone_area as PhoneArea;
+  if (CHOICES.site_entry.includes(o.site_entry as SiteEntry)) out.site_entry = o.site_entry as SiteEntry;
+  if (typeof o.site_entry_building === 'string' && o.site_entry_building) out.site_entry_building = o.site_entry_building;
+  if (o.hide_shared === true) out.hide_shared = true;
   return out;
 }
 
