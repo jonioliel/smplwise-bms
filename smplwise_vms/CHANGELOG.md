@@ -1,5 +1,21 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.32.1 (pilot) - Provision live video, switch-wired lights, synoptic columns, calendars switch
+**After installing:** no database migration. On a Provision-ISR recorder the live and playback streams are rewritten once by the add-on. Going back to 2.32.0 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. במקליט Provision-ISR זרמי השידור החי וההקלטות נכתבים מחדש פעם אחת על ידי התוסף. חזרה ל-2.32.0 בטוחה.
+
+### What was fixed - מה תוקן
+- **English:** Provision-ISR live and playback showed no video: when asked for the talk-back channel the recorder answers without a video track. Arx now asks for video only (a recorder setting "two-way talk through the recorder" turns talk-back on, off by default).
+- **עברית:** בשידור חי ובהקלטות של Provision-ISR לא הוצג וידאו: כשמבקשים מהמקליט את ערוץ הדיבור הוא עונה בלי ערוץ וידאו. Arx מבקשת עכשיו וידאו בלבד (הגדרת מקליט "דיבור דו-כיווני דרך המקליט" מפעילה דיבור, כבויה כברירת מחדל).
+- **English:** Switches set to the type "light" (Settings › General › Device types) count as lights everywhere - the synoptic map, home counters, floor and area cards - and are switched by "lights off / on".
+- **עברית:** מתגים שהוגדר להם הסוג "תאורה" (הגדרות › כללי › סוגי התקנים) נספרים כתאורה בכל מקום - המפה הסינופטית, מוני הבית, כרטיסי הקומות והאזורים - ומופעלים ב"כבה / הדלק תאורה".
+- **English:** The calendars module switch is reachable again while the module is off (Settings › Calendars; the calendars page offers "enable the calendars module").
+- **עברית:** מתג מודול היומנים נגיש שוב גם כשהמודול כבוי (הגדרות › יומנים; במסך היומנים מופיע "הפעלת מודול היומנים").
+
+### What was added - מה נוסף
+- **English:** Synoptic map: columns with no data source are hidden (a setting, on by default, with a quiet note), and a custom column choice.
+- **עברית:** המפה הסינופטית: עמודות בלי מקור נתונים מוסתרות (הגדרה, פעילה כברירת מחדל, עם הערה שקטה), ובחירה ידנית של עמודות.
+
 ## 2.32.0 (pilot) - Readable dark mode, phone switch targets, report-link safeguards, public-surface check
 **After installing:** no database migration. Dark-mode secondary text is slightly lighter in every skin. Going back to 2.31.0 is safe.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. הטקסט המשני במצב כהה מעט בהיר יותר בכל הסגנונות. חזרה ל-2.31.0 בטוחה.
