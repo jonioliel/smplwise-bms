@@ -52,6 +52,8 @@ export interface SiteBuilding {
   areaIds: Set<string>;
   /** Areas whose alarm is triggered (the card's alert rows and the tree's red badge). */
   alerts: { area: DeviceArea; floor: string }[];
+  /** MAPPING-ASSIST-2330: areas of the building outside our floors (the assistant's area -> building rows). */
+  loose: DeviceArea[];
 }
 
 export interface SiteModel {
@@ -62,7 +64,7 @@ export interface SiteModel {
 }
 
 /** Catalogue buildings (as the caller sees them) -> the site model, or null for the one-building home. */
-export function siteModel(buildings: (Building & { floors?: Floor[] })[], tree: DeviceTree | null, links: MatchLinks | null, siteName = ''): SiteModel | null {
+export function siteModel(buildings: (Building & { floors?: Floor[] })[], tree: DeviceTree | null, links: (MatchLinks & { buildings?: { area_id: string; building_id: string }[] }) | null, siteName = ''): SiteModel | null {
   if (!tree || buildings.length < 2) return null;
   const claimed = new Set<string>();
   const out: SiteBuilding[] = [];
@@ -77,7 +79,23 @@ export function siteModel(buildings: (Building & { floors?: Floor[] })[], tree: 
     });
     const areaIds = new Set(sf.flatMap((f) => f.areas.map((a) => a.area_id)));
     const alerts = sf.flatMap((f) => f.areas.filter((a) => a.counts.alarm === 'triggered').map((area) => ({ area, floor: f.name })));
-    out.push({ id: b.id, name: b.name, shared: !!b.is_shared, floors: sf, counts: sumCounts(sf.map((f) => f.counts)), areaIds, alerts });
+    out.push({ id: b.id, name: b.name, shared: !!b.is_shared, floors: sf, counts: sumCounts(sf.map((f) => f.counts)), areaIds, alerts, loose: [] });
+  }
+  // MAPPING-ASSIST-2330: an area the mapping assistant put in a building where none of our floors fits (home_area_buildings) - counted in
+  // the building, outside its floors. Second pass: a floor match always wins.
+  const assign = new Map((links?.buildings ?? []).map((r) => [r.area_id, r.building_id]));
+  if (assign.size) {
+    for (const f of tree.floors)
+      for (const a of f.areas) {
+        const bid = assign.get(a.area_id);
+        const b = bid ? out.find((x) => x.id === bid) : undefined;
+        if (!b || claimed.has(a.area_id)) continue;
+        claimed.add(a.area_id);
+        b.loose.push(a);
+        b.areaIds.add(a.area_id);
+        if (a.counts.alarm === 'triggered') b.alerts.push({ area: a, floor: f.name });
+      }
+    for (const b of out) if (b.loose.length) b.counts = sumCounts([...b.floors.map((f) => f.counts), ...b.loose.map((a) => a.counts)]);
   }
   if (!claimed.size) return null;
   const unassigned: DeviceArea[] = [];

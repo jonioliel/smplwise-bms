@@ -462,7 +462,25 @@ def list_home_links(principal: Principal = Depends(current_principal), conn: sql
 
     floors = [{"ha_floor_id": r["ha_floor_id"], "floor_id": r["floor_id"]} for r in conn.execute("SELECT ha_floor_id, floor_id FROM home_floor_links ORDER BY ha_floor_id").fetchall() if readable(r["floor_id"])]
     areas = [{"area_id": r["area_id"], "floor_id": r["floor_id"]} for r in conn.execute("SELECT area_id, floor_id FROM home_area_links ORDER BY area_id").fetchall() if r["floor_id"] is None or readable(r["floor_id"])]
-    return {"floors": floors, "areas": areas}
+    # MAPPING-ASSIST-2330: the area -> building rows of the home's site level (an area the mapping assistant put in a building where none of
+    # our floors fits), for buildings the caller may read (the building itself, or one of its floors)
+    buildings: list[dict[str, str]] = []
+    try:
+        rows = conn.execute("SELECT a.area_id, a.building_id FROM home_area_buildings a JOIN buildings b ON b.id = a.building_id AND b.deleted_at IS NULL ORDER BY a.area_id").fetchall()
+    except sqlite3.OperationalError:  # before migration 0189
+        rows = []
+    if rows:
+        floors_of: dict[str, list[str]] = {}
+        for r in conn.execute("SELECT id, building_id FROM floors WHERE deleted_at IS NULL").fetchall():
+            floors_of.setdefault(r[1], []).append(r[0])
+        b_ok: dict[str, bool] = {}
+        for r in rows:
+            bid = r["building_id"]
+            if bid not in b_ok:
+                b_ok[bid] = all_read or authorize(conn, principal, P_READ, ("building", bid)).allowed or any(readable(f) for f in floors_of.get(bid, []))
+            if b_ok[bid]:
+                buildings.append({"area_id": r["area_id"], "building_id": bid})
+    return {"floors": floors, "areas": areas, "buildings": buildings}
 
 
 class HomeLinkIn(BaseModel):

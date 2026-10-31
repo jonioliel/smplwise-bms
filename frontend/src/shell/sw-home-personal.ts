@@ -23,6 +23,7 @@ import { elt } from '../i18n/elevators';
 import { effectiveRows, loadPersonalRow, personalDiff, savePersonalRow, type AreaRowPersonal } from '../api/area-row';
 import { productSettings } from '../api/prefs';
 import { loadTree as loadCatalogTree } from '../api/catalog';
+import { multiBuildingOn } from '../api/mapping';
 import { devicesPrefsOf } from '../screens/devices-style';
 import '../screens/area-row-editor';
 import { HOME_SCREEN_DEFAULT, homeScreenOf, SUMMARY_KINDS, type HomeScreenOptions, type PersonalScreen, type SummaryKind } from '../api/home-screen';
@@ -183,7 +184,8 @@ export class SwHomePersonal extends LitElement {
     if (elevatorsAccess().view) void listElevators().then((r) => (this.elevators = r.elevators)).catch(() => (this.elevators = []));
     if (temperatureAccess().view) void listUnits(false).then((r) => (this.tempUnits = r.home_widget === false ? 0 : r.units.length)).catch(() => (this.tempUnits = 0));
     void loadHomeGenerators().then((g) => (this.generators = generatorsAvailable(g)));
-    void loadCatalogTree().then((c) => (this.buildings = c.sites.flatMap((s) => (s.buildings ?? []).map((b) => ({ id: b.id, name: b.name, shared: !!b.is_shared }))))).catch(() => (this.buildings = []));
+    // MAPPING-ASSIST-2330: the site choices only while the multi-building view is switched on (owner 31.10: off by default)
+    void Promise.all([multiBuildingOn(), loadCatalogTree()]).then(([on, c]) => (this.buildings = on ? c.sites.flatMap((s) => (s.buildings ?? []).map((b) => ({ id: b.id, name: b.name, shared: !!b.is_shared }))) : [])).catch(() => (this.buildings = []));
     void loadHomeDoors().then((d) => (this.doors = doorsWidgetAvailable(d, doorWindowsTabOn())));
     if (isApi() && canAnywhere('presence.building.view')) void getBuildingPresence().then((s) => (this.presence = presenceWidgetAvailable(s))).catch(() => (this.presence = false));
     void loadHomeNoticesChecked().then((d) => (this.notices = !!d && noticesWidgetOffered(d, noticesModuleOn())));

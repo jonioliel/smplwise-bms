@@ -74,6 +74,8 @@ export const updateFloor = (id: string, body: Partial<Pick<Floor, 'name' | 'leve
 export interface HomeLinks {
   floors: { ha_floor_id: string; floor_id: string }[];
   areas: { area_id: string; floor_id: string | null }[];
+  /** MAPPING-ASSIST-2330: area -> building rows of the home's site level (an area put in a building where none of our floors fits). */
+  buildings?: { area_id: string; building_id: string }[];
 }
 export type AreaLinkMode = 'include' | 'exclude' | 'auto';
 export const getHomeLinks = () => get<HomeLinks>('home-links');

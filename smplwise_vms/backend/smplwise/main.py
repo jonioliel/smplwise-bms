@@ -21,6 +21,7 @@ from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
+from .routers import home_mapping as home_mapping_router  # MAPPING-ASSIST-2330
 from .routers import access, access_control, access_groups, alarm, doors as doors_router, anchors, automations, backup, brand as brand_router, white_label as white_label_router, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, popup_layout as popup_layout_router, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_ifc as plan_ifc_router, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
 
 log = logging.getLogger("smplwise")
@@ -525,6 +526,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api = "/api/v1"
     app.include_router(me.router, prefix=api, tags=["identity"])
     app.include_router(catalog.router, prefix=api, tags=["catalog"])
+    app.include_router(home_mapping_router.router, prefix=api, tags=["catalog"])  # MAPPING-ASSIST-2330: the mapping assistant
     app.include_router(plans.router, prefix=api, tags=["plans"])
     app.include_router(plan_geometry.router, prefix=api, tags=["plans"])
     app.include_router(plan_package_router.router, prefix=api, tags=["plans"])

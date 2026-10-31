@@ -53,6 +53,7 @@ import './system-look'; // Bubble foundation: הגדרות › כללי › מר
 import './system-plan-view'; // CR-029 ST7 UI: הגדרות › מפה › תצוגה ריאליסטית (plan.view, the person's own dials, the site location)
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
+import './mapping-all'; // MAPPING-ASSIST-2330: הגדרות › כללי › בניינים ומיפוי
 import './system-xs-options'; // 2.29.0: הגדרות › כללי › חתך הבניין והמפה הסינופטית
 import './system-presence'; // CR-027: הגדרות › אפליקציה לנייד
 import './system-brand-logos'; // LOGOS-295: הגדרות › כללי › מראה המערכת › לוגו ושם המערכת (company logo, size, dark background, tab title)
@@ -101,6 +102,7 @@ const TAB_SUB: Record<string, string> = {
   tabs: 'אילו לשוניות מוצגות בכל אזור, באיזה סדר ובאיזה סגנון',
   media: 'תעבורת וידאו, קיר המצלמות, מסך הפתיחה, מכסות ושמירת נתונים',
   map: 'איך מפות הקומה נפתחות ומה מוצג בסרגל המפלסים',
+  buildings: 'איזה שם במערכת הבית שייך לאיזה בניין אצלנו, ותצוגת ריבוי הבניינים',
   ha: 'החיבור לתשתית, הגשר והצימוד שלו',
   'access-control': 'אילו מסכי WisKey מוטמעים ואילו נבנו כאן',
   devices: 'המראה של מסכי החשמל וההתקנים לכל המשתמשים',
@@ -118,6 +120,7 @@ const TABS = [
   { id: 'tabs', label: 'לשוניות' }, // 2026-09-30: which tabs each navigation section shows and in which order (ui.tabs)
   { id: 'media', label: 'וידאו ומדיה' },
   { id: 'map', label: 'מפה' },
+  { id: 'buildings', label: 'בניינים ומיפוי' }, // MAPPING-ASSIST-2330: the multi-building switch and the mapping assistant
   { id: 'ha', label: 'גשר Home Assistant' },
   { id: 'access-control', label: 'מתגי מסכי כניסה' },
   { id: 'devices', label: 'חשמל והתקנים' },
@@ -1693,7 +1696,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-tabs underline data-settings-tabs .variant=${this.phoneSelect ? 'dropdown' : this.tabsMode.props('').variant} ?adaptive=${this.phoneSelect ? false : this.tabsMode.props('').adaptive} ?tall=${this.phoneSelect} ?block=${this.phoneSelect} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="קטגוריה" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.openTab(e.detail.id)}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'buildings' ? html`<system-mapping></system-mapping>` : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }

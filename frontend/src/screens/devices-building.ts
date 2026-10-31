@@ -75,6 +75,7 @@ import { demoHome } from './home-demo';
 // MULTIBUILDING-HOME-2330: the site level of a multi-building installation (one building: nothing here is drawn)
 import { activeOff, bulkTargets, entryLevel, offSelection, scopeTag, scopeTree, shownBuildings, siteModel, SITE_LEVEL, type SiteBuilding, type SiteModel } from '../api/home-site';
 import { getHomeLinks } from '../api/catalog';
+import { multiBuildingOn } from '../api/mapping';
 import type { Building, Floor as CatalogFloor } from '../api/types';
 import type { MatchLinks } from '../xsection/xs-model';
 import { demoSite } from './home-site-demo';
@@ -1313,7 +1314,15 @@ export class DevicesBuilding extends LitElement {
 
   // ------------------------------------------------------------------ MULTIBUILDING-HOME-2330: the site level
   /** The catalogue's buildings (as this caller sees them) and the home-system mapping rows; null until read (= one-building home). */
-  @state() private siteSrc: { buildings: (Building & { floors?: CatalogFloor[] })[]; links: MatchLinks | null; siteName: string } | null = null;
+  @state() private siteSrc: { buildings: (Building & { floors?: CatalogFloor[] })[]; links: (MatchLinks & { buildings?: { area_id: string; building_id: string }[] }) | null; siteName: string } | null = null;
+  /** MAPPING-ASSIST-2330 (owner 31.10): the multi-building view is OFF until switched on (home.multi_building); off = the one-building home
+   * exactly as before, whatever the mapping says. */
+  @state() private multiOn = false;
+  private onMulti = (e: Event) => {
+    this.multiOn = (e as CustomEvent<{ enabled: boolean }>).detail?.enabled === true;
+    this.levelReady = false;
+    if (this.multiOn && !this.siteSrc && isApi()) void this.loadSite();
+  };
   /** SITE_LEVEL or a building id: what the home shows on a multi-building site. */
   @state() private level: string = SITE_LEVEL;
   private levelReady = false;
@@ -1326,7 +1335,7 @@ export class DevicesBuilding extends LitElement {
   /** The site model and the buildings this viewer is shown, or null = the one-building home exactly as before (fewer than two
    * buildings shown, or no area resolves to a building). */
   private site(): { model: SiteModel; shown: SiteBuilding[] } | null {
-    const src = this.siteSrc;
+    const src = this.multiOn ? this.siteSrc : null;
     const hide = this.screenPersonal.hide_shared === true;
     const m = this.siteMemo;
     if (m && m.tree === this.tree && m.src === src && m.hide === hide) return m.out;
@@ -1343,6 +1352,8 @@ export class DevicesBuilding extends LitElement {
   /** The catalogue and the mapping rows (read once; the home links change only in the floors screen). */
   private async loadSite() {
     try {
+      this.multiOn = await multiBuildingOn();
+      if (!this.multiOn) return; // the one-building home: the catalogue and the rows are not even read
       const [cat, links] = await Promise.all([loadCatalogTree(), getHomeLinks().catch(() => null)]);
       const buildings = cat.sites.flatMap((s) => s.buildings ?? []);
       this.siteSrc = { buildings, links, siteName: cat.sites[0]?.name ?? '' };
@@ -3038,6 +3049,7 @@ export class DevicesBuilding extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    window.addEventListener('sw-multi-building', this.onMulti);
     this.prefsReady = Promise.all([
       loadDevicesPrefs().then((p) => {
         this.prefs = p;
@@ -3107,6 +3119,9 @@ export class DevicesBuilding extends LitElement {
         const d = demoSite(mb, this.tree);
         this.tree = { ...d.tree, home: demoHome() };
         this.siteSrc = { buildings: d.buildings, links: d.links, siteName: d.siteName };
+        // MAPPING-ASSIST-2330: `?mb=off` = four mapped buildings with the multi-building view switched off; the demo switch wins once used
+        this.multiOn = mb !== 'off';
+        void multiBuildingOn().then((on) => (this.multiOn = on));
       }
       return;
     }
@@ -3141,6 +3156,7 @@ export class DevicesBuilding extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.removeEventListener('sw-multi-building', this.onMulti);
     this.offRoute?.();
     this.offRoute = null;
     this.stop?.();

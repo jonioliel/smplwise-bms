@@ -12,6 +12,7 @@ import { BULK_IDLE, BULK_IDLE_DEFAULT, FLOOR_TITLE_LINES, FLOOR_TITLE_LINES_DEFA
 import { demoScreenOverrides, homeScreenOf, screenFormBody } from '../api/home-screen';
 import { getDevicesTree } from '../api/devices';
 import { loadTree as loadCatalogTree } from '../api/catalog';
+import { multiBuildingOn } from '../api/mapping';
 import { hs } from '../i18n/home-screen';
 import './home-screen-options';
 import type { HomeScreenForm, OptionsArea } from './home-screen-options';
@@ -197,8 +198,9 @@ export class SystemHomeScreen extends LitElement {
       .then((t) => (this.areas = t.floors.flatMap((f) => f.areas.map((a) => ({ id: a.area_id, name: a.name, floor: f.name, counts: a.counts })))))
       .catch(() => (this.areas = []));
     // MULTIBUILDING-HOME-2330: the site options show only on a site of several buildings
-    void loadCatalogTree()
-      .then((c) => (this.buildings = c.sites.flatMap((s) => (s.buildings ?? []).map((b) => ({ id: b.id, name: b.name })))))
+    // MAPPING-ASSIST-2330: and only while the multi-building view is switched on (owner 31.10: off by default)
+    void Promise.all([multiBuildingOn(), loadCatalogTree()])
+      .then(([on, c]) => (this.buildings = on ? c.sites.flatMap((s) => (s.buildings ?? []).map((b) => ({ id: b.id, name: b.name }))) : []))
       .catch(() => (this.buildings = []));
   }
 

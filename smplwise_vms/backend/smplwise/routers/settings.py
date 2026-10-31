@@ -539,6 +539,9 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     # CR-039 DOORWIN-295: READ-ONLY, derived - whether the door-windows tab is in the navigation (a door feature is switched on). Not in
     # DEFAULTS and not patchable here: the switches themselves live behind /doors/windows/settings and /doors/emergency/settings.
     out["doors.ui.tab"] = "on" if (get_setting(conn, "doors.windows.enabled") == "on" or get_setting(conn, "doors.emergency.enabled") == "on") else "off"
+    # MAPPING-ASSIST-2330 (owner 31.10): READ-ONLY here - the multi-building view of the home screen, OFF by default. Switched through
+    # PUT /home/multi-building (site.content.configure on every site, audited), not through PATCH /settings.
+    out["home.multi_building"] = "on" if get_setting(conn, "home.multi_building.enabled") == "on" else "off"
     out["ui.skin"] = stored_skin(out["ui.skin"])  # BUBBLE-FREEZE-295: a stored frozen skin reads as the fallback (the row is left as it is)
     if out.get("ui.motion") not in ("auto", "full", "reduced"):  # MOTIONSETTING-297: a corrupt value reads as the default
         out["ui.motion"] = DEFAULTS["ui.motion"]
