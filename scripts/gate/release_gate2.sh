@@ -21,7 +21,7 @@
 #      one CPU budget, --no-visual when no frontend/src file changed
 #   5. keeps an earlier report of the same branch+sha as gate_<b>_<sha>.pre-gate2.* (the engine would overwrite it)
 #   6. runs the engine: --tier L --schedule v2 --select-base <base>, GATE_SELECT_ENABLE=1, total limit GATE_TOTAL_SECS
-#      (default 7200 s; 12000 s for --full)
+#      (explicit wins; else max(derived cap, plan ESTIMATE high x 1.25), full-mode budgets when a side is FULL - gate_budget.py limit)
 #   7. gate2_verdict.py: gate_<b>_<sha>.gate2.md (quarantine applied, next step); when EVERY failure is quarantined it re-runs
 #      only those tests on the same sha once (the first report is kept as .gate2-first.json)
 # Exit: 0 pass, 1 fail, 2 usage, 3 lock busy.
@@ -124,9 +124,14 @@ if [ "$FULL" = 0 ] && [ -z "$AFTER" ] && [ "$STALE_OK" = 0 ]; then
   fi
 fi
 
-# GATE-FAST-2291 (item 4): the total cap is derived = sum of the per-phase budgets x 1.5 (gate_budget.py); an explicit GATE_TOTAL_SECS wins;
-# without the helper / seed the old fixed defaults apply (7200 select, 12000 full)
+# GATE-FAST-2291 (item 4) + GATE-SPEED-2320: the limit = max(derived cap, the plan's ESTIMATE high x 1.25), never below the estimate; a side
+# the selection runs FULL uses the full-mode budgets (gate_budget.py limit). An explicit GATE_TOTAL_SECS wins. Without the helper (an older
+# gate_budget.py) the derived cap, else the old fixed defaults (7200 select, 12000 full).
 derived_cap() { local c; c="$("$PY3" "$G2/gate_budget.py" cap --results "$RES" --mode "$1" 2>/dev/null)" && [ -n "$c" ] && printf %s "$c" || printf %s "$2"; }
+effective_limit() {   # $1 mode, $2 fallback seconds; the plan text on stdin; prints seconds (the "why" line goes to the terminal)
+  local c; c="$("$PY3" "$G2/gate_budget.py" limit --results "$RES" --mode "$1" --plan - --fallback "$2" --explain)" && [ -n "$c" ] \
+    && printf %s "$c" || derived_cap "$1" "$2"
+}
 WT="$HOME/work/gate-$TAG"         # the engine's own worktree path; we hold the gate lock, so nobody else uses it
 if [ ! -e "$WT/.git" ]; then
   git -C "$REPO" worktree prune
@@ -148,9 +153,11 @@ if [ "$FULL" = 0 ]; then
   printf '%s\n' "$PLAN" | grep -q "pixel: no frontend/src change" && ENGINE+=(--no-visual)
   ENGINE+=(--select-base "$BASE")
   export GATE_SELECT_ENABLE=1
-  : "${GATE_TOTAL_SECS:=$(derived_cap select 7200)}"
+  : "${GATE_TOTAL_SECS:=$(printf '%s\n' "$PLAN" | effective_limit select 7200)}"
 else
-  : "${GATE_TOTAL_SECS:=$(derived_cap full 12000)}"
+  # the full tier: the plan's own "full tier on the same tree" estimate is the floor (seconds to compute; no test is started)
+  FPLAN="$("$PY3" "$G2/gate2_select.py" plan --root "$WT" --base "$BASE" --head HEAD 2>/dev/null | grep -E 'ESTIMATE|full (backend|frontend)')" || FPLAN=""
+  : "${GATE_TOTAL_SECS:=$(printf '%s\n' "$FPLAN" | effective_limit full 12000)}"
 fi
 [ -z "$AFTER" ] || export GATE2_AFTER_REPORT="$(readlink -f "$AFTER")"
 export GATE_SCHEDULE=v2 GATE_TOTAL_SECS GATE2_COSTS="${GATE2_COSTS:-$G2/gate2_costs.json}"

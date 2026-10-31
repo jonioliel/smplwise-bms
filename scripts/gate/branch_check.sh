@@ -17,11 +17,12 @@
 #      GATE_RESULTS_DIR=~/smplwise-results/entry (the engine's full report: entry/gate_<b>_<sha>.{md,json,logs})
 #   5. branch_check.py writes ~/smplwise-results/entry_<b>_<sha>.md (short, Hebrew + English) and entry_<b>_<sha>.json
 # Verdict: GREEN (engine pass, or red only through ACTIVE quarantine entries) -> exit 0; RED or NOT_RUN -> exit 1; usage -> 2.
+# Limit (GATE-SPEED-2320): ENTRY_TOTAL_SECS wins; else max(derived cap, plan ESTIMATE high x 1.25) - gate_budget.py limit.
 # Install: scripts/gate/README_GATE_FAST.md ("Entry check"). Env: ENTRY_TOTAL_SECS (engine limit), ENTRY_LOCK_SLICE (poll, 30 s),
 # GATE2_PYTHON, GATE2_REPO, GATE2_V1_DIR, GATE_RESULTS_DIR (the base results dir), ENTRY_SKIP_PLAN=1 (no shard/slot planning).
 set -uo pipefail
 export PATH="$HOME/smplwisebms/.venv/bin:$PATH:/usr/local/bin:/usr/bin:/bin"
-case "${1:-}" in -h|--help|"") sed -n 2,24p "$0"; exit 0;; esac
+case "${1:-}" in -h|--help|"") sed -n 2,23p "$0"; exit 0;; esac
 G="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 PY3="${GATE2_PYTHON:-python3}"
 REPO="${GATE2_REPO:-$HOME/smplwisebms}"
@@ -129,8 +130,13 @@ if [ "${ENTRY_SKIP_PLAN:-0}" != 1 ]; then
     export GATE_BACKEND_SHARDS GATE_PW_SLOTS
   fi
 fi
-CAP="$("$PY3" "$G/gate_budget.py" cap --results "$RES" --mode select 2>/dev/null)" || CAP=""
-TOTAL="${ENTRY_TOTAL_SECS:-${CAP:-5400}}"
+# GATE-SPEED-2320: limit = max(derived cap, the plan's ESTIMATE high x 1.25), never below the estimate; full-mode budgets when the selection runs
+# a side FULL; an explicit ENTRY_TOTAL_SECS wins. Older gate_budget.py without `limit`: the derived select cap, else 5400 s.
+TOTAL="$(printf '%s\n' "${PLAN:-}" | "$PY3" "$G/gate_budget.py" limit --results "$RES" --mode select --plan - --fallback 5400 \
+         --explicit "${ENTRY_TOTAL_SECS:-}" --explain)" && [ -n "$TOTAL" ] || {
+  CAP="$("$PY3" "$G/gate_budget.py" cap --results "$RES" --mode select 2>/dev/null)" || CAP=""
+  TOTAL="${ENTRY_TOTAL_SECS:-${CAP:-5400}}"
+}
 R="$ERES/gate_${TAG}_${SHA}"
 for e in json md selection.json; do [ -e "$R.$e" ] && mv -f "$R.$e" "$R.prev.$e"; done
 [ -d "$R.logs" ] && { rm -rf "$R.prev.logs"; mv "$R.logs" "$R.prev.logs"; }

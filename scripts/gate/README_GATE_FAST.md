@@ -132,3 +132,40 @@ ssh runner 'chmod +x ~/gate2/branch_check.sh ~/nightly_tests.sh; cd ~/gate2 && p
 
 Not validated on the runner: the real queue with `flock -w`, the real engine under `--select-base origin/main`, wall times, the nightly
 quarantine section in a real summary.
+
+## Gate speed-ups (GATE-SPEED-2320, owner 31.10)
+
+**Rule: every agent runs `early_local` before pushing; the lead runs `branch_early.sh` on the runner before a branch joins a train**
+(and only then the ~20-40 min `branch_check.sh`).
+
+### 1. Time limit = never below the estimate
+`gate_budget.py limit` (used by `release_gate2.sh` and `branch_check.sh`): explicit `GATE_TOTAL_SECS` / `ENTRY_TOTAL_SECS` wins; else
+`max(derived cap, ESTIMATE high x 1.25)`, never below the estimate high (the plan's `ESTIMATE gate2: ~lo-hi min` line); a side the
+selection runs FULL uses the full-mode budgets (and a FULL frontend the full-tier estimate high); `--full` takes the plan's full-tier
+estimate. The wrappers print `time limit: limit N s = max(...)`. On 31.10: cap 2924 s vs estimate 142 min -> now 10650 s; entry check
+34 min cap vs ~110 min -> 8250 s.
+
+### 2. Early check per branch
+| File | Role |
+|---|---|
+| `early_check.py` | the driver: spec-lint (new specs: geometry read after a click with no settle), `tsc --noEmit`, the repository-wide unit rule specs (ONE Playwright run, `playwright.unit.config.ts`), the backend lint tests, `release_check.py`, and with `--layout` (runner) `vite build` + the gate's early layout list on the dist preview. All in parallel. `list`, `discover` (unit specs that read the source tree but are not listed) |
+| `gate_early_check.json` | the list: 23 unit rule specs (uxfix-rtl, empty-state-icons, date-format-module, lead-reserve, tabset-registry, tabs-config, token-lint, menu-lint, page-background, access-parity-logic, tickets-naming/-quotes/-rules, people-strings, public-*, plan3d-assets), backend `test_upstream_watch.py`, `test_no_ip_literals.py`, `test_tickets_naming.py`, release_check, the layout list `gate_early_layout.json` |
+| `branch_early.sh` | runner: `~/gate2/branch_early.sh <branch> [--no-layout] [--max-wait S]`; queues on `~/.smplwise-tests.lock` like `branch_check.sh` (yields to a pending gate / nightly), holder kind `entry`, worktree `~/work/early-<branch>`, links `~/smplwisebms/frontend/node_modules` when the lock file is identical (else `npm ci`), status `~/smplwise-results/early_status.json`, verdict `~/smplwise-results/entry_early_<branch>_<sha>.md/.json` (Hebrew + English). Exit 0 GREEN, 1 RED / NOT_RUN, 2 usage. Whole-run limit `EARLY_TOTAL_SECS` (1800) |
+| `early_local.ps1` / `early_local.sh` | workstation, no runner: the same parts without the layout list. Needs `frontend/node_modules` (in a worktree: a junction, e.g. `New-Item -ItemType Junction frontend\node_modules -Target <checkout>\frontend\node_modules`) and a python with pytest (repo / main checkout `.venv`, or `EARLY_BACKEND_PYTHON`). Verdict file in `%TEMP%\smplwise-early\` |
+| `selftest_gate_speed.py` | hermetic self-test: the limit rule + CLI, every early part with fake tools, the real list against the checkout, and `release_gate2.sh` / `branch_check.sh` / `branch_early.sh` end to end with fakes (needs bash + git; Git Bash is enough) |
+
+```
+powershell -NoProfile -File scripts\gate\early_local.ps1          # Windows agents, before every push (~4 min measured on 31.10)
+bash scripts/gate/early_local.sh                                   # POSIX
+~/gate2/branch_early.sh pilot/T123-foo                             # the lead, runner, before a train (~5-8 min target, not measured yet)
+```
+
+Install (the lead, quiet window: `gate_status.json` finished, no `entry_status.json` / `early_status.json` running):
+```
+scp scripts/gate/gate_budget.py runner:~/                          # release_gate2.sh / branch_check.sh copy ~/gate_budget.py over ~/gate2/ at each run
+scp scripts/gate/{gate_budget.py,release_gate2.sh,branch_check.sh,branch_early.sh,early_check.py,gate_early_check.json,lint_spec_waits.py,selftest_gate_speed.py} runner:~/gate2/
+ssh runner 'chmod +x ~/gate2/release_gate2.sh ~/gate2/branch_check.sh ~/gate2/branch_early.sh; cd ~/gate2 && python3 selftest_gate_speed.py'
+# then: ~/gate2/release_gate2.sh <branch> --dry-run   (the ESTIMATE line)   and a first real  ~/gate2/branch_early.sh <small pushed branch>
+```
+Not validated on the runner: the real wall time of `branch_early.sh` (layout list cost vs `EARLY_LAYOUT_WORKERS`, default 6), the
+`node_modules` link in `~/work/early-*`, the preview port (`EARLY_PREVIEW_PORT`, 4191), the limit values from real history.

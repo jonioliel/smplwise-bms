@@ -238,3 +238,14 @@ into `~/gate2/`. The v1 install is never written.
 - Dry-run ON the runner, real gate-2 run, shadow run, canary, the quarantine re-run path, 10 shards / 8 slots under load:
   **NOT_RUN** (the runner held `~/.smplwise-tests.lock`, and a 2.20.0 gate is due).
 - `selftest_gate.py`: NOT_RUN (unchanged engine).
+
+## 9. Time limit of a run (GATE-SPEED-2320, owner 31.10)
+On 31.10 two runs were killed by their own limit: `release_gate2.sh` printed `ESTIMATE gate2: ~117-142 min` and then ran with
+`GATE_TOTAL_SECS=2924` (the derived cap of a small earlier selection), and `branch_check.sh` had a 34 min cap for a ~110 min run.
+The limit is now computed by `gate_budget.py limit` (both wrappers):
+- an explicit `GATE_TOTAL_SECS` (`release_gate2.sh`) / `ENTRY_TOTAL_SECS` (`branch_check.sh`) wins, as before;
+- a side the selection runs FULL (`full backend : YES` / `full frontend: YES` in the plan) uses the FULL-mode budgets; a FULL frontend
+  also takes the plan's full-tier estimate high; `--full` runs take the full-tier estimate of the plan as well;
+- limit = max(derived cap, estimate high x 1.25) (`GATE_EST_FACTOR`), never below the estimate high; without a plan the derived cap,
+  else the fixed defaults (7200 select, 12000 full, 5400 entry). The wrapper prints `time limit: ...` with the reason.
+The early stage alone, per branch: `branch_early.sh` (runner) / `early_local.ps1|sh` (workstation) - scripts/gate/README_GATE_FAST.md.

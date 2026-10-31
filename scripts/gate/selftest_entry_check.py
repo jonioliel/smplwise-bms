@@ -269,7 +269,7 @@ def part_b():
                     "FAKE_FLOCK_BUSY": str(busy), "FAKE_FLOCK_COUNT": str(TMP / "flock_count"), "FAKE_FLOCK_LOG": str(TMP / "flock.log"),
                     "FAKE_ENGINE_MODE": mode, "ENTRY_LOCK_SLICE": "1", "ENTRY_SKIP_PLAN": "1",
                     "GATE_HOLDER_FILE": str(home / "holder.json"), "GATE_LOCK_FILE": str(home / "gate.lock"), **(extra or {})})
-        p = subprocess.run([bash, str(g2 / "branch_check.sh"), *args], env=env, capture_output=True, text=True, timeout=300)
+        p = subprocess.run([bash, str(g2 / "branch_check.sh"), *args], env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300)
         return p.returncode, p.stdout + p.stderr
 
     rc, out = run("pass", 2)
