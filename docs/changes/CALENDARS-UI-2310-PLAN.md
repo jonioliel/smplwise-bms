@@ -69,6 +69,10 @@ answered by `src/calendars/demo.ts` (invented data; hash parameters `data=worst|
   (setting `phone_time_picker`), pending counts (setting `resident_pending_display`), confirm sheet, my bookings, cancel (setting
   `resident_cancel_until`), displaced sheet with alternatives, done
 
+Status 2026-10-31: slices A, B and C are committed on `pilot/CALENDARS-UI-2310` (demo mode verified locally on a vite dev server:
+unit + evidence specs at desktop / tablet / phone). Not yet done: slice D's visual-matrix entries and pixel baselines on the runner, the
+owner's review page of the phone / tablet screenshots (answer 23 note), the provider OAuth flow (phase 5, not reachable from the screen).
+
 ### Slice D - verification (lead)
 - unit spec of model.ts, evidence + layout-guard specs per screen (desktop / tablet / phone, light / dark, RTL, scrollTop 0, worst data),
   token lint, visual-matrix entries + baselines on the runner, screenshots page for the owner.
