@@ -52,6 +52,8 @@ test('entry animations off prints one rule that zeroes the three entrance tokens
 test('the shared reduced sheet zeroes literal durations and stops loops from flickering', async () => {
   const { REDUCED_ALL_CSS } = await import('../src/design/apply');
   expect(REDUCED_ALL_CSS).toContain('animation-duration:0.01ms !important');
-  expect(REDUCED_ALL_CSS).toContain('transition-duration:0.01ms !important');
+  // exactly 0s, never a tiny positive duration: on `*` that would CREATE a transition on every element (fix/TICKETS-LAYOUT-2290)
+  expect(REDUCED_ALL_CSS).toContain('transition-duration:0s !important');
+  expect(REDUCED_ALL_CSS).not.toContain('transition-duration:0.01ms');
   expect(REDUCED_ALL_CSS).toContain('animation-iteration-count:1 !important');
 });
