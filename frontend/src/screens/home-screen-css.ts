@@ -229,8 +229,15 @@ export const HOME_SCREEN_CSS = css`
   .arow-q .arow {
     border-block-start: 0;
   }
+  /* WORSTCASE-2310: the reading yields only after the name reached its minimum (devices-building .arow .tm): an ellipsis, the value in
+     the tooltip, instead of running under the "⋯" and the quick actions */
   .arow .tm {
-    flex: none;
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: ltr; /* a cut reading keeps its leading digits ("21.…"), never only its end */
     font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-medium);
     color: var(--sw-text-2);
@@ -257,8 +264,21 @@ export const HOME_SCREEN_CSS = css`
       gap: 6px;
     }
   }
+  /* WORSTCASE-2310: the name's minimum never exceeds what the row has left after its state dot (8 px) and gap (10 px) - a floor card
+     squeezed by two quick actions used to push the name and the reading out of the row */
   .arow-q .arow .nm {
-    min-inline-size: 3.5em;
+    min-inline-size: min(3.5em, calc(100% - 18px));
+  }
+  /* WORSTCASE-2310: the quick row's link is sized by what the quick actions leave (they never shrink), never by its own text, so it can
+     answer its own width: when the dot, the name's minimum and a whole reading no longer fit (a narrow floor card), the reading leaves
+     the row - as on the landscape tablet below - instead of being cut to "…5°" */
+  .arow-q .arow {
+    container: arow / inline-size;
+  }
+  @container arow (max-width: 124px) {
+    .arow-q .arow .tm {
+      display: none;
+    }
   }
   /* HOMEFABLE-297 (impeccable bolder, status clarity): a room with something on is a whole lit row - a solid warm field with its own
      rounded edge, not a fade that dies halfway across the card; the rows sit as wells inside the floor card (home layout) */
@@ -408,6 +428,9 @@ export const HOME_SCREEN_CSS = css`
     border: 2px solid currentColor;
     border-inline-end-color: transparent;
     flex: none;
+    /* WORSTCASE-2310: the turning ring's bounding box (18 px with its border) grows by up to 41% mid-turn (a rotated square): 4 px each
+       side keep it inside the reconnect group, whatever the angle the guard catches it at */
+    margin-inline: 4px;
   }
   @media (prefers-reduced-motion: no-preference) {
     .spin {

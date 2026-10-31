@@ -2125,7 +2125,9 @@ export class DevicesBuilding extends LitElement {
     .tree-row .lit {
       flex: none;
       box-sizing: border-box;
-      inline-size: var(--dv-tree-count-w, 44px);
+      /* WORSTCASE-2310: a minimum, not a fixed width - every usual count lines up in the 44 px column, a five-digit one (49392 lights
+         on the building row) widens its own row instead of pushing the bulb out of the column */
+      min-inline-size: var(--dv-tree-count-w, 44px);
       justify-content: flex-end;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
@@ -2453,15 +2455,22 @@ export class DevicesBuilding extends LitElement {
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading);
       flex: 1 1 auto;
-      min-inline-size: 3ch; /* P6 item 2: the name never squeezes under three letters - the indicators yield first */
+      min-inline-size: min(3ch, calc(100% - 18px)); /* P6 item 2: the name never squeezes under three letters - the indicators yield first (WORSTCASE-2310: nor past the row's own width after the 8 px dot and 10 px gap) */
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     /* P6 item 2: the temperature / stale time never shrinks or clips ("21.0°" read as "0°"); tabular so rows align */
+    /* WORSTCASE-2310: ...but when the name is already at its minimum and the row is still too narrow (a floor card beside the tree and
+       three more cards, a quick row with two actions), the reading yields the rest instead of running out of the row under the "⋯"
+       and the actions: it ends in an ellipsis on its LTR end ("21.…", never "0°") and carries the full value in its tooltip */
     .arow .tm {
-      flex: none;
+      flex: 0 1 auto;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
+      direction: ltr;
       font-variant-numeric: tabular-nums;
     }
     /* release 0.1.149: what sits after an area's name - one line, never wrapping; at most three on a phone, the rest as "+N" */
@@ -3369,9 +3378,9 @@ export class DevicesBuilding extends LitElement {
     const mid = bad
       ? html`<span class="btx" data-area-alert>${hs('alarmTriggered')}</span>`
       : this.offline
-        ? html`<span class="tm" data-area-stale>${this.lastOkTime()}</span>`
+        ? html`<span class="tm" data-area-stale title=${this.lastOkTime()}>${this.lastOkTime()}</span>`
         : showRoomTemp(a, this.screen.tile_climate)
-          ? html`<span class="tm" data-area-temp>${ltrNum(`${(a.temperature as number).toFixed(1)}°`)}</span>`
+          ? html`<span class="tm" data-area-temp title=${`${(a.temperature as number).toFixed(1)}°`}>${ltrNum(`${(a.temperature as number).toFixed(1)}°`)}</span>`
           : nothing;
     const body =
       where === 'tree'

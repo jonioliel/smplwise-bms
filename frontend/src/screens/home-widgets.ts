@@ -475,6 +475,12 @@ export class HomeWidgetsView extends LitElement {
       unicode-bidi: isolate;
       display: inline-block;
       text-align: start;
+      /* WORSTCASE-2310: a reading that still does not fit its column (105 °C, a sensor in °F with decimals) ends in an ellipsis inside
+         the column instead of running under the condition glyph; the full reading is the tooltip */
+      max-inline-size: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .wx-c {
       font-size: var(--sw-fs-base);
@@ -1141,6 +1147,18 @@ export class HomeWidgetsView extends LitElement {
       align-items: center;
       column-gap: 10px;
       row-gap: 8px;
+    }
+    /* WORSTCASE-2310: in this grid the measures column takes its natural width first and the temperature gets the rest - at 1440 the
+       large card is ~300 px, so "28°C" at 50 px (101 px) had a 94 px column and ran under the glyph. The temperature now scales with
+       its own column (a container on the 1fr cell, which already ignores its content's width there) and keeps --wxt as its ceiling:
+       wider cards look exactly as before, the 1440 card shows the reading at ~45 px instead of cutting it */
+    :host([layout='hero']) .wg-weather[data-size='l'] .wx-main,
+    :host([layout='side']) .wg-weather[data-size='l'] .wx-main {
+      container: wxmain / inline-size;
+    }
+    :host([layout='hero']) .wg-weather[data-size='l'] .wx-t,
+    :host([layout='side']) .wg-weather[data-size='l'] .wx-t {
+      font-size: min(var(--wxt, 36px), 27cqi);
     }
     :host([layout='hero']) .wg-weather[data-size='l'] .wx-fc,
     :host([layout='side']) .wg-weather[data-size='l'] .wx-fc {
@@ -1826,7 +1844,7 @@ export class HomeWidgetsView extends LitElement {
     const daily = forecastIsDaily(entries);
     return this.shell(it, 'wg-weather', { cond: weatherGlyph(cond) }, html`${this.head(it, GLYPHS.partly, w.name)}
       <div class="wg-b"><div class="wx-main">${cond && (temp || showCond) ? html`<svg class="wx-ic" viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[weatherGlyph(cond)]}</svg>` : nothing}
-        <div class="wx-tc">${temp ? html`<span class="wx-t" data-home-temp>${valueText('temperature', { v: temp.v, unit: temp.unit ?? null })}</span>` : nothing}${showCond ? html`<span class="wx-c" data-home-cond>${WEATHER_HE[cond] ?? cond}</span>` : nothing}</div></div>
+        <div class="wx-tc">${temp ? html`<span class="wx-t" data-home-temp title=${valueText('temperature', { v: temp.v, unit: temp.unit ?? null })}>${valueText('temperature', { v: temp.v, unit: temp.unit ?? null })}</span>` : nothing}${showCond ? html`<span class="wx-c" data-home-cond>${WEATHER_HE[cond] ?? cond}</span>` : nothing}</div></div>
       ${facts.length ? html`<div class="wx-m ge-m" data-home-facts>${facts.map(({ f, v }) => html`<span data-home-fact=${f}><svg viewBox="0 0 24 24" aria-hidden="true">${FIELD_ICON[f] ?? DROP}</svg>${WEATHER_FIELD_LABEL[f]} <b>${valueText(f, { v: v!.v, unit: v!.unit ?? null })}</b></span>`)}</div>` : nothing}
       ${entries.length ? html`<div class="wx-fc only-l" data-home-forecast style=${`--fcn:${entries.length}`} aria-label="תחזית לימים הקרובים">${entries.map((e) => html`<div class="fc" data-cond=${weatherGlyph(e.condition)}><span>${forecastLabel(e.datetime, this.zone, daily)}</span><svg viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[weatherGlyph(e.condition)]}</svg>${e.temperature !== null ? html`<span class="hl"><b>${Math.round(e.temperature)}°</b>${e.templow !== undefined ? html`<i>${Math.round(e.templow)}°</i>` : nothing}</span>` : nothing}</div>`)}</div>` : nothing}</div>`);
   }
