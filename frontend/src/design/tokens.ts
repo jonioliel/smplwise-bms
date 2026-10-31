@@ -75,7 +75,9 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-text': lt('#22314c', '#e6ebf5'),
       '--sw-heading': lt('#1e2e47', '#f3f6fc'),
       '--sw-text-2': lt('#4b5976', '#a9b4ca'),
-      '--sw-text-3': lt('#5e6d88', '#8896af'),
+      // UIPOLISH-2320 (owner 2A, 31.10): the dark muted ink one step lighter in the base and every skin (was #8896af) - it read ~4.0:1 on the
+      // screens (selected / hovered rows, nested panels); now >= 5.0:1 on every dark bed (tests/unit-dark-muted-contrast.spec.ts). Light unchanged.
+      '--sw-text-3': lt('#5e6d88', '#98a4ba'),
       '--sw-text-inverse': lt('#ffffff', '#ffffff'), // text on an accent fill
     },
   },

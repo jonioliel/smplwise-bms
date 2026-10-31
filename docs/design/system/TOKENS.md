@@ -30,7 +30,7 @@ Most values equal the `classic` skin as it is today; the deltas are marked **Δ*
 | `--sw-video-bg` | `#0f1729` | `#05070c` | |
 | `--sw-text` / `--sw-heading` | `#22314c` / `#1e2e47` | `#e6ebf5` / `#f3f6fc` | |
 | `--sw-text-2` | `#4b5976` | `#a9b4ca` | 7.4:1 / 9.1:1 on the panel |
-| `--sw-text-3` | `#5e6d88` | `#8896af` | 5.1:1 / 5.6:1 - the floor for words |
+| `--sw-text-3` | `#5e6d88` | `#98a4ba` | 5.1:1 / 5.6:1 - the floor for words |
 | `--sw-text-inverse` | `#ffffff` | `#ffffff` | |
 
 ### 1.2 Accent, rail, states

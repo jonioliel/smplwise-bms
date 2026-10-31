@@ -179,7 +179,7 @@ A restrained palette: tinted neutrals from the canvas blue, one accent, nine sem
 - **Hairline** (`#e7ebf2` / `#232e45`) and **Hairline strong** (`#d9dfe9` / `#2f3c58`): card edges, dividers; the strong one for
   buttons and inputs and for a panel floating over the plan.
 - **Ink** (`#22314c` / `#e6ebf5`), **Heading ink** (`#1e2e47` / `#f3f6fc`), **Ink 2** (`#4b5976` / `#a9b4ca`, 7.4:1 on white),
-  **Ink 3** (`#5e6d88` / `#8896af`, 5.1:1): primary, heading, secondary and caption text. Ink 3 is the floor; nothing lighter
+  **Ink 3** (`#5e6d88` / `#98a4ba`, 5.1:1): primary, heading, secondary and caption text. Ink 3 is the floor; nothing lighter
   carries words.
 
 ### States (each: bare colour for dots, bars, icons · `-soft` fill · `-text` on that fill)

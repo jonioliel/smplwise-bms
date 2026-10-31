@@ -46,7 +46,7 @@ const tokens: TokenTable = {
   '--sw-text': lt('#1f2a3d', '#eef2fa'),
   '--sw-heading': lt('#16203a', '#f8faff'),
   '--sw-text-2': lt('#44516a', '#b6c0d4'),
-  '--sw-text-3': lt('#566480', '#97a3bb'),
+  '--sw-text-3': lt('#566480', '#a0abc1'),
   '--sw-accent': lt('#2f6df6', '#2f6df6'),
   // SKINFOUND-297: round 2's dark hover #4a80ff carries white at only 3.9:1 (unit-stall-retry-contrast.spec.ts); the hover takes C's own
   // light hover #255ddb in dark too - it moves away from the white label (POLISH-295), white reads at 5.5:1

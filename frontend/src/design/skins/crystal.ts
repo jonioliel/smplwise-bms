@@ -35,7 +35,7 @@ const tokens: TokenTable = {
   '--sw-text': lt('#152238', '#e9eef8'),
   '--sw-heading': lt('#0e1a30', '#ffffff'),
   '--sw-text-2': lt('#3e4d66', '#aeb9cf'),
-  '--sw-text-3': lt('#55637c', '#909db5'),
+  '--sw-text-3': lt('#55637c', '#9aa6bc'),
   '--sw-text-inverse': lt('#ffffff', '#0b1020'),
   '--sw-accent': lt('#1e5bd8', '#8ab8ff'),
   '--sw-accent-hover': lt('#174cbd', '#a5c8ff'),
