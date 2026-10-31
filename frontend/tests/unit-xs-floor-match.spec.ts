@@ -129,3 +129,10 @@ test('no tree (no permission / platform off): no match; a lone floor still resol
   expect(matchFloors(OWNER_FLOORS, null).size).toBe(0);
   expect(areasOfFloor(cat('c0', 'קרקע', 0), OWNER).areas.map((a) => a.area_id).sort()).toEqual(['kitchen', 'lobby', 'salon']);
 });
+
+test('SWITCH-AS-LIGHT: lighting wired through switches (no light.* entity at all) lights the synoptic floor from the server counts', () => {
+  // the server (services/devices.count_into) counts a switch an administrator typed as a light in lights / lights_on, not in switches
+  const t = tree([haFloor('ground_floor', 'Ground floor', 0, [area('lobby', 'ground_floor', { counts: { ...ZERO, entities: 3, lights: 3, lights_on: 2 } })])]);
+  const [sig] = signalsOf([full(cat('c0', 'קרקע', 0))], t, null);
+  expect(sig).toMatchObject({ id: 'c0', nodata: false, lit: 2, lights: 3 });
+});
