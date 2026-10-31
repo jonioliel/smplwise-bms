@@ -93,6 +93,8 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    "door_automation_fires",
                                    # ECCACT-295: durable WisKey intents / relay map / feature registry - a restore must never revive an old intent
                                    "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents",
+                                   # WISKEY-RELAYMAP-2310: the relay map station revisions (with the map itself, never restored)
+                                   "wiskey_relay_map_stations",
                                    # APPREFRESH-295: the phone app's refresh-token families and access tokens (hashes only) - a restore must
                                    # never revive a revoked family or an already-used refresh token
                                    "app_refresh_families", "app_refresh_tokens", "app_access_tokens",

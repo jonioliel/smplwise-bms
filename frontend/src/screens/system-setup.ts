@@ -10,6 +10,7 @@ import { can, installationSupported, isApi, nvrLess } from '../api/session';
 import { UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ApiError, get, describeError } from '../api/client';
 import './system-doors'; // CR-033: station placement + door map cards
+import './wiskey-relay-map'; // WISKEY-RELAYMAP-2310: the WisKey relay map approval (api relay -> physical relay per station)
 import './system-door-blocks'; // WXUNBLK: what the door path blocks, and the one audited release per virtual device
 import './system-emergency-open'; // EMROLE-295: the emergency-open role's settings (expiry, who may give it, retry by holders)
 import { clearIntercomCredentials, getIntercomCredentials, setIntercomCredentials, type IntercomCredentialsList, type IntercomStationCredentials } from '../api/intercom';
@@ -491,6 +492,7 @@ export class SystemSetup extends LitElement {
               ${can('system.configure') ? html`<sw-bridge-key-card></sw-bridge-key-card>` : nothing}
               ${can('partner.manage') ? html`<sw-partner-api-card></sw-partner-api-card>` : nothing}
               ${can('system.configure') ? html`<sw-door-setup data-door-setup></sw-door-setup><sw-door-inventory data-door-inventory></sw-door-inventory><sw-door-blocks data-door-blocks></sw-door-blocks><sw-emergency-open-settings></sw-emergency-open-settings>` : nothing}
+              ${can('system.configure') || can('access.admin.read') ? html`<sw-wiskey-relay-map data-relay-map></sw-wiskey-relay-map>` : nothing}
               <sw-card heading="תשתית המערכת" subheading=${h.home_assistant.connected ? `מחובר · גרסה ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
                 ${this.row('חיבור', h.home_assistant.connected ? 'מחובר' : `מנותק${h.home_assistant.last_error ? ` · ${h.home_assistant.last_error}` : ''}`, h.home_assistant.connected ? 'ok' : 'err')}
                 ${this.row('ישויות בקטלוג', h.home_assistant.entities)}
