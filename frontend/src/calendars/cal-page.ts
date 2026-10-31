@@ -193,8 +193,8 @@ export class CalendarsPage extends LitElement {
   render() {
     const a = this.access;
     if (a.enabled === false && isApi()) {
-      return html`<h1 class="vh">יומנים</h1><div class="center"><sw-state-panel state="empty" icon="calendar" data-cal-state="off" heading="מודול היומנים כבוי"
-        hint=${a.can.configure ? 'אפשר להפעיל אותו בהגדרות › יומנים.' : 'מנהל המערכת יכול להפעיל אותו.'} actionLabel=${a.can.configure ? 'להגדרות' : ''}
+      return html`<h1 class="vh">יומנים</h1><div class="center"><sw-state-panel icon="calendar" state="empty" data-cal-state="off" heading="מודול היומנים כבוי"
+        hint=${a.can.configure ? 'אפשר להפעיל אותו בהגדרות ‹ יומנים.' : 'מנהל המערכת יכול להפעיל אותו.'} actionLabel=${a.can.configure ? 'להגדרות' : ''}
         @action=${() => (location.hash = CALENDARS_SETTINGS_HREF)}></sw-state-panel></div>`;
     }
     if (a.enabled && !a.can.view) return html`<h1 class="vh">יומנים</h1><div class="center"><sw-state-panel state="forbidden" data-cal-state="forbidden" heading="אין לך גישה ליומנים"></sw-state-panel></div>`;
@@ -257,7 +257,7 @@ export class CalendarsPage extends LitElement {
     const ctx = this.ctx();
     if (resident) return html`<cal-resident .ctx=${ctx}></cal-resident>`;
     if (!this.cals.length && this.view !== 'manage') {
-      return html`<div class="center"><sw-state-panel state="empty" icon="calendar" data-cal-state="empty" heading="אין עדיין יומנים"
+      return html`<div class="center"><sw-state-panel icon="calendar" state="empty" data-cal-state="empty" heading="אין עדיין יומנים"
         hint=${this.access.can.manage ? 'יומן לכל חדר, צוות, אחזקה או אירועים. אפשר להתחיל מחדר אחד.' : 'כשיוגדר יומן שיש לך בו הרשאה, הוא יופיע כאן.'}
         actionLabel=${this.access.can.manage ? 'יצירת יומן ראשון' : ''} @action=${() => (location.hash = `${calendarsBase(this.route)}/manage${this.demoQuery()}`)}></sw-state-panel></div>`;
     }

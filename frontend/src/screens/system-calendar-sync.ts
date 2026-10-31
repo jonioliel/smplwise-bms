@@ -9,6 +9,7 @@ import type { RouteState } from '../router';
 import { refreshCalendars } from '../calendars/access';
 import { PROVIDER_LABEL, colorVar, hm, pageOf, whenText } from '../calendars/model';
 import { calCss } from '../calendars/styles';
+import { leadReserveStyles } from '../styles/lead-reserve';
 
 const ORDER: Connection['provider'][] = ['ical', 'google', 'microsoft'];
 const STAGE: Record<Connection['provider'], string> = { ical: 'ראשון · ללא חשבון', google: 'שני', microsoft: 'שלישי' };
@@ -46,7 +47,7 @@ export function agoText(iso: string | null, now: Date): string {
  */
 @customElement('system-calendar-sync')
 export class SystemCalendarSync extends LitElement {
-  static styles = [calCss, css`
+  static styles = [calCss, leadReserveStyles, css`
     :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; padding: 14px var(--sw-page-pad) 20px; gap: 12px; overflow: hidden; }
     .panel { flex: 1; }
     h1 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
@@ -166,7 +167,7 @@ export class SystemCalendarSync extends LitElement {
     const now = new Date();
     return html`
       <section class="panel" data-sync-screen>
-        <div class="ph"><h1>חיבורי יומן</h1><span class="sp"></span><span class="lock lockline"><sw-icon name="lock" size="14"></sw-icon>Arx לא יוצר חשבונות ולא שומר סיסמאות</span>
+        <div class="ph lead-head"><h1>חיבורי יומן</h1><span class="sp"></span><span class="lock lockline"><sw-icon name="lock" size="14"></sw-icon>Arx לא יוצר חשבונות ולא שומר סיסמאות</span>
           <button type="button" class="btn sm newbtn" data-sync-new @click=${() => (this.newOpen = true)}><sw-icon name="plus" size="14"></sw-icon>חיבור חדש</button></div>
         ${this.actionError ? html`<div class="err" role="alert" data-sync-error>${this.actionError}</div>` : nothing}
         ${this.phone ? this.phoneProviders(now) : html`<div class="prov">${ORDER.map((p) => this.card(p, now))}</div>`}

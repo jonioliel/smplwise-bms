@@ -10,6 +10,7 @@ import type { RouteState } from '../router';
 import { refreshCalendars } from '../calendars/access';
 import { APPROVAL_LABEL, OVERLAP_LABEL, OVERLAP_SHORT, ROLE_HINT, ROLE_LABEL, STRICTNESS, TYPE_LABEL, colorVar, pageOf, rowsThatFit } from '../calendars/model';
 import { calCss } from '../calendars/styles';
+import { leadReserveStyles } from '../styles/lead-reserve';
 
 type Tab = 'overlap' | 'behavior' | 'approval' | 'perm' | 'retention';
 const TABS: [Tab, string, string][] = [['overlap', 'חפיפת תחזוקה', 'חפיפה'], ['behavior', 'התנהגות', 'התנהגות'], ['approval', 'אישור לכל יומן', 'אישור'], ['perm', 'הרשאות', 'הרשאות'], ['retention', 'פרטי אורחים', 'אורחים']];
@@ -77,7 +78,7 @@ const OVERLAP_HINT: Record<OverlapMode, string> = {
  */
 @customElement('system-calendars')
 export class SystemCalendars extends LitElement {
-  static styles = [calCss, css`
+  static styles = [calCss, leadReserveStyles, css`
     :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; padding: 14px var(--sw-page-pad) 20px; gap: 12px; overflow: hidden; }
     h1 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
     .head { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; padding-inline-end: var(--sw-float-reserve, 0px); }
@@ -279,7 +280,7 @@ export class SystemCalendars extends LitElement {
     if (!this.s) return html`<div class="panel" data-calset-state="loading" role="status" aria-label="טוען">${[0, 1, 2, 3].map(() => html`<div class="skel" style="block-size:56px"></div>`)}</div>`;
     const tab = this.tab;
     return html`
-      <div class="head">
+      <div class="head lead-head">
         <h1>יומנים</h1><span class="sp"></span>
         <label class="modsw"><span>מודול היומנים</span><sw-toggle data-calset="enabled" label="מודול היומנים פעיל" labelHidden ?checked=${this.s.enabled} ?disabled=${!this.canEdit}
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ enabled: e.detail.checked })}></sw-toggle><b>${this.s.enabled ? 'פעיל' : 'כבוי'}</b></label>
@@ -370,7 +371,7 @@ export class SystemCalendars extends LitElement {
     const inst = (this.s as CalSettings).maintenance_overlap;
     const modes = (['first_holds', 'override_notify', 'block', 'ask'] as OverlapMode[]).filter((m) => scope === 'both' || STRICTNESS[m] >= STRICTNESS[inst]);
     const canRow = (c: Calendar) => this.canEdit || c.my_role === 'manage';
-    if (!list.length) return html`<h2>אישור לכל יומן</h2><sw-state-panel state="empty" compact heading="אין עדיין יומנים" hint="יומן נוצר בלשונית ניהול יומנים."></sw-state-panel>`;
+    if (!list.length) return html`<h2>אישור לכל יומן</h2><sw-state-panel icon="calendar" state="empty" compact heading="אין עדיין יומנים" hint="יומן נוצר בלשונית ניהול יומנים."></sw-state-panel>`;
     if (this.phone) {
       return html`<h2>אישור לכל יומן</h2>
         <div class="fitbox"><div class="grid" data-fit="66" data-calset-rows>${p.items.map((c) => html`<div class="row" data-approval=${c.id}><span class="dot" style=${`--h:${colorVar(c.color)}`}></span>
@@ -424,7 +425,7 @@ export class SystemCalendars extends LitElement {
         <div class="col wide-only"><h3>הרשאות במערכת שהתפקיד ביומן נשען עליהן</h3>
           <table class="t"><thead><tr><th>הרשאה</th><th>מי מחזיק כברירת מחדל</th><th>רגישה</th></tr></thead><tbody>
           ${PERMS.map(([a, b, sens]) => html`<tr><td><span class="n">${a}</span></td><td>${b}</td><td>${sens ? html`<span class="chip warn">רגישה</span>` : html`<span class="muted">—</span>`}</td></tr>`)}
-          </tbody></table><p class="lead">את ההרשאות עצמן נותנים בהגדרות › משתמשים והרשאות.</p></div>
+          </tbody></table><p class="lead">את ההרשאות עצמן נותנים בהגדרות ‹ משתמשים והרשאות.</p></div>
       </div>`;
   }
 

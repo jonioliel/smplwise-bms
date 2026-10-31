@@ -46,10 +46,21 @@ async function shot(page: Page, name: string, scheme = 'light') {
 }
 
 const opt = (page: Page, key: string, value: string): Locator => page.locator(`${S} [data-setting="${key}"] [data-opt="${value}"]`);
-/** The behaviour tab pages its rows (no page scroll): page forward until the row is there. */
+/** The behaviour tab pages its rows (no page scroll): page forward until the row is there. The rows load asynchronously and the panel
+ * then measures how many fit (rows per page); the row is looked for only once both have happened - read earlier, the count was 0
+ * before the load and the click turned past the page that held the row, onto a last page with "הבא" disabled (2.31.0 gate timeout). */
 async function toSetting(page: Page, key: string) {
-  for (let i = 0; i < 12 && !(await page.locator(`${S} [data-setting="${key}"]`).count()); i += 1) await page.locator(`${S} [data-calset-next]`).click();
-  await expect(page.locator(`${S} [data-setting="${key}"]`)).toBeVisible();
+  const row = page.locator(`${S} [data-setting="${key}"]`);
+  const next = page.locator(`${S} [data-calset-next]`);
+  await expect(page.locator(`${S} [data-calset-rows] > *`).first()).toBeVisible();
+  for (let i = 0; i < 12; i += 1) {
+    await settle(page); // the measure runs on the next frame; a changed rows-per-page re-renders and measures once more
+    await settle(page);
+    if (await row.count()) break;
+    if (!(await next.count()) || (await next.isDisabled())) break;
+    await next.click();
+  }
+  await expect(row).toBeVisible();
 }
 
 test.describe('calendars settings (הגדרות › יומנים)', () => {
