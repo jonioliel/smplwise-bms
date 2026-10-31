@@ -84,8 +84,8 @@ def test_stream_sync_uses_the_device_paths_and_only_the_namespace(settings, fake
             r = autosync.ensure_streams(s, conn, reason="manual")
     srcs = dict(seen)
     # live finding: go2rtc plays this NVR only through its ffmpeg source (vendor_io.go2rtc_source)
-    assert srcs["smplwise_nvr-1_ch1_main"] == f"ffmpeg:rtsp://{USER}:{PASSWORD}@{HOST}:554/chID=1&streamType=main#video=copy"
-    assert srcs["smplwise_nvr-1_ch1_sub"] == f"ffmpeg:rtsp://{USER}:{PASSWORD}@{HOST}:554/chID=1&streamType=sub1#video=copy"
+    assert srcs["smplwise_nvr-1_ch1_main"] == f"ffmpeg:rtsp://{USER}:{PASSWORD}@{HOST}:554/chID=1&streamType=main#video=copy#backchannel=0"
+    assert srcs["smplwise_nvr-1_ch1_sub"] == f"ffmpeg:rtsp://{USER}:{PASSWORD}@{HOST}:554/chID=1&streamType=sub1#video=copy#backchannel=0"
     assert all(n.startswith("smplwise_") for n in srcs) and r["foreign_streams_untouched"] == 1
 
 
@@ -242,8 +242,9 @@ def test_probe_returns_the_certificate_for_pinning(settings, fake, monkeypatch):
 
 def test_go2rtc_source_native_option(settings):
     url = "rtsp://u:p@h:554/chID=1&streamType=main"
-    assert vendor_io.go2rtc_source(settings_for(settings), url) == f"ffmpeg:{url}#video=copy"
-    assert vendor_io.go2rtc_source(settings_for(settings, go2rtc_source="rtsp"), url) == url
+    assert vendor_io.go2rtc_source(settings_for(settings), url) == f"ffmpeg:{url}#video=copy#backchannel=0"
+    assert vendor_io.go2rtc_source(settings_for(settings, go2rtc_source="rtsp"), url) == f"{url}#backchannel=0"  # live 2026-10-31
+    assert vendor_io.go2rtc_source(settings_for(settings, go2rtc_source="rtsp", backchannel=True), url) == url
 
 def test_save_with_pin_mode_and_no_pin_is_refused_without_credentials(settings, fake, monkeypatch):
     """Security review: the pin_required -> 422 tls_pin_required save path, and no request reaches the device first."""

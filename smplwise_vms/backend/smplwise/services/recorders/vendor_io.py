@@ -137,8 +137,35 @@ def go2rtc_source(settings: Settings, rtsp_url: str) -> str:
     RTSP client gets NO tracks from this NVR (live and playback alike: "codecs not matched:  => ..."), while the same URL
     through go2rtc's ffmpeg source plays (1920x1080 H.264 over MSE in the browser). So the default wraps the URL in
     `ffmpeg:...#video=copy` (no re-encode; audio is not carried yet). `nvr_extra.go2rtc_source = "rtsp"` uses the native
-    client for a firmware where it works. Only for go2rtc: thumbnails / frames hand the plain URL to the local ffmpeg."""
+    client for a firmware where it works. Only for go2rtc: thumbnails / frames hand the plain URL to the local ffmpeg.
+
+    Live finding 2026-10-31 (NVR8-16400AN fw 1.4.7, go2rtc 1.9.14, read-only diagnosis): go2rtc's RTSP client sends
+    `Require: www.onvif.org/ver20/backchannel` on DESCRIBE by default, and this NVR then answers with an SDP that holds ONLY
+    the PCMU sendonly talk-back track - no video - so every consumer fails with "codecs not matched". Without that header the
+    same path returns H.264 video (very likely also the cause of the 2026-10-04 native-client finding above). So every go2rtc
+    source of a Provision recorder carries go2rtc's `#backchannel=0` (ffmpeg's own RTSP client never asks for the talk-back
+    channel; the parameter is harmless there and keeps the source right if go2rtc ever pulls it natively).
+    `nvr_extra.backchannel = true` ("two-way talk through the recorder", default off) leaves it out: talk-back needs it."""
     extra = settings.nvr_extra if isinstance(settings.nvr_extra, dict) else {}
     if str(extra.get("go2rtc_source") or "ffmpeg").lower() == "rtsp":
-        return rtsp_url
-    return f"ffmpeg:{rtsp_url}#video=copy"
+        src = rtsp_url
+    else:
+        src = f"ffmpeg:{rtsp_url}#video=copy"
+    return src if two_way_talk(settings) else with_backchannel_off(src)
+
+
+def two_way_talk(settings: Settings) -> bool:
+    """`nvr_extra.backchannel`: the connection keeps go2rtc's ONVIF talk-back request (bool, or "true" from a stored form)."""
+    extra = settings.nvr_extra if isinstance(settings.nvr_extra, dict) else {}
+    v = extra.get("backchannel")
+    return v is True or (isinstance(v, str) and v.strip().lower() == "true")
+
+
+def with_backchannel_off(src: str) -> str:
+    """`src` + go2rtc's `#backchannel=0`. go2rtc reads every `#key=value` after the first `#` of a source, so an existing
+    fragment is kept and extended; a source that already names `backchannel` is left as it is."""
+    head, sep, frag = src.partition("#")
+    params = [p for p in frag.split("#") if p] if sep else []
+    if any(p.split("=", 1)[0].strip().lower() == "backchannel" for p in params):
+        return src
+    return "#".join([head, *params, "backchannel=0"])
