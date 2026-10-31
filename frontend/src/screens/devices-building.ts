@@ -76,6 +76,7 @@ import { demoHome } from './home-demo';
 import { activeOff, bulkTargets, entryLevel, offSelection, scopeTag, scopeTree, shownBuildings, siteModel, SITE_LEVEL, type SiteBuilding, type SiteModel } from '../api/home-site';
 import { getHomeLinks } from '../api/catalog';
 import { multiBuildingOn } from '../api/mapping';
+import './mapping-all'; // MAPPING-ASSIST-2330: the site bar's health chip
 import type { Building, Floor as CatalogFloor } from '../api/types';
 import type { MatchLinks } from '../xsection/xs-model';
 import { demoSite } from './home-site-demo';
@@ -1438,6 +1439,7 @@ export class DevicesBuilding extends LitElement {
           ? html`<button type="button" class="crumb" data-site-crumb="site" @click=${() => this.goLevel(SITE_LEVEL)}>אתר</button><span class="sep" aria-hidden="true">›</span><span class="crumb here" aria-current="page">${bidi(here.name)}</span>`
           : html`<span class="crumb here" aria-current="page">אתר${site.model.siteName ? html`<span class="sitename"> · ${bidi(site.model.siteName)}</span>` : nothing}</span>`}
       </nav>
+      <mapping-health-chip></mapping-health-chip>
       <span class="bswitch" role="group" aria-label="בניינים" data-site-switch>
         <button type="button" data-site-switch-btn=${SITE_LEVEL} aria-pressed=${String(!here)} @click=${() => this.goLevel(SITE_LEVEL)}><sw-icon name="building" size=${14}></sw-icon>כל האתר</button>
         ${site.shown.map((b) => html`<button type="button" class=${classMap({ shared: b.shared })} data-site-switch-btn=${b.id} aria-pressed=${String(here?.id === b.id)} @click=${() => this.goLevel(b.id)}>

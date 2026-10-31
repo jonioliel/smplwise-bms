@@ -3,3 +3,5 @@
  * (an import order that keeps the registration after the classes exist).
  */
 import './system-mapping';
+import './mapping-decide'; // slice 2: the exceptions step
+import './mapping-health'; // slice 2: the health card and the home's chip
