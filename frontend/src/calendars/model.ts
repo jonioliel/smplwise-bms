@@ -19,7 +19,7 @@ export const OVERLAP_LABEL: Record<OverlapMode, string> = {
 };
 export const OVERLAP_SHORT: Record<OverlapMode, string> = { first_holds: 'הראשון מחזיק', override_notify: 'התחזוקה גוברת', block: 'אי אפשר להציב', ask: 'לשאול בכל חלון' };
 export const APPROVAL_LABEL: Record<Calendar['approval_mode'], string> = { none: 'ללא אישור', always: 'כל בקשה באישור', outside_hours: 'באישור מחוץ לשעות', on_behalf: 'באישור כשמזמינים בשם אחרים' };
-export const PROVIDER_LABEL: Record<string, string> = { ical: 'iCal', google: 'Google', microsoft: 'Microsoft' };
+export const PROVIDER_LABEL: Record<string, string> = { ical: 'iCal', ics_in: 'iCal', ics_out: 'iCal', google: 'Google', microsoft: 'Microsoft' };
 /** Order of the strictness of the maintenance-overlap modes (stricter protects an existing entry more). */
 export const STRICTNESS: Record<OverlapMode, number> = { override_notify: 0, first_holds: 1, ask: 2, block: 3 };
 

@@ -8,7 +8,8 @@
  */
 import { ApiError } from '../api/client';
 import type {
-  CalendarsApi, CalColor, CalEvent, CalRequest, CalSettings, CalType, Calendar, Connection, EntryKind, EntryState, Member, ModuleState, NewEvent, Occurrence, RoomDay, SyncFlag,
+  CalendarsApi, CalColor, CalEvent, CalRequest, CalSettings, CalType, Calendar, Connection, ConnSetup, EntryKind, EntryState, Feed, Member, ModuleState, NewEvent, Occurrence, RoomDay,
+  SyncFlag,
 } from '../api/calendars';
 
 const hashParams = () => new URLSearchParams(window.location.hash.split('?')[1] ?? '');
@@ -25,6 +26,10 @@ function at(dayOffset: number, hhmm: string): string {
   return d.toISOString();
 }
 const P = (id: string, name: string) => ({ id, name });
+/** CALCONNECT-2330: the credential flags of a demo connection (the server never answers a value either). */
+const SETUP = (o: Partial<ConnSetup>): ConnSetup => ({ client_id_set: false, client_secret_set: false, authorized: false, feed_url_set: false, tenant: null, ready: false,
+  pending_flow: null, ...o, ...(o.ready === undefined ? { ready: !!(o.authorized || o.feed_url_set) } : {}) });
+const demoErr = (status: number, code: string, msg: string) => new ApiError(status, { code, user_message: msg, retryable: false, correlation_id: 'demo', details: {} });
 const ME = P('u-me', 'יוני');
 
 interface Seed { id: string; name: string; type: CalType; color: CalColor; mgr: string; floor: string; cap: number | null; equip: string[]; approval: Calendar['approval_mode']; my: Calendar['my_role']; sync: Calendar['sync']; override?: Calendar['overlap_override'] }
@@ -82,7 +87,7 @@ function settingsDefaults(): CalSettings {
   };
 }
 
-interface Store { cals: Calendar[]; occ: Occurrence[]; requests: CalRequest[]; settings: CalSettings; members: Record<string, Member[]>; connections: Connection[]; flags: SyncFlag[]; guests: number; seq: number }
+interface Store { cals: Calendar[]; occ: Occurrence[]; requests: CalRequest[]; settings: CalSettings; members: Record<string, Member[]>; connections: Connection[]; flags: SyncFlag[]; feeds: Feed[]; guests: number; seq: number }
 let store: Store | null = null;
 let storeKey = '';
 
@@ -135,19 +140,23 @@ function build(mode: string): Store {
     ],
   };
   const connections: Connection[] = [
-    { id: 'c-ical', provider: 'ical', label: 'פידים ומנויים', scope: 'read', state: 'ok', owner: P('u0', 'יוני'), last_sync_at: at(0, '10:31'), next_sync_at: at(0, '10:45'), error_code: null, adapter_available: true,
+    { id: 'c-ical', provider: 'ics_in', label: 'לוח חגים ומועדים', scope: 'read', state: 'ok', owner: P('u0', 'יוני'), last_sync_at: at(0, '10:31'), next_sync_at: at(0, '10:45'), error_code: null, adapter_available: true,
+      account_hint: 'calendar.example.org', setup: SETUP({ feed_url_set: true }),
       bindings: [{ id: 'b1', calendar_id: 'maint', direction: 'export', detail: 'busy', dedicated: false }, { id: 'b2', calendar_id: 'holidays', direction: 'import', detail: 'titles', dedicated: false }], revision: 1 },
     { id: 'c-google', provider: 'google', label: 'רונית קפלן', scope: 'read_write', state: 'ok', owner: P('u9', 'רונית קפלן'), last_sync_at: at(0, '10:37'), next_sync_at: at(0, '10:42'), error_code: null, adapter_available: true,
+      setup: SETUP({ client_id_set: true, client_secret_set: true, authorized: true }),
       bindings: [{ id: 'b3', calendar_id: 'alon', direction: 'two_way', detail: 'titles', dedicated: true }, { id: 'b4', calendar_id: 'events', direction: 'export', detail: 'titles', dedicated: false }], revision: 1 },
-    { id: 'c-ms', provider: 'microsoft', label: 'רונית קפלן', scope: 'read_write', state: 'needs_reauth', owner: P('u9', 'רונית קפלן'), last_sync_at: at(-2, '09:00'), next_sync_at: null, error_code: 'token_revoked', adapter_available: true,
+    { id: 'c-ms', provider: 'microsoft', label: 'רונית קפלן', scope: 'read_write', state: 'needs_reauth', owner: P('u9', 'רונית קפלן'), last_sync_at: at(-2, '09:00'), next_sync_at: null, error_code: 'auth_expired', adapter_available: true,
+      setup: SETUP({ client_id_set: true, authorized: true, tenant: 'common' }),
       bindings: [{ id: 'b5', calendar_id: 'mgmt', direction: 'export', detail: 'busy', dedicated: false }], revision: 1 },
   ];
   const flags: SyncFlag[] = [
     { event_id: 'e22', calendar: { id: 'alon', name: 'חדר ישיבות אלון', color: 'blue' }, title: 'ראיון (Arx) מול "שיחת לקוח" (Google)', start: at(-3, '10:00'), end: at(-3, '11:30'), flag: 'conflict', source: 'arx', state: 'confirmed', revision: 1 },
     { event_id: 'e40', calendar: { id: 'events', name: 'אירועי הקהילה', color: 'magenta' }, title: 'ערב שירה', start: at(6, '18:00'), end: at(6, '20:00'), flag: 'deleted_external', source: 'arx', state: 'confirmed', revision: 1 },
   ];
-  const s: Store = { cals, occ, requests, settings: settingsDefaults(), members, connections, flags, guests: 214, seq: 100 };
-  if (mode === 'empty') return { ...s, cals: [], occ: [], requests: [], members: {}, connections: [], flags: [], guests: 0 };
+  const feeds: Feed[] = [{ id: 'f1', calendar_ids: ['maint'], detail: 'busy', created_at: at(-20, '09:00'), last_used_at: at(0, '10:20'), revoked: false }];
+  const s: Store = { cals, occ, requests, settings: settingsDefaults(), members, connections, flags, feeds, guests: 214, seq: 100 };
+  if (mode === 'empty') return { ...s, cals: [], occ: [], requests: [], members: {}, connections: [], flags: [], feeds: [], guests: 0 };
   if (mode === 'worst') worst(s);
   return s;
 }
@@ -391,7 +400,103 @@ export const demoCalendars: CalendarsApi = {
     s.flags = s.flags.filter((f) => f.event_id !== id);
     return { ok: true };
   },
+  // CALCONNECT-2330: the connect flow in memory. Nothing leaves the page: the "provider" pages are not opened, a pasted address is
+  // accepted when it is the loopback address with a code, the device code is approved on the second poll.
+  createConnection: async (body) => {
+    const s = st();
+    s.seq += 1;
+    const c: Connection = { id: `c${s.seq}`, provider: body.provider, label: body.label, scope: body.scope, state: 'ok', owner: ME, last_sync_at: null, next_sync_at: null, error_code: null,
+      adapter_available: true, setup: SETUP({ ready: false, tenant: body.provider === 'microsoft' ? 'common' : null }), bindings: [], revision: 1 };
+    s.connections.push(c);
+    return { connection: clone(c), setup_steps: [] };
+  },
+  putClient: async (id, body) => {
+    const c = conn(id);
+    if (c.provider === 'google' && !/^[0-9]{1,30}-[a-z0-9]{1,64}\.apps\.googleusercontent\.com$/.test(body.client_id)) throw demoErr(422, 'client_id_invalid', 'מזהה הלקוח לא נראה תקין עבור הספק הזה.');
+    if (c.provider === 'microsoft' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.client_id)) throw demoErr(422, 'client_id_invalid', 'מזהה הלקוח לא נראה תקין עבור הספק הזה.');
+    c.setup = SETUP({ ...c.setup, client_id_set: true, client_secret_set: !!body.client_secret || !!c.setup?.client_secret_set, tenant: c.provider === 'microsoft' ? body.tenant || 'common' : null, ready: !!c.setup?.authorized });
+    return { connection: clone(c) };
+  },
+  putFeedUrl: async (id, url) => {
+    const c = conn(id);
+    if (!/^(https|webcal):\/\/[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(url)) throw demoErr(422, 'feed_refused', 'אי אפשר לקרוא מהכתובת הזו (רק https, פורט 443, כתובת ציבורית).');
+    c.account_hint = url.replace(/^[a-z]+:\/\//i, '').split('/')[0].toLowerCase();
+    c.setup = SETUP({ ...c.setup, feed_url_set: true, ready: true });
+    return { connection: clone(c) };
+  },
+  authorize: async (id) => {
+    const c = conn(id);
+    if (!c.setup?.client_id_set) throw demoErr(409, 'client_missing', 'חסר מזהה הלקוח (Client ID) של האפליקציה שלך אצל הספק.');
+    demoPolls[id] = 0;
+    c.setup = { ...c.setup, pending_flow: c.provider === 'microsoft' ? 'microsoft' : 'google' };
+    return c.provider === 'microsoft' ? { flow: 'device', user_code: 'DEMO1234', verification_url: 'https://microsoft.com/devicelogin', expires_in: 900, interval: 1 }
+      : { flow: 'paste', authorize_url: 'about:blank#demo-consent', redirect_prefix: 'http://127.0.0.1:8749/', expires_in: 600 };
+  },
+  authorizeComplete: async (id, redirectUrl) => {
+    if (!/^http:\/\/127\.0\.0\.1:8749\/\?.*code=/.test(redirectUrl.trim())) throw demoErr(422, 'paste_invalid', 'יש להדביק את כל הכתובת שהדפדפן הגיע אליה (מתחילה ב־http://127.0.0.1:8749/).');
+    return { state: 'connected', connection: connected(id) };
+  },
+  authorizePoll: async (id) => {
+    demoPolls[id] = (demoPolls[id] ?? 0) + 1;
+    return demoPolls[id] < 2 ? { state: 'pending', interval: 1 } : { state: 'connected', connection: connected(id) };
+  },
+  authorizeCancel: async (id) => {
+    const c = conn(id);
+    if (c.setup) c.setup = { ...c.setup, pending_flow: null };
+  },
+  connectionCalendars: async (id) => {
+    const c = conn(id);
+    if (c.provider === 'ics_in' || c.provider === 'ical') return { calendars: [{ id_ref: 'feed', name: c.label, can_write: false, is_primary: true }] };
+    return { calendars: [{ id_ref: 'primary', name: 'היומן הראשי', can_write: true, is_primary: true }, { id_ref: 'rooms', name: 'חדרי ישיבות (ייעודי ל־Arx)', can_write: true, is_primary: false },
+      { id_ref: 'holidays', name: 'חגים בישראל', can_write: false, is_primary: false }] };
+  },
+  putBinding: async (calendarId, body) => {
+    const s = st();
+    for (const c of s.connections) c.bindings = c.bindings.filter((b) => b.calendar_id !== calendarId);
+    if (body.connection_id) {
+      const c = conn(body.connection_id);
+      if ((c.provider === 'ics_in' || c.provider === 'ical') && body.direction !== 'import') throw demoErr(422, 'direction_unsupported', 'מנוי iCal הוא לקריאה בלבד.');
+      if (body.direction === 'two_way' && !body.dedicated) throw demoErr(422, 'two_way_requires_dedicated', 'סנכרון דו־כיווני רק ליומן ייעודי.');
+      s.seq += 1;
+      c.bindings.push({ id: `b${s.seq}`, calendar_id: calendarId, direction: body.direction ?? 'export', detail: body.detail ?? 'busy', dedicated: !!body.dedicated });
+    }
+    return { ok: true };
+  },
+  feeds: () => read((s) => ({ feeds: clone(s.feeds), enabled: s.settings.feeds_enabled !== false })),
+  createFeed: async (calendarIds, detail) => {
+    const s = st();
+    s.seq += 1;
+    const f: Feed = { id: `f${s.seq}`, calendar_ids: calendarIds, detail, created_at: new Date().toISOString(), last_used_at: null, revoked: false };
+    s.feeds.push(f);
+    return { feed: clone(f), path: `/api/v1/calendar/feed/demo-token-${s.seq}-shown-once.ics` };
+  },
+  rotateFeed: async (id) => {
+    const s = st();
+    s.seq += 1;
+    return { feed: clone(s.feeds.find((f) => f.id === id) as Feed), path: `/api/v1/calendar/feed/demo-token-${s.seq}-shown-once.ics` };
+  },
+  revokeFeed: async (id) => {
+    const f = st().feeds.find((x) => x.id === id) as Feed;
+    f.revoked = true;
+    return { feed: clone(f) };
+  },
 };
+
+const demoPolls: Record<string, number> = {};
+
+function conn(id: string): Connection {
+  const c = st().connections.find((x) => x.id === id);
+  if (!c) throw demoErr(404, 'not_found', 'החיבור לא נמצא.');
+  return c;
+}
+
+function connected(id: string): Connection {
+  const c = conn(id);
+  c.state = 'ok';
+  c.error_code = null;
+  c.setup = SETUP({ ...c.setup, authorized: true, ready: true, pending_flow: null });
+  return clone(c);
+}
 
 /** Specs: forget the in-memory writes (a new page load does too). */
 export function resetDemo(): void {

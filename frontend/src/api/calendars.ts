@@ -23,7 +23,7 @@ export const CAL_COLORS: readonly CalColor[] = ['blue', 'rose', 'cyan', 'orange'
 export const CAL_ROLES: readonly CalRole[] = ['view', 'book', 'edit', 'manage'];
 
 export interface Person { id: string; name: string }
-export interface SyncInfo { state: 'ok' | 'error' | 'paused' | 'needs_reauth' | 'revoked' | 'pending'; provider: 'ical' | 'google' | 'microsoft'; direction: string; detail?: string; dedicated?: boolean }
+export interface SyncInfo { state: 'ok' | 'error' | 'paused' | 'needs_reauth' | 'revoked' | 'pending'; provider: 'ical' | 'ics_in' | 'ics_out' | 'google' | 'microsoft'; direction: string; detail?: string; dedicated?: boolean }
 
 export interface Calendar {
   id: string;
@@ -179,9 +179,24 @@ export interface ModuleState {
   ui?: Partial<CalUi>;
 }
 
+/** The provider names of the server (`ics_in` iCal subscription, `ics_out` iCal feed) and the screen's card names (`ical`). */
+export type ServerProvider = 'ics_in' | 'ics_out' | 'google' | 'microsoft';
+export type ProviderCard = 'ical' | 'google' | 'microsoft';
+
+/** CALCONNECT-2330: what the server says about a connection's credentials - flags only, never a value. */
+export interface ConnSetup {
+  client_id_set: boolean;
+  client_secret_set: boolean;
+  authorized: boolean;
+  feed_url_set: boolean;
+  tenant: string | null;
+  ready: boolean;
+  pending_flow: 'google' | 'microsoft' | null;
+}
+
 export interface Connection {
   id: string;
-  provider: 'ical' | 'google' | 'microsoft';
+  provider: ProviderCard | ServerProvider;
   label: string;
   scope: string;
   state: SyncInfo['state'];
@@ -190,9 +205,20 @@ export interface Connection {
   next_sync_at: string | null;
   error_code: string | null;
   adapter_available: boolean;
+  account_hint?: string | null;
+  setup?: ConnSetup;
   bindings: { id: string; calendar_id: string; direction: string; detail: string; dedicated: boolean }[];
   revision: number;
 }
+
+/** Google answers an address to open and takes back the loopback address; Microsoft answers a device code. */
+export type AuthorizeStart =
+  | { flow: 'paste'; authorize_url: string; redirect_prefix: string; expires_in: number }
+  | { flow: 'device'; user_code: string; verification_url: string; expires_in: number; interval: number };
+export interface AuthorizePoll { state: 'none' | 'pending' | 'slow_down' | 'denied' | 'expired' | 'connected'; interval?: number; connection?: Connection }
+export interface ExtCalendar { id_ref: string; name: string; can_write: boolean; is_primary: boolean }
+export interface BindingBody { connection_id: string | null; external_calendar_ref?: string; direction?: 'export' | 'import' | 'two_way'; detail?: 'busy' | 'titles' | 'details'; dedicated?: boolean }
+export interface Feed { id: string; calendar_ids: string[]; detail: 'busy' | 'titles'; created_at: string; last_used_at: string | null; revoked: boolean }
 
 export interface SyncFlag { event_id: string; calendar: { id: string; name: string; color: CalColor }; title: string | null; start: string; end: string; flag: 'conflict' | 'deleted_external'; source: string; state: EntryState; revision: number }
 
@@ -245,6 +271,20 @@ export interface CalendarsApi {
   removeConnection(id: string): Promise<void>;
   syncFlags(): Promise<{ flags: SyncFlag[] }>;
   resolveFlag(id: string, revision: number, resolution: 'keep' | 'cancel'): Promise<unknown>;
+  // CALCONNECT-2330: the connect flow
+  createConnection(body: { provider: ServerProvider; label: string; scope: 'read' | 'read_write' }): Promise<{ connection: Connection; setup_steps: string[] }>;
+  putClient(id: string, body: { client_id: string; client_secret?: string; tenant?: string }): Promise<{ connection: Connection }>;
+  putFeedUrl(id: string, url: string): Promise<{ connection: Connection }>;
+  authorize(id: string): Promise<AuthorizeStart>;
+  authorizeComplete(id: string, redirectUrl: string): Promise<AuthorizePoll>;
+  authorizePoll(id: string): Promise<AuthorizePoll>;
+  authorizeCancel(id: string): Promise<void>;
+  connectionCalendars(id: string): Promise<{ calendars: ExtCalendar[] }>;
+  putBinding(calendarId: string, body: BindingBody): Promise<unknown>;
+  feeds(): Promise<{ feeds: Feed[]; enabled: boolean }>;
+  createFeed(calendarIds: string[], detail: 'busy' | 'titles'): Promise<{ feed: Feed; path: string }>;
+  rotateFeed(id: string): Promise<{ feed: Feed; path: string }>;
+  revokeFeed(id: string): Promise<{ feed: Feed }>;
 }
 
 const q = (o: Record<string, string | undefined>) => {
@@ -284,7 +324,58 @@ export const httpCalendars: CalendarsApi = {
   removeConnection: (id) => del(`/calendar/connections/${encodeURIComponent(id)}`),
   syncFlags: () => get('/calendar/sync/flags'),
   resolveFlag: (id, revision, resolution) => post(`/calendar/events/${encodeURIComponent(id)}/sync-resolve`, { revision, resolution }),
+  createConnection: (body) => post('/calendar/connections', body),
+  putClient: (id, body) => put(`/calendar/connections/${encodeURIComponent(id)}/client`, body),
+  putFeedUrl: (id, url) => put(`/calendar/connections/${encodeURIComponent(id)}/feed`, { url }),
+  authorize: (id) => post(`/calendar/connections/${encodeURIComponent(id)}/authorize`),
+  authorizeComplete: (id, redirect_url) => post(`/calendar/connections/${encodeURIComponent(id)}/authorize/complete`, { redirect_url }),
+  authorizePoll: (id) => post(`/calendar/connections/${encodeURIComponent(id)}/authorize/poll`),
+  authorizeCancel: (id) => del(`/calendar/connections/${encodeURIComponent(id)}/authorize`),
+  connectionCalendars: (id) => get(`/calendar/connections/${encodeURIComponent(id)}/calendars`),
+  putBinding: (cid, body) => put(`/calendar/calendars/${encodeURIComponent(cid)}/binding`, body),
+  feeds: () => get('/calendar/feeds'),
+  createFeed: (calendar_ids, detail) => post('/calendar/feeds', { calendar_ids, detail }),
+  rotateFeed: (id) => post(`/calendar/feeds/${encodeURIComponent(id)}/rotate`),
+  revokeFeed: (id) => post(`/calendar/feeds/${encodeURIComponent(id)}/revoke`),
 };
+
+/** The screen's card of a server provider: both iCal kinds share the iCal card. */
+export function cardOf(p: Connection['provider']): ProviderCard {
+  return p === 'ics_in' || p === 'ics_out' || p === 'ical' ? 'ical' : p;
+}
+
+/** The server provider a new connection of a card is created with (the iCal card subscribes; feeds have their own list). */
+export function serverProviderOf(card: ProviderCard): ServerProvider {
+  return card === 'ical' ? 'ics_in' : card;
+}
+
+/** CALCONNECT-2330: a connection's error code in the owner's words (auth expired / quota / rate limit / feed problems ...). */
+export const CONN_ERROR_HE: Record<string, string> = {
+  auth_expired: 'ההרשאה פגה או בוטלה אצל הספק. יש לאשר מחדש.',
+  not_authorized: 'החיבור עדיין לא אושר אצל הספק.',
+  needs_reauth: 'נדרשת הרשאה מחדש אצל הספק.',
+  token_revoked: 'ההרשאה בוטלה אצל הספק. יש לאשר מחדש.',
+  rate_limited: 'הספק מגביל כרגע את קצב הבקשות. ננסה שוב אוטומטית.',
+  quota_exceeded: 'המכסה היומית אצל הספק נוצלה. ננסה שוב מאוחר יותר.',
+  provider_unavailable: 'הספק לא זמין כרגע. ננסה שוב אוטומטית.',
+  provider_error: 'הספק החזיר שגיאה. ננסה שוב אוטומטית.',
+  client_invalid: 'הספק דחה את מזהה הלקוח או את הסוד. יש לבדוק את ההגדרה אצל הספק.',
+  client_missing: 'חסר מזהה הלקוח של האפליקציה אצל הספק.',
+  forbidden: 'אין הרשאה ליומן הזה אצל הספק.',
+  not_found: 'היומן החיצוני לא נמצא (אולי נמחק).',
+  adapter_unavailable: 'אין עדיין מתאם לספק הזה.',
+  feed_missing: 'עדיין לא הוזנה כתובת iCal.',
+  feed_refused: 'הכתובת נחסמה (רק https לכתובת ציבורית).',
+  feed_unreachable: 'כתובת ה־iCal לא ענתה.',
+  feed_invalid: 'בכתובת אין יומן iCal תקין.',
+  feed_too_large: 'יומן ה־iCal גדול מדי (עד 5MB).',
+  resync_failed: 'הסנכרון המלא נכשל. ננסה שוב.',
+  read_only: 'החיבור לקריאה בלבד.',
+};
+
+export function connErrorText(code: string | null | undefined): string {
+  return code ? CONN_ERROR_HE[code] ?? 'הסנכרון נכשל. ננסה שוב אוטומטית.' : '';
+}
 
 let demoApi: Promise<CalendarsApi> | null = null;
 /** The client for the current session: the server, or (no backend) the demo behind a dynamic import - the demo data never ships into

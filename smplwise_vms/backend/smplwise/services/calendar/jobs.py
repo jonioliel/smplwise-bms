@@ -63,11 +63,7 @@ def sync_run(db: Database, data_dir, now: dt.datetime | None = None) -> dict:
     from ..calendar_sync import engine  # noqa: PLC0415
 
     now = now or dt.datetime.now(dt.timezone.utc)
-    with db.connection(label="calendar.sync") as conn:
-        settings = model.read_settings(conn)
-        if not settings["enabled"] or not settings["sync_enabled"]:
-            return {}
-        return engine.run_due(conn, data_dir, settings, now)
+    return engine.run_due_db(db, data_dir, now)  # CALCONNECT-2330: no write lock is held while a provider is asked
 
 
 _last_sync_tick = 0.0

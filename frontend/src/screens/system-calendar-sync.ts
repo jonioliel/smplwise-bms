@@ -4,16 +4,18 @@ import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
-import { calendarsApi, type CalSettings, type Calendar, type CalendarsApi, type Connection, type SyncFlag } from '../api/calendars';
+import { calendarsApi, cardOf, connErrorText, type CalSettings, type Calendar, type CalendarsApi, type Connection, type ProviderCard, type SyncFlag } from '../api/calendars';
+import '../calendars/connect-dialogs';
+import type { ConnectMode } from '../calendars/connect-dialogs';
 import type { RouteState } from '../router';
 import { refreshCalendars } from '../calendars/access';
 import { PROVIDER_LABEL, colorVar, hm, pageOf, whenText } from '../calendars/model';
 import { calCss } from '../calendars/styles';
 import { leadReserveStyles } from '../styles/lead-reserve';
 
-const ORDER: Connection['provider'][] = ['ical', 'google', 'microsoft'];
-const STAGE: Record<Connection['provider'], string> = { ical: 'ראשון · ללא חשבון', google: 'שני', microsoft: 'שלישי' };
-const LOGO: Record<Connection['provider'], string> = { ical: 'iCal', google: 'G', microsoft: 'M' };
+const ORDER: ProviderCard[] = ['ical', 'google', 'microsoft'];
+const STAGE: Record<ProviderCard, string> = { ical: 'ראשון · ללא חשבון', google: 'שני', microsoft: 'שלישי' };
+const LOGO: Record<ProviderCard, string> = { ical: 'iCal', google: 'G', microsoft: 'M' };
 const DIRECTION: Record<string, string> = { export: 'ייצוא', import: 'ייבוא', two_way: 'דו־כיווני' };
 const DETAIL: Record<string, string> = { busy: '"תפוס" בלבד', titles: 'כותרות' };
 const STATE: Record<Connection['state'], [string, string]> = {
@@ -42,8 +44,11 @@ export function agoText(iso: string | null, now: Date): string {
  * CALENDARS-UI-2310: הגדרות › חיבורי יומן (#/system/calendar-sync). The providers in their order (iCal, Google, Microsoft; D2), each card with
  * its state, the bound calendars and what goes where, "סנכרון עכשיו", pause / resume / remove. A connection that needs a new authorisation
  * offers "הרשאה מחדש" and - owner answer 21 as a setting (`reauth_mode`, default with) - a manual "המשך". The entries the sync flagged for
- * a decision (C9: both kept) are listed with "להשאיר" / "לבטל". Arx never creates an account or keeps a password; the owner's own OAuth
- * flow is phase 5 and is not reachable from here yet. Needs calendar.connect (the server checks every call).
+ * a decision (C9: both kept) are listed with "להשאיר" / "לבטל". Arx never creates an account or keeps a password.
+ * CALCONNECT-2330: the connect flow is reachable from each card (calendars/connect-dialogs.ts): "חיבור" / "המשך הגדרה" (the owner's own
+ * client, then Google's consent with the pasted loopback address or Microsoft's device code; iCal: the secret address), "הרשאה מחדש",
+ * "שיוך יומן" (binding needs connect + edit, owner answer 17) and, on the iCal card, the outgoing feeds. A failing connection shows its
+ * status in words (auth expired, quota, rate limit ...). Needs calendar.connect (the server checks every call).
  */
 @customElement('system-calendar-sync')
 export class SystemCalendarSync extends LitElement {
@@ -100,7 +105,9 @@ export class SystemCalendarSync extends LitElement {
   @state() private compact = window.innerWidth < 1180 || window.innerHeight < 820;
   @state() private phone = window.innerWidth < 700;
   /** the phone shows one provider at a time (no page scroll); null = the one that needs attention, else the first */
-  @state() private shownProvider: Connection['provider'] | null = null;
+  @state() private shownProvider: ProviderCard | null = null;
+  /** CALCONNECT-2330: the open connect / bind / feeds dialog (a new object per opening) */
+  @state() private dialog: ConnectMode | null = null;
   private api: CalendarsApi | null = null;
   private toastTimer = 0;
   private onResize = () => {
@@ -128,7 +135,8 @@ export class SystemCalendarSync extends LitElement {
         this.api.calendars().catch(() => ({ calendars: [] as Calendar[] })), this.api.settings().catch(() => null)]);
       this.conns = c.connections;
       // the phone opens on the provider that needs attention and stays on it after an action resolves it
-      this.shownProvider ??= c.connections.find((x) => x.state !== 'ok' && x.state !== 'paused')?.provider ?? null;
+      const att = c.connections.find((x) => x.state !== 'ok' && x.state !== 'paused');
+      this.shownProvider ??= att ? cardOf(att.provider) : null;
       this.flags = f.flags;
       this.cals = cals.calendars;
       this.s = s?.settings ?? null;
@@ -137,6 +145,17 @@ export class SystemCalendarSync extends LitElement {
       if (e instanceof ApiError && e.status === 403) this.forbidden = true;
       else this.error = describeError(e);
     }
+  }
+
+  private dialogDone(message: string): void {
+    this.dialog = null;
+    if (message) this.toast(message);
+    void this.load();
+  }
+
+  private fromNew(mode: ConnectMode): void {
+    this.newOpen = false;
+    this.open(mode);
   }
 
   private toast(t: string): void {
@@ -179,21 +198,34 @@ export class SystemCalendarSync extends LitElement {
   }
 
   private phoneProviders(now: Date) {
-    const attention = (this.conns ?? []).find((c) => c.state !== 'ok' && c.state !== 'paused')?.provider;
-    const cur = this.shownProvider ?? attention ?? 'ical';
+    const att = (this.conns ?? []).find((c) => c.state !== 'ok' && c.state !== 'paused');
+    const cur = this.shownProvider ?? (att ? cardOf(att.provider) : null) ?? 'ical';
     return html`<div class="seg" role="tablist" aria-label="ספק" data-provider-tabs>${ORDER.map((p) => {
-      const c = (this.conns ?? []).find((x) => x.provider === p);
+      const c = this.connOf(p);
       return html`<button type="button" role="tab" style="flex:1" aria-pressed=${String(cur === p)} aria-selected=${String(cur === p)} data-provider-tab=${p} @click=${() => (this.shownProvider = p)}>${PROVIDER_LABEL[p]}${c && c.state !== 'ok' ? html` <span class="dot" aria-label="דורש טיפול" style="display:inline-block;--h:var(--sw-warning)"></span>` : nothing}</button>`;
     })}</div>${this.card(cur, now)}`;
   }
 
-  private card(p: Connection['provider'], now: Date) {
-    const c = (this.conns ?? []).find((x) => x.provider === p);
+  /** The connection a card shows: the first of its provider (both iCal kinds share the iCal card). */
+  private connOf(p: ProviderCard): Connection | undefined {
+    return (this.conns ?? []).find((x) => cardOf(x.provider) === p && x.provider !== 'ics_out') ?? (this.conns ?? []).find((x) => cardOf(x.provider) === p);
+  }
+
+  private open(mode: ConnectMode): void {
+    this.actionError = '';
+    this.dialog = mode;
+  }
+
+  private card(p: ProviderCard, now: Date) {
+    const c = this.connOf(p);
     if (!c) {
       return html`<div class="pcard" data-provider=${p}><div class="pt"><span class="logo">${LOGO[p]}</span><div class="grow"><b>${PROVIDER_LABEL[p]}</b><div class="stage">${STAGE[p]}</div></div><span class="chip">לא מחובר</span></div>
-        <div class="fine">${p === 'ical' ? 'פיד יוצא או מנוי נכנס, בלי חשבון.' : 'חשבון שהבעלים יוצר בעצמו אצל הספק.'}</div></div>`;
+        <div class="fine">${p === 'ical' ? 'פיד יוצא או מנוי נכנס, בלי חשבון.' : 'חשבון שהבעלים יוצר בעצמו אצל הספק.'}</div>
+        <div class="acts"><button type="button" class="btn pri sm" data-connect @click=${() => this.open({ kind: 'connect', card: p, conn: null })}>${p === 'ical' ? 'מנוי iCal' : 'חיבור'}</button>
+          ${p === 'ical' ? html`<button type="button" class="btn sm" data-feeds @click=${() => this.open({ kind: 'feeds' })}>פידים יוצאים</button>` : nothing}</div></div>`;
     }
-    const [look, label] = STATE[c.state] ?? ['', c.state];
+    const pendingSetup = !!c.setup && !c.setup.ready && c.state !== 'needs_reauth';
+    const [look, label] = pendingSetup ? STATE.pending : STATE[c.state] ?? ['', c.state];
     const max = this.phone ? 2 : this.compact ? 1 : 2;
     const shown = c.bindings.slice(0, max);
     const rest = c.bindings.length - shown.length;
@@ -202,15 +234,21 @@ export class SystemCalendarSync extends LitElement {
     return html`<div class="pcard" data-provider=${p} data-conn=${c.id} data-conn-state=${c.state}>
       <div class="pt"><span class="logo">${LOGO[p]}</span><div class="grow"><b>${PROVIDER_LABEL[p]}</b><div class="stage ell">${STAGE[p]}${p === 'ical' ? '' : ` · ${c.owner.name} חיברה`}</div></div><span class=${`chip ${look}`}>${label}</span></div>
       ${reauth ? html`<div class="fine">ההרשאה פגה ${agoText(c.last_sync_at, now)}. Arx ממשיך לעבוד מהיומן שלו; השינויים יישלחו אחרי ההרשאה.</div>` : nothing}
+      ${c.state === 'error' && c.error_code ? html`<div class="fine" role="status" data-conn-error=${c.error_code}>${connErrorText(c.error_code)}</div>` : nothing}
+      ${pendingSetup ? html`<div class="fine" data-conn-pending>${p === 'ical' ? 'חסרה כתובת ה־iCal.' : c.setup?.client_id_set ? 'נשאר לאשר אצל הספק.' : 'חסרים פרטי האפליקציה שלך אצל הספק.'}</div>` : nothing}
       ${shown.length ? html`<ul>${shown.map((b) => { const cal = this.calName(b.calendar_id); return html`<li><span class="dot" style=${`--h:${colorVar(cal?.color)}`}></span><span class="grow ell" title=${cal?.name ?? ''}>${cal?.name ?? 'יומן'}</span><span class=${`chip ${b.direction === 'two_way' ? 'acc' : ''}`}>${bindingText(b)}</span></li>`; })}
         ${rest > 0 ? html`<li><span class="grow fine">ועוד ${rest} יומנים</span></li>` : nothing}</ul>` : html`<div class="fine">אין עדיין יומן משויך.</div>`}
       <div class="acts">
-        ${reauth ? html`<button type="button" class="btn pri sm" data-reauth @click=${() => this.toast(`ההרשאה מחדש נעשית אצל ${PROVIDER_LABEL[p]} בשלב החיבור המלא (שלב 5)`)}>הרשאה מחדש אצל ${PROVIDER_LABEL[p]}</button>
+        ${pendingSetup ? html`<button type="button" class="btn pri sm" data-setup @click=${() => this.open({ kind: 'connect', card: p, conn: c })}>המשך הגדרה</button>`
+          : !reauth && c.state !== 'paused' ? html`<button type="button" class="btn sm" data-bind @click=${() => this.open({ kind: 'bind', conn: c })}>שיוך יומן</button>` : nothing}
+        ${p === 'ical' && !this.phone ? html`<button type="button" class="btn sm wide-only" data-feeds @click=${() => this.open({ kind: 'feeds' })}>פידים יוצאים</button>` : nothing}
+        ${reauth ? html`<button type="button" class="btn pri sm" data-reauth @click=${() => this.open({ kind: 'connect', card: p, conn: c })}>הרשאה מחדש אצל ${PROVIDER_LABEL[p]}</button>
           ${cont ? html`<button type="button" class="btn sm" data-continue @click=${() => void this.act(() => (this.api as CalendarsApi).resumeConnection(c.id), 'החיבור ממשיך; אם הספק עדיין מסרב, הוא יחזור לבקש הרשאה')}>המשך</button>` : nothing}`
           : c.state === 'paused' ? html`<button type="button" class="btn sm" data-resume @click=${() => void this.act(() => (this.api as CalendarsApi).resumeConnection(c.id), 'החיבור חודש')}>חידוש</button>`
+          : pendingSetup ? nothing
           : html`<button type="button" class="btn sm" data-sync-now @click=${() => void this.act(() => (this.api as CalendarsApi).syncNow(c.id), 'הסנכרון התחיל')}><sw-icon name="refresh" size="14"></sw-icon>סנכרון עכשיו</button>
             <button type="button" class="btn sm wide-only" data-pause @click=${() => void this.act(() => (this.api as CalendarsApi).pauseConnection(c.id), 'החיבור הושהה')}>השהיה</button>`}
-        ${reauth || c.state === 'paused' ? html`<button type="button" class="btn sm bad" data-remove @click=${() => (this.removing = c)}>ניתוק</button>` : nothing}
+        ${reauth || c.state === 'paused' || pendingSetup ? html`<button type="button" class="btn sm bad" data-remove @click=${() => (this.removing = c)}>ניתוק</button>` : nothing}
         ${!reauth && c.state !== 'paused' ? html`<span class="fine wide-only">${agoText(c.last_sync_at, now)}</span>` : nothing}
       </div></div>`;
   }
@@ -258,6 +296,10 @@ export class SystemCalendarSync extends LitElement {
   }
 
   private dialogs() {
+    if (this.dialog) {
+      return html`<cal-connect-dialog .api=${this.api} .mode=${this.dialog} .cals=${this.cals} .feedsEnabled=${this.s?.feeds_enabled !== false}
+        @cal-dialog-done=${(e: CustomEvent<{ message: string }>) => this.dialogDone(e.detail?.message ?? '')}></cal-connect-dialog>`;
+    }
     if (this.removing) {
       const c = this.removing;
       return html`<sw-dialog open heading=${`לנתק את ${PROVIDER_LABEL[c.provider]}?`} data-remove-confirm @close=${() => (this.removing = null)}><div class="dlg"><p>ההרשאה תבוטל אצל הספק והמפתחות יימחקו.
@@ -268,8 +310,9 @@ export class SystemCalendarSync extends LitElement {
     if (this.newOpen) {
       return html`<sw-dialog open heading="חיבור חדש" data-new-dialog @close=${() => (this.newOpen = false)}><div class="dlg">
         <p>הסדר הוא iCal, אחר כך Google, אחר כך Microsoft. Arx לא יוצר חשבון ולא שומר סיסמה: הבעלים יוצר את האפליקציה אצל הספק, מדביק את המזהה והסוד, ומאשר בעצמו בדפדפן.</p>
-        <p>מסך ההרשאה עצמו נבנה בשלב החיבור המלא (שלב 5) ועדיין לא זמין מכאן. פיד iCal יוצא נוצר מהיומן עצמו.</p></div>
-        <button slot="footer" type="button" class="btn pri" @click=${() => (this.newOpen = false)}>הבנתי</button></sw-dialog>`;
+        <div class="acts" data-new-providers>${ORDER.map((p) => html`<button type="button" class="btn sm" data-new-provider=${p} @click=${() => this.fromNew({ kind: 'connect', card: p, conn: null })}>${p === 'ical' ? 'מנוי iCal' : PROVIDER_LABEL[p]}</button>`)}
+          <button type="button" class="btn sm" data-new-feeds @click=${() => this.fromNew({ kind: 'feeds' })}>פיד iCal יוצא</button></div></div>
+        <button slot="footer" type="button" class="btn" @click=${() => (this.newOpen = false)}>סגירה</button></sw-dialog>`;
     }
     return nothing;
   }
