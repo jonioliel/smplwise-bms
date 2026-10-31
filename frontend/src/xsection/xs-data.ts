@@ -38,17 +38,22 @@ export function matchContext(data: XsData | null, site: { buildings?: unknown[] 
  * SYNOPTIC-HA-2310, demo only (`?xsdata=ha` / `?xsdata=none`): a synthetic platform tree for the floors, run through the REAL matching.
  * `ha`: most floors match by level (other names, as on the owner's system), the second by name, the lowest has no platform floor (the
  * "not linked" hint). `none`: the platform floors exist with other names AND other levels - nothing matches, every floor has no data.
+ * SYN-COLUMNS-2321 `sparse`: every floor matches by level, but the building has no temperature sensors and no lights (switches only, as on
+ * the owner's building) - only open doors report, so the hide-empty rule leaves the other columns out.
  */
-export function demoTree(floors: Floor[], mode: 'ha' | 'none'): DeviceTree {
+export function demoTree(floors: Floor[], mode: 'ha' | 'none' | 'sparse'): DeviceTree {
   const zero: DeviceCounts = { entities: 0, lights: 0, lights_on: 0, switches: 0, switches_on: 0, covers: 0, covers_open: 0, climate: 0, climate_active: 0, heating: 0, heating_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 };
   const sorted = [...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order);
   const hf: DeviceFloor[] = sorted.flatMap((f, i) => {
     if (mode === 'ha' && i === sorted.length - 1 && sorted.length > 1) return [];
+    const sparse = mode === 'sparse';
     const id = `demo_ha_${i}`;
     const areas: DeviceArea[] = Array.from({ length: 2 + (i % 3) }, (_, k) => ({
       area_id: `${id}_a${k}`, name: `Room ${i + 1}.${k + 1}`, icon: null, floor_id: id, has_camera: false,
-      counts: { ...zero, entities: 6, lights: 2 + ((i + k) % 4), lights_on: (i * 2 + k) % 3 }, climate: [], temperature: 21.5 + ((i * 3 + k) % 7) / 2, open_count: (i + k) % 4 === 0 ? 1 : 0,
+      counts: sparse ? { ...zero, entities: 4, switches: 2 + (k % 2), switches_on: (i + k) % 2 } : { ...zero, entities: 6, lights: 2 + ((i + k) % 4), lights_on: (i * 2 + k) % 3 },
+      climate: [], temperature: sparse ? null : 21.5 + ((i * 3 + k) % 7) / 2, open_count: (i + k) % 4 === 0 ? 1 : 0,
     }));
+    if (sparse) return [{ floor_id: id, name: `Level ${f.level}`, level: f.level, icon: null, areas, counts: zero, climate: [] }];
     const byName = mode === 'ha' && i === 1;
     return [{ floor_id: id, name: byName ? f.name : `Level ${f.level}`, level: mode === 'none' ? 100 + i : byName ? null : f.level, icon: null, areas, counts: zero, climate: [] }];
   });
@@ -57,7 +62,7 @@ export function demoTree(floors: Floor[], mode: 'ha' | 'none'): DeviceTree {
 
 /** Deterministic demo numbers per floor (index-based, so a screenshot is repeatable). Demo only - labelled on every screen that uses it. */
 export function demoSignals(floors: Floor[], mode: string | null = null): FloorSignal[] {
-  if (mode === 'ha' || mode === 'none') return signalsOf(floors, demoTree(floors, mode), null);
+  if (mode === 'ha' || mode === 'none' || mode === 'sparse') return signalsOf(floors, demoTree(floors, mode), null);
   const base = signalsOf(floors, null, null);
   return base.map((s, i) => {
     const lights = 6 + ((i * 5) % 9);

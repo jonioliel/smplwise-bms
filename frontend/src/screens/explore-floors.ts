@@ -32,7 +32,7 @@ import '../xsection/sw-floor-home-link';
 import { demoBuilding, demoSignals, demoTree, loadXsData, matchContext, sectionLinksOf, type XsData } from '../xsection/xs-data';
 import type { HomeLinks } from '../api/catalog';
 import { fireReport, onFire, setFireMock } from '../xsection/fire-store';
-import { linksFold, listStep, nearFloors, onXsOptions, phonePlaceFor, signalsOf, xsFromParams, xsOptions, type FloorSignal, type XsOptions } from '../xsection/xs-model';
+import { linksFold, listStep, nearFloors, onXsOptions, phonePlaceFor, signalsOf, xsFromParams, xsMetrics, xsOptions, type FloorSignal, type XsOptions } from '../xsection/xs-model';
 
 type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | { kind: 'home'; floor: Floor } | null;
 
@@ -610,6 +610,7 @@ export class ExploreFloors extends LitElement {
     const phone = this.phone.matches;
     const sigs = this.signalsFor(floors);
     const sigOf = new Map(sigs.map((x) => [x.id, x]));
+    const metrics = xsMetrics(sigs, o); // SYN-COLUMNS-2321: a metric the building has no source for is not drawn on the tiles
     const links = this.linksFor(floors);
     const secLinks = links.length ? sectionLinksOf(links) : demo || !isApi() ? [{ kind: 'stairs' as const, label: 'מדרגות', floors: sigs.map((x) => x.id) }] : [];
     const mock = parseRoute().params.get('firemock');
@@ -634,7 +635,7 @@ export class ExploreFloors extends LitElement {
         <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>
       </button>`;
       const sg = sigOf.get(f.id);
-      return withTile && sg ? html`<div class="frow">${card}${xsTile(sg, o, sel?.id === f.id, () => this.pickFloor(f.id))}</div>` : card;
+      return withTile && sg ? html`<div class="frow">${card}${xsTile(sg, o, sel?.id === f.id, () => this.pickFloor(f.id), metrics)}</div>` : card;
     });
     const actions = html`<div class="actions" data-floor-actions>
       ${this.phone.restricted('structure')
@@ -760,7 +761,7 @@ export class ExploreFloors extends LitElement {
         </sw-dialog>`;
       case 'home': {
         const floors = building.floors ?? [];
-        const tree = demo || !isApi() ? demoTree(floors, this.demoData() === 'none' ? 'none' : 'ha') : this.xsData?.tree ?? null;
+        const tree = demo || !isApi() ? demoTree(floors, this.demoData() === 'none' ? 'none' : this.demoData() === 'sparse' ? 'sparse' : 'ha') : this.xsData?.tree ?? null;
         const names = new Map((this.tree?.sites ?? []).flatMap((s) => (s.buildings ?? []).flatMap((b) => (b.floors ?? []).map((x) => [x.id, (s.buildings?.length ?? 0) > 1 ? `${b.name} · ${x.name}` : x.name] as [string, string]))));
         return html`<sw-floor-home-link .floor=${d.floor} .floors=${floors} .floorNames=${names} .tree=${tree} .links=${this.xsData?.links ?? null}
           ?singleBuilding=${matchContext(this.xsData, this.context?.site).singleBuilding} ?demo=${demo || !isApi()}
