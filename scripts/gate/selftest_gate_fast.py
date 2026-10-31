@@ -82,7 +82,7 @@ try:
     def night(name, h_ago, verdict, items=(), be=100):
         wj(nd / name, {"sha": "n" + name[-6:-5], "verdict": verdict, "finished": ts(h_ago), "counts": {"backend": {"pass": be}}, "items": list(items)})
     qf = TMP / "quarantine.json"
-    wj(qf, {"entries": [{"match": "test_flaky.py", "category": "backend", "ticket": "T-1", "owner": "lead", "added": "2026-10-28", "expires": "2026-11-10", "reason": "x"}]})
+    wj(qf, {"entries": [{"match": "test_flaky.py", "category": "backend", "ticket": "T-1", "owner": "lead", "added": "2026-10-28", "expires": "2026-11-04", "reason": "x"}]})
     d = ge.decide(R, qf, NOW, flag=str(flag))
     check("flag absent -> FULL (default off)", d["mode"] == "full" and d["state"] == "fast-gate-off", str(d))
     flag.write_text("on")
@@ -95,6 +95,10 @@ try:
     night("gate_main_e.json", 5, "fail", [{"category": "backend", "status": "FAIL", "id": "tests/test_flaky.py::test_a"}])
     d = ge.decide(R, qf, NOW, flag=str(flag))
     check("red only through quarantined tests -> SELECT explained", d["mode"] == "select" and d["state"] == "explained" and d["explained"], str(d))
+    q13 = TMP / "quarantine13.json"      # ENTRY-CHECK-2310: a 13-day entry is invalid (max 7) and explains nothing
+    wj(q13, {"entries": [{"match": "test_flaky.py", "category": "backend", "ticket": "T-1", "owner": "lead", "added": "2026-10-28", "expires": "2026-11-10", "reason": "x"}]})
+    d13 = ge.decide(R, q13, NOW, flag=str(flag))
+    check("a quarantine longer than 7 days explains nothing -> FULL red", d13["mode"] == "full" and d13["state"] == "red", str(d13))
     shutil.rmtree(nd)
     night("gate_main_r.json", 5, "fail", [{"category": "backend", "status": "FAIL", "id": "tests/test_flaky.py::test_a"},
                                            {"category": "preview", "status": "FAIL", "id": "layout-x.spec.ts:10 something"}])
@@ -231,10 +235,10 @@ try:
     import gate_quarantine as gq
     qp = TMP / "q.json"
     today = dt.date(2026, 10, 30)
-    e = gq.add_entry(qp, "test_flaky.py", "backend", "T-9", "lead", "waits for X", 21, today)
-    check("quarantine add: expiry is added + 21 days", e["expires"] == "2026-11-20")
-    for kw in ({"days": 22}, {"owner": ""}, {"reason": ""}):
-        a = dict(match="m2", category="backend", ticket="T", owner="o", reason="r", days=21)
+    e = gq.add_entry(qp, "test_flaky.py", "backend", "T-9", "lead", "waits for X", 7, today)
+    check("quarantine add: expiry is added + 7 days (owner 30.10 night: max 7)", e["expires"] == "2026-11-06")
+    for kw in ({"days": 8}, {"owner": ""}, {"reason": ""}, {"ticket": ""}):
+        a = dict(match="m2", category="backend", ticket="T", owner="o", reason="r", days=7)
         a.update(kw)
         try:
             gq.add_entry(qp, a["match"], a["category"], a["ticket"], a["owner"], a["reason"], a["days"], today)
@@ -252,7 +256,7 @@ try:
     ls = "\n".join(gq.listing(qp, R, None, today))
     check("one listing: managed entry + auto candidate without owner (covered one hidden)", "test_flaky.py" in ls and "test_other.py" in ls and ls.count("test_flaky.py") == 1, ls)
     check("expired entries are pruned into history", len(gq.prune(qp, dt.date(2026, 12, 1))) == 1 and json.loads(qp.read_text())["history"])
-    gq.add_entry(qp, "test_flaky.py", "backend", "T-9", "lead", "again", 21, today)
+    gq.add_entry(qp, "test_flaky.py", "backend", "T-9", "lead", "again", 7, today)
     ents, _ = gq.g2v.load_quarantine(qp, today)
     rr = {"verdict": "fail", "items": [{"category": "backend", "status": "FAIL", "id": "tests/test_flaky.py::t"}]}
     c1 = gq.g2v.classify(rr, ents)

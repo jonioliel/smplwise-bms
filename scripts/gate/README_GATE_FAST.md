@@ -61,7 +61,7 @@ back-comparison numbers themselves. The seed budgets are estimates, not measurem
 |---|---|---|
 | engine: `Recording`, `ckpt_*`, `--resume` / `GATE_RESUME=1` | 5 | checkpoint `gate_<b>_<sha>.checkpoint.json`: the backend (one unit) and every Playwright job (settled at once, one unit each) are saved when finished. `--resume` on the SAME full sha reuses them; a different sha, tier or selection base reuses nothing. `GATE_RESUME_RERUN_FAILED=1` also re-runs units that had failures. Pixel, fixture and visual jobs are not checkpointed (re-run). A killed gate loses the unit in flight and the backend if it had not finished collecting |
 | `lint_spec_waits.py` + engine phase `spec-lint` | 6 | heuristic: a click followed within 8 lines by a size/position read with no `settle(page)` / wait. Only spec files ADDED since the base (`--select-base`, else origin/main) fail the gate, as category `lint`, before any test runs. `// lint-wait: ok` suppresses; `GATE_SPEC_LINT=0` switches off; `--all` reports the old debt (104 findings at this commit, informational) |
-| `gate_quarantine.py` | 7 | ONE list = `gate2_quarantine.json` (reason, owner, ticket, expiry at most 21 days); the engine's auto queue is shown as candidates without effect; `list`, `add`, `prune`. The re-run alone / second red = real logic is the existing `gate2_verdict.py` (rc 10) |
+| `gate_quarantine.py` | 7 | ONE list = `gate2_quarantine.json` (reason, owner, ticket, expiry at most **7** days since ENTRY-CHECK-2310); the engine's auto queue is shown as candidates without effect; `list`, `add`, `remove`, `check`, `md`, `prune`. The re-run alone / second red = real logic is the existing `gate2_verdict.py` (rc 10) |
 | `gate_holder.py`, `run_guarded.sh`, wrapper edits | 8 | the gate wrappers write `~/.smplwise-machine-holder.json` (who, what, since, pid) and remove it on exit; `run_guarded.sh "<agent>" <cmd>` or `gate_holder.py guard` refuses with a Hebrew message (exit 75) while a gate holds the machine. A raw command that skips the wrapper cannot be stopped |
 | `gate_summary.py` + report/status | 9 | Hebrew section at the top of the report and one line in `gate_status.json`: real defects versus run problems, each with a "likely" cause (passed alone, timeout under load above 30, no time left, failed twice, deterministic phases) |
 
@@ -73,3 +73,62 @@ Quarantine: `python3 ~/gate2/gate_quarantine.py list --known ~/known_issues.json
 
 Not validated on the runner: resume after a real kill, the inline settle of pool jobs under load (it replaces the settle step after the pool),
 the lint phase inside a real gate, the holder file with real flock and wrapper traps, the thresholds of the Hebrew classification.
+
+## Entry check before a release train (ENTRY-CHECK-2310)
+
+Owner decisions 30.10 night: (1) no branch boards a release train without a GREEN runner entry check = the change-based selection run of
+the branch against `origin/main` (~20-40 min, queued); (2) a test that fails only under load and passes alone goes to the gate's ONE
+quarantine list with a fix ticket and an expiry of at most 7 days, shown in every report, so the nightly stays green and the fast gate
+stays armed.
+
+| File | Role |
+|---|---|
+| `branch_check.sh` | THE command: `~/gate2/branch_check.sh <branch>` (pushed branch, not main). Exit 0 GREEN, 1 RED / NOT_RUN, 2 usage |
+| `branch_check.py` | the verdict: reads the engine report, applies the quarantine, writes `~/smplwise-results/entry_<b>_<sha>.md` (short, Hebrew + English) and `.json` |
+| `gate2_verdict.py` | `MAX_QUARANTINE_DAYS = 7`, `load_quarantine_full` (active / expired / invalid), `quarantine_section` (the list every report carries) |
+| `gate_quarantine.py` | `add` (validated: match, category, ticket, owner, reason, 1..7 days), `remove --match M --reason R` (to history), `check` (rc 1 on an invalid or expired entry), `md` |
+| `gate_holder.py` | holder kind `entry`: agent runs through `run_guarded.sh` are refused while an entry check runs (Hebrew message) |
+| `nightly_tests.sh` | appends the quarantine section to every nightly summary (information; the verdict is the engine's) |
+| `selftest_entry_check.py` | hermetic self-test: Python parts + `branch_check.sh` end to end on a throw-away git repo with a fake engine and a fake `flock` |
+
+What `branch_check.sh <branch>` does, and does not:
+* It is **not** a release gate: no `~/.gate_fast_enabled` needed, the nightly state is printed for information only, the release gates'
+  `gate_status.json` is never written (the engine's results go to `~/smplwise-results/entry/`), nothing is tagged.
+* **Queue, never fail on busy**: it waits for `~/.smplwise-tests.lock` (the lock the nightly and the gates use), yielding to a pending
+  release gate (`~/.gate-pending`) and a pending nightly (`~/.nightly-pending`). `~/smplwise-results/entry_status.json` says
+  `queued` / `running` / `done`. Queue limit `--max-wait SECS` (default 12 h, `0` = none) -> NOT_RUN, exit 1. While an entry check runs,
+  a release gate started by hand gets "lock busy" (exit 3) - start gates when `entry_status.json` is `done`.
+* The run is the gate's own engine and selection, unforked: it stages `release_gate.py` + aux files from `~/` into `~/gate2/` exactly
+  like `release_gate2.sh`, plans shards/slots with `gate2_select.py plan`, then runs
+  `release_gate.py <branch> --tier L --schedule v2 --select-base origin/main --no-visual` with `GATE_SELECT_ENABLE=1`
+  (the diff is `origin/main...<branch>`, i.e. from the merge base; the always-run core is included; heavy unchanged sweeps are deferred
+  to the nightly as in a gate). Limit: `ENTRY_TOTAL_SECS`, else the derived select cap, else 5400 s.
+* Verdict: **GREEN** = engine pass, or red only through ACTIVE quarantine entries (listed); **RED** = any failure outside the quarantine,
+  including a test whose entry EXPIRED, or tsc / build / an engine guard; **NOT_RUN** = no engine report (queue limit, crash) - never green.
+* `--dry-run` = `release_gate2.sh <branch> --base origin/main --dry-run` (selection + estimate; no lock, no test).
+
+Quarantine (one list, `~/gate2/gate2_quarantine.json`):
+```
+python3 ~/gate2/gate_quarantine.py add --match test_x.py --category backend --ticket T-123 --owner lead --reason "fails under load only, passes alone" [--days 7]
+python3 ~/gate2/gate_quarantine.py remove --match test_x.py --reason "fixed in T-123"
+python3 ~/gate2/gate_quarantine.py check      # rc 1 when an entry is invalid or expired
+python3 ~/gate2/gate_quarantine.py list --known ~/known_issues.json
+```
+Every entry needs match, category, ticket, owner, reason, `added`, `expires` with `expires - added <= 7` days. An invalid entry is ignored;
+an expired entry explains nothing (its test counts as a failure again). The list is printed in the gate-2 summary
+(`gate_<b>_<sha>.gate2.md`), the nightly summary (`<date>_main.md`) and the entry verdict; `gate_entry.py decide` (the fast-gate rule)
+uses the same loader, so an expired entry also makes a red nightly "red" again (FULL tier).
+
+Install (the lead, after train 2 releases, in a quiet window - `gate_status.json` finished, no `entry_status.json` running):
+```
+scp scripts/gate/{branch_check.sh,branch_check.py,gate2_verdict.py,gate_quarantine.py,gate_holder.py,gate_entry.py,selftest_entry_check.py} runner:~/gate2/
+scp scripts/gate/gate_holder.py runner:~/          # release_gate.sh looks for it next to itself
+scp scripts/gate/nightly_tests.sh runner:~/nightly_tests.sh
+ssh runner 'chmod +x ~/gate2/branch_check.sh ~/nightly_tests.sh; cd ~/gate2 && python3 selftest_entry_check.py && python3 gate_quarantine.py check'
+# then a first real check of a small pushed branch:  ~/gate2/branch_check.sh <branch>   (~20-40 min)
+```
+`gate2_quarantine.json` on the runner is the live list: do NOT overwrite it with the repository copy once entries exist; run
+`gate_quarantine.py check` after the copy to see entries that the 7-day rule now marks invalid.
+
+Not validated on the runner: the real queue with `flock -w`, the real engine under `--select-base origin/main`, wall times, the nightly
+quarantine section in a real summary.

@@ -9,7 +9,7 @@ gate_release.sh <branch> is the ONE command for a release gate. It asks this mod
   2. when it is enabled, what does the newest full nightly on main allow?  THE RULE (printed by `rule`):
 
        nightly GREEN (verdict pass, <= 36 h old, backend ran)                       -> SELECT: change-based gate
-       nightly RED, every failing test is quarantined (ticket + owner + expiry <= 21 d, gate2_quarantine.json)
+       nightly RED, every failing test is quarantined (ticket + owner + reason + expiry <= 7 d, gate2_quarantine.json)
                                                                                     -> SELECT, the explained failures are listed
        nightly RED with any failure that is not quarantined, or an engine-level failure -> FULL tier, the failing tests are named
        nightly STALE (> 36 h) or MISSING                                           -> FULL tier
