@@ -95,6 +95,8 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    "wiskey_fence_intents", "wiskey_relay_map", "wiskey_feature_registry", "wiskey_feature_intents",
                                    # WISKEY-RELAYMAP-2310: the relay map station revisions (with the map itself, never restored)
                                    "wiskey_relay_map_stations",
+                                   # WISKEY-RELAYEXPORT-2320: the sealed relay map export log (a restore must never rewind an export number)
+                                   "wiskey_relay_map_exports",
                                    # APPREFRESH-295: the phone app's refresh-token families and access tokens (hashes only) - a restore must
                                    # never revive a revoked family or an already-used refresh token
                                    "app_refresh_families", "app_refresh_tokens", "app_access_tokens",

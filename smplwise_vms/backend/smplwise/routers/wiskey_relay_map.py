@@ -25,6 +25,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, STATION, Principal, authorize, require
 from ..services import intercom_doors, intercom_sync
 from ..services import wiskey_relay_map as rm
+from ..services import wiskey_relay_map_export as rmx
 
 router = APIRouter()
 
@@ -84,6 +85,24 @@ def relay_map(request: Request, principal: Principal = Depends(current_principal
     ids = list(stations) + [sid for sid in rm.mapped_station_ids(conn) if sid not in stations]
     return {"state": state, "has_copy": overview is not None, "can_edit": can_edit, "confirm_word": rm.CONFIRM_WORD,
             "stations": [_station_view(conn, sid, stations.get(sid)) for sid in ids]}
+
+
+@router.get("/wiskey/relay-map/export")
+def relay_map_export(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """WISKEY-RELAYEXPORT-2320: the full relay map snapshot (tombstones too) with its digest and the numbered export log; admin only, read only."""
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    return rmx.status(conn)
+
+
+@router.get("/wiskey/relay-map/export/{seq}")
+def relay_map_export_record(seq: int = Path(ge=1, le=9007199254740991), principal: Principal = Depends(current_principal),
+                            conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """WISKEY-RELAYEXPORT-2320: one sealed relay map export with its snapshot, ack and stale state; admin only, read only."""
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    try:
+        return rmx.get(conn, seq).full()
+    except rmx.RelayMapExportError as e:
+        raise ApiError(404, e.code, "הייצוא לא נמצא.") from None
 
 
 class RowBody(BaseModel):
