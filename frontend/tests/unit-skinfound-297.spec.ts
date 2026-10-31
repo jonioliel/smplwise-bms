@@ -66,7 +66,7 @@ test('the values are the design system\'s measured ones (TOKENS.md §1 / §3 as 
   const pick = (t: ReturnType<typeof skinTable>, n: string) => [t[n].light, t[n].dark];
   // A: the stronger hairline, the round-2 muted tiers, the darker state text, density, the 24 px title
   expect(pick(i, '--sw-border-strong')).toEqual(['#d9dfe9', '#2f3c58']);
-  expect(pick(i, '--sw-text-3')).toEqual(['#596985', '#93a0b8']);
+  expect(pick(i, '--sw-text-3')).toEqual(['#596985', '#97a4bb']);
   expect(pick(i, '--sw-text-2')).toEqual(['#4b5976', '#b0bbd0']);
   expect(pick(i, '--sw-stale-text')).toEqual(['#a04a06', '#f5b043']);
   expect(pick(i, '--sw-offline-text')[0]).toBe('#5c6573');
@@ -81,7 +81,7 @@ test('the values are the design system\'s measured ones (TOKENS.md §1 / §3 as 
   expect(pick(s, '--sw-bg')).toEqual(['#eef2f9', '#0b1020']);
   expect(pick(s, '--sw-surface-solid')).toEqual(['#fdfdfe', '#1a2032']);
   expect(pick(s, '--sw-text-2')).toEqual(['#44516a', '#b6c0d4']);
-  expect(pick(s, '--sw-text-3')).toEqual(['#566480', '#97a3bb']);
+  expect(pick(s, '--sw-text-3')).toEqual(['#566480', '#a0abc1']);
   expect(pick(s, '--sw-accent')).toEqual(['#2f6df6', '#2f6df6']);
   expect(pick(s, '--sw-live-text')).toEqual(['#0e6b33', '#7ee29a']);
   expect(pick(s, '--sw-toggle-on')).toEqual(['#34c759', '#30d158']);
