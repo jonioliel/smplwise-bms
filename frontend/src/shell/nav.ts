@@ -718,11 +718,16 @@ let CALENDARS_PLACEMENT: 'rail' | 'home_tab' | 'both' = 'rail';
 /** Called by calendars/access.ts with the module state; re-applied by the shell after HIDDEN_HREFS is rebuilt. */
 export function applyCalendarsNav(on: boolean, placement: 'rail' | 'home_tab' | 'both' = CALENDARS_PLACEMENT): void {
   const tabOn = on && placement !== 'rail';
-  const changed = on !== CALENDARS_ON || placement !== CALENDARS_PLACEMENT || HIDDEN_HREFS.has(CALENDARS_HOME_HREF) === tabOn;
+  const changed = on !== CALENDARS_ON || placement !== CALENDARS_PLACEMENT || HIDDEN_HREFS.has(CALENDARS_HOME_HREF) === tabOn || HIDDEN_HREFS.has(CALENDARS_SETTINGS_HREF) === on;
   CALENDARS_ON = on;
   CALENDARS_PLACEMENT = placement;
   if (tabOn) HIDDEN_HREFS.delete(CALENDARS_HOME_HREF);
   else HIDDEN_HREFS.add(CALENDARS_HOME_HREF);
+  // the module's two settings entries exist only while the module is on (a short settings column otherwise: layout-settings-nav-fit-402)
+  for (const h of [CALENDARS_SETTINGS_HREF, CALENDAR_SYNC_SETTINGS_HREF]) {
+    if (on) HIDDEN_HREFS.delete(h);
+    else HIDDEN_HREFS.add(h);
+  }
   if (changed) for (const l of tabsListeners) l();
 }
 export const calendarsModuleOn = (): boolean => CALENDARS_ON;
@@ -1448,7 +1453,7 @@ export const API_LABELS: Record<string, string> = { '#/investigate/reviews': 'Re
 
 /** Tabs the owner hid in the settings (0.1.61: the AI search); filled by the shell once the product settings load. */
 // CR-NOTICE106: the notice board tab until the session says the module is on; FIX2200: the same for the הכרזות tab (announce.enabled)
-export const HIDDEN_HREFS = new Set<string>(['#/devices/notices', '#/devices/announce', '#/devices/calendars/cal']);
+export const HIDDEN_HREFS = new Set<string>(['#/devices/notices', '#/devices/announce', '#/devices/calendars/cal', '#/system/calendars', '#/system/calendar-sync']);
 
 /** הגדרות › מסך פתיחה (0.1.68): the route the UI lands on when the address carries none. */
 export const START_ROUTES: Record<string, string> = { explore: '/explore/floors/f0', live: '/live', wall: '/live/wall', events: '/investigate/events', playback: '/investigate/playback', devices: '/devices/building' };
@@ -1675,7 +1680,7 @@ function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
     const seg = kavarnitSegments(api, can);
     return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
   }) : source;
-  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !(INFRA_NO_WATER && t.href === INFRA_WATER_HREF) && !insightHiddenHref(t.href) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '') && !isMaintenanceHref(t.href)) && !(!MAINTENANCE_ON && isMaintenanceHref(t.href)) && !(INCIDENTS_OFF && isIncidentsHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  const shown = api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && !(INFRA_NO_ELEVATORS && t.href === INFRA_ELEVATORS_HREF) && !(INFRA_NO_TEMPERATURE && t.href === INFRA_TEMPERATURE_HREF) && !(INFRA_NO_WATER && t.href === INFRA_WATER_HREF) && !insightHiddenHref(t.href) && !(TICKETS_OFF && isTicketsAreaHref(t.href ?? '') && !isMaintenanceHref(t.href)) && !(!MAINTENANCE_ON && isMaintenanceHref(t.href)) && !(INCIDENTS_OFF && isIncidentsHref(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items.filter((t) => CALENDARS_ON || (t.href !== CALENDARS_SETTINGS_HREF && t.href !== CALENDAR_SYNC_SETTINGS_HREF)); // CALENDARS-UI-2310: the demo too - no calendar settings while the module is off
   // TABSET-293: an infrastructure tab opens on the first page of its configured page row (the owner's order is the default page);
   // decided after the gates above, which key on the built-in href
   if (!api || source !== INFRA_TABS) return shown;

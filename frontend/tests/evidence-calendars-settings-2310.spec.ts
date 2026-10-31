@@ -2,6 +2,7 @@ import { test, expect, type Page, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { url } from './generator-mocks';
+import { settle } from './helpers/settle';
 
 // CALENDARS-UI-2310 slice C: הגדרות › יומנים (every tab; a change persists, the reset, the retention confirm, the purge with the typed word),
 // הגדרות › חיבורי יומן (the "המשך" of a connection that needs a new authorisation follows the setting; flags keep / cancel) and the resident
@@ -325,6 +326,7 @@ test.describe('resident phone flow', () => {
     await page.locator(`${R} [data-res-room="quiet"]`).click();
     await expect(page.locator(`${R} [data-res-view="slot"][data-picker="timeline"]`)).toBeVisible();
     const bar = page.locator(`${R} [data-res-bar]`);
+    await settle(page);
     const box = await bar.boundingBox();
     if (!box) throw new Error('no bar');
     await page.mouse.click(box.x + box.width * 0.9, box.y + box.height / 2);
