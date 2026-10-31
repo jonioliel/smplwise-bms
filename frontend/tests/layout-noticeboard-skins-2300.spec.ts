@@ -188,14 +188,20 @@ for (const skin of SKINS) {
       await open(page, { skin });
       const first = await title(page);
       await cmd(page, 'next');
-      await page.waitForTimeout(60);
-      expect(await page.evaluate((sel) => document.querySelectorAll(sel).length, FX)).toBe(0);
-      const props = await animatedProps(page);
-      expect(props.length).toBeGreaterThan(0);
-      expect(props.every((p) => p === 'opacity')).toBe(true);
-      await page.waitForTimeout(500);
+      // catch the turn while it runs (a fixed 60 ms sleep can land before the turn starts or after the short fade on a busy machine)
+      const h = await page.waitForFunction((sel) => {
+        const anims = document.getAnimations().filter((a) => (a.effect as KeyframeEffect | null)?.target?.closest?.('#nbk') && a.playState === 'running');
+        if (!anims.some((a) => (a.effect as KeyframeEffect).target?.closest?.('#nbk .nb-st'))) return null; // the turn itself is running
+        const props = [...new Set(anims.flatMap((a) => (a.effect as KeyframeEffect).getKeyframes().flatMap((k) => Object.keys(k))))]
+          .filter((p) => !['offset', 'easing', 'composite', 'computedOffset'].includes(p));
+        return { fx: document.querySelectorAll(sel).length, props };
+      }, FX, { polling: 'raf', timeout: 5000 });
+      const turn = (await h.jsonValue()) as { fx: number; props: string[] };
+      expect(turn.fx).toBe(0);
+      expect(turn.props.length).toBeGreaterThan(0);
+      expect(turn.props.every((p) => p === 'opacity')).toBe(true);
+      await expect(page.locator('#nbk .nb-st > .nb-msg')).toHaveCount(1); // the fade ended and the old page is gone
       expect(await title(page)).not.toBe(first);
-      await expect(page.locator('#nbk .nb-st > .nb-msg')).toHaveCount(1);
     });
 
     test('motion is composite only (transform and opacity) and a turn leaves nothing behind', async ({ page }) => {
@@ -335,10 +341,21 @@ test('Ink: rotation with the refresh bar, and the title of the old page stays as
   const first = await title(page);
   await page.waitForSelector('#nbk .nb-sweep', { state: 'attached', timeout: 8000 });
   const ghost = page.locator('#nbk .nb-ghost');
-  await ghost.waitFor({ state: 'attached', timeout: 4000 });
-  const op = await ghost.evaluate((el) => parseFloat(getComputedStyle(el).opacity));
-  expect(op).toBeLessThanOrEqual(0.075);
-  expect(op).toBeGreaterThan(0.02);
+  // read the ghost's own fade (7 % -> 0 over about a second) the moment it appears, instead of sampling its opacity at a moment a busy
+  // machine cannot promise (the fade is already under way when the sample lands late)
+  const h = await page.waitForFunction(() => {
+    const g = document.querySelector('#nbk .nb-ghost');
+    const a = g?.getAnimations()[0];
+    if (!g || !a?.effect) return null;
+    const k = (a.effect as KeyframeEffect).getKeyframes();
+    return { from: Number(k[0].opacity), to: Number(k[k.length - 1].opacity), ms: Number(a.effect.getComputedTiming().duration), now: parseFloat(getComputedStyle(g).opacity) };
+  }, null, { polling: 'raf', timeout: 4000 });
+  const fade = (await h.jsonValue()) as { from: number; to: number; ms: number; now: number };
+  expect(fade.from).toBeCloseTo(0.07, 3); // a faint ghost: 7 %
+  expect(fade.to).toBe(0);
+  expect(fade.ms).toBeGreaterThanOrEqual(900); // about a second
+  expect(fade.ms).toBeLessThanOrEqual(1300);
+  expect(fade.now).toBeLessThanOrEqual(0.075);
   await expect(ghost).toHaveCount(0, { timeout: 3000 }); // gone after about 1.1 s
   expect(await title(page)).not.toBe(first);
 });
@@ -359,14 +376,16 @@ test('Sign: rotation by rotating strips - 8 prisms on the landscape canvas, 6 in
 test('Sign: the strips turn right to left in Hebrew and left to right in English', async ({ page }) => {
   const order = async (lang: 'he' | 'en') => {
     await open(page, { skin: 'sign', fixed: false, q: 'nbrot=1', display: { lang, burn_in: { shift: false } } });
-    await page.waitForSelector('#nbk .nb-fx:not(.nb-prepfx)', { state: 'attached', timeout: 8000 });
-    return page.evaluate(() => {
+    // read the strips' delays while their turn runs (read late, the finished animations are gone and every delay reads 0)
+    const h = await page.waitForFunction(() => {
       const s = [...document.querySelectorAll<HTMLElement>('#nbk .nb-fx:not(.nb-prepfx) .nb-slat')];
-      const ds = s.map((e) => (e.getAnimations()[0]?.effect?.getTiming().delay as number) ?? 0);
+      if (s.length < 2 || s.some((e) => !e.getAnimations().length)) return null;
+      const ds = s.map((e) => Number(e.getAnimations()[0].effect?.getTiming().delay ?? 0));
       const xs = s.map((e) => parseFloat(e.style.left));
       const first = xs[ds.indexOf(Math.min(...ds))];
       return first > xs.reduce((a, b) => a + b, 0) / xs.length ? 'right-first' : 'left-first';
-    });
+    }, null, { polling: 'raf', timeout: 8000 });
+    return (await h.jsonValue()) as string;
   };
   expect(await order('he')).toBe('right-first');
   expect(await order('en')).toBe('left-first');

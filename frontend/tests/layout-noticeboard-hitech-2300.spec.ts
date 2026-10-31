@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { LOBBY_NOTICES, lobbyFeed, serveFeed, tvUrl } from './notice-tv-fixtures';
+import { LOBBY_NOTICES, lobbyFeed, lobbyTurn, serveFeed, tvUrl } from './notice-tv-fixtures';
 import type { Display, Feed, FeedNotice } from '../src/notice-tv/tv-logic';
 
 // LOBBY-STYLES-2300: the hi-tech lobby notice-board styles (Lumen, Axis, Prism) on the product TV page, from the owner-approved mock-up
@@ -93,11 +93,12 @@ for (const skin of SKINS) {
           await expect(page.locator('#nbk')).toHaveAttribute('data-theme', theme === 'night' ? 'dark' : 'light');
           await expect(page.locator('#cv')).toBeHidden();
           const seen = new Set<string>();
+          let cur = await lobbyTurn(page, ''); // the first notice is drawn and nothing moves
           for (let i = 0; i < LOBBY_NOTICES.length; i++) {
-            seen.add(await shownTitle(page));
+            seen.add(cur);
             await expectClean(page);
             await cmd(page, 'next');
-            await page.waitForTimeout(1700);
+            cur = await lobbyTurn(page, cur); // the next turn has settled: the old notice has left, nothing is mid-transition
           }
           expect(seen.size).toBe(LOBBY_NOTICES.length);
           const fam = await page.evaluate(() => getComputedStyle(document.querySelector('#nbk .nb-ft') as HTMLElement).fontFamily);

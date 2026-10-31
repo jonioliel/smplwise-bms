@@ -265,12 +265,20 @@ test('board page: the V2 design and its options switch the preview; the V2-only 
   const frame = page.frameLocator('sw-app system-notices iframe[data-preview]');
   await expect(frame.locator('#cv')).toHaveAttribute('data-design', 'classic');
   const seg = (name: string) => root.locator(`notice-display-design [data-seg="${name}"]`);
-  await expect(seg('design').locator('button')).toHaveCount(5); // default, previous, V2, Ink, Sign (NOTICEBOARD-STYLES-2300)
+  // default + previous, V2, Ink, Sign (NOTICEBOARD-STYLES-2300) + the six lobby styles lumen / axis / prism / gallery / concierge / stone
+  // (LOBBY-STYLES-2300, owner decisions 2026-10-30)
+  await expect(seg('design').locator('button')).toHaveCount(11);
+  await expect(seg('design').locator('button[data-v="stone"]')).toBeEnabled();
   await expect(seg('board-layout').locator('button')).toHaveCount(4);
   await expect(seg('co-size').locator('button')).toHaveCount(6);
   await expect(seg('portrait-order').locator('button')).toHaveCount(3);
   await expect(seg('next-row').locator('button')).toHaveCount(3);
   for (const name of ['board-layout', 'co-size', 'portrait-order', 'next-row']) await expect(seg(name).locator('button').first()).toBeDisabled();
+  // the lobby styles' behaviour rows (LOBBY-STYLES-2300) are not V2-only: editable on the previous design too
+  for (const [name, n] of [['live-bg', 5], ['systems-status', 3], ['urgent-screen', 4]] as const) {
+    await expect(seg(name).locator('button')).toHaveCount(n);
+    await expect(seg(name).locator('button').first()).toBeEnabled();
+  }
   await seg('design').locator('button[data-v="v2"]').click();
   await expect(frame.locator('#cv')).toHaveAttribute('data-design', 'v2');
   await expect(frame.locator('.pg .b2hd')).toBeVisible();
