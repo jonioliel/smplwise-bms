@@ -88,7 +88,8 @@ export class CalendarsPage extends LitElement {
     this.measure();
     window.addEventListener('resize', this.onResize);
     this.stop = onCalAccess((a) => (this.access = a));
-    if (this.access.enabled === null) void refreshCalendars();
+    // always re-read the module state on open (one shared request): rights or settings changed elsewhere since the navigation read it
+    void refreshCalendars();
     void this.load();
     this.addEventListener(CAL_EVENTS.newEvent, (e: Event) => (this.drawer = { kind: 'event', d: (e as CustomEvent<NewEventDetail>).detail ?? {} }));
     this.addEventListener(CAL_EVENTS.newMaint, (e: Event) => (this.drawer = { kind: 'maint', d: (e as CustomEvent<NewMaintDetail>).detail ?? {} }));
@@ -106,7 +107,11 @@ export class CalendarsPage extends LitElement {
 
   protected willUpdate(changed: PropertyValues<this>): void {
     // a view tab or a hash parameter of the demo changed: the data may differ (data=worst / empty / error)
-    if (changed.has('route') && changed.get('route') && (changed.get('route') as RouteState).params.toString() !== this.route?.params.toString()) void this.load();
+    const old = changed.get('route') as RouteState | undefined;
+    if (changed.has('route') && old && old.params.toString() !== this.route?.params.toString()) {
+      if (old.params.get('role') !== this.route?.params.get('role')) void refreshCalendars(); // the demo's role decides the rights
+      void this.load();
+    }
   }
 
   private measure(): void {
