@@ -71,7 +71,8 @@ test.describe('calendars placement and module states', () => {
     await panel.locator('sw-button').click();
     await expect(page).toHaveURL(/#\/system\/calendars$/);
     await expect(page.locator('sw-app system-calendars [data-calset="enabled"]').first()).toBeAttached({ timeout: 20_000 });
-    if (!phone()) {
+    // the settings column is drawn only above 1100 px (system-nav hides its <nav> on a tablet and a phone; the page itself is the proof there)
+    if (test.info().project.name === 'desktop') {
       const nav = page.locator('sw-app system-nav');
       await expect(nav.locator('a[href="#/system/calendars"]')).toBeVisible();
       await expect(nav.locator('a[href="#/system/calendar-sync"]')).toHaveCount(0);
