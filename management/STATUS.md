@@ -1,24 +1,24 @@
 # Project status — generated view
 
-Generated: 2026-10-27T23:57:13.273545+00:00
+Generated: 2026-10-31T07:44:21.398547+00:00
 
-Tasks: 268 | Requirements: 377 | Tests: 394 | Screens: 32
+Tasks: 275 | Requirements: 377 | Tests: 394 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 135
-- BLOCKED: 11
+- BACKLOG: 138
+- BLOCKED: 13
 - DONE: 38
-- IN_PROGRESS: 7
-- READY: 2
-- REVIEW: 75
+- IN_PROGRESS: 4
+- READY: 1
+- REVIEW: 81
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 174
+- V1: 181
 - V2: 29
 - V3: 2
 
@@ -34,6 +34,8 @@ No VMS implementation or hardware test is implied by this planning registry.
 - WXH6: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
 - WXH7: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
 - WXAV: Waiting for W10 (stream descriptor and audio hook) from the WisKey side; the owner asks to start S18 right after stage 1 as soon as W10 arrives.
+- WISKEY-RC4-2310: Waits for the WisKey team reply via the owner, and the owner packaging decision (managed vs manual). WisKey goes last.
+- PRESENCE-COMPACT-2310: Waits for the owner: 5 questions on round9/presence-compact (recommended direction A, strip)
 
 ## Backlog
 | ID | Phase | Status | Task | Depends on |
@@ -42,9 +44,9 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T002](tasks/T002.md) | G0 | DONE | מעבדת פיתוח והרשאות ייעודיות | — |
 | [T003](tasks/T003.md) | G0 | BLOCKED | לכידת Golden traces מהמערכת הישנה | T001, T002 |
 | [T004](tasks/T004.md) | G0 | BLOCKED | בדיקות Characterization והשוואת התנהגות | T003 |
-| [T005](tasks/T005.md) | G0 | READY | ביקורת סודות, רישיונות ותלויות | T001 |
+| [T005](tasks/T005.md) | G0 | IN_PROGRESS | ביקורת סודות, רישיונות ותלויות | T001 |
 | [T006](tasks/T006.md) | G0 | BACKLOG | הוכחת Playback ו־Seek מוקדמת | T003 |
-| [T007](tasks/T007.md) | G0 | IN_PROGRESS | נעילת Design tokens ורכיבי בסיס | — |
+| [T007](tasks/T007.md) | G0 | REVIEW | נעילת Design tokens ורכיבי בסיס | — |
 | [T008](tasks/T008.md) | G0 | BACKLOG | ארכיטקטורה, ADR וחוזים נעולים | T001, T005, T006 |
 | [T009](tasks/T009.md) | PILOT | BACKLOG | שלד מאגר, HA Add-on/App ו־CI | T002, T008 |
 | [T010](tasks/T010.md) | PILOT | BACKLOG | מדיניות מודלים וגבולות הרצות | T008 |
@@ -139,11 +141,11 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T099](tasks/T099.md) | V1 | BACKLOG | מולטימדיה שלב 2 - נגנים, רמקולים וקבוצות (CR-016): כרטיסים, חלונית נגן, קבוצות, מועדפים ותחנות | — |
 | [T100](tasks/T100.md) | V1 | BACKLOG | אוטומציות, סצנות וסקריפטים (CR-017): צפייה, הרצה, בונה בעברית, שמירה בטוחה דרך רכיב החיבור | — |
 | [T101](tasks/T101.md) | V1 | BACKLOG | התראות (CR-018): מרכז התראות אחד, מקורות מובנים, Push וטלפונים, העדפות אישיות, אישור והסלמה | — |
-| [T102](tasks/T102.md) | V1 | IN_PROGRESS | תזמונים (CR-014): מסך תזמונים מעל רכיב התזמונים, הרשאות, ביטול ושחזור, אימות חי במעבדה | — |
-| [T103](tasks/T103.md) | V1 | IN_PROGRESS | אפליקציית הטלפון - צד השרת (CR-027): רישום מכשירים, נוכחות וחיישנים, דחיפה דרך הממסר; כבוי כברירת מחדל | — |
-| [T104](tasks/T104.md) | V1 | IN_PROGRESS | שידור וידאו למסכים (CR-028): מחקר, תוכנית בשלבים והכנה לקריאה בלבד - עמודת 'שידור' בהגדרות המולטימדיה | — |
-| [T105](tasks/T105.md) | V1 | IN_PROGRESS | Provision-ISR: מקליטים ומצלמות (CR-025) - מתאם API v1 לקריאה, חיפוש, השמעה, ייצוא, אירועים | — |
-| [T106](tasks/T106.md) | V1 | IN_PROGRESS | ניטור בריאות מקליטים (CR-026): שבעה מקורות התראה, הגדרות פר מקליט, עומק ל-Provision-ISR | — |
+| [T102](tasks/T102.md) | V1 | BACKLOG | תזמונים (CR-014): מסך תזמונים מעל רכיב התזמונים, הרשאות, ביטול ושחזור, אימות חי במעבדה | — |
+| [T103](tasks/T103.md) | V1 | BACKLOG | אפליקציית הטלפון - צד השרת (CR-027): רישום מכשירים, נוכחות וחיישנים, דחיפה דרך הממסר; כבוי כברירת מחדל | — |
+| [T104](tasks/T104.md) | V1 | BACKLOG | שידור וידאו למסכים (CR-028): מחקר, תוכנית בשלבים והכנה לקריאה בלבד - עמודת 'שידור' בהגדרות המולטימדיה | — |
+| [T105](tasks/T105.md) | V1 | BACKLOG | Provision-ISR: מקליטים ומצלמות (CR-025) - מתאם API v1 לקריאה, חיפוש, השמעה, ייצוא, אירועים | — |
+| [T106](tasks/T106.md) | V1 | BACKLOG | ניטור בריאות מקליטים (CR-026): שבעה מקורות התראה, הגדרות פר מקליט, עומק ל-Provision-ISR | — |
 | [T107](tasks/T107.md) | V2 | BACKLOG | מסך קיר לטאבלט קבוע (CR-030, WDM / WDX): משתמש קיר שמזוהה לפי טאבלט | — |
 | [T108](tasks/T108.md) | V2 | BACKLOG | גנרטורים (CR-031, GEN1): זיהוי לפי התקן, תרשים זרימת הספק, התראות וניתוב, היסטוריה | — |
 | [T109](tasks/T109.md) | V1 | BACKLOG | מתגים מוגנים (CR-019): ברירת מחדל 'כלול', הצעת סיווג, רשימת סקירה בהגדרות | — |
@@ -211,12 +213,12 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [KIOPOL](tasks/KIOPOL.md) | V1 | REVIEW | Wall, kiosk and PWA polish: distance legibility, burn-in, touch | — |
 | [FLAKY](tasks/FLAKY.md) | V1 | REVIEW | Stabilise flaky backend and frontend tests (15 of 16) | — |
 | [FLOORSTRIP](tasks/FLOORSTRIP.md) | V1 | REVIEW | One floor switcher in the 3D view (duplicate floor strip fix) | — |
-| [BILLSTART](tasks/BILLSTART.md) | V1 | IN_PROGRESS | Electricity bill start-reading bug | — |
+| [BILLSTART](tasks/BILLSTART.md) | V1 | REVIEW | Electricity bill start-reading bug | — |
 | [ST7L](tasks/ST7L.md) | V2 | REVIEW | Plan Studio 6 look development: two rounds, LOOK_SPEC and CC0 assets | — |
 | [ST7INT](tasks/ST7INT.md) | V2 | BACKLOG | Plan Studio 6: integration on 2.4.6, migrations 0074-0075, gate and release | ST7S0, ST7S4, ST7S1, ST7S2, ST7S3 |
 | [ST7SITE](tasks/ST7SITE.md) | V2 | BACKLOG | Plan Studio 6: site location for the sun comes from the HA settings (latitude / longitude) | — |
 | [ST7UI](tasks/ST7UI.md) | V2 | BACKLOG | Plan Studio 6: editor UI (material per wall / room / item, north compass, saved walk positions) and plan.view settings screen | — |
-| [ST7HIST](tasks/ST7HIST.md) | V2 | BACKLOG | Plan Studio 6: level 3 also in the history map and the event page | — |
+| [ST7HIST](tasks/ST7HIST.md) | V2 | REVIEW | Plan Studio 6: level 3 also in the history map and the event page | — |
 | [WXCR](tasks/WXCR.md) | V1 | REVIEW | WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan | — |
 | [WXIMP](tasks/WXIMP.md) | V1 | REVIEW | WisKey importer on the Arx side (CR-035), stage 1: offline package intake, import manifest, staged install plan (fakes only) | — |
 | [WXNS](tasks/WXNS.md) | V1 | REVIEW | WisKey native screens plan (CR-036): 49 screens and actions | — |
@@ -291,7 +293,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [USR2-P1](tasks/USR2-P1.md) | V1 | REVIEW | USR2 phases P0+P1: Arx-only identities (CR-USR2) - identity store, passwords, sign-in, sessions, brute-force tiers, administration, sign-in page mode, settings tab; behind security.local_identity (off) | — |
 | [USR2-P3](tasks/USR2-P3.md) | V1 | REVIEW | USR2 phase P3: the service identity - Arx-only users act in Home Assistant through ONE non-administrator HA user under a per-feature allow-list enforced by the add-on and the bridge (0.9.0); behind security.local_identity (off) | — |
 | [WISKEYID-BUILD](tasks/WISKEYID-BUILD.md) | V1 | REVIEW | CR-ARX-WISKEY-SHARED-IDENTITY X1-X4 (backend): Arx <-> WisKey person links and time-bounded door grants for external people with a WhatsApp code; OFF, go-live not permitted in code | — |
-| [SCHEDIMPACT-295](tasks/SCHEDIMPACT-295.md) | V1 | BACKLOG | V-02 (Fable security review 4, medium, pre-existing basic mode): scheduled script / scene runs of Arx-only people go through the runnable allowlist and the bridge impact check | — |
+| [SCHEDIMPACT-295](tasks/SCHEDIMPACT-295.md) | V1 | REVIEW | V-02 (Fable security review 4, medium, pre-existing basic mode): scheduled script / scene runs of Arx-only people go through the runnable allowlist and the bridge impact check | — |
 | [ENTPOL-295](tasks/ENTPOL-295.md) | V1 | REVIEW | Owner decision 3 of 2026-10-21 (Fable security review 4, V-08): the automatic refusal while the service user is not restricted by an entity policy - fail closed on ambiguous policies and on a stale report (Home Assistant unreachable) | — |
 | [WHOIN034-295](tasks/WHOIN034-295.md) | V1 | REVIEW | Who is in the building (board r034) and the geofence / beacon / Wi-Fi editors on screen (board r035), 2.16.0 | — |
 | [GATEAUDIT-297](tasks/GATEAUDIT-297.md) | V1 | REVIEW | Gate audit and cleanup: classify the repeatedly failing / flaky / obsolete tests of the last 35 gate and nightly runs, remove duplicates, fix the bubble-freeze leftovers, re-take stale visual baselines, refresh the gate baselines | — |
@@ -306,3 +308,10 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [XSECFOLLOW-297](tasks/XSECFOLLOW-297.md) | V1 | REVIEW | Security review 2026-10-27 follow-ups of XSECFIX-297: the presence block on WebSockets, phone credentials end on a password change / reset and a forced second factor, ?do=run and Android tests | — |
 | [SUPPLIERDOCS-297](tasks/SUPPLIERDOCS-297.md) | V1 | REVIEW | Supplier certificate reading, slice 1: text-layer PDFs into proposed fields decided field by field (OFF by default, PROVISIONAL on owner questions q52-q56) | — |
 | [SUPPLIERDOCS2-297](tasks/SUPPLIERDOCS2-297.md) | V1 | REVIEW | Supplier documents: migration renumbered to 0182 after release/2241, merge of release/2241, security review with fixes F1-F3 and F6 | — |
+| [CALENDARS-UI-2310](tasks/CALENDARS-UI-2310.md) | V1 | IN_PROGRESS | Calendars UI: booking calendars, approvals, maintenance calendar, resident view, sync settings (owner answers 30.10) | — |
+| [TEMPREPORT-2310](tasks/TEMPREPORT-2310.md) | V1 | IN_PROGRESS | Temperature report: security review and hardening of the report link and WhatsApp send | — |
+| [WORSTCASE-2310](tasks/WORSTCASE-2310.md) | V1 | IN_PROGRESS | Worst-case data on the main screens: long names, empty states, huge counts, no scrolling | — |
+| [POLISH-PHONE-2310](tasks/POLISH-PHONE-2310.md) | V1 | REVIEW | Phone layer polish: chips and switch hit areas | — |
+| [ENTRY-CHECK-2310](tasks/ENTRY-CHECK-2310.md) | V1 | REVIEW | Gate: runner entry check before a release train + 7-day quarantine list | — |
+| [WISKEY-RC4-2310](tasks/WISKEY-RC4-2310.md) | V1 | BLOCKED | WisKey rc.4 adoption + rc.5 host check (deadline fix, migration 0186, relay-by-door fix) | — |
+| [PRESENCE-COMPACT-2310](tasks/PRESENCE-COMPACT-2310.md) | V1 | BLOCKED | Presence card: compact redesign (owner rejected the tall card 30.10) | — |
