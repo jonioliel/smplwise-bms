@@ -64,7 +64,7 @@ export const createSite = (body: { name: string; address?: string }) => post<Sit
 export const updateSite = (id: string, body: Partial<Pick<Site, 'name' | 'address' | 'sort_order'>>) => patch<Site>(`sites/${id}`, body);
 export const deleteSite = (id: string) => del(`sites/${id}`);
 export const createBuilding = (siteId: string, body: { name: string }) => post<Building>(`sites/${siteId}/buildings`, body);
-export const updateBuilding = (id: string, body: Partial<Pick<Building, 'name' | 'sort_order'>>) => patch<Building>(`buildings/${id}`, body);
+export const updateBuilding = (id: string, body: Partial<Pick<Building, 'name' | 'sort_order' | 'is_shared'>>) => patch<Building>(`buildings/${id}`, body);
 export const deleteBuilding = (id: string) => del(`buildings/${id}`);
 export const createFloor = (buildingId: string, body: { name: string; level: number }) => post<Floor>(`buildings/${buildingId}/floors`, body);
 export const updateFloor = (id: string, body: Partial<Pick<Floor, 'name' | 'level' | 'sort_order'>>) => patch<Floor>(`floors/${id}`, body);
@@ -74,6 +74,8 @@ export const updateFloor = (id: string, body: Partial<Pick<Floor, 'name' | 'leve
 export interface HomeLinks {
   floors: { ha_floor_id: string; floor_id: string }[];
   areas: { area_id: string; floor_id: string | null }[];
+  /** MAPPING-ASSIST-2330: area -> building rows of the home's site level (an area put in a building where none of our floors fits). */
+  buildings?: { area_id: string; building_id: string }[];
 }
 export type AreaLinkMode = 'include' | 'exclude' | 'auto';
 export const getHomeLinks = () => get<HomeLinks>('home-links');

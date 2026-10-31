@@ -62,6 +62,9 @@ export interface Building {
   sort_order: number;
   updated_at: string;
   image_url?: string | null;
+  /** MULTIBUILDING-HOME-2330: the site's shared building ("משותף": parking, main electrical room, garden) - listed last on the home
+   * screen with its own icon and colour, unchecked by default in "כבה הכל באתר". Absent on an older server = false. */
+  is_shared?: boolean;
   floors?: Floor[];
 }
 

@@ -18,7 +18,7 @@ def _seed_platform(settings) -> None:
 
 def test_empty_by_default(client):
     seed_tree(client)
-    assert client.get("/api/v1/home-links").json() == {"floors": [], "areas": []}
+    assert client.get("/api/v1/home-links").json() == {"floors": [], "areas": [], "buildings": []}  # buildings: MAPPING-ASSIST-2330
 
 
 def test_floor_rows_area_overrides_and_validation(client, settings):

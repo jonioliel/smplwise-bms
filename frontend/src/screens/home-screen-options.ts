@@ -33,6 +33,8 @@ const LABEL_KEY: Record<ChoiceKey, HsKey> = {
   quick_card: 'quickCard',
   phone_floors: 'phoneFloors',
   popup_alert: 'popupAlert',
+  site_entry: 'siteEntry',
+  site_off_shared: 'siteOffShared',
 };
 const VALUE_PREFIX: Record<ChoiceKey, string> = {
   summary_chooser: 'chooser_',
@@ -47,6 +49,8 @@ const VALUE_PREFIX: Record<ChoiceKey, string> = {
   quick_card: 'qc_',
   phone_floors: 'pf_',
   popup_alert: 'pa_',
+  site_entry: 'se_',
+  site_off_shared: 'sos_',
 };
 const QUICK_LABEL: Record<QuickKind, HsKey> = { lights: 'qLights', climate: 'qClimate', covers: 'qCovers', switches: 'qSwitches' };
 const QUICK_ICON: Record<QuickKind, string> = { lights: 'light', climate: 'snow', covers: 'layers', switches: 'bolt' };
@@ -65,6 +69,9 @@ export class HomeScreenOptionsForm extends LitElement {
   @property({ type: Boolean }) editable = false;
   /** The screen editor shows the per-area quick actions first and opens on this area. */
   @property() area = '';
+  /** MULTIBUILDING-HOME-2330: the site's buildings - the site options (entry view, the shared building in "כבה הכל באתר") show only
+   * when there are two or more. */
+  @property({ attribute: false }) buildings: { id: string; name: string }[] = [];
   @state() private picked = '';
 
   static styles = css`
@@ -87,6 +94,16 @@ export class HomeScreenOptionsForm extends LitElement {
     .k {
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-text-2);
+    }
+    select {
+      font: inherit;
+      color: var(--sw-text);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      min-block-size: 36px;
+      padding: 0 10px;
+      max-inline-size: 100%;
     }
     .seg {
       display: flex;
@@ -266,7 +283,23 @@ export class HomeScreenOptionsForm extends LitElement {
       ${this.choice('phone_floors')}
       ${this.choice('phone_area')}
       ${this.choice('desktop_area')}
+      ${this.siteOptions()}
     </div>`;
+  }
+
+  /** MULTIBUILDING-HOME-2330: the site level's installation options (a site of several buildings only). */
+  private siteOptions() {
+    if (this.buildings.length < 2) return nothing;
+    const s = this.value.screen;
+    return html`${this.choice('site_entry')}
+      ${s.site_entry === 'fixed'
+        ? html`<label class="f"><span class="k">${hs('siteEntryBuilding')}</span>
+            <select data-hs-site-building ?disabled=${!this.editable} @change=${(e: Event) => this.setScreen({ site_entry_building: (e.target as HTMLSelectElement).value })}>
+              <option value="" ?selected=${!s.site_entry_building}>${hs('se_site')}</option>
+              ${this.buildings.map((b) => html`<option value=${b.id} ?selected=${s.site_entry_building === b.id}>${bidi(b.name)}</option>`)}
+            </select></label>`
+        : nothing}
+      ${this.choice('site_off_shared')}`;
   }
 }
 
