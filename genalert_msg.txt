@@ -1,3 +1,0 @@
-test(genalert-295): evidence spec for the generator alert routing screen
-
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
