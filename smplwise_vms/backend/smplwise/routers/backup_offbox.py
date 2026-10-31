@@ -25,8 +25,8 @@ from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import backup as backup_svc
 from ..services import backup_sensitive as sens
-from ..services import offbox_keys, offbox_restore, offbox_runtime, offbox_store
-from ..services.backup_offbox import ALLOWED_FIELDS, CREDENTIAL_FIELDS, OffboxError, RetentionPolicy, build_destination
+from ..services import offbox_gdrive_connect, offbox_keys, offbox_restore, offbox_runtime, offbox_store
+from ..services.backup_offbox import ALLOWED_FIELDS, CONSENT_ONLY_FIELDS, CREDENTIAL_FIELDS, OffboxError, RetentionPolicy, build_destination
 
 router = APIRouter()
 
@@ -66,6 +66,16 @@ MESSAGES = {
     "auth_failed": "הפרטים לכניסה ליעד נדחו.",
     "host_key_mismatch": "מפתח השרת לא תואם למפתח השמור.",
     "destination_unavailable": "היעד לא זמין.",
+    # GDRIVEBK-2310: Google Drive
+    "quota_exceeded": "אין מספיק מקום פנוי ב־Google Drive לעותק הזה. יש לפנות מקום או להקטין את מספר העותקים הנשמרים.",
+    "rate_limited": "Google Drive מגביל כרגע את קצב הבקשות. יש לנסות שוב בעוד כמה דקות.",
+    "gdrive_reconnect_required": "החיבור ל־Google Drive פג או בוטל. יש ללחוץ על 'חיבור חשבון Google' ולאשר מחדש.",
+    "gdrive_not_connected": "עדיין לא חובר חשבון Google ליעד הזה.",
+    "gdrive_client_invalid": "Google דחה את מזהה הלקוח או את הסוד שלו. יש לבדוק את Client ID ו־Client secret.",
+    "gdrive_client_missing": "חסרים מזהה הלקוח (Client ID) או הסוד שלו (Client secret).",
+    "gdrive_scope_refused": "Google לא אישר את ההרשאה המצומצמת (drive.file). יש לוודא שהלקוח מסוג 'TVs and Limited Input devices'.",
+    "gdrive_token_via_connect": "אסימון הגישה של Google מתקבל רק דרך 'חיבור חשבון Google'.",
+    "remote_error": "תשובה לא צפויה מהיעד.",
 }
 
 
@@ -90,7 +100,7 @@ class RetentionIn(BaseModel):
 
 class TargetIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    kind: Literal["s3", "sftp", "local"]
+    kind: Literal["s3", "sftp", "local", "gdrive"]
     enabled: bool = False
     config: dict[str, Any] = Field(default_factory=dict)
     # field -> new value; absent = keep; "" = clear. Never echoed back.
@@ -127,6 +137,15 @@ def _clean_config(kind: str, config: dict[str, Any]) -> dict[str, Any]:
             raise ApiError(422, "destination_invalid", MESSAGES["destination_invalid"], details={"fields": ["port"]}) from None
     if kind == "s3" and "path_style" in out:
         out["path_style"] = bool(out["path_style"])
+    if kind == "gdrive":
+        for k in ("chunk_mib", "quota_margin_pct", "min_free_mib"):
+            if k in out:
+                try:
+                    if isinstance(out[k], bool):
+                        raise ValueError
+                    out[k] = int(out[k])
+                except (TypeError, ValueError):
+                    raise ApiError(422, "destination_invalid", MESSAGES["destination_invalid"], details={"fields": [k]}) from None
     for k, v in out.items():
         if isinstance(v, str) and len(v) > 2000:
             raise ApiError(422, "destination_invalid", MESSAGES["destination_invalid"], details={"fields": [k]})
@@ -136,7 +155,7 @@ def _clean_config(kind: str, config: dict[str, Any]) -> dict[str, Any]:
 def _validate(kind: str, config: dict[str, Any], settings: Any) -> None:
     probe = {"kind": kind, **config, **{f: f"store:offbox.probe.{f}" for f in CREDENTIAL_FIELDS.get(kind, ())}}
     try:
-        build_destination(probe, data_dir=Path(settings.data_dir))
+        build_destination(probe, data_dir=Path(settings.data_dir)).close()  # builds only: no network (gdrive: no request is sent)
     except OffboxError as exc:
         raise _err(exc) from None
 
@@ -165,13 +184,22 @@ def _precheck(kind: str, secrets: dict[str, SecretStr], enabled: bool, have: set
     bad = sorted(f for f in secrets if f not in CREDENTIAL_FIELDS.get(kind, ()))
     if bad:
         raise ApiError(422, "secret_field_invalid", MESSAGES["destination_invalid"], details={"fields": bad[:10]})
+    consent = sorted(f for f in secrets if f in CONSENT_ONLY_FIELDS.get(kind, ()))
+    if consent:  # the Google refresh token arrives only from the consent flow, never typed or pasted
+        raise ApiError(422, "gdrive_token_via_connect", MESSAGES["gdrive_token_via_connect"], details={"fields": consent})
     for f, v in secrets.items():
         if len(v.get_secret_value()) > 16384:
             raise ApiError(422, "secret_invalid", MESSAGES["secret_invalid"], details={"fields": [f]})
     after = (have | {f for f, v in secrets.items() if v.get_secret_value()}) - {f for f, v in secrets.items() if not v.get_secret_value()}
     missing = [f for f in CREDENTIAL_FIELDS.get(kind, ()) if f not in after]
     if enabled and missing:
-        raise ApiError(422, "secrets_missing", MESSAGES["secrets_missing"], details={"fields": missing})
+        _missing(missing)
+
+
+def _missing(missing: list[str]) -> None:
+    if missing == ["refresh_token"]:  # a Google Drive target is switched on only once an account is connected
+        raise ApiError(422, "gdrive_not_connected", MESSAGES["gdrive_not_connected"], details={"fields": missing})
+    raise ApiError(422, "secrets_missing", MESSAGES["secrets_missing"], details={"fields": missing})
 
 
 def _require_secrets(conn: sqlite3.Connection, target_id: str, kind: str, enabled: bool) -> None:
@@ -180,7 +208,7 @@ def _require_secrets(conn: sqlite3.Connection, target_id: str, kind: str, enable
     have = offbox_store.secret_state(conn, target_id)
     missing = [f for f in CREDENTIAL_FIELDS.get(kind, ()) if f not in have]
     if missing:
-        raise ApiError(422, "secrets_missing", MESSAGES["secrets_missing"], details={"fields": missing})
+        _missing(missing)
 
 
 def _target_or_404(conn: sqlite3.Connection, target_id: str) -> dict[str, Any]:
@@ -198,7 +226,8 @@ def offbox_status(request: Request, principal: Principal = Depends(current_princ
     except OffboxError as exc:
         ring = {"active": None, "keys": [], "error": exc.code}
     return {"targets": [offbox_runtime.view(conn, t) for t in offbox_store.list_targets(conn)], "key": ring,
-            "running": offbox_runtime._LOCK.locked(), "transports": {"s3": True, "sftp": importlib.util.find_spec("paramiko") is not None, "local": True}}
+            "running": offbox_runtime._LOCK.locked(),
+            "transports": {"s3": True, "sftp": importlib.util.find_spec("paramiko") is not None, "local": True, "gdrive": True}}
 
 
 @router.post("/backups/offbox/targets", status_code=201)
@@ -226,8 +255,16 @@ def update_target(target_id: str, body: TargetIn, request: Request, principal: P
         raise ApiError(422, "kind_immutable", MESSAGES["kind_immutable"])
     config = _clean_config(body.kind, body.config)
     _validate(body.kind, config, settings_of(request))
-    _precheck(body.kind, body.secrets, body.enabled, set(offbox_store.secret_state(conn, target_id)))
+    have = set(offbox_store.secret_state(conn, target_id))
+    # a Google refresh token belongs to the client that obtained it: another client id means connecting again
+    client_changed = body.kind == "gdrive" and config.get("client_id") != cur["config"].get("client_id") and "refresh_token" in have
+    if client_changed:
+        have.discard("refresh_token")
+    _precheck(body.kind, body.secrets, body.enabled, have)
     changed = _apply_secrets(conn, request, target_id, body.kind, body.secrets, principal.user_id)
+    if client_changed:
+        offbox_store.clear_secret(conn, target_id, "refresh_token")
+        changed.append("refresh_token")
     offbox_store.update_target(conn, target_id, name=body.name.strip(), enabled=body.enabled, config=config,
                                retention=RetentionPolicy(**body.retention.model_dump()), actor=principal.user_id)
     audit(conn, actor=principal, action="backup.offbox.target_update", decision="allowed", resource_type="backup_offbox_target", resource_id=target_id,
@@ -252,6 +289,7 @@ def delete_target(target_id: str, request: Request, principal: Principal = Depen
     require(conn, principal, "backup.manage", INSTALLATION)
     cur = _target_or_404(conn, target_id)
     offbox_store.delete_target(conn, target_id)
+    offbox_gdrive_connect.cancel(target_id)
     audit(conn, actor=principal, action="backup.offbox.target_delete", decision="allowed", resource_type="backup_offbox_target", resource_id=target_id,
           request_id=_rid(request), details={"kind": cur["kind"]})
 
@@ -295,6 +333,71 @@ def push_target(target_id: str, body: PushIn, request: Request, principal: Princ
 
     threading.Thread(target=_go, name="offbox-push", daemon=True).start()
     return {"started": True, "dry_run": False}
+
+
+# ---------------------------------------------------------------- GDRIVEBK-2310: connect a Google Drive target (device flow)
+
+
+def _gdrive_or_404(conn: sqlite3.Connection, target_id: str) -> dict[str, Any]:
+    t = _target_or_404(conn, target_id)
+    if t["kind"] != "gdrive":
+        raise not_found(MESSAGES["target_missing"])
+    return t
+
+
+def _gdrive_status(code: str) -> int:
+    return 502 if code in ("destination_unavailable", "rate_limited", "remote_error", "auth_failed") else 422
+
+
+@router.post("/backups/offbox/targets/{target_id}/gdrive/connect")
+def gdrive_connect(target_id: str, request: Request, principal: Principal = Depends(current_principal),
+                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Start the consent: the answer is the short code and Google's device page (google.com/device). The device code never leaves
+    the server. The administrator approves on any phone or computer; the screen then polls `.../gdrive/poll`."""
+    require(conn, principal, "backup.manage", INSTALLATION)
+    _gdrive_or_404(conn, target_id)
+    release(conn)  # no transaction across the call to Google
+    try:
+        out = offbox_gdrive_connect.start(_db(request), settings_of(request), target_id)
+    except OffboxError as exc:
+        _audit_aside(request, principal, "backup.offbox.gdrive_connect_start", "denied", target_id, reason=exc.code)
+        raise _err(exc, _gdrive_status(exc.code)) from None
+    _audit_aside(request, principal, "backup.offbox.gdrive_connect_start", "allowed", target_id)
+    return out
+
+
+@router.post("/backups/offbox/targets/{target_id}/gdrive/poll")
+def gdrive_poll(target_id: str, request: Request, principal: Principal = Depends(current_principal),
+                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """One poll of the pending consent: {state: none | pending | slow_down | denied | expired | connected, interval?}."""
+    require(conn, principal, "backup.manage", INSTALLATION)
+    _gdrive_or_404(conn, target_id)
+    release(conn)
+    try:
+        out = offbox_gdrive_connect.poll(_db(request), settings_of(request), target_id, principal.user_id)
+    except OffboxError as exc:
+        _audit_aside(request, principal, "backup.offbox.gdrive_connect", "denied", target_id, reason=exc.code)
+        raise _err(exc, _gdrive_status(exc.code)) from None
+    if out["state"] in ("connected", "denied", "expired"):
+        _audit_aside(request, principal, "backup.offbox.gdrive_connect", "allowed" if out["state"] == "connected" else "denied", target_id,
+                     reason=None if out["state"] == "connected" else out["state"])
+    return out
+
+
+@router.post("/backups/offbox/targets/{target_id}/gdrive/disconnect")
+def gdrive_disconnect(target_id: str, request: Request, principal: Principal = Depends(current_principal),
+                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Revoke the Google grant (best effort), delete the sealed refresh token, switch the target off. The copies stay in Drive."""
+    require(conn, principal, "backup.manage", INSTALLATION)
+    _gdrive_or_404(conn, target_id)
+    release(conn)
+    try:
+        out = offbox_gdrive_connect.disconnect(_db(request), settings_of(request), target_id, principal.user_id)
+    except OffboxError as exc:
+        raise _err(exc, _gdrive_status(exc.code)) from None
+    _audit_aside(request, principal, "backup.offbox.gdrive_disconnect", "allowed", target_id, details=out)
+    with _db(request).connection(mode="read", label="offbox.gdrive.view") as c:
+        return {**out, "target": offbox_runtime.view(c, offbox_store.get_target(c, target_id))}
 
 
 @router.post("/backups/offbox/key/export")

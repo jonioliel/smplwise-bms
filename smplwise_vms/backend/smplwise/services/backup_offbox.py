@@ -7,7 +7,9 @@ module puts an ENCRYPTED copy of an archive on another machine and proves it can
   or USB disk - never a folder inside the data directory), `FakeDestination` (in memory, with failure knobs, for tests),
   `S3Destination` (any S3-compatible service; the transport is services/offbox_s3.py: SigV4 over httpx, path-style or virtual-host)
   and `SftpDestination` (services/offbox_sftp.py: paramiko, key authentication, the server's host key PINNED - never trust on first
-  use). Both adapters also take an injected client (the tests' fakes).
+  use). Both adapters also take an injected client (the tests' fakes). GDRIVEBK-2310: `gdrive` - Google Drive through
+  services/offbox_gdrive.py (`drive.file` scope, one folder, resumable chunked uploads, the refresh token and client secret
+  sealed like the other credentials; an injected httpx client factory for the tests' fake Drive).
 - Encryption at rest (`seal_file` / `open_file`): AES-256-GCM in 1 MiB chunks (format SWXB v1, below), under a 32-byte key that
   is held OUTSIDE the database - the keyring `<data>/keys/offbox_keyring.json` (services/offbox_keys.py, mode 0600; the keys folder
   never enters an archive). Rotation adds a key and keeps the old ones, so every older copy stays readable; `open_file` picks the
@@ -444,22 +446,31 @@ class S3Destination:
         self.connect().delete_object(Bucket=self.bucket, Key=self._key(name))
 
 
-CREDENTIAL_FIELDS = {"sftp": ("key",), "s3": ("access_key", "secret_key")}
+CREDENTIAL_FIELDS = {"sftp": ("key",), "s3": ("access_key", "secret_key"), "gdrive": ("client_secret", "refresh_token")}
+# credentials an administrator never types: they arrive only from a consent flow (the Google refresh token)
+CONSENT_ONLY_FIELDS = {"gdrive": ("refresh_token",)}
 ALLOWED_FIELDS = {"local": {"kind", "path"}, "sftp": {"kind", "host", "port", "username", "key", "host_key", "remote_dir"},
-                  "s3": {"kind", "endpoint", "bucket", "prefix", "region", "path_style", "access_key", "secret_key"}}
+                  "s3": {"kind", "endpoint", "bucket", "prefix", "region", "path_style", "access_key", "secret_key"},
+                  "gdrive": {"kind", "client_id", "folder_name", "chunk_mib", "prune_mode", "quota_margin_pct", "min_free_mib", "client_secret",
+                             "refresh_token"}}
 
 
 def build_destination(cfg: dict[str, Any], *, data_dir: Path | None = None, sftp_client: Callable | None = None,
-                      s3_client: Callable | None = None, secret_store: SecretLookup | None = None) -> Destination:
+                      s3_client: Callable | None = None, secret_store: SecretLookup | None = None,
+                      gdrive_http: Callable | None = None) -> Destination:
     """A destination from its (non-secret) configuration. Unknown fields are refused - nobody adds a `password` field that
     would end up stored - and every credential field must be a reference."""
     kind = cfg.get("kind") if isinstance(cfg, dict) else None
     if kind not in ALLOWED_FIELDS:
-        raise OffboxError("destination_invalid", "kind must be local | sftp | s3")
+        raise OffboxError("destination_invalid", "kind must be local | sftp | s3 | gdrive")
     extra = sorted(set(cfg) - ALLOWED_FIELDS[kind])
     if extra:
         raise OffboxError("destination_invalid", f"unknown field(s): {', '.join(extra)[:120]}")
     refs = {f: CredentialRef(str(cfg.get(f) or "")) for f in CREDENTIAL_FIELDS.get(kind, ())}
+    if kind == "gdrive":
+        from . import offbox_gdrive
+
+        return offbox_gdrive.build(cfg, refs["client_secret"], refs["refresh_token"], secret_store=secret_store, http_factory=gdrive_http)
     if kind == "local":
         return LocalPathDestination(Path(str(cfg.get("path") or "")), data_dir=data_dir)
     if kind == "sftp":

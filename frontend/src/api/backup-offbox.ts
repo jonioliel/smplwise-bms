@@ -5,7 +5,9 @@
  */
 import { del, get, patch, post, put } from './client';
 
-export type OffboxKind = 's3' | 'sftp' | 'local';
+export type OffboxKind = 's3' | 'sftp' | 'local' | 'gdrive';
+/** The kinds an administrator adds from the screen (a `local` folder is configured elsewhere). */
+export type FormKind = 's3' | 'sftp' | 'gdrive';
 
 export interface OffboxRetention {
   keep_last: number;
@@ -40,6 +42,8 @@ export interface OffboxTarget {
   revision: number;
   updated_at: string;
   last: { push: OffboxRun | null; test: OffboxRun | null; drill: OffboxRun | null };
+  /** GDRIVEBK-2310, `gdrive` targets only: whether a Google account is connected / a consent is waiting. Never a token. */
+  gdrive?: { connected: boolean; pending: boolean; connected_at: string | null };
 }
 
 export interface OffboxKeyInfo {
@@ -103,16 +107,30 @@ export interface DrillStatus {
 }
 
 /** Which fields each kind holds in `config` (non-secret) and which are credentials (write-only). */
-export const CONFIG_FIELDS: Record<'s3' | 'sftp', readonly string[]> = {
+export const CONFIG_FIELDS: Record<FormKind, readonly string[]> = {
   s3: ['endpoint', 'bucket', 'region', 'prefix', 'path_style'],
   sftp: ['host', 'port', 'username', 'remote_dir', 'host_key'],
+  gdrive: ['client_id', 'folder_name', 'prune_mode', 'chunk_mib', 'quota_margin_pct', 'min_free_mib'],
 };
-export const SECRET_FIELDS: Record<'s3' | 'sftp', readonly string[]> = { s3: ['access_key', 'secret_key'], sftp: ['key'] };
+/** Write-only credentials the administrator types. The Google refresh token is NOT one: it comes only from "connect". */
+export const SECRET_FIELDS: Record<FormKind, readonly string[]> = { s3: ['access_key', 'secret_key'], sftp: ['key'], gdrive: ['client_secret'] };
+
+/** The numeric fields of a Google Drive target (sent as numbers). */
+export const GDRIVE_NUMBERS: Record<string, { min: number; max: number; fallback: number }> = {
+  chunk_mib: { min: 1, max: 64, fallback: 8 },
+  quota_margin_pct: { min: 0, max: 100, fallback: 10 },
+  min_free_mib: { min: 0, max: 1_000_000, fallback: 100 },
+};
 
 export const DEFAULT_RETENTION = (): OffboxRetention => ({ keep_last: 3, keep_daily: 7, keep_weekly: 4, keep_monthly: 6 });
 
-/** A new target form's starting values (Cloudflare R2 shape: region `auto`, path-style). */
-export function blankTarget(kind: 's3' | 'sftp'): OffboxTargetIn {
+/** A new target form's starting values (Cloudflare R2 shape: region `auto`, path-style). A Google Drive target starts OFF: it can be
+ *  switched on only after an account is connected. */
+export function blankTarget(kind: FormKind): OffboxTargetIn {
+  if (kind === 'gdrive') {
+    return { name: 'Google Drive', kind, enabled: false, config: { client_id: '', folder_name: 'SmplWise Arx backups', prune_mode: 'delete', chunk_mib: 8,
+      quota_margin_pct: 10, min_free_mib: 100 }, secrets: {}, retention: DEFAULT_RETENTION() };
+  }
   return kind === 's3'
     ? { name: '', kind, enabled: true, config: { endpoint: 'https://', bucket: '', region: 'auto', prefix: 'arx-backups', path_style: true }, secrets: {}, retention: DEFAULT_RETENTION() }
     : { name: '', kind, enabled: true, config: { host: '', port: 22, username: '', remote_dir: '/', host_key: '' }, secrets: {}, retention: DEFAULT_RETENTION() };
@@ -123,6 +141,13 @@ export function toRequest(form: OffboxTargetIn, clear: readonly string[] = []): 
   const config: Record<string, string | number | boolean> = {};
   for (const [k, v] of Object.entries(form.config)) config[k] = typeof v === 'string' ? v.trim() : v;
   if ('port' in config) config.port = Number(config.port) || 22;
+  if (form.kind === 'gdrive') {
+    for (const [k, r] of Object.entries(GDRIVE_NUMBERS)) {
+      if (!(k in config)) continue;
+      const n = Math.round(Number(config[k]));
+      config[k] = Number.isFinite(n) && String(config[k]).trim() !== '' ? Math.max(r.min, Math.min(r.max, n)) : r.fallback;
+    }
+  }
   const secrets: Record<string, string> = {};
   for (const [k, v] of Object.entries(form.secrets)) if (v) secrets[k] = k === 'key' ? v : v.trim();
   for (const k of clear) secrets[k] = '';
@@ -138,6 +163,37 @@ export const checkTarget = (id: string) => post<OffboxCheckResult>(`backups/offb
 export const pushTarget = (id: string, dry_run = false) =>
   post<{ started: boolean; dry_run: boolean; result?: { ok: boolean; error: string | null; plan?: { upload: { name: string }; delete: string[] } } }>(
     `backups/offbox/targets/${encodeURIComponent(id)}/push`, { dry_run });
+// ---- GDRIVEBK-2310: connect a Google Drive target (the device flow: a short code approved at google.com/device)
+
+export interface GdriveCode {
+  user_code: string;
+  verification_url: string;
+  expires_in: number;
+  interval: number;
+}
+export type GdrivePollState = 'none' | 'pending' | 'slow_down' | 'denied' | 'expired' | 'connected';
+
+export const gdriveConnect = (id: string) => post<GdriveCode>(`backups/offbox/targets/${encodeURIComponent(id)}/gdrive/connect`);
+export const gdrivePoll = (id: string) => post<{ state: GdrivePollState; interval?: number }>(`backups/offbox/targets/${encodeURIComponent(id)}/gdrive/poll`);
+export const gdriveDisconnect = (id: string) =>
+  post<{ had_token: boolean; revoked: boolean | null; target: OffboxTarget }>(`backups/offbox/targets/${encodeURIComponent(id)}/gdrive/disconnect`);
+
+/** The next poll in ms: the server's interval (1-60 s), never faster than 2 s. */
+export function pollDelayMs(interval: number | undefined): number {
+  const s = Number.isFinite(interval) ? Math.max(2, Math.min(60, Number(interval))) : 5;
+  return s * 1000;
+}
+
+/** Whether the poll loop goes on after this answer. */
+export function pollContinues(state: GdrivePollState): boolean {
+  return state === 'pending' || state === 'slow_down';
+}
+
+/** Google's device page only - a link from anywhere else is never shown as a link. */
+export function isGoogleDeviceUrl(url: string): boolean {
+  return /^https:\/\/(www\.)?google\.com\/device$/.test(url);
+}
+
 export const exportKey = () => post<{ key_id: string; key: string }>('backups/offbox/key/export', { confirm: 'EXPORT' });
 export const rotateKey = () => post<OffboxStatus['key']>('backups/offbox/key/rotate', { confirm: 'ROTATE' });
 export const importKey = (key: string) => post<OffboxStatus['key']>('backups/offbox/key/import', { key: key.trim() });
