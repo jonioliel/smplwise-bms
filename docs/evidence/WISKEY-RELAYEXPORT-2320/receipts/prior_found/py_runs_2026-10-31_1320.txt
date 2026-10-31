@@ -1,0 +1,20 @@
+== test_wiskey_relay_map_writer_2310.py
+20 passed, 1 warning in 92.32s (0:01:32)
+== test_wiskey_rc5_relay_binding_2310.py
+9 passed, 1 warning in 50.17s
+== test_wiskey_rc4_deadline_2310.py
+5 passed, 1 warning in 54.45s
+== test_eccact_features_295.py
+33 passed, 1 warning in 40.88s
+== test_wkcap_295.py
+42 passed, 1 warning in 121.55s (0:02:01)
+== test_t06_admission_295.py
+61 passed, 3 xfailed, 1 warning in 404.23s (0:06:44)
+== test_t06_work_states_297.py
+60 passed, 1 warning in 95.80s (0:01:35)
+== test_wiskeya06_297.py
+88 passed, 1 warning in 90.08s (0:01:30)
+== test_wiskey_owner26_callers_297.py
+20 passed, 1 warning in 81.78s (0:01:21)
+== test_wiskey_adopt_2272_review.py
+40 passed, 1 skipped, 1 warning in 210.75s (0:03:30)

@@ -1,0 +1,32 @@
+{
+ "slice": "WISKEY-RELAYEXPORT-2320",
+ "date": "2026-10-31",
+ "workstation": "Windows 11 owner workstation (not the Ubuntu runner)",
+ "python": "C:/cloude/smplwisebms/.venv/Scripts/python.exe (Python 3.12.10)",
+ "method": "run.sh: ONE pytest process per suite (no xdist), suites run one after another, each on a clean detached `git worktree add` of the exact head (DIRTY=0), PYTHONPATH=. so smplwise is imported from that worktree (SMPLWISE_IMPORT in meta.txt). Each suite dir: files.txt (input), meta.txt (HEAD, DIRTY, import path, command, START/END UTC, EXIT_CODE, HEAD_AFTER), stdout.txt, junit.xml.",
+ "earlier_claims_audit": {
+  "t06_work_states_297 60 PASS (reported for 00612bcec)": {
+   "status": "NOT_CAPTURED",
+   "found": "only the agent's narrative in its transcript; no stdout, junit, HEAD or exit code was saved. The run happened before the 10:59 commit, i.e. on the uncommitted working tree of 1ad2014b2. prior_found/py_runs_2026-10-31_1320.txt has a later one-line '60 passed' for this file, from the 13:20 relay-map work tree (uncommitted, before 800308b10) - summary line only, no HEAD, no junit."
+  },
+  "82 wiskey+door files 1624 PASS / 6 SKIP (reported for 00612bcec)": {
+   "status": "RAW_OUTPUT_FOUND_OUTSIDE_REPO, HEAD_NOT_RECORDED",
+   "found": "session scratchpad wdsh/: files.txt + s0..s7 .xml/.log/.done (8 parallel pytest processes, 2026-10-31 10:21-10:58 +02:00). junit totals 1630 tests, 0 failures, 0 errors, 6 skipped = 1624 passed. Copied unchanged to prior_found/wdsh_2026-10-31_1021-1058/ (SHA256SUMS.txt). No HEAD, dirty state or exit code was recorded; the run finished before 00612bcec was committed (10:59), so it tested the uncommitted tree, not 00612bcec itself. The 82-file list does NOT contain test_t06_work_states_297.py."
+  },
+  "relay map 20 new / 394 PASS (reported for 800308b10)": {
+   "status": "NOT_CAPTURED (394 not reproducible)",
+   "found": "no junit/stdout saved. prior_found/py_runs_2026-10-31_1320.txt holds one summary line per file for the 10 files named in the 800308b10 commit message (writer 20, rc5 9, deadline 5, eccact 33, wkcap 42, t06 admission 61+3 xfailed, t06 work states 60, wiskeya06 88, owner26 20, adopt review 40+1 skipped), run at 13:20 on the uncommitted tree before the 13:31 commit. Those add up to 378 passed, 1 skipped, 3 xfailed (382 collected), not 394; no saved output contains 394."
+  }
+ },
+ "new_runs": [
+  {"suite": "t06_guard_00612bcec", "head": "00612bcec775a8a819b2fb6d65ba3f585412a331", "files": 1, "start": "2026-10-31T18:38:50Z", "end": "2026-10-31T18:39:50Z", "exit": 0,
+   "junit": {"tests": 60, "failures": 0, "errors": 0, "skipped": 0}, "summary": "60 passed"},
+  {"suite": "wiskey_door_82_00612bcec", "head": "00612bcec775a8a819b2fb6d65ba3f585412a331", "files": 82, "files_source": "the same files.txt as prior_found/wdsh (verbatim)", "start": "2026-10-31T18:49:56Z", "end": "2026-10-31T20:00:25Z", "exit": 0,
+   "junit": {"tests": 1630, "failures": 0, "errors": 0, "skipped": 6}, "summary": "1624 passed, 6 skipped"},
+  {"suite": "relaymap_800308b10", "head": "800308b100e72bd3e18d370e0b7b3fc7df844086", "files": 10, "files_source": "the writer test + the 9 files the 800308b10 commit message lists", "start": "2026-10-31T18:39:52Z", "end": "2026-10-31T18:49:54Z", "exit": 0,
+   "junit": {"tests": 382, "failures": 0, "errors": 0, "skipped": 4}, "summary": "378 passed, 1 skipped, 3 xfailed (writer: 20 passed)"},
+  {"suite": "relayexport_branch_876d0edf5", "head": "876d0edf5f271fafe2e6dd250594753e670975a1", "files": 9, "start": "2026-10-31T18:29:10Z", "end": "2026-10-31T18:38:47Z", "exit": 0,
+   "junit": {"tests": 161, "failures": 0, "errors": 0, "skipped": 0}, "summary": "161 passed (export 32, writer 20, rc5 binding, owner26, eccact, backup, backup sensitive, migrations, release_check)"}
+ ],
+ "not_run": "frontend unit specs (vitest/tsc) - no frontend change in this slice; the full backend suite; the runner."
+}
