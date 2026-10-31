@@ -698,14 +698,22 @@ export class SwApp extends LitElement {
     :host([data-nolabels]) nav.bottom .lbl {
       display: none;
     }
+    /* WORSTCASE-2310: the active marker is the 3 px bar 5-8 px past the pill's inline end. It used to be an absolute box at
+       inset-inline-end: -8px, which made the link's own content 8 px wider than its box (76 vs 68 px: the worst-case guard read it
+       as a label overflow, whatever the label). The same bar is now drawn as the shadow of a zero-width line at the pill's edge: a
+       shadow paints where the box did but is not layout overflow. Spread 1.5 px = a 3 px wide, fully rounded bar; offset 6.5 px puts it
+       5-8 px past the edge, as before; inset-block grows by the spread so the bar keeps its length. */
     a.item.a.active::after {
       content: '';
       position: absolute;
-      inset-inline-end: -8px;
-      inset-block: 16px;
-      inline-size: 3px;
-      border-radius: 3px;
-      background: var(--sw-accent);
+      inset-inline-end: 0;
+      inset-block: 17.5px;
+      inline-size: 0;
+      border-radius: 0;
+      box-shadow: -6.5px 0 0 1.5px var(--sw-accent);
+    }
+    a.item.a.active:dir(ltr)::after {
+      box-shadow: 6.5px 0 0 1.5px var(--sw-accent);
     }
     .secure {
       display: flex;

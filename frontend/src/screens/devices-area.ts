@@ -909,6 +909,30 @@ export class DevicesArea extends LitElement {
       font-weight: var(--sw-fw-regular, normal);
       color: var(--sw-text-3);
     }
+    /* WORSTCASE-2310: a cover's row is its name and its kind ("· תריס"). Both used to run in one ellipsis line, so a long name pushed the
+       kind past the card edge (the guard saw it 26-29 px outside the card in domus and classic dark). The name now takes what is left
+       and ends in an ellipsis (the row's title has the whole name); the kind is short and always stays visible at the end */
+    .row .n.nk {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      min-inline-size: 0;
+    }
+    .row .n.nk > sw-icon {
+      flex: none;
+      align-self: center;
+    }
+    .row .n.nk .nt {
+      flex: 0 1 auto;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .row .n.nk .muted {
+      flex: none;
+      white-space: nowrap;
+    }
     @media (max-width: 767px) {
       .grid {
         grid-template-columns: minmax(0, 1fr);
@@ -1774,7 +1798,7 @@ export class DevicesArea extends LitElement {
     if (card === 'covers') {
       const coverIcon: IconName = r.door_class ? (COVER_CLASS_ICON[r.device_class ?? ''] ?? 'lock') : 'layers';
       return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} data-door-class=${String(!!r.door_class)} ?data-can-control=${controllable} title=${entityLabel(r)}>
-        <span class="n">${r.door_class ? html`<sw-icon .name=${coverIcon} size=${14}></sw-icon> ` : nothing}${bidi(r.name)}<span class="muted"> · ${this.coverLabel(r)}</span></span>
+        <span class="n nk">${r.door_class ? html`<sw-icon .name=${coverIcon} size=${14}></sw-icon>` : nothing}<span class="nt">${bidi(r.name)}</span><span class="muted">· ${this.coverLabel(r)}</span></span>
         <span class="v">${rowLabel(r)}</span>
         ${r.position !== null && r.position !== undefined && !unavailable ? html`<div class="bar" role="img" aria-label=${`פתוח ${r.position}%`}><i style=${`inline-size:${r.position}%`}></i></div>` : nothing}
         ${r.tilt !== null && r.tilt !== undefined && !unavailable ? html`<div class="d"><span>הטיה ${ltrNum(r.tilt)}%</span></div>` : nothing}
