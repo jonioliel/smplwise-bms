@@ -111,7 +111,7 @@ def normalize_image(path: Path, out_png: Path, max_px: int) -> None:
     out_png.parent.mkdir(parents=True, exist_ok=True)
     from . import image_guard
 
-    with image_guard.open_untrusted(path, ["PNG", "JPEG"]) as im:  # the upload, sniffed as PNG / JPEG by sniff_mime
+    with image_guard.open_untrusted(path, ["PNG", "JPEG"], mpo_first_frame=True) as im:  # the upload, sniffed as PNG / JPEG by sniff_mime
         im = ImageOps.exif_transpose(im)
         im = im.convert("RGB")
         if max(im.size) > max_px:

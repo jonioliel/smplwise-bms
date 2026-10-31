@@ -116,7 +116,7 @@ def add_photo(settings: Settings, set_id: str, data: bytes) -> dict[str, Any]:
         # another image type, told by its signature: Pillow is restricted to FORMATS below and never runs these loaders (DEPFIX-2310 M1)
         raise PhotoError("unsupported_format", "רק JPEG, PNG או WebP.", 415)
     try:
-        with image_guard.open_untrusted(data, sorted(FORMATS)) as probe:
+        with image_guard.open_untrusted(data, sorted(FORMATS), mpo_first_frame=True) as probe:
             if probe.format not in FORMATS:
                 raise PhotoError("unsupported_format", "רק JPEG, PNG או WebP.", 415)
             if probe.width * probe.height > MAX_PIXELS:
