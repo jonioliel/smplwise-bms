@@ -515,7 +515,7 @@
       ],
       "current": {
         "version": null,
-        "source": "floating tag ghcr.io/home-assistant/{amd64,aarch64}-base-python:3.12-alpine3.22 (Dockerfile, build.yaml); the resolved release is whatever the last image build pulled",
+        "source": "tag ghcr.io/home-assistant/{amd64,aarch64}-base-python:3.12-alpine3.22 pinned by digest in Dockerfile and build.yaml (amd64 3c68563fbe55, aarch64 3c4c840c9a9c, resolved 2026-10-31); refresh the digests when a base update is adopted",
         "verify": true,
         "constraint": "3.12-alpine3.22"
       },
