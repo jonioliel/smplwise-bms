@@ -10,7 +10,6 @@ floor-images root."""
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import sqlite3
 from pathlib import Path
@@ -79,10 +78,8 @@ def validate(data: bytes) -> tuple[str, int, int]:
     if mime is None:
         raise FloorImageError("unsupported_format", "רק PNG או JPEG מתקבלים.")
     try:
-        from PIL import Image
-
-        from . import image_guard  # noqa: F401 - SEC246 I3: the process-wide bomb threshold is set once there (60 M > MAX_PIXELS)
-        with Image.open(io.BytesIO(data)) as im:
+        from . import image_guard  # SEC246 I3: the process-wide bomb threshold is set once there (60 M > MAX_PIXELS)
+        with image_guard.open_untrusted(data, ["PNG", "JPEG"]) as im:
             w, h = im.size
             if w * h > MAX_PIXELS:
                 raise FloorImageError("too_many_pixels", "התמונה גדולה מדי (עד 36 מגה־פיקסל).", {"width": w, "height": h})

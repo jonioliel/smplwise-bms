@@ -1,7 +1,7 @@
 fastapi==0.141.1
 uvicorn[standard]==0.53.0
 python-multipart==0.0.32
-pillow==12.3.0
+pillow==13.0.0
 httpx==0.27.2
 pydantic==2.13.5
 websockets>=13,<16
@@ -10,7 +10,8 @@ numpy>=2.0,<3
 cryptography>=45,<51
 # DATASTORE-295 phase 2: the SFTP transport of the off-box backup copies (services/offbox_sftp.py). Pure-Python; its bcrypt / pynacl
 # dependencies ship musllinux_1_2 wheels for x86_64 and aarch64 (checked 2026-10-20 with pip download --only-binary).
-paramiko==4.0.0
+# 5.x (DEPFIX-2310, CVE-2026-44405): SHA-1 ssh-rsa signatures and SHA-1 key exchange removed; RSA keys still work over rsa-sha2-*.
+paramiko==5.1.0
 ezdxf>=1.3,<2
 # electricity bill PDF (CR-023 P3): WeasyPrint is the engine, fpdf2 (+ uharfbuzz for Hebrew shaping) the fallback.
 # Pure-Python or musllinux wheels exist for x86_64 and aarch64 (checked in docs/evidence/electricity-pdf-spike).

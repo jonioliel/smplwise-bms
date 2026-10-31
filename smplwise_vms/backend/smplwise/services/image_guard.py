@@ -8,9 +8,11 @@ stricter ceiling as an explicit check of the header-declared size BEFORE any pix
 36 MP, wall photos 40 MP, the background pictures (routers/ui_background.py) their own budget."""
 from __future__ import annotations
 
+import io
+from collections.abc import Sequence
 from typing import Any
 
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 PILLOW_MAX_IMAGE_PIXELS = 60_000_000
 
@@ -27,6 +29,20 @@ def check_pixels(im: Any, max_pixels: int) -> tuple[int, int] | None:
     if w <= 0 or h <= 0 or w * h > max_pixels:
         return None
     return w, h
+
+
+def open_untrusted(src: Any, formats: Sequence[str]) -> Any:
+    """`Image.open` of uploaded / fetched bytes (or a path / file object) with Pillow restricted to `formats` (DEPAUDIT-2310 M1).
+    The format the opened image reports is checked too: Pillow's JPEG opener hands back an MPO (a multi-picture file behind a
+    plain JPEG header, one of the loaders of the Pillow 12 advisories) even under `formats=["JPEG"]`. Header only, nothing is
+    decoded; raises UnidentifiedImageError for any other format."""
+    allowed = tuple(formats)
+    im = Image.open(io.BytesIO(bytes(src)) if isinstance(src, (bytes, bytearray, memoryview)) else src, formats=allowed)
+    if im.format not in allowed:
+        fmt = im.format
+        im.close()
+        raise UnidentifiedImageError(f"image format {fmt} is not one of {allowed}")
+    return im
 
 
 install()

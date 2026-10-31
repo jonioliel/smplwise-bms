@@ -119,7 +119,7 @@ server title.
 
 - The settings screen offers S3 and SFTP; the `local` kind is API-only.
 - The frontend notification catalogue entry for `backup.offbox_failed` (and the matrix row) - a small follow-up with the spec counts.
-- A full-suite run after integration (the gate venv needs `paramiko==4.0.0` from requirements.txt; `tests/test_offbox_sftp.py` is
+- A full-suite run after integration (the gate venv needs `paramiko` (5.1.0 since DEPFIX-2310) from requirements.txt; `tests/test_offbox_sftp.py` is
   skipped where paramiko is missing).
 - Native review of the Arabic and Russian words (`i18n/backup-offbox.ts`, dev-marked).
 

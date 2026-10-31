@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
-import io
 import json
 import math
 import re
@@ -400,10 +399,10 @@ def _webp_chunks(data: bytes) -> None:
 
 
 def _decode(data: bytes, mime: str) -> tuple[int, int, str]:
-    from PIL import Image
+    from . import image_guard
 
     try:
-        with Image.open(io.BytesIO(data)) as im:
+        with image_guard.open_untrusted(data, [{"image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WEBP"}[mime]]) as im:
             w, h = im.size
             if w * h > STILL_W[1] * STILL_H[1]:
                 raise BakeError("too_many_pixels", "התמונה גדולה מדי.", {"width": w, "height": h})
