@@ -297,7 +297,7 @@ export class CalResident extends LitElement {
         <button type="button" aria-label="יותר אנשים" @click=${() => (this.headcount += 1)}>+</button> אנשים</span><span class="sp"></span>
         <button type="button" class="btn sm" data-res-equip @click=${() => (this.sheet = { kind: 'equip' })}><sw-icon name="filter" size="14"></sw-icon>ציוד${this.equip.size ? html` <b class="num">${this.equip.size}</b>` : nothing}</button></div>
       ${list.length ? html`<div class="list" style="display:grid;grid-template-columns:minmax(0,1fr);align-content:start" data-fit="92">${p.items.map((x) => this.roomCard(x.r, x.cal, x.bookable))}</div>${this.pager(p.page, p.pages)}`
-        : html`<div class="center"><sw-state-panel state="empty" icon="calendar" data-res-state="empty" heading=${(this.rooms ?? []).length ? 'אין חדר שמתאים לסינון' : 'אין חדרים פתוחים להזמנה בשבילך'}
+        : html`<div class="center"><sw-state-panel icon="calendar" state="empty" data-res-state="empty" heading=${(this.rooms ?? []).length ? 'אין חדר שמתאים לסינון' : 'אין חדרים פתוחים להזמנה בשבילך'}
           hint=${(this.rooms ?? []).length ? 'אפשר לשנות את מספר האנשים או את הציוד.' : 'ההנהלה קובעת אילו חדרים דיירים יכולים להזמין.'}></sw-state-panel></div>`}
     </section>`;
   }
@@ -358,7 +358,7 @@ export class CalResident extends LitElement {
     const p = pageOf(all, this.page, this.per);
     const sel = this.start;
     const end = sel ? sel.getTime() + this.duration * 60000 : 0;
-    if (!all.length) return html`<div class="center"><sw-state-panel state="empty" compact data-res-state="noslots" heading="אין שעות פנויות ביום הזה" hint="אפשר לבחור יום אחר או משך קצר יותר."></sw-state-panel></div>`;
+    if (!all.length) return html`<div class="center"><sw-state-panel icon="clock" state="empty" compact data-res-state="noslots" heading="אין שעות פנויות ביום הזה" hint="אפשר לבחור יום אחר או משך קצר יותר."></sw-state-panel></div>`;
     return html`<div class="slots" data-fit="56" data-res-slots>${p.items.map((s) => {
       const look = slotLook(s, display);
       const inSel = !!sel && s.start.getTime() >= sel.getTime() && s.start.getTime() < end;
@@ -427,7 +427,7 @@ export class CalResident extends LitElement {
         @click=${() => { this.past = false; this.mine = null; void this.loadMine(); }}>קרובות</button>
         <button type="button" role="radio" aria-pressed=${String(this.past)} aria-checked=${String(this.past)} data-res-past @click=${() => { this.past = true; this.mine = null; void this.loadMine(); }}>הסתיימו</button></div>
       ${list.length ? html`<div class="list" style="display:grid;grid-template-columns:minmax(0,1fr);align-content:start" data-fit="148">${p.items.map((o) => this.booking(o))}</div>${this.pager(p.page, p.pages)}`
-        : html`<div class="center"><sw-state-panel state="empty" icon="calendar" data-res-state="mine-empty" heading=${this.past ? 'אין הזמנות שהסתיימו' : 'אין לך הזמנות קרובות'}
+        : html`<div class="center"><sw-state-panel icon="calendar" state="empty" data-res-state="mine-empty" heading=${this.past ? 'אין הזמנות שהסתיימו' : 'אין לך הזמנות קרובות'}
           hint=${this.past ? 'הזמנות שהסתיימו נשמרות כאן 30 יום.' : 'חדר פנוי אפשר להזמין בלשונית "הזמנת חדר".'} actionLabel=${this.past ? '' : 'הזמנת חדר'} @action=${() => (this.tab = 'book')}></sw-state-panel></div>`}
     </section>`;
   }

@@ -206,7 +206,7 @@ export class CalViewManage extends LitElement {
     const q = ctx.q.trim();
     const all = ctx.cals.filter((c) => (!ctx.floor || !c.floor_id || c.floor_id === ctx.floor) && (!q || c.name.includes(q)));
     if (!ctx.cals.length) {
-      return html`<section class="panel main"><div class="center" data-cal-state="empty"><sw-state-panel state="empty" icon="calendar" heading="אין יומנים עדיין"
+      return html`<section class="panel main"><div class="center" data-cal-state="empty"><sw-state-panel icon="calendar" state="empty" heading="אין יומנים עדיין"
         hint="יומן לכל חדר, לצוות האחזקה, לצוותים ולאירועים. כל יומן עם מנהל, סוג ואזור זמן." actionLabel=${this.canManageAll() ? 'יומן חדש' : ''}
         @action=${() => (location.hash = this.href('/new'))}></sw-state-panel></div></section>`;
     }
@@ -374,7 +374,7 @@ export class CalViewManage extends LitElement {
     const ctx = this.ctx as CalCtx;
     const c = ctx.cals.find((x) => x.id === id);
     if (!c) {
-      return html`<section class="panel main"><div class="center"><sw-state-panel state="empty" icon="calendar" heading="היומן לא נמצא" hint="ייתכן שהועבר לארכיון או שאין לך גישה אליו."
+      return html`<section class="panel main"><div class="center"><sw-state-panel icon="calendar" state="empty" heading="היומן לא נמצא" hint="ייתכן שהועבר לארכיון או שאין לך גישה אליו."
         actionLabel="לכל היומנים" @action=${() => (location.hash = this.href(''))}></sw-state-panel></div></section>`;
     }
     const phone = ctx.device === 'phone';
@@ -561,7 +561,7 @@ export class CalViewManage extends LitElement {
         location.hash = this.href(`/${encodeURIComponent(calendar.id)}`);
       }
     } catch (e) {
-      this.formErr = e instanceof ApiError ? (e.code === 'name_taken' ? 'כבר קיים יומן בשם הזה.' : e.code === 'too_many_calendars' ? 'הגעת למספר היומנים המרבי (הגדרות › יומנים).'
+      this.formErr = e instanceof ApiError ? (e.code === 'name_taken' ? 'כבר קיים יומן בשם הזה.' : e.code === 'too_many_calendars' ? 'הגעת למספר היומנים המרבי (הגדרות ‹ יומנים).'
         : e.code === 'stale' ? 'היומן עודכן בינתיים. רעננו ונסו שוב.' : e.status === 422 ? `ערך לא תקין: ${describeError(e)}` : describeError(e)) : describeError(e);
     } finally {
       this.busy = false;

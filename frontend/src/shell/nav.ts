@@ -1633,7 +1633,12 @@ export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[
   // FIX2200: the הכרזות tab follows the announcements switch in the static demo too (OFF there, like the notice board)
   // CALENDARS-UI-2310: the module's two settings entries follow the module in the static demo too (off there: a short settings column)
   if (!api && items === AREA_TABS.system && !CALENDARS_ON) return offered.filter((t) => t.href !== CALENDARS_SETTINGS_HREF && t.href !== CALENDAR_SYNC_SETTINGS_HREF);
-  if (!api) return items === DEVICES_TABS && ANNOUNCE_OFF ? offered.filter((t) => t.href !== ANNOUNCE_HREF) : offered;
+  // CALENDARS-UI-2310: the home tab "יומנים" only while the module is on and placed in the home menu (home_tab / both) - the demo too
+  if (!api && items === DEVICES_TABS) {
+    const calTab = CALENDARS_ON && CALENDARS_PLACEMENT !== 'rail';
+    return offered.filter((t) => !(ANNOUNCE_OFF && t.href === ANNOUNCE_HREF) && (calTab || t.href !== CALENDARS_HOME_HREF));
+  }
+  if (!api) return offered;
   const permitted = permittedTabs(offered, api, can);
   const shown = configureTabs(sectionIdOf(items), permitted);
   // 0.1.154: a stored `ui.tabs` entry that hides the old "אוטומציות" tab must not take the schedules segment away with it

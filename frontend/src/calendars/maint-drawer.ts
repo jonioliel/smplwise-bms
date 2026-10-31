@@ -2,6 +2,7 @@ import { LitElement, html, nothing, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
+import { dateInputLang } from '../api/day-format';
 import type { MaintPreview, OverlapMode } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx, type NewMaintDetail } from './ctx';
 import { calCss } from './styles';
@@ -209,9 +210,9 @@ export class CalMaintDrawer extends LitElement {
           <div class="fld"><label for="mt">כותרת</label><input id="mt" class="inp" maxlength="120" placeholder="למשל: החלפת גוף תאורה ובדיקת גלאים" .value=${this.evTitle}
             @input=${(e: Event) => (this.evTitle = (e.target as HTMLInputElement).value)} data-maint-title></div>
           <div class="fld"><span class="lbl">מתי</span><div class="ctls">
-            <input class="inp num" type="date" aria-label="תאריך" .value=${this.date} @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; this.schedule(); }}>
-            <input class="inp num" type="time" step="900" aria-label="משעה" .value=${this.from} @change=${(e: Event) => { this.from = (e.target as HTMLInputElement).value; this.schedule(); }} data-maint-from>
-            <input class="inp num" type="time" step="900" aria-label="עד שעה" .value=${this.to} @change=${(e: Event) => { this.to = (e.target as HTMLInputElement).value; this.schedule(); }} data-maint-to></div></div>
+            <input class="inp num" type="date" lang=${dateInputLang()} aria-label="תאריך" .value=${this.date} @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; this.schedule(); }}>
+            <input class="inp num" type="time" lang=${dateInputLang()} step="900" aria-label="משעה" .value=${this.from} @change=${(e: Event) => { this.from = (e.target as HTMLInputElement).value; this.schedule(); }} data-maint-from>
+            <input class="inp num" type="time" lang=${dateInputLang()} step="900" aria-label="עד שעה" .value=${this.to} @change=${(e: Event) => { this.to = (e.target as HTMLInputElement).value; this.schedule(); }} data-maint-to></div></div>
           <div class="fld"><span class="lbl">חדרים</span><div class="rooms" role="group" aria-label="חדרים">${rooms.slice(0, this.ctx?.device === 'phone' ? 6 : 10).map((c) => {
             const on = this.rooms.includes(c.id);
             return html`<button type="button" class="room" aria-pressed=${String(on)} data-room=${c.id} title=${c.name}

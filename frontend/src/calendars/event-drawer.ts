@@ -2,6 +2,7 @@ import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
+import { dateInputLang } from '../api/day-format';
 import type { CalEvent, Calendar, EventPreview, NewEvent, OnBehalfKind, Occurrence } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx, type NewEventDetail } from './ctx';
 import { STATE_LABEL, addDays, colorVar, ddmm, hm, isoDate, pad, startOfDay, whenText } from './model';
@@ -307,7 +308,7 @@ export class CalEventDrawer extends LitElement {
           ${ev.headcount ? html`<dt>משתתפים</dt><dd class="num">${ev.headcount}</dd>` : nothing}
           ${ev.notes ? html`<dt>הערות</dt><dd>${ev.notes}</dd>` : nothing}
         </dl>
-        ${ev.sync_flag ? html`<div class="note bad" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>מסומן להחלטה</b><span class="muted">${ev.sync_flag === 'conflict' ? 'התנגשות עם יומן חיצוני: שתי ההזמנות נשמרו. ההחלטה בהגדרות › חיבורי יומן.' : 'האירוע נמחק ביומן החיצוני.'}</span></div></div>` : nothing}
+        ${ev.sync_flag ? html`<div class="note bad" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>מסומן להחלטה</b><span class="muted">${ev.sync_flag === 'conflict' ? 'התנגשות עם יומן חיצוני: שתי ההזמנות נשמרו. ההחלטה בהגדרות ‹ חיבורי יומן.' : 'האירוע נמחק ביומן החיצוני.'}</span></div></div>` : nothing}
         ${ev.state === 'displaced' ? html`<div class="note warn" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>ההזמנה נדחקה בגלל תחזוקה</b><span class="muted">היא לא נמחקה. אפשר לבחור מועד אחר ולבטל אותה.</span></div></div>` : nothing}
         ${this.confirmCancel ? html`<div class="note warn" role="alert"><sw-icon name="warning" size="18"></sw-icon><div><b>${canWithdraw ? 'למשוך את הבקשה?' : 'לבטל את ההזמנה?'}</b><span class="muted">${ev.recurring ? 'הביטול חל על כל הסדרה.' : 'המועד יתפנה לאחרים.'}</span></div></div>` : nothing}`
         : this.error ? nothing : html`<div class="skel" style="block-size:120px"></div>`}
@@ -374,9 +375,9 @@ export class CalEventDrawer extends LitElement {
               ${list.map((c) => html`<option value=${c.id} ?selected=${c.id === this.calId}>${c.name}</option>`)}</select><sw-icon name="chevronDown" size="16"></sw-icon></div></div>
         <div class="fld"><label for="t">כותרת</label><input id="t" class="inp" maxlength="200" data-cal-field="title" .value=${this.evTitle} placeholder="למשל: ישיבת צוות" @input=${(e: Event) => (this.evTitle = (e.target as HTMLInputElement).value)}></div>
         <div class="fld"><span class="lbl">מתי</span><div class="ctls">
-          <input type="date" class="inp" aria-label="תאריך" data-cal-field="date" .value=${this.date} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)}>
-          <input type="time" class="inp short" aria-label="שעת התחלה" step="300" data-cal-field="from" .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)}>
-          <input type="time" class="inp short" aria-label="שעת סיום" step="300" data-cal-field="to" .value=${this.to} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)}></div></div>
+          <input type="date" lang=${dateInputLang()} class="inp" aria-label="תאריך" data-cal-field="date" .value=${this.date} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)}>
+          <input type="time" lang=${dateInputLang()} class="inp short" aria-label="שעת התחלה" step="300" data-cal-field="from" .value=${this.from} @change=${(e: Event) => (this.from = (e.target as HTMLInputElement).value)}>
+          <input type="time" lang=${dateInputLang()} class="inp short" aria-label="שעת סיום" step="300" data-cal-field="to" .value=${this.to} @change=${(e: Event) => (this.to = (e.target as HTMLInputElement).value)}></div></div>
         <div class="fld"><label for="rep">חזרה</label><div class="ctls">
           <select id="rep" class="inp" data-cal-field="repeat" .value=${this.repeat} @change=${(e: Event) => (this.repeat = (e.target as HTMLSelectElement).value as Repeat)}>
             <option value="none" ?selected=${this.repeat === 'none'}>פעם אחת</option><option value="weekly" ?selected=${this.repeat === 'weekly'}>כל שבוע</option><option value="daily" ?selected=${this.repeat === 'daily'}>כל יום</option></select>

@@ -200,7 +200,7 @@ export class CalViewRooms extends LitElement {
       ${this.error ? html`<div class="fail" role="alert">${this.error}</div>` : nothing}
       ${this.free === null ? html`<div class="found" role="status" data-cal-free-none>אין היום חדר פנוי לשעה אחת שמתאים לסינון.</div>` : nothing}
       ${this.rooms && !rooms.length
-        ? html`<sw-state-panel state="empty" icon="calendar" data-cal-rooms-empty heading=${this.rooms.length ? 'אין חדר שמתאים לסינון' : 'אין חדרים להזמנה'}
+        ? html`<sw-state-panel icon="calendar" state="empty" data-cal-rooms-empty heading=${this.rooms.length ? 'אין חדר שמתאים לסינון' : 'אין חדרים להזמנה'}
             hint=${this.rooms.length ? 'אפשר לשנות את הקיבולת או את הציוד.' : 'חדר הוא יומן מסוג "חדר": קיבולת, ציוד, שעות פתיחה ואישור.'}></sw-state-panel>`
         : this.timeline(pg.items, win, today)}
       ${pg.pages > 1 ? html`<div class="pager" data-cal-pager><button type="button" class="btn sm" aria-label="חדרים קודמים" ?disabled=${pg.page <= 1} @click=${() => (this.page = pg.page - 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>

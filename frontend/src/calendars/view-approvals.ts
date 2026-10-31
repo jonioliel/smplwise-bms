@@ -292,7 +292,7 @@ export class CalViewApprovals extends LitElement {
   private pendingList() {
     const list = this.reqs ?? [];
     if (!list.length) {
-      return html`<div class="reqs-empty" data-cal-state="empty"><sw-state-panel state="empty" icon="calendar" heading="אין בקשות שממתינות לך"
+      return html`<div class="reqs-empty" data-cal-state="empty"><sw-state-panel icon="calendar" state="empty" heading="אין בקשות שממתינות לך"
         hint="כשמישהו יבקש חדר ביומן שבאחריותך, הבקשה תופיע כאן ותקבל התראה."></sw-state-panel></div>`;
     }
     const pg = pageOf(list, this.page, this.perPage());
@@ -340,7 +340,7 @@ export class CalViewApprovals extends LitElement {
 
   private decidedList() {
     if (!this.decided.length) {
-      return html`<div class="reqs-empty" data-cal-state="decided-empty"><sw-state-panel state="empty" icon="check" heading="עוד לא הוחלט דבר מאז שנפתח המסך" hint="החלטות שתקבל כאן יופיעו ברשימה הזאת."></sw-state-panel></div>`;
+      return html`<div class="reqs-empty" data-cal-state="decided-empty"><sw-state-panel icon="check" state="empty" heading="עוד לא הוחלט דבר מאז שנפתח המסך" hint="החלטות שתקבל כאן יופיעו ברשימה הזאת."></sw-state-panel></div>`;
     }
     const pg = pageOf(this.decided, this.page, this.perPage() + 2);
     return html`<div class="list">${pg.items.map((d) => html`<div class="row" data-decided=${d.r.event_id}>
@@ -403,7 +403,7 @@ export class CalViewApprovals extends LitElement {
         <button type="button" class="opt" role="radio" aria-checked=${String(choice === 'approve')} aria-disabled=${String(approveBlocked)} data-choice="approve"
           @click=${() => { if (!approveBlocked) this.choice = 'approve'; }}><span class="rad"></span><span>
           <b>${target ? `לאשר את "${target.title ?? 'הבקשה'}"` : 'לאשר את הבקשה שתבחר'}${holder ? ' ולדחוק' : ''}</b>
-          <small>${approveBlocked ? 'בהתקנה הזאת דחיקה של הזמנה מאושרת כבויה (הגדרות › יומנים). אפשר רק לדחות את הבקשות.'
+          <small>${approveBlocked ? 'בהתקנה הזאת דחיקה של הזמנה מאושרת כבויה (הגדרות ‹ יומנים). אפשר רק לדחות את הבקשות.'
             : holder ? `"${holder.title}" נדחקת ולא נמחקת; ${holder.who || 'המארגן'} יבחר זמן חלופי מתוך 3 הצעות.${reqs.length > 1 ? ' שאר הבקשות נשארות ממתינות.' : ''}`
             : reqs.length > 1 ? 'הבקשה מאושרת; שאר הבקשות לחלון נשארות ממתינות ויוכרעו מול ההזמנה שאושרה.' : 'הבקשה מאושרת והמבקש מקבל הודעה.'}</small></span></button>
         <button type="button" class="opt" role="radio" aria-checked=${String(choice === 'keep')} data-choice="keep" @click=${() => (this.choice = 'keep')}><span class="rad"></span><span>
