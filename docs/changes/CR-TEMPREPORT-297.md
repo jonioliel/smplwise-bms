@@ -15,6 +15,12 @@ in the UI.
 
 ## 2. What is built (the no-file-contract option)
 
+> **Amended by the security review TEMPREPORT-2310 (2026-10-30, `docs/security/REVIEW_TEMPREPORT_2310.md`).** The switch for system users is
+> now its own installation setting `report_link_users` (OFF by default; still needs `reports.documents`) - `report_attachment` stays the
+> VENDOR mode only. A linked PDF names no staff and carries no maintenance reason unless `report_link_people` is on (OFF). The links sent to a
+> user die when he withdraws the WhatsApp opt-in or his number changes; "revoke all" covers the vendor links too; the link routes answer
+> `Cache-Control: private, no-store`. Where the text below says `report_attachment` for system users, read `report_link_users`.
+
 * **Switch** - the existing installation setting `report_attachment` (`none` by default | `link`) now has a control in Settings >
   Infrastructure > Temperatures > "temporary report download link" ("the full report in WhatsApp messages": none / temporary download link).
   The mode is effective only while the tickets module's `reports.documents` is on (the public listener's switch, already required by the

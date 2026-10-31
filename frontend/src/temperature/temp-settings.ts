@@ -29,8 +29,10 @@ const GROUPS: { title: TtKey; keys: [string, TtKey][] }[] = [
     ['explain_spike_jump', 'explainSpikeJump'], ['explain_neighbor_rise', 'explainNbRise'], ['explain_neighbor_scope', 'explainNbScope'], ['explain_min_score', 'explainMinScore']] },
   // TEMPLINK-295: the temporary report download link (off by default)
   { title: 'setLink', keys: [['report_link_enabled', 'linkEnabled'], ['report_link_hours', 'linkHours'], ['report_link_max_opens', 'linkMaxOpens'], ['report_link_per_hour', 'linkPerHour'],
-    // TEMPREPORT-297: the WhatsApp summary carries the temporary link (off = 'none' by default)
-    ['report_attachment', 'linkAttach']] },
+    // TEMPREPORT-297 / TEMPREPORT-2310 (security review S1, S3): one switch per audience - the WhatsApp summary to system users carries the
+    // temporary link (`report_link_users`, off), vendors get the PDF by link (`report_attachment`, none); staff names stay out of a linked PDF
+    // unless `report_link_people` is on (off)
+    ['report_link_users', 'linkAttachUsers'], ['report_attachment', 'linkAttach'], ['report_link_people', 'linkPeople']] },
   // WALINK-295: the link as a plain-text WhatsApp message (off by default); the recipients are chosen below it
   { title: 'setLinkWa', keys: [['report_link_wa_enabled', 'linkWaEnabled'], ['report_link_wa_window_h', 'linkWaWindow'], ['report_link_wa_text_he', 'linkWaTextHe'], ['report_link_wa_text_en', 'linkWaTextEn'],
     ['report_link_wa_recipients', 'linkWaRecipients']] },

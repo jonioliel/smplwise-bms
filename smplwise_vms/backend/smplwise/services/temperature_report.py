@@ -182,10 +182,12 @@ def preview_trim(model: dict[str, Any]) -> dict[str, Any]:
 
 
 def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[str], lo: int, hi: int, lang: str, now_ts: float, *,
-          chart: bool = True, events: bool = True, signature: bool = True, layout: str = "standard", samples: bool = False) -> dict[str, Any]:
+          chart: bool = True, events: bool = True, signature: bool = True, layout: str = "standard", samples: bool = False,
+          people: bool = True) -> dict[str, Any]:
     """The report model. `units` are already filtered to what the caller may see; `door_visible` = the unit ids whose door sensor he sees.
     `layout` haccp (phase 3, idea 3) adds the daily table per unit (and the PDF leads with it). `samples` (TEMPREP-295) adds the capped list
-    of every recorded sample per unit."""
+    of every recorded sample per unit. `people` False (TEMPREPORT-2310 S3, a PDF that leaves by a public link while `report_link_people` is
+    off): a maintenance window keeps its kind and times but loses who set it and its free-text reason."""
     lang = lang if lang in LABELS else "he"
     layout = layout if layout in LAYOUTS else "standard"
     tz = t.site_zone(conn)
@@ -229,8 +231,8 @@ def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[
                     det = json.loads(d.pop("detail_json") or "{}")
                 except ValueError:
                     det = {}
-                d["reason"] = str(det.get("reason") or "")[:120] if d["kind"] == "maint" else None
-                if d["kind"] != "maint":
+                d["reason"] = str(det.get("reason") or "")[:120] if d["kind"] == "maint" and people else None
+                if d["kind"] != "maint" or not people:
                     d.pop("by_name", None)
                 evs.append(d)
             item["events"] = evs

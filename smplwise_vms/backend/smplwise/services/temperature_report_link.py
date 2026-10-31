@@ -103,10 +103,13 @@ def listing(conn: sqlite3.Connection, user_id: str, everyone: bool, now: dt.date
 
 
 def revoke_all(conn: sqlite3.Connection, user_id: str, actor: Any, everyone: bool, now: dt.datetime) -> int:
-    """TEMPREPORT-297 (Settings): revoke every link still live at once - a manager all of them, anyone else his own. One audit row with the count."""
-    sql = ("UPDATE outbound_documents SET revoked_at = ?, revoked_reason = 'manual' WHERE module = ? AND recipient_kind = 'user' "
-           "AND revoked_at IS NULL AND purged_at IS NULL")
-    args: list[Any] = [docs.iso(now), MODULE]
+    """TEMPREPORT-297 (Settings): revoke every link still live at once - a manager all of them, anyone else his own. One audit row with the count.
+    TEMPREPORT-2310 S4: "all" means every temperature document link - the dialog links and the WhatsApp user links (`user`) AND the vendor
+    links (`contact`, TEMPVENDOR-295) - and only the LIVE ones are revoked and counted (not expired, downloads left)."""
+    at = docs.iso(now)
+    sql = ("UPDATE outbound_documents SET revoked_at = ?, revoked_reason = 'manual' WHERE module = ? AND recipient_kind IN ('user', 'contact') "
+           "AND revoked_at IS NULL AND purged_at IS NULL AND expires_at > ? AND open_count < max_opens")
+    args: list[Any] = [at, MODULE, at]
     if not everyone:
         sql += " AND created_by = ?"
         args.append(user_id)

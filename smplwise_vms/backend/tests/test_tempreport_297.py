@@ -35,7 +35,7 @@ def _ts() -> float:
 
 
 def link_mode(w, **rules):
-    turn_on(w, report_attachment="link", **rules)
+    turn_on(w, report_link_users=True, **rules)  # TEMPREPORT-2310 S1: the user link has its own switch
 
 
 def queue(w, headers=None):
@@ -70,7 +70,8 @@ def sent_link(w) -> str:
 def test_off_by_default_the_summary_has_no_link(wl):
     turn_on(wl)  # the documents switch and the manual link are on, the attachment mode is not
     give_number(wl)
-    assert wl["c"].get(f"{API}/settings").json()["rules"]["report_attachment"] == "none"
+    rules = wl["c"].get(f"{API}/settings").json()["rules"]
+    assert rules["report_attachment"] == "none" and rules["report_link_users"] is False
     assert wl["c"].get(f"{API}/report/recipients").json()["user_attachment"] == "none"
     queue(wl)
     assert twa.process(wl["db"], _ts())["sent"] == 1
@@ -80,7 +81,7 @@ def test_off_by_default_the_summary_has_no_link(wl):
 
 
 def test_the_link_mode_needs_the_documents_switch(wl):
-    assert wl["c"].put(f"{API}/settings", json={"rules": {"report_attachment": "link"}}).status_code == 200  # reports.documents stays off
+    assert wl["c"].put(f"{API}/settings", json={"rules": {"report_link_users": True}}).status_code == 200  # reports.documents stays off
     give_number(wl)
     assert wl["c"].get(f"{API}/report/recipients").json()["user_attachment"] == "none"
     queue(wl)

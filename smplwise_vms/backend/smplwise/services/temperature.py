@@ -104,6 +104,12 @@ INSTALLATION: dict[str, tuple[str, Any, float | None, float | None]] = {
     "report_link_hours": ("int", 24, 1, 168),               # a link dies after this many hours
     "report_link_max_opens": ("int", 10, 1, 20),            # ... or after this many downloads, whichever comes first
     "report_link_per_hour": ("int", 10, 1, 200),            # links one user may create per hour
+    # TEMPREPORT-2310 (security review S1): the WhatsApp report to a SYSTEM USER carries a temporary link to his PDF - its own switch, OFF by
+    # default and independent of the vendor mode `report_attachment` (one switch per audience). It also needs `reports.documents`.
+    "report_link_users": ("bool", False, None, None),
+    # TEMPREPORT-2310 (S3): a PDF that leaves by a public link (the dialog link, the user link, the vendor link) names staff (who set a
+    # maintenance window) and carries its free-text reason only when this is on. OFF by default: a bearer link can be forwarded.
+    "report_link_people": ("bool", False, None, None),
     # WALINK-295: send the temporary link as a plain-text WhatsApp message to configured recipients (OFF by default). The text carries `{link}`
     # (required) and `{hours}`; the recipients are system users; the session window is how long after the user's last message to us free text is allowed.
     "report_link_wa_enabled": ("bool", False, None, None),

@@ -20,7 +20,8 @@ DEFERRED by the owner (docs/changes/CR-INFRA-TEMPERATURE.md section 9, open item
 * DOCUMENT SENDING - the transport sends text only (`whatsapp.send_message`). The switch is the installation setting `report_attachment`
   (ATTACHMENT_MODES, "none" by default). Mode "link" (TEMPVENDOR-295 for vendors, TEMPREPORT-297 for system users, owner 2026-10-27): the
   recipient's PDF becomes a temporary, hash-only, read-only download (out_documents) and the text carries the link - for a system user only
-  when the sender holds `infra.temperature.report_link_send`. `attachment_for()` is the single seam; the attached-file mode is designed in
+  when the sender holds `infra.temperature.report_link_send`. Security review TEMPREPORT-2310: the system-user link has its OWN switch
+  `report_link_users` (`user_link_mode`); `report_attachment` is the vendor mode only. `attachment_for()` is the single seam; the attached-file mode is designed in
   docs/changes/CR-TEMPREPORT-297.md and waits for the WhatsApp file contract.
 * VENDORS (TEMPVENDOR-295, CR-VENDORQ2-295 section 3): an external contact is reached ONLY through the tickets message queue
   (`contact_reports.queue`, outbox purpose `report`; services/temperature_vendor_reports.py is the registered provider). OFF by default behind
@@ -50,7 +51,7 @@ USE_KEY = "infra.temperature.reports"
 LINK_SEND_PERM = "infra.temperature.report_link_send"  # TEMPREPORT-297: the sender's permission for a link in a system user's message
 MODULE = "temperature"
 CHANNEL = "whatsapp"
-ATTACHMENT_MODES: tuple[str, ...] = ("none", "link")    # "link": vendors (TEMPVENDOR-295) and system users (TEMPREPORT-297) get the PDF by a temporary link; "file" waits for the file contract
+ATTACHMENT_MODES: tuple[str, ...] = ("none", "link")    # "link": vendors (TEMPVENDOR-295) get the PDF by a temporary link (system users: `report_link_users`); "file" waits for the file contract
 RANGE_KEYS: tuple[str, ...] = ("24h", "7d", "30d", "week", "month", "prev_week", "prev_month")
 FREQS: tuple[str, ...] = ("daily", "weekly", "monthly")
 PER_PASS = 5                                            # sends tried per 60 s pass (the account pacing holds the rest)
@@ -145,9 +146,8 @@ def recipients(conn: sqlite3.Connection) -> dict[str, Any]:
             first = next((c for c in VENDOR_CHANNELS if ch[c] == "ok"), None)
             v.update(channels=ch, selectable=first is not None, channel=first or "whatsapp", reason=None if first else ch["whatsapp"])
         vendors.append(v)
-    mode = link_mode(conn)
-    link = on and mode
-    return {"users": users, "vendors": vendors, "attachment": "link" if link else "none", "user_attachment": "link" if mode else "none",
+    link = on and link_mode(conn)
+    return {"users": users, "vendors": vendors, "attachment": "link" if link else "none", "user_attachment": "link" if user_link_mode(conn) else "none",
             "attachment_modes": list(ATTACHMENT_MODES),
             "vendor_reports": {"enabled": on, "email": on and contact_reports.email_enabled(conn)}}
 
@@ -315,9 +315,21 @@ def schedules(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------- the worker pass (called from the temperature runtime every 60 s)
 
 def link_mode(conn: sqlite3.Connection) -> bool:
-    """The attachment mode "link" (installation setting `report_attachment`, "none" by default) AND `reports.documents` (the public listener's
-    document switch of the tickets module). Both are off by default."""
+    """VENDORS (TEMPVENDOR-295): the attachment mode "link" (installation setting `report_attachment`, "none" by default) AND
+    `reports.documents` (the public listener's document switch of the tickets module). Both are off by default."""
     return t.load_defaults(conn).get("report_attachment", "none") == "link" and _documents_on(conn)
+
+
+def user_link_mode(conn: sqlite3.Connection) -> bool:
+    """SYSTEM USERS (TEMPREPORT-297; security review TEMPREPORT-2310 S1): their own switch `report_link_users` (OFF by default) AND
+    `reports.documents`. Independent of the vendor mode: turning one audience on never turns the other on."""
+    return bool(t.load_defaults(conn).get("report_link_users", False)) and _documents_on(conn)
+
+
+def people_in_links(conn: sqlite3.Connection) -> bool:
+    """TEMPREPORT-2310 S3: a PDF that leaves by a public link names staff and carries free-text maintenance reasons only when
+    `report_link_people` is on (OFF by default)."""
+    return bool(t.load_defaults(conn).get("report_link_people", False))
 
 
 def may_send_link(conn: sqlite3.Connection, sender_id: str | None) -> bool:
@@ -338,11 +350,12 @@ def may_send_link(conn: sqlite3.Connection, sender_id: str | None) -> bool:
 def wants_document(conn: sqlite3.Connection, row: dict[str, Any]) -> bool:
     """TEMPVENDOR-295: a vendor row while the link mode is on. TEMPREPORT-297: a system user's row too, when the sender may send links
     (`may_send_link`); without the permission the user gets the text summary as before ("available in the system")."""
-    if not row or not link_mode(conn):
+    if not row:
         return False
     if row.get("recipient_kind") == "vendor":
-        return True
-    return row.get("recipient_kind") == "user" and bool(row.get("user_id")) and may_send_link(conn, row.get("created_by"))
+        return link_mode(conn)
+    return (row.get("recipient_kind") == "user" and bool(row.get("user_id")) and user_link_mode(conn)
+            and may_send_link(conn, row.get("created_by")))
 
 
 def attachment_for(conn: sqlite3.Connection, row: dict[str, Any], model: dict[str, Any], *, pdf: bytes | None = None, now: dt.datetime | None = None) -> Any:
@@ -481,7 +494,8 @@ def _hand_off_vendor(db: Database, r: dict[str, Any], ts: float, now: dt.datetim
             if not units:
                 why = "no_reach"
             elif wants_document(conn, r):
-                model = rep.build(conn, units, doors, int(req["from"]), int(req["to"]), req.get("lang") or "he", ts, chart=True, events=True, signature=False)
+                model = rep.build(conn, units, doors, int(req["from"]), int(req["to"]), req.get("lang") or "he", ts, chart=True, events=True, signature=False,
+                                  people=people_in_links(conn))  # S3: a public link names no staff unless the installation says so
     pdf: bytes | None = None
     if why is None and model is not None:
         try:
@@ -644,7 +658,7 @@ def process(db: Database, now_ts: float | None = None) -> dict[str, int]:
                 why = None if units else "no_reach"
                 doc_wanted = bool(units) and wants_document(conn, r)
                 model = (rep.build(conn, units, doors, int(req["from"]), int(req["to"]), req.get("lang") or found.lang, ts, chart=doc_wanted, events=doc_wanted,
-                                   signature=False) if units else None)
+                                   signature=False, people=people_in_links(conn)) if units else None)  # S3: no staff names behind a public link by default
         if why or model is None:
             _finish(db, r["id"], "skipped", why, ts, attempts=r["attempts"])
             out["skipped"] += 1
