@@ -165,14 +165,16 @@ export const HOME_SCREEN_CSS = css`
   /* WORSTCASE-2310: ...while each tile keeps --dv-kpi-row-min. On the 1024 px tablet all nine kinds shared 881 px: 79 px tiles, a
      13 px text column, "1284 / 2047" cut and the label gone. When the one-row share (--k1) is under the minimum, the row splits into
      two balanced rows (--kh = ceil(kn / 2) columns, --k2 each) instead of squeezing - the second term below is --k2 exactly when --k1
-     is too small and never above --k1 otherwise, so a desktop row (and the pixel baselines) keeps its single row. 10 px = the gap. */
+     is too small and never above --k1 otherwise, so a desktop row (and the pixel baselines) keeps its single row. 10 px = the gap.
+     The minimum is 96 px, not 112: the landscape tablet (1180 x 820) shares 1037 px into nine 106 px tiles - one row, as before -
+     because a second row there made the tiles home screen scroll (evidence-home-295, no scrolling on a control screen). */
   @media (min-width: 900px) {
     :host .kpis[data-kpis][data-summary] {
       --k1: calc((100% - (var(--kn, 6) - 1) * 10px) / var(--kn, 6) - 0.5px);
       --k2: calc((100% - (var(--kh, 3) - 1) * 10px) / var(--kh, 3) - 0.5px);
       grid-template-columns: repeat(
         auto-fit,
-        minmax(max(var(--k1), min(var(--k2), var(--k1) + max(0px, var(--dv-kpi-row-min, 112px) - var(--k1)) * 100000)), 1fr)
+        minmax(max(var(--k1), min(var(--k2), var(--k1) + max(0px, var(--dv-kpi-row-min, 96px) - var(--k1)) * 100000)), 1fr)
       );
     }
     :host .kpis[data-kpis][data-summary] > sw-kpi {

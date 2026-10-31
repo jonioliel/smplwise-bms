@@ -133,7 +133,7 @@ export const devicesThemes = css`
     --dv-kpi-compact-icon: 32px;
     --dv-kpi-compact-value-fs: 17px;
     --dv-kpi-compact-col-min: 168px;
-    --dv-kpi-row-min: 112px;
+    --dv-kpi-row-min: 96px;
     --dv-kpi-compact-cols-phone: 2;
     --dv-kpi-compact-grid-gap: 8px;
     --dv-tree-count-w: 44px;
