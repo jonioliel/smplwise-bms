@@ -217,7 +217,9 @@ class ProvisionIsrAdapter:
     (default 443), `tls_verify` (bool, default True; a device's self-signed certificate needs False or, later, pinning),
     `auth` ("basic" | "digest", default: detected from the device's 401 challenge), `rtsp_style` ("query" | "path",
     default "query" = the guide's `?chID=` form), `device_kind` ("nvr" | "ipc", default from GetDeviceInfo),
-    `osd_names` (bool, default True: read each channel's OSD name), `long_polling_port` (int, default from GetPortConfig)."""
+    `osd_names` (bool, default True: read each channel's OSD name), `long_polling_port` (int, default from GetPortConfig),
+    `go2rtc_source` ("ffmpeg" | "rtsp") and `backchannel` (bool, default False: go2rtc sources carry `#backchannel=0`,
+    see `vendor_io.go2rtc_source`)."""
 
     vendor: ClassVar[str] = VENDOR
 
@@ -1228,6 +1230,8 @@ def register(*, selectable: bool = False) -> Callable[[], None] | None:
         sel("push_auth", "אימות דחיפות", (("token", "מפתח בנתיב"), ("address", "לפי כתובת המכשיר"), ("token_and_address", "מפתח וכתובת")), advanced=True),
         sel("rtsp_style", "כתובת RTSP", (("", "לפי המכשיר"), ("path", "/chID=…"), ("query", "?chID=…")), advanced=True),
         sel("go2rtc_source", "חיבור go2rtc לווידאו", (("ffmpeg", "דרך ffmpeg (מומלץ למכשיר הזה)"), ("rtsp", "RTSP ישיר")), advanced=True),
+        # live 2026-10-31: off (default) adds go2rtc's `#backchannel=0` - with the talk-back request this NVR sends no video
+        adv("backchannel", "דיבור דו-כיווני דרך המקליט", "bool"),
         adv("suppress_insecure_warning", "להסתיר את אזהרת החיבור הלא מוצפן", "bool"),
         adv("suppress_tls_warning", "להסתיר את אזהרת התעודה", "bool"),
     )
