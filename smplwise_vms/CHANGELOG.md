@@ -1,5 +1,17 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.30.0 (pilot) - Worst-case screens, release entry check, licence and security audit
+**After installing:** no database migration. No setting changes. Going back to 2.29.0 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים ואין שינוי בהגדרות. חזרה ל-2.29.0 בטוחה.
+
+### What was improved - מה שופר
+- **English:** Screens with extreme data stay in their cards: long area and cover names end in an ellipsis and keep their kind visible, five-digit counts widen their own row, temperatures and stale times give way last with the full value in a tooltip, the large weather widget shrinks its temperature to fit, and the side rail's active marker no longer counts as overflow.
+- **עברית:** מסכים עם נתונים קיצוניים נשארים בתוך הכרטיסים: שמות ארוכים של אזורים ותריסים מסתיימים בשלוש נקודות ושומרים על הסוג גלוי, מספרים בני חמש ספרות מרחיבים את השורה שלהם, טמפרטורות וזמני עדכון מתקצרים אחרונים עם הערך המלא בחלונית ריחוף, ווידג'ט מזג האוויר הגדול מקטין את הטמפרטורה כדי שתתאים, וסימון הפריט הפעיל בסרגל הצד כבר לא גולש.
+
+### Behind the scenes - מאחורי הקלעים
+- **English:** A runner entry check before any branch joins a release train, with a single quarantine list of at most 7 days; the multi-Claude coordination protocol as optional documents and a tool; a proprietary all-rights-reserved licence notice; a refreshed dependency, licence and secrets audit (the Heebo font licence now ships with the fonts); the task registry matched to the code history; internal review notes no longer tracked.
+- **עברית:** בדיקת כניסה ברנר לפני שענף נכנס לרכבת שחרור, עם רשימת הסגר אחת של עד 7 ימים; פרוטוקול התיאום בין כמה מופעי Claude כמסמכים וכלי אופציונליים; הודעת רישיון קניינית (כל הזכויות שמורות); ביקורת מעודכנת של תלויות, רישיונות וסודות (רישיון הגופן Heebo מצורף עכשיו לגופנים); רשימת המשימות הותאמה להיסטוריית הקוד; הערות סקירה פנימיות כבר לא נשמרות במאגר.
+
 ## 2.29.0 (pilot) - Lobby styles, restore from an off-box copy, presence and cross-section polish
 **After installing:** no database migration. Restoring from an off-box copy and the new lobby styles change nothing until an administrator uses them. The local restore now restores the project and access settings by default (a setting; owner decision 30.10). The new entrance-animation setting follows the system's reduced-motion preference. Going back to 2.28.0 is safe.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. שחזור מעותק חיצוני וסגנונות הלובי החדשים לא משנים דבר עד שמנהל המערכת משתמש בהם. שחזור מקומי משחזר כעת כברירת מחדל את הפרויקט ואת הגדרות הגישה (הגדרה; החלטת הבעלים 30.10). הגדרת אנימציית הכניסה החדשה מכבדת את העדפת התנועה המופחתת של המערכת. חזרה ל-2.28.0 בטוחה.
