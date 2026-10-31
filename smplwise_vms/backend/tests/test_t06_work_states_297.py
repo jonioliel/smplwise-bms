@@ -182,8 +182,47 @@ def test_no_production_module_reads_features_status_as_a_result_or_a_go_live():
             if isinstance(node, ast.Constant) and node.value == "features/status":
                 callers.append(f"{path.relative_to(SERVICES).as_posix()}:{node.lineno}:literal")
     allowed = {"services/wiskey_feature_direct.py"}  # the client itself (COMMANDS tuple + status())
-    foreign = sorted(c for c in callers if c.split(":")[0] not in allowed)
+    # Reviewed exception (WisKey T06 note): the owner30 read-only probe names the `features/status` literal (selection check, the read
+    # itself, and the reported read-only command list) and copies the raw answer into its observation report under `feature_host`.
+    # Only its *literals* are allowed - a `.status()` call there would still fail - and the two tests below prove it never gates on
+    # the answer and is wired into no production module.
+    readonly_literal_only = {"services/wiskey_selected_readonly.py"}
+    foreign = sorted(
+        c for c in callers
+        if c.split(":")[0] not in allowed and not (c.split(":")[0] in readonly_literal_only and c.endswith(":literal"))
+    )
     assert foreign == [], foreign
+
+
+READONLY_PROBE = SERVICES / "services" / "wiskey_selected_readonly.py"
+
+
+def test_the_readonly_probe_only_reports_the_features_status_answer_and_never_branches_on_it():
+    """The `features/status` answer is bound to `host` and may appear only as the `feature_host` value of the returned report:
+    never in a condition, comparison, call argument, or any other expression."""
+    tree = ast.parse(READONLY_PROBE.read_text(encoding="utf-8"))
+    status_reads = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and any(isinstance(a, ast.Constant) and a.value == "features/status" for a in n.args)
+                    and isinstance(n.func, ast.Attribute) and n.func.attr == "call"]
+    assert len(status_reads) == 1
+    (assign,) = [n for n in ast.walk(tree) if isinstance(n, ast.Assign) and n.value is status_reads[0]]
+    assert [t.id for t in assign.targets if isinstance(t, ast.Name)] == ["host"]
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    loads = [n for n in ast.walk(tree) if isinstance(n, ast.Name) and n.id == "host" and isinstance(n.ctx, ast.Load)]
+    assert loads, "the answer is expected to be reported"
+    for name in loads:
+        report = parents[name]
+        assert isinstance(report, ast.Dict) and isinstance(parents[report], ast.Return), ast.dump(report)[:120]
+        key = report.keys[report.values.index(name)]
+        assert isinstance(key, ast.Constant) and key.value == "feature_host"
+
+
+def test_the_readonly_probe_is_wired_into_no_production_module():
+    """If a product module ever consumes the probe report, it must be reviewed against the T06 note (a status is never proof)."""
+    importers = sorted(
+        path.relative_to(SERVICES).as_posix() for path in SERVICES.rglob("*.py")
+        if path != READONLY_PROBE and "wiskey_selected_readonly" in path.read_text(encoding="utf-8")
+    )
+    assert importers == [], importers
 
 
 def test_a_status_answer_claiming_active_changes_no_intent(env):
