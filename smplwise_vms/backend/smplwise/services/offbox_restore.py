@@ -338,7 +338,8 @@ def _destination(args: Any, settings: Settings, db: Any) -> tuple[Destination, s
             raise OffboxError("destination_invalid", "the destination file could not be read as JSON") from None
         # credentials are references only (env:NAME or file:/absolute/path); `store:` needs a saved target (--target-id)
         return build_destination(cfg, data_dir=Path(settings.data_dir),
-                                 s3_client=offbox_runtime.S3_CLIENT, sftp_client=offbox_runtime.SFTP_CLIENT), None
+                                 s3_client=offbox_runtime.S3_CLIENT, sftp_client=offbox_runtime.SFTP_CLIENT,
+                                 gdrive_http=offbox_runtime.GDRIVE_HTTP), None
     if not args.target_id:
         raise OffboxError("destination_invalid", "give --target-id (a target saved in this installation) or --dest-json FILE")
     target, lookup = offbox_runtime._load(db, settings, args.target_id)

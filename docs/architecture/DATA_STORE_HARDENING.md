@@ -49,6 +49,9 @@ when the keyring holds a key. The key is in `SETTINGS_KEEP`: never exported, nev
 
 ## 2. Off-box copies
 
+GDRIVEBK-2310 adds a third transport, Google Drive (target kind `gdrive`, `services/offbox_gdrive.py` + `offbox_gdrive_connect.py`,
+migration 0186): see `docs/design/GDRIVE_BACKUP.md` and the owner's setup `docs/operations/GDRIVE_BACKUP_SETUP.md`.
+
 Code: `services/backup_offbox.py` (interface, SWXB encryption, retention, push, connection check), `services/offbox_s3.py`,
 `services/offbox_sftp.py`, `services/offbox_keys.py`, `services/offbox_store.py` (all SQL of the three tables), `services/offbox_runtime.py`
 (orchestration, alert), `routers/backup_offbox.py`. UI: `frontend/src/components/sw-offbox-backup.ts` in Settings › אבחון › גיבוי ושחזור.
