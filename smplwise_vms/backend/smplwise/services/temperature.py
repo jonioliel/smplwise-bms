@@ -104,6 +104,9 @@ INSTALLATION: dict[str, tuple[str, Any, float | None, float | None]] = {
     "report_link_hours": ("int", 24, 1, 168),               # a link dies after this many hours
     "report_link_max_opens": ("int", 10, 1, 20),            # ... or after this many downloads, whichever comes first
     "report_link_per_hour": ("int", 10, 1, 200),            # links one user may create per hour
+    # TEMPLINK-2320 (owner decision 2026-10-31, 5A): report links one SENDER may mint in a rolling 24 h - the dialog link, the WhatsApp link to
+    # a system user and the vendor link together; 0 = no limit. Over it the mint is refused (`report_link_daily_limit`) and audited (denied).
+    "report_link_daily_max": ("int", 50, 0, 1000),
     # TEMPREPORT-2310 (security review S1): the WhatsApp report to a SYSTEM USER carries a temporary link to his PDF - its own switch, OFF by
     # default and independent of the vendor mode `report_attachment` (one switch per audience). It also needs `reports.documents`.
     "report_link_users": ("bool", False, None, None),
@@ -170,6 +173,8 @@ MESSAGES: dict[str, dict[str, str]] = {
     "report_link_off": {"he": "קישור להורדת הדוח כבוי בהגדרות.", "en": "The report download link is turned off in the settings."},
     "report_link_unavailable": {"he": "לא ניתן ליצור קישור כרגע; יש לבדוק את הגדרות הקישורים החיצוניים.", "en": "A link cannot be created now; check the external links settings."},
     "report_link_rate": {"he": "נוצרו יותר מדי קישורים בשעה האחרונה.", "en": "Too many links were created in the last hour."},
+    "report_link_daily_limit": {"he": "הגעת למגבלת הקישורים לדוח ב-24 השעות האחרונות. אפשר לנסות שוב מאוחר יותר, או לבקש ממנהל לשנות את המגבלה בהגדרות.",
+                                "en": "You have reached the report link limit for the last 24 hours. Try again later, or ask a manager to change the limit in the settings."},
     "report_link_too_large": {"he": "הדוח גדול מדי לקישור; יש לצמצם טווח או יחידות.", "en": "The report is too large for a link; narrow the range or the units."},
     "link_not_found": {"he": "הקישור לא נמצא.", "en": "The link was not found."},
     "report_link_wa_off": {"he": "שליחת הקישור בוואטסאפ כבויה בהגדרות.", "en": "Sending the link by WhatsApp is turned off in the settings."},

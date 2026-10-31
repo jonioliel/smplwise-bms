@@ -582,6 +582,9 @@ def _end_access(conn: sqlite3.Connection, user_id: str, reason: str) -> dict[str
     tokens = presence.revoke_tokens(conn, user_id)
     presence.end_on_sign_out(conn, user_id, reason, everywhere=True)  # XSECFIX-297 (review M2): the push registrations end too
     revocation.mark([user_id])
+    from ..services.tickets import out_documents  # TEMPLINK-2320 (owner 4A): the report links minted for him die at once
+
+    out_documents.revoke_for_inactive_users_safe(conn)
     return {"sessions_ended": ended, "links_invalidated": links, "device_tokens_revoked": tokens}
 
 
