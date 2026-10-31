@@ -110,7 +110,8 @@ test.describe('PRESENCE-2280 layout vs mockup', () => {
       const card = page.locator('[data-home-widget="presence"]');
       await expect(card).toBeVisible({ timeout: 20000 });
       await expect(page.locator('[data-building-presence-big]')).toHaveText('פעיל');
-      const chips = await page.locator('[data-building-rooms] .r').count();
+      // PRESENCE-COMPACT-2310: the default card shows only the ACTIVE rooms (2 of the 4 here) as whole pills
+      const chips = await page.locator('[data-building-rooms] .r:not(.more):visible').count();
       expect(chips).toBeGreaterThan(0);
       expect(chips).toBeLessThanOrEqual(9);
       await expect(page.locator('[data-building-card-map]')).toHaveAttribute('href', '#/explore');
@@ -122,14 +123,14 @@ test.describe('PRESENCE-2280 layout vs mockup', () => {
     });
   }
 
-  test('home card: 6 rooms on a phone-width card show at most 4 chips and a "more" chip (no growth, no scroll)', async ({ page, request }) => {
+  test('home card on a phone: one row of the active rooms only, no "more" pill when they fit (no growth, no scroll)', async ({ page, request }) => {
     await setup(page, request);
     await page.setViewportSize({ width: 390, height: 844 });
     await open(page, '/devices', 'light');
     await expect(page.locator('[data-home-widget="presence"]')).toBeVisible({ timeout: 20000 });
-    // the mocked answer has 4 rooms: nothing is hidden, so there is no "more" chip
-    await expect(page.locator('[data-building-more-rooms]')).toHaveCount(0);
-    expect(await page.locator('[data-building-rooms] .r').count()).toBeLessThanOrEqual(4);
+    // the mocked answer has 2 active rooms of 4: both fit, so the "more" pill stays hidden and no empty room is drawn
+    await expect(page.locator('[data-building-more-rooms]:visible')).toHaveCount(0);
+    expect(await page.locator('[data-building-rooms] .r:not(.more):visible').count()).toBe(2);
   });
 
   test('home card: the unknown state reads "אין מידע" and the master switch off shows nothing', async ({ page, request }) => {

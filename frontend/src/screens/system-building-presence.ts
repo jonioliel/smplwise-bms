@@ -11,10 +11,10 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import {
-  EMPTY_RANGE, HOLD_RANGE, RETENTION_RANGE, getPresenceCandidates, getPresenceHistory, purgePresenceHistory, putPresenceRoom, putPresenceSettings, putPresenceTags,
+  CARD_CHOICES, EMPTY_RANGE, HOLD_RANGE, RETENTION_RANGE, getPresenceCandidates, getPresenceHistory, purgePresenceHistory, putPresenceRoom, putPresenceSettings, putPresenceTags,
   type BuildingPresenceSettings, type HomeDisplay, type PresenceCandidate, type PresenceHistorySummary, type PresenceRoomOption,
 } from '../api/building-presence';
-import { filterSensors, pageSlice, settingsProblem, toggledTags, type SensorFilter } from '../api/building-presence-logic';
+import { cardOptions, filterSensors, pageSlice, settingsProblem, toggledTags, type SensorFilter } from '../api/building-presence-logic';
 import { BP } from '../i18n/building-presence';
 
 const DEFAULT_CFG: BuildingPresenceSettings = { enabled: false, hold_seconds: 60, empty_minutes: 10, retention_days: 30, home_display: 'chip', map_tint: true };
@@ -297,6 +297,19 @@ export class SystemBuildingPresence extends LitElement {
         grid-row: 3;
       }
     }
+    /* PRESENCE-COMPACT-2310: the card's options sit as one indented group under "on the home screen" */
+    .cardopts {
+      display: grid;
+      padding-inline-start: 12px;
+      border-inline-start: 2px solid var(--sw-border);
+      margin-block-start: 6px;
+    }
+    .cardopts .room {
+      margin-block: 2px 0;
+    }
+    .cardopts .row {
+      padding-block-start: 6px;
+    }
     .ok {
       color: var(--sw-success-text);
     }
@@ -469,9 +482,28 @@ export class SystemBuildingPresence extends LitElement {
         ${this.editable ? html`<sw-button size="sm" data-building-save ?disabled=${this.busy || !!bad} @click=${() => void this.patch({ hold_seconds: this.cfg.hold_seconds, empty_minutes: this.cfg.empty_minutes })}>${BP.save}</sw-button>` : nothing}
       </div>
       <div class="row"><span>${BP.homeLabel}</span><span class="seg" role="group">${seg('card', BP.homeCard)}${seg('chip', BP.homeChip)}${seg('off', BP.homeOff)}</span></div>
+      ${this.cfg.home_display === 'card' ? this.renderCardOptions() : nothing}
       <div class="row"><sw-toggle label=${BP.tintLabel} data-building-tint .checked=${this.cfg.map_tint} ?disabled=${!this.editable || this.busy}
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patch({ map_tint: e.detail.checked })}></sw-toggle><span class="muted">${BP.tintHint}</span></div>
     </sw-card>`;
+  }
+
+  /** PRESENCE-COMPACT-2310: the home card's four options (owner answers 31.10) - every direction of the round-9 mockup stays selectable. */
+  private renderCardOptions() {
+    const o = cardOptions(this.cfg);
+    const group = <K extends keyof typeof CARD_CHOICES>(key: K, label: string, current: string, words: Record<(typeof CARD_CHOICES)[K][number], string>) => html`<div class="row" data-building-card-option=${key}>
+        <span>${label}</span>
+        <span class="seg" role="group" aria-label=${label}>${CARD_CHOICES[key].map((v) => html`<button type="button" aria-pressed=${String(current === v)} data-building-card=${`${key}:${v}`}
+          ?disabled=${!this.editable || this.busy} @click=${() => void this.patch({ [key]: v } as Partial<BuildingPresenceSettings>)}>${words[v as keyof typeof words]}</button>`)}</span>
+      </div>`;
+    return html`<div class="cardopts" data-building-card-options>
+      <div class="room">${BP.cardHeading}</div>
+      ${group('card_style', BP.styleLabel, o.style, { strip: BP.styleStrip, floors: BP.styleFloors, quiet: BP.styleQuiet, off: BP.styleOff })}
+      ${o.style === 'off' ? nothing : html`
+        ${group('card_empty_rooms', BP.emptyRoomsLabel, o.emptyRooms, { hide: BP.emptyHide, show: BP.emptyShow })}
+        ${group('card_details', BP.detailsLabel, o.details, { hover: BP.detailsHover, inline: BP.detailsInline })}
+        ${group('card_all_empty', BP.allEmptyLabel, o.allEmpty, { last: BP.allEmptyLast, count: BP.allEmptyCount })}`}
+    </div>`;
   }
 
   private renderHistory() {

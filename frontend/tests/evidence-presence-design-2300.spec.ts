@@ -48,43 +48,72 @@ async function shot(page: Page, name: string, info: { project: { name: string } 
 
 const sideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
+type Mount = (ds: string, layout: string, size: string, card?: Record<string, string>) => Promise<void>;
+const mount = (page: Page, ds: string, layout: string, size: string, card: Record<string, string> = {}) =>
+  page.evaluate(([d, l, s, c]) => (window as unknown as { pdMountHome: Mount }).pdMountHome(d as string, l as string, s as string, c as Record<string, string>), [ds, layout, size, card] as const);
+
+// PRESENCE-COMPACT-2310: the four card styles (round-9 mockup); the owner's defaults are strip / only active / details on hover / last emptied
+const STYLES: { name: string; card: Record<string, string> }[] = [
+  { name: 'strip', card: {} },
+  { name: 'strip-show-inline', card: { card_empty_rooms: 'show', card_details: 'inline', card_all_empty: 'count' } },
+  { name: 'floors', card: { card_style: 'floors' } },
+  { name: 'quiet', card: { card_style: 'quiet' } },
+];
+
 for (const scheme of ['light', 'dark'] as const) {
-  test(`${scheme}: presence home card in every state stays inside its card and the page never scrolls sideways`, async ({ page }, info) => {
-    test.setTimeout(120_000);
+  test(`${scheme}: compact presence card - never taller than its neighbours, nothing clipped, no scroll, in every style and state`, async ({ page }, info) => {
+    test.setTimeout(240_000);
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     await open(page, scheme);
     const w = page.viewportSize()!.width;
-    for (const ds of ['ready', 'empty', 'unknown', 'one', 'worst', 'error', 'loading'] as const) {
-      for (const size of ds === 'ready' || ds === 'worst' ? (['s', 'm', 'l'] as const) : (['m'] as const)) {
-        await page.evaluate(([d, l, s]) => (window as unknown as { pdMountHome: (...a: unknown[]) => Promise<void> }).pdMountHome(d, l, s), [ds, layoutFor(w), size] as const);
-        const card = page.locator('[data-home-widget="presence"]');
-        if (ds === 'loading') await expect(card).toHaveCount(0);
-        else await expect(card).toBeVisible();
-        if (ds === 'error') await expect(page.locator('[data-home-widget-failed="presence"]')).toBeVisible();
-        if (ds === 'worst' && size !== 's') {
-          // 500 rooms: the chips are capped (no growth, no scroll), the rest is one "more" chip
-          expect(await page.locator('[data-building-rooms] .r').count()).toBeLessThanOrEqual(9);
-          await expect(page.locator('[data-building-more-rooms]')).toHaveCount(1);
-          if (process.env.PD_PHASE !== 'before') {
-            // a long room name gives way; the room's state never does (it stays whole inside its chip)
-            const first = page.locator('[data-building-rooms] .r').first();
-            const [c, s] = [(await first.boundingBox())!, (await first.locator('.st').boundingBox())!];
-            expect(s.width).toBeGreaterThan(10);
-            expect(s.x).toBeGreaterThanOrEqual(c.x - 0.5);
-            expect(s.x + s.width).toBeLessThanOrEqual(c.x + c.width + 0.5);
-            expect(await first.locator('.st').evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+    const layout = layoutFor(w);
+    // the row without the presence card: the height the card must not exceed (unless its own size asks for more, e.g. large = 176 px)
+    await mount(page, 'loading', layout, 'm');
+    await expect(page.locator('[data-home-widget="presence"]')).toHaveCount(0);
+    const base = (await page.locator('[data-home-widget="clock"]').boundingBox())!.height;
+    for (const st of STYLES) {
+      for (const ds of ['ready', 'empty', 'unknown', 'one', 'worst', 'error'] as const) {
+        for (const size of ds === 'ready' || ds === 'worst' ? (['s', 'm', 'l'] as const) : (['m'] as const)) {
+          await mount(page, ds, layout, size, st.card);
+          const card = page.locator('[data-home-widget="presence"]');
+          await expect(card).toBeVisible();
+          if (ds === 'error') {
+            await expect(page.locator('[data-home-widget-failed="presence"]')).toBeVisible();
+            continue;
           }
-        }
-        if (ds !== 'loading') {
+          const m = await card.evaluate((el) => ({ h: el.getBoundingClientRect().height, sh: el.scrollHeight, ch: el.clientHeight, min: parseFloat(getComputedStyle(el).minBlockSize) || 0 }));
+          expect(m.h, `${st.name}/${ds}/${size}: taller than the row`).toBeLessThanOrEqual(Math.max(base, m.min) + 1);
+          expect(m.sh, `${st.name}/${ds}/${size}: content clipped`).toBeLessThanOrEqual(m.ch + 1);
           const box = (await card.boundingBox())!;
           expect(box.x).toBeGreaterThanOrEqual(0);
           expect(box.x + box.width).toBeLessThanOrEqual(w + 1);
+          // the strip: only whole pills inside their row, never a cut one; 500 rooms keep one honest "+N"
+          if (st.name.startsWith('strip') && size !== 's' && (ds === 'ready' || ds === 'worst')) {
+            const pills = await page.locator('presence-pills').evaluate((host) => {
+              const box = host.shadowRoot!.querySelector('.box')!.getBoundingClientRect();
+              const shown = [...host.shadowRoot!.querySelectorAll<HTMLElement>('.r')].filter((p) => !p.hidden).map((p) => p.getBoundingClientRect());
+              return { n: shown.length, inside: shown.every((r) => r.left >= box.left - 0.5 && r.right <= box.right + 0.5 && r.bottom <= box.bottom + 0.5), more: !host.shadowRoot!.querySelector<HTMLElement>('.more')!.hidden };
+            });
+            expect(pills.n).toBeGreaterThan(0);
+            expect(pills.inside, `${st.name}/${ds}/${size}: a pill is cut`).toBe(true);
+            if (ds === 'worst') expect(pills.more).toBe(true);
+            if (ds === 'ready' && st.name === 'strip') expect(await page.locator('presence-pills .r[data-tone="neutral"]').count()).toBe(0); // default: only active rooms
+          }
+          // all empty: the default names the room that emptied last; "count" says the sentence only
+          if (ds === 'empty' && st.name === 'strip') await expect(page.locator('[data-building-last]')).toContainText('ריק מ־');
+          if (ds === 'empty' && st.name === 'strip-show-inline') await expect(page.locator('[data-building-last]')).toHaveCount(0);
+          // details: hover = no time in the card (the tooltip carries it); inline = the time in the line
+          if (ds === 'ready' && size === 'm') await expect(page.locator('[data-building-time]')).toHaveCount(st.name === 'strip-show-inline' ? 1 : 0);
+          if (st.name === 'floors' && ds === 'ready' && size !== 's') expect(await page.locator('[data-building-floor]').count()).toBeGreaterThan(0);
+          expect(await sideScroll(page)).toBeLessThanOrEqual(1);
+          await shot(page, `home-${st.name}-${ds}-${size}-${scheme}`, info);
         }
-        expect(await sideScroll(page)).toBeLessThanOrEqual(1);
-        await shot(page, `home-${ds}-${size}-${scheme}`, info);
       }
     }
+    // "no card, the map only": the widget is gone
+    await mount(page, 'ready', layout, 'm', { card_style: 'off' });
+    await expect(page.locator('[data-home-widget="presence"]')).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 
@@ -104,6 +133,15 @@ for (const scheme of ['light', 'dark'] as const) {
           await expect(page.locator('[data-building-enabled]')).toHaveCount(0);
         }
         if (st === 'ready') await expect(page.locator('[data-building-more] sw-icon').first()).toBeVisible();
+        if (st === 'ready') {
+          // PRESENCE-COMPACT-2310: the card's four options, every mockup choice selectable, the owner's defaults pressed
+          await expect(page.locator('[data-building-card-option]')).toHaveCount(4);
+          for (const k of ['card_style:strip', 'card_empty_rooms:hide', 'card_details:hover', 'card_all_empty:last']) await expect(page.locator(`[data-building-card="${k}"]`)).toHaveAttribute('aria-pressed', 'true');
+          await expect(page.locator('[data-building-card^="card_style:"]')).toHaveCount(4);
+          const put = page.waitForRequest((r) => r.method() === 'PUT' && r.url().endsWith('/presence/building/settings'));
+          await page.locator('[data-building-card="card_style:floors"]').click();
+          expect((await put).postDataJSON()).toEqual({ card_style: 'floors' });
+        }
       }
       expect(await sideScroll(page)).toBeLessThanOrEqual(1);
       await shot(page, `settings-${st}-${scheme}`, info);

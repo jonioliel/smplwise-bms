@@ -21,8 +21,28 @@ export interface BuildingPresenceSettings {
   hold_seconds: number;
   /** Minutes of an empty building after which the cockpit's "building empty" trigger fires. */
   empty_minutes: number;
+  /** PRESENCE-COMPACT-2310 (owner answers 31.10): how the home card draws - see CARD_CHOICES. Older servers omit them (read as the defaults). */
+  card_style?: CardStyle;
+  card_empty_rooms?: CardEmptyRooms;
+  card_details?: CardDetails;
+  card_all_empty?: CardAllEmpty;
 }
-export interface BuildingRoom { area_id: string | null; name: string | null; status: OccupancyStatus; sensors: number; empty_since: string | null }
+/** strip = a state word and one row of the active rooms (default); floors = a count and a bar per floor; quiet = one sentence; off = no card, the map only. */
+export type CardStyle = 'strip' | 'floors' | 'quiet' | 'off';
+/** hide = only the active rooms in the card (default; the empty ones are on the map and in the area window); show = empty rooms too, grey, while room is left. */
+export type CardEmptyRooms = 'hide' | 'show';
+/** hover = the update time and the empty / unknown rooms only in the tooltip (default); inline = drawn in the card. */
+export type CardDetails = 'hover' | 'inline';
+/** last = "<room> · ריק מ־HH:MM" when every room is empty (default); count = only "כל N החדרים ריקים". */
+export type CardAllEmpty = 'last' | 'count';
+/** The server's accepted values (services/building_presence.py CHOICES), the first one the default. */
+export const CARD_CHOICES = {
+  card_style: ['strip', 'floors', 'quiet', 'off'],
+  card_empty_rooms: ['hide', 'show'],
+  card_details: ['hover', 'inline'],
+  card_all_empty: ['last', 'count'],
+} as const satisfies Record<string, readonly string[]>;
+export interface BuildingRoom { area_id: string | null; name: string | null; status: OccupancyStatus; sensors: number; empty_since: string | null; floor?: string | null }
 export interface BuildingSensor { entity_id: string; name: string; area_id: string | null; status: OccupancyStatus; since: string | null }
 export interface BuildingSnapshot {
   configured: boolean;

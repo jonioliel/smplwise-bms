@@ -28,9 +28,15 @@ CLASSES = ("occupancy", "presence", "motion", "moving")
 SETTINGS_KEY = "presence.building.config"
 # PRESENCE-2280: `enabled` is the master switch (OFF by default; the system administrator turns it on in Settings > Presence). `retention_days`
 # (0 = keep no history), `home_display` (the overview: a card, the thin line or nothing), `map_tint` (rooms painted on the plan).
-DEFAULTS: dict[str, Any] = {"enabled": False, "hold_seconds": 60, "empty_minutes": 10, "retention_days": 30, "home_display": "chip", "map_tint": True}
+# PRESENCE-COMPACT-2310 (owner answers 31.10, round-9 mockup): how the home CARD draws. `card_style` strip (the default) / floors (a count and
+# a bar per floor) / quiet (one sentence) / off (no card, the map only); `card_empty_rooms` hide (only active rooms in the card) / show (empty
+# rooms too, grey, while room is left); `card_details` hover (the time and the empty / unknown names only in the tooltip) / inline;
+# `card_all_empty` last ("<room> · ריק מ־HH:MM", the room that emptied last) / count ("כל N החדרים ריקים").
+DEFAULTS: dict[str, Any] = {"enabled": False, "hold_seconds": 60, "empty_minutes": 10, "retention_days": 30, "home_display": "chip", "map_tint": True,
+                            "card_style": "strip", "card_empty_rooms": "hide", "card_details": "hover", "card_all_empty": "last"}
 LIMITS = {"hold_seconds": (0, 3600), "empty_minutes": (1, 1440), "retention_days": (0, 365)}
-CHOICES = {"home_display": ("card", "chip", "off")}
+CHOICES = {"home_display": ("card", "chip", "off"), "card_style": ("strip", "floors", "quiet", "off"), "card_empty_rooms": ("hide", "show"),
+           "card_details": ("hover", "inline"), "card_all_empty": ("last", "count")}
 FLAGS = ("enabled", "map_tint")
 MAX_SENSORS = 200
 UNKNOWN_STATES = {None, "", "unknown", "unavailable"}
@@ -160,6 +166,14 @@ def rooms_known(conn: sqlite3.Connection) -> list[dict[str, str]]:
         "SELECT DISTINCT area_id, area_name FROM ha_entities WHERE area_id IS NOT NULL AND area_name IS NOT NULL AND removed_at IS NULL ORDER BY area_name")]
 
 
+def floor_names(conn: sqlite3.Connection) -> dict[str, str]:
+    """PRESENCE-COMPACT-2310: area id -> the name of its floor (the card's "floors" style); empty when the mirror knows no floors."""
+    try:
+        return {r["area_id"]: r["name"] for r in conn.execute("SELECT a.area_id, f.name FROM ha_areas a JOIN ha_floors f ON f.floor_id = a.floor_id WHERE f.name IS NOT NULL")}
+    except sqlite3.OperationalError:
+        return {}
+
+
 def set_room(conn: sqlite3.Connection, entity_id: str, area_id: str | None) -> None:
     """Place a TAGGED sensor in a room (or back to the room the mirror knows). LookupError for an untagged sensor or an unknown room."""
     if conn.execute("SELECT 1 FROM presence_building_sensors WHERE entity_id = ?", (entity_id,)).fetchone() is None:
@@ -200,9 +214,10 @@ def snapshot(conn: sqlite3.Connection, now: dt.datetime | None = None, fresh: bo
         if clear_at:
             room["clear_times"].append(clear_at)
     room_list = []
+    floors = floor_names(conn)
     for room in rooms.values():
         st = combine(room["states"])
-        room_list.append({"area_id": room["area_id"], "name": room["name"], "status": st, "sensors": len(room["states"]),
+        room_list.append({"area_id": room["area_id"], "name": room["name"], "floor": floors.get(room["area_id"] or ""), "status": st, "sensors": len(room["states"]),
                           "empty_since": _iso(max(room["clear_times"])) if st == "clear" and room["clear_times"] else None})
     room_list.sort(key=lambda x: (x["area_id"] is None, x["name"] or ""))
     status = combine([s["status"] for s in sensors])

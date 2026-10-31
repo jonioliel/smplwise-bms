@@ -20,6 +20,7 @@ import { doorsWidgetAvailable, type DoorsWidgetData } from '../door-windows/home
 import { doorWindowsTabOn, noticesModuleOn } from '../shell/nav';
 import { getBuildingPresence, type BuildingSnapshot } from '../api/building-presence'; // PRESENCE-2280: the home presence widget
 import { presenceWidgetAvailable } from './building-presence-widget';
+import { areaPresence } from '../api/building-presence-logic'; // PRESENCE-COMPACT-2310: the area window's quiet presence line
 import { loadHomeNoticesChecked, noticesWidgetAvailable, noticesWidgetOffered, type NoticesWidgetData } from '../notices/home-widget'; // NOTICEPAGE-295: the home notice board widget
 import type { LiveSummaryItem } from '../api/generator';
 import '../components/sw-state-panel';
@@ -3643,7 +3644,7 @@ export class DevicesBuilding extends LitElement {
     const q = this.quick;
     const live = q ? (this.findArea(q.area.area_id)?.area ?? q.area) : null; // the tree's fresh counts while it is open
     const it = q ? this.lay.item(`area:${q.area.area_id}`) : undefined;
-    return html`<area-quick-sheet data-area-quick=${q?.area.area_id ?? nothing} .area=${live} .floorName=${q?.floorName ?? ''} .icon=${it?.icon ?? 'home'} .mode=${q?.mode ?? 'drawer'} ?open=${!!q}
+    return html`<area-quick-sheet data-area-quick=${q?.area.area_id ?? nothing} .area=${live} .floorName=${q?.floorName ?? ''} .presence=${q && this.presenceMayRead() ? areaPresence(this.presenceSnap, q.area.area_id) : null} .icon=${it?.icon ?? 'home'} .mode=${q?.mode ?? 'drawer'} ?open=${!!q}
       .origin=${q?.origin ?? null} ?canBulk=${this.bulkAllowed} ?offline=${this.offline} @close=${() => (this.quick = null)} @area-bulk=${this.onQuickBulk}></area-quick-sheet>`;
   }
 

@@ -80,6 +80,32 @@ const he = {
   loadFailed: 'לא ניתן לקרוא את הגדרות הנוכחות',
   retry: 'נסה שוב',
   count: (n: number) => num(n),
+  // PRESENCE-COMPACT-2310: the compact card (round-9 mockup) and its four display options
+  stripSub: (n: number, of: number) => (of === 0 ? '' : of === 1 ? 'החדר היחיד עם חיישן' : `${num(n)} מתוך ${num(of)} חדרים`),
+  lastEmpty: (name: string, hhmm: string) => `${name} · ריק מ־${hhmm}`,
+  emptyNames: 'ריקים',
+  unknownNames: 'אין מידע',
+  activeRooms: 'חדרים פעילים',
+  noFloor: 'ללא קומה',
+  wholeBuilding: 'כל המבנה',
+  plus: (n: number) => `+${num(n)}`,
+  moreFloors: (n: number) => `+${num(n)} קומות`,
+  cardHeading: 'הכרטיס במסך הראשי',
+  styleLabel: 'סגנון',
+  styleStrip: 'רצועה',
+  styleFloors: 'מונה וקומות',
+  styleQuiet: 'שורה שקטה',
+  styleOff: 'בלי כרטיס, רק המפה',
+  emptyRoomsLabel: 'חדרים ריקים',
+  emptyHide: 'רק פעילים בכרטיס',
+  emptyShow: 'גם ריקים, באפור',
+  detailsLabel: 'שעת עדכון וחדרים ריקים',
+  detailsHover: 'רק במעבר עכבר',
+  detailsInline: 'בתוך הכרטיס',
+  allEmptyLabel: 'כשכל החדרים ריקים',
+  allEmptyLast: 'החדר שהתרוקן אחרון',
+  allEmptyCount: 'רק ״כל החדרים ריקים״',
+  cardOnlyHint: 'חל כשהתצוגה במסך הראשי היא ״כרטיס״',
 };
 type Key = keyof typeof he;
 
@@ -105,6 +131,13 @@ const en: Partial<Record<Key, unknown>> = {
   kindWord: (k: string | null) => (k === 'motion' ? 'Motion sensor' : 'Presence sensor'), editTitle: 'Edit tag', stateNow: 'State now', removeTag: 'Remove tag', close: 'Close',
   moreRooms: (n: number) => `+${num(n)} more`, onMap: 'On the map',
   loading: 'Loading the presence settings', loadFailed: 'The presence settings could not be read', retry: 'Try again', count: (n: number) => num(n),
+  stripSub: (n: number, of: number) => (of === 0 ? '' : of === 1 ? 'The only room with a sensor' : `${num(n)} of ${num(of)} rooms`),
+  lastEmpty: (name: string, hhmm: string) => `${name} · empty since ${hhmm}`, emptyNames: 'Empty', unknownNames: 'No data', activeRooms: 'active rooms',
+  noFloor: 'No floor', wholeBuilding: 'Whole building', plus: (n: number) => `+${num(n)}`, moreFloors: (n: number) => `+${num(n)} floors`,
+  cardHeading: 'The home screen card', styleLabel: 'Style', styleStrip: 'Strip', styleFloors: 'Count and floors', styleQuiet: 'Quiet line', styleOff: 'No card, the map only',
+  emptyRoomsLabel: 'Empty rooms', emptyHide: 'Only active rooms in the card', emptyShow: 'Empty rooms too, in grey', detailsLabel: 'Update time and empty rooms',
+  detailsHover: 'Only on mouse hover', detailsInline: 'Inside the card', allEmptyLabel: 'When every room is empty', allEmptyLast: 'The room that emptied last',
+  allEmptyCount: 'Only "all rooms are empty"', cardOnlyHint: 'Applies when the home display is "Card"',
 };
 
 export const BP: typeof he = new Proxy(he, {
