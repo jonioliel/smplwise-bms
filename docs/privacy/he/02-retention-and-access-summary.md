@@ -32,6 +32,7 @@
 | רשומות הודעות לאנשים (`intercom_messages`) | 400 יום | `KEEP_DAYS` ב-`B/services/intercom_messaging.py` | לא |
 | בקשות הסכמה בקישור והודעות מוחזקות | בקשות (שאינן פתוחות) והודעות שנשלחו/נזנחו אחרי 400 יום (`KEEP_DAYS` משותף); שורת הסכמה שניתנה נשארת עד שהאדם מסרב אחר כך (אז נמחקת ונכתבת שורת סירוב) | `prune` ב-`B/services/intercom_consent.py` | לא |
 | יומן שליחות וואטסאפ | יומיים | `B/services/messaging_runtime.py` | לא |
+| מסמכי קישור של דוח טמפרטורות (`outbound_documents`) | תוכן ה-PDF נמחק בתום התוקף (`report_link_hours`, ברירת מחדל 24, לכל היותר 168), בביטול או כשנוצלו ההורדות; השורה (מזהים, גיבוב, ספירות) 90 יום אחרי התפוגה | `B/services/tickets/out_documents.py` `purge` | כן (התוקף ומספר ההורדות הם הגדרות) |
 | יומן אירועי נוכחות באפליקציה | `presence.retention_days`, ברירת מחדל 30, טווח 1-365 | `janitor` ב-`B/services/presence.py` | כן (הגדרה) |
 | היסטוריית מצבי ישויות Home Assistant (`ha_state_history`: מצב, זמן שינוי, זמן קבלה; משמשת את המפה ההיסטורית) | 30 יום אחרי הקבלה | ג'אניטור ב-`B/main.py` -> `prune` ב-`B/services/ha_history.py`, `RETENTION_DAYS = 30` | לא (קבוע) |
 | מצבי חיישני נוכחות בהיסטוריה זו (חיישנים בינאריים מסוג motion / occupancy / presence) | `history.presence_retention_days`, ברירת מחדל 7 (1-30), חל רק כש"גלילת הזמן" (`history.timescrub`) פעילה; אחרת 30 הימים שלמעלה. קריאתם במפה דורשת `history.presence` וכותבת שורת ביקורת אחת לכל משתמש, קומה ויום | אותו קובץ, `prune_presence` (CR-TIMESCRUB101) | כן (הגדרה); האם צריך לחול גם כשגלילת הזמן כבויה - שאלה פתוחה לבעלים |

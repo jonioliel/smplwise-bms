@@ -182,10 +182,12 @@ def preview_trim(model: dict[str, Any]) -> dict[str, Any]:
 
 
 def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[str], lo: int, hi: int, lang: str, now_ts: float, *,
-          chart: bool = True, events: bool = True, signature: bool = True, layout: str = "standard", samples: bool = False) -> dict[str, Any]:
+          chart: bool = True, events: bool = True, signature: bool = True, layout: str = "standard", samples: bool = False,
+          people: bool = True) -> dict[str, Any]:
     """The report model. `units` are already filtered to what the caller may see; `door_visible` = the unit ids whose door sensor he sees.
     `layout` haccp (phase 3, idea 3) adds the daily table per unit (and the PDF leads with it). `samples` (TEMPREP-295) adds the capped list
-    of every recorded sample per unit."""
+    of every recorded sample per unit. `people` False (TEMPREPORT-2310 S3, a PDF that leaves by a public link while `report_link_people` is
+    off): a maintenance window keeps its kind and times but loses who set it and its free-text reason."""
     lang = lang if lang in LABELS else "he"
     layout = layout if layout in LAYOUTS else "standard"
     tz = t.site_zone(conn)
@@ -229,8 +231,8 @@ def build(conn: sqlite3.Connection, units: list[sqlite3.Row], door_visible: set[
                     det = json.loads(d.pop("detail_json") or "{}")
                 except ValueError:
                     det = {}
-                d["reason"] = str(det.get("reason") or "")[:120] if d["kind"] == "maint" else None
-                if d["kind"] != "maint":
+                d["reason"] = str(det.get("reason") or "")[:120] if d["kind"] == "maint" and people else None
+                if d["kind"] != "maint" or not people:
                     d.pop("by_name", None)
                 evs.append(d)
             item["events"] = evs
@@ -471,23 +473,30 @@ def filename(model: dict[str, Any]) -> str:
 
 TEXT = {
     "he": {"head": "Arx · דוח טמפרטורות", "line": "{name}: מינ׳ {min} · מקס׳ {max} · ממוצע {avg} · מחוץ לטווח {out} · התראות {alerts}",
-           "pdf": "הדוח המלא (PDF) זמין במערכת.", "footer": "הודעה אוטומטית - אין להשיב.", "more": "ועוד {n} יחידות."},
+           "pdf": "הדוח המלא (PDF) זמין במערכת.", "pdf_link": "הדוח המלא (PDF), להורדה עד {until}:", "footer": "הודעה אוטומטית - אין להשיב.", "more": "ועוד {n} יחידות."},
     "en": {"head": "Arx · Temperature report", "line": "{name}: min {min} · max {max} · avg {avg} · out of range {out} · alerts {alerts}",
-           "pdf": "The full report (PDF) is available in the system.", "footer": "Automatic message - do not reply.", "more": "and {n} more units."},
+           "pdf": "The full report (PDF) is available in the system.", "pdf_link": "The full report (PDF), to download until {until}:", "footer": "Automatic message - do not reply.", "more": "and {n} more units."},
 }
 TEXT_MAX = 700
 
 
-def text_summary(model: dict[str, Any], *, external: bool = False) -> str:
+def text_summary(model: dict[str, Any], *, external: bool = False, link: str | None = None, until: dt.datetime | None = None) -> str:
     """The WhatsApp message: the range, one line per unit with the key numbers, the PDF note and the footer, capped at TEXT_MAX. Unit names
     pass through the WhatsApp channel's own hygiene (one line, no markup, no link-looking token). `external` (TEMPVENDOR-295, a vendor):
-    no "available in the system" note - the vendor has no access to the system; the document link line, when there is one, is added by the queue."""
+    no "available in the system" note - the vendor has no access to the system; the document link line, when there is one, is added by the queue.
+    `link` / `until` (TEMPREPORT-297, a system user while the attachment mode is "link"): the note becomes "the full report (PDF), to download
+    until <local time>:" with the temporary link on its own line. The link is ours (never user text), so it is added after the hygiene and is
+    never cut by the cap (the unit lines make room for it)."""
     from .notify_whatsapp import clean
 
     lang = model["lang"] if model["lang"] in TEXT else "he"
     T = TEXT[lang]
     lines = [T["head"], "⁦" + range_text(model) + "⁩"]  # the range isolated left-to-right inside a right-to-left message
-    tail = [T["footer"]] if external else [T["pdf"], T["footer"]]
+    if link:
+        when = until.astimezone(ZoneInfo(model["zone"])).strftime("%d.%m %H:%M") if until else ""
+        tail = [T["pdf_link"].replace("{until}", "⁦" + when + "⁩"), link, T["footer"]]
+    else:
+        tail = [T["footer"]] if external else [T["pdf"], T["footer"]]
     used = len("\n".join(lines + tail)) + 1
     shown = 0
     for u in model["units"]:

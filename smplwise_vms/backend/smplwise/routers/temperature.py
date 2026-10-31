@@ -471,14 +471,16 @@ def report_preview(units: str = Query(..., max_length=2000), range: str = Query(
 
 
 def _render_pdf(conn: sqlite3.Connection, principal: Principal, units: str, range: str, start: str | None, end: str | None, lang: str, chart: int,  # noqa: A002
-                events: int, signature: int, layout: str, samples: int) -> tuple[bytes, dict[str, Any], list[sqlite3.Row]]:
-    """One report PDF of the units the principal may see (shared by the download and by the temporary link)."""
+                events: int, signature: int, layout: str, samples: int, people: bool = True) -> tuple[bytes, dict[str, Any], list[sqlite3.Row]]:
+    """One report PDF of the units the principal may see (shared by the download and by the temporary link). `people` False (TEMPREPORT-2310
+    S3): the temporary link's PDF names no staff and carries no free-text maintenance reason unless `report_link_people` is on."""
     from ..services import temperature_pdf, temperature_report as rep
 
     ts = now_ts()
     lo, hi = _report_range(conn, range, start, end, ts)
     rows, doors = _report_units(conn, principal, [u for u in units.split(",") if u])
-    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature), layout=layout, samples=bool(samples))
+    model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature), layout=layout, samples=bool(samples),
+                      people=people)
     try:
         content = temperature_pdf.render(model)
     except temperature_pdf.PdfError as e:
@@ -533,9 +535,20 @@ def _link_error(e: Any) -> ApiError:
     return _err(e.status, e.code)
 
 
+NO_STORE = "private, no-store"  # TEMPREPORT-2310 S5: the link routes (bearer URL, recipients' names) are never cached
+
+
+def _people_in_links(conn: sqlite3.Connection) -> bool:
+    """TEMPREPORT-2310 S3: staff names / maintenance reasons in a PDF behind a public link (`report_link_people`, OFF by default)."""
+    from ..services import temperature_whatsapp as twa
+
+    return twa.people_in_links(conn)
+
+
 @router.get(f"{API}/report/links")
-def report_links(principal: Principal = Depends(_link_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def report_links(response: Response, principal: Principal = Depends(_link_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Whether the dialog offers the link (`available`), its lifetime, and the links this user made (a manager sees all of them)."""
+    response.headers["Cache-Control"] = NO_STORE
     from ..services import temperature_report_link as rl
 
     from ..services import temperature_report_link_wa as rwa
@@ -548,15 +561,16 @@ def report_links(principal: Principal = Depends(_link_ro), conn: sqlite3.Connect
 
 
 @router.post(f"{API}/report/links", status_code=201)
-def report_link_create(body: ReportLinkIn, principal: Principal = Depends(_link_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def report_link_create(body: ReportLinkIn, response: Response, principal: Principal = Depends(_link_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Render the report (the same units the user may download) and make a temporary link to that one file. The URL is returned once."""
     from ..services import temperature_report as rep
     from ..services import temperature_report_link as rl
 
+    response.headers["Cache-Control"] = NO_STORE  # the answer carries the bearer URL
     if not rl.settings(conn)["enabled"]:
         raise _err(409, "report_link_off")
     content, model, rows = _render_pdf(conn, principal, ",".join(body.units), body.range, body.start, body.end, body.lang, int(body.chart), int(body.events),
-                                       int(body.signature), body.layout, int(body.samples))
+                                       int(body.signature), body.layout, int(body.samples), people=_people_in_links(conn))
     try:
         return rl.create(conn, principal.user_id, principal, content, rep.filename(model), len(rows), dt.datetime.fromtimestamp(now_ts(), dt.timezone.utc))
     except rl.LinkRefused as e:
@@ -571,6 +585,17 @@ def report_link_revoke(link_id: str = Path(min_length=1, max_length=64), princip
         rl.revoke(conn, link_id, principal.user_id, principal, authorize(conn, principal, MANAGE, INSTALLATION).allowed, dt.datetime.fromtimestamp(now_ts(), dt.timezone.utc))
     except rl.LinkRefused as e:
         raise _link_error(e) from None
+
+
+@router.delete(f"{API}/report/links")
+def report_links_revoke_all(response: Response, principal: Principal = Depends(_link_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """TEMPREPORT-297: revoke every live temperature document link at once (Settings). A manager revokes all of them (the vendor links too,
+    TEMPREPORT-2310 S4), anyone else his own."""
+    response.headers["Cache-Control"] = NO_STORE
+    from ..services import temperature_report_link as rl
+
+    n = rl.revoke_all(conn, principal.user_id, principal, authorize(conn, principal, MANAGE, INSTALLATION).allowed, dt.datetime.fromtimestamp(now_ts(), dt.timezone.utc))
+    return {"revoked": n}
 
 
 @router.post(f"{API}/report/links/{{link_id}}/send")
@@ -595,7 +620,10 @@ def report_recipients(principal: Principal = Depends(_manage_ro), conn: sqlite3.
     from ..services.tickets import messaging as tmsg
 
     w = tmsg.send_window(conn, None)
-    return {**twa.recipients(conn), "send_hours": {"from": w.start.strftime("%H:%M"), "to": w.end.strftime("%H:%M")}}
+    out = twa.recipients(conn)
+    if out.get("user_attachment") == "link" and not authorize(conn, principal, LINK_SEND, INSTALLATION).allowed:
+        out["user_attachment"] = "none"  # TEMPREPORT-297: this sender's messages to system users carry no link
+    return {**out, "send_hours": {"from": w.start.strftime("%H:%M"), "to": w.end.strftime("%H:%M")}}
 
 
 @router.post(f"{API}/report/send", status_code=202)

@@ -83,20 +83,40 @@ def state_of(r: dict[str, Any], now: dt.datetime) -> str:
 
 
 def public_row(r: dict[str, Any], now: dt.datetime) -> dict[str, Any]:
-    """What the dialog may see of a link: ids, times and counts. Never the token, its hash or the content."""
+    """What the dialog may see of a link: ids, times and counts. Never the token, its hash or the content. TEMPREPORT-297: a link that went
+    out inside a WhatsApp report (`source_id` = the send row) also names its recipient (display name) - `sent` true."""
     return {"id": r["id"], "filename": r["filename"], "created_at": r["created_at"], "expires_at": r["expires_at"], "opens": int(r["open_count"] or 0),
-            "max_opens": int(r["max_opens"]), "state": state_of(r, now), "created_by": r.get("created_by")}
+            "max_opens": int(r["max_opens"]), "state": state_of(r, now), "created_by": r.get("created_by"), "sent": bool(r.get("source_id")),
+            "recipient": r.get("recipient_name") if r.get("source_id") else None}
 
 
 def listing(conn: sqlite3.Connection, user_id: str, everyone: bool, now: dt.datetime) -> list[dict[str, Any]]:
-    sql = ("SELECT id, filename, created_at, expires_at, open_count, max_opens, created_by, revoked_at, purged_at FROM outbound_documents "
-           "WHERE module = ? AND recipient_kind = 'user'")
+    sql = ("SELECT d.id, d.filename, d.created_at, d.expires_at, d.open_count, d.max_opens, d.created_by, d.revoked_at, d.purged_at, d.source_id, "
+           "COALESCE(u.display_name, u.username) AS recipient_name FROM outbound_documents d LEFT JOIN users u ON u.id = d.recipient_id "
+           "WHERE d.module = ? AND d.recipient_kind = 'user'")
     args: list[Any] = [MODULE]
+    if not everyone:
+        sql += " AND d.created_by = ?"
+        args.append(user_id)
+    rows = conn.execute(sql + " ORDER BY d.created_at DESC LIMIT ?", (*args, LIST_MAX)).fetchall()
+    return [public_row(dict(r), now) for r in rows]
+
+
+def revoke_all(conn: sqlite3.Connection, user_id: str, actor: Any, everyone: bool, now: dt.datetime) -> int:
+    """TEMPREPORT-297 (Settings): revoke every link still live at once - a manager all of them, anyone else his own. One audit row with the count.
+    TEMPREPORT-2310 S4: "all" means every temperature document link - the dialog links and the WhatsApp user links (`user`) AND the vendor
+    links (`contact`, TEMPVENDOR-295) - and only the LIVE ones are revoked and counted (not expired, downloads left)."""
+    at = docs.iso(now)
+    sql = ("UPDATE outbound_documents SET revoked_at = ?, revoked_reason = 'manual' WHERE module = ? AND recipient_kind IN ('user', 'contact') "
+           "AND revoked_at IS NULL AND purged_at IS NULL AND expires_at > ? AND open_count < max_opens")
+    args: list[Any] = [at, MODULE, at]
     if not everyone:
         sql += " AND created_by = ?"
         args.append(user_id)
-    rows = conn.execute(sql + " ORDER BY created_at DESC LIMIT ?", (*args, LIST_MAX)).fetchall()
-    return [public_row(dict(r), now) for r in rows]
+    n = conn.execute(sql, args).rowcount
+    audit(conn, actor=actor, action="infra.temperature.report.link.revoke_all", decision="allowed", resource_type="outbound_document",
+          details={"revoked": n, "everyone": everyone})
+    return n
 
 
 def revoke(conn: sqlite3.Connection, doc_id: str, user_id: str, actor: Any, everyone: bool, now: dt.datetime) -> None:
@@ -108,4 +128,4 @@ def revoke(conn: sqlite3.Connection, doc_id: str, user_id: str, actor: Any, ever
         audit(conn, actor=actor, action="infra.temperature.report.link.revoke", decision="allowed", resource_type="outbound_document", resource_id=doc_id)
 
 
-__all__ = ["PERM", "LinkRefused", "settings", "available", "create", "listing", "revoke"]
+__all__ = ["PERM", "LinkRefused", "settings", "available", "create", "listing", "revoke", "revoke_all"]

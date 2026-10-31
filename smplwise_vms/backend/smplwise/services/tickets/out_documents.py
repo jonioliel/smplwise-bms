@@ -273,6 +273,18 @@ def revoke_recipient(conn: sqlite3.Connection, recipient_kind: str, recipient_id
                         "AND revoked_at IS NULL", (iso(now), reason, recipient_kind, recipient_id)).rowcount
 
 
+def revoke_sent_to_user(conn: sqlite3.Connection, user_id: str, reason: str, now: dt.datetime) -> int:
+    """TEMPREPORT-2310 S2: a system user withdrew his WhatsApp opt-in or his number changed - every document that was SENT to his number
+    (`recipient_kind` user with a `source_id`: one recipient inside a report send) dies at once. A link the user made himself in the report
+    dialog (`source_id` NULL) never went to his number and is left alone."""
+    if reason not in REVOKE_REASONS:
+        raise ValueError("reason")
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'outbound_documents'").fetchone() is None:
+        return 0
+    return conn.execute("UPDATE outbound_documents SET revoked_at = ?, revoked_reason = ? WHERE recipient_kind = 'user' AND recipient_id = ? "
+                        "AND source_id IS NOT NULL AND revoked_at IS NULL", (iso(now), reason, user_id)).rowcount
+
+
 def revoke_all_live(conn: sqlite3.Connection, reason: str, now: dt.datetime) -> int:
     """The module key rotation (spec 7.4): every document link still live dies with the old key, like every ticket and RFQ link."""
     if reason not in REVOKE_REASONS:
@@ -296,5 +308,6 @@ def key_ids_in_use(conn: sqlite3.Connection) -> set[str]:
     return {r[0] for r in conn.execute("SELECT DISTINCT key_id FROM outbound_documents WHERE purged_at IS NULL AND revoked_at IS NULL").fetchall() if r[0]}
 
 
-__all__ = ["DocumentRefused", "mint", "lookup", "open_file", "meta", "url", "token_of", "revoke", "revoke_recipient", "revoke_all_live", "purge", "is_live", "config",
+__all__ = ["DocumentRefused", "mint", "lookup", "open_file", "meta", "url", "token_of", "revoke", "revoke_recipient", "revoke_sent_to_user", "revoke_all_live", "purge",
+           "is_live", "config",
            "PAGE_READY", "MAX_BYTES", "LIVE_TOTAL_MAX"]
