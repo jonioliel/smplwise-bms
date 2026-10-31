@@ -88,3 +88,41 @@ test('the floor chip keeps calendars without a floor; the search matches the nam
   expect(visibleCals({ cals, floor: 'f1', q: '' }).map((c) => c.id)).toEqual(['a', 'c']);
   expect(visibleCals({ cals, floor: '', q: 'b' }).map((c) => c.id)).toEqual(['b']);
 });
+
+// ---------- slice A: views, rooms timeline, booking drawer (src/calendars/booking-logic.ts) ----------
+import { firstFree, localInstant, parseDateParam, repeatSummary, rruleOf, trackLanes } from '../src/calendars/booking-logic';
+
+test('slice A: a room track gives overlapping entries their own band (maintenance over a displaced booking)', () => {
+  expect(trackLanes([occ('m', iso(10), iso(11)), occ('d', iso(10), iso(12)), occ('n', iso(12), iso(13))])).toEqual([0, 1, 0]);
+  expect(trackLanes([])).toEqual([]);
+});
+
+test('slice A: "מצא חדר פנוי" picks the first room free for an hour from the next quarter, inside its open hours', () => {
+  const now = new Date(2026, 9, 29, 10, 40);
+  const rooms = [
+    { calendar_id: 'a', open: [{ from: '00:00', to: '24:00' }], entries: [occ('x', iso(10), iso(12))] },
+    { calendar_id: 'b', open: [{ from: '07:00', to: '11:30' }], entries: [] },
+    { calendar_id: 'c', open: [{ from: '00:00', to: '24:00' }], entries: [occ('p', iso(10, 30), iso(11, 30), { state: 'pending' })] },
+  ];
+  const f = firstFree(rooms, DAY, now, 60);
+  expect(f?.room).toBe('c'); // a is busy until 12:00, b closes at 11:30, c's pending request holds it until 11:30
+  expect(f?.start.getHours()).toBe(11);
+  expect(f?.start.getMinutes()).toBe(30);
+  expect(firstFree([{ calendar_id: 'a', open: [], entries: [] }], DAY, now, 60)).toBeNull();
+});
+
+test('slice A: recurrence rule and summary of the drawer', () => {
+  expect(rruleOf('none', 9)).toBeUndefined();
+  expect(rruleOf('weekly', 9)).toBe('FREQ=WEEKLY;COUNT=9');
+  expect(rruleOf('daily', 500)).toBe('FREQ=DAILY;COUNT=104');
+  const tue = new Date(2026, 10, 3, 16, 0);
+  expect(repeatSummary('weekly', 9, tue)).toBe('כל שלישי עד 29.12 · 9 מועדים');
+  expect(repeatSummary('none', 9, tue)).toBe('פעם אחת');
+});
+
+test('slice A: local date + time as an instant; the date parameter of the address', () => {
+  expect(localInstant('2026-11-03', '16:30')?.getHours()).toBe(16);
+  expect(localInstant('03.11.2026', '16:30')).toBeNull();
+  expect(parseDateParam('2026-10-29', new Date(2020, 0, 1)).getDate()).toBe(29);
+  expect(parseDateParam('nonsense', new Date(2026, 9, 29, 10)).getHours()).toBe(0);
+});
