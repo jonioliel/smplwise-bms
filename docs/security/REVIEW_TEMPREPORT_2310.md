@@ -56,19 +56,40 @@ routes (`GET /t/api/doc`, `GET /t/api/doc/file` on the public listener) - no new
 | S5 | Low | **Link routes cacheable on the ingress path.** `POST /report/links` returns the bearer URL and `GET /report/links` returns recipients' names; the remote channel adds `no-store` to API answers, but the Home Assistant ingress path did not. | `Cache-Control: private, no-store` on `GET` / `POST /report/links` and `DELETE /report/links`. | `test_s5_the_link_routes_answer_private_no_store` |
 | S6 | Low (docs) | **Privacy documents silent.** `outbound_documents` (PDF snapshots, recipient ids, download counts) and the audit row with the recipient's display name were not in the data-processing or retention summaries. | Row U in `docs/privacy/{en,he}/01-data-processing-summary.md`, a retention row in `02-retention-and-access-summary.md` (en, he). `CR-TEMPREPORT-297.md` and checklist row 3.8 amended. | doc review |
 
-## 5. Accepted residual risks and owner items (not changed here)
+## 5. Accepted residual risks and owner items
+
+Owner decisions 2026-10-31 (answers 3A, 4A, 5A, 6A) are recorded per item; items 2 and 3 were implemented on `pilot/TEMPLINK-2320`
+(tests: `tests/test_templink_2320.py`).
 
 1. **A bearer link in a WhatsApp chat.** Anyone who can read the recipient's WhatsApp (an unlocked phone, a forwarded message, a chat
    backup) can download the PDF until it expires or is used up. Mitigated by the 24 h / 10 downloads defaults, revoke one / all, and S2/S3.
    The WhatsApp provider sees the URL (with the fragment) - the same as every ticket link today (privacy doc C5, counsel review).
-2. **A deactivated or deleted user's links are not revoked at once.** They expire on their own (default 24 h). Revoking on deactivation needs
-   a hook in every identity path (Home Assistant users, Arx-only users); proposed as a follow-up if the owner wants it.
+   **Owner 2026-10-31 (3A): ACCEPTED.** Bearer links stay, with the short expiry and the download cap; no change.
+2. **A deactivated or deleted user's links were not revoked at once.** **Owner 2026-10-31 (4A): revoke at once - DONE (TEMPLINK-2320).**
+   `out_documents.revoke_for_inactive_users` revokes every LIVE document minted for a system user (`recipient_kind = 'user'`: the links sent
+   to him inside a report and the links he made himself in the dialog) whose `users` row is inactive (`active = 0`) or deleted (`deleted_at`).
+   It is a sweep over the inactive users, called (through `revoke_for_inactive_users_safe`, which never fails the caller) from every
+   deactivation path: Arx-only users disabled or deleted (`routers/local_identity.py` `_end_access`), Home Assistant users deactivated or
+   deleted from Arx (`routers/ha_users.py`), and the Home Assistant directory push (`routers/ha.py` `bridge_directory`); the tickets janitor
+   (hourly) runs it too as the safety net for any other path. Audited like the S2 opt-out revocation: one row
+   `report.document.revoke_user_inactive` with the count only. The row's `revoked_reason` is `contact_erased` (the 0128 CHECK has no
+   `user_inactive`; no migration was added for a label); re-enabling the user never brings a link back. Links the user CREATED for others
+   (vendor links he sent) are not revoked by this - they follow the recipient, not the sender. Tests: `test_4a_*`.
 3. **No per-sender mint budget.** A send mints one PDF per recipient (at most 30); the shared live-store cap (64 MB) can make later document
-   sends `skipped: document_store_full` until the janitor purges. Denial of service by an authorised manager only; recorded.
+   sends `skipped: document_store_full` until the janitor purges. **Owner 2026-10-31 (5A): a per-user limit - DONE (TEMPLINK-2320).** New
+   installation setting `report_link_daily_max` (default **50**, 0 = no limit, at most 1000; Settings > Temperatures > the report link group,
+   labelled he/en/ar/ru): the temperature report links one SENDER may mint in a rolling 24 h, counting the dialog links, the WhatsApp links to
+   system users and the vendor links together (revoked and used-up ones included - it limits minting). At the limit the mint is refused:
+   the dialog answers 429 `report_link_daily_limit` with a Hebrew message and `message_en`; a WhatsApp / vendor send row is `skipped` with
+   that reason (the text never leaves without the promised document). Each refusal writes a `denied` audit row
+   `infra.temperature.report.link.limit` (the sender's id, the kind, the limit and the count; never a recipient, a link or a token).
+   `temperature_report_link.check_daily_limit` is the one check (`create` and `temperature_whatsapp.attachment_for`). Tests: `test_5a_*`,
+   including the boundary (the 50th link of the day passes, the 51st is refused) and the rolling window.
 4. **Public surface precondition unchanged:** `reports.documents` must not be switched on in a release before the public-surface review
    items and the Cloudflare bypass rule (`DOCLINKS_CLOUDFLARE_CACHE_RULE.md`) are verified live (UNKNOWN today).
-5. The audit row keeps the recipient's display name (by design in CR-TEMPREPORT-297 section 3, "who it went to"). The user id alone would
-   be enough; kept for the owner to decide.
+5. The audit row keeps the recipient's display name (by design in CR-TEMPREPORT-297 section 3, "who it went to"). **Owner 2026-10-31 (6A):
+   KEEP.** Confirmed: `infra.temperature.report.document.send` carries `recipient` (user id) and `recipient_label` (his display name at send
+   time); pinned by `test_6a_the_send_audit_row_keeps_the_recipients_display_name`.
 
 ## 6. What was run
 
@@ -84,10 +105,22 @@ Run locally on the workstation on 2026-10-31 (not on the runner), Python 3.12 ve
 
 NOT_RUN: the full backend suite, the UI e2e / pixel suites, and anything on the runner or against a live system.
 
+TEMPLINK-2320 (owner decisions 2026-10-31), run locally on 2026-10-31, one pytest worker, Python 3.12 venv, Node 24:
+
+| Suite | Result |
+|---|---|
+| `tests/test_templink_2320.py` (new: 4A x8, 5A x7, 6A x1) + every file of the table above | 363 collected: 362 passed, 0 failed, 1 skipped (`test_temprep_295.py`, `fpdf` not installed locally: NOT_RUN) |
+| `tests/test_ha_users.py`, `test_local_identity.py`, `test_tickets_staff_links.py` (the hooked deactivation paths) | 142 passed, 0 failed |
+| `frontend`: `npx tsc --noEmit` | exit 0 |
+| `frontend`: `unit-temperature`, `unit-temperature-phase3`, `unit-tempvendor-295`, `unit-tickets-gate-295` | 32 passed, 0 failed |
+| `scripts/api_inventory.py` | regenerated, no change (no route added or removed) |
+
 ## 7. Rollback
 
 Revert the branch, or switch `report_link_users` off (or `reports.documents` off: every document link stops answering at once). No schema
-change. The two new settings are JSON keys in `infra_temp_settings`; an older build ignores them.
+change. The two new settings are JSON keys in `infra_temp_settings`; an older build ignores them. TEMPLINK-2320 adds no schema change
+either: `report_link_daily_max` is one more JSON key (set it to 0 to switch the limit off), and the inactive-user revocation only sets
+`revoked_at` on existing rows.
 
 ## 8. סיכום לבעלים
 
@@ -95,4 +128,5 @@ change. The two new settings are JSON keys in `infra_temp_settings`; an older bu
 2. תוקנו 6 ממצאים: מתג נפרד ועצמאי למשתמשי מערכת (כבוי כברירת מחדל), כך שהפעלה לצוות כבר לא שולחת קישורים גם לספקים.
 3. ביטול הסכמה לוואטסאפ או החלפת מספר מבטלים מיד את הקישורים שנשלחו למספר הישן.
 4. דוח שנשלח בקישור כבר לא כולל שמות אנשי צוות וסיבות תחזוקה, אלא אם תפעילו זאת בהגדרה; "ביטול כל הקישורים" כולל גם ספקים.
-5. נשארו להחלטתך: ביטול קישורים מיד כשמשתמש מושבת, והאם להשאיר את שם הנמען ביומן הביקורת.
+5. החלטות הבעלים 31.10: קישורים פתוחים נשארים (תוקף קצר ומגבלת הורדות); משתמש שמושבת או נמחק - כל הקישורים שנוצרו עבורו מבוטלים מיד;
+   מגבלה של 50 קישורים ל-24 שעות לכל שולח (הגדרה, 0 = ללא הגבלה); שם הנמען נשאר ביומן הביקורת. בוצע בענף pilot/TEMPLINK-2320.

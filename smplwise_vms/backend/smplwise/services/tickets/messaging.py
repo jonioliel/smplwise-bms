@@ -858,6 +858,7 @@ class MessagingRuntime:
             from . import out_documents  # CR-VENDORQ-294: a document's bytes go at expiry / revocation, its row 90 days later
 
             n += out_documents.purge(conn, now)
+            n += out_documents.revoke_for_inactive_users_safe(conn, now)  # TEMPLINK-2320: the safety net behind the deactivation hooks
             from . import intake  # CR-INTAKE99: expire / purge drafts, the daily summary of unlisted attempts
 
             n += intake.janitor(conn, now)

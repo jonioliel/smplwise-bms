@@ -10,7 +10,8 @@ connection, with a temporary link and/or an attached HTML report").
                page sends it in X-Ticket-Token like every link
     live       documents switched on (`reports.documents`), not revoked, not purged, not expired (`reports.document_hours`, at most 7
                days), downloads left (`reports.document_max_opens`), its key still known. Anything else is the uniform 404
-    end        revoke (manual / the contact's number changed / erased / a failed send / the source cancelled); the janitor drops the
+    end        revoke (manual / the contact's number changed / erased / a failed send / the source cancelled / the recipient system user
+               was deactivated or deleted - `revoke_for_inactive_users`, TEMPLINK-2320); the janitor drops the
                bytes at expiry or revocation and the row 90 days later
 
 Off by default: `reports.documents` is false, and minting is refused (`document_page_missing`) until the public page's `#d.` mode ships
@@ -19,6 +20,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import logging
 import re
 import secrets
 import sqlite3
@@ -27,6 +29,7 @@ from typing import Any, Mapping
 from ...audit import audit
 from . import handler_links, links, settings_doc
 
+log = logging.getLogger("smplwise.tickets.out_documents")
 UTC = dt.timezone.utc
 TOKEN_DOMAIN = "doc"
 URL_MARK = "d."  # `#d.<token>` - '.' is not a base64url character, so a document fragment is never a ticket token
@@ -291,6 +294,38 @@ def revoke_sent_to_user(conn: sqlite3.Connection, user_id: str, reason: str, now
                         "AND source_id IS NOT NULL AND revoked_at IS NULL", (iso(now), reason, user_id)).rowcount
 
 
+USER_INACTIVE_REASON = "contact_erased"  # the 0128 CHECK has no `user_inactive`; the audit action below names the cause
+
+
+def revoke_for_inactive_users(conn: sqlite3.Connection, now: dt.datetime) -> int:
+    """TEMPLINK-2320 (owner decision 2026-10-31, 4A): every LIVE document minted for a system user (`recipient_kind` user - a link sent to him
+    inside a report and a link he made himself in the dialog) dies at once when that user is deactivated or deleted (`users.active` 0 or
+    `deleted_at` set). A sweep over the inactive users, so one call serves every identity path (Arx-only users, Home Assistant users managed
+    from Arx, the Home Assistant directory push) and the janitor's safety net. Re-enabling the user never brings a link back. Returns how many
+    links it stopped (expired or used-up rows are not counted)."""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'outbound_documents'").fetchone() is None:
+        return 0
+    at = iso(now)
+    return conn.execute("UPDATE outbound_documents SET revoked_at = ?, revoked_reason = ? WHERE recipient_kind = 'user' AND revoked_at IS NULL "
+                        "AND purged_at IS NULL AND expires_at > ? AND open_count < max_opens "
+                        "AND recipient_id IN (SELECT id FROM users WHERE active = 0 OR deleted_at IS NOT NULL)",
+                        (at, USER_INACTIVE_REASON, at)).rowcount
+
+
+def revoke_for_inactive_users_safe(conn: sqlite3.Connection, now: dt.datetime | None = None) -> int:
+    """`revoke_for_inactive_users` for the deactivation paths: never fails the caller's main act; one audit row with the COUNT only
+    (`report.document.revoke_user_inactive`, like the S2 opt-out revocation) and nothing when nothing was revoked."""
+    try:
+        n = revoke_for_inactive_users(conn, now or dt.datetime.now(UTC))
+    except sqlite3.Error:
+        log.warning("document link revocation for inactive users failed", exc_info=True)
+        return 0
+    if n:
+        audit(conn, actor=None, action="report.document.revoke_user_inactive", decision="allowed", resource_type="outbound_document",
+              details={"revoked": n})
+    return n
+
+
 def revoke_all_live(conn: sqlite3.Connection, reason: str, now: dt.datetime) -> int:
     """The module key rotation (spec 7.4): every document link still live dies with the old key, like every ticket and RFQ link."""
     if reason not in REVOKE_REASONS:
@@ -314,6 +349,7 @@ def key_ids_in_use(conn: sqlite3.Connection) -> set[str]:
     return {r[0] for r in conn.execute("SELECT DISTINCT key_id FROM outbound_documents WHERE purged_at IS NULL AND revoked_at IS NULL").fetchall() if r[0]}
 
 
-__all__ = ["DocumentRefused", "mint", "lookup", "open_file", "meta", "url", "token_of", "revoke", "revoke_recipient", "revoke_sent_to_user", "revoke_all_live", "purge",
+__all__ = ["DocumentRefused", "mint", "lookup", "open_file", "meta", "url", "token_of", "revoke", "revoke_recipient", "revoke_sent_to_user", "revoke_for_inactive_users",
+           "revoke_for_inactive_users_safe", "revoke_all_live", "purge",
            "is_live", "config",
            "PAGE_READY", "MAX_BYTES", "LIVE_TOTAL_MAX"]

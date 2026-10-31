@@ -369,9 +369,14 @@ def attachment_for(conn: sqlite3.Connection, row: dict[str, Any], model: dict[st
     if pdf is None or not row or not wants_document(conn, row):
         return None
     from . import temperature_report as rep
+    from . import temperature_report_link as rl
     from .tickets import out_documents
 
     at = now or dt.datetime.now(dt.timezone.utc)
+    try:  # TEMPLINK-2320 (owner 5A): the sender's mint limit (rolling 24 h) - a user link and a vendor link count alike
+        rl.check_daily_limit(conn, row.get("created_by"), at, kind="user" if row.get("recipient_kind") == "user" else "vendor")
+    except rl.LinkRefused as e:
+        raise out_documents.DocumentRefused(e.code) from None
     if row.get("recipient_kind") == "user":
         d = t.load_defaults(conn)
         doc = out_documents.mint(conn, module=MODULE, source_id=row["id"], recipient_kind="user", recipient_id=row["user_id"], media_type="application/pdf",

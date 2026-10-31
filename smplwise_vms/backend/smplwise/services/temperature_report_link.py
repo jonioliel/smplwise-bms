@@ -7,7 +7,8 @@ expired, revoked or used-up token). This module adds only what is temperature's 
 
 * the switch - `report_link_enabled` (installation setting, OFF by default) AND the tickets module's `reports.documents` (the public
   listener's switch; without it the file is not served, so no link is made);
-* the lifetime and limits - `report_link_hours` (default 24, at most 168), `report_link_max_opens`, `report_link_per_hour` (per user);
+* the lifetime and limits - `report_link_hours` (default 24, at most 168), `report_link_max_opens`, `report_link_per_hour` (per user),
+  `report_link_daily_max` (TEMPLINK-2320: per sender, rolling 24 h, every kind of temperature report link; `check_daily_limit`);
 * the list / revoke of the links a user made (a manager sees and may revoke all of them);
 * the audit rows: `infra.temperature.report.link.create` / `.revoke` here, `report.document.mint` / `report.document.open` in out_documents.
   A row names the actor, the time and the document id (the report id) - never the units' readings, the PDF or the token.
@@ -46,6 +47,28 @@ def settings(conn: sqlite3.Connection) -> dict[str, Any]:
             "per_hour": int(d["report_link_per_hour"])}
 
 
+DAILY_LIMIT = "report_link_daily_limit"
+
+
+def check_daily_limit(conn: sqlite3.Connection, sender_id: str | None, now: dt.datetime, *, kind: str, actor: Any = None) -> None:
+    """TEMPLINK-2320 (owner decision 2026-10-31, 5A): the per-sender mint limit of report links - `report_link_daily_max` (default 50, 0 = no
+    limit) over a ROLLING 24 h, counting every temperature document the sender minted (dialog links, WhatsApp links to system users, vendor
+    links; revoked and used-up ones too: it limits minting). Over the limit: one `denied` audit row (`infra.temperature.report.link.limit`,
+    the sender's id, the kind, the limit and the count - never a recipient or a link) and LinkRefused(`report_link_daily_limit`, 429).
+    The caller holds the write transaction; a send made on nobody's behalf (no sender) is not counted here."""
+    limit = int(t.load_defaults(conn).get("report_link_daily_max", 0) or 0)
+    if not sender_id or limit <= 0:
+        return
+    since = docs.iso(now - dt.timedelta(hours=24))
+    n = int(conn.execute("SELECT COUNT(*) FROM outbound_documents WHERE module = ? AND created_by = ? AND created_at > ?",
+                         (MODULE, sender_id, since)).fetchone()[0])
+    if n < limit:
+        return
+    audit(conn, actor=actor, action="infra.temperature.report.link.limit", decision="denied", resource_type="user", resource_id=sender_id,
+          reason=DAILY_LIMIT, details={"kind": kind, "limit": limit, "minted_24h": n})
+    raise LinkRefused(DAILY_LIMIT, 429)
+
+
 def available(conn: sqlite3.Connection) -> bool:
     """On in the temperature settings AND the public listener's document switch is on."""
     return settings(conn)["enabled"] and docs.config(conn)["enabled"]
@@ -56,6 +79,7 @@ def create(conn: sqlite3.Connection, user_id: str, actor: Any, pdf: bytes, filen
     s = settings(conn)
     if not s["enabled"]:
         raise LinkRefused("report_link_off", 409)
+    check_daily_limit(conn, user_id, now, kind="dialog", actor=actor)  # TEMPLINK-2320 (5A)
     if not LIMITER.hit(f"tlink:{user_id}", [(3600.0, s["per_hour"])]):
         raise LinkRefused("report_link_rate", 429)
     try:
@@ -128,4 +152,4 @@ def revoke(conn: sqlite3.Connection, doc_id: str, user_id: str, actor: Any, ever
         audit(conn, actor=actor, action="infra.temperature.report.link.revoke", decision="allowed", resource_type="outbound_document", resource_id=doc_id)
 
 
-__all__ = ["PERM", "LinkRefused", "settings", "available", "create", "listing", "revoke", "revoke_all"]
+__all__ = ["PERM", "DAILY_LIMIT", "LinkRefused", "check_daily_limit", "settings", "available", "create", "listing", "revoke", "revoke_all"]
