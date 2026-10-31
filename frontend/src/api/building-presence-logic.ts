@@ -3,7 +3,10 @@
  * Green is reserved for status: only an occupied building is `ok`; empty and unknown are neutral.
  */
 import { BP } from '../i18n/building-presence';
-import { EMPTY_RANGE, HOLD_RANGE, RETENTION_RANGE, type BuildingPresenceSettings, type BuildingSnapshot, type PresenceCandidate } from './building-presence';
+import {
+  CARD_CHOICES, EMPTY_RANGE, HOLD_RANGE, RETENTION_RANGE,
+  type BuildingPresenceSettings, type BuildingSnapshot, type CardAllEmpty, type CardDetails, type CardEmptyRooms, type CardStyle, type PresenceCandidate,
+} from './building-presence';
 
 export interface ChipView { show: boolean; tone: 'ok' | 'neutral'; text: string }
 
@@ -89,8 +92,120 @@ export function cardView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Je
   return { show: true, tone: 'neutral', big: BP.unknown, sub: BP.cardNoInfo, rooms: rows };
 }
 
-/** PRESENCE-2280: whether the home presence widget exists at all (enabled + configured + display "card"; the caller's permission is checked by the screen). */
-export const presenceWidgetAvailable = (s: BuildingSnapshot | null | undefined): boolean => cardView(s).show;
+/** PRESENCE-2280: whether the home presence widget exists at all (enabled + configured + display "card"; the caller's permission is checked by the screen).
+ * PRESENCE-COMPACT-2310: and the card style is not "off" (no card, the map only). */
+export const presenceWidgetAvailable = (s: BuildingSnapshot | null | undefined): boolean => cardView(s).show && cardOptions(s?.settings).style !== 'off';
+
+// ---- PRESENCE-COMPACT-2310: the compact home card (round-9 mockup, owner answers 31.10) ----
+
+export interface CardOptions { style: CardStyle; emptyRooms: CardEmptyRooms; details: CardDetails; allEmpty: CardAllEmpty }
+
+const pick = <T extends string>(list: readonly T[], v: unknown): T => (list.includes(v as T) ? (v as T) : list[0]);
+
+/** The card's four display options from the settings; a missing or unknown value is the default (the first choice). */
+export function cardOptions(s: Partial<BuildingPresenceSettings> | null | undefined): CardOptions {
+  return {
+    style: pick(CARD_CHOICES.card_style, s?.card_style),
+    emptyRooms: pick(CARD_CHOICES.card_empty_rooms, s?.card_empty_rooms),
+    details: pick(CARD_CHOICES.card_details, s?.card_details),
+    allEmpty: pick(CARD_CHOICES.card_all_empty, s?.card_all_empty),
+  };
+}
+
+export interface CompactRoom { name: string; tone: 'ok' | 'neutral' | 'unknown'; title: string }
+export interface CompactFloor { name: string; on: number; of: number }
+export interface CompactView {
+  show: boolean;
+  tone: 'ok' | 'clear' | 'unknown';
+  word: string;
+  /** "2 מתוך 5 חדרים" / "כל 5 החדרים ריקים" / "החיישנים לא מדווחים". */
+  sub: string;
+  /** The update time (HH:MM) or ''. */
+  at: string;
+  opts: CardOptions;
+  /** The rooms with a sensor. */
+  of: number;
+  /** The active rooms, by name. */
+  active: CompactRoom[];
+  /** Empty (grey) then unknown rooms - only with "show empty rooms" and never beside the "last emptied" line. */
+  others: CompactRoom[];
+  /** All empty + "last": "<room> · ריק מ־HH:MM" (the room that emptied last); '' otherwise. */
+  last: string;
+  /** The "floors" style: one bar per floor, the most active first (a building without floors is one bar). */
+  floors: CompactFloor[];
+  /** Details inline (and the empty rooms are not pills): one quiet line of the empty / unknown names; '' otherwise. */
+  rest: string;
+  /** The tooltip: the update time, then the empty and the unknown names (capped with +N). */
+  tip: string;
+}
+
+const TIP_NAMES = 12;
+const REST_NAMES = 4;
+
+function names(list: readonly CompactRoom[], cap: number): string {
+  const head = list.slice(0, cap).map((r) => r.name).join(', ');
+  return list.length > cap ? `${head} ${BP.plus(list.length - cap)}` : head;
+}
+
+/** Everything the compact card draws. `show` is false unless the widget exists (see `presenceWidgetAvailable`). */
+export function compactView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Jerusalem'): CompactView {
+  const opts = cardOptions(s?.settings);
+  const base: CompactView = { show: false, tone: 'unknown', word: '', sub: '', at: '', opts, of: 0, active: [], others: [], last: '', floors: [], rest: '', tip: '' };
+  if (!s || !presenceWidgetAvailable(s)) return base;
+  const rooms = (s.rooms ?? []).filter((r) => r.name);
+  const byName = (a: CompactRoom, b: CompactRoom) => a.name.localeCompare(b.name, 'he');
+  const toRoom = (r: (typeof rooms)[number]): CompactRoom => {
+    const name = r.name ?? '';
+    const since = clockText(r.empty_since, zone);
+    const text = r.status === 'occupied' ? BP.occupied : r.status === 'clear' ? (since ? BP.emptySince(since) : BP.empty) : BP.unknown;
+    return { name, tone: r.status === 'occupied' ? 'ok' : r.status === 'clear' ? 'neutral' : 'unknown', title: `${name} · ${text}` };
+  };
+  const active = rooms.filter((r) => r.status === 'occupied').map(toRoom).sort(byName);
+  const empty = rooms.filter((r) => r.status === 'clear').map(toRoom).sort(byName);
+  const unknown = rooms.filter((r) => r.status !== 'occupied' && r.status !== 'clear').map(toRoom).sort(byName);
+  const of = rooms.length;
+  const at = clockText(s.at, zone);
+  const tone: CompactView['tone'] = s.status === 'occupied' ? 'ok' : s.status === 'clear' ? 'clear' : 'unknown';
+  const word = tone === 'ok' ? BP.occupied : tone === 'clear' ? BP.empty : BP.unknown;
+  const sub = tone === 'ok' ? BP.stripSub(s.occupied_rooms ?? active.length, of) : tone === 'clear' ? BP.cardAllEmpty(of) : BP.cardNoInfo;
+  let last = '';
+  if (tone === 'clear' && opts.allEmpty === 'last') {
+    const timed = rooms.filter((r) => r.status === 'clear' && clockText(r.empty_since, zone));
+    timed.sort((a, b) => Date.parse(b.empty_since ?? '') - Date.parse(a.empty_since ?? ''));
+    if (timed[0]) last = BP.lastEmpty(timed[0].name ?? '', clockText(timed[0].empty_since, zone));
+  }
+  const others = opts.emptyRooms === 'show' && !last ? [...empty, ...unknown] : [];
+  // floors in the order the rooms come (the server sorts them), the most active first; a stable sort keeps that order on a tie
+  const hasFloors = rooms.some((r) => r.floor);
+  const floors: CompactFloor[] = [];
+  for (const r of rooms) {
+    const name = hasFloors ? r.floor || BP.noFloor : BP.wholeBuilding;
+    let f = floors.find((x) => x.name === name);
+    if (!f) floors.push((f = { name, on: 0, of: 0 }));
+    f.of++;
+    if (r.status === 'occupied') f.on++;
+  }
+  floors.sort((a, b) => b.on - a.on);
+  const tipLines = [at ? BP.updated(at) : '', empty.length ? `${BP.emptyNames}: ${names(empty, TIP_NAMES)}` : '', unknown.length ? `${BP.unknownNames}: ${names(unknown, TIP_NAMES)}` : ''];
+  const rest = opts.details === 'inline' && opts.emptyRooms === 'hide' && tone === 'ok'
+    ? [empty.length ? `${BP.emptyNames}: ${names(empty, REST_NAMES)}` : '', unknown.length ? `${BP.unknownNames}: ${names(unknown, REST_NAMES)}` : ''].filter(Boolean).join(' · ')
+    : '';
+  return { show: true, tone, word, sub, at, opts, of, active, others, last, floors, rest, tip: tipLines.filter(Boolean).join('\n') };
+}
+
+/** PRESENCE-COMPACT-2310 (answer 4): the area window's quiet part of the sub-line - "פעיל" / "ריק מ־HH:MM" / "אין מידע". Shown while tracking
+ * is on and the room has a tagged sensor; the map's own switch does not hide it (it is not the map). */
+export function areaPresence(s: BuildingSnapshot | null | undefined, areaId: string | null | undefined, zone = 'Asia/Jerusalem'): { text: string; tone: 'ok' | 'clear' | 'unknown' } | null {
+  if (!s || !s.configured || !areaId) return null;
+  const r = (s.rooms ?? []).find((x) => x.area_id === areaId);
+  if (!r) return null;
+  if (r.status === 'occupied') return { text: BP.occupied, tone: 'ok' };
+  if (r.status === 'clear') {
+    const at = clockText(r.empty_since, zone);
+    return { text: at ? BP.emptySince(at) : BP.empty, tone: 'clear' };
+  }
+  return { text: BP.unknown, tone: 'unknown' };
+}
 
 /**
  * The plan map's chip of one room: "פעיל" / "ריק מ־HH:MM" / "אין מידע" (a room whose sensor does not report). Null when the master switch or

@@ -6,7 +6,8 @@ import '../../src/styles/focus-policy';
 import '../../src/screens/home-widgets';
 import '../../src/screens/system-building-presence';
 import { defaultConfig, resolveWidgets, type HomeData, type WidgetId } from '../../src/api/home-config';
-import type { BuildingSnapshot, OccupancyStatus } from '../../src/api/building-presence';
+import type { BuildingPresenceSettings, BuildingSnapshot, OccupancyStatus } from '../../src/api/building-presence';
+import { presenceWidgetAvailable } from '../../src/api/building-presence-logic';
 
 export type PresenceDataset = 'ready' | 'empty' | 'unknown' | 'one' | 'worst' | 'error' | 'loading';
 
@@ -15,9 +16,10 @@ const UNB = 'ConferenceRoomNorthWingLevel3B';
 const NOW = Date.now();
 const ago = (min: number) => new Date(NOW - min * 60_000).toISOString();
 
-function snapshot(ds: PresenceDataset): BuildingSnapshot | null {
+function snapshot(ds: PresenceDataset, card: Partial<BuildingPresenceSettings> = {}): BuildingSnapshot | null {
   if (ds === 'loading' || ds === 'error') return null;
-  const settings = { enabled: true, retention_days: 30, home_display: 'card' as const, map_tint: true, hold_seconds: 60, empty_minutes: 10 };
+  // PRESENCE-COMPACT-2310: the card's display options come in from the spec (defaults = the owner's answers)
+  const settings: BuildingPresenceSettings = { enabled: true, retention_days: 30, home_display: 'card', map_tint: true, hold_seconds: 60, empty_minutes: 10, ...card };
   type R = { name: string; status: OccupancyStatus; empty_since?: string | null };
   let rooms: R[];
   if (ds === 'worst') {
@@ -40,7 +42,7 @@ function snapshot(ds: PresenceDataset): BuildingSnapshot | null {
   const status: OccupancyStatus = ds === 'unknown' ? 'unknown' : occ ? 'occupied' : 'clear';
   return {
     configured: true, enabled: true, fresh: true, settings, status, occupied_rooms: occ, at: ago(0), empty_since: status === 'clear' ? ago(20) : null,
-    rooms: rooms.map((r, i) => ({ area_id: `a${i}`, name: r.name, status: r.status, sensors: 1, empty_since: r.empty_since ?? null })),
+    rooms: rooms.map((r, i) => ({ area_id: `a${i}`, name: r.name, status: r.status, sensors: 1, empty_since: r.empty_since ?? null, floor: ds === 'one' ? null : ds === 'worst' ? `קומה ${1 + (i % 12)}` : ['קרקע', 'קומה 2', 'קומה 2', 'קומה 3', 'קומה 3'][i] ?? null })),
   };
 }
 
@@ -48,7 +50,7 @@ const root = document.getElementById('root') as HTMLElement;
 root.style.cssText = 'display:block;min-height:100vh;background:var(--sw-bg);color:var(--sw-text);font-family:var(--sw-font);padding:16px;box-sizing:border-box';
 
 /** The home band: clock, alarm and the presence card, in the layout the home picks for this width. */
-(window as unknown as Record<string, unknown>).pdMountHome = async (ds: PresenceDataset, layout: string, size: 's' | 'm' | 'l' = 'm') => {
+(window as unknown as Record<string, unknown>).pdMountHome = async (ds: PresenceDataset, layout: string, size: 's' | 'm' | 'l' = 'm', card: Partial<BuildingPresenceSettings> = {}) => {
   const cfg = defaultConfig();
   cfg.alarm.entity = 'alarm_control_panel.x';
   const data: HomeData = {
@@ -57,14 +59,15 @@ root.style.cssText = 'display:block;min-height:100vh;background:var(--sw-bg);col
   } as HomeData;
   const ids: WidgetId[] = ['clock', 'alarm', 'presence'];
   cfg.order = [...ids, ...cfg.order.filter((x) => !ids.includes(x))];
-  const found = resolveWidgets(cfg, 'a', data, { quickAllowed: { lights_off: true, all_off: true }, elevatorsAvailable: false, temperatureAvailable: false, generatorsAvailable: false, doorsAvailable: false, noticesAvailable: false, presenceAvailable: ds !== 'loading', mediaAvailable: false });
+  const el0 = snapshot(ds, card); // the home asks the same rule the screen does (no card for style "off")
+  const found = resolveWidgets(cfg, 'a', data, { quickAllowed: { lights_off: true, all_off: true }, elevatorsAvailable: false, temperatureAvailable: false, generatorsAvailable: false, doorsAvailable: false, noticesAvailable: false, presenceAvailable: ds === 'error' || presenceWidgetAvailable(el0), mediaAvailable: false });
   const el = document.createElement('home-widgets') as unknown as HTMLElement & Record<string, unknown>;
   el.config = cfg;
   el.data = data;
   el.items = ids.map((id) => found.find((x) => x.id === id)).filter((x) => !!x).map((x) => (x!.id === 'presence' ? { ...x!, size } : x!));
   el.layout = layout;
   el.quick = { allowed: { lights_off: true, all_off: true }, lightsOn: 0, switchesOn: 0 };
-  el.presence = snapshot(ds);
+  el.presence = el0;
   el.failed = ds === 'error' ? ['presence'] : [];
   el.alarmLink = true;
   root.replaceChildren(el);
