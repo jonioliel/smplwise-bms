@@ -48,7 +48,7 @@ Full inventory, versions and the licence analysis: `docs/security/DEPENDENCY_AND
 
 | Component | Where | License |
 |---|---|---|
-| paramiko 4.0.0 (+ bcrypt, PyNaCl: Apache-2.0; invoke: BSD-2-Clause) | add-on image (PyPI), SFTP off-box backups | LGPL-2.1; used unmodified as a separate library |
+| paramiko 5.1.0 (+ bcrypt, PyNaCl: Apache-2.0; invoke: BSD-2-Clause) | add-on image (PyPI), SFTP off-box backups | LGPL-2.1; used unmodified as a separate library |
 | lit 3.3.3 / lit-html / lit-element / @lit/reactive-element / @lit-labs/ssr-dom-shim | the web UI bundle | BSD-3-Clause |
 | three 0.186.1 (including `three/addons` OrbitControls, GLTFExporter, RoundedBoxGeometry) | the web UI bundle (3D plans) | MIT |
 | qrcode-generator 1.4.4 | the web UI bundle | MIT |
@@ -56,4 +56,33 @@ Full inventory, versions and the licence analysis: `docs/security/DEPENDENCY_AND
 | Lobby fonts: Bodoni Moda, David Libre, Frank Ruhl Libre, IBM Plex Mono, IBM Plex Sans Hebrew | `frontend/public/fonts/lobby/`, `smplwise_vms/www/fonts/lobby/` | SIL OFL 1.1 - one `OFL-*.txt` per family |
 | Plan Studio 6 models and textures (Kenney and others) | `smplwise_vms/www/plan3d/` | CC0-1.0 - per-file source and hash in `plan3d/MANIFEST.json` |
 | WisKey command / error catalogue rc37-contract.4 | `docs/integrations/wiskey/catalog/rc37-contract.4/` | MIT (`LICENSE` in that folder) |
+| WisKey embed-api-v1 reference client (adapted as `frontend/src/wiskey/embed-connector.ts`) | the web UI bundle | MIT - WisKey root LICENSE, confirmed by the WisKey team 2026-10-31 (sample SHA256 d3324a40...); full notice below and in `frontend/src/wiskey/LICENSE-embed-api-v1.txt` |
 | AndroidX (appcompat, activity-ktx, webkit, core-splashscreen, biometric), Material Components | the Android shell APK | Apache-2.0 |
+
+## WisKey embed-api-v1 reference client - MIT notice
+
+Arx adds its own changes in `frontend/src/wiskey/embed-connector.ts`; those changes are not relicensed by this notice.
+
+```
+MIT License
+
+Copyright (c) 2026 Hikvision Intercom Manager contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
