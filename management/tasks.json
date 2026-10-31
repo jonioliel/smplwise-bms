@@ -235,7 +235,7 @@
       "AT009",
       "AT010"
     ],
-    "status": "READY",
+    "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -252,7 +252,8 @@
     ],
     "evidence": [
       "pre-evidence (2026-09-16): docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md - runtime inventory with licences (Python deps, Alpine poppler/ffmpeg as subprocesses, lit, dev tools, HA base image), pip-audit on requirements.txt: no known vulnerabilities, npm audit: 0, repository secret scan (git grep + the segment loop's pre-commit scan): no hits, log redaction points listed, every dangerous write path reviewed with its guard (uploads, backups, exports, thumbnails, bridge install, go2rtc namespace, NVR read-only), findings: GPL tools kept as separate processes, legacy code never redistributed, scans added to the release checklist. Owner review pending",
-      "2026-09-22 (0.1.81): audit re-run at the current release, as the card's cadence rule asks - pip-audit clean over the 11 backend requirements, npm audit 0 (7 prod / 70 dev packages, runtime dependency still lit only), tracked-tree grep for credentials / tokens / lab addresses / serials / MACs 0 hits (legacy/ scanned separately, 0). Inventory gained cryptography (Apache-2.0 OR BSD-3, evidence signing) and ezdxf (MIT, DXF import), which arrived after the first audit; docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md §2 and the new §6 re-scan log. Both acceptance criteria are evidenced at the current tree; what remains is the owner's sign-off."
+      "2026-09-22 (0.1.81): audit re-run at the current release, as the card's cadence rule asks - pip-audit clean over the 11 backend requirements, npm audit 0 (7 prod / 70 dev packages, runtime dependency still lit only), tracked-tree grep for credentials / tokens / lab addresses / serials / MACs 0 hits (legacy/ scanned separately, 0). Inventory gained cryptography (Apache-2.0 OR BSD-3, evidence signing) and ezdxf (MIT, DXF import), which arrived after the first audit; docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md §2 and the new §6 re-scan log. Both acceptance criteria are evidenced at the current tree; what remains is the owner's sign-off.",
+      "2026-10-31 (TASKS-SYNC-3110): refresh for v2.29.0 running on chore/DEPAUDIT-2310 (dependencies, licences, vulnerability scan, secrets scan)"
     ],
     "owner": null,
     "commit": null,
@@ -344,7 +345,7 @@
       "AT013",
       "AT014"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -372,7 +373,8 @@
       "2026-09-29 (0.1.141, merge of pilot/ui-hide-ha-brand): owner rule - Home Assistant is named only inside Settings; ~212 user-facing strings in 55 files replaced with platform-neutral copy (docs/design/UI_COPY_RULES.md); identifiers untouched; Sonnet review 5 fixes; screens spec 32/32, backend touched modules 322/322.",
       "2026-09-29 (0.1.144, merge of pilot/ui-rename-leftovers a6097a8): remaining 'VMS' / 'SMPLWISE' product names in user-facing strings replaced by Arx / neutral wording; identifiers, the company wordmark and the bridge integration's own name unchanged.",
       "2026-09-30 (0.1.148): the home screen in three directions (home.direction) with editable widgets, a phone layout for the widgets, the personal screen (screen.personalize); the area screens in two directions with an interactive breadcrumb, the sensor picker and per-section bulk-off looks.",
-      "2026-10-01 (0.1.149): heating as its own climate group with override; 1-degree steps and the entity's own range; area-row indicators editable (devices.area_row / floor_row) with lead/mean A/C, only-when-open items and a personal override."
+      "2026-10-01 (0.1.149): heating as its own climate group with override; 1-degree steps and the entity's own range; area-row indicators editable (devices.area_row / floor_row) with lead/mean A/C, only-when-open items and a personal override.",
+      "2026-10-31 (TASKS-SYNC-3110): tokens and base components shipped long ago (commit 0a06b58a3, v2.7.2); later design unification rounds built on them; needs a closing review, not new work"
     ],
     "owner": "Claude Code; design approver: product owner",
     "commit": null,
@@ -974,7 +976,8 @@
       "pre-evidence (segment 2, 2026-09-14): live-wall.ts 1/2/4/6/8/9/12/16 layouts with real sub streams, snapshot posters, cap-aware (poster beyond media.max_live_sessions), auto/main/sub selector; kiosk-wall.ts 3x3 real streams; saved views, reorder/pin and mobile override still open",
       "2026-09-27 (0.1.100, on commit 4bee61e): owner request - a settings mode on the all-cameras wall (SC07) to set camera display order and let a camera (their example: panoramic sports-hall cameras) span more than one grid column. Migration 0023 adds cameras.grid_col_span (1-4), reusing the existing sort_order column and its PATCH route (already gated by sources.configure). New settings dialog (data-wall-settings-open, gated on can_sync): up/down move buttons per camera, a column-span choice; save renumbers the dialog's rows and every other visible camera consistently so disabled/hidden cameras never collide with the new order. Reviewed twice: fixed a spanned-tile double-height/overflow bug (aspect ratio now widens with the span; best-fit sizing weighs by span instead of assuming equal tiles), a phone-width column-clamp bug, a non-atomic save path with no reload on failure, and test-hygiene issues; a scoped re-review closed one residual sparse-grid-gap edge case with grid-auto-flow: dense. Tests: backend 12/12 (test_cameras.py + test_anchor_3d.py), live 2/2. kiosk-wall.ts does not yet honor grid_col_span - flagged as an open question for the owner, not fixed in this pass.",
       "2026-09-27 (0.1.101, fix, on commit 6bf064f): owner report with a live-lab screenshot - a camera set to span 2 grid columns showed its picture squeezed into half the tile with a black band, because the prior release (0.1.100) widened the tile's own aspect ratio to keep row height uniform, but a real camera stream is genuinely 16:9 and the live player deliberately never crops it (object-fit: contain), so a wider-than-native container just letterboxes it. Fixed: every tile keeps its true 16:9 shape; a spanned tile is bigger in both dimensions, not just wider. Reviewed twice: found and fixed a second bug in the same area - the row-count estimate for sizing tiles assumed ideal CSS Grid dense-packing, which is false for some multi-wide-span combinations (e.g. two span-3 plus one span-2 camera at 4 columns needs 3 rows, not 2), replaced with an exact dense-placement simulation verified against real Chromium measurements; also fixed a small, separate pre-existing height-budget miscalculation exposed by the same fix. Tests: 6 new unit tests (no browser needed) for the dense-packing simulation, extended live T091 geometry tests including a real before/after overflow reproduction.",
-      "2026-09-27 (0.1.103, fix, on commit 69e023d): owner report with a real lab screenshot on 0.1.101 - camera order looked wrong and the wide-tile picture was centered rather than filling the tile. Root cause of both: grid-auto-flow: dense (0.1.100) can pull a smaller camera ahead of an earlier wider one to backfill a gap - the settings dialog's save logic was verified clean, this was purely a render-order effect. Owner decided both open product questions: (1) strict saved order always, no gap-filling reorder - grid switched from dense to plain row placement, with an exact greedy row-count simulation (simulateStrictRows/simulateStrictPlacement) replacing the dense-packing estimate; (2) wide tiles stretch to show the complete picture (fit=fill) rather than cropping, isolated so no other tile/poster/kiosk view is affected. Reviewed three times: a first attempt (restoring 0.1.100's row-height model) was proven still broken by a scoped re-review using real measured on-screen positions against the owner's exact 11-camera layout; the corrected version proves strict order by construction (structural proof, not just passing examples). Tests: 8 unit tests for the placement algorithm, 4 live geometry tests including a 4-edge-marker check proving the complete frame is shown stretched with no cropping or letterboxing."
+      "2026-09-27 (0.1.103, fix, on commit 69e023d): owner report with a real lab screenshot on 0.1.101 - camera order looked wrong and the wide-tile picture was centered rather than filling the tile. Root cause of both: grid-auto-flow: dense (0.1.100) can pull a smaller camera ahead of an earlier wider one to backfill a gap - the settings dialog's save logic was verified clean, this was purely a render-order effect. Owner decided both open product questions: (1) strict saved order always, no gap-filling reorder - grid switched from dense to plain row placement, with an exact greedy row-count simulation (simulateStrictRows/simulateStrictPlacement) replacing the dense-packing estimate; (2) wide tiles stretch to show the complete picture (fit=fill) rather than cropping, isolated so no other tile/poster/kiosk view is affected. Reviewed three times: a first attempt (restoring 0.1.100's row-height model) was proven still broken by a scoped re-review using real measured on-screen positions against the owner's exact 11-camera layout; the corrected version proves strict order by construction (structural proof, not just passing examples). Tests: 8 unit tests for the placement algorithm, 4 live geometry tests including a 4-edge-marker check proving the complete frame is shown stretched with no cropping or letterboxing.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit ab4afe880); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": "4bee61e",
@@ -2355,7 +2358,8 @@
       "pre-evidence (2026-09-16, 0.1.22): explore-floor-map selection mode ('בחירת מצלמות'): pin clicks toggle cameras (no card opens), chips with the picked names, 'בחר הכל', 'נקה', 'סיום'; sw-plan-canvas selectedIds highlights several pins; 'קיר חי' -> #/live/wall?cameras=a,b (live-wall filters to those cameras, tile count = selection, note with a link back to all cameras); 'ניגון מסונכרן' -> #/investigate/playback?camera=lead&extra=b,c (playback takes up to three extras into the synchronized group at start). frontend/tests/evidence-multiselect.spec.ts in real Chrome against the dev backend - private-evidence/T043-multiselect-live/*.png. Open: lasso / rectangle selection, saving a selection as a view (T057 saved views)",
       "pre-evidence (2026-09-17, 0.1.56): sw-plan-canvas boxSelect — a primary-button drag draws a rectangle and emits box-select with the markers inside it (Shift + drag / pinch / wheel keep panning and zooming; the click after the drag does not clear the selection); explore-floor-map: rectangle picks join the selection, a zone click while picking toggles the cameras inside the polygon (pointInPolygon on the anchors), the pick bar splits the selection into watchable / offline / without live permission and reports the floor's cameras not placed on the plan, 'שמור כתצוגה' opens a dialog (name, kiosk cols × rows, shared when can_share) and POSTs /views with the watchable cameras (16 at most), then links to the saved-views screen and the wall. frontend/tests/evidence-multiselect-box.spec.ts in real Chrome against the dev backend (room click picks and drops the room's cameras, a rectangle over the plan picks every camera, hint counts match the map bundle, the saved view exists on the server with the chosen layout and is listed by the saved-views screen; deleted afterwards). Open: suggested adjacent cameras (coverage neighbours) and 'back to the original position' after playback",
       "M043 (2026-10-05, pilot/investigate-map-improvements): suggested adjacent cameras in the pick bar - from the picked cameras, the cameras in the same room, in a room that shares a wall, or within a fifth of the plan (frontend/src/map/adjacent-cameras.ts, pure; the smallest room containing a pin is its room); a chip per suggestion with its relation, 'הוסף הכל'; never an automatic pick, never tracking. Back to the selection: the picks are mirrored into the `picks=` route parameter (replaceRoute, no history entry) and the pan / zoom kept per floor in sessionStorage while picking; the wall and the playback opened from the selection carry `from=map` and show 'חזרה למפה' (the browser's Back); the map restores the floor, the picks, the mode and the place. Tests: frontend/tests/unit-adjacent-cameras.spec.ts (node, 4), frontend/tests/evidence-map-improvements.spec.ts (throwaway backend, desktop / tablet / mobile + bubble dark). Screenshots: docs/evidence/investigate-map-improvements/{before,after}/m043-*.png",
-      "2.0.3 (integ/203, 2026-10-05): M043 merged from pilot/investigate-map-improvements @ 05403361 and released in 2.0.3 (status stays BACKLOG: dependencies not DONE); acceptance on the owner's real plans NOT_RUN (evidence spec on a throwaway backend only)."
+      "2.0.3 (integ/203, 2026-10-05): M043 merged from pilot/investigate-map-improvements @ 05403361 and released in 2.0.3 (status stays BACKLOG: dependencies not DONE); acceptance on the owner's real plans NOT_RUN (evidence spec on a throwaway backend only).",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 2b7a16c1b); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -2460,7 +2464,8 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "pre-evidence 2026-09-17 (0.1.42), read-only half: GET /cameras/{id}/capabilities reads PTZ capability (supported / unsupported only on the device's notSupport / unknown with reason), the preset list and the two-way audio channel state through ISAPI GETs; the camera page shows them as badges and states that moves, preset recall and talk are device writes not offered in the pilot (no fake control), digital zoom = browser only. Lab: fixed cameras report PTZ notSupport, empty presets, audio channel present but disabled. tests/test_capabilities.py; live evidence private-evidence/T045-capabilities-live. Moves, presets recall, talk with microphone consent and arbitration remain excluded until the owner approves device writes."
+      "pre-evidence 2026-09-17 (0.1.42), read-only half: GET /cameras/{id}/capabilities reads PTZ capability (supported / unsupported only on the device's notSupport / unknown with reason), the preset list and the two-way audio channel state through ISAPI GETs; the camera page shows them as badges and states that moves, preset recall and talk are device writes not offered in the pilot (no fake control), digital zoom = browser only. Lab: fixed cameras report PTZ notSupport, empty presets, audio channel present but disabled. tests/test_capabilities.py; live evidence private-evidence/T045-capabilities-live. Moves, presets recall, talk with microphone consent and arbitration remain excluded until the owner approves device writes.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 4832cbef5); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -2573,7 +2578,8 @@
     "evidence": [
       "pre-evidence (2026-09-16, 0.1.16, review grouping per M26; spotlights stay open): routers/events.py group_windows() merges events of one camera whose gaps are <= gap seconds (system events never merged) into windows {start, end, count, types, dominant_type, severity, acked/acked_count, event_ids, thumbnail of the first event with a picture}; GET /events/windows (same scope/time filters as the list, gap 30..3600), POST /events/ack-many (per-event scope check, each ack audited with window=true, skipped ids reported, 403 when nothing allowed); tests/test_event_windows.py (pure grouping, API, ack-many, audit count, scope). UI: events centre chips אירועים / חלונות (remembered in localStorage), windows table with picture / dominant type ×count / camera / time range / status, gap select, window drawer with raw events linking to their pages, 'סמן הכל כטופל', 'סקירה מלאה'; frontend/tests/evidence-event-windows.spec.ts in real Chrome against the dev backend - private-evidence/T0xx-event-detail-live/event-windows-*.png",
       "M047 (2026-10-05, pilot/investigate-map-improvements): spotlights by deterministic rules (services/spotlights.py: critical 3, smart detection reported as an alert 2, video integrity 2, door + activity 2, several cameras 1, burst of 5+ 1, 10+ minutes 1; lit at 2 or more; no time of day) - every window of GET /events/windows carries {on, score, rules[{code, score, label, why}], confidence, sources}, the answer counts the lit ones and lists the rules; `spotlight=true` filters. Manual grouping corrections: migration 0059 (event_window_groups / event_window_members), POST /events/windows/groups {event_ids, note} (events.ack per camera, an event moves between groups, an emptied group is removed, audited event.window.group), DELETE /events/windows/groups/{id} (event.window.ungroup); group_windows() keys the members as one window whatever the gap or the mode; the raw events are never changed. UI (investigate-events): 'זרקור' column with the rules met, 'זרקורים (n)' chip, the drawer opens on the summary (severity, confidence, sources, rules with reasons) with the raw events behind 'N אירועים מקוריים', a tick per event + 'הפרד לחלון נפרד', 'אחד עם הקודם / הבא', 'בטל קיבוץ ידני'. Tests: tests/test_event_windows.py (+3: rules, pure grouping with manual groups, API split / join / dissolve / scope), frontend/tests/evidence-map-improvements.spec.ts. Screenshots: docs/evidence/investigate-map-improvements/{before,after}/m047-*.png",
-      "2.0.3 (integ/203, 2026-10-05): M047 merged from pilot/investigate-map-improvements @ 05403361 and released in 2.0.3 (status stays BACKLOG: dependencies not DONE); the manual-grouping migration was renumbered 0057 -> 0059_event_window_groups.sql at the integration (0057 = CR-027 phone app, 0058 = EL6). Acceptance on the owner's events NOT_RUN."
+      "2.0.3 (integ/203, 2026-10-05): M047 merged from pilot/investigate-map-improvements @ 05403361 and released in 2.0.3 (status stays BACKLOG: dependencies not DONE); the manual-grouping migration was renumbered 0057 -> 0059_event_window_groups.sql at the integration (0057 = CR-027 phone app, 0058 = EL6). Acceptance on the owner's events NOT_RUN.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 52314db81); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -2731,7 +2737,8 @@
     ],
     "evidence": [
       "pre-evidence (2026-09-16, 0.1.32): services/bundle.py build() - ZIP with clips/<item>_<export output> (copies of finished export outputs) + clips/<item>.export-manifest.json, snapshots/<item>.jpg, notes.md, report.html (Hebrew, RTL, per-item table with sha256, integrity statement), manifest.json (schema smplwise-evidence-bundle/1, case, items with source / time / preservation, files with sha256 + bytes, skipped list, integrity note, signature: null) and MANIFEST.sha256; verify() recomputes every hash and reports ok / mismatch / missing / extra + manifest hash. routers/cases.py: POST /cases/{id}/bundle (cases.manage, scope-filtered items, audited), GET bundles, GET download (name pattern checked), POST /cases/bundles/verify (upload, audited). tests/test_bundle.py (contents, hashes, tampered clip = mismatch, removed snapshot = missing, extra file, bad zip). UI: case page bundle card (create, list / download, verify with per-file results). frontend/tests/evidence-bundle.spec.ts against the dev backend + lab NVR (real snapshot, bundle, verify genuine + tampered) - private-evidence/T050-bundle-live/*.png. Open: signed manifest + key rotation (T067), import of a bundle into another installation, clip thumbnails inside the report",
-      "2026-09-29 (0.1.131, merge of pilot/T050-bundle-import 0fec0f7): export/import verification - POST /cases/bundles/verify (case-read, permission before body, streamed staging, cap cases.import_max_mb 512, one at a time, 507 below storage.min_free_mb 1024, 408 idle 30 s / 600 s total), POST /cases/bundles/import (cases.manage installation-wide; new 'imported' case with provenance, read-only items/notes, files under imported/<hash>/, storage accounting, 409 on the same hash, audited), POST /cases/{id}/integrity (60 s cooldown). Producer claim only with a verified signature ('לפי המזהה בלבד' otherwise); EOCD/ZIP64 pre-check before opening (million-entry archive refused ~1 ms / 0.07 MB), zip-slip/symlink/encrypted/duplicate/ratio/unpacked-size guards, magic-byte content types + nosniff + sandbox CSP, text sanitised. Migration 0030. Tests: 19 + 33 set, Playwright 3/3; Opus security review (1 blocker + 2 medium) + 2 re-reviews."
+      "2026-09-29 (0.1.131, merge of pilot/T050-bundle-import 0fec0f7): export/import verification - POST /cases/bundles/verify (case-read, permission before body, streamed staging, cap cases.import_max_mb 512, one at a time, 507 below storage.min_free_mb 1024, 408 idle 30 s / 600 s total), POST /cases/bundles/import (cases.manage installation-wide; new 'imported' case with provenance, read-only items/notes, files under imported/<hash>/, storage accounting, 409 on the same hash, audited), POST /cases/{id}/integrity (60 s cooldown). Producer claim only with a verified signature ('לפי המזהה בלבד' otherwise); EOCD/ZIP64 pre-check before opening (million-entry archive refused ~1 ms / 0.07 MB), zip-slip/symlink/encrypted/duplicate/ratio/unpacked-size guards, magic-byte content types + nosniff + sandbox CSP, text sanitised. Migration 0030. Tests: 19 + 33 set, Playwright 3/3; Opus security review (1 blocker + 2 medium) + 2 re-reviews.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 3bdd4bf36); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -2965,7 +2972,8 @@
       "2026-09-29 (0.1.135, merge of pilot/T054-embed-frame-css a710862): owner report of a dark edge around the embedded WisKey panel - stage/iframe/overlay used --sw-bg and the iframe had its own min height; now --sw-surface, display:block, outline none, min height on the stage only; embed spec asserts frame box == stage box, zero border, surface colour (desktop 16 + mobile). rc.25 confirmed in the owner's screenshot: single toolbar.",
       "2026-09-29 (0.1.139, merge of pilot/T054-embed-followups 9cf9f97): owner report '4 cameras not 12' root-caused in WisKey's own source (cards per page from frame height in fixed steps, choice in memory only) - new desktop 'הגדל/צמצם' embed mode (8 per page at 900 px, 12 at 1080p) + follow-up request doc for the WisKey devs; experimental Companion-app embed behind access.phone_embed (default off): proxy of the app's auth bridge into the same-origin frame, tokens forwarded only to our frame, bus not relayed, wrappers removed on detach, fallback to 0.1.123 behaviour; not tested on a real device. Tests: connector 14, specs 72 across viewports, relay x3; two Opus security reviews (3 medium fixed).",
       "2026-10-06 (TASKS-SYNC-3, registry update): tooling for the WisKey gate only, NOT product evidence: task GT3, branch pilot/GT3-podman (head 5be92cfd, NOT merged, not in 2.2.0): rootless Podman 4.9.3 installed on the Linux test machine (no sysctl change, no reboot; the socket and auto-update units disabled), an idempotent setup script with install / smoke / status modes, a no-network smoke test (a container runs with --network=none, has no non-loopback interface, a public connect fails, podman reports rootless) and notes with the undo steps, all under the gitignored private/runner area (force-added in that commit; review before merging). Purpose: run WisKey images with --network=none in the gate. No WisKey image has been run in it yet. This does not change this card's acceptance status.",
-      "2026-10-10 (REGISTRY-wiskey-rows, note only): the WisKey door-path (CR-033) and key-rotation (CR-034) plan is registered as rows WXD0-WXD11, WXG0-WXG1, WXH0-WXH7. Stage 1 of WisKey = absorb WisKey so the screens and the intercom integration run through Arx. WXH* is deferred by the owner. This row is unchanged."
+      "2026-10-10 (REGISTRY-wiskey-rows, note only): the WisKey door-path (CR-033) and key-rotation (CR-034) plan is registered as rows WXD0-WXD11, WXG0-WXG1, WXH0-WXH7. Stage 1 of WisKey = absorb WisKey so the screens and the intercom integration run through Arx. WXH* is deferred by the owner. This row is unchanged.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 4768e4a1c); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -3027,7 +3035,8 @@
       "pre-evidence (2026-09-16, 0.1.30): services/access.py - camera_allowed / visible_camera_ids honour an explicit floor deny over an installation-wide allow; require_camera() replaces the 'if not camera_allowed: require(INSTALLATION)' fallback in cameras / cases / events / exports / media / recordings (10 sites) and audits the real reason (explicit_deny / no_binding / user_inactive); audit.prune (365 days) in the janitor. tests/test_rbac_matrix.py: viewer / operator / editor of floor 2, site admin, installation operator denied on floor 2 - map, live, playback, events list filtering (server side, even with an explicit camera_id), event page + correlation, exports (grant separate from editing), placements and zones, plan publishing per floor, cases (hidden items, adding needs playback on that camera), HA actions, storage, bindings and audit reading (admin only), every refusal audited with reason and without secrets; revocation takes effect on the next request of an open session; a deactivated user loses everything; audit retention prune. Open: audit retention as a setting, viewing audit of live sessions surfaced in the UI, per-camera bindings (today floor is the finest scope), group-based deny scenarios in the UI",
       "pre-evidence (2026-09-22, 0.1.78): two of the four open corners closed, chosen deliberately for being safe to do unsupervised (no RBAC scope-model change, no new backend infrastructure) - (1) audit retention was a fixed 365-day constant (audit.py RETENTION_DAYS); it is a real setting now (audit.retention_days, routers/settings.py DEFAULTS/INT_KEYS/SettingsPatch, wired into main.py's janitor_tick), editable in system-diagnostics.ts next to the export/event retention fields it already sat beside in code but not in the UI. (2) the role-assignment wizard (system-access.ts renderWizard/saveWizard) gained a הרשאה/חסימה (allow/deny) choice - rbac.authorize and effective_permissions already gave an explicit deny binding priority over an allow at the same scope+permission, and renderBindingRow already showed a existing deny binding's badge; only the wizard that CREATES one never offered `effect`. tests/test_janitor.py::test_audit_retention_setting_controls_pruning (a real janitor_tick pass, not just audit.prune called directly, respects the configured value in both directions; out-of-range PATCH is rejected); evidence-access.spec.ts still green; live-verified in the browser against the dev backend - picking חסימה in the wizard actually created a deny binding end to end. Not attempted: (3) per-camera scope - today's finest binding scope is still floor, and adding 'camera' as a scope_type touches _scope_exists, visible_camera_ids, scopeOptions and delegation checks together, which is real RBAC-model surgery and deserves its own reviewed session, not one run while the owner was away testing a different version; (4) live-session audit in the UI needs a backend session-listing endpoint that does not exist yet.",
       "0.1.81 (2026-09-22): the shell follows the bindings - a floor-scoped viewer (nothing at the installation scope) still sees the live and map areas because /me now reports permissions_any next to permissions_installation; tabs and areas the user cannot use are hidden (owner decision 1.a of the least-privilege walk). Per-camera scope and the live-session audit UI remain the open corners.",
-      "2026-09-29 (0.1.133, merge of pilot/T055-camera-scope f8398c8): camera-scoped bindings with precedence camera > floors > buildings/sites > installation (deny anywhere wins), one shared helper filtering 27 resources server-side, camera-only users get drawing + own anchors, placement requires placement.edit on the camera's chain (review: viewer could carry a camera onto their floor), no installation fallback after a camera deny (review: 4 routes), delegation/group reach include camera bindings, session downgrade (no cross-request cache, /me fingerprint + /me/ws permissions_changed, lease close 4403 access_lost, exports cancelled, HA deactivation), audit scope columns (migration 0032). Tests: 101 camera-scope + 146 set, Playwright camera-scope spec; two Opus security reviews with probes (2 blockers + 3 medium + 1 leftover fixed)."
+      "2026-09-29 (0.1.133, merge of pilot/T055-camera-scope f8398c8): camera-scoped bindings with precedence camera > floors > buildings/sites > installation (deny anywhere wins), one shared helper filtering 27 resources server-side, camera-only users get drawing + own anchors, placement requires placement.edit on the camera's chain (review: viewer could carry a camera onto their floor), no installation fallback after a camera deny (review: 4 routes), delegation/group reach include camera bindings, session downgrade (no cross-request cache, /me fingerprint + /me/ws permissions_changed, lease close 4403 access_lost, exports cancelled, HA deactivation), audit scope columns (migration 0032). Tests: 101 camera-scope + 146 set, Playwright camera-scope spec; two Opus security reviews with probes (2 blockers + 3 medium + 1 leftover fixed).",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit b72481ac0); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -3082,7 +3091,8 @@
     ],
     "evidence": [
       "pre-evidence 2026-09-17 (0.1.45, bridge integration 0.2.0): custom:smplwise-card (www/smplwise-card.js served by the integration at /smplwise_bridge/smplwise-card.js and registered as a Lovelace module resource on load, best effort with a logged manual fallback) embeds the add-on's Ingress page for camera / map / events / health / wall views with the HA user's identity and the VMS roles (creates the ingress session itself, no secret in YAML, no entities); VMS embed=1 mode hides the shell chrome and persists for in-app navigation. tests/test_lovelace_card.py (shipping, copies identical, compile, installer carries the card); live evidence private-evidence/T056-lovelace-live (card harness with a fake hass + VMS embed mode). Live evidence inside the owner's HA dashboard needs his restart of HA and adding the card. Status stays BACKLOG.",
-      "2026-09-26 (0.1.95, on commits e578796 and 3ea10c0): owner report with screenshots - the Lovelace card failed with [object Object] and no visual editor. Root cause: a hardcoded, repository-hash-prefixed add-on slug, and current Home Assistant refusing the REST proxy path entirely. Fixed: add-on discovery over the websocket API (manual override, sidebar panel, Supervisor add-on list), readable error text, session renewal on reattach/keepalive-failure, a real visual editor. Bridge 0.2.3. Tests: a Node script that executes the card against a fake hass (11 cases), the existing card test file, full backend suite 373 passed. Reviewed twice, one should-fix round (session renewal, a real behavior test replacing a source-text-only check) fixed and re-verified. Not verified against a real Home Assistant/Supervisor from here."
+      "2026-09-26 (0.1.95, on commits e578796 and 3ea10c0): owner report with screenshots - the Lovelace card failed with [object Object] and no visual editor. Root cause: a hardcoded, repository-hash-prefixed add-on slug, and current Home Assistant refusing the REST proxy path entirely. Fixed: add-on discovery over the websocket API (manual override, sidebar panel, Supervisor add-on list), readable error text, session renewal on reattach/keepalive-failure, a real visual editor. Bridge 0.2.3. Tests: a Node script that executes the card against a fake hass (11 cases), the existing card test file, full backend suite 373 passed. Reviewed twice, one should-fix round (session renewal, a real behavior test replacing a source-text-only check) fixed and re-verified. Not verified against a real Home Assistant/Supervisor from here.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit e578796cc); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -3136,7 +3146,8 @@
     ],
     "evidence": [
       "pre-evidence (2026-09-16, 0.1.31): kiosk-wall real mode - saved view in the URL (cameras, cols, rotate), page rotation timer, health pill from GET /health/summary every 15 s, disconnected overlay after 3 failed polls with tiles forced to 'unknown' (never live) and automatic reload on the first success, offline cameras never live, no admin chrome (shell renders <main> only); roles.json 'kiosk' role = map.read + video.live; tests/test_kiosk_role.py (map + live + health summary 200; recordings, events, cases, storage, audit, health report, backups, HA action, settings, exports, placements all 403). frontend/tests/evidence-kiosk.spec.ts against the dev backend (rotation page 1 -> 2, two-camera view, offline camera tile not live) - private-evidence/T057-kiosk-live/*.png. Open: saved views stored server-side with names, kiosk session principal enforced by the shell (today by role), restore of the exact page after reconnect",
-      "pre-evidence (2026-09-17, 0.1.55): kiosk-wall.ts keeps the page per view in localStorage (restored on load, hash change and reconnect; rotation continues from it); sw-app.ts keeps a session whose only role is 'kiosk' on #/kiosk/all whatever route is asked for (enforceKiosk, API mode); frontend/tests/evidence-kiosk-principal.spec.ts (page survives a reload; a kiosk-only dev user is redirected from the wall and from settings). Saved views are server-side since 0.1.51 (F3). Open: a dedicated kiosk HA user on the owner's installation"
+      "pre-evidence (2026-09-17, 0.1.55): kiosk-wall.ts keeps the page per view in localStorage (restored on load, hash change and reconnect; rotation continues from it); sw-app.ts keeps a session whose only role is 'kiosk' on #/kiosk/all whatever route is asked for (enforceKiosk, API mode); frontend/tests/evidence-kiosk-principal.spec.ts (page survives a reload; a kiosk-only dev user is redirected from the wall and from settings). Saved views are server-side since 0.1.51 (F3). Open: a dedicated kiosk HA user on the owner's installation",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.16.0 (commit e6f82ddf8); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -3515,7 +3526,8 @@
     "evidence": [
       "M064 (2026-10-05, pilot/investigate-map-improvements): the ranking uses the published floor connectors - correlation.floor_connectors() reads the stairs / elevators of the floor that lead to another floor (published documents only; the twin's middle on the other floor, or the same position with a note when the twin is not published); suggest_route() takes the connectors within 0.35 of the event camera or in its room and suggests the cameras within 0.2 of the twin or in the twin's room as relation via_connector (label 'מדרגות ↑ קומה 1', via {connector_id, kind, floor, direction, twin_published}), ranked after everything on the floor, camera-scope filtered, activity counted; the answer lists `connectors` and the notes say when there are none or they are out of reach. One-click confirm: POST /events/{id}/route/confirm {camera_ids, case_id?, title?, note?, window} (routers/cases.py) - only cameras the route suggests (422 otherwise, the rest reported as skipped), cases.manage + video.playback per camera, a new case (tag 'מסלול מוצע', local-time title) or an open one, the event once + a clip per camera over the route window with a note saying hypothesis, never identification; audited case.route.confirm. UI: a tick per suggestion, the stairs / elevator icon and floor, a case select ('תיק חדש' or an open case) and 'אשר מסלול לתיק (n)'. Tests: tests/test_route.py (+1, cross-floor ranking, twin published / not, scope, confirm, refusals), frontend/tests/evidence-map-improvements.spec.ts. Screenshots: docs/evidence/investigate-map-improvements/{before,after}/m064-*.png",
       "pre-evidence (2026-09-16, 0.1.31): services/correlation.py suggest_route - subject anchor + zone, neighbours ranked same_zone / adjacent_zone (polygons_touch: shared wall within 0.01) / nearby (<= 0.2 plan units), activity count per camera in the window (-15 s .. +window), playback_at, honest notes (unplaced camera, no rooms, no floor connectors yet), policy: hypothetical, no identification, no action; GET /events/{id}/route?window= (events.read on the camera, scope-filtered). tests/test_route.py. UI: event page card with relation badges, activity and play buttons. frontend/tests/evidence-route.spec.ts against the dev backend (a spare camera placed beside the event camera for the evidence and removed afterwards) - private-evidence/T064-route-live/*.png. Open: cross-floor connectors (stairs / elevators), confirming the sequence into a case in one click, direction hints from consecutive events",
-      "2.0.3 (integ/203, 2026-10-05): M064 merged from pilot/investigate-map-improvements @ 05403361 and released in 2.0.3 (POST /events/{id}/route/confirm); acceptance on the owner's floors with published stairs / elevators NOT_RUN."
+      "2.0.3 (integ/203, 2026-10-05): M064 merged from pilot/investigate-map-improvements @ 05403361 and released in 2.0.3 (POST /events/{id}/route/confirm); acceptance on the owner's floors with published stairs / elevators NOT_RUN.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 054033611); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -3739,7 +3751,8 @@
       "2026-09-29 (0.1.132, merge of pilot/T068-events-cache-soak 630a34f, device-free part): events list p50 1655->191 ms / p95 2442->663 (thumbnail folder index; events-window cache 32/5000/5 s keyed by camera scope with trigger counters, migration 0031), ingest reader/writer with bounded queue 256 + 30 s coalescing + shutdown drain, exports 507 below storage.min_free_mb / paused_disk_full with auto-resume + back-off / 20-job cap / progress throttle / crashed job marked failed, three read paths no longer hold the write lock, local soak harness (10 min review run: 0 locked, 0 500, memory flat after warm-up, counts exact). Opus review (4 medium fixed) + re-review with soak. Lab soak with real devices still open.",
       "2026-09-29 (0.1.144, merges of pilot/db-lock-storm 875711d and pilot/db-gate-followup 1cbb9cb): fair write queue (WriteGate) per database file, shared 10 s budget, commit_now / rollback_and_restart, uploads off the event loop, durability classes (mirror writes NORMAL, events / rule firings / audit FULL), checkpoint PASSIVE then TRUNCATE, I/O guard over 450+ tests, add-on option db_write_gate (default on), remote identity resolved offline or with the lock given up (NeedsUnlock). Three Opus reviews. Stress (busy workstation, emulated 15 ms fsync): max wait 1.64 s with the gate vs 4.98 s without, waits over 1 s 0 vs 68, no locked errors.",
       "2026-10-07 (TASKS-SYNC-4, registry update): partial - tooling only, NO soak result yet. Released in 2.2.1 (merge 391d60a3 of pilot/soak-sampler-v2, head 337d7f68): a read-only soak sampler (scripts/soak/soak_sampler.py) and a Hebrew analyzer (scripts/soak/analyze_soak.py, README_HE.md). Released in 2.3.0: the sampler takes the supervisor statistics over the HA WebSocket (merge 1175a3fb of pilot/soak-v2-ws) and reads the new /health counters (merge 100624c5 of pilot/health-process-stats, head ddb45ef3): 'process' (uptime, threads, open files, RSS) and 'db' (file and WAL size) in GET /api/v1/health, returned only to a system.configure holder, everyone else gets the previous answer. Release 2.2.1 (main 1ab56acf; integration branch integ/221, gated head 27459040): tier L gate on the Linux test machine PASS on the second run (backend 5956 passed / 0 failed / 1 flaky that passes alone, preview 5988 passed, dev 621 passed, pixel 16 passed, fixture 15 passed, tsc / build / release_check ok; the first run was red on two unit-android-download cases, fixed and re-gated; docs/release/2.2.1-INTEGRATION-NOTES.md). Release 2.3.0 (main 383a03d9; integration branch integ/230, gated head 560b246f): tier L gate on the Linux test machine PASS (backend 6070 passed / 0 failed, preview 6011 passed / 1 flaky that passes alone, dev 620 passed / 1 flaky, pixel 16 passed, fixture 15 passed, tsc / build / release_check ok; visual step warning-only 72 pass / 0 differ; docs/release/2.3.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_health_process_stats.py (6 test functions), test_soak_sampler.py (25).",
-      "RUN IN PROGRESS (not evidence): a 14 hour soak with the sampler is running on the Linux test machine, started 2026-10-06 23:26; no result file has been analyzed and no numbers are recorded. Evidence will be added only after the analyzer has been run on the finished sample file. Not measured: streams / transcodes per host against CPU on the HA host, device restarts during the soak, disk-full behaviour, leak check over days. AT135 / AT136 and AT243 stay NOT_RUN; status stays BACKLOG."
+      "RUN IN PROGRESS (not evidence): a 14 hour soak with the sampler is running on the Linux test machine, started 2026-10-06 23:26; no result file has been analyzed and no numbers are recorded. Evidence will be added only after the analyzer has been run on the finished sample file. Not measured: streams / transcodes per host against CPU on the HA host, device restarts during the soak, disk-full behaviour, leak check over days. AT135 / AT136 and AT243 stay NOT_RUN; status stays BACKLOG.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 8212edbb2); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -3907,7 +3920,8 @@
     "evidence": [
       "pre-evidence (2026-09-16, 0.1.29): docs/operations/OPERATOR_GUIDE_HE.md - install checklist install -> NVR -> time -> HA bridge -> go2rtc -> floor/plan -> cameras -> NVR events, each step with the check that proves it (diagnostics / storage / bridge / live) and the failure explanation; daily use; investigation flow (event centre -> event page + correlation -> historical map -> playback -> case -> preserve -> export); recovery (backups, add-on rollback, NVR / HA outages, clocks); privacy and permissions (HA identity only, nothing leaves the add-on, audit, device boundaries); support checklist. Screenshots referenced from the build: private-evidence/*-live (lab, gitignored) and docs/evidence/T007 (public). Open: the guided onboarding wizard as a screen (the checks exist in diagnostics, the wizard does not), user-facing screenshots in the guide itself",
       "2026-09-29 (0.1.133, merge of pilot/T071-setup-wizard e15803a): the wizard is real - GET /setup/state (no device contact) + POST /setup/check/{step} (read-only probes, 5 s per user+step, 20 s deadline, no DB txn during device calls, audited), six steps with evidence + Hebrew explanations + deep links (install, nvr incl. clock drift/DST, ha incl. bridge restart pending, go2rtc smplwise_ streams, floor, camera), 'מוכן לעבודה' summary, shell hint for system admins, no serial/MAC/IP in responses. Tests: 31 wizard + 48 set, Playwright 4 (desktop+phone) + demo 2 + sc26 6; Opus review APPROVED_WITH_NITS (NTP address + deadline fixed). Guides exist in Hebrew (docs/user-guide/he).",
-      "2026-09-29 (0.1.138, merge of pilot/nvr-less-mode cf0ba14, owner request): NVR-less mode 'ha_only' derived from the options (mode.py) - no NVR threads, neutral health with HA as the required subsystem, wizard skips NVR/camera steps by mode, 409 nvr_not_configured after each route's permission check, nav hides camera areas for everyone with a direct-link panel, Lovelace/settings/storage/map degrade, switching modes without migration; test/dev launches keep full mode via a labelled placeholder host unless SW_MODE=ha_only. Tests: 54 + 240 set, Playwright 18, existing specs unchanged; Opus review (2 medium) + re-review APPROVED."
+      "2026-09-29 (0.1.138, merge of pilot/nvr-less-mode cf0ba14, owner request): NVR-less mode 'ha_only' derived from the options (mode.py) - no NVR threads, neutral health with HA as the required subsystem, wizard skips NVR/camera steps by mode, 409 nvr_not_configured after each route's permission check, nav hides camera areas for everyone with a direct-link panel, Lovelace/settings/storage/map degrade, switching modes without migration; test/dev launches keep full mode via a labelled placeholder host unless SW_MODE=ha_only. Tests: 54 + 240 set, Playwright 18, existing specs unchanged; Opus review (2 medium) + re-review APPROVED.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 977ca1e3b); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -4526,7 +4540,8 @@
     ],
     "evidence": [
       "pre-evidence 2026-09-16 (0.1.36): custom roles (ordinary + explicit sensitive grants, never a system permission, impact preview, revision guard, delete refused while bound, backup) and delegated administration for site admins (allowlist setting, own-permission ceiling, users only, no system roles, audited denials). tests/test_custom_roles.py + updated test_rbac_matrix.py and the contract vector site-admin-users; live evidence private-evidence/T082-custom-roles-live (create in the dialog, bind, impact preview, edit applied at once, delete guard, allowlist toggle). Status stays BACKLOG until the owner's acceptance review.",
-      "2026-09-29 (0.1.130, merge of pilot/T082-groups-delegation c607607): groups with inherited bindings (union), revisions, impact preview, delete refused with members/bindings, audits ids only; delegated rbac.assign for site admins (allow-list rbac.delegable_roles default viewer+operator, own scope, own-permissions ceiling, never self/own group, no system/sensitive roles, groups only when fully in reach, server-filtered directory/bindings/roles/groups); deny bindings full-authority only; full authority = rbac.assign AND rbac.roles.manage installation-wide (closed: installation-wide site_admin could grant system_admin); bulk membership + POST /access/bindings/bulk all-or-nothing; last-admin guard on every write incl. deny (409 last_admin); permission gate on a read connection before the body; migration 0029 + uniqueness test. Tests: 37; two Opus security reviews with a temp-DB probe (3 medium fixed, nits fixed)."
+      "2026-09-29 (0.1.130, merge of pilot/T082-groups-delegation c607607): groups with inherited bindings (union), revisions, impact preview, delete refused with members/bindings, audits ids only; delegated rbac.assign for site admins (allow-list rbac.delegable_roles default viewer+operator, own scope, own-permissions ceiling, never self/own group, no system/sensitive roles, groups only when fully in reach, server-filtered directory/bindings/roles/groups); deny bindings full-authority only; full authority = rbac.assign AND rbac.roles.manage installation-wide (closed: installation-wide site_admin could grant system_admin); bulk membership + POST /access/bindings/bulk all-or-nothing; last-admin guard on every write incl. deny (409 last_admin); permission gate on a read connection before the body; migration 0029 + uniqueness test. Tests: 37; two Opus security reviews with a temp-DB probe (3 medium fixed, nits fixed).",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 077674bca); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -4651,7 +4666,8 @@
       "2026-09-24 (0.1.83, on commits 1a0f2ef and f1ef152): owner report from the 0.1.82 checklist (a door added on a wall could not be moved right or left) fixed - sw-plan-canvas geomDrag all | items | none replaces geomEditable: in every drawing mode the existing openings and labels get hit targets above the walls (an opening's covers the wall thickness, at least 28 px), so a press drags or selects the existing item and a press on a bare wall still places a door; a placing click inside an existing opening's span (plus 6 px) selects it instead of stacking a second one; corners stay select-mode handles and in wall mode a press within the 10 px corner snap draws; the drag previews live, keeps the grab offset and commits once, an opening kept inside its wall (openingRange, also at placement). Arrow keys move the selected opening in the arrow's screen direction along its wall (owner ruling: Right/Left on a wall that runs across the screen, Up/Down on a steeper one, a key across the wall does nothing), 1 cm / Shift 10 cm calibrated, 0.2 % / 1 % of the plan width uncalibrated; a label or a selected corner in screen directions; Delete removes a selected corner (or the wall when too few corners would remain); a burst is one undo step; a press on an item blurs a focused panel field. The opening panel gains 'מרחק מתחילת הקיר' (metres, calibrated) or 'מיקום על הקיר (%)', live while dragging. Real Vite build (rollup through @rollup/wasm-node, b1a7708, because Smart App Control blocks the native rollup binary): tsc clean; node unit specs 23/23 (4 new: opening range and nudge); evidence-plan-studio 5/5 with the fifth live test (door mode: grab 4 px off centre and drag 40 px - one door, it moves 40 px; three ArrowRight = +3 cm undone by one Ctrl+Z; a click past the door's end 10 px off the wall selects it; typed 7.5 m = t 7.5 / wall length; ArrowRight right after Enter in the field moves the door), red checks confirmed its focus, strip and grab-offset assertions fail without their fixes; evidence-editor + evidence-viewer 2/2; fixture chain 129/129; backend 239/239; release_check ok except the tag.",
       "2026-09-25 (0.1.87 hotfix, on commits 0f35b3f and 4b5bdc9 - fix round 1): owner report of 2026-09-25 (ruling R-H87-1: a placed wall could not be moved as a whole; selecting and moving items was awkward; reshaping a room after automatic detection was not discoverable) fixed - the select tool gets geomDragMode all with the structure permission and shows the selected item inspector in place (no tool switch); a selected wall moves as a whole by its body (studio-ops translateWall, Shift axis lock, corner snap, one undo step; the arrow keys nudge it as one coalesced step); object hit areas are at least 24 x 24 screen px (objectHitCorners, stacking still by drawn footprint, above the unselected walls); a selected zone moves by its body (translatePolygon, zoneDraft kept until the zones update, one PATCH) and a picked zone corner goes with Delete; on any coarse pointer only a selected item drags and the wall pick band is 20 px. Fix round 1 of the review: a dragged pin becomes the selection (Delete offers the pin, the wall stays); select-tool undo / redo follow the last edit (lastEdit), so a deleted wall comes back and repeated undo keeps going; a studio tool drops the zone selection. Tests after fix round 1: node unit 50/50 (unit-studio-ops-2 13/13 with 4 new), tsc clean, npm run build ok; live in real Chrome against a throwaway backend of the hotfix worktree (port 8098, own data dir, seeded site / floor / plan / manual camera anchor): evidence-editor-move 5/5 (new), evidence-plan-studio 5/5, evidence-plan-studio-2 8/8, evidence-plan-studio-3 5/5, evidence-zone-vertices 1/1, evidence-editor 1/1, evidence-viewer 1/1 = 26/26 in one sweep; fixture chain 129/129 with the backend stopped. Deferred: a loadTree guard for the select-tool connector inspector; the copy-from step of evidence-plan-studio test 4 failed once in the first 0.1.87 sweep and passed since (to run with --repeat-each=5 and a trace in a later sweep). T084 stays BACKLOG.",
       "2026-09-26 (0.1.91, on commit 78c835c): owner requests on 0.1.90 - the object inspector gets a duplicate button and Ctrl+D (studio-ops duplicateBeside: one width plus 30 cm to the right, below or left when that leaves the plan, the copy selected); a double or sliding door chooses the side of the wall it opens to through its hinge field (2D, 3D and the backend renderer agree; the panel labels it as the opening side). Tests: unit-studio-ops-2, unit-geometry, unit-scene-builder, backend test_plan_geometry_render (golden unchanged), live evidence-plan-studio-2 8/8 and evidence-plan-studio 5/5 in real Chrome.",
-      "2026-09-26 (0.1.92, on commit 114e4aa): owner report - the circuits add-lamps mode only toggled an existing lamp's membership; the panel now offers a lamp-type picker so clicking the map places a new lamp already linked to the circuit in one undo step (addCircuitLamp in studio-ops.ts). Tests: unit-studio-ops-2, live evidence-plan-studio-2 8/8 in real Chrome against a throwaway backend, review clean."
+      "2026-09-26 (0.1.92, on commit 114e4aa): owner report - the circuits add-lamps mode only toggled an existing lamp's membership; the panel now offers a lamp-type picker so clicking the map places a new lamp already linked to the circuit in one undo step (addCircuitLamp in studio-ops.ts). Tests: unit-studio-ops-2, live evidence-plan-studio-2 8/8 in real Chrome against a throwaway backend, review clean.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 1b53d81e5); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": "Claude Code (tech lead); approver: product owner",
     "commit": "72ae1a2",
@@ -4716,7 +4732,8 @@
       "2026-09-26 (0.1.97, on commits 0865af2, 24418b0, 75bd52c, 861ea91): owner request - free-text tags on walls/objects/zones, bulk reassignment to level/circuit, select-by-tag. Migration 0022 (zones tags column). Reviewed twice at Opus tier: unified server-side tag dedup, unified circuit-eligibility rule, fixed a partial-zone-save-failure selection bug in the new bulk-level path, a validation-ordering guard. Tests: unit 31, backend 379 (45 on the final commit), live 9/9.",
       "2026-09-26 (0.1.98, on commits e24b107, 7804a56, 5caf29a, 2a55370): owner request - grid+snap, live alignment guides, bulk align/distribute for the plan editor, the last of the multi-select trilogy. Reviewed twice at Opus tier: fixed align/distribute quadratic-class cost (2.4-3.6s to 25-80ms at 5000 objects), a stale anchor-position guide-target bug, and per-move guide-rebuild cost (20-25ms to 0.1ms). Found a pre-existing, unrelated small-object stretch-handle coverage issue - queued separately. Tests: unit 39, live 20/21 (1 known unrelated flake, green alone).",
       "2026-09-27 (0.1.99, on commit adab8c2): owner request - persistent hand-tool pan mode (alongside the existing Space+drag/middle-button pan) and a keyboard-shortcuts help dialog for the plan editor. Reviewed twice: fixed two click-through gaps (a click mid-draft still added a corner; a plain click on an unselected wall/connector/zone still selected it while panning) so pan mode is drag-only as intended. Tests: 2 new live cases, full touched spec 15/16 (1 pre-existing unrelated skip).",
-      "2026-09-29 (0.1.143, merge of pilot/T085-stairs-between-floors 4fa4f09): owner priority - stairs between floors with a target level on the other floor (twin, reversed path, placement hints, delete-both), stairs model straight/L/U with landing (2D convention, 3D flights + landing plate, stairwell openings), floor_height_m per floor and rise computation, permissions on every touched floor (review B1), far computed on read (not stored/hashed), twin model sync + check_placement, editor rebase on 409 incl. undo stacks. Three Opus review rounds."
+      "2026-09-29 (0.1.143, merge of pilot/T085-stairs-between-floors 4fa4f09): owner priority - stairs between floors with a target level on the other floor (twin, reversed path, placement hints, delete-both), stairs model straight/L/U with landing (2D convention, 3D flights + landing plate, stairwell openings), floor_height_m per floor and rise computation, permissions on every touched floor (review B1), far computed on read (not stored/hashed), twin model sync + check_placement, editor rebase on 409 incl. undo stacks. Three Opus review rounds.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 849583c8d); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": "adab8c2",
@@ -4770,7 +4787,8 @@
     ],
     "evidence": [
       "2026-09-25 (0.1.86, on commit 3e90ef6): Plan Studio phase 3 - services/plan_detect.py (numpy only: Otsu, morphology, chamfer distance transform, Zhang-Suen thinning, skeleton tracing, Douglas-Peucker, axis snapping at 4 degrees, collinear merging, thickness and kind, door arcs, double doors, passages, windows by the ink-thickness profile, confidence, tilt straightening, the door-width calibration hint), services/plan_dxf_map.py (layers and blocks to candidates, double lines to walls, arcs to doors, window lines, blocks to objects, room polygons); API: POST detect (worker thread, 60 s guard, 504 detect_timeout, audit geometry.detect), POST detect/accept (edits, replace_auto, re-issued ids, 409 stale_revision, meta.last_detection, audit geometry.detect.accept), GET dxf/entities, POST import-dxf-geometry (audit geometry.import), PATCH calibration with an estimate (status estimated, method door_width); the editor's detect tool with the candidates layer, accept by confidence / kind, endpoint drag, confirm into the draft, source badges; the DXF mapping card in the import flow. Candidates are never stored and never published. Synthetic baseline (committed set of six plans, ground truth): 6 plans: walls recall >= 0.974, precision >= 0.969; doors 21/21; windows 17/17; slowest 1213 ms. Private scans: private-evidence/plan_detect/ holds no scored plans (skipped). Real scans (from Task 11's probe on this branch, redacted aggregates, no ground truth): at upload resolution the detector found 46-168 walls, 6-20 passages and 0-9 windows per scan in 2.3-6.1 s, but 0 doors on all three (real door arcs are thin, grey and hinge-centred on the wall face; not an accuracy claim, a known limit). Tests: 360 backend passed (7 new files: fixtures, primitives, walls, openings, baseline, API, DXF mapping), node unit tests for the detector (unit-plan-detect.spec.ts, 4/4) plus unit-geometry.spec.ts and unit-studio-controller.spec.ts (30/30 across the three), evidence-plan-studio-3 5/5 live in real Chrome (detect/accept/undo-redo, the calibration hint, refusals, the phone, the DXF mapping screen), neighbour live specs (evidence-plan-studio, evidence-editor, evidence-plan-versions, evidence-dxf, evidence-zones) 9/9 as their baselines, fixture chain green (129 passed), tsc clean, golden file check 0.",
-      "2026-09-29 (0.1.143, merge of pilot/T086-detect-tuning-2 da6711b): detector 1.4 - section_lines (crosses a wall or an opening), join_gaps, steps_regions (tribune objects), columns (pier grids, windowed-wall guard, facade envelope on uncovered stretches); object candidates in the editor; scene memo; two Opus review rounds (B1 window piers, M1-M4 fixed). Real scans (counts only): floor -2 envelope recall 0.32 -> 0.56, 7 columns; floor 0 two tribunes; scans' own section lines kept (known limit)."
+      "2026-09-29 (0.1.143, merge of pilot/T086-detect-tuning-2 da6711b): detector 1.4 - section_lines (crosses a wall or an opening), join_gaps, steps_regions (tribune objects), columns (pier grids, windowed-wall guard, facade envelope on uncovered stretches); object candidates in the editor; scene memo; two Opus review rounds (B1 window piers, M1-M4 fixed). Real scans (counts only): floor -2 envelope recall 0.32 -> 0.56, 7 columns; floor 0 two tribunes; scans' own section lines kept (known limit).",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 72aa3e41c); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": "Claude Code (tech lead); approver: product owner",
     "commit": "3e90ef6",
@@ -4835,7 +4853,8 @@
       "2026-09-29 (0.1.130, merge of pilot/T087-plan-tuning ba06ff5): the 0.1.89/0.1.91 tuning lists triaged (docs/evidence/T087/TUNING_TRIAGE_2026-09-29.md) and executed - duplicated realign route + route-uniqueness test, cone clipping for anchors on a removed level, 3D reframe on floor change, hand-drawn tribune connectors in 3D, level filters treat a removed level as default; detector: strokes outside the building / dashed / tribune edge lines no longer walls, separate outbuildings kept and flagged outside_main (editor shows dashed warning stroke + label + summary count), dash gaps only when blank, two-orientation rule. Real plans walls-outside 5/18/11 -> 1/12/3, synthetic metrics identical. Doors not chased (arcs undetectable on those scans - new door model needed); hollow exterior wall prototype parked. Tests: 73 detector+routes, 30 unit; Opus review + 2 re-reviews.",
       "2026-09-29 (0.1.132, merge of pilot/T087-door-model 3d1864e): door-detection study on the real plans (docs/evidence/T087/DOOR_MODEL_STUDY_2026-09-29.md) - 8-9/24 doors drawn with an arc, three drawing styles, 6/33 hinges on detected walls; experimental arc_v2 model behind door_model flag (off, 422 unknown, default path byte-identical incl. no light mask) found 0/2/4 of 8 with many false candidates -> STOPPED per rule; recommendation: manual door tool / upload-resolution pass / learned model later. Sonnet review (1 hot-path fix).",
       "2026-09-29 (0.1.134, merge of pilot/T087-door-tool ba83193): manual door tool 'סמן דלת' (key D) - click on a door symbol -> proposal (wall, position, width from gap/leaf/arc/default, hinge, swing) as a ghost with 3 handles, Enter/Esc/chaining, ordinary opening (undo, publish, 3D), own tagged wall piece when no drawn wall, existing-door check on accept; POST /plan-versions/{id}/door-proposal (map.edit, own 1-worker pool, 5 s cap, nothing stored, debug fields gated). Real plans: 10/24 sampled doors right without adjustment (+2 with one handle), 279->179 ms per click. Tests: 31 backend, plan set 282, unit 8, determinism 0 px, evidence spec; Opus review (2 medium + perf) + re-review APPROVED.",
-      "2026-09-29 (0.1.137, merge of pilot/T087-hollow-walls 2fce7c3): hollow_v1 pass for thin hollow exterior walls (learnt spacing, blank interior, rejects stairs/tribune/opening lines/hatched pairs; T-junction fixture never merged), plan-level gate (>= 25 % of the box perimeter + a corner, no solid wall just outside) so solid-wall plans are untouched, outline-only absorption with window carry-over, bounded time (bisect, checks every 256 strokes, skip > 1500 strokes), flag hollow_walls default on with a detect-dialog checkbox, hollow key on walls. Real floors exterior-by-exterior 0/0.26/0 -> 0.66/0.49/0, windows unchanged 7/8/3. Tests: 8 new + 110 set; Opus review (blocker + 3 medium fixed) + re-review APPROVED."
+      "2026-09-29 (0.1.137, merge of pilot/T087-hollow-walls 2fce7c3): hollow_v1 pass for thin hollow exterior walls (learnt spacing, blank interior, rejects stairs/tribune/opening lines/hatched pairs; T-junction fixture never merged), plan-level gate (>= 25 % of the box perimeter + a corner, no solid wall just outside) so solid-wall plans are untouched, outline-only absorption with window carry-over, bounded time (bisect, checks every 256 strokes, skip > 1500 strokes), flag hollow_walls default on with a detect-dialog checkbox, hollow key on walls. Real floors exterior-by-exterior 0/0.26/0 -> 0.66/0.49/0, windows unchanged 7/8/3. Tests: 8 new + 110 set; Opus review (blocker + 3 medium fixed) + re-review APPROVED.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 71f9b61e2); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": "Claude Code (tech lead); approver: product owner",
     "commit": "765fa3a",
@@ -4890,7 +4909,8 @@
       "2026-10-06 (branch pilot/ST5-dxf-package @ 617fb6f4, not released): ST5 - DXF export (GET plan-versions/{id}/export.dxf, R2018, fixed SW_* layers for walls/openings/rooms/devices/objects/connectors/labels, metres when calibrated else unitless px, item ids in XDATA, Hebrew MTEXT cleaned of control/bidi marks), signed plan package (POST plan-versions/{id}/package: plan.json, rooms, anchors, custom items, plan picture, source <= 16 MiB, Hebrew report, manifest with SHA-256 per file, Ed25519 signature with the installation key T067, public half only) and re-import (POST .../package/preview dry run and .../package/import: hostile-zip checks reused from the bundle import, signature + package/document version checks, full validation, replace or merge with diff, missing cameras/entities/rooms/switches/custom items reported, writes the draft only, previewed revision + result hash required, a foreign key needs explicit trust; audited geometry.package.export / geometry.package.import). Editor export row: DXF, package, import package + dialog; he/en strings. No migration. Tests on the runner: backend test_plan_dxf_export 7 + test_plan_package 19 + neighbours = 137 passed; full suite 5650 passed, 4 skipped, 1 failed (test_mobile_push app-channel test, fails identically on main a58f1ccf - pre-existing, unrelated); tsc ok; evidence-plan-package.spec.ts fixture part 6/6 (desktop + mobile, twice); live part 1/1 desktop against a throwaway local backend (export, drift, import back to the exported hash). Round trip: export then import into the same version restores the same doc_hash and geometry hash (test_round_trip_restores_the_same_hash). Not verified: Hebrew ordering in a commercial CAD program. Docs: docs/changes/ST5-PLAN-PACKAGE-DXF.md.",
       "2026-10-06 (TASKS-SYNC-3, registry update): partial - ST5 is released in 2.2.0 (merge 2fd448a4 of pilot/ST5-dxf-package, head 26ac8fd9, no migration; CHANGELOG section 'Plan Studio 5'). Release 2.2.0 (main f0b42dd0; integration branch integ/220, gated head eaeceba3): tier L gate on the Linux test machine PASS (backend 5868 passed / 0 failed / 3 flaky that pass alone, preview 5959 passed / 0 failed, dev 619 passed, pixel 12 passed, fixture 15 passed, tsc / build / release_check ok; docs/release/2.2.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_plan_dxf_export.py, test_plan_package.py (round trip restores the same document hash and geometry hash), test_plan_dxf_map.py; Playwright frontend/tests/evidence-dxf.spec.ts and evidence-plan-package.spec.ts (fixture part plus one live part on a throwaway local backend). Not proven: Hebrew text ordering and layer behaviour in a commercial CAD program; use on the owner's real plans; the acceptance's SVG/PNG print export is not part of ST5 and is not evidenced here. Evidence is not acceptance; AT175/AT176 stay NOT_RUN; status stays BACKLOG (dependencies T084/T085 are not DONE here).",
       "2026-10-07 (TASKS-SYNC-4, registry update): partial - plan package and DXF security hardening released in 2.2.1 (merge 88aea3ad of pilot/sec-220, head 4d09457d; items of the internal 2.2.0 security review): the DXF export and the signed plan package carry only the anchors the caller may see; the package import has size and shape limits, one import in flight per user and a per-user rate; a foreign or retired-key package needs the trust confirmation already at the preview. No migration. Release 2.2.1 (main 1ab56acf; integration branch integ/221, gated head 27459040): tier L gate on the Linux test machine PASS on the second run (backend 5956 passed / 0 failed / 1 flaky that passes alone, preview 5988 passed, dev 621 passed, pixel 16 passed, fixture 15 passed, tsc / build / release_check ok; the first run was red on two unit-android-download cases, fixed and re-gated; docs/release/2.2.1-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_security_review_220.py (29 test functions, covers these items), test_plan_package.py, test_plan_dxf_export.py; Playwright frontend/tests/evidence-plan-package.spec.ts (fixture).",
-      "Not proven: opening an exported DXF in a real CAD application, a package round trip between two real installations. AT175 / AT176 and AT237 stay NOT_RUN; status stays BACKLOG."
+      "Not proven: opening an exported DXF in a real CAD application, a package round trip between two real installations. AT175 / AT176 and AT237 stay NOT_RUN; status stays BACKLOG.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit f3e840d34); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -4997,7 +5017,8 @@
       "Documentation, known limits and rollback notes"
     ],
     "evidence": [
-      "2026-10-13 (integ-2410): the IFC4 export and the text-form import of this task were delivered as ST8 (pilot/ST8-ifc @ ed1fd497, CR-037) with its own reader instead of IfcOpenShell; this row stays BACKLOG because its dependencies T085 / T088 are not DONE and its acceptance names IfcOpenShell. See ST8."
+      "2026-10-13 (integ-2410): the IFC4 export and the text-form import of this task were delivered as ST8 (pilot/ST8-ifc @ ed1fd497, CR-037) with its own reader instead of IfcOpenShell; this row stays BACKLOG because its dependencies T085 / T088 are not DONE and its acceptance names IfcOpenShell. See ST8.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 199c71bd8); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -5052,7 +5073,8 @@
       "2026-09-29 (infrastructure only, merge of pilot/T091-guide-infra commit 2c6c818): opt-in Playwright capture frontend/tests/guide-screenshots.spec.ts (SW_GUIDE=1; SW_GUIDE_BASE_URL / SW_GUIDE_SESSION documented for the lab pass, no values) driven by docs/user-guide/he/screens.json (27 screens x desktop/phone x roles = 42 PNG under docs/user-guide/he/img/, demo data for now, 3.4 MB); scripts/docs_he_check.py (Hebrew mirror drift: 0 drifted, 23 mirrors without a source header yet, 20 English docs without a mirror); README_HE.md with schema, naming and the privacy rule. Guide text and Hebrew mirrors NOT written yet.",
       "2026-09-29 (0.1.130, merge of pilot/T091-he-mirrors-1 136339c, batch 1 of R182): 12 Hebrew mirrors with Source headers (smplwise_vms/README_HE.md, DOCS_HE.md 698 lines, 8 docs/operations, RELEASE_PACKAGE_V1_HE.md, DEPENDENCY_AND_SECRETS_AUDIT_HE.md); docs_he_check.py 0 drift; stale references marked with translation notes. Remaining: the 8 CR documents; the guide text (R181/R183) not started.",
       "2026-09-29 (post-0.1.131 merges 441bf0c + 66cf2e5): R182 complete - all 8 CR documents mirrored (docs_he_check: 0 sources without a mirror, 0 drift); R181/R183 draft - 15 guide pages under docs/user-guide/he/ (index, getting started, map, plan studio, cameras, events, devices, WisKey, backup, setup wizard, settings with a field table per tab, roles, glossary, known limits, troubleshooting), all 27 screens.json captions filled; figures reference the demo captures marked 'יוחלף בצילום מהמעבדה' until the lab pass (owner option ב).",
-      "2026-09-29 (branch pilot/T091-guide-real-screens, commits a99295d 60f7f66 3c1b137 e243f89 6fd6d7f; add-on 0.1.141, read-only system_admin Ingress session): the Hebrew guide's pictures come from the owner's live installation - frontend/tests/guide-screenshots-live.spec.ts (SW_GUIDE_LIVE=1, non-GET requests aborted, only 12 blocked: the setup wizard's automatic setup/check/*) run by scripts/guide_live_capture.py; redaction in the page before capture (IPv4/MAC/e-mail/serial-like/7+ digits/private hosts -> ***, public host -> your-site.example, people -> pseudonyms with their initials, site/building/floor/area/room/station names -> generic), visible-text scans 0 hits (33 pages first pass, 16 re-captured pages after the place-name rule). screens.json: 23 screens live, 4 demo by owner decision (floor plans are not published: map-2d, map-3d, events-history-map, plan-studio-editor); demo_files also keep the viewer/operator/editor/site_admin variants and the desktop setup-wizard.png. Operator chapters carry no platform branding (build_guide.py lint); GUIDE_ALL_HE.html = the whole guide in one page (scripts/build_guide.py). docs_he_check: 0 drift / 0 missing header. Not pushed or merged; owner review of the pictures pending."
+      "2026-09-29 (branch pilot/T091-guide-real-screens, commits a99295d 60f7f66 3c1b137 e243f89 6fd6d7f; add-on 0.1.141, read-only system_admin Ingress session): the Hebrew guide's pictures come from the owner's live installation - frontend/tests/guide-screenshots-live.spec.ts (SW_GUIDE_LIVE=1, non-GET requests aborted, only 12 blocked: the setup wizard's automatic setup/check/*) run by scripts/guide_live_capture.py; redaction in the page before capture (IPv4/MAC/e-mail/serial-like/7+ digits/private hosts -> ***, public host -> your-site.example, people -> pseudonyms with their initials, site/building/floor/area/room/station names -> generic), visible-text scans 0 hits (33 pages first pass, 16 re-captured pages after the place-name rule). screens.json: 23 screens live, 4 demo by owner decision (floor plans are not published: map-2d, map-3d, events-history-map, plan-studio-editor); demo_files also keep the viewer/operator/editor/site_admin variants and the desktop setup-wizard.png. Operator chapters carry no platform branding (build_guide.py lint); GUIDE_ALL_HE.html = the whole guide in one page (scripts/build_guide.py). docs_he_check: 0 drift / 0 missing header. Not pushed or merged; owner review of the pictures pending.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 2e15b67aa); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
     ],
     "owner": null,
     "commit": null,
@@ -5160,7 +5182,8 @@
       "2026-09-30 (0.1.146): the alarm screen moved to הגדרות › אבטחה (shown only with a panel; alarm-permission holders keep access; permissions unchanged, legacy routes redirect); Opus review of the move: approved.",
       "2026-09-30 (0.1.147): the alarm is a tab of the security area again whenever the platform has a panel (any alarm permission shows it); the management stays in Settings.",
       "2026-10-02 evidence audit (branch pilot/evidence-T093-T094 from HEAD 259dfa4e; status stays REVIEW): implementation PASS-evidenced in commit 8f9470af (alarm discovery, control and the code policy, backend: services/alarm.py, services/alarm_codes.py, routers/alarm.py, migration 0036) plus the review-fix commits f305cb4/db68287/50d329f/b770aac/5a8b2c4 and final-review fixes a3ac7928/bfd44218/3c051bc9, released in commit 2df6d9ed (0.1.145). Re-run today on this branch: backend tests/test_alarm.py (38 tests collected; the CR doc and the 2026-09-29 line say 31 - the file has grown since), tests/test_alarm_managed_cache.py (2) and tests/test_user_prefs.py (8): 48 passed together, pytest -o addopts=\"\" with the repo .venv; Playwright evidence-alarm + evidence-shell, desktop+mobile, built dist (tsc clean, vite build OK): 57 passed, 11 skipped. Covered by named backend tests: pairing (Risco exact, PAI stem, Visonic select, overrides, unpaired list), permission matrix and floor scope, arm without / disarm and bypass with confirmation, panel code write-only + AES key file, PIN hash and first-PIN rules, no_code/code_required/panel_code modes, lockout (user, panel, persistent), no code in logs/audit/replies/db, generic route and bulk refusal for alarm-owned entities. Screenshots: docs/evidence/CR010.",
-      "2026-10-02 evidence audit - NOT verified / partial for T093: (1) the 4 live alarm specs against the fixture backend (SW_LIVE=1 SW_ALARM_FIXTURE=1) were skipped today, only their 2026-09-29 results are on record; (2) nothing was run against a real panel and no real arm/disarm happened (the owner's task-specific physical-system approval is absent); (3) acceptance item 1 is partial/superseded by later owner rounds: the top-bar segmented control and the breadcrumbs no longer exist (no top bar since 0.1.146; evidence-alarm 'no breadcrumb bar'), design B and its flat alarm entry were removed in 0.1.148, and the alarm screen lives in Settings > Security / the security area's tab only while a panel exists (0.1.146-0.1.147); (4) the remote switches alarm.remote_control / remote_disarm / remote_codeless and the 5-in-5-minutes / 10-minute lockout figures are covered through the lockout and no_code tests but were not individually re-read against the CR text in this audit; (5) the open owner questions in CR-010 section 10 (alarm.disarm / alarm.bypass for site_admin, shared zones on two partitions, operator arming default) are unanswered; (6) bridge 0.2.6 behaviour (arm_night/vacation/custom_bypass, code-refusal answer) is fixture-only."
+      "2026-10-02 evidence audit - NOT verified / partial for T093: (1) the 4 live alarm specs against the fixture backend (SW_LIVE=1 SW_ALARM_FIXTURE=1) were skipped today, only their 2026-09-29 results are on record; (2) nothing was run against a real panel and no real arm/disarm happened (the owner's task-specific physical-system approval is absent); (3) acceptance item 1 is partial/superseded by later owner rounds: the top-bar segmented control and the breadcrumbs no longer exist (no top bar since 0.1.146; evidence-alarm 'no breadcrumb bar'), design B and its flat alarm entry were removed in 0.1.148, and the alarm screen lives in Settings > Security / the security area's tab only while a panel exists (0.1.146-0.1.147); (4) the remote switches alarm.remote_control / remote_disarm / remote_codeless and the 5-in-5-minutes / 10-minute lockout figures are covered through the lockout and no_code tests but were not individually re-read against the CR text in this audit; (5) the open owner questions in CR-010 section 10 (alarm.disarm / alarm.bypass for site_admin, shared zones on two partitions, operator arming default) are unanswered; (6) bridge 0.2.6 behaviour (arm_night/vacation/custom_bypass, code-refusal answer) is fixture-only.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit c940f31ea); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -5213,7 +5236,8 @@
       "2026-09-30 (0.1.148): design B removed (design A only); tab bar styles per level and section (pill / underline / compact); the phone UI audit with the phone options (ui.mobile); every screen-level view and edit choice in the user menu.",
       "2026-10-01 (0.1.149): wall arrangement hides cameras (wall_hidden, migration 0043) with the counter over visible cameras only; the home edit item is route-scoped.",
       "2026-10-02 evidence audit (branch pilot/evidence-T093-T094 from HEAD 259dfa4e; status stays REVIEW): implementation PASS-evidenced in commit ba9d6cdb (per-user prefs GET/PUT /me/prefs, key nav.order, migration 0037, ui.start_route default devices), commit 86a34728 (shell spec on demo data and a mocked backend, evidence), the review round 57dad845/e6d91d41/6f671cce/9a1d592e/626cc8be, released in commit 2df6d9ed (0.1.145); later shell rounds 0.1.146-0.1.149 are recorded above. Re-run today on this branch: backend tests/test_user_prefs.py (8 tests) passed within a 48-test run with the alarm files; Playwright evidence-shell.spec.ts + evidence-alarm.spec.ts, desktop+mobile projects, built dist (tsc clean, vite build OK): 57 passed, 11 skipped (the live-fixture alarm specs and viewport-gated cases). Named shell specs that passed: bar order with the avatar last and the bare address landing on the home, old deep links, user menu (alerts, settings, second level, Escape), Back closes the phone sheet and the tab-order dialog, kiosk/Lovelace without chrome, phone sticky section row and scrolling tab row, red dot with the count, settings/WisKey gating by permission, tab order per user on the server (drag, save, reload with the server winning, second user unaffected, reset) and a hidden tab keeping its place; backend tests cover defaults, normalisation, unknown keys refused, per-user isolation, reset. Screenshots docs/evidence/CR013 and UIR1-shell.",
-      "2026-10-02 evidence audit - NOT verified / partial for T094: (1) not verified on a real phone, in the Android app (zero status-bar inset in its own WebView, swap-server item) or in an installed web app - CR-013 section 7 says the same; (2) the owner's phone review, required by the card's escalation note, is not recorded as a pass for 0.1.145 beyond his later rounds; (3) acceptance text is partly superseded by owner rounds: no desktop top bar at all since 0.1.146 (corner search + status dot instead of crumbs/section control/search/health pill), design B removed in 0.1.148, section tab sets and order also driven by ui.tabs; (4) the own-remote-sign-ins list, the destructive sign-out styling and the avatar's accessible name were not individually re-read in this audit; (5) touch drag in the order dialog and the arrow/Home/End keys with the live announcement were not independently confirmed (the passing specs drive the buttons; the CR lists no long-press drag); (6) the alert count polls once a minute (known limit, no push); (7) the fixture specs named in CR-013 section 7 (evidence-arx-remote, evidence-wiskey*, evidence-nvr-less, etc.) were not re-run here."
+      "2026-10-02 evidence audit - NOT verified / partial for T094: (1) not verified on a real phone, in the Android app (zero status-bar inset in its own WebView, swap-server item) or in an installed web app - CR-013 section 7 says the same; (2) the owner's phone review, required by the card's escalation note, is not recorded as a pass for 0.1.145 beyond his later rounds; (3) acceptance text is partly superseded by owner rounds: no desktop top bar at all since 0.1.146 (corner search + status dot instead of crumbs/section control/search/health pill), design B removed in 0.1.148, section tab sets and order also driven by ui.tabs; (4) the own-remote-sign-ins list, the destructive sign-out styling and the avatar's accessible name were not individually re-read in this audit; (5) touch drag in the order dialog and the arrow/Home/End keys with the live announcement were not independently confirmed (the passing specs drive the buttons; the CR lists no long-press drag); (6) the alert count polls once a minute (known limit, no push); (7) the fixture specs named in CR-013 section 7 (evidence-arx-remote, evidence-wiskey*, evidence-nvr-less, etc.) were not re-run here.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit c940f31ea); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -5603,7 +5627,7 @@
       "AT215",
       "AT216"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5625,7 +5649,8 @@
       "Shipped as pilot 0.1.147, feature off by default (smplwise_vms/CHANGELOG.md, section 0.1.147): migration 0039, the Schedules tab, permissions schedule.view / schedule.manage / schedule.sensitive, bridge 0.3.0; settings page and user guide page 41 documented.",
       "Test files present in the repository (this card registration did not run them): 21 backend files matching *schedul* under smplwise_vms/backend/tests and 6 frontend specs matching *schedul* under frontend/tests. No acceptance test is marked PASS in test_catalog.json: AT214-AT216 are NOT_RUN until a run is recorded against a commit.",
       "Open: recorded live acceptance on the lab (phase-0 checklist write steps need the owner's approval); an alarm action that needs a panel code cannot be scheduled; direct edits inside the component bypass product permissions (flagged external).",
-      "2026-10-02: card registered retroactively by the cleanup task pilot/playback-cap-cleanup; CR-014 had no card before, only mentions in T100/T101."
+      "2026-10-02: card registered retroactively by the cleanup task pilot/playback-cap-cleanup; CR-014 had no card before, only mentions in T100/T101.",
+      "2026-10-31 (TASKS-SYNC-3110): no agent works on it; last activity 2026-10-23; parts already shipped stay shipped. Moved from IN_PROGRESS to BACKLOG so the board shows only live work"
     ],
     "owner": null,
     "commit": null,
@@ -5650,7 +5675,7 @@
     "test_ids": [
       "AT217"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5672,7 +5697,8 @@
       "Not done: the relay Worker was not run against APNs / FCM (owner keys needed); nothing tried on the owner's installation; the app itself is built separately (Codex). AT217 stays NOT_RUN as a recorded acceptance until a run against a commit is written here.",
       "2026-10-05: card registered at integration (2.0.2) by the integration lead.",
       "2026-10-06 (TASKS-SYNC-3, registry update): partial - the app side exists as an unmerged import: branch pilot/android-v4-import (head 6b8751cc) holds the Android v4 shell (presence sensors: location fixes and geofences, battery, activity, steps, altitude, hashed network name, filtered beacons; contract client with encrypted tokens, notice acknowledgement and the required-sensors gate; FCM relay client; a contract mock server and its tests). Debug build against the mock; JVM unit tests 69/69, mock tests 11/11, assembleDebug OK (as reported by the import commit). NOT run: instrumented tests, lint, any physical phone, real FCM / relay delivery (no Firebase project yet), real sensors under Doze / OEM power management. Open contract gaps recorded by the importer: the production payload has no server-to-origin binding, quiet hours are not in the contract, the /me identity field shape needs confirmation. The iOS shell is not part of this evidence. Internal review done (kept private). The server side was released with 2.0.2; 2.2.0 changes nothing here except a test-only fix (the app-message expiry clock pinned to the notification clock, merge d932517c). AT217 stays NOT_RUN; AT235 registers the app-side entry.",
-      "2026-10-07 (TASKS-SYNC-4, registry update): no change in scope; the server side gained contract v2 in 2.2.1 (see T096: server_id, relay_url, idempotent relay registration, machine-readable cross-site refusals) and device-token revocation on second-factor enable / reset in 2.3.0 (see T095). Everything stays off by default. Real phones, real sensors and real push delivery remain NOT_RUN (AT217, AT247); status stays IN_PROGRESS."
+      "2026-10-07 (TASKS-SYNC-4, registry update): no change in scope; the server side gained contract v2 in 2.2.1 (see T096: server_id, relay_url, idempotent relay registration, machine-readable cross-site refusals) and device-token revocation on second-factor enable / reset in 2.3.0 (see T095). Everything stays off by default. Real phones, real sensors and real push delivery remain NOT_RUN (AT217, AT247); status stays IN_PROGRESS.",
+      "2026-10-31 (TASKS-SYNC-3110): no agent works on it; last activity 2026-10-23; parts already shipped stay shipped. Moved from IN_PROGRESS to BACKLOG so the board shows only live work"
     ],
     "owner": null,
     "commit": null,
@@ -5697,7 +5723,7 @@
     "test_ids": [
       "AT218"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5716,7 +5742,8 @@
       "Tests in the repository: tests/test_media_cast_caps.py (pure rules, the route over media_seed, privacy guard), unit-media-cast-label.spec.ts, unit-media-admin-list.spec.ts, evidence-media-cast-chips.spec.ts (desktop / tablet / mobile). Run in the 2.0.2 release gate on the Linux test machine.",
       "Open: the owner's decisions in CR-028 section 11 (video path, default approval per screen, the device for the first physical test); phases 1-3 (single camera to Google Cast with bridge 0.7.0 and the relay, mosaic wall, carousel) are not built. AT218 stays NOT_RUN as a recorded acceptance.",
       "2026-10-05: card registered at integration (2.0.2) by the integration lead.",
-      "2.0.4 (integ/204, 2026-10-05): phases 1-2 merged from pilot/CAST1-backend @ 16e6b3f5 (relay, sessions, bridge 0.7.0 cast_stream, migration 0060) and pilot/CAST1-ui @ 941f78ca; cast is OFF by default (option cast_relay); tests with fakes only, no real screen contacted; the first physical test is NOT_RUN (docs/operations/CAST_FIRST_PHYSICAL_TEST_RUNBOOK.md, owner present)."
+      "2.0.4 (integ/204, 2026-10-05): phases 1-2 merged from pilot/CAST1-backend @ 16e6b3f5 (relay, sessions, bridge 0.7.0 cast_stream, migration 0060) and pilot/CAST1-ui @ 941f78ca; cast is OFF by default (option cast_relay); tests with fakes only, no real screen contacted; the first physical test is NOT_RUN (docs/operations/CAST_FIRST_PHYSICAL_TEST_RUNBOOK.md, owner present).",
+      "2026-10-31 (TASKS-SYNC-3110): no agent works on it; last activity 2026-10-05; parts already shipped stay shipped. Moved from IN_PROGRESS to BACKLOG so the board shows only live work"
     ],
     "owner": null,
     "commit": null,
@@ -5741,7 +5768,7 @@
     "test_ids": [
       "AT219"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5758,7 +5785,8 @@
     "evidence": [
       "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. commit 2cd7c8d9 / 9a5f733f / 7db43ce2 and the merge 18bad5b9 (pilot/provision-wiring into integ/0163): the adapter, the wiring and the security fixes (Digest-to-Basic downgrade refused, vendor extras validated, exports bound to their recorder, Hikvision ISAPI refused for other vendors); released in 0.1.163 (release commit e6819da8; smplwise_vms/CHANGELOG.md section 0.1.163 'Provision-ISR recorders (CR-025)'); the alarm-server write refusal on a v1 NVR in 2.0.3 (commit a90df7ff).",
       "Tests in the repository: smplwise_vms/backend/tests/test_provision_isr.py, test_provision_isr_p2.py, test_provision_playback.py, test_provision_wiring.py, test_provision_p3_wiring.py, test_provision_tls_pin.py, test_provision_vendor_guard.py, test_provision_push_*.py; Playwright frontend/tests/evidence-provision-connection.spec.ts. All against fake devices.",
-      "Not proven by the repository: a real write to a Provision recorder (the owner does the first one, runbook in CR-025 section 6.6), drop recovery on a real network, v2 paths (P4). AT219 stays NOT_RUN as a recorded acceptance."
+      "Not proven by the repository: a real write to a Provision recorder (the owner does the first one, runbook in CR-025 section 6.6), drop recovery on a real network, v2 paths (P4). AT219 stays NOT_RUN as a recorded acceptance.",
+      "2026-10-31 (TASKS-SYNC-3110): no agent works on it; last activity 2026-10-05; parts already shipped stay shipped. Moved from IN_PROGRESS to BACKLOG so the board shows only live work"
     ],
     "owner": null,
     "commit": null,
@@ -5783,7 +5811,7 @@
     "test_ids": [
       "AT220"
     ],
-    "status": "IN_PROGRESS",
+    "status": "BACKLOG",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5800,7 +5828,8 @@
     "evidence": [
       "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. commit 45255e6e (merge of pilot/nvr-health into integ/200), released in 2.0.0 (release commit 50056b25; smplwise_vms/CHANGELOG.md section 2.0.0 'Recorder health monitoring (CR-026)'); the owner decisions of 2026-10-05 and the live read-only pass on the owner's Provision NVR are recorded in the CR (commit b7981fbd).",
       "Tests in the repository: smplwise_vms/backend/tests/test_recorder_health.py, test_recorder_health_nn6.py, test_health_report.py, test_health_summary.py (fake devices).",
-      "Not proven by the repository: Hikvision health detail (planned after Provision); behaviour over time on the owner's installation. AT220 stays NOT_RUN as a recorded acceptance."
+      "Not proven by the repository: Hikvision health detail (planned after Provision); behaviour over time on the owner's installation. AT220 stays NOT_RUN as a recorded acceptance.",
+      "2026-10-31 (TASKS-SYNC-3110): no agent works on it; last activity 2026-10-05; parts already shipped stay shipped. Moved from IN_PROGRESS to BACKLOG so the board shows only live work"
     ],
     "owner": null,
     "commit": null,
@@ -8663,7 +8692,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-11 (REGISTRY-sync-1011): 2.4.6 candidate: branch pilot/FLAKY-stabilise @ 0388d557, merged into integ/246 (head 96e6032c). Local verification is listed in the 2.4.6 integration notes (integ/246: docs/release/2.4.6-INTEGRATION-NOTES.md; unit specs, runner spec job 693 passed, backend modules). The tier-L gate of 2.4.6 is not recorded, so the acceptance test is NOT_RUN and the row is not DONE."
+      "2026-10-11 (REGISTRY-sync-1011): 2.4.6 candidate: branch pilot/FLAKY-stabilise @ 0388d557, merged into integ/246 (head 96e6032c). Local verification is listed in the 2.4.6 integration notes (integ/246: docs/release/2.4.6-INTEGRATION-NOTES.md; unit specs, runner spec job 693 passed, backend modules). The tier-L gate of 2.4.6 is not recorded, so the acceptance test is NOT_RUN and the row is not DONE.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit ef99c7bda); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": "0388d557",
@@ -8702,7 +8732,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-11 (REGISTRY-sync-1011): 2.4.6 candidate: branch pilot/FLOORSTRIP-duplicate @ be393743, merged into integ/246 (head 96e6032c). Local verification is listed in the 2.4.6 integration notes (integ/246: docs/release/2.4.6-INTEGRATION-NOTES.md; unit specs, runner spec job 693 passed, backend modules). The tier-L gate of 2.4.6 is not recorded, so the acceptance test is NOT_RUN and the row is not DONE."
+      "2026-10-11 (REGISTRY-sync-1011): 2.4.6 candidate: branch pilot/FLOORSTRIP-duplicate @ be393743, merged into integ/246 (head 96e6032c). Local verification is listed in the 2.4.6 integration notes (integ/246: docs/release/2.4.6-INTEGRATION-NOTES.md; unit specs, runner spec job 693 passed, backend modules). The tier-L gate of 2.4.6 is not recorded, so the acceptance test is NOT_RUN and the row is not DONE.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 7fcbb94e9); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": "be393743",
@@ -8727,7 +8758,7 @@
     "test_ids": [
       "AT304"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -8741,7 +8772,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-11 (REGISTRY-sync-1011): in progress on branch pilot/BILL-start-reading (local worktree; at registration the branch tip equals main 02a175f3, no commits yet). Related earlier board row: BILL1 (2.0.4, draft with a meter without a reading)."
+      "2026-10-11 (REGISTRY-sync-1011): in progress on branch pilot/BILL-start-reading (local worktree; at registration the branch tip equals main 02a175f3, no commits yet). Related earlier board row: BILL1 (2.0.4, draft with a meter without a reading).",
+      "2026-10-31 (TASKS-SYNC-3110): merged as pilot/BILL-start-reading into integ/247 (ba6d5f282) and shipped in 2.4.7 (real opening readings on the bill). Status REVIEW = shipped; formal acceptance record still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -8931,7 +8963,7 @@
     "test_ids": [
       "AT309"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -8946,7 +8978,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-11 (REGISTRY-sync-1011): board: todo, 4 h."
+      "2026-10-11 (REGISTRY-sync-1011): board: todo, 4 h.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 43428bee9); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -10664,7 +10697,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-14 (integ-250): c87b38a0, 163a5aba (gate run 1 reds), 2e16e9f9 (security fixes), 02883c54 (test send / guide), 02d9b678 (article lint). Status REVIEW until gate run 2 passes."
+      "2026-10-14 (integ-250): c87b38a0, 163a5aba (gate run 1 reds), 2e16e9f9 (security fixes), 02883c54 (test send / guide), 02d9b678 (article lint). Status REVIEW until gate run 2 passes.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit e1a26c799); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": "a06ba53a",
@@ -11015,7 +11049,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKUI1-drawer @ 8740b0ce. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKUI1-drawer @ 8740b0ce. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 461df731a); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11054,7 +11089,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKUI2-conversation @ 453d800c. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKUI2-conversation @ 453d800c. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit b461bad0f); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11093,7 +11129,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKUI3-costs, pilot/TKUI3B, pilot/TKLAYFIX @ 58b61ee9 (TKUI3B), 08313b68 (TKLAYFIX). Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKUI3-costs, pilot/TKUI3B, pilot/TKLAYFIX @ 58b61ee9 (TKUI3B), 08313b68 (TKLAYFIX). Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 67c36fefb); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11132,7 +11169,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKUI4-lists @ 5dcfc965. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKUI4-lists @ 5dcfc965. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit a31d79ae6); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11171,7 +11209,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKCAL @ SHA not recorded in the integration notes. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKCAL @ SHA not recorded in the integration notes. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit d0e966be2); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11210,7 +11249,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKUI5-public-page @ 74860757. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKUI5-public-page @ 74860757. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit d0855dd89); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11249,7 +11289,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKUI6 @ 51deae71. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKUI6 @ 51deae71. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 220aee22a); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11288,7 +11329,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): TKUI7 commit 4bf7aea2 (on integ/260) @ 4bf7aea2. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): TKUI7 commit 4bf7aea2 (on integ/260) @ 4bf7aea2. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 9f41b7d48); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11327,7 +11369,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKDETAILBE-backend @ 558815de. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKDETAILBE-backend @ 558815de. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit e589a9607); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11366,7 +11409,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKFIX260, TKASSIGNDLG @ b6627259 (TKFIX260), 5072c614 (TKASSIGNDLG). Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKFIX260, TKASSIGNDLG @ b6627259 (TKFIX260), 5072c614 (TKASSIGNDLG). Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 7eeba5333); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11405,7 +11449,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKRFQVP (TKRFQ1 part) @ 5c7dd305. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKRFQVP (TKRFQ1 part) @ 5c7dd305. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 4d7d10aef); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11444,7 +11489,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKRFQVP (TKRFQ2 part) @ 5c7dd305. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKRFQVP (TKRFQ2 part) @ 5c7dd305. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 092ba9ee4); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11522,7 +11568,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKMAP1 (+ TKMAPFIX, TKMAPSPEC) @ 0a5386a3. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKMAP1 (+ TKMAPFIX, TKMAPSPEC) @ 0a5386a3. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 0c0545725); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11561,7 +11608,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKNOTIFOTP @ a7582add. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKNOTIFOTP @ a7582add. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 4945c4782); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11639,7 +11687,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKTPLMIG (migration and its test only) @ e5924bb8 (merged as cdb6f80a, migration and test only). Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKTPLMIG (migration and its test only) @ e5924bb8 (merged as cdb6f80a, migration and test only). Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit cdb6f80a3); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11678,7 +11727,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKFRIGLIVE @ 1caa4939. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKFRIGLIVE @ 1caa4939. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 1caa49390); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11717,7 +11767,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (integ/263): pilot/TKWIZHINT @ 9e1d34a0. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet."
+      "2026-10-16 (integ/263): pilot/TKWIZHINT @ 9e1d34a0. Fakes only; no real device, WhatsApp account, Frigate or phone. See docs/release/2.6.3-INTEGRATION-NOTES.md. Status REVIEW until the tier-L gate of integ/263 passes; the gate has not passed yet.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit edba418fe); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11840,7 +11891,8 @@
       "Acceptance evidence tied to commit and environment"
     ],
     "evidence": [
-      "2026-10-16 (pilot/USR2-P3): backend tests/test_service_identity.py + tests/test_bridge_service_identity.py (+ version bumps in the bridge suites); frontend tests/unit-service-identity.spec.ts; screenshots docs/evidence/USR2/service-identity-*. Fakes only. Status REVIEW until the lead's gate and the security review."
+      "2026-10-16 (pilot/USR2-P3): backend tests/test_service_identity.py + tests/test_bridge_service_identity.py (+ version bumps in the bridge suites); frontend tests/unit-service-identity.spec.ts; screenshots docs/evidence/USR2/service-identity-*. Fakes only. Status REVIEW until the lead's gate and the security review.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 1a377abb0); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11879,6 +11931,9 @@
     },
     "deliverables": [
       "smplwise/migrations/0107_access_person_links_grants.sql, 0108_access_grant_notices.sql, services/access_grants.py, services/access_grant_engine.py, services/access_arrival.py, routers/access_grants.py, hooks in db.py / tickets service / handler_actions, tests/test_access_grants.py, tests/test_access_arrival.py, docs/changes/CR-ARX-WISKEY-SHARED-IDENTITY-BUILD-NOTES.md on pilot/WISKEYID-BUILD"
+    ],
+    "evidence": [
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit a8fb775ef); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ]
   },
   {
@@ -11900,7 +11955,7 @@
     "test_ids": [
       "AT-SCHEDIMPACT-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -11915,7 +11970,8 @@
       "Docs: HA_IDENTITY_RBAC amendment draft section 4 item 7, CR-USR2 (new subsection), bilingual release notes line"
     ],
     "evidence": [
-      "2026-10-21: card opened on pilot/EXTID-295 from private/planning/FABLE_REVIEW_4_2026-10-21.md V-02 (schedules: SERVICE_FEATURES['schedules'] is basic mode; schedule_service.py:117-133 checks the service user's entity policy only; schedule_ops.py:1242-1262 mark_script needed only for disarm / unlock / unknown scripts). Nothing built."
+      "2026-10-21: card opened on pilot/EXTID-295 from private/planning/FABLE_REVIEW_4_2026-10-21.md V-02 (schedules: SERVICE_FEATURES['schedules'] is basic mode; schedule_service.py:117-133 checks the service user's entity policy only; schedule_ops.py:1242-1262 mark_script needed only for disarm / unlock / unknown scripts). Nothing built.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.12.1 (commit e7caa7aa1); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11956,7 +12012,8 @@
       "Docs: CR-USR2 13.8, DOCS.md / DOCS_HE.md, docs/user-guide/he/47-identity-users_HE.md, GUIDE_ALL_HE.html"
     ],
     "evidence": [
-      "2026-10-21: the 13.6 refusal itself was already built by EXTID-295 (CR-USR2 13.7) and is in release/2120b; pilot/ENTPOL-295 (from release/2120b @ 8de9f8990) closes three fail-open edges found in review (ambiguous control value, group reading vs. Home Assistant's merge, a stale report trusted forever). Local tests only, see the branch commit."
+      "2026-10-21: the 13.6 refusal itself was already built by EXTID-295 (CR-USR2 13.7) and is in release/2120b; pilot/ENTPOL-295 (from release/2120b @ 8de9f8990) closes three fail-open edges found in review (ambiguous control value, group reading vs. Home Assistant's merge, a stale report trusted forever). Local tests only, see the branch commit.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.12.1 (commit 64b202435); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -11997,7 +12054,8 @@
       "Docs: CR-027 section 10a, docs/api/mobile-presence-contract.md sections 2 and 4"
     ],
     "evidence": [
-      "2026-10-23 runner, pilot/WHOIN034-295: backend test_whoin034_295 + test_presence 21 passed (@3143c8835); with test_mobile_push, test_access_permissions_wxperm, test_rbac_groups 68 passed + 1 test bug fixed (@363f5b7fd); specs 110 passed, 3 failed (evidence-tabs-ui editor: the new map tab, spec updated, re-run pending), 1 skipped. Not a gate."
+      "2026-10-23 runner, pilot/WHOIN034-295: backend test_whoin034_295 + test_presence 21 passed (@3143c8835); with test_mobile_push, test_access_permissions_wxperm, test_rbac_groups 68 passed + 1 test bug fixed (@363f5b7fd); specs 110 passed, 3 failed (evidence-tabs-ui editor: the new map tab, spec updated, re-run pending), 1 skipped. Not a gate.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.16.0 (commit 405de16a3); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -12081,7 +12139,8 @@
       "timing-lane tags / marks: test_f3a_doorwin_dw03_295.py (split), test_lat1_toggle_latency.py (split), evidence-nvr-cameras-batch, unit-plan-3d-realistic, unit-plan-3d-view, evidence-uxfix-rtl; pyproject.toml marker"
     ],
     "evidence": [
-      "2026-10-27 test machine, pilot/GATELANES-297 @ 880cfe659, one targeted run (not a gate; load average 16-28 from other jobs): tsc ok; selftest 2 BROKEN cases = a bug in the new check (it read the -m of `python -m pytest`; the printed command lines show -m 'not timing_lane' / -m timing_lane), fixed in the next commit, selftest NOT re-run; backend -m 'not timing_lane' (door, LAT1, tablet allowlist) 16 passed / 2 deselected; backend -m timing_lane 1 passed, 1 failed (LAT1 latency bounds at load ~25: the lane's reason to exist); playwright --list: archive 0 tests, @timing-lane 15 tests in 4 files; pixel step (12 per-skin pixel specs, desktop + mobile, --grep pixel-stable) 117 passed / 11 skipped / 0 failed against the unchanged classic / domus baselines; structural smoke (tesla, crystal, 3 projects) 39 passed / 29 skipped / 4 failed - all 4 in pixel-access-schedules, a page error 'localStorage access denied' thrown on the about:blank page the spec's open() loads first (harness, not the skin); the smoke now ignores errors of about:blank (next commit), NOT re-run; evidence-uxfix-rtl + evidence-nvr-cameras-batch with --grep-invert @timing-lane 23 passed; timing_lane.sh --now (engine GATE_LANE=timing, own worktree): PASS in 3 min (preview 10, dev 1, backend 2, 0 fail)."
+      "2026-10-27 test machine, pilot/GATELANES-297 @ 880cfe659, one targeted run (not a gate; load average 16-28 from other jobs): tsc ok; selftest 2 BROKEN cases = a bug in the new check (it read the -m of `python -m pytest`; the printed command lines show -m 'not timing_lane' / -m timing_lane), fixed in the next commit, selftest NOT re-run; backend -m 'not timing_lane' (door, LAT1, tablet allowlist) 16 passed / 2 deselected; backend -m timing_lane 1 passed, 1 failed (LAT1 latency bounds at load ~25: the lane's reason to exist); playwright --list: archive 0 tests, @timing-lane 15 tests in 4 files; pixel step (12 per-skin pixel specs, desktop + mobile, --grep pixel-stable) 117 passed / 11 skipped / 0 failed against the unchanged classic / domus baselines; structural smoke (tesla, crystal, 3 projects) 39 passed / 29 skipped / 4 failed - all 4 in pixel-access-schedules, a page error 'localStorage access denied' thrown on the about:blank page the spec's open() loads first (harness, not the skin); the smoke now ignores errors of about:blank (next commit), NOT re-run; evidence-uxfix-rtl + evidence-nvr-cameras-batch with --grep-invert @timing-lane 23 passed; timing_lane.sh --now (engine GATE_LANE=timing, own worktree): PASS in 3 min (preview 10, dev 1, backend 2, 0 fail).",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.24.0 (commit c19243a87); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -12161,7 +12220,8 @@
       "Docs: docs/changes/EXTERNALBUILD-297.md, docs/operations/EXTERNAL_ACCESS_LIVE_SESSION_RUNBOOK.md, docs/user-guide/he/52-external-access_HE.md"
     ],
     "evidence": [
-      "2026-10-27 local workstation (fakes only), pilot/EXTERNALBUILD-297 @ 9daae20f4 + catalogue fix: tests/test_externalbuild_297.py 30 passed; regression sets (grants, arrival, grants3, grantsmin, harden271, accessreq, denyalert, sharedid, k7, physentry, wkjoin, notify_core, quiet103, wxperm, custom_roles, rbac, rbac_matrix, stationperm, eccact_readback, wkv2, wkv2b, pub03 retention, tickets phone_verify, access) no failures after test_access_permissions_wxperm learned access.visitor.invite; frontend tsc --noEmit clean. No Playwright spec run. Not a gate."
+      "2026-10-27 local workstation (fakes only), pilot/EXTERNALBUILD-297 @ 9daae20f4 + catalogue fix: tests/test_externalbuild_297.py 30 passed; regression sets (grants, arrival, grants3, grantsmin, harden271, accessreq, denyalert, sharedid, k7, physentry, wkjoin, notify_core, quiet103, wxperm, custom_roles, rbac, rbac_matrix, stationperm, eccact_readback, wkv2, wkv2b, pub03 retention, tickets phone_verify, access) no failures after test_access_permissions_wxperm learned access.visitor.invite; frontend tsc --noEmit clean. No Playwright spec run. Not a gate.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.24.1 (commit 9daae20f4); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -12201,7 +12261,8 @@
       "Docs: docs/changes/DOORWRITE-297.md, docs/integrations/wiskey/RUNBOOK_DOORWRITE_FIRST_LAB_WRITE.md (prepared, not run)"
     ],
     "evidence": [
-      "2026-10-27 runner, pilot/DOORWRITE-297 @ 005d8dcbb: tests/test_doorwrite_297.py with test_doorwin_watch, test_doorwin_api, test_doorwin2_foreign, test_doorwin2_events, test_doorwin2_review2, test_splitswitch_297, test_wiskey_owner26_callers_297, test_f3a_doorwin_dw03_295: 174 passed. Fakes only (W0 FakeProgramEngine behind the live seam classes); no WisKey, no door. Not a gate. The lab write is prepared, NOT_RUN. Also @005d8dcbb: test_migrations, test_migrations_263_upgrade, test_db_template, test_backup_drill, test_db_gate and the remaining door-window suites 216 passed, 1 failed (test_program_writes_are_pinned: the OWNER26 transport was never pinned - fixed) and 1 error (test_backup_sensitive, 'unable to open database file'); @5a984f4bf: test_doorwrite_297 + test_fake_doorwin_closed_rule_sr1 + test_backup_sensitive 71 passed."
+      "2026-10-27 runner, pilot/DOORWRITE-297 @ 005d8dcbb: tests/test_doorwrite_297.py with test_doorwin_watch, test_doorwin_api, test_doorwin2_foreign, test_doorwin2_events, test_doorwin2_review2, test_splitswitch_297, test_wiskey_owner26_callers_297, test_f3a_doorwin_dw03_295: 174 passed. Fakes only (W0 FakeProgramEngine behind the live seam classes); no WisKey, no door. Not a gate. The lab write is prepared, NOT_RUN. Also @005d8dcbb: test_migrations, test_migrations_263_upgrade, test_db_template, test_backup_drill, test_db_gate and the remaining door-window suites 216 passed, 1 failed (test_program_writes_are_pinned: the OWNER26 transport was never pinned - fixed) and 1 error (test_backup_sensitive, 'unable to open database file'); @5a984f4bf: test_doorwrite_297 + test_fake_doorwin_closed_rule_sr1 + test_backup_sensitive 71 passed.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.24.1 (commit 61e0e43ac); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -12243,7 +12304,8 @@
       "Docs: docs/api/mobile-presence-contract.md"
     ],
     "evidence": [
-      "Merged into release/2241 (4a7f4d8a8; branch head a360153e3). No run of tests/test_xsecfix_297.py or of DeepLinksTest is recorded in the repository: NOT_RUN. To be covered by the 2.24.1 gate (full backend, security-core change); DeepLinksTest (Gradle JVM) runs outside the gate."
+      "Merged into release/2241 (4a7f4d8a8; branch head a360153e3). No run of tests/test_xsecfix_297.py or of DeepLinksTest is recorded in the repository: NOT_RUN. To be covered by the 2.24.1 gate (full backend, security-core change); DeepLinksTest (Gradle JVM) runs outside the gate.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.24.1 (commit 82ca11ae0); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": "a360153e3",
@@ -12284,7 +12346,8 @@
       "Docs: docs/design/DEVICE_THEMES.md section 10"
     ],
     "evidence": [
-      "Merged into release/2241 (fd59f0820; branch head 88881a3d6). No run of test_ui_settings.py, unit-motionsetting-297 or smoke-motionsetting-297 is recorded in the repository: NOT_RUN. To be covered by the 2.24.1 gate (selected by the changed files)."
+      "Merged into release/2241 (fd59f0820; branch head 88881a3d6). No run of test_ui_settings.py, unit-motionsetting-297 or smoke-motionsetting-297 is recorded in the repository: NOT_RUN. To be covered by the 2.24.1 gate (selected by the changed files).",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.24.1 (commit 88881a3d6); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": "88881a3d6",
@@ -12325,7 +12388,8 @@
       "Docs: docs/changes/SPLITSWITCH2-297.md"
     ],
     "evidence": [
-      "2026-10-27 workstation, pilot/PREP2241-297 @ e59b11f12 (release/2241 + 2.24.1 prep + merge of 1ea245eb9): tests/test_splitswitch2_297.py, test_splitswitch_297.py, test_door_emergency.py, test_doorwin_api.py 68 passed, 0 failed; test_migrations.py + test_migrations_263_upgrade.py 6 passed; frontend tsc --noEmit clean. Fakes only, not a gate. NOT_RUN (runner): playwright evidence-doorwin-295.spec.ts, tests/test_door_emergency_roles_emrole_295.py, tests/test_capmap_295.py."
+      "2026-10-27 workstation, pilot/PREP2241-297 @ e59b11f12 (release/2241 + 2.24.1 prep + merge of 1ea245eb9): tests/test_splitswitch2_297.py, test_splitswitch_297.py, test_door_emergency.py, test_doorwin_api.py 68 passed, 0 failed; test_migrations.py + test_migrations_263_upgrade.py 6 passed; frontend tsc --noEmit clean. Fakes only, not a gate. NOT_RUN (runner): playwright evidence-doorwin-295.spec.ts, tests/test_door_emergency_roles_emrole_295.py, tests/test_capmap_295.py.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.24.1 (commit 1ea245eb9); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": "1ea245eb9",
@@ -12365,7 +12429,8 @@
       "Docs: docs/operations/RUNNER_FIXTURE_JOB.md"
     ],
     "evidence": [
-      "2026-10-27 workstation, pilot/CURVEDGATE-297 (from release/2241): tests/test_fixture_job.py, test_gate_speed.py, test_select_tests.py, test_gate_tablet_allowlist.py passed (1 skipped); release_gate.classify(L) puts both specs in the fixture kind (desktop, tablet, mobile; every test skips outside desktop / mobile); npx playwright test --list lists 39 tests in the 2 files. The specs themselves were NOT_RUN here: they run in the next L-tier release gate on the runner."
+      "2026-10-27 workstation, pilot/CURVEDGATE-297 (from release/2241): tests/test_fixture_job.py, test_gate_speed.py, test_select_tests.py, test_gate_tablet_allowlist.py passed (1 skipped); release_gate.classify(L) puts both specs in the fixture kind (desktop, tablet, mobile; every test skips outside desktop / mobile); npx playwright test --list lists 39 tests in the 2 files. The specs themselves were NOT_RUN here: they run in the next L-tier release gate on the runner.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.25.0 (commit 2da80d4bf); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -12406,7 +12471,8 @@
       "Docs: docs/api/mobile-presence-contract.md"
     ],
     "evidence": [
-      "Workstation 2026-10-27 on pilot/XSECFOLLOW-297 (base f1ef67c68): backend Python 3.12 -X utf8 - tests/test_xsecfollow_297.py 24 passed; regression of 31 suites (test_xsecfix_297, test_presence, test_local_identity, test_local_reset, test_local_passkeys, test_second_factor*, test_app_refresh_295, test_remote_access, test_remote_hardening, test_security_review_220 and every suite that opens a WebSocket) 1114 passed, 0 failed; frontend tsc --noEmit clean, playwright.unit.config.ts unit-xsecfollow-297 + unit-automations-list 34 passed; Android ./gradlew testDebugUnitTest BUILD SUCCESSFUL (XsecFollow297Test 8, DeepLinksTest 7, all 68 JVM tests passed). NOT_RUN: full backend suite (gate), Playwright evidence/browser specs, iOS shell (code not in the repository), on-device test."
+      "Workstation 2026-10-27 on pilot/XSECFOLLOW-297 (base f1ef67c68): backend Python 3.12 -X utf8 - tests/test_xsecfollow_297.py 24 passed; regression of 31 suites (test_xsecfix_297, test_presence, test_local_identity, test_local_reset, test_local_passkeys, test_second_factor*, test_app_refresh_295, test_remote_access, test_remote_hardening, test_security_review_220 and every suite that opens a WebSocket) 1114 passed, 0 failed; frontend tsc --noEmit clean, playwright.unit.config.ts unit-xsecfollow-297 + unit-automations-list 34 passed; Android ./gradlew testDebugUnitTest BUILD SUCCESSFUL (XsecFollow297Test 8, DeepLinksTest 7, all 68 JVM tests passed). NOT_RUN: full backend suite (gate), Playwright evidence/browser specs, iOS shell (code not in the repository), on-device test.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.25.0 (commit 13038637b); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": "13038637b",
@@ -12447,7 +12513,8 @@
       "Docs: docs/changes/CR-SUPPLIERDOCS-297.md"
     ],
     "evidence": [
-      "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8, pdftotext on PATH so the real-reader test ran): tests/test_docread_297.py + tests/test_docread_certificate_rules.py 55 passed at afbd84032 (fakes + synthetic PDF only; real supplier documents NOT_RUN). Not yet in a release gate."
+      "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8, pdftotext on PATH so the real-reader test ran): tests/test_docread_297.py + tests/test_docread_certificate_rules.py 55 passed at afbd84032 (fakes + synthetic PDF only; real supplier documents NOT_RUN). Not yet in a release gate.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.25.0 (commit b89a5b368); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
     ],
     "owner": null,
     "commit": null,
@@ -12487,7 +12554,288 @@
       "Docs: docs/changes/CR-SUPPLIERDOCS-297.md section 'Security review'"
     ],
     "evidence": [
-      "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8): tests/test_migrations.py + tests/test_migrations_263_upgrade.py + docread tests 57 passed at d4b3fc646 (merge of release/2241); scripts/release_check.py 'migrations contiguous: 182 files, last 0182_doc_extractions.sql' ok; docread tests incl. F1/F2/F6 regressions 55 passed at afbd84032. F4 (child RLIMITs) open: Linux-only, NOT_RUN. Not yet in a release gate."
+      "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8): tests/test_migrations.py + tests/test_migrations_263_upgrade.py + docread tests 57 passed at d4b3fc646 (merge of release/2241); scripts/release_check.py 'migrations contiguous: 182 files, last 0182_doc_extractions.sql' ok; docread tests incl. F1/F2/F6 regressions 55 passed at afbd84032. F4 (child RLIMITs) open: Linux-only, NOT_RUN. Not yet in a release gate.",
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.25.0 (commit d4b3fc646); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "CALENDARS-UI-2310",
+    "title": "Calendars UI: booking calendars, approvals, maintenance calendar, resident view, sync settings (owner answers 30.10)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Calendars UI: booking calendars, approvals, maintenance calendar, resident view, sync settings (owner answers 30.10): built on an isolated branch, green runner entry check, joins release train 3 (2.30.0); no live device action."
+    ],
+    "requirement_ids": [
+      "R-SUPPLIERDOCS2-1"
+    ],
+    "test_ids": [
+      "AT-SUPPLIERDOCS2-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "F4 (child RLIMITs / sandbox) needs a Linux run on the runner before docread.enabled may be switched on in a release."
+    },
+    "deliverables": [
+      "services/docread/pdftext.py (run_capped), services/docread/certificate_rules.py (IBAN pattern), services/docread/service.py (analyse, read slots, purge of deleted tasks), routers/docread.py",
+      "Tests: tests/test_docread_297.py (test_f1_*, test_f2_*, test_f6_*)",
+      "Docs: docs/changes/CR-SUPPLIERDOCS-297.md section 'Security review'"
+    ],
+    "evidence": [
+      "2026-10-31 (TASKS-SYNC-3110): branch pilot/CALENDARS-UI-2310, slices 0a/0b pushed, agent finishing the next slice"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TEMPREPORT-2310",
+    "title": "Temperature report: security review and hardening of the report link and WhatsApp send",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Temperature report: security review and hardening of the report link and WhatsApp send: built on an isolated branch, green runner entry check, joins release train 3 (2.30.0); no live device action."
+    ],
+    "requirement_ids": [
+      "R-SUPPLIERDOCS2-1"
+    ],
+    "test_ids": [
+      "AT-SUPPLIERDOCS2-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "F4 (child RLIMITs / sandbox) needs a Linux run on the runner before docread.enabled may be switched on in a release."
+    },
+    "deliverables": [
+      "services/docread/pdftext.py (run_capped), services/docread/certificate_rules.py (IBAN pattern), services/docread/service.py (analyse, read slots, purge of deleted tasks), routers/docread.py",
+      "Tests: tests/test_docread_297.py (test_f1_*, test_f2_*, test_f6_*)",
+      "Docs: docs/changes/CR-SUPPLIERDOCS-297.md section 'Security review'"
+    ],
+    "evidence": [
+      "2026-10-31 (TASKS-SYNC-3110): branch pilot/TEMPREPORT-2310; agent finishing; owner asked 31.10 whether a review already exists"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WORSTCASE-2310",
+    "title": "Worst-case data on the main screens: long names, empty states, huge counts, no scrolling",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Worst-case data on the main screens: long names, empty states, huge counts, no scrolling: built on an isolated branch, green runner entry check, joins release train 3 (2.30.0); no live device action."
+    ],
+    "requirement_ids": [
+      "R-SUPPLIERDOCS2-1"
+    ],
+    "test_ids": [
+      "AT-SUPPLIERDOCS2-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "F4 (child RLIMITs / sandbox) needs a Linux run on the runner before docread.enabled may be switched on in a release."
+    },
+    "deliverables": [
+      "services/docread/pdftext.py (run_capped), services/docread/certificate_rules.py (IBAN pattern), services/docread/service.py (analyse, read slots, purge of deleted tasks), routers/docread.py",
+      "Tests: tests/test_docread_297.py (test_f1_*, test_f2_*, test_f6_*)",
+      "Docs: docs/changes/CR-SUPPLIERDOCS-297.md section 'Security review'"
+    ],
+    "evidence": [
+      "2026-10-31 (TASKS-SYNC-3110): branch pilot/WORSTCASE-2310; agent finishing"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "POLISH-PHONE-2310",
+    "title": "Phone layer polish: chips and switch hit areas",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Phone layer polish: chips and switch hit areas: built on an isolated branch, green runner entry check, joins release train 3 (2.30.0); no live device action."
+    ],
+    "requirement_ids": [
+      "R-SUPPLIERDOCS2-1"
+    ],
+    "test_ids": [
+      "AT-SUPPLIERDOCS2-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "F4 (child RLIMITs / sandbox) needs a Linux run on the runner before docread.enabled may be switched on in a release."
+    },
+    "deliverables": [
+      "services/docread/pdftext.py (run_capped), services/docread/certificate_rules.py (IBAN pattern), services/docread/service.py (analyse, read slots, purge of deleted tasks), routers/docread.py",
+      "Tests: tests/test_docread_297.py (test_f1_*, test_f2_*, test_f6_*)",
+      "Docs: docs/changes/CR-SUPPLIERDOCS-297.md section 'Security review'"
+    ],
+    "evidence": [
+      "2026-10-31 (TASKS-SYNC-3110): branch pilot/POLISH-PHONE-2310 @ 5615964b1 done; runner entry check running 31.10 09:22"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ENTRY-CHECK-2310",
+    "title": "Gate: runner entry check before a release train + 7-day quarantine list",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Gate: runner entry check before a release train + 7-day quarantine list: built on an isolated branch, green runner entry check, joins release train 3 (2.30.0); no live device action."
+    ],
+    "requirement_ids": [
+      "R-SUPPLIERDOCS2-1"
+    ],
+    "test_ids": [
+      "AT-SUPPLIERDOCS2-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "F4 (child RLIMITs / sandbox) needs a Linux run on the runner before docread.enabled may be switched on in a release."
+    },
+    "deliverables": [
+      "services/docread/pdftext.py (run_capped), services/docread/certificate_rules.py (IBAN pattern), services/docread/service.py (analyse, read slots, purge of deleted tasks), routers/docread.py",
+      "Tests: tests/test_docread_297.py (test_f1_*, test_f2_*, test_f6_*)",
+      "Docs: docs/changes/CR-SUPPLIERDOCS-297.md section 'Security review'"
+    ],
+    "evidence": [
+      "2026-10-31 (TASKS-SYNC-3110): branch chore/ENTRY-CHECK-2310 @ 6d004e4d6; installed on the runner 31.10 03:00, self-test passed; code joins train 3"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-RC4-2310",
+    "title": "WisKey rc.4 adoption + rc.5 host check (deadline fix, migration 0186, relay-by-door fix)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "WisKey rc.4 adoption + rc.5 host check (deadline fix, migration 0186, relay-by-door fix): built on an isolated branch, green runner entry check, joins release train 3 (2.30.0); no live device action."
+    ],
+    "requirement_ids": [
+      "R-SUPPLIERDOCS2-1"
+    ],
+    "test_ids": [
+      "AT-SUPPLIERDOCS2-1"
+    ],
+    "status": "BLOCKED",
+    "blocker": "Waits for the WisKey team reply via the owner, and the owner packaging decision (managed vs manual). WisKey goes last.",
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "F4 (child RLIMITs / sandbox) needs a Linux run on the runner before docread.enabled may be switched on in a release."
+    },
+    "deliverables": [
+      "services/docread/pdftext.py (run_capped), services/docread/certificate_rules.py (IBAN pattern), services/docread/service.py (analyse, read slots, purge of deleted tasks), routers/docread.py",
+      "Tests: tests/test_docread_297.py (test_f1_*, test_f2_*, test_f6_*)",
+      "Docs: docs/changes/CR-SUPPLIERDOCS-297.md section 'Security review'"
+    ],
+    "evidence": [
+      "2026-10-31 (TASKS-SYNC-3110): branch pilot/WISKEY-RC4-2310 @ 1ad2014b2; replies for rounds 2 and rc.5 ready on the owner answers page; guard-test fix agent running"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "PRESENCE-COMPACT-2310",
+    "title": "Presence card: compact redesign (owner rejected the tall card 30.10)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "design",
+    "requires_hardware": false,
+    "acceptance": [
+      "Presence card: compact redesign (owner rejected the tall card 30.10): built on an isolated branch, green runner entry check, joins release train 3 (2.30.0); no live device action."
+    ],
+    "requirement_ids": [
+      "R-SUPPLIERDOCS2-1"
+    ],
+    "test_ids": [
+      "AT-SUPPLIERDOCS2-1"
+    ],
+    "status": "BLOCKED",
+    "blocker": "Waits for the owner: 5 questions on round9/presence-compact (recommended direction A, strip)",
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "high",
+      "escalation": "F4 (child RLIMITs / sandbox) needs a Linux run on the runner before docread.enabled may be switched on in a release."
+    },
+    "deliverables": [
+      "services/docread/pdftext.py (run_capped), services/docread/certificate_rules.py (IBAN pattern), services/docread/service.py (analyse, read slots, purge of deleted tasks), routers/docread.py",
+      "Tests: tests/test_docread_297.py (test_f1_*, test_f2_*, test_f6_*)",
+      "Docs: docs/changes/CR-SUPPLIERDOCS-297.md section 'Security review'"
+    ],
+    "evidence": [
+      "2026-10-31 (TASKS-SYNC-3110): mockup ready on round9/presence-compact"
     ],
     "owner": null,
     "commit": null,
