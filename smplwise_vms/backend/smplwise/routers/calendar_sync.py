@@ -131,7 +131,10 @@ def pause_connection(cid: str, request: Request, principal: Principal = Depends(
 
 @router.post("/calendar/connections/{cid}/resume")
 def resume_connection(cid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    return _set_state(conn, principal, request, cid, ("paused", "error"), "ok", "calendar.connection.resume")
+    # owner answer 21 as a setting: with `reauth_and_continue` (default) a connection waiting for a new authorisation also offers a manual
+    # "continue" - the next sync tries again and returns to needs_reauth if the provider still refuses; `reauth_only` keeps the old rule
+    allowed = ("paused", "error", "needs_reauth") if model.read_settings(conn)["reauth_mode"] == "reauth_and_continue" else ("paused", "error")
+    return _set_state(conn, principal, request, cid, allowed, "ok", "calendar.connection.resume")
 
 
 @router.delete("/calendar/connections/{cid}", status_code=204)
@@ -227,6 +230,22 @@ def put_binding(cid: str, body: Body, request: Request, principal: Principal = D
         conn.execute("UPDATE cal_connections SET next_sync_at = NULL WHERE id = ? AND state IN ('ok','error')", (crow["id"],))  # due on the next scheduler tick
         _audit(conn, principal, request, "calendar.binding.set", "calendar", cid, direction=direction, detail=detail, dedicated=dedicated, connection_id=crow["id"])
         return {"binding": {"id": bid, "connection_id": crow["id"], "calendar_id": cid, "direction": direction, "detail": detail, "dedicated": dedicated}}
+
+
+@router.get("/calendar/sync/flags")
+def sync_flags(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """CALENDARS-UI-2310: the entries the sync flagged for a human decision (C9: both kept), for the "סומנו להחלטה" list of the connections
+    screen and the week view's side-by-side mark. Only calendars where the caller holds `edit`+ (the role that may resolve a flag)."""
+    ctx = Ctx(conn, principal)
+    out = []
+    for ev in conn.execute("SELECT * FROM cal_events WHERE sync_flag IS NOT NULL AND state NOT IN ('cancelled','rejected','withdrawn','expired') ORDER BY starts_at LIMIT 500").fetchall():
+        cal = conn.execute("SELECT * FROM cal_calendars WHERE id = ?", (ev["calendar_id"],)).fetchone()
+        role = ctx.role_in(cal) if cal is not None and ctx.can_see(cal) else None
+        if role is None or model.ROLE_RANK[role] < model.ROLE_RANK["edit"]:
+            continue
+        out.append({"event_id": ev["id"], "calendar": {"id": cal["id"], "name": cal["name"], "color": cal["color"]}, "title": ev["title"], "start": ev["starts_at"],
+                    "end": ev["ends_at"], "flag": ev["sync_flag"], "source": ev["source"], "state": ev["state"], "revision": ev["revision"]})
+    return {"flags": out}
 
 
 @router.post("/calendar/events/{eid}/sync-resolve")

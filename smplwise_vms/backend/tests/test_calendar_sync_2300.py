@@ -377,6 +377,22 @@ def test_external_collision_keeps_both_entries_and_flags_them(cc, fake):
     assert got["sync_flag"] == "conflict" and got["source"] == "arx"
     with db(cc).connection() as x:
         assert x.execute("SELECT 1 FROM audit_log WHERE action = 'calendar.sync.flag'").fetchone()
+    # CALENDARS-UI-2310: the connections screen's "flagged for a decision" list and the week view's marks
+    flags = ok(cc.get(f"{API}/calendar/sync/flags"))["flags"]
+    assert {f["title"] for f in flags} == {"שלי", "חיצוני"} and all(f["flag"] == "conflict" for f in flags)
+    occs = ok(cc.get(f"{API}/calendar/occurrences", params={"from": T(3, 0), "to": T(4, 0)}))["occurrences"]
+    assert {o["title"]: o["sync_flag"] for o in occs} == {"שלי": "conflict", "חיצוני": "conflict", "בלי התנגשות": None}
+    assert all(o["contested"] is False for o in occs)
+
+
+def test_sync_flags_list_needs_the_edit_role(cc, fake):
+    cal, cid = setup_import(cc, fake)
+    ok(book(cc, cal, T(3, 10), T(3, 11), title="שלי"), 201)
+    fake.user_create("ext-1", "חיצוני", D(3, 10, 30), D(3, 11, 30))
+    sync(cc, cid)
+    viewer = as_user("vera")
+    bind(cc, cc.settings_obj, "vera", "viewer", "installation", "*")
+    assert ok(cc.get(f"{API}/calendar/sync/flags", headers=viewer))["flags"] == []
 
 
 def test_resolve_keep_cancel_and_automatic_clear_when_one_side_moves(cc, fake):
@@ -555,7 +571,12 @@ def test_needs_reauth_stops_retrying_until_the_owner_acts(cc, fake):
     row = conn_row(cc, cid)
     assert row["state"] == "needs_reauth" and row["next_sync_at"] is None
     assert sync(cc, cid) == {"skipped": "needs_reauth"}
-    assert cc.post(f"{API}/calendar/connections/{cid}/resume").status_code == 409  # a new authorisation is the only way out (OAuth phase)
+    enable(cc, reauth_mode="reauth_only")
+    assert cc.post(f"{API}/calendar/connections/{cid}/resume").status_code == 409  # reauth_only: a new authorisation is the only way out
+    enable(cc)  # owner answer 21B (default): a manual "continue" too - the next sync tries again
+    assert ok(cc.post(f"{API}/calendar/connections/{cid}/resume"))["connection"]["state"] == "ok"
+    with db(cc).connection() as x:
+        x.execute("UPDATE cal_connections SET state = 'needs_reauth'")
     fake.health_state = type(fake.health_state)("needs_reauth", "token_revoked")
     with db(cc).connection() as x:
         x.execute("UPDATE cal_connections SET state = 'ok'")

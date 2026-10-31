@@ -111,6 +111,13 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'general', label: 'גשר Home Assistant', href: `${GEN}?tab=ha`, keywords: 'אינטגרציה צימוד pairing bridge supervisor' },
       { tab: 'general', label: 'מתגי מסכי כניסה', href: `${GEN}?tab=access-control`, keywords: 'wiskey מוטמע אינטרקום תצוגה מסך תחנות שיחה דיבור הכרזה משפטים בדיקת התאמה השוואה צד לצד' },
       { tab: 'entities', label: 'קטלוג התקנים', href: '#/system/entities', keywords: 'ישויות entities תחומים' },
+      // CALENDARS-UI-2310: the calendars module (contract section 16: settings live under "מערכת ותשתית" › "יומנים") and its external connections
+      { tab: 'calendars', label: 'יומנים', href: '#/system/calendars', keywords: 'יומן חדרים הזמנות אישורים תחזוקה חפיפה אורחים מחיקה מיקום בתפריט calendar booking' },
+      { tab: 'calendars', label: 'התנהגות', href: '#/system/calendars?tab=behavior', sub: true, keywords: 'ערב חג ביטול דייר בקשות מתחרות דחיקה טלפון טאבלט טעינה' },
+      { tab: 'calendars', label: 'אישור לכל יומן', href: '#/system/calendars?tab=approval', sub: true },
+      { tab: 'calendars', label: 'הרשאות', href: '#/system/calendars?tab=perm', sub: true },
+      { tab: 'calendars', label: 'פרטי אורחים', href: '#/system/calendars?tab=retention', sub: true, keywords: 'שם טלפון שמירה מחיקה פרטיות' },
+      { tab: 'calendar-sync', label: 'חיבורי יומן', href: '#/system/calendar-sync', keywords: 'google microsoft ical סנכרון חיבור הרשאה מחדש פיד' },
       { tab: 'infra', label: 'תשתיות', href: '#/system/infra', keywords: 'חשמל מונים מחירים מע"מ תעריף גנרטור' },
       // CR-038: the optional tickets module - its labels and search words carry the configured name (D33: getters, read at render time)
       { tab: 'tickets', get label() { return tt('settingsTab'); }, href: '#/system/tickets', get keywords() { return tt('settingsKeywords'); } },
