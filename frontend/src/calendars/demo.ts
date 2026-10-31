@@ -52,6 +52,7 @@ const ROWS: Row[] = [
   [0, 'alon', '13:00', '14:00', 'ביקור ספק מעליות', 'ok', 'מתוך בקשה 1182'], [0, 'alon', '16:00', '17:30', 'ועדת תרבות', 'pending', 'עומר חדד'],
   [0, 'brosh', '09:00', '10:00', 'שיחת משוב', 'ok', 'נועה ברק'], [0, 'brosh', '11:00', '12:00', 'תיאום תקציב חוגים', 'ok', 'בשם: צוות חוגים'], [0, 'brosh', '14:30', '15:15', 'שיחת הורים', 'ok', 'בשם: לקוח'],
   [0, 'hall', '07:00', '09:30', 'טיפול במערכת המיזוג', 'maint', 'אחזקה ומערכות'], [0, 'hall', '17:00', '21:00', 'ערב קהילה - הכנות והופעה', 'pending', 'דנה לוי'],
+  [0, 'hall', '19:00', '21:30', 'חזרות מקהלה', 'ok', 'אבי שושן'], // slice B: the confirmed holder of the contested window (mock-up contestedDetail)
   [0, 'studio', '08:00', '09:00', 'פילאטיס בוקר', 'ok', 'בשם: חוג'], [0, 'studio', '17:00', '18:00', 'בלט ד׳-ו׳', 'ok', 'בשם: חוג'], [0, 'studio', '18:15', '19:30', 'זומבה', 'ok', 'כל חמישי'],
   [0, 'class2', '16:00', '17:30', 'חוג קרמיקה - מבוגרים', 'pending', 'מירב אלון'], [0, 'quiet', '09:00', '13:00', 'עבודה שקטה', 'ok', 'דנה לוי'],
   [0, 'kitchen', '10:00', '11:00', 'החלפת מסנן מים', 'maint', 'אחזקה ומערכות'], [0, 'kitchen', '10:00', '12:00', 'סדנת בישול לגיל הזהב', 'displaced', 'נדחק בגלל תחזוקה'],
@@ -120,7 +121,7 @@ function build(mode: string): Store {
       organizer: P('p-o', 'עומר חדד'), on_behalf_label: 'ועדת תרבות', headcount: 9, contested: false, competing_count: 1, conflicts_now: 0, requested_at: at(0, '08:40'), revision: 1, queue_position: 1, suggested: false },
     { event_id: 'r4', room_calendar_id: 'hall', calendar: { id: 'hall', name: 'אולם רב־תכליתי', color: 'violet' }, title: 'יום הולדת 40 - השכרת אולם', kind: 'booking', start: at(9, '20:00'), end: at(9, '23:30'), recurring: false,
       organizer: P('p-a', 'אבי שושן'), on_behalf_label: 'משפחת גולן', headcount: 80, contested: false, competing_count: 1, conflicts_now: 1, requested_at: at(-1, '18:00'), revision: 1, queue_position: 1, suggested: false, guests_count: 2 },
-    { event_id: 'r5', room_calendar_id: 'hall', calendar: { id: 'hall', name: 'אולם רב־תכליתי', color: 'violet' }, title: 'חזרת מקהלה', kind: 'booking', start: at(0, '18:00'), end: at(0, '21:00'), recurring: false,
+    { event_id: 'r5', room_calendar_id: 'hall', calendar: { id: 'hall', name: 'אולם רב־תכליתי', color: 'violet' }, title: 'סדנת תיאטרון קהילתי', kind: 'booking', start: at(0, '18:00'), end: at(0, '21:00'), recurring: false,
       organizer: P('p-l', 'אבי שושן'), on_behalf_label: 'מקהלה', headcount: 30, contested: true, competing_count: 3, conflicts_now: 1, requested_at: at(0, '07:10'), revision: 1, queue_position: 1, suggested: true },
     { event_id: 'r6', room_calendar_id: 'hall', calendar: { id: 'hall', name: 'אולם רב־תכליתי', color: 'violet' }, title: 'יום עיון לוותיקים', kind: 'booking', start: at(0, '18:00'), end: at(0, '22:00'), recurring: false,
       organizer: P('p-t', 'עומר חדד'), on_behalf_label: null, headcount: 40, contested: true, competing_count: 3, conflicts_now: 1, requested_at: at(0, '10:05'), revision: 1, queue_position: 3, suggested: false },
@@ -184,10 +185,32 @@ function worst(s: Store): void {
   s.guests = 48213;
 }
 
+/** CALENDARS-UI-2310 slice C: the resident's own bookings (role=resident only, so the other views' pictures stay as they were): one pending
+ * request in a contested window, one entry displaced by maintenance, a confirmed one this evening (the cancel cutoff) and a weekly lesson. */
+const RES = P('u-res', 'מיכל');
+function addResident(s: Store, mode: string): void {
+  if (mode === 'empty') return;
+  const row = (id: string, cal: string, day: number, from: string, to: string, title: string, state: EntryState, extra: Partial<Occurrence> = {}): Occurrence => ({
+    occurrence_id: id, event_id: id, calendar_id: cal, room_calendar_ids: [cal], start: at(day, from), end: at(day, to), title, state, kind: 'booking', on_behalf_label: null,
+    organizer: RES, recurring: false, ...extra,
+  });
+  s.occ.push(
+    row('res1', 'hall', 0, '17:00', '19:00', mode === 'worst' ? 'מסיבת יום הולדת 40 + מפגש מחזור י״ב 2006 של תיכון הדקל (כולל הורים וילדים)' : 'יום הולדת לנועם', 'pending', { contested: true }),
+    row('res2', 'kitchen', 1, '10:00', '12:00', 'סדנת בישול', 'displaced'),
+    row('res3', 'class2', 0, '19:30', '20:30', 'חוג ציור', 'confirmed'),
+    row('res4', 'brosh', 5, '18:00', '19:00', 'שיעור פרטי', 'confirmed', { recurring: true }),
+  );
+}
+
 function st(): Store {
-  const key = dataMode();
+  const res = roleMode() === 'resident';
+  const key = `${dataMode()}${res ? '|res' : ''}`;
   if (!store || storeKey !== key) {
-    store = build(key);
+    // switching only the role (the same data) keeps the settings a spec just changed
+    const keep = store && storeKey.split('|')[0] === dataMode() ? store.settings : null;
+    store = build(dataMode());
+    if (keep) store.settings = keep;
+    if (res) addResident(store, dataMode());
     storeKey = key;
   }
   const mode = hashParams().get('mode');
@@ -239,7 +262,8 @@ export const demoCalendars: CalendarsApi = {
     s.guests = 0;
     return { erased: n };
   },
-  calendars: () => read((s) => ({ calendars: clone(s.cals) })),
+  // slice C: an operator / resident manages nothing - rooms he may book, everything else read-only (the resident phone flow needs this)
+  calendars: () => read((s) => ({ calendars: clone(s.cals).map((c) => (['operator', 'resident'].includes(roleMode()) ? { ...c, my_role: c.type === 'room' && c.my_role !== 'view' ? 'book' : 'view' } : c)) })),
   createCalendar: async (body) => {
     const s = st();
     s.seq += 1;
@@ -283,7 +307,7 @@ export const demoCalendars: CalendarsApi = {
     const clash = overlaps(s, body.calendar_id, body.start, body.end).some((o) => o.state === 'confirmed');
     const state: EntryState = clash || (cal?.approval_mode === 'always' && cal.my_role !== 'manage') ? 'pending' : 'confirmed';
     const o: Occurrence = { occurrence_id: `n${s.seq}`, event_id: `n${s.seq}`, calendar_id: body.calendar_id, room_calendar_ids: cal?.type === 'room' ? [cal.id] : [], start: body.start, end: body.end,
-      title: body.title, state, kind: 'booking', on_behalf_label: body.on_behalf?.label ?? null, organizer: ME, recurring: !!body.rrule, contested: clash };
+      title: body.title, state, kind: 'booking', on_behalf_label: body.on_behalf?.label ?? null, organizer: roleMode() === 'resident' ? RES : ME, recurring: !!body.rrule, contested: clash };
     s.occ.push(o);
     return { event: eventOf(o), state };
   },
@@ -308,7 +332,7 @@ export const demoCalendars: CalendarsApi = {
     if (o) o.state = 'withdrawn';
     return { event: eventOf(o as Occurrence) };
   },
-  mine: () => read((s) => ({ occurrences: clone(s.occ.filter((o) => o.organizer?.id === 'u-me' && o.end > new Date().toISOString() && o.state !== 'cancelled')) })),
+  mine: () => read((s) => ({ occurrences: clone(s.occ.filter((o) => o.organizer?.id === (roleMode() === 'resident' ? 'u-res' : 'u-me') && o.end > new Date().toISOString() && o.state !== 'cancelled')) })),
   requests: () => read((s) => ({ requests: clone(s.requests) })),
   decide: async (id, body) => {
     const s = st();
@@ -318,6 +342,10 @@ export const demoCalendars: CalendarsApi = {
     }
     if (r && body.decision === 'approve' && body.displace_existing && !s.settings.allow_displace) {
       throw new ApiError(409, { code: 'displace_disabled', user_message: 'בהתקנה הזאת אי אפשר לדחוק הזמנה שאושרה. אפשר לדחות את הבקשה.', retryable: false, correlation_id: 'demo', details: {} });
+    }
+    if (r && body.decision === 'approve' && body.displace_existing) {
+      // slice B: the confirmed holder of the window becomes "displaced" (never deleted), as on the server
+      for (const o of s.occ) if (o.calendar_id === (r.room_calendar_id ?? r.calendar.id) && o.state === 'confirmed' && o.kind !== 'maintenance' && o.start < r.end && o.end > r.start) o.state = 'displaced';
     }
     s.requests = s.requests.filter((x) => x.event_id !== id);
     return { state: body.decision === 'approve' ? 'confirmed' : 'rejected' };

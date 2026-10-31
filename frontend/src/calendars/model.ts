@@ -148,6 +148,18 @@ export function grouped(cals: Calendar[]): { type: CalType; cals: Calendar[] }[]
 
 export const colorVar = (c: CalColor | string | undefined) => `var(--cal-${c ?? 'slate'})`;
 
+/** Slice B: the order of the requests competing for one window (owner answer 11 as the setting `contested_order`). The server ranks them
+ * (`queue_position`); without it, first come = request time, by kind = maintenance, then teams, then everyone, then request time; manual =
+ * request time (the manager picks). */
+export function queueOrder<T extends { requested_at: string; queue_position?: number; kind?: string }>(list: T[], order: 'first_come' | 'manual' | 'by_kind'): T[] {
+  const kindRank = (k?: string) => (k === 'maintenance' ? 0 : k === 'team' || k === 'department' ? 1 : 2);
+  return [...list].sort((a, b) => {
+    if (order !== 'manual' && a.queue_position !== undefined && b.queue_position !== undefined && a.queue_position !== b.queue_position) return a.queue_position - b.queue_position;
+    if (order === 'by_kind' && kindRank(a.kind) !== kindRank(b.kind)) return kindRank(a.kind) - kindRank(b.kind);
+    return a.requested_at.localeCompare(b.requested_at);
+  });
+}
+
 /** Free start times of a room on a day (the resident's start grid, owner answer 16A): every `step` minutes inside the open hours that are not
  * held by a confirmed entry for `duration` minutes; pending entries are counted (owner answer 13: "2 מבקשים"). */
 export interface Slot { start: Date; free: boolean; pending: number }
@@ -165,4 +177,25 @@ export function slotGrid(entries: Occurrence[], day: Date, open: { from: string;
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------- slice C: the resident phone flow (owner answers 13, 14, 16)
+
+/** Owner answer 14 as a setting: may an organizer (without the edit role) still cancel a confirmed entry? (start | 1h | 24h before it) */
+export function cancelClosed(start: string, until: 'start' | '1h' | '24h', now: Date): boolean {
+  const lead = until === '24h' ? 1440 : until === '1h' ? 60 : 0;
+  return new Date(start).getTime() - lead * 60000 <= now.getTime();
+}
+
+/** Owner answer 13 as a setting: how a start time with pending requests reads for the resident. */
+export type SlotLook = 'free' | 'contest' | 'busy' | 'blocked';
+export function slotLook(s: Slot, display: 'count' | 'free' | 'blocked'): SlotLook {
+  if (!s.free) return 'busy';
+  if (!s.pending || display === 'free') return 'free';
+  return display === 'blocked' ? 'blocked' : 'contest';
+}
+
+/** The first start a room is free for `duration` minutes today (or on the day), or null. */
+export function nextFree(entries: Occurrence[], day: Date, open: { from: string; to: string }[], duration: number, now: Date): Date | null {
+  return slotGrid(entries, day, open, duration, 15, now).find((s) => s.free)?.start ?? null;
 }
