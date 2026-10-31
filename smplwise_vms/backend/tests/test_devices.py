@@ -1960,3 +1960,96 @@ def test_heating_is_its_own_group_with_its_own_counter_and_off_action(bulk_app):
     with app.state.db.connection(mode="read") as conn:
         assert conn.execute("SELECT COUNT(*) FROM device_climate_kind").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'devices.climate_kind'").fetchone()[0] == 4
+
+
+# ---------------------------------------------------------------- SWITCH-AS-LIGHT (owner 2026-10-31)
+
+
+def _type_light(c, eid: str, kind: str = "light") -> None:
+    r = c.put(f"/api/v1/devices/entities/{eid}/device-type", json={"kind": kind})
+    assert r.status_code == 200, r.text
+
+
+def test_count_into_counts_a_switch_typed_light_as_a_light():
+    """A switch / input_boolean an administrator typed as a light counts in lights / lights_on, not in switches; the name heuristic
+    never makes a light, a type the domain may not take changes nothing, and a light.* entity is unchanged."""
+    def counts(*rows):
+        c = svc.empty_counts()
+        for r in rows:
+            svc.count_into(c, r)
+        return c
+
+    on = {"entity_id": "switch.a", "domain": "switch", "state": "on", "device_type_set": "light"}
+    off = {"entity_id": "input_boolean.b", "domain": "input_boolean", "state": "off", "device_type_set": "light"}
+    plain = {"entity_id": "switch.c", "domain": "switch", "state": "on", "name": "Lobby light"}
+    fan = {"entity_id": "switch.d", "domain": "switch", "state": "on", "device_type_set": "fan"}
+    real = {"entity_id": "light.e", "domain": "light", "state": "on"}
+    c = counts(on, off, plain, fan, real)
+    assert (c["lights"], c["lights_on"]) == (3, 2)
+    assert (c["switches"], c["switches_on"]) == (2, 2), "a plain switch (whatever its name says) and a fan-typed one stay switches"
+    assert c["entities"] == 5
+    assert svc.is_light(real) and svc.is_light(on) and not svc.is_light(plain) and not svc.is_light({"domain": "sensor", "device_type_set": "light"})
+
+
+def test_switch_typed_light_in_tree_area_cards_and_items(dev_app):
+    """The tree's area / floor / building counts (home KPIs, floor and area cards, the synoptic map) and the area cards' counts take the
+    administrator's light type; the "lights" panel lists the switch, the "switches" panel no longer does. The row stays a switch."""
+    app, _ = dev_app
+    c = TestClient(app)
+
+    def lobby():
+        return next(a for f in c.get("/api/v1/devices/tree").json()["floors"] for a in f["areas"] if a["area_id"] == "lobby")["counts"]
+
+    assert (lobby()["lights"], lobby()["lights_on"], lobby()["switches"], lobby()["switches_on"]) == (2, 1, 1, 1)
+    _type_light(c, "switch.lobby_sign")
+    cnt = lobby()
+    assert (cnt["lights"], cnt["lights_on"], cnt["switches"], cnt["switches_on"]) == (3, 2, 0, 0)
+    b = c.get("/api/v1/devices/tree").json()["building"]
+    assert (b["lights"], b["lights_on"], b["switches"]) == (5, 3, 1)  # lobby x2 + office + garden + the sign; the loose switch stays
+    area = c.get("/api/v1/devices/areas/lobby").json()
+    assert (area["counts"]["lights"], area["counts"]["lights_on"], area["counts"]["switches"]) == (3, 2, 0)
+    row = next(r for card in area["cards"].values() for r in card["entities"] if r["entity_id"] == "switch.lobby_sign")
+    assert row["domain"] == "switch" and row["activity_kind"] == "light"
+    ids = lambda k: {r["entity_id"] for f in c.get("/api/v1/devices/items", params={"kind": k}).json()["floors"] for a in f["areas"] for r in a["items"]}
+    assert "switch.lobby_sign" in ids("lights") and "light.lobby" in ids("lights")
+    assert "switch.lobby_sign" not in ids("switches")
+    _type_light(c, "switch.lobby_sign", "auto")
+    assert (lobby()["lights"], lobby()["switches"]) == (2, 1)
+
+
+def test_bulk_lights_kinds_reach_a_switch_typed_light_and_switches_kinds_do_not(bulk_app):
+    """"כבה תאורה" / "הדלק תאורה" send switch.turn_off / switch.turn_on to a switch typed as a light (the same preview -> confirmed run,
+    the same SwitchPolicy: a protected one is named as excluded); switches_off / switches_on leave it out; all_off is unchanged."""
+    app, s, c, fake = bulk_app
+
+    def preview(kind: str) -> dict:
+        return c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": kind}).json()
+
+    _type_light(c, "switch.lobby_sign")  # on
+    _type_light(c, "switch.loose")  # off
+    off = preview("lights_off")
+    assert sorted((t["entity_id"], t["action_id"]) for t in off["targets"]) == [("light.garden", "light.turn_off"), ("light.lobby", "light.turn_off"), ("switch.lobby_sign", "switch.turn_off")]
+    assert off["by_domain"] == {"light": 2, "switch": 1} and off["excluded"] == []
+    on = preview("lights_on")
+    assert sorted((t["entity_id"], t["action_id"]) for t in on["targets"]) == [("light.lobby_spot", "light.turn_on"), ("light.office", "light.turn_on"), ("switch.loose", "switch.turn_on")]
+    so = preview("switches_off")
+    assert so["count"] == 0 and so["skipped"]["already"] == 0 and so["excluded"] == [], "the light-typed switches are neither sent nor described"
+    assert preview("switches_on")["count"] == 0
+    assert "switch.lobby_sign" in {t["entity_id"] for t in preview("all_off")["targets"]}
+    # the same switch protection as every switch
+    _judge(app)
+    assert _protect(c, "switch.loose").status_code == 200
+    on = preview("lights_on")
+    assert "switch.loose" not in {t["entity_id"] for t in on["targets"]} and [(x["entity_id"], x["reason"]) for x in on["excluded"]] == [("switch.loose", "switch_protected")]
+    # the run: the switch is switched with its own domain's service
+    off = preview("lights_off")
+    r = c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", preview_digest=off["digest"]))
+    assert r.status_code == 202, r.text
+    assert _finish(c, r.json()["id"])["counts"]["confirmed"] == 3
+    sent = {(x["domain"], x["service"], x["data"]["entity_id"]) for x in fake.calls}
+    assert ("switch", "turn_off", "switch.lobby_sign") in sent and ("light", "turn_off", "light.lobby") in sent
+    # back to automatic: a plain switch again for every kind
+    _type_light(c, "switch.lobby_sign", "auto")
+    _type_light(c, "switch.loose", "auto")
+    assert {t["domain"] for t in preview("lights_on")["targets"]} == {"light"}
+    assert preview("switches_on")["targets"][0]["entity_id"] == "switch.lobby_sign"

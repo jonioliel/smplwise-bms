@@ -193,10 +193,23 @@ def is_active(domain: str, state: str | None) -> bool:
     return False
 
 
+# SWITCH-AS-LIGHT (owner 2026-10-31): lighting wired through a relay (a Shelly switch.*, an input_boolean helper) is a light wherever the
+# product COUNTS lights - the tree / area / building counts (home KPIs, floor and area cards, the synoptic map) and the "lights" tiles' panel -
+# and the bulk lights_off / lights_on reach it (services/device_bulk), when an administrator fixed its type to "light" (DEVTYPE, Settings ›
+# סוגי התקנים, table device_type_override). The administrator's type is the only source: the name heuristic (switch_equipment) never says
+# "light". Presentation and grouping only - the entity is still switched with its own domain's service and stays on the switches card.
+LIGHT_TYPED_DOMAINS = frozenset({"switch", "input_boolean"})
+
+
+def is_light(e: dict[str, Any]) -> bool:
+    """A light.* entity, or a switch / input_boolean an administrator typed as a light."""
+    return e["domain"] == "light" or (e["domain"] in LIGHT_TYPED_DOMAINS and e.get("device_type_set") == "light")
+
+
 def count_into(counts: dict[str, Any], e: dict[str, Any]) -> None:
     domain, state = e["domain"], e.get("state")
     counts["entities"] += 1
-    if domain == "light":
+    if is_light(e):
         counts["lights"] += 1
         counts["lights_on"] += is_active(domain, state)
     elif domain in ("switch", "input_boolean"):
@@ -586,8 +599,12 @@ def build_items(conn: sqlite3.Connection, entities: list[dict[str, Any]], kind: 
             floor_name = hit[0]["name"] if hit[0]["floor_id"] != NO_FLOOR else None
     by_area: dict[str | None, list[dict[str, Any]]] = {}
     for e in entities:
-        if e["domain"] not in domains or (e["domain"] == "climate" and kind in ("climate", "heating") and (e.get("climate_kind") == "heating") != (kind == "heating")):
+        if kind == "lights" and is_light(e):
+            pass  # SWITCH-AS-LIGHT: a switch typed as a light is listed with the lights
+        elif e["domain"] not in domains or (e["domain"] == "climate" and kind in ("climate", "heating") and (e.get("climate_kind") == "heating") != (kind == "heating")):
             continue
+        elif kind == "switches" and is_light(e):
+            continue  # ... and not with the switches (the same split as the counts)
         aid = e.get("area_id") or None
         if areas_in is not None and aid not in areas_in:
             continue
