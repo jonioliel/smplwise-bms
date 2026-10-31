@@ -108,8 +108,14 @@ def _parse(value: Any) -> dt.datetime | None:
 
 
 def config(conn: sqlite3.Connection) -> dict[str, Any]:
+    """`enabled` = the service module is on AND `reports.documents` (PUBSURF-2310, DOCLINKS review 2026-10-23 L-04: with the module off the
+    public listener answers the uniform 404 everywhere, so a link minted then could only be a dead link in a message - and no
+    service-request action runs while the module is off)."""
+    from .access import module_on
+
     r = settings_doc.read(conn)["reports"]
-    return {"enabled": bool(r["documents"]), "hours": min(int(r["document_hours"]), HOURS_CEILING), "max_opens": int(r["document_max_opens"])}
+    return {"enabled": bool(r["documents"]) and module_on(conn), "hours": min(int(r["document_hours"]), HOURS_CEILING),
+            "max_opens": int(r["document_max_opens"])}
 
 
 def _check_content(media_type: str, content: bytes) -> None:
