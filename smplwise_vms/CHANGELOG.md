@@ -1,5 +1,21 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.32.0 (pilot) - Readable dark mode, phone switch targets, report-link safeguards, public-surface check
+**After installing:** no database migration. Dark-mode secondary text is slightly lighter in every skin. Going back to 2.31.0 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. הטקסט המשני במצב כהה מעט בהיר יותר בכל הסגנונות. חזרה ל-2.31.0 בטוחה.
+
+### What was improved - מה שופר
+- **English:** Dark mode: the secondary text reaches at least 5:1 contrast in every skin. Phone switches have a 44 px tall touch target without changing their look.
+- **עברית:** מצב כהה: הטקסט המשני מגיע לניגודיות של 5:1 לפחות בכל סגנון. למתגים בטלפון יש אזור מגע בגובה 44 פיקסלים בלי שינוי במראה.
+
+### Security - אבטחה
+- **English:** Report links: every link sent to a user is revoked when the user is deactivated or deleted; a per-sender daily limit for new links (default 50, a setting); the recipient's name stays in the audit log. Document links stop answering while service requests are off, and never get cached by a CDN. A re-check of all public surfaces is recorded.
+- **עברית:** קישורי דוחות: כל קישור שנשלח למשתמש מבוטל כשהמשתמש מושבת או נמחק; מגבלה יומית ליצירת קישורים לכל שולח (ברירת מחדל 50, הגדרה); שם המקבל נשמר ביומן הביקורת. קישורי מסמכים מפסיקים לענות כשקריאות השירות כבויות, ולעולם לא נשמרים במטמון. נרשמה בדיקה חוזרת של כל המשטחים הציבוריים.
+
+### Behind the scenes - מאחורי הקלעים
+- **English:** The licence notice of the WisKey embed sample (MIT) ships with the product.
+- **עברית:** הודעת הרישיון של רכיב החיבור של WisKey (MIT) נכללת במוצר.
+
 ## 2.31.0 (pilot) - Calendars, compact presence card, synoptic map from the home system, Google Drive backup, security updates
 **After installing:** two database migrations (0186 Google Drive backup targets, 0187 floor links to the home system); existing rows are kept. The calendars module and Google Drive backup are off by default. Phone photos saved as MPO are stored as their first picture. Going back to 2.30.0 needs the database backup taken before the update.
 - **עברית:** אחרי ההתקנה: שתי מיגרציות של מסד הנתונים (0186 יעדי גיבוי ל-Google Drive, 0187 קישור קומות למערכת הבית); השורות הקיימות נשמרות. מודול היומנים וגיבוי Google Drive כבויים כברירת מחדל. תמונות טלפון בפורמט MPO נשמרות כתמונה הראשונה שבהן. חזרה ל-2.30.0 דורשת את גיבוי מסד הנתונים שנלקח לפני העדכון.
