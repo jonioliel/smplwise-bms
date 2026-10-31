@@ -59,9 +59,9 @@ def _store_image(request: Request, kind: str, obj_id: str, file: UploadFile) -> 
     """Read the upload (PNG / JPEG only, by content), re-encode as a bounded JPEG, return the relative path. Called by
     sync handlers inside unlocked(): the decode runs in the threadpool without the write lock, and taking the lock back
     never blocks the event loop."""
-    from io import BytesIO
-
     from PIL import Image, ImageOps
+
+    from ..services import image_guard
 
     data = file.file.read(IMAGE_MAX_BYTES + 1)
     if len(data) > IMAGE_MAX_BYTES:
@@ -69,7 +69,7 @@ def _store_image(request: Request, kind: str, obj_id: str, file: UploadFile) -> 
     if not (data.startswith(b"\x89PNG") or data.startswith(b"\xff\xd8")):
         raise ApiError(415, "unsupported_format", "התמונה חייבת להיות PNG או JPG (הזיהוי לפי התוכן).")
     try:
-        im = Image.open(BytesIO(data))
+        im = image_guard.open_untrusted(data, ["PNG", "JPEG"], mpo_first_frame=True)
         im = ImageOps.exif_transpose(im).convert("RGB")
         if max(im.size) > IMAGE_MAX_PX:
             im.thumbnail((IMAGE_MAX_PX, IMAGE_MAX_PX), Image.Resampling.LANCZOS)

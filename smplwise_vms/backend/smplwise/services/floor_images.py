@@ -73,27 +73,40 @@ def sniff(head: bytes) -> str | None:
 def validate(data: bytes) -> tuple[str, int, int]:
     """(mime, width, height) of an acceptable upload; FloorImageError otherwise. The whole image is decoded (a truncated or
     hostile file fails here, not in a browser), with the pixel ceiling checked before decoding."""
+    mime, w, h, _clean = validate_and_clean(data)
+    return mime, w, h
+
+
+def validate_and_clean(data: bytes) -> tuple[str, int, int, bytes]:
+    """`validate` plus the bytes to store: the upload as it is, except an MPO phone photo (DEPFIX-2310), stored as a new
+    single-frame JPEG of its primary picture (the further frames and the MPF index are dropped)."""
     if len(data) > MAX_BYTES:
         raise FloorImageError("payload_too_large", "התמונה גדולה מדי (עד 12 MB).", {"max_bytes": MAX_BYTES})
     mime = sniff(data[:16])
     if mime is None:
         raise FloorImageError("unsupported_format", "רק PNG או JPEG מתקבלים.")
     try:
-        from PIL import Image
-
-        from . import image_guard  # noqa: F401 - SEC246 I3: the process-wide bomb threshold is set once there (60 M > MAX_PIXELS)
-        with Image.open(io.BytesIO(data)) as im:
+        from . import image_guard  # SEC246 I3: the process-wide bomb threshold is set once there (60 M > MAX_PIXELS)
+        with image_guard.open_untrusted(data, ["PNG", "JPEG"], mpo_first_frame=True) as im:
             w, h = im.size
             if w * h > MAX_PIXELS:
                 raise FloorImageError("too_many_pixels", "התמונה גדולה מדי (עד 36 מגה־פיקסל).", {"width": w, "height": h})
             if w < MIN_SIDE or h < MIN_SIDE:
                 raise FloorImageError("too_small", "התמונה קטנה מדי.", {"width": w, "height": h})
             im.load()
+            if im.arx_mpo_first_frame:
+                from PIL import ImageOps
+
+                flat = ImageOps.exif_transpose(im).convert("RGB")  # the new file carries no EXIF: apply its orientation now
+                w, h = flat.size
+                out = io.BytesIO()
+                flat.save(out, format="JPEG", quality=92)
+                data = out.getvalue()
     except FloorImageError:
         raise
     except Exception as exc:  # noqa: BLE001 - any decode failure is one answer
         raise FloorImageError("corrupt_image", "קובץ התמונה פגום או אינו תמונה.", {"reason": type(exc).__name__}) from exc
-    return mime, w, h
+    return mime, w, h, data
 
 
 def row_api(r: sqlite3.Row | dict[str, Any] | None) -> dict[str, Any] | None:
@@ -147,7 +160,7 @@ def store(settings: Settings, conn: sqlite3.Connection, floor_id: str, variant: 
     check_floor_id(floor_id)
     if variant not in VARIANTS:
         raise FloorImageError("bad_variant", "סוג התמונה אינו מוכר.", {"choices": list(VARIANTS)})
-    mime, w, h = validate(data)
+    mime, w, h, data = validate_and_clean(data)
     sha = hashlib.sha256(data).hexdigest()
     folder = confine(settings, root(settings) / floor_id)
     folder.mkdir(parents=True, exist_ok=True)

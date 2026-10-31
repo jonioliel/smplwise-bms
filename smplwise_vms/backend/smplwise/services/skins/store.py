@@ -167,10 +167,10 @@ def validate_png(data: bytes, expected: tuple[int, int] = CONTROL_SIZE) -> tuple
             break
     if not seen or seen[0] != b"IHDR" or seen[-1] != b"IEND" or pos != len(data):
         raise ControlImageError("corrupt_png", "מבנה ה־PNG אינו תקין.")
-    from PIL import Image
+    from .. import image_guard
 
     try:
-        with Image.open(io.BytesIO(data)) as im:
+        with image_guard.open_untrusted(data, ["PNG"]) as im:
             im.load()
             size = im.size
     except Exception as exc:  # noqa: BLE001 - the decoder refuses the file: the upload is the problem

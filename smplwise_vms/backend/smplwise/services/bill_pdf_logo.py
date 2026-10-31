@@ -10,6 +10,8 @@ import io
 
 from PIL import Image, ImageOps
 
+from . import image_guard
+
 MAX_LOGO_BYTES = 1_000_000  # the upload limit of the business settings
 MAX_LOGO_PIXELS = 25_000_000  # decoded size guard (decompression bombs)
 MAX_LOGO_SIDE = 800
@@ -32,7 +34,7 @@ def sanitize_logo(data: bytes) -> bytes:
     if not (head.startswith(_PNG) or head.startswith(_JPEG)):
         raise LogoError("logo_type")  # SVG, GIF, WebP, PDF ... are refused
     try:
-        with Image.open(io.BytesIO(bytes(data)), formats=("PNG", "JPEG")) as img:
+        with image_guard.open_untrusted(data, ("PNG", "JPEG"), mpo_first_frame=True) as img:
             if img.width * img.height > MAX_LOGO_PIXELS or img.width < 1 or img.height < 1:
                 raise LogoError("logo_dimensions")
             img.load()
@@ -66,7 +68,7 @@ def sanitize_image(data: bytes, *, max_bytes: int, max_side: int, jpeg_quality: 
     if not (head.startswith(_PNG) or head.startswith(_JPEG)):
         raise LogoError("logo_type")
     try:
-        with Image.open(io.BytesIO(bytes(data)), formats=("PNG", "JPEG")) as img:
+        with image_guard.open_untrusted(data, ("PNG", "JPEG"), mpo_first_frame=True) as img:
             if img.width * img.height > MAX_LOGO_PIXELS or img.width < 1 or img.height < 1:
                 raise LogoError("logo_dimensions")
             img.load()

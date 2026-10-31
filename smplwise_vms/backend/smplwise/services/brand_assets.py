@@ -121,7 +121,7 @@ def normalise(data: bytes) -> Normalised:
     from . import image_guard
 
     try:
-        im = Image.open(BytesIO(data), formats=["PNG", "JPEG", "WEBP"])  # the header only
+        im = image_guard.open_untrusted(data, ["PNG", "JPEG", "WEBP"], mpo_first_frame=True)  # the header only
         w0, h0 = im.size
         if min(w0, h0) < MIN_SHORT_SIDE:
             raise _err(422, "image_too_small", "התמונה קטנה מדי - לפחות 64 פיקסלים", width=w0, height=h0)
