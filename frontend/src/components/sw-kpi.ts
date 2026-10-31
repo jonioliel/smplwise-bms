@@ -25,6 +25,8 @@ export class SwKpi extends LitElement {
   @property() icon: IconName = 'info';
   @property({ reflect: true }) tone: StateKind = 'neutral';
   @property() badge = '';
+  /** MULTIBUILDING-HOME-2330: a quiet scope tag ("אתר" / "בניין א") riding the tile's top corner opposite the badge; empty = none. */
+  @property() tag = '';
   @property({ reflect: true }) layout: 'cards' | 'compact' = 'cards';
   /** A navigation: the whole tile is this link. */
   @property() href = '';
@@ -231,6 +233,24 @@ export class SwKpi extends LitElement {
       white-space: nowrap;
     }
     /* review M6: the badge rides the tile's top corner - it never takes a column from the value and the label */
+    .tag {
+      position: absolute;
+      inset-inline-start: 10px;
+      inset-block-start: -7px;
+      z-index: 2;
+      pointer-events: none;
+      max-inline-size: calc(100% - 20px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0 6px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-3-solid, var(--sw-surface-3));
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-2xs);
+      font-weight: var(--sw-fw-semibold);
+      line-height: 14px;
+    }
     :host([layout='compact']) .badge {
       inset-block-start: -7px;
       inset-inline-end: 8px;
@@ -328,6 +348,7 @@ export class SwKpi extends LitElement {
         ${this.detail ? html`<div class="detail">${this.detail}</div>` : nothing}
       </div>
       ${this.badge ? html`<span class="badge" aria-hidden=${interactive ? 'true' : nothing}>${this.badge}</span>` : nothing}
+      ${this.tag ? html`<span class="tag" data-kpi-tag aria-hidden="true">${this.tag}</span>` : nothing}
       ${this.href
         ? html`<a class="hit" href=${this.href} aria-label=${name}></a>`
         : this.action

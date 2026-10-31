@@ -11,6 +11,7 @@ import { SkinController } from '../design/skin';
 import { BULK_IDLE, BULK_IDLE_DEFAULT, FLOOR_TITLE_LINES, FLOOR_TITLE_LINES_DEFAULT, LONG_LISTS, LONG_LISTS_DEFAULT, screenDisplayOf, type BulkIdle, type FloorTitleLines, type InfoStyle, type LongLists } from '../api/screen-display';
 import { demoScreenOverrides, homeScreenOf, screenFormBody } from '../api/home-screen';
 import { getDevicesTree } from '../api/devices';
+import { loadTree as loadCatalogTree } from '../api/catalog';
 import { hs } from '../i18n/home-screen';
 import './home-screen-options';
 import type { HomeScreenForm, OptionsArea } from './home-screen-options';
@@ -51,6 +52,7 @@ export class SystemHomeScreen extends LitElement {
   @state() private form: HomeScreenForm = { screen: homeScreenOf(isApi() ? null : demoScreenOverrides()), info: 'auto', view: 'cards' };
   /** The areas for the per-area quick actions (the tree this user may read; none = the editor is not shown). */
   @state() private areas: OptionsArea[] = [];
+  @state() private buildings: { id: string; name: string }[] = [];
   /** POLISH-CONTROL-297 (owner decisions on the worst-case report, 2026-10-27): the floor-name clamp, huge lists paged or scrolled, idle
    * bulk buttons disabled or clickable (the bulk item stays open for the owner's design talk). */
   @state() private floorTitleLines: FloorTitleLines = FLOOR_TITLE_LINES_DEFAULT;
@@ -194,6 +196,10 @@ export class SystemHomeScreen extends LitElement {
     void getDevicesTree()
       .then((t) => (this.areas = t.floors.flatMap((f) => f.areas.map((a) => ({ id: a.area_id, name: a.name, floor: f.name, counts: a.counts })))))
       .catch(() => (this.areas = []));
+    // MULTIBUILDING-HOME-2330: the site options show only on a site of several buildings
+    void loadCatalogTree()
+      .then((c) => (this.buildings = c.sites.flatMap((s) => (s.buildings ?? []).map((b) => ({ id: b.id, name: b.name })))))
+      .catch(() => (this.buildings = []));
   }
 
   private async save(change: { direction?: Direction; side?: Side; info?: InfoStyle }) {
@@ -287,7 +293,7 @@ export class SystemHomeScreen extends LitElement {
         ? html`<div class="row"><span>צד הלוח</span><span class="seg" role="group" aria-label="צד הלוח">${SIDES.map((s) => html`<button type="button" data-home-side-option=${s} aria-pressed=${String(this.side === s)} ?disabled=${ro || this.busy} @click=${() => void this.save({ side: s })}>${SIDE_LABEL[s]}</button>`)}</span></div>`
         : nothing}
       <h3 class="hs-h" data-home-screen-options-heading>${hs('heading')}</h3>
-      <home-screen-options .value=${this.form} .areas=${this.areas} ?editable=${!ro && !this.busy} @hs-change=${(e: CustomEvent<HomeScreenForm>) => void this.saveForm(e.detail)}></home-screen-options>
+      <home-screen-options .value=${this.form} .areas=${this.areas} .buildings=${this.buildings} ?editable=${!ro && !this.busy} @hs-change=${(e: CustomEvent<HomeScreenForm>) => void this.saveForm(e.detail)}></home-screen-options>
       ${this.choiceRow('שם קומה ארוך בכותרת כרטיס', 'floor-title-lines', FLOOR_TITLE_LINES, { '2': 'שתי שורות', '3': 'שלוש שורות', '1': 'שורה אחת עם ...' } as Record<FloorTitleLines, string>, this.floorTitleLines, ro, (v) => void this.saveChoice('home.floor_title_lines', v))}
       ${this.choiceRow('רשימות ארוכות מאוד', 'long-lists', LONG_LISTS, { paged: 'עמודים', scroll: 'גלילה מלאה' } as Record<LongLists, string>, this.longLists, ro, (v) => void this.saveChoice('ui.long_lists', v))}
       ${this.choiceRow('כפתור "כבה הכל" כשאין מה לכבות', 'bulk-idle', BULK_IDLE, { disabled: 'מושבת', enabled: 'לחיץ תמיד' } as Record<BulkIdle, string>, this.bulkIdle, ro, (v) => void this.saveChoice('home.bulk_idle', v))}

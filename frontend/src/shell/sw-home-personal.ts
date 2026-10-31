@@ -22,6 +22,7 @@ import { MODE_KEY, personalHidden } from '../elevators/model';
 import { elt } from '../i18n/elevators';
 import { effectiveRows, loadPersonalRow, personalDiff, savePersonalRow, type AreaRowPersonal } from '../api/area-row';
 import { productSettings } from '../api/prefs';
+import { loadTree as loadCatalogTree } from '../api/catalog';
 import { devicesPrefsOf } from '../screens/devices-style';
 import '../screens/area-row-editor';
 import { HOME_SCREEN_DEFAULT, homeScreenOf, SUMMARY_KINDS, type HomeScreenOptions, type PersonalScreen, type SummaryKind } from '../api/home-screen';
@@ -60,6 +61,8 @@ export class SwHomePersonal extends LitElement {
   @state() private presence = false;
   /** HOME-295: the installation's home screen options (whether users may choose their own summary tiles). */
   @state() private screenSite: HomeScreenOptions = HOME_SCREEN_DEFAULT;
+  /** MULTIBUILDING-HOME-2330: the buildings this user sees (the site choices show only with two or more). */
+  @state() private buildings: { id: string; name: string; shared: boolean }[] = [];
 
   static styles = css`
     :host {
@@ -76,6 +79,16 @@ export class SwHomePersonal extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text);
       min-inline-size: 84px;
+    }
+    select {
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      min-block-size: 32px;
+      padding: 0 8px;
     }
     .seg {
       display: inline-flex;
@@ -170,6 +183,7 @@ export class SwHomePersonal extends LitElement {
     if (elevatorsAccess().view) void listElevators().then((r) => (this.elevators = r.elevators)).catch(() => (this.elevators = []));
     if (temperatureAccess().view) void listUnits(false).then((r) => (this.tempUnits = r.home_widget === false ? 0 : r.units.length)).catch(() => (this.tempUnits = 0));
     void loadHomeGenerators().then((g) => (this.generators = generatorsAvailable(g)));
+    void loadCatalogTree().then((c) => (this.buildings = c.sites.flatMap((s) => (s.buildings ?? []).map((b) => ({ id: b.id, name: b.name, shared: !!b.is_shared }))))).catch(() => (this.buildings = []));
     void loadHomeDoors().then((d) => (this.doors = doorsWidgetAvailable(d, doorWindowsTabOn())));
     if (isApi() && canAnywhere('presence.building.view')) void getBuildingPresence().then((s) => (this.presence = presenceWidgetAvailable(s))).catch(() => (this.presence = false));
     void loadHomeNoticesChecked().then((d) => (this.notices = !!d && noticesWidgetOffered(d, noticesModuleOn())));
@@ -241,6 +255,35 @@ export class SwHomePersonal extends LitElement {
             <span class="seg" role="group" aria-label=${hs('personalTiles')}>
               <button type="button" data-home-personal-tile="" aria-pressed=${String(tiles === null)} ?disabled=${this.busy} @click=${() => this.setScreen({ summary_tiles: undefined })}>${hs('personalFollow')}</button>
               ${SUMMARY_KINDS.map((k) => html`<button type="button" data-home-personal-tile=${k} aria-pressed=${String(tiles !== null && tiles.includes(k))} ?disabled=${this.busy} @click=${() => toggle(k)}>${hs(`k_${k}`)}</button>`)}
+            </span>
+          </div>`
+        : nothing}
+      ${this.siteChoices()}`;
+  }
+
+  /** MULTIBUILDING-HOME-2330: on a site of several buildings - my own entry view (or the installation's) and "הסתר משותף". */
+  private siteChoices() {
+    if (this.buildings.length < 2) return nothing;
+    const own = this.personal.screen ?? {};
+    const shared = this.buildings.some((b) => b.shared);
+    return html`<div class="row" data-home-personal-site-entry>
+        <span class="lbl" id="hp-sentry">${hs('personalEntry')}</span>
+        <span class="seg" role="group" aria-labelledby="hp-sentry">
+          <button type="button" data-home-personal-site-entry="" aria-pressed=${String(!own.site_entry)} ?disabled=${this.busy} @click=${() => this.setScreen({ site_entry: undefined, site_entry_building: undefined })}>ברירת מחדל</button>
+          ${(['site', 'last', 'fixed'] as const).map((v) => html`<button type="button" data-home-personal-site-entry=${v} aria-pressed=${String(own.site_entry === v)} ?disabled=${this.busy} @click=${() => this.setScreen({ site_entry: v, site_entry_building: v === 'fixed' ? own.site_entry_building ?? this.buildings[0].id : undefined })}>${hs(`se_${v}`)}</button>`)}
+        </span>
+        ${own.site_entry === 'fixed'
+          ? html`<select data-home-personal-site-building aria-label=${hs('siteEntryBuilding')} ?disabled=${this.busy} @change=${(e: Event) => this.setScreen({ site_entry_building: (e.target as HTMLSelectElement).value })}>
+              ${this.buildings.map((b) => html`<option value=${b.id} ?selected=${own.site_entry_building === b.id}>${b.name}</option>`)}
+            </select>`
+          : nothing}
+      </div>
+      ${shared
+        ? html`<div class="row" data-home-personal-hide-shared>
+            <span class="lbl" id="hp-hshared">${hs('hideShared')}</span>
+            <span class="seg" role="group" aria-labelledby="hp-hshared">
+              <button type="button" data-home-personal-hide-shared="off" aria-pressed=${String(!own.hide_shared)} ?disabled=${this.busy} @click=${() => this.setScreen({ hide_shared: undefined })}>${hs('hideSharedOff')}</button>
+              <button type="button" data-home-personal-hide-shared="on" aria-pressed=${String(!!own.hide_shared)} ?disabled=${this.busy} @click=${() => this.setScreen({ hide_shared: true })}>${hs('hideSharedOn')}</button>
             </span>
           </div>`
         : nothing}`;

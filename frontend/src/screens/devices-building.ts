@@ -72,6 +72,16 @@ import {
   type Direction, type HomeCandidates, type HomeSettings, type HomeView, type QuickAction, type WidgetId, type WidgetItem,
 } from '../api/home';
 import { demoHome } from './home-demo';
+// MULTIBUILDING-HOME-2330: the site level of a multi-building installation (one building: nothing here is drawn)
+import { activeOff, bulkTargets, entryLevel, offSelection, scopeTag, scopeTree, shownBuildings, siteModel, SITE_LEVEL, type SiteBuilding, type SiteModel } from '../api/home-site';
+import { getHomeLinks } from '../api/catalog';
+import type { Building, Floor as CatalogFloor } from '../api/types';
+import type { MatchLinks } from '../xsection/xs-model';
+import { demoSite } from './home-site-demo';
+import './home-site-view';
+import './home-site-off';
+import type { SiteGo } from './home-site-view';
+import type { HomeSiteOff, SiteOffBuilding } from './home-site-off';
 import { media } from '../api/media-screens';
 import { hueOf, SkinController } from '../design/skin';
 import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
@@ -779,6 +789,93 @@ const TILE_LAYOUT = css`
  * "אריחים" view beside the tree, the fit steps (`data-fit`) and edit mode's card. Declared after the glass / density /
  * tile-shape rules on purpose: at equal specificity it wins over them. */
 const HOME_LAYOUT = css`
+  /* MULTIBUILDING-HOME-2330: the site bar of a multi-building site - where we are, the building switch (segmented), the level's off
+     actions. Drawn only when the site has two or more buildings; one building never sees it. */
+  .site-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    min-inline-size: 0;
+  }
+  .site-bar .crumbs {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: var(--sw-fs-md);
+    min-inline-size: 0;
+  }
+  .site-bar .crumb {
+    all: unset;
+    color: var(--sw-accent-text);
+    cursor: pointer;
+    border-radius: var(--sw-r-sm);
+  }
+  .site-bar .crumb:focus-visible {
+    outline: 2px solid var(--sw-focus);
+  }
+  .site-bar .crumb.here {
+    color: var(--sw-heading, var(--sw-text));
+    font-weight: var(--sw-fw-bold);
+    cursor: default;
+  }
+  .site-bar .sitename {
+    color: var(--sw-text-3);
+    font-weight: var(--sw-fw-medium);
+  }
+  .site-bar .sep {
+    color: var(--sw-text-3);
+  }
+  .bswitch {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--sw-r-md);
+    background: var(--sw-surface-3);
+    min-inline-size: 0;
+  }
+  .bswitch button {
+    all: unset;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-block-size: 32px;
+    padding: 0 12px;
+    border-radius: var(--sw-r-sm);
+    color: var(--sw-text-2);
+    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-medium);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .bswitch button:focus-visible {
+    outline: 2px solid var(--sw-focus);
+  }
+  .bswitch button[aria-pressed='true'] {
+    background: var(--sw-seg-on-bg, var(--sw-surface));
+    color: var(--sw-seg-on-text, var(--sw-accent-text));
+    box-shadow: var(--sw-shadow-1);
+    font-weight: var(--sw-fw-semibold);
+  }
+  .bswitch button.shared {
+    color: var(--sw-shared-text);
+  }
+  .bswitch button.shared sw-icon {
+    color: var(--sw-shared);
+  }
+  .bswitch .dot {
+    inline-size: 7px;
+    block-size: 7px;
+    border-radius: 50%;
+    background: var(--sw-danger);
+  }
+  .site-off {
+    display: inline-flex;
+    gap: 8px;
+    margin-inline-start: auto;
+  }
   .hdr {
     display: flex;
     flex-wrap: wrap;
@@ -1214,6 +1311,138 @@ export class DevicesBuilding extends LitElement {
   /** Demo only (`?hs_state=alarm|offline|empty|many`): the states of the approved mockup without a backend, for the evidence specs. */
   private demoState = '';
 
+  // ------------------------------------------------------------------ MULTIBUILDING-HOME-2330: the site level
+  /** The catalogue's buildings (as this caller sees them) and the home-system mapping rows; null until read (= one-building home). */
+  @state() private siteSrc: { buildings: (Building & { floors?: CatalogFloor[] })[]; links: MatchLinks | null; siteName: string } | null = null;
+  /** SITE_LEVEL or a building id: what the home shows on a multi-building site. */
+  @state() private level: string = SITE_LEVEL;
+  private levelReady = false;
+  private siteMemo: { tree: DeviceTree | null; src: unknown; hide: boolean; out: { model: SiteModel; shown: SiteBuilding[] } | null } | null = null;
+  /** The scope tag of the counters this render draws ('' = one building). */
+  private kpiTag = '';
+  /** The areas of the building shown (null = the whole site / one building): the elevators widget follows them. */
+  private scopeAreas: Set<string> | null = null;
+
+  /** The site model and the buildings this viewer is shown, or null = the one-building home exactly as before (fewer than two
+   * buildings shown, or no area resolves to a building). */
+  private site(): { model: SiteModel; shown: SiteBuilding[] } | null {
+    const src = this.siteSrc;
+    const hide = this.screenPersonal.hide_shared === true;
+    const m = this.siteMemo;
+    if (m && m.tree === this.tree && m.src === src && m.hide === hide) return m.out;
+    let out: { model: SiteModel; shown: SiteBuilding[] } | null = null;
+    const model = src ? siteModel(src.buildings, this.tree, src.links, src.siteName) : null;
+    if (model) {
+      const shown = shownBuildings(model, hide);
+      if (shown.length >= 2) out = { model, shown };
+    }
+    this.siteMemo = { tree: this.tree, src, hide, out };
+    return out;
+  }
+
+  /** The catalogue and the mapping rows (read once; the home links change only in the floors screen). */
+  private async loadSite() {
+    try {
+      const [cat, links] = await Promise.all([loadCatalogTree(), getHomeLinks().catch(() => null)]);
+      const buildings = cat.sites.flatMap((s) => s.buildings ?? []);
+      this.siteSrc = { buildings, links, siteName: cat.sites[0]?.name ?? '' };
+    } catch {
+      this.siteSrc = null; // the one-building home
+    }
+  }
+
+  private static LAST_KEY = 'sw.home.lastBuilding';
+
+  /** The entry view, once, when the site model first exists (installation default + the user's own; a building scope = no selector). */
+  private ensureLevel(site: { shown: SiteBuilding[] } | null) {
+    if (!site) {
+      this.level = SITE_LEVEL;
+      return;
+    }
+    if (this.levelReady) {
+      if (this.level !== SITE_LEVEL && !site.shown.some((b) => b.id === this.level)) this.level = SITE_LEVEL; // hidden / gone
+      return;
+    }
+    this.levelReady = true;
+    let last: string | null = null;
+    try {
+      last = localStorage.getItem(DevicesBuilding.LAST_KEY);
+    } catch {
+      last = null;
+    }
+    const demoLevel = !isApi() ? new URLSearchParams(location.search).get('mblevel') : null;
+    this.level = demoLevel ?? entryLevel({ site: this.screen.site_entry, siteBuilding: this.screen.site_entry_building, personal: this.screenPersonal, last, buildings: site.shown.map((b) => b.id) });
+  }
+
+  /** A building card / tree row / switch / cross-section cell: the building view (on one of OUR floors when given), or the site. */
+  private goLevel(level: string, ourFloor?: string) {
+    this.level = level;
+    this.selected = 'all';
+    this.treeMore = false;
+    if (level !== SITE_LEVEL) {
+      try {
+        localStorage.setItem(DevicesBuilding.LAST_KEY, level);
+      } catch {
+        /* private mode: the last building is not remembered */
+      }
+      if (ourFloor) {
+        const b = this.site()?.model.buildings.find((x) => x.id === level);
+        const area = b?.floors.find((f) => f.id === ourFloor)?.areas[0];
+        if (area?.floor_id) this.selected = area.floor_id; // the platform floor that carries it
+      }
+    }
+  }
+
+  private onSiteGo = (e: CustomEvent<SiteGo>) => this.goLevel(e.detail.building, e.detail.floor);
+
+  private get siteOff(): HomeSiteOff | null {
+    return this.renderRoot.querySelector('home-site-off');
+  }
+
+  private offBuildings(shown: SiteBuilding[]): SiteOffBuilding[] {
+    const t = this.tree;
+    return shown.map((b) => ({ id: b.id, name: b.name, shared: b.shared, targets: t ? bulkTargets(t, b) : [], lightsOn: b.counts.lights_on, activeOn: activeOff(b.counts) }));
+  }
+
+  /** "כבה הכל" / "כבה תאורה" on a multi-building site: one building (named), or at the site level the dialog with the buildings checked. */
+  private openSiteOff(kind: BulkKind, building: string = this.level) {
+    const site = this.site();
+    if (!site) return;
+    const all = this.offBuildings(site.shown);
+    if (building !== SITE_LEVEL) {
+      const one = all.filter((b) => b.id === building);
+      this.siteOff?.show({ kind, buildings: one, checked: { [building]: true }, single: true });
+      return;
+    }
+    this.siteOff?.show({ kind, buildings: all, checked: offSelection(site.shown, this.screen.site_off_shared === 'include'), single: false });
+  }
+
+  /** The bar of a multi-building site: where we are ("אתר › בניין א"), the building switch, and the level's off actions. */
+  private renderSiteBar(site: { model: SiteModel; shown: SiteBuilding[] }, t: DeviceTree, showOff: boolean) {
+    const here = site.shown.find((b) => b.id === this.level) ?? null;
+    const canOff = (this.bulkAllowed || !isApi()) && site.shown.some((b) => this.tree && bulkTargets(this.tree, b).length);
+    return html`<div class="site-bar" data-site-bar data-site-level=${this.level}>
+      <nav class="crumbs" aria-label="מיקום">
+        ${here
+          ? html`<button type="button" class="crumb" data-site-crumb="site" @click=${() => this.goLevel(SITE_LEVEL)}>אתר</button><span class="sep" aria-hidden="true">›</span><span class="crumb here" aria-current="page">${bidi(here.name)}</span>`
+          : html`<span class="crumb here" aria-current="page">אתר${site.model.siteName ? html`<span class="sitename"> · ${bidi(site.model.siteName)}</span>` : nothing}</span>`}
+      </nav>
+      <span class="bswitch" role="group" aria-label="בניינים" data-site-switch>
+        <button type="button" data-site-switch-btn=${SITE_LEVEL} aria-pressed=${String(!here)} @click=${() => this.goLevel(SITE_LEVEL)}><sw-icon name="building" size=${14}></sw-icon>כל האתר</button>
+        ${site.shown.map((b) => html`<button type="button" class=${classMap({ shared: b.shared })} data-site-switch-btn=${b.id} aria-pressed=${String(here?.id === b.id)} @click=${() => this.goLevel(b.id)}>
+          ${b.shared ? html`<sw-icon name="sparkle" size=${13}></sw-icon>` : nothing}${bidi(b.name)}${b.alerts.length ? html`<span class="dot" aria-label="התראה"></span>` : nothing}</button>`)}
+      </span>
+      ${canOff && showOff
+        ? html`<span class="site-off">
+            ${here
+              ? html`<sw-button size="sm" icon="light" data-site-off-kind="lights_off" ?disabled=${this.bulkIdle === 'disabled' && !(t.building.lights_on > 0)} @click=${() => this.openSiteOff('lights_off')}>כבה תאורה</sw-button>
+                  <sw-button size="sm" variant="danger" icon="bolt" data-site-off-kind="all_off" @click=${() => this.openSiteOff('all_off')}>כבה הכל ב${here.name}</sw-button>`
+              : html`<sw-button size="sm" variant="danger" icon="bolt" data-site-off-kind="all_off" data-site-off-site @click=${() => this.openSiteOff('all_off', SITE_LEVEL)}>כבה הכל באתר…</sw-button>`}
+          </span>`
+        : nothing}
+    </div>`;
+  }
+
   /** The options this viewer sees: the editor's draft while editing, else the installation's with his own laid over them. */
   private get screen(): HomeScreenOptions {
     if (this.lay.editing && this.screenDraft) return this.screenDraft.screen;
@@ -1327,6 +1556,11 @@ export class DevicesBuilding extends LitElement {
   };
 
   private building(kind: BulkKind) {
+    // MULTIBUILDING-HOME-2330: on a multi-building site the building-wide server scope (= every building) is never used from here
+    if (this.site()) {
+      this.openSiteOff(kind);
+      return;
+    }
     void this.dialog?.show({ scope: 'building', id: '*', name: 'המבנה', kind });
   }
 
@@ -1456,7 +1690,10 @@ export class DevicesBuilding extends LitElement {
 
   /** Which of the two quick actions this user may run (devices.control_bulk on the whole building), and the numbers under them. */
   private quickInfo(t: DeviceTree): QuickInfo {
-    const ok = this.bulkAllowed && t.can_bulk === true;
+    // MULTIBUILDING-HOME-2330: on a multi-building site the quick actions run per building (floor / area requests), allowed when the
+    // caller may act on any of them; the numbers are the level's (t is already scoped)
+    const site = this.site();
+    const ok = site ? this.bulkAllowed && site.shown.some((b) => !!this.tree && bulkTargets(this.tree, b).length > 0) : this.bulkAllowed && t.can_bulk === true;
     return { allowed: { lights_off: ok, all_off: ok }, lightsOn: t.building.lights_on, switchesOn: t.building.switches_on };
   }
 
@@ -1628,8 +1865,13 @@ export class DevicesBuilding extends LitElement {
 
   private renderWidgets(t: DeviceTree, h: HomeView, items: WidgetItem[], layout: 'hero' | 'side' | 'row' | 'snap' | 'stack' | 'two') {
     if (!items.length) return nothing;
-    return html`<home-widgets layout=${layout} ?quick-hidden=${!this.lay.editing && this.screen.quick_card === 'hide'} .items=${items} .config=${h.config} .data=${h.data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')}
-      .elevators=${this.elevators ?? []} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .doors=${this.doorsData} .notices=${this.noticesData} .presence=${this.presenceOffered() ? this.presenceSnap : null} .failed=${this.failedWidgets}
+    // MULTIBUILDING-HOME-2330 (owner answer 7): inside a building the elevators are that building's (by their area) and the alarm card
+    // reads the building's own panel state when it has one; clock / weather / Shabbat stay the whole site's
+    const areas = this.scopeAreas;
+    const elevators = areas ? (this.elevators ?? []).filter((e) => e.area_id !== null && areas.has(e.area_id)) : this.elevators ?? [];
+    const data = areas && t.building.alarm && h.data.alarm ? { ...h.data, alarm: { ...h.data.alarm, state: t.building.alarm } } : h.data;
+    return html`<home-widgets layout=${layout} ?quick-hidden=${!this.lay.editing && this.screen.quick_card === 'hide'} .items=${items} .config=${h.config} .data=${data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')} .scopeTag=${this.kpiTag}
+      .elevators=${elevators} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .doors=${this.doorsData} .notices=${this.noticesData} .presence=${this.presenceOffered() ? this.presenceSnap : null} .failed=${this.failedWidgets}
       @home-widget-retry=${this.onWidgetRetry} @home-widget-size=${this.onWidgetSize} @home-widget-toggle=${this.onWidgetToggle} @home-widget-move=${this.onWidgetMove} @home-widget-edit=${this.onWidgetEdit} @home-quick=${this.onQuick}></home-widgets>`;
   }
 
@@ -1768,7 +2010,7 @@ export class DevicesBuilding extends LitElement {
       return;
     }
     const h = this.homeOf(t);
-    const key = [window.innerWidth, window.innerHeight, this.layout, this.selected, t.floors.length, t.floors.reduce((n, f) => n + f.areas.length, 0), h.direction, h.side, this.isPhone, h.config.phone_layout, this.widgetItems(t, h).map((i) => `${i.id}${i.size}`).join(',')].join('|');
+    const key = [window.innerWidth, window.innerHeight, this.layout, this.selected, this.level, t.floors.length, t.floors.reduce((n, f) => n + f.areas.length, 0), h.direction, h.side, this.isPhone, h.config.phone_layout, this.widgetItems(t, h).map((i) => `${i.id}${i.size}`).join(',')].join('|');
     if (key !== this.fitKey) {
       this.fitKey = key;
       if (this.fit !== 0) {
@@ -2859,8 +3101,16 @@ export class DevicesBuilding extends LitElement {
       this.demoState = new URLSearchParams(location.search).get('hs_state') ?? '';
       this.tree = { ...demoTreeFor(this.demoState), home: demoHome() };
       this.sync = DEMO_DEVICES_TREE.sync;
+      // MULTIBUILDING-HOME-2330: `?mb=1` (or `?mb=alarm`) - the demo site of four buildings and "משותף"
+      const mb = new URLSearchParams(location.search).get('mb');
+      if (mb) {
+        const d = demoSite(mb, this.tree);
+        this.tree = { ...d.tree, home: demoHome() };
+        this.siteSrc = { buildings: d.buildings, links: d.links, siteName: d.siteName };
+      }
       return;
     }
+    void this.loadSite();
     if (!canAnywhere('devices.read')) {
       this.forbidden = true;
       return;
@@ -2998,12 +3248,21 @@ export class DevicesBuilding extends LitElement {
     if (this.forbidden) {
       return html`<sw-page heading=${heading} subheading="המבנה"><sw-state-panel data-devices-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בחשמל והתקנים" hint="נדרשת ההרשאה צפייה בחשמל והתקנים. פנה למנהל המערכת."></sw-state-panel></sw-page>`;
     }
-    const t = this.tree;
-    if (!t) {
+    const full = this.tree;
+    if (!full) {
       return html`<sw-page heading=${heading} subheading="המבנה" wide>${this.error
         ? html`<sw-state-panel data-devices-state="load_error" state="error" heading="לא ניתן לטעון את עץ המבנה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>`
         : this.renderSkeleton()}</sw-page>`;
     }
+    // MULTIBUILDING-HOME-2330: a site of several buildings - the site level (cards + grouped tree) or one building's home (today's home
+    // scoped to it). One building (site() = null): t is the tree itself and nothing below changes. The layout editor works on the whole.
+    const site = this.lay.editing ? null : this.site();
+    this.ensureLevel(site);
+    const inBuilding = site ? site.shown.find((b) => b.id === this.level) ?? null : null;
+    const atSite = !!site && !inBuilding;
+    const t = inBuilding ? scopeTree(full, inBuilding) : full;
+    this.kpiTag = site ? scopeTag(site.model, this.level) : '';
+    this.scopeAreas = inBuilding ? inBuilding.areaIds : null;
     // POLISH-295 (owner approval 2026-10-25): no technical line under the title (floors · areas · devices · demo data) - clean operator screen
     const connected = this.sync?.connected ?? false;
     this.lay.prepare(this.layGrids(t));
@@ -3045,20 +3304,25 @@ export class DevicesBuilding extends LitElement {
         ${isApi() ? this.renderRefresh() : nothing}
       </div>
       ${this.error && !this.offline ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
-      <div class="page-body" data-home-direction=${h.direction} data-home-layout=${layout} data-fit=${this.fit}>
+      <div class="page-body" data-home-direction=${h.direction} data-home-layout=${layout} data-fit=${this.fit} data-site-mode=${site ? (atSite ? 'site' : 'building') : nothing}>
         ${this.lay.renderBar()}
+        ${site ? this.renderSiteBar(site, t, atSite || !quickShown) : nothing}
         ${this.renderBanner(t)}
-        ${sideLayout ? nothing : widgets}
+        ${sideLayout && !atSite ? nothing : widgets}
         ${this.renderKpis(t.building, alarmShown)}
-        ${this.isPhone && !this.lay.editing && !this.phoneAll && this.layout !== 'plan' ? this.renderPhoneFloors(t) : nothing}
+        ${atSite
+          ? html`<home-site-view .model=${site!.model} .buildings=${site!.shown} ?canOff=${(this.bulkAllowed || !isApi()) && site!.shown.some((b) => bulkTargets(full, b).length > 0)} ?offline=${this.offline}
+              @site-go=${this.onSiteGo} @site-off=${(e: CustomEvent<{ building: string }>) => this.openSiteOff('all_off', e.detail.building)}></home-site-view>`
+          : html`${this.isPhone && !this.lay.editing && !this.phoneAll && this.layout !== 'plan' ? this.renderPhoneFloors(t) : nothing}
         ${sideLayout
           ? html`<div class="bgrid" data-side=${h.side} data-fit=${this.fit} data-bgrid>
               <div class="bmain">${this.renderToolbar(t, !quickShown, true)}${body}</div>
               <div class="bside" data-home-column>${widgets}</div>
             </div>`
-          : html`${this.renderToolbar(t, !quickShown, false)}${body}`}
+          : html`${this.renderToolbar(t, !quickShown, false)}${body}`}`}
       </div>
       ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
+      ${site ? html`<home-site-off @bulk-done=${() => void this.load()}></home-site-off>` : nothing}
       ${this.lay.renderPanel()}
       ${this.renderSheets(t)}
       ${this.renderQuickSheet()}
@@ -3424,12 +3688,12 @@ export class DevicesBuilding extends LitElement {
     const kpi = (label: string, on: number, total: number, icon: IconName, kind: TileKind, warm = true) =>
       !total
         ? nothing
-        : html`<sw-kpi data-kpi=${label} data-tile-kind=${kind} data-value=${`${on}/${total}`} label=${label} value=${stale ? '–' : `${on} / ${total}`} .icon=${icon} tone=${warm && on > 0 && !stale ? 'live' : 'neutral'} layout=${layout} icon-end action ?expanded=${this.isOpen(kind)} hint="הצג ושלוט" @click=${open(kind)}></sw-kpi>`;
+        : html`<sw-kpi tag=${this.kpiTag} data-kpi=${label} data-tile-kind=${kind} data-value=${`${on}/${total}`} label=${label} value=${stale ? '–' : `${on} / ${total}`} .icon=${icon} tone=${warm && on > 0 && !stale ? 'live' : 'neutral'} layout=${layout} icon-end action ?expanded=${this.isOpen(kind)} hint="הצג ושלוט" @click=${open(kind)}></sw-kpi>`;
     // HOME-295 (owner answer 3): the tiles shown are the administrator's choice (or the user's, when the installation lets users choose),
     // in the chosen order; every kind the site has by default. Sensors and cameras are counts (no panel behind them).
     const off = this.offline;
     const count = (label: string, total: number, icon: IconName, kind: string) =>
-      html`<sw-kpi data-kpi=${label} data-tile-kind=${kind} data-value=${String(total)} label=${label} value=${off ? '–' : String(total)} .icon=${icon} tone="neutral" layout=${layout} icon-end></sw-kpi>`;
+      html`<sw-kpi tag=${this.kpiTag} data-kpi=${label} data-tile-kind=${kind} data-value=${String(total)} label=${label} value=${off ? '–' : String(total)} .icon=${icon} tone="neutral" layout=${layout} icon-end></sw-kpi>`;
     const one: Record<SummaryKind, () => unknown> = {
       lights: () => kpi('תאורה דולקת', c.lights_on, c.lights, 'light', 'lights'),
       switches: () => kpi('מתגים פעילים', c.switches_on, c.switches, 'bolt', 'switches'),
@@ -3437,10 +3701,10 @@ export class DevicesBuilding extends LitElement {
       climate: () => kpi('מיזוג פעיל', c.climate_active, c.climate, 'snow', 'climate'),
       heating: () => kpi('חימום פעיל', c.heating_active, c.heating, 'flame', 'heating'),
       media: () => kpi('מסכים דולקים', c.media_on, c.media, 'play', 'media'),
-      locks: () => html`<sw-kpi data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked} / ${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>`,
+      locks: () => html`<sw-kpi tag=${this.kpiTag} data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked} / ${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>`,
       sensors: () => count('חיישנים', c.sensors, 'sensor', 'sensors'),
       cameras: () => count('מצלמות', c.cameras, 'camera', 'cameras'),
-      alarm: () => (c.alarm && !hideAlarm ? html`<sw-kpi data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing),
+      alarm: () => (c.alarm && !hideAlarm ? html`<sw-kpi tag=${this.kpiTag} data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing),
     };
     const kinds = summaryKindsShown(this.screen, c);
     // (one row on a control screen: the chosen tiles share it - the mockup)

@@ -136,6 +136,10 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-forbidden': lt('#dc2626', '#ff7a70'),
       '--sw-forbidden-soft': lt('#fdecec', 'rgba(255, 122, 112, 0.2)'),
       '--sw-purple': lt('#8b5cf6', '#a78bfa'),
+      // MULTIBUILDING-HOME-2330: the site's shared building ("משותף") - its own colour on the home screen (card edge, icon, bars, tree)
+      '--sw-shared': same('var(--sw-purple)'),
+      '--sw-shared-soft': lt('#f1ecfe', 'rgba(167, 139, 250, 0.18)'),
+      '--sw-shared-text': lt('#6d28d9', '#c4b5fd'),
       // the text colour of a state on its own -soft fill (badge, chip, KPI detail); the bare colour stays for dots, bars, icons
       '--sw-live-text': lt('#15803d', '#3ddc84'),
       '--sw-recorded-text': lt('#1f5ae6', '#8fb8ff'),

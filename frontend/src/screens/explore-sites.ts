@@ -28,6 +28,8 @@ export class ExploreSites extends LitElement {
   @state() private dialog: { kind: 'site' } | { kind: 'building'; site: Site } | { kind: 'edit-site'; site: Site } | { kind: 'edit-building'; building: Building; site: Site } | { kind: 'delete-site'; site: Site } | { kind: 'delete-building'; building: Building; site: Site } | null = null;
   @state() private notice = '';
   @state() private formName = '';
+  /** MULTIBUILDING-HOME-2330: the building is the site's shared building ("משותף"). */
+  @state() private formShared = false;
   @state() private formAddress = '';
   @state() private busy = false;
   @state() private error = '';
@@ -213,6 +215,27 @@ export class ExploreSites extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-xs);
     }
+    .shared-flag {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin-block-start: 8px;
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
+    }
+    .shared-flag input {
+      margin-block-start: 3px;
+      accent-color: var(--sw-shared, var(--sw-accent));
+    }
+    .shared-flag span {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .shared-flag small {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+    }
     /* R5-MAPS-297 (impeccable bolder, the HOMEFABLE hero / card / well pattern): the site cards are the hero step - the large radius,
        shadow 2, the name as a 20/700 heading and the "buildings · cameras" count as the display line (it is the answer of this screen);
        the add card and the empty map are wells; the building rows keep the card step with a 15/700 name. Press feedback on pointer-down,
@@ -365,6 +388,7 @@ export class ExploreSites extends LitElement {
     if (this.phone.restricted('structure')) return;
     this.formName = d && d.kind === 'edit-site' ? d.site.name : d && d.kind === 'edit-building' ? d.building.name : '';
     this.formAddress = d && d.kind === 'edit-site' ? d.site.address : '';
+    this.formShared = d && d.kind === 'edit-building' ? !!d.building.is_shared : false;
     this.error = '';
     this.dialog = d;
   }
@@ -436,7 +460,7 @@ export class ExploreSites extends LitElement {
         this.dialog = null;
         await this.reload();
       } else if (d.kind === 'edit-building') {
-        await updateBuilding(d.building.id, { name: this.formName.trim() });
+        await updateBuilding(d.building.id, { name: this.formName.trim(), ...(this.formShared !== !!d.building.is_shared ? { is_shared: this.formShared } : {}) });
         this.dialog = null;
         await this.reload();
       } else if (d.kind === 'delete-site') {
@@ -528,6 +552,9 @@ export class ExploreSites extends LitElement {
             ? html`<sw-dialog open heading=${d.kind === 'site' ? 'אתר חדש' : d.kind === 'building' ? 'מבנה חדש' : d.kind === 'edit-site' ? 'עריכת אתר' : 'עריכת מבנה'} subheading=${d.kind === 'building' ? d.site.name : d.kind === 'site' ? 'שם, כתובת ואזור זמן ברירת מחדל Asia/Jerusalem' : d.kind === 'edit-building' ? d.site.name : d.site.address || ''} data-edit-dialog @close=${() => (this.dialog = null)}>
                 <sw-field label="שם"><input data-form-name .value=${this.formName} @input=${(e: Event) => (this.formName = (e.target as HTMLInputElement).value)} placeholder=${d.kind === 'site' || d.kind === 'edit-site' ? 'למשל: משרדי החברה' : 'למשל: מבנה ראשי'} /></sw-field>
                 ${d.kind === 'site' || d.kind === 'edit-site' ? html`<sw-field label="כתובת (אופציונלי)"><input data-form-address .value=${this.formAddress} @input=${(e: Event) => (this.formAddress = (e.target as HTMLInputElement).value)} /></sw-field>` : nothing}
+                ${d.kind === 'edit-building'
+                  ? html`<label class="shared-flag" data-form-shared><input type="checkbox" .checked=${this.formShared} @change=${(e: Event) => (this.formShared = (e.target as HTMLInputElement).checked)} /><span><b>בניין משותף</b><small>חניון, חדר חשמל, גינה - מוצג אחרון במסך הראשי ולא מסומן ב"כבה הכל באתר"</small></span></label>`
+                  : nothing}
                 ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
                 ${tree.source === 'demo' ? html`<div class="err">נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.</div>` : nothing}
                 <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>ביטול</sw-button>
