@@ -1,4 +1,4 @@
-"""SYNOPTIC-HA-2310: the home-platform mapping rows (migration 0186) - platform floor -> our floor and per-area overrides."""
+"""SYNOPTIC-HA-2310: the home-platform mapping rows (migration 0187) - platform floor -> our floor and per-area overrides."""
 from __future__ import annotations
 
 import json

@@ -422,7 +422,7 @@ def delete_floor(floor_id: str, request: Request, principal: Principal = Depends
 
 
 # ---------- home-platform links (SYNOPTIC-HA-2310) ----------
-# Mapping rows keyed by the platform's id -> our floor (migration 0186): layer 1 = platform floor -> our floor (one row per platform
+# Mapping rows keyed by the platform's id -> our floor (migration 0187): layer 1 = platform floor -> our floor (one row per platform
 # floor), layer 2 = per-area override (NULL floor = taken off every floor by hand). Layer 3, the plan rooms' area links, wins over both
 # and lives with the rooms (spatial_zones.ha_area_id). These are the layers of docs/changes/PROPOSAL-MULTI-BUILDING-HOME.md; nothing here
 # knows a building, so a building level can be added later without touching the rows.
