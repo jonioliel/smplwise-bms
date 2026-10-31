@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
+import { deepFocusables } from './sw-drawer';
 
 /** Small centred modal for short forms and confirmations. Closes on Escape, backdrop click or the ✕. */
 @customElement('sw-dialog')
@@ -131,8 +132,36 @@ export class SwDialog extends LitElement {
   }
 
   private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && this.open) this.close();
+    if (!this.open) return;
+    if (e.key === 'Escape') this.close();
+    else if (e.key === 'Tab') this.trapTab(e);
   };
+
+  /** A11Y-2310: aria-modal promises the page behind is out of reach, so Tab / Shift+Tab wrap inside the box
+   * (through shadow roots and slots), like sw-sheet and sw-drawer. */
+  private trapTab(e: KeyboardEvent) {
+    const box = this.renderRoot.querySelector('.box');
+    if (!box) return;
+    const all = deepFocusables(box);
+    if (!all.length) {
+      e.preventDefault();
+      return;
+    }
+    let active: Element | null = document.activeElement;
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    const inside = !!active && (box.contains(active) || this.contains(active) || this.shadowRoot?.contains(active) === true || (active.getRootNode() as ShadowRoot).host?.closest?.('sw-dialog') === this);
+    // a second dialog opened above this one holds the focus: its own trap decides
+    for (let n: Node | null = active; n; n = n.parentNode ?? (n as ShadowRoot).host ?? null) {
+      if (n instanceof SwDialog && n !== this && n.open) return;
+    }
+    const first = all[0];
+    const last = all[all.length - 1];
+    const isEdge = (edge: HTMLElement) => active === edge || (edge.shadowRoot?.contains(active) ?? false) || (active?.getRootNode() as ShadowRoot | undefined)?.host === edge;
+    if (!inside || (e.shiftKey && isEdge(first)) || (!e.shiftKey && isEdge(last))) {
+      e.preventDefault();
+      (e.shiftKey ? last : first).focus({ preventScroll: true });
+    }
+  }
 
   /** Keyboard focus moves into the dialog when it opens (the first field, else the first button, else the box):
    * until 0.1.80 it stayed on the page behind, so a keyboard user had to tab through the whole page. */
