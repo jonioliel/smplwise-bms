@@ -113,7 +113,8 @@ export const DEVICE_THEME_KNOBS: Record<string, string> = {
   '--dv-kpi-compact-icon': 'the icon square at a compact tile\'s inline start',
   '--dv-kpi-compact-value-fs': 'the value ("0/33") of a compact tile',
   '--dv-kpi-compact-col-min': 'minimum column width of the compact tiles grid on a tablet / desktop (auto-fill)',
-  '--dv-kpi-compact-cols-phone': 'columns of the compact tiles grid on a phone (under 600px)',
+  '--dv-kpi-row-min': 'narrowest a summary tile gets in the one-row strip (900px and up) before the strip splits into two balanced rows',
+  '--dv-kpi-compact-cols-phone':'columns of the compact tiles grid on a phone (under 600px)',
   '--dv-kpi-compact-grid-gap': 'gap between compact tiles',
   // the building tree panel (owner 2026-09-29: rows line up, the name takes the row)
   '--dv-tree-count-w': 'width of the tree rows\' lit-count column (inline end)',
@@ -132,6 +133,7 @@ export const devicesThemes = css`
     --dv-kpi-compact-icon: 32px;
     --dv-kpi-compact-value-fs: 17px;
     --dv-kpi-compact-col-min: 168px;
+    --dv-kpi-row-min: 112px;
     --dv-kpi-compact-cols-phone: 2;
     --dv-kpi-compact-grid-gap: 8px;
     --dv-tree-count-w: 44px;

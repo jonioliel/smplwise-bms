@@ -162,9 +162,18 @@ export const HOME_SCREEN_CSS = css`
     min-block-size: 96px;
   }
   /* the summary tiles share one row on a control screen (the chosen ones; the labels clip before the row wraps) */
+  /* WORSTCASE-2310: ...while each tile keeps --dv-kpi-row-min. On the 1024 px tablet all nine kinds shared 881 px: 79 px tiles, a
+     13 px text column, "1284 / 2047" cut and the label gone. When the one-row share (--k1) is under the minimum, the row splits into
+     two balanced rows (--kh = ceil(kn / 2) columns, --k2 each) instead of squeezing - the second term below is --k2 exactly when --k1
+     is too small and never above --k1 otherwise, so a desktop row (and the pixel baselines) keeps its single row. 10 px = the gap. */
   @media (min-width: 900px) {
     :host .kpis[data-kpis][data-summary] {
-      grid-template-columns: repeat(var(--kn, 6), minmax(0, 1fr));
+      --k1: calc((100% - (var(--kn, 6) - 1) * 10px) / var(--kn, 6) - 0.5px);
+      --k2: calc((100% - (var(--kh, 3) - 1) * 10px) / var(--kh, 3) - 0.5px);
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(max(var(--k1), min(var(--k2), var(--k1) + max(0px, var(--dv-kpi-row-min, 112px) - var(--k1)) * 100000)), 1fr)
+      );
     }
     :host .kpis[data-kpis][data-summary] > sw-kpi {
       min-inline-size: 0;
@@ -277,6 +286,19 @@ export const HOME_SCREEN_CSS = css`
   }
   @container arow (max-width: 124px) {
     .arow-q .arow .tm {
+      display: none;
+    }
+  }
+  /* WORSTCASE-2310 (tablet): at 1024 px the three floor cards beside the tree leave each quick row 173 px - two actions (113-147 px)
+     took all of it and the room's link shrank to 12 px: no name at all, demo data included. Under 200 px a row keeps its FIRST quick
+     action (as the portrait tablet does, rowQuickMax) and the name gets the rest; 1180 px (225 px rows) and the desktop keep two. The
+     blinds' two direct buttons count as one action; the open blinds menu (.cmenu) is never hidden. Layout containment here is safe: the
+     row's hover summary is a top-layer popover and .cmenu is placed against .qa. */
+  .arow-q {
+    container: arowq / inline-size;
+  }
+  @container arowq (max-width: 199px) {
+    .arow-q .qa > :nth-child(n + 2):not(.cmenu):not([data-quick-kind='covers_close']:nth-child(2)) {
       display: none;
     }
   }
