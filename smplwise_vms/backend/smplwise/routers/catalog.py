@@ -3,7 +3,7 @@ children and anchors, visibility filtered by the caller's scoped bindings."""
 from __future__ import annotations
 
 import sqlite3
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..db import get_setting, new_id, now_iso, set_setting, unlocked
-from ..errors import ApiError, conflict, not_found
+from ..errors import ApiError, conflict, not_found, validation
 from ..rbac import INSTALLATION, Principal, authorize, require
 
 router = APIRouter()
@@ -419,3 +419,105 @@ def delete_floor(floor_id: str, request: Request, principal: Principal = Depends
         audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
               details={"map.default_floor": "", "reason": "floor_deleted", "floor_id": floor_id})
     audit(conn, actor=principal, action="floor.delete", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request), details={"anchors_tombstoned": anchors, "force": force, "skin_controls_deleted": controls, "bakes_deleted": bakes, "map_default_floor_cleared": default_cleared})
+
+
+# ---------- home-platform links (SYNOPTIC-HA-2310) ----------
+# Mapping rows keyed by the platform's id -> our floor (migration 0186): layer 1 = platform floor -> our floor (one row per platform
+# floor), layer 2 = per-area override (NULL floor = taken off every floor by hand). Layer 3, the plan rooms' area links, wins over both
+# and lives with the rooms (spatial_zones.ha_area_id). These are the layers of docs/changes/PROPOSAL-MULTI-BUILDING-HOME.md; nothing here
+# knows a building, so a building level can be added later without touching the rows.
+
+def _live_floor_ids(conn: sqlite3.Connection) -> set[str]:
+    return {r[0] for r in conn.execute("SELECT id FROM floors WHERE deleted_at IS NULL").fetchall()}
+
+
+@router.get("/home-links")
+def list_home_links(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The rows whose floor the caller may read (an area taken off every floor has no floor and is always listed: it names no place)."""
+    live = _live_floor_ids(conn)
+    all_read = authorize(conn, principal, P_READ, INSTALLATION).allowed
+    seen: dict[str, bool] = {}
+
+    def readable(fid: str) -> bool:
+        if fid not in live:
+            return False
+        if all_read:
+            return True
+        if fid not in seen:
+            from ..services.access import floor_reach
+
+            seen[fid] = floor_reach(conn, principal, fid, P_READ) is not None
+        return seen[fid]
+
+    floors = [{"ha_floor_id": r["ha_floor_id"], "floor_id": r["floor_id"]} for r in conn.execute("SELECT ha_floor_id, floor_id FROM home_floor_links ORDER BY ha_floor_id").fetchall() if readable(r["floor_id"])]
+    areas = [{"area_id": r["area_id"], "floor_id": r["floor_id"]} for r in conn.execute("SELECT area_id, floor_id FROM home_area_links ORDER BY area_id").fetchall() if r["floor_id"] is None or readable(r["floor_id"])]
+    return {"floors": floors, "areas": areas}
+
+
+class HomeLinkIn(BaseModel):
+    # the platform floors of this floor, the whole list (None = unchanged, [] = none); a platform floor held by another floor moves here
+    ha_floor_ids: list[str] | None = Field(default=None, max_length=50)
+    # per area: include = belongs to this floor; exclude = taken off every floor ("לא משויך"); auto = back to the automatic rule
+    areas: dict[str, Literal["include", "exclude", "auto"]] | None = Field(default=None, max_length=500)
+
+
+@router.put("/floors/{floor_id}/home-link")
+def put_home_link(floor_id: str, body: HomeLinkIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Whoever may edit the floor (site.content.configure on it) - and on every other floor a row is taken from. Unknown platform ids
+    answer 422, except ids already in a row (a dangling row never blocks a save). Audited as floor.home_link."""
+    get_floor(conn, floor_id)
+    require(conn, principal, P_CONTENT, ("floor", floor_id))
+    live = _live_floor_ids(conn)
+    now = now_iso()
+    details: dict[str, Any] = {}
+    if body.ha_floor_ids is not None:
+        want: list[str] = []
+        for raw in body.ha_floor_ids:
+            hid = (raw or "").strip()
+            if hid and len(hid) <= 120 and hid not in want:
+                want.append(hid)
+        current = {r[0]: r[1] for r in conn.execute("SELECT ha_floor_id, floor_id FROM home_floor_links").fetchall()}
+        taken: set[str] = set()
+        for hid in want:
+            if hid not in current and not conn.execute("SELECT 1 FROM ha_floors WHERE floor_id = ?", (hid,)).fetchone():
+                raise validation("הקומה לא נמצאה ברשימת הקומות של מערכת הבית.", ha_floor_id=hid)
+            if current.get(hid) not in (None, floor_id) and current[hid] in live:
+                taken.add(current[hid])
+        for fid in sorted(taken):
+            require(conn, principal, P_CONTENT, ("floor", fid))  # taking a platform floor from another floor is that floor's edit too
+        for hid, fid in current.items():
+            if fid == floor_id and hid not in want:
+                conn.execute("DELETE FROM home_floor_links WHERE ha_floor_id = ?", (hid,))
+        for hid in want:
+            conn.execute("INSERT INTO home_floor_links(ha_floor_id, floor_id, updated_at, updated_by) VALUES (?, ?, ?, ?) "
+                         "ON CONFLICT(ha_floor_id) DO UPDATE SET floor_id = excluded.floor_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
+                         (hid, floor_id, now, principal.user_id))
+        details["ha_floor_ids"] = want
+        if taken:
+            details["taken_from_floors"] = sorted(taken)
+    if body.areas is not None:
+        current = {r[0]: r[1] for r in conn.execute("SELECT area_id, floor_id FROM home_area_links").fetchall()}
+        changes: dict[str, str] = {}
+        for raw, mode in body.areas.items():
+            aid = (raw or "").strip()
+            if not aid or len(aid) > 120:
+                continue
+            if mode != "auto" and aid not in current and not conn.execute("SELECT 1 FROM ha_areas WHERE area_id = ?", (aid,)).fetchone():
+                raise validation("האזור לא נמצא ברשימת האזורים.", area_id=aid)
+            prev = current.get(aid)
+            if prev is not None and prev != floor_id and prev in live:
+                require(conn, principal, P_CONTENT, ("floor", prev))  # the row belongs to another floor: moving or clearing it edits that floor too
+            if mode == "include":
+                conn.execute("INSERT INTO home_area_links(area_id, floor_id, updated_at, updated_by) VALUES (?, ?, ?, ?) "
+                             "ON CONFLICT(area_id) DO UPDATE SET floor_id = excluded.floor_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
+                             (aid, floor_id, now, principal.user_id))
+            elif mode == "exclude":
+                conn.execute("INSERT INTO home_area_links(area_id, floor_id, updated_at, updated_by) VALUES (?, NULL, ?, ?) "
+                             "ON CONFLICT(area_id) DO UPDATE SET floor_id = NULL, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
+                             (aid, now, principal.user_id))
+            else:
+                conn.execute("DELETE FROM home_area_links WHERE area_id = ?", (aid,))
+            changes[aid] = mode
+        details["areas"] = changes
+    audit(conn, actor=principal, action="floor.home_link", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request), details=details)
+    return list_home_links(principal, conn)

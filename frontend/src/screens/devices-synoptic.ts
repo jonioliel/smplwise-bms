@@ -12,10 +12,12 @@ import { listEvents, type VmsEvent } from '../api/events';
 import { canAnywhere, isApi } from '../api/session';
 import type { Building, Floor } from '../api/types';
 import { navigate, parseRoute } from '../router';
-import { demoBuilding, demoSignals, loadXsData, type XsData } from '../xsection/xs-data';
+import { demoBuilding, demoSignals, loadXsData, matchContext, type XsData } from '../xsection/xs-data';
 import { acknowledgeFire, fireAck, fireReport, onFire, setFireMock } from '../xsection/fire-store';
 import { ackName, mayAck } from '../xsection/sw-fire-bar';
 import { xi } from '../xsection/xs-icons';
+import { matchLine, unlinkedFloors } from '../xsection/sw-xsection';
+import { phoneRestricted } from '../shell/phone';
 import { alarmFloors, onXsOptions, signalsOf, synColumns, tempState, totalsOf, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsOptions } from '../xsection/xs-model';
 
 const REFRESH_MS = 30_000;
@@ -85,7 +87,12 @@ export class DevicesSynoptic extends LitElement {
     .srow[aria-pressed='true'] { background: var(--sw-accent-soft); box-shadow: inset 0 0 0 2px var(--sw-accent); }
     .srow[data-temp='hot'] { background: color-mix(in srgb, var(--sw-heat) 12%, var(--sw-surface-2)); }
     .srow[data-temp='cold'] { background: color-mix(in srgb, var(--sw-cool) 12%, var(--sw-surface-2)); }
-    .srow[data-off] { background: repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--sw-border) 55%, transparent) 7px 8px), var(--sw-surface-2); box-shadow: inset 0 0 0 1px var(--sw-border-strong); }
+    /* SYNOPTIC-HA-2310: a floor without data is the same well, said once in muted words (no stripes, no extra edge) */
+    .srow[data-off] .nm .t { color: var(--sw-text-2); }
+    /* rows too short for two lines (many floors): the name only; the selected floor's detail line carries its home-system floor */
+    .srows[data-dense] .nm .s { display: none; }
+    .srow[data-off] .nm .s { color: var(--sw-text-3); }
+    .lnk { font: inherit; font-weight: var(--sw-fw-semibold); color: var(--sw-accent-text, var(--sw-accent)); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
     .srow[data-fire='alarm'] { background: color-mix(in srgb, var(--sw-danger) 14%, var(--sw-surface)); box-shadow: inset 0 0 0 2px var(--sw-danger); }
     .srow[aria-pressed='true'][data-fire='alarm'] { box-shadow: inset 0 0 0 2px var(--sw-accent), inset 0 0 0 4px color-mix(in srgb, var(--sw-danger) 45%, transparent); }
     .srow[data-fire='fault'] { outline: 1.5px dashed var(--sw-border-strong); outline-offset: -1.5px; }
@@ -187,12 +194,14 @@ export class DevicesSynoptic extends LitElement {
     const b = all.find((x) => x.id === wanted) ?? all[0] ?? null;
     if (!b) return null;
     const n = isApi() ? 0 : Number(parseRoute().params.get('xsdemo'));
-    return Number.isInteger(n) && n > 3 && n <= 40 ? demoBuilding(n, b) : b;
+    return Number.isInteger(n) && n >= 1 && n <= 40 ? demoBuilding(n, b, parseRoute().params.get('xsnames') === 'long') : b;
   }
 
   private signals(floors: Floor[]): FloorSignal[] {
-    if (!isApi() || this.data?.demo) return demoSignals([...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order));
-    return signalsOf(floors, this.data?.tree ?? null, this.data?.people ?? null);
+    if (!isApi() || this.data?.demo) return demoSignals([...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order), isApi() ? null : parseRoute().params.get('xsdata'));
+    const bid = floors[0]?.building_id;
+    const site = this.tree?.sites.find((s) => (s.buildings ?? []).some((b) => b.id === bid)) ?? null;
+    return signalsOf(floors, this.data?.tree ?? null, this.data?.people ?? null, matchContext(this.data, site));
   }
 
   private head(c: SynColumn): TemplateResult {
@@ -278,7 +287,7 @@ export class DevicesSynoptic extends LitElement {
       const fz = rep.floors[f.id];
       rows.push(html`<button class="srow sgrid" style="--cols:${cols.length};--pcols:${phoneCols.length}" data-syn-row=${f.id} aria-pressed=${this.sel === f.id} data-temp=${tt ?? ''} ?data-off=${f.nodata} data-fire=${fz && fz.state !== 'ok' ? fz.state : ''} @click=${() => this.pick(f.id)}
         aria-label=${`${f.name}${f.nodata ? `, ${xt('noData')}` : ''}${fz?.state === 'alarm' ? `, ${xt('fireAlarm')} (${xt('fireDemo')})` : ''}`}>
-        <span class="nm"><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span><span class="s">${f.nodata ? xt('noDataSince') : xt('level', { n: ltrNum(f.level) })}</span></span>
+        <span class="nm"><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span><span class="s" data-syn-match=${f.match?.how ?? (f.match ? 'none' : '')}>${this.subLine(f)}</span></span>
         ${cols.map((c) => (this.isPhoneCol(c) ? this.cell(c, f, o, rep) : html`<span class="hide-phone">${this.cell(c, f, o, rep)}</span>`))}
       </button>`);
     });
@@ -297,11 +306,12 @@ export class DevicesSynoptic extends LitElement {
       <div class="bhead"><h2>${xi('synoptic')}${xt('synTitle')} · ${bidi(b.name)}</h2>${chips}<span class="live"><i></i>${this.now}</span></div>
       ${alarmF ? this.alarmPanel(alarmF, rep) : html`<span></span>`}
       <div class="sgrid shdr" style="--cols:${cols.length};--pcols:${phoneCols.length}"><span>${xt('synFloor')}</span>${cols.map((c) => (this.isPhoneCol(c) ? this.head(c) : html`<span class="hide-phone">${this.head(c)}</span>`))}</div>
-      <div class="srows" style="--n:${sigs.length}">${rows}</div>
+      <div class="srows" style="--n:${sigs.length}" ?data-dense=${(window.innerHeight - 330) / Math.max(1, sigs.length) < 40}>${rows}</div>
       <div class="detail" data-syn-detail>${sf
-        ? html`<b>${bidi(sf.name)}</b><span class="grow">${sf.nodata ? xt('noSource') : `${xt('colTemp')}: ${sf.temp === null ? '-' : `${sf.temp.toFixed(1)}°`} · ${xt('colLight')}: ${sf.lit === null ? '-' : `${sf.lit}/${sf.lights}`} · ${xt('colCameras')}: ${sf.cams}${sf.people !== null ? ` · ${xt('colPresence')}: ${sf.people}` : ''}${sf.doorsOpen !== null ? ` · ${xt('colDoors')}: ${sf.doorsOpen}` : ''}`}</span>
+        ? html`<b>${bidi(sf.name)}</b><span class="grow">${matchLine(sf.match) ? `${matchLine(sf.match)!.text} · ` : ''}${sf.nodata ? xt('noSource') : `${xt('colTemp')}: ${sf.temp === null ? '-' : `${sf.temp.toFixed(1)}°`} · ${xt('colLight')}: ${sf.lit === null ? '-' : `${sf.lit}/${sf.lights}`} · ${xt('colCameras')}: ${sf.cams}${sf.people !== null ? ` · ${xt('colPresence')}: ${sf.people}` : ''}${sf.doorsOpen !== null ? ` · ${xt('colDoors')}: ${sf.doorsOpen}` : ''}`}</span>
+          ${matchLine(sf.match)?.linked === false && this.canLink() ? html`<button class="lnk" data-syn-link=${sf.id} @click=${() => this.linkFloor(b, sf.id)}>${xt('matchFix')}</button>` : nothing}
           <sw-button size="sm" variant="ghost" icon="map" data-syn-open @click=${() => navigate(`/explore/floors/${sf.id}`)}>${xt('openMap')}</sw-button>`
-        : html`<span class="grow">${xt('synAll')} · ${xt('synSub', { n: sigs.length })}</span>`}</div>
+        : this.allLine(b, sigs)}</div>
     </section>`;
     const wide = !this.wall;
     const tree = wide
@@ -322,6 +332,32 @@ export class DevicesSynoptic extends LitElement {
       return html`<div class="wallhead"><h1>${xt('wallTitle')}</h1><span class="clock">${this.now}</span></div>${body}`;
     }
     return this.frame(body, sigs.length, true);
+  }
+
+  /** SYNOPTIC-HA-2310: the row's second line - the level and the home-system floor it stands for (how it was matched), or why there is no data. */
+  private subLine(f: FloorSignal): string {
+    const ml = matchLine(f.match);
+    if (!ml) return f.nodata ? xt('noDataSince') : xt('level', { n: ltrNum(f.level) });
+    return ml.linked ? `${xt('level', { n: ltrNum(f.level) })} · ${ml.text}` : ml.text;
+  }
+
+  /** The detail line with no floor selected: the building, or - once - the floors no rule links to the home system, with the way to link them. */
+  private allLine(b: Building, sigs: FloorSignal[]) {
+    const un = unlinkedFloors(sigs);
+    if (!un.length) return html`<span class="grow">${xt('synAll')} · ${xt('synSub', { n: sigs.length })}</span>`;
+    const text = un.length === 1 ? xt('matchHintOne', { name: un[0].name }) : xt('matchHintMany', { n: un.length });
+    return html`<span class="grow" data-syn-hint>${text}</span>${this.canLink() ? html`<button class="lnk" data-syn-link=${un[0].id} @click=${() => this.linkFloor(b, un[0].id)}>${xt('matchHintAction')}</button>` : nothing}`;
+  }
+
+  private canLink(): boolean {
+    // the editor lives with the floors' structure tools, which a phone hides by the installation's option (ui.mobile hide_structure)
+    return !this.wall && !phoneRestricted('structure') && (!isApi() || canAnywhere('site.content.configure'));
+  }
+
+  /** The link editor lives with the floors (floors screen, "קישור למערכת הבית"); `?ha=` opens it on that floor. */
+  private linkFloor(b: Building, floorId: string) {
+    const keep = isApi() ? {} : Object.fromEntries([...parseRoute().params.entries()].filter(([k]) => k.startsWith('xs')));
+    navigate(`/explore/buildings/${b.id}/floors`, { ...keep, ha: floorId });
   }
 
   private isPhoneCol(c: SynColumn): boolean {
