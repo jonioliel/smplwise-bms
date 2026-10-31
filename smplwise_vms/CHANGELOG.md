@@ -16,6 +16,14 @@
 - **English:** The licence notice of the WisKey embed sample (MIT) ships with the product.
 - **עברית:** הודעת הרישיון של רכיב החיבור של WisKey (MIT) נכללת במוצר.
 
+## 2.31.1 (pilot) - Fix: the update to 2.31.0 failed to build
+**After installing:** no database migration. If the update to 2.31.0 failed with "Could not build image", install this one instead.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. אם העדכון ל-2.31.0 נכשל עם "Could not build image", התקינו את הגרסה הזו במקומו.
+
+### What was fixed - מה תוקן
+- **English:** 2.31.0 pinned the add-on base image by digest ("tag@sha256"); Home Assistant's build then used an image without Python and the update failed ("pip: not found", exit 127). The base image is referenced by its tag again, as in 2.30.0. Everything else is 2.31.0.
+- **עברית:** ב-2.31.0 תמונת הבסיס של התוסף ננעלה לגרסה מדויקת ("tag@sha256"); הבנייה ב-Home Assistant השתמשה אז בתמונה בלי Python והעדכון נכשל ("pip: not found", קוד 127). תמונת הבסיס חוזרת להיות מוגדרת לפי התג, כמו ב-2.30.0. כל השאר זהה ל-2.31.0.
+
 ## 2.31.0 (pilot) - Calendars, compact presence card, synoptic map from the home system, Google Drive backup, security updates
 **After installing:** two database migrations (0186 Google Drive backup targets, 0187 floor links to the home system); existing rows are kept. The calendars module and Google Drive backup are off by default. Phone photos saved as MPO are stored as their first picture. Going back to 2.30.0 needs the database backup taken before the update.
 - **עברית:** אחרי ההתקנה: שתי מיגרציות של מסד הנתונים (0186 יעדי גיבוי ל-Google Drive, 0187 קישור קומות למערכת הבית); השורות הקיימות נשמרות. מודול היומנים וגיבוי Google Drive כבויים כברירת מחדל. תמונות טלפון בפורמט MPO נשמרות כתמונה הראשונה שבהן. חזרה ל-2.30.0 דורשת את גיבוי מסד הנתונים שנלקח לפני העדכון.
