@@ -147,27 +147,199 @@ export interface FloorSignal {
   alerts: number | null;
   /** No data at all reaches this floor (the platform is disconnected, or no area is linked to it): drawn as "no data". */
   nodata: boolean;
+  /** SYNOPTIC-HA-2310: which platform floor the catalogue floor stands for and how that was decided (null when there is no tree). */
+  match?: FloorMatchInfo | null;
 }
 
 const nz = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) ? n : null);
 const mean = (xs: number[]): number | null => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10 : null);
-const norm = (s: string) => s.replace(/[‎‏\s]+/g, ' ').trim().toLowerCase();
+/** Name comparison: direction marks dropped, spaces / underscores / dashes / maqaf folded, case ignored. */
+const norm = (s: string) => s.replace(/[‎‏‪-‮⁦-⁩]/g, '').replace(/[\s_\-־]+/g, ' ').trim().toLowerCase();
 
-/** The device-tree areas that belong to a catalogue floor: the areas the map links to it, else the platform floor of the same name. */
-export function areasOfFloor(floor: Pick<Floor, 'id' | 'name'>, tree: DeviceTree | null): { areas: DeviceArea[]; climateTargets: number[] } {
-  if (!tree) return { areas: [], climateTargets: [] };
-  const linked = tree.floors.flatMap((f) => f.areas).filter((a) => a.map?.floor_id === floor.id);
-  const byName = linked.length ? null : tree.floors.find((f) => norm(f.name) === norm(floor.name));
-  const areas = linked.length ? linked : byName?.areas ?? [];
-  const ids = new Set(areas.map((a) => a.area_id));
-  const targets: number[] = [];
-  for (const f of tree.floors) for (const c of f.climate) if (c.available && nz(c.target_temperature) !== null && areas.some((a) => a.name === c.area_name && ids.has(a.area_id))) targets.push(c.target_temperature as number);
-  return { areas, climateTargets: targets };
+/* ---------------------------------------------------------------- floor <-> platform matching (SYNOPTIC-HA-2310) */
+
+/**
+ * The layers of docs/changes/PROPOSAL-MULTI-BUILDING-HOME.md (branch pilot/MULTI-BUILDING-HOME-PLAN), strongest first, per AREA:
+ *   3. map placement - the area is linked to a room of one of our floor plans (spatial_zones.ha_area_id): that floor, whatever else says;
+ *   2. the per-area override row (`home_area_links`): our floor, or none ("לא משויך");
+ *   1. the platform floor's row (`home_floor_links`, one row per platform floor) - then the automatic rules for a platform floor no row
+ *      names: the same LEVEL only when exactly one platform floor has that level, exactly one of the building's floors has it AND the site
+ *      has one building; the same NAME only on exact normalized equality, unique on both sides (never a substring).
+ * Everything else that points somewhere is a SUGGESTION the user confirms (a level shared by several platform floors or several buildings,
+ * the platform floor most of a floor's map-placed areas sit on) - never applied silently. Unresolved = no data, and the hint says why.
+ * ALL areas of a platform floor count, not only the areas placed on a map: the same floors -> areas projection the home screen draws.
+ */
+export type FloorHow = 'link' | 'level' | 'name';
+/** Why an area counts on a floor: `map` = placed on this floor's plan, `manual` = the per-area override, else how its platform floor matched. */
+export type AreaSource = 'map' | 'manual' | FloorHow;
+
+export interface MatchedArea { area: DeviceArea; haFloorId: string | null; source: AreaSource }
+export interface FloorSuggestion { haFloorId: string; haFloorName: string; why: 'level' | 'name' | 'map' }
+export interface FloorMatchInfo {
+  /** The platform floors this floor stands for (rows, else the automatic rule) and how. */
+  haFloors: { id: string; name: string }[];
+  how: FloorHow | null;
+  /** A platform floor the user may confirm (not applied). */
+  suggestion: FloorSuggestion | null;
+  /** The level found several candidates (or the site has several buildings) and made no guess. */
+  ambiguous: boolean;
+  areas: MatchedArea[];
+  /** Areas the platform floor brings that are taken off this floor by hand (to another floor or to none). */
+  excluded: { area: DeviceArea; to: string | null }[];
+  /** Platform ids in this floor's rows that the platform no longer lists (the editor shows them; the numbers ignore them). */
+  missing: string[];
 }
 
-/** One floor's signals from the catalogue floor, the device tree and the presence answer. */
-export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleResponse | null): FloorSignal {
-  const { areas, climateTargets } = areasOfFloor(floor, tree);
+/** The mapping rows (api/catalog.ts HomeLinks): keyed by the platform id -> our floor id; an area row with `floor_id: null` = none. */
+export interface MatchLinks {
+  floors: { ha_floor_id: string; floor_id: string }[];
+  areas: { area_id: string; floor_id: string | null }[];
+}
+export interface MatchContext {
+  links?: MatchLinks | null;
+  /** The site has one building (a level match may then apply on its own). Default true. */
+  singleBuilding?: boolean;
+}
+
+export type MatchFloor = Pick<Floor, 'id' | 'name' | 'level'>;
+
+/** Every area of the tree once, with its platform floor id (null = the "no floor" bucket): the same floors -> areas the home screen draws. */
+export function treeAreas(tree: DeviceTree): { area: DeviceArea; haFloorId: string | null }[] {
+  const out: { area: DeviceArea; haFloorId: string | null }[] = [];
+  const seen = new Set<string>();
+  for (const f of tree.floors)
+    for (const a of f.areas) {
+      if (seen.has(a.area_id)) continue;
+      seen.add(a.area_id);
+      out.push({ area: a, haFloorId: f.floor_id === 'none' ? null : f.floor_id });
+    }
+  return out;
+}
+
+/** The real platform floors of the tree (the "no floor" bucket is not a floor). */
+export const treeFloors = (tree: DeviceTree) => tree.floors.filter((f) => f.floor_id !== 'none');
+
+/** Matches the floors of ONE building (`floors`) against the platform tree and the installation's mapping rows. */
+export function matchFloors(floors: MatchFloor[], tree: DeviceTree | null, ctx: MatchContext = {}): Map<string, FloorMatchInfo> {
+  const out = new Map<string, FloorMatchInfo>();
+  if (!tree) return out;
+  const single = ctx.singleBuilding !== false;
+  const floorRows = new Map((ctx.links?.floors ?? []).map((r) => [r.ha_floor_id, r.floor_id]));
+  const areaRows = new Map((ctx.links?.areas ?? []).map((r) => [r.area_id, r.floor_id]));
+  const haFloors = treeFloors(tree);
+  const haById = new Map(haFloors.map((f) => [f.floor_id, f]));
+  const areas = treeAreas(tree);
+  const areaIds = new Set(areas.map((x) => x.area.area_id));
+  const ids = new Set(floors.map((f) => f.id));
+  // platform floor -> our floor and how (rows first; then the automatic rules for platform floors no row names)
+  const owner = new Map<string, { floor: string; how: FloorHow }>();
+  for (const [hid, fid] of floorRows) if (ids.has(fid) && haById.has(hid)) owner.set(hid, { floor: fid, how: 'link' });
+  const linkedFloors = new Set([...floorRows.entries()].filter(([hid]) => haById.has(hid)).map(([, fid]) => fid));
+  const open = (f: MatchFloor) => !linkedFloors.has(f.id) && ![...owner.values()].some((o) => o.floor === f.id);
+  const free = (hid: string) => !floorRows.has(hid) && !owner.has(hid);
+  const ambiguous = new Set<string>();
+  const suggestions = new Map<string, FloorSuggestion>();
+  for (const f of floors) {
+    if (!open(f)) continue;
+    const sameLevel = haFloors.filter((h) => h.level !== null && h.level === f.level);
+    const twins = floors.filter((g) => g.level === f.level);
+    if (sameLevel.length === 1 && twins.length === 1 && single && free(sameLevel[0].floor_id)) owner.set(sameLevel[0].floor_id, { floor: f.id, how: 'level' });
+    else if (sameLevel.length) {
+      ambiguous.add(f.id);
+      const cand = sameLevel.filter((h) => free(h.floor_id));
+      // one free candidate on a multi-building site: offered, not applied; several: the user picks
+      if (cand.length === 1 && twins.length === 1) suggestions.set(f.id, { haFloorId: cand[0].floor_id, haFloorName: cand[0].name, why: 'level' });
+    }
+  }
+  for (const f of floors) {
+    if (!open(f)) continue;
+    const key = norm(f.name);
+    if (!key) continue;
+    const cands = haFloors.filter((h) => norm(h.name) === key);
+    const twins = floors.filter((g) => norm(g.name) === key);
+    if (cands.length === 1 && twins.length === 1 && free(cands[0].floor_id)) {
+      // every building's floors are matched on their own: on a site of several buildings a name could be claimed twice - offered only
+      if (single) {
+        owner.set(cands[0].floor_id, { floor: f.id, how: 'name' });
+        ambiguous.delete(f.id);
+        suggestions.delete(f.id);
+      } else if (!suggestions.has(f.id)) suggestions.set(f.id, { haFloorId: cands[0].floor_id, haFloorName: cands[0].name, why: 'name' });
+    }
+  }
+  // a suggestion from the map: the platform floor most of the floor's placed areas sit on (only when nothing matched and it is free)
+  for (const f of floors) {
+    if (!open(f) || suggestions.has(f.id)) continue;
+    const votes = new Map<string, number>();
+    for (const x of areas) if (x.area.map?.floor_id === f.id && x.haFloorId) votes.set(x.haFloorId, (votes.get(x.haFloorId) ?? 0) + 1);
+    const best = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+    if (best[0] && (!best[1] || best[1][1] < best[0][1]) && free(best[0][0])) suggestions.set(f.id, { haFloorId: best[0][0], haFloorName: haById.get(best[0][0])!.name, why: 'map' });
+  }
+  // the areas, one owner each: map placement > the per-area row > the platform floor's owner
+  const byFloor = new Map<string, MatchedArea[]>(floors.map((f) => [f.id, []]));
+  const excluded = new Map<string, { area: DeviceArea; to: string | null }[]>(floors.map((f) => [f.id, []]));
+  for (const x of areas) {
+    const aid = x.area.area_id;
+    const viaFloor = x.haFloorId ? owner.get(x.haFloorId) : undefined;
+    let to: string | null;
+    let source: AreaSource;
+    if (x.area.map?.floor_id) {
+      to = x.area.map.floor_id;
+      source = 'map';
+    } else if (areaRows.has(aid)) {
+      to = areaRows.get(aid) ?? null;
+      source = 'manual';
+    } else if (viaFloor) {
+      to = viaFloor.floor;
+      source = viaFloor.how;
+    } else continue;
+    if (viaFloor && viaFloor.floor !== to && source !== 'map') excluded.get(viaFloor.floor)?.push({ area: x.area, to });
+    if (to && ids.has(to)) byFloor.get(to)!.push({ area: x.area, haFloorId: x.haFloorId, source });
+  }
+  for (const f of floors) {
+    const mine = [...owner.entries()].filter(([, o]) => o.floor === f.id);
+    const missing = [...floorRows.entries()].filter(([hid, fid]) => fid === f.id && !haById.has(hid)).map(([hid]) => hid);
+    missing.push(...[...areaRows.entries()].filter(([aid, fid]) => fid === f.id && !areaIds.has(aid)).map(([aid]) => aid));
+    out.set(f.id, {
+      haFloors: mine.map(([hid]) => ({ id: hid, name: haById.get(hid)!.name })),
+      how: mine[0]?.[1].how ?? null,
+      suggestion: mine.length ? null : suggestions.get(f.id) ?? null,
+      ambiguous: !mine.length && ambiguous.has(f.id),
+      areas: byFloor.get(f.id)!,
+      excluded: excluded.get(f.id)!,
+      missing,
+    });
+  }
+  return out;
+}
+
+/** The device-tree areas of a floor; pass the building's floors so the other floors compete (a lone floor matches alone). */
+export function areasOfFloor(floor: MatchFloor, tree: DeviceTree | null, building: MatchFloor[] = [floor], ctx: MatchContext = {}): { areas: DeviceArea[]; climateTargets: number[] } {
+  const all = building.some((f) => f.id === floor.id) ? building : [...building, floor];
+  const m = matchFloors(all, tree, ctx).get(floor.id);
+  const areas = m?.areas.map((x) => x.area) ?? [];
+  return { areas, climateTargets: tree ? climateTargetsOf(areas, tree) : [] };
+}
+
+/** The available climate targets of the areas: the area's own units, and the platform floor's list matched by area name (older trees). */
+function climateTargetsOf(areas: DeviceArea[], tree: DeviceTree): number[] {
+  const names = new Set(areas.map((a) => a.name));
+  const seen = new Set<string>();
+  const targets: number[] = [];
+  const take = (c: { entity_id: string; available: boolean; target_temperature: number | null }) => {
+    if (seen.has(c.entity_id) || !c.available || nz(c.target_temperature) === null) return;
+    seen.add(c.entity_id);
+    targets.push(c.target_temperature as number);
+  };
+  for (const a of areas) for (const c of a.climate ?? []) take(c);
+  for (const f of tree.floors) for (const c of f.climate) if (c.area_name && names.has(c.area_name)) take(c);
+  return targets;
+}
+
+/** One floor's signals from the catalogue floor, its match (building-wide, from signalsOf), the device tree and the presence answer. */
+export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleResponse | null, match?: FloorMatchInfo | null): FloorSignal {
+  const m = match === undefined ? matchFloors([floor], tree).get(floor.id) ?? null : match;
+  const areas = m?.areas.map((x) => x.area) ?? [];
+  const climateTargets = tree ? climateTargetsOf(areas, tree) : [];
   const connected = !!tree && tree.sync?.connected !== false;
   const lights = areas.reduce((n, a) => n + (a.counts?.lights ?? 0), 0);
   const lit = areas.reduce((n, a) => n + (a.counts?.lights_on ?? 0), 0);
@@ -191,11 +363,13 @@ export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleRe
     doorsOpen: known && opens.length ? opens.reduce((a, b) => a + b, 0) : null,
     alerts: null, // no per-floor alert source exists yet (see the 2.29.0 report)
     nodata: !known,
+    match: m,
   };
 }
 
-export function signalsOf(floors: Floor[], tree: DeviceTree | null, people: PeopleResponse | null): FloorSignal[] {
-  return [...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order).map((f) => signalOf(f, tree, people));
+export function signalsOf(floors: Floor[], tree: DeviceTree | null, people: PeopleResponse | null, ctx: MatchContext = {}): FloorSignal[] {
+  const matches = matchFloors(floors, tree, ctx);
+  return [...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order).map((f) => signalOf(f, tree, people, matches.get(f.id) ?? null));
 }
 
 /** hot / cold / null: only with both a reading and a target (no target = no verdict, not a guess). */

@@ -23,16 +23,18 @@ import { buildScene, isoPoint, isoProjection, keepIsos, type IsoScene } from '..
 import { floorLinks, type FloorLinkDoc } from '../map/connector-targets';
 import { DEFAULT_FLOOR_HEIGHT_M, floorHeight } from '../map/geometry';
 import { PhoneWidth } from '../shell/phone';
-import { isApi } from '../api/session';
+import { canAnywhere, isApi } from '../api/session';
 import { parseRoute } from '../router';
 import { xt } from '../i18n/xsection';
 import '../xsection/sw-xsection';
-import { xsTile, xsTileStyles } from '../xsection/sw-xsection';
-import { demoBuilding, demoSignals, loadXsData, sectionLinksOf, type XsData } from '../xsection/xs-data';
+import { xsTile, xsTileStyles, type RowBox } from '../xsection/sw-xsection';
+import '../xsection/sw-floor-home-link';
+import { demoBuilding, demoSignals, demoTree, loadXsData, matchContext, sectionLinksOf, type XsData } from '../xsection/xs-data';
+import type { HomeLinks } from '../api/catalog';
 import { fireReport, onFire, setFireMock } from '../xsection/fire-store';
 import { linksFold, listStep, nearFloors, onXsOptions, phonePlaceFor, signalsOf, xsFromParams, xsOptions, type FloorSignal, type XsOptions } from '../xsection/xs-model';
 
-type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | null;
+type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | { kind: 'home'; floor: Floor } | null;
 
 /** SC03 — floor browser (board 1 screen 3) on real catalogue data: add / rename / delete floors, add buildings. */
 @customElement('explore-floors')
@@ -59,6 +61,11 @@ export class ExploreFloors extends LitElement {
   private stopFire?: () => void;
   /** T085: the connectors of each published structure (by version), for the links between floors. */
   @state() private linkDocs = new Map<string, FloorLinkDoc>();
+  /** SYNOPTIC-HA-2310: where each floor card sits in its column, so the section's rows line up with the cards (null = not aligned). */
+  @state() private rowBoxes: RowBox[] | null = null;
+  @state() private boxesHeight = 0;
+  private cardsObs?: ResizeObserver;
+  private cardsEl: Element | null = null;
 
   /** The cache without the versions the tree no longer lists (a republished or deleted floor). */
   private pruned(): Map<string, IsoScene | null> {
@@ -470,6 +477,12 @@ export class ExploreFloors extends LitElement {
     }
     .linkrow .lt { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); white-space: nowrap; }
     .linkrow .ll { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* SYNOPTIC-HA-2310: the column has the page's height and the cards give way inside it (they shrank in steps but could still run under
+       the actions at 12 floors); the section's rows follow the cards' boxes, so both columns keep one rhythm. */
+    .fl.beside { grid-template-rows: minmax(0, 1fr); }
+    .fl.beside .list { min-block-size: 0; }
+    .fl.beside .cards { flex: 0 1 auto; }
+    .fl.beside .cards > .floor { flex: 0 1 auto; min-block-size: 0; overflow: hidden; }
     .xssheet { block-size: min(72dvh, 640px); min-block-size: 360px; }
     .xsbtn { margin-inline-start: auto; }
     @media (max-width: 767px) {
@@ -494,6 +507,9 @@ export class ExploreFloors extends LitElement {
   }
 
   disconnectedCallback() {
+    this.cardsObs?.disconnect();
+    this.cardsObs = undefined;
+    this.cardsEl = null;
     this.stopXs?.();
     this.stopFire?.();
     super.disconnectedCallback();
@@ -501,6 +517,51 @@ export class ExploreFloors extends LitElement {
 
   protected updated(changed: Map<string, unknown>) {
     if (changed.has('buildingId') && changed.get('buildingId') !== undefined) this.selected = null;
+    this.watchCards();
+    this.measureCards();
+    this.openHomeFromRoute();
+  }
+
+  /** `?ha=<floor id>` (the synoptic's "link the floors" hint): opens that floor's home-system link once. */
+  private homeRouteDone = '';
+  private openHomeFromRoute() {
+    const want = parseRoute().params.get('ha');
+    if (!want || want === this.homeRouteDone || !this.tree) return;
+    const ctx = this.context;
+    const b = ctx && this.demoN() ? demoBuilding(this.demoN(), ctx.building) : ctx?.building;
+    const f = b?.floors?.find((x) => x.id === want);
+    this.homeRouteDone = want;
+    if (f && !this.dialog) this.openDialog({ kind: 'home', floor: f });
+  }
+
+  /** SYNOPTIC-HA-2310: the card column is observed, so a resize (window, density step, a name that wraps) re-measures the boxes. */
+  private watchCards() {
+    const el = this.renderRoot.querySelector('.cards[data-align]');
+    if (el === this.cardsEl) return;
+    this.cardsObs?.disconnect();
+    this.cardsEl = el;
+    if (!el) {
+      if (this.rowBoxes) this.rowBoxes = null;
+      return;
+    }
+    this.cardsObs ??= new ResizeObserver(() => this.measureCards());
+    this.cardsObs.observe(el);
+    el.querySelectorAll('[data-floor-card]').forEach((c) => this.cardsObs!.observe(c));
+  }
+
+  /** The boxes of the cards relative to their column (rounded to a pixel); the section's rows take the same top and height. */
+  private measureCards() {
+    const el = this.cardsEl;
+    if (!el) return;
+    const base = el.getBoundingClientRect();
+    const boxes: RowBox[] = [...el.querySelectorAll<HTMLElement>('[data-floor-card]')].map((c) => {
+      const r = c.getBoundingClientRect();
+      return { id: c.dataset.floorCard!, top: Math.round(r.top - base.top), height: Math.round(r.height) };
+    });
+    const h = Math.round(base.height);
+    const same = this.rowBoxes && this.rowBoxes.length === boxes.length && this.rowBoxes.every((b, i) => b.id === boxes[i].id && b.top === boxes[i].top && b.height === boxes[i].height);
+    if (!same) this.rowBoxes = boxes;
+    if (h !== this.boxesHeight) this.boxesHeight = h;
   }
 
   /** The options in force: the installation's (ui.xs); the static demo and the specs may override single options from the route (`?xs_phone_place=card`). */
@@ -512,7 +573,7 @@ export class ExploreFloors extends LitElement {
   private demoN(): number {
     if (isApi()) return 0;
     const n = Number(parseRoute().params.get('xsdemo'));
-    return Number.isInteger(n) && n > 3 && n <= 40 ? n : 0;
+    return Number.isInteger(n) && n >= 1 && n <= 40 ? n : 0;
   }
 
   /** Does the section sit beside the list (a computer or a tablet, option not off)? Then the building drawing makes room for it. */
@@ -520,9 +581,14 @@ export class ExploreFloors extends LitElement {
     return !this.phone.matches && this.xsEff().desktop_place !== 'off';
   }
 
+  /** `?xsdata=ha|none` (static demo only): the floors run through the real home-system matching against a synthetic tree. */
+  private demoData(): string | null {
+    return isApi() ? null : parseRoute().params.get('xsdata');
+  }
+
   private signalsFor(floors: Floor[]): FloorSignal[] {
-    if (!isApi() || this.xsData?.demo) return demoSignals([...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order));
-    return signalsOf(floors, this.xsData?.tree ?? null, this.xsData?.people ?? null);
+    if (!isApi() || this.xsData?.demo) return demoSignals([...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order), this.demoData());
+    return signalsOf(floors, this.xsData?.tree ?? null, this.xsData?.people ?? null, matchContext(this.xsData, this.context?.site));
   }
 
   /** A card or a section row was pressed: the first press selects, a second press on the selected floor opens its map (option click = open: at once). */
@@ -555,6 +621,9 @@ export class ExploreFloors extends LitElement {
     const shown = o.many === 'near' ? nearFloors(floors, sel?.id ?? null, 2) : floors;
     const folded = linksFold(o.links, floors.length, window.innerHeight) || phone;
     const withTile = phone && place === 'side';
+    // SYNOPTIC-HA-2310: beside the list, one column of cards and every floor shown - the section's rows take the cards' boxes
+    const aligns = this.sectionBeside() && cols === 1 && shown.length === floors.length;
+    const canLink = !this.phone.restricted('structure') && (!isApi() || canAnywhere('site.content.configure'));
     const cards = shown.map((f) => {
       const card = html`<button class="floor ${sel?.id === f.id ? 'on' : ''} ${this.hoverId === f.id ? 'hl' : ''}" data-floor-card=${f.id} @click=${() => this.pickFloor(f.id)} @pointerenter=${(e: PointerEvent) => e.pointerType === 'mouse' && (this.hoverId = f.id)} @pointerleave=${(e: PointerEvent) => e.pointerType === 'mouse' && (this.hoverId = null)} aria-pressed=${sel?.id === f.id}>
         <div class="txt">
@@ -579,6 +648,7 @@ export class ExploreFloors extends LitElement {
             ${this.phone.restricted('structure')
               ? nothing
               : html`<sw-button variant="ghost" icon="edit" @click=${() => this.openDialog({ kind: 'rename', floor: sel })}>עריכה</sw-button>
+                <sw-button variant="ghost" icon="link" data-home-link-btn @click=${() => this.openDialog({ kind: 'home', floor: sel })}>${xt('homeLinkBtn')}</sw-button>
                 <sw-button variant="ghost" icon="trash" @click=${() => this.openDialog({ kind: 'delete', floor: sel, force: false })}>מחיקה</sw-button>
                 <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>${sel.has_plan ? 'תוכנית חדשה' : 'העלאת תוכנית'}</sw-button>`}
             ${sel.has_plan || sel.draft_version_id ? nothing : html`<sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button>`}
@@ -587,12 +657,14 @@ export class ExploreFloors extends LitElement {
         : nothing}
     </div>`;
     const section = html`<sw-xsection .floors=${sigs} .links=${secLinks} .opts=${o} .fire=${fire} selectedId=${sel?.id ?? ''} hoverId=${this.hoverId ?? ''}
+      .rowBoxes=${aligns ? this.rowBoxes : null} boxesHeight=${aligns ? this.boxesHeight : 0} ?canLink=${canLink}
+      @xs-link=${(e: CustomEvent<{ id: string }>) => { const f = floors.find((x) => x.id === e.detail.id); if (f) this.openDialog({ kind: 'home', floor: f }); }}
       @xs-pick=${(e: CustomEvent<{ id: string }>) => this.pickFloor(e.detail.id, true)} @xs-hover=${(e: CustomEvent<{ id: string | null }>) => (this.hoverId = e.detail.id)}></sw-xsection>`;
     const beside = this.sectionBeside();
     const list = html`<div class="list" data-floor-list data-step=${step} data-cols=${cols} data-many=${o.many}>
       ${floors.length ? nothing : html`<div class="empty">${this.phone.restricted('structure') ? 'למבנה הזה אין עדיין קומות. הוספת קומות ותוכניות זמינה במחשב.' : 'למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה).'}<div style="margin-block-start:10px"><sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button></div></div>`}
       ${phone && place === 'card' ? html`<sw-xs-compact .floors=${sigs} .opts=${o} selectedId=${sel?.id ?? ''} @xs-open-sheet=${() => (this.sheetOpen = true)}></sw-xs-compact>` : nothing}
-      <div class="cards" data-step=${step} data-cols=${cols}>${cards}</div>
+      <div class="cards" data-step=${step} data-cols=${cols} ?data-align=${aligns}>${cards}</div>
       ${folded ? this.renderLinksFolded(links) : this.renderLinks(floors)}
       ${this.error && !this.dialog ? html`<div class="err">${this.error}</div>` : nothing}
       ${actions}
@@ -686,6 +758,15 @@ export class ExploreFloors extends LitElement {
           <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = null)}>ביטול</sw-button>
           <sw-button slot="footer" variant="danger" ?disabled=${this.busy || demo} @click=${() => this.run(async () => { await deleteFloor(d.floor.id, d.force); if (this.selected === d.floor.id) this.selected = null; })}>${d.force ? 'מחק כולל הפריטים' : 'מחק קומה'}</sw-button>
         </sw-dialog>`;
+      case 'home': {
+        const floors = building.floors ?? [];
+        const tree = demo || !isApi() ? demoTree(floors, this.demoData() === 'none' ? 'none' : 'ha') : this.xsData?.tree ?? null;
+        const names = new Map((this.tree?.sites ?? []).flatMap((s) => (s.buildings ?? []).flatMap((b) => (b.floors ?? []).map((x) => [x.id, (s.buildings?.length ?? 0) > 1 ? `${b.name} · ${x.name}` : x.name] as [string, string]))));
+        return html`<sw-floor-home-link .floor=${d.floor} .floors=${floors} .floorNames=${names} .tree=${tree} .links=${this.xsData?.links ?? null}
+          ?singleBuilding=${matchContext(this.xsData, this.context?.site).singleBuilding} ?demo=${demo || !isApi()}
+          @close=${() => (this.dialog = null)}
+          @saved=${(e: CustomEvent<{ links: HomeLinks }>) => { this.dialog = null; if (this.xsData) this.xsData = { ...this.xsData, links: e.detail.links }; void loadXsData().then((x) => (this.xsData = x)); }}></sw-floor-home-link>`;
+      }
       case 'building':
         return html`<sw-dialog open heading="מבנה חדש" subheading=${this.context?.site.name ?? ''} @close=${() => (this.dialog = null)}>
           ${nameField}${errorLine}${demoLine}
@@ -706,7 +787,7 @@ export class ExploreFloors extends LitElement {
       </sw-page>`;
     }
     const { site } = ctx;
-    const building = this.demoN() ? demoBuilding(this.demoN(), ctx.building) : ctx.building;
+    const building = this.demoN() ? demoBuilding(this.demoN(), ctx.building, parseRoute().params.get('xsnames') === 'long') : ctx.building;
     const floors = building.floors ?? [];
     const sel = floors.find((f) => f.id === this.selected) ?? floors[0] ?? null;
     const totalCams = floors.reduce((n, f) => n + f.camera_count, 0);

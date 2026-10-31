@@ -2,7 +2,7 @@
  * Catalogue data source: the backend when a session exists, otherwise the demo fixtures (static
  * preview / design review). Screens call these helpers instead of touching fixtures directly.
  */
-import { del, get, patch, post, upload, api, apiUrl } from './client';
+import { del, get, patch, post, put, upload, api, apiUrl } from './client';
 import { isApi } from './session';
 import type { Building, Floor, Site, SitesResponse } from './types';
 import { demoBuildings, demoSites } from '../fixtures/catalog';
@@ -68,6 +68,17 @@ export const updateBuilding = (id: string, body: Partial<Pick<Building, 'name' |
 export const deleteBuilding = (id: string) => del(`buildings/${id}`);
 export const createFloor = (buildingId: string, body: { name: string; level: number }) => post<Floor>(`buildings/${buildingId}/floors`, body);
 export const updateFloor = (id: string, body: Partial<Pick<Floor, 'name' | 'level' | 'sort_order'>>) => patch<Floor>(`floors/${id}`, body);
+
+/** SYNOPTIC-HA-2310: the home-system mapping rows, keyed by the platform's id -> our floor (layer 1: one row per platform floor;
+ * layer 2: per-area override, `floor_id: null` = taken off every floor by hand). Only rows of floors the caller may read. */
+export interface HomeLinks {
+  floors: { ha_floor_id: string; floor_id: string }[];
+  areas: { area_id: string; floor_id: string | null }[];
+}
+export type AreaLinkMode = 'include' | 'exclude' | 'auto';
+export const getHomeLinks = () => get<HomeLinks>('home-links');
+/** One floor's edit: its platform floors (whole list) and per-area modes; answers the rows after the change. */
+export const putHomeLink = (floorId: string, body: { ha_floor_ids?: string[]; areas?: Record<string, AreaLinkMode> }) => put<HomeLinks>(`floors/${floorId}/home-link`, body);
 export const deleteFloor = (id: string, force = false) => del(`floors/${id}${force ? '?force=true' : ''}`);
 
 /** R1 (0.1.67): photos of sites and buildings. */
