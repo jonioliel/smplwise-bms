@@ -1,7 +1,4 @@
-# Base pinned by digest (tag kept for readability). Refresh: resolve the new digest read-only (anonymous ghcr.io token,
-# HEAD /v2/home-assistant/amd64-base-python/manifests/3.12-alpine3.22, header Docker-Content-Digest), then update this
-# line, build.yaml and management/upstream_watch.json together and rebuild.
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22@sha256:3c68563fbe55fdda9d11d6358d030969fc52da9eb41977caa1ff2bf3713c6a00
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22
 FROM ${BUILD_FROM}
 
 # poppler-utils provides pdftoppm/pdfinfo: PDF pages are rasterized in a separate, time-bounded process.
@@ -40,6 +37,6 @@ ENV SW_WWW_DIR=/app/www \
     SW_PORT=8099 \
     PYTHONUNBUFFERED=1
 
-LABEL io.hass.version="2.31.0" io.hass.type="addon" io.hass.arch="amd64|aarch64"
+LABEL io.hass.version="2.31.1" io.hass.type="addon" io.hass.arch="amd64|aarch64"
 
 CMD [ "/run.sh" ]
