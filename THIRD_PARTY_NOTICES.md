@@ -41,3 +41,19 @@ their license texts ship in the image under the packages' own directories.
 
 NOT VERIFIED: the real add-on image (Alpine 3.22, amd64 and aarch64) has not been built with these packages yet; the versions of
 the Alpine packages are therefore not recorded here (see docs/architecture/ELECTRICITY_BILL_PDF.md section 8).
+
+## Components reviewed in the T005 refresh (2026-10-31, v2.29.0)
+
+Full inventory, versions and the licence analysis: `docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md` sections 1-2.
+
+| Component | Where | License |
+|---|---|---|
+| paramiko 4.0.0 (+ bcrypt, PyNaCl: Apache-2.0; invoke: BSD-2-Clause) | add-on image (PyPI), SFTP off-box backups | LGPL-2.1; used unmodified as a separate library |
+| lit 3.3.3 / lit-html / lit-element / @lit/reactive-element / @lit-labs/ssr-dom-shim | the web UI bundle | BSD-3-Clause |
+| three 0.186.1 (including `three/addons` OrbitControls, GLTFExporter, RoundedBoxGeometry) | the web UI bundle (3D plans) | MIT |
+| qrcode-generator 1.4.4 | the web UI bundle | MIT |
+| Heebo UI fonts (woff2) | `frontend/public/fonts/`, `smplwise_vms/www/fonts/` | SIL OFL 1.1 - `OFL-Heebo.txt` next to the files |
+| Lobby fonts: Bodoni Moda, David Libre, Frank Ruhl Libre, IBM Plex Mono, IBM Plex Sans Hebrew | `frontend/public/fonts/lobby/`, `smplwise_vms/www/fonts/lobby/` | SIL OFL 1.1 - one `OFL-*.txt` per family |
+| Plan Studio 6 models and textures (Kenney and others) | `smplwise_vms/www/plan3d/` | CC0-1.0 - per-file source and hash in `plan3d/MANIFEST.json` |
+| WisKey command / error catalogue rc37-contract.4 | `docs/integrations/wiskey/catalog/rc37-contract.4/` | MIT (`LICENSE` in that folder) |
+| AndroidX (appcompat, activity-ktx, webkit, core-splashscreen, biometric), Material Components | the Android shell APK | Apache-2.0 |
