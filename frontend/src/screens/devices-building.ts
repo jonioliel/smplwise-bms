@@ -3443,7 +3443,7 @@ export class DevicesBuilding extends LitElement {
     };
     const kinds = summaryKindsShown(this.screen, c);
     // (one row on a control screen: the chosen tiles share it - the mockup)
-    return html`<div class="kpis" data-kpis data-summary=${kinds.join(' ')} style=${`--kn:${Math.max(1, kinds.length)}`}>${kinds.map((k) => one[k]())}</div>`;
+    return html`<div class="kpis" data-kpis data-summary=${kinds.join(' ')} style=${`--kn:${Math.max(1, kinds.length)};--kh:${Math.max(1, Math.ceil(kinds.length / 2))}`}>${kinds.map((k) => one[k]())}</div>`;
   }
 
   /** A floor's count pills as buttons (owner 2026-09-29): each opens the tiles' panel for its kind on that floor;
