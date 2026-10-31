@@ -5,3 +5,4 @@
 import './system-mapping';
 import './mapping-decide'; // slice 2: the exceptions step
 import './mapping-health'; // slice 2: the health card and the home's chip
+import './mapping-rules'; // slice 3: "מתקדם"
