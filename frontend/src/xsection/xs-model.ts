@@ -24,7 +24,9 @@ export const XS_ACK = ['hold', 'confirm', 'tap'] as const; // A: long press 1.2 
 export const XS_ACK_WHO = ['separate', 'viewers', 'admin'] as const; // A: anyone who sees the board, B: a new separate permission (default), C: administrators
 export const XS_ALARM_BAR = ['everywhere', 'home'] as const; // A: a red bar on every screen (default), B: only Home and the synoptic map
 export const XS_FIRE_COLUMN = ['hidden', 'dashed'] as const; // B: hidden until connected (default), A: a dashed "not connected" column
-export const XS_SYN_COLUMNS = ['all', 'few'] as const; // A: seven columns (default), B: temperature, light, alerts, fire
+export const XS_SYN_COLUMNS = ['all', 'few', 'custom'] as const; // A: seven columns (default), B: temperature, light, alerts, fire, C: the columns ticked in syn_custom
+/** SYN-COLUMNS-2321: every column of the board in its fixed order (the custom choice ticks any of them; the order never changes). */
+export const SYN_COLUMN_ORDER = ['light', 'temp', 'presence', 'cameras', 'doors', 'alerts', 'fire'] as const;
 
 export type XsColumn = (typeof XS_COLUMNS_ALL)[number];
 
@@ -39,6 +41,10 @@ export interface XsOptions {
   temp_threshold: number; // degrees from the target before a floor reads hot / cold
   syn_tab: boolean; // the synoptic tab on Home
   syn_columns: (typeof XS_SYN_COLUMNS)[number];
+  /** SYN-COLUMNS-2321: the columns of syn_columns=custom, in the board order (default: all seven). */
+  syn_custom: SynColumn[];
+  /** SYN-COLUMNS-2321: a column with no source on any floor of the building (no temperature sensors, no lights) is not drawn. Default ON. */
+  syn_hide_empty: boolean;
   syn_events: boolean; // the event strip beside the board on wide screens
   fire_column: (typeof XS_FIRE_COLUMN)[number];
   fire_ui: boolean; // MASTER SWITCH of the alarm UI (off: no bar, no acknowledge, nothing about fire anywhere)
@@ -59,6 +65,8 @@ export const XS_DEFAULT: Readonly<XsOptions> = {
   temp_threshold: 2,
   syn_tab: true,
   syn_columns: 'all',
+  syn_custom: [...SYN_COLUMN_ORDER],
+  syn_hide_empty: true,
   syn_events: true,
   fire_column: 'hidden',
   fire_ui: false,
@@ -76,7 +84,7 @@ export const PHONE_TILE_MAX_FLOORS = 12;
 
 /** The option set in its canonical form: every key present, an unknown value reads as the default (the server refuses it with 422). */
 export function normalizeXs(raw: unknown): XsOptions {
-  const out: XsOptions = { ...XS_DEFAULT };
+  const out: XsOptions = { ...XS_DEFAULT, syn_custom: [...XS_DEFAULT.syn_custom] };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   const r = raw as Record<string, unknown>;
   const pick = <T extends string>(v: unknown, set: readonly T[], d: T): T => (typeof v === 'string' && (set as readonly string[]).includes(v) ? (v as T) : d);
@@ -91,6 +99,8 @@ export function normalizeXs(raw: unknown): XsOptions {
   out.temp_threshold = typeof r.temp_threshold === 'number' && (XS_THRESHOLDS as readonly number[]).includes(r.temp_threshold) ? r.temp_threshold : XS_DEFAULT.temp_threshold;
   out.syn_tab = bool(r.syn_tab, XS_DEFAULT.syn_tab);
   out.syn_columns = pick(r.syn_columns, XS_SYN_COLUMNS, XS_DEFAULT.syn_columns);
+  out.syn_custom = Array.isArray(r.syn_custom) ? SYN_COLUMN_ORDER.filter((c) => (r.syn_custom as unknown[]).includes(c)) : [...XS_DEFAULT.syn_custom];
+  out.syn_hide_empty = bool(r.syn_hide_empty, XS_DEFAULT.syn_hide_empty);
   out.syn_events = bool(r.syn_events, XS_DEFAULT.syn_events);
   out.fire_column = pick(r.fire_column, XS_FIRE_COLUMN, XS_DEFAULT.fire_column);
   out.fire_ui = bool(r.fire_ui, XS_DEFAULT.fire_ui);
@@ -122,7 +132,7 @@ export function xsFromParams(base: Readonly<XsOptions>, params: URLSearchParams)
     const key = k.slice(3);
     if (!(key in XS_DEFAULT)) return;
     const d = (XS_DEFAULT as unknown as Record<string, unknown>)[key];
-    o[key] = typeof d === 'boolean' ? v === '1' || v === 'true' : typeof d === 'number' ? Number(v) : v;
+    o[key] = typeof d === 'boolean' ? v === '1' || v === 'true' : typeof d === 'number' ? Number(v) : Array.isArray(d) ? v.split(',').filter(Boolean) : v;
   });
   return normalizeXs(o);
 }
@@ -432,12 +442,67 @@ export function linksFold(opt: (typeof XS_LINKS)[number], floors: number, height
 /* ---------------------------------------------------------------- the synoptic columns */
 
 export type SynColumn = XsColumn | 'fire';
-/** The columns the board draws, in order. Presence follows the module; the fire column follows the connection and its option. */
-export function synColumns(o: Pick<XsOptions, 'syn_columns' | 'fire_column' | 'fire_ui'>, presenceOn: boolean, fireConnected: boolean): SynColumn[] {
-  const base: XsColumn[] = o.syn_columns === 'few' ? ['temp', 'light', 'alerts'] : ['light', 'temp', 'presence', 'cameras', 'doors', 'alerts'];
-  const cols: SynColumn[] = base.filter((c) => (c === 'presence' ? presenceOn : true));
-  if (o.fire_ui && (fireConnected || o.fire_column === 'dashed')) cols.push('fire');
-  return cols;
+type SynOpts = Pick<XsOptions, 'syn_columns' | 'fire_column' | 'fire_ui'> & Partial<Pick<XsOptions, 'syn_custom' | 'syn_hide_empty'>>;
+
+/**
+ * SYN-COLUMNS-2321: the metrics that have NO source on any floor of the building - drawn, they would be a column of "-" only.
+ * The rule is "the source does not exist", never "the value is 0": a floor that reports 0 lights on, 0 people or 0 open doors keeps its column.
+ *  - light / temp / doors: no floor WITH DATA has a value (lights counted, a reading or a target, an open-sensor count). When no floor has
+ *    data at all (the platform is disconnected, nothing is linked) nothing is hidden: that is an outage, said as "no data", not a missing source;
+ *  - presence: no floor has a count (the module answers for every floor when it is on); alerts: no floor has an alert source (none exists yet);
+ *  - cameras: the building has no camera at all, own or shared (a catalogue of zero cameras is not a source of camera numbers).
+ * The fire column is never hidden here: it has its own option (hidden until connected, or the dashed "not connected").
+ */
+export function emptyColumns(fl: readonly FloorSignal[]): XsColumn[] {
+  if (!fl.length) return [];
+  const live = fl.filter((f) => !f.nodata);
+  const none = (set: readonly FloorSignal[], pred: (f: FloorSignal) => boolean) => set.length > 0 && set.every(pred);
+  const out = new Set<XsColumn>();
+  if (none(live, (f) => f.lights === null || f.lit === null)) out.add('light');
+  if (none(live, (f) => f.temp === null && f.target === null)) out.add('temp');
+  if (none(fl, (f) => f.people === null)) out.add('presence');
+  if (none(fl, (f) => !f.cams && !f.shared)) out.add('cameras');
+  if (none(live, (f) => f.doorsOpen === null)) out.add('doors');
+  if (none(fl, (f) => f.alerts === null)) out.add('alerts');
+  return XS_COLUMNS_ALL.filter((c) => out.has(c));
+}
+
+/** The columns the options ask for, before the data has a say: the preset (all / few) or the custom ticks, always in the board order. */
+function chosenColumns(o: SynOpts): SynColumn[] {
+  if (o.syn_columns === 'few') return ['temp', 'light', 'alerts', 'fire'];
+  if (o.syn_columns === 'custom') return SYN_COLUMN_ORDER.filter((c) => (o.syn_custom ?? SYN_COLUMN_ORDER).includes(c));
+  return [...SYN_COLUMN_ORDER];
+}
+
+/**
+ * The columns the board draws, in order, and the ones left out because the building has no source for them (`hiddenEmpty`, for the quiet
+ * note under the board). Presence follows the module; the fire column follows the alarm UI, the connection and its option. Pass the floors
+ * (`fl`) for the hide-empty rule; without them (or with syn_hide_empty off) every chosen column is drawn.
+ */
+export function synBoardColumns(o: SynOpts, presenceOn: boolean, fireConnected: boolean, fl?: readonly FloorSignal[]): { cols: SynColumn[]; hiddenEmpty: XsColumn[] } {
+  const chosen = chosenColumns(o).filter((c) => (c === 'presence' ? presenceOn : c === 'fire' ? o.fire_ui && (fireConnected || o.fire_column === 'dashed') : true));
+  const empty = fl && o.syn_hide_empty !== false ? emptyColumns(fl) : [];
+  const hiddenEmpty = chosen.filter((c): c is XsColumn => c !== 'fire' && empty.includes(c));
+  return { cols: chosen.filter((c) => c === 'fire' || !empty.includes(c)), hiddenEmpty };
+}
+
+/** The columns the board draws, in order (see synBoardColumns). */
+export function synColumns(o: SynOpts, presenceOn: boolean, fireConnected: boolean, fl?: readonly FloorSignal[]): SynColumn[] {
+  return synBoardColumns(o, presenceOn, fireConnected, fl).cols;
+}
+
+/** The phone keeps at most three signal columns (and fire): lighting, temperature and alerts first, then what is left of doors, presence, cameras. */
+export function phoneColumns(cols: readonly SynColumn[]): SynColumn[] {
+  const rank: SynColumn[] = ['light', 'temp', 'alerts', 'doors', 'presence', 'cameras'];
+  const keep = new Set<SynColumn>(rank.filter((c) => cols.includes(c)).slice(0, 3));
+  if (cols.includes('fire')) keep.add('fire');
+  return cols.filter((c) => keep.has(c));
+}
+
+/** SYN-COLUMNS-2321, the cross-section (rows, tiles, compact card): which of its two metrics it draws - the same hide-empty rule as the board. */
+export function xsMetrics(fl: readonly FloorSignal[], o: Partial<Pick<XsOptions, 'syn_hide_empty'>>): { temp: boolean; light: boolean } {
+  const empty = o.syn_hide_empty === false ? [] : emptyColumns(fl);
+  return { temp: !empty.includes('temp'), light: !empty.includes('light') };
 }
 
 /* ---------------------------------------------------------------- fire (no integration exists: demo only) */

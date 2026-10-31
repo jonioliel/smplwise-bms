@@ -18,9 +18,11 @@ import { ackName, mayAck } from '../xsection/sw-fire-bar';
 import { xi } from '../xsection/xs-icons';
 import { matchLine, unlinkedFloors } from '../xsection/sw-xsection';
 import { phoneRestricted } from '../shell/phone';
-import { alarmFloors, onXsOptions, signalsOf, synColumns, tempState, totalsOf, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsOptions } from '../xsection/xs-model';
+import { alarmFloors, onXsOptions, phoneColumns, signalsOf, synBoardColumns, tempState, totalsOf, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsOptions } from '../xsection/xs-model';
+import type { XtKey } from '../i18n/xsection';
 
 const REFRESH_MS = 30_000;
+const COL_LABEL: Record<SynColumn, XtKey> = { light: 'colLight', temp: 'colTemp', presence: 'colPresence', cameras: 'colCameras', doors: 'colDoors', alerts: 'colAlerts', fire: 'colFire' };
 const clock = () => new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 
 /**
@@ -119,6 +121,9 @@ export class DevicesSynoptic extends LitElement {
     .detail { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-block-size: 40px; padding-block-start: 4px; border-block-start: 1px solid var(--sw-border); color: var(--sw-text-2); font-size: var(--sw-fs-base); }
     .detail b { color: var(--sw-heading); }
     .detail .grow { flex: 1; min-inline-size: 0; }
+    /* SYN-COLUMNS-2321: the columns left out for want of a source, said once and quietly at the foot of the board */
+    .hidnote { margin-inline-start: auto; color: var(--sw-text-3); font-size: var(--sw-fs-state); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-inline-size: 0; max-inline-size: 100%; }
+    .hidnote .lnk { color: var(--sw-text-2); font-weight: var(--sw-fw-medium); }
     .empty { display: grid; place-items: center; padding: 24px; color: var(--sw-text-3); }
     .nc { display: flex; gap: 8px; align-items: center; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .alarmpanel { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--sw-r-md); background: color-mix(in srgb, var(--sw-danger) 80%, black); color: var(--sw-text-inverse); }
@@ -206,7 +211,7 @@ export class DevicesSynoptic extends LitElement {
 
   private head(c: SynColumn): TemplateResult {
     const m: Record<SynColumn, [string, string]> = { light: ['light', xt('colLight')], temp: ['therm', xt('colTemp')], presence: ['person', xt('colPresence')], cameras: ['cam', xt('colCameras')], doors: ['door', xt('colDoors')], alerts: ['bell', xt('colAlerts')], fire: ['flame', xt('colFire')] };
-    return html`<span class=${c === 'presence' || c === 'doors' || c === 'cameras' ? 'hide-phone' : ''} data-syn-col=${c}>${xi(m[c][0])}${m[c][1]}</span>`;
+    return html`<span data-syn-col=${c}>${xi(m[c][0])}${m[c][1]}</span>`;
   }
 
   private cell(c: SynColumn, f: FloorSignal, o: XsOptions, fire: ReturnType<typeof fireReport>) {
@@ -222,11 +227,11 @@ export class DevicesSynoptic extends LitElement {
       case 'temp':
         return f.temp === null || f.nodata ? html`<span class="deg none" title=${xt('noSource')}>-</span>` : html`<span class="deg" data-t=${t ?? ''}>${f.temp.toFixed(1)}<small>°</small></span>`;
       case 'presence':
-        return f.people === null ? html`<span class="cell muted hide-phone">-</span>` : html`<span class="cell hide-phone ${f.people ? '' : 'muted'}">${xi('person')}<b>${f.people}</b></span>`;
+        return f.people === null ? html`<span class="cell muted">-</span>` : html`<span class="cell ${f.people ? '' : 'muted'}">${xi('person')}<b>${f.people}</b></span>`;
       case 'cameras':
-        return html`<span class="cell hide-phone ${f.cams ? '' : 'muted'}">${xi('cam')}<b>${f.cams}</b>${f.shared ? html`<span class="w">${xt('camsShared', { n: f.shared })}</span>` : nothing}</span>`;
+        return html`<span class="cell ${f.cams ? '' : 'muted'}">${xi('cam')}<b>${f.cams}</b>${f.shared ? html`<span class="w">${xt('camsShared', { n: f.shared })}</span>` : nothing}</span>`;
       case 'doors':
-        return f.doorsOpen === null ? html`<span class="cell muted hide-phone" title=${xt('noSource')}>-</span>` : html`<span class="cell hide-phone ${f.doorsOpen ? '' : 'muted'}">${xi('door')}<b>${f.doorsOpen}</b></span>`;
+        return f.doorsOpen === null ? html`<span class="cell muted" title=${xt('noSource')}>-</span>` : html`<span class="cell ${f.doorsOpen ? '' : 'muted'}">${xi('door')}<b>${f.doorsOpen}</b></span>`;
       case 'alerts':
         return f.alerts === null ? html`<span class="cell muted" title=${xt('alertsNone')}>-</span>` : f.alerts ? html`<span class="cell warn">${xi('bell')}<b>${f.alerts}</b></span>` : html`<span class="cell muted">0</span>`;
       case 'fire': {
@@ -270,12 +275,15 @@ export class DevicesSynoptic extends LitElement {
     setFireMock(o.fire_ui ? mock : null, sigs);
     const rep = o.fire_ui ? fireReport() : { connected: false, demo: false, floors: {} };
     const presenceOn = this.data?.demo ? true : !!this.data?.presenceOn;
-    const cols = synColumns(o, presenceOn, rep.connected);
+    // SYN-COLUMNS-2321: the chosen columns (preset or custom), less the ones the building has no source for (syn_hide_empty, on by default)
+    const { cols, hiddenEmpty } = synBoardColumns(o, presenceOn, rep.connected, sigs);
+    const has = (c: SynColumn) => cols.includes(c);
     const t = totalsOf(sigs, o.temp_threshold);
     const alarms = o.fire_ui ? alarmFloors(rep) : [];
     const alarmF = sigs.find((s) => s.id === alarms[0]);
     const hasBelow = sigs.some((s) => s.level < 0) && sigs.some((s) => s.level >= 0);
-    const phoneCols = cols.filter((c) => c === 'light' || c === 'temp' || c === 'alerts' || c === 'fire');
+    const phoneCols = phoneColumns(cols);
+    this.phoneSet = new Set(phoneCols);
     let groundDone = false;
     const rows: TemplateResult[] = [];
     sigs.forEach((f) => {
@@ -283,7 +291,7 @@ export class DevicesSynoptic extends LitElement {
         groundDone = true;
         rows.push(html`<div class="ground" aria-hidden="true"></div>`);
       }
-      const tt = tempState(f, o.temp_threshold);
+      const tt = has('temp') ? tempState(f, o.temp_threshold) : null;
       const fz = rep.floors[f.id];
       rows.push(html`<button class="srow sgrid" style="--cols:${cols.length};--pcols:${phoneCols.length}" data-syn-row=${f.id} aria-pressed=${this.sel === f.id} data-temp=${tt ?? ''} ?data-off=${f.nodata} data-fire=${fz && fz.state !== 'ok' ? fz.state : ''} @click=${() => this.pick(f.id)}
         aria-label=${`${f.name}${f.nodata ? `, ${xt('noData')}` : ''}${fz?.state === 'alarm' ? `, ${xt('fireAlarm')} (${xt('fireDemo')})` : ''}`}>
@@ -293,10 +301,10 @@ export class DevicesSynoptic extends LitElement {
     });
     const sf = sigs.find((s) => s.id === this.sel) ?? null;
     const chips = html`<span class="chips">
-      ${t.avg !== null ? html`<span class="chip">${xi('therm')}${xt('avgTemp')} <b>${t.avg.toFixed(1)}°</b></span>` : nothing}
-      ${t.litKnown ? html`<span class="chip warm">${xi('light')}<b>${t.lit}/${t.lights}</b> ${xt('lightsOn')}</span>` : nothing}
-      ${cols.includes('presence') && t.people !== null ? html`<span class="chip hide-phone">${xi('person')}<b>${t.people}</b> ${xt('colPresence')}</span>` : nothing}
-      ${t.doorsOpen !== null ? html`<span class="chip hide-phone">${xi('door')}<b>${t.doorsOpen}</b> ${xt('colDoors')}</span>` : nothing}
+      ${has('temp') && t.avg !== null ? html`<span class="chip" data-syn-chip="temp">${xi('therm')}${xt('avgTemp')} <b>${t.avg.toFixed(1)}°</b></span>` : nothing}
+      ${has('light') && t.litKnown ? html`<span class="chip warm" data-syn-chip="light">${xi('light')}<b>${t.lit}/${t.lights}</b> ${xt('lightsOn')}</span>` : nothing}
+      ${has('presence') && t.people !== null ? html`<span class="chip hide-phone" data-syn-chip="presence">${xi('person')}<b>${t.people}</b> ${xt('colPresence')}</span>` : nothing}
+      ${has('doors') && t.doorsOpen !== null ? html`<span class="chip hide-phone" data-syn-chip="doors">${xi('door')}<b>${t.doorsOpen}</b> ${xt('colDoors')}</span>` : nothing}
       ${t.nodata ? html`<span class="chip dash">${xi('offline')}${xt('noDataCount', { n: t.nodata })}</span>` : nothing}
       ${alarms.length ? html`<span class="chip alert">${xi('flame')}${xt('fireAlarm')} <span>${xt('fireDemo')}</span></span>` : nothing}
       ${o.fire_ui && !rep.connected && o.fire_column === 'dashed' ? html`<span class="chip dash">${xi('flame')}${xt('colFire')}: ${xt('fireNotConnected')}</span>` : nothing}
@@ -308,16 +316,16 @@ export class DevicesSynoptic extends LitElement {
       <div class="sgrid shdr" style="--cols:${cols.length};--pcols:${phoneCols.length}"><span>${xt('synFloor')}</span>${cols.map((c) => (this.isPhoneCol(c) ? this.head(c) : html`<span class="hide-phone">${this.head(c)}</span>`))}</div>
       <div class="srows" style="--n:${sigs.length}" ?data-dense=${(window.innerHeight - 330) / Math.max(1, sigs.length) < 40}>${rows}</div>
       <div class="detail" data-syn-detail>${sf
-        ? html`<b>${bidi(sf.name)}</b><span class="grow">${matchLine(sf.match) ? `${matchLine(sf.match)!.text} · ` : ''}${sf.nodata ? xt('noSource') : `${xt('colTemp')}: ${sf.temp === null ? '-' : `${sf.temp.toFixed(1)}°`} · ${xt('colLight')}: ${sf.lit === null ? '-' : `${sf.lit}/${sf.lights}`} · ${xt('colCameras')}: ${sf.cams}${sf.people !== null ? ` · ${xt('colPresence')}: ${sf.people}` : ''}${sf.doorsOpen !== null ? ` · ${xt('colDoors')}: ${sf.doorsOpen}` : ''}`}</span>
+        ? html`<b>${bidi(sf.name)}</b><span class="grow">${matchLine(sf.match) ? `${matchLine(sf.match)!.text} · ` : ''}${sf.nodata ? xt('noSource') : this.detailText(sf, has)}</span>
           ${matchLine(sf.match)?.linked === false && this.canLink() ? html`<button class="lnk" data-syn-link=${sf.id} @click=${() => this.linkFloor(b, sf.id)}>${xt('matchFix')}</button>` : nothing}
           <sw-button size="sm" variant="ghost" icon="map" data-syn-open @click=${() => navigate(`/explore/floors/${sf.id}`)}>${xt('openMap')}</sw-button>`
-        : this.allLine(b, sigs)}</div>
+        : this.allLine(b, sigs)}${this.hiddenNote(hiddenEmpty)}</div>
     </section>`;
     const wide = !this.wall;
     const tree = wide
       ? html`<nav class="card tree hide-phone hide-narrow" aria-label=${xt('synAll')} data-syn-tree>
-          <button aria-pressed=${this.sel === 'all'} @click=${() => (this.sel = 'all')}>${xi('synoptic')}<span class="nm">${xt('synAll')}</span><span class="lit">${t.litKnown ? t.lit : '-'}${xi('light')}</span></button>
-          ${sigs.map((f) => html`<button aria-pressed=${this.sel === f.id} data-syn-tree-row=${f.id} @click=${() => (this.sel = f.id)}><span class="nm" dir="auto">${bidi(f.name)}</span><span class="lit">${f.lit === null ? '-' : f.lit}${xi('light')}</span></button>`)}
+          <button aria-pressed=${this.sel === 'all'} @click=${() => (this.sel = 'all')}>${xi('synoptic')}<span class="nm">${xt('synAll')}</span>${has('light') ? html`<span class="lit">${t.litKnown ? t.lit : '-'}${xi('light')}</span>` : nothing}</button>
+          ${sigs.map((f) => html`<button aria-pressed=${this.sel === f.id} data-syn-tree-row=${f.id} @click=${() => (this.sel = f.id)}><span class="nm" dir="auto">${bidi(f.name)}</span>${has('light') ? html`<span class="lit">${f.lit === null ? '-' : f.lit}${xi('light')}</span>` : nothing}</button>`)}
         </nav>`
       : nothing;
     const events = wide && o.syn_events
@@ -360,8 +368,28 @@ export class DevicesSynoptic extends LitElement {
     navigate(`/explore/buildings/${b.id}/floors`, { ...keep, ha: floorId });
   }
 
+  /** The phone's columns of the current render (phoneColumns: at most three signals, lighting / temperature / alerts first). */
+  private phoneSet = new Set<SynColumn>();
   private isPhoneCol(c: SynColumn): boolean {
-    return c === 'light' || c === 'temp' || c === 'alerts' || c === 'fire';
+    return this.phoneSet.has(c);
+  }
+
+  /** The selected floor's line: only the columns the board draws (a hidden column is not repeated here as a "-"). */
+  private detailText(f: FloorSignal, has: (c: SynColumn) => boolean): string {
+    const parts: string[] = [];
+    if (has('temp')) parts.push(`${xt('colTemp')}: ${f.temp === null ? '-' : `${f.temp.toFixed(1)}°`}`);
+    if (has('light')) parts.push(`${xt('colLight')}: ${f.lit === null ? '-' : `${f.lit}/${f.lights}`}`);
+    if (has('cameras')) parts.push(`${xt('colCameras')}: ${f.cams}`);
+    if (has('presence') && f.people !== null) parts.push(`${xt('colPresence')}: ${f.people}`);
+    if (has('doors') && f.doorsOpen !== null) parts.push(`${xt('colDoors')}: ${f.doorsOpen}`);
+    return parts.join(' · ');
+  }
+
+  /** SYN-COLUMNS-2321: the quiet note under the board - which columns the hide-empty rule left out, and the way to the option. */
+  private hiddenNote(hidden: readonly SynColumn[]) {
+    if (!hidden.length) return nothing;
+    const names = hidden.map((c) => xt(COL_LABEL[c])).join(', ');
+    return html`<span class="hidnote" data-syn-hidden=${hidden.join(',')}>${xt('hiddenEmpty', { cols: names })}${this.wall ? nothing : html` · <button class="lnk" data-syn-hidden-opt @click=${() => navigate('/system/diagnostics', { focus: 'xs' })}>${xt('hiddenEmptyOpt')}</button>`}</span>`;
   }
 
   private frame(body: TemplateResult, n: number, ready = false) {

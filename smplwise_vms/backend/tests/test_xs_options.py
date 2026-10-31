@@ -25,6 +25,8 @@ DEFAULT = {
     "temp_threshold": 2,
     "syn_tab": True,
     "syn_columns": "all",
+    "syn_custom": ["light", "temp", "presence", "cameras", "doors", "alerts", "fire"],
+    "syn_hide_empty": True,
     "syn_events": True,
     "fire_column": "hidden",
     "fire_ui": False,
@@ -43,7 +45,9 @@ CHANGED = {
     "animate": False,
     "temp_threshold": 3,
     "syn_tab": False,
-    "syn_columns": "few",
+    "syn_columns": "custom",
+    "syn_custom": ["temp", "doors"],
+    "syn_hide_empty": False,
     "syn_events": False,
     "fire_column": "dashed",
     "fire_ui": True,
@@ -68,6 +72,12 @@ BAD = [
     {"alarm_bar": "nowhere"},
     {"unknown_option": True},
     {"wall": True, "extra": False},
+    {"syn_columns": "some"},
+    {"syn_hide_empty": "yes"},
+    {"syn_custom": "light"},  # a list, not a string
+    {"syn_custom": ["light", "kitchen"]},  # not a column
+    {"syn_custom": ["temp", "temp"]},  # each column once
+    {"syn_custom": [1]},
 ]
 
 
@@ -83,6 +93,19 @@ def test_normalize_fills_defaults_and_refuses_the_rest():
     for bad in BAD:
         with pytest.raises(ValueError):
             xs_options.normalize(bad)
+
+
+def test_syn_custom_is_kept_in_the_board_order_and_may_be_empty():
+    assert xs_options.normalize({"syn_custom": ["fire", "light", "temp"]})["syn_custom"] == ["light", "temp", "fire"]
+    assert xs_options.normalize({"syn_custom": []})["syn_custom"] == []
+    assert xs_options.normalize({"syn_columns": "few"})["syn_columns"] == "few", "the presets stay"
+    # the defaults are not shared between calls (a caller that edits the list does not change the next answer)
+    xs_options.normalize({})["syn_custom"].append("x")
+    assert xs_options.normalize({})["syn_custom"] == DEFAULT["syn_custom"]
+
+
+def test_hiding_empty_columns_is_on_by_default(client):
+    assert client.get(URL).json()["settings"]["ui.xs"]["syn_hide_empty"] is True
 
 
 def test_defaults_are_the_owners_and_the_alarm_ui_is_off(client):

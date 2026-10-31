@@ -630,7 +630,7 @@ def _stored_xs(raw: Any) -> dict[str, Any]:
     try:
         return xs_options.normalize(json.loads(raw) if isinstance(raw, str) else raw)
     except ValueError:
-        return dict(xs_options.DEFAULT)
+        return xs_options.normalize({})
 
 
 def _stored_timeline_colors(raw: Any) -> dict[str, str]:

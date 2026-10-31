@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { xt, type XtKey } from '../i18n/xsection';
 import { xi } from './xs-icons';
-import { tempState, totalsOf, XS_DEFAULT, type FloorHow, type FloorMatchInfo, type FloorSignal, type XsOptions } from './xs-model';
+import { tempState, totalsOf, xsMetrics, XS_DEFAULT, type FloorHow, type FloorMatchInfo, type FloorSignal, type XsOptions } from './xs-model';
 
 /** A stairs or a lift that links floors: the floors it reaches (ids, top to bottom as drawn) and those whose twin is not published yet. */
 export interface SectionLink { kind: 'stairs' | 'lift'; label: string; floors: string[]; pending?: string[] }
@@ -35,20 +35,22 @@ export function panes(f: Pick<FloorSignal, 'lit' | 'lights'>, k: number): Templa
 }
 
 /** The phone tile beside a floor card (option A): level, degrees and 3 windows. A button: it selects like the card. */
-export function xsTile(f: FloorSignal, o: XsOptions, selected: boolean, pick: () => void): TemplateResult {
+export function xsTile(f: FloorSignal, o: XsOptions, selected: boolean, pick: () => void, m: { temp: boolean; light: boolean } = { temp: true, light: true }): TemplateResult {
   const t = tempState(f, o.temp_threshold);
   const short = f.level === 0 ? xt('ground').slice(0, 1) : f.level > 0 ? String(f.level) : `‎${f.level}`;
+  // SYN-COLUMNS-2321 (`m`, xsMetrics of the building): a metric the building has no source for draws nothing, not a "-" or an empty facade
   return html`<button class="xtile" data-xs-tile=${f.id} aria-pressed=${selected} aria-label=${xt('tileFor', { name: f.name })} data-temp=${t ?? ''} ?data-off=${f.nodata} @click=${pick}>
-    <span class="lv">${short}</span><span class="tv">${f.nodata || f.temp === null ? '-' : `${f.temp.toFixed(1)}°`}</span>${f.nodata ? nothing : panes(f, 3)}
+    <span class="lv">${short}</span>${m.temp ? html`<span class="tv">${f.nodata || f.temp === null ? '-' : `${f.temp.toFixed(1)}°`}</span>` : nothing}${f.nodata || !m.light ? nothing : panes(f, 3)}
   </button>`;
 }
 
 /** The chips of the section head and the compact card: the whole building, with the unknown left out in words. */
 export function totalChips(fl: FloorSignal[], o: XsOptions, withNoData = true): TemplateResult {
   const t = totalsOf(fl, o.temp_threshold);
+  const m = xsMetrics(fl, o);
   return html`<span class="chips">
-    ${t.avg !== null ? html`<span class="chip">${xi('therm')}${xt('avgTemp')} <b>${t.avg.toFixed(1)}°</b></span>` : nothing}
-    ${t.litKnown ? html`<span class="chip warm">${xi('light')}<b>${t.lit}/${t.lights}</b> ${xt('lightsOn')}</span>` : nothing}
+    ${m.temp && t.avg !== null ? html`<span class="chip">${xi('therm')}${xt('avgTemp')} <b>${t.avg.toFixed(1)}°</b></span>` : nothing}
+    ${m.light && t.litKnown ? html`<span class="chip warm">${xi('light')}<b>${t.lit}/${t.lights}</b> ${xt('lightsOn')}</span>` : nothing}
     ${t.hot ? html`<span class="chip hot">${xi('flame')}${xt('hotCount', { n: t.hot })}</span>` : nothing}
     ${t.cold ? html`<span class="chip cold">${xi('snow')}${xt('coldCount', { n: t.cold })}</span>` : nothing}
     ${withNoData && t.nodata ? html`<span class="chip off">${xi('offline')}${xt('noDataCount', { n: t.nodata })}</span>` : nothing}
@@ -224,19 +226,22 @@ export class SwXSection extends LitElement {
     const sub = f.nodata
       ? html`<span class="s warn">${ml ? ml.text : xt('noDataSince')}${ml?.linked ? ` · ${xt('noDataQuiet')}` : ''}</span>`
       : html`<span class="s">${ml ? ml.text : xt('level', { n: ltrNum(f.level) })}${f.target !== null ? ` · ${xt('target', { n: `${f.target.toFixed(1)}°` })}` : ''}</span>`;
-    const label = xt('floorLabel', { name: f.name, temp: f.nodata || f.temp === null ? xt('noTemp') : xt('degrees', { n: f.temp.toFixed(1) }), lit: f.lit === null ? xt('noData') : xt('litOf', { lit: f.lit, lights: f.lights ?? 0 }), alert: alarm ? `, ${xt('fireAlarm')} (${xt('fireDemo')})` : '' }) + (ml ? ` · ${ml.text}` : '');
+    const m = xsMetrics(this.floors, this.opts);
+    const label = (m.temp && m.light
+      ? xt('floorLabel', { name: f.name, temp: f.nodata || f.temp === null ? xt('noTemp') : xt('degrees', { n: f.temp.toFixed(1) }), lit: f.lit === null ? xt('noData') : xt('litOf', { lit: f.lit, lights: f.lights ?? 0 }), alert: alarm ? `, ${xt('fireAlarm')} (${xt('fireDemo')})` : '' })
+      : [f.name, m.temp ? (f.nodata || f.temp === null ? xt('noTemp') : xt('degrees', { n: f.temp.toFixed(1) })) : '', m.light && f.lit !== null ? xt('litOf', { lit: f.lit, lights: f.lights ?? 0 }) : '', alarm ? `${xt('fireAlarm')} (${xt('fireDemo')})` : ''].filter(Boolean).join(', ')) + (ml ? ` · ${ml.text}` : '');
     const sel = this.selectedId === f.id;
     const radius = box ? (box.height >= 64 ? 'var(--sw-r-lg)' : box.height >= 40 ? 'var(--sw-r-md)' : 'var(--sw-r-sm)') : '';
     const style = `--i:${index}${box ? `;top:${box.top}px;block-size:${box.height}px;border-radius:${radius}` : ''}`;
     return html`<button class="row ${f.level < 0 ? 'below' : ''} ${sel ? 'sel' : ''} ${this.hoverId === f.id ? 'hl' : ''}" style=${style} data-xs-row=${f.id} aria-pressed=${sel} aria-label=${label}
         data-temp=${t ?? ''} ?data-off=${f.nodata} data-fire=${alarm ? 'alarm' : ''} @click=${() => this.pick(f.id)} @pointerenter=${(e: PointerEvent) => e.pointerType === 'mouse' && this.hover(f.id)} @pointerleave=${(e: PointerEvent) => e.pointerType === 'mouse' && this.hover(null)}>
       <span class="nm"><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span>${sub}</span>
-      ${f.nodata ? html`<span class="quiet" title=${ml?.text ?? ''}>${xt('noDataQuiet')}</span>` : panes(f, 10)}
+      ${f.nodata ? html`<span class="quiet" title=${ml?.text ?? ''}>${xt('noDataQuiet')}</span>` : m.light ? panes(f, 10) : html`<span></span>`}
       ${f.nodata && !alarm ? nothing : html`<span class="val">
         ${alarm ? html`<span class="chip alarm">${xi('flame')}<span class="w">${xt('fireAlarm')}</span></span>` : nothing}
-        ${f.nodata ? nothing : t === 'hot' ? html`<span class="chip hot">${xi('flame')}<span class="w">${xt('hot')}</span></span>` : t === 'cold' ? html`<span class="chip cold">${xi('snow')}<span class="w">${xt('cold')}</span></span>` : nothing}
-        ${f.nodata ? nothing : html`<span class="chip ${f.lit ? 'warm' : ''} lc">${xi('light')}<b>${litText(f)}</b></span>`}
-        ${f.nodata ? nothing : deg(f)}
+        ${f.nodata || !m.temp ? nothing : t === 'hot' ? html`<span class="chip hot">${xi('flame')}<span class="w">${xt('hot')}</span></span>` : t === 'cold' ? html`<span class="chip cold">${xi('snow')}<span class="w">${xt('cold')}</span></span>` : nothing}
+        ${f.nodata || !m.light ? nothing : html`<span class="chip ${f.lit ? 'warm' : ''} lc">${xi('light')}<b>${litText(f)}</b></span>`}
+        ${f.nodata || !m.temp ? nothing : deg(f)}
       </span>`}
     </button>`;
   }
@@ -287,8 +292,9 @@ export class SwXSection extends LitElement {
 
   private legend(fl: FloorSignal[]) {
     const links = this.shaftLinks(fl);
+    const m = xsMetrics(fl, this.opts);
     return html`<div class="legend">
-      <span><i class="cold"></i>${xt('cold')}</span><span><i class="hot"></i>${xt('hot')}</span><span><i class="lit"></i>${xt('lightsOn')}</span>
+      ${m.temp ? html`<span><i class="cold"></i>${xt('cold')}</span><span><i class="hot"></i>${xt('hot')}</span>` : nothing}${m.light ? html`<span><i class="lit"></i>${xt('lightsOn')}</span>` : nothing}
       ${links.some((l) => l.kind === 'stairs') ? html`<span><i class="ln d"></i>${xt('stairs')}</span>` : nothing}${links.some((l) => l.kind === 'lift') ? html`<span><i class="ln"></i>${xt('lift')}</span>` : nothing}
     </div>`;
   }
@@ -397,13 +403,14 @@ export class SwXsCompact extends LitElement {
     const hasBelow = fl.some((f) => f.level < 0) && fl.some((f) => f.level >= 0);
     let g = false;
     const rows: TemplateResult[] = [];
+    const m = xsMetrics(fl, this.opts);
     for (const f of show) {
       if (hasBelow && f.level < 0 && !g) {
         g = true;
         rows.push(html`<i class="gnd"></i>`);
       }
       const t = tempState(f, this.opts.temp_threshold);
-      rows.push(html`<span class="r ${this.selectedId === f.id ? 'sel' : ''}" data-temp=${t ?? ''} ?data-off=${f.nodata}>${mh >= 12 && !f.nodata ? panes(f, 4) : html`<span></span>`}<span>${mh >= 11 ? (f.nodata || f.temp === null ? '-' : `${f.temp.toFixed(1)}°`) : ''}</span></span>`);
+      rows.push(html`<span class="r ${this.selectedId === f.id ? 'sel' : ''}" data-temp=${t ?? ''} ?data-off=${f.nodata}>${mh >= 12 && !f.nodata && m.light ? panes(f, 4) : html`<span></span>`}<span>${mh >= 11 && m.temp ? (f.nodata || f.temp === null ? '-' : `${f.temp.toFixed(1)}°`) : ''}</span></span>`);
     }
     return html`<button data-xs-compact aria-label=${xt('sectionTitle')} @click=${() => this.dispatchEvent(new CustomEvent('xs-open-sheet', { bubbles: true, composed: true }))}>
       <span><b class="tt">${xi('section')}${xt('sectionTitle')}</b>${totalChips(fl, this.opts)}</span>
