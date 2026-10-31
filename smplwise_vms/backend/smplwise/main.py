@@ -861,9 +861,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(calendar_router.open_router, prefix=api, tags=["calendar"])  # module state, settings, guest purge: answer while the module is off
     app.include_router(calendar_router.router, prefix=api, tags=["calendar"])
-    from .routers import calendar_sync as calendar_sync_router  # CALENDARS-298 phase 2: external calendar connections, bindings, manual sync (no real provider yet)
+    from .routers import calendar_sync as calendar_sync_router  # CALENDARS-298 phase 2: external calendar connections, bindings, manual sync
 
     app.include_router(calendar_sync_router.router, prefix=api, tags=["calendar"])
+    from .routers import calendar_feeds as calendar_feeds_router  # CALCONNECT-2330: iCal OUT feeds (management + the token document)
+    from .services.calendar_sync import credentials as calendar_credentials
+    from .services.calendar_sync import registry as calendar_registry
+
+    calendar_credentials.RUNTIME.configure(app.state.db, settings.data_dir)  # CALCONNECT-2330: the real adapters read sealed credentials through it
+    calendar_registry.install_builtin()  # iCal IN, Google, Microsoft; they run only for an authorised connection while the module is on
+    app.include_router(calendar_feeds_router.router, prefix=api, tags=["calendar"])
+    app.include_router(calendar_feeds_router.public_router, prefix=api, tags=["calendar"])  # the token document: no signed-in person (a subscriber cannot sign in)
     from .routers import transit as transit_router  # BUSTIMES-295: הגדרות › תחבורה ציבורית (stops, catalogue, health); the TV digest is a notices display route
 
     app.include_router(transit_router.router, prefix=api, tags=["transit"])

@@ -735,3 +735,25 @@ def seal_calendar_sync(data_dir: Path, binding_id: str, field: str, plaintext: s
 
 def open_calendar_sync(data_dir: Path, binding_id: str, field: str, blob: str) -> str:
     return _open(_Home(data_dir), _cal_sync_aad(binding_id, field), blob)
+
+
+# ---------------------------------------------------------------- calendar connection secrets (CALCONNECT-2330, contract 15.2)
+# The owner's OAuth client secret, the refresh token and an iCal-in address of one connection; associated data
+# `"cal_conn|<connection id>|<field>"` - a blob moved to another connection or field does not decrypt.
+
+CAL_CONN_FIELDS = ("client_secret", "refresh_token", "feed_url")
+
+
+def _cal_conn_aad(connection_id: str, field: str) -> bytes:
+    if not isinstance(connection_id, str) or not 1 <= len(connection_id) <= 64 or any(ord(ch) < 32 or ord(ch) == 127 or ch == "|" for ch in connection_id) \
+            or field not in CAL_CONN_FIELDS:
+        raise SecretError("not a secret field")
+    return f"cal_conn|{connection_id}|{field}".encode("utf-8")
+
+
+def seal_calendar_secret(data_dir: Path, connection_id: str, field: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _cal_conn_aad(connection_id, field), plaintext)
+
+
+def open_calendar_secret(data_dir: Path, connection_id: str, field: str, blob: str) -> str:
+    return _open(_Home(data_dir), _cal_conn_aad(connection_id, field), blob)

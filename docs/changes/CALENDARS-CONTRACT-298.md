@@ -642,6 +642,41 @@ series (RRULE) import and series edits from outside (an inbound change to a seri
 overrides of single occurrences are not exported, the engine holds the write transaction while an adapter runs (fine for the fake; a network
 adapter must split pull / apply / push first).
 
+### 12.7 CALCONNECT-2330 - the connect flow (phases 4-6 server + screen; branch `pilot/CALCONNECT-2330`)
+
+Built: real adapters `ics.py` (iCal IN), `google.py` (Calendar v3), `microsoft.py` (Graph v1.0), registered by `registry.install_builtin()`
+at start-up (they run only for an authorised connection while `enabled` and `sync_enabled` are on); `oauth.py` (Google installed-app flow:
+code + PKCE S256 with the loopback redirect `http://127.0.0.1:8749/` and a pasted address, state single use, bound to the connection and
+the person, 10 min; Microsoft device-code grant; refresh with rotation; Google revoke); `credentials.py` (client id plain, client secret /
+refresh token / iCal address sealed `cal_conn|<id>|<field>` in `settings` under `calendar.conn.<id>.`; no migration); `rest.py` (one
+authorised call, 401 -> refresh once, 429 / rate reasons -> `rate_limited`, quota reasons -> `quota_exceeded`, 5xx ->
+`provider_unavailable`, links followed on the same API host only); `engine.run_connection` / `run_due_db` (no transaction open while an
+adapter waits: lease write -> pulls -> apply + plan pushes -> pushes -> record + state + lease); iCal OUT feeds (`routers/calendar_feeds.py`).
+
+Deviations recorded (not silently resolved): (1) 13.5 / 15.4 describe a web redirect + `GET /calendar/oauth/callback`; a headless add-on
+behind ingress has no address Google accepts as a web redirect, so Google uses the installed-app loopback flow with a pasted address and
+Microsoft the device-code flow - no callback route, no public OAuth surface. (2) The lead's task asked for "minimal scopes - calendar
+events only"; owner answer C8 (binding) fixed the full calendar scope with a setting. The default stays `full`; `sync_google_scope =
+events` asks for `calendar.events` + `calendar.calendarlist.readonly`; read connections ask for the read-only variants. (3) The feed
+document `GET /calendar/feed/{token}.ics` is the module's only route without a signed-in person; off by default (`feeds_enabled`), 404 for
+anything unknown, 30 a minute per token; public exposure still waits for the 15.11 review.
+
+| Method | Path | Notes |
+|---|---|---|
+| PUT | `/calendar/connections/{id}/client` | `{client_id, client_secret?, tenant?}`; owner or admin; a new client id drops the authorisation |
+| PUT | `/calendar/connections/{id}/feed` | `{url}` (ics_in): https / webcal, syntax + names checked, sealed; every fetch re-checks every address |
+| POST | `/calendar/connections/{id}/authorize` | Google `{flow: paste, authorize_url, redirect_prefix}`; Microsoft `{flow: device, user_code, verification_url, interval}` |
+| POST | `/calendar/connections/{id}/authorize/complete` | Google `{redirect_url}` |
+| POST | `/calendar/connections/{id}/authorize/poll` | Microsoft: `none / pending / slow_down / denied / expired / connected` |
+| DELETE | `/calendar/connections/{id}/authorize` | cancel a pending grant |
+| GET / POST | `/calendar/feeds` | `calendar.connect`; POST `{calendar_ids, detail: busy\|titles}` needs `edit`+ in each; answers the path ONCE |
+| POST | `/calendar/feeds/{id}/rotate` / `revoke` | creator or admin |
+| GET | `/calendar/feed/{token}.ics` | text/calendar, confirmed entries, never notes or guests |
+
+Connection answers carry `setup: {client_id_set, client_secret_set, authorized, feed_url_set, tenant, ready, pending_flow}` and
+`account_hint` (the iCal host). Audit: `calendar.connection.client|feed|authorize_start|authorize`, `calendar.feed.create|rotate|revoke`.
+Owner setup: `docs/operations/CALENDAR_CONNECT_SETUP.md` (+ `_HE`). Real-provider tests stay BLOCKED until the owner's registrations exist.
+
 ## 13. API (all under the module gate; JSON; errors `{code, message_he, details}`; every write audited)
 
 Order of checks on every route: signed in -> module switch (404) -> calendar visibility (uniform 404) -> role/permission (audited 403)

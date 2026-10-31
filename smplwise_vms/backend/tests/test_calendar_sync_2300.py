@@ -62,6 +62,7 @@ def cc(_app, monkeypatch):
 def fake():
     f = FakeAdapter("google")
     f.add_calendar("ext-1", "Ext one")
+    registry.clear()  # CALCONNECT-2330: create_app installs the real adapters; these contract tests see the fake alone
     registry.register("google", lambda: f)
     yield f
     registry.clear()
@@ -187,6 +188,7 @@ def test_unknown_connection_is_a_404_and_listing_calendars_uses_the_adapter(cc, 
 
 
 def test_provider_without_an_adapter_never_reaches_a_network(cc):
+    registry.clear()  # a provider with no adapter registered (the real ones are installed by create_app)
     enable(cc)
     cal = room(cc)
     cid = connect(cc)
