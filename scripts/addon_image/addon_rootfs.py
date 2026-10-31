@@ -105,6 +105,10 @@ def _get(url: str, token: str | None, accept: str | None = None) -> tuple[bytes,
 
 def parse_ref(ref: str) -> tuple[str, str, str]:
     registry, _, rest = ref.partition("/")
+    # "name:tag@sha256:..." keeps the tag for readability; the digest is what is pulled
+    rest, _, digest = rest.partition("@")
+    if digest:
+        return registry, rest.rpartition(":")[0] or rest, digest
     repo, _, tag = rest.rpartition(":")
     return registry, repo, tag
 
