@@ -265,9 +265,10 @@ export interface DeviceItems {
 }
 
 /** `GET /devices/items`: every entity of one tile kind in the building / one HA floor / one HA area, floor › area. */
-export function getDeviceItems(kind: TileKind, scope: ItemsScope = 'building', id = '') {
+export function getDeviceItems(kind: TileKind, scope: ItemsScope = 'building', id = '', switches: 'typed' | 'all' = 'typed') {
   const q = new URLSearchParams({ kind, scope });
   if (scope !== 'building') q.set('id', id);
+  if (kind === 'lights' && switches === 'all') q.set('switches', 'all'); // SWITCH-LIGHT-DIMMER-2331: every switch.* with the lights
   return get<DeviceItems>(`devices/items?${q.toString()}`);
 }
 

@@ -560,3 +560,22 @@ export function mayAcknowledge(who: (typeof XS_ACK_WHO)[number], can: (p: string
   return can('fire.acknowledge');
 }
 export const FIRE_PERMISSION = 'fire.acknowledge';
+
+/* ---------------------------------------------------------------- the floor lights popup (SWITCH-LIGHT-DIMMER-2331) */
+
+/** Where the floor lights popup reads and acts: one of our floors stands for a set of home-system areas (its match). All on one home-system
+ * floor -> that floor's scope (a floor-scoped caller may act there); spread over several -> the building, narrowed to the areas. A floor
+ * with no match (no data) has no popup: null. The areas list is the filter of the rows and of every bulk action (`only`). */
+export interface FloorLightsTarget {
+  scope: 'floor' | 'building';
+  scopeId: string;
+  areaIds: string[];
+}
+
+export function floorLightsTarget(f: Pick<FloorSignal, 'match' | 'nodata' | 'lights'>): FloorLightsTarget | null {
+  const areas = f.match?.areas ?? [];
+  if (f.nodata || !areas.length || f.lights === null) return null;
+  const floors = [...new Set(areas.map((x) => x.haFloorId ?? 'none'))];
+  const areaIds = [...new Set(areas.map((x) => x.area.area_id))];
+  return floors.length === 1 ? { scope: 'floor', scopeId: floors[0], areaIds } : { scope: 'building', scopeId: '', areaIds };
+}

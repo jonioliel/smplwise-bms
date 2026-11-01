@@ -268,6 +268,7 @@ def items(
     kind: ItemKind = Query(...),
     scope: Literal["building", "floor", "area"] = Query("building"),
     id: str | None = Query(None, min_length=1, max_length=255),  # noqa: A002 - the scope's id, as in the bulk routes
+    switches: Literal["typed", "all"] = Query("typed"),
 ) -> dict[str, Any]:
     """CR-007 overview tiles (owner 2026-09-29): every entity of one kind in the building, one HA floor or one HA area,
     grouped by floor › area, each with the area card's own fields and `can_control` - what the panel behind a summary
@@ -275,12 +276,15 @@ def items(
     (single entity) and `POST /devices/actions` (bulk, `can_bulk` says where); a lock row also says whether this caller
     may unlock it (`can_unlock`: `door.unlock` at the lock's own scope - the action route checks it again). Same
     visibility as the tree (`devices.read`, a floor-scoped reader sees only what is placed on their floors); a scope
-    this caller cannot see is a 404. Read-only: nothing here calls Home Assistant."""
+    this caller cannot see is a 404. Read-only: nothing here calls Home Assistant. SWITCH-LIGHT-DIMMER-2331: `switches=all` (kind lights
+    only - the synoptic floor lights popup under "מפסקים בעמודת התאורה = כל המפסקים") lists every switch.* with the lights."""
+    if switches == "all" and kind != "lights":
+        raise ApiError(422, "validation", "\"כל המפסקים\" חל רק על רשימת התאורה.", details={"fields": ["switches"]})
     if scope != "building" and not id:
         raise ApiError(422, "validation", "נדרש מזהה קומה או אזור (id).", details={"fields": ["id"]})
     entities, scoped = _visible_entities(conn, principal)
     control_of = ha_scope.control_checker(conn, principal)
-    body = svc.build_items(conn, entities, kind, scope, id or "*", scoped=scoped, control_of=control_of)
+    body = svc.build_items(conn, entities, kind, scope, id or "*", scoped=scoped, control_of=control_of, switches=switches)
     if body is None:
         raise ApiError(404, "not_found", "הקומה או האזור לא נמצאו.")
     flags = _bulk_flags(conn, principal)
@@ -774,6 +778,8 @@ class BulkBody(BaseModel):
     # owner 2026-09-29 (the tiles' panel): the entity ids the panel shows (its filter / search) - narrows the set, never
     # widens it (services/device_bulk.resolve)
     only: list[str] | None = Field(None, max_length=500)
+    # SWITCH-LIGHT-DIMMER-2331: "all" = the lights kinds reach every switch.* too (the synoptic floor lights popup); typed when absent
+    switches: Literal["typed", "all"] | None = None
 
 
 def _bulk_holder(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
@@ -867,11 +873,12 @@ def bulk_preview(
     kind: Kind = Query(...),
     position: int | None = Query(None, ge=0, le=100),
     only: str | None = Query(None, max_length=20000),
+    switches: Literal["typed", "all"] = Query("typed"),
 ) -> dict[str, Any]:
     """Exactly what `POST /devices/actions` would send for this scope and kind, per entity - the confirmation dialog
     states it (count by domain, what is skipped as already off / unavailable, what is never included). Sends nothing."""
     try:
-        return bulk.resolve(conn, principal, scope, id, kind, position, _only(only))
+        return bulk.resolve(conn, principal, scope, id, kind, position, _only(only), switches)
     except ApiError as exc:
         if exc.status == 403:
             audit(conn, actor=principal, action=bulk.AUDIT_ACTION, decision="denied", resource_type=f"devices_{scope}", resource_id=id, reason=exc.code,
@@ -895,11 +902,13 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder_ro), 
     body = _parse(act, raw)
     act.resource_type, act.resource_id = f"devices_{body.scope}", body.id
     act.details.update(scope=body.scope, id=body.id, kind=body.kind, client_request_id=body.client_request_id, expires_at=body.expires_at)
+    if body.switches == "all":
+        act.details["switches"] = "all"  # SWITCH-LIGHT-DIMMER-2331: the lights kinds reached every switch
     not_after = _envelope(act, body)
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "פעולה מרוכזת דורשת אישור מפורש בחלון האישור."))
     try:
-        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind, body.position, set(body.only) if body.only is not None else None)
+        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind, body.position, set(body.only) if body.only is not None else None, body.switches or "typed")
     except ApiError as exc:
         raise act.refuse(exc) from None
     if body.preview_digest is not None and body.preview_digest != plan["digest"]:

@@ -604,7 +604,7 @@ def _unavailable(row: dict[str, Any]) -> bool:
     return not row["available"] or row["state"] in ("unavailable", None)
 
 
-def build_items(conn: sqlite3.Connection, entities: list[dict[str, Any]], kind: str, scope: str, scope_id: str, *, scoped: bool, control_of: ControlChecker) -> dict[str, Any] | None:
+def build_items(conn: sqlite3.Connection, entities: list[dict[str, Any]], kind: str, scope: str, scope_id: str, *, scoped: bool, control_of: ControlChecker, switches: str = "typed") -> dict[str, Any] | None:
     """Every entity of `kind` in the scope (the building, one floor - `none` for the areas on no floor - or one area,
     `unassigned` for the entities in no area), as card rows grouped by floor › area in the tree's own order, with the
     counts the panel's header and filter need. None when the scope is unknown to this caller (404). Pure projection
@@ -636,8 +636,8 @@ def build_items(conn: sqlite3.Connection, entities: list[dict[str, Any]], kind: 
             floor_name = hit[0]["name"] if hit[0]["floor_id"] != NO_FLOOR else None
     by_area: dict[str | None, list[dict[str, Any]]] = {}
     for e in entities:
-        if kind == "lights" and is_light(e):
-            pass  # SWITCH-AS-LIGHT: a switch typed as a light is listed with the lights
+        if kind == "lights" and (is_light(e) or (switches == "all" and e["domain"] == "switch")):
+            pass  # SWITCH-AS-LIGHT: a switch typed as a light is listed with the lights (SWITCH-LIGHT-DIMMER-2331: with switches=all, every switch)
         elif e["domain"] not in domains or (e["domain"] == "climate" and kind in ("climate", "heating") and (e.get("climate_kind") == "heating") != (kind == "heating")):
             continue
         elif kind == "switches" and is_light(e):

@@ -4,6 +4,7 @@ import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-state-panel';
 import '../xsection/sw-fire-bar';
+import './devices-tiles-panel';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { xt } from '../i18n/xsection';
 import { describeError } from '../api/client';
@@ -18,7 +19,7 @@ import { ackName, mayAck } from '../xsection/sw-fire-bar';
 import { xi } from '../xsection/xs-icons';
 import { matchLine, unlinkedFloors } from '../xsection/sw-xsection';
 import { phoneRestricted } from '../shell/phone';
-import { alarmFloors, onXsOptions, phoneColumns, signalsOf, synBoardColumns, tempState, totalsOf, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsOptions } from '../xsection/xs-model';
+import { alarmFloors, floorLightsTarget, onXsOptions, phoneColumns, signalsOf, synBoardColumns, tempState, totalsOf, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsOptions } from '../xsection/xs-model';
 import type { XtKey } from '../i18n/xsection';
 
 const REFRESH_MS = 30_000;
@@ -38,6 +39,8 @@ export class DevicesSynoptic extends LitElement {
   @property({ type: Boolean, reflect: true }) wall = false;
   @state() private tree: CatalogTree | null = null;
   @state() private data: XsData | null = null;
+  /** SWITCH-LIGHT-DIMMER-2331: the floor whose lights popup is open (a press on its lights strip / count, or the detail line's button). */
+  @state() private lightsOf: FloorSignal | null = null;
   @state() private events: VmsEvent[] | null = null;
   @state() private error = '';
   @state() private sel = 'all';
@@ -147,6 +150,8 @@ export class DevicesSynoptic extends LitElement {
       .hide-phone { display: none !important; }
       .bhead h2 { font-size: var(--sw-fs-lg); }
     }
+    .lights-hit { cursor: pointer; border-radius: var(--sw-r-sm); }
+    .lights-hit:hover { background: color-mix(in srgb, var(--sw-lit) 14%, transparent); }
     :focus-visible { outline: 2px solid var(--sw-focus, var(--sw-accent)); outline-offset: 2px; }
   `;
 
@@ -187,6 +192,28 @@ export class DevicesSynoptic extends LitElement {
     }
   }
 
+  /** SWITCH-LIGHT-DIMMER-2331: the lights popup of a floor - not on the wall screen, only with lights on the floor and devices.read (the demo shows its own rows). */
+  private lightsAllowed(f: FloorSignal): boolean {
+    if (this.wall || f.nodata || f.lights === null) return false;
+    if (!isApi() || this.data?.demo) return true;
+    return canAnywhere('devices.read') && floorLightsTarget(f) !== null;
+  }
+
+  private openLights(e: Event | null, f: FloorSignal) {
+    e?.stopPropagation(); // the row's own press (select) does not run as well
+    this.lightsOf = f;
+  }
+
+  private renderLights() {
+    const f = this.lightsOf;
+    const demo = !isApi() || !!this.data?.demo;
+    const t = f && !demo ? floorLightsTarget(f) : null;
+    return html`<devices-tiles-panel kind="lights" data-floor-lights=${f?.id ?? ''} ?open=${!!f} pairedMaster
+      scope=${t?.scope ?? 'building'} scopeId=${t?.scopeId ?? ''} scopeName=${f?.name ?? ''} .areaFilter=${t ? t.areaIds : null} switches=${this.opts().syn_switches}
+      headingText=${f ? xt('floorLightsTitle', { name: f.name }) : ''}
+      @panel-close=${() => (this.lightsOf = null)} @panel-changed=${() => void this.refresh()}></devices-tiles-panel>`;
+  }
+
   private opts(): XsOptions {
     return isApi() ? xsOptions() : xsFromParams(xsOptions(), parseRoute().params);
   }
@@ -220,9 +247,10 @@ export class DevicesSynoptic extends LitElement {
       case 'light': {
         const k = 8;
         const on = f.lights ? Math.round(((f.lit ?? 0) / f.lights) * k) : 0;
+        const can = this.lightsAllowed(f);
         return f.lit === null || f.lights === null
           ? html`<span class="cell muted" title=${xt('noSource')}>-</span>`
-          : html`<span class="cell"><span class="fac" aria-hidden="true">${Array.from({ length: k }, (_, i) => html`<i class=${i < on ? 'on' : ''}></i>`)}</span><b>${f.lit}/${f.lights}</b></span>`;
+          : html`<span class="cell ${can ? 'lights-hit' : ''}" data-syn-lights=${can ? f.id : nothing} title=${can ? xt('floorLightsOpen', { name: f.name }) : nothing} @click=${(e: Event) => can && this.openLights(e, f)}><span class="fac" aria-hidden="true">${Array.from({ length: k }, (_, i) => html`<i class=${i < on ? 'on' : ''}></i>`)}</span><b>${f.lit}/${f.lights}</b></span>`;
       }
       case 'temp':
         return f.temp === null || f.nodata ? html`<span class="deg none" title=${xt('noSource')}>-</span>` : html`<span class="deg" data-t=${t ?? ''}>${f.temp.toFixed(1)}<small>°</small></span>`;
@@ -318,6 +346,7 @@ export class DevicesSynoptic extends LitElement {
       <div class="detail" data-syn-detail>${sf
         ? html`<b>${bidi(sf.name)}</b><span class="grow">${matchLine(sf.match) ? `${matchLine(sf.match)!.text} · ` : ''}${sf.nodata ? xt('noSource') : this.detailText(sf, has)}</span>
           ${matchLine(sf.match)?.linked === false && this.canLink() ? html`<button class="lnk" data-syn-link=${sf.id} @click=${() => this.linkFloor(b, sf.id)}>${xt('matchFix')}</button>` : nothing}
+          ${has('light') && this.lightsAllowed(sf) ? html`<sw-button size="sm" variant="ghost" icon="light" data-syn-lights-open=${sf.id} @click=${() => this.openLights(null, sf)}>${xt('floorLightsBtn')}</sw-button>` : nothing}
           <sw-button size="sm" variant="ghost" icon="map" data-syn-open @click=${() => navigate(`/explore/floors/${sf.id}`)}>${xt('openMap')}</sw-button>`
         : this.allLine(b, sigs)}${this.hiddenNote(hiddenEmpty)}</div>
     </section>`;
@@ -339,7 +368,7 @@ export class DevicesSynoptic extends LitElement {
     if (this.wall) {
       return html`<div class="wallhead"><h1>${xt('wallTitle')}</h1><span class="clock">${this.now}</span></div>${body}`;
     }
-    return this.frame(body, sigs.length, true);
+    return this.frame(html`${body}${this.renderLights()}`, sigs.length, true);
   }
 
   /** SYNOPTIC-HA-2310: the row's second line - the level and the home-system floor it stands for (how it was matched), or why there is no data. */

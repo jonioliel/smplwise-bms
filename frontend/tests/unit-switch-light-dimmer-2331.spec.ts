@@ -52,3 +52,15 @@ test('the option: typed by default, all kept, anything else reads as the default
   expect(normalizeXs({ syn_switches: 'all' }).syn_switches).toBe('all');
   expect(normalizeXs({ syn_switches: 'some' }).syn_switches).toBe('typed');
 });
+
+test('the floor lights popup target: one home-system floor -> its scope, several -> the building, narrowed to the areas', async () => {
+  const { floorLightsTarget } = await import('../src/xsection/xs-model');
+  const a = (id: string) => area(id, { lights: 1 });
+  const m = (areas: { id: string; f: string | null }[]) => ({ haFloors: [], how: null, suggestion: null, ambiguous: false, excluded: [], missing: [], areas: areas.map((x) => ({ area: a(x.id), haFloorId: x.f, source: 'level' as const })) });
+  expect(floorLightsTarget({ nodata: false, lights: 3, match: m([{ id: 'p1', f: 'parking' }, { id: 'p2', f: 'parking' }]) })).toEqual({ scope: 'floor', scopeId: 'parking', areaIds: ['p1', 'p2'] });
+  expect(floorLightsTarget({ nodata: false, lights: 3, match: m([{ id: 'p1', f: 'parking' }, { id: 'r', f: null }]) })).toEqual({ scope: 'building', scopeId: '', areaIds: ['p1', 'r'] });
+  expect(floorLightsTarget({ nodata: false, lights: 1, match: m([{ id: 'r', f: null }]) })).toEqual({ scope: 'floor', scopeId: 'none', areaIds: ['r'] });
+  expect(floorLightsTarget({ nodata: true, lights: null, match: m([{ id: 'p1', f: 'parking' }]) })).toBeNull();
+  expect(floorLightsTarget({ nodata: false, lights: null, match: m([{ id: 'p1', f: 'parking' }]) })).toBeNull(); // no lights column for it
+  expect(floorLightsTarget({ nodata: false, lights: 2, match: null })).toBeNull();
+});

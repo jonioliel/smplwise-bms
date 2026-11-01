@@ -35,6 +35,8 @@ export interface BulkRequest {
   position?: number;
   /** Owner 2026-09-29: the entity ids the tiles' panel shows (its filter / search) - narrows the set. */
   only?: string[];
+  /** SWITCH-LIGHT-DIMMER-2331: lights kinds reach every switch.* too ("מפסקים בעמודת התאורה = כל המפסקים"). */
+  switches?: 'typed' | 'all';
 }
 
 /** How many entities a kind would reach according to the tree's counts (a hint for the menu only - the server's
@@ -638,7 +640,7 @@ export class DevicesBulkDialog extends LitElement {
     this.error = '';
     this.phase = 'loading';
     try {
-      const p = await previewBulk(req.scope, req.id, req.kind, req.position, req.only);
+      const p = await previewBulk(req.scope, req.id, req.kind, req.position, req.only, req.switches);
       if (this.req !== req) return;
       this.preview = p;
       this.phase = p.count ? 'confirm' : 'nothing';
@@ -664,7 +666,7 @@ export class DevicesBulkDialog extends LitElement {
     if (!req || !p || this.phase !== 'confirm') return;
     this.phase = 'sending';
     try {
-      const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position, req.only);
+      const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position, req.only, req.switches);
       this.phase = 'running';
       this.follow = { stopped: false };
       const done = await followBulk(first, (r) => (this.record = r), this.follow);

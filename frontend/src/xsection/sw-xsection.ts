@@ -81,6 +81,8 @@ export class SwXSection extends LitElement {
   @property({ type: Number }) boxesHeight = 0;
   /** May the viewer edit the floors' home-system link? (the hint offers the link only then) */
   @property({ type: Boolean }) canLink = false;
+  /** SWITCH-LIGHT-DIMMER-2331: which floors open the lights popup from their lights strip / count (`xs-lights` ({ id }) instead of `xs-pick`). */
+  @property({ attribute: false }) lightsOk: ((f: FloorSignal) => boolean) | null = null;
 
   static styles = [
     css`
@@ -113,6 +115,7 @@ export class SwXSection extends LitElement {
       .stack { container-type: size; position: relative; min-block-size: 0; display: flex; flex-direction: column; justify-content: flex-start; gap: 6px; }
       .stack.abs { display: block; container-type: normal; }
       .stack.abs > .row, .stack.abs > .ground { position: absolute; inset-inline: 0; box-sizing: border-box; }
+      .row[data-xs-lights] .fac, .row[data-xs-lights] .lc { cursor: pointer; }
       .row, .xtile { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
       .row { position: relative; flex: 1 1 0; min-block-size: 0; max-block-size: 132px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(150px, auto); align-items: center; gap: 14px; padding: 0 14px; border: 2px solid transparent; border-radius: 12px; background: var(--sw-surface-2); text-align: start; color: inherit; font: inherit; cursor: pointer; overflow: hidden; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), border-color var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); }
       .stack.abs > .row { max-block-size: none; }
@@ -206,6 +209,12 @@ export class SwXSection extends LitElement {
     `,
   ];
 
+  /** A press on a row: on its lights strip or its lights count (a floor with the popup) it opens the lights popup, anywhere else it picks. */
+  private press(e: Event, f: FloorSignal) {
+    const onLights = this.lightsOk?.(f) && e.composedPath().some((n) => n instanceof Element && (n.classList.contains('fac') || n.classList.contains('lc')));
+    if (onLights) this.dispatchEvent(new CustomEvent('xs-lights', { detail: { id: f.id }, bubbles: true, composed: true }));
+    else this.pick(f.id);
+  }
   private pick(id: string) {
     this.dispatchEvent(new CustomEvent('xs-pick', { detail: { id }, bubbles: true, composed: true }));
   }
@@ -234,7 +243,7 @@ export class SwXSection extends LitElement {
     const radius = box ? (box.height >= 64 ? 'var(--sw-r-lg)' : box.height >= 40 ? 'var(--sw-r-md)' : 'var(--sw-r-sm)') : '';
     const style = `--i:${index}${box ? `;top:${box.top}px;block-size:${box.height}px;border-radius:${radius}` : ''}`;
     return html`<button class="row ${f.level < 0 ? 'below' : ''} ${sel ? 'sel' : ''} ${this.hoverId === f.id ? 'hl' : ''}" style=${style} data-xs-row=${f.id} aria-pressed=${sel} aria-label=${label}
-        data-temp=${t ?? ''} ?data-off=${f.nodata} data-fire=${alarm ? 'alarm' : ''} @click=${() => this.pick(f.id)} @pointerenter=${(e: PointerEvent) => e.pointerType === 'mouse' && this.hover(f.id)} @pointerleave=${(e: PointerEvent) => e.pointerType === 'mouse' && this.hover(null)}>
+        data-temp=${t ?? ''} ?data-off=${f.nodata} data-fire=${alarm ? 'alarm' : ''} ?data-xs-lights=${!!this.lightsOk?.(f)} @click=${(e: Event) => this.press(e, f)} @pointerenter=${(e: PointerEvent) => e.pointerType === 'mouse' && this.hover(f.id)} @pointerleave=${(e: PointerEvent) => e.pointerType === 'mouse' && this.hover(null)}>
       <span class="nm"><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span>${sub}</span>
       ${f.nodata ? html`<span class="quiet" title=${ml?.text ?? ''}>${xt('noDataQuiet')}</span>` : m.light ? panes(f, 10) : html`<span></span>`}
       ${f.nodata && !alarm ? nothing : html`<span class="val">

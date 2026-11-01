@@ -2144,3 +2144,54 @@ def test_switch_entities_counted_for_the_synoptic_all_switches_option(dimmer_app
     c_ = svc.empty_counts()
     svc.count_into(c_, {"entity_id": "input_boolean.x", "domain": "input_boolean", "state": "on"})
     assert (c_["switches"], c_["switch_entities"]) == (1, 0), "a helper is never a switch entity"
+
+
+def test_items_lights_with_all_switches_lists_every_switch(dev_app):
+    """SWITCH-LIGHT-DIMMER-2331 (the synoptic floor lights popup): `switches=all` lists every switch.* with the lights, typed or not, never
+    a helper; any other kind refuses it; the default is the typed switches only."""
+    app, _ = dev_app
+    c = TestClient(app)
+
+    def ids(**q):
+        r = c.get("/api/v1/devices/items", params={"kind": "lights", **q})
+        assert r.status_code == 200, r.text
+        return {x["entity_id"]: x for f in r.json()["floors"] for a in f["areas"] for x in a["items"]}
+
+    assert "switch.lobby_sign" not in ids() and "switch.lobby_sign" not in ids(switches="typed")
+    got = ids(switches="all", scope="floor", id="ground")
+    assert {"light.lobby", "light.lobby_spot", "switch.lobby_sign"} <= set(got) and "switch.loose" not in got
+    assert got["switch.lobby_sign"]["domain"] == "switch" and not got["switch.lobby_sign"].get("dimmable")
+    assert "switch.loose" in ids(switches="all")
+    assert c.get("/api/v1/devices/items", params={"kind": "switches", "switches": "all"}).status_code == 422
+    assert c.get("/api/v1/devices/items", params={"kind": "lights", "switches": "some"}).status_code == 422
+
+
+def test_bulk_lights_with_all_switches_reach_every_switch_through_the_policy(bulk_app):
+    """`switches=all` on the lights kinds (preview and run): every switch.* in the set (`only` still narrows it, the same SwitchPolicy
+    keeps a protected switch out and names it); the switches kinds refuse it; without it nothing changes."""
+    app, s, c, fake = bulk_app
+
+    def preview(kind: str, **q) -> dict:
+        return c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": kind, **q}).json()
+
+    assert {t["entity_id"] for t in preview("lights_off")["targets"]} == {"light.lobby", "light.garden"}
+    off = preview("lights_off", switches="all")
+    assert {t["entity_id"] for t in off["targets"]} == {"light.lobby", "light.garden", "switch.lobby_sign"}
+    assert {(t["entity_id"], t["action_id"]) for t in preview("lights_on", switches="all")["targets"]} >= {("switch.loose", "switch.turn_on")}
+    narrowed = preview("lights_off", switches="all", only="switch.lobby_sign,light.lobby")
+    assert {t["entity_id"] for t in narrowed["targets"]} == {"switch.lobby_sign", "light.lobby"}
+    r = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_off", "switches": "all"})
+    assert r.status_code == 422
+    # the same protection as every switch
+    _judge(app)
+    assert _protect(c, "switch.loose").status_code == 200
+    on = preview("lights_on", switches="all")
+    assert "switch.loose" not in {t["entity_id"] for t in on["targets"]} and ("switch.loose", "switch_protected") in [(x["entity_id"], x["reason"]) for x in on["excluded"]]
+    # the run resolves the same set (the digest matches only with the same choice) and switches each with its own domain
+    off = preview("lights_off", switches="all")
+    assert c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", preview_digest=off["digest"])).status_code == 409, "without switches=all the set differs"
+    r = c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", preview_digest=off["digest"], switches="all"))
+    assert r.status_code == 202, r.text
+    assert _finish(c, r.json()["id"])["counts"]["confirmed"] == 3
+    assert ("switch", "turn_off", "switch.lobby_sign") in {(x["domain"], x["service"], x["data"]["entity_id"]) for x in fake.calls}
+    assert _audit_rows(app, phase="attempt", kind="lights_off")[-1]["details"]["switches"] == "all"
