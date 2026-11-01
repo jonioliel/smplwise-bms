@@ -1,5 +1,13 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.33.3 (pilot) - Fix: the 2.33.2 add-on image could not be built
+**After installing:** no database migration. Same content as 2.33.2. Going back to 2.33.1 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. אותו תוכן כמו 2.33.2. חזרה ל-2.33.1 בטוחה.
+
+### What was fixed - מה תוקן
+- **English:** 2.33.2 had a broken line in the add-on's build file (Dockerfile), so Home Assistant failed to build or update it. 2.33.3 fixes that line; everything else (the crash guard) is unchanged. If the update to 2.33.2 failed, update to 2.33.3.
+- **עברית:** ב-2.33.2 הייתה שורה שבורה בקובץ הבנייה של התוסף (Dockerfile), ולכן Home Assistant נכשל בבנייה או בעדכון. 2.33.3 מתקנת את השורה; כל השאר (שומר הקריסות) ללא שינוי. אם העדכון ל-2.33.2 נכשל, יש לעדכן ל-2.33.3.
+
 ## 2.33.2 (pilot) - The add-on recovers by itself after a crash
 **After installing:** no database migration. Going back to 2.33.1 is safe.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. חזרה ל-2.33.1 בטוחה.
