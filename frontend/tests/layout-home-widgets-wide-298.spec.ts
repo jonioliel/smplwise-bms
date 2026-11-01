@@ -47,8 +47,11 @@ async function measure(page: Page): Promise<Card[]> {
         const cs = getComputedStyle(e);
         if (cs.display === 'none' || cs.visibility === 'hidden' || !b.height) continue;
         const text = (e.textContent ?? '').trim();
-        // the failure class: a part with words in it squeezed to a stub (a forecast day's "25°" is narrow by design)
-        if (text.length >= 4 && b.width < 24 && !e.closest('.fc')) problems.push(`${name(e)} collapsed to ${Math.round(b.width)} px: "${text.slice(0, 16)}"`);
+        // the failure class: a part with words in it squeezed to a stub (a forecast day's "25°" is narrow by design). A box (not an inline
+        // run) counts only when it cuts its text (scrollWidth past its width): a short whole word - a room chip's "לובי" is ~21 px - is not a
+        // stub, while a name squeezed to 0..23 px still overflows its box (ellipsis or not) and is caught.
+        const cuts = cs.display === 'inline' || e.scrollWidth > e.clientWidth + 1;
+        if (text.length >= 4 && b.width < 24 && cuts && !e.closest('.fc')) problems.push(`${name(e)} collapsed to ${Math.round(b.width)} px: "${text.slice(0, 16)}"`);
         if (b.width && (b.left < c.left - 1.5 || b.right > c.right + 1.5)) problems.push(`${name(e)} leaves its card (${Math.round(b.left - c.left)}..${Math.round(b.right - c.left)} of ${Math.round(c.width)})`);
         const hidden = cs.overflowX === 'hidden' || cs.overflowX === 'clip';
         const clamp = cs.webkitLineClamp && cs.webkitLineClamp !== 'none';

@@ -12,7 +12,7 @@ Two revision domains (docs/changes/WISKEY-RELAYEXPORT-2320.md):
 
 Guarantees (pinned by tests/test_wiskey_relay_map_export_2320.py):
 - read, export, ack and rollback never call the approval, never write `wiskey_relay_map` / `wiskey_relay_map_stations` and never
-  touch an intent, lease, fence or UNKNOWN history tuple: the only table written is `wiskey_relay_map_exports` (migration 0188);
+  touch an intent, lease, fence or UNKNOWN history tuple: the only table written is `wiskey_relay_map_exports` (migration 0192);
 - the snapshot has FULL coverage: every row, inactive tombstones too WITH their physical relay (the approval screen shows null), and
   per station the api relays that have no row at all (never an invented row);
 - the content digest is sha256 over the canonical JSON of the snapshot (sorted keys, no whitespace, UTF-8, integers only); the same

@@ -71,17 +71,37 @@ def _alternatives(conn: sqlite3.Connection, settings: dict[str, Any], rooms: lis
 
 # ---------------------------------------------------------------- requests and decisions
 
-def requests(ctx: Ctx, *, calendars: list[str] | None = None, state: str = "pending") -> list[dict[str, Any]]:
+KIND_PRIORITY = {"maintenance": 0, "team": 1, "department": 1}  # contested_order = by_kind: maintenance, then teams, then everyone else
+
+
+def _rank_queue(out: list[dict[str, Any]], order: str) -> None:
+    """CALENDARS-UI-2310 (owner answer 11 as a setting): each request's place among the pending requests of the same calendar whose windows
+    overlap it. first_come (default) and by_kind also name the request the manager is offered first (`suggested`); manual names none."""
+    def key(r: dict[str, Any]) -> tuple[Any, ...]:
+        pri = KIND_PRIORITY.get(r["kind"], KIND_PRIORITY.get(r.get("_behalf") or "", 2)) if order == "by_kind" else 0
+        return (pri, r["requested_at"], r["_seq"])  # the insertion order breaks a tie of the same second
+
+    for r in out:
+        holder = r["room_calendar_id"] or r["calendar"]["id"]
+        rivals = [o for o in out if (o["room_calendar_id"] or o["calendar"]["id"]) == holder and o["start"] < r["end"] and o["end"] > r["start"]]
+        r["queue_position"] = 1 + sum(1 for o in rivals if key(o) < key(r))
+        r["suggested"] = order != "manual" and r["queue_position"] == 1 and len(rivals) > 1
+    for r in out:
+        r.pop("_behalf", None)
+        r.pop("_seq", None)
+
+
+def requests(ctx: Ctx, *, calendars: list[str] | None = None, state: str = "pending", order: str = "first_come") -> list[dict[str, Any]]:
     conn = ctx.conn
     out = []
     for cal in conn.execute("SELECT * FROM cal_calendars WHERE archived_at IS NULL ORDER BY name_key").fetchall():
         if calendars and cal["id"] not in calendars or not ctx.can_see(cal) or ctx.role_in(cal) != "manage":
             continue
         rows = conn.execute(
-            """SELECT e.*, NULL AS room_id FROM cal_events e WHERE e.calendar_id = ? AND e.state = ? AND e.override_of IS NULL AND e.kind <> 'maintenance'
+            """SELECT e.*, e.rowid AS seq, NULL AS room_id FROM cal_events e WHERE e.calendar_id = ? AND e.state = ? AND e.override_of IS NULL AND e.kind <> 'maintenance'
                  AND e.id NOT IN (SELECT event_id FROM cal_event_rooms WHERE room_calendar_id = ?)
                UNION ALL
-               SELECT e.*, r.room_calendar_id AS room_id FROM cal_event_rooms r JOIN cal_events e ON e.id = r.event_id WHERE r.room_calendar_id = ? AND r.state = ?
+               SELECT e.*, e.rowid AS seq, r.room_calendar_id AS room_id FROM cal_event_rooms r JOIN cal_events e ON e.id = r.event_id WHERE r.room_calendar_id = ? AND r.state = ?
                ORDER BY starts_at""", (cal["id"], state, cal["id"], cal["id"], state)).fetchall()
         for e in rows:
             comp = conn.execute(
@@ -95,7 +115,8 @@ def requests(ctx: Ctx, *, calendars: list[str] | None = None, state: str = "pend
             out.append({"event_id": e["id"], "room_calendar_id": e["room_id"], "calendar": {"id": cal["id"], "name": cal["name"], "color": cal["color"]}, "title": e["title"],
                         "kind": e["kind"], "start": e["starts_at"], "end": e["ends_at"], "recurring": bool(e["rrule"]), "organizer": user_label(conn, e["organizer_user_id"]),
                         "on_behalf_label": e["on_behalf_label"], "headcount": e["headcount"], "contested": bool(e["contested"]), "competing_count": comp,
-                        "conflicts_now": held, "requested_at": e["created_at"], "revision": e["revision"]})
+                        "conflicts_now": held, "requested_at": e["created_at"], "revision": e["revision"], "_behalf": e["on_behalf_kind"], "_seq": e["seq"]})
+    _rank_queue(out, order)
     return out
 
 
@@ -138,6 +159,18 @@ def _out(ctx: Ctx, eid: str, holder: sqlite3.Row) -> dict[str, Any]:
     return events.serialize(ctx, ev, holder, ctx.role_in(holder))
 
 
+def calendar_manager(ctx: Ctx, cal: sqlite3.Row) -> bool:
+    """The calendar's OWN manager: its owner, or a member holding `manage` in it (owner answer 12: displacing needs the calendar manager's
+    approval - a system or site manager reaches `manage` through his role, which is not enough while `displace_approver` is calendar_manager)."""
+    if cal["owner_user_id"] == ctx.principal.user_id:
+        return True
+    for m in ctx.conn.execute("SELECT subject_kind, subject_id FROM cal_members WHERE calendar_id = ? AND cal_role = 'manage'", (cal["id"],)).fetchall():
+        k, sid = m["subject_kind"], m["subject_id"]
+        if (k == "user" and sid == ctx.principal.user_id) or (k == "role" and sid in ctx.roles) or (k == "department" and sid in ctx.departments) or k == "everyone":
+            return True
+    return False
+
+
 def decide(ctx: Ctx, settings: dict[str, Any], eid: str, body: dict[str, Any], now: dt.datetime) -> dict[str, Any]:
     conn, p = ctx.conn, ctx.principal
     ev, holder = _load(ctx, eid, body.get("room_calendar_id"))
@@ -168,6 +201,10 @@ def decide(ctx: Ctx, settings: dict[str, Any], eid: str, body: dict[str, Any], n
     if held:
         if body.get("displace_existing") is not True:
             raise ApiError(409, "slot_held", "החלון כבר תפוס על ידי אירוע שאושר קודם.", details={"conflicts": held})
+        if not settings["allow_displace"]:  # owner answer 12 as a setting: "do not displace a confirmed entry, only reject the requests"
+            raise ApiError(409, "displace_disabled", "בהתקנה הזאת אי אפשר לדחוק הזמנה שאושרה. אפשר לדחות את הבקשה.", details={"conflicts": held})
+        if settings["displace_approver"] == "calendar_manager" and not calendar_manager(ctx, holder):
+            raise Denied("calendar.role", holder["id"], "calendar_manager")
         displaced = displace(conn, settings, _with_local(conn, held, holder["id"], spans), p.user_id, now, "displaced_by_decision")
         for d_id in displaced:
             occ.rebuild(conn, d_id, settings, now)
@@ -200,8 +237,9 @@ def reopen(ctx: Ctx, settings: dict[str, Any], eid: str, body: dict[str, Any], n
     cur = _half_state(conn, ev, holder["id"])
     if cur not in ("rejected", "expired", "withdrawn"):
         raise ApiError(409, "bad_state", "אפשר לפתוח מחדש רק בקשה שנדחתה, פגה או נמשכה.", details={"state": cur})
-    if model.parse_utc(ev["updated_at"], "u") < now - dt.timedelta(days=7):
-        raise ApiError(409, "reopen_window_closed", "עברו יותר מ-7 ימים.")
+    days = settings["reopen_days"]
+    if model.parse_utc(ev["updated_at"], "u") < now - dt.timedelta(days=days):
+        raise ApiError(409, "reopen_window_closed", f"עברו יותר מ-{days} ימים.")
     stamp = model.iso(now)
     _set_half(conn, ev, holder["id"], "pending", p.user_id, stamp)
     _log(conn, eid, "reopen", p.user_id, "", None if holder["id"] == ev["calendar_id"] else holder["id"], stamp)

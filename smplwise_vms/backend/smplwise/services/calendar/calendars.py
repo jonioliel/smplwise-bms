@@ -99,7 +99,7 @@ def create(ctx: Ctx, body: dict[str, Any], settings: dict[str, Any]) -> sqlite3.
         "slot_step_min": vals.get("slot_step_min", 15), "min_minutes": vals.get("min_minutes", 15), "max_minutes": vals.get("max_minutes", 720),
         "lead_min": vals.get("lead_min", 0), "horizon_days": vals.get("horizon_days", 180), "hours_mode": vals.get("hours_mode", "always"),
         "hours_json": vals.get("hours_json"), "holiday_rule": vals.get("holiday_rule", "warn"), "approval_mode": vals.get("approval_mode", "none"),
-        "approval_timeout_h": vals.get("approval_timeout_h", 2), "overlap_override": vals.get("overlap_override"),
+        "approval_timeout_h": vals.get("approval_timeout_h", settings["default_approval_timeout_h"]), "overlap_override": vals.get("overlap_override"),
         "visibility": vals.get("visibility", "members"), "created_by": p.user_id, "created_at": now, "updated_at": now,
     }
     cols = ", ".join(row)

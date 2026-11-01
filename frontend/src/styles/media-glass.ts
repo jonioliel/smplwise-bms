@@ -502,7 +502,7 @@ export const mediaGlassControls = css`
     background: color-mix(in srgb, var(--dv-accent) 22%, transparent);
   }
   .rbtn:active {
-    transform: scale(0.96);
+    transform: scale(0.97);
   }
   .rbtn .ic {
     font-size: var(--sw-fs-xl);

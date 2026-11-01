@@ -24,7 +24,9 @@ export const XS_ACK = ['hold', 'confirm', 'tap'] as const; // A: long press 1.2 
 export const XS_ACK_WHO = ['separate', 'viewers', 'admin'] as const; // A: anyone who sees the board, B: a new separate permission (default), C: administrators
 export const XS_ALARM_BAR = ['everywhere', 'home'] as const; // A: a red bar on every screen (default), B: only Home and the synoptic map
 export const XS_FIRE_COLUMN = ['hidden', 'dashed'] as const; // B: hidden until connected (default), A: a dashed "not connected" column
-export const XS_SYN_COLUMNS = ['all', 'few'] as const; // A: seven columns (default), B: temperature, light, alerts, fire
+export const XS_SYN_COLUMNS = ['all', 'few', 'custom'] as const; // A: seven columns (default), B: temperature, light, alerts, fire, C: the columns ticked in syn_custom
+/** SYN-COLUMNS-2321: every column of the board in its fixed order (the custom choice ticks any of them; the order never changes). */
+export const SYN_COLUMN_ORDER = ['light', 'temp', 'presence', 'cameras', 'doors', 'alerts', 'fire'] as const;
 
 export type XsColumn = (typeof XS_COLUMNS_ALL)[number];
 
@@ -39,6 +41,10 @@ export interface XsOptions {
   temp_threshold: number; // degrees from the target before a floor reads hot / cold
   syn_tab: boolean; // the synoptic tab on Home
   syn_columns: (typeof XS_SYN_COLUMNS)[number];
+  /** SYN-COLUMNS-2321: the columns of syn_columns=custom, in the board order (default: all seven). */
+  syn_custom: SynColumn[];
+  /** SYN-COLUMNS-2321: a column with no source on any floor of the building (no temperature sensors, no lights) is not drawn. Default ON. */
+  syn_hide_empty: boolean;
   syn_events: boolean; // the event strip beside the board on wide screens
   fire_column: (typeof XS_FIRE_COLUMN)[number];
   fire_ui: boolean; // MASTER SWITCH of the alarm UI (off: no bar, no acknowledge, nothing about fire anywhere)
@@ -59,6 +65,8 @@ export const XS_DEFAULT: Readonly<XsOptions> = {
   temp_threshold: 2,
   syn_tab: true,
   syn_columns: 'all',
+  syn_custom: [...SYN_COLUMN_ORDER],
+  syn_hide_empty: true,
   syn_events: true,
   fire_column: 'hidden',
   fire_ui: false,
@@ -76,7 +84,7 @@ export const PHONE_TILE_MAX_FLOORS = 12;
 
 /** The option set in its canonical form: every key present, an unknown value reads as the default (the server refuses it with 422). */
 export function normalizeXs(raw: unknown): XsOptions {
-  const out: XsOptions = { ...XS_DEFAULT };
+  const out: XsOptions = { ...XS_DEFAULT, syn_custom: [...XS_DEFAULT.syn_custom] };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   const r = raw as Record<string, unknown>;
   const pick = <T extends string>(v: unknown, set: readonly T[], d: T): T => (typeof v === 'string' && (set as readonly string[]).includes(v) ? (v as T) : d);
@@ -91,6 +99,8 @@ export function normalizeXs(raw: unknown): XsOptions {
   out.temp_threshold = typeof r.temp_threshold === 'number' && (XS_THRESHOLDS as readonly number[]).includes(r.temp_threshold) ? r.temp_threshold : XS_DEFAULT.temp_threshold;
   out.syn_tab = bool(r.syn_tab, XS_DEFAULT.syn_tab);
   out.syn_columns = pick(r.syn_columns, XS_SYN_COLUMNS, XS_DEFAULT.syn_columns);
+  out.syn_custom = Array.isArray(r.syn_custom) ? SYN_COLUMN_ORDER.filter((c) => (r.syn_custom as unknown[]).includes(c)) : [...XS_DEFAULT.syn_custom];
+  out.syn_hide_empty = bool(r.syn_hide_empty, XS_DEFAULT.syn_hide_empty);
   out.syn_events = bool(r.syn_events, XS_DEFAULT.syn_events);
   out.fire_column = pick(r.fire_column, XS_FIRE_COLUMN, XS_DEFAULT.fire_column);
   out.fire_ui = bool(r.fire_ui, XS_DEFAULT.fire_ui);
@@ -122,7 +132,7 @@ export function xsFromParams(base: Readonly<XsOptions>, params: URLSearchParams)
     const key = k.slice(3);
     if (!(key in XS_DEFAULT)) return;
     const d = (XS_DEFAULT as unknown as Record<string, unknown>)[key];
-    o[key] = typeof d === 'boolean' ? v === '1' || v === 'true' : typeof d === 'number' ? Number(v) : v;
+    o[key] = typeof d === 'boolean' ? v === '1' || v === 'true' : typeof d === 'number' ? Number(v) : Array.isArray(d) ? v.split(',').filter(Boolean) : v;
   });
   return normalizeXs(o);
 }
@@ -147,27 +157,199 @@ export interface FloorSignal {
   alerts: number | null;
   /** No data at all reaches this floor (the platform is disconnected, or no area is linked to it): drawn as "no data". */
   nodata: boolean;
+  /** SYNOPTIC-HA-2310: which platform floor the catalogue floor stands for and how that was decided (null when there is no tree). */
+  match?: FloorMatchInfo | null;
 }
 
 const nz = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) ? n : null);
 const mean = (xs: number[]): number | null => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10 : null);
-const norm = (s: string) => s.replace(/[‎‏\s]+/g, ' ').trim().toLowerCase();
+/** Name comparison: direction marks dropped, spaces / underscores / dashes / maqaf folded, case ignored. */
+const norm = (s: string) => s.replace(/[‎‏‪-‮⁦-⁩]/g, '').replace(/[\s_\-־]+/g, ' ').trim().toLowerCase();
 
-/** The device-tree areas that belong to a catalogue floor: the areas the map links to it, else the platform floor of the same name. */
-export function areasOfFloor(floor: Pick<Floor, 'id' | 'name'>, tree: DeviceTree | null): { areas: DeviceArea[]; climateTargets: number[] } {
-  if (!tree) return { areas: [], climateTargets: [] };
-  const linked = tree.floors.flatMap((f) => f.areas).filter((a) => a.map?.floor_id === floor.id);
-  const byName = linked.length ? null : tree.floors.find((f) => norm(f.name) === norm(floor.name));
-  const areas = linked.length ? linked : byName?.areas ?? [];
-  const ids = new Set(areas.map((a) => a.area_id));
-  const targets: number[] = [];
-  for (const f of tree.floors) for (const c of f.climate) if (c.available && nz(c.target_temperature) !== null && areas.some((a) => a.name === c.area_name && ids.has(a.area_id))) targets.push(c.target_temperature as number);
-  return { areas, climateTargets: targets };
+/* ---------------------------------------------------------------- floor <-> platform matching (SYNOPTIC-HA-2310) */
+
+/**
+ * The layers of docs/changes/PROPOSAL-MULTI-BUILDING-HOME.md (branch pilot/MULTI-BUILDING-HOME-PLAN), strongest first, per AREA:
+ *   3. map placement - the area is linked to a room of one of our floor plans (spatial_zones.ha_area_id): that floor, whatever else says;
+ *   2. the per-area override row (`home_area_links`): our floor, or none ("לא משויך");
+ *   1. the platform floor's row (`home_floor_links`, one row per platform floor) - then the automatic rules for a platform floor no row
+ *      names: the same LEVEL only when exactly one platform floor has that level, exactly one of the building's floors has it AND the site
+ *      has one building; the same NAME only on exact normalized equality, unique on both sides (never a substring).
+ * Everything else that points somewhere is a SUGGESTION the user confirms (a level shared by several platform floors or several buildings,
+ * the platform floor most of a floor's map-placed areas sit on) - never applied silently. Unresolved = no data, and the hint says why.
+ * ALL areas of a platform floor count, not only the areas placed on a map: the same floors -> areas projection the home screen draws.
+ */
+export type FloorHow = 'link' | 'level' | 'name';
+/** Why an area counts on a floor: `map` = placed on this floor's plan, `manual` = the per-area override, else how its platform floor matched. */
+export type AreaSource = 'map' | 'manual' | FloorHow;
+
+export interface MatchedArea { area: DeviceArea; haFloorId: string | null; source: AreaSource }
+export interface FloorSuggestion { haFloorId: string; haFloorName: string; why: 'level' | 'name' | 'map' }
+export interface FloorMatchInfo {
+  /** The platform floors this floor stands for (rows, else the automatic rule) and how. */
+  haFloors: { id: string; name: string }[];
+  how: FloorHow | null;
+  /** A platform floor the user may confirm (not applied). */
+  suggestion: FloorSuggestion | null;
+  /** The level found several candidates (or the site has several buildings) and made no guess. */
+  ambiguous: boolean;
+  areas: MatchedArea[];
+  /** Areas the platform floor brings that are taken off this floor by hand (to another floor or to none). */
+  excluded: { area: DeviceArea; to: string | null }[];
+  /** Platform ids in this floor's rows that the platform no longer lists (the editor shows them; the numbers ignore them). */
+  missing: string[];
 }
 
-/** One floor's signals from the catalogue floor, the device tree and the presence answer. */
-export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleResponse | null): FloorSignal {
-  const { areas, climateTargets } = areasOfFloor(floor, tree);
+/** The mapping rows (api/catalog.ts HomeLinks): keyed by the platform id -> our floor id; an area row with `floor_id: null` = none. */
+export interface MatchLinks {
+  floors: { ha_floor_id: string; floor_id: string }[];
+  areas: { area_id: string; floor_id: string | null }[];
+}
+export interface MatchContext {
+  links?: MatchLinks | null;
+  /** The site has one building (a level match may then apply on its own). Default true. */
+  singleBuilding?: boolean;
+}
+
+export type MatchFloor = Pick<Floor, 'id' | 'name' | 'level'>;
+
+/** Every area of the tree once, with its platform floor id (null = the "no floor" bucket): the same floors -> areas the home screen draws. */
+export function treeAreas(tree: DeviceTree): { area: DeviceArea; haFloorId: string | null }[] {
+  const out: { area: DeviceArea; haFloorId: string | null }[] = [];
+  const seen = new Set<string>();
+  for (const f of tree.floors)
+    for (const a of f.areas) {
+      if (seen.has(a.area_id)) continue;
+      seen.add(a.area_id);
+      out.push({ area: a, haFloorId: f.floor_id === 'none' ? null : f.floor_id });
+    }
+  return out;
+}
+
+/** The real platform floors of the tree (the "no floor" bucket is not a floor). */
+export const treeFloors = (tree: DeviceTree) => tree.floors.filter((f) => f.floor_id !== 'none');
+
+/** Matches the floors of ONE building (`floors`) against the platform tree and the installation's mapping rows. */
+export function matchFloors(floors: MatchFloor[], tree: DeviceTree | null, ctx: MatchContext = {}): Map<string, FloorMatchInfo> {
+  const out = new Map<string, FloorMatchInfo>();
+  if (!tree) return out;
+  const single = ctx.singleBuilding !== false;
+  const floorRows = new Map((ctx.links?.floors ?? []).map((r) => [r.ha_floor_id, r.floor_id]));
+  const areaRows = new Map((ctx.links?.areas ?? []).map((r) => [r.area_id, r.floor_id]));
+  const haFloors = treeFloors(tree);
+  const haById = new Map(haFloors.map((f) => [f.floor_id, f]));
+  const areas = treeAreas(tree);
+  const areaIds = new Set(areas.map((x) => x.area.area_id));
+  const ids = new Set(floors.map((f) => f.id));
+  // platform floor -> our floor and how (rows first; then the automatic rules for platform floors no row names)
+  const owner = new Map<string, { floor: string; how: FloorHow }>();
+  for (const [hid, fid] of floorRows) if (ids.has(fid) && haById.has(hid)) owner.set(hid, { floor: fid, how: 'link' });
+  const linkedFloors = new Set([...floorRows.entries()].filter(([hid]) => haById.has(hid)).map(([, fid]) => fid));
+  const open = (f: MatchFloor) => !linkedFloors.has(f.id) && ![...owner.values()].some((o) => o.floor === f.id);
+  const free = (hid: string) => !floorRows.has(hid) && !owner.has(hid);
+  const ambiguous = new Set<string>();
+  const suggestions = new Map<string, FloorSuggestion>();
+  for (const f of floors) {
+    if (!open(f)) continue;
+    const sameLevel = haFloors.filter((h) => h.level !== null && h.level === f.level);
+    const twins = floors.filter((g) => g.level === f.level);
+    if (sameLevel.length === 1 && twins.length === 1 && single && free(sameLevel[0].floor_id)) owner.set(sameLevel[0].floor_id, { floor: f.id, how: 'level' });
+    else if (sameLevel.length) {
+      ambiguous.add(f.id);
+      const cand = sameLevel.filter((h) => free(h.floor_id));
+      // one free candidate on a multi-building site: offered, not applied; several: the user picks
+      if (cand.length === 1 && twins.length === 1) suggestions.set(f.id, { haFloorId: cand[0].floor_id, haFloorName: cand[0].name, why: 'level' });
+    }
+  }
+  for (const f of floors) {
+    if (!open(f)) continue;
+    const key = norm(f.name);
+    if (!key) continue;
+    const cands = haFloors.filter((h) => norm(h.name) === key);
+    const twins = floors.filter((g) => norm(g.name) === key);
+    if (cands.length === 1 && twins.length === 1 && free(cands[0].floor_id)) {
+      // every building's floors are matched on their own: on a site of several buildings a name could be claimed twice - offered only
+      if (single) {
+        owner.set(cands[0].floor_id, { floor: f.id, how: 'name' });
+        ambiguous.delete(f.id);
+        suggestions.delete(f.id);
+      } else if (!suggestions.has(f.id)) suggestions.set(f.id, { haFloorId: cands[0].floor_id, haFloorName: cands[0].name, why: 'name' });
+    }
+  }
+  // a suggestion from the map: the platform floor most of the floor's placed areas sit on (only when nothing matched and it is free)
+  for (const f of floors) {
+    if (!open(f) || suggestions.has(f.id)) continue;
+    const votes = new Map<string, number>();
+    for (const x of areas) if (x.area.map?.floor_id === f.id && x.haFloorId) votes.set(x.haFloorId, (votes.get(x.haFloorId) ?? 0) + 1);
+    const best = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+    if (best[0] && (!best[1] || best[1][1] < best[0][1]) && free(best[0][0])) suggestions.set(f.id, { haFloorId: best[0][0], haFloorName: haById.get(best[0][0])!.name, why: 'map' });
+  }
+  // the areas, one owner each: map placement > the per-area row > the platform floor's owner
+  const byFloor = new Map<string, MatchedArea[]>(floors.map((f) => [f.id, []]));
+  const excluded = new Map<string, { area: DeviceArea; to: string | null }[]>(floors.map((f) => [f.id, []]));
+  for (const x of areas) {
+    const aid = x.area.area_id;
+    const viaFloor = x.haFloorId ? owner.get(x.haFloorId) : undefined;
+    let to: string | null;
+    let source: AreaSource;
+    if (x.area.map?.floor_id) {
+      to = x.area.map.floor_id;
+      source = 'map';
+    } else if (areaRows.has(aid)) {
+      to = areaRows.get(aid) ?? null;
+      source = 'manual';
+    } else if (viaFloor) {
+      to = viaFloor.floor;
+      source = viaFloor.how;
+    } else continue;
+    if (viaFloor && viaFloor.floor !== to && source !== 'map') excluded.get(viaFloor.floor)?.push({ area: x.area, to });
+    if (to && ids.has(to)) byFloor.get(to)!.push({ area: x.area, haFloorId: x.haFloorId, source });
+  }
+  for (const f of floors) {
+    const mine = [...owner.entries()].filter(([, o]) => o.floor === f.id);
+    const missing = [...floorRows.entries()].filter(([hid, fid]) => fid === f.id && !haById.has(hid)).map(([hid]) => hid);
+    missing.push(...[...areaRows.entries()].filter(([aid, fid]) => fid === f.id && !areaIds.has(aid)).map(([aid]) => aid));
+    out.set(f.id, {
+      haFloors: mine.map(([hid]) => ({ id: hid, name: haById.get(hid)!.name })),
+      how: mine[0]?.[1].how ?? null,
+      suggestion: mine.length ? null : suggestions.get(f.id) ?? null,
+      ambiguous: !mine.length && ambiguous.has(f.id),
+      areas: byFloor.get(f.id)!,
+      excluded: excluded.get(f.id)!,
+      missing,
+    });
+  }
+  return out;
+}
+
+/** The device-tree areas of a floor; pass the building's floors so the other floors compete (a lone floor matches alone). */
+export function areasOfFloor(floor: MatchFloor, tree: DeviceTree | null, building: MatchFloor[] = [floor], ctx: MatchContext = {}): { areas: DeviceArea[]; climateTargets: number[] } {
+  const all = building.some((f) => f.id === floor.id) ? building : [...building, floor];
+  const m = matchFloors(all, tree, ctx).get(floor.id);
+  const areas = m?.areas.map((x) => x.area) ?? [];
+  return { areas, climateTargets: tree ? climateTargetsOf(areas, tree) : [] };
+}
+
+/** The available climate targets of the areas: the area's own units, and the platform floor's list matched by area name (older trees). */
+function climateTargetsOf(areas: DeviceArea[], tree: DeviceTree): number[] {
+  const names = new Set(areas.map((a) => a.name));
+  const seen = new Set<string>();
+  const targets: number[] = [];
+  const take = (c: { entity_id: string; available: boolean; target_temperature: number | null }) => {
+    if (seen.has(c.entity_id) || !c.available || nz(c.target_temperature) === null) return;
+    seen.add(c.entity_id);
+    targets.push(c.target_temperature as number);
+  };
+  for (const a of areas) for (const c of a.climate ?? []) take(c);
+  for (const f of tree.floors) for (const c of f.climate) if (c.area_name && names.has(c.area_name)) take(c);
+  return targets;
+}
+
+/** One floor's signals from the catalogue floor, its match (building-wide, from signalsOf), the device tree and the presence answer. */
+export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleResponse | null, match?: FloorMatchInfo | null): FloorSignal {
+  const m = match === undefined ? matchFloors([floor], tree).get(floor.id) ?? null : match;
+  const areas = m?.areas.map((x) => x.area) ?? [];
+  const climateTargets = tree ? climateTargetsOf(areas, tree) : [];
   const connected = !!tree && tree.sync?.connected !== false;
   const lights = areas.reduce((n, a) => n + (a.counts?.lights ?? 0), 0);
   const lit = areas.reduce((n, a) => n + (a.counts?.lights_on ?? 0), 0);
@@ -191,11 +373,13 @@ export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleRe
     doorsOpen: known && opens.length ? opens.reduce((a, b) => a + b, 0) : null,
     alerts: null, // no per-floor alert source exists yet (see the 2.29.0 report)
     nodata: !known,
+    match: m,
   };
 }
 
-export function signalsOf(floors: Floor[], tree: DeviceTree | null, people: PeopleResponse | null): FloorSignal[] {
-  return [...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order).map((f) => signalOf(f, tree, people));
+export function signalsOf(floors: Floor[], tree: DeviceTree | null, people: PeopleResponse | null, ctx: MatchContext = {}): FloorSignal[] {
+  const matches = matchFloors(floors, tree, ctx);
+  return [...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order).map((f) => signalOf(f, tree, people, matches.get(f.id) ?? null));
 }
 
 /** hot / cold / null: only with both a reading and a target (no target = no verdict, not a guess). */
@@ -258,12 +442,67 @@ export function linksFold(opt: (typeof XS_LINKS)[number], floors: number, height
 /* ---------------------------------------------------------------- the synoptic columns */
 
 export type SynColumn = XsColumn | 'fire';
-/** The columns the board draws, in order. Presence follows the module; the fire column follows the connection and its option. */
-export function synColumns(o: Pick<XsOptions, 'syn_columns' | 'fire_column' | 'fire_ui'>, presenceOn: boolean, fireConnected: boolean): SynColumn[] {
-  const base: XsColumn[] = o.syn_columns === 'few' ? ['temp', 'light', 'alerts'] : ['light', 'temp', 'presence', 'cameras', 'doors', 'alerts'];
-  const cols: SynColumn[] = base.filter((c) => (c === 'presence' ? presenceOn : true));
-  if (o.fire_ui && (fireConnected || o.fire_column === 'dashed')) cols.push('fire');
-  return cols;
+type SynOpts = Pick<XsOptions, 'syn_columns' | 'fire_column' | 'fire_ui'> & Partial<Pick<XsOptions, 'syn_custom' | 'syn_hide_empty'>>;
+
+/**
+ * SYN-COLUMNS-2321: the metrics that have NO source on any floor of the building - drawn, they would be a column of "-" only.
+ * The rule is "the source does not exist", never "the value is 0": a floor that reports 0 lights on, 0 people or 0 open doors keeps its column.
+ *  - light / temp / doors: no floor WITH DATA has a value (lights counted, a reading or a target, an open-sensor count). When no floor has
+ *    data at all (the platform is disconnected, nothing is linked) nothing is hidden: that is an outage, said as "no data", not a missing source;
+ *  - presence: no floor has a count (the module answers for every floor when it is on); alerts: no floor has an alert source (none exists yet);
+ *  - cameras: the building has no camera at all, own or shared (a catalogue of zero cameras is not a source of camera numbers).
+ * The fire column is never hidden here: it has its own option (hidden until connected, or the dashed "not connected").
+ */
+export function emptyColumns(fl: readonly FloorSignal[]): XsColumn[] {
+  if (!fl.length) return [];
+  const live = fl.filter((f) => !f.nodata);
+  const none = (set: readonly FloorSignal[], pred: (f: FloorSignal) => boolean) => set.length > 0 && set.every(pred);
+  const out = new Set<XsColumn>();
+  if (none(live, (f) => f.lights === null || f.lit === null)) out.add('light');
+  if (none(live, (f) => f.temp === null && f.target === null)) out.add('temp');
+  if (none(fl, (f) => f.people === null)) out.add('presence');
+  if (none(fl, (f) => !f.cams && !f.shared)) out.add('cameras');
+  if (none(live, (f) => f.doorsOpen === null)) out.add('doors');
+  if (none(fl, (f) => f.alerts === null)) out.add('alerts');
+  return XS_COLUMNS_ALL.filter((c) => out.has(c));
+}
+
+/** The columns the options ask for, before the data has a say: the preset (all / few) or the custom ticks, always in the board order. */
+function chosenColumns(o: SynOpts): SynColumn[] {
+  if (o.syn_columns === 'few') return ['temp', 'light', 'alerts', 'fire'];
+  if (o.syn_columns === 'custom') return SYN_COLUMN_ORDER.filter((c) => (o.syn_custom ?? SYN_COLUMN_ORDER).includes(c));
+  return [...SYN_COLUMN_ORDER];
+}
+
+/**
+ * The columns the board draws, in order, and the ones left out because the building has no source for them (`hiddenEmpty`, for the quiet
+ * note under the board). Presence follows the module; the fire column follows the alarm UI, the connection and its option. Pass the floors
+ * (`fl`) for the hide-empty rule; without them (or with syn_hide_empty off) every chosen column is drawn.
+ */
+export function synBoardColumns(o: SynOpts, presenceOn: boolean, fireConnected: boolean, fl?: readonly FloorSignal[]): { cols: SynColumn[]; hiddenEmpty: XsColumn[] } {
+  const chosen = chosenColumns(o).filter((c) => (c === 'presence' ? presenceOn : c === 'fire' ? o.fire_ui && (fireConnected || o.fire_column === 'dashed') : true));
+  const empty = fl && o.syn_hide_empty !== false ? emptyColumns(fl) : [];
+  const hiddenEmpty = chosen.filter((c): c is XsColumn => c !== 'fire' && empty.includes(c));
+  return { cols: chosen.filter((c) => c === 'fire' || !empty.includes(c)), hiddenEmpty };
+}
+
+/** The columns the board draws, in order (see synBoardColumns). */
+export function synColumns(o: SynOpts, presenceOn: boolean, fireConnected: boolean, fl?: readonly FloorSignal[]): SynColumn[] {
+  return synBoardColumns(o, presenceOn, fireConnected, fl).cols;
+}
+
+/** The phone keeps at most three signal columns (and fire): lighting, temperature and alerts first, then what is left of doors, presence, cameras. */
+export function phoneColumns(cols: readonly SynColumn[]): SynColumn[] {
+  const rank: SynColumn[] = ['light', 'temp', 'alerts', 'doors', 'presence', 'cameras'];
+  const keep = new Set<SynColumn>(rank.filter((c) => cols.includes(c)).slice(0, 3));
+  if (cols.includes('fire')) keep.add('fire');
+  return cols.filter((c) => keep.has(c));
+}
+
+/** SYN-COLUMNS-2321, the cross-section (rows, tiles, compact card): which of its two metrics it draws - the same hide-empty rule as the board. */
+export function xsMetrics(fl: readonly FloorSignal[], o: Partial<Pick<XsOptions, 'syn_hide_empty'>>): { temp: boolean; light: boolean } {
+  const empty = o.syn_hide_empty === false ? [] : emptyColumns(fl);
+  return { temp: !empty.includes('temp'), light: !empty.includes('light') };
 }
 
 /* ---------------------------------------------------------------- fire (no integration exists: demo only) */

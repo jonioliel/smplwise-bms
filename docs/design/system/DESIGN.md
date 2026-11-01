@@ -179,7 +179,7 @@ A restrained palette: tinted neutrals from the canvas blue, one accent, nine sem
 - **Hairline** (`#e7ebf2` / `#232e45`) and **Hairline strong** (`#d9dfe9` / `#2f3c58`): card edges, dividers; the strong one for
   buttons and inputs and for a panel floating over the plan.
 - **Ink** (`#22314c` / `#e6ebf5`), **Heading ink** (`#1e2e47` / `#f3f6fc`), **Ink 2** (`#4b5976` / `#a9b4ca`, 7.4:1 on white),
-  **Ink 3** (`#5e6d88` / `#8896af`, 5.1:1): primary, heading, secondary and caption text. Ink 3 is the floor; nothing lighter
+  **Ink 3** (`#5e6d88` / `#98a4ba`, 5.1:1): primary, heading, secondary and caption text. Ink 3 is the floor; nothing lighter
   carries words.
 
 ### States (each: bare colour for dots, bars, icons · `-soft` fill · `-text` on that fill)
@@ -402,3 +402,13 @@ and component rules, not a new material system. Take from B the two things worth
 (light / dark rail) and `ui.density` (comfortable / compact, already present) - and from C only the phone roominess (44 px rows,
 larger H1 on the phone), which A already includes. If the owner prefers B or C, the token map in `TOKENS.md` carries their
 columns too, so nothing in this document has to be rewritten; only the frontmatter values change.
+
+#### Motion addendum (2.29.0)
+- Press feedback is scale .97 in every skin (classic and domus used .96 before). Dialog and menu landings still start from .96.
+- Reduced motion is honoured by every component: the token layer zeroes the duration tokens, and one shared sheet (design/apply.ts,
+  `REDUCED_ALL_CSS`) is adopted by the page and every component root and zeroes literal animation and transition durations too.
+  It applies when `ui.motion` is `reduced`, or `auto` under the OS prefers-reduced-motion; `full` ignores the OS setting.
+- Panel entrance (classic and domus, also Arx): cards, KPIs, tables, home widgets, building tiles and state panels fade in with a
+  6 px rise (220 ms, 30 ms stagger across the first four siblings; see `ENTER_RULES`, design/skins/polish-motion.ts). The setting
+  `ui.entry_animations` (on | off, default on; Settings > General > System look > Entrance animation) turns it off through
+  `data-enter="off"` on the root. Independent of `ui.motion`.

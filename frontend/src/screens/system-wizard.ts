@@ -6,7 +6,8 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { openArchitectRequest } from '../components/architect-request-dialog';
-import { can, isApi } from '../api/session';
+import { can, canAnywhere, isApi } from '../api/session';
+import './mapping-all'; // MAPPING-ASSIST-2330: the optional buildings-and-mapping step
 import '../components/nvr-connection-form';
 import { ApiError, describeError } from '../api/client';
 import { currentDismissal, dismissalLoaded, loadDismissal, onDismissal, restoreHint } from '../api/setup-hint';
@@ -254,6 +255,7 @@ export class SystemWizard extends LitElement {
             ${this.renderRail(d)}
             ${this.renderSummary(d)}
             ${d.steps.map((s) => this.renderStep(s))}
+            ${!isApi() || canAnywhere('site.content.configure') ? html`<sw-card heading="שלב רשות · בניינים ומיפוי" subheading="כשבאותה מערכת בית יש כמה בניינים: איזה שם שייך לאיזה בניין. אפשר גם אחר כך, מהגדרות ‹ בניינים ומיפוי." data-wizard-mapping><system-mapping compact></system-mapping></sw-card>` : nothing}
             <p class="hint">סטיית שעון עד ${d.thresholds.drift_ok_s} שנ׳ תקינה, עד ${d.thresholds.drift_fail_s} שנ׳ אזהרה, מעבר לזה השלב נכשל. "בדוק שוב" אפשרי פעם ב־${d.check_every_s} שנ׳ לכל שלב; בדיקה מול מכשיר מוצגת ${Math.round(d.live_ttl_s / 60)} דקות.</p>
           </div>`}
     </sw-page>`;

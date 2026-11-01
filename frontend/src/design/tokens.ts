@@ -75,7 +75,9 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-text': lt('#22314c', '#e6ebf5'),
       '--sw-heading': lt('#1e2e47', '#f3f6fc'),
       '--sw-text-2': lt('#4b5976', '#a9b4ca'),
-      '--sw-text-3': lt('#5e6d88', '#8896af'),
+      // UIPOLISH-2320 (owner 2A, 31.10): the dark muted ink one step lighter in the base and every skin (was #8896af) - it read ~4.0:1 on the
+      // screens (selected / hovered rows, nested panels); now >= 5.0:1 on every dark bed (tests/unit-dark-muted-contrast.spec.ts). Light unchanged.
+      '--sw-text-3': lt('#5e6d88', '#98a4ba'),
       '--sw-text-inverse': lt('#ffffff', '#ffffff'), // text on an accent fill
     },
   },
@@ -136,6 +138,10 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-forbidden': lt('#dc2626', '#ff7a70'),
       '--sw-forbidden-soft': lt('#fdecec', 'rgba(255, 122, 112, 0.2)'),
       '--sw-purple': lt('#8b5cf6', '#a78bfa'),
+      // MULTIBUILDING-HOME-2330: the site's shared building ("משותף") - its own colour on the home screen (card edge, icon, bars, tree)
+      '--sw-shared': same('var(--sw-purple)'),
+      '--sw-shared-soft': lt('#f1ecfe', 'rgba(167, 139, 250, 0.18)'),
+      '--sw-shared-text': lt('#6d28d9', '#c4b5fd'),
       // the text colour of a state on its own -soft fill (badge, chip, KPI detail); the bare colour stays for dots, bars, icons
       '--sw-live-text': lt('#15803d', '#3ddc84'),
       '--sw-recorded-text': lt('#1f5ae6', '#8fb8ff'),

@@ -17,7 +17,7 @@ from ..db import new_id, now_iso
 from .backup_offbox import CREDENTIAL_FIELDS, OffboxError, RetentionPolicy
 from .connection_store import SecretError, open_app_secret, seal_app_secret
 
-SECRET_FIELDS = ("access_key", "secret_key", "key")
+SECRET_FIELDS = ("access_key", "secret_key", "key", "client_secret", "refresh_token")  # the last two: gdrive (migration 0186)
 RUNS_KEPT = 50
 
 

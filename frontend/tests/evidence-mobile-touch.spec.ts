@@ -25,3 +25,40 @@ test('page tab strips are 44 px, buttons 40 px, and a shared field 40 px on a ph
   expect(await h(q), 'select in a field').toBeGreaterThanOrEqual(40);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
 });
+
+// UIPOLISH-2320 (owner 1B, 31.10): the switch draws 42 x 24; on a phone its hit box is >= 44 px tall (a block-axis-only ::before), and
+// never wider than the track (a wider one was horizontal overflow at 320 px - layout-devices-break-297).
+test('the switch (sw-toggle) has a >= 44 px tall touch target on a phone, no wider than its track', async ({ page }) => {
+  await open(page, '/explore/sites');
+  for (const w of [320, 390]) {
+    await page.setViewportSize({ width: w, height: 844 });
+    const r = await page.evaluate(async () => {
+      const host = document.createElement('sw-toggle') as HTMLElement & { label: string; updateComplete: Promise<unknown> };
+      host.label = 'בדיקה';
+      host.style.cssText = 'position:fixed;inset-block-start:400px;inset-inline-start:120px;z-index:99999';
+      document.body.appendChild(host);
+      await host.updateComplete;
+      const b = host.shadowRoot!.querySelector('button')!;
+      const box = b.getBoundingClientRect();
+      const before = getComputedStyle(b, '::before');
+      const cx = box.left + box.width / 2;
+      // a real hit test 9 px above and below the drawn track: the press lands on the switch
+      const hit = (y: number) => host.shadowRoot!.elementFromPoint(cx, y) === b;
+      const out = {
+        track: [Math.round(box.width), Math.round(box.height)],
+        hitH: parseFloat(before.height),
+        hitW: parseFloat(before.width),
+        above: hit(box.top - 9),
+        below: hit(box.bottom + 9),
+        overflowX: document.documentElement.scrollWidth - innerWidth,
+      };
+      host.remove();
+      return out;
+    });
+    expect(r.track, `${w}: the drawn switch is unchanged`).toEqual([42, 24]);
+    expect(r.hitH, `${w}: hit box height`).toBeGreaterThanOrEqual(44);
+    expect(r.hitW, `${w}: hit box width = the track`).toBeLessThanOrEqual(42);
+    expect(r.above && r.below, `${w}: a press 9 px above / below the track hits the switch`).toBe(true);
+    expect(r.overflowX, `${w}: no sideways scroll`).toBeLessThanOrEqual(0);
+  }
+});

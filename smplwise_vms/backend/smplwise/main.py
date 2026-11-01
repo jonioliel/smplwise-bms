@@ -21,6 +21,7 @@ from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
+from .routers import home_mapping as home_mapping_router  # MAPPING-ASSIST-2330
 from .routers import access, access_control, wiskey_relay_map as wiskey_relay_map_router, access_groups, alarm, doors as doors_router, anchors, automations, backup, brand as brand_router, white_label as white_label_router, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, popup_layout as popup_layout_router, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_ifc as plan_ifc_router, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
 
 log = logging.getLogger("smplwise")
@@ -531,6 +532,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api = "/api/v1"
     app.include_router(me.router, prefix=api, tags=["identity"])
     app.include_router(catalog.router, prefix=api, tags=["catalog"])
+    app.include_router(home_mapping_router.router, prefix=api, tags=["catalog"])  # MAPPING-ASSIST-2330: the mapping assistant
     app.include_router(plans.router, prefix=api, tags=["plans"])
     app.include_router(plan_geometry.router, prefix=api, tags=["plans"])
     app.include_router(plan_package_router.router, prefix=api, tags=["plans"])
@@ -868,9 +870,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(calendar_router.open_router, prefix=api, tags=["calendar"])  # module state, settings, guest purge: answer while the module is off
     app.include_router(calendar_router.router, prefix=api, tags=["calendar"])
-    from .routers import calendar_sync as calendar_sync_router  # CALENDARS-298 phase 2: external calendar connections, bindings, manual sync (no real provider yet)
+    from .routers import calendar_sync as calendar_sync_router  # CALENDARS-298 phase 2: external calendar connections, bindings, manual sync
 
     app.include_router(calendar_sync_router.router, prefix=api, tags=["calendar"])
+    from .routers import calendar_feeds as calendar_feeds_router  # CALCONNECT-2330: iCal OUT feeds (management + the token document)
+    from .services.calendar_sync import credentials as calendar_credentials
+    from .services.calendar_sync import registry as calendar_registry
+
+    calendar_credentials.RUNTIME.configure(app.state.db, settings.data_dir)  # CALCONNECT-2330: the real adapters read sealed credentials through it
+    calendar_registry.install_builtin()  # iCal IN, Google, Microsoft; they run only for an authorised connection while the module is on
+    app.include_router(calendar_feeds_router.router, prefix=api, tags=["calendar"])
+    app.include_router(calendar_feeds_router.public_router, prefix=api, tags=["calendar"])  # the token document: no signed-in person (a subscriber cannot sign in)
     from .routers import transit as transit_router  # BUSTIMES-295: הגדרות › תחבורה ציבורית (stops, catalogue, health); the TV digest is a notices display route
 
     app.include_router(transit_router.router, prefix=api, tags=["transit"])

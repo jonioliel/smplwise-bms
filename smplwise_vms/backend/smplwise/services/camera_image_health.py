@@ -33,7 +33,6 @@ STATE
 from __future__ import annotations
 
 import datetime as dt
-import io
 import json
 import logging
 import os
@@ -187,10 +186,10 @@ def ranges() -> dict[str, dict[str, float]]:
 
 def decode(jpeg: bytes, size: tuple[int, int] = ANALYSIS_SIZE) -> np.ndarray:
     """JPEG bytes -> a grayscale uint8 array no larger than `size` (Pillow's draft mode decodes at 1/2, 1/4 or 1/8 scale)."""
-    from PIL import Image
+    from . import image_guard
 
     try:
-        im = Image.open(io.BytesIO(jpeg))
+        im = image_guard.open_untrusted(jpeg, ["JPEG"])  # a camera / NVR frame: JPEG only
         im.draft("L", size)
         im = im.convert("L")
         im.thumbnail(size)

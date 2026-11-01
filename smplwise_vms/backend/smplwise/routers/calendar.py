@@ -99,7 +99,9 @@ def module_state(principal: Principal = Depends(current_principal_ro), conn: sql
     s = model.read_settings(conn)
     anywhere = set(permissions_anywhere(conn, principal))
     return {"enabled": s["enabled"], "menu_position": s["menu_position"],
-            "can": {p.split(".", 1)[1]: p in anywhere for p in model.ALL_PERMS}}
+            "can": {p.split(".", 1)[1]: p in anywhere for p in model.ALL_PERMS},
+            # CALENDARS-UI-2310: the presentation choices every screen needs before it draws (the whole document is GET /calendar/settings)
+            "ui": {k: s[k] for k in model.UI_CHOICES} | {"allow_displace": s["allow_displace"], "guest_details_enabled": s["guest_details_enabled"]}}
 
 
 @open_router.get("/calendar/settings")
@@ -157,6 +159,7 @@ def create_calendar(body: Body, request: Request, principal: Principal = Depends
     require(conn, principal, model.PERM_MANAGE, target)
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
+        model.check_override(model.read_settings(conn), data.get("overlap_override"))
         row = cals.create(ctx, data, model.read_settings(conn))
         _audit(conn, principal, request, "calendar.calendar.create", "calendar", row["id"])
         return {"calendar": cals.serialize(conn, row, ctx.role_in(row))}
@@ -178,6 +181,8 @@ def patch_calendar(cid: str, body: Body, request: Request, principal: Principal 
     with _errors(conn, principal, request):
         if ctx.role_in(cal) != "manage":
             raise Denied("calendar.role", cid, "manage")
+        if "overlap_override" in data:
+            model.check_override(model.read_settings(conn), data["overlap_override"])
         if "owner_user_id" in data and data["owner_user_id"] != cal["owner_user_id"]:
             if not ctx.has(model.PERM_MANAGE, scope_of(cal)):
                 raise Denied(model.PERM_MANAGE, cid, "owner")
@@ -411,7 +416,8 @@ def list_requests(state: str = Query(default="pending"), calendars: str = Query(
     _need_view(conn, principal)
     if state not in ("pending", "rejected", "expired", "withdrawn"):
         raise ApiError(422, "validation", "state", details={"field": "state"})
-    return {"requests": decisions.requests(Ctx(conn, principal), calendars=[c for c in calendars.split(",") if c] or None, state=state)}
+    return {"requests": decisions.requests(Ctx(conn, principal), calendars=[c for c in calendars.split(",") if c] or None, state=state,
+                                          order=model.read_settings(conn)["contested_order"])}
 
 
 @router.post("/calendar/requests/{eid}/decide")

@@ -676,6 +676,9 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
     from ..services.tickets import staff_links  # TKSTAFF1 (R7 a): a deactivated user's no-login staff links die with the push
 
     staff_links.safe_recheck(conn)
+    from ..services.tickets import out_documents  # TEMPLINK-2320 (owner 4A): a deactivated user's report links die with the push
+
+    out_documents.revoke_for_inactive_users_safe(conn)
     set_setting(conn, "bridge.directory_at", now)
     if not get_setting(conn, "bridge.paired_at"):
         set_setting(conn, "bridge.paired_at", now)

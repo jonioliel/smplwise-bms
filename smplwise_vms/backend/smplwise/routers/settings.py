@@ -80,6 +80,7 @@ DEFAULTS: dict[str, str] = {
     # system's reduced-motion choice) | full (ignore that reduction for non-essential motion) | reduced (zero durations, press scale 1,
     # the same thing the OS reduction does). Per installation; frontend/src/design/apply.ts reads it (data-motion on <html>).
     "ui.motion": "auto",
+    "ui.entry_animations": "on",  # 2.29.0: on | off - the panel entrance animation of the classic / domus skins; ENTER_MODES in frontend/src/design/apply.ts
     "ui.rail_tone": "auto",  # SKINCOMP-297: auto | dark - the dark (navy) rail of a skin that has one (Arx Infra = direction D); RAIL_TONES in frontend/src/design/skins/index.ts
     # 2.4.4 (owner 2026-10-10): the product's accent colour and the colour of a switch that is on - "default" (the skin's own: the
     # system blue of the classic look) | a preset id (ios_green = the earlier glass mockup's green) | "#rrggbb". services/brand_colors.py;
@@ -379,6 +380,12 @@ DEFAULTS: dict[str, str] = {
     # project backup (services/backup_sensitive.py). 8-64; services clamp a stored value to that range (8 is the hard floor).
     # Security policy of this installation: never exported or restored (backup.SETTINGS_KEEP).
     "backup.password_min": "12",
+    # OFFBOX-RESTORE-2300 (owner decisions 2026-10-30, services/restore_safety.py): the scope a restore from an off-box copy uses when
+    # none is named (and the screen's initial choice), and whether a LOCAL restore writes the pre-restore safety archive first.
+    # Installation policy: never exported or restored (backup.SETTINGS_KEEP).
+    "backup.offbox_restore_scope": "project+access",  # project | project+access
+    "backup.local_restore_scope": "project+access",  # project | project+access (owner answer 2026-10-30)
+    "backup.safety_before_local_restore": "on",  # on | off
     "security.local_link_ttl_h": "72",  # 1-168: first-login / reset link lifetime
     # USR2-FIX F2: the per-(account, network) delay and the per-account ceiling lock behave the same in both modes; the value only names
     # the network-tier refusal in the audit (account_delay | account_locked). See CR-USR2 §6 (brute-force semantics).
@@ -532,9 +539,14 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     # CR-039 DOORWIN-295: READ-ONLY, derived - whether the door-windows tab is in the navigation (a door feature is switched on). Not in
     # DEFAULTS and not patchable here: the switches themselves live behind /doors/windows/settings and /doors/emergency/settings.
     out["doors.ui.tab"] = "on" if (get_setting(conn, "doors.windows.enabled") == "on" or get_setting(conn, "doors.emergency.enabled") == "on") else "off"
+    # MAPPING-ASSIST-2330 (owner 31.10): READ-ONLY here - the multi-building view of the home screen, OFF by default. Switched through
+    # PUT /home/multi-building (site.content.configure on every site, audited), not through PATCH /settings.
+    out["home.multi_building"] = "on" if get_setting(conn, "home.multi_building.enabled") == "on" else "off"
     out["ui.skin"] = stored_skin(out["ui.skin"])  # BUBBLE-FREEZE-295: a stored frozen skin reads as the fallback (the row is left as it is)
     if out.get("ui.motion") not in ("auto", "full", "reduced"):  # MOTIONSETTING-297: a corrupt value reads as the default
         out["ui.motion"] = DEFAULTS["ui.motion"]
+    if out.get("ui.entry_animations") not in ("on", "off"):  # 2.29.0: a corrupt value reads as the default
+        out["ui.entry_animations"] = "on"
     if out.get("ui.rail_tone") not in ("auto", "dark"):  # SKINCOMP-297: a corrupt value reads as the default
         out["ui.rail_tone"] = "auto"
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
@@ -621,7 +633,7 @@ def _stored_xs(raw: Any) -> dict[str, Any]:
     try:
         return xs_options.normalize(json.loads(raw) if isinstance(raw, str) else raw)
     except ValueError:
-        return dict(xs_options.DEFAULT)
+        return xs_options.normalize({})
 
 
 def _stored_timeline_colors(raw: Any) -> dict[str, str]:
@@ -799,6 +811,7 @@ class SettingsPatch(BaseModel):
     ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble|crystal|infra|soft)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts (SKINFOUND-297: infra, soft)
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
     ui_motion: str | None = Field(default=None, pattern="^(auto|full|reduced)$", alias="ui.motion")  # MOTIONSETTING-297; keep in step with MOTION_MODES in frontend/src/design/apply.ts
+    ui_entry_animations: str | None = Field(default=None, pattern="^(on|off)$", alias="ui.entry_animations")  # 2.29.0: keep in step with ENTER_MODES in frontend/src/design/apply.ts
     ui_rail_tone: str | None = Field(default=None, pattern="^(auto|dark)$", alias="ui.rail_tone")  # SKINCOMP-297: keep in step with RAIL_TONES in frontend/src/design/skins/index.ts
 
     @field_validator("ui_skin")
@@ -941,6 +954,9 @@ class SettingsPatch(BaseModel):
     privacy_local_purge_confirm: str | None = Field(default=None, max_length=32, alias="privacy.local_purge_confirm")  # REL2140 M-1: the typed confirmation; never stored
     privacy_personal_export: str | None = Field(default=None, pattern="^(on|off)$", alias="privacy.personal_export")  # IDENT146
     backup_password_min: int | None = Field(default=None, ge=8, le=64, alias="backup.password_min")  # BACKUP-HASH-ENC: hard floor 8
+    backup_offbox_restore_scope: str | None = Field(default=None, pattern=r"^(project|project\+access)$", alias="backup.offbox_restore_scope")  # OFFBOX-RESTORE-2300
+    backup_local_restore_scope: str | None = Field(default=None, pattern=r"^(project|project\+access)$", alias="backup.local_restore_scope")  # OFFBOX-RESTORE-2300
+    backup_safety_before_local_restore: str | None = Field(default=None, pattern="^(on|off)$", alias="backup.safety_before_local_restore")  # OFFBOX-RESTORE-2300
     security_local_link_ttl_h: int | None = Field(default=None, ge=1, le=168, alias="security.local_link_ttl_h")
     security_local_lock_mode: str | None = Field(default=None, pattern="^(delay|lock)$", alias="security.local_lock_mode")
     security_local_public_url: str | None = Field(default=None, max_length=300, alias="security.local_public_url")  # USR2 phase 2: system_admin only (checked below)

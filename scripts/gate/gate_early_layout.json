@@ -1,0 +1,12 @@
+{
+  "_comment": "The early layout stage (GATE-FAST-2291, item 3): a fixed, short list of layout specs (no scroll in control screens, dropdowns, phone/narrow screens, camera walls on a phone) that the v2 engine runs FIRST, in parallel with the backend shards, then retries failures alone and reports within about 12 minutes. include = fnmatch patterns on spec file names (priority order); only dist-preview specs are taken (dev-server, fixture and pixel specs stay in the main pool); the list is capped at max_worker_seconds of recorded cost (gate_durations.json or earlier gates), first patterns first. A spec in this stage does NOT run again in the main pool. Disable: GATE_EARLY_LAYOUT=0. Failure policy: GATE_EARLY_FAILFAST=stop (default, owner answer 1A: stop the whole gate and report) or continue.",
+  "include": [
+    "layout-noscroll-*.spec.ts", "evidence-noscroll-*.spec.ts", "layout-timescrub-noscroll.spec.ts",
+    "layout-dd-*.spec.ts", "layout-dropdown-*.spec.ts", "dropdown-*.spec.ts", "evidence-*dropdown*.spec.ts",
+    "layout-settings-nav*.spec.ts", "layout-overlay-no-shift.spec.ts",
+    "evidence-mobile*.spec.ts", "evidence-wall-phone.spec.ts", "evidence-home-phonefloors-*.spec.ts",
+    "layout-header-logo-*.spec.ts", "layout-bubble*.spec.ts", "layout-a11y-*.spec.ts"
+  ],
+  "max_worker_seconds": 3300,
+  "slots": 12
+}

@@ -2,7 +2,7 @@
 """Gate v2 (GATE2-295) verdict post-processor: reads the engine's report of a gate-2 run and writes the gate-2 summary.
 
 The engine's verdict is never edited. Gate 2 adds:
-  * the managed QUARANTINE (gate2_quarantine.json, entries with a ticket and an expiry): a FAIL that matches an active entry is
+  * the managed QUARANTINE (gate2_quarantine.json, entries with a ticket and an expiry <= 7 days): a FAIL that matches an active entry is
     listed as QUARANTINED. Quarantined tests always run; the entry only changes what happens next: when EVERY failure of the run
     is quarantined, release_gate2.sh re-runs ONLY those tests once more on the same sha (rc 10 below). Two red runs in a row
     of a quarantined test = a real FAIL (the second report is read with --second).
@@ -26,33 +26,70 @@ from pathlib import Path
 TEST_CATS = {"backend", "preview", "dev", "pixel", "fixture"}
 
 
-def load_quarantine(path: Path, today: dt.date | None = None) -> tuple[list[dict], list[str]]:
-    """(active entries, problems). An entry: {"match": "<substring of the item id>", "category": "backend|preview|dev|pixel|
-    fixture|*", "ticket": "...", "owner": "...", "added": "YYYY-MM-DD", "expires": "YYYY-MM-DD", "reason": "..."}. An entry
-    without ticket, owner or a valid expiry, or expired, or longer than 21 days, is ignored and reported."""
+MAX_QUARANTINE_DAYS = 7      # owner decision 30.10 night (ENTRY-CHECK-2310): expiry at most 7 days after `added` (was 21)
+QUARANTINE_FIELDS = ("match", "ticket", "owner", "reason")
+
+
+def load_quarantine_full(path: Path, today: dt.date | None = None) -> dict:
+    """{"active": [...], "expired": [...], "problems": [str]}. An entry: {"match": "<substring of the item id>", "category":
+    "backend|preview|dev|pixel|fixture|*", "ticket": "...", "owner": "...", "reason": "...", "added": "YYYY-MM-DD",
+    "expires": "YYYY-MM-DD"}. Only ACTIVE entries explain a failure. An EXPIRED entry explains nothing (its test counts as a
+    failure again) and is listed by every report; an entry without match/ticket/owner/reason, without valid dates, with expiry
+    before `added`, or longer than MAX_QUARANTINE_DAYS is ignored and reported as a problem."""
     today = today or dt.date.today()
+    out: dict = {"active": [], "expired": [], "problems": []}
     try:
         doc = json.loads(Path(path).read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return [], []
+        return out
     except ValueError as e:
-        return [], [f"{path}: not JSON ({e})"]
-    active, probs = [], []
-    for e in doc.get("entries", []):
+        out["problems"].append(f"{path}: not JSON ({e})")
+        return out
+    for e in doc.get("entries", []) if isinstance(doc, dict) else []:
         tag = e.get("match", "?")
         try:
             added = dt.date.fromisoformat(e["added"])
             exp = dt.date.fromisoformat(e["expires"])
-        except (KeyError, ValueError):
-            probs.append(f"{tag}: no valid added/expires date - ignored"); continue
-        if not e.get("ticket") or not e.get("owner") or not e.get("match"):
-            probs.append(f"{tag}: needs match, ticket and owner - ignored"); continue
-        if (exp - added).days > 21:
-            probs.append(f"{tag}: longer than 21 days - ignored"); continue
+        except (KeyError, ValueError, TypeError):
+            out["problems"].append(f"{tag}: no valid added/expires date - ignored"); continue
+        missing = [k for k in QUARANTINE_FIELDS if not str(e.get(k) or "").strip()]
+        if missing:
+            out["problems"].append(f"{tag}: needs {', '.join(missing)} - ignored"); continue
+        if exp < added:
+            out["problems"].append(f"{tag}: expires {exp} before it was added {added} - ignored"); continue
+        if (exp - added).days > MAX_QUARANTINE_DAYS:
+            out["problems"].append(f"{tag}: longer than {MAX_QUARANTINE_DAYS} days ({added} -> {exp}) - ignored"); continue
         if exp < today:
-            probs.append(f"{tag}: expired {exp} - ignored (fix the test or renew with a reason)"); continue
-        active.append(e)
-    return active, probs
+            out["expired"].append(e); continue
+        out["active"].append(e)
+    return out
+
+
+def load_quarantine(path: Path, today: dt.date | None = None) -> tuple[list[dict], list[str]]:
+    """(active entries, problems) - the old shape; expired entries are reported among the problems."""
+    f = load_quarantine_full(path, today)
+    return f["active"], f["problems"] + [f"{e.get('match', '?')}: expired {e.get('expires')} - ignored, counts as a failure again "
+                                         f"(fix the test or renew with a reason)" for e in f["expired"]]
+
+
+def quarantine_section(path: Path, today: dt.date | None = None, heading: str = "##") -> list[str]:
+    """The markdown section every gate / nightly / entry-check report carries: active entries with ticket, owner, expiry and days
+    left; EXPIRED entries (their tests count as failures again); invalid entries."""
+    today = today or dt.date.today()
+    f = load_quarantine_full(path, today)
+    out = ["", f"{heading} Quarantine list (active {len(f['active'])}, expired {len(f['expired'])}, invalid {len(f['problems'])}; "
+               f"max {MAX_QUARANTINE_DAYS} days, ticket required)", ""]
+    for e in f["active"]:
+        left = (dt.date.fromisoformat(e["expires"]) - today).days
+        out.append(f"- {e['match']} [{e.get('category', '*')}] ticket {e['ticket']}, owner {e['owner']}, added {e['added']}, "
+                   f"expires {e['expires']} ({left} d left): {str(e.get('reason', ''))[:100]}")
+    for e in f["expired"]:
+        out.append(f"- EXPIRED {e['expires']}: {e.get('match')} [{e.get('category', '*')}] ticket {e.get('ticket')} - "
+                   f"counts as a failure again; fix the test, or renew it with a new reason")
+    out += [f"- INVALID: {p}" for p in f["problems"]]
+    if len(out) == 3:
+        out.append("- (empty)")
+    return out
 
 
 def quarantined(item: dict, entries: list[dict]) -> dict | None:
@@ -73,7 +110,8 @@ def classify(report: dict, entries: list[dict]) -> dict:
             "flaky": [i for i in report.get("items", []) if i.get("status") == "FLAKY"]}
 
 
-def summary_md(report: dict, sel: dict | None, c: dict, probs: list[str], branch: str, rpath: Path, second: bool) -> str:
+def summary_md(report: dict, sel: dict | None, c: dict, probs: list[str], branch: str, rpath: Path, second: bool,
+               qsection: list[str] | None = None) -> str:
     v = report.get("verdict")
     if v == "pass":
         g2 = "PASS"
@@ -102,7 +140,9 @@ def summary_md(report: dict, sel: dict | None, c: dict, probs: list[str], branch
     lines += ["", f"## Quarantined failures ({len(c['quarantined'])})", ""] + \
              [f"- [{i['category']}] {i['id'][:150]} - ticket {e['ticket']}, expires {e['expires']}" for i, e in c["quarantined"]] + ["- (none)"] * (not c["quarantined"])
     lines += ["", f"## Flaky (failed once, passed alone): {len(c['flaky'])}", ""] + [f"- [{i['category']}] {i['id'][:160]}" for i in c["flaky"][:40]] + ["- (none)"] * (not c["flaky"])
-    if probs:
+    if qsection is not None:
+        lines += qsection
+    elif probs:
         lines += ["", "## Quarantine file problems", ""] + [f"- {p}" for p in probs]
     if g2 == "FAIL":
         if c["hard"]:
@@ -160,7 +200,9 @@ def main(argv=None) -> int:
     ap.add_argument("--quarantine", default=str(Path(__file__).resolve().parent / "gate2_quarantine.json"))
     ap.add_argument("--second", action="store_true", help="this report is the re-run of quarantined failures")
     ap.add_argument("--branch", default="")
+    ap.add_argument("--today", help="YYYY-MM-DD (tests)")
     ns = ap.parse_args(argv)
+    today = dt.date.fromisoformat(ns.today) if ns.today else None
     rp = Path(ns.report)
     try:
         report = json.loads(rp.read_text(encoding="utf-8"))
@@ -174,9 +216,9 @@ def main(argv=None) -> int:
             sel = json.loads(sp.read_text(encoding="utf-8"))
         except ValueError:
             sel = None
-    entries, probs = load_quarantine(Path(ns.quarantine))
+    entries, probs = load_quarantine(Path(ns.quarantine), today)
     c = classify(report, entries)
-    md = summary_md(report, sel, c, probs, ns.branch, rp, ns.second)
+    md = summary_md(report, sel, c, probs, ns.branch, rp, ns.second, quarantine_section(Path(ns.quarantine), today))
     out = rp.with_name(rp.name[:-len(".json")] + (".gate2-rerun.md" if ns.second else ".gate2.md"))
     out.write_text(md, encoding="utf-8")
     print(md)

@@ -49,12 +49,13 @@ test('the home area has one tab array; its hrefs and the section registry', () =
   expect(AREA_TABS.devices).toBe(DEVICES_TABS);
   // 0.1.154: two tabs, "מבט על" and "קברניט" (id `automations`, whose first segment is the schedules); the tab opens on the schedules by default
   // NOTICEADD-295: לוח הודעות left this row for the rail (NOTICES_AREA, owner decision 2026-10-24); ANNOUNCE-295: + הכרזות (media.announce)
-  expect(DEVICES_TABS.map((t) => t.href)).toEqual(['#/devices/building', '#/devices/synoptic', SCHEDULES_HREF, '#/devices/announce']);
-  expect(DEVICES_TABS.map((t) => t.label)).toEqual(['מבט על', 'מפה סינופטית', 'קברניט', 'הכרזות']);
+  // CALENDARS-UI-2310: + יומנים between the synoptic map and קברניט (hidden unless the calendars module is on and placed in the home menu)
+  expect(DEVICES_TABS.map((t) => t.href)).toEqual(['#/devices/building', '#/devices/synoptic', '#/devices/calendars/cal', SCHEDULES_HREF, '#/devices/announce']);
+  expect(DEVICES_TABS.map((t) => t.label)).toEqual(['מבט על', 'מפה סינופטית', 'יומנים', 'קברניט', 'הכרזות']);
   expect(sectionIdOf(DEVICES_TABS)).toBe('devices');
   const def = TAB_SECTIONS.find((s) => s.id === 'devices');
   expect(def?.label).toBe('ראשי');
-  expect(ids(def!.tabs())).toEqual(['building', 'synoptic', 'automations', 'announce']);
+  expect(ids(def!.tabs())).toEqual(['building', 'synoptic', 'calendars', 'automations', 'announce']);
   expect(ids(AREA_TABS.system)).toContain('schedules'); // the settings page keeps its own tab
 });
 

@@ -31,6 +31,8 @@ import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStat
 import '../components/sw-kpi';
 import { TILE_LAYOUT_LABEL, TILE_LAYOUTS, resolveTileLayout, setInstallationTileLayout, setTileLayoutOverride, tileLayoutOverride, type TileLayoutSetting } from '../api/tile-layout';
 import { bpt } from '../i18n/backup-password';
+import { obr, obrApiError } from '../i18n/backup-offbox-restore';
+import { localSafetyOn, safetyBody, scopeFromSetting } from '../api/backup-offbox';
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, getMeterBackup, listBackups, restoreBackup, setMeterBackup, uploadBackup, type BackupEntry, type MeterBackupSetting } from '../api/backup';
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
@@ -51,6 +53,7 @@ import './system-look'; // Bubble foundation: הגדרות › כללי › מר
 import './system-plan-view'; // CR-029 ST7 UI: הגדרות › מפה › תצוגה ריאליסטית (plan.view, the person's own dials, the site location)
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
+import './mapping-all'; // MAPPING-ASSIST-2330: הגדרות › כללי › בניינים ומיפוי
 import './system-xs-options'; // 2.29.0: הגדרות › כללי › חתך הבניין והמפה הסינופטית
 import './system-presence'; // CR-027: הגדרות › אפליקציה לנייד
 import './system-brand-logos'; // LOGOS-295: הגדרות › כללי › מראה המערכת › לוגו ושם המערכת (company logo, size, dark background, tab title)
@@ -103,6 +106,7 @@ const TAB_SUB: Record<string, string> = {
   tabs: 'אילו לשוניות מוצגות בכל אזור, באיזה סדר ובאיזה סגנון',
   media: 'תעבורת וידאו, קיר המצלמות, מסך הפתיחה, מכסות ושמירת נתונים',
   map: 'איך מפות הקומה נפתחות ומה מוצג בסרגל המפלסים',
+  buildings: 'איזה שם במערכת הבית שייך לאיזה בניין אצלנו, ותצוגת ריבוי הבניינים',
   ha: 'החיבור לתשתית, הגשר והצימוד שלו',
   'access-control': 'אילו מסכי WisKey מוטמעים ואילו נבנו כאן',
   devices: 'המראה של מסכי החשמל וההתקנים לכל המשתמשים',
@@ -120,6 +124,7 @@ const TABS = [
   { id: 'tabs', label: 'לשוניות' }, // 2026-09-30: which tabs each navigation section shows and in which order (ui.tabs)
   { id: 'media', label: 'וידאו ומדיה' },
   { id: 'map', label: 'מפה' },
+  { id: 'buildings', label: 'בניינים ומיפוי' }, // MAPPING-ASSIST-2330: the multi-building switch and the mapping assistant
   { id: 'ha', label: 'גשר Home Assistant' },
   { id: 'access-control', label: 'מתגי מסכי כניסה' },
   { id: 'devices', label: 'חשמל והתקנים' },
@@ -178,6 +183,9 @@ export class SystemDiagnostics extends LitElement {
   @state() private restoreSkip = false;
   @state() private restoreCanSkip = false;
   @state() private backupMinBusy = false;
+  // OFFBOX-RESTORE-2300 (owner 2026-10-30): the safety backup before a local restore - its switch (a setting) and its own password
+  @state() private localSafetyBusy = false;
+  @state() private restoreSafety = '';
   @state() private backupMsg = '';
   @state() private meterBackup: MeterBackupSetting | null = null;
   @state() private meterBackupBusy = false;
@@ -1462,6 +1470,38 @@ export class SystemDiagnostics extends LitElement {
     }
   }
 
+  /** OFFBOX-RESTORE-2300: `backup.safety_before_local_restore` (default on), saved at once like the other switches. */
+  /** OFFBOX-RESTORE-2300 (owner answer 2026-10-30): `backup.local_restore_scope` (default project+access), saved at once. */
+  private async toggleLocalScope(on: boolean) {
+    this.localSafetyBusy = true;
+    this.error = '';
+    try {
+      const r = await patchSettings({ 'backup.local_restore_scope': on ? 'project+access' : 'project' });
+      this.settings = r.settings;
+      invalidateSettings();
+      this.backupMsg = obr('saved');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.localSafetyBusy = false;
+    }
+  }
+
+  private async toggleLocalSafety(on: boolean) {
+    this.localSafetyBusy = true;
+    this.error = '';
+    try {
+      const r = await patchSettings({ 'backup.safety_before_local_restore': on ? 'on' : 'off' });
+      this.settings = r.settings;
+      invalidateSettings();
+      this.backupMsg = obr('saved');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.localSafetyBusy = false;
+    }
+  }
+
   private async onBackupFile(file: File | undefined) {
     if (!file) return;
     this.backupBusy = true;
@@ -1502,11 +1542,12 @@ export class SystemDiagnostics extends LitElement {
   private openRestore(b: BackupEntry) {
     this.restoreTarget = b;
     this.restoreMode = 'replace';
-    this.restoreAccess = false;
+    this.restoreAccess = scopeFromSetting(this.settings?.['backup.local_restore_scope']) === 'project+access'; // owner answer 2026-10-30: a setting, default on
     this.restoreConfirm = '';
     this.restorePassword = '';
     this.restoreSkip = false;
     this.restoreCanSkip = false;
+    this.restoreSafety = '';
   }
 
   private async doRestore() {
@@ -1517,19 +1558,23 @@ export class SystemDiagnostics extends LitElement {
     try {
       const pw = this.restorePassword;
       const r = await restoreBackup(b.name, { mode: this.restoreMode, scope: this.restoreAccess ? 'project+access' : 'project', confirm: this.restoreConfirm,
-        ...(pw ? { backup_password: pw } : {}), ...(this.restoreSkip ? { skip_sensitive: true } : {}) });
+        ...(pw ? { backup_password: pw } : {}), ...(this.restoreSkip ? { skip_sensitive: true } : {}),
+        ...(localSafetyOn(this.settings?.['backup.safety_before_local_restore']) ? safetyBody(this.restoreSafety) : {}) });
       this.restorePassword = '';
+      this.restoreSafety = '';
+      const safety = r.safety_archive ? ` · ${obr('safetyDone', { safety: r.safety_archive.name })}` : '';
       const parts = Object.entries(r.tables).filter(([k]) => TABLE_LABEL[k]).map(([k, n]) => `${n} ${TABLE_LABEL[k]}`);
       const reset = r.passwords?.need_reset_count ? ` · ${bpt('resultNeedReset', { n: r.passwords.need_reset_count })}` : '';
-      this.backupMsg = `שוחזר מ־${b.name} (${r.mode === 'replace' ? 'החלפה' : 'מיזוג'}): ${parts.join(', ')} · ${r.files} קבצים${r.files_skipped ? ` · ${r.files_skipped} קבצים לא שוחזרו` : ''}${reset}`;
+      this.backupMsg = `שוחזר מ־${b.name} (${r.mode === 'replace' ? 'החלפה' : 'מיזוג'}): ${parts.join(', ')} · ${r.files} קבצים${r.files_skipped ? ` · ${r.files_skipped} קבצים לא שוחזרו` : ''}${reset}${safety}`;
       this.restoreTarget = null;
       invalidateSettings();
       await this.loadBackups();
     } catch (err) {
-      this.error = describeError(err);
+      this.error = err instanceof ApiError && err.code.startsWith('safety_password_') ? obrApiError(err.code, err.body.details) : describeError(err);
       // BACKUP-HASH-ENC: a missing / wrong password (or a damaged encrypted part) offers "restore without the passwords"
       this.restoreCanSkip = err instanceof ApiError && err.body.details?.can_skip === true;
       this.restorePassword = '';
+      this.restoreSafety = '';
     } finally {
       this.backupBusy = false;
     }
@@ -1578,12 +1623,21 @@ export class SystemDiagnostics extends LitElement {
     return nothing;
   }
 
+  /** OFFBOX-RESTORE-2300: the safety backup written before the restore - its optional password, or a one-line note when it is off. */
+  private renderRestoreSafety() {
+    if (!localSafetyOn(this.settings?.['backup.safety_before_local_restore'])) return html`<div class="muted" role="note" data-restore-safety-off>${obr('safetyOff')}</div>`;
+    return html`<div class="row" data-restore-safety-row><span class="lbl">${obr('safetyPassword')}<span class="muted">${obr('safetyHint')}</span></span>
+      <input class="note-in" type="password" autocomplete="new-password" data-restore-safety placeholder=${obr('safetyPlaceholder', { n: this.backupMin() })}
+        .value=${this.restoreSafety} @input=${(e: Event) => (this.restoreSafety = (e.target as HTMLInputElement).value)} /></div>`;
+  }
+
   private renderRestoreDialog(b: BackupEntry) {
     return html`<sw-dialog open heading="שחזור גיבוי" subheading=${b.name} @close=${() => (this.restoreTarget = null)}>
       <div class="row"><span class="lbl">אופן השחזור<span class="muted">${this.restoreMode === 'replace' ? 'הנתונים הנוכחיים של הפרויקט מוחלפים במה שבגיבוי' : 'רק פריטים שחסרים היום מתווספים; הקיימים נשארים'}</span></span>
         <select data-restore-mode @change=${(e: Event) => (this.restoreMode = (e.target as HTMLSelectElement).value as 'replace' | 'merge')}><option value="replace" ?selected=${this.restoreMode === 'replace'}>החלפה</option><option value="merge" ?selected=${this.restoreMode === 'merge'}>מיזוג</option></select></div>
-      <div class="row"><span class="lbl">כולל משתמשים והרשאות<span class="muted">ברירת המחדל: רק נתוני הפרויקט. ההרשאות שלך נשמרות בכל מקרה.</span></span><sw-toggle ?checked=${this.restoreAccess} label="כולל הרשאות" labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => (this.restoreAccess = e.detail.checked)}></sw-toggle></div>
+      <div class="row"><span class="lbl">${obr('accessLabel')}<span class="muted">${obr('accessHint')}</span></span><sw-toggle data-restore-access ?checked=${this.restoreAccess} label=${obr('accessLabel')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => (this.restoreAccess = e.detail.checked)}></sw-toggle></div>
       ${this.renderRestoreSensitive(b)}
+      ${this.renderRestoreSafety()}
       <div class="muted" style="margin-block-start:8px">הגיבוי מגרסה ${b.app_version ?? '?'} מ־${this.fmtWhen(b.created_at)}. השחזור נרשם באודיט. לאישור הקלד <code>RESTORE</code>:</div>
       <input class="confirm-in" data-restore-confirm placeholder="RESTORE" .value=${this.restoreConfirm} @input=${(e: Event) => (this.restoreConfirm = (e.target as HTMLInputElement).value)} />
       <div slot="footer"><sw-button variant="danger" icon="history" ?disabled=${this.restoreConfirm !== 'RESTORE' || this.backupBusy} data-restore-go @click=${() => this.doRestore()}>${this.backupBusy ? 'משחזר…' : 'שחזר עכשיו'}</sw-button><sw-button variant="ghost" @click=${() => (this.restoreTarget = null)}>ביטול</sw-button></div>
@@ -1600,6 +1654,12 @@ export class SystemDiagnostics extends LitElement {
           <input class="note-in" type="password" autocomplete="new-password" data-backup-password placeholder=${bpt('createPlaceholder', { n: this.backupMin() })} .value=${this.backupPassword} @input=${(e: Event) => (this.backupPassword = (e.target as HTMLInputElement).value)} /></div>
         <div class="row" data-backup-min-row><span class="lbl">${bpt('minLabel')}<span class="muted">${bpt('minHint')}</span></span>
           <input class="note-in" type="number" min="8" max="64" data-ltr data-backup-min ?disabled=${!isApi() || !this.canEdit || this.backupMinBusy} .value=${String(this.backupMin())} @change=${(e: Event) => void this.saveBackupMin(e.target as HTMLInputElement)} /></div>
+        <div class="row" data-backup-local-scope-row><span class="lbl">${obr('localScope')}<span class="muted">${obr('localScopeHint')}</span></span>
+          <sw-toggle data-backup-local-scope ?checked=${scopeFromSetting(this.settings?.['backup.local_restore_scope']) === 'project+access'} ?disabled=${!isApi() || !this.canEdit || this.localSafetyBusy}
+            label=${obr('localScope')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleLocalScope(e.detail.checked)}></sw-toggle></div>
+        <div class="row" data-backup-local-safety-row><span class="lbl">${obr('localSafety')}<span class="muted">${obr('localSafetyHint')}</span></span>
+          <sw-toggle data-backup-local-safety ?checked=${localSafetyOn(this.settings?.['backup.safety_before_local_restore'])} ?disabled=${!isApi() || !this.canEdit || this.localSafetyBusy}
+            label=${obr('localSafety')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleLocalSafety(e.detail.checked)}></sw-toggle></div>
         <div class="row"><span class="lbl">העלאת גיבוי<span class="muted">קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"</span></span>
           <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>בחר קובץ…</sw-button></span></div>
         ${this.renderMeterBackup()}
@@ -1640,7 +1700,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-tabs underline data-settings-tabs .variant=${this.phoneSelect ? 'dropdown' : this.tabsMode.props('').variant} ?adaptive=${this.phoneSelect ? false : this.tabsMode.props('').adaptive} ?tall=${this.phoneSelect} ?block=${this.phoneSelect} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="קטגוריה" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.openTab(e.detail.id)}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'buildings' ? html`<system-mapping></system-mapping>` : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }

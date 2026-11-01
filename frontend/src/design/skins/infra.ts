@@ -19,7 +19,7 @@ export const INFRA_TOKENS: TokenTable = {
   '--sw-border-strong': lt('#d9dfe9', '#2f3c58'),
   // text: the muted tiers of round 2 (5.3:1 on white / 4.9:1 on #eef2f8; dark 5.9:1 on #151c2c)
   '--sw-text-2': lt('#4b5976', '#b0bbd0'),
-  '--sw-text-3': lt('#596985', '#93a0b8'),
+  '--sw-text-3': lt('#596985', '#97a4bb'),
   // state text on its soft fill (TOKENS.md §1.2 Δ: offline / unknown #5c6573, stale = warning #a04a06 at 4.6:1 on the soft fill)
   '--sw-offline-text': lt('#5c6573', '#b4bdcc'),
   '--sw-unknown-text': lt('#5c6573', '#aab5c9'),

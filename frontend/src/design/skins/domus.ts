@@ -40,7 +40,7 @@ const tokens: TokenTable = {
   '--sw-text-2': lt('#3f4c63', '#aab5c9'),
   // POLISH-BOLD-297 (apple-design "vibrancy": heavier ink over glass): the muted inks a step darker in light, a step lighter in dark, so the
   // deeper canvas base keeps every one at >= 4.5:1 on the bloom centres (unit-muted-contrast)
-  '--sw-text-3': lt('#48546a', '#95a3ba'),
+  '--sw-text-3': lt('#48546a', '#9aa8bd'),
   '--sw-text-inverse': lt('#ffffff', '#0c1018'),
   '--sw-accent': lt('#2458e6', '#6ea2ff'),
   '--sw-accent-hover': lt('#1b48cc', '#8ab5ff'),

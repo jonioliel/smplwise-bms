@@ -1315,6 +1315,14 @@ export class SwDropdown extends LitElement {
       } catch {
         /* already showing, or no popover API: the element is then a plain fixed box */
       }
+      // a list whose content is wider than the width place() reserved (a long row, the foot) is shifted back inside the viewport
+      if (this.present === 'pop') {
+        const over = pop.getBoundingClientRect().right - (document.documentElement.clientWidth - 8);
+        if (over > 0) {
+          this.pos = { ...this.pos, left: Math.max(8, this.pos.left - over) };
+          pop.style.left = `${this.pos.left}px`;
+        }
+      }
       // a search field takes the focus where there is a keyboard to type with; a touch screen keeps the keyboard down until the field is tapped
       let fine = true;
       try {

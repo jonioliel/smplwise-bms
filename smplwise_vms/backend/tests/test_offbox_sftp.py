@@ -104,9 +104,9 @@ class _Server(paramiko.ServerInterface):
 
 
 class SftpTestServer:
-    def __init__(self, root: Path, client_key: paramiko.PKey):
+    def __init__(self, root: Path, client_key: paramiko.PKey, host_key: paramiko.PKey | None = None):
         self.root = root
-        self.host_key = paramiko.ECDSAKey.generate()
+        self.host_key = host_key or paramiko.ECDSAKey.generate()
         self.client_key = client_key
         self.sock = socket.socket()
         self.sock.bind(("127.0.0.1", 0))
@@ -225,3 +225,28 @@ def test_a_closed_port_is_destination_unavailable(tmp_path):
     d = ob.build_destination({"kind": "sftp", "host": "127.0.0.1", "port": port, "username": "arx", "remote_dir": "/backups",
                               "host_key": "SHA256:" + "A" * 43, "key": f"file:{kf.as_posix()}"})
     assert ob.check_connection(d)["error"] == "destination_unavailable"
+
+
+def test_rsa_keys_still_work_over_sha2_only(tmp_path):
+    """DEPAUDIT-2310 M2 (CVE-2026-44405): paramiko 5.x dropped SHA-1 `ssh-rsa` signatures. An RSA host key (an `ssh-rsa AAAA...` pin)
+    and an RSA client key still authenticate, over rsa-sha2-256 / -512."""
+    assert int(paramiko.__version__.split(".")[0]) >= 5, paramiko.__version__
+    client_key = paramiko.RSAKey.generate(2048)
+    root = tmp_path / "sftp-root"
+    (root / "backups").mkdir(parents=True)
+    srv = SftpTestServer(root, client_key, host_key=paramiko.RSAKey.generate(2048))
+    try:
+        srv.keyfile = tmp_path / "client_key"
+        srv.keyfile.write_text(_key_text(client_key))
+        d = _dest(srv)
+        assert offbox_sftp.host_key_line(srv.host_key).startswith("ssh-rsa ")
+        client = offbox_sftp.connect(d)
+        try:
+            assert client._t.host_key_type in ("rsa-sha2-256", "rsa-sha2-512"), client._t.host_key_type
+        finally:
+            client.close()
+        r = ob.check_connection(d)
+        d.close()
+        assert r["ok"], r
+    finally:
+        srv.close()

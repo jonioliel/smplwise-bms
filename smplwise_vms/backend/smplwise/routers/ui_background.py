@@ -99,7 +99,7 @@ def reencode(data: bytes) -> bytes:
         raise ApiError(415, "unsupported_format", "התמונה חייבת להיות PNG, JPG או WebP (הזיהוי לפי התוכן).")
     limit = JPEG_MAX_PIXELS if jpeg else OTHER_MAX_PIXELS
     try:
-        im = Image.open(BytesIO(data), formats=["PNG", "JPEG", "WEBP"])  # header only
+        im = image_guard.open_untrusted(data, ["PNG", "JPEG", "WEBP"], mpo_first_frame=True)  # header only
         if image_guard.check_pixels(im, limit) is None:
             raise _too_many_pixels(im.size[0], im.size[1], limit)
         if im.format == "JPEG":

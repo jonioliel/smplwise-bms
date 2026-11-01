@@ -113,7 +113,7 @@ test('every registry section comes from the arrays of nav.ts (nothing duplicated
   expect(TAB_SECTIONS.map((s) => s.id)).toEqual(['areas', 'devices', 'security', 'security.live', 'security.investigate', 'explore', 'multimedia', 'wiskey', 'infra', 'infra.electricity', 'infra.generator', 'infra.water', 'tickets', 'tickets.requests', 'tickets.vendors', 'tickets.scopes', 'system', 'system.security']);
   const byId = Object.fromEntries(TAB_SECTIONS.map((s) => [s.id, ids(s.tabs())]));
   expect(byId['areas']).toEqual(['devices', 'security', 'explore', 'multimedia', 'wiskey', 'infra', 'tickets']); // CR-015: multimedia sits between the map and WisKey; CR-023: תשתיות after WisKey; CR-038: the optional tickets area last
-  expect(byId['devices']).toEqual(['building', 'synoptic', 'automations', 'announce']); // 2.29.0 (owner decision 6): the synoptic map tab between מבט על and קברניט; ANNOUNCE-295: + הכרזות; NOTICEADD-295: לוח הודעות moved to the rail; 0.1.154: the home area's tabs (the schedules became the first segment of the second, קברניט)
+  expect(byId['devices']).toEqual(['building', 'synoptic', 'calendars', 'automations', 'announce']); // CALENDARS-UI-2310: + יומנים (hidden unless the module is on in the home menu); 2.29.0 (owner decision 6): the synoptic map tab between מבט על and קברניט; ANNOUNCE-295: + הכרזות; NOTICEADD-295: לוח הודעות moved to the rail; 0.1.154: the home area's tabs (the schedules became the first segment of the second, קברניט)
   expect(byId['security']).toEqual(ids(SECURITY_SECTIONS));
   expect(byId['security.live']).toEqual(ids(SECTION_TABS.live));
   expect(byId['security.investigate']).toEqual(ids(SECTION_TABS.investigate));

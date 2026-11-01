@@ -9,13 +9,19 @@ import { ApiError, describeError } from '../api/client';
 import {
   CONFIG_FIELDS, SECRET_FIELDS, blankTarget, checkTarget, createTarget, deleteTarget, drillStatus, exportKey, importKey, offboxStatus, pushTarget,
   rotateKey, runDrill, setDrillMonthly, setTargetEnabled, toRequest, updateTarget,
-  type DrillStatus, type OffboxRun, type OffboxStatus, type OffboxTarget, type OffboxTargetIn,
+  discardRestore, listCopies, prepareRestore, restoreFromCopy, restoreReady, safetyBody, scopeFromSetting, type RestoreScope,
+  type OffboxCopy, type OffboxPrepared, type DrillStatus, type OffboxRun, type OffboxStatus, type OffboxTarget, type OffboxTargetIn,
+  GDRIVE_NUMBERS, gdriveConnect, gdriveDisconnect, gdrivePoll, isGoogleDeviceUrl, pollContinues, pollDelayMs, type FormKind, type GdriveCode,
 } from '../api/backup-offbox';
 import { keyExportReady, obt, obtError, type ObtKey } from '../i18n/backup-offbox';
+import { obr, obrApiError, obrError } from '../i18n/backup-offbox-restore';
+import { fmtBytes } from '../api/backup';
+import { invalidateSettings, productSettings } from '../api/prefs';
+import { patchSettings } from '../api/media';
 import { settingsStyles } from '../styles/settings';
 import { dayMonthTimeText } from '../api/day-format';
 
-type Dialog = null | 'export' | 'rotate' | { remove: OffboxTarget };
+type Dialog = null | 'export' | 'rotate' | { remove: OffboxTarget } | { restore: OffboxTarget } | { gdrive: OffboxTarget };
 
 /**
  * DATASTORE-295 phase 2: Settings › אבחון › גיבוי ושחזור - the off-box targets (S3-compatible / SFTP), the encryption key (export once,
@@ -36,16 +42,62 @@ export class SwOffboxBackup extends LitElement {
   @state() private shownKey = '';
   @state() private copied = false;
   @state() private importText = '';
+  // OFFBOX-RESTORE-2300: the restore-from-copy dialog (list the copies, download + verify, confirm)
+  @state() private copies: OffboxCopy[] | null = null;
+  @state() private pick = '';
+  @state() private prep: OffboxPrepared | null = null;
+  @state() private rAccess = true;
+  @state() private rPassword = '';
+  @state() private rSkip = false;
+  @state() private rErr = '';
+  // owner decisions 2026-10-30: the safety backup's own password (never kept after a request), the scope default (a setting)
+  @state() private rSafety = '';
+  @state() private scopeDefault: RestoreScope = 'project+access';
+  @state() private minChars = 12;
+  // GDRIVEBK-2310: the Google consent dialog (the short code; the device code never reaches the browser)
+  @state() private gCode: GdriveCode | null = null;
+  @state() private gState: 'idle' | 'waiting' | 'connected' | 'denied' | 'expired' = 'idle';
+  @state() private gErr = '';
+  private gTimer: number | undefined;
   private poll: number | undefined;
 
   connectedCallback() {
     super.connectedCallback();
     void this.load();
+    void this.loadPrefs();
+  }
+
+  /** The restore defaults (settings with defaults): an unreadable answer keeps the defaults. */
+  private async loadPrefs(force = false) {
+    try {
+      const s = await productSettings(force);
+      this.scopeDefault = scopeFromSetting(s['backup.offbox_restore_scope']);
+      const n = Number(s['backup.password_min'] ?? 12);
+      this.minChars = Number.isFinite(n) ? Math.max(8, Math.min(64, Math.round(n))) : 12;
+    } catch {
+      /* the defaults stay */
+    }
+  }
+
+  private async saveScopeDefault(on: boolean) {
+    const scope: RestoreScope = on ? 'project+access' : 'project';
+    const before = this.scopeDefault;
+    this.scopeDefault = scope;
+    await this.act('scope', async () => {
+      try {
+        await patchSettings({ 'backup.offbox_restore_scope': scope });
+        invalidateSettings();
+      } catch (err) {
+        this.scopeDefault = before;
+        throw err;
+      }
+    }, obr('saved'));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearTimeout(this.poll);
+    window.clearTimeout(this.gTimer);
   }
 
   private async load() {
@@ -81,7 +133,7 @@ export class SwOffboxBackup extends LitElement {
 
   // ---------------------------------------------------------------- targets
 
-  private edit(t?: OffboxTarget, kind: 's3' | 'sftp' = 's3') {
+  private edit(t?: OffboxTarget, kind: FormKind = 's3') {
     this.clear = [];
     this.msg = null;
     this.form = t
@@ -94,6 +146,7 @@ export class SwOffboxBackup extends LitElement {
     if (!f) return;
     await this.act('save', async () => {
       const body = toRequest(f, this.clear);
+      if (f.kind === 'gdrive' && !(f.id && this.status?.targets.find((t) => t.id === f.id)?.secrets.refresh_token)) body.enabled = false;
       if (f.id) await updateTarget(f.id, body);
       else await createTarget(body);
       this.form = null;
@@ -143,12 +196,29 @@ export class SwOffboxBackup extends LitElement {
   private renderTarget(t: OffboxTarget) {
     const b = this.busy;
     const sftpMissing = t.kind === 'sftp' && this.status && !this.status.transports.sftp;
+    const gd = t.kind === 'gdrive' ? t.gdrive ?? { connected: false, pending: false, connected_at: null } : null;
+    // a Google Drive target is switched on only once an account is connected (the server refuses it too)
+    const lockToggle = !!gd && !gd.connected && !t.enabled;
     return html`<div class="target" data-offbox-target=${t.id}>
       <div class="head">
         <span class="name">${t.name}<span class="muted"> · ${obt(`kind_${t.kind}` as ObtKey)}</span></span>
-        <sw-toggle ?checked=${t.enabled} label=${t.enabled ? obt('enabled') : obt('disabled')} ?disabled=${!!b}
+        <sw-toggle ?checked=${t.enabled} label=${t.enabled ? obt('enabled') : obt('disabled')} ?disabled=${!!b || lockToggle}
+          title=${lockToggle ? obt('gdriveEnableAfter') : nothing}
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(`en:${t.id}`, () => setTargetEnabled(t.id, e.detail.checked))}></sw-toggle>
       </div>
+      ${gd
+        ? html`<div class="gd" data-offbox-gdrive=${gd.connected ? 'connected' : 'not-connected'}>
+            <sw-badge kind=${gd.connected ? 'live' : 'partial'} label=${gd.connected ? obt('gdriveConnected') : obt('gdriveNotConnected')}></sw-badge>
+            ${gd.connected && gd.connected_at ? html`<span class="muted">${this.when(gd.connected_at)}</span>` : nothing}
+            <sw-button size="sm" variant=${gd.connected ? 'ghost' : 'primary'} icon="link" ?disabled=${!!b} data-offbox-gdrive-connect
+              @click=${() => void this.openGdrive(t)}>${gd.connected ? obt('gdriveReconnect') : obt('gdriveConnect')}</sw-button>
+            ${gd.connected
+              ? html`<sw-button size="sm" variant="ghost" ?disabled=${!!b} data-offbox-gdrive-disconnect
+                  @click=${() => void this.act(`gdoff:${t.id}`, () => gdriveDisconnect(t.id), obt('gdriveDisconnected'))}>${obt('gdriveDisconnect')}</sw-button>`
+              : nothing}
+          </div>
+          ${!this.status?.key.keys.some((k) => k.exported) ? html`<div class="msg warn" role="note" data-offbox-gdrive-keyfirst>${obt('gdriveKeyFirst')}</div>` : nothing}`
+        : nothing}
       <div class="runs">${this.runBadge(t.last.push, 'lastPush')}${this.runBadge(t.last.test, 'lastTest')}${this.runBadge(t.last.drill, 'lastDrill')}</div>
       ${sftpMissing ? html`<div class="msg err" role="note">${obt('sftpMissing')}</div>` : nothing}
       <div class="actions">
@@ -156,6 +226,8 @@ export class SwOffboxBackup extends LitElement {
         <sw-button size="sm" variant="ghost" ?disabled=${!!b} data-offbox-dry @click=${() => void this.dry(t)}>${obt('dryRun')}</sw-button>
         <sw-button size="sm" variant="primary" icon="upload" ?disabled=${!!b || this.status?.running} data-offbox-push
           @click=${() => void this.act(`push:${t.id}`, () => pushTarget(t.id), obt('pushStarted'))}>${obt('pushNow')}</sw-button>
+        <sw-button size="sm" variant="ghost" icon="download" ?disabled=${!!b || !this.status?.key.active} data-offbox-restore-open
+          @click=${() => void this.openRestore(t)}>${obr('open')}</sw-button>
         <sw-button size="sm" variant="ghost" ?disabled=${!!b} data-offbox-edit @click=${() => this.edit(t)}>${obt('edit')}</sw-button>
         <sw-button size="sm" variant="ghost" icon="trash" ?disabled=${!!b} data-offbox-remove @click=${() => { this.dialog = { remove: t }; }}>${obt('remove')}</sw-button>
       </div>
@@ -177,11 +249,25 @@ export class SwOffboxBackup extends LitElement {
     if (!f || f.kind === 'local') return nothing;
     const kind = f.kind;
     const saved = f.id ? this.status?.targets.find((t) => t.id === f.id)?.secrets ?? {} : {};
+    // a Google Drive target can be switched on only once an account is connected (after saving, from the target row)
+    const canEnable = kind !== 'gdrive' || !!saved.refresh_token;
     return html`<div class="form" data-offbox-form=${kind}>
+      ${kind === 'gdrive' ? html`<div class="muted" role="note" data-offbox-gdrive-hint>${obt('gdriveSetupHint')}</div>` : nothing}
       <label class="row"><span class="lbl">${obt('name')}</span><input class="ctl" data-f="name" .value=${f.name} maxlength="80"
         @input=${(e: Event) => { if (this.form) this.form = { ...this.form, name: (e.target as HTMLInputElement).value }; }} /></label>
       ${CONFIG_FIELDS[kind].map((k) => {
         const v = f.config[k];
+        if (k === 'prune_mode') {
+          return html`<label class="row"><span class="lbl">${obt('prune_mode')}</span><select class="ctl" data-f="prune_mode" .value=${String(v ?? 'delete')}
+            @change=${(e: Event) => this.setCfg(k, (e.target as HTMLSelectElement).value)}>
+              <option value="delete" ?selected=${v !== 'trash'}>${obt('prune_delete')}</option>
+              <option value="trash" ?selected=${v === 'trash'}>${obt('prune_trash')}</option></select></label>`;
+        }
+        if (k in GDRIVE_NUMBERS) {
+          const r = GDRIVE_NUMBERS[k];
+          return html`<label class="row"><span class="lbl">${obt(k as ObtKey)}</span><input class="ctl num" data-ltr data-f=${k} type="number" min=${r.min} max=${r.max}
+            .value=${String(v ?? r.fallback)} @input=${(e: Event) => this.setCfg(k, (e.target as HTMLInputElement).value)} /></label>`;
+        }
         if (k === 'path_style') {
           return html`<div class="row"><span class="lbl">${obt('path_style')}</span><sw-toggle ?checked=${!!v} label=${obt('path_style')} labelHidden
             @change=${(e: CustomEvent<{ checked: boolean }>) => this.setCfg(k, e.detail.checked)}></sw-toggle></div>`;
@@ -207,7 +293,8 @@ export class SwOffboxBackup extends LitElement {
         ${(['keep_last', 'keep_daily', 'keep_weekly', 'keep_monthly'] as const).map((k) => html`<label><input type="number" min=${k === 'keep_last' ? 1 : 0} max="1000"
           data-f=${k} .value=${String(f.retention[k])} @input=${(e: Event) => { if (this.form) this.form = { ...this.form, retention: { ...this.form.retention, [k]: Number((e.target as HTMLInputElement).value) } }; }} />
           <span class="muted">${obt(k)}</span></label>`)}</span></div>
-      <div class="row"><span class="lbl">${obt('enabled')}</span><sw-toggle ?checked=${f.enabled} label=${obt('enabled')} labelHidden
+      <div class="row"><span class="lbl">${obt('enabled')}${canEnable ? nothing : html`<span class="muted">${obt('gdriveEnableAfter')}</span>`}</span>
+        <sw-toggle ?checked=${f.enabled && canEnable} label=${obt('enabled')} labelHidden ?disabled=${!canEnable}
         @change=${(e: CustomEvent<{ checked: boolean }>) => { if (this.form) this.form = { ...this.form, enabled: e.detail.checked }; }}></sw-toggle></div>
       <div class="foot"><sw-button variant="primary" ?disabled=${!!this.busy || !f.name.trim()} data-offbox-save @click=${() => void this.save()}>${obt('save')}</sw-button>
         <sw-button variant="ghost" @click=${() => { this.form = null; }}>${obt('cancel')}</sw-button></div>
@@ -233,7 +320,186 @@ export class SwOffboxBackup extends LitElement {
     }
   }
 
+  private async openRestore(t: OffboxTarget) {
+    this.dialog = { restore: t };
+    this.copies = null;
+    this.pick = '';
+    this.prep = null;
+    this.rErr = '';
+    this.rAccess = this.scopeDefault === 'project+access';
+    this.rSafety = '';
+    try {
+      this.copies = (await listCopies(t.id)).copies;
+      this.pick = this.copies[0]?.name ?? '';
+    } catch (err) {
+      this.copies = [];
+      this.rErr = err instanceof ApiError ? obrError(err.code) : describeError(err);
+    }
+  }
+
+  private async doPrepare(t: OffboxTarget) {
+    if (!this.pick) return;
+    this.busy = 'prepare';
+    this.rErr = '';
+    try {
+      this.prep = await prepareRestore(t.id, this.pick);
+    } catch (err) {
+      this.rErr = err instanceof ApiError ? obrError(err.code) : describeError(err);
+    } finally {
+      this.busy = '';
+    }
+  }
+
+  private async doRestore() {
+    const p = this.prep;
+    if (!p || !restoreReady(this.confirm, !!this.busy)) return;
+    this.busy = 'restore';
+    this.rErr = '';
+    try {
+      const r = await restoreFromCopy({ stage_id: p.id, confirm: this.confirm, scope: this.rAccess ? 'project+access' : 'project',
+        ...(this.rPassword ? { backup_password: this.rPassword } : {}), ...(this.rSkip ? { skip_sensitive: true } : {}), ...safetyBody(this.rSafety) });
+      this.prep = null;
+      this.rPassword = '';
+      this.rSafety = '';
+      invalidateSettings();
+      this.closeDialog();
+      this.msg = { ok: true, text: obr('done', { name: r.object, n: Object.keys(r.tables).length, files: r.files, safety: r.safety_archive.name }) };
+      await this.load();
+    } catch (err) {
+      this.rErr = err instanceof ApiError
+        ? (err.code.startsWith('safety_password_') ? obrApiError(err.code, err.body.details) : err.body.details?.can_skip ? describeError(err) : obrError(err.code))
+        : describeError(err);
+      this.rPassword = '';
+      this.rSafety = '';
+    } finally {
+      this.busy = '';
+    }
+  }
+
+  private renderRestore(t: OffboxTarget) {
+    const p = this.prep;
+    const when = (c: OffboxCopy) => (c.stamp ? this.when(c.stamp) : '');
+    return html`<sw-dialog open heading=${obr('title')} subheading=${t.name} data-offbox-restore-dialog @close=${() => this.closeDialog()}>
+      ${this.rErr ? html`<div class="msg err" role="alert" data-offbox-restore-err>${this.rErr}</div>` : nothing}
+      ${p
+        ? html`<div class="msg ok" role="status">${obr('verified')}</div>
+            <dl class="row facts" data-offbox-restore-facts>
+              <div><dt>${obr('summary_version')}</dt><dd><code data-ltr>${p.app_version ?? '-'}</code></dd></div>
+              <div><dt>${obr('summary_schema')}</dt><dd><code data-ltr>${p.schema_version}</code></dd></div>
+              <div><dt>${obr('summary_tables')}</dt><dd class="num">${Object.keys(p.tables).length} / ${p.files}</dd></div>
+              <div><dt>${obr('summary_key')}</dt><dd><code data-ltr>${p.key_id}</code></dd></div>
+            </dl>
+            <div class="msg warn" role="note">${obr('warnDestructive')}</div>
+            <label class="ack"><input type="checkbox" data-offbox-restore-access .checked=${this.rAccess}
+              @change=${(e: Event) => { this.rAccess = (e.target as HTMLInputElement).checked; }} /><span>${obr('includeAccess')}</span></label>
+            ${p.sensitive === 'encrypted'
+              ? html`<label class="row"><span class="lbl">${obr('password')}</span><input class="ctl" type="password" autocomplete="off" data-offbox-restore-password
+                  .value=${this.rPassword} ?disabled=${this.rSkip} @input=${(e: Event) => { this.rPassword = (e.target as HTMLInputElement).value; }} /></label>
+                <label class="ack"><input type="checkbox" data-offbox-restore-skip .checked=${this.rSkip}
+                  @change=${(e: Event) => { this.rSkip = (e.target as HTMLInputElement).checked; }} /><span>${obr('skipSensitive')}</span></label>`
+              : nothing}
+            <label class="row" data-offbox-restore-safety-row><span class="lbl">${obr('safetyPassword')}<span class="muted">${obr('safetyHint')}</span></span>
+              <input class="ctl" type="password" autocomplete="new-password" data-offbox-restore-safety placeholder=${obr('safetyPlaceholder', { n: this.minChars })}
+                .value=${this.rSafety} @input=${(e: Event) => { this.rSafety = (e.target as HTMLInputElement).value; }} /></label>
+            <div class="muted">${obr('confirmHint')}</div>
+            <input class="confirm-in" data-ltr data-offbox-restore-confirm placeholder="RESTORE" .value=${this.confirm}
+              @input=${(e: Event) => { this.confirm = (e.target as HTMLInputElement).value; }} />`
+        : this.copies === null
+          ? html`<div class="muted">${obr('loading')}</div>`
+          : this.copies.length === 0
+            ? html`<div class="muted" data-offbox-restore-none>${obr('none')}</div>`
+            : html`<div class="muted">${obr('pick')}</div>
+              ${this.copies.slice(0, 5).map((c, i) => html`<label class="ack" data-offbox-copy=${c.name}><input type="radio" name="offbox-copy" .checked=${this.pick === c.name}
+                  @change=${() => { this.pick = c.name; }} /><span><code data-ltr>${c.name}</code><span class="muted"> · ${fmtBytes(c.bytes)}${when(c) ? ` · ${when(c)}` : ''}${i === 0 ? ` · ${obr('newest')}` : ''}</span></span></label>`)}`}
+      <div slot="footer">
+        ${p
+          ? html`<sw-button variant="danger" icon="download" ?disabled=${!restoreReady(this.confirm, !!this.busy)} data-offbox-restore-go
+              @click=${() => void this.doRestore()}>${this.busy === 'restore' ? obr('restoring') : obr('restore')}</sw-button>`
+          : html`<sw-button variant="primary" icon="download" ?disabled=${!this.pick || !!this.busy} data-offbox-prepare
+              @click=${() => void this.doPrepare(t)}>${this.busy === 'prepare' ? obr('preparing') : obr('prepare')}</sw-button>`}
+        <sw-button variant="ghost" @click=${() => this.closeDialog()}>${obr('cancel')}</sw-button>
+      </div>
+    </sw-dialog>`;
+  }
+
+  // ---------------------------------------------------------------- GDRIVEBK-2310: connect a Google account (device flow)
+
+  private async openGdrive(t: OffboxTarget) {
+    window.clearTimeout(this.gTimer);
+    this.dialog = { gdrive: t };
+    this.gCode = null;
+    this.gErr = '';
+    this.gState = 'idle';
+    try {
+      this.gCode = await gdriveConnect(t.id);
+      this.gState = 'waiting';
+      this.schedulePoll(t, this.gCode.interval);
+    } catch (err) {
+      this.gErr = err instanceof ApiError ? obtError(err.code) : describeError(err);
+    }
+  }
+
+  private schedulePoll(t: OffboxTarget, interval: number | undefined) {
+    window.clearTimeout(this.gTimer);
+    this.gTimer = window.setTimeout(() => void this.pollGdrive(t), pollDelayMs(interval));
+  }
+
+  private async pollGdrive(t: OffboxTarget) {
+    const d = this.dialog;
+    if (!d || typeof d !== 'object' || !('gdrive' in d) || d.gdrive.id !== t.id) return;
+    try {
+      const r = await gdrivePoll(t.id);
+      if (pollContinues(r.state)) {
+        this.schedulePoll(t, r.interval ?? this.gCode?.interval);
+        return;
+      }
+      this.gState = r.state === 'connected' ? 'connected' : r.state === 'denied' ? 'denied' : 'expired';
+      if (r.state === 'connected') await this.load();
+    } catch (err) {
+      this.gState = 'idle';
+      this.gErr = err instanceof ApiError ? obtError(err.code) : describeError(err);
+    }
+  }
+
+  private renderGdrive(t: OffboxTarget) {
+    const c = this.gCode;
+    const s = this.gState;
+    const link = c && isGoogleDeviceUrl(c.verification_url) ? c.verification_url : 'https://www.google.com/device';
+    return html`<sw-dialog open heading=${obt('gdriveCodeTitle')} subheading=${t.name} data-offbox-gdrive-dialog @close=${() => this.closeDialog()}>
+      ${this.gErr ? html`<div class="msg err" role="alert" data-offbox-gdrive-err>${this.gErr}</div>` : nothing}
+      ${s === 'connected'
+        ? html`<div class="msg ok" role="status" data-offbox-gdrive-done>${obt('gdriveDone')}</div>`
+        : s === 'denied' || s === 'expired'
+          ? html`<div class="msg err" role="alert" data-offbox-gdrive-end=${s}>${obt(s === 'denied' ? 'gdriveDenied' : 'gdriveExpired')}</div>`
+          : c
+            ? html`<ol class="steps" data-offbox-gdrive-steps>
+                <li>${obt('gdriveStep1', { url: '' })}<a data-ltr href=${link} target="_blank" rel="noopener noreferrer">${link.replace('https://', '')}</a></li>
+                <li>${obt('gdriveStep2')}<div class="code" data-ltr data-offbox-gdrive-code aria-live="polite">${c.user_code}</div></li>
+                <li>${obt('gdriveStep3')}</li></ol>
+              <div class="muted" role="status">${obt('gdriveWaiting')}</div>`
+            : this.gErr ? nothing : html`<div class="muted">…</div>`}
+      <div slot="footer">
+        ${s === 'denied' || s === 'expired'
+          ? html`<sw-button variant="primary" icon="link" data-offbox-gdrive-retry @click=${() => void this.openGdrive(t)}>${obt('gdriveConnect')}</sw-button>`
+          : nothing}
+        <sw-button variant="ghost" @click=${() => this.closeDialog()}>${s === 'connected' ? obt('ok') : obt('cancel')}</sw-button>
+      </div>
+    </sw-dialog>`;
+  }
+
   private closeDialog() {
+    window.clearTimeout(this.gTimer);
+    this.gCode = null;
+    this.gErr = '';
+    this.gState = 'idle';
+    if (this.prep) void discardRestore(this.prep.id).catch(() => undefined);
+    this.prep = null;
+    this.copies = null;
+    this.pick = '';
+    this.rErr = '';
+    this.rPassword = '';
+    this.rSafety = '';
+    this.rSkip = false;
     this.dialog = null;
     this.confirm = '';
     this.acked = false;
@@ -244,6 +510,8 @@ export class SwOffboxBackup extends LitElement {
   private renderDialog() {
     const d = this.dialog;
     if (!d) return nothing;
+    if (typeof d === 'object' && 'restore' in d) return this.renderRestore(d.restore);
+    if (typeof d === 'object' && 'gdrive' in d) return this.renderGdrive(d.gdrive);
     if (typeof d === 'object') {
       return html`<sw-dialog open heading=${obt('remove')} subheading=${d.remove.name} data-offbox-remove-dialog @close=${() => this.closeDialog()}>
         <div class="muted">${obt('removeConfirm')}</div>
@@ -325,7 +593,11 @@ export class SwOffboxBackup extends LitElement {
         ${s === null ? html`<div class="muted">…</div>` : s.targets.length ? s.targets.map((t) => this.renderTarget(t)) : html`<div class="muted" data-offbox-empty>${obt('empty')}</div>`}
         ${this.form ? this.renderForm() : html`<div class="actions">
           <sw-button size="sm" icon="plus" data-offbox-add="s3" @click=${() => this.edit(undefined, 's3')}>${obt('addS3')}</sw-button>
-          <sw-button size="sm" icon="plus" data-offbox-add="sftp" @click=${() => this.edit(undefined, 'sftp')}>${obt('addSftp')}</sw-button></div>`}
+          <sw-button size="sm" icon="plus" data-offbox-add="sftp" @click=${() => this.edit(undefined, 'sftp')}>${obt('addSftp')}</sw-button>
+          <sw-button size="sm" icon="plus" data-offbox-add="gdrive" @click=${() => this.edit(undefined, 'gdrive')}>${obt('addGdrive')}</sw-button></div>`}
+        <div class="row" data-offbox-scope-default><span class="lbl">${obr('scopeDefault')}<span class="muted">${obr('scopeDefaultHint')}</span></span>
+          <sw-toggle ?checked=${this.scopeDefault === 'project+access'} label=${obr('scopeDefault')} labelHidden ?disabled=${!!this.busy} data-offbox-scope-toggle
+            @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveScopeDefault(e.detail.checked)}></sw-toggle></div>
         ${this.msg ? html`<div class="msg ${this.msg.ok ? 'ok' : 'err'}" role=${this.msg.ok ? 'status' : 'alert'} data-offbox-msg>${this.msg.text}</div>` : nothing}
       </sw-card>
       ${this.renderKey()}
@@ -354,6 +626,21 @@ export class SwOffboxBackup extends LitElement {
     [data-ltr] { direction: ltr; text-align: start; }
     .end { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     code { font-family: var(--sw-font-mono, monospace); }
+    /* OFFBOX-RESTORE-2300: the verified copy's facts in ONE well (four cells, one line where the dialog is wide), so the restore dialog
+       holds the safety password row without scrolling on a tablet or a phone */
+    .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px 16px; margin: 0; }
+    .facts dt { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+    .facts dd { margin: 0; font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); overflow-wrap: anywhere; }
+    .facts .num { font-variant-numeric: tabular-nums; }
+    /* GDRIVEBK-2310: the Google connection row and the consent dialog (the code is LTR, large, monospace) */
+    .gd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    select.ctl { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-radius-sm, 6px);
+      background: var(--sw-surface); color: var(--sw-text); min-inline-size: 0; }
+    input.num { inline-size: 96px; }
+    .steps { margin: 0; padding-inline-start: 20px; display: grid; gap: 10px; }
+    .steps a { color: var(--sw-accent, var(--sw-text)); font-weight: var(--sw-fw-semibold); }
+    .code { margin-block-start: 6px; font-family: var(--sw-font-mono, monospace); font-size: var(--sw-fs-xl, 1.5rem); letter-spacing: 0.12em;
+      font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); }
   `];
 }
 

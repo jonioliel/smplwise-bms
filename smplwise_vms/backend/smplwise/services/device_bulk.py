@@ -116,8 +116,15 @@ _SWITCHES_ON = (("switch", "switch.turn_on"),)
 _LIGHTS_ON = (("light", "light.turn_on"),)
 _SCREENS_ON = (("media_player", "media_player.turn_on"),)
 # kind -> (domain, allow-listed action) in the order they are sent
+# SWITCH-AS-LIGHT (owner 2026-10-31): a switch an administrator typed as a light (services/devices.is_light) is lighting - "כבה תאורה" /
+# "הדלק תאורה" reach it with its own domain's service, through the same SwitchPolicy as every switch (protected / door layer / alarm
+# managed stay out, named in the preview); switches_off / switches_on leave it out (neither sent nor described). Never an input_boolean.
+_LIGHT_SWITCHES_OFF = (("switch", "switch.turn_off"),)
+_LIGHT_SWITCHES_ON = (("switch", "switch.turn_on"),)
+LIGHT_KINDS = frozenset({"lights_off", "lights_on"})
+SWITCH_KINDS = frozenset({"switches_off", "switches_on"})
 KINDS: dict[str, tuple[tuple[str, str], ...]] = {
-    "lights_off": _LIGHTS,
+    "lights_off": _LIGHTS + _LIGHT_SWITCHES_OFF,
     "covers_close": _COVERS_CLOSE,
     "covers_open": _COVERS_OPEN,
     "covers_stop": _COVERS_STOP,
@@ -128,9 +135,20 @@ KINDS: dict[str, tuple[tuple[str, str], ...]] = {
     "all_off": _LIGHTS + _SWITCHES + _COVERS_CLOSE + _CLIMATE + _SCREENS,
     "switches_off": _SWITCHES,
     "switches_on": _SWITCHES_ON,
-    "lights_on": _LIGHTS_ON,
+    "lights_on": _LIGHTS_ON + _LIGHT_SWITCHES_ON,
     "screens_on": _SCREENS_ON,
 }
+
+
+def _kind_reaches(kind: str, e: dict[str, Any]) -> bool:
+    """SWITCH-AS-LIGHT: the lights kinds reach a switch only when it is typed as a light, the switches kinds only when it is not."""
+    if e["domain"] != "switch":
+        return True
+    if kind in LIGHT_KINDS:
+        return dsvc.is_light(e)
+    if kind in SWITCH_KINDS:
+        return not dsvc.is_light(e)
+    return True
 # the kinds that reach only one of the two climate groups (air conditioning / heating); every other kind that names climate takes both
 CLIMATE_SPLIT_KINDS = frozenset({"climate_off", "heating_off"})
 # kinds that turn something ON: an entity is sent when it is off (the reverse of _needs' "off" rule)
@@ -427,6 +445,8 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
             if kind == "all_off":
                 never[domain] = never.get(domain, 0) + 1
             continue
+        if not _kind_reaches(kind, e):
+            continue  # SWITCH-AS-LIGHT: the other group's switch - neither sent nor described
         if e["entity_id"] in policy.alarm_managed and domain in actions:
             # CR-010 review B1: named in the dialog as excluded (permitted() also refuses it, for every other caller)
             excluded.append({"entity_id": e["entity_id"], "name": _name(e), "domain": domain, "reason": "alarm_managed", "reason_label": EXCLUDED_LABELS["alarm_managed"]})

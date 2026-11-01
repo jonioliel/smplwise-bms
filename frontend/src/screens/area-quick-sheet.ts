@@ -76,6 +76,8 @@ const SECTION_ICON: Record<Exclude<QuickSection, 'quick'>, IconName> = {
 export class AreaQuickSheet extends LitElement {
   @property({ attribute: false }) area: DeviceArea | null = null;
   @property() floorName = '';
+  /** PRESENCE-COMPACT-2310 (answer 4): the room's occupancy as one quiet part of the sub-line, after the floor and the temperature; null = none. */
+  @property({ attribute: false }) presence: { text: string; tone: 'ok' | 'clear' | 'unknown' } | null = null;
   @property() icon: IconName = 'home';
   @property({ reflect: true }) mode: QuickMode = 'drawer';
   @property({ type: Boolean, reflect: true }) open = false;
@@ -341,6 +343,27 @@ export class AreaQuickSheet extends LitElement {
       /* each piece of the sub-line keeps its own direction (a number next to Hebrew never swaps places) */
       .sub > span {
         unicode-bidi: isolate;
+      }
+      /* PRESENCE-COMPACT-2310: the room's presence - green words only while active, a hollow dot for "no data" */
+      .sub .pres i {
+        display: inline-block;
+        inline-size: 7px;
+        block-size: 7px;
+        border-radius: 50%;
+        margin-inline-end: 5px;
+        vertical-align: 0.1em;
+        background: var(--sw-unknown);
+      }
+      .sub .pres[data-tone='ok'] {
+        color: var(--sw-success-text);
+        font-weight: var(--sw-fw-medium);
+      }
+      .sub .pres[data-tone='ok'] i {
+        background: var(--sw-success);
+      }
+      .sub .pres[data-tone='unknown'] i {
+        background: transparent;
+        box-shadow: inset 0 0 0 1.5px var(--sw-unknown);
       }
       .acts {
         display: inline-flex;
@@ -1820,7 +1843,7 @@ export class AreaQuickSheet extends LitElement {
           <span class="ring" ?data-on=${on}><sw-icon .name=${this.icon} size=${20}></sw-icon></span>
           <div class="ttl">
             <h2><span class="hn">${a ? bidi(a.name) : ''}</span>${this.editing ? html`<span class="editing" data-qc-editing><sw-icon name="edit" size=${12}></sw-icon>${hs('qcEditing')}</span>` : nothing}</h2>
-            <span class="sub">${this.editing ? html`<span class="ed-hint">${this.mode === 'sheet' ? hs('qcEditHintPhone') : hs('qcEditHintDesk')}</span>` : [this.floorName ? html`<span>${bidi(this.floorName)}</span>` : '', temp ? html`<span><b>${temp}</b></span>` : '', c ? html`<span>${ltrNum(c.entities)} ${hs('qcDevicesLabel')}</span>` : ''].filter((x) => x !== '').map((x, i) => (i ? html` · ${x}` : x))}</span>
+            <span class="sub">${this.editing ? html`<span class="ed-hint">${this.mode === 'sheet' ? hs('qcEditHintPhone') : hs('qcEditHintDesk')}</span>` : [this.floorName ? html`<span>${bidi(this.floorName)}</span>` : '', temp ? html`<span><b>${temp}</b></span>` : '', this.presence ? html`<span class="pres" data-qc-presence data-tone=${this.presence.tone}><i aria-hidden="true"></i>${this.presence.text}</span>` : '', c ? html`<span>${ltrNum(c.entities)} ${hs('qcDevicesLabel')}</span>` : ''].filter((x) => x !== '').map((x, i) => (i ? html` · ${x}` : x))}</span>
           </div>
           <span class="acts">
             ${this.canEdit && !this.editing ? html`<button type="button" class="ib" data-qc-edit aria-label=${hs('qcEditTitle')} title=${hs('qcEditTitle')} @click=${() => this.startEdit()}><sw-icon name="edit" size=${17}></sw-icon></button>` : nothing}

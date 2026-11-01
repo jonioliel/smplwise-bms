@@ -209,14 +209,68 @@ def test_run_pool_memory_guard_runs_one_job_at_a_time_when_memory_is_low(g):
 def test_tmpfs_root_sweeps_old_scratch_and_honours_the_free_space_floor(g, monkeypatch, tmp_path):
     shm = tmp_path / "shm"
     (shm / "smplwise-gate-old-123").mkdir(parents=True)
+    os.utime(shm / "smplwise-gate-old-123", (1, 1))
     (shm / "other").mkdir()
     monkeypatch.setenv("GATE_TMPFS_DIR", str(shm))
     monkeypatch.setenv("GATE_TMPFS_MIN_GB", "0")
     d = g.tmpfs_root("integ-1")
     assert d is not None and d.parent == shm and d.name.startswith("smplwise-gate-integ-1-")
     assert not (shm / "smplwise-gate-old-123").exists() and (shm / "other").exists()
+    owner = json.loads((d / "owner.json").read_text(encoding="utf-8"))
+    assert owner["pid"] == os.getpid() and owner["tag"] == "integ-1"
+    # a second engine start keeps the first one's scratch: its owner (this process) is alive
+    d2 = g.tmpfs_root("main")
+    assert d2 is not None and d.is_dir() and d2.is_dir() and d2 != d
     monkeypatch.setenv("GATE_TMPFS_MIN_GB", "1000000")
     assert g.tmpfs_root("integ-1") is None
+    assert d.is_dir() and d2.is_dir()
+
+
+def _scratch(shm, name, owner=None, age_s=0.0):
+    d = shm / name
+    (d / "s1" / "tmp_b1").mkdir(parents=True)
+    if owner is not None:
+        (d / "owner.json").write_text(json.dumps(owner), encoding="utf-8")
+    if age_s:
+        t = time.time() - age_s
+        for p in (d / "s1" / "tmp_b1", d / "s1", *([d / "owner.json"] if owner is not None else []), d):
+            os.utime(p, (t, t))
+    return d
+
+
+def test_the_scratch_sweep_removes_only_dirs_whose_owner_is_gone(g, monkeypatch, tmp_path):
+    """NIGHTLY-2331: the 2026-11-01 nightly lost /dev/shm/smplwise-gate-main-*/sN/tmp_bN in all 6 shards mid-run - every engine start
+    swept EVERY smplwise-gate-* dir. A run removes only its own dir at the end; at the start only dirs no running engine owns."""
+    alive = {101: "5000", 102: "7000"}   # pid -> start time of the live processes in this fake machine
+    monkeypatch.setattr(g, "_proc_start", lambda pid: alive.get(int(pid)))
+    shm = tmp_path / "shm"
+    running = _scratch(shm, "smplwise-gate-main-aaa", {"pid": 101, "start": "5000"}, age_s=10 * 3600)   # old but alive: kept
+    dead = _scratch(shm, "smplwise-gate-rel-bbb", {"pid": 103, "start": "1"})                             # owner gone: swept
+    reused = _scratch(shm, "smplwise-gate-rel-ccc", {"pid": 102, "start": "6999"})                        # pid reused: swept
+    fresh_legacy = _scratch(shm, "smplwise-gate-old-ddd")                                                 # no owner, recent: kept
+    old_legacy = _scratch(shm, "smplwise-gate-old-eee", age_s=7 * 3600)                                   # no owner, 7 h idle: swept
+    other = shm / "frigate-cache"
+    other.mkdir()
+    removed = g.sweep_scratch(shm)
+    assert sorted(p.name for p in removed) == sorted([dead.name, reused.name, old_legacy.name])
+    assert running.is_dir() and fresh_legacy.is_dir() and other.is_dir()
+    assert not dead.exists() and not reused.exists() and not old_legacy.exists()
+    # our own dir is never swept, even when its owner record says otherwise
+    mine = _scratch(shm, "smplwise-gate-mine-fff", {"pid": 999, "start": "1"})
+    assert g.sweep_scratch(shm, keep=mine) == [] and mine.is_dir()
+    # the idle limit is a knob
+    monkeypatch.setenv("GATE_TMPFS_STALE_MIN", "1")
+    stale_soon = _scratch(shm, "smplwise-gate-old-ggg", age_s=120)
+    assert stale_soon in g.sweep_scratch(shm, keep=mine) and fresh_legacy.is_dir()
+
+
+def test_a_live_owner_without_a_readable_start_time_is_kept(g, monkeypatch, tmp_path):
+    monkeypatch.setattr(g, "_proc_start", lambda pid: "")   # alive, start time unknown (no /proc)
+    d = _scratch(tmp_path, "smplwise-gate-main-x", {"pid": 5, "start": "123"})
+    assert not g.scratch_is_stale(d)
+    (d / "owner.json").write_text("{not json", encoding="utf-8")   # a torn owner file falls back to the idle rule: recent, kept
+    assert not g.scratch_is_stale(d)
+    assert g.scratch_is_stale(d, now=time.time() + 7 * 3600)
 
 
 def test_plan_runs_nothing_and_prints_both_schedules(g, monkeypatch):

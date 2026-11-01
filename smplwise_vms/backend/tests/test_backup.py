@@ -78,7 +78,8 @@ def test_backup_roundtrip_into_fresh_installation(settings, tmp_path):
         acts = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'backup.%' ORDER BY rowid").fetchall()]
     assert acts[:2] == ["backup.upload", "backup.restore"]
     assert c2.delete(f"/api/v1/backups/{up.json()['name']}").status_code == 204
-    assert c2.get("/api/v1/backups").json()["backups"] == []
+    # OFFBOX-RESTORE-2300 (owner 2026-10-30): each of the two local restores first wrote a safety archive (setting on by default)
+    assert [b["kind"] for b in c2.get("/api/v1/backups").json()["backups"]] == ["auto-pre-restore", "auto-pre-restore"]
 
 
 def test_review_m3_an_archive_carries_none_of_the_settings_a_restore_never_writes(settings):

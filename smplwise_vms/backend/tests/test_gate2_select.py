@@ -68,18 +68,21 @@ def test_failed_files_reads_backend_and_spec_items(tmp_path):
 def test_quarantine_rules(tmp_path):
     today = dt.date(2026, 10, 25)
     q = {"entries": [
-        {"match": "test_ok", "category": "backend", "ticket": "T1", "owner": "lead", "added": "2026-10-20", "expires": "2026-11-05"},
-        {"match": "old", "ticket": "T2", "owner": "lead", "added": "2026-10-01", "expires": "2026-10-10"},
-        {"match": "long", "ticket": "T3", "owner": "lead", "added": "2026-10-20", "expires": "2026-12-30"},
-        {"match": "noticket", "owner": "lead", "added": "2026-10-20", "expires": "2026-10-30"}]}
+        {"match": "test_ok", "category": "backend", "ticket": "T1", "owner": "lead", "reason": "r", "added": "2026-10-20", "expires": "2026-10-27"},
+        {"match": "old", "ticket": "T2", "owner": "lead", "reason": "r", "added": "2026-10-01", "expires": "2026-10-08"},
+        {"match": "long", "ticket": "T3", "owner": "lead", "reason": "r", "added": "2026-10-20", "expires": "2026-10-28"},   # 8 days > 7
+        {"match": "noticket", "owner": "lead", "reason": "r", "added": "2026-10-20", "expires": "2026-10-26"},
+        {"match": "noreason", "ticket": "T4", "owner": "lead", "added": "2026-10-20", "expires": "2026-10-26"}]}
     p = tmp_path / "q.json"
     p.write_text(json.dumps(q))
     active, probs = v.load_quarantine(p, today)
-    assert [e["match"] for e in active] == ["test_ok"] and len(probs) == 3
+    assert [e["match"] for e in active] == ["test_ok"] and len(probs) == 4
+    full = v.load_quarantine_full(p, today)
+    assert [e["match"] for e in full["expired"]] == ["old"]                 # expired: listed, explains nothing any more
 
 
 def test_verdict_classification_and_exit_codes(tmp_path):
-    entries = [{"match": "test_flaky", "category": "*", "ticket": "T", "owner": "o", "added": "2026-10-20", "expires": "2026-11-01"}]
+    entries = [{"match": "test_flaky", "category": "*", "ticket": "T", "owner": "o", "reason": "r", "added": "2026-10-20", "expires": "2026-10-27"}]
     rep = {"verdict": "fail", "branch": "release/x", "sha": "s", "items": [
         {"category": "backend", "id": "tests/test_flaky.py::t", "status": "FAIL", "reason": ""}]}
     c = v.classify(rep, entries)
@@ -88,7 +91,7 @@ def test_verdict_classification_and_exit_codes(tmp_path):
     assert len(v.classify(rep2, entries)["hard"]) == 1
     qp = tmp_path / "q.json"
     qp.write_text(json.dumps({"entries": [dict(entries[0], expires="2099-01-01", added="2099-01-01")]}))
-    # an entry dated in the future is still valid (added <= expires, <= 21 days)
+    # an entry dated in the future is still valid (added <= expires, <= 7 days)
     rp = tmp_path / "gate_release-x_s.json"
     rp.write_text(json.dumps(rep))
     assert v.main([str(rp), "--quarantine", str(qp)]) == 10           # all failures quarantined -> re-run only those

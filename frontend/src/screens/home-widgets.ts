@@ -152,6 +152,9 @@ const GLYPHS: Record<WeatherGlyph, TemplateResult> = {
   fog: svg`<path d="M7 13a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 3.6 4.7 4.7 0 0 1 17 13H7Z"/><path d="M5 16.5h14M8 20h8"/>`,
   wind: svg`<path d="M3 9h11a2.5 2.5 0 1 0-2.4-3.2M3 13h15a2.5 2.5 0 1 1-2.4 3.2M3 17h7"/>`,
 };
+/** MULTIBUILDING-HOME-2330 (owner answer 7): the widgets that follow the level (site / building) and carry its tag; clock, weather and
+ * Shabbat are the whole site's and carry none. */
+const SCOPED_WIDGETS: readonly WidgetId[] = ['alarm', 'elevators', 'quick'];
 const DROP = svg`<path d="M12 3c3.5 4.4 6 7.4 6 10.6A6 6 0 0 1 6 13.6C6 10.4 8.5 7.4 12 3Z"/>`;
 const WIND = svg`<path d="M3 9h11a2.5 2.5 0 1 0-2.4-3.2M3 13h15a2.5 2.5 0 1 1-2.4 3.2M3 17h7"/>`;
 const GAUGE = svg`<path d="M4 16a8 8 0 1 1 16 0"/><path d="m12 16 3.5-5"/>`;
@@ -231,6 +234,8 @@ export class HomeWidgetsView extends LitElement {
   /** UXREST2-295: the widgets whose own read failed (the screen reads elevators / temperature / generators); each draws a failure panel with a
    * retry (`home-widget-retry {id}`) in its own slot and the other widgets are untouched. */
   @property({ attribute: false }) failed: WidgetId[] = [];
+  /** MULTIBUILDING-HOME-2330: on a site of several buildings, the level the scoped widgets speak for ("אתר" / "בניין א"); empty = one building. */
+  @property() scopeTag = '';
   @state() private now = new Date();
   @state() private dragId: WidgetId | '' = '';
   /** CR-015: the screens this user may see (null = not loaded / not allowed) and the one whose remote is open. */
@@ -277,6 +282,25 @@ export class HomeWidgetsView extends LitElement {
       display: flex;
       gap: 12px;
       min-inline-size: 0;
+    }
+    /* MULTIBUILDING-HOME-2330: the scope a level-following widget speaks for ("אתר" / "בניין א"), quiet, in the card's top corner */
+    .wg-scope {
+      position: absolute;
+      inset-block-start: 6px;
+      inset-inline-end: 10px;
+      z-index: 1;
+      pointer-events: none;
+      max-inline-size: 40%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-2xs);
+      font-weight: var(--sw-fw-semibold);
+      line-height: 16px;
     }
     .wg {
       position: relative;
@@ -475,6 +499,12 @@ export class HomeWidgetsView extends LitElement {
       unicode-bidi: isolate;
       display: inline-block;
       text-align: start;
+      /* WORSTCASE-2310: a reading that still does not fit its column (105 °C, a sensor in °F with decimals) ends in an ellipsis inside
+         the column instead of running under the condition glyph; the full reading is the tooltip */
+      max-inline-size: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .wx-c {
       font-size: var(--sw-fs-base);
@@ -1142,6 +1172,18 @@ export class HomeWidgetsView extends LitElement {
       column-gap: 10px;
       row-gap: 8px;
     }
+    /* WORSTCASE-2310: in this grid the measures column takes its natural width first and the temperature gets the rest - at 1440 the
+       large card is ~300 px, so "28°C" at 50 px (101 px) had a 94 px column and ran under the glyph. The temperature now scales with
+       its own column (a container on the 1fr cell, which already ignores its content's width there) and keeps --wxt as its ceiling:
+       wider cards look exactly as before, the 1440 card shows the reading at ~45 px instead of cutting it */
+    :host([layout='hero']) .wg-weather[data-size='l'] .wx-main,
+    :host([layout='side']) .wg-weather[data-size='l'] .wx-main {
+      container: wxmain / inline-size;
+    }
+    :host([layout='hero']) .wg-weather[data-size='l'] .wx-t,
+    :host([layout='side']) .wg-weather[data-size='l'] .wx-t {
+      font-size: min(var(--wxt, 36px), 27cqi);
+    }
     :host([layout='hero']) .wg-weather[data-size='l'] .wx-fc,
     :host([layout='side']) .wg-weather[data-size='l'] .wx-fc {
       grid-column: 1 / -1;
@@ -1726,7 +1768,7 @@ export class HomeWidgetsView extends LitElement {
     for (const c of cls.split(' ')) if (c) classes[c] = true;
     return html`<section class=${classMap(classes)} data-home-widget=${it.id} data-size=${it.size} data-w=${it.id} draggable=${d.draggable ?? 'false'} role=${this.layout === 'snap' ? 'listitem' : 'group'} aria-label=${it.title}
       data-cond=${extra.cond ?? nothing} data-tone=${extra.tone ?? nothing} style=${extra.style ?? nothing}
-      @dragstart=${d.onDragStart} @dragend=${d.onDragEnd} @dragover=${d.onDragOver} @drop=${d.onDrop}>${body}${this.editing ? this.editBar(it) : nothing}</section>`;
+      @dragstart=${d.onDragStart} @dragend=${d.onDragEnd} @dragover=${d.onDragOver} @drop=${d.onDrop}>${body}${this.scopeTag && !this.editing && SCOPED_WIDGETS.includes(it.id) ? html`<span class="wg-scope" data-home-widget-scope>${this.scopeTag}</span>` : nothing}${this.editing ? this.editBar(it) : nothing}</section>`;
   }
 
   private ghost(it: WidgetItem) {
@@ -1826,7 +1868,7 @@ export class HomeWidgetsView extends LitElement {
     const daily = forecastIsDaily(entries);
     return this.shell(it, 'wg-weather', { cond: weatherGlyph(cond) }, html`${this.head(it, GLYPHS.partly, w.name)}
       <div class="wg-b"><div class="wx-main">${cond && (temp || showCond) ? html`<svg class="wx-ic" viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[weatherGlyph(cond)]}</svg>` : nothing}
-        <div class="wx-tc">${temp ? html`<span class="wx-t" data-home-temp>${valueText('temperature', { v: temp.v, unit: temp.unit ?? null })}</span>` : nothing}${showCond ? html`<span class="wx-c" data-home-cond>${WEATHER_HE[cond] ?? cond}</span>` : nothing}</div></div>
+        <div class="wx-tc">${temp ? html`<span class="wx-t" data-home-temp title=${valueText('temperature', { v: temp.v, unit: temp.unit ?? null })}>${valueText('temperature', { v: temp.v, unit: temp.unit ?? null })}</span>` : nothing}${showCond ? html`<span class="wx-c" data-home-cond>${WEATHER_HE[cond] ?? cond}</span>` : nothing}</div></div>
       ${facts.length ? html`<div class="wx-m ge-m" data-home-facts>${facts.map(({ f, v }) => html`<span data-home-fact=${f}><svg viewBox="0 0 24 24" aria-hidden="true">${FIELD_ICON[f] ?? DROP}</svg>${WEATHER_FIELD_LABEL[f]} <b>${valueText(f, { v: v!.v, unit: v!.unit ?? null })}</b></span>`)}</div>` : nothing}
       ${entries.length ? html`<div class="wx-fc only-l" data-home-forecast style=${`--fcn:${entries.length}`} aria-label="תחזית לימים הקרובים">${entries.map((e) => html`<div class="fc" data-cond=${weatherGlyph(e.condition)}><span>${forecastLabel(e.datetime, this.zone, daily)}</span><svg viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[weatherGlyph(e.condition)]}</svg>${e.temperature !== null ? html`<span class="hl"><b>${Math.round(e.temperature)}°</b>${e.templow !== undefined ? html`<i>${Math.round(e.templow)}°</i>` : nothing}</span>` : nothing}</div>`)}</div>` : nothing}</div>`);
   }

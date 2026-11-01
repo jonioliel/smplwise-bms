@@ -18,6 +18,10 @@
  */
 import './tv.css';
 import './tv-v2.css'; // BOARDV2-297: the V2 board, scoped to #cv[data-design="v2"] (loaded after tv.css on purpose)
+import './tv-fonts.css'; // LOBBY-STYLES-2300: the OFL lobby fonts, inlined (the TV page reaches no other file)
+import './tv-hitech.css'; // LOBBY-STYLES-2300: Lumen, Axis, Prism
+import './tv-luxury.css'; // LOBBY-STYLES-2300: Gallery, Concierge, Stone
+import './tv-skins.css'; // NOTICEBOARD-STYLES-2300: the Ink and Sign styles, scoped to #nbk (their own root; every class is nb-prefixed)
 import { overlayHtml, overlayKey, pollMs, visibleNow } from '../announce/screen-overlay'; // ANNOUNCEB-295: the announcement overlay's pure rules
 import { swLogoSvg } from '../design/sw-logo-art'; // the approved SmplWise logo (developer kit artwork), inline SVG: the TV page is served at /b/<slug> and reaches no other file
 import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
@@ -26,11 +30,13 @@ import {
   nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, tickerItemHtml, timeText, tokenFrom, tx, updatedOf, weatherDaysOf, whenText, withTransit,
   idleLogoOf, updatedLineParts,
   type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type HeaderLayout, type Item, type LogoLayout, type NetState, type Saver, type UpdatedLine,
-  BOARD_LAYOUTS, CO_SIZE_PX, tv2Of, type BoardLayout,
+  BOARD_LAYOUTS, CO_SIZE_PX, tv2Of, type BoardLayout, type Design,
 } from './tv-logic';
 import { effective, hasPanel, refreshMs, slideWanted, transitOf, transitTick, ts, type TransitDigest } from './transit-logic';
 import { sidePanel, slidePanel, stripPanel, type TransitCtx } from './transit-view';
 import { v2Panel, v2Slide, v2Strip, type V2TransitCtx } from './v2-transit';
+import { createSkinBoard, type SkinBoard, type SkinInput } from './skin-board';
+import { isSkin, type Skin } from './skin-logic';
 
 const Q = new URLSearchParams(location.search);
 const root = document.documentElement;
@@ -63,6 +69,8 @@ let companyAlpha = false; // TVOPT-295: the light file has a transparent backgro
 const slideSrc = new Map<string, string>(); // feed image URL -> blob URL
 let photoUrl = '';
 let photoSrc = '';
+let photoNightUrl = ''; // LOBBY-STYLES-2300: the building at night (luxury lobby styles)
+let photoNightSrc = '';
 let lastControl = -1;
 let forceTheme = '';
 // BUSTIMES-295: the bus-times digest (the server's, from its cache), when it arrived (a stopwatch: the building may be offline) and the
@@ -114,9 +122,14 @@ function transitCtx(): TransitCtx {
 
 /** Is the V2 board in force: the board's `design` (own value, else the installation default), or the `?design=` test hook. */
 function v2On(): boolean {
+  return designNow() === 'v2';
+}
+
+/** The design in force: the board's `design` (own value, else the installation default), or the `?design=` test hook. NOTICEBOARD-STYLES-2300: also ink / sign. */
+function designNow(): Design {
   const q = Q.get('design');
-  if (q === 'v2' || q === 'classic') return q === 'v2';
-  return tv2Of(display(), 'design') === 'v2';
+  if (q === 'v2' || q === 'classic' || isSkin(q)) return q as Design;
+  return tv2Of(display(), 'design');
 }
 
 /** The V2 layout in force: the board's `board_layout` (own, else the installation's default layout), or the `?b2layout=` test hook. */
@@ -427,6 +440,12 @@ function render(): void {
   const tpl = d.template;
   const L = logos(theme === 'night');
   const urgentNow = takeoverNotice(notices, d, nowDate().getTime());
+  const design = designNow();
+  if (isSkin(design)) {
+    renderSkin(design, theme, urgentNow);
+    return;
+  }
+  leaveSkin();
   const band = bandNotice(notices, d);
   cv.classList.toggle('portrait', portrait);
   cv.dataset.tpl = String(tpl);
@@ -632,6 +651,113 @@ function renderV2(d: Display, portrait: boolean, L: { co: string; sw: string }, 
   applyGridVars();
 }
 
+// ---------------------------------------------------------------- NOTICEBOARD-STYLES-2300: the Ink and Sign styles (own root #nbk)
+
+let skinBoard: SkinBoard | null = null;
+let skinActive = false;
+
+/** "Thursday · 29.10" for the header and the plates, the weekday and "29 October" for the idle face (the board's zone and language). */
+function skinClock(): { t: string; d: string; wd: string; dm: string } {
+  const at = nowDate();
+  const tz = feed?.board.tz || 'Asia/Jerusalem';
+  const loc = lang() === 'en' ? 'en-GB' : 'he-IL';
+  let wd = '';
+  let dm = '';
+  let dd = '';
+  try {
+    wd = new Intl.DateTimeFormat(loc, { weekday: 'long', timeZone: tz }).format(at);
+    dm = new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long', timeZone: tz }).format(at);
+    dd = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', timeZone: tz }).format(at).replace('/', '.');
+  } catch {
+    dd = at.toLocaleDateString();
+  }
+  return { t: timeText(clock()), d: wd + ' · ' + dd, wd, dm };
+}
+
+/** The "updated" line of the footer: the board's `updated` option (place / full / time / issues) and the time of the last good poll. */
+function skinLive(): SkinInput['live'] {
+  const mode = updatedOf(display());
+  const p = updatedLineParts(mode === 'full' ? 'full' : 'place', { label: str(lang(), 'updated'), place: display().place || '', board: feed?.board.name || '' });
+  return { mode, before: p.before, after: p.after, time: updatedText() };
+}
+
+/** The announcement the overlay shows now (its end in the board's zone), or null. */
+function skinAnn(): SkinInput['announcement'] {
+  const a = feed?.announcement ?? null;
+  if (!a || !visibleNow(a, nowDate().getTime())) return null;
+  return { a, until: timeText(clockIn(feed?.board.tz || 'Asia/Jerusalem', new Date(a.until))) };
+}
+
+/** The tenant logo for the style's footer (and the idle board): as on the other designs, the administrator's dark-surface choice decides the file. */
+function skinCompany(dark: boolean): string {
+  if (!hasCompany() || display().blocks.company_logo === false) return '';
+  const mode = nightLogoMode(nightLogoOf(display()), feed?.board.brand?.dark_mode ?? 'invert', !!companySrc.dark, companyAlpha);
+  const pick = chooseCompanyLogo({ light: companySrc.light || null, dark: companySrc.dark || null }, mode, dark);
+  if (!pick) return '';
+  const name = esc(feed?.board.brand?.name || feed?.board.building || '');
+  return '<span class="nb-co" data-co="' + tv2Of(display(), 'co_size') + '" data-tr="' + pick.treatment + '"><img alt="' + name + '" src="' + esc(pick.file) + '"></span>';
+}
+
+function leaveSkin(): void {
+  if (!skinActive) return;
+  skinActive = false;
+  skinBoard?.hide();
+  cv.hidden = false;
+}
+
+/** One render of Ink / Sign. The rotation is the product's (urgent first, then the rest, then the promo slides); the style has no bus-times slide,
+ * no band (an urgent notice is first in the rotation and takes the screen in its first minute) and no "all together" / "focus" modes (the "Up next"
+ * list replaces them). The engine keeps its own rotation timer, so a render with the same content does not restart it. */
+function renderSkin(skin: Skin, theme: 'day' | 'night', urgentNow: FeedNotice | null): void {
+  if (!feed) return;
+  const d = display();
+  if (!skinBoard) skinBoard = createSkinBoard(document.getElementById('nbk') as HTMLElement, { fixed: FIXED || !!NOW_Q, rot: Number(Q.get('nbrot')) || 0 });
+  skinActive = true;
+  cv.hidden = true;
+  skinBoard.show();
+  state.list = []; // the classic rotation stays idle behind the hidden canvas
+  const dark = theme === 'night';
+  const items = withSlides(playlist(feed.notices, { urgent: d.urgent === 'band' ? 'stage' : d.urgent, rotate_s: d.rotate_s }), feed.slides, { ...d, mode: 'rotation' });
+  const dim = nightDim(d, clock(), feed.notices.some((n) => n.severity === 'critical'));
+  // what tickClock compares to decide on a render: the urgent take-over, the late-night dim and the network state
+  cv.dataset.urgent = urgentNow ? 'full' : d.urgent;
+  cv.dataset.night = dim ? '1' : '0';
+  cv.dataset.net = netOf(net, Date.now());
+  const w = feed.weather;
+  skinBoard.apply({
+    skin,
+    dark,
+    lang: lang(),
+    force: d.layout === 'portrait' || d.layout === 'landscape' ? d.layout : '',
+    building: feed.board.building || feed.board.name || '',
+    place: d.place || '',
+    weather: d.blocks.weather && w ? { t: w.now.t, icon: w.now.condition, text: w.now.text, hours: (w.hours ?? []).slice(0, 5).map((x) => ({ at: x.at, t: x.t })) } : null,
+    liveBg: tv2Of(d, 'live_bg'),
+    urgentScreen: tv2Of(d, 'urgent_screen'),
+    systemsStatus: tv2Of(d, 'systems_status'),
+    sun: feed.sun,
+    photo: photoSrc,
+    photoNight: photoNightSrc,
+    info: feed.info ?? [],
+    news: d.blocks.news ? feed.news ?? [] : [],
+    items,
+    held: heldIndex(items, d),
+    rotateS: d.rotate_s,
+    whenOf: when,
+    imgOf: (s) => (s.image ? slideSrc.get(s.image) || '' : ''),
+    takeover: urgentNow,
+    announcement: skinAnn(),
+    net: netOf(net, Date.now()),
+    live: skinLive(),
+    clock: skinClock,
+    company: skinCompany(dark),
+    idleCompany: idleLogoOf(d) === 'both',
+    drift: !!d.burn_in?.shift,
+    night: dim,
+    nightB: dimBrightness(d.night?.dim ?? 0.5),
+  });
+}
+
 // ---------------------------------------------------------------- ANNOUNCEB-295: a voice announcement addressed to this board
 
 let annKey = '';
@@ -650,6 +776,10 @@ function renderAnn(): void {
 function annSync(): void {
   const a = feed?.announcement ?? null;
   const on = visibleNow(a, nowDate().getTime());
+  if (skinActive) {
+    skinBoard?.setAnnouncement(skinAnn());
+    return;
+  }
   const v = on ? (a?.critical ? 'crit' : '1') : '0';
   if (cv.dataset.ann !== v) cv.dataset.ann = v;
 }
@@ -805,7 +935,7 @@ function fitBus(): void {
 
 /** The minute turned (or the state aged): redraw the bus panels in place. A change of WHERE they go (a slide appears, a panel is due) is a full render. */
 function refreshTransit(): void {
-  if (!feed) return;
+  if (!feed || skinActive) return; // Ink / Sign draw no bus times
   const tv = transitView();
   const key = tkey(tv);
   if (key === transitKey) return;
@@ -898,6 +1028,13 @@ function setPaused(p: boolean): void {
 }
 
 function command(cmd: string): void {
+  if (skinActive && skinBoard) {
+    // NOTICEBOARD-STYLES-2300: Ink / Sign own their rotation; a resume also drops the preview's hold (as on the other designs)
+    const resume = cmd === 'play' || (cmd === 'toggle' && skinBoard.isPaused());
+    if (resume && draftDisplay) draftDisplay = { ...draftDisplay, hold: '' };
+    skinBoard.command(cmd);
+    return;
+  }
   if (cmd === 'next') move(1);
   else if (cmd === 'prev') move(-1);
   else if (cmd === 'pause') setPaused(true);
@@ -955,6 +1092,7 @@ function tickClock(): void {
     if (st) st.textContent = str(lang(), 'staleFrom', { t: updatedText() });
   }
   if (!feed) return;
+  if (skinActive) skinBoard?.tick({ clock: skinClock, net: now, live: skinLive() });
   refreshTransit();
   // the product debounces the automatic switch to one per 10 minutes so dusk never flickers
   const th = currentTheme();
@@ -1114,6 +1252,12 @@ async function loadMedia(doc: Feed): Promise<void> {
     photoSrc = photo ? await fetchBlob(photo) : '';
     photoUrl = photo;
   }
+  const night = doc.board.display?.photo_night || '';
+  if (night !== photoNightUrl || (night && !photoNightSrc)) {
+    if (photoNightSrc) URL.revokeObjectURL(photoNightSrc);
+    photoNightSrc = night ? await fetchBlob(night) : '';
+    photoNightUrl = night;
+  }
 }
 
 /** BUSTIMES-295: the bus-times digest of this board (the server's cache, never the third party). A failed read keeps the last digest: it ages on the stopwatch. */
@@ -1248,7 +1392,7 @@ addEventListener('resize', () => {
 });
 
 void poll(true).then(() => {
-  if (document.fonts && document.fonts.ready) void document.fonts.ready.then(() => layoutAfter());
+  if (document.fonts && document.fonts.ready) void document.fonts.ready.then(() => (skinActive ? skinBoard?.refit() : layoutAfter()));
   restartRotation();
 });
 if (!FIXED && !NOW_Q) {

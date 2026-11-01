@@ -87,7 +87,7 @@ existing time-balanced junit-cost split.
 
 ### 2.5 Flake quarantine and targeted re-runs (`scripts/gate/gate2_verdict.py`, `gate2_quarantine.json`)
 - The engine still retries every failure once alone (pass -> FLAKY).
-- **Managed quarantine**: an entry needs a ticket, an owner and an expiry of at most 21 days. Candidates come from
+- **Managed quarantine**: an entry needs a ticket, an owner, a reason and an expiry of at most 7 days (owner decision 30.10 night, ENTRY-CHECK-2310; was 21). An expired entry counts as a failure again and every report lists it. Candidates come from
   `gate2_verdict.py propose` (first-run failures in 2 or more of the last 6 gates). The lead adds entries by hand, and the
   list starts empty. A quarantined test always runs. When EVERY failure of a run is quarantined, the wrapper re-runs **only
   those tests** on the same sha (`GATE2_RERUN_ONLY`, about 5-10 min). A second red is a real FAIL.
@@ -163,7 +163,7 @@ current rules):
 | Heavy sweeps deferred (only on a change-impact frontend side, R1) | a layout regression on the screens those sweeps cover, shipped until the next nightly | nightly; `--keep-heavy` for releases that touch layout broadly |
 | Selection fitted to history | the replay (0/138 escapes) was run on the same 10 gates the rules were derived from; unseen failure classes can still escape | nightly + `select_tests.py audit`; any audit hit is added as a rule and to the replay |
 | Targeted re-run after red | an interaction between the fix and an untouched area | the fix diff is mapped like any change; nightly |
-| Quarantine | a real regression inside a quarantined test is retried once more before it counts | it still fails twice -> FAIL; entries expire in 21 days and need a ticket |
+| Quarantine | a real regression inside a quarantined test is retried once more before it counts | it still fails twice -> FAIL; entries expire in at most 7 days and need a ticket |
 | Higher shard count when Playwright is light | memory: 10 shards are not measured | engine memory guard on the pool; the report's resources line; set `GATE_BACKEND_SHARDS` lower |
 
 The worst case: a defect that only the deferred or dropped tests see ships in a release and the next nightly shows it red.

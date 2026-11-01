@@ -9,7 +9,10 @@ import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import { applySynopticHidden } from '../shell/nav';
 import { xt, type XtKey } from '../i18n/xsection';
-import { XS_DEFAULT, XS_THRESHOLDS, normalizeXs, onXsOptions, setXsOptions, xsOptions, type XsOptions } from '../xsection/xs-model';
+import { SYN_COLUMN_ORDER, XS_DEFAULT, XS_THRESHOLDS, normalizeXs, onXsOptions, setXsOptions, xsOptions, type SynColumn, type XsOptions } from '../xsection/xs-model';
+import { parseRoute } from '../router';
+
+const COL_LABEL: Record<SynColumn, XtKey> = { light: 'colLight', temp: 'colTemp', presence: 'colPresence', cameras: 'colCameras', doors: 'colDoors', alerts: 'colAlerts', fire: 'colFire' };
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
@@ -36,7 +39,8 @@ const GROUPS: { title: XtKey; opts: Opt[] }[] = [
     title: 'grpSyn',
     opts: [
       { key: 'syn_tab', kind: 'bool', label: 'optSynTab' },
-      { key: 'syn_columns', kind: 'enum', label: 'optSynColumns', options: [['all', 'optSynAll'], ['few', 'optSynFew']] },
+      { key: 'syn_columns', kind: 'enum', label: 'optSynColumns', options: [['all', 'optSynAll'], ['few', 'optSynFew'], ['custom', 'optSynCustom']] },
+      { key: 'syn_hide_empty', kind: 'bool', label: 'optSynHideEmpty', hint: 'optSynHideEmptyHint' },
       { key: 'syn_events', kind: 'bool', label: 'optSynEvents' },
       { key: 'wall', kind: 'bool', label: 'optWall' },
     ],
@@ -85,6 +89,13 @@ export class SystemXsOptions extends LitElement {
     .ok { color: var(--sw-live); font-size: var(--sw-fs-sm); }
     .err { color: var(--sw-danger); font-size: var(--sw-fs-sm); }
     .note { color: var(--sw-text-3); font-size: var(--sw-fs-xs); margin-block-start: 8px; }
+    .row.custom { align-items: flex-start; flex-wrap: wrap; }
+    .row .lbl small.warn { color: var(--sw-warning-text, var(--sw-text-2)); }
+    .cbs { display: flex; flex-wrap: wrap; gap: 4px 14px; max-inline-size: 60%; justify-content: flex-end; }
+    .cb { display: inline-flex; align-items: center; gap: 6px; min-block-size: 36px; cursor: pointer; font-size: var(--sw-fs-sm); color: var(--sw-text); }
+    .cb input { inline-size: 18px; block-size: 18px; margin: 0; accent-color: var(--sw-accent); cursor: pointer; }
+    .cb input:disabled, .cb input:disabled + span { cursor: default; opacity: var(--sw-disabled-opacity, 0.6); }
+    @media (max-width: 767px) { .cbs { max-inline-size: 100%; justify-content: flex-start; } }
   `, bubbleChrome];
 
   connectedCallback() {
@@ -102,6 +113,10 @@ export class SystemXsOptions extends LitElement {
         .catch(() => undefined);
     }
   }
+  /** `?focus=xs` (the link under the synoptic board): this card is brought into view. */
+  firstUpdated() {
+    if (parseRoute().params.get('focus') === 'xs') requestAnimationFrame(() => this.scrollIntoView({ block: 'start' }));
+  }
   disconnectedCallback() {
     this.stop?.();
     super.disconnectedCallback();
@@ -109,7 +124,8 @@ export class SystemXsOptions extends LitElement {
 
   private get dirty(): boolean {
     const now = xsOptions() as unknown as Record<string, unknown>;
-    return (Object.keys(XS_DEFAULT) as (keyof XsOptions)[]).some((k) => (this.draft as unknown as Record<string, unknown>)[k] !== now[k]);
+    // syn_custom is a list: compared by value (JSON), not by reference
+    return (Object.keys(XS_DEFAULT) as (keyof XsOptions)[]).some((k) => JSON.stringify((this.draft as unknown as Record<string, unknown>)[k]) !== JSON.stringify(now[k]));
   }
 
   private set(key: keyof XsOptions, value: unknown) {
@@ -135,7 +151,21 @@ export class SystemXsOptions extends LitElement {
     }
   }
 
+  /** SYN-COLUMNS-2321: the per-column ticks of syn_columns=custom, in the board's fixed order (only while "chosen by hand" is selected). */
+  private renderCustom(editable: boolean) {
+    if (this.draft.syn_columns !== 'custom') return nothing;
+    const on = new Set(this.draft.syn_custom);
+    const flip = (c: SynColumn, v: boolean) => this.set('syn_custom', SYN_COLUMN_ORDER.filter((x) => (x === c ? v : on.has(x))));
+    return html`<div class="row custom" data-xs-option="syn_custom"><span class="lbl">${xt('optSynCustomPick')}<small>${xt('optSynCustomHint')}</small>${on.size ? nothing : html`<small class="warn" data-xs-custom-none>${xt('optSynCustomNone')}</small>`}</span>
+      <div class="cbs" role="group" aria-label=${xt('optSynCustomPick')}>${SYN_COLUMN_ORDER.map((c) => html`<label class="cb"><input type="checkbox" data-xs-col=${c} .checked=${on.has(c)} ?disabled=${!editable || this.busy} @change=${(e: Event) => flip(c, (e.target as HTMLInputElement).checked)} /><span>${xt(COL_LABEL[c])}</span></label>`)}</div></div>`;
+  }
+
   private renderOpt(o: Opt, editable: boolean) {
+    if (o.key === 'syn_columns') return html`${this.renderEnumOrBool(o, editable)}${this.renderCustom(editable)}`;
+    return this.renderEnumOrBool(o, editable);
+  }
+
+  private renderEnumOrBool(o: Opt, editable: boolean) {
     const cur = (this.draft as unknown as Record<string, unknown>)[o.key];
     const def = (XS_DEFAULT as unknown as Record<string, unknown>)[o.key];
     if (o.kind === 'bool') {

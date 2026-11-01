@@ -6,7 +6,9 @@
 // `multimedia` (CR-015, 2026-09-30): the screens and the remote - #/multimedia/screens (players and groups come in 0.1.150).
 // `infra` (CR-023, 2026-10-04): "תשתיות" - #/infra/electricity/<page> (docs/architecture/ELECTRICITY_UI_SHELL.md).
 // `tickets` (CR-038, 2026-10-13): the optional tickets module - #/tickets/<mine|department|all>[?t=<id>], #/tickets/<id> (full screen).
-export type Mode = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey' | 'devices' | 'security' | 'multimedia' | 'infra' | 'tickets';
+// `calendars` (CALENDARS-UI-2310): the calendars module's rail address - #/calendars/<cal|rooms|approvals|maint|manage>[/<id>] (the same screens
+// answer at #/devices/calendars/... as a tab of the home area; shell/nav.ts CALENDARS_HREF).
+export type Mode = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey' | 'devices' | 'security' | 'multimedia' | 'infra' | 'tickets' | 'calendars';
 
 export interface RouteState {
   path: string;
@@ -15,7 +17,7 @@ export interface RouteState {
   mode: Mode | null;
 }
 
-const MODES: Mode[] = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security', 'multimedia', 'infra', 'tickets'];
+const MODES: Mode[] = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security', 'multimedia', 'infra', 'tickets', 'calendars'];
 
 export function parseRoute(hash: string = window.location.hash): RouteState {
   const raw = hash.replace(/^#/, '') || '/explore/floors/f0';
@@ -62,7 +64,8 @@ function writeRoute(path: string, params: URLSearchParams | undefined, push: boo
   window.dispatchEvent(new CustomEvent(ROUTE_REPLACED));
 }
 
-/** eplaced is true for replaceRoute / pushRoute (the program moved the address), false for a hashchange. */
+/** 
+eplaced is true for replaceRoute / pushRoute (the program moved the address), false for a hashchange. */
 export function onRouteChange(handler: (route: RouteState, replaced: boolean) => void): () => void {
   const onHash = () => handler(parseRoute(), false);
   const onReplaced = () => handler(parseRoute(), true);

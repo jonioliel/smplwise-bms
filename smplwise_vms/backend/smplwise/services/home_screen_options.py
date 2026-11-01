@@ -28,6 +28,12 @@ present). Every choice the owner answered is only the DEFAULT; each one is a key
                     override per area, versioned for the editor's conflict check (services/popup_layout.py) - AREAEDIT-2290
   phone_floors      selector (default: a phone shows one floor at a time, with the floor switch and the tree button) | all (every floor
                     card stacked one after another down the page; no switch, no tree button). Tablet and desktop are unchanged
+  MULTIBUILDING-HOME-2330 (owner approval 31.10, round 10): only used when the site has several buildings (one building: no effect)
+  site_entry        site (default: the home opens on the whole site) | last (the last building the viewer was in, on this device) |
+                    fixed (site_entry_building). A user may choose his own (home.personal.screen.site_entry / site_entry_building)
+  site_entry_building  "" (default) | a building id - the fixed building of site_entry = fixed (one that is gone opens the site)
+  site_off_shared   exclude (default: "כבה הכל באתר" leaves the shared building unchecked) | include (checked like every building)
+  Per user only (home.personal.screen): hide_shared (true = the shared building is not shown to this viewer; default false)
 
 The view (cards / tiles) stays `devices.default_view` (default cards), the info row `home.info_style` (auto: cards in cards mode,
 a thin bar in tiles mode) and the customer logo on dark `brand.dark_mode` (default invert): one key per choice, no duplicates.
@@ -58,7 +64,10 @@ CHOICES: dict[str, tuple[str, ...]] = {
     "quick_card": ("show", "hide"),
     "phone_floors": ("selector", "all"),
     "popup_alert": ("show", "hide"),
+    "site_entry": ("site", "last", "fixed"),
+    "site_off_shared": ("exclude", "include"),
 }
+BUILDING_ID_MAX = 120
 
 DEFAULT: dict[str, Any] = {
     "summary_tiles": None,
@@ -76,11 +85,21 @@ DEFAULT: dict[str, Any] = {
     "phone_floors": "selector",
     "popup_alert": "show",
     "popup": {"version": 0, "site": None, "areas": {}},
+    "site_entry": "site",
+    "site_entry_building": "",
+    "site_off_shared": "exclude",
 }
 KEYS: tuple[str, ...] = tuple(DEFAULT)
 
-# what a user may choose for himself (home.personal.screen): his summary tiles (only while summary_chooser = user) and the phone area
-PERSONAL_KEYS: tuple[str, ...] = ("summary_tiles", "phone_area")
+# what a user may choose for himself (home.personal.screen): his summary tiles (only while summary_chooser = user), the phone area and
+# (MULTIBUILDING-HOME-2330) where the home opens on a multi-building site and whether the shared building is hidden for him
+PERSONAL_KEYS: tuple[str, ...] = ("summary_tiles", "phone_area", "site_entry", "site_entry_building", "hide_shared")
+
+
+def _building_id(value: Any, name: str) -> str:
+    if not isinstance(value, str) or len(value) > BUILDING_ID_MAX:
+        raise ValueError(f"{name} must be a building id (or empty)")
+    return value
 
 
 def _kinds(value: Any, allowed: tuple[str, ...], name: str) -> list[str]:
@@ -144,6 +163,8 @@ def normalize(value: Any, base: dict[str, Any] | None = None) -> dict[str, Any]:
         from . import popup_layout
 
         out["popup"] = popup_layout.normalize_popup(given["popup"])
+    if "site_entry_building" in given:
+        out["site_entry_building"] = _building_id(given["site_entry_building"], "home.screen.site_entry_building")
     for key in CHOICES:
         if key in given:
             out[key] = _choice(given[key], key, f"home.screen.{key}")
@@ -171,4 +192,14 @@ def normalize_personal(value: Any) -> dict[str, Any]:
         out["summary_tiles"] = _kinds(given["summary_tiles"], SUMMARY_KINDS, "home.personal.screen.summary_tiles")
     if given.get("phone_area") is not None:
         out["phone_area"] = _choice(given["phone_area"], "phone_area", "home.personal.screen.phone_area")
+    # MULTIBUILDING-HOME-2330: where the home opens for this user, and whether the shared building is hidden for him
+    if given.get("site_entry") is not None:
+        out["site_entry"] = _choice(given["site_entry"], "site_entry", "home.personal.screen.site_entry")
+    if given.get("site_entry_building"):
+        out["site_entry_building"] = _building_id(given["site_entry_building"], "home.personal.screen.site_entry_building")
+    if given.get("hide_shared") is not None:
+        if not isinstance(given["hide_shared"], bool):
+            raise ValueError("home.personal.screen.hide_shared must be true or false")
+        if given["hide_shared"]:
+            out["hide_shared"] = True
     return out

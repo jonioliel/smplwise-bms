@@ -219,6 +219,17 @@ this validation only.
   advancing in real time, buffer ahead. So every Provision go2rtc source is wrapped that way by default
   (`vendor_io.go2rtc_source`; `go2rtc_source: rtsp` per recorder for firmware where the native client works). Audio is not
   carried by that source yet. Screenshot in `private-evidence/provision-isr-live/ha2-playback/` (real frame, not in Git).
+- **ONVIF backchannel (live diagnosis 2026-10-31, read-only, NVR8-16400AN fw 1.4.7, go2rtc 1.9.14):** go2rtc's RTSP client
+  sends `Require: www.onvif.org/ver20/backchannel` on DESCRIBE by default; with that header this NVR answers `200 OK` with an
+  SDP holding ONLY the PCMU `sendonly` talk-back track and no `m=video`, so every consumer fails with "codecs not matched".
+  Without the header the same path returns H.264 video - very likely the real cause of the native-client finding above.
+  Fix (branch `fix/PROVISION-BACKCHANNEL-2320`): every go2rtc source of a Provision recorder (live main / sub and playback,
+  ffmpeg or native) gets go2rtc's `#backchannel=0` (`vendor_io.with_backchannel_off`: an existing `#` fragment is kept and
+  extended, an explicit `backchannel=` is left alone). The connection option `nvr_extra.backchannel` ("דיבור דו-כיווני דרך
+  המקליט", default off) leaves it out for future talk-back. The stream sync already replaces an existing `smplwise_` stream
+  whose source differs, so the first sync after the add-on update rewrites the live streams; streams outside `smplwise_`
+  are never touched. Applied to Provision only: Hikvision (ISAPI talk-back, the legacy path plays today), Frigate restreams
+  (go2rtc to go2rtc), WisKey station streams and HA camera sources showed no such evidence and keep their sources unchanged.
 
 ### 6.4 End-to-end playback through Arx's own screen (HA2 go2rtc, 2026-10-04, owner-approved)
 

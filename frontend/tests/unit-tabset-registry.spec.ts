@@ -61,7 +61,7 @@ test('every area with a tab row has a registry section, and every section row is
   expect(new Set(sectionIds).size).toBe(sectionIds.length);
   // every area whose row the shell draws (security draws its sections' rows) is configurable
   for (const area of Object.keys(AREA_TABS)) {
-    if (area === 'security' || area === 'notices') continue; // NOTICEADD-295: the notice board is a rail entry with one page and no tab row
+    if (area === 'security' || area === 'notices' || area === 'calendars') continue; // NOTICEADD-295: the notice board is a rail entry with one page and no tab row; CALENDARS-UI-2310: the calendars rail entry has no tab row either (the screen draws its own view tabs)
     expect(sectionIds, area).toContain(area);
     expect(sectionIdOf(AREA_TABS[area as keyof typeof AREA_TABS]), area).toBe(area);
     expect(areaRowSection(area as never, null), area).toBe(area);

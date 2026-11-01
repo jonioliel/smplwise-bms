@@ -102,11 +102,11 @@ def test_module_is_off_by_default_and_gated(cc):
 def test_settings_defaults_validation_and_fail_closed(cc):
     s = ok(cc.get(f"{API}/calendar/settings"))["settings"]
     assert s["enabled"] is False and s["maintenance_overlap"] == "first_holds" and s["pending_holds_slot"] is False
-    assert s["menu_position"] == "a" and s["holiday_eve_as_holiday"] is False and s["guest_retention_days"] == 30
+    assert s["menu_position"] == "rail" and s["holiday_eve_as_holiday"] is False and s["guest_retention_days"] == 30
     for bad in ({"menu_position": "c"}, {"guest_retention_days": 4000}, {"maintenance_overlap": "x"}, {"nope": 1}, {"enabled": "yes"}):
         assert cc.put(f"{API}/calendar/settings", json=bad).status_code == 422
-    enable(cc, menu_position="b", guest_retention_days=0)
-    assert ok(cc.get(f"{API}/calendar/module"))["menu_position"] == "b"
+    enable(cc, menu_position="home_tab", guest_retention_days=0)
+    assert ok(cc.get(f"{API}/calendar/module"))["menu_position"] == "home_tab"
     with db(cc).connection() as c:  # a corrupt document reads as defaults with the module OFF
         c.execute("UPDATE settings SET value = '{broken' WHERE key = ?", (model.SETTINGS_KEY,))
     assert ok(cc.get(f"{API}/calendar/module"))["enabled"] is False
@@ -655,3 +655,117 @@ def test_permissions_catalogue_and_roles(cc):
     roles = {r["id"]: set(r["permissions"]) for r in json.loads((__import__("pathlib").Path(__import__("smplwise").__file__).parent / "roles.json").read_text(encoding="utf-8"))["roles"]}
     assert "calendar.view" in roles["viewer"] and "calendar.book" in roles["operator"] and "calendar.manage" in roles["site_admin"]
     assert roles["calendar_connect"] == {"calendar.connect"} and "calendar.connect" not in roles["site_admin"]
+
+
+
+# ---------------------------------------------------------------- CALENDARS-UI-2310: owner answers of 2026-10-30 night as settings
+
+def test_ui_settings_defaults_follow_the_owner_answers_of_30_10(cc):
+    s = ok(cc.get(f"{API}/calendar/settings"))["settings"]
+    assert s["menu_position"] == "rail"  # placement question: a setting, default the side rail
+    assert s["contested_order"] == "first_come"  # 11B
+    assert s["allow_displace"] is True and s["displace_approver"] == "calendar_manager"  # 12A + "only with the calendar manager's approval"
+    assert s["phone_time_picker"] == "grid"  # 16A
+    assert s["reauth_mode"] == "reauth_and_continue"  # 21B
+    assert s["sync_conflict_display"] == "side_by_side"  # 22A
+    assert s["tablet_panels"] == "collapse"  # 23A
+    assert s["override_scope"] == "both"  # 9A
+    assert s["resident_pending_display"] == "count" and s["resident_cancel_until"] == "start" and s["resident_rooms"] == "bookable"  # 13A 14A 15A
+    assert s["purge_confirm"] == "type_word" and s["loading_style"] == "skeleton"  # 24A 26A
+    assert s["default_approval_timeout_h"] == 2 and s["reopen_days"] == 7
+    bad = ({"menu_position": "x"}, {"contested_order": "random"}, {"allow_displace": "no"}, {"displace_approver": "x"}, {"phone_time_picker": "dial"},
+           {"reauth_mode": "x"}, {"sync_conflict_display": "x"}, {"tablet_panels": "x"}, {"override_scope": "x"}, {"resident_cancel_until": "2h"},
+           {"resident_pending_display": "x"}, {"resident_rooms": "x"}, {"purge_confirm": "x"}, {"loading_style": "x"}, {"default_approval_timeout_h": 999},
+           {"reopen_days": 400})
+    for b in bad:
+        assert cc.put(f"{API}/calendar/settings", json=b).status_code == 422, b
+    enable(cc, menu_position="both", contested_order="manual", tablet_panels="shrink")
+    m = ok(cc.get(f"{API}/calendar/module"))
+    assert m["menu_position"] == "both" and m["ui"]["tablet_panels"] == "shrink" and m["ui"]["contested_order"] == "manual"
+
+
+def test_legacy_menu_position_values_read_as_the_side_rail(cc):
+    with db(cc).connection() as c:
+        c.execute("INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)", (model.SETTINGS_KEY, json.dumps({"enabled": True, "menu_position": "a"})))
+    m = ok(cc.get(f"{API}/calendar/module"))
+    assert m["menu_position"] == "rail" and m["enabled"] is True  # the old value is not a corrupt document
+
+
+def _contest(cc):
+    a = room(cc)
+    ann, bob = user(cc, "ann"), user(cc, "bob")
+    members(cc, a, [{"subject_kind": "user", "subject_id": "dev-ann", "cal_role": "book"}, {"subject_kind": "user", "subject_id": "dev-bob", "cal_role": "book"}])
+    first = ok(book(cc, a, T(3, 10), T(3, 11), ann, title="ראשון"), 201)
+    late1 = ok(book(cc, a, T(3, 10, 30), T(3, 11, 30), bob, title="מאוחר א"), 201)
+    late2 = ok(book(cc, a, T(3, 10, 15), T(3, 11, 15), ann, title="מאוחר ב"), 201)
+    return a, first, late1, late2
+
+
+def test_contested_order_ranks_the_queue(cc):
+    enable(cc)  # first_come
+    _contest(cc)
+    by = {r["title"]: r for r in ok(cc.get(f"{API}/calendar/requests"))["requests"]}
+    assert by["מאוחר א"]["queue_position"] == 1 and by["מאוחר ב"]["queue_position"] == 2  # first come, first in line
+    assert by["מאוחר א"]["suggested"] is True and by["מאוחר ב"]["suggested"] is False
+    enable(cc, contested_order="manual")
+    reqs = ok(cc.get(f"{API}/calendar/requests"))["requests"]
+    assert all(r["suggested"] is False for r in reqs)  # the manager picks by hand; the list stays in arrival order
+    assert sorted(r["queue_position"] for r in reqs) == [1, 2]
+
+
+def test_allow_displace_off_refuses_a_displacing_approval(cc):
+    enable(cc, allow_displace=False)
+    a, first, late1, _ = _contest(cc)
+    ev = late1["event"]
+    r = cc.post(f"{API}/calendar/requests/{ev['id']}/decide", json={"decision": "approve", "displace_existing": True, "revision": ev["revision"]})
+    assert r.status_code == 409 and r.json()["code"] == "displace_disabled"
+    assert ok(cc.get(f"{API}/calendar/events/{first['event']['id']}"))["event"]["state"] == "confirmed"
+    assert ok(cc.post(f"{API}/calendar/requests/{ev['id']}/decide", json={"decision": "reject", "revision": ev["revision"]}))["state"] == "rejected"
+
+
+def test_displacing_needs_the_calendar_manager_not_only_a_system_manager(cc):
+    enable(cc)  # displace_approver = calendar_manager
+    a, first, late1, _ = _contest(cc)
+    user(cc, "dana", "site_admin")
+    with db(cc).connection() as c:  # the calendar belongs to someone else: joni is a manager by role, not this calendar's manager
+        c.execute("UPDATE cal_calendars SET owner_user_id = 'dev-dana' WHERE id = ?", (a["id"],))
+        c.execute("UPDATE cal_members SET subject_id = 'dev-dana' WHERE calendar_id = ? AND cal_role = 'manage'", (a["id"],))
+    ev = late1["event"]
+    r = cc.post(f"{API}/calendar/requests/{ev['id']}/decide", json={"decision": "approve", "displace_existing": True, "revision": ev["revision"]})
+    assert r.status_code == 403, r.text
+    assert ok(cc.get(f"{API}/calendar/events/{first['event']['id']}"))["event"]["state"] == "confirmed"
+    enable(cc, displace_approver="any_manager")
+    assert ok(cc.post(f"{API}/calendar/requests/{ev['id']}/decide", json={"decision": "approve", "displace_existing": True, "revision": ev["revision"]}))["state"] == "confirmed"
+
+
+def test_displacing_by_the_calendar_owner_is_allowed(cc):
+    enable(cc)
+    a, first, late1, _ = _contest(cc)  # owned by joni, the caller
+    ev = late1["event"]
+    assert ok(cc.post(f"{API}/calendar/requests/{ev['id']}/decide", json={"decision": "approve", "displace_existing": True, "revision": ev["revision"]}))["state"] == "confirmed"
+
+
+def test_override_scope_limits_what_a_calendar_may_choose(cc):
+    enable(cc, override_scope="stricter")  # installation: first_holds
+    r = cc.post(f"{API}/calendar/calendars", json={"name": "מקל", "type": "room", "color": "blue", "overlap_override": "override_notify"})
+    assert r.status_code == 422, r.text
+    strict = room(cc, "מחמיר", overlap_override="block")
+    assert strict["overlap_override"] == "block"
+    enable(cc, override_scope="none")
+    assert cc.patch(f"{API}/calendar/calendars/{strict['id']}", json={"revision": strict["revision"], "overlap_override": "ask"}).status_code == 422
+    enable(cc, override_scope="both")
+    assert room(cc, "מקל", overlap_override="override_notify")["overlap_override"] == "override_notify"
+
+
+def test_resident_cancel_until_and_default_timeout(cc):
+    enable(cc, resident_cancel_until="24h", default_approval_timeout_h=6)
+    a = room(cc)
+    assert a["approval_timeout_h"] == 6
+    ann = user(cc, "ann")
+    members(cc, a, [{"subject_kind": "user", "subject_id": "dev-ann", "cal_role": "book"}])
+    soon = ok(book(cc, a, T(5, 20, month=10), T(5, 21, month=10), ann), 201)["event"]  # NOW is 2026-10-05 09:00Z: 11 hours away
+    r = cc.post(f"{API}/calendar/events/{soon['id']}/cancel", json={"revision": soon["revision"]}, headers=ann)
+    assert r.status_code == 409 and r.json()["code"] == "cancel_too_late"
+    assert ok(cc.post(f"{API}/calendar/events/{soon['id']}/cancel", json={"revision": soon["revision"]}))["event"]["state"] == "cancelled"  # an editor may
+    later = ok(book(cc, a, T(7, 10, month=10), T(7, 11, month=10), ann), 201)["event"]
+    assert ok(cc.post(f"{API}/calendar/events/{later['id']}/cancel", json={"revision": later["revision"]}, headers=ann))["event"]["state"] == "cancelled"

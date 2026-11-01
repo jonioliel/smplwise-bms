@@ -12,13 +12,17 @@ import { listEvents, type VmsEvent } from '../api/events';
 import { canAnywhere, isApi } from '../api/session';
 import type { Building, Floor } from '../api/types';
 import { navigate, parseRoute } from '../router';
-import { demoBuilding, demoSignals, loadXsData, type XsData } from '../xsection/xs-data';
+import { demoBuilding, demoSignals, loadXsData, matchContext, type XsData } from '../xsection/xs-data';
 import { acknowledgeFire, fireAck, fireReport, onFire, setFireMock } from '../xsection/fire-store';
 import { ackName, mayAck } from '../xsection/sw-fire-bar';
 import { xi } from '../xsection/xs-icons';
-import { alarmFloors, onXsOptions, signalsOf, synColumns, tempState, totalsOf, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsOptions } from '../xsection/xs-model';
+import { matchLine, unlinkedFloors } from '../xsection/sw-xsection';
+import { phoneRestricted } from '../shell/phone';
+import { alarmFloors, onXsOptions, phoneColumns, signalsOf, synBoardColumns, tempState, totalsOf, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsOptions } from '../xsection/xs-model';
+import type { XtKey } from '../i18n/xsection';
 
 const REFRESH_MS = 30_000;
+const COL_LABEL: Record<SynColumn, XtKey> = { light: 'colLight', temp: 'colTemp', presence: 'colPresence', cameras: 'colCameras', doors: 'colDoors', alerts: 'colAlerts', fire: 'colFire' };
 const clock = () => new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 
 /**
@@ -53,6 +57,9 @@ export class DevicesSynoptic extends LitElement {
     nav.tree { padding: 10px; display: flex; flex-direction: column; gap: 4px; overflow: hidden; align-self: stretch; }
     nav.tree button { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 0; border-radius: var(--sw-r-sm); background: transparent; font: inherit; color: var(--sw-text); text-align: start; cursor: pointer; min-block-size: 36px; min-inline-size: 0; touch-action: manipulation; }
     nav.tree button[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); }
+    nav.tree button { transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); }
+    nav.tree button:active { transform: scale(var(--sw-press-scale, 0.98)); }
+    @media (hover: hover) and (pointer: fine) { nav.tree button[aria-pressed='false']:hover { background: var(--sw-surface-2); } }
     nav.tree .nm { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     nav.tree .lit { color: var(--sw-text-3); font-size: var(--sw-fs-state); font-variant-numeric: tabular-nums; direction: ltr; display: inline-flex; gap: 3px; align-items: center; }
     .xi { inline-size: 14px; block-size: 14px; flex: none; }
@@ -76,14 +83,20 @@ export class DevicesSynoptic extends LitElement {
     .shdr span { display: inline-flex; gap: 5px; align-items: center; min-inline-size: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .srows { display: flex; flex-direction: column; justify-content: flex-start; gap: 5px; min-block-size: 0; container-type: size; }
     .srow, nav.tree button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-        .srow { flex: 1 1 0; min-block-size: 0; max-block-size: 76px; padding: 0 12px; border: 0; border-radius: var(--sw-r-md); background: var(--sw-surface-2); text-align: start; color: inherit; font: inherit; cursor: pointer; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
+        .srow { flex: 1 1 0; min-block-size: 0; max-block-size: 76px; padding: 0 12px; border: 0; border-radius: var(--sw-r-md); background: var(--sw-surface-2); text-align: start; color: inherit; font: inherit; cursor: pointer; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), box-shadow var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
     .srow:active { transform: scale(var(--sw-press-scale, 0.98)); }
     @media (hover: hover) and (pointer: fine) { .srow:hover:not([aria-pressed='true']) { background: var(--sw-surface-3); } }
     .srow[aria-pressed='true'] { background: var(--sw-accent-soft); box-shadow: inset 0 0 0 2px var(--sw-accent); }
     .srow[data-temp='hot'] { background: color-mix(in srgb, var(--sw-heat) 12%, var(--sw-surface-2)); }
     .srow[data-temp='cold'] { background: color-mix(in srgb, var(--sw-cool) 12%, var(--sw-surface-2)); }
-    .srow[data-off] { background: repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--sw-border) 55%, transparent) 7px 8px), var(--sw-surface-2); box-shadow: inset 0 0 0 1px var(--sw-border-strong); }
+    /* SYNOPTIC-HA-2310: a floor without data is the same well, said once in muted words (no stripes, no extra edge) */
+    .srow[data-off] .nm .t { color: var(--sw-text-2); }
+    /* rows too short for two lines (many floors): the name only; the selected floor's detail line carries its home-system floor */
+    .srows[data-dense] .nm .s { display: none; }
+    .srow[data-off] .nm .s { color: var(--sw-text-3); }
+    .lnk { font: inherit; font-weight: var(--sw-fw-semibold); color: var(--sw-accent-text, var(--sw-accent)); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
     .srow[data-fire='alarm'] { background: color-mix(in srgb, var(--sw-danger) 14%, var(--sw-surface)); box-shadow: inset 0 0 0 2px var(--sw-danger); }
+    .srow[aria-pressed='true'][data-fire='alarm'] { box-shadow: inset 0 0 0 2px var(--sw-accent), inset 0 0 0 4px color-mix(in srgb, var(--sw-danger) 45%, transparent); }
     .srow[data-fire='fault'] { outline: 1.5px dashed var(--sw-border-strong); outline-offset: -1.5px; }
     .nm { min-inline-size: 0; display: flex; flex-direction: column; gap: 1px; }
     .nm .t { font-size: clamp(10px, calc(100cqh / var(--n, 6) * 0.3), var(--sw-fs-md)); font-weight: var(--sw-fw-bold); color: var(--sw-heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -96,8 +109,8 @@ export class DevicesSynoptic extends LitElement {
     .deg { font-size: clamp(11px, calc(100cqh / var(--n, 6) * 0.42), 24px); font-weight: 800; color: var(--sw-heading); direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
     .deg small { font-size: 0.6em; color: var(--sw-text-3); }
     .deg.none { color: var(--sw-text-3); }
-    [data-temp='hot'] .deg { color: var(--sw-heat); }
-    [data-temp='cold'] .deg { color: var(--sw-cool); }
+    [data-temp='hot'] .deg { color: color-mix(in srgb, var(--sw-heat) 62%, var(--sw-heading)); }
+    [data-temp='cold'] .deg { color: color-mix(in srgb, var(--sw-cool) 62%, var(--sw-heading)); }
     .fac { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--sw-r-2xs); background: var(--sw-border); block-size: clamp(8px, calc(100cqh / var(--n, 6) * 0.3), 22px); }
     .fac i { inline-size: 7px; border-radius: 2px; background: var(--sw-surface-2); }
     .fac i.on { background: color-mix(in srgb, var(--sw-lit) 82%, var(--sw-surface)); }
@@ -108,10 +121,13 @@ export class DevicesSynoptic extends LitElement {
     .detail { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-block-size: 40px; padding-block-start: 4px; border-block-start: 1px solid var(--sw-border); color: var(--sw-text-2); font-size: var(--sw-fs-base); }
     .detail b { color: var(--sw-heading); }
     .detail .grow { flex: 1; min-inline-size: 0; }
+    /* SYN-COLUMNS-2321: the columns left out for want of a source, said once and quietly at the foot of the board */
+    .hidnote { margin-inline-start: auto; color: var(--sw-text-3); font-size: var(--sw-fs-state); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-inline-size: 0; max-inline-size: 100%; }
+    .hidnote .lnk { color: var(--sw-text-2); font-weight: var(--sw-fw-medium); }
     .empty { display: grid; place-items: center; padding: 24px; color: var(--sw-text-3); }
     .nc { display: flex; gap: 8px; align-items: center; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
-    .alarmpanel { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--sw-danger); color: var(--sw-text-inverse); }
-    .alarmpanel.ackd { background: color-mix(in srgb, var(--sw-danger) 80%, black); }
+    .alarmpanel { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--sw-r-md); background: color-mix(in srgb, var(--sw-danger) 80%, black); color: var(--sw-text-inverse); }
+    .alarmpanel.ackd { background: color-mix(in srgb, var(--sw-danger) 66%, black); }
     .alarmpanel .tx { flex: 1 1 220px; min-inline-size: 0; display: flex; flex-direction: column; }
     .alarmpanel .tag { display: inline-flex; padding: 1px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); font-size: var(--sw-fs-xs); font-weight: 700; margin-inline-start: 8px; }
     .alarmpanel .lnk { min-block-size: 40px; padding: 0 14px; border-radius: 999px; border: 0; background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7); color: var(--sw-text-inverse); font: inherit; font-weight: 600; cursor: pointer; }
@@ -183,17 +199,19 @@ export class DevicesSynoptic extends LitElement {
     const b = all.find((x) => x.id === wanted) ?? all[0] ?? null;
     if (!b) return null;
     const n = isApi() ? 0 : Number(parseRoute().params.get('xsdemo'));
-    return Number.isInteger(n) && n > 3 && n <= 40 ? demoBuilding(n, b) : b;
+    return Number.isInteger(n) && n >= 1 && n <= 40 ? demoBuilding(n, b, parseRoute().params.get('xsnames') === 'long') : b;
   }
 
   private signals(floors: Floor[]): FloorSignal[] {
-    if (!isApi() || this.data?.demo) return demoSignals([...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order));
-    return signalsOf(floors, this.data?.tree ?? null, this.data?.people ?? null);
+    if (!isApi() || this.data?.demo) return demoSignals([...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order), isApi() ? null : parseRoute().params.get('xsdata'));
+    const bid = floors[0]?.building_id;
+    const site = this.tree?.sites.find((s) => (s.buildings ?? []).some((b) => b.id === bid)) ?? null;
+    return signalsOf(floors, this.data?.tree ?? null, this.data?.people ?? null, matchContext(this.data, site));
   }
 
   private head(c: SynColumn): TemplateResult {
     const m: Record<SynColumn, [string, string]> = { light: ['light', xt('colLight')], temp: ['therm', xt('colTemp')], presence: ['person', xt('colPresence')], cameras: ['cam', xt('colCameras')], doors: ['door', xt('colDoors')], alerts: ['bell', xt('colAlerts')], fire: ['flame', xt('colFire')] };
-    return html`<span class=${c === 'presence' || c === 'doors' || c === 'cameras' ? 'hide-phone' : ''} data-syn-col=${c}>${xi(m[c][0])}${m[c][1]}</span>`;
+    return html`<span data-syn-col=${c}>${xi(m[c][0])}${m[c][1]}</span>`;
   }
 
   private cell(c: SynColumn, f: FloorSignal, o: XsOptions, fire: ReturnType<typeof fireReport>) {
@@ -209,11 +227,11 @@ export class DevicesSynoptic extends LitElement {
       case 'temp':
         return f.temp === null || f.nodata ? html`<span class="deg none" title=${xt('noSource')}>-</span>` : html`<span class="deg" data-t=${t ?? ''}>${f.temp.toFixed(1)}<small>°</small></span>`;
       case 'presence':
-        return f.people === null ? html`<span class="cell muted hide-phone">-</span>` : html`<span class="cell hide-phone ${f.people ? '' : 'muted'}">${xi('person')}<b>${f.people}</b></span>`;
+        return f.people === null ? html`<span class="cell muted">-</span>` : html`<span class="cell ${f.people ? '' : 'muted'}">${xi('person')}<b>${f.people}</b></span>`;
       case 'cameras':
-        return html`<span class="cell hide-phone ${f.cams ? '' : 'muted'}">${xi('cam')}<b>${f.cams}</b>${f.shared ? html`<span class="w">${xt('camsShared', { n: f.shared })}</span>` : nothing}</span>`;
+        return html`<span class="cell ${f.cams ? '' : 'muted'}">${xi('cam')}<b>${f.cams}</b>${f.shared ? html`<span class="w">${xt('camsShared', { n: f.shared })}</span>` : nothing}</span>`;
       case 'doors':
-        return f.doorsOpen === null ? html`<span class="cell muted hide-phone" title=${xt('noSource')}>-</span>` : html`<span class="cell hide-phone ${f.doorsOpen ? '' : 'muted'}">${xi('door')}<b>${f.doorsOpen}</b></span>`;
+        return f.doorsOpen === null ? html`<span class="cell muted" title=${xt('noSource')}>-</span>` : html`<span class="cell ${f.doorsOpen ? '' : 'muted'}">${xi('door')}<b>${f.doorsOpen}</b></span>`;
       case 'alerts':
         return f.alerts === null ? html`<span class="cell muted" title=${xt('alertsNone')}>-</span>` : f.alerts ? html`<span class="cell warn">${xi('bell')}<b>${f.alerts}</b></span>` : html`<span class="cell muted">0</span>`;
       case 'fire': {
@@ -257,12 +275,15 @@ export class DevicesSynoptic extends LitElement {
     setFireMock(o.fire_ui ? mock : null, sigs);
     const rep = o.fire_ui ? fireReport() : { connected: false, demo: false, floors: {} };
     const presenceOn = this.data?.demo ? true : !!this.data?.presenceOn;
-    const cols = synColumns(o, presenceOn, rep.connected);
+    // SYN-COLUMNS-2321: the chosen columns (preset or custom), less the ones the building has no source for (syn_hide_empty, on by default)
+    const { cols, hiddenEmpty } = synBoardColumns(o, presenceOn, rep.connected, sigs);
+    const has = (c: SynColumn) => cols.includes(c);
     const t = totalsOf(sigs, o.temp_threshold);
     const alarms = o.fire_ui ? alarmFloors(rep) : [];
     const alarmF = sigs.find((s) => s.id === alarms[0]);
     const hasBelow = sigs.some((s) => s.level < 0) && sigs.some((s) => s.level >= 0);
-    const phoneCols = cols.filter((c) => c === 'light' || c === 'temp' || c === 'alerts' || c === 'fire');
+    const phoneCols = phoneColumns(cols);
+    this.phoneSet = new Set(phoneCols);
     let groundDone = false;
     const rows: TemplateResult[] = [];
     sigs.forEach((f) => {
@@ -270,20 +291,20 @@ export class DevicesSynoptic extends LitElement {
         groundDone = true;
         rows.push(html`<div class="ground" aria-hidden="true"></div>`);
       }
-      const tt = tempState(f, o.temp_threshold);
+      const tt = has('temp') ? tempState(f, o.temp_threshold) : null;
       const fz = rep.floors[f.id];
       rows.push(html`<button class="srow sgrid" style="--cols:${cols.length};--pcols:${phoneCols.length}" data-syn-row=${f.id} aria-pressed=${this.sel === f.id} data-temp=${tt ?? ''} ?data-off=${f.nodata} data-fire=${fz && fz.state !== 'ok' ? fz.state : ''} @click=${() => this.pick(f.id)}
         aria-label=${`${f.name}${f.nodata ? `, ${xt('noData')}` : ''}${fz?.state === 'alarm' ? `, ${xt('fireAlarm')} (${xt('fireDemo')})` : ''}`}>
-        <span class="nm"><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span><span class="s">${f.nodata ? xt('noDataSince') : xt('level', { n: ltrNum(f.level) })}</span></span>
+        <span class="nm"><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span><span class="s" data-syn-match=${f.match?.how ?? (f.match ? 'none' : '')}>${this.subLine(f)}</span></span>
         ${cols.map((c) => (this.isPhoneCol(c) ? this.cell(c, f, o, rep) : html`<span class="hide-phone">${this.cell(c, f, o, rep)}</span>`))}
       </button>`);
     });
     const sf = sigs.find((s) => s.id === this.sel) ?? null;
     const chips = html`<span class="chips">
-      ${t.avg !== null ? html`<span class="chip">${xi('therm')}${xt('avgTemp')} <b>${t.avg.toFixed(1)}°</b></span>` : nothing}
-      ${t.litKnown ? html`<span class="chip warm">${xi('light')}<b>${t.lit}/${t.lights}</b> ${xt('lightsOn')}</span>` : nothing}
-      ${cols.includes('presence') && t.people !== null ? html`<span class="chip hide-phone">${xi('person')}<b>${t.people}</b> ${xt('colPresence')}</span>` : nothing}
-      ${t.doorsOpen !== null ? html`<span class="chip hide-phone">${xi('door')}<b>${t.doorsOpen}</b> ${xt('colDoors')}</span>` : nothing}
+      ${has('temp') && t.avg !== null ? html`<span class="chip" data-syn-chip="temp">${xi('therm')}${xt('avgTemp')} <b>${t.avg.toFixed(1)}°</b></span>` : nothing}
+      ${has('light') && t.litKnown ? html`<span class="chip warm" data-syn-chip="light">${xi('light')}<b>${t.lit}/${t.lights}</b> ${xt('lightsOn')}</span>` : nothing}
+      ${has('presence') && t.people !== null ? html`<span class="chip hide-phone" data-syn-chip="presence">${xi('person')}<b>${t.people}</b> ${xt('colPresence')}</span>` : nothing}
+      ${has('doors') && t.doorsOpen !== null ? html`<span class="chip hide-phone" data-syn-chip="doors">${xi('door')}<b>${t.doorsOpen}</b> ${xt('colDoors')}</span>` : nothing}
       ${t.nodata ? html`<span class="chip dash">${xi('offline')}${xt('noDataCount', { n: t.nodata })}</span>` : nothing}
       ${alarms.length ? html`<span class="chip alert">${xi('flame')}${xt('fireAlarm')} <span>${xt('fireDemo')}</span></span>` : nothing}
       ${o.fire_ui && !rep.connected && o.fire_column === 'dashed' ? html`<span class="chip dash">${xi('flame')}${xt('colFire')}: ${xt('fireNotConnected')}</span>` : nothing}
@@ -293,17 +314,18 @@ export class DevicesSynoptic extends LitElement {
       <div class="bhead"><h2>${xi('synoptic')}${xt('synTitle')} · ${bidi(b.name)}</h2>${chips}<span class="live"><i></i>${this.now}</span></div>
       ${alarmF ? this.alarmPanel(alarmF, rep) : html`<span></span>`}
       <div class="sgrid shdr" style="--cols:${cols.length};--pcols:${phoneCols.length}"><span>${xt('synFloor')}</span>${cols.map((c) => (this.isPhoneCol(c) ? this.head(c) : html`<span class="hide-phone">${this.head(c)}</span>`))}</div>
-      <div class="srows" style="--n:${sigs.length}">${rows}</div>
+      <div class="srows" style="--n:${sigs.length}" ?data-dense=${(window.innerHeight - 330) / Math.max(1, sigs.length) < 40}>${rows}</div>
       <div class="detail" data-syn-detail>${sf
-        ? html`<b>${bidi(sf.name)}</b><span class="grow">${sf.nodata ? xt('noSource') : `${xt('colTemp')}: ${sf.temp === null ? '-' : `${sf.temp.toFixed(1)}°`} · ${xt('colLight')}: ${sf.lit === null ? '-' : `${sf.lit}/${sf.lights}`} · ${xt('colCameras')}: ${sf.cams}${sf.people !== null ? ` · ${xt('colPresence')}: ${sf.people}` : ''}${sf.doorsOpen !== null ? ` · ${xt('colDoors')}: ${sf.doorsOpen}` : ''}`}</span>
+        ? html`<b>${bidi(sf.name)}</b><span class="grow">${matchLine(sf.match) ? `${matchLine(sf.match)!.text} · ` : ''}${sf.nodata ? xt('noSource') : this.detailText(sf, has)}</span>
+          ${matchLine(sf.match)?.linked === false && this.canLink() ? html`<button class="lnk" data-syn-link=${sf.id} @click=${() => this.linkFloor(b, sf.id)}>${xt('matchFix')}</button>` : nothing}
           <sw-button size="sm" variant="ghost" icon="map" data-syn-open @click=${() => navigate(`/explore/floors/${sf.id}`)}>${xt('openMap')}</sw-button>`
-        : html`<span class="grow">${xt('synAll')} · ${xt('synSub', { n: sigs.length })}</span>`}</div>
+        : this.allLine(b, sigs)}${this.hiddenNote(hiddenEmpty)}</div>
     </section>`;
     const wide = !this.wall;
     const tree = wide
       ? html`<nav class="card tree hide-phone hide-narrow" aria-label=${xt('synAll')} data-syn-tree>
-          <button aria-pressed=${this.sel === 'all'} @click=${() => (this.sel = 'all')}>${xi('synoptic')}<span class="nm">${xt('synAll')}</span><span class="lit">${t.litKnown ? t.lit : '-'}${xi('light')}</span></button>
-          ${sigs.map((f) => html`<button aria-pressed=${this.sel === f.id} data-syn-tree-row=${f.id} @click=${() => (this.sel = f.id)}><span class="nm" dir="auto">${bidi(f.name)}</span><span class="lit">${f.lit === null ? '-' : f.lit}${xi('light')}</span></button>`)}
+          <button aria-pressed=${this.sel === 'all'} @click=${() => (this.sel = 'all')}>${xi('synoptic')}<span class="nm">${xt('synAll')}</span>${has('light') ? html`<span class="lit">${t.litKnown ? t.lit : '-'}${xi('light')}</span>` : nothing}</button>
+          ${sigs.map((f) => html`<button aria-pressed=${this.sel === f.id} data-syn-tree-row=${f.id} @click=${() => (this.sel = f.id)}><span class="nm" dir="auto">${bidi(f.name)}</span>${has('light') ? html`<span class="lit">${f.lit === null ? '-' : f.lit}${xi('light')}</span>` : nothing}</button>`)}
         </nav>`
       : nothing;
     const events = wide && o.syn_events
@@ -320,8 +342,54 @@ export class DevicesSynoptic extends LitElement {
     return this.frame(body, sigs.length, true);
   }
 
+  /** SYNOPTIC-HA-2310: the row's second line - the level and the home-system floor it stands for (how it was matched), or why there is no data. */
+  private subLine(f: FloorSignal): string {
+    const ml = matchLine(f.match);
+    if (!ml) return f.nodata ? xt('noDataSince') : xt('level', { n: ltrNum(f.level) });
+    return ml.linked ? `${xt('level', { n: ltrNum(f.level) })} · ${ml.text}` : ml.text;
+  }
+
+  /** The detail line with no floor selected: the building, or - once - the floors no rule links to the home system, with the way to link them. */
+  private allLine(b: Building, sigs: FloorSignal[]) {
+    const un = unlinkedFloors(sigs);
+    if (!un.length) return html`<span class="grow">${xt('synAll')} · ${xt('synSub', { n: sigs.length })}</span>`;
+    const text = un.length === 1 ? xt('matchHintOne', { name: un[0].name }) : xt('matchHintMany', { n: un.length });
+    return html`<span class="grow" data-syn-hint>${text}</span>${this.canLink() ? html`<button class="lnk" data-syn-link=${un[0].id} @click=${() => this.linkFloor(b, un[0].id)}>${xt('matchHintAction')}</button>` : nothing}`;
+  }
+
+  private canLink(): boolean {
+    // the editor lives with the floors' structure tools, which a phone hides by the installation's option (ui.mobile hide_structure)
+    return !this.wall && !phoneRestricted('structure') && (!isApi() || canAnywhere('site.content.configure'));
+  }
+
+  /** The link editor lives with the floors (floors screen, "קישור למערכת הבית"); `?ha=` opens it on that floor. */
+  private linkFloor(b: Building, floorId: string) {
+    const keep = isApi() ? {} : Object.fromEntries([...parseRoute().params.entries()].filter(([k]) => k.startsWith('xs')));
+    navigate(`/explore/buildings/${b.id}/floors`, { ...keep, ha: floorId });
+  }
+
+  /** The phone's columns of the current render (phoneColumns: at most three signals, lighting / temperature / alerts first). */
+  private phoneSet = new Set<SynColumn>();
   private isPhoneCol(c: SynColumn): boolean {
-    return c === 'light' || c === 'temp' || c === 'alerts' || c === 'fire';
+    return this.phoneSet.has(c);
+  }
+
+  /** The selected floor's line: only the columns the board draws (a hidden column is not repeated here as a "-"). */
+  private detailText(f: FloorSignal, has: (c: SynColumn) => boolean): string {
+    const parts: string[] = [];
+    if (has('temp')) parts.push(`${xt('colTemp')}: ${f.temp === null ? '-' : `${f.temp.toFixed(1)}°`}`);
+    if (has('light')) parts.push(`${xt('colLight')}: ${f.lit === null ? '-' : `${f.lit}/${f.lights}`}`);
+    if (has('cameras')) parts.push(`${xt('colCameras')}: ${f.cams}`);
+    if (has('presence') && f.people !== null) parts.push(`${xt('colPresence')}: ${f.people}`);
+    if (has('doors') && f.doorsOpen !== null) parts.push(`${xt('colDoors')}: ${f.doorsOpen}`);
+    return parts.join(' · ');
+  }
+
+  /** SYN-COLUMNS-2321: the quiet note under the board - which columns the hide-empty rule left out, and the way to the option. */
+  private hiddenNote(hidden: readonly SynColumn[]) {
+    if (!hidden.length) return nothing;
+    const names = hidden.map((c) => xt(COL_LABEL[c])).join(', ');
+    return html`<span class="hidnote" data-syn-hidden=${hidden.join(',')}>${xt('hiddenEmpty', { cols: names })}${this.wall ? nothing : html` · <button class="lnk" data-syn-hidden-opt @click=${() => navigate('/system/diagnostics', { focus: 'xs' })}>${xt('hiddenEmptyOpt')}</button>`}</span>`;
   }
 
   private frame(body: TemplateResult, n: number, ready = false) {

@@ -71,7 +71,8 @@ function cssBlocks(src: string): string[] {
 }
 
 // CR-038: the tickets module's own components and styles (src/tickets/) are read too - a new module starts inside the guard
-const inScope = (rel: string) => /^(components\/sw-|shell\/|screens\/|tickets\/)/.test(rel) && !/\.d\.ts$/.test(rel);
+// CALENDARS-UI-2310: the calendars module (src/calendars/) likewise
+const inScope = (rel: string) => /^(components\/sw-|shell\/|screens\/|tickets\/|calendars\/)/.test(rel) && !/\.d\.ts$/.test(rel);
 
 const files = walk(SRC).map((f) => ({ abs: f, rel: path.relative(SRC, f).replace(/\\/g, '/') })).filter((f) => inScope(f.rel));
 

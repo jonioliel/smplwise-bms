@@ -2,7 +2,7 @@
 
 > Generated card. Edit management/tasks.json, then run this script with --write.
 
-**Phase:** V2 | **Priority:** P2 | **Status:** BACKLOG
+**Phase:** V2 | **Priority:** P2 | **Status:** REVIEW
 
 **Owner role:** frontend | **Hardware:** False
 

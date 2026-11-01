@@ -1,0 +1,22 @@
+SmplWise Arx - proprietary software
+
+Copyright (c) 2026 SmplWise. All rights reserved.
+
+This repository and everything in it (source code, compiled files, documents, designs, images and data) is the
+property of SmplWise and is protected by copyright law. The repository being publicly visible does NOT grant
+any licence.
+
+No permission is granted to copy, modify, merge, publish, distribute, sublicense, sell, or create derivative
+works of this software or any part of it, or to install or run it, except:
+  (a) by SmplWise itself, and
+  (b) by a customer or installer under a separate written agreement with SmplWise, and only within the scope of
+      that agreement.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT, EXCEPT AS A SEPARATE
+WRITTEN AGREEMENT WITH SMPLWISE STATES OTHERWISE. IN NO EVENT SHALL SMPLWISE BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE WITHOUT SUCH AN AGREEMENT.
+
+Third-party components keep their own licences; see THIRD_PARTY_NOTICES.md.
+
+Contact for licensing: the repository owner via GitHub.

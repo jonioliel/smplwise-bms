@@ -47,6 +47,11 @@ class SettingsIn(BaseModel):
     retention_days: int | None = None
     home_display: str | None = None
     map_tint: bool | None = None
+    # PRESENCE-COMPACT-2310: the home card's display options (validated against bp.CHOICES)
+    card_style: str | None = None
+    card_empty_rooms: str | None = None
+    card_details: str | None = None
+    card_all_empty: str | None = None
 
 
 class RoomIn(BaseModel):

@@ -44,6 +44,8 @@ def route(svc: DisplayService, www_dir: Any, method: str, path: str, headers: di
             return svc.transit(req)
         if parts[5:] == ["photo"]:  # NOTICESLIDES-295
             return svc.image(req, "photo")
+        if parts[5:] == ["photo-night"]:  # LOBBY-STYLES-2300
+            return svc.image(req, "photo-night")
         if len(parts) == 7 and parts[5] == "slide":
             return svc.image(req, "slide", parts[6])
         if len(parts) == 7 and parts[5] == "news-logo":  # NOTICERSS-295

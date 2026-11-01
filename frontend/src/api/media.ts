@@ -113,6 +113,12 @@ export interface ProductSettings {
   'exports.max_mb'?: number;
   /** BACKUP-HASH-ENC: the minimum length of the backup password (8-64, default 12; 8 is the server's hard floor). */
   'backup.password_min'?: number;
+  /** OFFBOX-RESTORE-2300 (owner 2026-10-30): the initial scope of a restore from an off-box copy (default project+access). */
+  'backup.offbox_restore_scope'?: 'project' | 'project+access';
+  /** OFFBOX-RESTORE-2300 (owner 2026-10-30): a local restore writes the pre-restore safety backup first (default on). */
+  'backup.safety_before_local_restore'?: 'on' | 'off';
+  /** OFFBOX-RESTORE-2300 (owner answer 2026-10-30): the initial scope of a LOCAL restore (default project+access). */
+  'backup.local_restore_scope'?: 'project' | 'project+access';
   'exports.retention_days'?: number;
   'events.retention_days'?: number;
   /** DEVHIST (CR-032): how long the device activity rows (the long-press popup) are kept, 7-365 days, default 90. */
@@ -199,6 +205,8 @@ export interface ProductSettings {
   'ui.motion'?: 'auto' | 'full' | 'reduced';
   /** SKINCOMP-297: the rail tone - `auto` (the skin's own rail) or `dark` (the skin's dark rail where it has one: Arx Infra = direction D). */
   'ui.rail_tone'?: 'auto' | 'dark';
+  /** 2.29.0: the panel entrance animation of the classic / domus skins (default on); design/apply.ts. */
+  'ui.entry_animations'?: 'on' | 'off';
   /** 2.4.4: the accent colour and the switch-on colour - 'default' | a preset id | '#rrggbb' (design/brand.ts). */
   'ui.accent'?: string;
   'ui.toggle_on'?: string;

@@ -46,7 +46,7 @@ export class SwPager extends LitElement {
       transition: background-color var(--sw-t-fast) ease, color var(--sw-t-fast) ease, transform var(--sw-t-fast) var(--sw-ease);
     }
     button:active:not(:disabled) {
-      transform: scale(0.96);
+      transform: scale(0.97);
     }
     button:disabled {
       opacity: 0.45;

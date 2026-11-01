@@ -13,7 +13,10 @@ is an option, and the defaults are the owner's:
   animate         bool (true)             false = a fade only
   temp_threshold  1 | 2 | 3 | 4           degrees from the target before a floor reads hot / cold (default 2)
   syn_tab         bool (true)             the synoptic map tab of ראשי
-  syn_columns     all | few               all signal columns (default) or temperature, lighting, alerts
+  syn_columns     all | few | custom      all signal columns (default), temperature / lighting / alerts, or the columns ticked in syn_custom
+  syn_custom      list of columns         the columns of syn_columns=custom, any of light, temp, presence, cameras, doors, alerts, fire
+                                          (default: all seven); the board keeps its fixed order whatever the list order is
+  syn_hide_empty  bool (true)             a column with no source on any floor of the building (e.g. no temperature sensors) is not drawn
   syn_events      bool (true)             the event strip beside the board on wide screens
   fire_column     hidden | dashed         the fire column before an integration exists: hidden (default) or a dashed "not connected"
   fire_ui         bool (FALSE)            master switch of the alarm UI (the red bar, the acknowledge control). Fire detection is NOT a product
@@ -35,13 +38,14 @@ ENUMS: dict[str, tuple[str, ...]] = {
     "many": ("steps", "scroll", "near"),
     "links": ("fold", "full", "hide"),
     "click": ("select", "open"),
-    "syn_columns": ("all", "few"),
+    "syn_columns": ("all", "few", "custom"),
     "fire_column": ("hidden", "dashed"),
     "ack": ("hold", "confirm", "tap"),
     "ack_who": ("separate", "viewers", "admin"),
     "alarm_bar": ("everywhere", "home"),
 }
-BOOLS: tuple[str, ...] = ("shafts", "animate", "syn_tab", "syn_events", "fire_ui", "wall")
+BOOLS: tuple[str, ...] = ("shafts", "animate", "syn_tab", "syn_events", "syn_hide_empty", "fire_ui", "wall")
+SYN_COLUMNS: tuple[str, ...] = ("light", "temp", "presence", "cameras", "doors", "alerts", "fire")
 THRESHOLDS: tuple[int, ...] = (1, 2, 3, 4)
 
 DEFAULT: dict[str, Any] = {
@@ -55,6 +59,8 @@ DEFAULT: dict[str, Any] = {
     "temp_threshold": 2,
     "syn_tab": True,
     "syn_columns": "all",
+    "syn_custom": list(SYN_COLUMNS),
+    "syn_hide_empty": True,
     "syn_events": True,
     "fire_column": "hidden",
     "fire_ui": False,
@@ -72,7 +78,7 @@ def normalize(value: Any) -> dict[str, Any]:
     unknown = sorted(set(value) - set(DEFAULT))
     if unknown:
         raise ValueError("unknown xs option: " + ", ".join(str(k) for k in unknown))
-    out = dict(DEFAULT)
+    out = {k: (list(v) if isinstance(v, list) else v) for k, v in DEFAULT.items()}
     for key, item in value.items():
         if key in ENUMS:
             if not isinstance(item, str) or item not in ENUMS[key]:
@@ -83,5 +89,9 @@ def normalize(value: Any) -> dict[str, Any]:
         elif key == "temp_threshold":
             if isinstance(item, bool) or not isinstance(item, int) or item not in THRESHOLDS:
                 raise ValueError("xs option temp_threshold must be 1, 2, 3 or 4")
+        elif key == "syn_custom":
+            if not isinstance(item, list) or any(not isinstance(c, str) or c not in SYN_COLUMNS for c in item) or len(set(item)) != len(item):
+                raise ValueError("xs option syn_custom must be a list of distinct columns: " + ", ".join(SYN_COLUMNS))
+            item = [c for c in SYN_COLUMNS if c in item]  # canonical: the board order
         out[key] = item
     return out

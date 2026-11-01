@@ -122,7 +122,8 @@ def sees_unknown_person(auth: ia.Authority) -> bool:
 def unknown_station_refusal(auth: ia.Authority) -> ApiError:
     """The refusal of a writer who is not unrestricted, for a person whose station set is unknown. SECFIX2-295: with the owner switch
     `access.unknown_person_uniform_404` on, a caller who cannot see such a person gets the uniform 404 - the same bytes as an id
-    WisKey does not know (no existence oracle); off (default, today) and for a caller who sees the person: the 403."""
+    WisKey does not know (no existence oracle; the default since FABLEFIX-295 D-13, owner 2026-10-21); off, and for a caller who sees the
+    person: the 403."""
     if not sees_unknown_person(auth) and auth.policy(ia.UNKNOWN_PERSON_UNIFORM_404):
         return uniform_not_found()
     return scope_refusal()

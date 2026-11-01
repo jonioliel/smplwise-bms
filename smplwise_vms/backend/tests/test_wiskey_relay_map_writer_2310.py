@@ -2,7 +2,7 @@
 
 Until this slice nothing in production wrote a row, so every emergency / door automation through the WisKey Native was refused
 `relay_map_missing`. The writer is an explicit owner/operator approval per WisKey station (config entry id): for each api relay the
-physical relay it drives, or "disabled". One station revision (`wiskey_relay_map_stations`, migration 0187) guards every save by CAS
+physical relay it drives, or "disabled". One station revision (`wiskey_relay_map_stations`, migration 0191) guards every save by CAS
 (stale -> 409, nothing written); each save is audited (who, when, station, before / after); a change that touches a door with a door
 automation needs a typed confirmation. One active row per (station, api_relay) and per (station, physical_relay); no row is invented.
 The map is information for WisKey grants: nothing is sent to a station, a door or WisKey from this screen.

@@ -222,6 +222,8 @@ export interface SlidesDoc {
   limit: number;
   seconds: { min: number; max: number };
   photo?: { has: boolean; stamp: string };
+  /** LOBBY-STYLES-2300: the building at night (the luxury lobby styles) */
+  photo_night?: { has: boolean; stamp: string };
 }
 export const listSlides = () => get<SlidesDoc>('notices/promo-slides/all');
 export const boardSlides = (boardId: string) => get<SlidesDoc>(`notices/boards/${encodeURIComponent(boardId)}/slides`);
@@ -237,7 +239,10 @@ const picture = (path: string, file: File) => {
 export const putSlideImage = (id: string, file: File) => picture(`notices/promo-slides/${encodeURIComponent(id)}/image`, file);
 export const deleteSlideImage = (id: string) => api<SlidesDoc>(`notices/promo-slides/${encodeURIComponent(id)}/image`, { method: 'DELETE' });
 export const putBoardPhoto = (boardId: string, file: File) => picture(`notices/boards/${encodeURIComponent(boardId)}/photo`, file);
+export const putBoardPhotoNight = (boardId: string, file: File) => picture(`notices/boards/${encodeURIComponent(boardId)}/photo-night`, file);
+export const deleteBoardPhotoNight = (boardId: string) => api<SlidesDoc>(`notices/boards/${encodeURIComponent(boardId)}/photo-night`, { method: 'DELETE' });
 export const deleteBoardPhoto = (boardId: string) => api<SlidesDoc>(`notices/boards/${encodeURIComponent(boardId)}/photo`, { method: 'DELETE' });
 /** The signed-in URL of a slide picture / a board's photo (the stamp is the cache key). */
 export const slideImageUrl = (s: Pick<Slide, 'id' | 'stamp'>) => `api/v1/notices/promo-slides/${encodeURIComponent(s.id)}/image?v=${encodeURIComponent(s.stamp)}`;
+export const boardPhotoNightUrl = (boardId: string, stamp: string) => `api/v1/notices/boards/${encodeURIComponent(boardId)}/photo-night?v=${encodeURIComponent(stamp)}`;
 export const boardPhotoUrl = (boardId: string, stamp: string) => `api/v1/notices/boards/${encodeURIComponent(boardId)}/photo?v=${encodeURIComponent(stamp)}`;

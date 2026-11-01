@@ -37,6 +37,10 @@ FILE_ROUTE = "/t/api/doc/file"
 # FABLEFIX-295 D-01 (c) / D-02: an HTML document is handed over as opaque bytes - no browser or in-app WebView ever renders it from the
 # link (the `.html` file name and the `attachment` disposition still save it as a report). A PDF keeps its own type.
 FILE_MEDIA_TYPE = "application/octet-stream"
+# PUBSURF-2310 (DOCLINKS review 2026-10-23 P4, belt): every document URL is ONE URL for every token, so a CDN that stored an answer would hand
+# one recipient's file to the next request. Besides the origin's `private, no-store`, tell a CDN explicitly (RFC 9213 + Cloudflare's own
+# header). A belt only: the Cloudflare bypass rule (docs/security/DOCLINKS_CLOUDFLARE_CACHE_RULE.md) must still be verified live.
+CDN_NO_STORE = {"CDN-Cache-Control": "no-store", "Cloudflare-CDN-Cache-Control": "no-store"}
 
 
 def file_media_type(media_type: str) -> str:
@@ -46,7 +50,7 @@ def file_media_type(media_type: str) -> str:
 def download_headers(r: dict[str, Any]) -> dict[str, str]:
     name = r["filename"]  # already [A-Za-z0-9._-] (mint): the ASCII name is the name
     return {"Content-Disposition": f"attachment; filename=\"{name}\"; filename*=UTF-8''{urllib.parse.quote(name, safe='')}",
-            "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store", "X-Document-Digest": r["sha256"]}
+            "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store", "X-Document-Digest": r["sha256"], **CDN_NO_STORE}
 
 
 def page_brand(conn: Any) -> dict[str, Any]:
@@ -85,7 +89,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
             pr.cost.unknown()
             raise PublicError(404, "link_unavailable")
         pr.cost.proved(row.pop("_id"))
-        return JSONResponse(row, headers={"Cache-Control": "no-store"})
+        return JSONResponse(row, headers={"Cache-Control": "no-store", **CDN_NO_STORE})
 
     @r.get(FILE_ROUTE)
     async def doc_file(request: Request) -> Response:

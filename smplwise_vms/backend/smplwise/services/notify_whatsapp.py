@@ -257,12 +257,28 @@ def opt_in_hash(conn: sqlite3.Connection, user_id: str) -> str | None:
 
 
 def set_opt_in(conn: sqlite3.Connection, user_id: str, digits: str | None) -> None:
-    """The user's OWN act (only `PUT /me/notify-whatsapp` calls it, for the caller): store the HMAC of the number they saw, or clear it."""
+    """The user's OWN act (only `PUT /me/notify-whatsapp` calls it, for the caller): store the HMAC of the number they saw, or clear it.
+    TEMPREPORT-2310 S2: a withdrawal, or an opt-in for ANOTHER number, revokes every report link that was sent to the old number."""
+    before = opt_in_hash(conn, user_id)
+    after = number_hash(conn, digits) if digits else None
+    if before is not None and (after is None or not hmac.compare_digest(before, after)):
+        _revoke_sent_links(conn, user_id)
     if digits:
         conn.execute("INSERT INTO user_prefs(user_id, key, value_json, updated_at) VALUES (?,?,?,?) ON CONFLICT(user_id, key) DO UPDATE SET value_json = excluded.value_json, "
                      "updated_at = excluded.updated_at", (user_id, OPT_IN_PREF, json.dumps({"h": number_hash(conn, digits)}), now_iso()))
     else:
         conn.execute("DELETE FROM user_prefs WHERE user_id = ? AND key = ?", (user_id, OPT_IN_PREF))
+
+
+def _revoke_sent_links(conn: sqlite3.Connection, user_id: str) -> int:
+    """TEMPREPORT-2310 S2: the temporary report links that went to this user's WhatsApp number die (out_documents, reason `contact_changed`).
+    Counted in an audit row; never a number."""
+    from .tickets import out_documents
+
+    n = out_documents.revoke_sent_to_user(conn, user_id, "contact_changed", dt.datetime.now(dt.timezone.utc))
+    if n:
+        audit(conn, actor=None, action="report.document.revoke_number", decision="allowed", resource_type="user", resource_id=user_id, details={"revoked": n})
+    return n
 
 
 def raw_number(conn: sqlite3.Connection, user_id: str) -> ResolvedNumber | None:
@@ -359,6 +375,7 @@ def number_change_sweep(db: Any) -> int:
                                    (json.dumps(new), now_iso(), uid, OPT_IN_PREF, old_json)).rowcount
             if not changed or marker is None:
                 continue
+            _revoke_sent_links(conn, uid)  # TEMPREPORT-2310 S2: a report link sent to the old number dies with the change
             notify.emit_full(conn, notify.Signal(NUMBER_CHANGED_SOURCE, "session", uid, dedupe_key=f"{NUMBER_CHANGED_SOURCE}:{uid}:{marker[:12]}:{new_id_short()}",
                                                  initiator_user_id=uid, link="#/system/notifications", origin={"kind": "whatsapp_number"}))
             audit(conn, actor=None, action="notify.whatsapp.number_changed", decision="allowed", resource_type="user", resource_id=uid, details={"removed": marker == "none"})

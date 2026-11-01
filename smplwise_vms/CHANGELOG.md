@@ -23,6 +23,115 @@
 - **English:** Installation at the owner and live behaviour are NOT_MEASURED; no automatic installation without the setting (owner decision); template send, people messaging and the send permit stay owner steps; the component digest WisKey quotes could not be reproduced from the delivered archive (the per-file pin matches); the cloud template export remains blocked on WisKey's side.
 - **עברית:** ההתקנה אצל הבעלים וההתנהגות החיה לא נמדדו; אין התקנה אוטומטית בלי ההגדרה (החלטת הבעלים); שליחת תבניות, הודעות לאנשים והיתר השליחה נשארים צעדי בעלים; תקליטור הרכיב ש-WisKey מצטטת לא שוחזר מהארכיון שנמסר (הנעילה קובץ-קובץ תואמת); ייצוא התבניות מהענן עדיין חסום בצד של WisKey.
 
+## 2.33.0 (pilot) - Multi-building home and the mapping assistant, external calendar connections
+**After installing:** two database migrations (0188: a "shared building" flag on buildings; 0189: the mapping assistant's tables). Both only add; nothing changes until you switch the new features on. Going back to 2.32.1 needs the database backup taken before the update.
+- **עברית:** אחרי ההתקנה: שתי מיגרציות של מסד הנתונים (0188: סימון "בניין משותף" לבניינים; 0189: הטבלאות של אשף המיפוי). שתיהן מוסיפות בלבד; דבר לא משתנה עד שמפעילים את היכולות החדשות. חזרה ל-2.32.1 דורשת את גיבוי מסד הנתונים שנלקח לפני העדכון.
+
+### What was added - מה נוסף
+- **English:** Multi-building home: on an installation of several buildings the home screen gets a site level - a card per building with its counters and alerts, a grouped building tree, a building switch and "turn everything off" per building or for the whole site. A building can be marked as the site's shared building (parking, main electrical room); it is listed last and left unchecked by "turn off the whole site" by default. OFF by default: it appears only after switching on "Enable multiple buildings" (Settings › General › Buildings and mapping). One building looks exactly as before.
+- **עברית:** בית רב־בניינים: בהתקנה של כמה בניינים מסך הבית מקבל רמת אתר - כרטיס לכל בניין עם המונים וההתראות שלו, עץ בניינים מקובץ, מעבר בין בניינים ו"כבה הכל" לבניין או לאתר כולו. אפשר לסמן בניין כבניין המשותף של האתר (חניון, חדר חשמל ראשי); הוא מוצג אחרון וכברירת מחדל אינו מסומן ב"כבה הכל באתר". כבוי כברירת מחדל: מופיע רק אחרי הפעלת "הפעל ריבוי בניינים" (הגדרות › כללי › בניינים ומיפוי). בניין אחד נראה בדיוק כמו קודם.
+- **English:** Mapping assistant: finds which home-system names belong to which of our buildings from a mark in the name (start, end, label or a word), keeps a mark-to-building table, lets areas follow their floor, asks only about the exceptions and applies the plan only after "Apply". Versions can be restored, advanced rules are available, and new names wait for approval unless automatic insertion is switched on (off by default). Nothing is ever written to the home system.
+- **עברית:** אשף המיפוי: מזהה איזה שם במערכת הבית שייך לאיזה מהבניינים שלנו לפי סימון בשם (התחלה, סוף, תווית או מילה), שומר טבלת סימון ← בניין, מאפשר לאזורים לרשת את הקומה, שואל רק על החריגים ומחיל את התוכנית רק אחרי "אשר". אפשר לחזור לגרסה קודמת, יש כללים מתקדמים, ושמות חדשים ממתינים לאישור אלא אם הופעלה הכנסה אוטומטית (כבויה כברירת מחדל). דבר לא נכתב אף פעם למערכת הבית.
+- **English:** External calendars: connect an iCal subscription (read-only, no account), Google Calendar or Microsoft 365 / Outlook with your own app registration, and bind it to an Arx calendar. Synchronisation runs only while the calendars module and calendar sync are on. Outgoing iCal feeds are off by default and need their own switch. Setup guide: docs/operations/CALENDAR_CONNECT_SETUP.md.
+- **עברית:** יומנים חיצוניים: חיבור מנוי iCal (קריאה בלבד, בלי חשבון), Google Calendar או Microsoft 365 / Outlook עם רישום אפליקציה משלכם, ושיוך ליומן ב-Arx. הסנכרון פועל רק כשמודול היומנים וסנכרון היומנים פעילים. פידים יוצאים של iCal כבויים כברירת מחדל ודורשים מתג נפרד. מדריך הגדרה: docs/operations/CALENDAR_CONNECT_SETUP_HE.md.
+## 2.32.1 (pilot) - Provision live video, switch-wired lights, synoptic columns, calendars switch
+**After installing:** no database migration. On a Provision-ISR recorder the live and playback streams are rewritten once by the add-on. Going back to 2.32.0 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. במקליט Provision-ISR זרמי השידור החי וההקלטות נכתבים מחדש פעם אחת על ידי התוסף. חזרה ל-2.32.0 בטוחה.
+
+### What was fixed - מה תוקן
+- **English:** Provision-ISR live and playback showed no video: when asked for the talk-back channel the recorder answers without a video track. Arx now asks for video only (a recorder setting "two-way talk through the recorder" turns talk-back on, off by default).
+- **עברית:** בשידור חי ובהקלטות של Provision-ISR לא הוצג וידאו: כשמבקשים מהמקליט את ערוץ הדיבור הוא עונה בלי ערוץ וידאו. Arx מבקשת עכשיו וידאו בלבד (הגדרת מקליט "דיבור דו-כיווני דרך המקליט" מפעילה דיבור, כבויה כברירת מחדל).
+- **English:** Switches set to the type "light" (Settings › General › Device types) count as lights everywhere - the synoptic map, home counters, floor and area cards - and are switched by "lights off / on".
+- **עברית:** מתגים שהוגדר להם הסוג "תאורה" (הגדרות › כללי › סוגי התקנים) נספרים כתאורה בכל מקום - המפה הסינופטית, מוני הבית, כרטיסי הקומות והאזורים - ומופעלים ב"כבה / הדלק תאורה".
+- **English:** The calendars module switch is reachable again while the module is off (Settings › Calendars; the calendars page offers "enable the calendars module").
+- **עברית:** מתג מודול היומנים נגיש שוב גם כשהמודול כבוי (הגדרות › יומנים; במסך היומנים מופיע "הפעלת מודול היומנים").
+
+### What was added - מה נוסף
+- **English:** Synoptic map: columns with no data source are hidden (a setting, on by default, with a quiet note), and a custom column choice.
+- **עברית:** המפה הסינופטית: עמודות בלי מקור נתונים מוסתרות (הגדרה, פעילה כברירת מחדל, עם הערה שקטה), ובחירה ידנית של עמודות.
+
+## 2.32.0 (pilot) - Readable dark mode, phone switch targets, report-link safeguards, public-surface check
+**After installing:** no database migration. Dark-mode secondary text is slightly lighter in every skin. Going back to 2.31.0 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. הטקסט המשני במצב כהה מעט בהיר יותר בכל הסגנונות. חזרה ל-2.31.0 בטוחה.
+
+### What was improved - מה שופר
+- **English:** Dark mode: the secondary text reaches at least 5:1 contrast in every skin. Phone switches have a 44 px tall touch target without changing their look.
+- **עברית:** מצב כהה: הטקסט המשני מגיע לניגודיות של 5:1 לפחות בכל סגנון. למתגים בטלפון יש אזור מגע בגובה 44 פיקסלים בלי שינוי במראה.
+
+### Security - אבטחה
+- **English:** Report links: every link sent to a user is revoked when the user is deactivated or deleted; a per-sender daily limit for new links (default 50, a setting); the recipient's name stays in the audit log. Document links stop answering while service requests are off, and never get cached by a CDN. A re-check of all public surfaces is recorded.
+- **עברית:** קישורי דוחות: כל קישור שנשלח למשתמש מבוטל כשהמשתמש מושבת או נמחק; מגבלה יומית ליצירת קישורים לכל שולח (ברירת מחדל 50, הגדרה); שם המקבל נשמר ביומן הביקורת. קישורי מסמכים מפסיקים לענות כשקריאות השירות כבויות, ולעולם לא נשמרים במטמון. נרשמה בדיקה חוזרת של כל המשטחים הציבוריים.
+
+### Behind the scenes - מאחורי הקלעים
+- **English:** The licence notice of the WisKey embed sample (MIT) ships with the product.
+- **עברית:** הודעת הרישיון של רכיב החיבור של WisKey (MIT) נכללת במוצר.
+
+## 2.31.1 (pilot) - Fix: the update to 2.31.0 failed to build
+**After installing:** no database migration. If the update to 2.31.0 failed with "Could not build image", install this one instead.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. אם העדכון ל-2.31.0 נכשל עם "Could not build image", התקינו את הגרסה הזו במקומו.
+
+### What was fixed - מה תוקן
+- **English:** 2.31.0 pinned the add-on base image by digest ("tag@sha256"); Home Assistant's build then used an image without Python and the update failed ("pip: not found", exit 127). The base image is referenced by its tag again, as in 2.30.0. Everything else is 2.31.0.
+- **עברית:** ב-2.31.0 תמונת הבסיס של התוסף ננעלה לגרסה מדויקת ("tag@sha256"); הבנייה ב-Home Assistant השתמשה אז בתמונה בלי Python והעדכון נכשל ("pip: not found", קוד 127). תמונת הבסיס חוזרת להיות מוגדרת לפי התג, כמו ב-2.30.0. כל השאר זהה ל-2.31.0.
+
+## 2.31.0 (pilot) - Calendars, compact presence card, synoptic map from the home system, Google Drive backup, security updates
+**After installing:** two database migrations (0186 Google Drive backup targets, 0187 floor links to the home system); existing rows are kept. The calendars module and Google Drive backup are off by default. Phone photos saved as MPO are stored as their first picture. Going back to 2.30.0 needs the database backup taken before the update.
+- **עברית:** אחרי ההתקנה: שתי מיגרציות של מסד הנתונים (0186 יעדי גיבוי ל-Google Drive, 0187 קישור קומות למערכת הבית); השורות הקיימות נשמרות. מודול היומנים וגיבוי Google Drive כבויים כברירת מחדל. תמונות טלפון בפורמט MPO נשמרות כתמונה הראשונה שבהן. חזרה ל-2.30.0 דורשת את גיבוי מסד הנתונים שנלקח לפני העדכון.
+
+### What was added - מה נוסף
+- **English:** Calendars: month, week and day views, a rooms timeline, booking, approvals (contested requests, displacing needs the calendar manager), maintenance, calendar management, settings and calendar connections, and a resident flow on the phone. Every owner decision is a setting.
+- **עברית:** יומנים: תצוגות חודש, שבוע ויום, ציר זמן לחדרים, הזמנה, אישורים (בקשות מתנגשות, דחיקה דורשת את מנהל היומן), תחזוקה, ניהול יומנים, הגדרות וחיבורי יומנים, ומסלול לדייר בטלפון. כל החלטה של הבעלים היא הגדרה.
+- **English:** The synoptic map and the building cross-section read every floor of the home system: floors match automatically by level on a one-building site, and a floor link editor lets you link floors and add or remove areas by hand.
+- **עברית:** המפה הסינופטית וחתך הבניין קוראים את כל הקומות ממערכת הבית: קומות מותאמות אוטומטית לפי מפלס באתר עם בניין אחד, ועורך קישור קומות מאפשר לקשר קומות ולהוסיף או להסיר אזורים ידנית.
+- **English:** Off-box backup to Google Drive (off by default; the owner connects his own Google account).
+- **עברית:** גיבוי חיצוני ל-Google Drive (כבוי כברירת מחדל; הבעלים מחבר את חשבון ה-Google שלו).
+
+### What was improved - מה שופר
+- **English:** The building presence card is a compact strip of active rooms (four styles, empty rooms, details and "empty since" are settings) and never taller than its neighbours; the area window shows the room status.
+- **עברית:** כרטיס הנוכחות הוא רצועה קומפקטית של חדרים פעילים (ארבעה סגנונות; חדרים ריקים, פרטים ו"ריק מ-" הם הגדרות) ולעולם לא גבוה מהכרטיסים לידו; חלון האזור מציג את מצב החדר.
+- **English:** Phone polish: 16 px search text (no zoom on focus), dropdowns stay inside the screen. Dialogs keep the keyboard focus inside.
+- **עברית:** ליטוש לטלפון: טקסט חיפוש בגודל 16 פיקסלים (בלי זום בהקלדה), תפריטים נפתחים נשארים בתוך המסך. חלונות קופצים שומרים את המיקוד בתוכם.
+
+### Security - אבטחה
+- **English:** Image library Pillow 13 and SFTP library paramiko 5 (security fixes); uploads open only the expected image formats. Temperature report links: separate switches for system users and for names in shared PDFs (off by default), revocation when a WhatsApp number changes, no caching. The add-on base image is pinned to an exact digest.
+- **עברית:** ספריית התמונות Pillow 13 וספריית ה-SFTP paramiko 5 (תיקוני אבטחה); העלאות פותחות רק את סוגי התמונה הצפויים. קישורי דוח טמפרטורה: מתגים נפרדים למשתמשי מערכת ולשמות ב-PDF משותף (כבויים כברירת מחדל), ביטול כשמספר הוואטסאפ משתנה, בלי שמירה במטמון. תמונת הבסיס של התוסף ננעלה לגרסה מדויקת.
+
+## 2.30.0 (pilot) - Worst-case screens, release entry check, licence and security audit
+**After installing:** no database migration. No setting changes. Going back to 2.29.0 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים ואין שינוי בהגדרות. חזרה ל-2.29.0 בטוחה.
+
+### What was improved - מה שופר
+- **English:** Screens with extreme data stay in their cards: long area and cover names end in an ellipsis and keep their kind visible, five-digit counts widen their own row, temperatures and stale times give way last with the full value in a tooltip, the large weather widget shrinks its temperature to fit, and the side rail's active marker no longer counts as overflow.
+- **עברית:** מסכים עם נתונים קיצוניים נשארים בתוך הכרטיסים: שמות ארוכים של אזורים ותריסים מסתיימים בשלוש נקודות ושומרים על הסוג גלוי, מספרים בני חמש ספרות מרחיבים את השורה שלהם, טמפרטורות וזמני עדכון מתקצרים אחרונים עם הערך המלא בחלונית ריחוף, ווידג'ט מזג האוויר הגדול מקטין את הטמפרטורה כדי שתתאים, וסימון הפריט הפעיל בסרגל הצד כבר לא גולש.
+
+### Behind the scenes - מאחורי הקלעים
+- **English:** A runner entry check before any branch joins a release train, with a single quarantine list of at most 7 days; the multi-Claude coordination protocol as optional documents and a tool; a proprietary all-rights-reserved licence notice; a refreshed dependency, licence and secrets audit (the Heebo font licence now ships with the fonts); the task registry matched to the code history; internal review notes no longer tracked.
+- **עברית:** בדיקת כניסה ברנר לפני שענף נכנס לרכבת שחרור, עם רשימת הסגר אחת של עד 7 ימים; פרוטוקול התיאום בין כמה מופעי Claude כמסמכים וכלי אופציונליים; הודעת רישיון קניינית (כל הזכויות שמורות); ביקורת מעודכנת של תלויות, רישיונות וסודות (רישיון הגופן Heebo מצורף עכשיו לגופנים); רשימת המשימות הותאמה להיסטוריית הקוד; הערות סקירה פנימיות כבר לא נשמרות במאגר.
+
+## 2.29.0 (pilot) - Lobby styles, restore from an off-box copy, presence and cross-section polish
+**After installing:** no database migration. Restoring from an off-box copy and the new lobby styles change nothing until an administrator uses them. The local restore now restores the project and access settings by default (a setting; owner decision 30.10). The new entrance-animation setting follows the system's reduced-motion preference. Going back to 2.28.0 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. שחזור מעותק חיצוני וסגנונות הלובי החדשים לא משנים דבר עד שמנהל המערכת משתמש בהם. שחזור מקומי משחזר כעת כברירת מחדל את הפרויקט ואת הגדרות הגישה (הגדרה; החלטת הבעלים 30.10). הגדרת אנימציית הכניסה החדשה מכבדת את העדפת התנועה המופחתת של המערכת. חזרה ל-2.28.0 בטוחה.
+
+### What was added - מה נוסף
+- **English:** Lobby screen styles: three luxury styles (Gallery, Concierge, Stone) with a day and a night building photo, three hi-tech styles (Lumen, Axis, Prism), and the Ink and Sign board styles for maintenance areas; bundled open-licence Hebrew fonts; live background, systems row and urgent-screen settings.
+- **עברית:** סגנונות למסך הלובי: שלושה סגנונות יוקרה (גלריה, קונסיירז', אבן) עם תמונת בניין ליום וללילה, שלושה סגנונות הייטק (לומן, אקסיס, פריזמה), וסגנונות הלוח דיו ושלט לאזורי תחזוקה; גופנים עבריים ברישיון פתוח בתוך התוסף; הגדרות רקע חי, שורת מערכות ומסך דחוף.
+- **English:** Restore an installation from an encrypted off-box copy in two steps (prepare and verify, then restore with a typed confirmation). A safety archive is written before every restore, with an optional safety password. Restore defaults are settings.
+- **עברית:** שחזור התקנה מעותק חיצוני מוצפן בשני שלבים (הכנה ואימות, ואז שחזור עם אישור מוקלד). לפני כל שחזור נכתב ארכיון ביטחון, עם סיסמת ביטחון אופציונלית. ברירות המחדל של השחזור הן הגדרות.
+- **English:** Motion: one press feel everywhere, reduced motion reaches every component, and a new entrance-animation setting.
+- **עברית:** תנועה: תחושת לחיצה אחידה בכל המערכת, תנועה מופחתת חלה על כל רכיב, והגדרה חדשה לאנימציית כניסה.
+
+### What was improved - מה שופר
+- **English:** Building presence: the home card uses the shared widget heading, room chips keep their state visible with long names, and the settings page shows loading and error states (a failed read no longer shows the switch as off), with 44 px touch targets on phones.
+- **עברית:** נוכחות במבנה: כרטיס הבית משתמש בכותרת הווידג'ט המשותפת, תגי החדרים שומרים על המצב גלוי גם עם שמות ארוכים, ודף ההגדרות מציג מצבי טעינה ושגיאה (קריאה שנכשלה כבר לא מציגה את המתג ככבוי), עם יעדי מגע של 44 פיקסלים בטלפון.
+- **English:** Building cross-section: better contrast, press feedback, selection ring and hover on the tree.
+- **עברית:** חתך הבניין: ניגודיות טובה יותר, משוב לחיצה, טבעת בחירה וריחוף בעץ.
+- **English:** The users table stays inside its card with long names and many groups.
+- **עברית:** טבלת המשתמשים נשארת בתוך הכרטיס גם עם שמות ארוכים וקבוצות רבות.
+
+### Behind the scenes - מאחורי הקלעים
+- **English:** Faster and more reliable release checks (one entry, resume, one quarantine list), six stabilised tests, refreshed desktop screenshots for four screens, runner clean-up, and documents (motion rules, security reviews, legal package sources). Apple signing material can never be committed.
+- **עברית:** בדיקות שחרור מהירות ואמינות יותר (כניסה אחת, המשך מנקודת עצירה, רשימת הסגר אחת), שש בדיקות שיוצבו, צילומי מסך מעודכנים לארבעה מסכים במחשב, ניקוי הרנר ומסמכים (כללי תנועה, סקירות אבטחה, מקורות החבילה המשפטית). חומרי חתימה של אפל לעולם לא ייכנסו למאגר.
+
 ## 2.28.0 (pilot) - Calendars server, building presence widget, area pop-up editor, building cross-section with synoptic map
 **After installing:** three additive database migrations (0183 calendars, 0184 building presence, 0185 presence history; new tables and one new column only, no existing data is changed). The **calendars module and external calendar sync are OFF by default**, and the **building presence module is OFF by default** (an administrator turns it on in Settings > Presence > Building sensors, and tags the sensors there); nothing changes visibly until then. The **fire-alarm UI is OFF by default** (installation option `fire_ui`); **no fire detection exists** in this release, so the fire column stays hidden and the alarm bar is only a labelled demo source. The cross-section and the synoptic map tab need no migration (installation option `ui.xs`). Going back to 2.27.2 is safe: the added tables are simply left unused.
 - **עברית:** אחרי ההתקנה: שלוש מיגרציות תוספתיות (0183 יומנים, 0184 נוכחות במבנה, 0185 היסטוריית נוכחות; טבלאות חדשות ועמודה אחת חדשה בלבד, שום נתון קיים לא משתנה). **מודול היומנים והסנכרון ליומנים חיצוניים כבויים כברירת מחדל**, ו**מודול הנוכחות במבנה כבוי כברירת מחדל** (מנהל המערכת מדליק אותו בהגדרות > נוכחות > חיישני מבנה ומתייג שם את החיישנים); דבר לא משתנה לעין עד אז. **ממשק אזעקת האש כבוי כברירת מחדל** (אפשרות ההתקנה `fire_ui`); **אין בגרסה זו זיהוי אש כלל**, ולכן עמודת האש נשארת מוסתרת ושורת ההתראות היא מקור הדגמה מסומן בלבד. החתך והלשונית של המפה הסינופטית לא דורשים מיגרציה (אפשרות ההתקנה `ui.xs`). חזרה ל-2.27.2 בטוחה: הטבלאות שנוספו פשוט נשארות בלי שימוש.

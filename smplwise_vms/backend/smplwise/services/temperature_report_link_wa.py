@@ -149,7 +149,8 @@ def send(conn: sqlite3.Connection, db: Any, link_id: str, user_id: str, actor: A
     if not s["recipients"]:
         raise SendRefused("report_link_wa_none", 409)
     r = docs.row(conn, link_id)
-    if r is None or r["module"] != rl.MODULE or r["recipient_kind"] != "user" or (not everyone and r["created_by"] != user_id):
+    if (r is None or r["module"] != rl.MODULE or r["recipient_kind"] != "user" or (not everyone and r["created_by"] != user_id)
+            or r.get("source_id")):  # TEMPREPORT-297: a link made for ONE recipient inside a report send is never forwarded to others
         raise SendRefused("link_not_found", 404)
     if rl.state_of(r, now) != "live":
         raise SendRefused("report_link_not_live", 409)

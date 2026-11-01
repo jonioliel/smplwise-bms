@@ -29,6 +29,8 @@ _LOCK = threading.Lock()
 # tests inject transports here (a fake S3 / SFTP client factory); None = the real ones
 S3_CLIENT: Callable[[Any], Any] | None = None
 SFTP_CLIENT: Callable[[Any], Any] | None = None
+# GDRIVEBK-2310: tests inject an httpx.Client factory in front of the fake Drive here; None = offbox_gdrive.default_http
+GDRIVE_HTTP: Callable[[], Any] | None = None
 
 REASON_HE = {
     "auth_failed": "הפרטים לכניסה נדחו",
@@ -41,6 +43,15 @@ REASON_HE = {
     "credential_missing": "חסרים פרטי גישה",
     "archive_missing": "אין גיבוי להעלאה",
     "transport_not_available": "רכיב ההעברה לא מותקן",
+    # GDRIVEBK-2310: Google Drive
+    "quota_exceeded": "אין מספיק מקום פנוי ב־Google Drive",
+    "rate_limited": "Google Drive מגביל כרגע את קצב הבקשות; ננסה שוב בגיבוי הבא",
+    "gdrive_reconnect_required": "החיבור ל־Google Drive פג או בוטל; יש לחבר מחדש",
+    "gdrive_not_connected": "לא חובר חשבון Google",
+    "gdrive_client_invalid": "Google דחה את פרטי הלקוח (Client ID / Secret)",
+    "gdrive_client_missing": "חסרים פרטי הלקוח של Google",
+    "gdrive_scope_refused": "Google לא אישר גישה לתיקיית הגיבוי",
+    "remote_error": "תשובה לא צפויה מהיעד",
 }
 
 
@@ -52,7 +63,7 @@ def workdir(settings: Settings) -> Path:
 
 def _build(target: dict[str, Any], settings: Settings, lookup: Callable[[str], str | None]) -> Destination:
     return build_destination({"kind": target["kind"], **target["config"]}, data_dir=Path(settings.data_dir), secret_store=lookup,
-                             s3_client=S3_CLIENT, sftp_client=SFTP_CLIENT)
+                             s3_client=S3_CLIENT, sftp_client=SFTP_CLIENT, gdrive_http=GDRIVE_HTTP)
 
 
 def _load(db: Database, settings: Settings, target_id: str) -> tuple[dict[str, Any], Callable[[str], str | None]]:
@@ -76,9 +87,15 @@ def view(conn: Any, target: dict[str, Any]) -> dict[str, Any]:
     cfg = {k: v for k, v in target["config"].items() if k not in CREDENTIAL_FIELDS.get(target["kind"], ())}
     state = offbox_store.secret_state(conn, target["id"])
     last = {a: (offbox_store.runs(conn, target["id"], 1, a) or [None])[0] for a in ("push", "test", "drill")}
-    return {**{k: target[k] for k in ("id", "name", "kind", "enabled", "retention", "revision", "updated_at")}, "config": cfg,
-            "secrets": {f: bool(state.get(f, {}).get("configured")) for f in CREDENTIAL_FIELDS.get(target["kind"], ())},
-            "last": last}
+    out = {**{k: target[k] for k in ("id", "name", "kind", "enabled", "retention", "revision", "updated_at")}, "config": cfg,
+           "secrets": {f: bool(state.get(f, {}).get("configured")) for f in CREDENTIAL_FIELDS.get(target["kind"], ())},
+           "last": last}
+    if target["kind"] == "gdrive":  # GDRIVEBK-2310: whether an account is connected / a consent is waiting (never the token)
+        from . import offbox_gdrive_connect
+
+        out["gdrive"] = {"connected": out["secrets"].get("refresh_token", False), "pending": offbox_gdrive_connect.pending(target["id"]),
+                         "connected_at": state.get("refresh_token", {}).get("updated_at")}
+    return out
 
 
 def _notify(db: Database, target: dict[str, Any], result: dict[str, Any]) -> None:

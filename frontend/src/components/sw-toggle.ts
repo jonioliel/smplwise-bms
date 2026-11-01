@@ -64,6 +64,18 @@ export class SwToggle extends LitElement {
     span {
       font-size: var(--sw-fs-sm);
     }
+    /* UIPOLISH-2320 (owner 1B, 31.10): on a phone the 24 px track gets a 44 px tall touch target - a transparent ::before (free: the thumb is
+       ::after) that grows ONLY in the block axis. No inline extension: a ::before wider than the 42 px track is horizontal overflow and
+       tripped the 320 px clipped-content guard (layout-devices-break-297), which is why POLISH-PHONE-2310 dropped the old 50 x 44 slop.
+       Absolute, so the drawn switch and the row layout do not move. */
+    @media (max-width: 767px) and (pointer: coarse) {
+      button::before {
+        content: '';
+        position: absolute;
+        inset-inline: 0;
+        inset-block: -10px;
+      }
+    }
   `;
 
   constructor() {

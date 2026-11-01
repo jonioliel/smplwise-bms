@@ -469,6 +469,10 @@ test.describe('multimedia screens (mocked backend)', () => {
   // ---------------------------------------------------------------------------------------------- the layout editor
 
   const enterEditFromMenu = async (page: Page) => {
+    // The user menu asks the screen "may this user edit?" when it OPENS (shell/screen-edit.ts), and the screen answers yes only once
+    // its data is in (canEdit needs phase 'ready'). A menu opened before that has no entry and is not redrawn, so on a loaded
+    // runner the click below waited for an item that never came (FLAKY-2250-297): wait for the cards first.
+    await expect(cards(page).first()).toBeVisible();
     await page.locator('sw-app [data-profile-menu]').click();
     await page.locator('sw-app sw-user-menu [data-menu-screen-edit="multimedia-layout"]').click();
     await expect(page$(page).locator('[data-mm-editbar]')).toBeVisible();

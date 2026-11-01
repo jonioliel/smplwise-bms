@@ -28,6 +28,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, require, role_name, scope_name
 from ..services import ha_user_admin as hua
 from ..services import revocation, secrets_store
+from ..services.tickets import out_documents
 from . import access as acc
 
 router = APIRouter()
@@ -330,6 +331,7 @@ def _set_active(ha_user_id: str, active: bool, body: ConfirmBody, request: Reque
         revocation.changed({ha_user_id})
     else:
         acc._terminate(conn, settings_of(request), {ha_user_id})  # noqa: SLF001 - the access API's own "access taken away" path
+        out_documents.revoke_for_inactive_users_safe(conn)  # TEMPLINK-2320 (owner 4A): his report links die at once
     return {"user": _row(conn, conn.execute("SELECT * FROM ha_managed_users WHERE id = ?", (row["id"],)).fetchone(), principal)}
 
 
@@ -405,4 +407,5 @@ def delete(ha_user_id: str, body: DeleteBody, request: Request, principal: Princ
     audit(conn, actor=principal, action=action, decision="allowed", resource_type="ha_user", resource_id=ha_user_id, request_id=_rid(request),
           details={"row_id": row["id"], "bindings_revoked": revoked, "already_gone": not existed})
     acc._terminate(conn, settings, {ha_user_id})  # noqa: SLF001
+    out_documents.revoke_for_inactive_users_safe(conn)  # TEMPLINK-2320 (owner 4A): his report links die at once
     return {"deleted": ha_user_id, "already_gone": not existed}

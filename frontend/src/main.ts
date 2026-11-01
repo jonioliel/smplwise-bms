@@ -1,4 +1,6 @@
 import './design/boot'; // design foundation: the token sheet, the skin sheet and data-skin / data-theme on <html> - before anything renders
+import { bootMobilePolish } from './design/mobile-polish'; // POLISH-PHONE-297: the phone layer (after the skin sheet, before any component)
+bootMobilePolish();
 import './styles/focus-policy'; // mobile audit 2026-09-30: one focus ring for every shadow root (never the browser's amber); must run before any component connects
 // CR-008: the pre-gate runs first - on the remote channel (`/arx/`) it parks the shell until the Arx sign-in is done.
 import { REMOTE } from './arx/pre-gate';

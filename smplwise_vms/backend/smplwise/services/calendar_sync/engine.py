@@ -7,9 +7,12 @@ Owner rules (round 6, contract C8/C9), all of them settings:
 * loop prevention: an event we pushed comes back with the etag we stored; it is ignored (the marker `arx_id` rides along);
 * at most one sync per connection at a time (a lease row in `settings`); polling only (no inbound webhook, no new public surface);
 * errors back off exponentially up to 60 minutes; an invalid sync token (410) re-pulls the window from scratch;
-* the whole run is ONE write transaction (the adapters are called inside it). That is fine for the in-memory fake; a real network adapter
-  (phases 4-6) must not hold the database lock while it waits for the provider - split pull / apply / push at that point;
-* no step here opens a network connection: that is the adapter's business and the registry holds no real adapter in this slice.
+* two entry points over the SAME steps (fetch pull -> apply pull -> plan push -> execute push -> apply push):
+  `sync_connection(conn, ...)` runs the whole sync inside the caller's one write transaction (the in-memory fake, the contract tests);
+  `run_connection(db, ...)` (CALCONNECT-2330: the manual "sync now" and the scheduler) never holds the database lock while an adapter
+  waits for the provider - a short write takes the lease, the pulls run with no transaction open, one write applies them and plans
+  the pushes, the pushes run with no transaction open, one write records their results, the state and frees the lease;
+* no step here opens a network connection: that is the adapter's business.
 """
 from __future__ import annotations
 
@@ -112,23 +115,42 @@ def _failed(conn: sqlite3.Connection, row: sqlite3.Row, settings: dict[str, Any]
 
 # ---------------------------------------------------------------- entry points
 
-def sync_connection(conn: sqlite3.Connection, data_dir: Path, settings: dict[str, Any], cid: str, now: dt.datetime, *, adapter: SyncAdapter | None = None) -> dict[str, Any]:
-    """Runs one sync of every binding of one connection. Never raises for a provider failure: the result and the connection state say what happened."""
+def _new_report() -> dict[str, Any]:
+    return {"pulled": 0, "created": 0, "updated": 0, "cancelled": 0, "flagged": 0, "echo": 0, "pushed": 0, "deleted_out": 0, "resync": 0, "bindings": 0}
+
+
+def _preamble(conn: sqlite3.Connection, settings: dict[str, Any], cid: str, now: dt.datetime, adapter: SyncAdapter | None) -> tuple[sqlite3.Row | None, SyncAdapter | None, dict[str, Any] | None]:
+    """(row, adapter, None) when the sync may run (the lease is taken), else (.., .., the skip answer)."""
     row = conn.execute("SELECT * FROM cal_connections WHERE id = ?", (cid,)).fetchone()
     if row is None:
-        return {"skipped": "unknown_connection"}
+        return None, None, {"skipped": "unknown_connection"}
     if row["state"] in ("paused", "revoked", "needs_reauth"):
-        return {"skipped": row["state"]}
+        return row, None, {"skipped": row["state"]}
     if not settings["sync_enabled"]:
-        return {"skipped": "sync_disabled"}
+        return row, None, {"skipped": "sync_disabled"}
     ad = adapter or registry.get(row["provider"])
     if ad is None:
         conn.execute("UPDATE cal_connections SET state = 'error', error_code = 'adapter_unavailable', error_text = NULL, next_sync_at = ? WHERE id = ?",
                      (model.iso(now + dt.timedelta(minutes=60)), cid))
-        return {"skipped": "adapter_unavailable"}
+        return row, None, {"skipped": "adapter_unavailable"}
     if not acquire_lease(conn, cid, now):
-        return {"skipped": "busy"}
-    rep: dict[str, Any] = {"pulled": 0, "created": 0, "updated": 0, "cancelled": 0, "flagged": 0, "echo": 0, "pushed": 0, "deleted_out": 0, "resync": 0, "bindings": 0}
+        return row, ad, {"skipped": "busy"}
+    return row, ad, None
+
+
+def _fail_audit(conn: sqlite3.Connection, row: sqlite3.Row, settings: dict[str, Any], now: dt.datetime, err: SyncError) -> dict[str, Any]:
+    out = _failed(conn, row, settings, now, err)
+    audit(conn, actor=None, action="calendar.sync.error", decision="denied", resource_type="calendar_connection", resource_id=row["id"], reason=err.code)
+    return out
+
+
+def sync_connection(conn: sqlite3.Connection, data_dir: Path, settings: dict[str, Any], cid: str, now: dt.datetime, *, adapter: SyncAdapter | None = None) -> dict[str, Any]:
+    """Runs one sync of every binding of one connection inside the caller's ONE write transaction (the in-memory fake, the contract tests).
+    Never raises for a provider failure: the result and the connection state say what happened."""
+    row, ad, skip = _preamble(conn, settings, cid, now, adapter)
+    if skip is not None or row is None or ad is None:
+        return skip or {"skipped": "unknown_connection"}
+    rep = _new_report()
     try:
         info = connection_info(row)
         h = ad.health(info)
@@ -136,57 +158,142 @@ def sync_connection(conn: sqlite3.Connection, data_dir: Path, settings: dict[str
             rep.update(_failed(conn, row, settings, now, NeedsReauth(code=h.code or "needs_reauth")))
             return rep
         for brow in conn.execute("SELECT * FROM cal_sync_bindings WHERE connection_id = ? ORDER BY id", (cid,)).fetchall():
-            _sync_binding(conn, data_dir, settings, row, info, brow, ad, now, rep)
+            b = binding_of(conn, data_dir, brow)
+            if _pulls(b, settings):
+                res, full = _fetch_pull(ad, info, b, _token(data_dir, brow), rep)
+                conn.execute("SAVEPOINT cal_pull")
+                try:
+                    _apply_pull(conn, data_dir, settings, row, b, res, full, now, rep)
+                    conn.execute("RELEASE cal_pull")
+                except BaseException:
+                    conn.execute("ROLLBACK TO cal_pull")
+                    conn.execute("RELEASE cal_pull")
+                    raise
+            if _pushes(b, info):
+                for op in _plan_push(conn, b):
+                    _apply_push(conn, b, op, _exec(ad, info, b, op), now, rep)
             rep["bindings"] += 1
         _ok(conn, row, settings, now)
         rep["state"] = "ok"
     except SyncError as err:
-        rep.update(_failed(conn, row, settings, now, err))
-        audit(conn, actor=None, action="calendar.sync.error", decision="denied", resource_type="calendar_connection", resource_id=cid, reason=err.code)
+        rep.update(_fail_audit(conn, row, settings, now, err))
     finally:
         release_lease(conn, cid)
     return rep
 
 
+def run_connection(db: Any, data_dir: Path, cid: str, now: dt.datetime, *, adapter: SyncAdapter | None = None) -> dict[str, Any]:
+    """The same sync, with NO transaction open while the adapter talks to the provider (CALCONNECT-2330). Pulls of every binding are
+    fetched first and applied together; a provider failure before the apply changes nothing (the tokens stay). Pushes are planned in the
+    apply transaction, sent with no transaction open and recorded afterwards (a push that fails stops the rest; what went out is kept).
+    An Arx entry edited while its push was in flight carries a newer revision than the one recorded, so the next run sends it again."""
+    with db.connection(label="calendar.sync.begin") as conn:
+        settings = model.read_settings(conn)
+        row, ad, skip = _preamble(conn, settings, cid, now, adapter)
+        if skip is not None or row is None or ad is None:
+            return skip or {"skipped": "unknown_connection"}
+        info = connection_info(row)
+        bindings = [(binding_of(conn, data_dir, brow), _token(data_dir, brow))
+                    for brow in conn.execute("SELECT * FROM cal_sync_bindings WHERE connection_id = ? ORDER BY id", (cid,)).fetchall()]
+    rep = _new_report()
+    try:
+        try:
+            h = ad.health(info)
+            if h.state == "needs_reauth":
+                with db.connection(label="calendar.sync.state") as conn:
+                    rep.update(_failed(conn, row, settings, now, NeedsReauth(code=h.code or "needs_reauth")))
+                return rep
+            pulled = {b.id: _fetch_pull(ad, info, b, token, rep) for b, token in bindings if _pulls(b, settings)}
+        except SyncError as err:
+            with db.connection(label="calendar.sync.state") as conn:
+                rep.update(_fail_audit(conn, row, settings, now, err))
+            return rep
+        plans: list[tuple[Binding, list[dict[str, Any]]]] = []
+        with db.connection(label="calendar.sync.apply") as conn:
+            for b, _token_ in bindings:
+                if conn.execute("SELECT 1 FROM cal_sync_bindings WHERE id = ?", (b.id,)).fetchone() is None:
+                    continue  # unbound while the pull was on its way
+                if b.id in pulled:
+                    _apply_pull(conn, data_dir, settings, row, b, *pulled[b.id], now, rep)
+                if _pushes(b, info):
+                    plans.append((b, _plan_push(conn, b)))
+                rep["bindings"] += 1
+        done: list[tuple[Binding, dict[str, Any], Any]] = []
+        failure: SyncError | None = None
+        for b, ops in plans:
+            for op in ops:
+                try:
+                    done.append((b, op, _exec(ad, info, b, op)))
+                except SyncError as err:
+                    failure = err
+                    break
+            if failure is not None:
+                break
+        with db.connection(label="calendar.sync.finish") as conn:
+            for b, op, res in done:
+                if conn.execute("SELECT 1 FROM cal_sync_bindings WHERE id = ?", (b.id,)).fetchone() is not None:
+                    _apply_push(conn, b, op, res, now, rep)
+            if failure is not None:
+                rep.update(_fail_audit(conn, row, settings, now, failure))
+            else:
+                _ok(conn, row, settings, now)
+                rep["state"] = "ok"
+        return rep
+    finally:
+        with db.connection(label="calendar.sync.lease") as conn:
+            release_lease(conn, cid)
+
+
+def _due(conn: sqlite3.Connection, now: dt.datetime) -> list[str]:
+    return [r["id"] for r in conn.execute("SELECT id FROM cal_connections WHERE state IN ('ok','error') AND (next_sync_at IS NULL OR next_sync_at <= ?) "
+                                          "AND EXISTS (SELECT 1 FROM cal_sync_bindings b WHERE b.connection_id = cal_connections.id) ORDER BY id", (model.iso(now),)).fetchall()]
+
+
 def run_due(conn: sqlite3.Connection, data_dir: Path, settings: dict[str, Any], now: dt.datetime) -> dict[str, Any]:
-    """The scheduler step (called by the sync tick): every connection whose time has come and that has at least one binding."""
+    """The scheduler step inside one transaction (kept for the contract tests): every connection whose time has come and that has at least one binding."""
     out: dict[str, Any] = {}
     if not settings["enabled"] or not settings["sync_enabled"]:
         return out
-    for r in conn.execute("SELECT id FROM cal_connections WHERE state IN ('ok','error') AND (next_sync_at IS NULL OR next_sync_at <= ?) "
-                          "AND EXISTS (SELECT 1 FROM cal_sync_bindings b WHERE b.connection_id = cal_connections.id) ORDER BY id", (model.iso(now),)).fetchall():
+    for cid in _due(conn, now):
         try:
-            out[r["id"]] = sync_connection(conn, data_dir, settings, r["id"], now)
+            out[cid] = sync_connection(conn, data_dir, settings, cid, now)
         except Exception:  # noqa: BLE001 - one connection never stops the others
-            log.warning("calendar sync failed for %s", r["id"], exc_info=True)
+            log.warning("calendar sync failed for %s", cid, exc_info=True)
+    return out
+
+
+def run_due_db(db: Any, data_dir: Path, now: dt.datetime) -> dict[str, Any]:
+    """The scheduler step of the sync tick: the due list from a read, then each connection through run_connection (no lock over the network)."""
+    with db.connection(mode="read", label="calendar.sync.due") as conn:
+        settings = model.read_settings(conn)
+        if not settings["enabled"] or not settings["sync_enabled"]:
+            return {}
+        due = _due(conn, now)
+    out: dict[str, Any] = {}
+    for cid in due:
+        try:
+            out[cid] = run_connection(db, data_dir, cid, now)
+        except Exception:  # noqa: BLE001 - one connection never stops the others
+            log.warning("calendar sync failed for %s", cid, exc_info=True)
     return out
 
 
 # ---------------------------------------------------------------- one binding
 
-def _sync_binding(conn: sqlite3.Connection, data_dir: Path, settings: dict[str, Any], crow: sqlite3.Row, info: ConnectionInfo, brow: sqlite3.Row, ad: SyncAdapter,
-                  now: dt.datetime, rep: dict[str, Any]) -> None:
-    b = binding_of(conn, data_dir, brow)
-    if b.direction in ("import", "two_way") and settings["sync_accept_external"]:
-        conn.execute("SAVEPOINT cal_pull")
-        try:
-            _pull(conn, data_dir, settings, crow, info, b, brow, ad, now, rep)
-            conn.execute("RELEASE cal_pull")
-        except BaseException:
-            conn.execute("ROLLBACK TO cal_pull")
-            conn.execute("RELEASE cal_pull")
-            raise
-    if b.direction in ("export", "two_way") and info.scope == "read_write":
-        _push(conn, info, b, ad, now, rep)
+def _pulls(b: Binding, settings: dict[str, Any]) -> bool:
+    return b.direction in ("import", "two_way") and bool(settings["sync_accept_external"])
+
+
+def _pushes(b: Binding, info: ConnectionInfo) -> bool:
+    return b.direction in ("export", "two_way") and info.scope == "read_write"
 
 
 def _token(data_dir: Path, brow: sqlite3.Row) -> str | None:
     return connection_store.open_calendar_sync(data_dir, brow["id"], "token", brow["sync_token_sealed"]) if brow["sync_token_sealed"] else None
 
 
-def _pull(conn: sqlite3.Connection, data_dir: Path, settings: dict[str, Any], crow: sqlite3.Row, info: ConnectionInfo, b: Binding, brow: sqlite3.Row, ad: SyncAdapter,
-          now: dt.datetime, rep: dict[str, Any]) -> None:
-    token = _token(data_dir, brow)
+def _fetch_pull(ad: SyncAdapter, info: ConnectionInfo, b: Binding, token: str | None, rep: dict[str, Any]) -> tuple[Any, bool]:
+    """The network half of a pull: (PullResult, full listing?)."""
     res = ad.pull(info, b, token)
     if res.full_resync_required:  # 410: the window is read again from scratch
         rep["resync"] += 1
@@ -194,7 +301,11 @@ def _pull(conn: sqlite3.Connection, data_dir: Path, settings: dict[str, Any], cr
         res = ad.pull(info, b, None)
         if res.full_resync_required:
             raise SyncError("the provider keeps refusing a full pull", code="resync_failed")
-    full = token is None
+    return res, token is None
+
+
+def _apply_pull(conn: sqlite3.Connection, data_dir: Path, settings: dict[str, Any], crow: sqlite3.Row, b: Binding, res: Any, full: bool,
+                now: dt.datetime, rep: dict[str, Any]) -> None:
     seen: set[str] = set()
     cal = conn.execute("SELECT * FROM cal_calendars WHERE id = ?", (b.calendar_id,)).fetchone()
     for ch in res.changes:
@@ -346,23 +457,40 @@ def refresh_flags(conn: sqlite3.Connection, settings: dict[str, Any], calendar_i
 
 # ---------------------------------------------------------------- push
 
-def _push(conn: sqlite3.Connection, info: ConnectionInfo, b: Binding, ad: SyncAdapter, now: dt.datetime, rep: dict[str, Any]) -> None:
-    stamp = model.iso(now)
+def _plan_push(conn: sqlite3.Connection, b: Binding) -> list[dict[str, Any]]:
+    """What has to go out for one binding: `push` (an Arx entry new or changed since its last push) and `delete` (an entry gone in Arx)."""
+    ops: list[dict[str, Any]] = []
     for ev in conn.execute("SELECT * FROM cal_events WHERE calendar_id = ? AND override_of IS NULL ORDER BY id", (b.calendar_id,)).fetchall():
         m = conn.execute("SELECT * FROM cal_sync_map WHERE binding_id = ? AND event_id = ?", (b.id, ev["id"])).fetchone()
         origin = m["origin"] if m is not None else ("external" if ev["kind"] == "external" else "arx")
         live = ev["state"] == "confirmed" and ev["sync_flag"] != "deleted_external"
         if live and origin == "arx":
             if m is None or m["last_pushed_revision"] != ev["revision"]:
-                res = ad.push(info, b, map_out(ev, b.calendar_name, b.detail), m["ext_uid"] if m is not None else None, m["ext_etag"] if m is not None else None)
-                conn.execute("INSERT INTO cal_sync_map(event_id, binding_id, ext_uid, ext_etag, last_pushed_revision, last_pulled_at, origin) VALUES (?,?,?,?,?,?, 'arx') "
-                             "ON CONFLICT(event_id, binding_id) DO UPDATE SET ext_uid = excluded.ext_uid, ext_etag = excluded.ext_etag, last_pushed_revision = excluded.last_pushed_revision",
-                             (ev["id"], b.id, res.ext_uid, res.etag, ev["revision"], stamp))
-                rep["pushed"] += 1
+                ops.append({"op": "push", "event_id": ev["id"], "revision": ev["revision"], "out": map_out(ev, b.calendar_name, b.detail),
+                            "ext_uid": m["ext_uid"] if m is not None else None, "etag": m["ext_etag"] if m is not None else None})
         elif m is not None and ev["state"] in (*GONE_STATES, "displaced") and m["ext_etag"] is not None and (origin == "arx" or b.direction == "two_way"):
-            ad.delete(info, b, m["ext_uid"], m["ext_etag"])
-            conn.execute("DELETE FROM cal_sync_map WHERE binding_id = ? AND ext_uid = ?", (b.id, m["ext_uid"]))
-            rep["deleted_out"] += 1
+            ops.append({"op": "delete", "event_id": ev["id"], "ext_uid": m["ext_uid"], "etag": m["ext_etag"]})
+    return ops
+
+
+def _exec(ad: SyncAdapter, info: ConnectionInfo, b: Binding, op: dict[str, Any]) -> Any:
+    if op["op"] == "push":
+        return ad.push(info, b, op["out"], op["ext_uid"], op["etag"])
+    ad.delete(info, b, op["ext_uid"], op["etag"])
+    return None
+
+
+def _apply_push(conn: sqlite3.Connection, b: Binding, op: dict[str, Any], res: Any, now: dt.datetime, rep: dict[str, Any]) -> None:
+    if op["op"] == "push":
+        if conn.execute("SELECT 1 FROM cal_events WHERE id = ?", (op["event_id"],)).fetchone() is None:
+            return
+        conn.execute("INSERT INTO cal_sync_map(event_id, binding_id, ext_uid, ext_etag, last_pushed_revision, last_pulled_at, origin) VALUES (?,?,?,?,?,?, 'arx') "
+                     "ON CONFLICT(event_id, binding_id) DO UPDATE SET ext_uid = excluded.ext_uid, ext_etag = excluded.ext_etag, last_pushed_revision = excluded.last_pushed_revision",
+                     (op["event_id"], b.id, res.ext_uid, res.etag, op["revision"], model.iso(now)))
+        rep["pushed"] += 1
+    else:
+        conn.execute("DELETE FROM cal_sync_map WHERE binding_id = ? AND ext_uid = ?", (b.id, op["ext_uid"]))
+        rep["deleted_out"] += 1
 
 
 # ---------------------------------------------------------------- a human decision on a flagged entry
@@ -396,4 +524,4 @@ def validate_binding(provider: str, direction: str, detail: str, dedicated: bool
         raise model.Invalid("exporting needs a read_write connection", "direction", "connection_read_only")
 
 
-__all__ = ["sync_connection", "run_due", "resolve_flag", "refresh_flags", "validate_binding", "map_out", "binding_of", "connection_info", "open_ref"]
+__all__ = ["sync_connection", "run_connection", "run_due", "run_due_db", "resolve_flag", "refresh_flags", "validate_binding", "map_out", "binding_of", "connection_info", "open_ref"]

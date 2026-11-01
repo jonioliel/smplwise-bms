@@ -112,8 +112,11 @@ def add_photo(settings: Settings, set_id: str, data: bytes) -> dict[str, Any]:
     if len(_photos(d)) >= MAX_FILES:
         raise PhotoError("photo_set_full", "התיקייה מלאה (עד 200 תמונות).", 409, {"max": MAX_FILES})
     from . import image_guard  # noqa: F401 - SEC246 I3: the process-wide bomb threshold is set once there; MAX_PIXELS is checked below
+    if data.startswith((b"GIF8", b"BM", b"II*\x00", b"MM\x00*", b"8BPS", b"\x00\x00\x01\x00")):
+        # another image type, told by its signature: Pillow is restricted to FORMATS below and never runs these loaders (DEPFIX-2310 M1)
+        raise PhotoError("unsupported_format", "רק JPEG, PNG או WebP.", 415)
     try:
-        with Image.open(io.BytesIO(data)) as probe:
+        with image_guard.open_untrusted(data, sorted(FORMATS), mpo_first_frame=True) as probe:
             if probe.format not in FORMATS:
                 raise PhotoError("unsupported_format", "רק JPEG, PNG או WebP.", 415)
             if probe.width * probe.height > MAX_PIXELS:

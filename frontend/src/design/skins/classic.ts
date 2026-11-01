@@ -40,7 +40,7 @@ const tokens: TokenTable = {
   '--sw-heading': lt('#0f1b31', '#f7f9fd'),
   '--sw-text': lt('#1f2b42', '#e4e9f3'),
   '--sw-text-2': lt('#46556f', '#a7b2c7'),
-  '--sw-text-3': lt('#4f5e78', '#8d9ab2'),
+  '--sw-text-3': lt('#4f5e78', '#98a4ba'),
   // taste-skill lint "framework-colour": not the Tailwind blue-600 - the product's own blue, a hair deeper than the base #2767ed
   '--sw-accent': lt('#2360e8', '#3b6fe6'),
   '--sw-accent-hover': lt('#1b4ecf', '#3365d9'),

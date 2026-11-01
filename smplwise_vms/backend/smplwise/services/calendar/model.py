@@ -21,6 +21,14 @@ ROLES = ("view", "book", "edit", "manage")
 ROLE_RANK = {r: i for i, r in enumerate(ROLES)}
 SUBJECT_KINDS = ("user", "role", "department", "everyone")
 OVERLAP_MODES = ("first_holds", "override_notify", "block", "ask")
+STRICTNESS = {"override_notify": 0, "first_holds": 1, "ask": 2, "block": 3}  # how strongly a mode protects an existing entry
+MENU_POSITIONS = ("rail", "home_tab", "both")
+UI_CHOICES: dict[str, tuple[str, ...]] = {
+    "contested_order": ("first_come", "manual", "by_kind"), "displace_approver": ("calendar_manager", "any_manager"), "override_scope": ("both", "stricter", "none"),
+    "phone_time_picker": ("grid", "timeline"), "reauth_mode": ("reauth_and_continue", "reauth_only"), "sync_conflict_display": ("side_by_side", "list_only"),
+    "tablet_panels": ("collapse", "shrink"), "resident_pending_display": ("count", "free", "blocked"), "resident_cancel_until": ("start", "1h", "24h"),
+    "resident_rooms": ("bookable", "all_busy"), "purge_confirm": ("type_word", "one_click"), "loading_style": ("skeleton", "spinner"),
+}
 HOURS_MODES = ("always", "working_hours", "custom")
 HOLIDAY_RULES = ("ignore", "closed", "warn")
 APPROVAL_MODES = ("none", "always", "outside_hours", "on_behalf")
@@ -37,7 +45,7 @@ SETTINGS_DEFAULTS: dict[str, Any] = {
     "maintenance_overlap": "first_holds",  # C3
     "contested_requests": "queue",  # C2: queue | reject
     "pending_holds_slot": False,  # C2
-    "menu_position": "a",  # C5: a | b
+    "menu_position": "rail",  # owner 2026-10-30 night: rail (default) | home_tab | both; the old a | b read as rail
     "holiday_eve_as_holiday": False,  # C6
     "guest_details_enabled": True,
     "guest_details_kinds": ["customer", "class"],
@@ -57,7 +65,23 @@ SETTINGS_DEFAULTS: dict[str, Any] = {
     "sync_external_delete": "cancel",  # C9: an entry deleted outside Arx is cancelled in Arx (`cancel`) or kept and flagged (`flag`)
     "sync_google_scope": "full",  # C8: full calendar scope, no extra approval prompts in Arx (`full` | `events`)
     "sync_manual_min_interval_s": 60,  # contract 12.3: manual "sync now" rate limit
-    "default_hours": {"weekdays": [7, 1, 2, 3, 4], "start": "07:00", "end": "19:00"},  # stand-in for the SLACAL working-hours calendar (phase 3)
+    "default_hours": {"weekdays": [7, 1, 2, 3, 4], "start": "07:00", "end": "19:00"},
+    # CALENDARS-UI-2310: owner answers of 2026-10-30 night (questions 8-26); every behaviour is a setting with the answered default
+    "contested_order": "first_come",  # 11B: first_come | manual | by_kind
+    "allow_displace": True,  # 12A: approving over a confirmed entry with an explicit "displace"
+    "displace_approver": "calendar_manager",  # 12: displacing only by the calendar's own manager (owner / manage member) | any_manager
+    "override_scope": "both",  # 9A: a calendar may override the maintenance overlap mode in both directions | stricter | none
+    "phone_time_picker": "grid",  # 16A: start grid + duration | timeline
+    "reauth_mode": "reauth_and_continue",  # 21B: a connection that needs re-authorisation also offers a manual "continue" | reauth_only
+    "sync_conflict_display": "side_by_side",  # 22A: side_by_side | list_only
+    "tablet_panels": "collapse",  # 23A: tablet 1024 side panels hide and open on tap | shrink
+    "resident_pending_display": "count",  # 13A: count | free | blocked
+    "resident_cancel_until": "start",  # 14A: start | 1h | 24h (an organizer without the edit role)
+    "resident_rooms": "bookable",  # 15A: bookable | all_busy
+    "purge_confirm": "type_word",  # 24A: type_word | one_click
+    "loading_style": "skeleton",  # 26A: skeleton after 300 ms | spinner
+    "default_approval_timeout_h": 2,  # a new calendar's approval_timeout_h
+    "reopen_days": 7,  # a rejected / expired / withdrawn request may be reopened within N days  # stand-in for the SLACAL working-hours calendar (phase 3)
 }
 
 
@@ -197,6 +221,8 @@ def parse_settings(raw: str | None) -> dict[str, Any]:
         return base
     if not isinstance(doc, dict):
         return base
+    if doc.get("menu_position") in ("a", "b"):  # C5 values before the owner answer of 2026-10-30 night: the side rail is the default now
+        doc["menu_position"] = "rail"
     try:
         merged = {**base, **{k: v for k, v in doc.items() if k in base}}
         return settings_doc(merged)
@@ -215,7 +241,7 @@ def settings_doc(doc: dict[str, Any]) -> dict[str, Any]:
             raise Invalid(f"{f}: true or false", f)
     s["maintenance_overlap"] = _choice(s["maintenance_overlap"], "maintenance_overlap", OVERLAP_MODES)
     s["contested_requests"] = _choice(s["contested_requests"], "contested_requests", ("queue", "reject"))
-    s["menu_position"] = _choice(s["menu_position"], "menu_position", ("a", "b"))
+    s["menu_position"] = _choice(s["menu_position"], "menu_position", MENU_POSITIONS)
     kinds = s["guest_details_kinds"]
     if not isinstance(kinds, list) or any(k not in ON_BEHALF or k == "self" for k in kinds):
         raise Invalid("guest_details_kinds: on-behalf kinds", "guest_details_kinds")
@@ -237,7 +263,28 @@ def settings_doc(doc: dict[str, Any]) -> dict[str, Any]:
     s["sync_google_scope"] = _choice(s["sync_google_scope"], "sync_google_scope", ("full", "events"))
     s["sync_manual_min_interval_s"] = _int(s["sync_manual_min_interval_s"], "sync_manual_min_interval_s", 0, 3600)
     s["default_hours"] = hours_doc(s["default_hours"], "default_hours")
+    for f in ("allow_displace",):
+        if not isinstance(s[f], bool):
+            raise Invalid(f"{f}: true or false", f)
+    for f, allowed in UI_CHOICES.items():
+        s[f] = _choice(s[f], f, allowed)
+    s["default_approval_timeout_h"] = _int(s["default_approval_timeout_h"], "default_approval_timeout_h", 0, 720)
+    s["reopen_days"] = _int(s["reopen_days"], "reopen_days", 0, 60)
     return s
+
+
+def check_override(settings: dict[str, Any], value: Any) -> None:
+    """Owner answer 9 as a setting: may a calendar choose its own maintenance-overlap mode, and in which direction."""
+    if value is None:
+        return
+    scope = settings["override_scope"]
+    if scope == "none":
+        raise Invalid("overlap_override: the installation does not allow a per-calendar mode", "overlap_override")
+    if scope == "stricter" and STRICTNESS[value] < STRICTNESS[settings["maintenance_overlap"]]:
+        raise Invalid("overlap_override: only a stricter mode than the installation's", "overlap_override")
+
+
+CANCEL_UNTIL_MIN = {"start": 0, "1h": 60, "24h": 1440}
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:

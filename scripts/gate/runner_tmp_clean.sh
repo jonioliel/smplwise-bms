@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Removes full-run scratch leftovers on the Ubuntu test runner that ~/gate_clean.sh does not remove (CR RUNNER-CLEAN-2300).
+#   runner_tmp_clean.sh --dry-run   lists what WOULD be removed and the size, removes nothing
+#   runner_tmp_clean.sh             removes it and prints the freed size
+# Targets (directories only, never symlinks, nothing outside $HOME):
+#   1. ~/smplwise-results/gate_*.logs/{tmp_b*,tmp_bretry,tmp[0-9]}   old gate pytest --basetemp dirs
+#   2. <worktree>/.tmp_s1 and .tmp_s2 in ~/work/*, ~/gate2/* and ~/smplwisebms  (full backend run scratch)
+# A target is removed only if: no gate/nightly is running (gate_status.json state=running, gate/nightly lock held, gate/nightly
+# processes), no pytest/playwright process uses the owning worktree (cwd or command line), and nothing inside the target changed
+# in the last MIN_AGE_MIN minutes (default 30). Reports/summaries (.md/.json), logs and pw_*.json are never touched.
+# Env: RUNNER_HOME (default $HOME; tests only), MIN_AGE_MIN (default 30).
+set -uo pipefail
+DRY=0
+case "${1:-}" in --dry-run) DRY=1 ;; "") ;; *) echo "usage: $0 [--dry-run]"; exit 2 ;; esac
+H="$(cd "${RUNNER_HOME:-$HOME}" 2>/dev/null && pwd -P)" || { echo "no home"; exit 2; }
+[ -n "$H" ] && [ "$H" != "/" ] || { echo "refusing: bad home"; exit 2; }
+RES="$H/smplwise-results"; AGE="${MIN_AGE_MIN:-30}"
+
+busy() {
+  grep -q '"state": *"running"' "$RES/gate_status.json" 2>/dev/null && return 0
+  pgrep -f '^(timeout .*)?python3 [^ ]*release_gate\.py' >/dev/null 2>&1 && return 0
+  pgrep -f '^[^ ]*bash [^ ]*(nightly_tests|release_gate|release_gate2)\.sh' >/dev/null 2>&1 && return 0
+  if command -v fuser >/dev/null 2>&1; then   # read-only probe: never takes the lock itself
+    for l in "$H/.smplwise-gate.lock" "$H/.smplwise-tests.lock"; do
+      [ -e "$l" ] && fuser "$l" >/dev/null 2>&1 && return 0
+    done
+  fi
+  return 1
+}
+if busy; then echo "a gate/nightly run is active: nothing done"; exit 3; fi
+
+# worktree path -> in use by a pytest/playwright/node/vite process (cwd or command line)?
+PROCS=$(for p in $(pgrep -f 'pytest|playwright' 2>/dev/null); do   # snapshot once: "cwd<TAB>cmdline" of pytest/playwright processes
+  [ "$p" = "$$" ] && continue
+  a=$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null) || continue
+  printf '%s	%s
+' "$(readlink "/proc/$p/cwd" 2>/dev/null)" "$a"
+done)
+used() {
+  [ -n "$PROCS" ] || return 1
+  local wt="$1" c a
+  while IFS=$'	' read -r c a; do
+    case "$c/" in "$wt"/*) return 0 ;; esac
+    case "$a" in *"$wt"*) return 0 ;; esac
+  done <<< "$PROCS"
+  return 1
+}
+fresh() { [ -n "$(find "$1" -mmin "-$AGE" -print -quit 2>/dev/null)" ]; }   # anything modified within AGE minutes (incl. the dir)
+safe() { [ -d "$1" ] && [ ! -L "$1" ] && case "$(cd "$1" 2>/dev/null && pwd -P)" in "$H"/*) return 0 ;; esac; return 1; }
+
+LIST=$(mktemp); trap 'rm -f "$LIST"' EXIT
+for d in "$RES"/gate_*.logs/tmp_b[0-9]* "$RES"/gate_*.logs/tmp_bretry "$RES"/gate_*.logs/tmp[0-9]; do
+  safe "$d" || continue
+  used "$(dirname "$d")" && continue
+  fresh "$d" && continue
+  echo "$d" >> "$LIST"
+done
+for wt in "$H"/work/* "$H"/gate2/* "$H/smplwisebms"; do
+  [ -d "$wt" ] && [ ! -L "$wt" ] || continue
+  for d in "$wt/.tmp_s1" "$wt/.tmp_s2"; do
+    safe "$d" || continue
+    used "$wt" && continue
+    fresh "$d" && continue
+    echo "$d" >> "$LIST"
+  done
+done
+
+total=0; n=0
+while read -r d; do
+  kb=$(du -sk "$d" 2>/dev/null | cut -f1); kb=${kb:-0}
+  if [ "$DRY" -eq 1 ]; then echo "would remove $(( kb / 1024 )) MB $d"
+  else
+    busy && { echo "a gate/nightly run started: stopped"; break; }
+    rm -rf --one-file-system -- "$d" 2>/dev/null || rm -rf -- "$d"
+    echo "removed $(( kb / 1024 )) MB $d"
+  fi
+  total=$(( total + kb )); n=$(( n + 1 ))
+done < "$LIST"
+if [ "$DRY" -eq 1 ]; then echo "dry run: $n items, $(( total / 1024 )) MB would be freed"
+else echo "freed $(( total / 1024 )) MB in $n items"; fi
+exit 0

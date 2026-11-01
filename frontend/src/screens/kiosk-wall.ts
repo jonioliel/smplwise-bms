@@ -513,7 +513,7 @@ export class KioskWall extends LitElement {
       }
     }
     header a.exit:active {
-      transform: scale(var(--sw-press-scale, 0.96));
+      transform: scale(var(--sw-press-scale, 0.97));
     }
     @media (max-width: 767px) {
       .stat {
