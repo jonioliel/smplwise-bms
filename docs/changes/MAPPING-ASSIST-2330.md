@@ -84,8 +84,8 @@ mapped once already with three names new since. Settings page: `#/system/diagnos
   (test_mapping_assist_2330 + test_home_links + test_multibuilding_home_2330 + test_home_screen_options_295): 27 passed, 0 failed.
 - A wider backend run (`-k "catalog or building or site or migration or schema or prefs or home or settings or mapping or setup"`) reached
   1 failure: `test_setup_wizard.py::test_a_slow_device_is_cut_off_at_the_check_deadline` (a wall-clock assertion: 5.28 s vs < 5 s on the
-  loaded workstation; the setup-wizard backend is not touched by this branch; not re-checked on the base). Its full totals were not
-  captured: NOT_RUN as a total.
+  loaded workstation; the setup-wizard backend is not touched by this branch). The same selection re-run later: 1164 tests, 1154 passed,
+  10 skipped, 0 failed (the timing test passed on the quieter machine).
 - Pixel identity: the MULTIBUILDING-HOME-2330 evidence spec re-run on this branch (21 passed); the one-building home screenshots are
   identical to `before/` on all three projects (sampled pixel compare, 0 differences).
 
