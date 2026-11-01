@@ -1,0 +1,32 @@
+{
+  "board-390x844.png": {
+    "firstItemTop": 822,
+    "toolbarRows": 4,
+    "pageScroll": 2941,
+    "viewport": "390x844"
+  },
+  "list-cards-390x844.png": {
+    "firstItemTop": 659,
+    "toolbarRows": 4,
+    "pageScroll": 1923,
+    "viewport": "390x844"
+  },
+  "list-empty-390x844.png": {
+    "firstItemTop": 508,
+    "toolbarRows": 4,
+    "pageScroll": 50,
+    "viewport": "390x844"
+  },
+  "list-error-390x844.png": {
+    "firstItemTop": 210,
+    "toolbarRows": 0,
+    "pageScroll": 0,
+    "viewport": "390x844"
+  },
+  "list-table-390x844.png": {
+    "firstItemTop": 743,
+    "toolbarRows": 3,
+    "pageScroll": 1086,
+    "viewport": "390x844"
+  }
+}

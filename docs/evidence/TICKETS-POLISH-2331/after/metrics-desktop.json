@@ -1,0 +1,62 @@
+{
+  "board-1440x900.png": {
+    "firstItemTop": 388,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "board-1920x1080.png": {
+    "firstItemTop": 388,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1920x1080"
+  },
+  "list-cards-1440x900.png": {
+    "firstItemTop": 237,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "list-cards-1920x1080.png": {
+    "firstItemTop": 237,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1920x1080"
+  },
+  "list-chips-1440x900.png": {
+    "firstItemTop": 237,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "list-empty-1440x900.png": {
+    "firstItemTop": 194,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "list-error-1440x900.png": {
+    "firstItemTop": 124,
+    "toolbarRows": 0,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "list-filter-open-1440x900.png": {
+    "firstItemTop": 237,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "list-table-1440x900.png": {
+    "firstItemTop": 337,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "list-table-1920x1080.png": {
+    "firstItemTop": 337,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1920x1080"
+  }
+}

@@ -17,8 +17,9 @@ import { calendarWanted, setCalendarWanted } from '../tickets/calendar-mode';
 import { BOARD_HREF } from '../tickets/board-model';
 import { boardApi } from '../api/tickets-board';
 import { foldCounts, NO_COUNTS, countText, type ListCounts } from '../tickets/list-counts';
-import { applyCardFilters, activeCardFilters, NO_CARD_FILTERS, type CardFilters } from '../tickets/list-filters';
-import { filterButton, filterRow } from '../tickets/list-filter-row';
+import { applyCardFilters, NO_CARD_FILTERS, type CardFilters } from '../tickets/list-filters';
+import { cardFilterChips, filterRow } from '../tickets/list-filter-row';
+import { activeChips, filterPanel, filterToggle, FilterPanelController, panelSection, ticketToolbarStyles, type ActiveChip } from '../tickets/list-toolbar';
 import { roleFor, type CardItem } from '../tickets/list-card-model';
 import { lt } from '../tickets/list-text';
 import { ticketListFrameStyles } from '../tickets/list-styles';
@@ -87,6 +88,8 @@ export class TicketsList extends LitElement {
   @state() private filterOpen = false;
   @state() private filters: CardFilters = { ...NO_CARD_FILTERS };
   @state() private compactHeader = false;
+  /** TICKETS-POLISH-2331: the "סינון" panel - Escape, a press outside, the focus in and back */
+  readonly panelCtl = new FilterPanelController(this, () => this.filterOpen, (open) => (this.filterOpen = open));
   private countSeq = 0;
   /** the text last typed into the search box, until the address carries it */
   private pendingQ: string | null = null;
@@ -107,28 +110,26 @@ export class TicketsList extends LitElement {
   private clock = 0;
   private offNames: (() => void) | null = null;
 
-  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, ticketToolbarStyles, css`
     .cgrid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
       gap: var(--dv-gap-lg, 16px);
       align-items: stretch;
-    }
-    .search {
-      min-inline-size: 260px;
     }
     .more {
       display: flex;
       justify-content: center;
       padding-block: 4px;
     }
-    /* NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): below the header (title, departments, scope, state,
-       search, view) the numbers and the cards scroll in their own region - the page itself never scrolls and the controls stay in
-       place. On a tablet and a phone the region is transparent (display: contents) and the page scrolls as before. */
+    /* NOSCROLL-297 + TICKETS-POLISH-2331 (owner rule: a control screen fits the viewport): from a tablet up, below the header (the title row
+       and the ONE toolbar) the numbers and the requests scroll in their own region - the page itself never scrolls and the controls stay
+       in place. In the table view the region does not scroll at all: the table card fills it and scrolls its rows under its sticky head.
+       On a phone the region is transparent (display: contents) and the page scrolls, the header compacting over it. */
     .scr {
       display: contents;
     }
-    @media (min-width: 1024px) {
+    @media (min-width: 768px) {
       :host {
         overflow: hidden;
       }
@@ -137,17 +138,33 @@ export class TicketsList extends LitElement {
         min-block-size: 0;
         box-sizing: border-box;
         padding-block-end: 0;
+        gap: 18px;
       }
       .scr {
         display: flex;
         flex-direction: column;
-        gap: inherit;
+        gap: 18px;
         flex: 1 1 auto;
         min-block-size: 0;
         overflow-y: auto;
         scrollbar-width: thin;
+        scrollbar-color: var(--dv-border-strong) transparent;
         margin-inline: -36px;
         padding: 2px 36px 28px;
+      }
+      .scr.fill {
+        overflow: hidden;
+        padding-block-end: 20px;
+      }
+      .scr.fill > tickets-table {
+        flex: 1 1 auto;
+        min-block-size: 0;
+      }
+    }
+    @media (min-width: 768px) and (max-width: 1023px) {
+      .scr {
+        margin-inline: -24px;
+        padding-inline: 24px;
       }
     }
     .flt {
@@ -161,55 +178,24 @@ export class TicketsList extends LitElement {
       z-index: 40;
       box-shadow: var(--dv-shadow-2);
     }
-    /* FIX2180-295: on a tablet the header keeps clear of the floating corner and its logos (--sw-float-reserve = the pill + the
-       measured logo width), so with the drawer open the state filter's six buttons no longer fit one row (768-820 px): it becomes
-       the phone's two rows of three, a whole row of its own, instead of spilling out of its track */
-    @media (min-width: 768px) and (max-width: 1023px) {
-      .dh-det .stf {
-        order: 1;
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        inline-size: 100%;
-        box-sizing: border-box;
-        border-radius: var(--sw-r-xl);
-      }
-      .dh-det .stf button {
-        padding-inline: 6px;
-      }
+    .qchips {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex: none;
+      margin-inline-start: auto;
     }
     @media (max-width: 767px) {
       .dh-row {
-        grid-template-areas: 't .' 'r r';
-        grid-template-columns: minmax(0, 1fr) var(--sw-float-reserve, 0px);
+        grid-template-areas: 't p .';
+        grid-template-columns: minmax(0, 1fr) auto var(--sw-float-reserve, 0px);
       }
-      .dh-det {
-        gap: 10px;
+      .dh-row .pact {
+        grid-area: p;
       }
-      /* the state filter is two rows of three on a phone (nothing hidden behind a scroll) */
-      .dh-det .stf {
-        order: 1;
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        inline-size: 100%;
-        box-sizing: border-box;
-        border-radius: var(--sw-r-xl);
-      }
-      .dh-det .stf button {
-        padding-inline: 6px;
-      }
-      .dh-det .grow {
-        display: none;
-      }
-      .dh-det .search {
+      .qchips {
         order: 2;
-        flex: 1 1 0;
-        min-inline-size: 0;
-      }
-      .dh-det .newbtn {
-        order: 2;
-      }
-      .dh-det .vsw {
-        order: 2;
+        margin-inline-start: 0;
       }
       .flt {
         inset-block-end: calc(84px + env(safe-area-inset-bottom, 0px));
@@ -241,8 +227,9 @@ export class TicketsList extends LitElement {
 
   /** TKUI4: the large title compacts while the page scrolls (the schedules page's rule: a layer over the title row, never a change of height) */
   private onScroll = () => {
-    // NOSCROLL-297: on a desktop the list scrolls inside its own region (.scr), on a phone / tablet the page itself
-    const compact = Math.max(this.scrollTop, this.renderRoot.querySelector<HTMLElement>('.scr')?.scrollTop ?? 0) > 40;
+    // TICKETS-POLISH-2331: only a scrolling PAGE compacts the header (a phone). From a tablet up the list scrolls in its own region under a
+    // header that never moves, so the toolbar stays usable (it used to fade out while the region scrolled, for no room gained).
+    const compact = this.scrollTop > 40 && !this.filterOpen; // the open sheet keeps its toolbar (and itself) on screen
     if (compact !== this.compactHeader) this.compactHeader = compact;
   };
 
@@ -454,50 +441,86 @@ export class TicketsList extends LitElement {
     }
   };
 
-  private header(): TemplateResult {
+  /** TICKETS-POLISH-2331: every filter that is not at its default, as a removable chip (scope and text have their own controls). */
+  private chips(cards: boolean): ActiveChip[] {
     const f = this.r.filters;
+    const out: ActiveChip[] = [];
+    if (f.status !== NO_FILTERS.status) out.push({ key: 'status', label: lt('tbChipState', { name: filterLabel(f.status) }), remove: () => this.setFilters({ status: NO_FILTERS.status }) });
+    if (f.department) {
+      const d = this.meta?.departments.find((x) => x.id === f.department);
+      out.push({ key: 'department', label: d ? d.name : lt('tbDept'), remove: () => this.setFilters({ department: '' }) });
+    }
+    if (cards) out.push(...cardFilterChips((this.items ?? []) as CardItem[], this.filters, (next) => (this.filters = next)));
+    return out;
+  }
+
+  private resetFilters = (): void => {
+    this.filters = { ...NO_CARD_FILTERS };
+    const f = this.r.filters;
+    if (f.status !== NO_FILTERS.status || f.department) this.setFilters({ status: NO_FILTERS.status, department: '' });
+  };
+
+  /** The "סינון" panel: the state (with its counts), the departments (with theirs), then the card filters (priority, handler, flags). */
+  private panelBody(cards: boolean, withCount: (n: number | undefined) => unknown): TemplateResult {
+    const f = this.r.filters;
+    const c = this.counts;
     const depts = this.meta?.departments ?? [];
-    const showDepts = depts.length > 1 && this.screen !== 'off' && this.screen !== 'forbidden';
+    const total = Object.values(c.departments).reduce((a, x) => a + x, 0);
+    const hasDeptCounts = Object.keys(c.departments).length > 0;
+    return html`
+      ${panelSection(lt('tbState'), html`<div class="fchips stf" role="radiogroup" aria-label=${tt('stateFilter')}>
+        ${STATUS_FILTERS.map((s) => html`<button type="button" class="rc" role="radio" aria-checked=${String(f.status === s)} data-status-filter=${s} @click=${() => this.setFilters({ status: s })}>${filterLabel(s)}${withCount(c.states[s])}</button>`)}
+      </div>`, 'state')}
+      ${depts.length > 1 ? panelSection(lt('tbDept'), html`<div class="fchips" role="group" aria-label=${tt('departmentsGroup')}>
+        <button type="button" class="rc" aria-pressed=${String(!f.department)} data-dept="" @click=${() => this.setFilters({ department: '' })}>${tt('allDepartments')}${hasDeptCounts ? withCount(total) : nothing}</button>
+        ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(f.department === d.id)} data-dept=${d.id} @click=${() => this.setFilters({ department: d.id })}>${bidi(d.name)}${hasDeptCounts ? withCount(c.departments[d.id] ?? 0) : nothing}</button>`)}
+      </div>`, 'department') : nothing}
+      ${cards && this.screen === 'ready' ? filterRow((this.items ?? []) as CardItem[], this.filters, (next) => (this.filters = next)) : nothing}`;
+  }
+
+  /**
+   * TICKETS-POLISH-2331 (design audit 27.10, P1-5): the title row carries the page actions (the view switch, "+ חדשה"); ONE toolbar under it
+   * - the scope, the search, "סינון" (state, departments, priority, handler, flags in its panel) and the chips of what is narrowed now.
+   */
+  private header(): TemplateResult {
     const tools = this.screen === 'ready' || this.screen === 'loading';
     const canCreate = !!this.meta?.can.create;
     const c = this.counts;
-    // UXFIX-A11Y-295: until the counts arrive, an invisible two-digit badge holds the place of each count, so the scope and state
-    // segments do not widen afterwards (on a desktop the widening wrapped the view switch to a second row: CLS 0.37)
+    // UXFIX-A11Y-295: until the counts arrive, an invisible two-digit badge holds the place of each count, so the scope segment does not
+    // widen afterwards
     const countsPending = this.counts === NO_COUNTS;
-    const withDept = (n: number | undefined) => (n === undefined ? (countsPending ? html`<small aria-hidden="true" style="visibility:hidden">00</small>` : nothing) : html`<small>${countText(n)}</small>`);
-    const total = Object.values(c.departments).reduce((a, x) => a + x, 0);
+    const withCount = (n: number | undefined) => (n === undefined ? (countsPending ? html`<small aria-hidden="true" style="visibility:hidden">00</small>` : nothing) : html`<small>${countText(n)}</small>`);
     const cards = this.view !== 'table' || this.cal; // the card filters (priority, handler, flags) also narrow the calendar
-    const active = activeCardFilters(this.filters);
-    // UXFIX-A11Y-295 (UX audit finding 7): the department row and the "new" key arrive with the meta, after the skeleton is on screen -
-    // the header grew by 50 px and pushed the whole skeleton grid down (most of the measured CLS). While the meta is on its way their
-    // places are held by invisible twins of the usual case (several departments, may create); an installation with one department or
-    // without the create right gives the place back once.
+    const chips = this.chips(cards);
+    // UXFIX-A11Y-295: the "new" key arrives with the meta; an invisible twin holds its place meanwhile (no shift of the title row)
     const pending = !this.meta && this.screen === 'loading';
+    const f = this.r.filters;
+    const panel = this.filterOpen ? filterPanel(this.panelBody(cards, withCount), chips.length, this.resetFilters, () => (this.filterOpen = false)) : nothing;
     return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-tickets-header>
       <div class="dh-row">
         <h1 data-tickets-title>${tt('area')}</h1>
-        ${showDepts ? html`<div class="rooms" role="group" aria-label=${tt('departmentsGroup')}>
-          <button type="button" class="rc" aria-pressed=${String(!f.department)} data-dept="" @click=${() => this.setFilters({ department: '' })}>${tt('allDepartments')}${Object.keys(c.departments).length ? withDept(total) : nothing}</button>
-          ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(f.department === d.id)} data-dept=${d.id} @click=${() => this.setFilters({ department: d.id })}>${bidi(d.name)}${Object.keys(c.departments).length ? withDept(c.departments[d.id] ?? 0) : nothing}</button>`)}
-        </div>` : pending ? html`<div class="rooms" aria-hidden="true" data-rooms-pending style="visibility:hidden"><span class="rc">${tt('allDepartments')}</span></div>` : html`<span class="grow"></span>`}
+        ${tools ? html`<div class="pact">
+          ${listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
+          ${pending ? html`<span class="btn primary newbtn" aria-hidden="true" style="visibility:hidden">${tIcon('plus')}<span class="lbl">${tt('newShort')}</span></span>` : nothing}
+          ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new aria-label=${tt('newTitle')} @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}<span class="lbl">${tt('newShort')}</span></button>` : nothing}
+        </div>` : nothing}
       </div>
-      ${tools ? html`<div class="dh-det">
+      ${tools ? html`<div class="dh-det tb" role="group" aria-label=${lt('lfGroup')} data-toolbar>
         <div class="seg sm scope" role="radiogroup" aria-label=${lt('lsScopeGroup')} data-scope-seg>
-          ${this.scopes().map((sc) => html`<button type="button" role="radio" aria-checked=${String(this.r.scope === sc)} data-scope=${sc} @click=${() => writeHref(listHref(sc, f), false)}>${scopeLabel(sc)}${withDept(c.scopes[sc])}</button>`)}
+          ${this.scopes().map((sc) => html`<button type="button" role="radio" aria-checked=${String(this.r.scope === sc)} data-scope=${sc} @click=${() => writeHref(listHref(sc, f), false)}>${scopeLabel(sc)}${withCount(c.scopes[sc])}</button>`)}
         </div>
-        <div class="seg sm stf" role="radiogroup" aria-label=${tt('stateFilter')}>
-          ${STATUS_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.status === s)} data-status-filter=${s} @click=${() => this.setFilters({ status: s })}>${filterLabel(s)}${withDept(c.states[s])}</button>`)}
-        </div>
-        <span class="grow"></span>
-        <tickets-intake-chip @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-intake-chip>
-        ${this.meta?.can.manage ? html`<tickets-inbound-chip manager @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-inbound-chip>` : nothing}
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : lt('lsSearchLong')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
-        ${cards ? filterButton(this.filterOpen, active, () => (this.filterOpen = !this.filterOpen)) : nothing}
-        ${pending ? html`<span class="btn primary newbtn" aria-hidden="true" style="visibility:hidden">${tIcon('plus')}${tt('newShort')}</span>` : nothing}
-        ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
-        ${listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
-      </div>
-      ${cards && this.filterOpen && this.screen === 'ready' ? filterRow((this.items ?? []) as CardItem[], this.filters, (next) => (this.filters = next)) : nothing}` : nothing}
+        <span class="fanchor">
+          ${filterToggle(this.filterOpen, chips.length, () => (this.filterOpen = !this.filterOpen))}
+          ${this.phone ? nothing : panel}
+        </span>
+        ${activeChips(chips, this.resetFilters)}
+        <span class="qchips">
+          <tickets-intake-chip @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-intake-chip>
+          ${this.meta?.can.manage ? html`<tickets-inbound-chip manager @ticket-changed=${() => this.reloadIfNeeded(true)}></tickets-inbound-chip>` : nothing}
+        </span>
+        ${this.phone ? panel : nothing}
+      </div>` : nothing}
     </header>`;
   }
 
@@ -527,7 +550,7 @@ export class TicketsList extends LitElement {
     if (this.view === 'table' && !this.cal) {
       // CR-038 S6b (D24): the table view - its own server-side sort / filters / pages over the same scope, state, department and text
       const f = this.r.filters;
-      return html`<tickets-table .scope=${this.r.scope} .base=${{ status: f.status, department: f.department, q: f.q }} .meta=${this.meta} .hrefOf=${(id: string) => this.hrefOf(id)}
+      return html`<tickets-table ?fill=${!this.phone} .scope=${this.r.scope} .base=${{ status: f.status, department: f.department, q: f.q }} .meta=${this.meta} .hrefOf=${(id: string) => this.hrefOf(id)}
         .picked=${this.r.ticketId} @table-filters=${(e: CustomEvent<Partial<ListFilters>>) => this.setFilters(e.detail as Partial<ListFilters>)}></tickets-table>`;
     }
     const rows = this.items ?? [];
@@ -557,7 +580,7 @@ export class TicketsList extends LitElement {
     const drawerOpen = !!this.r.ticketId && this.screen === 'ready';
     return html`<div class="page" data-screen="tickets-list" data-scope=${this.r.scope}>
       ${this.header()}
-      <div class="scr" data-tickets-scroll @scroll=${this.onScroll}>
+      <div class=${`scr${this.view === 'table' && !this.cal && this.screen === 'ready' ? ' fill' : ''}`} data-tickets-scroll>
         ${this.r.scope === 'mine' && this.screen === 'ready' ? html`<tickets-my-numbers .module=${this.module} .manager=${!!this.meta?.can.manage} .source=${this.items}></tickets-my-numbers>` : nothing}
         ${this.body()}
       </div>
