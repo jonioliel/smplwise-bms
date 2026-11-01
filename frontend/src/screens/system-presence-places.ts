@@ -64,8 +64,10 @@ export class SystemPresencePlaces extends LitElement {
     form .acts { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
     textarea { min-block-size: 64px; resize: vertical; }
     .foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .ok { color: var(--sw-live); font-size: var(--sw-fs-sm); }
+    .ok { color: var(--sw-success-text); font-size: var(--sw-fs-sm); }
     .err { color: var(--sw-danger); font-size: var(--sw-fs-sm); }
+    /* ACCESS-POLISH-2331: why the save button is (not) available - unsaved edits, or the problems that block it */
+    .pending { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     @media (max-width: 480px) { form { grid-template-columns: minmax(0, 1fr); } }
   `, bubbleChrome];
 
@@ -152,6 +154,14 @@ export class SystemPresencePlaces extends LitElement {
     }
   }
 
+  /** ACCESS-POLISH-2331: Escape closes the open editor (the edits stay in the list, unsaved, as with "done"). */
+  private onFormKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      this.open = null;
+    }
+  };
+
   private siteName = (id: string) => this.sites.find((s) => s.id === id)?.name || id;
   private floorName = (id: string | null) => (id ? this.floors.find((f) => f.id === id)?.name ?? id : '');
 
@@ -186,7 +196,7 @@ export class SystemPresencePlaces extends LitElement {
       ${this.editable ? html`<sw-button slot="actions" size="sm" icon="plus" ?disabled=${this.busy || this.sites.length >= 20} data-presence-add="site" @click=${() => this.add('site')}>${pt('add')}</sw-button>` : nothing}
       ${this.sites.length ? html`<ul>${this.sites.map((s) => html`${this.row('site', s.id, s.name, html`<span class="ltr">${Number(s.lat).toFixed(5)}, ${Number(s.lon).toFixed(5)} · ${s.radius_m} m</span>`, problemsOf(problems, 'site', s.id))}
           ${this.open?.kind === 'site' && this.open.id === s.id
-            ? html`<form data-presence-form="site" @submit=${(e: Event) => e.preventDefault()}>
+            ? html`<form data-presence-form="site" @submit=${(e: Event) => e.preventDefault()} @keydown=${this.onFormKey}>
                 <sw-field class="wide" label=${pt('name')}><input maxlength="80" .value=${s.name} data-presence-f="name" @input=${(e: Event) => this.patchSite(s.id, { name: (e.target as HTMLInputElement).value })} /></sw-field>
                 <sw-field label=${pt('lat')}><input type="number" step="0.00001" min="-90" max="90" .value=${String(s.lat)} data-presence-f="lat" @input=${(e: Event) => this.patchSite(s.id, { lat: Number((e.target as HTMLInputElement).value) })} /></sw-field>
                 <sw-field label=${pt('lon')}><input type="number" step="0.00001" min="-180" max="180" .value=${String(s.lon)} data-presence-f="lon" @input=${(e: Event) => this.patchSite(s.id, { lon: Number((e.target as HTMLInputElement).value) })} /></sw-field>
@@ -208,7 +218,7 @@ export class SystemPresencePlaces extends LitElement {
         const meta = [this.siteName(b.site_id), this.floorName(b.floor_id), zone].filter(Boolean).join(' · ');
         return html`${this.row('beacon', b.id, b.name || b.uuid, meta, problemsOf(problems, 'beacon', b.id))}
           ${this.open?.kind === 'beacon' && this.open.id === b.id
-            ? html`<form data-presence-form="beacon" @submit=${(e: Event) => e.preventDefault()}>
+            ? html`<form data-presence-form="beacon" @submit=${(e: Event) => e.preventDefault()} @keydown=${this.onFormKey}>
                 <sw-field label=${pt('name')}><input maxlength="80" .value=${b.name} data-presence-f="name" @input=${(e: Event) => this.patchBeacon(b.id, { name: (e.target as HTMLInputElement).value })} /></sw-field>
                 ${this.siteSelect(b.site_id, (v) => this.patchBeacon(b.id, { site_id: v }))}
                 <sw-field class="wide" label=${pt('uuid')}><input class="ltr" maxlength="36" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" .value=${b.uuid} data-presence-f="uuid" @input=${(e: Event) => this.patchBeacon(b.id, { uuid: (e.target as HTMLInputElement).value })} /></sw-field>
@@ -234,7 +244,7 @@ export class SystemPresencePlaces extends LitElement {
         const meta = [this.siteName(w.site_id), this.floorName(w.floor_id), pt('ssidCount', { n: w.ssid_hashes.length + pending })].filter(Boolean).join(' · ');
         return html`${this.row('wifi', w.id, w.name, meta, problemsOf(problems, 'wifi', w.id))}
           ${this.open?.kind === 'wifi' && this.open.id === w.id
-            ? html`<form data-presence-form="wifi" @submit=${(e: Event) => e.preventDefault()}>
+            ? html`<form data-presence-form="wifi" @submit=${(e: Event) => e.preventDefault()} @keydown=${this.onFormKey}>
                 <sw-field class="wide" label=${pt('name')}><input maxlength="80" .value=${w.name} data-presence-f="name" @input=${(e: Event) => this.patchWifi(w.id, { name: (e.target as HTMLInputElement).value })} /></sw-field>
                 ${this.siteSelect(w.site_id, (v) => this.patchWifi(w.id, { site_id: v }))}
                 ${this.floorSelect(w.floor_id, (v) => this.patchWifi(w.id, { floor_id: v }))}
@@ -254,7 +264,13 @@ export class SystemPresencePlaces extends LitElement {
       ${this.editable
         ? html`<div class="foot">
             <sw-button variant="primary" size="sm" icon="check" data-presence-places-save ?disabled=${!this.dirty || this.busy || problems.length > 0} @click=${() => void this.save()}>${pt('save')}</sw-button>
-            ${this.message ? html`<span class="ok" role="status" data-presence-places-message>${this.message}</span>` : nothing}
+            ${this.message
+              ? html`<span class="ok" role="status" data-presence-places-message>${this.message}</span>`
+              : problems.length
+                ? html`<span class="err" data-presence-places-state="problems">${problems.length === 1 ? 'בעיה אחת מונעת שמירה - היא מסומנת ברשימה' : `${problems.length} בעיות מונעות שמירה - הן מסומנות ברשימה`}</span>`
+                : this.dirty
+                  ? html`<span class="pending" data-presence-places-state="dirty">יש שינויים שלא נשמרו</span>`
+                  : nothing}
             ${this.error ? html`<span class="err" role="alert" data-presence-places-error>${this.error}</span>` : nothing}
           </div>`
         : nothing}`;

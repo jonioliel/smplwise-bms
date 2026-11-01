@@ -5,6 +5,7 @@ import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-card';
 import '../components/sw-table';
+import '../components/sw-state-panel';
 import './system-service-identity'; // USR2 P3: the service-identity card (local channel, system.configure)
 import type { TableColumn } from '../components/sw-table';
 import { ApiError, apiUrl, del, describeError, get, patch, post, put } from '../api/client';
@@ -231,11 +232,66 @@ export class SystemLocalUsers extends LitElement {
     .full {
       grid-column: 1 / -1;
     }
+    /* ACCESS-POLISH-2331: a checkbox row (the passkey-first switch) - a checkbox is never a 100 % wide, 40 px tall field */
+    label.check {
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text);
+    }
+    label.check input {
+      inline-size: 20px;
+      min-block-size: 20px;
+      block-size: 20px;
+      flex: none;
+      margin: 0;
+    }
+    input:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    /* the selected user's and the create form's header: the title, and a close action at the far end */
+    .head {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .head .cell {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .head strong {
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading);
+    }
+    /* a destructive action stands apart from the everyday ones */
+    .actions .end {
+      margin-inline-start: auto;
+    }
+    .sep {
+      grid-column: 1 / -1;
+      border-block-start: 1px solid var(--sw-border);
+    }
   `;
+
+  @state() private narrow = false;
+  private narrowMq: MediaQueryList | null = null;
+  private onNarrow = () => (this.narrow = !!this.narrowMq?.matches);
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.narrowMq = window.matchMedia('(max-width: 767px)');
+    this.narrowMq.addEventListener('change', this.onNarrow);
+    this.onNarrow();
     void this.load();
+  }
+
+  disconnectedCallback(): void {
+    this.narrowMq?.removeEventListener('change', this.onNarrow);
+    super.disconnectedCallback();
   }
 
   private async load() {
@@ -463,6 +519,8 @@ export class SystemLocalUsers extends LitElement {
     const up = (k: keyof typeof f) => (e: Event) => (this.form = { ...this.form, [k]: (e.target as HTMLInputElement).value });
     return html`<sw-card flush data-local-create>
       <form @submit=${this.create} novalidate>
+        <div class="head"><div class="cell"><strong>${lit('add')}</strong></div>
+          <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${lit('cancel')} @click=${() => (this.creating = false)}></sw-button></div>
         <label>${lit('colUsername')}<input class="ltr" .value=${f.username} @input=${up('username')} autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="32" required /></label>
         <label>${lit('displayName')}<input .value=${f.display_name} @input=${up('display_name')} maxlength="60" required /></label>
         <label>${lit('role')}<select .value=${f.role_id} @change=${up('role_id')} data-local-role>
@@ -532,10 +590,15 @@ export class SystemLocalUsers extends LitElement {
     const edit = this.roleEdit;
     return html`<sw-card flush data-local-user=${u.id}>
       <div class="panel">
-        <div class="full cell">
-          <strong>${u.display_name}</strong>
-          <span class="muted">${secondaryIdentity(u.display_name, u.username) ? html`<bdi>${u.username}</bdi> · ` : nothing}${u.role_name ?? '—'} · ${u.scope_name ?? '—'} · ${lit('sessions')}: ${u.sessions}</span>
-          ${u.admin ? html`<span class="muted">${lit('adminNote')}</span>` : nothing}
+        <div class="head">
+          <div class="cell">
+            <strong>${u.display_name}</strong>
+            <span class="muted">${secondaryIdentity(u.display_name, u.username) ? html`<bdi>${u.username}</bdi> · ` : nothing}${u.role_name ?? '—'} · ${u.scope_name ?? '—'} · ${lit('sessions')}: ${u.sessions}</span>
+            <span class="muted" data-local-user-meta>${lit('colLast')}: ${u.last_sign_in_at ? fmtWhen(u.last_sign_in_at) : lit('never')} · ${lit('colFactor')}: ${u.second_factor ? lit('factorOn') : lit('factorOff')}</span>
+            ${u.admin ? html`<span class="muted">${lit('adminNote')}</span>` : nothing}
+          </div>
+          ${this.statusBadge(u)}
+          <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${lit('close')} data-local-user-close @click=${() => { this.selected = null; this.roleEdit = null; }}></sw-button>
         </div>
         ${manage
           ? html`<div class="actions">
@@ -549,8 +612,9 @@ export class SystemLocalUsers extends LitElement {
               <sw-button @click=${() => this.simple(u, 'sessions/revoke')} ?disabled=${this.busy || !u.sessions}>${lit('endSessions')}</sw-button>
               <sw-button @click=${() => this.setActive(u, !u.active)} ?disabled=${this.busy}>${u.active ? lit('disable') : lit('enable')}</sw-button>
               <sw-button @click=${() => (this.roleEdit = { role_id: u.role_id ?? 'viewer', scope: `${u.scope_type ?? 'installation'}:${u.scope_id ?? '*'}` })} ?disabled=${this.busy}>${lit('changeRole')}</sw-button>
-              <sw-button variant="danger" @click=${() => this.removeUser(u)} ?disabled=${this.busy}>${lit('remove')}</sw-button>
+              <sw-button class="end" variant="danger" @click=${() => this.removeUser(u)} ?disabled=${this.busy}>${lit('remove')}</sw-button>
             </div>
+            <div class="sep" role="presentation"></div>
             <label>${lit('resetMode')}<select .value=${u.reset_mode} ?disabled=${this.busy || u.admin} @change=${(e: Event) => this.setResetMode(u, (e.target as HTMLSelectElement).value)}>
               <option value="manager_only">${lit('reset_manager_only')}</option>
               <option value="self_service">${lit('reset_self_service')}</option>
@@ -596,7 +660,11 @@ export class SystemLocalUsers extends LitElement {
 
   render() {
     const d = this.data;
-    if (!d) return html`<div class="stack">${this.error ? html`<div class="note err" role="alert">${this.error}</div>` : html`<div class="muted">…</div>`}</div>`;
+    if (!d) {
+      return html`<div class="stack">${this.error
+        ? html`<sw-state-panel state="error" compact hint=${this.error} actionLabel="נסה שוב" data-local-load-error @action=${() => void this.load()}></sw-state-panel>`
+        : html`<sw-state-panel state="loading" compact data-local-loading></sw-state-panel>`}</div>`;
+    }
     const row = (x: Record<string, unknown>) => x as unknown as LocalUser;
     const columns: TableColumn[] = [
       {
@@ -620,6 +688,8 @@ export class SystemLocalUsers extends LitElement {
           : nothing}</span>`,
       },
     ];
+    // ACCESS-POLISH-2331: a phone stacks every row as a card - the last sign-in and the factor are in the selected user's panel
+    const shown = this.narrow ? columns.filter((c) => c.key !== 'last' && c.key !== 'factor') : columns;
     const sel = d.users.find((u) => u.id === this.selected) ?? null;
     return html`<div class="stack" data-local-users>
       <div class="bar">
@@ -639,12 +709,12 @@ export class SystemLocalUsers extends LitElement {
       ${this.renderSent()}
       ${this.creating && d.enabled ? this.renderCreate() : nothing}
       ${d.users.length
-        ? html`<sw-table .columns=${columns} .rows=${d.users as unknown as Record<string, unknown>[]} rowKey="id" .selected=${this.selected}
+        ? html`<sw-table .columns=${shown} .rows=${d.users as unknown as Record<string, unknown>[]} rowKey="id" .selected=${this.selected}
             @row-select=${(e: CustomEvent<{ id: string }>) => {
               this.selected = e.detail.id;
               this.roleEdit = null;
             }}></sw-table>`
-        : html`<div class="muted" data-local-empty>${lit('empty')}</div>`}
+        : html`<sw-state-panel state="empty" compact icon="users" hint=${lit('empty')} data-local-empty></sw-state-panel>`}
       ${sel ? this.renderSelected(sel) : nothing}
       ${d.can_manage && d.enabled ? this.renderPublicUrl(d) : nothing}
     </div>`;

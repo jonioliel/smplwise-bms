@@ -1,0 +1,252 @@
+{
+ "access-users-1180": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-users-1024": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-user-drawer-1180": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-user-drawer-1024": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-user-wizard-1180": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-user-wizard-1024": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-forbidden-1180": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-forbidden-1024": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-users-empty-1180": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-users-empty-1024": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-groups-1180": {
+  "mainScroll": 225,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-groups-1024": {
+  "mainScroll": 333,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-group-drawer-1180": {
+  "mainScroll": 225,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-group-drawer-1024": {
+  "mainScroll": 333,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-roles-1180": {
+  "mainScroll": 546,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-roles-1024": {
+  "mainScroll": 500,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-status-1180": {
+  "mainScroll": 161,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-status-1024": {
+  "mainScroll": 269,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-health-1180": {
+  "mainScroll": 161,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-health-1024": {
+  "mainScroll": 269,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-audit-1180": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-audit-1024": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-groups-1180": {
+  "mainScroll": 27,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-groups-1024": {
+  "mainScroll": 135,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-policy-1180": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-policy-1024": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-messaging-1180": {
+  "mainScroll": 1411,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-messaging-1024": {
+  "mainScroll": 1502,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "diag-parity-display-1180": {
+  "mainScroll": 2380,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "diag-parity-display-1024": {
+  "mainScroll": 2450,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "external-1180": {
+  "mainScroll": 982,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "external-1024": {
+  "mainScroll": 1149,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "external-empty-1180": {
+  "mainScroll": 290,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "external-empty-1024": {
+  "mainScroll": 417,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "presence-places-1180": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "presence-places-1024": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-role-dialog-1180": {
+  "mainScroll": 606,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-role-dialog-1024": {
+  "mainScroll": 560,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-effective-idle-1180": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-effective-idle-1024": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-effective-1180": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-effective-1024": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-audit-1180": {
+  "mainScroll": 476,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-audit-1024": {
+  "mainScroll": 584,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "local-users-1180": {
+  "mainScroll": 22,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "local-users-1024": {
+  "mainScroll": 130,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "local-user-detail-1180": {
+  "mainScroll": 333,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "local-user-detail-1024": {
+  "mainScroll": 441,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "local-user-add-1180": {
+  "mainScroll": 635,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "local-user-add-1024": {
+  "mainScroll": 743,
+  "docScroll": 0,
+  "sideways": 0
+ }
+}
