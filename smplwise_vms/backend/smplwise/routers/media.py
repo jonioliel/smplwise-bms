@@ -156,9 +156,38 @@ def ensure_camera_stream(settings: Settings, cam: sqlite3.Row, profile: str) -> 
             raise ApiError(409, "live_not_available", "למצלמה הזו אין כרגע וידאו חי; מוצגת תמונה מתעדכנת.", details={"fallback": "still", "recorder_id": cam["recorder_id"]})
         client.ensure_stream(name, found[1], check=frigate_restream.refuse_foreign(found[0]))
         return name
-    src = vendor_io.LiveSources().url(rs, cam["recorder_id"], cam["channel"], profile) if vendor_io.handles(rs) else g2.hikvision_rtsp_url(rs, cam["channel"], profile)
+    if not vendor_io.handles(rs):
+        client.ensure_stream(name, g2.hikvision_rtsp_url(rs, cam["channel"], profile))
+        return name
+    try:
+        src = vendor_io.LiveSources().url(rs, cam["recorder_id"], cam["channel"], profile)
+    except ApiError as exc:
+        if not _keep_existing_stream(client, name, exc):
+            raise
+        return name
     client.ensure_stream(name, src)
     return name
+
+
+# AZIA-LIVE-2331: device reads that fail for a moment (the NVR's HTTP server busy or slow while many tiles open). A disabled
+# recorder, a missing connection, a refused login or a changed TLS certificate are not here: those still refuse the socket.
+LIVE_SOURCE_TRANSIENT = frozenset({"source_unavailable", "source_timeout", "deadline_exceeded", "nvr_busy", "source_invalid", "source_too_large"})
+
+
+def _keep_existing_stream(client: g2.Go2rtc, name: str, exc: ApiError) -> bool:
+    """A Provision live source could not be rebuilt from the device (transient read failure): when go2rtc already holds our
+    stream with a source (written by the stream sync or an earlier viewer), the viewer gets that stream instead of a refused
+    socket. Nothing is written to go2rtc here."""
+    if exc.code not in LIVE_SOURCE_TRANSIENT:
+        return False
+    try:
+        existing = client.list_streams().get(name)
+    except ApiError:
+        return False
+    if existing is None or not existing.sources:
+        return False
+    log.warning("live source for %s not re-read from the recorder (%s); the existing go2rtc stream is used", name, exc.code)
+    return True
 
 
 @router.post("/media/streams/sync")
