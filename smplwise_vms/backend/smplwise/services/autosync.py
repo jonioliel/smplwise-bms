@@ -248,6 +248,10 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
     gone = [g2.stream_name(r["recorder_id"], r["channel"], p) for r in conn.execute(
         f"SELECT recorder_id, channel FROM cameras WHERE recorder_id IN ({','.join('?' * len(removed_ids))})", removed_ids).fetchall()
         for p in ("sub", "main")] if removed_ids else []
+    from . import live_codec
+
+    # LIVE-H265-2341: the H.264 variants a viewer had go2rtc transcode go with their camera's streams (exact names, our namespace)
+    gone += [f"{n}{live_codec.TRANSCODE_SUFFIX}" for n in gone]
     from .recorders import vendor_io
 
     sources = vendor_io.LiveSources()  # CR-025: a Provision recorder's source path comes from the device
