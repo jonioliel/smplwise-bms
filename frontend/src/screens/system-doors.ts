@@ -89,6 +89,48 @@ const cardCss = css`
     align-items: center;
     flex-wrap: wrap;
   }
+  /* MEDIA-POLISH-2331: the cards of one element stack with the settings' own rhythm (no inline margins on the cards) */
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sw-s-3);
+  }
+  /* one caption above a list of switches instead of the same label repeated beside every switch (each switch keeps its own name) */
+  .colhead {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sw-s-3);
+    padding-block: var(--sw-s-1);
+    border-block-end: 1px solid var(--sw-border);
+    font-size: var(--sw-fs-xs);
+    color: var(--sw-text-3);
+  }
+  .tools input[type='search'] {
+    flex: 0 1 280px;
+    min-inline-size: 0;
+  }
+  .row select {
+    max-inline-size: min(100%, 320px);
+  }
+  /* touch: the fields are 44 px targets */
+  @media (pointer: coarse) {
+    input,
+    select {
+      min-block-size: 44px;
+    }
+  }
+  @media (max-width: 767px) {
+    .tools input[type='search'] {
+      flex: 1 1 100%;
+    }
+    .ctl {
+      inline-size: 100%;
+    }
+    .ctl select {
+      flex: 1 1 auto;
+      max-inline-size: none;
+    }
+  }
 `;
 
 type Pending =
@@ -146,7 +188,7 @@ export class SwDoorGrants extends LitElement {
     const other = otherGrants(r);
     return html`<div class="row" data-door-grant=${`${r.kind}:${r.id}`}>
       <div class="who"><span class="name">${r.name}</span>${other ? html`<span class="sub">${other}</span>` : nothing}</div>
-      <sw-toggle label="רשאי לפתוח דלתות" .checked=${live(r.granted)} ?disabled=${this.busy || !this.data?.can_manage_subjects || (!r.active && !r.granted)}
+      <sw-toggle label=${`רשאי לפתוח דלתות: ${r.name}`} labelHidden .checked=${live(r.granted)} ?disabled=${this.busy || !this.data?.can_manage_subjects || (!r.active && !r.granted)}
         @change=${(e: CustomEvent<{ checked: boolean }>) => { this.pending = { kind: 'subject', row: r, enabled: e.detail.checked }; this.requestUpdate(); }}></sw-toggle>
     </div>`;
   }
@@ -157,7 +199,7 @@ export class SwDoorGrants extends LitElement {
     }
     return html`<div class="row" data-door-role=${r.id}>
       <div class="who"><span class="name">${r.name}</span><span class="sub">תפקיד מותאם</span></div>
-      <sw-toggle label="כולל פתיחת דלתות" .checked=${live(r.includes)} ?disabled=${this.busy || !r.editable}
+      <sw-toggle label=${`כולל פתיחת דלתות: ${r.name}`} labelHidden .checked=${live(r.includes)} ?disabled=${this.busy || !r.editable}
         @change=${(e: CustomEvent<{ checked: boolean }>) => { this.pending = { kind: 'role', role: r, enabled: e.detail.checked }; this.requestUpdate(); }}></sw-toggle>
     </div>`;
   }
@@ -176,8 +218,10 @@ export class SwDoorGrants extends LitElement {
         <input type="search" placeholder="חיפוש לפי שם" aria-label="חיפוש לפי שם" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
         <span class="sub">רק דלתות מסוימות: שיוך התפקיד "פותח דלתות" לעמדה, בלשונית המשתמשים או הקבוצות</span>
       </div>
-      ${subjects.length ? subjects.map((r) => this.subjectRow(r)) : html`<sw-state-panel icon="door" state="empty" heading="אין משתמשים או קבוצות"></sw-state-panel>`}
-      ${d.can_manage_roles ? html`<h3>תפקידים</h3>${d.roles.map((r) => this.roleRow(r))}` : nothing}
+      ${subjects.length
+        ? html`<div class="colhead" aria-hidden="true"><span>שם</span><span>רשאי לפתוח דלתות</span></div>${subjects.map((r) => this.subjectRow(r))}`
+        : html`<sw-state-panel icon="door" state="empty" heading="אין משתמשים או קבוצות"></sw-state-panel>`}
+      ${d.can_manage_roles ? html`<h3>תפקידים</h3><div class="colhead" aria-hidden="true"><span>תפקיד</span><span>כולל פתיחת דלתות</span></div>${d.roles.map((r) => this.roleRow(r))}` : nothing}
       ${p
         ? html`<sw-dialog open heading="פתיחת דלתות" data-door-grant-confirm @close=${() => { this.pending = null; }}>
             <p>${p.kind === 'subject' ? grantQuestion(pname, p.enabled) : roleQuestion(pname, p.enabled)}</p>
@@ -255,7 +299,7 @@ export class SwDoorSetup extends LitElement {
   /** CR-033 D8 + D6: the editor block (default blocked) and the scheduled lock jobs that will never work. */
   private editorCard(st: DoorSettings) {
     const next: DoorSettings['editor_block'] = st.editor_block === 'blocked' ? 'allowed' : 'blocked';
-    return html`<sw-card heading="פריטים שפותחים דלתות" subheading="עורכי האוטומציות, הסקריפטים, הסצנות והתזמונים · הבדיקה נעשית בשרת בעת שמירה" data-door-editor-card style="margin-block-start: var(--sw-s-3)">
+    return html`<sw-card heading="פריטים שפותחים דלתות" subheading="עורכי האוטומציות, הסקריפטים, הסצנות והתזמונים · הבדיקה נעשית בשרת בעת שמירה" data-door-editor-card>
       <div class="row" data-door-editor-block>
         <div class="who"><span class="name">${editorBlockLabel(st.editor_block)}</span><span class="sub">${editorBlockHint(st)}</span></div>
         <sw-button size="sm" data-door-editor-switch ?disabled=${this.busy || (next === 'allowed' && !st.editor_allowed_available)} @click=${() => { this.confirmEditor = next; }}>${next === 'allowed' ? 'לאפשר' : 'לחסום'}</sw-button>
@@ -280,7 +324,7 @@ export class SwDoorSetup extends LitElement {
     const m = this.map;
     const places = placementOptions(m);
     const suggested = m.locks.filter((l) => l.suggestion).length;
-    return html`
+    return html`<div class="stack">
       ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       <sw-card heading="מיקום תחנות" subheading="שיוך תחנה לאתר או למבנה: הרשאת פתיחה באתר או במבנה חלה גם על התחנות שבו" data-door-placement-card>
         ${m.stations.length
@@ -292,11 +336,12 @@ export class SwDoorSetup extends LitElement {
             </div>`)
           : html`<sw-state-panel icon="door" state="empty" heading="אין תחנות" hint=${m.has_copy ? 'WisKey לא מסר תחנות.' : 'נתוני WisKey אינם זמינים כרגע.'}></sw-state-panel>`}
       </sw-card>
-      <sw-card heading="שיוך דלתות" subheading="לכל מנעול אינטרקום: התחנה והממסר שהוא פותח · שיוך מפורש בלבד, לא לפי שם" data-door-map-card style="margin-block-start: var(--sw-s-3)">
+      <sw-card heading="שיוך דלתות" subheading="לכל מנעול אינטרקום: התחנה והממסר שהוא פותח · שיוך מפורש בלבד, לא לפי שם" data-door-map-card>
         ${suggested ? html`<div class="tools"><sw-button size="sm" data-door-map-apply ?disabled=${this.busy} @click=${() => this.run(() => applyDoorSuggestions())}>אישור ${suggested} הצעות חד-משמעיות</sw-button></div>` : nothing}
         ${m.locks.length ? m.locks.map((l) => this.lockRow(m, l)) : html`<sw-state-panel icon="door" state="empty" heading="אין מנעולי אינטרקום"></sw-state-panel>`}
       </sw-card>
-      ${this.settings ? this.editorCard(this.settings) : nothing}`;
+      ${this.settings ? this.editorCard(this.settings) : nothing}
+    </div>`;
   }
 }
 

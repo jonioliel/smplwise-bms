@@ -129,6 +129,112 @@ export class MultimediaPlayers extends LitElement {
       box-shadow: none;
       border: 0;
     }
+    /* MEDIA-POLISH-2331: the room chips show where the keyboard is (the shared chip has no focus ring) */
+    .rc:focus-visible {
+      outline: 2px solid var(--dv-focus);
+      outline-offset: 2px;
+    }
+    /* the loading skeleton: one placeholder card per slot, in the card's own geometry */
+    .skc {
+      display: grid;
+      grid-template-columns: var(--mm-cover-size) minmax(0, 1fr) auto;
+      gap: var(--sw-s-3) var(--sw-s-4);
+      align-items: center;
+      padding: var(--sw-s-3) var(--sw-s-4) var(--sw-s-3) var(--sw-s-3);
+    }
+    .skc .cv {
+      inline-size: var(--mm-cover-size);
+      block-size: var(--mm-cover-size);
+      border-radius: var(--mm-cover-radius);
+    }
+    .skc .tx {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-s-2);
+    }
+    .skc .l1 {
+      block-size: 16px;
+      inline-size: 55%;
+    }
+    .skc .l2 {
+      block-size: 12px;
+      inline-size: 40%;
+    }
+    .skc .kn {
+      inline-size: 50px;
+      block-size: 50px;
+      border-radius: 50%;
+    }
+    .skc .bar {
+      grid-column: 1 / -1;
+      block-size: 40px;
+      border-radius: var(--sw-r-pill);
+    }
+    .dlg-acts {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--sw-s-2);
+      padding-block-start: var(--sw-s-2);
+    }
+    /* MEDIA-POLISH-2331 (owner rule: a control screen never scrolls on a desktop). Below 1024 px wide - or on a window too short to
+       hold the header and a row of cards - the region is transparent (display: contents) and the page scrolls exactly as before, with
+       the compacting header. From 1024 x 560 the page takes the screen's height: the header (title, rooms, floors, state filter,
+       search) and the edit bar stay in place and only the cards region scrolls, inside its own box. */
+    .scr {
+      display: contents;
+    }
+    @media (min-width: 1024px) and (min-height: 560px) {
+      :host {
+        overflow: hidden;
+      }
+      .page {
+        block-size: 100%;
+        min-block-size: 0;
+        padding-block-end: 0;
+        gap: var(--sw-s-4);
+      }
+      .scr {
+        display: block;
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-gutter: stable;
+        /* the region spans the page's side padding, so its scrollbar sits at the screen's edge and a focus ring is never clipped */
+        margin-inline: -36px;
+        padding: var(--sw-s-1) 36px var(--sw-s-8);
+      }
+      /* scrolled: the cards slide out under a soft fade instead of a hard cut against the filters */
+      .scr.scrolled {
+        -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 var(--sw-s-5));
+        mask-image: linear-gradient(180deg, transparent 0, #000 var(--sw-s-5));
+      }
+    }
+    @media (min-width: 1100px) and (min-height: 560px) {
+      /* the editor: two panes that scroll on their own; the settings pane and the edit bar never leave the screen */
+      .scr.editing {
+        overflow: hidden;
+        padding-block-end: var(--sw-s-4);
+      }
+      .scr.editing .edit-layout {
+        block-size: 100%;
+        align-items: stretch;
+      }
+      .scr.editing .edit-side {
+        position: static;
+        max-block-size: none;
+        min-block-size: 0;
+      }
+      .scr.editing .edit-cards {
+        min-block-size: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        padding: var(--sw-s-1);
+      }
+    }
   `];
 
   /** The hero's player (bubble skin): the first that plays and is not a member, else the first paused, else none. */
@@ -332,11 +438,24 @@ export class MultimediaPlayers extends LitElement {
     }, 950);
   }
 
+  /** The page scroll (phone, narrow or short windows): the header compacts as before. */
   private onScroll = () => {
     const y = this.scrollTop;
     if (!this.compactHeader && y > 60) this.compactHeader = true;
     else if (this.compactHeader && y < 12) this.compactHeader = false;
   };
+
+  /** MEDIA-POLISH-2331: the cards region's own scroll (a desktop that fits the screen). The header never leaves the screen there, so it
+   * stays whole (its filters keep working); the region only fades its top edge once the cards slide under it. */
+  private onRegionScroll = (e: Event) => {
+    const el = e.currentTarget as HTMLElement;
+    el.classList.toggle('scrolled', el.scrollTop > 2);
+  };
+
+  private scrollHome() {
+    this.scrollTo({ top: 0 });
+    this.renderRoot.querySelector<HTMLElement>('.scr')?.scrollTo({ top: 0 });
+  }
 
   // ------------------------------------------------------------------------------------------------ the panel
 
@@ -369,7 +488,7 @@ export class MultimediaPlayers extends LitElement {
       p.set('edit', '1');
       replaceRoute(PATH, p);
     }
-    this.scrollTo({ top: 0 });
+    this.scrollHome();
   }
 
   private beginDraft() {
@@ -555,7 +674,7 @@ export class MultimediaPlayers extends LitElement {
   };
 
   private skeleton(): TemplateResult {
-    const card = html`<div class="glass" style="display:grid;grid-template-columns:var(--mm-cover-size) minmax(0,1fr) auto;gap:12px 14px;align-items:center;padding:10px 14px 12px 10px"><span class="skl" style="inline-size:var(--mm-cover-size);block-size:var(--mm-cover-size);border-radius:var(--mm-cover-radius)"></span><div style="display:flex;flex-direction:column;gap:8px"><span class="skl" style="block-size:16px;inline-size:55%"></span><span class="skl" style="block-size:12px;inline-size:40%"></span></div><span class="skl" style="inline-size:50px;block-size:50px;border-radius:50%"></span><span class="skl" style="grid-column:1 / -1;block-size:40px;border-radius:999px"></span></div>`;
+    const card = html`<div class="glass skc" aria-hidden="true"><span class="skl cv"></span><div class="tx"><span class="skl l1"></span><span class="skl l2"></span></div><span class="skl kn"></span><span class="skl bar"></span></div>`;
     return html`<div data-mm-state="loading" aria-busy="true"><div class="pgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => card)}</div></div>`;
   }
 
@@ -580,7 +699,7 @@ export class MultimediaPlayers extends LitElement {
     if (!c) return html`<sw-dialog data-mm-confirm="closed"></sw-dialog>`;
     const reset = c === 'reset';
     return html`<sw-dialog open heading=${reset ? 'להחזיר את מסך הנגנים לברירת המחדל לכולם?' : 'לבטל את השינויים?'} data-mm-confirm=${c} @close=${() => (this.confirm = null)}>
-      <div style="display:flex;justify-content:flex-end;gap:8px;padding-block-start:6px">
+      <div class="dlg-acts">
         <sw-button data-mm-confirm-no autofocus @click=${() => (this.confirm = null)}>${reset ? 'ביטול' : 'המשך עריכה'}</sw-button>
         <sw-button variant="danger" data-mm-confirm-yes @click=${() => { if (reset) { this.confirm = null; void this.save(true); } else this.leaveEdit(); }}>${reset ? 'החזר' : 'בטל שינויים'}</sw-button>
       </div></sw-dialog>`;
@@ -607,12 +726,15 @@ export class MultimediaPlayers extends LitElement {
   }
 
   render() {
+    const editing = this.editing && !!this.draft;
     return html`<div class="page" data-screen="multimedia-players">
       ${this.header()}
-      ${this.editing && this.draft
-        ? html`<div class="editing-stack">${this.editBar()}</div>
-          <div class="edit-layout"><multimedia-edit-panel class="edit-side" simple heading="נגנים ורמקולים" .draft=${this.draft} .devices=${asLayoutDevices(this.devices)} scope="all" .floors=${floorsOf(asLayoutDevices(this.devices), this.draft).map((f) => (f.id === NO_FLOOR ? { ...f, name: UNPLACED_LABEL } : f))} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${this.body()}</div></div>`
-        : this.body()}
+      ${editing ? html`<div class="editing-stack">${this.editBar()}</div>` : nothing}
+      <div class=${classMap({ scr: true, editing })} data-mm-region @scroll=${this.onRegionScroll}>
+        ${editing
+          ? html`<div class="edit-layout"><multimedia-edit-panel class="edit-side" simple heading="נגנים ורמקולים" .draft=${this.draft!} .devices=${asLayoutDevices(this.devices)} scope="all" .floors=${floorsOf(asLayoutDevices(this.devices), this.draft!).map((f) => (f.id === NO_FLOOR ? { ...f, name: UNPLACED_LABEL } : f))} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${this.body()}</div></div>`
+          : this.body()}
+      </div>
     </div>
     <media-group-dialog @group-done=${() => void this.load()}></media-group-dialog>
     ${this.confirmDialog()}

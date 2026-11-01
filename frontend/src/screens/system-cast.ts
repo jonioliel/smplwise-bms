@@ -126,27 +126,66 @@ export class SystemCast extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-sm);
     }
+    /* MEDIA-POLISH-2331: the error stays in view at the top while the person scrolls (a save that failed far down the screens list
+       used to report above the first card, out of sight); the "נשמר" note floats at the bottom of the window, where it is seen
+       whichever row was changed */
     .err {
+      position: sticky;
+      inset-block-start: var(--sw-s-2);
+      z-index: 5;
       padding: 10px 12px;
       border-radius: var(--sw-r-md);
       background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface));
+      border: 1px solid color-mix(in srgb, var(--sw-danger) 30%, transparent);
+      box-shadow: var(--sw-shadow-1);
       color: var(--sw-danger);
       font-size: var(--sw-fs-sm);
     }
     .toast {
-      padding: 8px 12px;
-      border-radius: var(--sw-r-md);
-      background: color-mix(in srgb, var(--sw-live) 12%, var(--sw-surface));
+      position: fixed;
+      z-index: 60;
+      inset-inline: 0;
+      inset-block-end: var(--sw-s-6);
+      margin-inline: auto;
+      inline-size: max-content;
+      max-inline-size: calc(100% - var(--sw-s-6));
+      padding: var(--sw-s-2) var(--sw-s-4);
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-toast-bg, var(--sw-surface));
+      color: var(--sw-toast-text, var(--sw-text));
+      box-shadow: var(--sw-shadow-3);
       font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+    }
+    input:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    /* the screens table: ONE grid; the header and every row share its columns (subgrid). Each row used to be a grid of its own with
+       auto columns, so the header labels and the controls under them never lined up. */
+    .sgrid {
+      display: grid;
+      grid-template-columns: minmax(150px, 1.4fr) repeat(6, auto);
+      column-gap: 14px;
+      margin-block-start: var(--sw-s-2);
     }
     .scr {
+      grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: minmax(150px, 1.4fr) auto auto auto auto auto auto;
-      gap: 8px 14px;
+      grid-template-columns: subgrid;
+      row-gap: 8px;
       align-items: center;
       padding: 10px 0;
       border-block-end: 1px solid var(--sw-border);
       font-size: var(--sw-fs-sm);
+    }
+    .scr:last-child {
+      border-block-end: 0;
+    }
+    .scr .wide {
+      grid-column: 1 / -1;
+      justify-self: start;
     }
     .scr.head {
       font-size: var(--sw-fs-xs);
@@ -181,11 +220,23 @@ export class SystemCast extends LitElement {
       border: 1px dashed var(--sw-border-strong);
       border-radius: var(--sw-r-md);
     }
+    @media (pointer: coarse) {
+      input[type='text'],
+      input[type='number'],
+      select {
+        min-block-size: 44px;
+      }
+    }
+    @media (max-width: 767px) {
+      .toast {
+        inset-block-end: calc(var(--sw-bottomnav-h, 0px) + var(--sw-s-3));
+      }
+    }
     @media (max-width: 860px) {
       .scr.head {
         display: none;
       }
-      .scr {
+      .sgrid {
         grid-template-columns: 1fr 1fr;
       }
       .scr .nm {
@@ -356,7 +407,7 @@ export class SystemCast extends LitElement {
       <div class="cl"><span class="lb">שידור קבוע</span><sw-toggle label=${`שידור קבוע: ${s.name}`} labelHidden .checked=${st.permanent} data-cast-permanent=${s.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveScreen(s, { permanent: e.detail.checked })}></sw-toggle></div>
       <div class="cl"><span class="lb">זרם ראשי</span><select aria-label=${`זרם ראשי: ${s.name}`} data-cast-screen-main=${s.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.saveScreen(s, { allow_main: v === '' ? null : v === 'yes' }); }}>
         <option value="" ?selected=${st.allow_main == null}>לפי ההתקנה</option><option value="yes" ?selected=${st.allow_main === true}>מותר</option><option value="no" ?selected=${st.allow_main === false}>אסור</option></select></div>
-      ${testable ? html`<div class="cl" style="grid-column:1/-1"><sw-button size="sm" data-cast-test-open=${s.key} @click=${() => void this.openTest(s.key)}>בדיקת שידור (60 שניות)</sw-button></div>` : nothing}
+      ${testable ? html`<div class="cl wide"><sw-button size="sm" data-cast-test-open=${s.key} @click=${() => void this.openTest(s.key)}>בדיקת שידור (60 שניות)</sw-button></div>` : nothing}
       ${this.testFor === s.key
         ? html`<div class="test" data-cast-test-panel=${s.key}>
             <label class="inl">מצלמה <select data-cast-test-camera .value=${this.testCam} @change=${(e: Event) => (this.testCam = (e.target as HTMLSelectElement).value)}>${this.cams.map((c) => html`<option value=${c.id} ?selected=${c.id === this.testCam}>${c.alias || c.name}</option>`)}</select></label>
@@ -381,8 +432,10 @@ export class SystemCast extends LitElement {
       ${this.general(this.cfg)}
       <sw-card heading="מסכים לשידור" data-cast-screens>
         <div class="muted">ברירת המחדל: כל מסך כבוי עד שמנהל מפעיל אותו. בדיקת שידור עובדת גם לפני ההפעלה, 60 שניות, על המסך שנבחר בלבד.</div>
-        <div class="scr head" aria-hidden="true"><span>מסך</span><span>זיהוי</span><span>מותר</span><span>שיטה</span><span>משך</span><span>קבוע</span><span>זרם ראשי</span></div>
-        ${this.screens.length ? this.screens.map((s) => this.screenRow(s)) : html`<div class="muted">לא זוהו מסכים לשידור</div>`}
+        ${this.screens.length
+          ? html`<div class="sgrid"><div class="scr head" aria-hidden="true"><span>מסך</span><span>זיהוי</span><span>מותר</span><span>שיטה</span><span>משך</span><span>קבוע</span><span>זרם ראשי</span></div>
+            ${this.screens.map((s) => this.screenRow(s))}</div>`
+          : html`<sw-state-panel icon="cast" state="empty" heading="לא זוהו מסכים לשידור"></sw-state-panel>`}
       </sw-card>
       ${this.saved ? html`<div class="toast" role="status" data-cast-saved>${this.saved}</div>` : nothing}
     </div>`);
