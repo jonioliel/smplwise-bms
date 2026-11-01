@@ -198,11 +198,23 @@ class HikvisionAdapter:
         dest = f"{(self._settings.nvr_host or '').strip('[]').lower()}|{self._settings.nvr_http_port}"
         return "nvr-" + hashlib.sha256(dest.encode("utf-8")).hexdigest()[:16]
 
+    @property
+    def writes_enabled(self) -> bool:
+        """NVR-H264-BULK-2341: the per-recorder switch "אפשר שינויי הגדרות ב־NVR" (recorder_scope.WRITES). Unlike Provision-ISR a
+        Hikvision recorder that was never switched keeps the behaviour shipped since CR-020 S2 (stream encoding writes on);
+        `nvr_extra.writes_enabled: false` or the switch turned off refuses every stream encoding write before a request is built."""
+        from ...recorder_scope import writes_override
+
+        override = writes_override(self.recorder_id)
+        if override is not None:
+            return override
+        return (self._settings.nvr_extra or {}).get("writes_enabled") is not False
+
     def capabilities(self) -> RecorderCapabilities:
         # S2: one stream's encoding is writable (guarded path); add / remove a channel stay false until S3.
         # NN6H: the health detail (disks, recording, channels, clock) is read with GETs only (read_health).
         return RecorderCapabilities(
-            vendor=self.vendor, read_encodings=True, write_encodings=True, encoding_fields=frozenset(nvr.ENCODING_FIELDS),
+            vendor=self.vendor, read_encodings=True, write_encodings=self.writes_enabled, encoding_fields=frozenset(nvr.ENCODING_FIELDS),
             add_channel=False, remove_channel=False, max_channels=None, live="rtsp", playback="rtsp", events="push", health_detail=True,
         )
 
@@ -305,7 +317,10 @@ class HikvisionAdapter:
         """The options already discovered for this stream (not expired), without a device call."""
         with _OPTIONS_LOCK:
             hit = _OPTIONS.get((self.recorder_id, stream_ref, ""))
-        return hit[1] if hit is not None and hit[0] > _monotonic() else None
+        found = hit[1] if hit is not None and hit[0] > _monotonic() else None
+        if found is not None and found.writable and not self.writes_enabled:  # NVR-H264-BULK-2341: the list view agrees with the detail
+            return StreamOptions(writable=False, reason="writes_disabled", options=found.options, write_via=None, source=found.source)
+        return found
 
     def forget_options(self, stream_ref: str) -> None:
         """Drop every cached discovery of this stream (all codecs): the device changed it (review L1)."""
@@ -346,6 +361,14 @@ class HikvisionAdapter:
             raise _unavailable("capabilities", exc) from exc
 
     def stream_options(self, stream_ref: str, codec: str | None = None) -> StreamOptions:
+        """The capability discovery; with the recorder's writes switched off the options are still answered (the editor and
+        the preview show them) but the stream is not writable (`writes_disabled`, NVR-H264-BULK-2341)."""
+        found = self._discover_options(stream_ref, codec)
+        if found.writable and not self.writes_enabled:
+            return StreamOptions(writable=False, reason="writes_disabled", options=found.options, write_via=None, source=found.source)
+        return found
+
+    def _discover_options(self, stream_ref: str, codec: str | None = None) -> StreamOptions:
         if codec is not None and not nvr.SAFE_TOKEN.match(codec):
             raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "codec"})
         key = (self.recorder_id, stream_ref, codec or "")
@@ -388,6 +411,8 @@ class HikvisionAdapter:
             return result
 
     def write_stream_encoding(self, stream_ref: str, expect_etag: str, element: str, write_via: str) -> WriteOutcome:
+        if not self.writes_enabled:  # NVR-H264-BULK-2341: refused locally, nothing is sent
+            raise ApiError(409, "nvr_not_supported", "כתיבה ל־NVR הזה כבויה. אפשר להפעיל אותה בהגדרות החיבור.", details={"op": "put", "reason": "writes_disabled"})
         if write_via not in WRITE_PATHS:
             raise ApiError(409, "nvr_not_supported", "ה־NVR אינו תומך בשינוי הזה בזרם הזה.", details={"op": "put"})
         path = WRITE_PATHS[write_via].format(sid=stream_ref)

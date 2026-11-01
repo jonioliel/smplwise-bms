@@ -460,7 +460,13 @@ class ProvisionIsrAdapter:
     @property
     def writes_enabled(self) -> bool:
         """Device writes are off unless the recorder's connection says `writes_enabled: true` (set only after the owner's
-        approval for that unit). With it off every write method refuses before a request is built."""
+        approval for that unit). With it off every write method refuses before a request is built. NVR-H264-BULK-2341: the
+        per-recorder switch of the connection settings ("אפשר שינויי הגדרות ב־NVR", recorder_scope.WRITES) wins when set."""
+        from ...recorder_scope import writes_override
+
+        override = writes_override(self.recorder_id)
+        if override is not None:
+            return override
         return self._extra.get("writes_enabled") is True
 
     def event_mode(self) -> str:
