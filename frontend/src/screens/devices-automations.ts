@@ -213,33 +213,72 @@ export class DevicesAutomations extends LitElement {
     .stack {
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: var(--sw-s-4h);
     }
-    /* the note is a popover (top layer): a modal drawer or dialog is open while most notes appear, and must not dim them */
+    /* the note is a popover (top layer): a modal drawer or dialog is open while most notes appear, and must not dim them.
+       DEVICES-POLISH-2331: the inverted-surface tokens (--sw-toast-*) instead of white literals - the same note as the undo bar */
     .toast[popover] {
       inset-block-start: auto;
       margin-block: 0;
       padding: 11px 20px 11px 16px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid color-mix(in srgb, var(--sw-toast-text) 10%, transparent);
       overflow: visible;
     }
     .toast .btn {
       min-block-size: 28px;
-      padding-inline: 12px;
-      background: rgba(255, 255, 255, 0.14);
-      color: #fff;
+      padding-inline: var(--sw-s-3);
+      background: color-mix(in srgb, var(--sw-toast-text) 14%, transparent);
+      color: var(--sw-toast-action);
       border-color: transparent;
       box-shadow: none;
-      margin-inline-start: 6px;
+      margin-inline-start: var(--sw-s-1h);
     }
     .toast.bad .ic {
-      color: #ff453a;
+      color: color-mix(in srgb, var(--sw-danger) 70%, var(--sw-toast-text));
     }
     .dlgform {
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      padding-block-start: 4px;
+      gap: var(--sw-s-3);
+      padding-block-start: var(--sw-s-1);
+    }
+    /* DEVICES-POLISH-2331: the loading state has the shape of the view it waits for - the rows list (the default) or the cards -
+       so nothing jumps when the list lands */
+    .skl-card {
+      padding: var(--sw-s-4h);
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-s-3);
+      border-radius: var(--sw-r-2xl);
+    }
+    .skl-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding: var(--sw-s-1h);
+    }
+    .skl-row {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(120px, 0.8fr);
+      align-items: center;
+      gap: var(--sw-s-3);
+      min-block-size: 52px;
+      padding-inline: var(--sw-s-3);
+    }
+    .skl-row .skl:first-child {
+      block-size: 24px;
+      border-radius: var(--sw-r-pill);
+    }
+    .skl-row .skl {
+      block-size: 13px;
+    }
+    @media (max-width: 767px) {
+      .skl-row {
+        grid-template-columns: 44px minmax(0, 1fr) 30%;
+      }
+      .skl-row .skl:nth-child(3) {
+        display: none;
+      }
     }
     .dlgform p {
       margin: 0;
@@ -764,9 +803,16 @@ export class DevicesAutomations extends LitElement {
     writeView(v);
   }
 
+  /** DEVICES-POLISH-2331: the loading state in the shape of what it waits for - rows for the automations' rows view (the default),
+   * cards for the cards view and for the other kinds' panels - so the list lands without a jump. */
   private skeleton(): TemplateResult {
-    const card = html`<div class="glass" style="padding:18px;display:flex;flex-direction:column;gap:12px;border-radius:24px"><span class="skl" style="block-size:20px;inline-size:55%"></span><span class="skl" style="block-size:13px;inline-size:35%"></span><span class="skl" style="block-size:48px"></span><span class="skl" style="block-size:14px;inline-size:60%"></span></div>`;
-    return html`<div data-auto-state="loading" aria-busy="true"><div class="cgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => card)}</div></div>`;
+    const label = html`<span class="sr-only">טוען…</span>`;
+    if (this.view === 'rows' && !this.scenView && this.segment() === 'automations') {
+      const row = (w: number) => html`<div class="skl-row"><span class="skl"></span><span class="skl" style=${`inline-size:${w}%`}></span><span class="skl" style="inline-size:80%"></span><span class="skl" style="inline-size:60%"></span></div>`;
+      return html`<div data-auto-state="loading" aria-busy="true">${label}<div class="rlist glass skl-rows">${[62, 48, 70, 55, 40, 66, 52, 45].slice(0, this.phone ? 6 : 8).map(row)}</div></div>`;
+    }
+    const card = html`<div class="glass skl-card"><span class="skl" style="block-size:20px;inline-size:55%"></span><span class="skl" style="block-size:13px;inline-size:35%"></span><span class="skl" style="block-size:48px"></span><span class="skl" style="block-size:14px;inline-size:60%"></span></div>`;
+    return html`<div data-auto-state="loading" aria-busy="true">${label}<div class="cgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => card)}</div></div>`;
   }
 
   private stateBox(icon: Parameters<typeof aIcon>[0], title: string, kind: string, action?: TemplateResult): TemplateResult {
