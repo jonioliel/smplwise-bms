@@ -382,10 +382,28 @@ export const devicesLayoutCss = [
       color: var(--sw-text);
       font: inherit;
     }
+    /* DEVICES-POLISH-2331: the two number fields share one baseline even when one label wraps to two lines */
     .lay-row2 {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
+      align-items: end;
+      gap: var(--sw-s-2);
+    }
+    /* DEVICES-POLISH-2331: the panel's groups (look / size and place / content / card actions), a hairline between them */
+    .lay-grp {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-s-3);
+    }
+    .lay-grp + .lay-grp {
+      padding-block-start: var(--sw-s-3);
+      border-block-start: 1px solid var(--sw-border);
+    }
+    /* a dialog's action row (the confirmations, the library, the camera picker) */
+    .lay-dlg-acts {
+      display: flex;
+      gap: var(--sw-s-2);
+      justify-content: flex-end;
     }
     .lay-swatches {
       display: flex;
@@ -413,6 +431,11 @@ export const devicesLayoutCss = [
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px;
+    }
+    .lay-nudge button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .lay-nudge button,
     .lay-panel .btn {
@@ -758,6 +781,9 @@ export const devicesLayoutCss = [
       color: var(--sw-text-2);
     }
     .lay-crumb button {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sw-s-1);
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
@@ -776,8 +802,12 @@ export const devicesLayoutCss = [
       flex-wrap: wrap;
       gap: 6px;
     }
+    .lay-crumb .sep {
+      color: var(--sw-text-3);
+    }
     .lay-tacts .btn,
-    .lay-panel > .btn {
+    .lay-panel > .btn,
+    .lay-grp > .btn {
       padding-inline: 12px;
     }
     .lay-panel .btn:disabled,

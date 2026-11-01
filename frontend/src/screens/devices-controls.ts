@@ -82,24 +82,47 @@ export const deviceControlStyles = css`
     grid-column: 1 / -1;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--sw-s-1h);
     flex-wrap: wrap;
+  }
+  /* DEVICES-POLISH-2331: a cover's tilt is a second movement of the same device - its row reads as its own group */
+  .ctl-row[data-control='cover-tilt'] {
+    padding-block-start: var(--sw-s-2);
+    border-block-start: 1px dashed var(--sw-border);
   }
   .ctl-val {
     font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-medium);
-    min-inline-size: 34px;
+    min-inline-size: 4ch;
     text-align: center;
     font-variant-numeric: tabular-nums;
   }
+  /* DEVICES-POLISH-2331: a mode menu is one of the row's controls - the small button's height, radius, border, lift and type
+     (sw-button size sm), so minus / value / plus, the menus and the buttons sit on one line as one family */
   .ctl-select {
     font: inherit;
     font-size: var(--sw-fs-xs);
-    border-radius: var(--sw-r-sm);
-    border: 1px solid var(--sw-border);
+    font-weight: var(--sw-fw-medium);
+    min-block-size: var(--sw-ctl-h-sm);
+    max-inline-size: 100%;
+    border-radius: var(--sw-r-xs);
+    border: 1px solid var(--sw-border-strong);
     background: var(--sw-surface);
     color: var(--sw-text);
-    padding: 3px 6px;
+    box-shadow: var(--sw-shadow-1);
+    padding-block: 0;
+    padding-inline: var(--sw-s-2) var(--sw-s-1);
+    cursor: pointer;
+    transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .ctl-select:hover:not(:disabled) {
+      background: var(--sw-surface-2);
+    }
+  }
+  .ctl-select:disabled {
+    opacity: 0.55;
+    cursor: default;
   }
   .rollback-note,
   .cmd-status {
@@ -107,7 +130,7 @@ export const deviceControlStyles = css`
     font-size: var(--sw-fs-xs);
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--sw-s-1h);
   }
   .rollback-note {
     color: var(--sw-danger);
@@ -116,7 +139,7 @@ export const deviceControlStyles = css`
     color: var(--sw-text);
     background: var(--sw-warning-soft);
     border-radius: var(--sw-r-sm);
-    padding: 2px 6px;
+    padding: 2px var(--sw-s-1h);
     font-weight: var(--sw-fw-medium);
   }
   .cmd-status.pending .dot {
@@ -403,9 +426,9 @@ export class DeviceControls implements ReactiveController {
       moveTilt(tiltPosKey, 'cover.set_cover_tilt_position', { tilt_position: pct }, pct, `מיקום הטיה ${pct}%`);
     };
     return html`<div class="ctl-row" data-control="cover">
-        <sw-button size="sm" ?disabled=${moving} data-control="open" @click=${doOpen}>${this.isArmed(openKey) ? 'לאשר פתיחה?' : 'פתיחה'}</sw-button>
+        <sw-button size="sm" variant=${this.isArmed(openKey) ? 'primary' : 'secondary'} ?disabled=${moving} data-control="open" @click=${doOpen}>${this.isArmed(openKey) ? 'לאשר פתיחה?' : 'פתיחה'}</sw-button>
         <sw-button size="sm" data-control="stop" @click=${doStop}>עצירה</sw-button>
-        <sw-button size="sm" ?disabled=${moving} data-control="close" @click=${doClose}>${this.isArmed(closeKey) ? 'לאשר סגירה?' : 'סגירה'}</sw-button>
+        <sw-button size="sm" variant=${this.isArmed(closeKey) ? 'primary' : 'secondary'} ?disabled=${moving} data-control="close" @click=${doClose}>${this.isArmed(closeKey) ? 'לאשר סגירה?' : 'סגירה'}</sw-button>
         ${r.position !== null && r.position !== undefined
           ? html`<input type="range" class="ctl-range" data-control="position" min="0" max="100" ?disabled=${moving} .value=${String(posValue)} @input=${onPosInput} @change=${onPosRelease} aria-label="מיקום התריס" />
               ${armedPos ? html`<sw-button size="sm" variant="primary" data-control="position-confirm" @click=${confirmPos}>${`לאשר מיקום ${draft}%?`}</sw-button>` : nothing}`
@@ -413,9 +436,9 @@ export class DeviceControls implements ReactiveController {
       </div>
       ${r.tilt !== null && r.tilt !== undefined
         ? html`<div class="ctl-row" data-control="cover-tilt">
-            <sw-button size="sm" ?disabled=${tiltMoving} data-control="open-tilt" @click=${doOpenTilt}>${this.isArmed(openTiltKey) ? 'לאשר פתיחת הטיה?' : 'פתיחת הטיה'}</sw-button>
+            <sw-button size="sm" variant=${this.isArmed(openTiltKey) ? 'primary' : 'secondary'} ?disabled=${tiltMoving} data-control="open-tilt" @click=${doOpenTilt}>${this.isArmed(openTiltKey) ? 'לאשר פתיחת הטיה?' : 'פתיחת הטיה'}</sw-button>
             <sw-button size="sm" data-control="stop-tilt" @click=${doStopTilt}>עצירת הטיה</sw-button>
-            <sw-button size="sm" ?disabled=${tiltMoving} data-control="close-tilt" @click=${doCloseTilt}>${this.isArmed(closeTiltKey) ? 'לאשר סגירת הטיה?' : 'סגירת הטיה'}</sw-button>
+            <sw-button size="sm" variant=${this.isArmed(closeTiltKey) ? 'primary' : 'secondary'} ?disabled=${tiltMoving} data-control="close-tilt" @click=${doCloseTilt}>${this.isArmed(closeTiltKey) ? 'לאשר סגירת הטיה?' : 'סגירת הטיה'}</sw-button>
             <input type="range" class="ctl-range" data-control="tilt-position" min="0" max="100" ?disabled=${tiltMoving} .value=${String(tiltValue)} @input=${onTiltInput} @change=${onTiltRelease} aria-label="מיקום הטיה" />
             ${armedTiltPos ? html`<sw-button size="sm" variant="primary" data-control="tilt-position-confirm" @click=${confirmTiltPos}>${`לאשר הטיה ${tiltDraft}%?`}</sw-button>` : nothing}
           </div>`

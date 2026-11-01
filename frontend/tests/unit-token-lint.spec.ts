@@ -29,7 +29,6 @@ const ALLOW_HEX: Record<string, string> = {
   'screens/explore-plan-import.ts': 'the import preview canvas',
   'screens/investigate-history-map.ts': 'history map HUD',
   'screens/devices-schedules.ts': 'the summary bar swatches',
-  'screens/devices-automations.ts': 'the automation card glyphs',
   'screens/bubble-demo.ts': 'the style guide demo',
   'screens/styleguide-screen.ts': 'the style guide swatches',
   'screens/nvr-camera-batch.ts': 'the encoding table HUD',
