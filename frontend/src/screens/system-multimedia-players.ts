@@ -278,7 +278,73 @@ export class SystemMultimediaPlayers extends LitElement {
       flex-wrap: wrap;
       padding-block-end: 4px;
     }
+    .hd .grow {
+      flex: 1;
+    }
+    .dlg-acts {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--sw-s-2);
+      padding-block-start: var(--sw-s-2);
+    }
+    /* MEDIA-POLISH-2331: an error stays in view at the top of the settings while the person scrolls (it was a bare red line that
+       scrolled away above the first card); the save note floats at the bottom of the window instead of after the last card, so the
+       "נשמר" of a field near the top is actually seen */
+    .err {
+      position: sticky;
+      inset-block-start: var(--sw-s-2);
+      z-index: 5;
+      padding: var(--sw-s-2) var(--sw-s-3);
+      border-radius: var(--sw-r-md);
+      background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface));
+      border: 1px solid color-mix(in srgb, var(--sw-danger) 30%, transparent);
+      color: var(--sw-danger-text, var(--sw-danger));
+      box-shadow: var(--sw-shadow-1);
+    }
+    .ok[role='status'] {
+      position: fixed;
+      z-index: 60;
+      inset-inline: 0;
+      inset-block-end: var(--sw-s-6);
+      margin-inline: auto;
+      inline-size: max-content;
+      max-inline-size: calc(100% - var(--sw-s-6));
+      padding: var(--sw-s-2) var(--sw-s-4);
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-toast-bg, var(--sw-surface));
+      color: var(--sw-toast-text, var(--sw-text));
+      box-shadow: var(--sw-shadow-3);
+      font-weight: var(--sw-fw-medium);
+    }
+    /* keyboard: every native field, icon button and link shows where the focus is */
+    input:focus-visible,
+    select:focus-visible,
+    .ib:focus-visible,
+    .link:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    .link:focus-visible {
+      border-radius: var(--sw-r-2xs);
+    }
+    /* touch: the fields and the order buttons are 44 px targets */
+    @media (pointer: coarse) {
+      input[type='text'],
+      input[type='number'],
+      input[type='time'],
+      select,
+      .link {
+        min-block-size: 44px;
+      }
+      .ib {
+        inline-size: 44px;
+        block-size: 44px;
+      }
+    }
     @media (max-width: 767px) {
+      .ok[role='status'] {
+        inset-block-end: calc(var(--sw-bottomnav-h, 0px) + var(--sw-s-3));
+      }
       .ep {
         grid-template-columns: 1fr;
       }
@@ -588,7 +654,7 @@ export class SystemMultimediaPlayers extends LitElement {
     const unav = ds.filter((d) => this.live.get(d.key)?.live.power === 'unavailable').length;
     const counts = [`${approved} מאושרים`, pending ? `${pending} ממתינים` : '', unplaced ? `${unplaced} ללא חדר` : '', unav ? `${unav} לא זמינים` : ''].filter(Boolean).join(' · ');
     return html`<sw-card heading="נגנים ורמקולים" data-mm-players>
-      <div class="hd"><span class="muted" data-mm-players-count>${counts}</span><span class="grow" style="flex:1"></span>
+      <div class="hd"><span class="muted" data-mm-players-count>${counts}</span><span class="grow"></span>
         <sw-button size="sm" variant="primary" icon="check" data-mm-approve-players ?disabled=${!pending} @click=${() => void this.approveAll()}>אשר את כל הנגנים שזוהו${pending ? ` (${pending})` : ''}</sw-button></div>
       <div class="muted">רק נגנים מאושרים מופיעים ב"מולטימדיה". תקרת עוצמה וחלון לילה חלים רק כשהוגדרו.</div>
       ${this.table(ds)}
@@ -618,7 +684,7 @@ export class SystemMultimediaPlayers extends LitElement {
     if (!ps) return nothing;
     const devs = [...this.live.values()];
     return html`<sw-card heading="קבוצות שמורות" data-mm-presets>
-      <div class="hd"><span class="muted">${ps.length} שמורות</span><span class="grow" style="flex:1"></span>
+      <div class="hd"><span class="muted">${ps.length} שמורות</span><span class="grow"></span>
         <sw-button size="sm" icon="plus" data-mm-preset-new @click=${() => this.editor?.show(draftOf(null))}>קבוצה חדשה</sw-button></div>
       ${ps.map((p) => { const rooms = presetRooms(p, devs); const fl = presetFloors(p, devs); return html`<div class="row" data-mm-preset=${p.id}><span class="lbl">${p.name}<span class="muted">${rooms.map((r) => r.room).join(', ')}${fl > 1 ? ` · ${fl} קומות · דורש אישור בהפעלה` : ''}${p.volumes ? ' · עם עוצמות' : ''}</span></span>
         <span class="acts"><sw-button size="sm" icon="edit" data-mm-preset-edit=${p.id} @click=${() => this.editor?.show(draftOf(p))}>ערוך</sw-button>
@@ -686,7 +752,7 @@ export class SystemMultimediaPlayers extends LitElement {
     const p = this.deleting;
     if (!p) return html`<sw-dialog data-mm-preset-delete-dialog="closed"></sw-dialog>`;
     return html`<sw-dialog open ?locked=${this.busy} heading=${`למחוק את "${p.name}"?`} data-mm-preset-delete-dialog="open" @close=${() => (this.deleting = null)}>
-      <div style="display:flex;justify-content:flex-end;gap:8px;padding-block-start:6px">
+      <div class="dlg-acts">
         <sw-button data-mm-pd-no autofocus ?disabled=${this.busy} @click=${() => (this.deleting = null)}>ביטול</sw-button>
         <sw-button variant="danger" data-mm-pd-yes ?disabled=${this.busy} @click=${() => void this.deletePreset()}>מחק</sw-button>
       </div></sw-dialog>`;
