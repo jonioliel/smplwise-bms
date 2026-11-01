@@ -95,18 +95,27 @@ summary {
     font-size: max(var(--sw-fs-xl), 1em);
   }
 
-  /* a 44 px hit height on the drawn 40 / 36 px buttons without changing their drawing or the row heights (the no-scroll rule of the
-     control screens): an invisible hit slop above and below, the way a native button's hit rect is larger than its artwork */
-  :host(sw-button) button {
-    position: relative;
+  /* PHONE-BUTTONS-44-2342 (owner 02.11, answer 2A): the shared button is DRAWN 44 px high on a phone, small and default alike (it was 40 /
+     36 px with an invisible 3-4 px hit slop above and below; an absolutely positioned slop paints above non-positioned neighbours and
+     steals their edges). The component writes the same rules (components/sw-button.ts); they are repeated here, after the skin sheet and
+     at the skins' specificity, so a skin's resting height (crystal 34 / 30 px, bubble's touch dial) does not shrink it on a phone. */
+  :host(sw-button:not([size='sm']):not([size='lg'])) button {
+    min-block-size: max(44px, var(--sw-ctl-h-md));
   }
-  :host(sw-button) button::after {
-    content: '';
-    position: absolute;
-    inset: -3px 0; /* 40 -> 46 */
+  :host(sw-button[size='sm']) button {
+    min-block-size: max(44px, var(--sw-ctl-h-sm));
   }
-  :host(sw-button[size='sm']) button::after {
-    inset: -4px 0;
+  :host(sw-button[size='lg']) button {
+    min-block-size: max(44px, var(--sw-ctl-h-lg));
+  }
+  :host(sw-button[icononly]:not([size='sm']):not([size='lg'])) button {
+    inline-size: max(44px, var(--sw-ctl-h-md));
+  }
+  :host(sw-button[icononly][size='sm']) button {
+    inline-size: max(44px, var(--sw-ctl-h-sm));
+  }
+  :host(sw-button[icononly][size='lg']) button {
+    inline-size: max(44px, var(--sw-ctl-h-lg));
   }
   /* (POLISH-PHONE-2310: no slop on sw-chip - it already carries the shared centred 44 x 44 hit of styles/focus-policy.ts (.sw-hit), which
      a 0-inline slop here would narrow; none on sw-toggle - a ::before wider than the 42 px track is scrollable overflow and trips the
