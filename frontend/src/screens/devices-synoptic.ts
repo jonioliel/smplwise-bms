@@ -206,7 +206,7 @@ export class DevicesSynoptic extends LitElement {
     if (!isApi() || this.data?.demo) return demoSignals([...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order), isApi() ? null : parseRoute().params.get('xsdata'));
     const bid = floors[0]?.building_id;
     const site = this.tree?.sites.find((s) => (s.buildings ?? []).some((b) => b.id === bid)) ?? null;
-    return signalsOf(floors, this.data?.tree ?? null, this.data?.people ?? null, matchContext(this.data, site));
+    return signalsOf(floors, this.data?.tree ?? null, this.data?.people ?? null, matchContext(this.data, site), { switches: this.opts().syn_switches });
   }
 
   private head(c: SynColumn): TemplateResult {

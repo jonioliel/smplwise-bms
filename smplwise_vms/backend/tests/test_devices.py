@@ -2053,3 +2053,94 @@ def test_bulk_lights_kinds_reach_a_switch_typed_light_and_switches_kinds_do_not(
     _type_light(c, "switch.loose", "auto")
     assert {t["domain"] for t in preview("lights_on")["targets"]} == {"light"}
     assert preview("switches_on")["targets"][0]["entity_id"] == "switch.lobby_sign"
+
+# ---------------------------------------------------------------- SWITCH-LIGHT-DIMMER-2331 (owner 2026-11-01)
+
+
+def test_is_dimmable_only_for_a_light_that_takes_a_brightness():
+    """The brightness slider's only source: a light.* whose colour modes include one other than "onoff" (or, with no colour modes
+    reported, a colour mode, a brightness or the legacy feature bit). Never a switch typed as a light, never an on/off-only light."""
+    light = lambda **a: {"domain": "light", "attributes": a}
+    assert svc.is_dimmable(light(supported_color_modes=["brightness"]))
+    assert svc.is_dimmable(light(supported_color_modes=["color_temp", "xy"]))
+    assert svc.is_dimmable(light(supported_color_modes=["onoff", "brightness"]))
+    assert not svc.is_dimmable(light(supported_color_modes=["onoff"])), "Home Assistant's 'show as light' wrapper of a relay"
+    assert not svc.is_dimmable(light(supported_color_modes=["onoff"], brightness=255)), "the modes win over a stray brightness"
+    assert not svc.is_dimmable(light(color_mode="onoff"))
+    assert svc.is_dimmable(light(color_mode="brightness"))
+    assert svc.is_dimmable(light(brightness=128))
+    assert svc.is_dimmable({"domain": "light", "attributes": {}, "supported_features": 1}), "the legacy SUPPORT_BRIGHTNESS bit"
+    assert not svc.is_dimmable(light()), "nothing says it takes a brightness"
+    assert not svc.is_dimmable(light(color_mode="unknown"))
+    for dom in ("switch", "input_boolean"):
+        assert not svc.is_dimmable({"domain": dom, "device_type_set": "light", "attributes": {"brightness": 255, "supported_color_modes": ["brightness"]}})
+
+
+def test_ha_sync_keeps_the_supported_colour_modes():
+    assert "supported_color_modes" in ha_sync.ATTR_ALLOW
+    kept = json.loads(ha_sync.trim_attributes({"supported_color_modes": ["onoff"], "secret_token": "x"}, "light"))
+    assert kept == {"supported_color_modes": ["onoff"]}
+
+
+@pytest.fixture()
+def dimmer_app(settings, monkeypatch):
+    """The lobby with a real dimmer, an on/off-only light (a relay shown as a light) and the sign switch."""
+    extra = [
+        {"entity_id": "light.lobby_relay", "state": "on", "attributes": {"friendly_name": "Relay light", "supported_color_modes": ["onoff"], "color_mode": "onoff"}, "last_changed": "2026-09-28T10:00:00+00:00", "last_updated": "2026-09-28T10:00:00+00:00"},
+    ]
+    states = [({**e, "attributes": {**e["attributes"], "supported_color_modes": ["brightness"]}} if e["entity_id"] == "light.lobby" else e) for e in STATES] + extra
+    s = replace(settings, ha_url="http://ha.local:8123", ha_token="secret-token-value")
+    monkeypatch.setattr(ha_client, "get_states", lambda _s: states)
+    from smplwise.main import create_app
+
+    app = create_app(s)
+    ha_sync.STATE.connected = True
+    ha_sync.snapshot(app.state.db, s)
+    with app.state.db.connection() as conn:
+        maps = ha_client.registry_maps(ENTITY_REGISTRY + [_reg("light.lobby_relay", "lobby")], [], AREAS, FLOORS)
+        ha_sync.apply_registry(conn, maps)
+        ha_sync.apply_structure(conn, AREAS, FLOORS)
+    return app, s
+
+
+def test_card_rows_carry_dimmable_for_lights_and_never_for_a_switch_typed_light(dimmer_app):
+    """The area cards and the "lights" panel rows: `dimmable` true only for the real dimmer; the relay shown as a light and the switch
+    typed as a light (which keeps the light's place and look) are on/off only."""
+    app, _ = dimmer_app
+    c = TestClient(app)
+    _type_light(c, "switch.lobby_sign")
+    area = c.get("/api/v1/devices/areas/lobby").json()
+    rows = {r["entity_id"]: r for card in area["cards"].values() for r in card["entities"]}
+    assert rows["light.lobby"]["dimmable"] is True
+    assert rows["light.lobby_relay"]["dimmable"] is False
+    assert rows["light.lobby_spot"]["dimmable"] is False, "off, and nothing stored says it takes a brightness"
+    assert rows["switch.lobby_sign"]["dimmable"] is False and rows["switch.lobby_sign"]["domain"] == "switch"
+    items = {r["entity_id"]: r for f in c.get("/api/v1/devices/items", params={"kind": "lights"}).json()["floors"] for a in f["areas"] for r in a["items"]}
+    assert items["switch.lobby_sign"]["dimmable"] is False and items["light.lobby"]["dimmable"] is True and items["light.lobby_relay"]["dimmable"] is False
+
+
+def test_switch_entities_counted_for_the_synoptic_all_switches_option(dimmer_app):
+    """SWITCH-LIGHT-DIMMER-2331, on the real data path (the tree the synoptic map reads): a switch typed as a light is in lights /
+    lights_on (an ON one is lit); the other switch.* entities are in switch_entities / switch_entities_on (no input_boolean), which the
+    synoptic option "כל המפסקים" adds to the lights column."""
+    app, _ = dimmer_app
+    c = TestClient(app)
+
+    def tree():
+        return c.get("/api/v1/devices/tree").json()
+
+    def lobby():
+        return next(a for f in tree()["floors"] for a in f["areas"] if a["area_id"] == "lobby")["counts"]
+
+    cnt = lobby()
+    assert (cnt["lights"], cnt["lights_on"], cnt["switch_entities"], cnt["switch_entities_on"]) == (3, 2, 1, 1)
+    _type_light(c, "switch.lobby_sign")
+    cnt = lobby()
+    assert (cnt["lights"], cnt["lights_on"], cnt["switch_entities"], cnt["switch_entities_on"]) == (4, 3, 0, 0), "the ON typed switch is a lit light"
+    ground = next(f for f in tree()["floors"] if f["floor_id"] == "ground")["counts"]
+    assert (ground["lights"], ground["lights_on"]) == (4, 3)
+    b = tree()["building"]
+    assert (b["switch_entities"], b["switch_entities_on"]) == (1, 0), "only the loose switch (off) is left"
+    c_ = svc.empty_counts()
+    svc.count_into(c_, {"entity_id": "input_boolean.x", "domain": "input_boolean", "state": "on"})
+    assert (c_["switches"], c_["switch_entities"]) == (1, 0), "a helper is never a switch entity"

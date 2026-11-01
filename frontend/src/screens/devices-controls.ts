@@ -1,7 +1,7 @@
 import { html, css, nothing, type ReactiveController, type ReactiveControllerHost } from 'lit';
 import '../components/sw-toggle';
 import '../components/sw-button';
-import { ALARM_HE, climateRange, HVAC_HE, type DeviceRow } from '../api/devices';
+import { ALARM_HE, climateRange, HVAC_HE, isDimmable, type DeviceRow } from '../api/devices';
 import { stateLabel } from '../api/ha';
 import { debouncedCommand, pendingVisible, PENDING_VISIBLE_MS, powerReached, runCommand, supersede, warmCommandChannel, type CommandState } from '../api/device-commands';
 import { bidi, ltrNum } from '../i18n/bidi';
@@ -314,6 +314,7 @@ export class DeviceControls implements ReactiveController {
   }
 
   renderBrightnessSlider(r: DeviceRow) {
+    if (!isDimmable(r)) return nothing; // SWITCH-LIGHT-DIMMER-2331: the one gate, also behind every caller's own check
     const key = `${r.entity_id}:brightness`;
     const value = this.live<number>(r.entity_id, 'brightness') ?? r.brightness_pct ?? 100;
     const onInput = (ev: Event) => {
@@ -622,6 +623,7 @@ export class DeviceControls implements ReactiveController {
   brightness(r: DeviceRow, pct: number) {
     const v = Math.max(0, Math.min(100, Math.round(pct)));
     if (v === 0) return this.power(r, false);
+    if (!isDimmable(r)) return this.power(r, true); // SWITCH-LIGHT-DIMMER-2331: an on/off device never gets light.turn_on with a brightness
     const key = `${r.entity_id}:brightness`;
     this.debouncedRange(key, 'light', r.entity_id, 'light.turn_on', { brightness_pct: v }, v, (s) => this.setCmd(key, s), { label: `בהירות ${v}%` });
   }

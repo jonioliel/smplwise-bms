@@ -24,6 +24,8 @@ export const XS_ACK = ['hold', 'confirm', 'tap'] as const; // A: long press 1.2 
 export const XS_ACK_WHO = ['separate', 'viewers', 'admin'] as const; // A: anyone who sees the board, B: a new separate permission (default), C: administrators
 export const XS_ALARM_BAR = ['everywhere', 'home'] as const; // A: a red bar on every screen (default), B: only Home and the synoptic map
 export const XS_FIRE_COLUMN = ['hidden', 'dashed'] as const; // B: hidden until connected (default), A: a dashed "not connected" column
+/** SWITCH-LIGHT-DIMMER-2331 "מפסקים בעמודת התאורה": only the switches typed as a light (default) / every switch.* entity. */
+export const XS_SYN_SWITCHES = ['typed', 'all'] as const;
 export const XS_SYN_COLUMNS = ['all', 'few', 'custom'] as const; // A: seven columns (default), B: temperature, light, alerts, fire, C: the columns ticked in syn_custom
 /** SYN-COLUMNS-2321: every column of the board in its fixed order (the custom choice ticks any of them; the order never changes). */
 export const SYN_COLUMN_ORDER = ['light', 'temp', 'presence', 'cameras', 'doors', 'alerts', 'fire'] as const;
@@ -46,6 +48,8 @@ export interface XsOptions {
   /** SYN-COLUMNS-2321: a column with no source on any floor of the building (no temperature sensors, no lights) is not drawn. Default ON. */
   syn_hide_empty: boolean;
   syn_events: boolean; // the event strip beside the board on wide screens
+  /** SWITCH-LIGHT-DIMMER-2331: the lights column counts the switches typed as a light (typed, default) or every switch.* (all). */
+  syn_switches: (typeof XS_SYN_SWITCHES)[number];
   fire_column: (typeof XS_FIRE_COLUMN)[number];
   fire_ui: boolean; // MASTER SWITCH of the alarm UI (off: no bar, no acknowledge, nothing about fire anywhere)
   ack: (typeof XS_ACK)[number];
@@ -68,6 +72,7 @@ export const XS_DEFAULT: Readonly<XsOptions> = {
   syn_custom: [...SYN_COLUMN_ORDER],
   syn_hide_empty: true,
   syn_events: true,
+  syn_switches: 'typed',
   fire_column: 'hidden',
   fire_ui: false,
   ack: 'hold',
@@ -102,6 +107,7 @@ export function normalizeXs(raw: unknown): XsOptions {
   out.syn_custom = Array.isArray(r.syn_custom) ? SYN_COLUMN_ORDER.filter((c) => (r.syn_custom as unknown[]).includes(c)) : [...XS_DEFAULT.syn_custom];
   out.syn_hide_empty = bool(r.syn_hide_empty, XS_DEFAULT.syn_hide_empty);
   out.syn_events = bool(r.syn_events, XS_DEFAULT.syn_events);
+  out.syn_switches = pick(r.syn_switches, XS_SYN_SWITCHES, XS_DEFAULT.syn_switches);
   out.fire_column = pick(r.fire_column, XS_FIRE_COLUMN, XS_DEFAULT.fire_column);
   out.fire_ui = bool(r.fire_ui, XS_DEFAULT.fire_ui);
   out.ack = pick(r.ack, XS_ACK, XS_DEFAULT.ack);
@@ -346,13 +352,29 @@ function climateTargetsOf(areas: DeviceArea[], tree: DeviceTree): number[] {
 }
 
 /** One floor's signals from the catalogue floor, its match (building-wide, from signalsOf), the device tree and the presence answer. */
-export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleResponse | null, match?: FloorMatchInfo | null): FloorSignal {
+/** SWITCH-LIGHT-DIMMER-2331: what the lights column counts. `typed` (default): the server's lights (light.* and the switches an administrator
+ * typed as a light); `all`: every other switch.* entity too (the tree's switch_entities - never an input_boolean helper). */
+export interface LightCountOptions {
+  switches?: (typeof XS_SYN_SWITCHES)[number];
+}
+
+/** One area's lights and lights on as the lights column counts them. */
+export function areaLights(a: Pick<DeviceArea, 'counts'>, opts: LightCountOptions = {}): { lights: number; lit: number } {
+  const c = a.counts;
+  const all = opts.switches === 'all';
+  return {
+    lights: (c?.lights ?? 0) + (all ? (c?.switch_entities ?? 0) : 0),
+    lit: (c?.lights_on ?? 0) + (all ? (c?.switch_entities_on ?? 0) : 0),
+  };
+}
+
+export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleResponse | null, match?: FloorMatchInfo | null, opts: LightCountOptions = {}): FloorSignal {
   const m = match === undefined ? matchFloors([floor], tree).get(floor.id) ?? null : match;
   const areas = m?.areas.map((x) => x.area) ?? [];
   const climateTargets = tree ? climateTargetsOf(areas, tree) : [];
   const connected = !!tree && tree.sync?.connected !== false;
-  const lights = areas.reduce((n, a) => n + (a.counts?.lights ?? 0), 0);
-  const lit = areas.reduce((n, a) => n + (a.counts?.lights_on ?? 0), 0);
+  const lights = areas.reduce((n, a) => n + areaLights(a, opts).lights, 0);
+  const lit = areas.reduce((n, a) => n + areaLights(a, opts).lit, 0);
   const temps = areas.map((a) => nz(a.temperature)).filter((t): t is number => t !== null);
   const opens = areas.map((a) => a.open_count).filter((v): v is number => typeof v === 'number');
   const known = connected && areas.length > 0;
@@ -377,9 +399,9 @@ export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleRe
   };
 }
 
-export function signalsOf(floors: Floor[], tree: DeviceTree | null, people: PeopleResponse | null, ctx: MatchContext = {}): FloorSignal[] {
+export function signalsOf(floors: Floor[], tree: DeviceTree | null, people: PeopleResponse | null, ctx: MatchContext = {}, opts: LightCountOptions = {}): FloorSignal[] {
   const matches = matchFloors(floors, tree, ctx);
-  return [...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order).map((f) => signalOf(f, tree, people, matches.get(f.id) ?? null));
+  return [...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order).map((f) => signalOf(f, tree, people, matches.get(f.id) ?? null, opts));
 }
 
 /** hot / cold / null: only with both a reading and a target (no target = no verdict, not a guess). */

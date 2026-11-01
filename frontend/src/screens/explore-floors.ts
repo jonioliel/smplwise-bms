@@ -588,7 +588,7 @@ export class ExploreFloors extends LitElement {
 
   private signalsFor(floors: Floor[]): FloorSignal[] {
     if (!isApi() || this.xsData?.demo) return demoSignals([...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order), this.demoData());
-    return signalsOf(floors, this.xsData?.tree ?? null, this.xsData?.people ?? null, matchContext(this.xsData, this.context?.site));
+    return signalsOf(floors, this.xsData?.tree ?? null, this.xsData?.people ?? null, matchContext(this.xsData, this.context?.site), { switches: this.xsEff().syn_switches });
   }
 
   /** A card or a section row was pressed: the first press selects, a second press on the selected floor opens its map (option click = open: at once). */

@@ -13,7 +13,7 @@ import type { DevicesBulkDialog } from './devices-bulk';
 import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { subscribeHa, type HaEntity } from '../api/ha';
-import { ALARM_HE, getDeviceItems, type DeviceItem, type DeviceItems, type DeviceRow, type ItemsScope, type TileKind } from '../api/devices';
+import { ALARM_HE, getDeviceItems, isDimmable, type DeviceItem, type DeviceItems, type DeviceRow, type ItemsScope, type TileKind } from '../api/devices';
 import type { BulkKind } from '../api/device-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { activityTag, ActivityPress } from '../components/device-activity-press';
@@ -834,7 +834,7 @@ export class DevicesTilesPanel extends LitElement {
     const icon: IconName = this.kind === 'locks' ? (r.locked ? 'lock' : 'unlock') : m.icon;
     const stateText = this.kind === 'alarm' ? (st === 'unavailable' ? 'לא זמין' : (ALARM_HE[r.state ?? ''] ?? r.state ?? 'לא ידוע')) : this.kind === 'locks' ? (st === 'unavailable' ? 'לא זמין' : r.locked ? 'נעול' : r.state === 'unlocked' ? 'לא נעול' : (r.state ?? 'לא ידוע')) : (this.kind === 'climate' || this.kind === 'heating') && r.domain === 'climate' && st !== 'unavailable' ? `${rowLabel(r)}${r.current_temperature !== null && r.current_temperature !== undefined ? ` · ${ltrNum(r.current_temperature)}°` : ''}${r.target_temperature !== null && r.target_temperature !== undefined ? ` · יעד ${ltrNum(r.target_temperature)}°` : ''}` : rowLabel(r);
     const toggleKinds = this.kind === 'lights' || this.kind === 'switches';
-    const dimmable = this.kind === 'lights' && r.color_mode !== 'onoff' && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true);
+    const dimmable = this.kind === 'lights' && isDimmable(r) && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true);
     return html`<div class=${classMap({ row: true, on, unavailable: st === 'unavailable', pending: controllable && this.ctl.rowPendingVisible(r.entity_id) })}
       data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, stateText))} data-state=${st} ?data-can-control=${controllable}>
       <sw-icon .name=${icon} size=${16}></sw-icon>
