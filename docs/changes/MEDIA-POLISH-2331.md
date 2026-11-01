@@ -112,7 +112,7 @@ Run locally on the workstation (heavily loaded; the coordinator then stopped all
 |---|---|
 | `unit-token-lint`, `unit-lead-reserve`, `unit-uxfix-rtl`, `unit-door-settings`, `unit-media-players-layout` (desktop project) | 45 passed, 0 failed |
 | Impeccable detector over the five changed screens | 0 findings |
-| `npx tsc --noEmit` | see the agent report (run after the last edit) |
+| `npx tsc --noEmit` (after the last source edit) | exit 0 |
 | Throwaway capture / overflow probe (not committed) against `vite preview` :4205 | before 30 + after 30 runs passed; numbers in section 3 |
 | `evidence-media-players` (desktop / tablet / mobile), `evidence-mobile-scroll-players` (mobile), `evidence-cast-ui` | **NOT_RUN** (started, stopped by the coordinator for memory; for the runner gate) |
 | `evidence-media-remote`, `evidence-tabs-pair-scroll`, `layout-bubble-screens`, `dropdown-styles-b` (need the Vite dev server: `/src/...` imports) | **NOT_RUN** (runner gate) |
