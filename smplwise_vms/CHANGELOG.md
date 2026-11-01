@@ -1,5 +1,41 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.34.0 (pilot) - Design polish round: tickets, devices, access, calendars and messaging, media and doors, WisKey and water, look, cameras, schedules, investigation, insights, home editing, setup and plan, tabs
+**After installing:** no database migration and no change to settings or data. This release changes how screens look and fit the window; every feature, setting and text that was there before is still there. Going back to 2.33.1 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים ואין שינוי בהגדרות או בנתונים. הגרסה משנה את המראה של המסכים ואת ההתאמה שלהם לחלון; כל יכולת, הגדרה וטקסט שהיו קודם נשארו. חזרה ל-2.33.1 בטוחה.
+
+### What was improved - מה שופר
+- **English:** Service requests: the list and the manager board share one compact toolbar - one "Filter" panel (state, departments, floors tree, priority) with removable chips for active filters, the view switch and "new" on the title row, a compact "my numbers" row, and the table fills its card with a sticky header. Portrait tablets no longer scroll the whole page; on a phone the filter panel is a bottom sheet.
+- **עברית:** קריאות שירות: הרשימה ולוח המנהל חולקים סרגל כלים קומפקטי אחד - חלונית "סינון" אחת (מצב, מחלקות, עץ קומות, עדיפות) עם שבבים להסרת מסננים פעילים, מעבר תצוגה ו"חדשה" בשורת הכותרת, שורת "המספרים שלי" קומפקטית, והטבלה ממלאת את הכרטיס עם כותרת נעוצה. בטאבלט לאורך הדף כבר לא נגלל כולו; בטלפון חלונית הסינון נפתחת מלמטה.
+- **English:** Service request settings and side screens: one column below 1000 px, one save pattern per card, the save result as a message at the bottom of the window, the "new request for quote" button in the title row, and clearer loading and switched-off states for maintenance.
+- **עברית:** הגדרות קריאות השירות ומסכי הצד: עמודה אחת מתחת ל-1000 פיקסלים, דפוס שמירה אחד לכל כרטיס, תוצאת השמירה כהודעה בתחתית החלון, כפתור "בקשה חדשה להצעת מחיר" בשורת הכותרת, ומצבי טעינה וכיבוי ברורים יותר בתחזוקה.
+- **English:** Devices: the layout editor's panel is grouped (look, size and place, content, actions), device controls share one control look, a cover's tilt sits apart from its position, the confirming tap is highlighted, and the automations screen loads with the shape of its list.
+- **עברית:** מכשירים: חלונית עורך הפריסה מקובצת (מראה, גודל ומיקום, תוכן, פעולות), פקדי המכשירים חולקים מראה אחד, ההטיה של תריס מופרדת מהמיקום שלו, הלחיצה המאשרת מודגשת, ומסך האוטומציות נטען בצורת הרשימה שלו.
+- **English:** People and access: user and group drawers are proper side panels (a bottom sheet on a phone), deny rules are marked in the tables, the phone table keeps the essential columns, and loading, error and empty states are consistent.
+- **עברית:** אנשים והרשאות: חלוניות המשתמש והקבוצה הן חלוניות צד אמיתיות (חלון תחתון בטלפון), כללי חסימה מסומנים בטבלאות, הטבלה בטלפון שומרת את העמודות החיוניות, ומצבי טעינה, שגיאה וריק אחידים.
+- **English:** Calendars, calendar connections and the messaging channel settings: no cut-off table rows, behaviour settings grouped by topic, card actions at the foot of each card, department rows indented under their account.
+- **עברית:** יומנים, חיבורי יומן והגדרות ערוץ ההודעות: אין שורות טבלה חתוכות, הגדרות ההתנהגות מקובצות לפי נושא, פעולות הכרטיס בתחתית כל כרטיס, ושורות המחלקות מוזחות תחת החשבון שלהן.
+- **English:** Media and doors: the players page fits the window with only its cards scrolling, the casting table lines up, door cards name each switch, and the remote editor keeps save / cancel always on screen.
+- **עברית:** מדיה ודלתות: דף הנגנים מתאים לחלון וגוללים רק הכרטיסים, טבלת השידור מיושרת, כרטיסי הדלתות נותנים שם לכל מתג, ועורך השלט משאיר את שמירה / ביטול תמיד על המסך.
+- **English:** WisKey stations and water: the stations screen fits the window on a desktop; the water meters, usage and alerts pages take the height under the tabs, the chart follows its box width, and form actions stay at the foot of the sheet. The bills list now loads on a direct visit.
+- **עברית:** עמדות WisKey ומים: מסך העמדות מתאים לחלון במחשב; דפי מוני המים, הצריכה וההתראות תופסים את הגובה שמתחת ללשוניות, הגרף עוקב אחרי רוחב המסגרת, ופעולות הטופס נשארות בתחתית החלון. רשימת החשבונות נטענת עכשיו גם בכניסה ישירה.
+- **English:** Look and branding: the logo settings have keyboard-friendly tabs and an "unsaved changes" mark; the wall-screen users list, empty state and drawer are reorganised into clear sections, with the camera choice as ordered rows.
+- **עברית:** מראה ומיתוג: הגדרות הלוגו עם לשוניות נוחות למקלדת וסימון "שינויים שעוד לא נשמרו"; רשימת משתמשי מסך הקיר, המצב הריק והחלונית סודרו לאזורים ברורים, ובחירת המצלמות היא שורות ממוספרות.
+- **English:** Camera administration: the privacy masks editor fits the window on a wide screen (picture, regions and review side by side), and the multi-camera batch list and its progress rows are clearer.
+- **עברית:** ניהול מצלמות: עורך מסכות הפרטיות מתאים לחלון במסך רחב (תמונה, אזורים וסקירה זה לצד זה), ורשימת הפעולה על כמה מצלמות ושורות ההתקדמות שלה ברורות יותר.
+- **English:** Automations and schedules settings: rows stack instead of squeezing in a narrow column, the slot panel and table view are tidier, and the create dialog keeps its actions on screen while only the body scrolls.
+- **עברית:** הגדרות אוטומציות ולוחות זמנים: שורות נערמות במקום להידחס בעמודה צרה, חלונית המשבצת ותצוגת הטבלה מסודרות יותר, וחלון היצירה משאיר את הפעולות על המסך כשרק התוכן נגלל.
+- **English:** Investigation: the cases list fits the window with status filters and a count, a case page has two scrolling columns and a preservation summary, exports are grouped into active and finished with a summary row, and the event page shows Hebrew event names with technical details on request.
+- **עברית:** חקירה: רשימת התיקים מתאימה לחלון עם מסנני מצב וספירה, דף תיק עם שתי עמודות נגללות וסיכום שימור, הייצואים מקובצים לפעילים ולשהסתיימו עם שורת סיכום, ודף האירוע מציג שמות אירועים בעברית ופרטים טכניים לפי בקשה.
+- **English:** Insights and infrastructure reports: calmer counters, one segment track for range and language, openable door rows with a chevron, larger touch targets on tablets and phones, and consistent empty and error marks.
+- **עברית:** תובנות ודוחות תשתית: מונים שקטים יותר, מסילת בחירה אחת לטווח ולשפה, שורות דלת נפתחות עם חץ, אזורי מגע גדולים יותר בטאבלט ובטלפון, וסימוני ריק ושגיאה אחידים.
+- **English:** Home editing: the edit panel is grouped (screen, widgets with a shown count, order), widget rows are wells, keys and fields are 44 px on a phone, a triggered alarm now shows on the phone's ambient bar, and the clock uses even-width figures.
+- **עברית:** עריכת הבית: חלונית העריכה מקובצת (המסך, ווידג'טים עם ספירת המוצגים, סדר), שורות הווידג'טים בולטות פחות, מקשים ושדות בגובה 44 פיקסלים בטלפון, אזעקה פעילה מוצגת עכשיו בסרגל העליון בטלפון, והשעון משתמש בספרות ברוחב קבוע.
+- **English:** Setup and plan administration: connection results show as status lines with an icon, the map settings and area-links pages use the common settings look with tinted counts, and the plan editor's cards answer a press.
+- **עברית:** הגדרות התקנה ומפה: תוצאות החיבור מוצגות כשורות מצב עם סמל, דפי הגדרות המפה וקישורי האזורים משתמשים במראה ההגדרות המשותף עם מונים צבעוניים, וכרטיסי עורך המפה מגיבים ללחיצה.
+- **English:** Tabs display settings: two headed groups (display, the tabs of each area), owner columns with a head, choices as tiles, one save / error line, and a retry panel if the settings do not load.
+- **עברית:** הגדרות תצוגת הלשוניות: שתי קבוצות עם כותרת (תצוגה, הלשוניות של כל אזור), עמודות לפי בעלים עם כותרת, בחירות כאריחים, שורת שמירה / שגיאה אחת, וחלונית "נסה שוב" אם ההגדרות לא נטענות.
+
 ## 2.33.1 (pilot) - On/off lights without a dimmer, floor lights popup, tidier tree, event centre polish, scrolling tab strips
 **After installing:** no database migration. New settings keep today's behaviour by default. Going back to 2.33.0 is safe; before going back, set "show 'ללא שיוך' in the tree" to "always" if it was changed, so the other home-screen options are kept.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. ההגדרות החדשות שומרות על ההתנהגות הקיימת כברירת מחדל. חזרה ל-2.33.0 בטוחה; לפני החזרה, אם שונתה ההגדרה "הצג 'ללא שיוך' בעץ", יש להחזיר אותה ל"תמיד" כדי ששאר אפשרויות המסך הראשי יישמרו.
