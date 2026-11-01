@@ -92,7 +92,7 @@ async function bar(page: Page) {
       pageTop: Math.round(screen.top),
       rowW: Math.round(track.getBoundingClientRect().width),
       hostW: Math.round(hr.width),
-      scrolls: host.scrollWidth > host.clientWidth + 1,
+      scrolls: ((v) => v.scrollWidth > v.clientWidth + 1)(host.shadowRoot!.querySelector<HTMLElement>('[data-tabs-viewport]') ?? host), // 2.33.1: the viewport scrolls
       fade: host.getAttribute('data-fade') ?? '',
       activeInView: on.left >= hr.left - 1 && on.right <= hr.right + 1,
     };
