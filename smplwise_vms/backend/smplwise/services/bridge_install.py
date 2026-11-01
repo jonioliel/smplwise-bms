@@ -88,7 +88,8 @@ def _marker(target: Path) -> dict[str, Any]:
 def _manual_owner_profile(cfg: Path | None) -> bool:
     return bool(cfg and ((cfg / "hikvision_intercom_manual_upgrade.json").exists()
         or (cfg / "hikvision_intercom_manual_upgrade.json").is_symlink()
-        or (cfg / "custom_components/hikvision_intercom/_manual_upgrade_profile.json").exists()))
+        or (cfg / "custom_components/hikvision_intercom/_manual_upgrade_profile.json").exists()
+        or (cfg / "custom_components/hikvision_intercom/_manual_upgrade_profile.json").is_symlink()))
 
 
 def _target_digest(target: Path) -> str | None:
@@ -191,6 +192,11 @@ def install(db: Database, settings: Settings, force: bool = False, announce: boo
             return status(db, conn)
         if _manual_owner_profile(cfg):
             STATE["last_error"] = "manual_owner_upgrade_profile"
+            # WISKEY-RC7-ADOPT-2331 (section 8a): the native guard records the refusal (read-only preflight, one audit row per new
+            # refusal); nothing is written to either component directory
+            from . import wiskey_auto_install as wai
+
+            wai.installer_step(db, settings, cfg, src, conn=conn, restart=False)
             return status(db, conn)
         target = cfg / "custom_components" / DOMAIN
         installed = read_version(target) if target.is_dir() else None

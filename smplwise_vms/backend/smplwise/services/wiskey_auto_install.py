@@ -7,8 +7,11 @@ directory) with ONE GrantRef per paired bridge entry (`authority_mode = permanen
 READS it: it never creates, renews or edits a grant, and nothing here asks the owner for a key, an id, a GrantRef or a template ref.
 The config directory is the add-on's mapping (`bridge_install.ha_config_dir`: `/homeassistant`, legacy `/config`).
 
-What the delivery does on its own and what Arx keeps behind ONE switch (`wiskey.auto_install`, default OFF, no screen; owner decision
-confirmed 29.10 for 2.27.2, it overrides the R3 delivery's "automatic, no switch" policy - docs/changes/WISKEY-R3-2272.md):
+What the delivery does on its own and what Arx keeps behind ONE switch (`wiskey.auto_install`, default OFF; owner decision
+confirmed 29.10 for 2.27.2 and again 01.11 (decision 1B) for the Mac rc.7 adoption - docs/changes/WISKEY-RC7-ADOPT-2331.md: NO code
+path turns the switch on, not even an exact managed-profile bundle; turning it on is an explicit owner step). WISKEY-RC7-ADOPT-2331
+adopts the rc.7 guards (`preflight_native`): a manual install, a foreign tree and a bad managed pin are refused BEFORE any write to the
+component directory, read-only, with one `wiskey.installation.native_refused` audit row per new refusal - also with the switch off:
 - reading the manifest, validating it and reporting its state: always (read-only, no I/O towards WisKey);
 - staging the pinned native bundle into the config directory, the bridge's automatic-install discovery flag, the one restart per
   source digest, the readiness observation, the existing-WhatsApp source export, filling the unset station provider (`auto`; every
@@ -537,6 +540,12 @@ def stage_native_bundle(config_root: Path, source: Path, staged_digest: str | No
     older), `native_newer_installed` (the installed component's version is newer than the bundle: never downgraded) or
     `native_foreign_installed` (a tree Arx did not stage - installed or edited by someone else: never overwritten). The previous tree is
     kept as `hikvision_intercom.smplwise-backup`."""
+    from .bridge_install import _manual_owner_profile
+
+    # WISKEY-RC7-ADOPT-2331 (rc.7 map row 3): the manual profile is refused before the pin or the source is even read - defence in
+    # depth behind `preflight_native`, for every direct caller of this function.
+    if _manual_owner_profile(Path(config_root)):
+        return "native_foreign_installed"
     verify_pin(source)
     target = Path(config_root) / "custom_components" / NATIVE_DOMAIN
     if target.is_symlink() or (target.exists() and not target.is_dir()):
@@ -646,23 +655,148 @@ def _store_staged_digest(db: Any, conn: Any, value: str) -> None:
             set_setting(c, STAGED_DIGEST_KEY, value)
 
 
+MANAGED_PROFILE = "managed_original_authority_flow"  # the rc.7 managed pin profile (WisKey Mac rc.7, product 015f0277)
+AUDIT_NATIVE_REFUSED = "wiskey.installation.native_refused"
+REFUSAL_KEY = "wiskey.installation.native_refusal"  # the last audited refusal (dedupe only; `wiskey.installation.*`: never restored)
+_FOREIGN = "native_foreign_installed"
+
+
+def _target_owned(db: Any, conn: Any, target: Path) -> bool:
+    """True when `target` is exactly the tree Arx staged last (`STAGED_DIGEST_KEY`). A link inside it (lstat scan, the link is never
+    followed) or an unreadable tree is not Arx's."""
+    from .wiskey_distribution_digest import files
+
+    try:
+        files(target)
+        owned = _staged_digest(db, conn)
+        return owned is not None and source_digest(target) == owned
+    except (OSError, ValueError):
+        return False
+
+
+def preflight_native(db: Any, conn: Any, config_root: Path, source: Path) -> tuple[str, str] | None:
+    """WISKEY-RC7-ADOPT-2331 (rc.7 map rows 2-3, owner decision 1B): the guards in front of every write to
+    `<config>/custom_components/hikvision_intercom`. READ-ONLY - it writes nothing anywhere (no setting, no file) and never turns the
+    switch on. Returns None (a guarded write may proceed, if the switch is on) or (reason, code):
+
+    1. `manual_install_present` - the owner's manual profile (`bridge_install._manual_owner_profile`: the config-level marker or the
+       component's `_manual_upgrade_profile.json`, a dangling link included) - checked before the source is even read;
+    2. `foreign_install_present` - the target is a link / not a directory, or (managed profile) holds a link or is not exactly the
+       tree Arx staged last (`STAGED_DIGEST_KEY`), even when it is byte-identical to the bundle;
+    3. `source_refused` - the bundle holds a link (lstat scan BEFORE any byte is read, ignored names such as __pycache__ included);
+    4. `pin_mismatch` - the bundle is not byte-exact to its pin, carries a manual marker, or a managed pin's profile / product_CODE /
+       file_count / recomputed component digest does not match.
+    A legacy pin without a profile keeps the earlier staging rule (`stage_native_bundle`: identical = up to date, newer = refused,
+    otherwise only a tree Arx staged last is replaced)."""
+    from .bridge_install import _manual_owner_profile
+    from .wiskey_distribution_digest import digest, files
+
+    root = Path(config_root)
+    if _manual_owner_profile(root):
+        return ("manual_install_present", _FOREIGN)
+    target = root / "custom_components" / NATIVE_DOMAIN
+    if os.path.lexists(target) and (target.is_symlink() or not target.is_dir()):
+        return ("foreign_install_present", _FOREIGN)
+    try:
+        rows = files(source)
+    except (OSError, ValueError):
+        return ("source_refused", "native_source_refused")
+    try:
+        pin = verify_pin(source)
+    except InstallationError as exc:
+        return ("pin_mismatch", exc.code)
+    if any(row["path"] == "_manual_upgrade_profile.json" for row in rows):
+        return ("pin_mismatch", "native_pin_mismatch")
+    if pin.get("profile") is None:
+        return None  # legacy bundle: the earlier rule in stage_native_bundle
+    if (pin.get("profile") != MANAGED_PROFILE or type(pin.get("product_CODE")) is not str
+            or re.fullmatch(r"[0-9a-f]{40}", pin["product_CODE"]) is None
+            or type(pin.get("file_count")) is not int or pin["file_count"] != len(rows)
+            or pin.get("component_digest_recomputed") != digest(source)):
+        return ("pin_mismatch", "native_pin_mismatch")
+    if os.path.lexists(target) and not _target_owned(db, conn, target):
+        return ("foreign_install_present", _FOREIGN)
+    return None
+
+
+def _audit_refusal(db: Any, conn: Any, reason: str, code: str | None, source: Path, enabled: bool) -> None:
+    """One audit row per NEW refusal (reason, code, switch, bundle digest); the same refusal on the next start-up is not repeated.
+    Codes and digests only - never a path, a file content or a secret. Never raises."""
+    from ..audit import audit
+    from ..db import get_setting, set_setting
+
+    try:
+        bundle = source_digest(source)
+    except (OSError, ValueError):
+        bundle = None
+    switch = "on" if enabled else "off"
+    fingerprint = json.dumps({"reason": reason, "code": code, "switch": switch, "bundle": bundle}, sort_keys=True)
+
+    def write(c: Any) -> None:
+        if get_setting(c, REFUSAL_KEY) == fingerprint:
+            return
+        set_setting(c, REFUSAL_KEY, fingerprint)
+        audit(c, actor=None, action=AUDIT_NATIVE_REFUSED, decision="denied", resource_type="installation", resource_id=NATIVE_DOMAIN,
+              reason=reason, details={"code": code, "switch": switch, "bundle_digest": bundle, "component_written": False})
+
+    try:
+        if conn is not None:
+            write(conn)
+        else:
+            with db.write_aside(label="wiskey native refusal audit") as c:
+                write(c)
+    except Exception as exc:  # noqa: BLE001 - the audit never blocks the bridge install
+        log.warning("wiskey native refusal audit unavailable (%s)", type(exc).__name__)
+
+
+def _clear_refusal(db: Any, conn: Any) -> None:
+    from ..db import get_setting, set_setting
+
+    def clear(c: Any) -> None:
+        if get_setting(c, REFUSAL_KEY):
+            set_setting(c, REFUSAL_KEY, "")
+
+    if conn is not None:
+        clear(conn)
+    else:
+        with db.write_aside(label="wiskey native refusal cleared") as c:
+            clear(c)
+
+
 def installer_step(db: Any, settings: Any, config_root: Path, bridge_source: Path | None, *, conn: Any = None, restart: bool) -> dict[str, Any]:
-    """Called by `bridge_install.install` after the bridge copy. Switch off: nothing (state `off`). Switch on: verify the pin, stage
-    the native bundle, and - when the copy changed something and `restart` is asked - one restart per digest. Never raises; never
-    blocks the bridge's own install / discovery."""
-    if (conn is not None and not switch_on(conn)) or (conn is None and not switch_on_db(db)):
-        NATIVE.update(state="off", code=None, restart=None)
-        return dict(NATIVE)
+    """Called by `bridge_install.install` after the bridge copy. Never raises; never blocks the bridge's own install / discovery.
+
+    WISKEY-RC7-ADOPT-2331, owner decision 1B: the guards (`preflight_native`) run first, read-only, whatever the switch says; a refusal
+    is audited and nothing is written to the component directory. Switch off: nothing else (state `off`, one `auto_install_off`
+    refusal row) - an exact managed-profile bundle does NOT turn the switch on. Switch on (an explicit owner step): stage the native
+    bundle, and - when the copy changed something and `restart` is asked - one restart per digest."""
+    enabled = switch_on(conn) if conn is not None else switch_on_db(db)
     source = native_source(bridge_source)
     if source is None:
-        NATIVE.update(state="source_missing", code="native_bundle_missing", restart=None)
+        NATIVE.update(state="source_missing" if enabled else "off", code="native_bundle_missing" if enabled else None, restart=None)
         return dict(NATIVE)
     try:
+        refusal = preflight_native(db, conn, config_root, source)
+        if refusal is not None:
+            reason, code = refusal
+            _audit_refusal(db, conn, reason, code, source, enabled)
+            if enabled:
+                NATIVE.update(state="refused" if code == _FOREIGN else "error", code=code, restart=None)
+            else:
+                NATIVE.update(state="off", code=None, restart=None)
+            return dict(NATIVE)
+        if not enabled:
+            _audit_refusal(db, conn, "auto_install_off", None, source, enabled)
+            NATIVE.update(state="off", code=None, restart=None)
+            return dict(NATIVE)
         NATIVE["version"] = json.loads((source / "manifest.json").read_text(encoding="utf-8")).get("version")
         staged = stage_native_bundle(config_root, source, _staged_digest(db, conn))
         if staged in ("native_newer_installed", "native_foreign_installed"):
+            _audit_refusal(db, conn, "newer_install_present" if staged == "native_newer_installed" else "foreign_install_present",
+                           staged, source, enabled)
             NATIVE.update(state="refused", code=staged, restart=None)  # the installed tree is left exactly as it is
             return dict(NATIVE)
+        _clear_refusal(db, conn)
         _store_staged_digest(db, conn, source_digest(source))
         NATIVE.update(state=staged, code=None)
         from . import wiskey_native_projection as projection, wiskey_install_generation as gen
