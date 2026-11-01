@@ -1018,9 +1018,6 @@ export class DevicesSchedules extends LitElement {
       box-shadow: none;
       margin-inline-start: 6px;
     }
-    .toast.bad .ic {
-      color: #ff453a;
-    }
     .dlgform {
       display: flex;
       flex-direction: column;

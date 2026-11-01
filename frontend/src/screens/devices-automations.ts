@@ -233,9 +233,6 @@ export class DevicesAutomations extends LitElement {
       box-shadow: none;
       margin-inline-start: var(--sw-s-1h);
     }
-    .toast.bad .ic {
-      color: color-mix(in srgb, var(--sw-danger) 70%, var(--sw-toast-text));
-    }
     .dlgform {
       display: flex;
       flex-direction: column;
