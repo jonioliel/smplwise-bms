@@ -184,14 +184,21 @@ export class SystemFleetReport extends LitElement {
     }
     a.link {
       flex: none;
+      display: inline-flex;
+      align-items: center;
+      min-block-size: 32px;
+      padding-inline: 4px;
+      border-radius: var(--sw-r-xs);
       color: var(--sw-accent-text);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium);
       text-decoration: none;
       white-space: nowrap;
     }
-    a.link:hover {
-      text-decoration: underline;
+    @media (hover: hover) and (pointer: fine) {
+      a.link:hover {
+        text-decoration: underline;
+      }
     }
     a.link:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -327,7 +334,9 @@ export class SystemFleetReport extends LitElement {
       border-radius: var(--sw-r-sm);
       direction: ltr;
       text-align: left;
-      font: 12px/1.5 var(--sw-font-mono);
+      font-family: var(--sw-font-mono);
+      font-size: var(--sw-fs-state);
+      line-height: 1.5;
       color: var(--sw-text-2);
     }
     .row .end code {
@@ -353,6 +362,24 @@ export class SystemFleetReport extends LitElement {
     .in[aria-invalid='true'] {
       border-color: var(--sw-danger);
     }
+    .sk-answer {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr);
+      gap: var(--sw-s-3);
+      align-items: center;
+    }
+    .sk-answer .skl:first-child {
+      block-size: 44px;
+      border-radius: var(--sw-r-md);
+    }
+    .sk-lines {
+      display: grid;
+      gap: 10px;
+    }
+    .sk-fold {
+      block-size: 56px;
+      border-radius: var(--sw-r-lg);
+    }
     .skl {
       display: block;
       block-size: 12px;
@@ -369,6 +396,18 @@ export class SystemFleetReport extends LitElement {
     @keyframes shim {
       to {
         background-position: -200% 0;
+      }
+    }
+    /* touch layouts: the readiness link and the folded-card summaries are 44 px targets */
+    @media (max-width: 1100px) {
+      a.link {
+        min-block-size: 44px;
+      }
+      details.exact > summary {
+        min-block-size: 44px;
+      }
+      .in {
+        min-block-size: 44px;
       }
     }
     @media (max-width: 767px) {
@@ -648,7 +687,8 @@ export class SystemFleetReport extends LitElement {
     const heading = ft('title');
     if (this.loadState === 'loading') {
       return html`<sw-page crumbs="הגדרות" heading=${heading} subheading=${ft('sub')} data-fleet-report data-state="loading">
-        <div class="sections"><sw-card><div style="display:grid;gap:14px"><span class="skl" style="inline-size:40%"></span><span class="skl" style="inline-size:70%"></span><span class="skl" style="inline-size:55%"></span></div></sw-card>
+        <div class="sections" aria-busy="true"><sw-card><div class="sk-answer"><span class="skl"></span><div class="sk-lines"><span class="skl" style="inline-size:40%;block-size:16px"></span><span class="skl" style="inline-size:70%"></span><span class="skl" style="inline-size:55%"></span></div></div></sw-card>
+        ${[0, 1, 2].map(() => html`<span class="skl sk-fold"></span>`)}
         <div class="hint">${ft('loading')}</div></div></sw-page>`;
     }
     if (this.loadState !== 'ready' || !this.status) {

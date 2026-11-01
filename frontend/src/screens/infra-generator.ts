@@ -67,6 +67,16 @@ export class InfraGenerator extends LitElement {
     .rows { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
     .body { min-inline-size: 0; }
     .body > * { display: block; }
+    /* INSIGHTS-POLISH-2331: the loading state draws the page's shape - the tab row, the hero (diagram + side card) - and shimmers like the
+       other infrastructure skeletons; the not-found explanation keeps a reading measure */
+    .sk-tabs { inline-size: min(320px, 70%); block-size: 22px; }
+    .sk-hero { block-size: 280px; }
+    .sk-line { block-size: 14px; }
+    .sk-line + .sk-line { margin-block-start: 12px; inline-size: 70%; }
+    .measure { max-inline-size: 520px; }
+    .body > .card + .card { margin-block-start: 14px; }
+    /* the generators' count beside the picker is a quiet counter, not a bare digit */
+    .gpick > .mut:last-child { font-variant-numeric: tabular-nums; padding: 2px 9px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); color: var(--sw-text-2); }
   `, bubbleChrome];
 
   connectedCallback() {
@@ -149,7 +159,7 @@ export class InfraGenerator extends LitElement {
   private notFound() {
     const m = this.access.manage;
     return html`<div class="card" data-state="not-found"><div class="empty"><div class="ic"><sw-icon name="bolt" size="26"></sw-icon></div><h3>${G.notFound.title}</h3>
-      <div class="mut" style="max-inline-size:520px">${G.notFound.body}${this.list?.last_detect_at ? ` ${fill(G.notFound.checked, { t: fmtDateTime(this.list.last_detect_at) })}` : ''}</div>
+      <div class="mut measure">${G.notFound.body}${this.list?.last_detect_at ? ` ${fill(G.notFound.checked, { t: fmtDateTime(this.list.last_detect_at) })}` : ''}</div>
       ${m ? html`<div class="row" style="justify-content:center"><button class="btn pri" ?disabled=${this.detecting} @click=${() => this.detect()} data-retry><sw-icon name="refresh" size="16"></sw-icon> ${this.detecting ? G.notFound.detecting : G.notFound.retry}</button>
         <a class="btn" href="#/system/infra/generator/routing">${G.notFound.toSettings}</a></div>` : nothing}</div></div>
       <div class="card"><div class="hd"><span class="h3">${G.notFound.howTitle}</span></div><dl class="kv">${G.notFound.how.map((t, i) => html`<dt>${i + 1}</dt><dd>${t}</dd>`)}</dl></div>`;
@@ -165,7 +175,7 @@ export class InfraGenerator extends LitElement {
     const l1 =isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'generator')} active="generator" .variant=${tabStyleOf('infra')} data-infra-l1></sw-tabs>` : nothing;
     if (!this.access.view) return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'error' && !this.list) return html`<sw-state-panel state="error" heading=${G.loadError} hint=${this.error} actionLabel=${G.retry} @action=${() => this.loadList()} data-state="error"></sw-state-panel>`;
-    if (this.phase === 'loading' && !this.list) return html`<div class="col" data-state="loading"><div class="skl" style="inline-size:320px;block-size:22px"></div><div class="hero"><div class="card"><div class="skl" style="block-size:280px"></div></div><div class="card"><div class="skl"></div><div class="skl" style="margin-block-start:12px"></div></div></div></div>`;
+    if (this.phase === 'loading' && !this.list) return html`<div class="col" data-state="loading" aria-busy="true"><div class="skl sk-tabs"></div><div class="hero"><div class="card"><div class="skl sk-hero"></div></div><div class="card"><div class="skl sk-line"></div><div class="skl sk-line"></div></div></div></div>`;
     const ds = this.shown();
     if (!ds.length) return html`<div class="rows lead-head">${l1}</div><div class="body">${this.notFound()}</div>`;
     const d = this.device;

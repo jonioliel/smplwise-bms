@@ -133,16 +133,16 @@ export class InfraReport extends LitElement {
     const figs = reportFigures(m, m.lang);
     if (!figs.length) return nothing;
     const look = (t?: string) => (t === 'up' ? 'bad' : t === 'down' ? 'ok' : 'unk');
-    return html`<div class="kpis" role="group" aria-label=${ix('sec_summary')} data-kpis>${figs.map((f) => kpi(f.value, ix(f.label, undefined, m.lang), look(f.tone), { unit: f.unit ? ix(f.unit, undefined, m.lang) : undefined, note: f.note, noteTone: f.tone ?? 'muted', key: f.id }))}</div>`;
+    return html`<div class="kpis figs" role="group" aria-label=${ix('sec_summary')} data-kpis>${figs.map((f) => kpi(f.value, ix(f.label, undefined, m.lang), look(f.tone), { unit: f.unit ? ix(f.unit, undefined, m.lang) : undefined, note: f.note, noteTone: f.tone ?? 'muted', key: f.id }))}</div>`;
   }
 
   private toolbar() {
     const now = new Date();
     return html`<div class="toolbar">
       <div class="month" role="group" aria-label=${ix('month')}>
-        <button data-prev aria-label=${ix('prevMonth')} @click=${() => this.setMonth(shiftMonth(this.month, -1))}><sw-icon name="chevron" style="transform:scaleX(-1)"></sw-icon></button>
+        <button data-prev aria-label=${ix('prevMonth')} @click=${() => this.setMonth(shiftMonth(this.month, -1))}><sw-icon name="chevronBack" size="18"></sw-icon></button>
         <b data-month>${monthLabel(this.month, this.rlang)}</b>
-        <button data-next aria-label=${ix('nextMonth')} ?disabled=${!canGoNext(this.month, now)} @click=${() => this.setMonth(shiftMonth(this.month, 1))}><sw-icon name="chevron"></sw-icon></button>
+        <button data-next aria-label=${ix('nextMonth')} ?disabled=${!canGoNext(this.month, now)} @click=${() => this.setMonth(shiftMonth(this.month, 1))}><sw-icon name="chevron" size="18"></sw-icon></button>
       </div>
       <div class="seg" role="group" aria-label=${ix('language')}>
         <button data-lang="he" aria-pressed=${this.rlang === 'he'} @click=${() => this.setLang('he')}>${ix('langHe')}</button>
@@ -169,9 +169,9 @@ export class InfraReport extends LitElement {
     const m = this.model;
     switch (this.phase) {
       case 'loading':
-        return html`<div class="rep-loading" aria-busy="true" data-state="loading">${[58, 90, 70].map((h) => html`<div class="rs"><div class="skel" style="block-size:16px;inline-size:140px;margin-block-end:14px"></div><div class="skel" style="block-size:${h}px"></div></div>`)}</div>`;
+        return html`<div class="rep-loading" aria-busy="true" data-state="loading">${[58, 90, 70].map((h) => html`<div class="rs"><div class="skel" style="block-size:16px;inline-size:min(140px, 60%);margin-block-end:14px"></div><div class="skel" style="block-size:${h}px"></div></div>`)}</div>`;
       case 'error':
-        return html`<div class="blank" data-state="error"><sw-icon name="warning" style="color:var(--sw-danger-text)"></sw-icon><b>${ix('errorTitle')}</b><span class="muted">${ix('errorBody')}</span>
+        return html`<div class="blank" data-state="error"><sw-icon class="bad" name="warning"></sw-icon><b>${ix('errorTitle')}</b><span class="muted">${ix('errorBody')}</span>
           <button class="btn pri" data-retry @click=${() => void this.load()}>${ix('retry')}</button></div>`;
       case 'empty':
         return html`<div class="blank" data-state="empty"><sw-icon name="calendar"></sw-icon><b>${ix('emptyMonthTitle', { month: monthLabel(this.month, this.rlang) })}</b>
@@ -204,7 +204,7 @@ export class InfraReport extends LitElement {
         <b>${ix(this.phase === 'off' ? 'offTitle' : 'forbiddenTitle')}</b><a class="btn" href="#/">${ix('toHome')}</a></div></div>`;
     }
     return html`${this.header()}${this.kpiRow()}
-      ${this.pdfError ? html`<div class="card" data-state="pdf-error" style="margin-block-end:14px"><div class="blank" style="padding:24px 20px"><sw-icon name="warning" style="color:var(--sw-danger-text)"></sw-icon>
+      ${this.pdfError ? html`<div class="card" data-state="pdf-error" role="alert" style="margin-block-end:14px"><div class="blank tight"><sw-icon class="bad" name="warning"></sw-icon>
         <b>${ix(this.pdfError === 'pdfTooBig' ? 'pdfTooBig' : 'pdfFailTitle')}</b>${this.pdfError === 'pdfTooBig' ? nothing : html`<span class="muted">${ix('pdfFailBody')}</span>`}
         <div class="row"><button class="btn pri" data-pdf-retry @click=${() => void this.download()}>${ix('retry')}</button>
         <button class="btn" data-pdf-close @click=${() => (this.pdfError = '')}>${ix('close')}</button></div></div></div>` : nothing}
