@@ -714,7 +714,7 @@ export class SystemLocalUsers extends LitElement {
               this.selected = e.detail.id;
               this.roleEdit = null;
             }}></sw-table>`
-        : html`<sw-state-panel state="empty" compact icon="users" hint=${lit('empty')} data-local-empty></sw-state-panel>`}
+        : html`<sw-state-panel icon="users" state="empty" compact hint=${lit('empty')} data-local-empty></sw-state-panel>`}
       ${sel ? this.renderSelected(sel) : nothing}
       ${d.can_manage && d.enabled ? this.renderPublicUrl(d) : nothing}
     </div>`;

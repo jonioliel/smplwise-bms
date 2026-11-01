@@ -28,6 +28,7 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src')
 const EXEMPT: Record<string, string> = {
   'components/media-player-css.ts | .pop': 'an in-flow list inside the remote panel (no position), over the remote\'s own opaque surface - it floats over nothing',
   'components/sw-drawer.ts | .panel': 'a drawer is a modal layer (translucency bounded by the contrast floor over a dimmed scrim), not a menu',
+  'screens/system-security-privacy-masks.ts | .results': 'the in-flow result list of the apply review (no position), a well on the page like the history list - it floats over nothing',
   'screens/devices-layout-css.ts | .lay-panel': 'the layout editor\'s docked side panel: a panel on the page, not a menu',
   'screens/wiskey-people.ts | .colmenu': 'WisKey code (other engineers merge it); already opaque through --sw-surface-solid - migrate with the WisKey merge',
 };

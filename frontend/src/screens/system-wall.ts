@@ -298,7 +298,7 @@ export class SystemWall extends LitElement {
     if (!rows.length) {
       // LOOK-POLISH-2331: the empty state carries the first step itself (the toolbar button stays for the full list)
       // (the state panel is its own hero card since R5-SYSTEM-297: no sw-card around it, or the card would sit in a card)
-      return html`<sw-state-panel data-wall-empty icon="grid" state="empty" heading="אין מסכי קיר" hint="משתמש מסך קיר הוא משתמש רגיל שמתחבר מטאבלט קבוע ורואה רק את המצלמות שנבחרו."
+      return html`<sw-state-panel icon="grid" data-wall-empty state="empty" heading="אין מסכי קיר" hint="משתמש מסך קיר הוא משתמש רגיל שמתחבר מטאבלט קבוע ורואה רק את המצלמות שנבחרו."
         actionLabel=${this.max > 0 ? 'הוספת משתמש מסך' : ''} @action=${() => void this.openAdd()}></sw-state-panel>`;
     }
     const overload = (p: WallProfile) => (p.config.cameras.length > MAX_PER_PAGE ? html`<div class="warn"><sw-icon name="warning" size=${14}></sw-icon>מעל ${MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס</div>` : nothing);

@@ -311,8 +311,8 @@ export class SystemMultimediaPlayers extends LitElement {
       max-inline-size: calc(100% - var(--sw-s-6));
       padding: var(--sw-s-2) var(--sw-s-4);
       border-radius: var(--sw-r-pill);
-      background: var(--sw-toast-bg, var(--sw-surface));
-      color: var(--sw-toast-text, var(--sw-text));
+      background: var(--sw-toast-bg);
+      color: var(--sw-toast-text);
       box-shadow: var(--sw-shadow-3);
       font-weight: var(--sw-fw-medium);
     }
