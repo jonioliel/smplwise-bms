@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 // SWITCH-LIGHT-DIMMER-2331 (owner 2026-11-01). Against a mocked backend (every name synthetic, no device, no Home Assistant):
 //  1. the brightness slider: only a light that really takes a brightness - never a relay switch typed as a light, never an on/off-only light;
-//  2. the synoptic board and the cross-section: a press on a floor's lights strip / count opens the floor lights popup - every light of the
+//  2. the synoptic board and the cross-section: a press on a floor's lights count (board: the light cell; section: the "8/8" chip) opens the floor lights popup - every light of the
 //     floor's areas (light.* and the switches counted as lights, by "מפסקים בעמודת התאורה"), grouped by area, a toggle each, "הדלק הכל" /
 //     "כבה הכל" through the existing bulk confirmation (count, then the result per device), Escape closes.
 // Run on a preview build of this worktree:
@@ -156,6 +156,8 @@ async function shot(page: Page, name: string, project: string) {
 }
 
 const panel = (page: Page, floor = 'fp') => page.locator(`devices-tiles-panel[data-floor-lights="${floor}"]`);
+// a closed popup no longer names its floor (data-floor-lights=""): "closed" = no open lights drawer at all
+const closedCheck = (page: Page) => page.locator('devices-tiles-panel[data-floor-lights] sw-drawer[open]');
 
 test.describe('the floor lights popup (synoptic board)', () => {
   test('a press on the lights count opens every light of the floor, grouped by area; a slider only for the dimmer; all-off confirms and reports per device', async ({ page }, info) => {
@@ -188,7 +190,7 @@ test.describe('the floor lights popup (synoptic board)', () => {
     await paired.locator('sw-button[data-master="lights_off"]').click();
     const dlg = p.locator('devices-bulk-dialog');
     await expect(dlg.locator('[data-bulk-count]')).toHaveAttribute('data-bulk-count', '3');
-    await expect(dlg.locator('sw-button[data-bulk-confirm]')).toContainText('(3)');
+    await expect(dlg.locator('sw-button[data-bulk-confirm]')).toContainText(/\(.?3\)/); // the count is an ltrNum (it may lead with an invisible direction mark)
     expect(st.previews.at(-1)).toContain('kind=lights_off');
     expect(decodeURIComponent(st.previews.at(-1)!)).toContain('only=switch.parking_row_a,switch.parking_row_b,light.parking_relay,light.ramp_dimmer');
     await shot(page, 'syn-popup-confirm', info.project.name);
@@ -199,7 +201,7 @@ test.describe('the floor lights popup (synoptic board)', () => {
     // Escape closes (the bulk dialog first, then the popup)
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
-    await expect(p.locator('sw-drawer')).not.toHaveAttribute('open', '');
+    await expect(closedCheck(page)).toHaveCount(0);
   });
 
   test('"כל המפסקים": the column counts the plain switch too, the popup lists it (no slider) and the actions reach it', async ({ page }, info) => {
@@ -230,12 +232,12 @@ test.describe('the floor lights popup (synoptic board)', () => {
     await page.keyboard.press('Enter');
     await expect(panel(page).locator('.row[data-entity]')).toHaveCount(4);
     await page.keyboard.press('Escape');
-    await expect(panel(page).locator('sw-drawer')).not.toHaveAttribute('open', '');
+    await expect(closedCheck(page)).toHaveCount(0);
   });
 });
 
 test.describe('the floor lights popup (cross-section)', () => {
-  test('a press on the floor\'s lights strip opens the popup; elsewhere on the row it still selects the floor', async ({ page }, info) => {
+  test('a press on the floor\'s lights count chip opens the popup; elsewhere on the row (the strip too) it still selects the floor', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'the section beside the floor cards is a computer layout');
     await mockApi(page);
     await open(page, '/explore/buildings/b1/floors');
@@ -243,8 +245,9 @@ test.describe('the floor lights popup (cross-section)', () => {
     await expect(row).toHaveAttribute('data-xs-lights', '');
     await row.locator('.t').click();
     await expect(row).toHaveAttribute('aria-pressed', 'true');
-    await expect(panel(page).locator('sw-drawer')).not.toHaveAttribute('open', '');
-    await row.locator('.fac').click();
+    await expect(closedCheck(page)).toHaveCount(0);
+    // the strip fills the middle of the row: a press there selects / opens the floor as before (evidence-xsection-synoptic); only the chip opens the popup
+    await row.locator('.lc').click();
     await expect(panel(page).locator('.row[data-entity]')).toHaveCount(4);
     await page.waitForTimeout(300);
     await shot(page, 'xs-popup', info.project.name);
