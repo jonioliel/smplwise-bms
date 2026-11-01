@@ -76,6 +76,9 @@ test.describe('calendars placement and module states', () => {
       const nav = page.locator('sw-app system-nav');
       await expect(nav.locator('a[href="#/system/calendars"]')).toBeVisible();
       await expect(nav.locator('a[href="#/system/calendar-sync"]')).toHaveCount(0);
+      // SMALL-UI-BUGS-2343: the page's own tabs are not repeated as a sub-list in the column; the column marks the screen
+      await expect(nav.locator('a[href^="#/system/calendars?tab="]')).toHaveCount(0);
+      await expect(nav.locator('a[href="#/system/calendars"]')).toHaveAttribute('aria-current', 'page');
     }
     await page.screenshot({ path: test.info().outputPath('calendars-off-settings.png') });
   });
