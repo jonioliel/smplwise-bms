@@ -86,8 +86,9 @@ export class TicketsRfqsPage extends LitElement {
       display: flex;
       justify-content: center;
     }
+    /* A11Y-POLISHED-2342: the shared failure icon recipe (styles/media-page.ts) - the bare red read 2.8-3.0:1 on the light toast pill */
     .toast.bad .ic {
-      color: var(--sw-danger);
+      color: color-mix(in srgb, var(--sw-danger) 70%, var(--sw-toast-text));
     }
     /* six tiles (with "questions waiting") or five: one row on a wide page, three per row between a phone and a wide page */
     @media (min-width: 768px) and (max-width: 1279px) {

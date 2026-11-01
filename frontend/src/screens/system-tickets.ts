@@ -298,9 +298,11 @@ export class SystemTickets extends LitElement {
       flex: none;
       color: var(--sw-success);
     }
+    /* A11Y-POLISHED-2342: the bare danger red read 2.8-3.0:1 on the light scheme's toast pill (domus, tesla); the shared failure icon
+       recipe of styles/media-page.ts (the danger ink mixed toward the toast's own ink) holds >= 4.3:1 light and >= 3.3:1 dark */
     .toast.bad .ic,
     .toast.bad sw-icon {
-      color: var(--sw-danger);
+      color: color-mix(in srgb, var(--sw-danger) 70%, var(--sw-toast-text));
     }
     .toast .tx {
       min-inline-size: 0;

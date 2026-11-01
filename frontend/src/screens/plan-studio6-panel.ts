@@ -634,6 +634,9 @@ export const studio6Styles = css`
   .walkrow .star[aria-pressed='true'] {
     background: transparent;
     color: var(--sw-warning);
+    /* A11Y-POLISHED-2342: the bare warning read 2.0-2.15:1 on white in light; light draws the star in the warning ink (dark unchanged;
+       an engine without light-dark() keeps the line above) */
+    color: light-dark(var(--sw-warning-text), var(--sw-warning));
   }
   .walkrow button[disabled] {
     opacity: 0.4;

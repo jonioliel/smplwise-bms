@@ -373,6 +373,13 @@ export class NvrEncodingBatch extends LitElement {
     .sel[aria-checked='true'] .box {
       box-shadow: none;
     }
+    /* A11Y-POLISHED-2342 + DARK-REVIEW-2342: the unchecked box's 2 px --sw-border-strong edge read 1.3-2.0:1 on the light row and
+       1.5-2.3:1 on the dark one (a checkbox boundary needs 3:1, WCAG 1.4.11). Light draws it in the muted ink (>= 4.9:1 every skin), dark
+       in the muted ink at 70 % (3.2-4.3:1, tests/unit-dark-polish-beds.spec.ts on fix/DARK-REVIEW-2342). light-dark() keys on the page's
+       color-scheme (it inherits into the shadow root); an engine without it drops the line and keeps the old edge. */
+    .sel:not([aria-checked='true']) .box {
+      border-color: light-dark(var(--sw-text-3), color-mix(in srgb, var(--sw-text-3) 70%, transparent));
+    }
     .sel .meta {
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);

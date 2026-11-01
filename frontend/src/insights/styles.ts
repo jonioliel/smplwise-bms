@@ -52,6 +52,11 @@ export const insightCss = css`
   /* the report's figures carry a unit and a change note: one step down so "18,420 kWh" fits a tile */
   .kpis.figs .kpi b { font-size: var(--sw-fs-3xl); }
   .kpi[data-look='bad'] { --c: var(--sw-danger); } .kpi[data-look='warn'] { --c: var(--sw-warning); } .kpi[data-look='ok'] { --c: var(--sw-success); } .kpi[data-look='unk'] { --c: var(--sw-unknown); }
+  /* A11Y-POLISHED-2342: in light the state dot read 1.75-2.97:1 on the tile (a status mark needs 3:1); light draws it in the state's
+     text ink (>= 5:1), dark keeps the state colour. light-dark() keys on the page's color-scheme; an engine without it keeps the old dot */
+  .kpi { --c-ink: var(--sw-accent-text); }
+  .kpi[data-look='bad'] { --c-ink: var(--sw-danger-text); } .kpi[data-look='warn'] { --c-ink: var(--sw-warning-text); } .kpi[data-look='ok'] { --c-ink: var(--sw-success-text); } .kpi[data-look='unk'] { --c-ink: var(--sw-unknown-text); }
+  .kpi .dot { background: light-dark(var(--c-ink), var(--c)); }
   .kpi:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
 
   h2 { font-size: var(--sw-fs-lg); margin: 0; color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }

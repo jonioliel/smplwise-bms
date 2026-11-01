@@ -123,7 +123,7 @@ export class SystemCast extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .bad {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     /* MEDIA-POLISH-2331: the error stays in view at the top while the person scrolls (a save that failed far down the screens list
@@ -138,7 +138,7 @@ export class SystemCast extends LitElement {
       background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface));
       border: 1px solid color-mix(in srgb, var(--sw-danger) 30%, transparent);
       box-shadow: var(--sw-shadow-1);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     .toast {
@@ -370,22 +370,22 @@ export class SystemCast extends LitElement {
       <div class="row"><span class="lbl">מצב<span class="muted" data-cast-ready>${c.ready ? 'מוכן לשידור' : reason}</span></span>
         <sw-badge kind=${c.ready ? 'live' : 'stale'} label=${c.ready ? 'מוכן' : 'לא מוכן'}></sw-badge></div>
       <div class="row"><span class="lbl">כתובת המקור (ה־relay ברשת הביתית)<span class="muted">http://כתובת-IP:פורט של שרת Home Assistant; המסך מושך משם את התמונה. שם מארח לא מתקבל.</span></span>
-        <span class="inl"><input type="text" data-cast-origin dir="ltr" placeholder="http://192.168.x.x:18092" .value=${this.origin} @input=${(e: Event) => (this.origin = (e.target as HTMLInputElement).value)} />
+        <span class="inl"><input type="text" data-cast-origin dir="ltr" aria-label="כתובת המקור" placeholder="http://192.168.x.x:18092" .value=${this.origin} @input=${(e: Event) => (this.origin = (e.target as HTMLInputElement).value)} />
           <sw-button size="sm" data-cast-origin-save ?disabled=${this.origin.trim() === (cf.origin ?? '')} @click=${() => void this.saveCfg({ origin: this.origin.trim() })}>שמור</sw-button>
           <sw-button size="sm" variant="primary" data-cast-origin-check ?disabled=${this.originBusy || !cf.origin} @click=${() => void this.checkOrigin()}>${this.originBusy ? 'בודק…' : 'בדוק'}</sw-button>
           ${cf.origin_verified_at && !this.originMsg ? html`<span class="ok" data-cast-origin-verified>נבדקה</span>` : nothing}
           ${this.originMsg ? html`<span class=${this.originMsg.ok ? 'ok' : 'bad'} data-cast-origin-result role="status">${this.originMsg.text}</span>` : nothing}</span></div>
       <div class="row"><span class="lbl">מקסימום שידורים בו־זמנית<span class="muted">1-8</span></span>
-        <input type="number" min="1" max="8" data-cast-max .value=${String(cf.max_sessions)} @change=${(e: Event) => void this.saveCfg({ max_sessions: Number((e.target as HTMLInputElement).value) })} /></div>
+        <input type="number" min="1" max="8" data-cast-max aria-label="מקסימום שידורים בו־זמנית" .value=${String(cf.max_sessions)} @change=${(e: Event) => void this.saveCfg({ max_sessions: Number((e.target as HTMLInputElement).value) })} /></div>
       <div class="row"><span class="lbl">משך שידור ברירת מחדל<span class="muted">דקות; אפשר להאריך עד ${cf.max_extensions} פעמים</span></span>
-        <select data-cast-minutes .value=${String(cf.minutes)} @change=${(e: Event) => void this.saveCfg({ minutes: Number((e.target as HTMLSelectElement).value) })}>
+        <select data-cast-minutes aria-label="משך שידור ברירת מחדל" .value=${String(cf.minutes)} @change=${(e: Event) => void this.saveCfg({ minutes: Number((e.target as HTMLSelectElement).value) })}>
           ${[...new Set([...CAST_MINUTES, cf.minutes])].sort((a, b) => a - b).map((m) => html`<option value=${m} ?selected=${m === cf.minutes}>${m} דקות</option>`)}</select></div>
       <div class="row"><span class="lbl">זרם ראשי (איכות גבוהה)<span class="muted">רק למצלמה ב־H.264 ולמסך שאישר. כבוי = תמיד הזרם המשני.</span></span>
         <sw-toggle label="זרם ראשי" labelHidden .checked=${cf.allow_main} data-cast-allow-main @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ allow_main: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">כיבוי המסך אחרי העצירה<span class="muted">רק כשהמסך היה כבוי לפני השידור; המשתמש יכול לבטל בעצירה</span></span>
         <sw-toggle label="כיבוי אחרי עצירה" labelHidden .checked=${cf.power_off_after} data-cast-power-off @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ power_off_after: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">מסכים חסומים בבורר<span class="muted">מסך שהמשתמש לא יכול לשדר אליו</span></span>
-        <select data-cast-blocked-display @change=${(e: Event) => void this.saveCfg({ blocked_display: (e.target as HTMLSelectElement).value as CastConfigPatch['blocked_display'] })}>
+        <select data-cast-blocked-display aria-label="מסכים חסומים בבורר" @change=${(e: Event) => void this.saveCfg({ blocked_display: (e.target as HTMLSelectElement).value as CastConfigPatch['blocked_display'] })}>
           ${Object.entries(BLOCKED_DISPLAY_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === cf.blocked_display}>${v}</option>`)}</select></div>
       <div class="row"><span class="lbl">רכיבים<span class="muted" data-cast-parts>relay: ${c.relay.option ? (c.relay.listening ? `מאזין (פורט ${c.relay.container_port})` : `מופעל, לא מאזין${c.relay.error ? ` · ${c.relay.error}` : ''}`) : 'כבוי (cast_relay)'} · גשר Arx: ${c.bridge.paired ? `גרסה ${c.bridge.version ?? '?'}${c.bridge.ready ? '' : ` · נדרש ${c.bridge.required}+`}` : 'לא מצומד'}</span></span></div>
     </sw-card>`;

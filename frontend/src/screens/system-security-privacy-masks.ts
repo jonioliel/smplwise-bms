@@ -274,7 +274,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .swrow .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     @media (max-width: 767px) {
@@ -443,7 +443,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       white-space: nowrap;
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
       margin: 0;
     }
@@ -492,7 +492,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       color: var(--sw-text-2);
     }
     .results .st.bad {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .review {
       display: grid;
@@ -571,13 +571,13 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     }
     .st-chip.ready {
       background: var(--sw-success-soft);
-      color: var(--sw-success);
+      color: var(--sw-success-text);
       border-color: transparent;
     }
     .st-chip.invalid,
     .st-chip.skipped {
       background: var(--sw-danger-soft);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       border-color: transparent;
     }
     .foot {

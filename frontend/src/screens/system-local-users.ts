@@ -162,7 +162,7 @@ export class SystemLocalUsers extends LitElement {
     }
     .note.err {
       background: var(--sw-danger-soft);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .note.warn {
       background: var(--sw-warning-soft, var(--sw-accent-soft));

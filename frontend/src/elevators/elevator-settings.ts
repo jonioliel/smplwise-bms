@@ -197,7 +197,7 @@ export class ElevatorSettings extends LitElement {
               <button type="button" class="btn sm" aria-label=${elt('up')} ?disabled=${this.busy || i === 0} @click=${() => void this.run(() => reorderElevators(moved(ids, e.id, -1)))}><sw-icon name="arrowUp" size="16"></sw-icon></button>
               <button type="button" class="btn sm" aria-label=${elt('down')} ?disabled=${this.busy || i === ids.length - 1} @click=${() => void this.run(() => reorderElevators(moved(ids, e.id, 1)))}><sw-icon name="arrowDown" size="16"></sw-icon></button>
               <button type="button" class="btn sm" data-elevator-edit @click=${() => void this.open(draftOf(e))}>${elt('edit')}</button>
-              <button type="button" class="btn sm dng" data-elevator-remove @click=${() => (this.confirmDelete = e)}><sw-icon name="trash" size="16"></sw-icon></button>
+              <button type="button" class="btn sm dng" data-elevator-remove aria-label=${elt('remove')} title=${elt('remove')} @click=${() => (this.confirmDelete = e)}><sw-icon name="trash" size="16"></sw-icon></button>
             </div>`;
           })}</div>`}
       ${this.list.length ? this.display() : nothing}

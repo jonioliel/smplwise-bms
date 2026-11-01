@@ -84,6 +84,7 @@ import {
 import { toneColor } from '../components/sw-schedule-bar';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tablistKeydown } from '../components/a11y-keys';
 
 const VIEW_KEY = 'sw.schedules.view';
 const FILTERS_KEY = 'sw.schedules.filters';
@@ -1658,7 +1659,7 @@ export class DevicesSchedules extends LitElement {
     const others = this.kavarnit.automations ? SEGMENTS.filter((s) => (this.autoKinds ? this.autoKinds.includes(s.kind) : s.id === 'automations')) : [];
     if (!others.length) return nothing;
     const n = this.status?.counts.visible;
-    return html`<div class="seg kinds" role="tablist" aria-label="קברניט" data-kavarnit-segments>
+    return html`<div class="seg kinds" role="tablist" aria-label="קברניט" data-kavarnit-segments @keydown=${tablistKeydown}>
       <button type="button" role="tab" aria-selected="true" data-segment="schedules">תזמונים${n === undefined ? nothing : html` <small>${n}</small>`}</button>
       ${others.map((s) => html`<button type="button" role="tab" aria-selected="false" data-segment=${s.id} @click=${() => navigate(itemPath(s.id))}>${s.label}${this.autoCounts ? html` <small>${this.autoCounts[s.kind]}</small>` : nothing}</button>`)}
     </div>`;

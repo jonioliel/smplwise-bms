@@ -651,7 +651,7 @@ export class HomeEditPanel extends LitElement {
             ? html`<div class="f wide">אורך התחזית<span class="seg" role="group" aria-label="אורך התחזית">${FORECAST_LENS.map((l: ForecastLen) => html`<button type="button" data-home-forecast-len=${l} aria-pressed=${String(cfg.forecast === l)} ?disabled=${!cfg.fields.includes('forecast')} @click=${() => this.setWidget('weather', { forecast: l })}>${l === 'max' ? `מקסימום (${forecastCount(w.forecast_len, 'max')})` : `${l} (${forecastCount(w.forecast_len, l)})`}</button>`)}</span></div>`
             : nothing}
           <div class="f wide" data-home-wsources>מקור אחר לשדה (לא חובה)
-            ${WEATHER_SOURCE_FIELDS.filter((f) => cfg.fields.includes(f)).map((f) => html`<div class="frow"><span>${WEATHER_FIELD_LABEL[f]}</span><select data-home-wsource=${f} @change=${(e: Event) => this.setSource(f, (e.target as HTMLSelectElement).value)}>${optionsOf(sensors, cfg.sources[f] ?? '', 'מישות מזג האוויר')}</select></div>`)}
+            ${WEATHER_SOURCE_FIELDS.filter((f) => cfg.fields.includes(f)).map((f) => html`<div class="frow"><span>${WEATHER_FIELD_LABEL[f]}</span><select data-home-wsource=${f} aria-label=${WEATHER_FIELD_LABEL[f]} @change=${(e: Event) => this.setSource(f, (e.target as HTMLSelectElement).value)}>${optionsOf(sensors, cfg.sources[f] ?? '', 'מישות מזג האוויר')}</select></div>`)}
           </div>`
         : nothing}`;
   }

@@ -268,7 +268,7 @@ export class SystemMultimediaPlayers extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     .hd {

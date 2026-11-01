@@ -1849,7 +1849,11 @@ export class AreaQuickSheet extends LitElement {
             ${this.canEdit && !this.editing ? html`<button type="button" class="ib" data-qc-edit aria-label=${hs('qcEditTitle')} title=${hs('qcEditTitle')} @click=${() => this.startEdit()}><sw-icon name="edit" size=${17}></sw-icon></button>` : nothing}
             <button type="button" class="ib" data-qc-expand aria-label=${expandLabel} title=${expandLabel} aria-pressed=${String(expandedNow)} @click=${() => this.toggleExpand()}><sw-icon name="expand" size=${17}></sw-icon></button>
             ${a ? html`<a class="ib" href=${`#/devices/areas/${encodeURIComponent(a.area_id)}`} data-qc-open-screen aria-label=${hs('qcOpenScreen')} title=${hs('qcOpenScreen')} @click=${(e: Event) => this.openScreen(e)}><sw-icon name="chevron" size=${17}></sw-icon></a>` : nothing}
-            <button type="button" class="ib" data-qc-close aria-label=${hs('close')} title=${hs('close')} @click=${() => this.close()}><sw-icon name="close" size=${18}></sw-icon></button>
+            <button type="button" class="ib" data-qc-close aria-label=${hs('close')} title=${hs('close')} @click=${(e: MouseEvent) => {
+              // A11Y-POLISHED-2342: Enter / Space on the close button (a click with no pointer) is a keyboard close - focus returns to the opener
+              if (e.detail === 0) this.closedByKey = true;
+              this.close();
+            }}><sw-icon name="close" size=${18}></sw-icon></button>
           </span>
         </header>
         ${this.editing ? this.renderEditor() : html`<div class="body" data-qc-body><div class="cols">${this.renderBody()}</div></div>`}
@@ -1857,7 +1861,7 @@ export class AreaQuickSheet extends LitElement {
   }
 
   private renderBody() {
-    if (this.error && !this.detail) return html`<div class="note" data-qc-error>${this.error}</div>`;
+    if (this.error && !this.detail) return html`<div class="note" data-qc-error role="alert">${this.error}</div>`;
     if (!this.detail) return html`<div class="spin" role="status" aria-label="טוען"></div>`;
     const secs = this.sections;
     if (!secs.length) return html`<div class="note" data-qc-empty>${this.availableSections.length ? hs('qcEmptyLayout') : hs('qcEmpty')}</div>`;

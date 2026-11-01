@@ -12,6 +12,7 @@ import { refreshCalendars } from '../calendars/access';
 import { PROVIDER_LABEL, colorVar, hm, pageOf, whenText } from '../calendars/model';
 import { calCss } from '../calendars/styles';
 import { leadReserveStyles } from '../styles/lead-reserve';
+import { tablistKeydown } from '../components/a11y-keys';
 
 const ORDER: ProviderCard[] = ['ical', 'google', 'microsoft'];
 const STAGE: Record<ProviderCard, string> = { ical: 'ראשון · ללא חשבון', google: 'שני', microsoft: 'שלישי' };
@@ -217,7 +218,7 @@ export class SystemCalendarSync extends LitElement {
   private phoneProviders(now: Date) {
     const att = (this.conns ?? []).find((c) => c.state !== 'ok' && c.state !== 'paused');
     const cur = this.shownProvider ?? (att ? cardOf(att.provider) : null) ?? 'ical';
-    return html`<div class="seg" role="tablist" aria-label="ספק" data-provider-tabs>${ORDER.map((p) => {
+    return html`<div class="seg" role="tablist" aria-label="ספק" data-provider-tabs @keydown=${tablistKeydown}>${ORDER.map((p) => {
       const c = this.connOf(p);
       return html`<button type="button" role="tab" style="flex:1" aria-pressed=${String(cur === p)} aria-selected=${String(cur === p)} data-provider-tab=${p} @click=${() => (this.shownProvider = p)}>${PROVIDER_LABEL[p]}${c && c.state !== 'ok' ? html` <span class="dot" aria-label="דורש טיפול" style="display:inline-block;--h:var(--sw-warning)"></span>` : nothing}</button>`;
     })}</div>${this.card(cur, now)}`;

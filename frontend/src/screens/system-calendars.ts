@@ -11,6 +11,7 @@ import { refreshCalendars } from '../calendars/access';
 import { APPROVAL_LABEL, OVERLAP_LABEL, OVERLAP_SHORT, ROLE_HINT, ROLE_LABEL, STRICTNESS, TYPE_LABEL, colorVar, pageOf, rowsThatFit } from '../calendars/model';
 import { calCss } from '../calendars/styles';
 import { leadReserveStyles } from '../styles/lead-reserve';
+import { tablistKeydown } from '../components/a11y-keys';
 
 type Tab = 'overlap' | 'behavior' | 'approval' | 'perm' | 'retention';
 const TABS: [Tab, string, string][] = [['overlap', 'חפיפת תחזוקה', 'חפיפה'], ['behavior', 'התנהגות', 'התנהגות'], ['approval', 'אישור לכל יומן', 'אישור'], ['perm', 'הרשאות', 'הרשאות'], ['retention', 'פרטי אורחים', 'אורחים']];
@@ -331,7 +332,7 @@ export class SystemCalendars extends LitElement {
       ${this.canEdit ? nothing : html`<div class="ro" data-calset-ro>צפייה בלבד: שינוי ההגדרות דורש את ההרשאה "יומנים: הגדרות".</div>`}
       ${this.saveError ? html`<div class="err" role="alert" data-calset-error>${this.saveError}</div>` : nothing}
       <section class="panel" data-calset-tab=${tab}>
-        <div class="seg tabs" role="tablist" aria-label="הגדרות היומנים">${TABS.map(([id, he, short]) => html`<button type="button" role="tab" aria-pressed=${String(tab === id)} aria-selected=${String(tab === id)}
+        <div class="seg tabs" role="tablist" aria-label="הגדרות היומנים" @keydown=${tablistKeydown}>${TABS.map(([id, he, short]) => html`<button type="button" role="tab" aria-pressed=${String(tab === id)} aria-selected=${String(tab === id)}
           data-calset-tabbtn=${id} @click=${() => (location.hash = `#/system/calendars?tab=${id}`)}>${this.phone ? short : he}</button>`)}</div>
         ${tab === 'overlap' ? this.overlapTab() : tab === 'behavior' ? this.behaviorTab() : tab === 'approval' ? this.approvalTab() : tab === 'perm' ? this.permTab() : this.retentionTab()}
       </section>

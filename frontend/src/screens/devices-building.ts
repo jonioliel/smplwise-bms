@@ -90,6 +90,7 @@ import { media } from '../api/media-screens';
 import { hueOf, SkinController } from '../design/skin';
 import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
 import { dayTimeText, timeText } from '../api/day-format';
+import { modalKeydown } from '../components/a11y-keys';
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
  * user menu's "עריכת המסך הראשי"), not by a button on the screen. */
@@ -1304,6 +1305,10 @@ export class DevicesBuilding extends LitElement {
   private screenBase: HomeScreenForm | null = null;
   /** Phone: the floor tree in a bottom sheet. */
   @state() private treeSheet = false;
+  /** A11Y-POLISHED-2342: the phone tree sheet as last rendered, and whether its close came from the keyboard (focus goes back to
+   * the tree button then; after a tap it is left alone, as in the quick-control sheet). */
+  private treeSheetShown = false;
+  private treeSheetByKey = false;
   /** AREAPOPUP-297: the area quick-control pop-up - the pressed area, its shape (home.screen.desktop_area / phone_area) and where it grows from. */
   @state() private quick: { area: DeviceArea; floorName: string; mode: QuickMode; origin: Box | null } | null = null;
   /** The alert rows the viewer confirmed ("אישור"): hidden until the alarm clears and triggers again. */
@@ -2084,6 +2089,13 @@ export class DevicesBuilding extends LitElement {
   }
 
   protected updated() {
+    if (this.treeSheet !== this.treeSheetShown) {
+      this.treeSheetShown = this.treeSheet;
+      const byKey = this.treeSheetByKey;
+      this.treeSheetByKey = false;
+      if (this.treeSheet) requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>('[data-tree-sheet] .sh .x')?.focus({ preventScroll: true }));
+      else if (byKey) requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>('[data-phone-tree]')?.focus({ preventScroll: true }));
+    }
     this.syncEditFromRoute();
     // HOME-295: no connection greys the last values (CSS keys on the host); the scrolling tree takes exactly the height that is left
     this.toggleAttribute('data-offline', this.offline);
@@ -3999,9 +4011,10 @@ export class DevicesBuilding extends LitElement {
     if (this.treeSheet) {
       return html`<div class="scrim" @click=${() => (this.treeSheet = false)}></div>
         <div class="hsheet" role="dialog" aria-modal="true" aria-label=${hs('treeTitle')} data-tree-sheet
+          @keydown=${(e: KeyboardEvent) => modalKeydown(e, e.currentTarget as Element, () => ((this.treeSheetByKey = true), (this.treeSheet = false)))}
           @click=${(e: Event) => { if ((e.composedPath() as Element[]).some((n) => n instanceof HTMLElement && n.dataset?.treeSelect !== undefined)) this.treeSheet = false; }}>
           <div class="grab" aria-hidden="true"></div>
-          <div class="sh"><b>${hs('treeTitle')}</b><button type="button" class="x" aria-label=${hs('close')} @click=${() => (this.treeSheet = false)}><sw-icon name="close" size=${15}></sw-icon></button></div>
+          <div class="sh"><b>${hs('treeTitle')}</b><button type="button" class="x" aria-label=${hs('close')} @click=${(e: MouseEvent) => ((this.treeSheetByKey = e.detail === 0), (this.treeSheet = false))}><sw-icon name="close" size=${15}></sw-icon></button></div>
           ${this.renderTreePanel(t)}
         </div>`;
     }
