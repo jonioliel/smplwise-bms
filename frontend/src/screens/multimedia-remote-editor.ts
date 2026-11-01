@@ -87,14 +87,19 @@ export class MediaRemoteEditor extends LitElement {
         flex-direction: column;
         gap: 14px;
       }
+      /* MEDIA-POLISH-2331: the bar with "ביטול" / "שמירה" sticks to the top of the remote while a long list of sources and apps
+         scrolls under it (save was out of sight after the first screen of rows); it is opaque, so the rows never show through */
       .bar {
+        position: sticky;
+        inset-block-start: 0;
+        z-index: 2;
         display: flex;
         align-items: center;
         gap: 8px;
         flex-wrap: wrap;
         padding: 10px 10px 10px 14px;
         border-radius: var(--sw-r-2xl);
-        background: var(--mr-sheen), var(--mr-surface);
+        background: var(--mr-sheen), var(--mr-surface-solid);
         border: 1px solid color-mix(in srgb, var(--mr-accent) 45%, transparent);
         box-shadow: 0 0 0 4px var(--mr-accent-soft);
       }
@@ -255,8 +260,52 @@ export class MediaRemoteEditor extends LitElement {
       .conn bdi {
         direction: ltr;
         unicode-bidi: isolate;
-        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        font-family: var(--sw-font-mono);
         font-size: var(--sw-fs-sm);
+      }
+      /* keyboard: the order buttons, the switches, the fold box and the fields show where the focus is */
+      .ib:focus-visible,
+      .tog:focus-visible,
+      .fold input:focus-visible,
+      .row input[type='text']:focus-visible,
+      .row select:focus-visible {
+        outline: 2px solid var(--mr-focus);
+        outline-offset: 2px;
+      }
+      .ib,
+      .tog {
+        cursor: pointer;
+        transition: transform var(--sw-t-press, 120ms) var(--sw-ease-out, ease-out), background var(--mr-motion);
+      }
+      .ib:active:not([disabled]),
+      .tog:active {
+        transform: scale(var(--sw-press-scale, 0.97));
+      }
+      .ib[disabled] {
+        cursor: default;
+      }
+      /* touch: 44 px targets; on a narrow remote a source / app row puts its name field on a line of its own */
+      @media (pointer: coarse) {
+        .ib {
+          inline-size: 44px;
+          block-size: 44px;
+        }
+        .fold {
+          min-block-size: 44px;
+        }
+        .row input[type='text'],
+        .row select {
+          block-size: 44px;
+        }
+      }
+      @media (max-width: 480px) {
+        .row[data-ed-item] {
+          flex-wrap: wrap;
+        }
+        .row[data-ed-item] input[type='text'] {
+          order: 10;
+          flex: 1 1 100%;
+        }
       }
       .err {
         color: var(--mr-danger);
