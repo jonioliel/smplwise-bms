@@ -6,7 +6,7 @@ import '../components/sw-icon';
 import './bubble-sliders';
 import type { SheetSlider } from './bubble-sliders';
 import type { IconName } from '../components/sw-icon';
-import { ALARM_HE, climateRange, HVAC_ACTION_HE, HVAC_HE, type CardId, type DeviceRow } from '../api/devices';
+import { ALARM_HE, climateRange, isDimmable, HVAC_ACTION_HE, HVAC_HE, type CardId, type DeviceRow } from '../api/devices';
 import { fmtTime } from '../api/ha';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { entityLabel } from '../i18n/entity-label';
@@ -503,7 +503,7 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
   }
   if (card === 'lighting' || card === 'switches') {
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
-    const dimmable = r.domain === 'light' && r.brightness_pct !== null && r.brightness_pct !== undefined;
+    const dimmable = isDimmable(r) && r.brightness_pct !== null && r.brightness_pct !== undefined;
     const pct = ctl.live<number>(r.entity_id, 'brightness') ?? r.brightness_pct ?? 0;
     const label = on ? (dimmable ? `דולק · ${ltrNum(Math.round(pct))}%` : r.domain === 'light' ? 'דולק' : 'פועל') : unavailable ? 'לא זמין' : 'כבוי';
     const alarm = r.alarm_managed ? html`<button slot="subs" type="button" class="chip" aria-label=${r.managed_label ?? 'נשלט ממסך האזעקה'} data-alarm-managed @click=${() => navigate('/security/alarm')}><sw-icon name="shield" size=${14}></sw-icon></button>` : nothing;
@@ -635,7 +635,7 @@ export function renderBubbleSheetBody(h: BubbleAreaHost, r: DeviceRow, card: Car
   }
   if (card === 'lighting' || card === 'switches') {
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
-    const dimmable = r.domain === 'light' && r.brightness_pct !== null && r.brightness_pct !== undefined;
+    const dimmable = isDimmable(r) && r.brightness_pct !== null && r.brightness_pct !== undefined;
     const pct = ctl.live<number>(r.entity_id, 'brightness') ?? r.brightness_pct ?? 0;
     // BV1: the slider follows the `slider` look dial (a pill, or a tall vertical slider) - bubble-sliders decides, the commands are the same
     const sliders: SheetSlider[] = dimmable

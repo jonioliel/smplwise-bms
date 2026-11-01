@@ -29,10 +29,11 @@ import { xt } from '../i18n/xsection';
 import '../xsection/sw-xsection';
 import { xsTile, xsTileStyles, type RowBox } from '../xsection/sw-xsection';
 import '../xsection/sw-floor-home-link';
+import './devices-tiles-panel';
 import { demoBuilding, demoSignals, demoTree, loadXsData, matchContext, sectionLinksOf, type XsData } from '../xsection/xs-data';
 import type { HomeLinks } from '../api/catalog';
 import { fireReport, onFire, setFireMock } from '../xsection/fire-store';
-import { linksFold, listStep, nearFloors, onXsOptions, phonePlaceFor, signalsOf, xsFromParams, xsMetrics, xsOptions, type FloorSignal, type XsOptions } from '../xsection/xs-model';
+import { floorLightsTarget, linksFold, listStep, nearFloors, onXsOptions, phonePlaceFor, signalsOf, xsFromParams, xsMetrics, xsOptions, type FloorSignal, type XsOptions } from '../xsection/xs-model';
 
 type Dialog = { kind: 'floor' } | { kind: 'rename'; floor: Floor } | { kind: 'delete'; floor: Floor; force: boolean } | { kind: 'building' } | { kind: 'home'; floor: Floor } | null;
 
@@ -57,6 +58,8 @@ export class ExploreFloors extends LitElement {
   @state() private xsData: XsData | null = null;
   @state() private sheetOpen = false;
   @state() private hoverId: string | null = null;
+  /** SWITCH-LIGHT-DIMMER-2331: the floor whose lights popup is open (its lights strip / count on the section, or the selected floor's button). */
+  @state() private lightsOf: FloorSignal | null = null;
   private stopXs?: () => void;
   private stopFire?: () => void;
   /** T085: the connectors of each published structure (by version), for the links between floors. */
@@ -588,7 +591,7 @@ export class ExploreFloors extends LitElement {
 
   private signalsFor(floors: Floor[]): FloorSignal[] {
     if (!isApi() || this.xsData?.demo) return demoSignals([...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order), this.demoData());
-    return signalsOf(floors, this.xsData?.tree ?? null, this.xsData?.people ?? null, matchContext(this.xsData, this.context?.site));
+    return signalsOf(floors, this.xsData?.tree ?? null, this.xsData?.people ?? null, matchContext(this.xsData, this.context?.site), { switches: this.xsEff().syn_switches });
   }
 
   /** A card or a section row was pressed: the first press selects, a second press on the selected floor opens its map (option click = open: at once). */
@@ -601,6 +604,23 @@ export class ExploreFloors extends LitElement {
   private linksFor(floors: Floor[]) {
     const docs = floors.map((f) => (f.published_version_id ? this.linkDocs.get(f.published_version_id) : undefined)).filter((d): d is FloorLinkDoc => !!d);
     return floorLinks(docs, floors.map((f) => ({ id: f.id, name: f.name })));
+  }
+
+  /** SWITCH-LIGHT-DIMMER-2331: a floor with lights opens its lights popup (devices.read; the demo shows its own rows). */
+  private lightsAllowed = (f: FloorSignal): boolean => {
+    if (f.nodata || f.lights === null) return false;
+    if (!isApi() || this.xsData?.demo) return true;
+    return canAnywhere('devices.read') && floorLightsTarget(f) !== null;
+  };
+
+  private renderLights() {
+    const f = this.lightsOf;
+    const demo = !isApi() || !!this.xsData?.demo;
+    const t = f && !demo ? floorLightsTarget(f) : null;
+    return html`<devices-tiles-panel kind="lights" data-floor-lights=${f?.id ?? ''} ?open=${!!f} pairedMaster
+      scope=${t?.scope ?? 'building'} scopeId=${t?.scopeId ?? ''} scopeName=${f?.name ?? ''} .areaFilter=${t ? t.areaIds : null} switches=${this.xsEff().syn_switches}
+      headingText=${f ? xt('floorLightsTitle', { name: f.name }) : ''}
+      @panel-close=${() => (this.lightsOf = null)} @panel-changed=${() => void loadXsData().then((x) => (this.xsData = x))}></devices-tiles-panel>`;
   }
 
   /** The floors tab: the frozen list of cards (shrinking in steps, never scrolling), the links, the actions - and the cross-section in the free area. */
@@ -653,12 +673,14 @@ export class ExploreFloors extends LitElement {
                 <sw-button variant="ghost" icon="trash" @click=${() => this.openDialog({ kind: 'delete', floor: sel, force: false })}>מחיקה</sw-button>
                 <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>${sel.has_plan ? 'תוכנית חדשה' : 'העלאת תוכנית'}</sw-button>`}
             ${sel.has_plan || sel.draft_version_id ? nothing : html`<sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button>`}
+            ${sigOf.get(sel.id) && metrics.light && this.lightsAllowed(sigOf.get(sel.id)!) ? html`<sw-button variant="ghost" icon="light" data-floor-lights-open=${sel.id} @click=${() => (this.lightsOf = sigOf.get(sel.id)!)}>${xt('floorLightsBtn')}</sw-button>` : nothing}
             <sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${sel.id}`)}>פתח את ${sel.name}</sw-button>
           </div>`
         : nothing}
     </div>`;
     const section = html`<sw-xsection .floors=${sigs} .links=${secLinks} .opts=${o} .fire=${fire} selectedId=${sel?.id ?? ''} hoverId=${this.hoverId ?? ''}
-      .rowBoxes=${aligns ? this.rowBoxes : null} boxesHeight=${aligns ? this.boxesHeight : 0} ?canLink=${canLink}
+      .rowBoxes=${aligns ? this.rowBoxes : null} boxesHeight=${aligns ? this.boxesHeight : 0} ?canLink=${canLink} .lightsOk=${this.lightsAllowed}
+      @xs-lights=${(e: CustomEvent<{ id: string }>) => { this.lightsOf = sigOf.get(e.detail.id) ?? null; }}
       @xs-link=${(e: CustomEvent<{ id: string }>) => { const f = floors.find((x) => x.id === e.detail.id); if (f) this.openDialog({ kind: 'home', floor: f }); }}
       @xs-pick=${(e: CustomEvent<{ id: string }>) => this.pickFloor(e.detail.id, true)} @xs-hover=${(e: CustomEvent<{ id: string | null }>) => (this.hoverId = e.detail.id)}></sw-xsection>`;
     const beside = this.sectionBeside();
@@ -813,6 +835,7 @@ export class ExploreFloors extends LitElement {
                 </dl>
               </sw-card>`}
         ${this.renderDialog(building)}
+        ${this.renderLights()}
       </sw-page>
     `;
   }

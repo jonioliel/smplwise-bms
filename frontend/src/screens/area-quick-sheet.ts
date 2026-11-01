@@ -12,7 +12,7 @@ import { lockScrollChain } from '../components/scroll-lock';
 import { can, canAnywhere, isApi } from '../api/session';
 import { ApiError } from '../api/client';
 import { fmtTime, subscribeHa } from '../api/ha';
-import { getDevicesArea, type CardId, type DeviceArea, type DeviceAreaDetail, type DeviceRow } from '../api/devices';
+import { getDevicesArea, isDimmable, type CardId, type DeviceArea, type DeviceAreaDetail, type DeviceRow } from '../api/devices';
 import type { BulkKind } from '../api/device-bulk';
 import { activateScene, automations, type Item } from '../api/automations';
 import { HOME_SCREEN_DEFAULT, loadHomeScreen, type HomeScreenOptions, type PopupAlert } from '../api/home-screen';
@@ -1926,7 +1926,7 @@ export class AreaQuickSheet extends LitElement {
       <span class="nm">${bidi(r.name)}</span>
       <span class="st">${state}</span>
       ${simple ? html`<span class="ct">${this.ctl.renderPowerToggle(r)}</span>` : nothing}
-      ${simple && card === 'lighting' && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true) && r.brightness_pct !== undefined ? this.ctl.renderBrightnessSlider(r) : nothing}
+      ${simple && card === 'lighting' && isDimmable(r) && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true) && r.brightness_pct !== undefined ? this.ctl.renderBrightnessSlider(r) : nothing}
       ${card === 'climate' || card === 'heating' ? this.ctl.renderClimateControls(r) : nothing}
       ${card === 'covers' ? this.ctl.renderCoverControls(r) : nothing}
       ${card === 'media' ? this.ctl.renderMediaControls(r) : nothing}

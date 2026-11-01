@@ -2053,3 +2053,145 @@ def test_bulk_lights_kinds_reach_a_switch_typed_light_and_switches_kinds_do_not(
     _type_light(c, "switch.loose", "auto")
     assert {t["domain"] for t in preview("lights_on")["targets"]} == {"light"}
     assert preview("switches_on")["targets"][0]["entity_id"] == "switch.lobby_sign"
+
+# ---------------------------------------------------------------- SWITCH-LIGHT-DIMMER-2331 (owner 2026-11-01)
+
+
+def test_is_dimmable_only_for_a_light_that_takes_a_brightness():
+    """The brightness slider's only source: a light.* whose colour modes include one other than "onoff" (or, with no colour modes
+    reported, a colour mode, a brightness or the legacy feature bit). Never a switch typed as a light, never an on/off-only light."""
+    light = lambda **a: {"domain": "light", "attributes": a}
+    assert svc.is_dimmable(light(supported_color_modes=["brightness"]))
+    assert svc.is_dimmable(light(supported_color_modes=["color_temp", "xy"]))
+    assert svc.is_dimmable(light(supported_color_modes=["onoff", "brightness"]))
+    assert not svc.is_dimmable(light(supported_color_modes=["onoff"])), "Home Assistant's 'show as light' wrapper of a relay"
+    assert not svc.is_dimmable(light(supported_color_modes=["onoff"], brightness=255)), "the modes win over a stray brightness"
+    assert not svc.is_dimmable(light(color_mode="onoff"))
+    assert svc.is_dimmable(light(color_mode="brightness"))
+    assert svc.is_dimmable(light(brightness=128))
+    assert svc.is_dimmable({"domain": "light", "attributes": {}, "supported_features": 1}), "the legacy SUPPORT_BRIGHTNESS bit"
+    assert not svc.is_dimmable(light()), "nothing says it takes a brightness"
+    assert not svc.is_dimmable(light(color_mode="unknown"))
+    for dom in ("switch", "input_boolean"):
+        assert not svc.is_dimmable({"domain": dom, "device_type_set": "light", "attributes": {"brightness": 255, "supported_color_modes": ["brightness"]}})
+
+
+def test_ha_sync_keeps_the_supported_colour_modes():
+    assert "supported_color_modes" in ha_sync.ATTR_ALLOW
+    kept = json.loads(ha_sync.trim_attributes({"supported_color_modes": ["onoff"], "secret_token": "x"}, "light"))
+    assert kept == {"supported_color_modes": ["onoff"]}
+
+
+@pytest.fixture()
+def dimmer_app(settings, monkeypatch):
+    """The lobby with a real dimmer, an on/off-only light (a relay shown as a light) and the sign switch."""
+    extra = [
+        {"entity_id": "light.lobby_relay", "state": "on", "attributes": {"friendly_name": "Relay light", "supported_color_modes": ["onoff"], "color_mode": "onoff"}, "last_changed": "2026-09-28T10:00:00+00:00", "last_updated": "2026-09-28T10:00:00+00:00"},
+    ]
+    states = [({**e, "attributes": {**e["attributes"], "supported_color_modes": ["brightness"]}} if e["entity_id"] == "light.lobby" else e) for e in STATES] + extra
+    s = replace(settings, ha_url="http://ha.local:8123", ha_token="secret-token-value")
+    monkeypatch.setattr(ha_client, "get_states", lambda _s: states)
+    from smplwise.main import create_app
+
+    app = create_app(s)
+    ha_sync.STATE.connected = True
+    ha_sync.snapshot(app.state.db, s)
+    with app.state.db.connection() as conn:
+        maps = ha_client.registry_maps(ENTITY_REGISTRY + [_reg("light.lobby_relay", "lobby")], [], AREAS, FLOORS)
+        ha_sync.apply_registry(conn, maps)
+        ha_sync.apply_structure(conn, AREAS, FLOORS)
+    return app, s
+
+
+def test_card_rows_carry_dimmable_for_lights_and_never_for_a_switch_typed_light(dimmer_app):
+    """The area cards and the "lights" panel rows: `dimmable` true only for the real dimmer; the relay shown as a light and the switch
+    typed as a light (which keeps the light's place and look) are on/off only."""
+    app, _ = dimmer_app
+    c = TestClient(app)
+    _type_light(c, "switch.lobby_sign")
+    area = c.get("/api/v1/devices/areas/lobby").json()
+    rows = {r["entity_id"]: r for card in area["cards"].values() for r in card["entities"]}
+    assert rows["light.lobby"]["dimmable"] is True
+    assert rows["light.lobby_relay"]["dimmable"] is False
+    assert rows["light.lobby_spot"]["dimmable"] is False, "off, and nothing stored says it takes a brightness"
+    assert rows["switch.lobby_sign"]["dimmable"] is False and rows["switch.lobby_sign"]["domain"] == "switch"
+    items = {r["entity_id"]: r for f in c.get("/api/v1/devices/items", params={"kind": "lights"}).json()["floors"] for a in f["areas"] for r in a["items"]}
+    assert items["switch.lobby_sign"]["dimmable"] is False and items["light.lobby"]["dimmable"] is True and items["light.lobby_relay"]["dimmable"] is False
+
+
+def test_switch_entities_counted_for_the_synoptic_all_switches_option(dimmer_app):
+    """SWITCH-LIGHT-DIMMER-2331, on the real data path (the tree the synoptic map reads): a switch typed as a light is in lights /
+    lights_on (an ON one is lit); the other switch.* entities are in switch_entities / switch_entities_on (no input_boolean), which the
+    synoptic option "כל המפסקים" adds to the lights column."""
+    app, _ = dimmer_app
+    c = TestClient(app)
+
+    def tree():
+        return c.get("/api/v1/devices/tree").json()
+
+    def lobby():
+        return next(a for f in tree()["floors"] for a in f["areas"] if a["area_id"] == "lobby")["counts"]
+
+    cnt = lobby()
+    assert (cnt["lights"], cnt["lights_on"], cnt["switch_entities"], cnt["switch_entities_on"]) == (3, 2, 1, 1)
+    _type_light(c, "switch.lobby_sign")
+    cnt = lobby()
+    assert (cnt["lights"], cnt["lights_on"], cnt["switch_entities"], cnt["switch_entities_on"]) == (4, 3, 0, 0), "the ON typed switch is a lit light"
+    ground = next(f for f in tree()["floors"] if f["floor_id"] == "ground")["counts"]
+    assert (ground["lights"], ground["lights_on"]) == (4, 3)
+    b = tree()["building"]
+    assert (b["switch_entities"], b["switch_entities_on"]) == (1, 0), "only the loose switch (off) is left"
+    c_ = svc.empty_counts()
+    svc.count_into(c_, {"entity_id": "input_boolean.x", "domain": "input_boolean", "state": "on"})
+    assert (c_["switches"], c_["switch_entities"]) == (1, 0), "a helper is never a switch entity"
+
+
+def test_items_lights_with_all_switches_lists_every_switch(dev_app):
+    """SWITCH-LIGHT-DIMMER-2331 (the synoptic floor lights popup): `switches=all` lists every switch.* with the lights, typed or not, never
+    a helper; any other kind refuses it; the default is the typed switches only."""
+    app, _ = dev_app
+    c = TestClient(app)
+
+    def ids(**q):
+        r = c.get("/api/v1/devices/items", params={"kind": "lights", **q})
+        assert r.status_code == 200, r.text
+        return {x["entity_id"]: x for f in r.json()["floors"] for a in f["areas"] for x in a["items"]}
+
+    assert "switch.lobby_sign" not in ids() and "switch.lobby_sign" not in ids(switches="typed")
+    got = ids(switches="all", scope="floor", id="ground")
+    assert {"light.lobby", "light.lobby_spot", "switch.lobby_sign"} <= set(got) and "switch.loose" not in got
+    assert got["switch.lobby_sign"]["domain"] == "switch" and not got["switch.lobby_sign"].get("dimmable")
+    assert "switch.loose" in ids(switches="all")
+    assert c.get("/api/v1/devices/items", params={"kind": "switches", "switches": "all"}).status_code == 422
+    assert c.get("/api/v1/devices/items", params={"kind": "lights", "switches": "some"}).status_code == 422
+
+
+def test_bulk_lights_with_all_switches_reach_every_switch_through_the_policy(bulk_app):
+    """`switches=all` on the lights kinds (preview and run): every switch.* in the set (`only` still narrows it, the same SwitchPolicy
+    keeps a protected switch out and names it); the switches kinds refuse it; without it nothing changes."""
+    app, s, c, fake = bulk_app
+
+    def preview(kind: str, **q) -> dict:
+        return c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": kind, **q}).json()
+
+    assert {t["entity_id"] for t in preview("lights_off")["targets"]} == {"light.lobby", "light.garden"}
+    off = preview("lights_off", switches="all")
+    assert {t["entity_id"] for t in off["targets"]} == {"light.lobby", "light.garden", "switch.lobby_sign"}
+    assert {(t["entity_id"], t["action_id"]) for t in preview("lights_on", switches="all")["targets"]} >= {("switch.loose", "switch.turn_on")}
+    narrowed = preview("lights_off", switches="all", only="switch.lobby_sign,light.lobby")
+    assert {t["entity_id"] for t in narrowed["targets"]} == {"switch.lobby_sign", "light.lobby"}
+    r = c.get("/api/v1/devices/actions/preview", params={"scope": "building", "id": "*", "kind": "switches_off", "switches": "all"})
+    assert r.status_code == 422
+    # the same protection as every switch
+    _judge(app)
+    assert _protect(c, "switch.loose").status_code == 200
+    on = preview("lights_on", switches="all")
+    assert "switch.loose" not in {t["entity_id"] for t in on["targets"]} and ("switch.loose", "switch_protected") in [(x["entity_id"], x["reason"]) for x in on["excluded"]]
+    # the run resolves the same set (the digest matches only with the same choice) and switches each with its own domain
+    off = preview("lights_off", switches="all")
+    assert c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", preview_digest=off["digest"])).status_code == 409, "without switches=all the set differs"
+    r = c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", preview_digest=off["digest"], switches="all"))
+    assert r.status_code == 202, r.text
+    assert _finish(c, r.json()["id"])["counts"]["confirmed"] == 3
+    assert ("switch", "turn_off", "switch.lobby_sign") in {(x["domain"], x["service"], x["data"]["entity_id"]) for x in fake.calls}
+    assert _audit_rows(app, phase="attempt", kind="lights_off")[-1]["details"]["switches"] == "all"

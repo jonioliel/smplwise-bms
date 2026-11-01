@@ -19,7 +19,7 @@ import { can, canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { fmtTime, subscribeHa, type HaSyncState } from '../api/ha';
 import { productSettings } from '../api/prefs';
-import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, getEntityRows, type CardId, type DeviceArea, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree, type EntityRow } from '../api/devices';
+import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, getEntityRows, type CardId, type DeviceArea, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree, type EntityRow, isDimmable } from '../api/devices';
 import { AREA_DESIGN_KEY, AREA_DESIGN_LABEL, AREA_DESIGNS, mainSlotOf, mainStrip, PERSONALIZE_PERMISSION, resolveAreaDesign, SECTION_BULK, sectionBulkActions, type AreaDesign, type BulkLook } from './devices-area-design';
 import type { BulkKind } from '../api/device-bulk';
 import { alarmTone, REFRESH_WINDOW_MS, STRUCTURE_FLASH_MS } from './devices-building';
@@ -1636,7 +1636,7 @@ export class DevicesArea extends LitElement {
       <div class="t"><sw-icon .name=${icon} size=${15}></sw-icon><span>${bidi(r.name)}</span>${controllable ? this.ctl.renderPowerToggle(r) : nothing}</div>
       <div class="s">${unavailable ? 'לא זמין' : value}</div>
       ${card === 'sensors' && r.last_changed ? html`<div class="lc" data-last-changed>${fmtTime(r.last_changed)}</div>` : nothing}
-      ${controllable && card === 'lighting' && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true) ? this.ctl.renderBrightnessSlider(r) : nothing}
+      ${controllable && card === 'lighting' && isDimmable(r) && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true) ? this.ctl.renderBrightnessSlider(r) : nothing}
       ${controllable ? this.ctl.renderCmdStatus(r.entity_id) : nothing}
       ${r.alarm_managed ? html`<div class="managed-note" data-alarm-managed>${r.managed_label ?? 'נשלט ממסך האזעקה'} · <a href="#/security/alarm">לאזעקה</a></div>` : nothing}
       ${this.renderAssignButton(r)}

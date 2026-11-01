@@ -28,6 +28,7 @@ DEFAULT = {
     "syn_custom": ["light", "temp", "presence", "cameras", "doors", "alerts", "fire"],
     "syn_hide_empty": True,
     "syn_events": True,
+    "syn_switches": "typed",
     "fire_column": "hidden",
     "fire_ui": False,
     "ack": "hold",
@@ -49,6 +50,7 @@ CHANGED = {
     "syn_custom": ["temp", "doors"],
     "syn_hide_empty": False,
     "syn_events": False,
+    "syn_switches": "all",
     "fire_column": "dashed",
     "fire_ui": True,
     "ack": "confirm",
@@ -78,6 +80,8 @@ BAD = [
     {"syn_custom": ["light", "kitchen"]},  # not a column
     {"syn_custom": ["temp", "temp"]},  # each column once
     {"syn_custom": [1]},
+    {"syn_switches": "some"},  # SWITCH-LIGHT-DIMMER-2331: typed | all only
+    {"syn_switches": True},
 ]
 
 
@@ -102,6 +106,14 @@ def test_syn_custom_is_kept_in_the_board_order_and_may_be_empty():
     # the defaults are not shared between calls (a caller that edits the list does not change the next answer)
     xs_options.normalize({})["syn_custom"].append("x")
     assert xs_options.normalize({})["syn_custom"] == DEFAULT["syn_custom"]
+
+
+def test_switches_in_the_lights_column_default_to_the_typed_ones(client):
+    """SWITCH-LIGHT-DIMMER-2331: "מפסקים בעמודת התאורה" - only the switches typed as a light (default), or every switch."""
+    assert client.get(URL).json()["settings"]["ui.xs"]["syn_switches"] == "typed"
+    assert xs_options.normalize({"syn_switches": "all"})["syn_switches"] == "all"
+    # a value stored before the option existed reads with the default
+    assert xs_options.normalize({"syn_hide_empty": False})["syn_switches"] == "typed"
 
 
 def test_hiding_empty_columns_is_on_by_default(client):

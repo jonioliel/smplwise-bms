@@ -41,6 +41,7 @@ const GROUPS: { title: XtKey; opts: Opt[] }[] = [
       { key: 'syn_tab', kind: 'bool', label: 'optSynTab' },
       { key: 'syn_columns', kind: 'enum', label: 'optSynColumns', options: [['all', 'optSynAll'], ['few', 'optSynFew'], ['custom', 'optSynCustom']] },
       { key: 'syn_hide_empty', kind: 'bool', label: 'optSynHideEmpty', hint: 'optSynHideEmptyHint' },
+      { key: 'syn_switches', kind: 'enum', label: 'optSynSwitches', options: [['typed', 'optSynSwitchesTyped'], ['all', 'optSynSwitchesAll']], hint: 'optSynSwitchesHint' },
       { key: 'syn_events', kind: 'bool', label: 'optSynEvents' },
       { key: 'wall', kind: 'bool', label: 'optWall' },
     ],

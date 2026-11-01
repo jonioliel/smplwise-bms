@@ -14,6 +14,10 @@ export interface DeviceCounts {
   lights_on: number;
   switches: number;
   switches_on: number;
+  /** SWITCH-LIGHT-DIMMER-2331: the switch.* entities among `switches` (no input_boolean helper). The synoptic option
+   * "מפסקים בעמודת התאורה = כל המפסקים" (ui.xs syn_switches=all) adds them to its lights column. Absent from an older server. */
+  switch_entities?: number;
+  switch_entities_on?: number;
   covers: number;
   covers_open: number;
   climate: number;
@@ -139,6 +143,9 @@ export interface DeviceRow {
   // lighting
   brightness_pct?: number | null;
   color_mode?: string | null;
+  /** SWITCH-LIGHT-DIMMER-2331: the server's verdict (services/devices.is_dimmable) - a light.* that really takes a brightness. False
+   * for an on/off-only light and for a switch typed as a light. Read only through `isDimmable`. */
+  dimmable?: boolean;
   // climate (climate.*) and fan / humidifier
   hvac_mode?: string | null;
   hvac_action?: string | null;
@@ -258,9 +265,10 @@ export interface DeviceItems {
 }
 
 /** `GET /devices/items`: every entity of one tile kind in the building / one HA floor / one HA area, floor › area. */
-export function getDeviceItems(kind: TileKind, scope: ItemsScope = 'building', id = '') {
+export function getDeviceItems(kind: TileKind, scope: ItemsScope = 'building', id = '', switches: 'typed' | 'all' = 'typed') {
   const q = new URLSearchParams({ kind, scope });
   if (scope !== 'building') q.set('id', id);
+  if (kind === 'lights' && switches === 'all') q.set('switches', 'all'); // SWITCH-LIGHT-DIMMER-2331: every switch.* with the lights
   return get<DeviceItems>(`devices/items?${q.toString()}`);
 }
 
@@ -345,3 +353,16 @@ export const ALARM_HE: Record<string, string> = {
   unavailable: 'לא זמינה',
   unknown: 'לא ידוע',
 };
+
+/**
+ * SWITCH-LIGHT-DIMMER-2331 (owner 2026-11-01): the ONE gate of every brightness slider (area tiles and rows, the lights panel, the quick
+ * sheet, the bubble pill and its sheet, every skin and the phone). A brightness control only for a light.* entity that really takes a
+ * brightness: never a switch / input_boolean an administrator typed as a light (it keeps the light's look, it is on/off only), never a
+ * light that reports only the "onoff" colour mode (a relay shown as a light). The server's `dimmable` decides; a row from an older
+ * server or a demo row (no field) is dimmable unless its colour mode says "onoff" (the behaviour before 2.33.1).
+ */
+export function isDimmable(r: { domain: string; dimmable?: boolean; color_mode?: string | null }): boolean {
+  if (r.domain !== 'light') return false;
+  if (typeof r.dimmable === 'boolean') return r.dimmable;
+  return r.color_mode !== 'onoff';
+}
