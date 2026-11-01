@@ -374,6 +374,12 @@ export class NvrCameraBatch extends LitElement {
       .sel[aria-checked='true']:hover:not([aria-disabled='true']) {
         background: color-mix(in srgb, var(--sw-accent) 32%, var(--sw-surface));
       }
+      /* DARK-REVIEW-2342: with the light dark-scheme accents of domus / crystal a 32 % field lifted the bed until the --sw-text-2 meta
+         line read 4.3-4.4:1; dark hovers at 28 % (>= 4.7:1 every skin, tests/unit-dark-polish-beds.spec.ts) - still a step above the
+         26 % resting field. Light keeps 32 % (light-dark() keys on the page's color-scheme; the rule above is the fallback of an engine without it). */
+      .sel[aria-checked='true']:hover:not([aria-disabled='true']) {
+        background: light-dark(color-mix(in srgb, var(--sw-accent) 32%, var(--sw-surface)), color-mix(in srgb, var(--sw-accent) 28%, var(--sw-surface)));
+      }
     }
     .sel[aria-checked='true'] .nm {
       font-weight: var(--sw-fw-bold);
@@ -387,6 +393,13 @@ export class NvrCameraBatch extends LitElement {
     }
     .sel[aria-checked='true'] .box {
       box-shadow: none;
+    }
+    /* DARK-REVIEW-2342: in dark the unchecked box's 2 px --sw-border-strong edge read 1.5-2.3:1 on the row (a checkbox boundary needs
+       3:1, WCAG 1.4.11); dark draws it in the muted ink at 70 % (3.2-4.3:1 on the resting and the hovered row, every skin -
+       tests/unit-dark-polish-beds.spec.ts). light-dark() keys on the page's color-scheme (design/css.ts sets it with data-theme; it
+       inherits into the shadow root); an engine without light-dark() drops the line and keeps the old edge. Light keeps its edge (and its pixel baselines). */
+    .sel:not([aria-checked='true']) .box {
+      border-color: light-dark(var(--sw-border-strong), color-mix(in srgb, var(--sw-text-3) 70%, transparent));
     }
     .sel[aria-disabled='true'] .box {
       opacity: 0.7;
