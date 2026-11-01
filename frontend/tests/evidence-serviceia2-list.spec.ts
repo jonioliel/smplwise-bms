@@ -63,6 +63,7 @@ test.describe('service area: the scopes are the list filter (slice 2)', () => {
       await expect(page.locator(PAGES).locator('[aria-selected="true"], [aria-current="page"]').first()).toContainText('רשימה');
     }
     // the other filters survive a scope change (status, search) exactly as before
+    await page.locator(`${L} [data-filter-toggle]`).click(); // TICKETS-POLISH-2331: the state and the departments live in the "סינון" panel
     await page.locator(`${L} [data-status-filter="closed"]`).click();
     await page.locator(`${L} button[data-scope="department"]`).click();
     await expect(page).toHaveURL(/#\/tickets\/department\?status=closed/);

@@ -45,6 +45,7 @@ test.describe('tickets evidence', () => {
       }
     const cards = page.locator(`${L} ticket-card`);
     await expect(cards).toHaveCount(7); // the open ones: closed tickets are behind the "סגורות" filter
+    await page.locator(`${L} [data-filter-toggle]`).click(); // TICKETS-POLISH-2331: the state and the departments live in the "סינון" panel
     await page.locator(`${L} [data-status-filter="closed"]`).click();
     await expect(cards).toHaveCount(1);
     await expect(page).toHaveURL(/status=closed/);
