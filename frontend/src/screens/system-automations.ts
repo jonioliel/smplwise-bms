@@ -108,34 +108,10 @@ export class SystemAutomations extends LitElement {
       background: var(--sw-stale-soft);
       color: var(--sw-warning-text);
     }
-    /* SCHED-POLISH-2331: the role matrix reads as a table of the settings ladder - header in text-2 / 600, the role name in the heading ink */
+    /* SCHED-POLISH-2331 -> SHARED-POLISH-2342: the role matrix is the shared table.set-matrix of styles/settings.ts (header in text-2 /
+       600, the role name in the heading ink); only its foot margin and the link stay here */
     table.mtx {
-      inline-size: 100%;
-      border-collapse: collapse;
-      font-size: var(--sw-fs-base);
       margin-block-end: var(--sw-s-3);
-    }
-    .mtx th {
-      text-align: start;
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
-      padding: 6px 8px 8px;
-      border-block-end: 1px solid var(--sw-border-strong);
-    }
-    .mtx td {
-      padding: 10px 8px;
-      border-block-start: 1px solid var(--sw-border);
-      color: var(--sw-heading, var(--sw-text));
-      font-weight: var(--sw-fw-medium);
-    }
-    .mtx tbody tr:first-child td {
-      border-block-start: 0;
-    }
-    .mtx td small {
-      display: block;
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
     }
     .mtx .c {
       text-align: center;
@@ -330,30 +306,8 @@ export class SystemAutomations extends LitElement {
       margin-block-start: var(--sw-s-3);
       max-inline-size: none;
     }
-    /* SCHED-POLISH-2331: a column narrower than a label plus a 240 px control stacks its rows (the label above the control) instead
-       of squeezing the label into three lines - the side column at 1440 / 1180 */
-    .col {
-      container-type: inline-size;
-    }
-    @container (max-width: 440px) {
-      .row {
-        flex-direction: column;
-        align-items: stretch;
-        gap: var(--sw-s-2);
-      }
-      .row .lbl {
-        flex-basis: auto;
-      }
-      .row .ctl {
-        inline-size: auto;
-      }
-      .row .end {
-        justify-content: flex-start;
-      }
-      .row .seg {
-        align-self: flex-start;
-      }
-    }
+    /* SCHED-POLISH-2331 -> SHARED-POLISH-2342: a column narrower than a label plus a 240 px control stacks its rows (the label above
+       the control) - the shared .set-col of styles/settings.ts (the side column at 1440 / 1180) */
     @media (max-width: 1023px) {
       .cols {
         grid-template-columns: 1fr;
@@ -479,7 +433,7 @@ export class SystemAutomations extends LitElement {
     const tick = (on: boolean) => (on ? html`<sw-icon class="yes" name="check" size=${16} role="img" aria-label="כן"></sw-icon>` : html`<span class="no" aria-label="לא">—</span>`);
     const codeOn = (id: string, fixed: boolean | null) => (fixed !== null ? fixed : this.draft.code_view_roles.includes(id));
     return html`<sw-card heading="מי רשאי" data-card="who">
-      <table class="mtx" data-roles-matrix>
+      <table class="mtx set-matrix" data-roles-matrix>
         <thead><tr><th scope="col">תפקיד</th><th scope="col" class="c">הפעלה</th><th scope="col" class="c">יצירה ועריכה</th><th scope="col" class="c">קוד</th>${this.draft.device_test_enabled ? html`<th scope="col" class="c" data-col-device-test>בדיקה על ההתקן</th>` : nothing}</tr></thead>
         <tbody>${ROLE_ROWS.map((r) => html`<tr data-role=${r.id}><td>${r.label}${r.scope ? html`<small>${r.scope}</small>` : nothing}</td><td class="c">${tick(r.run)}</td><td class="c">${tick(r.edit)}</td><td class="c">${tick(codeOn(r.id, r.codeFixed))}</td>${this.draft.device_test_enabled ? html`<td class="c">${tick(r.run && r.edit)}</td>` : nothing}</tr>`)}</tbody>
       </table>
@@ -665,8 +619,8 @@ export class SystemAutomations extends LitElement {
     if (this.phase === 'forbidden') return html`<sw-page crumbs="הגדרות" heading="אוטומציות"><sw-state-panel state="forbidden" heading="אין הרשאה" data-automations-settings-forbidden></sw-state-panel></sw-page>`;
     return html`<sw-page crumbs="הגדרות" heading="אוטומציות" subheading="כל אפשרות של האוטומציות, הסצנות והסקריפטים נמצאת כאן בלבד." wide data-automations-settings>
       <div class="cols">
-        <div class="col">${this.platform()}${this.wallButtons()}${this.codeView()}${this.who()}${this.retention()}${this.display()}<sw-list-display-settings list="automations"></sw-list-display-settings></div>
-        <div class="col">${this.prechecks()}${this.compatCard()}${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}${isApi() ? html`<scenario-settings></scenario-settings>` : nothing}</div>
+        <div class="col set-col">${this.platform()}${this.wallButtons()}${this.codeView()}${this.who()}${this.retention()}${this.display()}<sw-list-display-settings list="automations"></sw-list-display-settings></div>
+        <div class="col set-col">${this.prechecks()}${this.compatCard()}${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}${isApi() ? html`<scenario-settings></scenario-settings>` : nothing}</div>
       </div>
       ${this.dirty || this.note || this.error
         ? html`<div class="savebar" data-settings-bar>

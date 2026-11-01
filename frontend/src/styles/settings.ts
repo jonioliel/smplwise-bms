@@ -133,6 +133,224 @@ export const settingsLadderStyles = css`
   }
 `;
 
+/** SHARED-POLISH-2342: the pieces the design-polish round (docs/changes/*-POLISH-2331.md) built locally on several settings pages,
+ * gathered here under a set- prefix so no existing class changes meaning. All opt-in by class; part of settingsStyles and exported on
+ * its own for a page that keeps its own sheet. Tokens only.
+ *   .set-col                 a column that stacks its .row (label above the control) when it is narrower than label + control
+ *                            (SCHED-POLISH-2331; a NAMED container, so another container query on the page is not affected)
+ *   .set-choices / label.set-choice   a radio / checkbox tile list: the checked tile carries the accent (TABSMODE-POLISH-2331)
+ *   .set-chips label         a toggle chip whose checkbox stays in the tab order, visually hidden (LOOK-POLISH-2331)
+ *   select.set-select        the settings select look, for a select that is not wrapped in sw-field (SCHED-POLISH-2331)
+ *   table.set-matrix         a role x permission table in the settings ladder (SCHED-POLISH-2331, the access screens)
+ *   .foot.sticky             a card footer whose save stays in view on a phone (INSIGHTS-POLISH-2331) */
+export const settingsKitStyles = css`
+  .set-col {
+    container: sw-set-col / inline-size;
+    min-inline-size: 0;
+  }
+  @container sw-set-col (max-width: 440px) {
+    .row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--sw-s-2);
+    }
+    .row .lbl {
+      flex-basis: auto;
+    }
+    .row .ctl,
+    .row .ctl.wide {
+      inline-size: auto;
+    }
+    .row .end {
+      justify-content: flex-start;
+    }
+    .row .seg {
+      align-self: flex-start;
+    }
+  }
+  .set-choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+    gap: 6px;
+  }
+  label.set-choice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-block-size: 44px;
+    padding: 10px 12px;
+    box-sizing: border-box;
+    border: 1px solid var(--sw-border);
+    border-radius: var(--sw-r-md);
+    background: var(--sw-surface);
+    color: var(--sw-text);
+    font-size: var(--sw-fs-base);
+    cursor: pointer;
+    transition: transform var(--sw-t-press) var(--sw-ease), border-color var(--sw-t-hover) var(--sw-ease-color), background var(--sw-t-hover) var(--sw-ease-color);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  label.set-choice:has(input:checked) {
+    border-color: var(--sw-accent);
+    background: var(--sw-accent-soft);
+    font-weight: var(--sw-fw-semibold);
+  }
+  label.set-choice:has(input:focus-visible) {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: 1px;
+  }
+  label.set-choice:active:not(:has(input:disabled)) {
+    transform: scale(var(--sw-press-scale));
+  }
+  label.set-choice:has(input:disabled) {
+    cursor: default;
+  }
+  label.set-choice:has(input:disabled:not(:checked)) {
+    opacity: var(--sw-disabled-opacity);
+  }
+  label.set-choice input {
+    margin: 2px 0 0;
+    inline-size: 18px;
+    block-size: 18px;
+    accent-color: var(--sw-accent);
+    flex: none;
+  }
+  label.set-choice .t {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-inline-size: 0;
+  }
+  label.set-choice .t .muted {
+    font-weight: var(--sw-fw-regular);
+  }
+  .set-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .set-chips label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 36px;
+    padding: 0 14px;
+    border-radius: var(--sw-r-pill);
+    background: var(--sw-surface-3);
+    color: var(--sw-text-2);
+    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-semibold);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+  }
+  .set-chips input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+  .set-chips label:has(input:checked) {
+    background: var(--sw-accent-soft);
+    color: var(--sw-accent-text);
+    box-shadow: inset 0 0 0 1px var(--sw-accent);
+  }
+  .set-chips label:has(input:focus-visible) {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: var(--sw-focus-offset);
+  }
+  .set-chips label:active:not(:has(input:disabled)) {
+    transform: scale(var(--sw-press-scale));
+  }
+  .set-chips label:has(input:disabled:not(:checked)) {
+    opacity: var(--sw-disabled-opacity);
+    cursor: default;
+  }
+  select.set-select {
+    min-block-size: 36px;
+    max-inline-size: 100%;
+    padding: 0 10px;
+    border: 1px solid var(--sw-border-strong);
+    border-radius: var(--sw-r-sm);
+    background: var(--sw-surface);
+    color: var(--sw-text);
+    font: inherit;
+    font-size: var(--sw-fs-sm);
+  }
+  select.set-select:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: 1px;
+  }
+  table.set-matrix {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--sw-fs-base);
+  }
+  .set-matrix th {
+    text-align: start;
+    font-weight: var(--sw-fw-semibold);
+    color: var(--sw-text-2);
+    font-size: var(--sw-fs-sm);
+    padding: 6px 8px 8px;
+    border-block-end: 1px solid var(--sw-border-strong);
+  }
+  .set-matrix td {
+    padding: 10px 8px;
+    border-block-start: 1px solid var(--sw-border);
+    color: var(--sw-heading, var(--sw-text));
+    font-weight: var(--sw-fw-medium);
+  }
+  .set-matrix tbody tr:first-child td {
+    border-block-start: 0;
+  }
+  .set-matrix td small {
+    display: block;
+    color: var(--sw-text-3);
+    font-size: var(--sw-fs-xs);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    label.set-choice:hover:not(:has(input:disabled)):not(:has(input:checked)) {
+      border-color: var(--sw-border-strong);
+      background: color-mix(in srgb, var(--sw-surface) 70%, var(--sw-hover-wash));
+    }
+    .set-chips label:hover:not(:has(input:checked)):not(:has(input:disabled)) {
+      background: var(--sw-hover-wash);
+      color: var(--sw-text);
+    }
+  }
+  @media (pointer: coarse) {
+    select.set-select {
+      min-block-size: 44px;
+    }
+    .set-chips label {
+      min-block-size: 44px;
+    }
+  }
+  @media (max-width: 767px) {
+    .foot.sticky {
+      position: sticky;
+      inset-block-end: var(--sw-s-2);
+      z-index: 3;
+      margin-inline: calc(-1 * var(--sw-s-2));
+      padding: 10px var(--sw-s-2);
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-solid);
+      box-shadow: var(--sw-shadow-3);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    label.set-choice,
+    .set-chips label {
+      transition-duration: 0ms;
+    }
+  }
+`;
+
 export const settingsStyles = css`
   ${settingsLadderStyles}
   :host {
@@ -378,6 +596,7 @@ export const settingsStyles = css`
     align-items: start;
   }
   ${settingsSegStyles}
+  ${settingsKitStyles}
   /* a value the control itself rejects (min / max / pattern / required) after the user touched it, or one the screen marked */
   input[aria-invalid='true'],
   select[aria-invalid='true'],

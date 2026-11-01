@@ -1385,7 +1385,7 @@ export class SystemNotifications extends LitElement {
       ${this.renderBody()}
     </div>
     ${this.renderPicker()}
-    ${this.toast ? html`<div class="toast" role="status" data-set-toast>${nIcon(this.toast.bad ? 'warning' : 'check')}${this.toast.text}</div>` : nothing}`;
+    ${this.toast ? html`<div class="toast ${this.toast.bad ? 'bad' : ''}" role="status" data-set-toast>${nIcon(this.toast.bad ? 'warning' : 'check')}${this.toast.text}</div>` : nothing}`;
   }
 }
 

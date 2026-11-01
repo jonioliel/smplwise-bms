@@ -18,6 +18,7 @@ import { CERTAINTY_LABEL, EVENT_LABEL, ackEvent, confirmEventRoute, getCorrelati
 import type { StateKind } from '../components/sw-badge';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { techDetailsStyles } from '../styles/tech-details';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 
 const CERTAINTY_KIND: Record<Certainty, StateKind> = { measured: 'recorded', inferred: 'unknown', command: 'partial', availability: 'stale' };
@@ -118,7 +119,7 @@ export class InvestigateEventDetail extends LitElement {
   /** `refs`: what the scene getter reads, by identity (a hit skips the anchor list and its JSON key); `keys`: the signature. */
   private sceneMemo: { refs: unknown[]; keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
 
-  static styles = [css`
+  static styles = [techDetailsStyles, css`
     /* INVREST-POLISH-2331: from 900 px up the page takes exactly the height the shell leaves it and never scrolls - the player stays
        in view at the start, the context column (facts, map, correlation, route, nearby events) scrolls in its own box at the end, the
        header actions are always on screen. Narrower (a phone): one column, the page scrolls as before. */
@@ -172,21 +173,13 @@ export class InvestigateEventDetail extends LitElement {
       color: var(--sw-text-2);
       font-weight: var(--sw-fw-medium);
     }
+    /* SHARED-POLISH-2342: the disclosure is the shared techDetailsStyles (styles/tech-details.ts, the events list's look); only its
+       place under the facts and the semibold summary stay here */
     details.tech {
       margin-block-start: 10px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
     }
     details.tech > summary {
-      cursor: pointer;
-      color: var(--sw-text-2);
       font-weight: var(--sw-fw-semibold);
-      padding-block: 4px;
-    }
-    details.tech > summary:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: var(--sw-focus-offset);
-      border-radius: var(--sw-r-2xs);
     }
     .kv {
       display: grid;
@@ -780,7 +773,7 @@ export class InvestigateEventDetail extends LitElement {
     const prec = typeof d.time_precision === 'string' ? d.time_precision : '';
     const devTime = typeof d.device_time === 'string' ? d.device_time : '';
     return html`<details class="tech" data-tech-details>
-      <summary>פרטים טכניים</summary>
+      <summary><sw-icon name="info" size=${14}></sw-icon><span>פרטים טכניים</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
       <div class="kv">
         <span>קוד המכשיר</span><b><span class="ltr">${ev.raw_type || '—'}</span></b>
         ${text ? html`<span>טקסט המכשיר</span><b>${describeDeviceText(text) ?? html`<span class="ltr">${text}</span>`}</b>` : nothing}

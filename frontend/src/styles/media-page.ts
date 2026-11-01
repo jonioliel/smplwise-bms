@@ -379,6 +379,12 @@ export const mediaPageStyles = css`
       color: var(--sw-success);
       font-size: var(--sw-fs-lg);
     }
+    /* SHARED-POLISH-2342 (TKSET-POLISH-2331 proposal): a failure toast - the same pill, the icon in the danger ink instead of the
+       success green, mixed toward the toast's own ink so it keeps its contrast on the dark pill in both schemes (the automations
+       recipe); every page on this sheet gets it by adding class="bad" */
+    .toast.bad .ic {
+      color: color-mix(in srgb, var(--sw-danger) 70%, var(--sw-toast-text));
+    }
     @media (pointer: coarse), (max-width: 767px) {
       .rc,
       .search {

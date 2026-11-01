@@ -24,6 +24,7 @@ import { dateInZone, closePlayback, createPlayback, frameUrl, playbackWsUrl, typ
 import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { techDetailsStyles } from '../styles/tech-details';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, timeText, dayMonthText } from '../api/day-format';
 import { describeDeviceText, precisionLabel, rawCodeLabel, spanText } from '../i18n/event-codes';
@@ -109,7 +110,7 @@ export class InvestigateEvents extends LitElement {
   private thumbTimers = new Map<string, number>();
   private thumbInFlight = 0;
 
-  static styles = [css`
+  static styles = [techDetailsStyles, css`
     .filters {
       display: flex;
       flex-wrap: wrap;
@@ -325,8 +326,7 @@ export class InvestigateEvents extends LitElement {
       transform: scale(var(--sw-press-scale));
     }
     .fchip:focus-visible,
-    .reset:focus-visible,
-    .tech summary:focus-visible {
+    .reset:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
@@ -338,51 +338,10 @@ export class InvestigateEvents extends LitElement {
         color: var(--sw-text);
       }
     }
-    /* the data sources / technical line: one quiet summary; the details on demand */
+    /* the data sources / technical line: one quiet summary; the details on demand - the look is the shared techDetailsStyles
+       (styles/tech-details.ts, SHARED-POLISH-2342); only its place in the column stays here */
     details.tech {
       flex: none;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-    }
-    details.tech summary {
-      list-style: none;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      cursor: pointer;
-      min-block-size: 28px;
-      padding: 2px 4px;
-      border-radius: var(--sw-r-xs);
-      user-select: none;
-    }
-    details.tech summary::-webkit-details-marker {
-      display: none;
-    }
-    details.tech summary .grow {
-      flex: 1;
-    }
-    details.tech .chev {
-      color: var(--sw-text-3);
-      transform: rotate(-90deg);
-      transition: transform var(--sw-t-fast) var(--sw-ease-out);
-    }
-    details.tech[open] .chev {
-      transform: rotate(90deg);
-    }
-    @media (hover: hover) and (pointer: fine) {
-      details.tech summary:hover {
-        background: var(--sw-hover-wash);
-      }
-    }
-    .techbody {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      margin-block-start: 4px;
-      padding: 8px 12px;
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-surface-2);
-      line-height: 1.6;
     }
     .warnnote {
       display: inline-flex;

@@ -289,30 +289,8 @@ export class SystemSchedules extends LitElement {
     .savebar {
       max-inline-size: none;
     }
-    /* SCHED-POLISH-2331: a column narrower than a label plus a 240 px control stacks its rows (the label above the control) instead
-       of squeezing the label into three lines - the side column at 1440 / 1180 */
-    .col {
-      container-type: inline-size;
-    }
-    @container (max-width: 440px) {
-      .row {
-        flex-direction: column;
-        align-items: stretch;
-        gap: var(--sw-s-2);
-      }
-      .row .lbl {
-        flex-basis: auto;
-      }
-      .row .ctl {
-        inline-size: auto;
-      }
-      .row .end {
-        justify-content: flex-start;
-      }
-      .row .seg {
-        align-self: flex-start;
-      }
-    }
+    /* SCHED-POLISH-2331 -> SHARED-POLISH-2342: a column narrower than a label plus a 240 px control stacks its rows (the label above
+       the control) - the shared .set-col of styles/settings.ts (the side column at 1440 / 1180) */
     @media (max-width: 1023px) {
       .cols {
         grid-template-columns: 1fr;
@@ -623,8 +601,8 @@ export class SystemSchedules extends LitElement {
           </sw-dialog>`
         : nothing}
       <div class="cols">
-        <div class="col">${this.renderConnection(s)}${this.renderOperation()}${this.renderClasses()}${this.renderDisarm()}${this.renderScripts()}</div>
-        <div class="col">${this.renderDefaults()}<sw-list-display-settings list="schedules"></sw-list-display-settings>${this.renderRoles()}</div>
+        <div class="col set-col">${this.renderConnection(s)}${this.renderOperation()}${this.renderClasses()}${this.renderDisarm()}${this.renderScripts()}</div>
+        <div class="col set-col">${this.renderDefaults()}<sw-list-display-settings list="schedules"></sw-list-display-settings>${this.renderRoles()}</div>
       </div>
       ${this.dirty || this.note || this.error
         ? html`<div class="savebar" data-settings-bar>
