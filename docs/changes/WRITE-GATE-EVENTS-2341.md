@@ -83,10 +83,15 @@ So the frequency could not be measured on that install; the cause is shown by th
 
 ## 7. Tests
 
-New `tests/test_db_gate_stray_detector.py` (6 tests). Before the fix (same tests on origin/main's db.py):
-**3 failed, 3 passed** - the burst test logged the field message verbatim
-("write gate held by events_ingest._write outside a transaction ..."), plus the large-commit and the
-commit-to-hand-on tests. After the fix: see the branch report for totals.
+New `tests/test_db_gate_stray_detector.py` (6 tests), run locally (Windows, single process):
+
+- With origin/main's `db.py`: **3 failed, 3 passed**. The detector logged the field message
+  "write gate held by events_ingest._write outside a transaction" 7503 times in the burst test (every sighting
+  counted), plus 9 stale-snapshot sightings labelled `?`.
+- With the fix: **6 passed**.
+- Existing suites with the fix: `test_db_gate_stray_detector + test_db_gate + test_db_locking + test_db_contention +
+  test_db_io_guard + test_db_lock_storm` = 59 passed, 2 skipped; `test_events + test_backpressure + test_rules +
+  test_multi_nvr + test_events_cache + test_db_gate` = 83 passed.
 
 - `test_an_alert_burst_never_reads_as_a_stray_holder`: 120 alerts through `AlertStreamListener._handle` with a
   contending writer and the detector running continuously; a rule with an HA notification fires on each alert and
