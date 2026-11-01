@@ -20,7 +20,39 @@ export class SwPopover extends LitElement {
     // Same accessible contract as sw-drawer so tests and assistive tech see one "dialog" per selection.
     this.setAttribute('role', 'dialog');
     this.setAttribute('aria-modal', 'false');
+    this.addEventListener('keydown', this.onKey);
+    this.addEventListener('focusin', this.onFocusIn);
   }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.removeEventListener('keydown', this.onKey);
+    this.removeEventListener('focusin', this.onFocusIn);
+    this.opener = null;
+  }
+
+  /** A11Y-POLISHED-2342: where the focus came from when it entered the card (a map pin, a list row) - Escape gives it back there. */
+  private opener: HTMLElement | null = null;
+
+  private onFocusIn = (e: FocusEvent) => {
+    const from = e.relatedTarget as HTMLElement | null;
+    if (from && !this.contains(from) && !this.shadowRoot?.contains(from)) this.opener = from;
+  };
+
+  /** A11Y-POLISHED-2342: Escape inside the card closes it (the card had no key of its own: Escape only worked where the host screen
+   * listened for it). The key stops here, so a host that also closes on Escape does not act twice; focus returns to the opener.
+   * A key that belongs to a text field inside the card (a typed value being cancelled) is left to the field. */
+  private onKey = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    const target = e.composedPath()[0];
+    if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const back = this.opener;
+    this.opener = null;
+    this.close();
+    if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
+  };
 
   protected willUpdate() {
     if (this.heading) this.setAttribute('aria-label', this.heading);

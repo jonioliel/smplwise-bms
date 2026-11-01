@@ -228,6 +228,10 @@ export class SwField extends LitElement {
     this.fitLater();
   }
 
+  private onSlotChange = () => {
+    this.watchSelect();
+    this.nameControls();
+  };
   private unwatchSelect() {
     this.fitTarget?.removeEventListener('change', this.fitLater);
     this.fitObserver?.disconnect();
@@ -251,6 +255,27 @@ export class SwField extends LitElement {
     this.toggleAttribute('has-icon', !!this.icon);
     this.watchSelect();
     this.fitLater();
+    this.nameControls();
+  }
+
+  /** A11Y-POLISHED-2342: the <label> is drawn inside this element's shadow root and the control is slotted from the page, so the
+   * two were never associated (a label cannot point across a shadow boundary) and every field read as an unnamed edit box or
+   * combo box. The field now names its own slotted controls with its label, unless the screen named them itself; a name it set is
+   * marked so it follows a label change and is removed with the label. */
+  private nameControls() {
+    for (const el of Array.from(this.children)) {
+      if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement)) continue;
+      if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio' || el.type === 'hidden')) continue;
+      const ours = el.hasAttribute('data-sw-field-named');
+      if (!ours && (el.hasAttribute('aria-label') || el.hasAttribute('aria-labelledby') || (el.id && el.labels?.length))) continue;
+      if (this.label) {
+        el.setAttribute('aria-label', this.label);
+        el.setAttribute('data-sw-field-named', '');
+      } else if (ours) {
+        el.removeAttribute('aria-label');
+        el.removeAttribute('data-sw-field-named');
+      }
+    }
   }
 
   protected firstUpdated() {
@@ -263,8 +288,8 @@ export class SwField extends LitElement {
     return html`
       ${this.label ? html`<label>${this.label}</label>` : ''}
       ${this.capsule
-        ? html`<div class="box"><slot @slotchange=${() => this.watchSelect()}></slot>${this.icon ? html`<span class="ci" aria-hidden="true"><sw-icon .name=${this.icon} size=${ico}></sw-icon></span>` : ''}<span class="cv" aria-hidden="true"><sw-icon name="chevronDown" size=${size}></sw-icon></span></div>`
-        : html`<slot @slotchange=${() => this.watchSelect()}></slot>`}
+        ? html`<div class="box"><slot @slotchange=${this.onSlotChange}></slot>${this.icon ? html`<span class="ci" aria-hidden="true"><sw-icon .name=${this.icon} size=${ico}></sw-icon></span>` : ''}<span class="cv" aria-hidden="true"><sw-icon name="chevronDown" size=${size}></sw-icon></span></div>`
+        : html`<slot @slotchange=${this.onSlotChange}></slot>`}
       ${this.hint ? html`<div class="hint">${this.hint}</div>` : ''}
     `;
   }
