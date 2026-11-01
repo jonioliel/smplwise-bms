@@ -230,6 +230,14 @@ this validation only.
   whose source differs, so the first sync after the add-on update rewrites the live streams; streams outside `smplwise_`
   are never touched. Applied to Provision only: Hikvision (ISAPI talk-back, the legacy path plays today), Frigate restreams
   (go2rtc to go2rtc), WisKey station streams and HA camera sources showed no such evidence and keep their sources unchanged.
+- **Live source reads under load (AZIA-LIVE-2331, hardening):** unless the connection forces `rtsp_style`, a Provision live
+  source path comes from the device (GetStreamCaps). Every live socket and every sync pass built a fresh adapter, so a wall of
+  16 tiles was 16 GetStreamCaps calls at once to the NVR's small HTTP server (8 s timeout each), and one failed read refused
+  that tile (socket close 4503). Now the capabilities the live path reads are shared across adapters per device and channel
+  for `LIVE_CAPS_TTL_S` (600 s; a failed read is not kept; `clear_auth_cache` drops them; encoding-write validation still
+  reads the device), and a live open whose source read fails transiently (`media.LIVE_SOURCE_TRANSIENT`: unavailable,
+  timeout, deadline, busy, invalid / oversized answer) uses the `smplwise_` stream go2rtc already holds, without writing.
+  A disabled recorder, a missing connection, a refused login and a TLS pin problem still refuse the socket.
 
 ### 6.4 End-to-end playback through Arx's own screen (HA2 go2rtc, 2026-10-04, owner-approved)
 
