@@ -35,6 +35,7 @@ const LABEL_KEY: Record<ChoiceKey, HsKey> = {
   popup_alert: 'popupAlert',
   site_entry: 'siteEntry',
   site_off_shared: 'siteOffShared',
+  tree_unassigned: 'treeUnassigned',
 };
 const VALUE_PREFIX: Record<ChoiceKey, string> = {
   summary_chooser: 'chooser_',
@@ -51,6 +52,7 @@ const VALUE_PREFIX: Record<ChoiceKey, string> = {
   popup_alert: 'pa_',
   site_entry: 'se_',
   site_off_shared: 'sos_',
+  tree_unassigned: 'tu_',
 };
 const QUICK_LABEL: Record<QuickKind, HsKey> = { lights: 'qLights', climate: 'qClimate', covers: 'qCovers', switches: 'qSwitches' };
 const QUICK_ICON: Record<QuickKind, string> = { lights: 'light', climate: 'snow', covers: 'layers', switches: 'bolt' };
@@ -278,6 +280,7 @@ export class HomeScreenOptionsForm extends LitElement {
       ${this.choice('tile_climate')}
       ${this.choice('floor_off')}
       ${this.choice('many_floors')}
+      ${this.treeUnassigned()}
       ${this.choice('building_off_tablet')}
       ${this.choice('quick_card')}
       ${this.choice('phone_floors')}
@@ -285,6 +288,13 @@ export class HomeScreenOptionsForm extends LitElement {
       ${this.choice('desktop_area')}
       ${this.siteOptions()}
     </div>`;
+  }
+
+  /** TREE-HIDE-UNASSIGNED-2331: the tree's "ללא שיוך" row, with what hiding keeps and the bucket's own screen one tap away (it stays
+   * reachable whatever the choice). */
+  private treeUnassigned() {
+    return html`<div class="f" data-hs-tree-unassigned>${this.choice('tree_unassigned')}
+      <span class="muted">${hs('tuNote')} <a class="lnk" href="#/devices/areas/unassigned" data-hs-tree-unassigned-open>${hs('tuOpen')}</a></span></div>`;
   }
 
   /** MULTIBUILDING-HOME-2330: the site level's installation options (a site of several buildings only). */
