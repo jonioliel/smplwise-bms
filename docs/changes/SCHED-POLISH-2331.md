@@ -83,8 +83,8 @@ with the harness, `SHOT_PHASE=after`:
 
 | Check | Result |
 |---|---|
-| `npx tsc --noEmit` | TSC_RESULT |
-| `unit-token-lint`, `unit-lead-reserve`, `unit-uxfix-rtl` (`-c playwright.unit.config.ts --workers=1`) | LINT_RESULT |
+| `npx tsc --noEmit` (final state) | 0 errors (exit 0) |
+| `unit-token-lint`, `unit-lead-reserve`, `unit-uxfix-rtl` (`-c playwright.unit.config.ts --workers=1`) | 25 / 25 passed (final state) |
 | `unit-empty-state-icons`, `unit-menu-lint`, `unit-page-background` (screen-wide source lints) | 16 / 16 passed (run on an intermediate state, before the last CSS-only edits) |
 | `impeccable detect` on the five files | 0 findings |
 | Evidence specs: `evidence-schedules-list.spec.ts` (the הגדרות › תזמונים describe blocks), `evidence-schedules-editor.spec.ts` (table view, read-only states, create flow), `evidence-automations-list.spec.ts` (הגדרות › אוטומציות), `evidence-ha2610-compat.spec.ts`, `evidence-mobile-options.spec.ts` (`/system/schedules`), desktop / tablet / mobile | NOT_RUN (coordinator: no local Playwright evidence runs; they run on the runner gate) |
