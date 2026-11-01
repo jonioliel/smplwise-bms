@@ -9,10 +9,12 @@
   change touches a door with a door automation (422 `confirm_required`), audited `wiskey.relay_map.approved` (station, before / after,
   revisions, affected doors).
 
-Nothing here is sent to WisKey, a station or a door: the map is the information WisKey grants are built from
-(services/wiskey_feature_exec.py `relay_row`, `relay_row_for_door`)."""
+Nothing here is sent to a station or a door: the map is the information WisKey grants are built from
+(services/wiskey_feature_exec.py `relay_row`, `relay_row_for_door`). WISKEY-RC7-ADOPT-2331: after an approval is committed, the map
+export is offered to the WisKey Native as metadata (stage only, `_sync_native`) - only with the owner's `wiskey.auto_install` on."""
 from __future__ import annotations
 
+import logging
 import sqlite3
 from typing import Any
 
@@ -120,7 +122,8 @@ class SaveBody(BaseModel):
 @router.put("/wiskey/relay-map/{station_id}")
 def approve_relay_map(body: SaveBody, request: Request, station_id: str = Path(min_length=1, max_length=MAX_ID), principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Approve one station's api relay -> physical relay map (CAS on the station revision; nothing is sent to a device)."""
+    """Approve one station's api relay -> physical relay map (CAS on the station revision; nothing is sent to a device; the committed
+    map is then offered to the Native as metadata only with the owner's `wiskey.auto_install` on - `_sync_native`)."""
     require(conn, principal, CONFIGURE, INSTALLATION)
     if body.confirmed is not True:
         raise ApiError(409, "confirmation_required", "השינוי דורש אישור מפורש.")
@@ -145,4 +148,49 @@ def approve_relay_map(body: SaveBody, request: Request, station_id: str = Path(m
     audit(conn, actor=principal, action="wiskey.relay_map.approved", decision="allowed", resource_type=STATION, resource_id=station_id, request_id=_rid(request),
           details={"revision_before": res.revision_before, "revision": res.revision, "before": rm.as_list(res.before), "after": rm.as_list(res.after),
                    "affected_doors": res.affected, "automated_doors": res.automated})
+    _sync_native(request, conn, principal, station_id)
     return {"revision": res.revision, "station": _station_view(conn, station_id, s)}
+
+
+SYNC_BUDGET_S = 10.0
+log = logging.getLogger(__name__)
+
+
+def _sync_native(request: Request, conn: sqlite3.Connection, principal: Principal, station_id: str) -> None:
+    """WISKEY-RC7-ADOPT-2331 (rc.7 map row 1): after the approval's CAS and audit, COMMIT them, then - outside the transaction
+    (`db.unlocked`), within one absolute 10 s budget - offer the committed map to the Native (`publish_selected`, stage v1 only).
+    Owner decision 1B: nothing is sent unless the owner switched `wiskey.auto_install` on. The outcome is audited
+    (`wiskey.relay_map.synced` / `wiskey.relay_map.sync_deferred`, codes and numbers only). A failure never undoes, replays or fails
+    the approval and is never shown as a CAS conflict; an UNKNOWN outcome stays unknown (no retry)."""
+    from ..db import unlocked
+    from ..services import wiskey_call_budget as budget
+    from ..services.wiskey_capture_port import PortError
+    from ..services.wiskey_relay_map_native import publish_selected
+
+    deadline = budget.now() + SYNC_BUDGET_S
+    result: dict[str, Any] | None = None
+    reason, outcome = None, None
+    try:
+        with unlocked(conn):
+            result = publish_selected(request.app.state.db, by=principal.user_id, deadline=deadline)
+    except PortError as error:
+        reason, outcome = error.code, error.outcome
+    except Exception as error:  # noqa: BLE001 - the approval is committed; the sync is best effort and audited
+        reason, outcome = f"sync_failed:{type(error).__name__}", "unknown"
+    try:
+        if result is not None and result.get("state") == "staged":
+            record = result["record"]
+            audit(conn, actor=principal, action="wiskey.relay_map.synced", decision="allowed", resource_type=STATION, resource_id=station_id,
+                  request_id=_rid(request), details={"seq": record["seq"], "content_digest": record["content_digest"], "ack": result["ack"]["state"]})
+            return
+        if result is not None:
+            reason = result.get("state")
+            details: dict[str, Any] = {"state": reason}
+            if result.get("state") == "staged_activation_blocked":
+                details.update(seq=result["record"]["seq"], content_digest=result["record"]["content_digest"], code=result["ack"]["code"])
+        else:
+            details = {"outcome": outcome}
+        audit(conn, actor=principal, action="wiskey.relay_map.sync_deferred", decision="allowed", resource_type=STATION, resource_id=station_id,
+              reason=reason, request_id=_rid(request), details=details)
+    except Exception as error:  # noqa: BLE001 - never fail the committed approval because of its sync audit
+        log.warning("relay map sync audit unavailable (%s)", type(error).__name__)

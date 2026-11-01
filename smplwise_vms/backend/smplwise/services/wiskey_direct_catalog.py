@@ -163,10 +163,15 @@ def load(path: str | None = None) -> Catalog:
     catalog = parse(Path(path or CATALOG_PATH).read_text(encoding="utf-8"))
     if path is not None:
         return catalog
+    # WISKEY-RC7-ADOPT-2331 (rc.7 map row 4): the five relay map transfer commands are DECLARED here only; their one caller is
+    # services/wiskey_relay_map_native.py (stage v1 after an approval, with the owner's switch on; prepare only from the NOT_BUILT
+    # maintenance_v1). The OWNER_EXCLUDED_WRITES rule above (review M2) is unchanged.
+    from .wiskey_relay_map_native import COMMANDS as RELAY_MAP_COMMANDS
+
     extra = tuple(_entry({"kind": "COMMAND", "command": name, "wire_schema": NATIVE_WIRE,
         "discovered_for_native_owner": True, "direct_dispatch_available": True,
         "transport_mode": "native_bridge_legacy_business"}) for name in
-        ("features/emergency_event_status_v1", "features/emergency_secure_v1"))
+        ("features/emergency_event_status_v1", "features/emergency_secure_v1", *RELAY_MAP_COMMANDS))
     return Catalog(catalog.code, catalog.source_sha256, catalog.registered_count + len(extra),
         catalog.discovered_count + len(extra), catalog.entries() + extra)
 
