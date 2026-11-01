@@ -1,7 +1,10 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-dropdown';
+import './sw-icon';
 import type { DdPanel, DdRing, DdSize, DdStyle } from './sw-dropdown';
+import { motionReduced } from '../design/apply';
+import { fadeOf, moreSides, nextIndex, pageDelta, revealDelta, wheelDelta, wheelPixels, type Extent, type Side } from './tab-strip';
 import type { IconName } from './sw-icon';
 
 export interface TabItem {
@@ -68,39 +71,110 @@ export class SwTabs extends LitElement {
 
   static styles = css`
     :host {
+      position: relative;
       display: inline-flex;
-      overflow-x: auto;
-      scrollbar-width: none;
       max-inline-size: 100%;
+      min-inline-size: 0;
       box-sizing: border-box;
       /* the hit height: the host's --sw-tab-min-h, else 44 px on a phone (coarse pointer, below), else none */
       --_h: var(--sw-tab-min-h, 0px);
-    }
-    :host::-webkit-scrollbar {
-      display: none;
+      /* SETTINGS-TABS-SCROLL-2331: the scroll arrow's box and the fade that runs from under it into the tabs */
+      --_arr: 32px;
+      --_fade: calc(var(--_arr) + 20px);
     }
     /* CR-013: a row wider than its box scrolls sideways (snapping to tabs) and fades at the edge that hides more tabs,
-       so a clipped label reads as "more this way" rather than a cut word. The fade masks the box, not the tabs. */
-    :host {
-      scroll-snap-type: x proximity;
-      scroll-padding-inline: 24px;
+       so a clipped label reads as "more this way" rather than a cut word. SETTINGS-TABS-SCROLL-2331: the scrolling box is the
+       viewport inside the host (the arrows sit over it, outside the fade); the fade masks the viewport, not the tabs. */
+    .vp {
+      display: flex;
+      flex: 1 1 auto;
+      min-inline-size: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      /* no scroll snapping since 2.33.1: a snap re-aligned the strip after the arrows, the wheel and the active-tab reveal had placed
+         it (the revealed tab could land back under the fade); the arrows and the keyboard now do what the snap did */
+      scroll-padding-inline: var(--_fade);
       overscroll-behavior-x: contain;
+      outline: none;
     }
-    a,
-    button {
-      scroll-snap-align: start;
+    .vp::-webkit-scrollbar {
+      display: none;
     }
-    :host([data-fade='left']) {
-      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px);
-      mask-image: linear-gradient(to right, transparent 0, #000 32px);
+    :host([data-fade='left']) .vp {
+      -webkit-mask-image: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade));
+      mask-image: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade));
     }
-    :host([data-fade='right']) {
-      -webkit-mask-image: linear-gradient(to left, transparent 0, #000 32px);
-      mask-image: linear-gradient(to left, transparent 0, #000 32px);
+    :host([data-fade='right']) .vp {
+      -webkit-mask-image: linear-gradient(to left, transparent 0, transparent 8px, #000 var(--_fade));
+      mask-image: linear-gradient(to left, transparent 0, transparent 8px, #000 var(--_fade));
     }
-    :host([data-fade='both']) {
-      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
-      mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
+    :host([data-fade='both']) .vp {
+      -webkit-mask-image: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade), #000 calc(100% - var(--_fade)), transparent calc(100% - 8px), transparent 100%);
+      mask-image: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade), #000 calc(100% - var(--_fade)), transparent calc(100% - 8px), transparent 100%);
+    }
+    /* the scroll arrows: one per reading side, drawn only while that side hides tabs (data-more). A mouse affordance - the keyboard
+       walks the tabs with the arrow keys and a finger swipes - so they are hidden from assistive technology and take no focus. */
+    .arr {
+      position: absolute;
+      inset-block: 0;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      inline-size: var(--_arr);
+      color: var(--sw-text-2);
+      cursor: pointer;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity var(--sw-t-hover) var(--sw-ease-color), visibility 0s linear var(--sw-t-hover);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .arr.start {
+      inset-inline-start: 0;
+    }
+    .arr.end {
+      inset-inline-end: 0;
+    }
+    :host([data-more='start']) .arr.start,
+    :host([data-more='end']) .arr.end,
+    :host([data-more='both']) .arr {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition: opacity var(--sw-t-hover) var(--sw-ease-color), visibility 0s;
+    }
+    .arr .knob {
+      display: grid;
+      place-items: center;
+      inline-size: 24px;
+      block-size: 24px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-solid);
+      border: 1px solid var(--sw-border);
+      box-shadow: var(--sw-shadow-1);
+      transition: color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .arr:hover .knob {
+        color: var(--sw-text);
+        border-color: var(--sw-border-strong);
+      }
+    }
+    .arr:active .knob {
+      transform: scale(var(--sw-press-scale));
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .vp {
+        scroll-behavior: auto;
+      }
+      .arr,
+      .arr .knob {
+        transition: none;
+      }
     }
     .row {
       position: relative;
@@ -280,6 +354,11 @@ export class SwTabs extends LitElement {
       flex: 1 0 auto;
       gap: 0;
     }
+    /* the arrow sits on the visible 32 px row, not on the extra hit height below it */
+    :host([data-variant='underline-compact']) .arr {
+      inset-block-end: auto;
+      block-size: 32px;
+    }
     :host([data-variant='underline-compact']) .row::after {
       content: '';
       position: absolute;
@@ -314,11 +393,11 @@ export class SwTabs extends LitElement {
   `;
 
   private resizeObs: ResizeObserver | null = null;
+  private observedRow: Element | null = null;
   private onScroll = () => this.updateFade();
 
   connectedCallback() {
     super.connectedCallback();
-    this.addEventListener('scroll', this.onScroll, { passive: true });
     this.resizeObs = new ResizeObserver(() => {
       this.revealActive();
       this.updateFade();
@@ -333,11 +412,78 @@ export class SwTabs extends LitElement {
   }
 
   disconnectedCallback() {
-    this.removeEventListener('scroll', this.onScroll);
     this.resizeObs?.disconnect();
     this.resizeObs = null;
+    this.observedRow = null;
     super.disconnectedCallback();
   }
+
+  /** SETTINGS-TABS-SCROLL-2331: the scrolling box (the viewport inside the shadow root); null in the dropdown form. */
+  get viewport(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>('.vp');
+  }
+
+  private get rtl(): boolean {
+    return getComputedStyle(this).direction === 'rtl';
+  }
+
+  private get smooth(): ScrollBehavior {
+    return motionReduced() ? ('instant' as ScrollBehavior) : 'smooth';
+  }
+
+  /** The physical extent of the tabs against the viewport's box, or null when nothing scrolls. */
+  private extent(): Extent | null {
+    const vp = this.viewport;
+    const kids = this.renderRoot.querySelectorAll<HTMLElement>('a, button');
+    if (!vp || !kids.length || vp.scrollWidth <= vp.clientWidth + 1) return null;
+    const box = vp.getBoundingClientRect();
+    let minLeft = Infinity;
+    let maxRight = -Infinity;
+    kids.forEach((k) => {
+      const r = k.getBoundingClientRect();
+      minLeft = Math.min(minLeft, r.left);
+      maxRight = Math.max(maxRight, r.right);
+    });
+    return { boxLeft: box.left, boxRight: box.right, minLeft, maxRight };
+  }
+
+  /** An arrow: one "page" toward that reading side. */
+  private step(side: Side) {
+    const e = this.extent();
+    const vp = this.viewport;
+    if (!e || !vp) return;
+    const left = pageDelta(side, this.rtl, e);
+    if (left) vp.scrollBy({ left, behavior: this.smooth });
+  }
+
+  /** A vertical mouse wheel over a strip that overflows scrolls it sideways (until its edge, then the page has the wheel back). */
+  private onWheel = (ev: WheelEvent) => {
+    if (ev.ctrlKey) return; // pinch-zoom on a trackpad
+    const e = this.extent();
+    const vp = this.viewport;
+    if (!e || !vp) return;
+    const dy = wheelPixels(ev.deltaY, ev.deltaMode, vp.clientWidth);
+    const dx = wheelPixels(ev.deltaX, ev.deltaMode, vp.clientWidth);
+    const left = wheelDelta(dx, dy, this.rtl, e, 1);
+    if (!left) return;
+    ev.preventDefault();
+    vp.scrollBy({ left, behavior: 'instant' as ScrollBehavior });
+  };
+
+  /** The arrow keys walk the tabs (in RTL ArrowLeft is the next one), Home / End jump to the ends; the focus moves, Enter opens. */
+  private onKey = (ev: KeyboardEvent) => {
+    if (ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) return;
+    const tabs = [...this.renderRoot.querySelectorAll<HTMLElement>('.row > a, .row > button')];
+    const focused = (this.renderRoot as ShadowRoot).activeElement as HTMLElement | null;
+    const at = focused ? tabs.indexOf(focused) : -1;
+    if (at < 0) return; // the focus is not on a tab of this strip
+    const next = nextIndex(ev.key, at, tabs.length, this.rtl);
+    if (next === null) return;
+    ev.preventDefault();
+    const el = tabs[next];
+    el.focus({ preventScroll: true });
+    this.reveal(el, this.smooth);
+  };
 
   /** The look in force: `variant`, else the older `underline` flag, else the pill. */
   get mode(): TabVariant {
@@ -350,43 +496,45 @@ export class SwTabs extends LitElement {
   }
 
   protected updated(changed: Map<string, unknown>) {
+    const row = this.renderRoot.querySelector('.row');
+    if (row !== this.observedRow) {
+      // the row's own width changes (a label, a count, the web font) without the host's box changing
+      if (this.observedRow) this.resizeObs?.unobserve(this.observedRow);
+      if (row) this.resizeObs?.observe(row);
+      this.observedRow = row;
+    }
     if (changed.has('active') || changed.has('items') || changed.has('variant') || changed.has('underline') || changed.has('adaptive')) this.revealActive();
     this.updateFade();
   }
 
-  /** Which physical edges hide tabs (direction-agnostic: compares the tabs' boxes with this box). */
+  /** Which physical edges hide tabs (`data-fade`, direction-agnostic: compares the tabs' boxes with the viewport's box) and which
+   * reading sides therefore show an arrow (`data-more`: start / end / both). */
   private updateFade() {
-    const kids = this.renderRoot.querySelectorAll<HTMLElement>('a, button');
-    if (!kids.length || this.scrollWidth <= this.clientWidth + 1) {
-      this.removeAttribute('data-fade');
-      return;
-    }
-    const box = this.getBoundingClientRect();
-    let minLeft = Infinity;
-    let maxRight = -Infinity;
-    kids.forEach((k) => {
-      const r = k.getBoundingClientRect();
-      minLeft = Math.min(minLeft, r.left);
-      maxRight = Math.max(maxRight, r.right);
-    });
-    const left = minLeft < box.left - 1;
-    const right = maxRight > box.right + 1;
-    const fade = left && right ? 'both' : left ? 'left' : right ? 'right' : '';
+    const e = this.extent();
+    const fade = e ? fadeOf(e) : '';
+    const m = e ? moreSides(e, this.rtl) : { start: false, end: false };
+    const more = m.start && m.end ? 'both' : m.start ? 'start' : m.end ? 'end' : '';
     if (fade) this.setAttribute('data-fade', fade);
     else this.removeAttribute('data-fade');
+    if (more) this.setAttribute('data-more', more);
+    else this.removeAttribute('data-more');
   }
 
-  /** Bring the active tab fully into view inside the row (never scrolls the page). */
+  /** Bring one tab fully into view inside the row, clear of the fade and the arrow (never scrolls the page). */
+  private reveal(el: HTMLElement, behavior: ScrollBehavior) {
+    const vp = this.viewport;
+    if (!vp || vp.scrollWidth <= vp.clientWidth + 1) return;
+    const box = vp.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(this).getPropertyValue('--_fade')) || 52;
+    const left = revealDelta(box.left, box.right, r.left, r.right, pad);
+    if (left) vp.scrollBy({ left, behavior });
+  }
+
+  /** The active tab, on load, on a route / selection change and when the box or the font changes. */
   private revealActive() {
     const on = this.renderRoot.querySelector<HTMLElement>('.on');
-    if (!on || this.scrollWidth <= this.clientWidth + 1) return;
-    const box = this.getBoundingClientRect();
-    const r = on.getBoundingClientRect();
-    const pad = 24;
-    let delta = 0;
-    if (r.left < box.left + pad) delta = r.left - (box.left + pad);
-    else if (r.right > box.right - pad) delta = r.right - (box.right - pad);
-    if (delta) this.scrollBy({ left: delta, behavior: 'instant' as ScrollBehavior });
+    if (on) this.reveal(on, 'instant' as ScrollBehavior);
   }
 
   private choose(item: TabItem) {
@@ -408,11 +556,13 @@ export class SwTabs extends LitElement {
       return html`<sw-dropdown ?block=${this.block} ?tall=${this.tall} dd-style=${this.ddStyle} dd-size=${this.ddSize} dd-ring=${this.ddRing} dd-panel=${this.ddPanel} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
     const label = (it: TabItem) => html`<span class="lbl">${this.shortLabels && it.short ? it.short : it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}${it.dot && !it.badge ? html`<span class="tdot" data-tab-dot=${it.id} aria-hidden="true"></span>` : ''}</span>`;
-    return html`<div class="row">${this.items.filter((it) => !it.divider).map((it) =>
+    const row = html`<div class="row">${this.items.filter((it) => !it.divider).map((it) =>
       it.href
         ? html`<a href=${it.href} class=${it.id === this.active ? 'on' : ''} aria-current=${it.id === this.active ? 'page' : 'false'}>${label(it)}</a>`
         : html`<button type="button" class=${it.id === this.active ? 'on' : ''} aria-pressed=${it.id === this.active} @click=${() => this.choose(it)}>${label(it)}</button>`,
     )}</div>`;
+    // SETTINGS-TABS-SCROLL-2331: the viewport scrolls (swipe, wheel, the arrows, the arrow keys); the two arrows sit over its ends
+    return html`<div class="vp" part="viewport" data-tabs-viewport @scroll=${this.onScroll} @wheel=${{ handleEvent: this.onWheel, passive: false }} @keydown=${this.onKey}>${row}</div><div class="arr start" data-tabs-arrow="start" aria-hidden="true" @click=${() => this.step('start')}><span class="knob"><sw-icon name="chevronBack" size=${14}></sw-icon></span></div><div class="arr end" data-tabs-arrow="end" aria-hidden="true" @click=${() => this.step('end')}><span class="knob"><sw-icon name="chevron" size=${14}></sw-icon></span></div>`;
   }
 }
 
