@@ -197,6 +197,10 @@ DEFAULTS: dict[str, str] = {
     # PLAYBACK-SCRUB-2341: at most this many seeks (new generations) per playback session in a rolling minute; over it the seek is
     # refused with a Hebrew notice (429 seek_rate) and the current generation keeps playing. 0 = no cap.
     "playback.max_seeks_per_min": "30",
+    # ASYNCIO-DEFAULT-2342 (owner 02.11, answer 5A): "שרת: רכיב תקשורת מהיר" - the native event loop / HTTP parser (uvloop + httptools)
+    # instead of the standard asyncio + h11. Off by default; read once at start-up by smplwise/__main__.py (applies after a restart);
+    # the environment variable SW_FAST_NETWORK wins over it, the crash guard's safe mode wins over both.
+    "server.fast_network": "false",
     # 2.0.0 stall detection (docs/changes/PLAYBACK-STALL-RESUME.md): seconds without media progress while a recording should be playing
     # before the player says "מתחבר מחדש", and how many automatic "resume from here" attempts (each a new generation of the same session,
     # the old go2rtc stream deleted) it makes before "הניגון נעצר" with a retry button; 0 = detect and stop, no automatic attempt.
@@ -782,6 +786,7 @@ class SettingsPatch(BaseModel):
     playback_max_sessions: int | None = Field(default=None, ge=1, le=128, alias="playback.max_sessions")
     playback_lease_s: int | None = Field(default=None, ge=60, le=3600, alias="playback.lease_s")
     playback_max_seeks_per_min: int | None = Field(default=None, ge=0, le=600, alias="playback.max_seeks_per_min")
+    server_fast_network: str | None = Field(default=None, pattern="^(true|false)$", alias="server.fast_network")  # ASYNCIO-DEFAULT-2342
     playback_cross_recorder_sync: str | None = Field(default=None, pattern="^(true|false)$", alias="playback.cross_recorder_sync")
     playback_stall_s: int | None = Field(default=None, ge=2, le=30, alias="playback.stall_s")
     playback_auto_resume_attempts: int | None = Field(default=None, ge=0, le=5, alias="playback.auto_resume_attempts")
