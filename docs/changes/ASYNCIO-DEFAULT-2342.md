@@ -50,9 +50,11 @@ The public tickets listener (`services/tickets/public_server.py`) already ran it
   `test_gate_hygiene`, `test_site_location`, `test_vendmark_295`, `test_self_update_s3_fixes`, `test_settings_nav_pref`: 273 passed,
   1 skipped (the uvloop variant of the stress test: no uvloop on Windows).
 - Frontend: `tsc --noEmit` clean; unit specs that read the diagnostics screen / media API (9 files): 55 passed.
-- NOT_RUN: the POSIX-only tests (real segfault restart, uvloop stress variant) - meant for the runner; the Diagnostics pixel baselines
-  (the new row adds one line to the settings block: `system-diagnostics` desktop / tablet / mobile baselines will move); an add-on
-  image build.
+- Runner (Ubuntu, `run_smart.py backend`): `test_crashguard_2332`, `test_asyncio_default_2342`, `test_playback_stress_2332`,
+  `test_playback_scrub_2341`: **62 passed, 0 skipped** (includes the POSIX real-segfault supervisor restart and the uvloop + httptools
+  stress variant, i.e. the opt-in path still works).
+- NOT_RUN: the Diagnostics pixel baselines (the new row adds one line to the settings block: `system-diagnostics` desktop / tablet /
+  mobile baselines will move - refresh on the runner before a train); an add-on image build.
 
 ## Owner notes
 
