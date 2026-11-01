@@ -60,7 +60,7 @@ import { AMBIENT_WIDGETS } from './home-ambient-bar';
 import { infoStyleFor, loadScreenDisplay, BULK_IDLE_DEFAULT, FLOOR_TITLE_LINES_DEFAULT, INFO_STYLE_DEFAULT, type BulkIdle, type FloorTitleLines, type InfoStyle } from '../api/screen-display';
 import {
   areaQuick, climateQuick, effectiveScreen, floorCardsMax, floorCardsSplit, HOME_SCREEN_DEFAULT, homeAlerts, isTabletLandscape, loadHomeScreen, rowQuickMax,
-  saveHomeScreen, screenFormBody, showRoomTemp, summaryKindsShown, tileQuickMax, treeUnassignedShown,
+  saveHomeScreen, screenFormBody, showRoomTemp, summaryKindsShown, tileQuickMax, tilesUnassignedShown, treeUnassignedShown,
   type HomeScreenForm, type HomeScreenOptions, type PersonalScreen, type QuickKind, type SummaryKind, type TreeUnassigned,
 } from '../api/home-screen';
 import { looseHint, looseNotice, looseRow, TREE_UNASSIGNED_CSS, type LooseNotice } from './tree-unassigned';
@@ -1524,7 +1524,8 @@ export class DevicesBuilding extends LitElement {
       if (this.selected !== 'all' && !this.lay.editing) return [];
       return [{ id: 'fcards', keys: [...t.floors.map((f) => `floor:${f.floor_id}`), ...(loose ? ['floor:unassigned'] : [])] }];
     }
-    return [...t.floors.map((f) => ({ id: `areas:${f.floor_id}`, keys: f.areas.map((a) => `area:${a.area_id}`) })), ...(loose ? [{ id: 'areas:unassigned', keys: ['area:unassigned'] }] : [])];
+    const tilesLoose = loose && tilesUnassignedShown(this.screen.tree_unassigned, this.lay.editing); // OWNER-R12-2341: a hidden section is not laid out
+    return [...t.floors.map((f) => ({ id: `areas:${f.floor_id}`, keys: f.areas.map((a) => `area:${a.area_id}`) })), ...(tilesLoose ? [{ id: 'areas:unassigned', keys: ['area:unassigned'] }] : [])];
   }
 
   private gridAttrs(id: string) {
@@ -3446,7 +3447,8 @@ export class DevicesBuilding extends LitElement {
     const shown = this.selected === 'all' ? all : all.filter((f) => f.floor_id === this.selected);
     const phoneOne = this.isPhone && !this.lay.editing && !this.phoneAll && this.selected !== 'all'; // HOME-295: a phone shows one floor at a time once a floor is picked; the first, default choice is every floor (owner 2026-10-29)
     const floors = phoneOne ? [this.phoneFloorOf(all)].filter((f): f is DeviceFloor => !!f) : shown.length ? shown : all; // a floor that vanished from the tree: back to everything
-    const loose = !phoneOne && (this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped);
+    // OWNER-R12-2341 (6A): the tiles view's "ללא שיוך" section follows home.screen.tree_unassigned exactly like the tree row
+    const loose = !phoneOne && (this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped) && tilesUnassignedShown(this.screen.tree_unassigned, this.lay.editing);
     return html`<div class="split" data-layout-view="tiles" data-fit=${this.fit} ?data-no-tree=${noTree}>
       ${noTree ? nothing : this.renderTreePanel(t)}
       <div class="floors" data-floors>

@@ -36,6 +36,7 @@ present). Every choice the owner answered is only the DEFAULT; each one is a key
   TREE-HIDE-UNASSIGNED-2331 (owner 01.11): whether the building tree draws the "ללא שיוך" bucket (devices without an area)
   tree_unassigned   always (default: as before) | editing (only while the screen editor is open - which only a system.configure
                     holder can open) | never. Presentation only: no entity, area or count changes; "כל המבנה" keeps counting them
+                    OWNER-R12-2341 (owner 01.11, 6A): the same choice also governs the tiles view's "ללא שיוך" section
   Per user only (home.personal.screen): hide_shared (true = the shared building is not shown to this viewer; default false)
 
 The view (cards / tiles) stays `devices.default_view` (default cards), the info row `home.info_style` (auto: cards in cards mode,

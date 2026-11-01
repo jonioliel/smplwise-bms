@@ -109,12 +109,14 @@ export const devicesLayoutCss = [
     :host([data-lay-editing]) {
       --lay-panel: 300px;
     }
-    @media (min-width: 768px) {
+    /* OWNER-R12-2341 (owner 01.11, 8B): the side panel only from 1200 px; a phone AND a tablet (768-1199) get the bottom sheet,
+       so the 12-column preview keeps the page's full width (the 300 px panel left it ~560 px at 1024) */
+    @media (min-width: 1200px) {
       :host([data-lay-editing]) sw-page {
         padding-inline-end: calc(var(--lay-panel) + 32px);
       }
     }
-    @media (max-width: 767px) {
+    @media (max-width: 1199px) {
       :host([data-lay-editing]) sw-page {
         padding-block-end: 52vh;
       }
@@ -304,7 +306,7 @@ export const devicesLayoutCss = [
       }
     }
 
-    /* the side panel of the selected card (a bottom sheet on a phone) */
+    /* the side panel of the selected card (a bottom sheet on a phone and a tablet, below 1200 px - OWNER-R12-2341) */
     .lay-panel {
       position: fixed;
       z-index: 30;
@@ -332,7 +334,7 @@ export const devicesLayoutCss = [
         background: var(--dv-surface-solid, var(--sw-surface));
       }
     }
-    @media (max-width: 767px) {
+    @media (max-width: 1199px) {
       .lay-panel {
         inset-block-start: auto;
         inset-block-end: calc(8px + env(safe-area-inset-bottom, 0px));
