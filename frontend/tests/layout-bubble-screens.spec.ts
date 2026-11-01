@@ -79,7 +79,12 @@ async function scrollMain(page: Page, to: 'top' | 'bottom') {
   await page.evaluate((t) => {
     const m = document.querySelector('sw-app')?.shadowRoot?.querySelector('main');
     if (m) m.scrollTop = t === 'top' ? 0 : m.scrollHeight;
-    for (const el of document.querySelector('sw-app')?.shadowRoot?.querySelectorAll('multimedia-players, multimedia-screens') ?? []) (el as HTMLElement).scrollTop = t === 'top' ? 0 : (el as HTMLElement).scrollHeight;
+    for (const el of document.querySelector('sw-app')?.shadowRoot?.querySelectorAll('multimedia-players, multimedia-screens') ?? []) {
+      (el as HTMLElement).scrollTop = t === 'top' ? 0 : (el as HTMLElement).scrollHeight;
+      // MEDIA-POLISH-2331: from 1024 x 560 the players page fits the screen and its cards scroll in their own region
+      const region = el.shadowRoot?.querySelector<HTMLElement>('[data-mm-region]');
+      if (region) region.scrollTop = t === 'top' ? 0 : region.scrollHeight;
+    }
   }, to);
   await page.waitForTimeout(120);
 }
