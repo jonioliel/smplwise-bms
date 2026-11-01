@@ -98,6 +98,10 @@ NO_ENV_POSSIBLE = {("os", n) for n in ("system", "popen", "execv", "execve", "ex
                                        "spawnve", "spawnvp", "spawnvpe", "spawnl", "spawnle", "posix_spawn", "posix_spawnp")} | \
                   {("subprocess", "getoutput"), ("subprocess", "getstatusoutput")}
 SAFE_IMPORTS = {"TimeoutExpired", "CalledProcessError", "SubprocessError", "PIPE", "DEVNULL", "STDOUT", "CompletedProcess"}
+# SEGFAULT-PLAYBACK-2332: the crash guard starts the SERVER ITSELF (`python -m smplwise`) as its child, with the environment the
+# server always had (run.sh used to `exec` it directly) - not a tool, so not the minimal environment. Exactly this one call is exempt;
+# test_crashguard_2332.py pins that the child gets the supervisor's own environment plus fixed, non-secret keys only.
+SERVER_SPAWN = {("crashguard.py", "subprocess", "Popen")}
 
 
 def _env_is_minimal(call: ast.Call) -> bool:
@@ -127,7 +131,7 @@ def test_guard_every_child_process_of_the_product_passes_the_minimal_environment
             pair = (node.func.value.id, node.func.attr)
             if pair in NO_ENV_POSSIBLE:
                 bad.append(f"{rel}:{node.lineno} {pair[0]}.{pair[1]} cannot take a minimal environment")
-            elif pair in SPAWNERS and not _env_is_minimal(node):
+            elif pair in SPAWNERS and not _env_is_minimal(node) and (rel, *pair) not in SERVER_SPAWN:
                 bad.append(f"{rel}:{node.lineno} {pair[0]}.{pair[1]} without env=minimal_env()")
     assert bad == [], bad
 
