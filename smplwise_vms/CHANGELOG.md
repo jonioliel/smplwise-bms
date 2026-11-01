@@ -54,6 +54,28 @@
 - **English:** Shared building blocks: one "technical details" disclosure for the events list and the event page, a common settings kit (narrow-column stacking, choice tiles, toggle chips, selects, the role matrix, a footer kept in view on a phone), centred empty states, a failure tone for media-page messages, and opt-in content-sized dialogs and keyboard-focusable table rows.
 - **עברית:** רכיבים משותפים: אזור "פרטים טכניים" אחד לרשימת האירועים ולדף האירוע, ערכת הגדרות משותפת (שורות שנערמות בעמודה צרה, אריחי בחירה, שבבי הפעלה, רשימות בחירה, טבלת התפקידים, תחתית שנשארת על המסך בטלפון), מצבים ריקים ממורכזים, גוון כישלון להודעות בדפי המדיה, ובחירה בחלונות בגודל התוכן ובשורות טבלה שאפשר להגיע אליהן במקלדת.
 
+## 2.33.3 (pilot) - Fix: the 2.33.2 add-on image could not be built
+**After installing:** no database migration. Same content as 2.33.2. Going back to 2.33.1 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. אותו תוכן כמו 2.33.2. חזרה ל-2.33.1 בטוחה.
+
+### What was fixed - מה תוקן
+- **English:** 2.33.2 had a broken line in the add-on's build file (Dockerfile), so Home Assistant failed to build or update it. 2.33.3 fixes that line; everything else (the crash guard) is unchanged. If the update to 2.33.2 failed, update to 2.33.3.
+- **עברית:** ב-2.33.2 הייתה שורה שבורה בקובץ הבנייה של התוסף (Dockerfile), ולכן Home Assistant נכשל בבנייה או בעדכון. 2.33.3 מתקנת את השורה; כל השאר (שומר הקריסות) ללא שינוי. אם העדכון ל-2.33.2 נכשל, יש לעדכן ל-2.33.3.
+
+## 2.33.2 (pilot) - The add-on recovers by itself after a crash
+**After installing:** no database migration. Going back to 2.33.1 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. חזרה ל-2.33.1 בטוחה.
+
+### What was fixed - מה תוקן
+- **English:** If the add-on's server process crashes (for example the crash seen during fast scrubbing in recorded playback), it now restarts by itself within seconds instead of the add-on stopping. Each crash is recorded and shown in Diagnostics ("restarts after a crash"), with a warning in the top bar for 24 hours.
+- **עברית:** אם תהליך השרת של התוסף קורס (למשל הקריסה שנראתה בדילוגים מהירים בצפייה בהקלטות), הוא עולה מחדש לבד תוך שניות במקום שהתוסף ייעצר. כל קריסה נרשמת ומוצגת באבחון ("הפעלות מחדש אחרי קריסה"), עם אזהרה בשורה העליונה למשך 24 שעות.
+- **English:** A crash now leaves a full technical trace in the add-on log, so its cause can be found and fixed.
+- **עברית:** קריסה משאירה עכשיו פירוט טכני מלא ביומן התוסף, כדי שאפשר יהיה למצוא את הסיבה ולתקן אותה.
+- **English:** Safe mode: after two crashes within six hours the server restarts on slower but steadier networking components, and returns to normal after six quiet hours.
+- **עברית:** מצב בטוח: אחרי שתי קריסות בתוך שש שעות השרת עולה מחדש על רכיבי תקשורת איטיים מעט אך יציבים יותר, וחוזר למצב הרגיל אחרי שש שעות שקטות.
+- **English:** Recommended: turn on the add-on's Watchdog in Home Assistant as a second safety net.
+- **עברית:** מומלץ: להדליק את Watchdog של התוסף ב-Home Assistant כרשת ביטחון נוספת.
+
 ## 2.33.1 (pilot) - On/off lights without a dimmer, floor lights popup, tidier tree, event centre polish, scrolling tab strips
 **After installing:** no database migration. New settings keep today's behaviour by default. Going back to 2.33.0 is safe; before going back, set "show 'ללא שיוך' in the tree" to "always" if it was changed, so the other home-screen options are kept.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. ההגדרות החדשות שומרות על ההתנהגות הקיימת כברירת מחדל. חזרה ל-2.33.0 בטוחה; לפני החזרה, אם שונתה ההגדרה "הצג 'ללא שיוך' בעץ", יש להחזיר אותה ל"תמיד" כדי ששאר אפשרויות המסך הראשי יישמרו.

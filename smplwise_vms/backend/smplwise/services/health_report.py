@@ -283,6 +283,10 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
                              state=tv["state"], age_s=age, last_ok_at=tv["last_ok_at"], last_good_at=tv["last_good_at"], outage=tv["outage"], errors=tv["errors"],
                              codes_in_use=tv["codes_in_use"]))
 
+    restarts = _restarts_check(settings)  # SEGFAULT-PLAYBACK-2332: only after the crash guard restarted the server at least once
+    if restarts:
+        checks.append(restarts)
+
     # 2.6.3 transitional (delta review S-1): a former secret option still holds a value in the add-on configuration (names only)
     from . import secrets_store
 
@@ -301,6 +305,31 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     return {"status": worst, "mode": installation_mode(settings), "version": __version__, "uptime_s": int(time.time() - STARTED), "checked_at": now_iso(), "probe_ttl_s": PROBE_TTL_S,
             # NN1: the report is for system administrators only, so the recorder detail is included
             "capabilities": caps.as_dict(with_recorders=True), "installation": installation_block(caps), "checks": checks}
+
+
+def _restarts_view(settings: Settings) -> dict[str, Any]:
+    from .. import crashguard
+
+    try:
+        return crashguard.state_view(settings.data_dir)
+    except Exception:  # noqa: BLE001 - the report never fails because of the crash record
+        return {"count_total": 0, "crashes_24h": 0, "safe_mode": False, "last_at": None, "last_signal": None, "last_uptime_s": None, "supervised": False}
+
+
+def _restarts_check(settings: Settings) -> dict[str, Any] | None:
+    """The crash guard's record (smplwise/crashguard.py): how often the server process died from a signal and was started again.
+    Shown only once there is something to show; warn while a crash is less than 24 hours old or safe mode is on."""
+    rv = _restarts_view(settings)
+    if not rv["count_total"] and not rv["safe_mode"]:
+        return None
+    parts = [f"{rv['crashes_24h']} קריסות ביממה האחרונה", f"{rv['count_total']} בסך הכול"]
+    if rv["last_at"]:
+        parts.append(f"אחרונה {rv['last_at']} ({rv['last_signal']}, אחרי {int(rv['last_uptime_s'] or 0)} שנ׳ פעילות)")
+    if rv["safe_mode"]:
+        parts.append("מצב בטוח: לולאת אירועים ומפענח HTTP ללא רכיבים טבעיים")
+    parts.append("עקבת הקריסה נשמרת ב־crash/faulthandler.log וביומן התוסף")
+    status = "warn" if rv["crashes_24h"] or rv["safe_mode"] else "ok"
+    return _check("process_restarts", "הפעלות מחדש אחרי קריסה", status, " · ".join(parts), **rv)
 
 
 def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
@@ -365,6 +394,9 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
     if tv_s["state"] == "down":  # BUSTIMES-295: the screens show "unavailable" - the installer sees why
         provider = tv_s["consecutive_errors"] > 0 and transit_model.is_outage(tv_s["last_error"])  # BUSSTATUS-297: only after the outage outlasted outage_warn_h
         items.append({"id": "transit", "status": "warn", "label": "מקור נתוני התחבורה הציבורית אינו זמין זמן רב (תקלה אצל הספק)" if provider else "נתוני התחבורה הציבורית אינם מתעדכנים"})
+    rv = _restarts_view(settings)
+    if rv["crashes_24h"]:
+        items.append({"id": "process_restarts", "status": "warn", "label": f"שרת התוסף קרס והופעל מחדש אוטומטית ({rv['crashes_24h']} ביממה האחרונה)"})
     worst = "ok"
     for it in items:
         if it["status"] == "error":
