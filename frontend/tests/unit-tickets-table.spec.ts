@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
   activeExtraCount, ageText, applyView, ariaSort, bulkSummary, chooserOrder, COLUMN_KEYS, DEFAULT_COLUMNS, keepAfterBulk, layoutFromPrefs, moveColumn, nextIndex,
   NO_TABLE_FILTERS, normalizeColumns, pageState, parseSort, queryParams, rangeSelect, slaText, sortMark, sortText, spanText, stuckText, tableFilters, toggleColumn,
-  toggleOne, togglePage, toggleSort, viewDoc, monthlyRangeError, monthlyParams,
+  toggleOne, togglePage, toggleSort, viewDoc, monthlyRangeError, monthlyParams, type ExtraFilters,
 } from '../src/tickets/table-model';
 import { TABLE_TEXT_EN_KEYS, TABLE_TEXT_KEYS, tableTemplate, tbt } from '../src/tickets/table-text';
 import { setTicketNames, ticketNames } from '../src/tickets/naming';
@@ -157,7 +157,7 @@ test('the catalogue: complete in English, D33 tokens render the configured name 
 
 test('the D33 lint covers the slice-6b files (no default name in a string)', () => {
   const files = ['tickets/table-model.ts', 'tickets/table-text.ts', 'tickets/table-toolbar.ts', 'tickets/table-bulk.ts', 'tickets/table-switch.ts', 'tickets/table-styles.ts',
-    'tickets/table-icons.ts', 'screens/tickets-table.ts', 'api/tickets-table.ts'];
+    'tickets/table-icons.ts', 'screens/tickets-table.ts', 'api/tickets-table.ts', 'tickets/table-filter-panel.ts'];
   const bad: string[] = [];
   for (const f of files) {
     const code = readFileSync(path.join(SRC, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.replace(/(^|[^:'"`\\])\/\/.*$/, '$1'));
@@ -205,4 +205,35 @@ test('monthly report: toolbar button is manager-only, validates before emitting,
     expect(TABLE_TEXT_KEYS).toContain(k);
     expect(TABLE_TEXT_EN_KEYS).toContain(k);
   }
+});
+
+// POLISH-LEFTOVERS-2341: ONE "סינון" in the table view - the page's panel hosts the table's server-side filters and owns their state
+test('one filter button: the page panel hosts the table filters, its chips match the toolbar count', async () => {
+  const { tableFilterChips } = await import('../src/tickets/table-filter-panel');
+  const full: ExtraFilters = { ...NO_TABLE_FILTERS, priority: ['urgent', 'high'], assignee: 'none', waiting: 'manager', stuck: 'any', created_from: '2026-10-01T08:00:00Z', created_to: '' };
+  let last: ExtraFilters = full;
+  const chips = tableFilterChips(full, null, [], (next) => (last = next));
+  expect(chips.map((c) => c.key)).toEqual(['priority', 'assignee', 'waiting', 'stuck', 'created']);
+  expect(chips.length).toBe(activeExtraCount(full));
+  expect(chips[0].label).toBe(`${tbt('fPriority')}: ${tbt('prio_urgent')}, ${tbt('prio_high')}`);
+  expect(chips[1].label).toBe(`${tbt('fAssignee')}: ${tbt('fAssigneeNone')}`);
+  chips[0].remove();
+  expect(last.priority).toEqual([]);
+  expect(last.assignee).toBe('none'); // one chip removes only its own group
+  expect(tableFilterChips({ ...NO_TABLE_FILTERS }, null, [], () => {})).toEqual([]);
+  const holder = tableFilterChips({ ...NO_TABLE_FILTERS, assignee: 'user:7' }, null, [{ key: 'user:7', name: 'דנה' }], () => {});
+  expect(holder[0].label).toBe(`${tbt('fAssignee')}: דנה`);
+
+  const list = readFileSync(path.join(SRC, 'screens/tickets-list.ts'), 'utf8');
+  expect(list).toMatch(/<tickets-table [^`]*hostFilters \.extra=\$\{this\.tableExtra\}/);
+  expect(list).toContain('@table-extra=');
+  expect(list).toContain('@table-holders=');
+  expect(list).toContain('tableFilterSections(this.tableExtra');
+  const table = readFileSync(path.join(SRC, 'screens/tickets-table.ts'), 'utf8');
+  expect(table).toContain('?hostFilters=${this.hostFilters}');
+  expect(table).toMatch(/applySaved[\s\S]*?this\.tellExtra\(\)/);
+  const bar = readFileSync(path.join(SRC, 'tickets/table-toolbar.ts'), 'utf8');
+  expect(bar).toMatch(/this\.hostFilters \? nothing : html`<span class="anchor">[\s\S]*?data-open="filters"/);
+  const panel = readFileSync(path.join(SRC, 'tickets/table-filter-panel.ts'), 'utf8');
+  for (const hook of ['data-f-priority', 'data-f-assignee', 'data-f-holders', 'data-f-waiting', 'data-f-stuck', 'data-f-cost-status', 'data-f-from', 'data-f-to']) expect(panel, hook).toContain(hook);
 });

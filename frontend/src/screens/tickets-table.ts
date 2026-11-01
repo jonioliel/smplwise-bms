@@ -75,7 +75,10 @@ export class TicketsTable extends LitElement {
   @state() private failed = '';
   @state() private loadingMore = false;
   @state() private layout: TableLayout = layoutFromPrefs(null);
-  @state() private extra: ExtraFilters = { ...NO_TABLE_FILTERS };
+  /** POLISH-LEFTOVERS-2341: the table's own filters, owned by the host when it sets `hostFilters` (its "סינון" panel edits them and
+   * hands them back here); every change the table makes itself (a saved view, the empty state's clear) is told with `table-extra` */
+  @property({ attribute: false }) extra: ExtraFilters = { ...NO_TABLE_FILTERS };
+  @property({ type: Boolean }) hostFilters = false;
   @state() private selected: Set<string> = new Set();
   @state() private focusIdx = -1;
   @state() private menu: CellMenu = null;
@@ -169,8 +172,9 @@ export class TicketsTable extends LitElement {
   }
 
   /** 2.5.5: the open cell menu lives in the top layer, outside the table's scroll box: put it next to its trigger after every render. */
-  protected updated(): void {
+  protected updated(changed: PropertyValues<this>): void {
     this.placeMenu();
+    if ((changed as Map<PropertyKey, unknown>).has('rows')) this.tellHolders();
   }
 
   private placeMenu = (): void => {
@@ -196,7 +200,21 @@ export class TicketsTable extends LitElement {
   };
 
   protected willUpdate(changed: PropertyValues<this>): void {
-    if (this.booted && (changed.has('scope') || changed.has('base'))) this.reloadIfNeeded();
+    if (this.booted && (changed.has('scope') || changed.has('base') || changed.has('extra'))) this.reloadIfNeeded();
+  }
+
+  /** POLISH-LEFTOVERS-2341: the handler filter's people (whoever holds a loaded row) for the host's panel, when they change */
+  private holdersKey = '';
+  private tellHolders(): void {
+    const holders = holdersOf(this.rows ?? []);
+    const key = holders.map((h) => `${h.key}=${h.name}`).join('|');
+    if (key === this.holdersKey) return;
+    this.holdersKey = key;
+    this.dispatchEvent(new CustomEvent('table-holders', { detail: { holders }, bubbles: true, composed: true }));
+  }
+
+  private tellExtra(): void {
+    this.dispatchEvent(new CustomEvent('table-extra', { detail: { extra: this.extra }, bubbles: true, composed: true }));
   }
 
   // ---------------------------------------------------------------- data
@@ -319,12 +337,14 @@ export class TicketsTable extends LitElement {
 
   private setExtra(extra: ExtraFilters): void {
     this.extra = extra;
+    this.tellExtra();
     this.reloadIfNeeded();
   }
 
   private applySaved(v: SavedView): void {
     const next = applyView(v.view, this.layout);
     this.extra = next.extra;
+    this.tellExtra();
     this.setLayout(next.layout);
     this.dispatchEvent(new CustomEvent('table-filters', { detail: next.base, bubbles: true, composed: true }));
     this.reloadIfNeeded(true);
@@ -715,7 +735,7 @@ export class TicketsTable extends LitElement {
     const showBulk = this.canSelect() && picked.length > 0;
     return html`<div data-screen="tickets-table" data-view="table">
       ${html`<tickets-table-toolbar .layout=${this.layout} .extra=${this.extra} .meta=${this.meta} .holders=${holdersOf(rows)} .current=${viewDoc({ scope: this.scope, ...this.base }, this.extra, this.layout)}
-            .count=${this.screen === 'ready' ? rows.length : null} ?more=${!!this.next} ?phone=${this.phone} ?canExport=${!!this.meta?.can.manage} ?exporting=${this.exporting} .defaultView=${this.defaultView}
+            .count=${this.screen === 'ready' ? rows.length : null} ?more=${!!this.next} ?phone=${this.phone} ?canExport=${!!this.meta?.can.manage} ?exporting=${this.exporting} .defaultView=${this.defaultView} ?hostFilters=${this.hostFilters}
             @layout-change=${(e: CustomEvent<{ layout: TableLayout }>) => this.setLayout(e.detail.layout)} @extra-change=${(e: CustomEvent<{ extra: ExtraFilters }>) => this.setExtra(e.detail.extra)}
             @view-apply=${(e: CustomEvent<{ view: SavedView }>) => this.applySaved(e.detail.view)} @default-view=${(e: CustomEvent<{ id: string | null }>) => (this.defaultView = e.detail.id ?? '')}
             .sentence=${this.sentenceOn} @sentence-change=${this.onSentenceToggle}

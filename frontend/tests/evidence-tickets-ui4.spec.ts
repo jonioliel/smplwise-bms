@@ -208,7 +208,10 @@ test.describe('tickets list v5 evidence', () => {
     for (let i = 0; i < (await cells.count()); i++) await expect(cells.nth(i)).not.toHaveText('');
     await expect(page.locator(`${T} th[data-col="sentence"] button`), 'the sentence column is not sortable (the server knows nothing of it)').toHaveCount(0);
     // columns, saved filters, density and the CSV stay
-    for (const sel of ['[data-open="columns"]', '[data-open="views"]', '[data-open="filters"]', '[data-density]', '[data-export]']) await expect(page.locator(`${T} tickets-table-toolbar ${sel}`)).toBeVisible();
+    for (const sel of ['[data-open="columns"]', '[data-open="views"]', '[data-density]', '[data-export]']) await expect(page.locator(`${T} tickets-table-toolbar ${sel}`)).toBeVisible();
+    // POLISH-LEFTOVERS-2341: the table's filters moved into the page's one "סינון" panel
+    await expect(page.locator(`${T} tickets-table-toolbar [data-open="filters"]`)).toHaveCount(0);
+    await expect(page.locator('sw-app tickets-list [data-filter-toggle]')).toHaveCount(1);
     // the bulk bar floats (sticky) after the table once rows are selected
     await page.locator(`${T} [data-select-page]`).check();
     const bar = page.locator(`${T} tickets-table-bulk`);

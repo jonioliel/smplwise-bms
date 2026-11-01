@@ -47,6 +47,8 @@ export class TicketsTableToolbar extends LitElement {
   /** TKUI4: the "what is happening" column is shown (a client-only choice the host keeps) */
   @property({ type: Boolean }) sentence = true;
   @property() defaultView = '';
+  /** POLISH-LEFTOVERS-2341: the page's own "סינון" panel hosts the table filters (tickets/table-filter-panel.ts) - no second "סינון" here */
+  @property({ type: Boolean }) hostFilters = false;
   @state() private pop: Pop = null;
   @state() private views: SavedView[] | null = null;
   @state() private naming = false;
@@ -282,10 +284,10 @@ export class TicketsTableToolbar extends LitElement {
         <button type="button" class="btn sm" aria-haspopup="dialog" aria-expanded=${String(this.pop === 'views')} data-open="views" @click=${() => this.open('views')}>${tbIcon('bookmark')}${tbt('savedViews')}${tbIcon('chevron')}</button>
         ${this.pop === 'views' ? this.viewsPop() : nothing}
       </span>
-      <span class="anchor">
+      ${this.hostFilters ? nothing : html`<span class="anchor">
         <button type="button" class="btn sm" aria-haspopup="dialog" aria-expanded=${String(this.pop === 'filters')} data-open="filters" @click=${() => this.open('filters')}>${tbIcon('filter')}${n ? tbt('filtersCount', { n }) : tbt('filters')}</button>
         ${this.pop === 'filters' ? this.filtersPop() : nothing}
-      </span>
+      </span>`}
       <button type="button" class="btn sm" aria-pressed=${String(compact)} data-density=${this.layout.density} aria-label=${`${tbt('density')}: ${tbt(compact ? 'density_compact' : 'density_comfortable')}`}
         @click=${() => this.setLayout({ density: compact ? 'comfortable' : 'compact' })}>${tbIcon('density')}${tbt(compact ? 'density_compact' : 'density_comfortable')}</button>
       <span class="grow"></span>
