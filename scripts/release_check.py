@@ -4,7 +4,8 @@
 Verifies what a release must get right before the owner signs it: one version everywhere (config.yaml, Dockerfile
 label, backend __version__, CHANGELOG head, API inventory), the bridge integration's two copies identical and
 their version consistent (manifest + const), a contiguous migration sequence, the built UI present in the add-on,
-the release package document and the known-limits sources present, and whether a git tag already exists for the
+the release package document and the known-limits sources present, the Supervisor build inputs (base image by tag,
+the HA python base per arch, pip/python steps on a python stage, arch lists, image labels), and whether a git tag already exists for the
 version. Prints a checklist; exits 1 when a check fails. With --tag it prints the tag commands to run after the
 owner's approval (it never creates the tag itself).
 
@@ -48,6 +49,162 @@ def dir_identical(a: Path, b: Path) -> tuple[bool, list[str]]:
         return False, ["missing copy"]
     walk(a, b, "")
     return not diffs, diffs
+
+
+# SUPERVISOR-BUILD-GATE-2341: the add-on image must build the way the HA Supervisor builds it. 2.31.0 pinned BUILD_FROM /
+# build.yaml to name:tag@sha256:... and the Supervisor build ran on an image without Python ("pip install ... exit code 127").
+HA_PY_BASE = re.compile(r"^ghcr\.io/home-assistant/(?P<arch>[a-z0-9]+)-base-python:(?P<tag>\d+\.\d+-alpine\d+\.\d+)$")
+PY_CMD = re.compile(r"(?<![\w./-])(pip3?|python3?(\.\d+)?)(?![\w-])")
+PY_INSTALL = re.compile(r"\b(apk\s+add|apt-get\s+install)\b[^&;|]*\b(python3|py3-pip)\b")
+
+
+def parse_build_from(text: str) -> dict[str, str]:
+    """build.yaml `build_from:` mapping {arch: image} (stdlib only: the gate runs this without PyYAML)."""
+    out: dict[str, str] = {}
+    inside = False
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].rstrip() if not raw.lstrip().startswith("#") else ""
+        if not line:
+            continue
+        if not line.startswith((" ", "\t")):
+            inside = line.strip() == "build_from:"
+            continue
+        m = re.match(r"^\s+([A-Za-z0-9_]+):\s*['\"]?([^'\"\s]+)['\"]?\s*$", line) if inside else None
+        if m:
+            out[m.group(1)] = m.group(2)
+    return out
+
+
+def parse_arch_list(text: str) -> list[str]:
+    """config.yaml `arch:` list (block form `- amd64` or flow form `[amd64, aarch64]`)."""
+    lines = text.splitlines()
+    for i, raw in enumerate(lines):
+        m = re.match(r"^arch:\s*(.*)$", raw)
+        if not m:
+            continue
+        rest = m.group(1).split("#", 1)[0].strip()
+        if rest.startswith("["):
+            return [a.strip().strip("'\"") for a in rest.strip("[]").split(",") if a.strip()]
+        out = []
+        for nxt in lines[i + 1:]:
+            mm = re.match(r"^\s*-\s*['\"]?([A-Za-z0-9_]+)['\"]?\s*(#.*)?$", nxt)
+            if mm:
+                out.append(mm.group(1))
+            elif nxt.strip() and not nxt.lstrip().startswith("#"):
+                break
+        return out
+    return []
+
+
+def dockerfile_instructions(text: str) -> list[tuple[str, str]]:
+    """[(INSTRUCTION, arguments)] with comments dropped and backslash continuations joined."""
+    out: list[tuple[str, str]] = []
+    buf = ""
+    for raw in text.splitlines():
+        s = raw.strip()
+        if not buf and (not s or s.startswith("#")):
+            continue
+        if buf and s.startswith("#"):
+            continue
+        if s.endswith("\\"):
+            buf += s[:-1] + " "
+            continue
+        buf += s
+        if buf.strip():
+            parts = buf.strip().split(None, 1)
+            out.append((parts[0].upper(), parts[1] if len(parts) > 1 else ""))
+        buf = ""
+    if buf.strip():
+        parts = buf.strip().split(None, 1)
+        out.append((parts[0].upper(), parts[1] if len(parts) > 1 else ""))
+    return out
+
+
+def supervisor_build_checks(addon: Path) -> list[tuple[str, bool, str]]:
+    """Static rules for the Supervisor build (fast, no Docker): the base image by tag, the HA python base per arch, the
+    pip/python steps on a stage with Python, config.yaml arch = build.yaml, image labels = config.yaml."""
+    res: list[tuple[str, bool, str]] = []
+    df_text, by_text, cfg_text = read(addon / "Dockerfile"), read(addon / "build.yaml"), read(addon / "config.yaml")
+    ins = dockerfile_instructions(df_text)
+    build_from = parse_build_from(by_text)
+    archs = parse_arch_list(cfg_text)
+    cfg_v = find(r'^version:\s*"([^"]+)"', cfg_text)
+    args: dict[str, str] = {}
+    for k, a in ins:
+        if k == "FROM":
+            break
+        if k == "ARG":
+            m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(\S+)", a)
+            if m:
+                args[m.group(1)] = m.group(2).strip("'\"")
+    df_default = args.get("BUILD_FROM")
+
+    # 1. tag form everywhere: no @sha256 digest pin (the 2.31.0 failure)
+    refs = ([("Dockerfile ARG BUILD_FROM", df_default)] if df_default else []) + [(f"build.yaml {k}", v) for k, v in build_from.items()]
+    refs += [("Dockerfile FROM", a.split()[0]) for k, a in ins if k == "FROM" and "@" in a]
+    pinned = [f"{n}={v}" for n, v in refs if v and "@" in v]
+    res.append(("add-on base image by tag (no @sha256 digest pin)", bool(refs) and not pinned,
+                "; ".join(pinned) + " - the Supervisor build broke on this in 2.31.0 (pip exit 127); use name:tag" if pinned
+                else (", ".join(f"{n}={v}" for n, v in refs) if refs else "no BUILD_FROM in the Dockerfile and no build.yaml build_from")))
+
+    # 2. the HA python base for each arch; the Dockerfile default is build.yaml's amd64 (newer Supervisors read the Dockerfile)
+    bad = []
+    for a, img in build_from.items():
+        m = HA_PY_BASE.match(img)
+        if not m or m.group("arch") != a:
+            bad.append(f"{a}: {img} (expected ghcr.io/home-assistant/{a}-base-python:<py>-alpine<ver>)")
+    tags = {HA_PY_BASE.match(i).group("tag") for i in build_from.values() if HA_PY_BASE.match(i)}
+    if len(tags) > 1:
+        bad.append(f"arches use different python/alpine tags: {sorted(tags)}")
+    if df_default is None or df_default != build_from.get("amd64"):
+        bad.append(f"Dockerfile ARG BUILD_FROM={df_default} != build.yaml amd64={build_from.get('amd64')}")
+    res.append(("add-on base image is the HA python base for each arch", bool(build_from) and not bad,
+                "; ".join(bad) if bad else ", ".join(f"{a}={i}" for a, i in build_from.items())))
+
+    # 3. every RUN that calls pip/python runs on a stage that has Python (the HA python base, a stage built on one, or an install step)
+    stages: dict[str, bool] = {}
+    has_py = False
+    cur: str | None = None
+    offenders: list[str] = []
+    nrun = 0
+    for k, a in ins:
+        if k == "FROM":
+            words = a.split()
+            img = words[0] if words else ""
+            m = re.fullmatch(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", img)
+            img = args.get(m.group(1), "") if m else img
+            has_py = bool(HA_PY_BASE.match(img)) or stages.get(img.lower(), False)
+            if len(words) >= 3 and words[1].upper() == "AS":
+                stages[words[2].lower()] = has_py   # updated below as the stage installs python
+                cur = words[2].lower()
+            else:
+                cur = None
+            continue
+        if k == "RUN":
+            if PY_INSTALL.search(a):
+                has_py = True
+                if cur:
+                    stages[cur] = True
+            if PY_CMD.search(a):
+                nrun += 1
+                if not has_py:
+                    offenders.append(a[:90])
+    res.append(("pip/python RUN steps run on a stage with Python", not offenders and any(k == "FROM" for k, _ in ins),
+                "; ".join(offenders) + " - the stage's base is not a tag-form HA python base" if offenders
+                else f"{nrun} pip/python RUN step(s), each on a python stage"))
+
+    # 4. config.yaml arch list = build.yaml build_from keys
+    same = bool(archs) and sorted(archs) == sorted(build_from)
+    res.append(("config.yaml arch list = build.yaml build_from", same, f"config.yaml={archs}, build.yaml={sorted(build_from)}"))
+
+    # 5. the image labels: io.hass.version = config.yaml version, io.hass.arch = config.yaml arch list
+    labels = " ".join(a for k, a in ins if k == "LABEL")
+    lv = find(r'io\.hass\.version="([^"]+)"', labels)
+    la = find(r'io\.hass\.arch="([^"]+)"', labels)
+    larch = sorted(la.split("|")) if la else []
+    ok = cfg_v is not None and lv == cfg_v and (la is None or larch == sorted(archs))
+    res.append(("image LABEL version and arch = config.yaml", ok, f"LABEL io.hass.version={lv} io.hass.arch={la}; config.yaml version={cfg_v} arch={archs}"))
+    return res
 
 
 def git_tags(root: Path) -> list[str]:
@@ -127,6 +284,9 @@ def run_checks(root: Path) -> dict[str, Any]:
         tracked = []
     bad = [t for t in tracked if not t.endswith("downloads/README.txt")]
     check("no APK or signing key tracked in git", not bad, ", ".join(bad) if bad else "none")
+
+    for name, ok, detail in supervisor_build_checks(addon):   # SUPERVISOR-BUILD-GATE-2341 (the 2.31.0 digest pin)
+        check(name, ok, detail)
 
     pkg = root / "docs" / "release" / "RELEASE_PACKAGE_V1.md"
     check("release package document present", pkg.exists(), str(pkg))
