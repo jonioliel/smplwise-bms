@@ -55,7 +55,19 @@ export class SystemCalendarSync extends LitElement {
   static styles = [calCss, leadReserveStyles, css`
     :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; padding: 14px var(--sw-page-pad) 20px; gap: 12px; overflow: hidden; }
     .panel { flex: 1; }
-    h1 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
+    /* CALMSG-POLISH-2331: the title row sits above the panel like Settings › יומנים and every sw-page settings screen (crumb, the skin's h1) */
+    h1 { margin: 0; font-family: var(--sw-font-heading, var(--sw-font)); font-size: var(--sw-h1, var(--sw-fs-2xl)); font-weight: var(--sw-h1-weight, var(--sw-fw-bold));
+      letter-spacing: var(--sw-h1-tracking, -0.01em); line-height: 1.2; color: var(--sw-heading); }
+    .head { display: flex; align-items: flex-end; gap: 10px 16px; flex-wrap: wrap; padding-inline-end: var(--sw-float-reserve, 0px); }
+    .ttl { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; }
+    .crumb { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+    .state { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; max-inline-size: 50%; }
+    /* the actions sit on the card's floor: three cards of different content keep one action line */
+    .pcard > .acts { margin-block-start: auto; }
+    .facts { display: flex; gap: 8px; flex: none; }
+    .rulesh { margin-block-start: 4px; }
+    .ro { font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-regular); color: var(--sw-text-3); }
+    .flag .sub .ltr, .flag .name .ltr { display: inline-block; }
     h3 { margin: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-bold); color: var(--sw-heading); display: flex; align-items: center; gap: 8px; }
     .lock { display: inline-flex; align-items: center; gap: 6px; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .prov { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
@@ -83,8 +95,12 @@ export class SystemCalendarSync extends LitElement {
     @media (max-width: 699px) {
       :host { padding: 10px var(--sw-page-pad-phone); gap: 10px; }
       .panel { padding: 12px; gap: 10px; }
-      .rules, .newbtn { display: none; }
-      .flag { padding: 8px 10px; gap: 8px; }
+      .rules, .rulesh, .newbtn { display: none; }
+      .flag { padding: 8px 10px; gap: 6px 8px; flex-wrap: wrap; }
+      /* the two decisions go under the entry: the title was cut to a few words beside them */
+      .flag .grow { flex-basis: calc(100% - 48px); }
+      .facts { inline-size: 100%; justify-content: flex-end; }
+      .crumb { display: none; }
       .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom)); }
     }
   `];
@@ -185,9 +201,10 @@ export class SystemCalendarSync extends LitElement {
     if (!this.conns) return html`<div class="panel" data-sync-state="loading" role="status" aria-label="טוען"><div class="prov">${ORDER.map(() => html`<div class="skel" style="block-size:180px"></div>`)}</div></div>`;
     const now = new Date();
     return html`
+      <div class="head lead-head"><div class="ttl"><span class="crumb">הגדרות</span><h1>חיבורי יומן</h1></div><span class="sp"></span>
+        <span class="lock lockline"><sw-icon name="lock" size="14"></sw-icon>Arx לא יוצר חשבונות ולא שומר סיסמאות</span>
+        <button type="button" class="btn sm newbtn" data-sync-new @click=${() => (this.newOpen = true)}><sw-icon name="plus" size="14"></sw-icon>חיבור חדש</button></div>
       <section class="panel" data-sync-screen>
-        <div class="ph lead-head"><h1>חיבורי יומן</h1><span class="sp"></span><span class="lock lockline"><sw-icon name="lock" size="14"></sw-icon>Arx לא יוצר חשבונות ולא שומר סיסמאות</span>
-          <button type="button" class="btn sm newbtn" data-sync-new @click=${() => (this.newOpen = true)}><sw-icon name="plus" size="14"></sw-icon>חיבור חדש</button></div>
         ${this.actionError ? html`<div class="err" role="alert" data-sync-error>${this.actionError}</div>` : nothing}
         ${this.phone ? this.phoneProviders(now) : html`<div class="prov">${ORDER.map((p) => this.card(p, now))}</div>`}
         ${this.flagsBlock(now)}
@@ -232,7 +249,7 @@ export class SystemCalendarSync extends LitElement {
     const reauth = c.state === 'needs_reauth';
     const cont = reauth && (this.s?.reauth_mode ?? 'reauth_and_continue') === 'reauth_and_continue';
     return html`<div class="pcard" data-provider=${p} data-conn=${c.id} data-conn-state=${c.state}>
-      <div class="pt"><span class="logo">${LOGO[p]}</span><div class="grow"><b>${PROVIDER_LABEL[p]}</b><div class="stage ell">${STAGE[p]}${p === 'ical' ? '' : ` · ${c.owner.name} חיברה`}</div></div><span class=${`chip ${look}`}>${label}</span></div>
+      <div class="pt"><span class="logo">${LOGO[p]}</span><div class="grow"><b>${PROVIDER_LABEL[p]}</b><div class="stage ell">${STAGE[p]}${p === 'ical' ? '' : ` · ${c.owner.name} חיברה`}</div></div><div class="state"><span class=${`chip ${look}`}>${label}</span>${!reauth && c.state !== 'paused' && !pendingSetup ? html`<span class="fine num" data-last-sync title="הסנכרון האחרון">${agoText(c.last_sync_at, now)}</span>` : nothing}</div></div>
       ${reauth ? html`<div class="fine">ההרשאה פגה ${agoText(c.last_sync_at, now)}. Arx ממשיך לעבוד מהיומן שלו; השינויים יישלחו אחרי ההרשאה.</div>` : nothing}
       ${c.state === 'error' && c.error_code ? html`<div class="fine" role="status" data-conn-error=${c.error_code}>${connErrorText(c.error_code)}</div>` : nothing}
       ${pendingSetup ? html`<div class="fine" data-conn-pending>${p === 'ical' ? 'חסרה כתובת ה־iCal.' : c.setup?.client_id_set ? 'נשאר לאשר אצל הספק.' : 'חסרים פרטי האפליקציה שלך אצל הספק.'}</div>` : nothing}
@@ -249,7 +266,6 @@ export class SystemCalendarSync extends LitElement {
           : html`<button type="button" class="btn sm" data-sync-now @click=${() => void this.act(() => (this.api as CalendarsApi).syncNow(c.id), 'הסנכרון התחיל')}><sw-icon name="refresh" size="14"></sw-icon>סנכרון עכשיו</button>
             <button type="button" class="btn sm wide-only" data-pause @click=${() => void this.act(() => (this.api as CalendarsApi).pauseConnection(c.id), 'החיבור הושהה')}>השהיה</button>`}
         ${reauth || c.state === 'paused' || pendingSetup ? html`<button type="button" class="btn sm bad" data-remove @click=${() => (this.removing = c)}>ניתוק</button>` : nothing}
-        ${!reauth && c.state !== 'paused' ? html`<span class="fine wide-only">${agoText(c.last_sync_at, now)}</span>` : nothing}
       </div></div>`;
   }
 
@@ -259,10 +275,10 @@ export class SystemCalendarSync extends LitElement {
     const p = pageOf(this.flags, this.flagPage, per);
     return html`<h3>סומנו להחלטה <span class="count num" data-flags-count>${this.flags.length}</span></h3>
       <div class="flags">${p.items.map((f) => html`<div class="flag" data-flag=${f.event_id}><span class="warnico"><sw-icon name="warning" size="16"></sw-icon></span>
-        <div class="grow"><div class="name ell" title=${f.title ?? ''}>${f.flag === 'deleted_external' ? `"${f.title ?? 'אירוע'}" נמחק ביומן החיצוני` : f.title ?? 'התנגשות'}${f.flag === 'conflict' ? html` <span class="num">${hm(f.start)}–${hm(f.end)}</span>` : nothing}</div>
-          <div class="sub ell">${f.calendar.name} · ${f.flag === 'conflict' ? 'התנגשות: שתי ההזמנות נשמרו' : 'נשמר ב־Arx ולא מתפרסם עד החלטה'} · ${whenText(f.start, f.end, now)}</div></div>
-        <button type="button" class="btn sm" data-flag-keep @click=${() => void this.act(() => (this.api as CalendarsApi).resolveFlag(f.event_id, f.revision, 'keep'), 'נשאר')}>להשאיר</button>
-        <button type="button" class="btn sm bad" data-flag-cancel @click=${() => void this.act(() => (this.api as CalendarsApi).resolveFlag(f.event_id, f.revision, 'cancel'), 'בוטל')}>לבטל</button></div>`)}</div>
+        <div class="grow"><div class="name ell" title=${f.title ?? ''}>${f.flag === 'deleted_external' ? `"${f.title ?? 'אירוע'}" נמחק ביומן החיצוני` : f.title ?? 'התנגשות'}${f.flag === 'conflict' ? html` <span class="num ltr">${hm(f.start)}–${hm(f.end)}</span>` : nothing}</div>
+          <div class="sub ell">${f.calendar.name} · ${f.flag === 'conflict' ? 'התנגשות: שתי ההזמנות נשמרו' : 'נשמר ב־Arx ולא מתפרסם עד החלטה'} · ${this.when(f.start, f.end, now)}</div></div>
+        <span class="facts"><button type="button" class="btn sm" data-flag-keep @click=${() => void this.act(() => (this.api as CalendarsApi).resolveFlag(f.event_id, f.revision, 'keep'), 'נשאר')}>להשאיר</button>
+        <button type="button" class="btn sm bad" data-flag-cancel @click=${() => void this.act(() => (this.api as CalendarsApi).resolveFlag(f.event_id, f.revision, 'cancel'), 'בוטל')}>לבטל</button></span></div>`)}</div>
       ${p.pages > 1 ? html`<div class="pager"><button type="button" class="btn icon" aria-label="הקודם" ?disabled=${p.page <= 1} @click=${() => (this.flagPage = p.page - 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
         <span class="num">${p.page} / ${p.pages}</span><button type="button" class="btn icon" aria-label="הבא" ?disabled=${p.page >= p.pages} @click=${() => (this.flagPage = p.page + 1)}><sw-icon name="chevron" size="16"></sw-icon></button></div>` : nothing}`;
   }
@@ -277,9 +293,17 @@ export class SystemCalendarSync extends LitElement {
       ['sync_conflict_display', 'התנגשות בתצוגת השבוע', 'ברירת מחדל: זו לצד זו, מסגרת אדומה', [['side_by_side', 'זו לצד זו'], ['list_only', 'רק ברשימה']]],
       ['sync_google_scope', 'היקף הרשאת Google', 'ברירת מחדל: יומן מלא, אושר מראש', [['full', 'יומן מלא'], ['events', 'אירועים בלבד']]],
     ];
-    return html`<div class="rules" data-sync-rules>${rows.map(([k, name, def, opts]) => html`<div class="row" data-setting=${k}><div class="grow"><div class="name ell">${name}</div><div class="sub">${def}</div></div>
+    return html`<h3 class="rulesh">כללי הסנכרון${this.canConfigure ? nothing : html` <span class="ro">צפייה בלבד: שינוי דורש את ההרשאה "יומנים: הגדרות"</span>`}</h3>
+      <div class="rules" data-sync-rules>${rows.map(([k, name, def, opts]) => html`<div class="row" data-setting=${k}><div class="grow"><div class="name ell">${name}</div><div class="sub">${def}</div></div>
       <div class="seg" role="radiogroup" aria-label=${name}>${opts.map(([v, l]) => html`<button type="button" role="radio" aria-pressed=${String(s[k] === v)} aria-checked=${String(s[k] === v)} data-opt=${v}
         ?disabled=${!this.canConfigure} @click=${() => void this.saveRule(k, v)}>${l}</button>`)}</div></div>`)}</div>`;
+  }
+
+  /** "ב׳ 26.10 · 10:00–11:30" with the time range as one isolated LTR run (in the RTL line it read "11:30–10:00"). */
+  private when(start: string, end: string, now: Date) {
+    const t = whenText(start, end, now);
+    const i = t.lastIndexOf(' · ');
+    return i < 0 ? t : html`${t.slice(0, i + 3)}<span class="num ltr">${t.slice(i + 3)}</span>`;
   }
 
   private async saveRule(k: keyof CalSettings, v: string): Promise<void> {

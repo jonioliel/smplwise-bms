@@ -87,7 +87,7 @@ export class SystemMessagingAccounts extends LitElement {
       align-items: center;
       gap: 4px;
       padding: 3px 10px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-medium);
       background: var(--sw-surface-3);
@@ -239,7 +239,57 @@ export class SystemMessagingAccounts extends LitElement {
       color: var(--sw-text-2);
     }
     .disabled {
-      opacity: 0.6;
+      opacity: var(--sw-disabled-opacity);
+    }
+    /* CALMSG-POLISH-2331: focus, hover and press on the controls this screen draws itself */
+    .in:focus-visible,
+    .linkbtn:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    .in[aria-invalid='true'] {
+      border-color: var(--sw-danger);
+    }
+    .acc {
+      transition: background var(--sw-t-hover) var(--sw-ease-color);
+    }
+    @media (hover: hover) {
+      .acc:not([aria-pressed='true']):hover {
+        background: var(--sw-hover-wash);
+        border-radius: var(--sw-r-sm);
+      }
+      .linkbtn:hover {
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+    }
+    /* a department row belongs to its use: indented, one step lighter, so the use - departments nesting reads at a glance
+       (the three department rows looked exactly like the use above them) */
+    .linkbtn.depts {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-block-start: 6px;
+    }
+    .linkbtn.depts sw-icon {
+      transition: transform var(--sw-t-hover) var(--sw-ease);
+    }
+    .linkbtn.depts[aria-expanded='true'] sw-icon {
+      transform: rotate(180deg);
+    }
+    .row.dept {
+      margin-inline-start: var(--sw-s-4);
+      padding-block: 10px;
+      background: color-mix(in srgb, var(--sw-well, var(--sw-surface-2)) 55%, transparent);
+    }
+    .row.dept .lbl {
+      font-size: var(--sw-fs-md);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .acc,
+      .linkbtn.depts sw-icon {
+        transition: none;
+      }
     }
     @media (max-width: 1023px) {
       .cols {
@@ -384,7 +434,7 @@ export class SystemMessagingAccounts extends LitElement {
     this.selected = key;
     this.pacingOpen = false;
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-      void this.updateComplete.then(() => this.renderRoot.querySelector('[data-card="selected"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+      void this.updateComplete.then(() => this.renderRoot.querySelector('[data-card="selected"]')?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
     }
   }
 
@@ -450,11 +500,11 @@ export class SystemMessagingAccounts extends LitElement {
           ${useOptions(view, draft, use).map((o) => html`<option value=${o.value} ?selected=${o.value === value}>${o.label}</option>`)}
         </select></span></div>
       ${use.per_department && depts.length ? html`
-        <button type="button" class="linkbtn" aria-expanded=${String(open)} data-depts-toggle=${use.key} @click=${() => (this.openDepts = { ...this.openDepts, [use.key]: !open })}>${wt('deptsToggle', { n: depts.length })}</button>
+        <button type="button" class="linkbtn depts" aria-expanded=${String(open)} data-depts-toggle=${use.key} @click=${() => (this.openDepts = { ...this.openDepts, [use.key]: !open })}><sw-icon name="chevronDown" size="14"></sw-icon>${wt('deptsToggle', { n: depts.length })}</button>
         ${open ? depts.map((d) => {
           const k = `${use.key}${DEPT_SEP}${d.id}`;
           const dv = draft.uses[k] ?? '';
-          return html`<div class="row" data-dept-row=${d.id}><span class="lbl">${bidi(d.name)}<span class="muted">${dv ? wt('deptOwn') : wt('deptDefault')}</span>${this.warnChips(useWarnings(view, use.key, d.id))}</span>
+          return html`<div class="row dept" data-dept-row=${d.id}><span class="lbl">${bidi(d.name)}<span class="muted">${dv ? wt('deptOwn') : wt('deptDefault')}</span>${this.warnChips(useWarnings(view, use.key, d.id))}</span>
             <span class="ctl"><select class="in" data-dept-pick=${k} aria-label=${d.name} ?disabled=${!this.editable || this.busy} @change=${(e: Event) => this.setUse(k, (e.target as HTMLSelectElement).value)}>
               ${useOptions(view, draft, use, true).map((o) => html`<option value=${o.value} ?selected=${o.value === dv}>${o.label}</option>`)}
             </select></span></div>`;
