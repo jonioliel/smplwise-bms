@@ -120,6 +120,107 @@ def dockerfile_instructions(text: str) -> list[tuple[str, str]]:
     return out
 
 
+KV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_.\-]*$")
+ARG_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _split_words(text: str) -> tuple[list[str], list[str]]:
+    """Split an instruction's arguments on unquoted whitespace (quotes kept in the words). Returns (words, escapes): `escapes`
+    lists every backslash escape found OUTSIDE quotes (e.g. a literal "\n" that the author meant as a newline)."""
+    words: list[str] = []
+    escapes: list[str] = []
+    cur, quote, i = "", "", 0
+    while i < len(text):
+        c = text[i]
+        if quote:
+            cur += c
+            if c == "\\" and quote == '"' and i + 1 < len(text):
+                cur += text[i + 1]
+                i += 1
+            elif c == quote:
+                quote = ""
+        elif c in "\"'":
+            quote = c
+            cur += c
+        elif c == "\\" and i + 1 < len(text):
+            escapes.append("\\" + text[i + 1])
+            cur += c + text[i + 1]
+            i += 1
+        elif c.isspace():
+            if cur:
+                words.append(cur)
+            cur = ""
+        else:
+            cur += c
+        i += 1
+    if cur:
+        words.append(cur)
+    return words, escapes
+
+
+def dockerfile_syntax_problems(text: str) -> list[str]:
+    """Static Dockerfile syntax rules the Supervisor's builder enforces (SUPERVISOR-BUILD-GATE-2341, the 2.33.2 incident: an ENV
+    block with a literal backslash-n, `Syntax error - can't find = in "\\n"`):
+    - a continuation backslash is the last character of its line (no spaces or tabs after it), and a lone backslash in the
+      middle of a line is not a continuation;
+    - ENV / LABEL / ARG: no backslash escape sequences (backslash-n, backslash-t, ...) outside quotes;
+    - ENV / LABEL: every word is key=value, except the legacy `ENV key value` form (first word without '=': exactly one key);
+      ARG: every word is NAME or NAME=default."""
+    probs: list[str] = []
+    lines = text.splitlines()
+    for n, raw in enumerate(lines, 1):
+        if raw.lstrip().startswith("#"):
+            continue
+        if re.search(r"\\[ \t]+$", raw):
+            probs.append(f"line {n}: spaces after the continuation backslash")
+        if re.search(r"(?<=\s)\\(?=[ \t]+\S)", raw):
+            probs.append(f"line {n}: a backslash in the middle of the line (a continuation must be the line's last character)")
+    # instructions with their first line number; continuations joined (a trailing backslash with spaces still joins, as above)
+    buf, start = "", 0
+    instrs: list[tuple[int, str]] = []
+    for n, raw in enumerate(lines, 1):
+        st = raw.strip()
+        if not buf and (not st or st.startswith("#")):
+            continue
+        if buf and st.startswith("#"):
+            continue
+        if not buf:
+            start = n
+        if re.search(r"\\[ \t]*$", raw):
+            buf += re.sub(r"\\[ \t]*$", "", raw.rstrip()) + " "
+            continue
+        buf += raw
+        instrs.append((start, buf.strip()))
+        buf = ""
+    if buf.strip():
+        instrs.append((start, buf.strip()))
+        probs.append(f"line {start}: the file ends inside a continuation")
+    for n, ins in instrs:
+        parts = ins.split(None, 1)
+        kw, rest = parts[0].upper(), (parts[1] if len(parts) > 1 else "")
+        if kw not in ("ENV", "LABEL", "ARG"):
+            continue
+        words, escapes = _split_words(rest)
+        if escapes:
+            probs.append(f"line {n}: {kw} has escape sequence(s) outside quotes: {' '.join(sorted(set(escapes)))}")
+        if not words:
+            probs.append(f"line {n}: {kw} without arguments")
+            continue
+        if kw == "ENV" and "=" not in words[0]:
+            if not KV_KEY.match(words[0]) or len(words) < 2:
+                probs.append(f"line {n}: legacy `ENV key value` needs one valid key and a value: {ins[:80]}")
+            continue
+        for w in words:
+            if kw == "ARG":
+                ok = ARG_NAME.match(w.split("=", 1)[0]) is not None
+            else:
+                key = w.split("=", 1)[0].strip("\"'")
+                ok = "=" in w and KV_KEY.match(key) is not None
+            if not ok:
+                probs.append(f"line {n}: {kw} word {w!r} is not {'NAME[=default]' if kw == 'ARG' else 'key=value'}")
+    return probs
+
+
 def supervisor_build_checks(addon: Path) -> list[tuple[str, bool, str]]:
     """Static rules for the Supervisor build (fast, no Docker): the base image by tag, the HA python base per arch, the
     pip/python steps on a stage with Python, config.yaml arch = build.yaml, image labels = config.yaml."""
@@ -196,6 +297,12 @@ def supervisor_build_checks(addon: Path) -> list[tuple[str, bool, str]]:
     # 4. config.yaml arch list = build.yaml build_from keys
     same = bool(archs) and sorted(archs) == sorted(build_from)
     res.append(("config.yaml arch list = build.yaml build_from", same, f"config.yaml={archs}, build.yaml={sorted(build_from)}"))
+
+    # 6. Dockerfile syntax (the 2.33.2 incident: a literal \n in the ENV block)
+    probs = dockerfile_syntax_problems(df_text) if df_text else ["no Dockerfile"]
+    res.append(("Dockerfile syntax (ENV/LABEL/ARG key=value, continuations)", not probs,
+                "; ".join(probs[:6]) + (f" (+{len(probs) - 6} more)" if len(probs) > 6 else "") if probs
+                else f"{len(ins)} instructions; ENV/LABEL/ARG words are key=value, continuations end their lines"))
 
     # 5. the image labels: io.hass.version = config.yaml version, io.hass.arch = config.yaml arch list
     labels = " ".join(a for k, a in ins if k == "LABEL")

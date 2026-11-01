@@ -63,7 +63,7 @@ def run(tmp_path: Path, df: str = GOOD_DF, by: str = GOOD_BY, cfg: str = GOOD_CF
 
 def test_good_inputs_pass_every_rule(tmp_path):
     res = run(tmp_path)
-    assert set(res) == {TAG, BASE, PYST, ARCH, LABEL}
+    assert set(res) == {TAG, BASE, PYST, ARCH, LABEL, SYNTAX}
     assert all(ok for ok, _ in res.values()), res
 
 
@@ -71,7 +71,7 @@ def test_the_repository_passes_every_rule():
     res = {n: (ok, d) for n, ok, d in rc.supervisor_build_checks(ROOT / "smplwise_vms")}
     assert all(ok for ok, _ in res.values()), res
     by = {c["name"]: c for c in rc.run_checks(ROOT)["checks"]}
-    assert {TAG, BASE, PYST, ARCH, LABEL} <= set(by), "the rules are part of the release checklist"
+    assert {TAG, BASE, PYST, ARCH, LABEL, SYNTAX} <= set(by), "the rules are part of the release checklist"
 
 
 def test_the_2310_digest_pin_fails_the_check(tmp_path):
@@ -152,3 +152,77 @@ def test_missing_files_fail_closed(tmp_path):
     addon.mkdir()
     res = {n: ok for n, ok, _ in rc.supervisor_build_checks(addon)}
     assert not any(res.values()), res
+
+
+
+# ---- the 2.33.2 incident: a literal backslash-n inside the ENV block; the Supervisor's builder stopped with
+# `failed to solve: Syntax error - can't find = in "\\n". Must be of the form: name=value` (Dockerfile:32)
+SYNTAX = "Dockerfile syntax (ENV/LABEL/ARG key=value, continuations)"
+ENV_2332 = (
+    "ENV SW_WWW_DIR=/app/www \\\n"
+    "    SW_WWW_PUBLIC_DIR=/app/www-public \\\n"
+    "    SW_DOWNLOADS_DIR=/app/downloads \\\n"
+    "    SW_DATA_DIR=/data \\\n"
+    "    SW_HOST=0.0.0.0 \\\n"
+    "    SW_PORT=8099 \\\n"
+    "    PYTHONUNBUFFERED=1 \\n    PYTHONFAULTHANDLER=1\n"
+)
+# 2.33.3: the same block with a real continuation + newline before PYTHONFAULTHANDLER
+ENV_2333 = ENV_2332.replace("PYTHONUNBUFFERED=1 \\n    PYTHONFAULTHANDLER=1", "PYTHONUNBUFFERED=1 \\\n    PYTHONFAULTHANDLER=1")
+
+
+def with_env(env: str) -> str:
+    return GOOD_DF.replace("LABEL io.hass.version", env + "\nLABEL io.hass.version")
+
+
+def test_the_2332_literal_backslash_n_fails(tmp_path):
+    assert "1 \\n    PYTHONFAULTHANDLER" in ENV_2332 and ENV_2332.count("\n") == 7, "the exact 2.33.2 lines (one physical line with a literal \\n)"
+    res = run(tmp_path, df=with_env(ENV_2332))
+    assert not res[SYNTAX][0]
+    assert "escape sequence" in res[SYNTAX][1] and "is not key=value" in res[SYNTAX][1]
+    assert res[TAG][0] and res[BASE][0] and res[PYST][0], "only the syntax rule catches it"
+
+
+def test_the_2333_fix_passes(tmp_path):
+    assert ENV_2333.count("\n") == 8
+    res = run(tmp_path, df=with_env(ENV_2333))
+    assert res[SYNTAX][0], res[SYNTAX][1]
+    assert all(ok for ok, _ in res.values()), res
+
+
+def test_the_released_2332_dockerfile_fails_at_line_32():
+    import subprocess
+
+    import pytest
+    try:
+        txt = subprocess.run(["git", "-C", str(ROOT), "show", "v2.33.2:smplwise_vms/Dockerfile"], capture_output=True, text=True,
+                             encoding="utf-8", timeout=20).stdout or ""
+    except (OSError, subprocess.SubprocessError):
+        txt = ""
+    if "PYTHONFAULTHANDLER" not in txt:
+        pytest.skip("tag v2.33.2 not in this clone")
+    probs = rc.dockerfile_syntax_problems(txt)
+    assert probs and all(p.startswith("line 32:") for p in probs), probs
+
+
+def test_continuation_must_end_the_line(tmp_path):
+    res = run(tmp_path, df=with_env("ENV A=1 \\   \n    B=2"))
+    assert not res[SYNTAX][0] and "spaces after the continuation backslash" in res[SYNTAX][1]
+    res = run(tmp_path, df=with_env("ENV A=1 \\ B=2"))
+    assert not res[SYNTAX][0] and "middle of the line" in res[SYNTAX][1]
+    assert any("ends inside a continuation" in p for p in rc.dockerfile_syntax_problems("FROM x\nENV A=1 \\\n"))
+
+
+def test_env_label_arg_words_must_be_key_value(tmp_path):
+    for bad in ("ENV A=1 B", "LABEL io.hass.x=1 stray", "ARG 9BAD=1", "ENV A=1 C=a\\tb", "ENV LEGACY"):
+        assert not run(tmp_path, df=with_env(bad))[SYNTAX][0], bad
+    for ok in ("ENV LEGACY some value with spaces", "ENV A=\"x y\" B='1 2'", "ENV MSG=\"line\\nnext\"", "ARG NAME", "ARG A=1 B",
+               "LABEL \"com.example.x\"=\"a b\" org.y=2", "ENV A=1 \\\n    B=2"):
+        res = run(tmp_path, df=with_env(ok))
+        assert res[SYNTAX][0], (ok, res[SYNTAX][1])
+
+
+def test_shell_instructions_keep_their_escapes(tmp_path):
+    df = GOOD_DF.replace("RUN apk add --no-cache ffmpeg",
+                         "RUN printf 'a\\nb' > /x && find / -name x -exec ls {} \\; \\\n    && echo ok")
+    assert run(tmp_path, df=df)[SYNTAX][0]

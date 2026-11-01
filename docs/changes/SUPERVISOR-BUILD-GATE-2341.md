@@ -21,6 +21,10 @@ Python). 2.31.1 restored the tag form by hand. Nothing stopped the same mistake 
      python base, a stage built on one, or after an apk/apt python install in that stage;
    - `config.yaml arch list = build.yaml build_from`;
    - `image LABEL version and arch = config.yaml`.
+   - `Dockerfile syntax (ENV/LABEL/ARG key=value, continuations)` (added after the 2.33.2 incident, below): a continuation
+     backslash is the last character of its line (no trailing spaces, no lone backslash mid-line), ENV/LABEL/ARG carry no escape
+     sequences (backslash-n, backslash-t) outside quotes, every ENV/LABEL word is key=value (legacy `ENV key value`: one key), every
+     ARG word is NAME[=default], and the file does not end inside a continuation.
 2. `scripts/gate/addon_build_check.sh` - the real build: `docker build` of `smplwise_vms/` with `BUILD_FROM` (build.yaml amd64),
    `BUILD_VERSION`, `BUILD_ARCH=amd64` and the layer cache (what the Supervisor runs for a local add-on), then inside the image with
    `--network none` and the s6 entrypoint bypassed: `import smplwise` (+ version = config.yaml), `create_app()`, `python3 -m smplwise`
@@ -34,6 +38,16 @@ Python). 2.31.1 restored the tag form by hand. Nothing stopped the same mistake 
    "no baseline entry" warning). Report section with the steps and, on failure, the log tail.
 4. Docs: `scripts/gate/INSTALL_ON_RUNNER.md` (stage, docker state, owner install steps, re-install steps),
    `docs/release/GATE_SPEED.md` section 7 (timing).
+
+## Second incident: 2.33.2 (literal backslash-n in the ENV block)
+
+2.33.2 shipped `PYTHONUNBUFFERED=1 
+    PYTHONFAULTHANDLER=1` on ONE physical line of the ENV block; the Supervisor's builder
+stopped with `Syntax error - can't find = in "
+". Must be of the form: name=value` (Dockerfile:32). The first five rules do not
+look at instruction syntax, so the sixth rule above was added. Fixtures: the exact 2.33.2 block (fails), the 2.33.3 form with a
+real continuation (passes), and the released `v2.33.2:smplwise_vms/Dockerfile` from git (fails, every problem on line 32).
+Note: origin/main at 2.33.2 fails this rule until the 2.33.3 fix is merged; this branch (cut from 2.33.1) passes.
 
 ## Runner state (read-only probe 2026-11-01, through run_smart.py's ssh config)
 
