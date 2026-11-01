@@ -447,14 +447,14 @@ def test_mirror_writers_use_normal_and_user_actions_stay_full(db, monkeypatch):
     from smplwise.services import ha_sync
 
     seen: list[int] = []
-    real_open = Database._open
+    real_lease = Database._lease
 
-    def spy(self, durable=True):
-        conn = real_open(self, durable)
+    def spy(self, durable=True):  # DB-CONN-POOL-2343: the connection a transaction gets, freshly opened or reused
+        conn = real_lease(self, durable)
         seen.append(conn.execute("PRAGMA synchronous").fetchone()[0])
         return conn
 
-    monkeypatch.setattr(Database, "_open", spy)
+    monkeypatch.setattr(Database, "_lease", spy)
     ha_sync.handle_state_event(db, {"entity_id": "sensor.x", "old_state": None, "new_state": {"entity_id": "sensor.x", "state": "1", "attributes": {}}})
     assert seen == [1]
     seen.clear()

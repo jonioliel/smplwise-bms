@@ -65,6 +65,9 @@ class Settings:
     # the FIFO write gate in front of SQLite's write lock (db.WriteGate); add-on option `db_write_gate`, default on.
     # SW_DB_WRITE_GATE=0 turns it off whatever the option says (an operational escape hatch)
     db_write_gate: bool = True
+    # DB-CONN-POOL-2343: request connections are reused (db.Database._lease) instead of opened per request; add-on option
+    # `db_conn_pool`, default on. SW_DB_CONN_POOL=0 turns it off whatever the option says (the kill switch)
+    db_conn_pool: bool = True
     # HA core itself (not the Supervisor proxy, which accepts only the add-on's SUPERVISOR_TOKEN): the remote channel's
     # user access tokens are validated here. None inside the add-on = discovered from the Supervisor's /core/info.
     ha_core_url: str | None = None
@@ -235,6 +238,7 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         ha_token=os.environ.get("SUPERVISOR_TOKEN") or os.environ.get("HA_TOKEN") or None,
         remote_access=_truthy(options["remote_access"]) if "remote_access" in options else _truthy(os.environ.get("SW_REMOTE_ACCESS", "")),
         db_write_gate=(_truthy(options["db_write_gate"]) if "db_write_gate" in options else True) and os.environ.get("SW_DB_WRITE_GATE", "1") != "0",
+        db_conn_pool=(_truthy(options["db_conn_pool"]) if "db_conn_pool" in options else True) and os.environ.get("SW_DB_CONN_POOL", "1") != "0",
         cast_relay=_truthy(options["cast_relay"]) if "cast_relay" in options else _truthy(os.environ.get("SW_CAST_RELAY", "")),
         tickets_public=_truthy(options["tickets_public"]) if "tickets_public" in options else _truthy(os.environ.get("SW_TICKETS_PUBLIC", "")),
         notice_boards=_truthy(options["notice_boards"]) if "notice_boards" in options else _truthy(os.environ.get("SW_NOTICE_BOARDS", "")),

@@ -72,6 +72,9 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    - `db_write_gate` (default `true`) — database writes wait in one queue, in arrival order, instead of retrying on
      their own (the fix for the "database is locked" storm of test round 10). Leave it on; turn it off only when
      support asks, to compare. `/health` → `db.write_lock` shows `write_gate`, the queue (`gate`) and the waits.
+   - `db_conn_pool` (default `true`) — database connections are reused between requests instead of opened for each
+     one (each new connection first reads the whole database structure). Leave it on; turn it off only when support
+     asks. `/health` → `db.write_lock` → `conn_pool` shows how many connections were opened and reused.
    - WisKey (the `hikvision_intercom` integration) is reached through the add-on's own Home Assistant user (the
      Long-Lived Access Token in `ha_token`). WisKey authorizes that user by its own areas: viewing the WisKey tab
      needs the `overview`, `users` and `events` areas at `view`; **editing people from SMPLWISE (the person editor,

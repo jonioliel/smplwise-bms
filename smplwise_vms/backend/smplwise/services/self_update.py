@@ -93,7 +93,7 @@ OPTION_TYPES: dict[str, str] = {
     "nvr_password": "cleared", "go2rtc_api_password": "cleared", "wiskey_password": "cleared", "wiskey_background_token": "cleared",
     "openai_api_key": "cleared", "push_relay_key": "cleared",
     "go2rtc_url": "str?", "go2rtc_api_username": "str?", "wiskey_username": "str?",
-    "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?",
+    "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?", "db_conn_pool": "bool?",
     "log_level": "log_level",
     "push_relay_url": "str?",  # CR-027: the SmplWise push relay's URL (config.py reads it into the environment; the key is in the secrets store)
     "fleet_report_url": "str?",  # CR-FLEET215: the SmplWise fleet receiver's URL (config.py reads it into the environment; the Arx switch is the other key)

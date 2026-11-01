@@ -42,6 +42,7 @@ import sqlite3
 import sys
 import threading
 import time
+import weakref
 from collections import deque
 from contextlib import contextmanager
 from pathlib import Path
@@ -57,6 +58,14 @@ CHECKPOINT_BUSY_S = 0.5  # how long a TRUNCATE checkpoint waits for readers befo
 # SW_DB_WRITE_GATE=0 turns the FIFO write gate off (SQLite's own busy handler alone, as before 2026-09-29): an
 # operational escape hatch and the A/B switch of the stress tests
 WRITE_GATE = os.environ.get("SW_DB_WRITE_GATE", "1") != "0"
+# DB-CONN-POOL-2343: connection reuse (see the "Connection reuse" section below and docs/changes/DB-CONN-POOL-2343.md).
+# SW_DB_CONN_POOL=0 (or the add-on option db_conn_pool: false) is the kill switch: every connection() / write_aside()
+# opens and closes its own SQLite connection again, exactly as before.
+CONN_POOL = os.environ.get("SW_DB_CONN_POOL", "1") != "0"
+# idle connections kept per database file and durability class; more leases than this at once are opened as before
+# and closed when they end
+POOL_IDLE_DURABLE = max(0, int(os.environ.get("SW_DB_POOL_IDLE", "6")))
+POOL_IDLE_MIRROR = max(0, int(os.environ.get("SW_DB_POOL_IDLE_MIRROR", "2")))
 
 log = logging.getLogger("smplwise.db")
 T = TypeVar("T")
@@ -384,6 +393,207 @@ def retry_locked(fn: Callable[[], T], *, what: str = "write", attempts: int = 3,
     raise AssertionError("unreachable")
 
 
+# ---------------------------------------------------------------- connection reuse (DB-CONN-POOL-2343)
+#
+# Opening a connection is cheap; its FIRST statement is not: SQLite parses the whole schema (well over a thousand
+# tables, indexes and triggers) into the connection, ~40-50 ms on the workstation and more on an SD-card host. Every
+# request used to pay it. Now a connection that ends cleanly goes back to an idle list of its Database (per file and
+# durability class) and the next connection() / write_aside() reuses it - schema parsed, statements prepared.
+#
+# What a caller gets is a lease (PooledConnection): a sqlite3.Connection subclass that forwards to the pooled connection
+# and is cut off from it when the lease ends. So the per-request semantics stay what they were:
+# - every lease is a new object: id(conn) - the key of _MODES, the gate tokens, the holders and every per-request cache -
+#   names one lease, never two requests;
+# - a reference kept past the end (a background callback, a streaming body that outlives its dependency) fails with
+#   "Cannot operate on a closed database", as a closed connection did, instead of running inside another request;
+# - every cursor of the lease is closed when it ends: a half-read SELECT would otherwise keep its read snapshot open on
+#   the pooled connection (stale reads for the next lease, and no TRUNCATE checkpoint behind it).
+# The write gate and the transaction rules are untouched: a lease begins, commits, rolls back and hands the gate on through
+# the same functions; it is handed back only after connection() / write_aside() ended its transaction, and only when it
+# is back in exactly the state _open() leaves (no transaction, query_only off, busy timeout, foreign keys, synchronous,
+# row factory) - otherwise it is closed. Closed, never pooled: a lease that touched connection-wide state (functions,
+# authorizer, trace callback, executescript, ATTACH or TEMP objects ...), one that ended in a database error other than
+# "busy" or in an interrupt, one opened on a file that is no longer the handle's (demo mode) or was replaced on disk,
+# and every idle connection after a migration or a schema change.
+
+
+def _file_ident(path: Path) -> tuple[int, int] | None:
+    """The identity of the database file on disk; a pooled connection is only reused on the file it was opened on."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return (st.st_dev, st.st_ino)
+
+
+_LEASE_DIRECT = frozenset({"execute", "executemany", "cursor", "commit", "rollback", "close", "in_transaction", "total_changes",
+                           "row_factory", "text_factory", "isolation_level", "autocommit", "interrupt", "getlimit", "getconfig"})
+
+
+class PooledConnection(sqlite3.Connection):
+    """A lease of a pooled connection (see above). Deliberately never runs sqlite3.Connection.__init__: anything not
+    forwarded here fails loudly ("Base Connection.__init__ not called") instead of acting on a second, empty connection."""
+
+    def __init__(self, owner: "Database", raw: sqlite3.Connection, key: tuple[str, bool], ident: tuple[int, int] | None, gen: int) -> None:  # noqa: D107
+        self._raw: sqlite3.Connection | None = raw
+        self._owner = owner
+        self._key = key
+        self._ident = ident
+        self._gen = gen
+        self._cursors: list[weakref.ref] = []
+        self._tainted = False  # connection-wide state was touched: closed at the end, never pooled
+        self._spoiled = False  # ended in an error that may have left the connection unusable
+
+    def _live(self) -> sqlite3.Connection:
+        raw = self._raw
+        if raw is None:
+            raise sqlite3.ProgrammingError("Cannot operate on a closed database.")
+        return raw
+
+    def _track(self, cur: sqlite3.Cursor) -> sqlite3.Cursor:
+        refs = self._cursors
+        refs.append(weakref.ref(cur))
+        if len(refs) > 256:
+            self._cursors = [r for r in refs if r() is not None]
+        return cur
+
+    def execute(self, *args: Any, **kwargs: Any) -> sqlite3.Cursor:  # type: ignore[override]
+        return self._track(self._live().execute(*args, **kwargs))
+
+    def executemany(self, *args: Any, **kwargs: Any) -> sqlite3.Cursor:  # type: ignore[override]
+        return self._track(self._live().executemany(*args, **kwargs))
+
+    def cursor(self, *args: Any, **kwargs: Any) -> sqlite3.Cursor:  # type: ignore[override]
+        return self._track(self._live().cursor(*args, **kwargs))
+
+    def commit(self) -> None:
+        self._live().commit()
+
+    def rollback(self) -> None:
+        self._live().rollback()
+
+    def interrupt(self) -> None:
+        self._live().interrupt()
+
+    def getlimit(self, *args: Any) -> int:  # type: ignore[override]
+        return self._live().getlimit(*args)
+
+    def getconfig(self, *args: Any) -> bool:  # type: ignore[override]
+        return self._live().getconfig(*args)
+
+    def close(self) -> None:
+        """End the lease: whatever is still open is rolled back (as closing did), and the connection goes back to the
+        pool or is closed. Idempotent."""
+        self._owner._end_lease(self)
+
+    @property
+    def in_transaction(self) -> bool:  # type: ignore[override]
+        return self._live().in_transaction
+
+    @property
+    def total_changes(self) -> int:  # type: ignore[override]
+        return self._live().total_changes
+
+    @property
+    def row_factory(self) -> Any:  # type: ignore[override]
+        return self._live().row_factory
+
+    @row_factory.setter
+    def row_factory(self, value: Any) -> None:  # reset when the lease ends
+        self._live().row_factory = value
+
+    @property
+    def text_factory(self) -> Any:  # type: ignore[override]
+        return self._live().text_factory
+
+    @text_factory.setter
+    def text_factory(self, value: Any) -> None:  # reset when the lease ends
+        self._live().text_factory = value
+
+    @property
+    def isolation_level(self) -> Any:  # type: ignore[override]
+        return self._live().isolation_level
+
+    @isolation_level.setter
+    def isolation_level(self, value: Any) -> None:
+        self._tainted = True
+        self._live().isolation_level = value
+
+    @property
+    def autocommit(self) -> Any:  # type: ignore[override]
+        return self._live().autocommit
+
+    @autocommit.setter
+    def autocommit(self, value: Any) -> None:
+        self._tainted = True
+        self._live().autocommit = value
+
+    def __enter__(self) -> "PooledConnection":
+        self._live().__enter__()
+        return self
+
+    def __exit__(self, *exc: Any) -> Any:
+        return self._live().__exit__(*exc)
+
+
+def _tainting(name: str) -> Callable[..., Any]:
+    def call(self: PooledConnection, *args: Any, **kwargs: Any) -> Any:
+        self._tainted = True
+        return getattr(self._live(), name)(*args, **kwargs)
+
+    call.__name__ = name
+    return call
+
+
+def _forwarded(name: str) -> property:
+    return property(lambda self: getattr(self._live(), name))
+
+
+for _name in dir(sqlite3.Connection):
+    if _name.startswith("_") or _name in _LEASE_DIRECT:
+        continue
+    _attr = sqlite3.Connection.__dict__.get(_name)
+    if callable(_attr):  # create_function, set_authorizer, executescript, backup, blobopen ...: forwarded, the lease is closed after
+        setattr(PooledConnection, _name, _tainting(_name))
+    else:  # the exception classes (conn.Error ...)
+        setattr(PooledConnection, _name, _forwarded(_name))
+del _name, _attr
+
+POOL_STATS: dict[str, int] = {"opened": 0, "reused": 0, "pooled": 0, "closed": 0, "discarded": 0, "invalidated": 0}
+_pool_stats_lock = threading.Lock()
+
+
+def _pool_count(key: str, n: int = 1) -> None:
+    with _pool_stats_lock:
+        POOL_STATS[key] += n
+
+
+def pool_stats() -> dict[str, Any]:
+    """Counters of connection reuse (/health): opened - new SQLite connections (each parses the schema), reused - leases
+    served from the pool, pooled - leases handed back, closed - leases over the idle limit, discarded - leases closed because of
+    their state or an error, invalidated - idle connections dropped (migration, schema change, file swap)."""
+    with _pool_stats_lock:
+        out: dict[str, Any] = dict(POOL_STATS)
+    out["enabled"] = CONN_POOL
+    return out
+
+
+def _spoil(conn: sqlite3.Connection, exc: BaseException | None = None) -> None:
+    """The lease ended in an error: one that may leave the connection itself unusable closes it instead of pooling it
+    (exc None: always). A busy database ("database is locked") and ordinary exceptions leave a clean connection after
+    the rollback; a database error, an interrupt or a cancellation do not."""
+    if isinstance(conn, PooledConnection) and (exc is None or not isinstance(exc, Exception) or (isinstance(exc, sqlite3.Error) and not is_busy(exc))):
+        conn._spoiled = True
+
+
+def _close_quietly(conns: list[sqlite3.Connection]) -> None:
+    for c in conns:
+        try:
+            c.close()
+        except sqlite3.Error:
+            pass
+
+
 class Database:
     def __init__(self, path: Path):
         self.path = path
@@ -395,6 +605,13 @@ class Database:
         self.real_path = self.path
         self.demo = False
         self.demo_state: dict[str, Any] | None = None
+        # DB-CONN-POOL-2343: idle connections by (file, durable), the file identity they were opened on, the schema
+        # version they last saw, and a generation that every invalidation bumps (a lease of an older one is closed)
+        self._pool_lock = threading.Lock()
+        self._idle: dict[tuple[str, bool], list[sqlite3.Connection]] = {}
+        self._idle_ident: dict[str, tuple[int, int] | None] = {}
+        self._schema_seen: dict[str, int] = {}
+        self._pool_gen = 0
 
     def switch_path(self, path: Path, *, demo: bool) -> None:
         """Point this handle at another database file (the demo file, or back to the real one). The per-user touch cache restarts: it is keyed by user, not by file."""
@@ -402,6 +619,146 @@ class Database:
         self.path = path
         self.gate = gate_for(path)
         self.demo = demo
+        self.invalidate_pool()  # idle connections of the previous file are closed (a lease still out closes when it ends)
+
+    # ------------------------------------------------------------ connection reuse (DB-CONN-POOL-2343)
+
+    def invalidate_pool(self) -> None:
+        """Close every idle connection; leases still out are closed when they end (their generation is older)."""
+        with self._pool_lock:
+            self._pool_gen += 1
+            idle = [c for lst in self._idle.values() for c in lst]
+            self._idle.clear()
+            self._idle_ident.clear()
+            self._schema_seen.clear()
+        if idle:
+            _pool_count("invalidated", len(idle))
+        _close_quietly(idle)
+
+    def close_pool(self) -> None:
+        """Shutdown (and tests): no idle connection keeps the database files open."""
+        self.invalidate_pool()
+
+    def _lease(self, durable: bool = True) -> sqlite3.Connection:
+        """A connection for connection() / write_aside(): a lease of a pooled one, or - with the pool switched off - a
+        connection of its own, exactly as before."""
+        if not CONN_POOL:
+            return self._open() if durable else self._open(durable=False)
+        path = self.path
+        key = (str(path), durable)
+        ident = _file_ident(path)
+        raw = None
+        stale: list[sqlite3.Connection] = []
+        with self._pool_lock:
+            gen = self._pool_gen
+            if self._idle_ident.get(key[0], ident) != ident:  # the file was replaced on disk: nothing idle is reused
+                stale = [c for k, lst in self._idle.items() if k[0] == key[0] for c in lst]
+                for k in [k for k in self._idle if k[0] == key[0]]:
+                    del self._idle[k]
+                self._schema_seen.pop(key[0], None)
+            self._idle_ident[key[0]] = ident
+            idle = self._idle.get(key)
+            if idle:
+                raw = idle.pop()
+        if stale:
+            _pool_count("invalidated", len(stale))
+            _close_quietly(stale)
+        if raw is None:
+            raw = self._open() if durable else self._open(durable=False)
+            _pool_count("opened")
+        else:
+            try:
+                raw.execute(f"PRAGMA busy_timeout={int(BUSY_TIMEOUT_S * 1000)}")  # what _open() sets, at today's value
+            except sqlite3.Error:
+                _close_quietly([raw])
+                raw = self._open() if durable else self._open(durable=False)
+                _pool_count("opened")
+            else:
+                _pool_count("reused")
+        return PooledConnection(self, raw, key, ident, gen)
+
+    def _end_lease(self, lease: PooledConnection) -> None:
+        raw = lease._raw
+        if raw is None:
+            return
+        lease._raw = None  # from here on the lease is closed for everyone who still holds it
+        refs, lease._cursors = lease._cursors, []
+        keep = CONN_POOL and not lease._tainted and not lease._spoiled
+        for ref in refs:
+            cur = ref()
+            if cur is not None:
+                try:
+                    cur.close()  # a half-read SELECT would keep its read snapshot on the pooled connection
+                except sqlite3.Error:
+                    keep = False
+        schema: int | None = None
+        try:
+            if raw.in_transaction:
+                # connection() / write_aside() always end their transaction: one still open here took an unusual path
+                # (a failed COMMIT, a lease closed by hand) - rolled back, as closing did, and not reused
+                keep = False
+                raw.execute("ROLLBACK")
+            if keep:
+                keep = self._reset(raw, lease._key[1])
+                if keep:
+                    schema = int(raw.execute("PRAGMA schema_version").fetchone()[0])
+        except sqlite3.Error:
+            keep = False
+        if keep:
+            path, cap = lease._key[0], (POOL_IDLE_DURABLE if lease._key[1] else POOL_IDLE_MIRROR)
+            invalid: list[sqlite3.Connection] = []
+            on_disk = _file_ident(Path(path))
+            with self._pool_lock:
+                seen = self._schema_seen.get(path)
+                if seen is not None and schema != seen:
+                    # a schema change (a migration, a runtime CREATE): SQLite would re-parse in every idle connection anyway;
+                    # they are dropped, this one too, and leases still out are closed when they end (older generation)
+                    self._pool_gen += 1
+                    invalid = [c for k, lst in self._idle.items() if k[0] == path for c in lst]
+                    for k in [k for k in self._idle if k[0] == path]:
+                        del self._idle[k]
+                    self._schema_seen[path] = schema  # type: ignore[assignment]
+                    keep = False
+                elif lease._gen != self._pool_gen or path != str(self.path) or self._idle_ident.get(path) != lease._ident or on_disk != lease._ident:
+                    keep = False  # invalidated meanwhile, a file the handle no longer serves, or a file replaced on disk
+                else:
+                    self._schema_seen[path] = schema  # type: ignore[assignment]
+                    idle = self._idle.setdefault(lease._key, [])
+                    if len(idle) < cap:
+                        idle.append(raw)
+                        raw = None
+            if invalid:
+                _pool_count("invalidated", len(invalid))
+                _close_quietly(invalid)
+            if raw is None:
+                _pool_count("pooled")
+                return
+        _pool_count("closed" if keep else "discarded")  # over the idle limit / not reusable
+        try:
+            raw.close()
+        except sqlite3.Error:
+            pass
+
+    @staticmethod
+    def _reset(raw: sqlite3.Connection, durable: bool) -> bool:
+        """Back to the state _open() leaves; False when the connection carries anything that cannot be reset (an attached
+        database, TEMP objects) - it is closed instead."""
+        if raw.in_transaction:
+            return False
+        raw.row_factory = sqlite3.Row
+        raw.text_factory = str
+        if raw.isolation_level is not None:
+            return False
+        names = [r[1] for r in raw.execute("PRAGMA database_list").fetchall()]
+        if any(n not in ("main", "temp") for n in names):
+            return False
+        if "temp" in names and raw.execute("SELECT 1 FROM temp.sqlite_master LIMIT 1").fetchone() is not None:
+            return False
+        raw.execute("PRAGMA query_only=0")  # read mode and release() switch it on
+        raw.execute(f"PRAGMA busy_timeout={int(BUSY_TIMEOUT_S * 1000)}")  # set again when it is leased
+        raw.execute("PRAGMA foreign_keys=ON")
+        raw.execute(f"PRAGMA synchronous={'FULL' if durable else 'NORMAL'}")
+        return not raw.in_transaction
 
     def _open(self, durable: bool = True) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path, timeout=BUSY_TIMEOUT_S, isolation_level=None, check_same_thread=False)
@@ -432,6 +789,8 @@ class Database:
                 applied.append(version)
         finally:
             conn.close()
+        if applied:
+            self.invalidate_pool()  # nothing parsed before the schema change is reused
         return applied
 
     def ensure_migration_objects(self) -> list[str]:
@@ -461,6 +820,8 @@ class Database:
                 added.append("ha_entities.config_entry_id")
         finally:
             conn.close()
+        if added:
+            self.invalidate_pool()  # nothing parsed before the schema change is reused
         return added
 
     @contextmanager
@@ -480,7 +841,7 @@ class Database:
         from .errors import ApiError
 
         label = label or _caller(3)
-        conn = self._open() if durable else self._open(durable=False)
+        conn = self._lease(durable)
         _MODES[id(conn)] = (mode, self, label)
         _conn_gate[id(conn)] = self.gate
         try:
@@ -494,11 +855,12 @@ class Database:
         except ApiError:
             _finish(conn, "COMMIT")
             raise
-        except BaseException:
+        except BaseException as exc:
+            _spoil(conn, exc)
             try:
                 _finish(conn, "ROLLBACK")
             except sqlite3.Error:
-                pass
+                _spoil(conn)
             raise
         finally:
             _MODES.pop(id(conn), None)
@@ -513,7 +875,7 @@ class Database:
         longest wait for the write lock (default BUSY_TIMEOUT_S), then "database is locked". `priority`: queued ahead of
         the ordinary writers (WriteGate.acquire) - only for the record a device command waits for before it is sent."""
         label = label or _caller(3)
-        conn = self._open()
+        conn = self._lease()
         _conn_gate[id(conn)] = self.gate
         try:
             if wait_s is None and not priority:
@@ -522,11 +884,12 @@ class Database:
                 _begin_immediate(conn, label, wait_s, priority)
             yield conn
             _finish(conn, "COMMIT")
-        except BaseException:
+        except BaseException as exc:
+            _spoil(conn, exc)
             try:
                 _finish(conn, "ROLLBACK")
             except sqlite3.Error:
-                pass
+                _spoil(conn)
             raise
         finally:
             try:
