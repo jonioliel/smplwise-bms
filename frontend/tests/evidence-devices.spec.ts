@@ -1216,8 +1216,9 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(clim.locator('select[data-control="preset-mode"]')).toBeVisible({ timeout: 30000 });
     await expect(clim.locator('select[data-control="preset-mode"]')).toHaveValue('none');
     await clim.locator('select[data-control="preset-mode"]').selectOption('eco');
-    await expect(clim.locator('[data-cmd-status="confirmed"]')).toContainText('eco', { timeout: 8000 });
-    await expect(clim).toContainText('מצב מוגדר: eco', { timeout: 5000 });
+    // POLISH-LEFTOVERS-2341: the words are Hebrew (climateWord), the value sent stays 'eco'
+    await expect(clim.locator('[data-cmd-status="confirmed"]')).toContainText('חיסכון', { timeout: 8000 });
+    await expect(clim).toContainText('מצב מוגדר: חיסכון', { timeout: 5000 });
     // target humidity: +/- in steps of 5, confirmed from the humidity attribute (never compared to the state)
     await expect(clim).toContainText(/לחות יעד ‎?50%/);
     await clim.locator('sw-button[data-control="humidity-up"]').click();

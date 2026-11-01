@@ -1,7 +1,7 @@
 import { html, css, nothing, type ReactiveController, type ReactiveControllerHost } from 'lit';
 import '../components/sw-toggle';
 import '../components/sw-button';
-import { ALARM_HE, climateRange, HVAC_HE, isDimmable, type DeviceRow } from '../api/devices';
+import { ALARM_HE, climateRange, climateWord, HVAC_HE, isDimmable, type DeviceRow } from '../api/devices';
 import { stateLabel } from '../api/ha';
 import { debouncedCommand, pendingVisible, PENDING_VISIBLE_MS, powerReached, runCommand, supersede, warmCommandChannel, type CommandState } from '../api/device-commands';
 import { bidi, ltrNum } from '../i18n/bidi';
@@ -20,8 +20,8 @@ import { bidi, ltrNum } from '../i18n/bidi';
 /** The modes the add-on's allow-list accepts (services/ha_bridge.HVAC_MODES); the menu shows the entity's own
  * hvac_modes that are among them - never a mode the entity does not report. */
 const HVAC_SELECTABLE = ['off', 'heat', 'cool', 'heat_cool', 'auto', 'dry', 'fan_only'];
-/** P6 item 7: the common preset names in Hebrew (an unknown preset keeps its own name). */
-const PRESET_HE: Record<string, string> = { home: 'בבית', away: 'מחוץ לבית', eco: 'חיסכון', comfort: 'נוחות', sleep: 'שינה', boost: 'מוגבר', none: 'ללא', auto: 'אוטומטי', off: 'כבוי', activity: 'פעילות' };
+// P6 item 7's PRESET_HE moved to api/devices.ts with the fan / swing maps (POLISH-LEFTOVERS-2341): climateWord() is display only -
+// every option's value and every command below still carries the device's raw value.
 /** How long a "one gesture to arm, one tap to confirm" control stays armed (cover open / close / position: attention
  * risk in the allow-list, services/ha_bridge.py - a confirmation is required, but a modal is overkill for a card). */
 export const ARM_MS = 4000;
@@ -470,7 +470,7 @@ export class DeviceControls implements ReactiveController {
       const fan = this.live<string>(entityId, 'fan') ?? r.fan_mode ?? '';
       const changeFan = (ev: Event) => {
         const v = (ev.target as HTMLSelectElement).value;
-        if (v) void runCommand(fanKey, 'climate', entityId, 'climate.set_fan_mode', { fan_mode: v }, v, (s) => this.setCmd(fanKey, s), { label: `מאוורר ${v}` });
+        if (v) void runCommand(fanKey, 'climate', entityId, 'climate.set_fan_mode', { fan_mode: v }, v, (s) => this.setCmd(fanKey, s), { label: `מאוורר ${climateWord('fan', v)}` });
       };
       // CR-007 slice 4: preset / swing - only the modes this entity itself reports
       const presetKey = `${entityId}:preset`;
@@ -479,7 +479,7 @@ export class DeviceControls implements ReactiveController {
       const preset = this.live<string>(entityId, 'preset') ?? r.preset_mode ?? '';
       const changePreset = (ev: Event) => {
         const v = (ev.target as HTMLSelectElement).value;
-        if (v) void runCommand(presetKey, 'climate', entityId, 'climate.set_preset_mode', { preset_mode: v }, v, (s) => this.setCmd(presetKey, s), { label: `מצב מוגדר ${v}` });
+        if (v) void runCommand(presetKey, 'climate', entityId, 'climate.set_preset_mode', { preset_mode: v }, v, (s) => this.setCmd(presetKey, s), { label: `מצב מוגדר ${climateWord('preset', v)}` });
       };
       const swingKey = `${entityId}:swing`;
       const swingPending = this.commands[swingKey]?.phase === 'pending';
@@ -487,7 +487,7 @@ export class DeviceControls implements ReactiveController {
       const swing = this.live<string>(entityId, 'swing') ?? r.swing_mode ?? '';
       const changeSwing = (ev: Event) => {
         const v = (ev.target as HTMLSelectElement).value;
-        if (v) void runCommand(swingKey, 'climate', entityId, 'climate.set_swing_mode', { swing_mode: v }, v, (s) => this.setCmd(swingKey, s), { label: `נדנוד ${v}` });
+        if (v) void runCommand(swingKey, 'climate', entityId, 'climate.set_swing_mode', { swing_mode: v }, v, (s) => this.setCmd(swingKey, s), { label: `נדנוד ${climateWord('swing', v)}` });
       };
       // CR-007 slice 4: a climate entity's own target humidity (separate from a humidifier's) - only when it reports one
       const humKey = `${entityId}:humidity`;
@@ -509,20 +509,20 @@ export class DeviceControls implements ReactiveController {
           : nothing}
         ${fanModes.length
           ? html`<select class="ctl-select" data-control="fan-mode" aria-label="מצב מאוורר" ?disabled=${fanPending} @change=${changeFan}>
-              ${fanModes.includes(fan) ? nothing : html`<option value="" selected disabled>${fan || 'מאוורר'}</option>`}
-              ${fanModes.map((m) => html`<option value=${m} ?selected=${m === fan}>${m}</option>`)}
+              ${fanModes.includes(fan) ? nothing : html`<option value="" selected disabled>${climateWord('fan', fan) || 'מאוורר'}</option>`}
+              ${fanModes.map((m) => html`<option value=${m} ?selected=${m === fan}>${climateWord('fan', m)}</option>`)}
             </select>`
           : nothing}
         ${presetModes.length
           ? html`<select class="ctl-select" data-control="preset-mode" aria-label="מצב מוגדר מראש" ?disabled=${presetPending} @change=${changePreset}>
-              ${presetModes.includes(preset) ? nothing : html`<option value="" selected disabled>${(preset && PRESET_HE[preset]) || preset || 'מצב מוגדר'}</option>`}
-              ${presetModes.map((m) => html`<option value=${m} ?selected=${m === preset}>${PRESET_HE[m] ?? m}</option>`)}
+              ${presetModes.includes(preset) ? nothing : html`<option value="" selected disabled>${climateWord('preset', preset) || 'מצב מוגדר'}</option>`}
+              ${presetModes.map((m) => html`<option value=${m} ?selected=${m === preset}>${climateWord('preset', m)}</option>`)}
             </select>`
           : nothing}
         ${swingModes.length
           ? html`<select class="ctl-select" data-control="swing-mode" aria-label="מצב נדנוד" ?disabled=${swingPending} @change=${changeSwing}>
-              ${swingModes.includes(swing) ? nothing : html`<option value="" selected disabled>${swing || 'נדנוד'}</option>`}
-              ${swingModes.map((m) => html`<option value=${m} ?selected=${m === swing}>${m}</option>`)}
+              ${swingModes.includes(swing) ? nothing : html`<option value="" selected disabled>${climateWord('swing', swing) || 'נדנוד'}</option>`}
+              ${swingModes.map((m) => html`<option value=${m} ?selected=${m === swing}>${climateWord('swing', m)}</option>`)}
             </select>`
           : nothing}
         ${humidity !== null && humidity !== undefined
@@ -552,7 +552,7 @@ export class DeviceControls implements ReactiveController {
     const modeH = this.live<string>(entityId, 'mode') ?? r.mode ?? '';
     const changeModeH = (ev: Event) => {
       const v = (ev.target as HTMLSelectElement).value;
-      if (v) void runCommand(modeKeyH, 'humidifier', entityId, 'humidifier.set_mode', { mode: v }, v, (s) => this.setCmd(modeKeyH, s), { label: `מצב ${v}` });
+      if (v) void runCommand(modeKeyH, 'humidifier', entityId, 'humidifier.set_mode', { mode: v }, v, (s) => this.setCmd(modeKeyH, s), { label: `מצב ${climateWord('hmode', v)}` });
     };
     const humKeyH = `${entityId}:humidity`;
     const humMinH = r.min_humidity ?? 0;
@@ -562,8 +562,8 @@ export class DeviceControls implements ReactiveController {
     return html`<div class="ctl-row" data-control="humidifier">
       ${modesH.length
         ? html`<select class="ctl-select" data-control="mode" aria-label="מצב לחות" ?disabled=${modePendingH} @change=${changeModeH}>
-            ${modesH.includes(modeH) ? nothing : html`<option value="" selected disabled>${modeH || 'מצב'}</option>`}
-            ${modesH.map((m) => html`<option value=${m} ?selected=${m === modeH}>${m}</option>`)}
+            ${modesH.includes(modeH) ? nothing : html`<option value="" selected disabled>${climateWord('hmode', modeH) || 'מצב'}</option>`}
+            ${modesH.map((m) => html`<option value=${m} ?selected=${m === modeH}>${climateWord('hmode', m)}</option>`)}
           </select>`
         : nothing}
       ${humidityH !== null && humidityH !== undefined
@@ -731,7 +731,7 @@ export class DeviceControls implements ReactiveController {
   climateChoice(r: DeviceRow, which: 'fan' | 'preset' | 'swing' | 'hmode', value: string) {
     const key = `${r.entity_id}:${which === 'hmode' ? 'mode' : which}`;
     const spec = which === 'fan' ? ['climate.set_fan_mode', 'fan_mode', 'מאוורר'] : which === 'preset' ? ['climate.set_preset_mode', 'preset_mode', 'מצב מוגדר'] : which === 'swing' ? ['climate.set_swing_mode', 'swing_mode', 'נדנוד'] : ['humidifier.set_mode', 'mode', 'מצב'];
-    void runCommand(key, which === 'hmode' ? 'humidifier' : 'climate', r.entity_id, spec[0], { [spec[1]]: value }, value, (s) => this.setCmd(key, s), { label: `${spec[2]} ${value}` });
+    void runCommand(key, which === 'hmode' ? 'humidifier' : 'climate', r.entity_id, spec[0], { [spec[1]]: value }, value, (s) => this.setCmd(key, s), { label: `${spec[2]} ${climateWord(which, value)}` });
   }
 
   humidity(r: DeviceRow, next: number) {
