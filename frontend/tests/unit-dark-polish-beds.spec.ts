@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { SKIN_IDS, FROZEN_SKINS } from '../src/design/skins';
 import { skinTable } from '../src/design/css';
 import { contrastRatio, over, parseColor, type RGBA } from '../src/design/contrast';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -135,7 +135,7 @@ function makeEval(t: Record<string, { light: string; dark: string }>, scheme: 'l
     let m = /^var\((--[a-z0-9-]+)\s*(?:,\s*([\s\S]+))?\)$/i.exec(s);
     if (m) {
       const v = t[m[1]]?.[scheme];
-      if (v !== undefined) return ev(v, depth + 1);
+      if (v !== undefined && v.trim() !== 'initial') return ev(v, depth + 1); // `initial` = guaranteed-invalid: the fallback applies
       if (m[2]) return ev(m[2], depth + 1);
       throw new Error(`undefined token ${m[1]} without fallback`);
     }
@@ -195,6 +195,93 @@ test('dark schemes: the inks of the 01.11 polished screens read on their mixed b
   }
   console.log(rows.join('\n'));
   expect(fails).toEqual([]);
+});
+
+// ---- the selected segment of a segmented control (owner answer A, 2026-11-01) ----
+// The thumb (--sw-seg-thumb) on the two tracks the users draw (surface-3: sw-tabs' pill and most `.seg`; surface-2: the presence,
+// temperature, notices and request-dialog segments) inside a card, and on the user menu's opaque surface. The selected inks the users
+// write: heading, text, accent-text (sw-tabs' pill and the settings `.seg`), text-2 (an unselected label next to it, for the order).
+const SEG_TRACKS: Record<string, { track: string; under?: string }> = {
+  'surface-3 track in a card': { track: 'var(--sw-surface-3)' },
+  'surface-2 track in a card': { track: 'var(--sw-surface-2)' },
+  'surface-3 track in the user menu': { track: 'var(--sw-surface-3)', under: 'var(--sw-menu-surface)' },
+};
+const SEG_INKS = ['var(--sw-heading)', 'var(--sw-text)', 'var(--sw-accent-text)'];
+const SEG_RING = 'color-mix(in srgb, var(--sw-text) 20%, transparent)';
+/** the thumb's own fill against its track; below this the ring (>= SEG_RING_MIN against the track) carries the shape */
+const SEG_FILL_MIN = 1.1;
+const SEG_RING_MIN = 1.5;
+
+function measureSeg(id: (typeof SKIN_IDS)[number]) {
+  const t = { ...skinTable(id), ...LOCAL };
+  const ev = makeEval(t, 'dark');
+  const page = over(ev('var(--sw-bg)'), [0, 0, 0, 1]);
+  const out: { line: string; ok: boolean }[] = [];
+  for (const [name, tr] of Object.entries(SEG_TRACKS)) {
+    const base = over(ev(tr.under ?? SURF), page);
+    const track = over(ev(tr.track), base);
+    const thumb = over(ev('var(--sw-seg-thumb)'), track);
+    const fill = contrastRatio(thumb, track);
+    const ring = contrastRatio(over(ev(SEG_RING), track), track);
+    out.push({ line: `${id}/dark seg thumb vs ${name}: fill ${fill.toFixed(2)} (min ${SEG_FILL_MIN}), ring ${ring.toFixed(2)} (min ${SEG_RING_MIN})`, ok: fill >= SEG_FILL_MIN && ring >= SEG_RING_MIN && fill > 1 });
+    for (const ink of SEG_INKS) {
+      const r = contrastRatio(over(ev(ink), thumb), thumb);
+      out.push({ line: `${id}/dark seg thumb (${name}) ${ink}: ${r.toFixed(2)} (min 4.5)`, ok: r >= 4.5 });
+    }
+    // the thumb must be LIGHTER than its track in dark (a raised key, not a hole)
+    const lum = (c: RGBA) => contrastRatio(c, [0, 0, 0, 1]);
+    out.push({ line: `${id}/dark seg thumb lighter than ${name}`, ok: lum(thumb) > lum(track) });
+  }
+  return out;
+}
+
+test('dark schemes: the selected segment is a raised key - lighter than its track, ringed, its inks at 4.5:1, every live skin', () => {
+  const rows = SKINS_LIVE.flatMap(measureSeg);
+  console.log(rows.map((r) => r.line).join('\n'));
+  expect(rows.filter((r) => !r.ok).map((r) => r.line)).toEqual([]);
+});
+
+test('light schemes: the segment thumb token is `initial` (every user falls back to its own light fill)', () => {
+  for (const id of SKIN_IDS) {
+    const t = skinTable(id);
+    expect(t['--sw-seg-thumb'].light, id).toBe('initial');
+    expect(t['--sw-seg-thumb-shadow'].light, id).toBe('initial');
+  }
+});
+
+// every selected segment drawn with a neutral surface key reads the dark thumb (a new segmented control must too): the rule of
+// `.seg / .segs / .lay-seg / .sevseg button[aria-pressed|aria-checked='true']` and sw-tabs' pill `.on .lbl` in src/ and the skins
+test('lint: a neutral segment thumb is var(--sw-seg-thumb, <light fill>) with var(--sw-seg-thumb-shadow, <light shadow>)', () => {
+  const walk = (d: string, out: string[] = []): string[] => {
+    for (const e of readdirSync(d)) {
+      const p = path.join(d, e);
+      if (statSync(p).isDirectory()) walk(p, out);
+      else if (p.endsWith('.ts')) out.push(p);
+    }
+    return out;
+  };
+  const RULE = /([^{}]*(?:\.(?:seg|segs|lay-seg|sevseg) button\[aria-(?:pressed|checked)='true'\]|\[data-variant='pill'\]\) \.on \.lbl)[^{}]*)\{([^{}]*)\}/g;
+  const NEUTRAL_BG = /background:\s*var\(--sw-(?:surface|surface-solid|menu-surface)\b/;
+  const bad: string[] = [];
+  let users = 0;
+  // a frozen skin's rules are never drawn (skins/index.ts FROZEN_SKINS); they stay as they were
+  const frozen = FROZEN_SKINS.map((id) => path.join(SRC, 'design', 'skins', `${id}.ts`));
+  for (const f of walk(SRC)) {
+    if (frozen.includes(f)) continue;
+    const src = readFileSync(f, 'utf8');
+    for (const m of src.matchAll(RULE)) {
+      const [sel, body] = [m[1], m[2]];
+      // the glass / bubble / tesla rules carry their own knobs (--mm-seg-thumb, an inverted key) and are not neutral surface keys
+      if (/glass|bubble|data-skin/.test(sel)) continue;
+      if (!NEUTRAL_BG.test(body) && !/--sw-seg-thumb/.test(body)) continue;
+      users++;
+      const rel = path.relative(SRC, f).split(path.sep).join('/');
+      if (NEUTRAL_BG.test(body)) bad.push(`${rel}: ${sel.trim().slice(-80)} - background without var(--sw-seg-thumb, ..)`);
+      if (/box-shadow:\s*var\(--sw-shadow-[123]\)/.test(body)) bad.push(`${rel}: ${sel.trim().slice(-80)} - box-shadow without var(--sw-seg-thumb-shadow, ..)`);
+    }
+  }
+  expect(users, 'the segmented controls found (the inventory of DARK-REVIEW-2342 is 37)').toBeGreaterThanOrEqual(37);
+  expect(bad).toEqual([]);
 });
 
 // the fixes this spec models are the CSS the screens ship (a later edit of one of them must update the row above as well)
