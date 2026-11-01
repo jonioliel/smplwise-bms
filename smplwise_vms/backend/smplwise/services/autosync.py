@@ -213,6 +213,7 @@ def _removed_recorders(conn: sqlite3.Connection) -> list[str]:
 
 
 FRIGATE_DISCOVERY_BACKOFF_S = (0.0, 2.0, 6.0)  # delta review F-1: attempts per recorder and run, the wait before each
+_PLAN_FAILED: dict[str, str] = {}  # FRIGATE-FORBIDDEN-2341: recorder -> the code its last failed plan was logged with (one line per change)
 
 
 def _frigate_plan(rs: Settings, recorder_id: str, reason: str) -> dict[str, dict[str, str]] | None:
@@ -226,10 +227,16 @@ def _frigate_plan(rs: Settings, recorder_id: str, reason: str) -> dict[str, dict
         if wait:
             time.sleep(wait)
         try:
-            return frigate_io.restream_plan(rs, recorder_id, fetch=True)
+            plan = frigate_io.restream_plan(rs, recorder_id, fetch=True)
+            _PLAN_FAILED.pop(recorder_id, None)
+            return plan
         except ApiError as exc:
             code = exc.code
-    log.info("frigate discovery for %s failed after %d attempt(s): %s - its live streams are left untouched", recorder_id, len(delays), code)
+    if _PLAN_FAILED.get(recorder_id) != code:
+        _PLAN_FAILED[recorder_id] = code
+        log.info("frigate discovery for %s failed after %d attempt(s): %s - its live streams are left untouched", recorder_id, len(delays), code)
+    else:
+        log.debug("frigate discovery for %s still failing: %s", recorder_id, code)
     return None
 
 
@@ -330,8 +337,11 @@ def _discover_one(db: Database, settings: Settings, rid: str, reason: str) -> bo
         log.info("auto discovery (%s, %s): %d channels, %d new", reason, rid, r["channels"], r["created"])
         return True
     except ApiError as exc:
+        repeat = st.get("cameras_last_error") == exc.code and reason == "periodic"
         st["cameras_last_error"] = exc.code
-        log.warning("auto discovery (%s, %s) failed: %s %s", reason, rid, exc.code, exc.details)
+        # FRIGATE-FORBIDDEN-2341: the same failure of the periodic run is logged once (it was every 10 minutes for days); a new code,
+        # a start, an enable or a manual run is always logged
+        (log.debug if repeat else log.warning)("auto discovery (%s, %s) failed: %s %s", reason, rid, exc.code, exc.details)
     except Exception as exc:  # never die; one recorder never stops another
         st["cameras_last_error"] = type(exc).__name__
         log.exception("auto discovery (%s, %s) crashed", reason, rid)

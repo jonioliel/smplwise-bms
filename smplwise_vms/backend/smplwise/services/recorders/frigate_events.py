@@ -51,6 +51,9 @@ WS_DOWN_POLL_S_DEFAULT = 10.0
 POLL_MIN_S = 5.0              # study risk R4: never poll faster than 5 s
 AUTO_TICK_S = 2.0               # F2b: how often the loop looks for a queued alarm-change profile row
 OFFLINE_AFTER_S = 60.0        # Frigate's own docs: the dead-camera flap needs debouncing
+RETRY_MAX_S = 60.0            # a transient failure (no answer, 5xx) is retried at most this far apart
+FORBIDDEN_RETRY_MAX_S = 1800.0  # FRIGATE-FORBIDDEN-2341: refused credentials are a person's to fix - back off up to 30 minutes
+WS_RETRY_MAX_S = 120.0
 PERSON = {"person"}
 VEHICLE = {"car", "truck", "bus", "motorcycle", "bicycle", "boat", "license_plate"}
 
@@ -327,6 +330,48 @@ class FrigateState:
 STATES: dict[str, FrigateState] = {}
 
 
+class FailureLog:
+    """FRIGATE-FORBIDDEN-2341: one log line per STATE CHANGE, not per retry. The first failure with a given code is a WARNING (with the
+    wait before the next try and, for refused credentials, what to fix); repeats of the same code are DEBUG; the first success after a
+    failure is one INFO line. The owner's log showed two WARNING lines a minute for three days for one wrong password."""
+
+    def __init__(self, logger: logging.Logger, what: str, recorder_id: str) -> None:
+        self.log, self.what, self.rid = logger, what, recorder_id
+        self.code: str | None = None
+        self.repeats = 0
+
+    def failed(self, code: str, retry_s: float, refusal: dict[str, Any] | None = None) -> bool:
+        """Returns True when a WARNING was written (a new state)."""
+        if code == self.code:
+            self.repeats += 1
+            self.log.debug("frigate %s (%s): %s again (%d), retry in %.0fs", self.what, self.rid, code, self.repeats, retry_s)
+            return False
+        self.code, self.repeats = code, 0
+        hint = ""
+        if code == "source_forbidden":
+            status = (refusal or {}).get("status")
+            hint = (f" - Frigate refused the saved user name / password{f' (HTTP {status})' if status else ''}; fix them under Settings > Connections"
+                    " and run the connection test. Further refusals are logged at DEBUG only")
+        self.log.warning("frigate %s (%s): %s (retry in %.0fs)%s", self.what, self.rid, code, retry_s, hint)
+        return True
+
+    def ok(self) -> None:
+        if self.code is not None:
+            self.log.info("frigate %s (%s): working again after %s (%d repeat(s))", self.what, self.rid, self.code, self.repeats)
+        self.code, self.repeats = None, 0
+
+
+def forbidden_wait(adapter: "FrigateAdapter", backoff: float) -> tuple[float, dict[str, Any] | None]:
+    """The wait after a `source_forbidden`: at least the adapter's own login lockout (it doubles per refusal of the same credentials,
+    frigate_http.refused_delay), at least the caller's doubling back-off, at most FORBIDDEN_RETRY_MAX_S. Also returns the refusal."""
+    try:
+        r = adapter.http.refusal()
+    except Exception:  # noqa: BLE001 - a fake adapter without the method: the back-off alone
+        r = None
+    lockout = float((r or {}).get("retry_in_s") or 0.0)
+    return min(FORBIDDEN_RETRY_MAX_S, max(backoff, lockout)), r
+
+
 def state_of(recorder_id: str) -> FrigateState:
     return STATES.setdefault(recorder_id, FrigateState())
 
@@ -354,7 +399,9 @@ class WsFeed:
 
             connect = ws_connect
         backoff = 5.0
+        flog = FailureLog(log, "ws", self.adapter.recorder_id)
         while not self.stop.is_set():
+            wait = backoff
             try:
                 url, headers, ssl_ctx = self.adapter.http.websocket_url(), self.adapter.http.websocket_headers(), self.adapter.http.websocket_ssl()
                 kwargs: dict[str, Any] = {"additional_headers": headers, "open_timeout": 10, "max_size": 4_000_000}
@@ -363,6 +410,7 @@ class WsFeed:
                 with connect(url, **kwargs) as ws:
                     self.st.ws_review_frames = 0  # delta review F-3: a new connection earns the trust again (a Frigate upgrade may change the frame shape)
                     self._set("connected")
+                    flog.ok()
                     backoff = 5.0
                     while not self.stop.is_set():
                         try:
@@ -375,15 +423,17 @@ class WsFeed:
                         except queue.Full:
                             pass  # the poll is the truth; a full queue only means a burst
             except ApiError as exc:
-                log.warning("frigate ws (%s): %s", self.adapter.recorder_id, exc.code)
+                refusal = None
                 if exc.code == "source_forbidden":
                     self.adapter.http.forget_token()
+                    wait, refusal = forbidden_wait(self.adapter, backoff)
+                flog.failed(exc.code, wait, refusal)
             except Exception as exc:  # noqa: BLE001 - never die; the poll covers the gap
-                log.warning("frigate ws (%s): %s (retry in %.0fs)", self.adapter.recorder_id, type(exc).__name__, backoff)
+                flog.failed(type(exc).__name__, wait)
             self._set("down")
             self.st.ws_review_frames = 0
-            self.stop.wait(backoff)
-            backoff = min(120.0, backoff * 2)
+            self.stop.wait(wait)
+            backoff = min(FORBIDDEN_RETRY_MAX_S, wait * 2) if flog.code == "source_forbidden" else min(WS_RETRY_MAX_S, backoff * 2)
         self._set("off")
 
 
@@ -552,6 +602,7 @@ def run_loop(listener: "AlertStreamListener", *, adapter: "FrigateAdapter | None
     last_auto = 0.0
     hint = False
     backoff = 5.0
+    flog = FailureLog(log, "poll", listener.recorder_id)
     rounds = 0
     wait = listener.stop.wait
     while not listener.stop.is_set():
@@ -609,15 +660,27 @@ def run_loop(listener: "AlertStreamListener", *, adapter: "FrigateAdapter | None
                 stt.connected = False
                 if stt.disconnected_since is None:
                     stt.disconnected_since = time.time()
-                log.warning("frigate poll (%s): %s (retry in %.0fs)", listener.recorder_id, exc.code, backoff)
-                last_poll = now - interval + backoff  # retry after the back-off, not after a whole interval
-                backoff = min(60.0, backoff * 2)
+                refusal = None
+                if exc.code == "source_forbidden":
+                    # FRIGATE-FORBIDDEN-2341: a refusal is not transient - wait out the adapter's login lockout, doubling up to 30 minutes
+                    wait_s, refusal = forbidden_wait(ad, backoff)
+                    backoff = min(FORBIDDEN_RETRY_MAX_S, wait_s * 2)
+                else:
+                    wait_s = min(RETRY_MAX_S, backoff)
+                    backoff = min(RETRY_MAX_S, backoff * 2)
+                flog.failed(exc.code, wait_s, refusal)
+                last_poll = now - interval + wait_s  # retry after the back-off, not after a whole interval
             except Exception:  # noqa: BLE001 - never die
-                log.exception("frigate poll (%s) crashed; retrying", listener.recorder_id)
-                last_poll = now - interval + backoff
-                backoff = min(60.0, backoff * 2)
+                if flog.code != "crash":  # the traceback once per state, like the warnings
+                    log.exception("frigate poll (%s) crashed; retrying", listener.recorder_id)
+                    flog.code, flog.repeats = "crash", 0
+                else:
+                    flog.repeats += 1
+                last_poll = now - interval + min(RETRY_MAX_S, backoff)
+                backoff = min(RETRY_MAX_S, backoff * 2)
             else:
                 backoff = 5.0
+                flog.ok()
                 if stt.disconnected_since is not None:
                     gap = time.time() - stt.disconnected_since
                     if gap >= GAP_AFTER_S and listener.db is not None:
