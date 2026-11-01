@@ -1,5 +1,29 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.33.1 (pilot) - On/off lights without a dimmer, floor lights popup, tidier tree, event centre polish, scrolling tab strips
+**After installing:** no database migration. New settings keep today's behaviour by default. Going back to 2.33.0 is safe; before going back, set "show 'ללא שיוך' in the tree" to "always" if it was changed, so the other home-screen options are kept.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. ההגדרות החדשות שומרות על ההתנהגות הקיימת כברירת מחדל. חזרה ל-2.33.0 בטוחה; לפני החזרה, אם שונתה ההגדרה "הצג 'ללא שיוך' בעץ", יש להחזיר אותה ל"תמיד" כדי ששאר אפשרויות המסך הראשי יישמרו.
+
+### What was fixed - מה תוקן
+- **English:** Switches typed as a light (and lights that are on/off only) no longer show a brightness slider - on the area tiles, the quick sheet, the lights panel and the bubbles. They keep the light look; only the slider goes.
+- **עברית:** מפסקים שהוגדר להם הסוג "תאורה" (וגופי תאורה של הדלקה / כיבוי בלבד) כבר לא מציגים פס עמעום - באריחי האזור, בחלון המהיר, בחלונית התאורה ובבועות. המראה של תאורה נשמר; רק פס העמעום יורד.
+- **English:** Event centre (Security › Investigate › Events, and the sensor events list): the side panel's actions are always in view, the list scrolls in its own box instead of the page, event names are in Hebrew (motion detection, line crossing, ...), and the device codes and other technical details sit in a collapsible "technical details" section. Up / Down move between events and Esc closes the panel; on a phone the panel is a full-screen sheet.
+- **עברית:** מרכז האירועים (אבטחה › חקירה › אירועים, וגם רשימת אירועי החיישנים): פעולות החלונית הצדדית תמיד גלויות, הרשימה נגללת בתוך המסגרת שלה במקום כל הדף, שמות האירועים בעברית (זיהוי תנועה, חציית קו ועוד), וקודי ההתקן ושאר הפרטים הטכניים נמצאים באזור "פרטים טכניים" שנפתח לפי בקשה. חיצי מעלה / מטה עוברים בין אירועים ו-Esc סוגר את החלונית; בטלפון החלונית נפתחת על כל המסך.
+- **English:** Provision-ISR live video is steadier on a full wall of cameras: the stream capabilities read from the recorder are kept for ten minutes and shared, and when the recorder is briefly busy a tile opens on the stream the add-on already has instead of failing.
+- **עברית:** השידור החי מ-Provision-ISR יציב יותר בקיר מלא של מצלמות: יכולות הזרם שנקראות מהמקליט נשמרות לעשר דקות ומשותפות, וכשהמקליט עמוס לרגע האריח נפתח על הזרם שכבר קיים בתוסף במקום להיכשל.
+- **English:** The settings page for the bridge is named "גשר Arx" instead of naming the home platform.
+- **עברית:** דף ההגדרות של הגשר נקרא עכשיו "גשר Arx" במקום שם הפלטפורמה של הבית.
+
+### What was added - מה נוסף
+- **English:** Synoptic map setting "מפסקים בעמודת התאורה" (Settings › General › Building section and synoptic map): only switches typed as a light (default) or every switch in the lights column.
+- **עברית:** הגדרה במפה הסינופטית "מפסקים בעמודת התאורה" (הגדרות › כללי › חתך הבניין והמפה הסינופטית): רק מפסקים שהוגדרו כתאורה (ברירת מחדל) או כל המפסקים בעמודת התאורה.
+- **English:** Floor lights popup: pressing a floor's lights on the synoptic board or the building section opens that floor's lights, grouped by area, with "turn all on" / "turn all off" through the usual confirmation.
+- **עברית:** חלון תאורת קומה: לחיצה על התאורה של קומה במפה הסינופטית או בחתך הבניין פותחת את גופי התאורה של הקומה, מקובצים לפי אזור, עם "הדלק הכל" / "כבה הכל" דרך אישור רגיל.
+- **English:** The "ללא שיוך" row of the building tree can be hidden - always shown (default), only while editing, or never - from the home-screen options or with "hide from the tree" on the row itself (with undo). Counts do not change.
+- **עברית:** אפשר להסתיר את השורה "ללא שיוך" בעץ המבנה - תמיד מוצגת (ברירת מחדל), רק בזמן עריכה, או אף פעם - מאפשרויות המסך הראשי או דרך "הסתר מהעץ" בשורה עצמה (עם ביטול). המספרים לא משתנים.
+- **English:** Long tab strips (Settings and every other tab row) scroll with arrows at their ends, the mouse wheel, a swipe, and the keyboard (arrow keys, Home / End). A strip that fits looks as before.
+- **עברית:** שורות לשוניות ארוכות (בהגדרות ובכל שורת לשוניות אחרת) נגללות עם חיצים בקצוות, גלגלת העכבר, החלקה והמקלדת (חצים, Home / End). שורה שנכנסת במלואה נראית כמו קודם.
+
 ## 2.33.0 (pilot) - Multi-building home and the mapping assistant, external calendar connections
 **After installing:** two database migrations (0188: a "shared building" flag on buildings; 0189: the mapping assistant's tables). Both only add; nothing changes until you switch the new features on. Going back to 2.32.1 needs the database backup taken before the update.
 - **עברית:** אחרי ההתקנה: שתי מיגרציות של מסד הנתונים (0188: סימון "בניין משותף" לבניינים; 0189: הטבלאות של אשף המיפוי). שתיהן מוסיפות בלבד; דבר לא משתנה עד שמפעילים את היכולות החדשות. חזרה ל-2.32.1 דורשת את גיבוי מסד הנתונים שנלקח לפני העדכון.
