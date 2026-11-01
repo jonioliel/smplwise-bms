@@ -1,0 +1,44 @@
+{
+  "board-390x844.png": {
+    "firstItemTop": 681,
+    "toolbarRows": 2,
+    "pageScroll": 2813,
+    "viewport": "390x844"
+  },
+  "list-cards-390x844.png": {
+    "firstItemTop": 358,
+    "toolbarRows": 2,
+    "pageScroll": 1622,
+    "viewport": "390x844"
+  },
+  "list-chips-390x844.png": {
+    "firstItemTop": 418,
+    "toolbarRows": 3,
+    "pageScroll": 1969,
+    "viewport": "390x844"
+  },
+  "list-empty-390x844.png": {
+    "firstItemTop": 301,
+    "toolbarRows": 2,
+    "pageScroll": 0,
+    "viewport": "390x844"
+  },
+  "list-error-390x844.png": {
+    "firstItemTop": 144,
+    "toolbarRows": 0,
+    "pageScroll": 0,
+    "viewport": "390x844"
+  },
+  "list-filter-open-390x844.png": {
+    "firstItemTop": 1047,
+    "toolbarRows": 3,
+    "pageScroll": 2311,
+    "viewport": "390x844"
+  },
+  "list-table-390x844.png": {
+    "firstItemTop": 495,
+    "toolbarRows": 2,
+    "pageScroll": 839,
+    "viewport": "390x844"
+  }
+}

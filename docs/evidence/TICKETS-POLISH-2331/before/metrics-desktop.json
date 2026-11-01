@@ -1,0 +1,50 @@
+{
+  "board-1440x900.png": {
+    "firstItemTop": 450,
+    "toolbarRows": 2,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "board-1920x1080.png": {
+    "firstItemTop": 402,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1920x1080"
+  },
+  "list-cards-1440x900.png": {
+    "firstItemTop": 339,
+    "toolbarRows": 2,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "list-cards-1920x1080.png": {
+    "firstItemTop": 293,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1920x1080"
+  },
+  "list-empty-1440x900.png": {
+    "firstItemTop": 268,
+    "toolbarRows": 2,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "list-error-1440x900.png": {
+    "firstItemTop": 146,
+    "toolbarRows": 0,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "list-table-1440x900.png": {
+    "firstItemTop": 439,
+    "toolbarRows": 2,
+    "pageScroll": 0,
+    "viewport": "1440x900"
+  },
+  "list-table-1920x1080.png": {
+    "firstItemTop": 393,
+    "toolbarRows": 1,
+    "pageScroll": 0,
+    "viewport": "1920x1080"
+  }
+}
