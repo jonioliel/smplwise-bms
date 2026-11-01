@@ -112,7 +112,10 @@ export const synPhoneStyles = css`
   .ppl.dash { background: transparent; outline: 1.5px dashed var(--sw-border-strong); outline-offset: -1.5px; color: var(--sw-text-3); }
   .cl[data-dense] .ci { flex-direction: row; align-items: center; justify-content: space-between; gap: 6px; }
   .cl[data-dense] .pl1 .s { display: none; }
-  .cl[data-dense] .pl1 .t { max-inline-size: none; font-size: var(--sw-fs-base); }
+  /* name and pills share one line: the pills keep their size, the name gives way and ellipsises (320 px, 12 floors) */
+  .cl[data-dense] .pl1 { flex: 1 1 auto; }
+  .cl[data-dense] .pl1 .t { flex: 0 1 auto; min-inline-size: 0; max-inline-size: none; font-size: var(--sw-fs-base); }
+  .cl[data-dense] .ppls { flex: none; }
   .cl[data-dense] .ppl { block-size: 22px; padding: 0 6px; font-size: var(--sw-fs-state); }
   .soil { grid-column: 1; block-size: 8px; margin: 1px 0; background: repeating-linear-gradient(135deg, var(--sw-border-strong) 0 2px, transparent 2px 6px); border-block-start: 2px solid var(--sw-border-strong); }
   .soiltx { grid-column: 2; block-size: 8px; margin-block-start: 1px; border-block-start: 2px solid var(--sw-border-strong); }
