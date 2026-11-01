@@ -136,10 +136,17 @@ test.describe('synoptic map tab', () => {
     await expect(page.locator('[data-fire-nc]').first()).toBeVisible();
   });
 
-  test('a row selects, and the detail line offers to open the floor', async ({ page }) => {
+  test('a row selects, and the detail line offers to open the floor', async ({ page }, info) => {
     await open(page, `${SYN}?xsdemo=6`);
     const row = page.locator('[data-syn-row]').first();
     await expect(row).toBeVisible();
+    if (info.project.name === 'mobile') {
+      // SYNOPTIC-MOBILE-2342: the phone table opens the floor from its name (the cross-section layout selects first)
+      const id = await row.getAttribute('data-syn-row');
+      await page.locator(`[data-syn-open-floor="${id}"]`).click();
+      await expect(page).toHaveURL(new RegExp(`/explore/floors/${id}`));
+      return;
+    }
     await row.click();
     await expect(page.locator('[data-syn-detail]')).toBeVisible();
   });
@@ -151,7 +158,9 @@ test.describe('synoptic map tab', () => {
       await open(page, `${SYN}?xsdemo=24`);
       await expect(page.locator('[data-syn-board]')).toBeVisible();
       await page.waitForTimeout(400);
-      expect(await noScroll(page, 'syn')).toEqual([]);
+      // SYNOPTIC-MOBILE-2342 (owner): under 768 px only the floor list of the phone board may scroll, inside the card
+      const bad = await noScroll(page, 'syn');
+      expect(w < 768 ? bad.filter((x) => !/^div\.(plist|pbl|cl)\b/.test(x)) : bad).toEqual([]);
       const doc = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(doc).toBeLessThanOrEqual(1);
     });
