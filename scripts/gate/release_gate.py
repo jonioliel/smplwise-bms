@@ -766,22 +766,104 @@ def split_backend(files, n, costs):
     return [(sorted(b[2]), b[0]) for b in bins]
 
 
+SCRATCH_OWNER = "owner.json"   # inside every tmpfs scratch dir: which engine process made it (NIGHTLY-2331)
+
+
+def _proc_start(pid):
+    """The start time of a live process (field 22 of /proc/<pid>/stat, clock ticks since boot): None when it is not running,
+    "" when it is running but /proc is not there to say when it started (not Linux). A pid that was reused has another start."""
+    try:
+        raw = Path(f"/proc/{int(pid)}/stat").read_text()
+        return raw.rsplit(")", 1)[1].split()[19]
+    except FileNotFoundError:
+        if Path("/proc/self/stat").exists():
+            return None   # Linux, no such process
+    except (OSError, ValueError, IndexError):
+        return ""         # unreadable: count it as alive
+    if os.name != "posix":
+        return ""         # no liveness probe here (os.kill(pid, 0) is a console event on Windows): alive
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return None
+    except (PermissionError, OSError, ValueError):
+        pass
+    return ""
+
+
+def _newest_mtime(d, depth=2):
+    """The newest mtime of `d` and its entries down to `depth` levels (sN/tmp_bN of a running shard change all the time)."""
+    newest, level = 0.0, [d]
+    for _ in range(depth + 1):
+        nxt = []
+        for p in level:
+            try:
+                newest = max(newest, p.lstat().st_mtime)
+                if p.is_dir() and not p.is_symlink():
+                    nxt.extend(p.iterdir())
+            except OSError:
+                pass
+        level = nxt
+    return newest
+
+
+def scratch_is_stale(d, now=None):
+    """True only for a scratch dir no running engine owns (NIGHTLY-2331). The 2026-11-01 nightly lost /dev/shm/smplwise-gate-main-*
+    mid-run: every engine start swept EVERY smplwise-gate-* dir on the assumption that the locks keep engines apart, so any second
+    engine start (another wrapper, a lane, a hand-started engine) deleted the running engine's shard basetemps. Now:
+      * owner.json with a pid: stale only when that process is gone (or the pid was reused: another start time);
+      * no owner.json (a dir of an engine older than this rule, or one killed before it wrote the file): stale only when nothing in
+        it changed for GATE_TMPFS_STALE_MIN minutes (default 360; longer than any gate or nightly)."""
+    now = time.time() if now is None else now
+    try:
+        meta = json.loads((d / SCRATCH_OWNER).read_text(encoding="utf-8"))
+        pid = int(meta["pid"])
+    except FileNotFoundError:
+        meta = None
+    except (OSError, ValueError, KeyError, TypeError):
+        meta = None
+    if meta is not None:
+        start = _proc_start(pid)
+        if start is None:
+            return True
+        return bool(start and meta.get("start") and str(meta["start"]) != start)
+    stale_s = knob("GATE_TMPFS_STALE_MIN", 360, 360, float) * 60
+    return now - _newest_mtime(d) > stale_s
+
+
+def sweep_scratch(shm, keep=None):
+    """Remove the smplwise-gate-* dirs under `shm` that no running engine owns; never `keep` (our own). Returns the removed paths."""
+    removed = []
+    for old in sorted(shm.glob("smplwise-gate-*")):
+        if keep is not None and old == keep:
+            continue
+        if old.is_dir() and not old.is_symlink() and scratch_is_stale(old):
+            shutil.rmtree(old, ignore_errors=True)
+            removed.append(old)
+    return removed
+
+
 def tmpfs_root(tag):
-    """A fresh directory on /dev/shm for the backend scratch, or None (no tmpfs, not writable, or under GATE_TMPFS_MIN_GB free)."""
+    """A fresh directory on /dev/shm for the backend scratch, or None (no tmpfs, not writable, or under GATE_TMPFS_MIN_GB free).
+    Leftovers of killed engines are swept first, but only dirs whose owner is gone (scratch_is_stale)."""
     shm = Path(os.environ.get("GATE_TMPFS_DIR", "/dev/shm"))
     try:
         st = os.statvfs(shm)
-        # a gate killed by `timeout -k` leaves its scratch behind; the gate holds the gate lock and the tests lock exclusively,
-        # so no other engine can be using one of these right now
-        for old in shm.glob("smplwise-gate-*"):
-            shutil.rmtree(old, ignore_errors=True)
+        sweep_scratch(shm)
         st = os.statvfs(shm)
         if st.f_bavail * st.f_frsize < knob("GATE_TMPFS_MIN_GB", 4, 4, float) * 1e9:
             return None
         d = Path(tempfile.mkdtemp(prefix=f"smplwise-gate-{tag}-", dir=str(shm)))
+        write_scratch_owner(d, tag)
         return d
     except (OSError, AttributeError):
         return None
+
+
+def write_scratch_owner(d, tag):
+    """owner.json of a scratch dir: this engine's pid and start time (scratch_is_stale reads it)."""
+    (d / SCRATCH_OWNER).write_text(json.dumps({"pid": os.getpid(), "start": _proc_start(os.getpid()) or "", "tag": tag,
+                                                "created": int(time.time())}), encoding="utf-8")
 
 
 def backend_cmd(names, logd, k, basetemp, v2):

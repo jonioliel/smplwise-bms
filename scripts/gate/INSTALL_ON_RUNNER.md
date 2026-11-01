@@ -38,8 +38,10 @@ Expected last line: `SELFTEST PASSED`.
 The same three files carry an opt-in faster schedule (see `docs/release/GATE_SPEED.md`): `~/release_gate.sh <branch> --schedule v2`
 (or `GATE_SCHEDULE=v2`). Without the flag the engine is the 2.9.2 gate. Runner notes:
 - v2 puts the backend shards' scratch (basetemp + `TMPDIR`) on `/dev/shm` when at least `GATE_TMPFS_MIN_GB` (4) GB are free, and
-  removes it at the end. A gate killed by `timeout -k` leaves `/dev/shm/smplwise-gate-*`, and the next v2 gate sweeps it at start.
-  To check by hand: `ls -d /dev/shm/smplwise-gate-* 2>/dev/null` (empty when no gate runs).
+  removes it at the end. A gate killed by `timeout -k` leaves `/dev/shm/smplwise-gate-*`, and the next v2 gate sweeps it at start -
+  only dirs no running engine owns (NIGHTLY-2331): each dir carries `owner.json` (engine pid + start time) and is swept only when that
+  process is gone; a dir without `owner.json` only after `GATE_TMPFS_STALE_MIN` (360) idle minutes. A run never removes another
+  run's scratch. To check by hand: `ls -d /dev/shm/smplwise-gate-* 2>/dev/null` (empty when no gate runs).
 - v2 writes `backend_sN.xml` (junit) next to each shard log. The next v2 gate reads the last 10 gates' XML to balance the shards.
   Keep them like the `pw_*.json` (small, the retention table below keeps the `.logs/` files).
 - Estimates without running anything: `python3 ~/release_gate.py --plan --root ~/work/gate-<branch>` (any checkout).

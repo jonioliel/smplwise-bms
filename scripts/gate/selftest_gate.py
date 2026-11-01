@@ -275,9 +275,14 @@ check("v2 pool: a load crash and a zero-test job in the pool still FAIL; the hea
       g.compute_verdict([]) == "fail" and g.COUNTS["preview"]["pass"] == 5 and any("load error" in i for i in ids) and any("zero tests" in i for i in ids), (g.COUNTS, ids))
 shm = TMP / "shm"
 (shm / "smplwise-gate-stale-1").mkdir(parents=True)
+os.utime(shm / "smplwise-gate-stale-1", (1, 1))            # an ownerless leftover, untouched for decades
+(shm / "smplwise-gate-live-1" / "s1").mkdir(parents=True)  # NIGHTLY-2331: another engine's scratch, its owner alive (this process)
+(shm / "smplwise-gate-live-1" / "owner.json").write_text(json.dumps({"pid": os.getpid(), "start": g._proc_start(os.getpid()) or ""}))
 os.environ["GATE_TMPFS_DIR"], os.environ["GATE_TMPFS_MIN_GB"] = str(shm), "0"
 d = g.tmpfs_root("selftest")
 check("v2 tmpfs: a fresh scratch dir, the stale one swept", d is not None and d.is_dir() and not (shm / "smplwise-gate-stale-1").exists(), d)
+check("v2 tmpfs: a running engine's scratch is never swept (NIGHTLY-2331)", (shm / "smplwise-gate-live-1" / "s1").is_dir()
+      and d is not None and (d / "owner.json").is_file(), sorted(p.name for p in shm.iterdir()))
 os.environ["GATE_TMPFS_MIN_GB"] = "1000000"
 check("v2 tmpfs: under the free-space floor it falls back to disk (None)", g.tmpfs_root("selftest") is None)
 for k in ("GATE_TMPFS_DIR", "GATE_TMPFS_MIN_GB"):
