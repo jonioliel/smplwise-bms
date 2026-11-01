@@ -104,7 +104,7 @@ export const synPhoneStyles = css`
   .ppls { display: flex; gap: 5px; flex-wrap: nowrap; min-inline-size: 0; }
   .ppl { position: relative; flex: none; display: inline-flex; align-items: center; gap: 4px; block-size: 24px; padding: 0 8px; border: 0; border-radius: var(--sw-r-pill); background: var(--sw-surface-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
   button.ppl { cursor: pointer; }
-  button.ppl::after { content: ''; position: absolute; inset: -10px -3px; } /* a 44 px touch target around the 24 px pill */
+  button.ppl::after { content: ''; position: absolute; inset: -10px 0; } /* a 44 px tall touch target around the 24 px pill (no sideways overflow) */
   .ppl .xi { inline-size: 13px; block-size: 13px; color: var(--sw-text-2); }
   .ppl.lit { background: color-mix(in srgb, var(--sw-lit) 24%, var(--sw-surface)); }
   .ppl.mut { color: var(--sw-text-3); font-weight: var(--sw-fw-medium); }

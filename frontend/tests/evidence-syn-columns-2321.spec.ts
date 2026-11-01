@@ -99,11 +99,15 @@ test.describe('synoptic board: a building with no temperature and no lights', ()
     await expect(page.locator('[data-syn-hidden]')).toHaveCount(0);
   });
 
-  test('custom columns: the ticked ones in the fixed order; a ticked column without a source is still left out and named', async ({ page }) => {
+  test('custom columns: the ticked ones in the fixed order; a ticked column without a source is still left out and named', async ({ page }, info) => {
     await open(page, `${SYN}?xsdemo=6&xsdata=sparse&xs_syn_columns=custom&xs_syn_custom=doors,temp`);
     await expect(page.locator('[data-syn-board]')).toBeVisible();
     expect(await visibleCols(page)).toEqual(['doors']);
-    await expect(page.locator('[data-syn-hidden]')).toHaveAttribute('data-syn-hidden', 'temp');
+    if (info.project.name === 'mobile') {
+      // SYNOPTIC-MOBILE-2342: on the phone the hidden columns are named in the info sheet
+      await page.locator('[data-syn-info]').click();
+      await expect(page.locator('[data-syn-info-hidden]')).toHaveText('טמפרטורה');
+    } else await expect(page.locator('[data-syn-hidden]')).toHaveAttribute('data-syn-hidden', 'temp');
     await open(page, `${SYN}?xsdemo=6&xs_syn_columns=custom&xs_syn_custom=doors,temp,cameras`);
     expect(await visibleCols(page)).toEqual(['temp', 'cameras', 'doors']);
   });
