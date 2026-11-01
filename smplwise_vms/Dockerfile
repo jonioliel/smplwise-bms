@@ -35,7 +35,7 @@ ENV SW_WWW_DIR=/app/www \
     SW_DATA_DIR=/data \
     SW_HOST=0.0.0.0 \
     SW_PORT=8099 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \n    PYTHONFAULTHANDLER=1
 
 LABEL io.hass.version="2.33.1" io.hass.type="addon" io.hass.arch="amd64|aarch64"
 

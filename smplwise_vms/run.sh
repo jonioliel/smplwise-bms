@@ -17,4 +17,8 @@ if ! bashio::config.has_value 'bootstrap_admin_username'; then
 fi
 
 cd /app
-exec python3 -m smplwise
+# SEGFAULT-PLAYBACK-2332: the crash guard runs the server as its child. A death from a signal (a native crash such as SIGSEGV)
+# is recorded under /data/crash, its faulthandler traceback is copied to this log, and the server starts again with a backoff;
+# an ordinary exit or a stop from the Supervisor ends the add-on as before (the watchdog in config.yaml is unchanged).
+export PYTHONFAULTHANDLER=1
+exec python3 -m smplwise.crashguard
