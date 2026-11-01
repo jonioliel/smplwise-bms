@@ -808,7 +808,7 @@ export class DevicesLayoutController implements ReactiveController {
       <div style="padding:0 16px 12px">
         <devices-camera-picker .value=${this.camPick.key ? (this.cameraOfDraft(this.camPick.key) ?? null) : null} @camera-picked=${(e: CustomEvent<{ source: CameraSource; name: string }>) => this.onCameraPicked(e.detail.source, e.detail.name)}></devices-camera-picker>
       </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end"><sw-button data-layout-camera-pick-close @click=${close}>ביטול</sw-button></div>
+      <div class="lay-dlg-acts"><sw-button data-layout-camera-pick-close @click=${close}>ביטול</sw-button></div>
     </sw-dialog>`;
   }
 
@@ -1555,8 +1555,8 @@ export class DevicesLayoutController implements ReactiveController {
         ${this.undo ? html`<span class="lay-msg" role="status" data-layout-undo-msg>הכרטיס "${this.undo.label}" נמחק · ההתקנים חזרו למאגר <button type="button" class="lay-undo" data-layout-undo @click=${() => this.undoRemove()}>בטל מחיקה</button></span>` : nothing}
         ${this.tileCard
           ? html`<nav class="lay-crumb" data-layout-tiles-crumb aria-label="מיקום בעורך">
-              <button type="button" data-layout-tiles-back @click=${() => this.leaveTiles()}><span aria-hidden="true">→</span> כל הכרטיסים</button>
-              <span aria-hidden="true">‹</span>
+              <button type="button" data-layout-tiles-back @click=${() => this.leaveTiles()}><sw-icon name="chevronBack" size=${16} aria-hidden="true"></sw-icon>כל הכרטיסים</button>
+              <sw-icon class="sep" name="chevron" size=${14} aria-hidden="true"></sw-icon>
               <span class="here" aria-current="page">${this.labelOf(this.tileCard)} · סידור התקנים</span>
             </nav>`
           : nothing}
@@ -1582,7 +1582,7 @@ export class DevicesLayoutController implements ReactiveController {
       <div>${copy
         ? 'הפריסה השמורה של האזור הזה (מחשב, וטלפון אם נשמרה) תחליף את הפריסה של כל שאר האזורים, גם אם נערכה בהם פריסה משלהם. הפעולה נרשמת ביומן.'
         : 'הפריסה השמורה (מחשב וטלפון) תימחק לכל המשתמשים, והמסך יחזור לסידור האוטומטי. הפעולה נרשמת ביומן.'}</div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
+      <div class="lay-dlg-acts">
         <sw-button data-layout-confirm-cancel autofocus @click=${close}>ביטול</sw-button>
         <sw-button variant=${copy ? 'primary' : 'danger'} data-layout-confirm-ok ?disabled=${this.busy} @click=${() => void (copy ? this.copyToAll() : this.reset())}>${copy ? 'העתק לכל האזורים' : 'אפס'}</sw-button>
       </div>
@@ -1802,7 +1802,7 @@ export class DevicesLayoutController implements ReactiveController {
           </button>`)}
         </div>
       </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end"><sw-button data-layout-library-close @click=${close}>סגור</sw-button></div>
+      <div class="lay-dlg-acts"><sw-button data-layout-library-close @click=${close}>סגור</sw-button></div>
     </sw-dialog>`;
   }
 
@@ -1831,10 +1831,17 @@ export class DevicesLayoutController implements ReactiveController {
     };
     const roleRow = (field: 'bg' | 'border', title: string) => html`<div class="lay-f"><span class="lbl">${title}</span>
       <div class="lay-swatches" role="group" aria-label=${title}>${swatch(field, null)}${LAYOUT_ROLE_IDS.map((r) => swatch(field, r))}</div></div>`;
-    const nudge = (txt: string, lbl: string, change: Partial<LayoutItem>, attr: string) =>
+    // DEVICES-POLISH-2331: the four moves are drawn icons of the product's set (were Unicode arrows); start / end are the
+    // chevrons that mirror with the reading direction, so the record stays logical (x counts from the start edge)
+    const nudge = (txt: string | TemplateResult, lbl: string, change: Partial<LayoutItem>, attr: string) =>
       html`<button type="button" data-layout-nudge=${attr} aria-label=${lbl} title=${lbl} @click=${() => this.patch(key, change)}>${txt}</button>`;
+    const ic = (name: IconName) => html`<sw-icon name=${name} size=${16} aria-hidden="true"></sw-icon>`;
+    const desk = this.opts.scope === 'area' && this.variant === 'desktop';
+    // DEVICES-POLISH-2331: four groups divided by a hairline - look, size and place, content, card actions - instead of one flat
+    // column of fields; every field, its attribute and its order inside its group are unchanged
     return html`<aside class="lay-panel" data-layout-panel=${key} aria-label=${`מאפייני הכרטיס: ${label}`}>
       <div class="ph">מאפייני הכרטיס<span class="chip">${label}</span></div>
+      <div class="lay-grp" data-layout-section="look">
       <div class="lay-f"><label for="lay-title">כותרת</label>
         <input id="lay-title" type="text" maxlength="60" data-layout-title .value=${it.title ?? ''} placeholder=${label} @input=${(e: Event) => this.patch(key, { title: (e.target as HTMLInputElement).value.trim() ? (e.target as HTMLInputElement).value : null })} /></div>
       <div class="lay-f"><label for="lay-icon">אייקון</label>
@@ -1848,33 +1855,43 @@ export class DevicesLayoutController implements ReactiveController {
         </span></div>
       ${roleRow('bg', 'צבע רקע (מתוך ערכת הצבעים)')}
       ${roleRow('border', 'צבע מסגרת')}
+      <div class="lay-hint">הצבעים הם תפקידים בערכת הצבעים של האזור (הגדרות ‹ חשמל והתקנים), כך שהפריסה נראית נכון בכל ערכה, בהיר או כהה.</div>
+      </div>
+      <div class="lay-grp" data-layout-section="place">
       <div class="lay-row2">
         <div class="lay-f"><label for="lay-w">רוחב (עמודות מתוך ${this.draft.cols})</label><input id="lay-w" type="number" min="1" max=${this.draft.cols} data-layout-w .value=${String(it.w)} @change=${(e: Event) => this.patch(key, { w: Number((e.target as HTMLInputElement).value) || it.w })} /></div>
         <div class="lay-f"><label for="lay-h">גובה מינימלי (שורות של 8 פיקסלים)</label><input id="lay-h" type="number" min="2" max="400" data-layout-h .value=${String(it.h)} @change=${(e: Event) => this.patch(key, { h: Number((e.target as HTMLInputElement).value) || it.h })} /></div>
       </div>
       <div class="lay-f"><span class="lbl">הזזה ושינוי גודל</span>
         <div class="lay-nudge">
-          ${nudge('▲', 'הזז למעלה', { y: it.y - 1 }, 'up')}
-          ${nudge('▼', 'הזז למטה', { y: it.y + 1 }, 'down')}
-          ${nudge('→', 'הזז לתחילת השורה', { x: it.x - 1 }, 'start')}
-          ${nudge('←', 'הזז לסוף השורה', { x: it.x + 1 }, 'end')}
+          ${nudge(ic('arrowUp'), 'הזז למעלה', { y: it.y - 1 }, 'up')}
+          ${nudge(ic('arrowDown'), 'הזז למטה', { y: it.y + 1 }, 'down')}
+          ${nudge(ic('chevronBack'), 'הזז לתחילת השורה', { x: it.x - 1 }, 'start')}
+          ${nudge(ic('chevron'), 'הזז לסוף השורה', { x: it.x + 1 }, 'end')}
           ${nudge('רחב +', 'הרחב בעמודה', { w: it.w + 1 }, 'wider')}
           ${nudge('רחב −', 'הצר בעמודה', { w: it.w - 1 }, 'narrower')}
           ${nudge('גובה +', 'הגבה ב־8 פיקסלים', { h: it.h + 1 }, 'taller')}
           ${nudge('גובה −', 'הנמך ב־8 פיקסלים', { h: it.h - 1 }, 'shorter')}
         </div></div>
+      <div class="lay-hint">הגובה הוא מינימום: כרטיס לא חותך את ההתקנים שבו.</div>
+      </div>
+      <div class="lay-grp" data-layout-section="content">
       ${this.renderBulkLook(key, it)}
       ${this.renderQuality(key, it)}
       ${this.renderEntities(key, it)}
       ${this.renderMainPicker(key, it)}
       ${this.canArrange(key) ? html`<button type="button" class="btn" data-layout-tiles-open @click=${() => this.enterTiles(key)}>סידור התקנים בכרטיס${arranged(it) ? ' (מסודר)' : ''}…</button>` : nothing}
       <label class="lay-check"><input type="checkbox" data-layout-hidden .checked=${it.hidden} @change=${(e: Event) => this.patch(key, { hidden: (e.target as HTMLInputElement).checked })} />מוסתר לכולם</label>
-      ${key.startsWith('camera:') && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-camera-change @click=${() => { this.camPick = { key }; this.update(); }}>בחר מצלמה אחרת…</button>` : nothing}
-      ${this.opts.scope === 'area' && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-duplicate-card @click=${() => this.duplicateCard(key)}>שכפל כרטיס</button>` : nothing}
-      ${this.opts.scope === 'area' && this.variant === 'desktop'
-        ? html`<button type="button" class="btn lay-del" data-layout-delete-card @click=${() => this.removeCard(key)}>מחק כרטיס</button><div class="lay-hint">מחיקה מוציאה את הכרטיס מהמסך בלבד: ההתקנים לא נמחקים מהמערכת, אלא חוזרים למאגר ההתקנים הלא ממוקמים, ואפשר לצרף אותם לכרטיס אחר. "בטל מחיקה" מחזיר את הכרטיס.</div>`
+      </div>
+      ${(key.startsWith('camera:') && this.variant === 'desktop') || desk
+        ? html`<div class="lay-grp" data-layout-section="actions">
+            ${key.startsWith('camera:') && this.variant === 'desktop' ? html`<button type="button" class="btn" data-layout-camera-change @click=${() => { this.camPick = { key }; this.update(); }}>בחר מצלמה אחרת…</button>` : nothing}
+            ${desk ? html`<button type="button" class="btn" data-layout-duplicate-card @click=${() => this.duplicateCard(key)}>שכפל כרטיס</button>` : nothing}
+            ${desk
+              ? html`<button type="button" class="btn lay-del" data-layout-delete-card @click=${() => this.removeCard(key)}>מחק כרטיס</button><div class="lay-hint">מחיקה מוציאה את הכרטיס מהמסך בלבד: ההתקנים לא נמחקים מהמערכת, אלא חוזרים למאגר ההתקנים הלא ממוקמים, ואפשר לצרף אותם לכרטיס אחר. "בטל מחיקה" מחזיר את הכרטיס.</div>`
+              : nothing}
+          </div>`
         : nothing}
-      <div class="lay-hint">הצבעים הם תפקידים בערכת הצבעים של האזור (הגדרות ‹ חשמל והתקנים), כך שהפריסה נראית נכון בכל ערכה, בהיר או כהה. הגובה הוא מינימום: כרטיס לא חותך את ההתקנים שבו.</div>
     </aside>`;
   }
 
