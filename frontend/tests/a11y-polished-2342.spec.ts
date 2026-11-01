@@ -67,8 +67,10 @@ test('sw-popover: Escape inside the card closes it and the focus goes back to th
     stage.append(pop);
     document.body.append(opener, stage);
     opener.focus();
-    (pop.querySelector('#pop-in') as HTMLElement).focus();
   });
+  // the card's slot exists after its first render: only then is the slotted button rendered and focusable
+  await page.waitForFunction(() => !!document.getElementById('a11y-pop')?.shadowRoot?.querySelector('slot'));
+  await page.evaluate(() => (document.getElementById('pop-in') as HTMLElement).focus());
   expect(await deepActiveId(page)).toBe('pop-in');
   await page.keyboard.press('Escape');
   await expect.poll(() => page.evaluate(() => !!document.getElementById('a11y-pop'))).toBe(false);
