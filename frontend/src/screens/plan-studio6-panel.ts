@@ -282,11 +282,47 @@ export const studio6Styles = css`
     background: var(--sw-accent);
     color: var(--sw-text-inverse);
   }
-  .tbtn:hover:not([disabled]) {
-    background: var(--sw-surface-3);
+  /* SETUPPLAN-POLISH-2331: every pressable control of the three cards gives on pointer-down (emil-design-eng: 120 ms, transform only,
+     the shared --sw-press-scale) and keeps its hover for a pointer that hovers - a tap no longer leaves a grey wash behind (mobile-native) */
+  .tbtn,
+  .swatch,
+  .matreset,
+  .seg.sm button,
+  .walkrow button {
+    transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
-  .tbtn.primary:hover:not([disabled]) {
-    background: var(--sw-accent-hover);
+  .tbtn:active:not([disabled]),
+  .swatch:active:not([disabled]),
+  .matreset:active:not([disabled]),
+  .seg.sm button:active,
+  .walkrow button:active:not([disabled]) {
+    transform: scale(var(--sw-press-scale));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tbtn,
+    .swatch,
+    .matreset,
+    .seg.sm button,
+    .walkrow button {
+      transition-duration: 0ms;
+    }
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .tbtn:hover:not([disabled]),
+    .matreset:hover:not([disabled]) {
+      background: var(--sw-surface-3);
+    }
+    .tbtn.primary:hover:not([disabled]) {
+      background: var(--sw-accent-hover);
+    }
+    .seg.sm button:not([aria-pressed='true']):hover {
+      color: var(--sw-text);
+    }
+    .swatch:hover:not([disabled]):not([aria-pressed='true']) {
+      box-shadow: inset 0 0 0 1px var(--sw-text-3);
+    }
   }
   .tbtn:focus-visible {
     outline: 2px solid var(--sw-focus);
@@ -406,7 +442,7 @@ export const studio6Styles = css`
   .matreset .dot {
     inline-size: 12px;
     block-size: 12px;
-    border-radius: 3px;
+    border-radius: var(--sw-r-2xs);
     box-shadow: inset 0 0 0 1px var(--sw-border-strong);
   }
   /* the north compass */
@@ -447,7 +483,7 @@ export const studio6Styles = css`
   .dial .n {
     fill: var(--sw-danger-text);
     font-size: var(--sw-fs-xs); /* 11px, from the type scale (unit-token-lint; integration 2.4.7) */
-    font-weight: 700;
+    font-weight: var(--sw-fw-bold);
   }
   .dial .sun circle {
     fill: var(--sw-warning);
@@ -486,13 +522,26 @@ export const studio6Styles = css`
     grid-template-areas: 'idx name star' 'idx where where' 'idx acts acts';
     gap: 4px 8px;
     align-items: center;
-    padding: 8px 0;
+    /* the inline padding is always there, so focusing a row (.on) tints it without shifting its contents sideways */
+    padding: 8px 6px;
     border-block-end: 1px solid var(--sw-border);
+    border-radius: var(--sw-r-sm);
+    transition: background var(--sw-t-hover) var(--sw-ease-color);
+  }
+  .walkrow:last-child {
+    border-block-end: 0;
   }
   .walkrow.on {
     background: var(--sw-accent-soft);
-    border-radius: var(--sw-r-sm);
-    padding-inline: 6px;
+  }
+  .walkrow.armed {
+    box-shadow: inset 0 0 0 2px var(--sw-accent);
+  }
+  .walkrow .name:focus-visible,
+  .walkrow .where select:focus-visible,
+  .walkrow .hd input:focus-visible {
+    outline: 2px solid var(--sw-focus);
+    outline-offset: 1px;
   }
   .walkrow .idx {
     grid-area: idx;
@@ -567,20 +616,28 @@ export const studio6Styles = css`
     color: var(--sw-text-2);
     cursor: pointer;
   }
-  .walkrow button:hover {
-    background: var(--sw-surface-3);
+  @media (hover: hover) and (pointer: fine) {
+    .walkrow button:hover:not([disabled]) {
+      background: var(--sw-surface-3);
+      color: var(--sw-text);
+    }
+    .walkrow button.danger:hover:not([disabled]) {
+      color: var(--sw-danger-text);
+      background: var(--sw-danger-soft);
+    }
   }
   .walkrow button[aria-pressed='true'] {
     background: var(--sw-accent-soft);
     color: var(--sw-accent-text);
   }
+  /* the default (start) position: the star is filled in the warm accent, not just a pressed wash */
+  .walkrow .star[aria-pressed='true'] {
+    background: transparent;
+    color: var(--sw-warning);
+  }
   .walkrow button[disabled] {
     opacity: 0.4;
     cursor: default;
-  }
-  .walkrow button.danger:hover {
-    color: var(--sw-danger-text);
-    background: var(--sw-danger-soft);
   }
   @media (pointer: coarse) {
     .swatch,
