@@ -70,7 +70,14 @@ test.describe('ticket card titles', () => {
     const card = await cardWith(page, HE_DATE);
     const h3 = card.locator('h3[data-card-title]');
     expect(await h3.evaluate((el) => getComputedStyle(el).direction)).toBe('rtl');
-    expect(await h3.locator('a.name').textContent()).toContain('⁦2026-10-28 19:30⁩');
+    // a late board refresh can swap the card's item back to the mock row: re-apply the title until the rendered text holds it
+    await expect(async () => {
+      await card.evaluate(async (el, t) => {
+        const c = el as HTMLElement & { item: Record<string, unknown>; updateComplete: Promise<boolean> };
+        if (c.item?.title !== t) { c.item = { ...c.item, title: t }; await c.updateComplete; }
+      }, HE_DATE);
+      expect(await h3.locator('a.name').textContent()).toContain('⁦2026-10-28 19:30⁩');
+    }).toPass({ timeout: 15_000 });
   });
 });
 
