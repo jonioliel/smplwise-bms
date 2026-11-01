@@ -8,13 +8,14 @@ removed (sessions do not survive a restart). Streams outside the `smplwise_` nam
 """
 from __future__ import annotations
 
+import collections
 import datetime as dt
 import logging
 import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import quote
 
 from ..config import Settings
@@ -27,6 +28,32 @@ log = logging.getLogger("smplwise.playback")
 PB_PREFIX = g2.STREAM_PREFIX + "pb_"
 _INSTANCE: dict[str, str] = {"id": ""}
 MAX_SPAN = dt.timedelta(hours=6)  # one RTSP playback request covers at most this much; the NVR concatenates files inside it
+# PLAYBACK-SCRUB-2341 (docs/changes/PLAYBACK-SCRUB-2341.md): a seek is strictly ordered - the superseded generation's relay socket
+# is told to stop and its go2rtc upstream socket is closed BEFORE its stream is deleted, and only then is the new stream created
+# (no open-while-closing race between two generations of one session). RELAY_CLOSE_WAIT_S bounds the wait for that close.
+RELAY_CLOSE_WAIT_S = 3.0
+UPSTREAM_CLOSE_TIMEOUT_S = 1.5  # the relay's close handshake with go2rtc, bounded below RELAY_CLOSE_WAIT_S
+SEEK_LOCK_WAIT_S = 15.0  # one seek per session at a time; a second one waits for the first (never two generations in flight)
+SEEK_RATE_WINDOW_S = 60.0
+DEFAULT_MAX_SEEKS_PER_MIN = 30  # the `playback.max_seeks_per_min` setting's default
+
+
+class RelayHandle:
+    """The relay socket of one generation: how to stop it from another thread, and when it is really closed."""
+
+    def __init__(self) -> None:
+        self.closed = threading.Event()
+        self._stop: Callable[[], None] | None = None
+
+    def bind_stop(self, stop: Callable[[], None]) -> None:
+        self._stop = stop
+
+    def stop(self) -> None:
+        if self._stop is not None:
+            try:
+                self._stop()
+            except RuntimeError:  # the socket's event loop is already gone: nothing left to stop
+                self.closed.set()
 
 
 @dataclass
@@ -52,6 +79,10 @@ class PlaybackSession:
     # CR-024 experimental cross-recorder sync: the recorder's clock minus this server's (s); the RTSP request asks for
     # [start + offset, end + offset] in `tz_name`, the recorder's own zone. 0 everywhere else (the proven path).
     clock_offset_s: float = 0.0
+    # PLAYBACK-SCRUB-2341: the open relay socket per generation, the per-session seek lock and the seek times of the last minute
+    relays: dict[int, RelayHandle] = field(default_factory=dict)
+    seek_lock: threading.Lock = field(default_factory=threading.Lock)
+    seek_times: collections.deque = field(default_factory=collections.deque)
 
     def touch(self) -> None:
         self.last_activity = time.time()
@@ -183,25 +214,102 @@ def _settle_after_stream(settings: Settings, session: PlaybackSession) -> None:
         raise ApiError(409, "session_over", "סשן הניגון נסגר בזמן ההכנה; פתח ניגון חדש.")
 
 
-def seek(settings: Settings, session: PlaybackSession, start: dt.datetime, segment_end: dt.datetime) -> PlaybackSession:
-    old = session.stream
+def seek_retry_after(session: PlaybackSession, max_per_min: int | None, now: float | None = None) -> int | None:
+    """Seconds until the session may seek again under the cap, or None when a seek is allowed now (nothing is recorded)."""
+    if not max_per_min or max_per_min <= 0:
+        return None
+    t = time.time() if now is None else now
+    q = session.seek_times
+    while q and t - q[0] >= SEEK_RATE_WINDOW_S:
+        q.popleft()
+    if len(q) < max_per_min:
+        return None
+    return max(1, int(SEEK_RATE_WINDOW_S - (t - q[0])) + 1)
+
+
+def seek_rate_error(max_per_min: int, retry: int) -> ApiError:
+    return ApiError(429, "seek_rate", f"יותר מדי קפיצות בזמן בדקה האחרונה (עד {max_per_min} בדקה); הניגון ממשיך מהנקודה הנוכחית. אפשר לקפוץ שוב בעוד {retry} שניות.",
+                    retryable=True, details={"max_per_min": max_per_min, "retry_after_s": retry})
+
+
+def check_seek_rate(session: PlaybackSession, max_per_min: int | None, now: float | None = None) -> None:
+    """At most `max_per_min` new generations per session in a rolling minute (0 / None = no cap). Over the cap: 429 seek_rate with a
+    Hebrew notice and the seconds until the next seek is accepted; the session itself keeps playing its current generation.
+    Allowed: the seek is counted."""
+    t = time.time() if now is None else now
+    retry = seek_retry_after(session, max_per_min, t)
+    if retry is not None:
+        raise seek_rate_error(int(max_per_min or 0), retry)
+    if max_per_min and max_per_min > 0:
+        session.seek_times.append(t)
+
+
+def register_relay(session: PlaybackSession, generation: int) -> RelayHandle:
+    """Called by the relay socket of `generation` once it is accepted; it sets `closed` after its upstream socket is closed."""
+    handle = RelayHandle()
     with REGISTRY.lock:
-        session.generation += 1
-        session.state = "seeking"
-        session.requested_at = start
-        session.end_at = min(segment_end, start + MAX_SPAN)
-        session.first_frame_at = None
-        session.bytes_down = 0
-        session.touch()
-    if old:
-        _delete_stream(settings, old)
+        session.relays[generation] = handle
+    return handle
+
+
+def release_relay(session: PlaybackSession, generation: int, handle: RelayHandle) -> None:
+    handle.closed.set()
+    with REGISTRY.lock:
+        if session.relays.get(generation) is handle:
+            session.relays.pop(generation, None)
+
+
+def _stop_relays_before(session: PlaybackSession, generation: int, wait_s: float | None = None) -> bool:
+    """Tell every relay socket of a generation older than `generation` to stop and wait (bounded) until each one has closed its
+    upstream socket. True = all closed in time."""
+    with REGISTRY.lock:
+        old = [(g, h) for g, h in session.relays.items() if g < generation]
+    if wait_s is None:
+        wait_s = RELAY_CLOSE_WAIT_S
+    deadline = time.monotonic() + wait_s
+    for _g, h in old:
+        h.stop()
+    ok = True
+    for g, h in old:
+        if not h.closed.wait(max(0.0, deadline - time.monotonic())):
+            ok = False
+            log.warning("playback session %s g%s relay did not close within %.1f s; deleting its stream anyway", session.id, g, wait_s)
+    return ok
+
+
+def seek(settings: Settings, session: PlaybackSession, start: dt.datetime, segment_end: dt.datetime, max_per_min: int | None = None) -> PlaybackSession:
+    """New generation of the session at `start`, strictly ordered (PLAYBACK-SCRUB-2341): (1) one seek per session at a time, (2) the
+    rate cap, (3) the generation bump (an old socket that reconnects now gets 4410), (4) the old generation's relay socket stops and
+    closes its go2rtc socket, (5) the old stream is deleted, (6) the new stream is created."""
+    if not session.seek_lock.acquire(timeout=SEEK_LOCK_WAIT_S):
+        raise ApiError(409, "seek_busy", "קפיצה קודמת עדיין בטיפול; נסה שוב בעוד רגע.", retryable=True)
     try:
-        _create_stream(settings, session, start)
-    except ApiError:
-        session.state = "failed"
-        raise
-    _settle_after_stream(settings, session)
-    return session
+        if session.state in ("closed", "expired", "failed"):
+            raise ApiError(409, "session_over", "סשן הניגון הסתיים; פתח ניגון חדש.")
+        check_seek_rate(session, max_per_min)
+        with REGISTRY.lock:
+            old = session.stream
+            session.generation += 1
+            session.state = "seeking"
+            session.requested_at = start
+            session.end_at = min(segment_end, start + MAX_SPAN)
+            session.first_frame_at = None
+            session.bytes_down = 0
+            session.stream = ""
+            session.touch()
+            new_gen = session.generation
+        _stop_relays_before(session, new_gen)
+        if old:
+            _delete_stream(settings, old)
+        try:
+            _create_stream(settings, session, start)
+        except ApiError:
+            session.state = "failed"
+            raise
+        _settle_after_stream(settings, session)
+        return session
+    finally:
+        session.seek_lock.release()
 
 
 def close(settings: Settings, session: PlaybackSession, state: str = "closed") -> None:
@@ -209,6 +317,9 @@ def close(settings: Settings, session: PlaybackSession, state: str = "closed") -
         session.state = state
         name = session.stream
         session.stream = ""
+        gen = session.generation
+    # the same order as a seek: the relay socket (any generation) stops and closes its go2rtc socket before the stream goes
+    _stop_relays_before(session, gen + 1)
     if name:
         _delete_stream(settings, name)
 
