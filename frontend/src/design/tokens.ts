@@ -310,6 +310,13 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-toast-bg': lt('#1e2e47', '#2c3a57'),
       '--sw-toast-text': lt('#ffffff', '#f3f6fc'),
       '--sw-toast-action': lt('#8db4ff', '#9cc0ff'),
+      // DARK-REVIEW-2342 (owner answer A, 2026-11-01): the selected segment of a segmented control (sw-tabs' pill, the screens' `.seg`).
+      // In dark the thumb was --sw-surface on a --sw-surface-3 track - DARKER than its track (~1.25:1), a hole instead of a raised key.
+      // The dark thumb is the track lifted toward the ink, with a hairline ring and a drop shadow; light is `initial` (guaranteed-
+      // invalid), so every user writes `var(--sw-seg-thumb, <its own light fill>)` and light keeps its exact pixels. Resolved at :root
+      // (shell scheme): a glass host with its own scheme does not read it (tests/unit-dark-polish-beds.spec.ts measures every skin).
+      '--sw-seg-thumb': lt('initial', 'color-mix(in srgb, var(--sw-text) 10%, var(--sw-surface-3-solid))'),
+      '--sw-seg-thumb-shadow': lt('initial', '0 0 0 1px color-mix(in srgb, var(--sw-text) 20%, transparent), 0 1px 3px rgba(0, 0, 0, 0.5)'),
     },
   },
   {

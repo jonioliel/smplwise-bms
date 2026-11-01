@@ -313,9 +313,10 @@ export class SwTabs extends LitElement {
       box-sizing: border-box;
       justify-content: center;
     }
+    /* DARK-REVIEW-2342: the dark thumb is a raised key (--sw-seg-thumb, design/tokens.ts); light falls back to the surface */
     :host([data-variant='pill']) .on .lbl {
-      background: var(--sw-surface);
-      box-shadow: var(--sw-shadow-1);
+      background: var(--sw-seg-thumb, var(--sw-surface));
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
       font-weight: var(--sw-fw-semibold);
     }
 

@@ -169,7 +169,7 @@ const rules = `
 :host(sw-toggle[checked]) button { background: var(--sw-toggle-on); }
 :host(sw-tabs[data-variant='pill']) .row::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-3); }
 :host(sw-tabs[data-variant='pill']) .lbl { border-radius: var(--sw-r-pill); }
-:host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight); }
+:host(sw-tabs[data-variant='pill']) .on .lbl { background: var(--sw-seg-thumb, var(--sw-surface-solid)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight)); }
 /* crystal 8 - floating layers read on anything: the solid twin under the sheen, a sheet blur behind, a luminous rim; the menus (a popover, a dropdown's list) are fully opaque, no blur (owner 2026-10-13) */
 :host(sw-dialog) .box, :host(sw-drawer) .panel { background: var(--sw-glass-sheen), var(--sw-surface-solid); border-color: var(--sw-border); -webkit-backdrop-filter: var(--sw-glass-blur-sheet); backdrop-filter: var(--sw-glass-blur-sheet); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
 :host(sw-popover), :host(sw-dropdown) .pop { background: var(--sw-glass-sheen), var(--sw-menu-surface); border-color: var(--sw-menu-border); box-shadow: var(--sw-shadow-3), inset 0 1px 0 var(--sw-highlight); }
