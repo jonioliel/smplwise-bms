@@ -86,8 +86,9 @@ export interface Bar {
 
 /** The electricity meter card's bar chart (thin bars, the latest in the accent, a value on the latest and the highest), with the water
  * additions of the mockup: the night share at the foot, leak bars in the danger colour, the night window shaded. */
-export function waterBarChart(data: Bar[], ariaLabel: string, fmt: (v: number) => string = (v) => nf.format(v)): TemplateResult {
-  const W = 640;
+export function waterBarChart(data: Bar[], ariaLabel: string, fmt: (v: number) => string = (v) => nf.format(v), width = 640): TemplateResult {
+  // the drawing width: the measured width of the chart's box (one user unit = one CSS pixel, the labels at their real size), 640 by default
+  const W = Math.max(320, Math.round(width));
   const H = 170;
   const pad = 26;
   if (!data.length) return html`<div class="mut">${wt('chartNoData')}</div>`;

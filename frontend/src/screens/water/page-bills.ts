@@ -23,7 +23,7 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 const csvCell = (s: string) => `"${(/^[=+\-@\t\r]/.test(s) ? `'${s}` : s).replace(/"/g, '""')}"`;
-const skeletonCard = (n = 6) => html`<div class="card" aria-busy="true">${Array.from({ length: n }, () => html`<div class="row" style="padding:10px 0"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div>`;
+const skeletonCard = (n = 6) => html`<div class="card" aria-busy="true">${Array.from({ length: n }, () => html`<div class="row skrow"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div>`;
 type Dlg = '' | 'issue' | 'void' | 'correct' | 'sent' | 'paid' | 'delete';
 type How = 'email' | 'hand' | 'other';
 const HOW_KEY = { email: 'howEmail', hand: 'howHand', other: 'howOther' } as const;
@@ -58,7 +58,8 @@ export class WaterBillsPage extends LitElement {
   @state() private ref = '';
   @state() private busy = false;
   @state() private error = '';
-  private shown = '';
+  /** the bill (or '' for the list) on screen; null until the first route arrives (a '' start skipped the first list load) */
+  private shown: string | null = null;
   private stop?: () => void;
 
   static styles = [waterCss, bubbleChrome];
@@ -169,7 +170,7 @@ export class WaterBillsPage extends LitElement {
     const late = this.all.filter((b) => isLate(b, t)).length;
     return html`<div class="page" data-water="bills" data-state=${list.length ? 'ready' : 'filtered-empty'}>
       <div class="row head">
-        <div class="seg" role="group" aria-label=${wt('stateFilter')} data-bill-filter>
+        <div class="seg scroll-seg" role="group" aria-label=${wt('stateFilter')} data-bill-filter>
           <button type="button" data-filter="" aria-pressed=${this.filter === '' ? 'true' : 'false'} @click=${() => (this.filter = '')}>${wt('fAll')} <span class="num">${this.all.length}</span></button>
           ${STATES.map((s) => html`<button type="button" data-filter=${s} aria-pressed=${this.filter === s ? 'true' : 'false'} @click=${() => (this.filter = s)}>${BILL_STATE[s].label} <span class="num">${cnt(s)}</span></button>`)}</div>
         <label class="inp"><sw-icon name="search" size="16"></sw-icon><input type="search" data-bill-search placeholder=${wt('billSearch')} aria-label=${wt('billSearch')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
@@ -180,7 +181,7 @@ export class WaterBillsPage extends LitElement {
         <div class="tile"><div class="k">${wt('tBillDrafts')}</div><div class="v"><span class="num" data-bt="draft">${cnt('draft')}</span></div></div>
         <div class="tile"><div class="k">${wt('tOpenAmount')}</div><div class="v"><span class="num" data-bt="open">${fmtIls(this.sums.open).replace(' ₪', '')}</span><span class="u">₪</span></div></div>
         <div class="tile"><div class="k">${wt('tPaid')}</div><div class="v"><span class="num" data-bt="paid">${fmtIls(this.sums.paid).replace(' ₪', '')}</span><span class="u">₪</span></div></div>
-        <div class="tile"><div class="k">${wt('tLate')}</div><div class="v" style=${late ? 'color:var(--sw-danger-text)' : ''}><span class="num" data-bt="late">${late}</span></div></div>
+        <div class="tile"><div class="k">${wt('tLate')}</div><div class="v ${late ? 'alarm' : ''}"><span class="num" data-bt="late">${late}</span></div></div>
       </div>
       ${list.length ? billsTable(list, false) : html`<sw-state-panel icon="search" state="empty" compact heading=${wt('noBillsFound')}></sw-state-panel>`}
     </div>`;

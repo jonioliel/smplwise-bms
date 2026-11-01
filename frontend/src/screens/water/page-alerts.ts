@@ -117,6 +117,14 @@ export class WaterAlertsPage extends LitElement {
     navigate('/infra/water/alerts', { ...rec, meter: e.meter_id });
   }
 
+  /** Enter or Space on an open alert's row opens its meter (not when the key belongs to a button inside the row). */
+  private onKey(ev: KeyboardEvent, e: WaterEvent) {
+    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === ev.currentTarget) {
+      ev.preventDefault();
+      this.openMeter(e);
+    }
+  }
+
   private closeMeter() {
     const rec: Record<string, string> = {};
     this.params.forEach((v, k) => k !== 'meter' && (rec[k] = v));
@@ -147,7 +155,7 @@ export class WaterAlertsPage extends LitElement {
   render() {
     if (!this.access.view) return html`<sw-state-panel state="forbidden" data-water="alerts" data-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'loading') {
-      return html`<div data-water="alerts" data-state="loading" aria-busy="true"><div class="card">${Array.from({ length: 7 }, () => html`<div class="row" style="padding:10px 0"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div></div>`;
+      return html`<div data-water="alerts" data-state="loading" aria-busy="true"><div class="card">${Array.from({ length: 7 }, () => html`<div class="row skrow"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div></div>`;
     }
     if (this.phase === 'error') {
       return html`<div data-water="alerts" data-state="error"><sw-state-panel state="error" heading=${wt('loadAlertsError')} hint=${this.error} actionLabel=${wt('retry')} @action=${() => void this.load(true)}></sw-state-panel></div>`;
@@ -167,22 +175,22 @@ export class WaterAlertsPage extends LitElement {
       ${this.access.manage || this.access.configure ? html`<button class="btn" type="button" data-leak-rules @click=${() => navigate('/infra/water/settings', { set: 'alerts' })}>${wt('leakRules')}</button>` : nothing}
     </div>`;
     const tiles = html`<div class="tiles" data-tiles>
-      <div class="tile"><div class="k">${wt('tOpen')}</div><div class="v" style=${s?.open ? 'color:var(--sw-danger-text)' : ''}><span class="num" data-t-open>${s?.open ?? 0}</span></div></div>
+      <div class="tile"><div class="k">${wt('tOpen')}</div><div class="v ${s?.open ? 'alarm' : ''}"><span class="num" data-t-open>${s?.open ?? 0}</span></div></div>
       <div class="tile"><div class="k">${wt('tClosedWeek')}</div><div class="v"><span class="num" data-t-closed>${closedWeek}</span></div></div>
       <div class="tile"><div class="k">${wt('tSnoozed')}</div><div class="v"><span class="num" data-t-snz>${s?.snoozed ?? 0}</span></div></div>
-      <div class="tile"><div class="k">${wt('tRule')}</div><div class="v"><span class="num">${r.night_from}-${r.night_to}</span><span class="u">${wt('ruleValue', { lph: r.night_min_lph, dur: durationWords(r.night_min_intervals * 15) })}</span></div></div>
+      <div class="tile"><div class="k">${wt('tRule')}</div><div class="v"><span class="num nw">${r.night_from}-${r.night_to}</span><span class="u">${wt('ruleValue', { lph: r.night_min_lph, dur: durationWords(r.night_min_intervals * 15) })}</span></div></div>
     </div>`;
     const body = !rows.length
       ? html`<sw-state-panel icon="check" state="empty" heading=${wt('emptyAlerts')} data-no-alerts></sw-state-panel>`
-      : html`<div class="card flush scrollx desk-only"><table class="t" data-alerts-table>
+      : html`<div class="card flush scrollx desk-only fitbox"><table class="t" data-alerts-table>
           <thead><tr><th>${wt('colMeter')}</th><th>${wt('colArea')}</th><th>${wt('colKind')}</th><th>${wt('colSince')}</th><th class="n">${wt('colValue')}</th><th>${wt('colState')}</th><th></th></tr></thead>
-          <tbody>${rows.map((e) => html`<tr class=${e.closed_at ? '' : 'pick'} tabindex=${e.closed_at ? -1 : 0} data-alert=${e.id} @click=${() => this.openMeter(e)} @keydown=${(ev: KeyboardEvent) => { if (ev.key === 'Enter' && ev.target === ev.currentTarget) this.openMeter(e); }}>
+          <tbody>${rows.map((e) => html`<tr class=${e.closed_at ? '' : 'pick'} tabindex=${e.closed_at ? -1 : 0} data-alert=${e.id} @click=${() => this.openMeter(e)} @keydown=${(ev: KeyboardEvent) => this.onKey(ev, e)}>
             <td class="b">${e.meter_name}</td><td>${e.area_name ?? '-'}<span class="mut dsk">${e.floor_name ? ` · ${e.floor_name}` : ''}</span></td><td>${eventKindLabel(e.kind)}</td>
             <td><span class="num">${dm(e.opened_at)}</span>${e.closed_at ? html`<span class="mut"> - <span class="num">${dm(e.closed_at)}</span></span>` : nothing}</td>
             <td class="n">${eventValue(e)}</td><td>${eventChip(e)}</td><td class="n">${this.actions(e)}</td></tr>`)}</tbody></table></div>
-        <div class="list phone-only" style="flex-direction:column" data-alerts-rows>${rows.map((e) => html`<div class="li ${e.closed_at ? 'dis' : 'pick'}" data-alert=${e.id} @click=${() => this.openMeter(e)}>
+        <div class="list phone-only" style="flex-direction:column" data-alerts-rows>${rows.map((e) => html`<div class="li ${e.closed_at ? 'dis' : 'pick'}" role=${e.closed_at ? nothing : 'button'} tabindex=${e.closed_at ? nothing : 0} data-alert=${e.id} @click=${() => this.openMeter(e)} @keydown=${(ev: KeyboardEvent) => this.onKey(ev, e)}>
           <div class="grow"><div class="t1">${e.meter_name} · ${eventKindLabel(e.kind)}</div><div class="t2 wrap">${e.area_name ?? ''} · ${wt('colSince')} <span class="num">${dm(e.opened_at)}</span> · ${eventValue(e)}</div></div>${eventChip(e)}${this.actions(e)}</div>`)}</div>`;
-    return html`<div class="page" data-water="alerts" data-state=${rows.length ? 'ready' : 'empty'}>
+    return html`<div class="page fit" data-water="alerts" data-state=${rows.length ? 'ready' : 'empty'}>
       ${head}
       ${this.notice ? html`<div class="notice" role="status" data-notice>${this.notice}</div>` : nothing}
       ${this.actionError ? html`<div class="alert err" role="alert">${this.actionError}</div>` : nothing}

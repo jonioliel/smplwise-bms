@@ -86,14 +86,33 @@ export class WaterMetersPage extends LitElement {
         border-radius: var(--sw-r-sm);
         cursor: pointer;
         text-align: start;
+        transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
       }
-      .tree button:hover {
-        background: var(--sw-surface-2);
+      @media (hover: hover) and (pointer: fine) {
+        .tree button:hover {
+          background: var(--sw-surface-2);
+        }
       }
+      .tree button:active {
+        transform: scale(var(--sw-press-scale));
+        background: var(--sw-surface-3);
+      }
+      .tree button:focus-visible {
+        outline: var(--sw-focus-w) solid var(--sw-focus);
+        outline-offset: calc(var(--sw-focus-w) * -1);
+      }
+      /* WKWATER-POLISH-2331 (as R5-MEDIA-ENERGY-297 on the electricity meters): the chosen area is a filled accent field, its count on it */
       .tree button[aria-current='true'] {
-        background: var(--sw-accent-soft);
-        color: var(--sw-accent-text);
-        font-weight: var(--sw-fw-semibold);
+        background: var(--sw-accent);
+        color: var(--sw-text-inverse);
+        font-weight: var(--sw-fw-bold);
+        box-shadow: var(--sw-shadow-primary);
+      }
+      .tree button[aria-current='true'] .cnt {
+        color: var(--sw-text-inverse);
+        opacity: 0.85;
       }
       .tree .fl {
         color: var(--sw-text-2);
@@ -126,10 +145,30 @@ export class WaterMetersPage extends LitElement {
         cursor: pointer;
         min-block-size: var(--elec-touch);
       }
+      /* WKWATER-POLISH-2331 (R5-MEDIA-ENERGY-297): today's m³ is the card's display numeral; the card answers the press */
       .mcard .big {
-        font-size: var(--sw-fs-3xl);
-        font-weight: var(--sw-fw-bold);
+        font-size: var(--sw-fs-4xl);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+        font-variant-numeric: tabular-nums;
         color: var(--sw-heading, var(--sw-text));
+      }
+      .mcard {
+        transition: transform var(--sw-t-press) var(--sw-ease-out), box-shadow var(--sw-t-fast) var(--sw-ease);
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .mcard:active {
+        transform: scale(var(--sw-press-scale));
+        box-shadow: var(--sw-shadow-1);
+      }
+      .mcard:focus-visible {
+        outline: var(--sw-focus-w) solid var(--sw-focus);
+        outline-offset: var(--sw-focus-offset);
+      }
+      .mcard .base {
+        align-items: baseline;
       }
       .cand {
         display: flex;
@@ -153,6 +192,49 @@ export class WaterMetersPage extends LitElement {
         }
         .head .inp.phone-only {
           flex: 1 1 160px;
+        }
+      }
+      /* WKWATER-POLISH-2331 (NOSCROLL-297, the electricity meters' rule; owner rule: a control screen fits the viewport on a desktop):
+         the tree and the meters list take the height left under the head and the tiles; the table (its header row stays in place), the
+         cards and the tree each scroll inside their own box, never the page. Below 240 px of room the row keeps that height. */
+      @media (min-width: 900px) {
+        [data-water='meters'][data-state='ready'] {
+          flex: 1 1 auto;
+          min-block-size: 0;
+        }
+        .cols {
+          flex: 1 1 auto;
+          min-block-size: 240px;
+          grid-template-rows: minmax(0, 1fr);
+        }
+        .cols > .tree-card {
+          max-block-size: 100%;
+          box-sizing: border-box;
+          overflow-y: auto;
+          scrollbar-width: thin;
+        }
+        .cols > .mlist {
+          display: flex;
+          flex-direction: column;
+          max-block-size: 100%;
+          min-block-size: 0;
+          min-inline-size: 0;
+        }
+        .mlist > .scrollx,
+        .mlist > .cards {
+          min-block-size: 0;
+          overflow: auto;
+          scrollbar-width: thin;
+        }
+        .mlist > .cards {
+          padding: 2px;
+          grid-auto-rows: max-content;
+          align-content: start;
+        }
+        .mlist table.t thead th {
+          position: sticky;
+          inset-block-start: 0;
+          z-index: 1;
         }
       }
     `,
@@ -257,7 +339,7 @@ export class WaterMetersPage extends LitElement {
       <div class="tile"><div class="k">${wt('tToday')}</div><div class="v"><span class="num" data-t="today">${fmtM3(sum('today_l'))}</span><span class="u">${wt('m3')}</span></div></div>
       <div class="tile"><div class="k">${wt('tMonth')}</div><div class="v"><span class="num" data-t="month">${fmtM3(sum('month_l'))}</span><span class="u">${wt('m3')}</span></div></div>
       <div class="tile"><div class="k">${wt('tReporting')}</div><div class="v"><span class="num" data-t="reporting">${reporting}</span><span class="u">${wt('tOf', { n: live.length })}</span></div></div>
-      <div class="tile"><div class="k">${wt('tLeak')}</div><div class="v" style=${leaks ? 'color:var(--sw-danger-text)' : ''} data-t-leak><span class="num" data-t="leaks">${leaks}</span><span class="u">${wt('tMeters')}</span></div></div>
+      <div class="tile"><div class="k">${wt('tLeak')}</div><div class="v ${leaks ? 'alarm' : ''}" data-t-leak><span class="num" data-t="leaks">${leaks}</span><span class="u">${wt('tMeters')}</span></div></div>
     </div>`;
   }
 
@@ -289,14 +371,14 @@ export class WaterMetersPage extends LitElement {
     return html`<div class="cards desk-only" data-meters-cards>${list.map((m) => html`<div class="card mcard" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
       <div class="row"><b>${m.display_name}</b><span class="sp"></span>${this.chip(m)}</div>
       <div class="mut">${m.area_name ?? ''}${m.floor_name ? ` · ${m.floor_name}` : ''}</div>
-      <div class="row" style="align-items:baseline"><span class="big num">${m3OfL(m.today_l)}</span><span class="mut">${wt('todayM3')}</span><span class="sp"></span><span class="mut num">${m3OfL(m.value_l)}</span></div>
+      <div class="row base"><span class="big num">${m3OfL(m.today_l)}</span><span class="mut">${wt('todayM3')}</span><span class="sp"></span><span class="mut num">${m3OfL(m.value_l)}</span></div>
       <div class="mut">${wt('colNight')} <span class="num">${nightText(this.night[m.id])}</span>${typeof this.night[m.id] === 'number' ? ` ${wt('lph')}` : ''}</div></div>`)}</div>`;
   }
 
   private renderRows(list: Meter[]) {
     return html`<div class="list phone-only" style="flex-direction:column" data-meters-rows>${list.map((m) => html`<div class="li pick" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.openMeter(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
       <div class="grow"><div class="t1">${m.display_name}</div><div class="t2">${m.area_name ?? ''} · ${wt('tToday')} <span class="num">${m3OfL(m.today_l)}</span> ${wt('m3')}</div></div>
-      <div style="text-align:end">${this.chip(m)}<div class="t2 num" style="margin-block-start:4px">${m3OfL(m.value_l)}</div></div></div>`)}</div>`;
+      <div class="rowend">${this.chip(m)}<div class="t2 num">${m3OfL(m.value_l)}</div></div></div>`)}</div>`;
   }
 
   // ---------------------------------------------------------------- add a meter (water.manage)
@@ -403,7 +485,7 @@ export class WaterMetersPage extends LitElement {
           @close=${() => this.setParams({ meter: null })} @changed=${() => void this.load(false)}></water-meter-card>`
       : nothing;
     if (this.phase === 'loading') {
-      return html`<div data-water="meters" data-state="loading" aria-busy="true"><div class="card">${Array.from({ length: 7 }, () => html`<div class="row" style="padding:10px 0"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div></div>`;
+      return html`<div data-water="meters" data-state="loading" aria-busy="true"><div class="card">${Array.from({ length: 7 }, () => html`<div class="row skrow"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div></div>`;
     }
     if (this.phase === 'error') {
       return html`<div data-water="meters" data-state="error"><sw-state-panel state="error" heading=${wt('loadMetersError')} hint=${this.error} actionLabel=${wt('retry')} @action=${() => void this.load(true)}></sw-state-panel></div>`;
@@ -419,7 +501,7 @@ export class WaterMetersPage extends LitElement {
       ${this.renderHead()}
       ${this.notice ? html`<div class="notice" role="status" data-notice>${this.notice}</div>` : nothing}
       ${this.renderTiles()}
-      <div class="cols"><div class="card tree-card">${this.renderTree()}</div><div>${body}</div></div>
+      <div class="cols"><div class="card tree-card">${this.renderTree()}</div><div class="mlist">${body}</div></div>
       ${this.renderAdd()}${card}
     </div>`;
   }

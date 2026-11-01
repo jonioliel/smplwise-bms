@@ -21,7 +21,7 @@ import { dateInputLang } from '../../api/day-format';
 type Section = 'prices' | 'alerts';
 const MAX_CHOICES = [1440, 10080, 43200];
 const PRICE = /^\d{1,6}(\.\d{1,4})?$/;
-const skeletonCard = (n = 5) => html`<div class="card" aria-busy="true">${Array.from({ length: n }, () => html`<div class="row" style="padding:10px 0"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div></div>`)}</div>`;
+const skeletonCard = (n = 5) => html`<div class="card" aria-busy="true">${Array.from({ length: n }, () => html`<div class="row skrow"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div></div>`)}</div>`;
 
 interface VersionForm {
   tariffId: string | null;
