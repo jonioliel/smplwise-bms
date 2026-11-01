@@ -27,7 +27,7 @@ interface Form {
   notes: string;
 }
 const blank = (no = ''): Form => ({ name: '', customer_number: no, tax_id: '', address: '', phone: '', email: '', notes: '' });
-const skeletonCard = (n = 6) => html`<div class="card" aria-busy="true">${Array.from({ length: n }, () => html`<div class="row" style="padding:10px 0"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div>`;
+const skeletonCard = (n = 6) => html`<div class="card" aria-busy="true">${Array.from({ length: n }, () => html`<div class="row skrow"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div>`;
 
 /**
  * תשתיות › מים › לקוחות (CR-WATER78 section 16, D11): the electricity customers (elec-customers.ts) - the SHARED customer card - as a table
@@ -182,7 +182,7 @@ export class WaterCustomersPage extends LitElement {
             <div class="list" data-customer-accounts>${(c.accounts ?? []).map((a) => html`<a class="li" href=${`#/infra/water/accounts/${a.id}`}><div class="grow"><div class="t1">${a.name}</div></div>${a.status === 'paused' ? html`<span class="chip c-mut">${wt('accPaused')}</span>` : nothing}</a>`)}${c.accounts?.length ? nothing : html`<div class="mut">${wt('cNoAccounts')}</div>`}</div>
             ${c.bills?.length ? html`<b class="h3">${wt('cRecentBills')}</b>${billsTable(c.bills.slice(0, 4), true)}` : nothing}` : nothing}
           ${this.error ? html`<div class="alert err" role="alert" data-customer-error>${this.error}</div>` : nothing}
-          ${this.access.manage ? html`<div class="row"><button type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save()}>${wt('save')}</button><span class="sp"></span>
+          ${this.access.manage ? html`<div class="row formacts"><button type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save()}>${wt('save')}</button><span class="sp"></span>
             ${c ? html`<button type="button" class="btn dng" data-delete title=${blocked ? wt('cDeleteRefused') : ''} @click=${() => { if (blocked) this.error = wt('cDeleteRefused'); else this.confirmDel = true; }}>${wt('cDelete')}</button>` : nothing}</div>` : nothing}`}
         <elec-dialog heading=${wt('cDelete')} ?open=${this.confirmDel} data-dialog="delete-customer" @close=${() => (this.confirmDel = false)}>
           <div>${wt('cDeleteBody')}</div>
@@ -216,7 +216,7 @@ export class WaterCustomersPage extends LitElement {
             <td class="n"><span class="num">${c.account_count}</span></td><td class="n"><span class="num">${c.open_balance !== undefined ? fmtIls(c.open_balance) : ''}</span></td></tr>`)}</tbody></table></div>
         <div class="list phone-only" style="flex-direction:column" data-cust-rows>${list.map((c) => html`<a class="li" href=${`#${BASE}/${c.id}`} data-customer-row=${c.id}>
           <div class="grow"><div class="t1">${c.name} · <span class="num">${c.customer_number}</span></div><div class="t2">${c.address ?? ''}${c.phone ? html` · <span class="num">${c.phone}</span>` : nothing}</div></div>
-          <div class="t2 num" style="text-align:end">${c.open_balance !== undefined ? fmtIls(c.open_balance) : ''}</div></a>`)}</div>`;
+          <div class="rowend"><div class="t2 num">${c.open_balance !== undefined ? fmtIls(c.open_balance) : ''}</div></div></a>`)}</div>`;
     return html`<div class="page" data-water="customers" data-state=${this.st}>${head}${body}${this.segments[0] ? this.renderCard() : nothing}</div>`;
   }
 }
