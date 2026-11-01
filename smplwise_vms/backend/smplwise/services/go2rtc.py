@@ -18,7 +18,7 @@ import logging
 import re
 import threading
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable
 from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
@@ -170,6 +170,35 @@ class StreamInfo:
     name: str
     sources: list[str]
     online: bool
+    # LIVE-H265-2341: the video codec go2rtc's producer reports once it has connected (`h264` | `h265` | `mjpeg` | other
+    # lower-case name); None while no producer is connected (go2rtc only knows the codec after the first consumer)
+    video_codec: str | None = None
+
+
+_MEDIA_CODEC_RE = re.compile(r"^\s*video\s*,[^,]*,\s*([A-Za-z0-9.+_-]+)")
+
+
+def producer_video_codec(producers: list[Any]) -> str | None:
+    """LIVE-H265-2341: the video codec of a go2rtc stream from its producers, as `GET /api/streams` reports them: the
+    `receivers[].codec.codec_name` of go2rtc 1.9 (`h264`, `h265`), else the SDP-like `medias` strings
+    (`"video, recvonly, H265"`). Lower case, `hevc` folded into `h265`; None when no producer says."""
+    for p in producers:
+        if not isinstance(p, dict):
+            continue
+        for rec in p.get("receivers") or []:
+            codec = (rec or {}).get("codec") if isinstance(rec, dict) else None
+            if isinstance(codec, dict) and codec.get("codec_type", "video") == "video" and codec.get("codec_name"):
+                return _fold_codec(str(codec["codec_name"]))
+        for media in p.get("medias") or []:
+            m = _MEDIA_CODEC_RE.match(str(media))
+            if m:
+                return _fold_codec(m.group(1))
+    return None
+
+
+def _fold_codec(name: str) -> str:
+    n = name.strip().lower().replace(".", "")
+    return {"hevc": "h265", "avc": "h264", "jpeg": "mjpeg"}.get(n, n)
 
 
 class Go2rtc:
@@ -212,7 +241,7 @@ class Go2rtc:
             producers = (value or {}).get("producers") or []
             sources = [p.get("url", "") for p in producers if isinstance(p, dict)]
             online = any(p.get("medias") or p.get("receivers") for p in producers if isinstance(p, dict))
-            out[name] = StreamInfo(name=name, sources=sources, online=online)
+            out[name] = StreamInfo(name=name, sources=sources, online=online, video_codec=producer_video_codec(producers))
         return out
 
     def ensure_stream(self, name: str, src: str, check: Callable[[dict[str, StreamInfo]], None] | None = None) -> str:

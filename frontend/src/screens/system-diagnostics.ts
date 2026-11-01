@@ -23,6 +23,10 @@ import { demoHealth, demoJobs } from '../fixtures/catalog';
 import { can, isApi, nvrLess, onRemote, LOCAL_ONLY_GENERIC } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
 import { invalidateSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/prefs';
+import { normalizePolicy, type H265Policy } from '../api/h265-support';
+
+/** LIVE-H265-2341: הגדרות › וידאו ומדיה › "קידוד H.265 בדפדפן" (media.h265_policy). */
+const H265_POLICY_OPTIONS: [H265Policy, string][] = [['auto', 'אוטומטי — ברירת המחדל'], ['sub', 'תמיד זרם משני'], ['transcode', 'תמיד תרגום'], ['off', 'כבוי (הזרם כמו שהוא)']];
 import { ApiError, describeError, get } from '../api/client';
 import { navigate, parseRoute, replaceRoute } from '../router';
 import { settingsStyles } from '../styles/settings';
@@ -869,6 +873,14 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">הודעות על אופן ההזרמה<span class="muted">הודעה על הנגן כשהווידאו עובר ב־MSE במקום WebRTC, ושורות ההסבר מתחת למצלמה. כבוי (ברירת מחדל): המסך נקי, והתג על הנגן ממשיך להראות מה מתנגן ומסביר בריחוף. הפעלה מתאימה למי שבודק בעיית תעבורה</span></span>
           <sw-field class="ctl"><select data-set-video-notices ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.video_notices', (e.target as HTMLSelectElement).value as 'true' | 'false')}>
             <option value="false" ?selected=${String(this.value('media.video_notices') ?? 'false') !== 'true'}>מוסתרות</option><option value="true" ?selected=${String(this.value('media.video_notices') ?? 'false') === 'true'}>מוצגות</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">קידוד H.265 בדפדפן<span class="muted">מצלמה שהזרם שלה H.265 ודפדפן שלא מפענח אותו (Chrome ו־Edge ב־WebRTC). אוטומטי (ברירת מחדל): הזרם האחר של המצלמה כשהוא H.264, אחרת תרגום ל־H.264 בשרת הווידאו, אחרת הודעה על האריח · תמיד זרם משני: רק הזרם האחר · תמיד תרגום: רק תרגום · כבוי: הזרם כמו שהוא. קידוד ה־NVR לא משתנה</span></span>
+          <sw-field class="ctl"><select data-set-h265-policy ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.h265_policy', (e.target as HTMLSelectElement).value as H265Policy)}>
+            ${H265_POLICY_OPTIONS.map(([v, l]) => html`<option value=${v} ?selected=${normalizePolicy(this.value('media.h265_policy')) === v}>${l}</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">תרגומים במקביל<span class="muted">כמה מצלמות שונות מתורגמות ל־H.264 בו־זמנית (התרגום כבד על המעבד של שרת הווידאו). מעבר למכסה האריח מציג תמונה מתעדכנת עם הודעה. 0 = בלי תרגום</span></span>
+          <sw-field class="ctl"><select data-set-h265-transcodes ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.h265_max_transcodes', Number((e.target as HTMLSelectElement).value))}>
+            ${[0, 1, 2, 3, 4, 6, 8].map((n) => html`<option value=${n} ?selected=${Number(this.value('media.h265_max_transcodes') ?? 2) === n}>${n === 2 ? `${n} — ברירת המחדל` : n === 0 ? '0 — בלי תרגום' : n}</option>`)}
           </select></sw-field></div>
         <div class="row"><span class="lbl">פרופיל לקיר המצלמות<span class="muted">משני חוסך CPU ורוחב פס; ראשי לתצוגה בודדת</span></span>
           <sw-field class="ctl"><select ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.wall_profile', (e.target as HTMLSelectElement).value as 'sub' | 'main')}>

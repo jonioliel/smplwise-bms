@@ -646,7 +646,7 @@ export class DevicesCameraCard extends LitElement {
             <div class="bar"><span>${name}</span><button type="button" data-camera-big-close @click=${() => this.closeBig()}>סגור</button></div>
             <div class="view">
               ${r.state === 'live' && r.camera_id
-                ? html`<sw-live-player .cameraId=${r.camera_id} .profile=${'main'} .mode=${effectiveTransport(this.settings)} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${snapshotUrl(r.camera_id, this.snapBust)}></sw-live-player>`
+                ? html`<sw-live-player .cameraId=${r.camera_id} .profile=${'main'} .mode=${effectiveTransport(this.settings)} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .encoding=${r.encoding ?? null} .poster=${snapshotUrl(r.camera_id, this.snapBust)}></sw-live-player>`
                 : r.state === 'ha_live' && r.live_path && !this.haFailedAt
                   ? html`<sw-live-player .livePath=${r.live_path} .mode=${effectiveTransport(this.settings)} .poster=${stillUrl(r.entity_id ?? '', this.snapBust)}></sw-live-player>`
                   : html`<img src=${apiUrl(`devices/camera-card/still?entity_id=${encodeURIComponent(r.entity_id ?? '')}&t=${this.snapBust}`)} alt=${name} />`}
