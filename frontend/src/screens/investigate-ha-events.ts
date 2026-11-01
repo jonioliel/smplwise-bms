@@ -44,13 +44,26 @@ export class InvestigateHaEvents extends LitElement {
   @state() private facets: EventFacets | null = null;
   @state() private unsupported: UnsupportedFilter[] = [];
   @state() private live = false;
+  /** EVENTS-POLISH-2331: a phone gets the modal full-screen sheet; with the drawer open Esc closes it and Up / Down move along the list. */
+  @state() private narrow = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+  private mq?: MediaQueryList;
   private qTimer = 0;
   private pushTimer = 0;
   private unsubscribe: (() => void) | undefined;
   private reqSeq = 0;
 
   static styles = [css`
-    :host { display: block; }
+    /* EVENTS-POLISH-2331 (the event centre's fix, same pattern): from a tablet up the screen takes the height the shell leaves it, the list
+       scrolls inside its own box with a sticky header and the drawer is as tall as that box, so its footer stays in view; a phone keeps the
+       page scroll and gets a full-screen modal sheet. */
+    :host { display: flex; flex-direction: column; min-block-size: 0; min-inline-size: 0; }
+    sw-page { flex: 1; min-block-size: 0; }
+    @media (min-width: 768px) {
+      sw-page { block-size: 100%; padding-block-end: 16px; }
+      .stage { flex: 1; min-block-size: 240px; display: flex; flex-direction: column; }
+      .stage > sw-table { flex: 0 1 auto; min-block-size: 0; }
+    }
+    sw-drawer[data-ha-drawer] { --sw-drawer-sheet-h: 100dvh; --sw-drawer-sheet-max-h: 100dvh; }
     .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .filters sw-field { inline-size: 160px; }
     .filters sw-field:has(input[type='search']) { inline-size: 240px; }
@@ -66,7 +79,7 @@ export class InvestigateHaEvents extends LitElement {
     .dot { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--sw-offline); display: inline-block; box-shadow: 0 0 0 2px var(--sw-offline-soft); flex: none; }
     .dot.on { background: var(--sw-online, var(--sw-accent)); box-shadow: 0 0 0 2px var(--sw-accent-soft); }
     .ro { display: inline-flex; gap: 6px; align-items: center; margin-inline-start: auto; color: var(--sw-text-3); }
-    .stage { position: relative; min-block-size: 320px; margin-block-start: 8px; }
+    .stage { position: relative; min-block-size: 280px; margin-block-start: 8px; }
     .ty { display: inline-flex; align-items: center; gap: 7px; font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-md); color: var(--sw-heading); }
     .ty i { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--tone); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tone) 22%, transparent); flex: none; }
     .sub { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
@@ -83,6 +96,10 @@ export class InvestigateHaEvents extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.mq = window.matchMedia('(max-width: 767px)');
+    this.mq.addEventListener('change', this.onMedia);
+    this.narrow = this.mq.matches;
+    window.addEventListener('keydown', this.onKey);
     void this.init();
     this.unsubscribe = subscribeEvents(
       (ev) => this.onPushed(ev),
@@ -92,10 +109,39 @@ export class InvestigateHaEvents extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.mq?.removeEventListener('change', this.onMedia);
+    window.removeEventListener('keydown', this.onKey);
     this.unsubscribe?.();
     window.clearTimeout(this.qTimer);
     window.clearTimeout(this.pushTimer);
   }
+
+  private onMedia = () => {
+    this.narrow = !!this.mq?.matches;
+  };
+
+  private onKey = (e: KeyboardEvent) => {
+    if (this.narrow || !this.selected || e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+    const path = e.composedPath();
+    if (path.some((el) => el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.isContentEditable))) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      this.selected = null;
+      return;
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const ids = (this.events ?? []).map((x) => x.id);
+    const next = ids[ids.indexOf(this.selected) + (e.key === 'ArrowDown' ? 1 : -1)];
+    if (!next || ids.indexOf(this.selected) < 0) return;
+    e.preventDefault();
+    this.selected = next;
+    void this.updateComplete.then(() => {
+      const row = (this.renderRoot.querySelector('sw-table') as HTMLElement | null)?.shadowRoot?.querySelector(`tr[data-row-id="${CSS.escape(next)}"]`) as HTMLElement | null;
+      if (!row) return;
+      row.style.scrollMarginBlock = '48px 12px';
+      row.scrollIntoView({ block: 'nearest' });
+    });
+  };
 
   private async init() {
     try {
@@ -188,7 +234,7 @@ export class InvestigateHaEvents extends LitElement {
       { key: 'camera_name', label: hev('colSensor'), render: (r) => html`${String(r.camera_name ?? '—')}` },
       { key: 'place', label: hev('colArea'), render: (r) => { const p = placeLabel((r as unknown as SensorEvent).place); return p ? html`${p}` : html`<span class="sub">${hev('noArea')}</span>`; } },
       { key: 'occurred_at', label: hev('colTime'), render: (r) => html`<span class="ltr" style="font-weight:700;font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)">${this.fmt(String(r.occurred_at))}</span><div class="sub ltr">${this.fmtDate(String(r.occurred_at))}</div>` },
-      { key: 'severity', label: hev('colSeverity'), render: (r) => html`<sw-badge filled kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${this.sev(String(r.severity))}></sw-badge>` },
+      { key: 'severity', label: hev('colSeverity'), render: (r) => html`<sw-badge ?filled=${r.severity !== 'info'} kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${this.sev(String(r.severity))}></sw-badge>` },
     ];
   }
 
@@ -241,7 +287,7 @@ export class InvestigateHaEvents extends LitElement {
 
   private renderDrawer(ev: SensorEvent) {
     const d = ev.details as { from?: unknown; to?: unknown };
-    return html`<sw-drawer open heading=${describeSensorEvent(ev)} subheading=${`${ev.camera_name ?? ''} · ${this.fmt(ev.occurred_at)}`} data-ha-drawer @close=${() => (this.selected = null)}>
+    return html`<sw-drawer open ?modal=${this.narrow} heading=${describeSensorEvent(ev)} subheading=${`${ev.camera_name ?? ''} · ${this.fmt(ev.occurred_at)}`} data-ha-drawer @close=${() => (this.selected = null)}>
       <dl class="r5-facts">
         <div class="wide"><dt>${hev('drawerEvent')}</dt><dd>${describeSensorEvent(ev)}${ev.count > 1 ? ` · ${hev('repeats', { n: ev.count })}` : ''}</dd></div>
         <div><dt>${hev('drawerSensor')}</dt><dd>${ev.camera_name ?? '—'}</dd></div>
