@@ -31,8 +31,9 @@ import { dlt } from '../tickets/delete-text';
 import { LiveRefresh } from '../tickets/live-refresh';
 import { listViewSwitch, type ListMode } from '../tickets/list-view-switch';
 import { setCalendarWanted } from '../tickets/calendar-mode';
-import { applyCardFilters, activeCardFilters, NO_CARD_FILTERS, type CardFilters } from '../tickets/list-filters';
-import { filterButton, filterRow } from '../tickets/list-filter-row';
+import { applyCardFilters, NO_CARD_FILTERS, type CardFilters } from '../tickets/list-filters';
+import { cardFilterChips, filterRow } from '../tickets/list-filter-row';
+import { activeChips, filterPanel, filterToggle, FilterPanelController, panelSection, ticketToolbarStyles, type ActiveChip } from '../tickets/list-toolbar';
 import { roleFor, avatarPair } from '../tickets/list-card-model';
 import { loadMeter, todayEntries } from '../tickets/board-today';
 import { lt } from '../tickets/list-text';
@@ -78,10 +79,11 @@ export class TicketsBoard extends LitElement {
   @state() private now = new Date();
   @state() private q = '';
   @state() private toast: { text: string; tone: 'ok' | 'bad' } | null = null;
-  /** TKUI4: the filter row over the held cards, and the title that compacts while the page scrolls */
-  @state() private filterRowOpen = false;
+  /** TKUI4: the card filters over the held cards (TICKETS-POLISH-2331: in the one "סינון" panel), and the title that compacts while the page scrolls */
   @state() private filters: CardFilters = { ...NO_CARD_FILTERS };
   @state() private compactHeader = false;
+  /** TICKETS-POLISH-2331: the "סינון" panel - Escape, a press outside, the focus in and back */
+  readonly panelCtl = new FilterPanelController(this, () => this.filterOpen, (open) => (this.filterOpen = open));
   private pendingQ: string | null = null;
   private key = '';
   private seq = 0;
@@ -91,7 +93,7 @@ export class TicketsBoard extends LitElement {
   private live = new LiveRefresh(() => { this.now = new Date(); if (this.screen === 'ready') void this.load(true); }); // 2.5.4: shared poller
   private toastTimer = 0;
   private offNames: (() => void) | null = null;
-  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, ticketBoardV5Styles, css`
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, ticketBoardV5Styles, ticketToolbarStyles, css`
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -103,16 +105,37 @@ export class TicketsBoard extends LitElement {
     }
     .side {
       position: sticky;
-      inset-block-start: 12px;
+      inset-block-start: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    /* TICKETS-POLISH-2331 (audit §7.5.9): the tree's own head carries its hide control (it was a third button on the title row) */
+    .sidehead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-inline: 6px 2px;
+      min-block-size: 32px;
+    }
+    .sidehead b {
+      font-size: var(--sw-fs-sm);
+      font-weight: 700;
+      color: var(--dv-text-2);
+    }
+    .sidehead .btn {
+      box-shadow: none;
+    }
+    .treeshow {
+      flex: none;
+      margin-inline-start: auto;
     }
     .cgrid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
       gap: var(--dv-gap-lg, 16px);
       align-items: stretch;
-    }
-    .search {
-      min-inline-size: 240px;
     }
     .cnt {
       display: inline-grid;
@@ -169,11 +192,6 @@ export class TicketsBoard extends LitElement {
       flex-direction: column;
       gap: 10px;
     }
-    .tools {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
     .note {
       font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
@@ -190,16 +208,13 @@ export class TicketsBoard extends LitElement {
       z-index: 40;
       box-shadow: var(--dv-shadow-2);
     }
-    .fpanel {
-      max-inline-size: 360px;
-    }
-    /* NOSCROLL-297 (owner rule: a control screen fits the viewport on a desktop): below the header the board (the today row, the tree,
-       the groups of cards) scrolls in its own region - the page itself never scrolls and the controls stay in place; the tree stays
-       beside the cards (sticky inside the region). On a tablet and a phone the region is transparent and the page scrolls as before. */
+    /* NOSCROLL-297 + TICKETS-POLISH-2331 (owner rule: a control screen fits the viewport): from a tablet up, below the header the board (the
+       today row, the tree, the groups of cards) scrolls in its own region - the page itself never scrolls and the controls stay in place;
+       the tree stays beside the cards (sticky inside the region). On a phone the region is transparent and the page scrolls. */
     .scr {
       display: contents;
     }
-    @media (min-width: 1024px) {
+    @media (min-width: 768px) {
       :host {
         overflow: hidden;
       }
@@ -208,78 +223,53 @@ export class TicketsBoard extends LitElement {
         min-block-size: 0;
         box-sizing: border-box;
         padding-block-end: 0;
+        gap: 18px;
       }
       .scr {
         display: flex;
         flex-direction: column;
-        gap: inherit;
+        gap: 18px;
         flex: 1 1 auto;
         min-block-size: 0;
         overflow-y: auto;
         scrollbar-width: thin;
+        scrollbar-color: var(--dv-border-strong) transparent;
         margin-inline: -36px;
         padding: 2px 36px 28px;
       }
     }
+    @media (min-width: 768px) and (max-width: 1023px) {
+      .scr {
+        margin-inline: -24px;
+        padding-inline: 24px;
+      }
+      .layout.with-tree {
+        grid-template-columns: 240px minmax(0, 1fr);
+      }
+    }
     @media (max-width: 767px) {
       .dh-row {
-        grid-template-areas: 't .' 'r r';
-        grid-template-columns: minmax(0, 1fr) var(--sw-float-reserve, 0px);
+        grid-template-areas: 't p .' 'b b b' 'r r r';
+        grid-template-columns: minmax(0, 1fr) auto var(--sw-float-reserve, 0px);
       }
-      /* the manager's "board / handlers" switch takes a whole row of its own: auto-placed, it fell into the float-reserve column (0 px
-         wide) and its buttons spilled out of the track; it folds away with the floor chips while the header is compact */
+      .dh-row .pact {
+        grid-area: p;
+      }
+      /* the manager's "board / handlers" switch takes a whole row of its own, above the floor chips (it chooses the pane they filter); it
+         folds away with the floor chips while the header is compact */
       .dh-row > [data-board-pane] {
-        grid-column: 1 / -1;
+        grid-area: b;
         justify-self: start;
-      }
-      .dh-row > .grow {
-        display: none;
       }
       .dh.compact .dh-row > [data-board-pane] {
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
       }
-      .dh-det {
-        gap: 10px;
-      }
-      .dh-det .stf {
-        order: 1;
-        display: grid;
+      /* the state strip: three a row (nothing hidden behind a scroll, every count readable) */
+      .tb > .seg.stf {
+        grid-auto-flow: row;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        inline-size: 100%;
-        box-sizing: border-box;
-        border-radius: var(--sw-r-xl);
-      }
-      .dh-det .stf button {
-        padding-inline: 6px;
-      }
-      /* the departments are two columns on a phone (nothing hidden behind a scroll, as the state filter) */
-      .dh-det .depts {
-        order: 0;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        inline-size: 100%;
-        box-sizing: border-box;
-        border-radius: var(--sw-r-xl);
-      }
-      .dh-det .depts button {
-        min-inline-size: 0;
-        padding-inline: 6px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .dh-det .grow {
-        display: none;
-      }
-      .dh-det .search {
-        order: 2;
-        flex: 1 1 0;
-        min-inline-size: 0;
-      }
-      .dh-det .newbtn {
-        order: 2;
       }
       .flt {
         inset-block-end: calc(84px + env(safe-area-inset-bottom, 0px));
@@ -308,8 +298,8 @@ export class TicketsBoard extends LitElement {
   }
 
   private onScroll = () => {
-    // NOSCROLL-297: on a desktop the board scrolls inside its own region (.scr), on a phone / tablet the page itself
-    const compact = Math.max(this.scrollTop, this.renderRoot.querySelector<HTMLElement>('.scr')?.scrollTop ?? 0) > 40;
+    // TICKETS-POLISH-2331: only a scrolling PAGE compacts the header (a phone); from a tablet up the board scrolls in its own region
+    const compact = this.scrollTop > 40;
     if (compact !== this.compactHeader) this.compactHeader = compact;
   };
 
@@ -477,22 +467,58 @@ export class TicketsBoard extends LitElement {
 
   // ---------------------------------------------------------------- render
 
+  /** TICKETS-POLISH-2331: every board filter that is not at its default (the state strip and the text have their own controls). */
+  private chips(): ActiveChip[] {
+    const d = this.data;
+    const out: ActiveChip[] = [];
+    if (this.r.dept) {
+      const x = d?.departments.find((y) => y.id === this.r.dept);
+      out.push({ key: 'department', label: x ? x.name : lt('tbDept'), remove: () => this.go({ dept: '' }) });
+    }
+    // MGRDASH: the handler filter (a row of the overview's load card opens the board filtered to one handler)
+    if (this.r.assignee) out.push({ key: 'assignee', label: this.assigneeName(), remove: () => this.go({ assignee: undefined }), attrs: { 'data-assignee-filter': this.r.assignee, 'aria-label': ot('clearHandler', { name: this.assigneeName() }) } });
+    if (d) out.push(...cardFilterChips([...d.items, ...d.closed], this.filters, (next) => (this.filters = next)));
+    return out;
+  }
+
+  private resetFilters = (): void => {
+    this.filters = { ...NO_CARD_FILTERS };
+    if (this.r.dept || this.r.assignee) this.go({ dept: '', assignee: undefined });
+  };
+
+  /** The "סינון" panel of the board: the departments with their counts, the floors tree (D19 "chips + tree in the filter"), the card filters. */
+  private panelBody(layout: ReturnType<typeof floorsLayout>): TemplateResult {
+    const d = this.data;
+    const depts = d?.departments ?? [];
+    return html`
+      ${depts.length > 1 ? panelSection(lt('tbDept'), html`<div class="fchips" role="group" aria-label=${tt('departmentsGroup')} data-dept-chips>
+        <button type="button" class="rc" aria-pressed=${String(!this.r.dept)} data-dept="" @click=${() => this.go({ dept: '' })}>${tt('allDepartments')}<small>${depts.reduce((s, x) => s + x.count, 0)}</small></button>
+        ${depts.map((x) => html`<button type="button" class="rc" aria-pressed=${String(this.r.dept === x.id)} data-dept=${x.id} @click=${() => this.go({ dept: x.id })}>${bidi(x.name)}<small>${x.count}</small></button>`)}
+      </div>`, 'department') : nothing}
+      ${layout.treeInFilter && d ? panelSection(lt('tbPlace'), this.tree(d), 'place') : nothing}
+      ${d ? filterRow([...d.items, ...d.closed], this.filters, (next) => (this.filters = next)) : nothing}`;
+  }
+
+  private tree(d: BoardResponse): TemplateResult {
+    const total = d.tree.reduce((s, n) => s + (n.parent ? 0 : n.count), 0);
+    return html`<ticket-board-tree .nodes=${d.tree} .selected=${this.r.place} .total=${total} @place-pick=${(e: CustomEvent<{ key: string }>) => this.go({ place: e.detail.key })}></ticket-board-tree>`;
+  }
+
+  /**
+   * TICKETS-POLISH-2331 (design audit 27.10, P1-5): the title row - the title, the manager's board / handlers switch, the floor chips (D19)
+   * and the page actions (view switch, "+ חדשה"); ONE toolbar - the state strip with its counts (the board's scope), the search, "סינון"
+   * (departments, the floors tree when D19 puts it there, priority, handler, flags) and the chips of what is narrowed now.
+   */
   private header(): TemplateResult {
     const d = this.data;
     const ui = this.ui();
     const layout = floorsLayout(ui.board_floors, this.treeHidden, this.phone);
     const tools = this.screen === 'ready' || this.screen === 'loading';
-    const depts = d?.departments ?? [];
     const canCreate = !!this.meta?.can.create;
-    const chips = d && layout.chips ? floorChips(d.tree) : [];
+    const floor = d && layout.chips ? floorChips(d.tree) : [];
     const handlersPane = this.r.pane === 'handlers';
-    const deptSeg = depts.length > 1 ? html`<div class="seg sm depts" role="radiogroup" aria-label=${tt('departmentsGroup')} data-dept-chips>
-          <button type="button" role="radio" aria-checked=${String(!this.r.dept)} data-dept="" @click=${() => this.go({ dept: '' })}>${tt('allDepartments')}<small>${depts.reduce((s, x) => s + x.count, 0)}</small></button>
-          ${depts.map((x) => html`<button type="button" role="radio" aria-checked=${String(this.r.dept === x.id)} data-dept=${x.id} @click=${() => this.go({ dept: x.id })}>${bidi(x.name)}<small>${x.count}</small></button>`)}
-        </div>` : nothing;
-    // GATEFIX2240-297: the departments and the view switch stay on the second row at every width. On the title row (NOSCROLL-297) they
-    // clipped the board's header at 1024 px and left no room for the shell's dropdown chips in placement 3; the cards still scroll in
-    // their own region (.scr) on a desktop, so the page does not scroll.
+    const chips = this.chips();
+    const panel = this.filterOpen ? filterPanel(this.panelBody(layout), chips.length, this.resetFilters, () => (this.filterOpen = false)) : nothing;
     return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-board-header>
       <div class="dh-row">
         <h1 data-tickets-title>${tt('area')}</h1>
@@ -500,26 +526,28 @@ export class TicketsBoard extends LitElement {
           <button type="button" role="radio" aria-checked=${String(!handlersPane)} data-pane="cards" @click=${() => this.go({ pane: 'cards' })}>${tt('area')}</button>
           <button type="button" role="radio" aria-checked=${String(handlersPane)} data-pane="handlers" @click=${() => this.go({ pane: 'handlers' })}>${tt('hdTitle')}</button>
         </div>` : nothing}
-        ${chips.length ? html`<div class="rooms" role="group" aria-label=${bt('floors')} data-floor-chips>
+        ${floor.length && !handlersPane ? html`<div class="rooms" role="group" aria-label=${bt('floors')} data-floor-chips>
           <button type="button" class="rc" aria-pressed=${String(!this.r.place)} data-place="" @click=${() => this.go({ place: '' })}>${bt('allFloors')}</button>
-          ${chips.map((n) => html`<button type="button" class="rc" aria-pressed=${String(this.r.place === n.key)} data-place=${n.key} @click=${() => this.go({ place: n.key })}>${bidi(placeLabel(n))}<small>${n.count}</small></button>`)}
-        </div>` : html`<span class="grow"></span>`}
-        ${layout.toggle && tools ? html`<button type="button" class="btn sm" aria-pressed=${String(!this.treeHidden)} data-tree-toggle @click=${() => void this.setTreeHidden(!this.treeHidden)}>${tIcon('tree')}${this.treeHidden ? bt('treeShow') : bt('treeHide')}</button>` : nothing}
+          ${floor.map((n) => html`<button type="button" class="rc" aria-pressed=${String(this.r.place === n.key)} data-place=${n.key} @click=${() => this.go({ place: n.key })}>${bidi(placeLabel(n))}<small>${n.count}</small></button>`)}
+        </div>` : nothing}
+        ${tools && !handlersPane ? html`<div class="pact">
+          ${listViewSwitch('board', true, this.pickMode)}
+          ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new aria-label=${tt('newTitle')} @click=${() => writeHref(boardHref(this.r, { create: true }), false)}>${tIcon('plus')}<span class="lbl">${tt('newShort')}</span></button>` : nothing}
+        </div>` : nothing}
       </div>
-      ${tools && !handlersPane ? html`<div class="dh-det">
-        ${deptSeg}
+      ${tools && !handlersPane ? html`<div class="dh-det tb" role="group" aria-label=${lt('lfGroup')} data-toolbar>
         ${d ? html`<div class="seg sm stf" role="radiogroup" aria-label=${bt('stateStrip')} data-state-strip>
           ${stripItems(ui.closed_strip, d.counts).map((s) => html`<button type="button" role="radio" aria-checked=${String(this.r.state === s.id)} data-state=${s.id} title=${this.stripTip(s.id)} @click=${() => this.go({ state: s.id })}>${s.label}<small>${s.count}</small></button>`)}
         </div>` : nothing}
-        ${this.r.assignee ? html`<button type="button" class="rc" aria-pressed="true" data-assignee-filter=${this.r.assignee} aria-label=${ot('clearHandler', { name: this.assigneeName() })} @click=${() => this.go({ assignee: undefined })}>${tIcon('x')}${bidi(this.assigneeName())}</button>` : nothing}
-        <span class="grow"></span>
-        ${layout.treeInFilter ? html`<button type="button" class="btn" aria-expanded=${String(this.filterOpen)} data-filter-btn @click=${() => (this.filterOpen = !this.filterOpen)}>${tIcon('filter')}${bt('filter')}</button>` : nothing}
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('search')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
-        ${filterButton(this.filterRowOpen, activeCardFilters(this.filters), () => (this.filterRowOpen = !this.filterRowOpen))}
-        ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new @click=${() => writeHref(boardHref(this.r, { create: true }), false)}>${tIcon('plus')}${tt('newShort')}</button>` : nothing}
-        ${listViewSwitch('board', true, this.pickMode)}
-      </div>
-      ${this.filterRowOpen && d ? filterRow([...d.items, ...d.closed], this.filters, (next) => (this.filters = next)) : nothing}` : nothing}
+        <span class="fanchor">
+          ${filterToggle(this.filterOpen, chips.length, () => (this.filterOpen = !this.filterOpen), layout.treeInFilter ? 'board' : '')}
+          ${this.phone ? nothing : panel}
+        </span>
+        ${activeChips(chips, this.resetFilters)}
+        ${layout.toggle && this.treeHidden ? html`<button type="button" class="btn sm treeshow" aria-pressed="false" data-tree-toggle @click=${() => void this.setTreeHidden(false)}>${tIcon('tree')}${bt('treeShow')}</button>` : nothing}
+        ${this.phone ? panel : nothing}
+      </div>` : nothing}
     </header>`;
   }
 
@@ -622,17 +650,16 @@ export class TicketsBoard extends LitElement {
     const d = this.data as BoardResponse;
     const ui = this.ui();
     const layout = floorsLayout(ui.board_floors, this.treeHidden, this.phone);
-    const showTree = layout.tree || (layout.treeInFilter && this.filterOpen);
-    const total = d.tree.reduce((s, n) => s + (n.parent ? 0 : n.count), 0);
     const banner = d.counts.stuck > 0 && this.r.state !== 'stuck'
       ? html`<div class="banner warn" role="status" data-stuck-banner>${tIcon('warning')}<div><b>${bt('banner', { n: d.counts.stuck })}</b></div><button type="button" class="btn sm" data-stuck-go @click=${() => this.go({ state: 'stuck' })}>${bt('bannerGo')}</button></div>`
       : nothing;
-    const tree = html`<ticket-board-tree .nodes=${d.tree} .selected=${this.r.place} .total=${total} @place-pick=${(e: CustomEvent<{ key: string }>) => this.go({ place: e.detail.key })}></ticket-board-tree>`;
     return html`
       ${this.today(d)}
-      ${layout.treeInFilter && this.filterOpen ? html`<div class="fpanel" data-filter-panel>${tree}</div>` : nothing}
       <div class=${`layout${layout.tree ? ' with-tree' : ''}`}>
-        ${layout.tree && showTree ? html`<aside class="side">${tree}</aside>` : nothing}
+        ${layout.tree ? html`<aside class="side" aria-label=${lt('tbTree')}>
+          ${layout.toggle ? html`<div class="sidehead"><b>${bt('floors')}</b><button type="button" class="btn sm" aria-pressed="true" data-tree-toggle @click=${() => void this.setTreeHidden(true)}>${tIcon('tree')}${bt('treeHide')}</button></div>` : nothing}
+          ${this.tree(d)}
+        </aside>` : nothing}
         <div class="groups" data-board-main>
           ${banner}
           ${this.cards()}
@@ -646,7 +673,7 @@ export class TicketsBoard extends LitElement {
     const drawerOpen = !!this.r.ticketId && this.screen === 'ready';
     return html`<div class="page" data-screen="tickets-board">
       ${this.header()}
-      <div class="scr" data-board-scroll @scroll=${this.onScroll}>${this.body()}</div>
+      <div class="scr" data-board-scroll>${this.body()}</div>
     </div>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${'department'} .focusTimeline=${this.route?.params.get('view') === 'timeline'} .initialTab=${this.route?.params.get('tab') ?? ''}
       .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''} .cameraViewfinder=${ui?.camera_viewfinder === true} .assignContact=${parseAssignParam(this.route?.params.get('assign'))}
