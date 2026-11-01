@@ -4,8 +4,11 @@ PERF-HOME-DEVICES-2342). Not a test (no `test_` prefix, pytest never collects it
 
     python tests/bench_db_pool.py [--areas 300] [--entities 2000] [--repeat 40] [--threads 4] [--json out.json]
 
-For every endpoint and both modes: p50 / p95 of `--repeat` sequential calls and requests per second; then the same with
-`--threads` clients at once. The pool is switched with db.CONN_POOL (the kill switch) and emptied between the modes.
+First the per-connection floor (one read-mode connection() with one small SELECT, pool off / on) and the working-set
+growth per open connection. Then for every endpoint: `--repeat` sequential calls per mode, the pool switched off / on for
+every other call (machine drift hits both alike; the idle connections stay pooled across the "off" calls):
+p50 / p95 and requests per second (1 / mean); then `--threads` clients at once per mode (p50 / p95, requests per second
+over the wall time). The pool is switched with db.CONN_POOL (the kill switch) and emptied whenever it goes off.
 Nothing here touches a device or the network."""
 from __future__ import annotations
 
@@ -52,8 +55,11 @@ def rss_mb() -> float | None:
 
     pmc = PMC()
     pmc.cb = ctypes.sizeof(PMC)
-    ok = ctypes.windll.psapi.GetProcessMemoryInfo(ctypes.windll.kernel32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb)
-    return pmc.WorkingSetSize / 1048576 if ok else None
+    k32 = ctypes.WinDLL("kernel32")
+    k32.GetCurrentProcess.restype = ctypes.c_void_p
+    k32.K32GetProcessMemoryInfo.argtypes = [ctypes.c_void_p, ctypes.POINTER(PMC), ctypes.c_ulong]
+    ok = k32.K32GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb)
+    return round(pmc.WorkingSetSize / 1048576, 1) if ok else None
 
 
 def dataset(n_areas: int, n_entities: int, n_cameras: int):
@@ -99,17 +105,55 @@ def pct(xs: list[float], p: float) -> float:
     return xs[min(len(xs) - 1, int(round(p / 100 * (len(xs) - 1))))]
 
 
-def run_seq(client: TestClient, path: str, n: int) -> dict:
+def summary(times: list[float]) -> dict:
+    return {"p50_ms": round(statistics.median(times), 1), "p95_ms": round(pct(times, 95), 1), "rps": round(1000 / statistics.mean(times), 1)}
+
+
+def run_paired(client: TestClient, db, path: str, n: int) -> dict:
+    """Sequential calls, the pool switched off / on for every other call: drift of the machine hits both modes alike."""
     for _ in range(3):
         assert client.get(path).status_code == 200, path
-    times = []
-    t0 = time.perf_counter()
-    for _ in range(n):
+    times: dict[str, list[float]] = {"off": [], "on": []}
+    for i in range(2 * n):
+        mode = "on" if i % 2 else "off"
+        db_mod.CONN_POOL = mode == "on"  # off: plain connections, the idle ones stay pooled for the next "on" call
         s = time.perf_counter()
         client.get(path)
-        times.append((time.perf_counter() - s) * 1000)
-    wall = time.perf_counter() - t0
-    return {"p50_ms": round(statistics.median(times), 1), "p95_ms": round(pct(times, 95), 1), "rps": round(n / wall, 1)}
+        times[mode].append((time.perf_counter() - s) * 1000)
+    return {m: summary(t) for m, t in times.items()}
+
+
+def conn_memory(db, n: int = 10) -> float | None:
+    """Working-set growth per connection that parsed the schema (n extra connections held open at once)."""
+    import gc
+
+    gc.collect()
+    before = rss_mb()
+    conns = []
+    for _ in range(n):
+        c = db._open()
+        c.execute("SELECT value FROM settings WHERE key = 'x'").fetchone()
+        conns.append(c)
+    after = rss_mb()
+    for c in conns:
+        c.close()
+    return None if before is None or after is None else round((after - before) / n, 2)
+
+
+def run_floor(db, n: int) -> dict:
+    """The per-connection floor alone: one read-mode connection() with one small SELECT."""
+    out = {}
+    for mode in ("off", "on"):
+        db_mod.CONN_POOL = mode == "on"
+        db.invalidate_pool()
+        times = []
+        for _ in range(n + 2):
+            s = time.perf_counter()
+            with db.connection(mode="read") as conn:
+                conn.execute("SELECT value FROM settings WHERE key = 'x'").fetchone()
+            times.append((time.perf_counter() - s) * 1000)
+        out[mode] = summary(times[2:])
+    return out
 
 
 def run_par(client: TestClient, path: str, n: int, threads: int) -> dict:
@@ -131,7 +175,7 @@ def run_par(client: TestClient, path: str, n: int, threads: int) -> dict:
     for t in ts:
         t.join()
     wall = time.perf_counter() - t0
-    return {"p50_ms": round(statistics.median(times), 1), "p95_ms": round(pct(times, 95), 1), "rps": round(len(times) / wall, 1)}
+    return {"p50_ms": round(statistics.median(times), 1), "p95_ms": round(pct(times, 95), 1), "rps": round(len(times) / wall, 1)}  # throughput
 
 
 def main() -> None:
@@ -149,18 +193,23 @@ def main() -> None:
         db = app.state.db
         with db.connection(mode="read") as conn:
             out["schema_objects"] = conn.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0]
+        out["floor"] = run_floor(db, 50)
+        out["rss_mb_per_connection"] = conn_memory(db)
+        print(json.dumps({"floor": out["floor"]}), flush=True)
         with TestClient(app) as c:
-            for mode in ("off", "on", "off", "on"):  # interleaved twice: a warm-up drift shows as a difference between the pairs
-                db_mod.CONN_POOL = mode == "on"
-                db.invalidate_pool()
-                rss0 = rss_mb()
-                for path in ENDPOINTS:
-                    row = {"pool": mode, "path": path, **{f"seq_{k}": v for k, v in run_seq(c, path, a.repeat).items()}}
-                    if a.threads > 1:
-                        row.update({f"par_{k}": v for k, v in run_par(c, path, max(1, a.repeat // a.threads), a.threads).items()})
-                    out["rows"].append(row)
-                    print(json.dumps(row, ensure_ascii=False), flush=True)
-                out.setdefault("rss_mb", []).append({"pool": mode, "before": rss0, "after": rss_mb(), "idle": sum(len(v) for v in db._idle.values())})
+            for path in ENDPOINTS:
+                row = {"path": path, "seq": run_paired(c, db, path, a.repeat)}
+                if a.threads > 1:
+                    for mode in ("off", "on"):
+                        db_mod.CONN_POOL = mode == "on"
+                        db.invalidate_pool()
+                        row[f"par_{mode}"] = run_par(c, path, max(1, a.repeat // a.threads), a.threads)
+                out["rows"].append(row)
+                print(json.dumps(row, ensure_ascii=False), flush=True)
+            db_mod.CONN_POOL = True
+            for path in ENDPOINTS:
+                c.get(path)
+            out["idle_after_warm"] = sum(len(v) for v in db._idle.values())
             out["pool_stats"] = db_mod.pool_stats()
         db.close_pool()
     print(json.dumps({k: v for k, v in out.items() if k != "rows"}, ensure_ascii=False))

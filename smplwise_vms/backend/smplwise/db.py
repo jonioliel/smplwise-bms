@@ -560,6 +560,7 @@ for _name in dir(sqlite3.Connection):
 del _name, _attr
 
 POOL_STATS: dict[str, int] = {"opened": 0, "reused": 0, "pooled": 0, "closed": 0, "discarded": 0, "invalidated": 0}
+POOL_DISCARDS: dict[str, int] = {}  # discarded leases by reason (tainted, error, open_transaction, state, schema_change, stale, off ...)
 _pool_stats_lock = threading.Lock()
 
 
@@ -574,6 +575,7 @@ def pool_stats() -> dict[str, Any]:
     their state or an error, invalidated - idle connections dropped (migration, schema change, file swap)."""
     with _pool_stats_lock:
         out: dict[str, Any] = dict(POOL_STATS)
+        out["discarded_by"] = dict(POOL_DISCARDS)
     out["enabled"] = CONN_POOL
     return out
 
@@ -612,6 +614,7 @@ class Database:
         self._idle_ident: dict[str, tuple[int, int] | None] = {}
         self._schema_seen: dict[str, int] = {}
         self._pool_gen = 0
+        self._secure_delete: int | None = None  # what a new connection has (the build's default), restored on reuse
 
     def switch_path(self, path: Path, *, demo: bool) -> None:
         """Point this handle at another database file (the demo file, or back to the real one). The per-user touch cache restarts: it is keyed by user, not by file."""
@@ -666,6 +669,11 @@ class Database:
         if raw is None:
             raw = self._open() if durable else self._open(durable=False)
             _pool_count("opened")
+            if self._secure_delete is None:
+                try:
+                    self._secure_delete = int(raw.execute("PRAGMA secure_delete").fetchone()[0])
+                except sqlite3.Error:
+                    pass
         else:
             try:
                 raw.execute(f"PRAGMA busy_timeout={int(BUSY_TIMEOUT_S * 1000)}")  # what _open() sets, at today's value
@@ -683,27 +691,30 @@ class Database:
             return
         lease._raw = None  # from here on the lease is closed for everyone who still holds it
         refs, lease._cursors = lease._cursors, []
-        keep = CONN_POOL and not lease._tainted and not lease._spoiled
+        why = "off" if not CONN_POOL else "tainted" if lease._tainted else "error" if lease._spoiled else ""  # why it is not pooled
+        keep = not why
         for ref in refs:
             cur = ref()
             if cur is not None:
                 try:
                     cur.close()  # a half-read SELECT would keep its read snapshot on the pooled connection
                 except sqlite3.Error:
-                    keep = False
+                    keep, why = False, why or "cursor"
         schema: int | None = None
         try:
             if raw.in_transaction:
                 # connection() / write_aside() always end their transaction: one still open here took an unusual path
                 # (a failed COMMIT, a lease closed by hand) - rolled back, as closing did, and not reused
-                keep = False
+                keep, why = False, why or "open_transaction"
                 raw.execute("ROLLBACK")
             if keep:
                 keep = self._reset(raw, lease._key[1])
-                if keep:
+                if not keep:
+                    why = "state"
+                else:
                     schema = int(raw.execute("PRAGMA schema_version").fetchone()[0])
         except sqlite3.Error:
-            keep = False
+            keep, why = False, why or "error"
         if keep:
             path, cap = lease._key[0], (POOL_IDLE_DURABLE if lease._key[1] else POOL_IDLE_MIRROR)
             invalid: list[sqlite3.Connection] = []
@@ -718,9 +729,9 @@ class Database:
                     for k in [k for k in self._idle if k[0] == path]:
                         del self._idle[k]
                     self._schema_seen[path] = schema  # type: ignore[assignment]
-                    keep = False
+                    keep, why = False, "schema_change"
                 elif lease._gen != self._pool_gen or path != str(self.path) or self._idle_ident.get(path) != lease._ident or on_disk != lease._ident:
-                    keep = False  # invalidated meanwhile, a file the handle no longer serves, or a file replaced on disk
+                    keep, why = False, "stale"  # invalidated meanwhile, a file the handle no longer serves, or a file replaced on disk
                 else:
                     self._schema_seen[path] = schema  # type: ignore[assignment]
                     idle = self._idle.setdefault(lease._key, [])
@@ -734,13 +745,15 @@ class Database:
                 _pool_count("pooled")
                 return
         _pool_count("closed" if keep else "discarded")  # over the idle limit / not reusable
+        if not keep:
+            with _pool_stats_lock:
+                POOL_DISCARDS[why] = POOL_DISCARDS.get(why, 0) + 1
         try:
             raw.close()
         except sqlite3.Error:
             pass
 
-    @staticmethod
-    def _reset(raw: sqlite3.Connection, durable: bool) -> bool:
+    def _reset(self, raw: sqlite3.Connection, durable: bool) -> bool:
         """Back to the state _open() leaves; False when the connection carries anything that cannot be reset (an attached
         database, TEMP objects) - it is closed instead."""
         if raw.in_transaction:
@@ -758,6 +771,9 @@ class Database:
         raw.execute(f"PRAGMA busy_timeout={int(BUSY_TIMEOUT_S * 1000)}")  # set again when it is leased
         raw.execute("PRAGMA foreign_keys=ON")
         raw.execute(f"PRAGMA synchronous={'FULL' if durable else 'NORMAL'}")
+        if self._secure_delete is None:
+            return False  # the default is unknown: nothing to compare with, not reused
+        raw.execute(f"PRAGMA secure_delete={self._secure_delete}")  # bridge_keys / wiskey_camera switch it on for their deletes
         return not raw.in_transaction
 
     def _open(self, durable: bool = True) -> sqlite3.Connection:

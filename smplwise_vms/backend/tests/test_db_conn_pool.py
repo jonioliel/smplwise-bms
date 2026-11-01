@@ -107,6 +107,15 @@ def test_state_is_reset_before_the_connection_is_pooled(db):
         assert f.execute("PRAGMA synchronous").fetchone()[0] == 2  # the durable class never gets a mirror connection
 
 
+def test_secure_delete_switched_on_by_a_request_is_back_to_the_default(db):
+    with db.connection(mode="read") as r:
+        default = r.execute("PRAGMA secure_delete").fetchone()[0]
+    with db.connection() as w:
+        w.execute(f"PRAGMA secure_delete={1 - default}")
+    with db.connection() as again:
+        assert again.execute("PRAGMA secure_delete").fetchone()[0] == default
+
+
 def test_foreign_keys_switched_off_by_a_request_are_on_again(db):
     with db.connection(mode="read") as r:
         r.execute("COMMIT")
