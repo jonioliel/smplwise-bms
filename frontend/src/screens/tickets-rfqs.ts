@@ -1,4 +1,4 @@
-import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../tickets/rfq-new';
@@ -66,7 +66,61 @@ export class TicketsRfqsPage extends LitElement {
   private qTimer = 0;
   private offNames: (() => void) | null = null;
 
-  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, rfqStyles];
+  /**
+   * TKSET-POLISH-2331: the list screen's own rules after the module's sheet (tickets/rfq-styles.ts stays shared with the board, the
+   * comparison and the new-request sheet): the KPI tiles never leave one tile alone on a row, are compact on a phone so the requests
+   * start in the first screen, the failed toast's mark is red, the error state says why, "load more" sits under the list's centre.
+   */
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, rfqStyles, css`
+    .dh-row .newbtn {
+      flex: none;
+    }
+    .statebox .why {
+      max-inline-size: 52ch;
+      font-size: var(--sw-fs-sm);
+      color: var(--dv-text-2);
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+    .more {
+      display: flex;
+      justify-content: center;
+    }
+    .toast.bad .ic {
+      color: var(--sw-danger);
+    }
+    /* six tiles (with "questions waiting") or five: one row on a wide page, three per row between a phone and a wide page */
+    @media (min-width: 768px) and (max-width: 1279px) {
+      .kpis {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 767px) {
+      .dh-row .grow {
+        display: none;
+      }
+      .dh-row .newbtn {
+        grid-area: f;
+        align-self: center;
+      }
+      .kpis {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--sw-s-2);
+      }
+      .kpi {
+        gap: 2px;
+        padding: 10px 12px;
+        border-radius: var(--sw-r-lg);
+      }
+      .kpi small {
+        font-size: var(--sw-fs-xs);
+        line-height: 1.3;
+      }
+      .kpi b {
+        font-size: var(--sw-fs-lg);
+      }
+    }
+  `];
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -181,6 +235,7 @@ export class TicketsRfqsPage extends LitElement {
       <div class="dh-row">
         <div class="titles"><div class="crumbs"><a href="#/tickets">${tt('area')}</a></div><h1 data-rfq-page-title>${rt('navTitle')}</h1></div>
         <span class="grow"></span>
+        ${this.screen === 'ready' && this.canCreate() ? html`<button type="button" class="btn primary newbtn" data-rfq-new-btn @click=${() => go(rfqHref({ ...this.r, creating: true }))}>${tIcon('plus')}${rt('newShort')}</button>` : nothing}
       </div>
       ${this.screen === 'ready' ? html`<div class="dh-det">
         ${depts.length > 1 ? html`<div class="rooms" role="group" aria-label=${rt('departmentsGroup')} data-rfq-depts>
@@ -194,7 +249,6 @@ export class TicketsRfqsPage extends LitElement {
         <span class="grow"></span>
         <label class="search">${tIcon('search')}<span class="vh">${rt('searchShort')}</span><input type="search" data-rfq-search maxlength="80"
           placeholder=${this.phone ? rt('searchShort') : rt('searchPh')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
-        ${this.canCreate() ? html`<button type="button" class="btn primary newbtn" data-rfq-new-btn @click=${() => go(rfqHref({ ...this.r, creating: true }))}>${tIcon('plus')}${rt('newShort')}</button>` : nothing}
       </div>` : nothing}
     </header>`;
   }
@@ -269,7 +323,7 @@ export class TicketsRfqsPage extends LitElement {
       case 'unavailable':
         return this.stateBox('clock', rt('unavailable'), 'unavailable');
       case 'error':
-        return this.stateBox('warning', rt('loadFailed'), 'error', html`<span class="vh">${this.failed}</span><button type="button" class="btn sm" data-rfq-retry
+        return this.stateBox('warning', rt('loadFailed'), 'error', html`${this.failed ? html`<span class="why" data-rfq-error-why>${this.failed}</span>` : nothing}<button type="button" class="btn sm" data-rfq-retry
           @click=${() => { this.screen = 'loading'; void this.boot(); }}>${tIcon('refresh')}${rt('retry')}</button>`);
       default:
         break;
@@ -277,12 +331,12 @@ export class TicketsRfqsPage extends LitElement {
     const now = new Date();
     const rows = this.visible();
     if (!this.items.length) {
-      return html`${this.tiles()}${this.stateBox('note', rt('emptyAll'), 'empty', this.canCreate() ? html`<button type="button" class="btn sm primary" @click=${() => go(rfqHref({ creating: true }))}>${tIcon('plus')}${rt('newShort')}</button>` : undefined)}`;
+      return html`${this.stateBox('note', rt('emptyAll'), 'empty', this.canCreate() ? html`<button type="button" class="btn sm primary" @click=${() => go(rfqHref({ creating: true }))}>${tIcon('plus')}${rt('newShort')}</button>` : undefined)}`;
     }
     return html`${this.tiles()}
       ${rows.length ? html`<ul class="rlist" aria-label=${rt('listAria')} data-rfq-list>${repeat(rows, (i) => i.id, (i) => this.row(i, now))}</ul>`
         : this.stateBox('search', rt('emptyFiltered'), 'no-match', html`<button type="button" class="btn sm" data-rfq-clear @click=${() => { this.q = ''; go(rfqHref({})); }}>${rt('clearFilters')}</button>`)}
-      ${this.next ? html`<div><button type="button" class="btn sm" data-rfq-more @click=${() => void this.load(true, true)}>${rt('loadMore')}</button></div>` : nothing}`;
+      ${this.next ? html`<div class="more"><button type="button" class="btn sm" data-rfq-more @click=${() => void this.load(true, true)}>${rt('loadMore')}</button></div>` : nothing}`;
   }
 
   private onSaved = (e: CustomEvent<{ id: string; sent: boolean; manual?: boolean }>) => {

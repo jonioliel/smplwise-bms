@@ -47,9 +47,17 @@ export class TicketsMaintenance extends LitElement {
     sw-tabs { flex: none; } /* a scroll container in a flex column would shrink to nothing on a phone */
     .body { min-inline-size: 0; min-block-size: 0; flex: 1; display: flex; flex-direction: column; gap: 14px; }
     .body > * { flex: 1; min-block-size: 0; overflow: auto; }
-    .skl { border-radius: var(--sw-r-md); background: var(--sw-skeleton); block-size: 160px; }
-    .btn { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 7px 14px; border: 1px solid var(--sw-border); background: var(--sw-surface);
-      color: var(--sw-text); font: inherit; font-weight: var(--sw-fw-semibold); text-decoration: none; }
+    /* TKSET-POLISH-2331: the loading state has the section's shape (the page row, then the page), not one short block */
+    .skl { border-radius: var(--sw-r-md); background: var(--sw-skeleton); }
+    .skl.tabs { flex: none; block-size: 40px; inline-size: min(560px, 100%); border-radius: var(--sw-r-pill); }
+    .skl.page { flex: 1; min-block-size: 160px; border-radius: var(--sw-r-xl); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-block-size: 44px; box-sizing: border-box; border-radius: var(--sw-r-pill);
+      padding: 0 18px; border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text); font: inherit;
+      font-weight: var(--sw-fw-semibold); text-decoration: none; transition: background-color 150ms ease, border-color 150ms ease, transform 160ms ease-out; }
+    .btn:active { transform: scale(var(--sw-press-scale)); }
+    .btn:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+    @media (hover: hover) and (pointer: fine) { .btn:hover { background: var(--sw-surface-2); border-color: var(--sw-accent); } }
+    @media (prefers-reduced-motion: reduce) { .btn { transition: none; } .btn:active { transform: none; } }
     @media (max-width: 767px) { :host { padding: 12px 14px 12px; gap: 12px; } }
     @media print { :host { overflow: visible; block-size: auto; } .body > * { overflow: visible; } }
   `, bubbleChrome];
@@ -86,10 +94,10 @@ export class TicketsMaintenance extends LitElement {
   render() {
     const a = this.access;
     const heading = srHeading(mt('section'));
-    if (a.enabled === null) return html`${heading}<div class="skl" aria-busy="true" aria-label=${mt('loading')} data-state="loading"></div>`;
+    if (a.enabled === null) return html`${heading}<div class="skl tabs" aria-hidden="true"></div><div class="skl page" aria-busy="true" aria-label=${mt('loading')} data-state="loading"></div>`;
     if (!a.enabled) {
       const sys = !isApi() || can('system.configure');
-      return html`${heading}<sw-state-panel icon="offline" state="empty" heading=${mt('offTitle')} hint=${mt('offBody')} data-state="off">
+      return html`${heading}<sw-state-panel icon="power" state="empty" heading=${mt('offTitle')} hint=${mt('offBody')} data-state="off">
         ${sys ? html`<a class="btn" href="#/system/infra/maintenance" data-maint-to-settings>${mt('toSettings')}</a>` : nothing}</sw-state-panel>`;
     }
     if (!a.view) return html`${heading}<sw-state-panel state="forbidden" heading=${mt('forbiddenTitle')} data-state="forbidden"></sw-state-panel>`;
