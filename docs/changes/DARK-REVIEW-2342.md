@@ -54,11 +54,7 @@ tinted, and the card's text states the error, so it is not a 1.4.11 boundary.
 
 ## Not fixed - for the owner
 
-1. **Segmented controls in dark** (product-wide, 28+ places: `.seg button[aria-pressed='true'] { background: var(--sw-surface) }`).
-   On the dark `--sw-surface-3` track the selected thumb is *darker* than the track (about 1.25:1). It reads as a hole rather than a
-   raised thumb; the selection still shows through ink and weight. Fixing it needs a shared thumb token with a lifted dark value, as
-   the glass screens already have with `--mm-seg-thumb`. That is a product decision and would change many baselines, so it is not
-   in this branch.
+1. (Segmented controls in dark: **done** after the owner's answer A, see the next section.)
 2. **Light-scheme fails found by the same model** (out of this review's scope; dark pixels were the brief):
    - the unchecked NVR box edge: 1.3-2.0
    - the insights KPI dot in light: 1.75-2.97
@@ -72,7 +68,81 @@ tinted, and the card's text states the error, so it is not a 1.4.11 boundary.
    and keeps today's edge or hover, so it degrades to the current look. I chose it over `:host-context(html[data-theme='dark'])`
    because Safari and Firefox do not support `:host-context`.
 
-## Baselines likely affected
+## Segmented controls in dark (owner answer A, 01.11)
+
+Problem: the selected segment of a segmented control was painted with `--sw-surface`, `--sw-surface-solid` or `--sw-menu-surface`.
+These are the card colours, and in dark they are *darker* than the `--sw-surface-3` track the control sits in (about 1.25:1). The
+selected segment therefore read as a hole, not a raised key. This applies to the shared tabs component `sw-tabs` in its pill style
+(the first tab row of every area) and to 36 local `.seg` / `.lay-seg` controls across settings, schedules, temperature, insights,
+calendars, the user menu and other screens.
+
+**Two new tokens** (in `design/tokens.ts`, control group):
+
+| Token | Light | Dark |
+|---|---|---|
+| `--sw-seg-thumb` | `initial` | `color-mix(in srgb, var(--sw-text) 10%, var(--sw-surface-3-solid))`: the track lifted toward the ink |
+| `--sw-seg-thumb-shadow` | `initial` | `0 0 0 1px color-mix(in srgb, var(--sw-text) 20%, transparent), 0 1px 3px rgba(0, 0, 0, 0.5)`: a hairline ring plus a drop shadow |
+
+- **Why `initial` in light:** `initial` makes the value invalid, so each user's `var(--sw-seg-thumb, <its own light fill>)` and
+  `var(--sw-seg-thumb-shadow, <its own light shadow>)` falls back. Light mode keeps exactly the pixels it had.
+- **Soft skin:** it overrides the dark lift to 16 %, because its translucent surface-3 left only 1.13:1 against the user-menu track.
+- **Glass screens:** the tokens follow the shell's scheme, but a glass screen has its own scheme setting. The glass bridge
+  (`styles/devices-themes.ts`) therefore resets both tokens to `initial`, and segments inside a glass screen keep their own fill in
+  both of its schemes.
+
+**Users changed.** Each one now reads `var(--sw-seg-thumb, <old fill>)` and `var(--sw-seg-thumb-shadow, <old shadow>)`; light falls
+back to the old values. The guard counts 37 users; the one-line names are below.
+- **Shared components:** `components/sw-tabs.ts` (pill, plus the classic, crystal and domus skin rules for it),
+  `components/frigate-admin-shared.ts`, `components/sw-cast-picker.ts`.
+- **Area styles:** `access-external/request-dialog.ts`, `calendars/styles.ts`, `electricity/styles.ts`,
+  `elevators/elevator-settings.ts`, `incidents/settings-form.ts`, `insights/styles.ts`, `maintenance/styles.ts`, `notices/styles.ts`.
+- **Screens:** devices-layout (`devices-layout-css.ts`), explore-presence, home-screen-options (inside its local `--sw-seg-on-bg`
+  override), home-widgets, investigate-history-map, investigate-reviews, schedule-conditions, schedule-editor,
+  schedule-entity-picker, system-brand-logos, system-building-presence, system-design, system-home-screen, system-look,
+  system-mapping, system-nav-size, system-palette-editor, system-presence, system-timeline-colors, system-update, wiskey-events.
+- **Shell:** `shell/sw-home-personal.ts`, `shell/sw-user-menu.ts`.
+- **Temperature:** `temperature/detail.ts`, `report.ts`, `wizard.ts`.
+
+The cast picker's selected label was the bare `--sw-accent` (3.3:1 on the old dark thumb, 2.2:1 on the new one). It now takes
+`light-dark(var(--sw-accent, var(--sw-text)), var(--sw-accent-text))`, so light is unchanged.
+
+**Left as they are:**
+- the accent-filled segments (door-windows, access-external, devices-tiles-panel, system-multimedia, the devices building): already a
+  filled key;
+- the accent-soft segments (WisKey people, WisKey station live, temperature WhatsApp);
+- the glass knobs (`--mm-seg-thumb`, `--mr-seg-thumb`, the notifications severity segments);
+- the inverted tesla pill;
+- the frozen bubble skin.
+
+**Measured, dark, every live skin** (`tests/unit-dark-polish-beds.spec.ts`):
+
+| Measure | Result |
+|---|---|
+| Thumb vs a surface-3 track in a card | 1.22-1.47 (soft 1.47, classic 1.32) |
+| Thumb vs a surface-2 track | 1.48-1.68 |
+| Thumb vs the user menu's track | 1.27-1.36 |
+| The thumb is lighter than its track | always |
+| Ring vs track | 1.75-1.83 everywhere (the visible edge the owner's rule allows when the fill is under 1.5) |
+| Selected inks on the thumb: heading | ≥ 8.5 |
+| Selected inks on the thumb: text | ≥ 7.2 |
+| Selected inks on the thumb: accent-text | 4.65 (infra, soft) · 4.75 (classic) · 4.77 (domus) · 5.25 (tesla) · 5.44 (crystal) |
+
+**Guards:**
+- a test that the light column of both tokens is `initial` in every skin;
+- a lint test: every selected segment drawn with a neutral surface key, and the sw-tabs pill rules, must read the tokens (37 users
+  found; frozen skins skipped).
+
+**Pixel baselines that will change (dark shots only):**
+- `pixel-wiskey-people`: `list-classic-dark-{1440,390}`, `drawer-classic-dark-{1440,390}`
+- `pixel-wiskey-people-writes`: `writes-cards-classic-dark-{1440,390}`, `writes-menu-classic-dark-{1440,390}`
+- `pixel-wiskey-messaging`: `tab-classic-dark-{1440,390}`, `settings-classic-dark-{1440,390}`, if the shot shows a tab row
+- `pixel-wiskey-station-media`: `station-media-{classic,domus}-{drawer,talking}-dark-{1440,1024,390}`, if the area tab row is in frame
+  behind the drawer
+
+Why: all of these show the WisKey area, whose first tab row is the `sw-tabs` pill. Expected unchanged: `pixel-wall-plan` (the wall
+has no tab row) and every light baseline. Layout specs are unaffected, because the ring is a box-shadow and adds no size.
+
+## Baselines likely affected (first pass)
 
 - **Pixel baselines: none expected.**
   - `pixel-nvr-encoding-batch` runs `scheme=light` and the light branch of `light-dark()` keeps `--sw-border-strong`, so its PNGs
@@ -89,3 +159,9 @@ tinted, and the card's text states the error, so it is not a 1.4.11 boundary.
   `unit-dark-muted-contrast`, `unit-muted-contrast`, `unit-design-tokens`, `unit-empty-state-icons`, `unit-entity-id-sweep` and
   `unit-nvr-h264-preset`.
 - Visual dark capture at 1440 / 390: **NOT_RUN** (runner busy with the release gate).
+- Segment follow-up:
+  - `tsc --noEmit`: clean.
+  - Unit: 197 passed across 24 specs (`--workers=1`): the token, skin, palette, menu, HUD, geometry, contrast, tab-set and
+    tab-config specs, and the extended `unit-dark-polish-beds` (6 tests).
+  - The dark pixel baselines listed above are **not refreshed** (runner still on the L gate of `release/2332-train` at 20:57).
+    They must be refreshed on the runner before this branch boards a train.
