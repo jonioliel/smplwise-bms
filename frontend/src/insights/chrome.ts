@@ -27,8 +27,10 @@ export function pageHead(page: InsightPage, title: string, sub: string, actions:
 
 /** A KPI tile of the temperature screen's row; `pressed` makes it a filter. */
 export function kpi(value: string, label: string, look: 'ok' | 'bad' | 'warn' | 'unk' | '' = '', opts: { unit?: string; note?: string; noteTone?: string; pressed?: boolean; onClick?: () => void; key?: string } = {}): TemplateResult {
-  const inner = html`<span class="dot"></span><div><b>${value}${opts.unit ? html` <small>${opts.unit}</small>` : nothing}</b><span class="l">${label}</span>${opts.note ? html` <span class="d ${opts.noteTone ?? 'muted'}">${opts.note}</span>` : nothing}</div>`;
+  // INSIGHTS-POLISH-2331: a counter that is not zero carries data-nz - on a problem look (bad / warn) the tile becomes a filled status field
+  const nz = value !== '0' && value !== '' && value !== '-';
+  const inner = html`<span class="dot" aria-hidden="true"></span><div><b>${value}${opts.unit ? html` <small>${opts.unit}</small>` : nothing}</b><span class="l">${label}</span>${opts.note ? html` <span class="d ${opts.noteTone ?? 'muted'}">${opts.note}</span>` : nothing}</div>`;
   return opts.onClick
-    ? html`<button class="kpi" data-look=${look} data-kpi=${opts.key ?? ''} aria-pressed=${opts.pressed ? 'true' : 'false'} @click=${opts.onClick}>${inner}</button>`
-    : html`<div class="kpi" data-look=${look} data-kpi=${opts.key ?? ''}>${inner}</div>`;
+    ? html`<button class="kpi" data-look=${look} data-kpi=${opts.key ?? ''} ?data-nz=${nz} aria-pressed=${opts.pressed ? 'true' : 'false'} @click=${opts.onClick}>${inner}</button>`
+    : html`<div class="kpi" data-look=${look} data-kpi=${opts.key ?? ''} ?data-nz=${nz}>${inner}</div>`;
 }
