@@ -66,6 +66,11 @@ CONN_POOL = os.environ.get("SW_DB_CONN_POOL", "1") != "0"
 # and closed when they end
 POOL_IDLE_DURABLE = max(0, int(os.environ.get("SW_DB_POOL_IDLE", "6")))
 POOL_IDLE_MIRROR = max(0, int(os.environ.get("SW_DB_POOL_IDLE_MIRROR", "2")))
+# Reuse is opted into per handle: the app's own long-lived Database (main.create_app). A handle made for one job - the backup
+# drill's scratch copy, the demo-file builder, a restore check, the energy store - opens per transaction as before, so
+# nothing keeps its files open after the job (a scratch directory is removed right after). SW_DB_POOL_EVERY_HANDLE=1 makes
+# every handle pool (the DB test set runs both ways with it).
+POOL_EVERY_HANDLE = os.environ.get("SW_DB_POOL_EVERY_HANDLE") == "1"
 
 log = logging.getLogger("smplwise.db")
 T = TypeVar("T")
@@ -597,8 +602,12 @@ def _close_quietly(conns: list[sqlite3.Connection]) -> None:
 
 
 class Database:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, *, pool: bool | None = None):
+        """pool: reuse connections between transactions (DB-CONN-POOL-2343) - True for the app's long-lived handle; the
+        default (None) follows SW_DB_POOL_EVERY_HANDLE, off unless a test run asks for it. The kill switch (CONN_POOL)
+        turns it off for every handle."""
         self.path = path
+        self.pool = POOL_EVERY_HANDLE if pool is None else pool
         self.touched: dict[str, float] = {}  # per-user last touch stamp (auth.touch_user throttle)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.gate = gate_for(self.path)
@@ -645,7 +654,7 @@ class Database:
     def _lease(self, durable: bool = True) -> sqlite3.Connection:
         """A connection for connection() / write_aside(): a lease of a pooled one, or - with the pool switched off - a
         connection of its own, exactly as before."""
-        if not CONN_POOL:
+        if not (CONN_POOL and self.pool):
             return self._open() if durable else self._open(durable=False)
         path = self.path
         key = (str(path), durable)
@@ -691,7 +700,7 @@ class Database:
             return
         lease._raw = None  # from here on the lease is closed for everyone who still holds it
         refs, lease._cursors = lease._cursors, []
-        why = "off" if not CONN_POOL else "tainted" if lease._tainted else "error" if lease._spoiled else ""  # why it is not pooled
+        why = "off" if not (CONN_POOL and self.pool) else "tainted" if lease._tainted else "error" if lease._spoiled else ""  # why it is not pooled
         keep = not why
         for ref in refs:
             cur = ref()

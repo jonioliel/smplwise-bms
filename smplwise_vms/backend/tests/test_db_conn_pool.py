@@ -23,7 +23,7 @@ def _pool_on(monkeypatch):
 
 @pytest.fixture()
 def db(tmp_path) -> Database:
-    d = Database(tmp_path / "t.db")
+    d = Database(tmp_path / "t.db", pool=True)
     d.migrate()
     yield d
     d.close_pool()
@@ -241,7 +241,7 @@ def test_a_lease_from_before_an_invalidation_is_closed_when_it_ends(db):
 
 def test_demo_switch_closes_idle_connections_and_old_leases(db, tmp_path):
     other = tmp_path / "demo.db"
-    Database(other).migrate()
+    Database(other).migrate()  # an unpooled handle, as demo_mode builds the file
     with db.connection(mode="read"):
         pass
     assert _idle(db) == 1
@@ -279,6 +279,21 @@ def test_kill_switch_opens_a_plain_connection_per_request(db, monkeypatch):
     with db.write_aside() as w:
         assert type(w) is sqlite3.Connection
     assert _idle(db) == 0
+
+
+def test_a_handle_for_one_job_opens_per_transaction_unless_asked(tmp_path, monkeypatch):
+    """The backup drill's scratch copy, the demo-file builder ...: nothing of theirs stays open after the job."""
+    monkeypatch.setattr(db_mod, "POOL_EVERY_HANDLE", False)
+    d = Database(tmp_path / "one-job.db")
+    d.migrate()
+    with d.connection() as conn:
+        assert type(conn) is sqlite3.Connection
+    assert _idle(d) == 0
+    import shutil
+
+    shutil.rmtree(tmp_path)  # Windows: an open handle would refuse this
+    monkeypatch.setattr(db_mod, "POOL_EVERY_HANDLE", True)
+    assert Database(tmp_path / "x.db").pool is True and Database(tmp_path / "y.db", pool=False).pool is False
 
 
 def test_kill_switch_while_leases_are_out_closes_them(db, monkeypatch):

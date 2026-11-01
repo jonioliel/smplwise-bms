@@ -384,7 +384,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .services import demo_mode as _demo_mode
 
     _demo_mode.clear_on_boot(settings)  # CR-READY96: a restart exits demo mode - the handle below always starts on the real file
-    app.state.db = Database(settings.db_path)
+    app.state.db = Database(settings.db_path, pool=True)  # DB-CONN-POOL-2343: the one long-lived handle reuses its connections
     from .services import energy_billing_adapter
 
     energy_billing_adapter.configure(settings)  # CR-023: the readings store answers the billing branch's provider seam
