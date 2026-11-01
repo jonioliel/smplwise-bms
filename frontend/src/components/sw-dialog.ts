@@ -15,6 +15,9 @@ export class SwDialog extends LitElement {
   @property({ type: Boolean, reflect: true }) wide = false;
   /** ACCESSREQ-293: an extra-wide box (up to 1120px) for a two-column form; the body scrolls, the footer stays. */
   @property({ type: Boolean, reflect: true }) xl = false;
+  /** SHARED-POLISH-2342 (CAMADMIN-POLISH-2331 proposal): the box takes the width its content asks for - never narrower than the
+   * default 440 px box, never wider than the xl one; for a list or a table whose width the screen does not know ahead. Opt-in. */
+  @property({ type: Boolean, reflect: true }) fit = false;
   /** The footer only when something is slotted into it (re-review low). */
   @state() private hasFooter = false;
 
@@ -70,6 +73,11 @@ export class SwDialog extends LitElement {
     }
     :host([xl]) .box {
       inline-size: min(1120px, 100%);
+    }
+    :host([fit]) .box {
+      inline-size: fit-content;
+      min-inline-size: min(440px, 100%);
+      max-inline-size: min(1120px, 100%);
     }
     :host([xl]) .body {
       padding-inline: 20px;
