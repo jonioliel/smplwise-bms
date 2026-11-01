@@ -34,7 +34,7 @@ card), with a note on what hiding keeps and a link that opens the bucket's own s
   (`services/devices.py`), and stay that way whether the row is shown or not - hiding a row must never change a number.
 - The setting governs the tree row (cards view on desktop / landscape tablet, the phone's tree sheet) and the portrait-tablet
   "ללא שיוך" card that stands in for the tree where no tree is drawn. The layout editor still lays out that card. The tiles view's
-  own "ללא שיוך" section is **not** a tree and is unchanged (an open question for the owner: should it follow too?).
+  own "ללא שיוך" section is **not** a tree and is unchanged here (owner answer 01.11, 6A: it follows the same choice - done in OWNER-R12-2341).
 - Still reachable when hidden: its screen `#/devices/areas/unassigned` (the settings link), the tiles view, and the screen editor.
   The global search does not list the bucket (unchanged; it never did). The mapping assistant's "לא משויך" is a different concept
   (an area or floor without a building) and was not touched; the tree keeps its own word "ללא שיוך".

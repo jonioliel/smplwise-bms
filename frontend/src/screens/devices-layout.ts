@@ -1806,7 +1806,7 @@ export class DevicesLayoutController implements ReactiveController {
     </sw-dialog>`;
   }
 
-  /** The panel of the selected item (a bottom sheet on a phone). */
+  /** The panel of the selected item (a bottom sheet on a phone and a tablet below 1200 px, OWNER-R12-2341; a side panel from 1200). */
   renderPanel(): TemplateResult | typeof nothing {
     if (!this.editing || !this.draft) return nothing;
     if (this.tileCard && this.draft.items[this.tileCard]) return this.renderTilePanel(this.tileCard);

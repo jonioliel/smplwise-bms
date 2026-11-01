@@ -121,6 +121,12 @@ export function treeUnassignedShown(mode: TreeUnassigned, editing: boolean): boo
   return mode === 'always' || (mode === 'editing' && editing);
 }
 
+/** OWNER-R12-2341 (owner 01.11, 6A): the same choice governs the tiles view's "ללא שיוך" section, with the same semantics - always /
+ * only while the screen editor is open / never. Presentation only, like the tree row. */
+export function tilesUnassignedShown(mode: TreeUnassigned, editing: boolean): boolean {
+  return treeUnassignedShown(mode, editing);
+}
+
 /** What the screen editor tells about a hidden row (null = nothing to say: it is always shown). */
 export function treeUnassignedHint(mode: TreeUnassigned): 'editing' | 'never' | null {
   return mode === 'always' ? null : mode;
