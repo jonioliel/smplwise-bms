@@ -121,7 +121,7 @@ const TABS = [
   { id: 'media', label: 'וידאו ומדיה' },
   { id: 'map', label: 'מפה' },
   { id: 'buildings', label: 'בניינים ומיפוי' }, // MAPPING-ASSIST-2330: the multi-building switch and the mapping assistant
-  { id: 'ha', label: 'גשר Home Assistant' },
+  { id: 'ha', label: 'גשר Arx' },
   { id: 'access-control', label: 'מתגי מסכי כניסה' },
   { id: 'devices', label: 'חשמל והתקנים' },
   { id: 'remote', label: 'גישה מרחוק' },
@@ -668,7 +668,7 @@ export class SystemDiagnostics extends LitElement {
 
   private renderHa() {
     if (!isApi()) {
-      return html`<div class="sections"><sw-card heading="גשר Home Assistant"><div class="muted">נתוני הדגמה — הסטטוס והצימוד זמינים מול השרת.</div></sw-card></div>`;
+      return html`<div class="sections"><sw-card heading="גשר Arx"><div class="muted">נתוני הדגמה — הסטטוס והצימוד זמינים מול השרת.</div></sw-card></div>`;
     }
     const h = this.ha;
     const s = h?.sync;
@@ -845,7 +845,7 @@ export class SystemDiagnostics extends LitElement {
       </sw-card>`}
       <sw-card heading="אינטגרציות">
         <div class="row"><span class="lbl">go2rtc (חיצוני)<span class="muted">זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו</span></span><span class="end"><sw-toggle checked label="מופעל"></sw-toggle><sw-button size="sm" @click=${() => this.openTab('media')}>הגדרה</sw-button></span></div>
-        <div class="row"><span class="lbl">גשר Home Assistant<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${() => this.openTab('ha')}>הגדרה</sw-button></div>
+        <div class="row"><span class="lbl">גשר Arx<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${() => this.openTab('ha')}>הגדרה</sw-button></div>
       </sw-card>
       <sw-card heading="בריאות המערכת">
         <div class="row"><span class="health"><i class="dot"></i><span class="lbl">מצב חלקי<span class="muted">גשר HA טרם חובר · שאר הרכיבים תקינים</span></span></span><sw-button size="sm" icon="activity">הרצת דיאגנוסטיקה</sw-button></div>

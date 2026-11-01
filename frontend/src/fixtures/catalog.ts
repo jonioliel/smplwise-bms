@@ -201,7 +201,7 @@ export const demoRules = [
 export const demoHealth = [
   { name: 'NVR (הקלטה)', state: 'live' as StateKind, detail: '10/10 ערוצים, דיסק תקין' },
   { name: 'go2rtc (מדיה)', state: 'live' as StateKind, detail: 'גרסה ‎1.9.x‎ · 4 זרמים פעילים' },
-  { name: 'גשר Home Assistant', state: 'stale' as StateKind, detail: 'סנכרון אחרון לפני 4 דק׳' },
+  { name: 'גשר Arx', state: 'stale' as StateKind, detail: 'סנכרון אחרון לפני 4 דק׳' },
   { name: 'מסד נתונים', state: 'live' as StateKind, detail: 'WAL · גיבוי אחרון אתמול 02:00' },
   { name: 'תור עבודות', state: 'partial' as StateKind, detail: '1 בתהליך · 1 נכשל' },
 ];

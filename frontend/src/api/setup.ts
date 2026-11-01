@@ -77,7 +77,7 @@ function demoSteps(placed: boolean): SetupStep[] {
       evidence: {}, settings_link: { href: '#/system/setup', label: 'הגדרות ‹ חיבורים' } },
     { ...base, id: 'ha', index: 3, title: 'Home Assistant והגשר', status: 'done', source: 'live', summary: 'Home Assistant 2026.9.3 · הגשר פעיל ומצומד · 412 ישויות',
       facts: [f('חיבור (WebSocket)', 'מחובר', 'ok'), f('גרסת Home Assistant', '2026.9.3'), f('ישויות בקטלוג', '412'), f('אינטגרציית הגשר', 'פעיל · גרסה 0.3.0'), f('צימוד הגשר', 'מצומד', 'ok'), f('ממתין להפעלה מחדש של HA', 'לא', 'ok'), f('שעון HA מול ה־Add-on', '0 שנ׳', 'ok'), f('שעון ה־NVR מול HA', '+1 שנ׳', 'ok')],
-      evidence: {}, settings_link: { href: '#/system/diagnostics?tab=ha', label: 'הגדרות ‹ כללי ‹ גשר Home Assistant' } },
+      evidence: {}, settings_link: { href: '#/system/diagnostics?tab=ha', label: 'הגדרות ‹ כללי ‹ גשר Arx' } },
     { ...base, id: 'go2rtc', index: 4, title: 'go2rtc (וידאו חי)', status: 'done', source: 'live', summary: 'go2rtc 1.9.9 · 20 זרמים שלנו (4 פעילים)',
       facts: [f('גרסה', '1.9.9', 'ok'), f('זרמי smplwise_ ב־go2rtc', '20 · 4 פעילים כרגע', 'ok'), f('זרמים צפויים (2 לכל מצלמה פעילה)', '20 · חסרים 0', 'ok'), f('זרמים של מוצרים אחרים', '6 · לא נוגעים בהם')],
       evidence: {}, settings_link: { href: '#/system/diagnostics?tab=media', label: 'הגדרות ‹ כללי ‹ וידאו ומדיה' } },

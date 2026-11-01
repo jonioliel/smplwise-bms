@@ -72,7 +72,7 @@ _last_check: dict[tuple[str, str], float] = {}
 LINKS = {
     "connections": ("#/system/setup", "הגדרות › חיבורים"),
     "health": ("#/system/diagnostics?tab=health", "הגדרות › כללי › בריאות ועבודות"),
-    "ha": ("#/system/diagnostics?tab=ha", "הגדרות › כללי › גשר Home Assistant"),
+    "ha": ("#/system/diagnostics?tab=ha", "הגדרות › כללי › גשר Arx"),
     "media": ("#/system/diagnostics?tab=media", "הגדרות › כללי › וידאו ומדיה"),
     "general": ("#/system/diagnostics", "הגדרות › כללי"),
     "sites": ("#/explore/sites", "מפה › אתרים ומבנים"),
