@@ -34,6 +34,11 @@ only changes WHEN and HOW WIDE things run:
     jobs under a worker budget (GATE_PW_SLOTS, 12), longest first; --workers=1 groups split into up to GATE_W1_MAX_CHUNKS (8)
     chunks of about GATE_CHUNK_TARGET_SECS (1500) each, parallel groups get up to GATE_PW_MAX_WORKERS (6) workers; every
     failure is retried alone AFTER the pool drained (the v1 rule).
+Supervisor build stage (SUPERVISOR-BUILD-GATE-2341, docs/release/GATE_SPEED.md section 7): right after release_check the engine
+starts scripts/gate/addon_build_check.sh of the branch under test IN THE BACKGROUND (the add-on image built as the HA Supervisor
+builds it, then import / create_app / /healthz inside it) and collects it before the backend. GATE_ADDON_BUILD=auto (default):
+PASS / FAIL as the script says, NOT_RUN (no docker on the machine, or the branch has no script) is a skipped item with its reason,
+never a pass; =require: NOT_RUN fails the gate; =off: not started. GATE_ADDON_BUILD_SECS (600) is the stage's budget.
 `--plan --root <checkout>` prints the v1 and v2 plans with time estimates from the recorded costs and runs nothing.
 """
 import concurrent.futures as cf, glob, json, math, os, re, shutil, signal, socket, subprocess, sys, tempfile, threading, time, urllib.request
@@ -115,6 +120,11 @@ def lane_backend_files(bd):
     """The backend test files that carry the timing_lane mark (the lane runs only these files)."""
     return {os.path.basename(f) for f in glob.glob(str(Path(bd) / "tests" / "test_*.py"))
             if LANE_MARK_RE.search(Path(f).read_text(encoding="utf-8", errors="replace"))}
+ADDON_BUILD = (os.environ.get("GATE_ADDON_BUILD") or "auto").strip().lower()   # auto | require | off (SUPERVISOR-BUILD-GATE-2341)
+ADDON_BUILD_SECS = int(os.environ.get("GATE_ADDON_BUILD_SECS") or "600")         # the stage's budget (the script's ADDON_BUILD_SECS)
+ADDON_BUILD_SCRIPT = "scripts/gate/addon_build_check.sh"
+ADDON_BUILD_CAT = "addon_build"
+OPTIONAL_CATS = {ADDON_BUILD_CAT}   # no count baseline: an optional stage that may be NOT_RUN on a machine without docker
 COSTS_DIR = os.environ.get("GATE_COSTS_DIR") or ""
 SELECT_BASE = os.environ.get("GATE_SELECT_BASE") or ""   # --select-base <ref>: diff-based selection (select_tests.py); "" = full tier
 REDUCED_CATS = {}        # category -> "n of m files" when a selection left files out (filled by apply_selection())
@@ -639,6 +649,91 @@ def gate_history(current_label, current_items, limit=10):
 
 
 # ---------------------------------------------------------------- diff-based selection (GATESPEED-293 phase 2, opt-in)
+def addon_build_mode():
+    """GATE_ADDON_BUILD as one of auto / require / off (junk -> auto)."""
+    return ADDON_BUILD if ADDON_BUILD in ("auto", "require", "off") else "auto"
+
+
+def addon_build_start(wt, logd):
+    """Start the Supervisor build check of the branch under test in the background. Returns a handle, or a finished result
+    {"done": {"result": "NOT_RUN", "reason", "requirable"}} when the stage is off, in the timing lane, or the branch has no script."""
+    mode = addon_build_mode()
+    if mode == "off" or LANE:
+        return {"done": {"result": "NOT_RUN", "reason": "GATE_ADDON_BUILD=off" if mode == "off" else "timing lane: no image build",
+                         "requirable": False}}
+    script = Path(wt) / ADDON_BUILD_SCRIPT
+    if not script.is_file():
+        return {"done": {"result": "NOT_RUN", "reason": f"the branch has no {ADDON_BUILD_SCRIPT} (older than SUPERVISOR-BUILD-GATE-2341)",
+                         "requirable": True}}
+    js, log = Path(logd) / "addon_build.json", Path(logd) / "addon_build.log"
+    for f in (js, log):
+        if f.exists():
+            f.unlink()
+    cmd = ["timeout", "-k", "10", str(ADDON_BUILD_SECS + 30), "bash", str(script), "--root", str(wt), "--json", str(js)]
+    p = spawn(cmd, wt, log, env={"ADDON_BUILD_SECS": str(ADDON_BUILD_SECS)})
+    return {"proc": p, "t0": time.time(), "json": js, "log": log}
+
+
+def addon_build_settle(rc, timed_out, res, log_text, mode="auto"):
+    """The stage's verdict from the script's exit code (0 PASS, 1 FAIL, 3 NOT_RUN, other = FAIL) and its JSON/log.
+    Returns {"result", "reason", "status"}; status is the count key (pass / fail / skipped). NOT_RUN is never a pass."""
+    res = res or {}
+    tail = " | ".join(ln.strip() for ln in (log_text or "").splitlines()[-6:] if ln.strip())[:220]
+    if timed_out or rc in (124, 137):
+        return {"result": "FAIL", "status": "fail", "reason": f"over its {ADDON_BUILD_SECS}s budget (killed); log: {tail}"}
+    if rc == 0 and res.get("result", "PASS") == "PASS":
+        return {"result": "PASS", "status": "pass", "reason": res.get("reason", "built and smoke-tested")}
+    if rc == 3:
+        why = res.get("reason") or "no container engine"
+        if mode == "require":
+            return {"result": "FAIL", "status": "fail", "reason": f"NOT_RUN under GATE_ADDON_BUILD=require: {why}"}
+        return {"result": "NOT_RUN", "status": "skipped", "reason": why}
+    return {"result": "FAIL", "status": "fail", "reason": f"rc={rc}: {res.get('reason') or 'no result file'}; log: {tail}"}
+
+
+def addon_build_finish(h, extra):
+    """Collect the background check (bounded by its budget and the gate's deadline); record count/item and extra['addon_build']."""
+    mode = addon_build_mode()
+    if "done" in h:
+        d = h["done"]
+        out = addon_build_settle(3, False, d, "", mode if d.get("requirable") else "auto")
+        secs = 0
+    else:
+        p = h["proc"]
+        wait = max(5.0, min(ADDON_BUILD_SECS + 40 - (time.time() - h["t0"]), left()))
+        timed_out = False
+        try:
+            rc = p.wait(timeout=wait)
+        except subprocess.TimeoutExpired:
+            timed_out, rc = True, 124
+            try:
+                os.killpg(p.pid, signal.SIGTERM)
+                time.sleep(3)
+                os.killpg(p.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+            p.wait()
+        reap(p)
+        try:
+            res = json.loads(h["json"].read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            res = {}
+        txt = h["log"].read_text(encoding="utf-8", errors="replace") if h["log"].exists() else ""
+        out = addon_build_settle(rc, timed_out, res, txt, mode)
+        out.update(engine=res.get("engine", ""), builder=res.get("builder", ""), steps=res.get("steps", []), log=h["log"].name,
+                   log_tail=(res.get("log_tail") or txt.splitlines())[-40:])
+        secs = int(time.time() - h["t0"])
+    out["seconds"], out["mode"] = secs, mode
+    extra["addon_build"] = out
+    count(ADDON_BUILD_CAT, out["status"])
+    ident = "Supervisor build of the add-on image (scripts/gate/addon_build_check.sh)"
+    if out["result"] == "FAIL":
+        item(ADDON_BUILD_CAT, ident, "FAIL", out["reason"])
+    elif out["result"] == "NOT_RUN":
+        item(ADDON_BUILD_CAT, ident, "SKIPPED_NOT_RUN", out["reason"])
+    return out
+
+
 def compute_selection(wt, base):
     """select_tests.py (next to this script) on the worktree: base...HEAD. `base` is a ref name; origin/<base> is used when the
     worktree has no such local ref (the gate's worktree sees origin only)."""
@@ -1686,7 +1781,7 @@ def check_baselines(baseline, tier):
                  f"(re-run with --allow-count-drop \"<reason>\" only when the drop is intended)")
         BASELINE_ROWS[cat] = {"baseline": exp, "actual": act, "ratio": round(ratio, 3), "state": state}
     for cat in COUNTS:
-        if cat not in base and cat != "baseline":
+        if cat not in base and cat != "baseline" and cat not in OPTIONAL_CATS:
             warns.append(f"category {cat} has no baseline entry")
     return warns
 
@@ -1773,6 +1868,13 @@ def write_reports(sha, verdict, extra):
             md += [f"> אזהרה: הבדל ויזואלי: {d}" for d in v.get("diffs", [])]
         else:
             md += [f"- {v.get('summary')}"]
+    if extra.get("addon_build"):
+        a = extra["addon_build"]
+        md += ["", f"## בניית האימג' כמו ה-Supervisor (addon_build): {a['result']}", "", f"- {a['reason']}",
+               f"- מצב {a.get('mode')}, {a.get('seconds', 0)} שניות" + (f", מנוע {a['engine']} ({a.get('builder')})" if a.get("engine") else "")]
+        md += [f"- {st_.get('name')}: {st_.get('result')} ({st_.get('seconds')} s)" for st_ in a.get("steps", [])]
+        if a["result"] == "FAIL" and a.get("log_tail"):
+            md += ["", "```", "\n".join(a["log_tail"])[-3000:], "```"]
     if "release_check_output" in extra:
         md += ["", "## release_check", "", "```", extra["release_check_output"][-4000:], "```"]
     if "classification" in extra:
@@ -1820,6 +1922,7 @@ def main():
     hard_fail = []
     shm = None
     only = None
+    abuild = None
     if SELECT_BASE:
         with Phase("select", f"diff selection against {SELECT_BASE}"):
             try:
@@ -1878,6 +1981,9 @@ def main():
                 count("release_check", "pass" if rc == 0 else "fail")
                 if rc != 0:
                     item("release_check", "scripts/release_check.py", "FAIL", f"rc={rc}; " + " | ".join(l.strip() for l in txt.splitlines() if re.search(r"fail|missing|differ", l, re.I))[:220])
+        # SUPERVISOR-BUILD-GATE-2341: the real Supervisor-style image build runs in the background next to Playwright
+        with Phase("addon-build-start", "Supervisor build check started (background)"):
+            abuild = addon_build_start(wt, logd)
         cls = classify(fe, TIER)
         if SELECTION:
             cls = filter_classification(cls, SELECTION)
@@ -1935,6 +2041,10 @@ def main():
                     reap(vp)
         else:
             hard_fail.append("build failed: Playwright not run")
+        if abuild is not None:
+            with Phase("addon-build-wait", "Supervisor build check: collecting"):
+                addon_build_finish(abuild, extra)
+                abuild = None
         if procs:
             with Phase("backend-wait", "backend: collecting"), Recording("backend", bsig):
                 backend_finish(procs, wt, logd)
