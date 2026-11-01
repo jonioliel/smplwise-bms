@@ -152,8 +152,6 @@ export class SystemSchedules extends LitElement {
       flex-direction: column;
       gap: 2px;
       min-inline-size: 0;
-      font-size: var(--sw-fs-base);
-      font-weight: var(--sw-fw-medium);
     }
     .who {
       display: flex;
@@ -171,9 +169,9 @@ export class SystemSchedules extends LitElement {
     .ic {
       display: grid;
       place-items: center;
-      inline-size: 30px;
-      block-size: 30px;
-      border-radius: var(--sw-r-sm);
+      inline-size: 34px;
+      block-size: 34px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-success-soft);
       color: var(--sw-success-text);
       flex: none;
@@ -188,33 +186,79 @@ export class SystemSchedules extends LitElement {
     }
     ol {
       margin: 8px 0 0;
-      padding-inline-start: 20px;
+      padding: 12px 16px;
+      padding-inline-start: 34px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-well, var(--sw-surface-2));
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
+      line-height: 1.5;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
     }
+    /* SCHED-POLISH-2331: the help disclosure is a real control (aria-expanded, a drawn chevron, a focus ring, a 32 px target), not a
+       text link with a unicode arrow */
     .link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-block-size: 32px;
+      margin-block-start: var(--sw-s-2);
+      padding: 0 4px;
       color: var(--sw-accent-text);
+      font: inherit;
       font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
       cursor: pointer;
       background: none;
       border: 0;
-      padding: 0;
-      font-family: inherit;
+      border-radius: var(--sw-r-sm);
+    }
+    .link sw-icon {
+      transition: transform var(--sw-t-fast) var(--sw-ease);
+    }
+    .link[aria-expanded='true'] sw-icon {
+      transform: rotate(180deg);
+    }
+    .link:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    .cardnote {
+      margin: 6px 0 0;
+    }
+    .dlgtext {
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+      line-height: 1.5;
+    }
+    .dlgtext + sw-field {
+      margin-block-start: 10px;
+    }
+    /* the device classes: two columns of wells where the column is wide enough, the sensitive ones grouped under their own label */
+    .classgrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+      gap: 8px;
+    }
+    .classgrid .row + .row {
+      margin-block-start: 0;
+    }
+    .classgrid + .grouplabel {
+      margin-block-start: var(--sw-s-4);
     }
     table {
       inline-size: 100%;
       border-collapse: collapse;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-base);
     }
     th {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      font-weight: var(--sw-fw-medium);
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-semibold);
       text-align: center;
-      padding: 6px 4px;
+      padding: 6px 8px 8px;
       border-block-end: 1px solid var(--sw-border-strong);
     }
     th:first-child,
@@ -223,8 +267,18 @@ export class SystemSchedules extends LitElement {
     }
     td {
       text-align: center;
-      padding: 7px 4px;
+      padding: 10px 8px;
       border-block-end: 1px solid var(--sw-border);
+    }
+    td:first-child {
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: var(--sw-fw-medium);
+    }
+    tbody tr:last-child td {
+      border-block-end: 0;
+    }
+    .rolesnote {
+      margin: 12px 0 10px;
     }
     td.yes {
       color: var(--sw-success-text);
@@ -234,6 +288,30 @@ export class SystemSchedules extends LitElement {
     }
     .savebar {
       max-inline-size: none;
+    }
+    /* SCHED-POLISH-2331: a column narrower than a label plus a 240 px control stacks its rows (the label above the control) instead
+       of squeezing the label into three lines - the side column at 1440 / 1180 */
+    .col {
+      container-type: inline-size;
+    }
+    @container (max-width: 440px) {
+      .row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--sw-s-2);
+      }
+      .row .lbl {
+        flex-basis: auto;
+      }
+      .row .ctl {
+        inline-size: auto;
+      }
+      .row .end {
+        justify-content: flex-start;
+      }
+      .row .seg {
+        align-self: flex-start;
+      }
     }
     @media (max-width: 1023px) {
       .cols {
@@ -388,7 +466,7 @@ export class SystemSchedules extends LitElement {
                   @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setMark(x.entity_id, e.detail.checked)}></sw-toggle></span>
             </div>`;
           })
-        : html`<p class="muted" style="margin:6px 0" data-scripts-empty>אין סקריפטים שמנטרלים או פותחים.</p>`}
+        : html`<p class="muted cardnote" data-scripts-empty>אין סקריפטים שמנטרלים או פותחים.</p>`}
     </sw-card>`;
   }
 
@@ -452,9 +530,9 @@ export class SystemSchedules extends LitElement {
         <span class="who"><span class="ic mute"><sw-icon name="clock" size=${16}></sw-icon></span>
           <span class="lbl">סנכרון אחרון<span class="muted">${s.last_sync_at ? whenLabel(s.last_sync_at) : 'עדיין לא'} · ${s.counts.visible} תזמונים${s.counts.hidden ? ` · ${s.counts.hidden} מוסתרים מהמשתמש הנוכחי` : ''}${s.stale ? ' · אין חיבור נוכחי' : ''}</span></span></span>
       </div>
-      <button class="link" data-help-toggle @click=${() => (this.help = !this.help)}>הרכיב לא מותקן? הוראות התקנה ${this.help ? '▴' : '◂'}</button>
+      <button type="button" class="link" aria-expanded=${this.help ? 'true' : 'false'} aria-controls="sched-help" data-help-toggle @click=${() => (this.help = !this.help)}>הרכיב לא מותקן? הוראות התקנה<sw-icon name="chevronDown" size=${14}></sw-icon></button>
       ${this.help
-        ? html`<ol data-help>
+        ? html`<ol id="sched-help" data-help>
             <li>מתקינים את האינטגרציה המותאמת "Scheduler" (ב־HACS: "scheduler component"), או מעתיקים ידנית את התיקייה <code>custom_components/scheduler</code>.</li>
             <li>מפעילים מחדש את Home Assistant.</li>
             <li>בהגדרות ‹ מכשירים ושירותים ‹ הוספת אינטגרציה, בוחרים "Scheduler".</li>
@@ -486,11 +564,19 @@ export class SystemSchedules extends LitElement {
 
   private renderClasses() {
     const d = this.draft;
+    const row = (c: ScheduleClass) => html`<div class="row"><span class="lbl">${CLASS_LABEL[c]}<span class="muted"><code>${CLASS_DOMAIN[c]}</code>${CLASS_NOTE[c] ? ` · ${CLASS_NOTE[c]}` : ''}</span></span>
+          <span class="end">${SENSITIVE_CLASSES.includes(c) ? html`<sw-badge kind="stale" label="רגיש"></sw-badge>` : nothing}<sw-toggle label=${CLASS_LABEL[c]} labelHidden .checked=${d.classes.includes(c)} data-class=${c} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setClass(c, e.detail.checked)}></sw-toggle></span></div>`;
+    // SCHED-POLISH-2331: the ordinary classes first, the sensitive ones (their own permission) under their own label; same toggles, same order inside each group
+    const plain = ALL_CLASSES.filter((c) => !SENSITIVE_CLASSES.includes(c));
+    const sensitive = ALL_CLASSES.filter((c) => SENSITIVE_CLASSES.includes(c));
+    const on = (list: ScheduleClass[]) => list.filter((c) => d.classes.includes(c)).length;
     return html`<sw-card heading="סוגי התקנים מותרים בתזמון" data-sched-classes>
-      ${ALL_CLASSES.map(
-        (c) => html`<div class="row"><span class="lbl">${CLASS_LABEL[c]}<span class="muted"><code>${CLASS_DOMAIN[c]}</code>${CLASS_NOTE[c] ? ` · ${CLASS_NOTE[c]}` : ''}</span></span>
-          <span class="end">${SENSITIVE_CLASSES.includes(c) ? html`<sw-badge kind="stale" label="רגיש"></sw-badge>` : nothing}<sw-toggle label=${CLASS_LABEL[c]} labelHidden .checked=${d.classes.includes(c)} data-class=${c} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setClass(c, e.detail.checked)}></sw-toggle></span></div>`,
-      )}
+      <div class="grouplabel">רגילים · ${on(plain)} מתוך ${plain.length}</div>
+      <div class="classgrid">${plain.map(row)}</div>
+      ${sensitive.length
+        ? html`<div class="grouplabel">רגישים: דורשים הרשאה לתזמון פעולות רגישות · ${on(sensitive)} מתוך ${sensitive.length}</div>
+            <div class="classgrid">${sensitive.map(row)}</div>`
+        : nothing}
     </sw-card>`;
   }
 
@@ -505,11 +591,11 @@ export class SystemSchedules extends LitElement {
   }
 
   private renderRoles() {
-    const cell = (on: boolean, scoped = false) => html`<td class=${on ? 'yes' : 'no'}>${on ? html`<sw-icon name="check" size=${14}></sw-icon>${scoped ? html`<span class="muted"> בהיקף</span>` : nothing}` : '—'}</td>`;
+    const cell = (on: boolean, scoped = false) => html`<td class=${on ? 'yes' : 'no'}>${on ? html`<sw-icon name="check" size=${16} role="img" aria-label="כן"></sw-icon>${scoped ? html`<span class="muted"> בהיקף</span>` : nothing}` : html`<span aria-label="לא">—</span>`}</td>`;
     return html`<sw-card heading="מי רשאי מה" data-sched-roles>
-      <table><thead><tr><th>תפקיד</th><th>צפייה</th><th>ניהול</th><th>רגיש</th></tr></thead>
+      <table><thead><tr><th scope="col">תפקיד</th><th scope="col">צפייה</th><th scope="col">ניהול</th><th scope="col">רגיש</th></tr></thead>
         <tbody>${ROLE_ROWS.map((r) => html`<tr><td>${r.role}</td>${cell(r.view)}${cell(r.manage, r.scoped)}${cell(r.sensitive)}</tr>`)}</tbody></table>
-      <p class="muted" style="margin:10px 0 8px">ברירות המחדל. ניהול תזמונים ותזמון פעולות רגישות (אזעקה, צופרים, מנעולים, דלתות ושערים) ניתנים במפורש לכל משתמש או תפקיד, בהיקף שבחרתם.</p>
+      <p class="muted rolesnote">ברירות המחדל. ניהול תזמונים ותזמון פעולות רגישות (אזעקה, צופרים, מנעולים, דלתות ושערים) ניתנים במפורש לכל משתמש או תפקיד, בהיקף שבחרתם.</p>
       <sw-button size="sm" data-open-access @click=${() => navigate('/system/access')}>משתמשים והרשאות</sw-button>
     </sw-card>`;
   }
@@ -523,14 +609,14 @@ export class SystemSchedules extends LitElement {
     return html`<sw-page crumbs="הגדרות" heading="תזמונים" subheading="רק למנהל מערכת. מסך התזמונים של המשתמשים אינו מציג הגדרות אלה." wide data-schedules-settings>
       ${this.confirmSensor
         ? html`<sw-dialog open heading="חיישן שבת וחג" data-sensor-confirm @close=${() => (this.confirmSensor = false)}>
-            <p style="margin:0;font-size:var(--sw-fs-sm)">חיישן שאינו לוח שנה יהודי - להשתמש בו בכל זאת?${pick ? html`<br /><b>${pick.name}</b> <code>${pick.entity_id}</code>` : nothing}</p>
+            <p class="dlgtext">חיישן שאינו לוח שנה יהודי - להשתמש בו בכל זאת?${pick ? html`<br /><b>${pick.name}</b> <code>${pick.entity_id}</code>` : nothing}</p>
             <sw-button slot="footer" variant="ghost" data-sensor-cancel @click=${() => (this.confirmSensor = false)}>ביטול</sw-button>
             <sw-button slot="footer" variant="primary" data-sensor-force @click=${() => void this.save(true)}>כן, להשתמש בו</sw-button>
           </sw-dialog>`
         : nothing}
       ${this.disarmAsk
         ? html`<sw-dialog open heading="להסיר את ההגבלה על נטרול אזעקה בתזמונים?" data-disarm-confirm @close=${() => { this.disarmAsk = false; this.disarmWord = ''; }}>
-            <p style="margin:0 0 10px;font-size:var(--sw-fs-sm)">תזמון יוכל לנטרל לוח אזעקה בלי שאיש נמצא במקום. רק מנהל מערכת, נרשם ביומן. להמשך הקלידו <b>${ALLOW_DISARM_WORD}</b></p>
+            <p class="dlgtext">תזמון יוכל לנטרל לוח אזעקה בלי שאיש נמצא במקום. רק מנהל מערכת, נרשם ביומן. להמשך הקלידו <b>${ALLOW_DISARM_WORD}</b></p>
             <sw-field><input aria-label="אישור מוקלד" data-disarm-word .value=${this.disarmWord} @input=${(e: Event) => (this.disarmWord = (e.target as HTMLInputElement).value)} /></sw-field>
             <sw-button slot="footer" variant="ghost" data-disarm-cancel @click=${() => { this.disarmAsk = false; this.disarmWord = ''; }}>ביטול</sw-button>
             <sw-button slot="footer" variant="danger" data-disarm-ok ?disabled=${this.disarmWord.trim() !== ALLOW_DISARM_WORD || this.busy} @click=${() => void this.setAllowDisarm(true, this.disarmWord)}>אפשר</sw-button>

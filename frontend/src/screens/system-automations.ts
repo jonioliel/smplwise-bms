@@ -91,8 +91,9 @@ export class SystemAutomations extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      padding: 3px 10px;
-      border-radius: 999px;
+      min-block-size: 24px;
+      padding: 0 10px;
+      border-radius: var(--sw-r-pill);
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-medium);
       background: var(--sw-surface-3);
@@ -107,21 +108,29 @@ export class SystemAutomations extends LitElement {
       background: var(--sw-stale-soft);
       color: var(--sw-warning-text);
     }
+    /* SCHED-POLISH-2331: the role matrix reads as a table of the settings ladder - header in text-2 / 600, the role name in the heading ink */
     table.mtx {
       inline-size: 100%;
       border-collapse: collapse;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-base);
+      margin-block-end: var(--sw-s-3);
     }
     .mtx th {
       text-align: start;
-      font-weight: var(--sw-fw-medium);
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      padding: 6px 4px;
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      padding: 6px 8px 8px;
+      border-block-end: 1px solid var(--sw-border-strong);
     }
     .mtx td {
-      padding: 8px 4px;
+      padding: 10px 8px;
       border-block-start: 1px solid var(--sw-border);
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: var(--sw-fw-medium);
+    }
+    .mtx tbody tr:first-child td {
+      border-block-start: 0;
     }
     .mtx td small {
       display: block;
@@ -130,7 +139,7 @@ export class SystemAutomations extends LitElement {
     }
     .mtx .c {
       text-align: center;
-      inline-size: 64px;
+      inline-size: 72px;
     }
     .yes {
       color: var(--sw-success-text);
@@ -148,8 +157,8 @@ export class SystemAutomations extends LitElement {
       align-items: center;
       gap: 6px;
       min-block-size: 36px;
-      padding-inline: 14px;
-      border-radius: 999px;
+      padding-inline: 12px 14px;
+      border-radius: var(--sw-r-pill);
       border: 1px solid var(--sw-border-strong);
       background: var(--sw-surface);
       color: var(--sw-text-2);
@@ -166,6 +175,15 @@ export class SystemAutomations extends LitElement {
       opacity: 0.6;
       cursor: default;
     }
+    .rc:focus-visible,
+    .ib:focus-visible,
+    .stepper button:focus-visible,
+    .link:focus-visible,
+    .rev a:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset, 2px);
+      border-radius: var(--sw-r-sm);
+    }
     .stepper {
       display: inline-flex;
       align-items: center;
@@ -175,14 +193,28 @@ export class SystemAutomations extends LitElement {
       background: var(--sw-surface);
     }
     .stepper button {
+      display: grid;
+      place-items: center;
       inline-size: 36px;
       block-size: 36px;
       border: 0;
+      border-radius: var(--sw-r-sm);
       background: transparent;
-      font: inherit;
-      font-size: var(--sw-fs-xl);
       cursor: pointer;
       color: var(--sw-text);
+      transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .stepper button:active:not(:disabled),
+    .ib:active:not(:disabled) {
+      transform: scale(var(--sw-press-scale));
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .stepper button:hover:not(:disabled),
+      .ib:hover:not(:disabled) {
+        background: var(--sw-hover-wash);
+      }
     }
     .stepper button:disabled {
       opacity: 0.35;
@@ -202,10 +234,11 @@ export class SystemAutomations extends LitElement {
     .tpl {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 6px 0;
-      border-block-end: 1px dashed var(--sw-border);
-      font-size: var(--sw-fs-sm);
+      gap: 8px;
+      padding: 8px 0;
+      border-block-end: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-base);
+      font-weight: var(--sw-fw-medium);
     }
     .tpl:last-child {
       border-block-end: 0;
@@ -220,8 +253,9 @@ export class SystemAutomations extends LitElement {
     .ib {
       display: inline-grid;
       place-items: center;
-      inline-size: 32px;
-      block-size: 32px;
+      flex: none;
+      inline-size: 34px;
+      block-size: 34px;
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
@@ -231,6 +265,34 @@ export class SystemAutomations extends LitElement {
     .ib:disabled {
       opacity: 0.35;
       cursor: default;
+    }
+    /* the presence picker: the settings' select look (it had a class and no rule, so it rendered as the browser's default) */
+    select.sel {
+      min-block-size: 36px;
+      max-inline-size: 260px;
+      padding: 0 10px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      direction: ltr;
+    }
+    select.sel:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    @media (pointer: coarse) {
+      .ib,
+      .stepper button {
+        inline-size: 44px;
+        block-size: 44px;
+      }
+      .rc,
+      select.sel {
+        min-block-size: 44px;
+      }
     }
     .rev {
       display: flex;
@@ -253,7 +315,11 @@ export class SystemAutomations extends LitElement {
     .rev a {
       color: var(--sw-accent-text);
       text-decoration: none;
-      font-weight: var(--sw-fw-medium);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .rev a:hover {
+      text-decoration: underline;
+      text-underline-offset: 3px;
     }
     .link {
       color: var(--sw-accent-text);
@@ -264,9 +330,42 @@ export class SystemAutomations extends LitElement {
       margin-block-start: var(--sw-s-3);
       max-inline-size: none;
     }
+    /* SCHED-POLISH-2331: a column narrower than a label plus a 240 px control stacks its rows (the label above the control) instead
+       of squeezing the label into three lines - the side column at 1440 / 1180 */
+    .col {
+      container-type: inline-size;
+    }
+    @container (max-width: 440px) {
+      .row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--sw-s-2);
+      }
+      .row .lbl {
+        flex-basis: auto;
+      }
+      .row .ctl {
+        inline-size: auto;
+      }
+      .row .end {
+        justify-content: flex-start;
+      }
+      .row .seg {
+        align-self: flex-start;
+      }
+    }
     @media (max-width: 1023px) {
       .cols {
         grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 767px) {
+      select.sel {
+        max-inline-size: none;
+        inline-size: 100%;
+      }
+      .mtx .c {
+        inline-size: auto;
       }
     }
   `, bubbleChrome];
@@ -362,9 +461,9 @@ export class SystemAutomations extends LitElement {
 
   private stepper(key: NumKey | LimKey, value: number, unit: string, min: number, max: number, set: (v: number) => void, label: string, step = 1): TemplateResult {
     return html`<div class="stepper" role="group" aria-label=${label}>
-      <button type="button" aria-label="פחות" data-step-minus=${key} ?disabled=${value <= min} @click=${() => set(Math.max(min, value - step))}>−</button>
+      <button type="button" aria-label="פחות" data-step-minus=${key} ?disabled=${value <= min} @click=${() => set(Math.max(min, value - step))}><sw-icon name="minus" size=${16}></sw-icon></button>
       <span class="v" data-setting=${key}><bdi>${value}</bdi>${unit ? html`<small>${unit}</small>` : nothing}</span>
-      <button type="button" aria-label="יותר" data-step-plus=${key} ?disabled=${value >= max} @click=${() => set(Math.min(max, value + step))}>+</button>
+      <button type="button" aria-label="יותר" data-step-plus=${key} ?disabled=${value >= max} @click=${() => set(Math.min(max, value + step))}><sw-icon name="plus" size=${16}></sw-icon></button>
     </div>`;
   }
 
@@ -377,11 +476,11 @@ export class SystemAutomations extends LitElement {
   }
 
   private who(): TemplateResult {
-    const tick = (on: boolean) => (on ? html`<sw-icon class="yes" name="check" size=${16}></sw-icon>` : html`<span class="no">—</span>`);
+    const tick = (on: boolean) => (on ? html`<sw-icon class="yes" name="check" size=${16} role="img" aria-label="כן"></sw-icon>` : html`<span class="no" aria-label="לא">—</span>`);
     const codeOn = (id: string, fixed: boolean | null) => (fixed !== null ? fixed : this.draft.code_view_roles.includes(id));
     return html`<sw-card heading="מי רשאי" data-card="who">
       <table class="mtx" data-roles-matrix>
-        <thead><tr><th>תפקיד</th><th class="c">הפעלה</th><th class="c">יצירה ועריכה</th><th class="c">קוד</th>${this.draft.device_test_enabled ? html`<th class="c" data-col-device-test>בדיקה על ההתקן</th>` : nothing}</tr></thead>
+        <thead><tr><th scope="col">תפקיד</th><th scope="col" class="c">הפעלה</th><th scope="col" class="c">יצירה ועריכה</th><th scope="col" class="c">קוד</th>${this.draft.device_test_enabled ? html`<th scope="col" class="c" data-col-device-test>בדיקה על ההתקן</th>` : nothing}</tr></thead>
         <tbody>${ROLE_ROWS.map((r) => html`<tr data-role=${r.id}><td>${r.label}${r.scope ? html`<small>${r.scope}</small>` : nothing}</td><td class="c">${tick(r.run)}</td><td class="c">${tick(r.edit)}</td><td class="c">${tick(codeOn(r.id, r.codeFixed))}</td>${this.draft.device_test_enabled ? html`<td class="c">${tick(r.run && r.edit)}</td>` : nothing}</tr>`)}</tbody>
       </table>
       ${this.row('הרשאות ותפקידים', 'ההקצאה למשתמשים ולקומות במסך "משתמשים והרשאות".', html`<a class="link" href="#/system/access" data-link-access>למסך המשתמשים</a>`)}
@@ -452,7 +551,7 @@ export class SystemAutomations extends LitElement {
     return html`<sw-card heading="תצוגת קוד" data-card="code">
       ${this.row('מי רואה את המתג "בונה · קוד"', 'הצד השני של אותו עורך. שמירת תוכן שאינו מהבונה דורשת מנהל Home Assistant בכל מקרה.', html`<div class="chipsrow" role="group" aria-label="תפקידים">${CODE_VIEW_ROLES.map((r) => {
         const on = this.draft.code_view_roles.includes(r.id) || r.locked;
-        return html`<button type="button" class="rc" aria-pressed=${String(on)} ?disabled=${r.locked} data-code-role=${r.id} @click=${() => this.set({ code_view_roles: toggleCodeRole(this.draft.code_view_roles, r.id) })}>${on ? '✓ ' : '+ '}${r.label}</button>`;
+        return html`<button type="button" class="rc" aria-pressed=${String(on)} ?disabled=${r.locked} data-code-role=${r.id} @click=${() => this.set({ code_view_roles: toggleCodeRole(this.draft.code_view_roles, r.id) })}><sw-icon name=${on ? 'check' : 'plus'} size=${14}></sw-icon>${r.label}</button>`;
       })}</div>`)}
     </sw-card>`;
   }
@@ -490,7 +589,7 @@ export class SystemAutomations extends LitElement {
       ${this.row('צבע הצ׳יפ', 'צהוב או אדום', html`<div class="seg" role="group" aria-label="צבע הצ׳יפ"><button type="button" aria-pressed=${String(this.draft.sensitive_chip === 'amber')} data-sensitive-chip="amber" @click=${() => this.set({ sensitive_chip: 'amber' })}>צהוב</button><button type="button" aria-pressed=${String(this.draft.sensitive_chip === 'red')} data-sensitive-chip="red" @click=${() => this.set({ sensitive_chip: 'red' })}>אדום</button></div>`)}
       ${this.notify.length ? html`<div class="row"><div class="lbl"><span>יעדי התראה מאושרים</span><span class="muted">רק אליהם אפשר לשלוח התראה מאוטומציה</span></div><div class="chipsrow" role="group" aria-label="יעדי התראה">${this.notify.map((n) => {
         const on = approved.has(n.name);
-        return html`<button type="button" class="rc" aria-pressed=${String(on)} data-notify=${n.action} @click=${() => this.set({ notify_targets: on ? this.draft.notify_targets.filter((x) => x !== n.name) : [...this.draft.notify_targets, n.name] })}>${on ? '✓ ' : ''}${n.name}</button>`;
+        return html`<button type="button" class="rc" aria-pressed=${String(on)} data-notify=${n.action} @click=${() => this.set({ notify_targets: on ? this.draft.notify_targets.filter((x) => x !== n.name) : [...this.draft.notify_targets, n.name] })}>${on ? html`<sw-icon name="check" size=${14}></sw-icon>` : nothing}${n.name}</button>`;
       })}</div></div>` : nothing}
     </sw-card>`;
   }
@@ -502,8 +601,8 @@ export class SystemAutomations extends LitElement {
       ${this.row('גלריה פעילה', 'מוצגת בלחיצה על "חדש"', this.tog('גלריה פעילה', this.draft.templates_enabled, (v) => this.set({ templates_enabled: v }), 'templates_enabled'))}
       ${order.map((t, i) => html`<div class=${`tpl${hidden.has(t.id) ? ' off' : ''}`} data-template=${t.id}>
         <span class="nm">${t.name}${t.suggest_schedule ? html` <span class="tag"><sw-icon name="calendar" size=${12}></sw-icon>גם כתזמון</span>` : nothing}</span>
-        <button type="button" class="ib" aria-label=${`הקדם · ${t.name}`} data-template-up=${t.id} ?disabled=${i === 0} @click=${() => this.set({ templates_order: moveTemplate(order.map((x) => x.id), t.id, -1) })}>▲</button>
-        <button type="button" class="ib" aria-label=${`אחר · ${t.name}`} data-template-down=${t.id} ?disabled=${i === order.length - 1} @click=${() => this.set({ templates_order: moveTemplate(order.map((x) => x.id), t.id, 1) })}>▼</button>
+        <button type="button" class="ib" aria-label=${`הקדם · ${t.name}`} data-template-up=${t.id} ?disabled=${i === 0} @click=${() => this.set({ templates_order: moveTemplate(order.map((x) => x.id), t.id, -1) })}><sw-icon name="arrowUp" size=${16}></sw-icon></button>
+        <button type="button" class="ib" aria-label=${`אחר · ${t.name}`} data-template-down=${t.id} ?disabled=${i === order.length - 1} @click=${() => this.set({ templates_order: moveTemplate(order.map((x) => x.id), t.id, 1) })}><sw-icon name="arrowDown" size=${16}></sw-icon></button>
         ${this.tog(`הצגה · ${t.name}`, !hidden.has(t.id), () => this.set({ templates_hidden: toggleHidden(this.draft.templates_hidden, t.id) }), `tpl-${t.id}`)}
       </div>`)}
     </sw-card>`;
@@ -566,7 +665,7 @@ export class SystemAutomations extends LitElement {
     if (this.phase === 'forbidden') return html`<sw-page crumbs="הגדרות" heading="אוטומציות"><sw-state-panel state="forbidden" heading="אין הרשאה" data-automations-settings-forbidden></sw-state-panel></sw-page>`;
     return html`<sw-page crumbs="הגדרות" heading="אוטומציות" subheading="כל אפשרות של האוטומציות, הסצנות והסקריפטים נמצאת כאן בלבד." wide data-automations-settings>
       <div class="cols">
-        <div class="col">${this.wallButtons()}${this.codeView()}${this.who()}${this.retention()}${this.display()}<sw-list-display-settings list="automations"></sw-list-display-settings>${this.platform()}</div>
+        <div class="col">${this.platform()}${this.wallButtons()}${this.codeView()}${this.who()}${this.retention()}${this.display()}<sw-list-display-settings list="automations"></sw-list-display-settings></div>
         <div class="col">${this.prechecks()}${this.compatCard()}${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}${isApi() ? html`<scenario-settings></scenario-settings>` : nothing}</div>
       </div>
       ${this.dirty || this.note || this.error

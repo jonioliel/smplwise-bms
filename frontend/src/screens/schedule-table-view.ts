@@ -53,6 +53,11 @@ export class ScheduleTableView extends LitElement {
     :host {
       display: block;
     }
+    /* SCHED-POLISH-2331: a narrow editor column scrolls the table sideways inside the card, never the page */
+    .wrap {
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+    }
     table {
       inline-size: 100%;
       border-collapse: separate;
@@ -61,17 +66,26 @@ export class ScheduleTableView extends LitElement {
     }
     th {
       text-align: start;
-      font-weight: var(--sw-fw-medium);
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      padding: 8px 8px;
-      border-block-end: 1px solid var(--sw-border);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      padding: 8px;
+      border-block-end: 1px solid var(--sw-border-strong);
       white-space: nowrap;
     }
     td {
-      padding: 6px 8px;
+      padding: 8px;
       border-block-end: 1px solid var(--sw-border);
       vertical-align: middle;
+      transition: background var(--sw-t-hover) var(--sw-ease-color);
+    }
+    tbody tr[data-row] {
+      cursor: pointer;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      tbody tr[data-row]:not(.sel):hover td {
+        background: var(--sw-hover-wash);
+      }
     }
     tr.sel td {
       background: var(--sw-accent-soft);
@@ -82,11 +96,13 @@ export class ScheduleTableView extends LitElement {
     td.n {
       color: var(--sw-text-3);
       inline-size: 32px;
+      font-variant-numeric: tabular-nums;
+      font-weight: var(--sw-fw-semibold);
     }
     input,
     select {
       box-sizing: border-box;
-      min-block-size: 30px;
+      min-block-size: 34px;
       padding: 3px 8px;
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
@@ -106,6 +122,7 @@ export class ScheduleTableView extends LitElement {
       inline-size: 116px;
       direction: rtl;
       text-align: start;
+      font-variant-numeric: tabular-nums;
     }
     input.t.err {
       border-color: var(--sw-danger);
@@ -131,10 +148,16 @@ export class ScheduleTableView extends LitElement {
     .ents {
       color: var(--sw-text-2);
     }
+    td.next {
+      color: var(--sw-text-2);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
     .msg {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-xs);
-      margin-block-start: 3px;
+      font-weight: var(--sw-fw-medium);
+      margin-block-start: 4px;
     }
     .chip {
       display: inline-flex;
@@ -151,21 +174,35 @@ export class ScheduleTableView extends LitElement {
       background: var(--sw-warning-soft);
       color: var(--sw-warning-text);
     }
-    .acts {
+    /* SCHED-POLISH-2331: the flex box is a div inside the cell - a td with display: flex leaves the table model, and its bottom rule
+       stepped out of line with the rest of the row */
+    .acts .btns {
       display: flex;
       gap: 2px;
       justify-content: flex-end;
+    }
+    td.acts {
+      inline-size: 1%;
+      white-space: nowrap;
     }
     .foot {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding-block-start: 10px;
+      padding-block-start: 12px;
     }
-    .empty {
-      padding: 24px;
+    td.empty {
+      padding: 28px 16px;
       text-align: center;
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-base);
+      cursor: default;
+    }
+    @media (pointer: coarse) {
+      input,
+      select {
+        min-block-size: 44px;
+      }
     }
     @media (max-width: 720px) {
       table,
@@ -178,12 +215,16 @@ export class ScheduleTableView extends LitElement {
       tr {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 8px 10px;
-        padding: 10px;
-        margin-block-end: 8px;
+        gap: 10px 12px;
+        padding: 12px 14px;
+        margin-block-end: 10px;
         border: 1px solid var(--sw-border);
-        border-radius: var(--sw-r-md);
+        border-radius: var(--sw-r-lg);
         background: var(--sw-surface);
+      }
+      tr td,
+      tbody tr[data-row]:hover td {
+        background: transparent;
       }
       tr.sel {
         border-color: var(--sw-accent);
@@ -198,8 +239,14 @@ export class ScheduleTableView extends LitElement {
       td.who,
       td.val-cell,
       td.next,
-      td.act-cell {
+      td.act-cell,
+      td.acts {
         grid-column: 1 / -1;
+      }
+      td.acts {
+        inline-size: auto;
+        border-block-start: 1px solid var(--sw-border);
+        padding-block-start: 6px;
       }
       td.n {
         display: none;
@@ -207,9 +254,13 @@ export class ScheduleTableView extends LitElement {
       td[data-label]::before {
         content: attr(data-label);
         display: block;
-        color: var(--sw-text-3);
+        color: var(--sw-text-2);
         font-size: var(--sw-fs-xs);
-        margin-block-end: 2px;
+        font-weight: var(--sw-fw-semibold);
+        margin-block-end: 4px;
+      }
+      td.next {
+        white-space: normal;
       }
       input.t {
         inline-size: 100%;
@@ -300,7 +351,7 @@ export class ScheduleTableView extends LitElement {
     const pair = this.pairOf(r.index);
     const ce = this.cellError?.uid === slot.uid ? this.cellError : null;
     return html`<tr class="${slot.uid === this.selected ? 'sel' : ''} ${errs.length ? 'bad' : ''}" data-row=${slot.uid} @click=${() => this.fire('slot-select', { uid: slot.uid })}>
-      <td class="n" title=${errs.map((e) => e.message).join(' · ')}>${errs.length ? html`<sw-icon name="warning" size="14"></sw-icon>` : display}</td>
+      <td class="n" title=${errs.map((e) => e.message).join(' · ')}>${errs.length ? html`<sw-icon name="warning" size="14" role="img" aria-label=${`משבצת ${display}: ${errs.map((e) => e.message).join(' · ')}`}></sw-icon>` : display}</td>
       <td data-label="משעה">
         <input class="t ${ce?.field === 'from' ? 'err' : ''}" data-cell="from" ?disabled=${ro} .value=${r.from} aria-label="משעה, משבצת ${display}" @change=${(e: Event) => this.commit(slot, 'from', (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} @click=${(e: Event) => e.stopPropagation()} />
         ${ce?.field === 'from' ? html`<div class="msg" role="alert">${ce.message}</div>` : nothing}
@@ -329,15 +380,15 @@ export class ScheduleTableView extends LitElement {
       <td class="acts">
         ${this.readOnly
           ? nothing
-          : html`<sw-button size="sm" variant="ghost" iconOnly icon="layers" label="שכפול משבצת ${display}" @click=${(e: Event) => (e.stopPropagation(), this.fire('slot-duplicate', { uid: slot.uid }))}></sw-button>
-              <sw-button size="sm" variant="ghost" iconOnly icon="trash" label="מחיקת משבצת ${display}" @click=${(e: Event) => (e.stopPropagation(), this.fire('slot-delete', { uid: slot.uid }))}></sw-button>`}
+          : html`<div class="btns"><sw-button size="sm" variant="ghost" iconOnly icon="layers" label="שכפול משבצת ${display}" @click=${(e: Event) => (e.stopPropagation(), this.fire('slot-duplicate', { uid: slot.uid }))}></sw-button>
+              <sw-button size="sm" variant="ghost" iconOnly icon="trash" label="מחיקת משבצת ${display}" @click=${(e: Event) => (e.stopPropagation(), this.fire('slot-delete', { uid: slot.uid }))}></sw-button></div>`}
       </td>
     </tr>`;
   }
 
   render() {
     const rows = tableRows(this.slots, this.sun, this.pairOf);
-    return html`<table data-schedule-table>
+    return html`<div class="wrap"><table data-schedule-table>
         <thead>
           <tr>
             <th>#</th>
@@ -351,9 +402,9 @@ export class ScheduleTableView extends LitElement {
           </tr>
         </thead>
         <tbody>
-          ${rows.length ? rows.map((r, i) => this.renderRow(r, i + 1)) : html`<tr><td colspan="8" class="empty">אין משבצות. הוסיפו משבצת.</td></tr>`}
+          ${rows.length ? rows.map((r, i) => this.renderRow(r, i + 1)) : html`<tr><td colspan="8" class="empty" data-table-empty>אין משבצות עדיין.${this.readOnly ? '' : ' "משבצת חדשה" מוסיפה את הראשונה.'}</td></tr>`}
         </tbody>
-      </table>
+      </table></div>
       ${this.readOnly ? nothing : html`<div class="foot"><sw-button size="sm" icon="plus" data-table-add @click=${() => this.fire('slot-add')}>משבצת חדשה</sw-button></div>`}`;
   }
 }
