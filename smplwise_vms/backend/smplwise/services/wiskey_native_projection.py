@@ -10,13 +10,65 @@ from __future__ import annotations
 import hashlib, json, os, secrets
 from pathlib import Path
 from typing import Any
+from contextlib import contextmanager
+import time
 from .wiskey_distribution_digest import digest
 
+try:  # POSIX only (the add-on runs on Linux); absent on the Windows development workstation
+    import fcntl as _fcntl
+except ImportError:  # pragma: no cover - platform dependent
+    _fcntl = None
+
 RELATIVE = ".storage/hikvision_intercom.arx_installation/controller.v1.json"
+FENCE_NAME = "generation.lock"
+FENCE_WAIT_S = 2.0
+FENCE_UNSUPPORTED = "generation_fence_unsupported"
 EVIDENCE_KEY = "wiskey.installation.generation_evidence.v1"
 OBSERVATION_KEY = "wiskey.installation.readiness_observation.v1"
 HISTORY_KEY = "wiskey.installation.r2_history.v1"
 NAMES = ("smplwise_bridge", "hikvision_intercom")
+
+
+def fence_supported():
+    return _fcntl is not None
+
+
+def require_fence():
+    """WISKEY-RC7-ADOPT-2331 (rc.7 map row 5b): a platform without `fcntl` REFUSES every projection write or delete with the typed
+    `generation_fence_unsupported` - it never writes without the fence and never skips it silently."""
+    if _fcntl is None:
+        from .wiskey_auto_install import InstallationError
+
+        raise InstallationError(FENCE_UNSUPPORTED)
+
+
+@contextmanager
+def generation_fence(root):
+    """WISKEY-RC7-ADOPT-2331 (rc.7 map row 5): the original `generation.lock` next to the projection, shared only with Native's
+    start-up executor. A PUBLICATION fence only (decision WISKEY-R2-ALIGN-2272 stands: no file journal): the lock file holds no
+    state, no counter and no claim - it is never read or written, only flock'ed; the ONE journal stays in SQLite
+    (`wiskey.installation.generation`). Order: Arx DB -> JOURNAL_LOCK -> this fence; Native takes only the fence and never calls Arx
+    or its SQLite connection while holding it. No socket I/O under it. Busy for more than FENCE_WAIT_S: TimeoutError
+    `generation_fence_busy`. No fcntl: `generation_fence_unsupported` (`require_fence`)."""
+    require_fence()
+    parent = _private_dir(root)
+    fd = os.open(parent / FENCE_NAME, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        deadline = time.monotonic() + FENCE_WAIT_S
+        while True:
+            try:
+                _fcntl.flock(fd, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("generation_fence_busy") from None
+                time.sleep(min(.01, max(0, deadline - time.monotonic())))
+        try:
+            yield
+        finally:
+            _fcntl.flock(fd, _fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
 
 
 def pair_digest(expected):
@@ -52,9 +104,9 @@ def invalidate(root):
     path = Path(root) / RELATIVE
     if not path.parent.is_dir():
         return
-    parent = _private_dir(root)
-    path.unlink(missing_ok=True)
-    _sync(parent)
+    with generation_fence(root):  # rc.7 row 5: the delete runs under the publication fence (refused without fcntl)
+        path.unlink(missing_ok=True)
+        _sync(path.parent)
 
 
 def _sync(parent):
@@ -87,6 +139,7 @@ def publish(db, root, expected, *, generation_id, claim=None, restart_boot_id=No
     from ..db import get_setting, set_setting
     from . import wiskey_install_generation as gen
 
+    require_fence()  # rc.7 row 5b: refuse before any DB write on a platform without the fence
     # DB first, journal lock second, exactly as the authoritative mutation APIs.
     with db.write_aside(label="publish committed Arx generation projection") as conn:
         with gen.JOURNAL_LOCK:
@@ -130,7 +183,8 @@ def publish(db, root, expected, *, generation_id, claim=None, restart_boot_id=No
             set_setting(conn, EVIDENCE_KEY, json.dumps(document, sort_keys=True))
             # Current authoritative state was committed before caller entered;
             # only derived evidence is written in this transaction.
-            _write(root, document)
+            with generation_fence(root):  # rc.7 row 5: DB -> JOURNAL_LOCK -> fence
+                _write(root, document)
             return document
 
 
