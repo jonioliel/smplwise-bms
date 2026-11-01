@@ -32,6 +32,7 @@ const he = {
   // the toolbar
   columns: 'עמודות',
   columnsReset: 'איפוס',
+  columnsFitted: 'חלק מהעמודות הוסתרו כדי שהטבלה תתאים לרוחב המסך. סמנו עמודה כדי להציג אותה.',
   moveUp: 'הזזה למעלה: {col}',
   moveDown: 'הזזה למטה: {col}',
   density: 'צפיפות',
@@ -177,6 +178,7 @@ const en: Partial<Record<TableTextKey, string>> = {
   col_sla: 'Due',
   columns: 'Columns',
   columnsReset: 'Reset',
+  columnsFitted: 'Some columns are hidden so the table fits the screen width. Tick a column to show it.',
   moveUp: 'Move up: {col}',
   moveDown: 'Move down: {col}',
   density: 'Density',
