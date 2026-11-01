@@ -252,8 +252,8 @@ export class NvrCameraBatch extends LitElement {
       background: var(--sw-danger-soft);
     }
     .ic.unk {
-      color: var(--sw-warning-text, var(--sw-text-2));
-      background: var(--sw-warning-soft, var(--sw-surface-2));
+      color: var(--sw-warning-text);
+      background: var(--sw-warning-soft);
       font-weight: var(--sw-fw-semibold);
       font-size: var(--sw-fs-sm);
     }
@@ -263,7 +263,7 @@ export class NvrCameraBatch extends LitElement {
       inline-size: 8px;
       block-size: 8px;
       border-radius: 50%;
-      background: var(--sw-text-4, #9aa3b2);
+      background: var(--sw-text-3);
     }
     .ic.skip::before {
       opacity: 0.5;
@@ -288,16 +288,17 @@ export class NvrCameraBatch extends LitElement {
       }
     }
     .bar {
-      block-size: 4px;
-      border-radius: 2px;
-      background: var(--sw-surface-3, var(--sw-border));
+      block-size: 6px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-3);
       overflow: hidden;
     }
     .bar > i {
       display: block;
       block-size: 100%;
+      border-radius: inherit;
       background: var(--sw-accent);
-      transition: inline-size 0.3s var(--sw-ease, ease);
+      transition: inline-size var(--sw-t-med) var(--sw-ease-out);
     }
     .bar.error > i {
       background: var(--sw-danger);
@@ -316,6 +317,134 @@ export class NvrCameraBatch extends LitElement {
     @media (max-width: 767px) {
       .sel {
         block-size: 44px;
+      }
+    }
+    /* CAMADMIN-POLISH-2331 (the R5-LIVE-297 language of the multi-camera encoding dialog, carried to the SVC checklist and the progress of
+       both): the list is a WELL (surface-2, no outline, no hairlines between rows) that is only as tall as its rows need (a short batch
+       no longer floats in a half-empty box; the 44 / 52 px windowed row heights are untouched); a chosen camera is a 26 % accent field
+       with a 4 px bar at its start edge, its name bold in the heading ink; rows tint on hover only under a fine pointer and darken on
+       press; the count is a bold numeral; a progress row names its camera in bold, its outcome line under it; messages are wells */
+    .vl {
+      block-size: min(clamp(180px, 46dvh, 440px), var(--vl-fit, 100dvh));
+      border-color: transparent;
+      background: var(--sw-surface-2);
+    }
+    .tools {
+      gap: 8px 10px;
+    }
+    .count {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .sel,
+    .row {
+      border-block-end: 0;
+      padding-inline: 14px;
+    }
+    .sel {
+      gap: 12px;
+      font-size: var(--sw-fs-md);
+      color: var(--sw-heading);
+      transition: background-color var(--sw-t-fast) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .sel:hover:not([aria-disabled='true']) {
+      background: transparent;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .sel:hover:not([aria-disabled='true']) {
+        background: var(--sw-surface-3);
+      }
+    }
+    .sel:active:not([aria-disabled='true']) {
+      background: var(--sw-pressed-wash);
+    }
+    .sel[aria-checked='true'] {
+      background: color-mix(in srgb, var(--sw-accent) 26%, var(--sw-surface));
+      /* the bar sits at the row's START edge: box-shadow offsets are physical, so RTL (the default) is the right edge */
+      box-shadow: inset -4px 0 0 var(--sw-accent);
+    }
+    :host-context([dir='ltr']) .sel[aria-checked='true'] {
+      box-shadow: inset 4px 0 0 var(--sw-accent);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .sel[aria-checked='true']:hover:not([aria-disabled='true']) {
+        background: color-mix(in srgb, var(--sw-accent) 32%, var(--sw-surface));
+      }
+    }
+    .sel[aria-checked='true'] .nm {
+      font-weight: var(--sw-fw-bold);
+    }
+    .box {
+      inline-size: 22px;
+      block-size: 22px;
+      border-radius: var(--sw-r-xs);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .sel[aria-checked='true'] .box {
+      box-shadow: none;
+    }
+    .sel[aria-disabled='true'] .box {
+      opacity: 0.7;
+    }
+    .sel .meta {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-2);
+    }
+    .row {
+      gap: 12px;
+      font-size: var(--sw-fs-md);
+    }
+    .row .nm {
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .row .nm .meta {
+      font-weight: var(--sw-fw-medium);
+    }
+    .row.skip .nm {
+      font-weight: var(--sw-fw-semibold);
+    }
+    .row .ln {
+      font-size: var(--sw-fs-sm);
+    }
+    .row.bad {
+      background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface-2));
+    }
+    .row.bad .ln {
+      color: var(--sw-danger-text);
+    }
+    .row.unk {
+      background: color-mix(in srgb, var(--sw-warning) 12%, var(--sw-surface-2));
+    }
+    .row.unk .ln {
+      color: var(--sw-warning-text);
+    }
+    .ic {
+      inline-size: 24px;
+      block-size: 24px;
+    }
+    .msg {
+      padding: 8px 12px;
+      border-radius: var(--sw-r-md);
+      font-size: var(--sw-fs-md);
+    }
+    .msg[role='alert'] {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+    }
+    .more {
+      display: flex;
+      justify-content: flex-start;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sel,
+      .bar > i {
+        transition: none;
       }
     }
   `;
@@ -642,11 +771,14 @@ export class NvrCameraBatch extends LitElement {
     this.follow = false;
   };
 
-  private vlist(n: number, rowH: number, kind: 'select' | 'progress', row: (i: number) => TemplateResult, label: string) {
+  /** `fitRows`: the rows the list is sized for (the whole checklist, not the search's matches, so the dialog does not jump while typing);
+   * the list is never shorter than three rows. */
+  private vlist(n: number, rowH: number, kind: 'select' | 'progress', row: (i: number) => TemplateResult, label: string, fitRows = n) {
     const w = windowOf(this.listTop, this.viewH, n, rowH);
     const idx: number[] = [];
     for (let i = w.start; i < w.end; i++) idx.push(i);
-    return html`<div class="vl" role="list" aria-label=${label} tabindex="0" data-nvr-batch-list=${kind} data-rows=${n} @scroll=${this.onScroll} @wheel=${this.takeControl} @touchstart=${this.takeControl} @pointerdown=${this.takeControl}>
+    const fit = Math.max(fitRows, 3) * rowH;
+    return html`<div class="vl" role="list" aria-label=${label} tabindex="0" data-nvr-batch-list=${kind} data-rows=${n} style=${`--vl-fit:${fit}px`} @scroll=${this.onScroll} @wheel=${this.takeControl} @touchstart=${this.takeControl} @pointerdown=${this.takeControl}>
       <div class="space" style="padding-block:${w.top}px ${Math.max(0, w.total - w.top - (w.end - w.start) * rowH)}px">${repeat(idx, (i) => i, (i) => row(i))}</div>
     </div>`;
   }
@@ -681,10 +813,10 @@ export class NvrCameraBatch extends LitElement {
             </div>
             <div class="count" data-nvr-batch-count role="status">${`נבחרו ${ticked} מתוך ${this.candidates.length}`}${filtered ? ` · ${matching.length} תוצאות` : ''}</div>
             ${matching.length
-              ? this.vlist(matching.length, SEL_ROW, 'select', (i) => this.selectRow(matching[i]), 'מצלמות')
+              ? this.vlist(matching.length, SEL_ROW, 'select', (i) => this.selectRow(matching[i]), 'מצלמות', this.candidates.length)
               : html`<p class="msg" data-nvr-batch-none role="status">אין מצלמות שמתאימות לחיפוש.</p>`}
             ${this.line ? html`<p class="msg" data-nvr-batch-line role="alert">${this.line}</p>` : nothing}
-            ${onRemote() ? nothing : html`<div><sw-button size="sm" variant="ghost" data-nvr-batch-to-encoding @click=${() => {
+            ${onRemote() ? nothing : html`<div class="more"><sw-button size="sm" variant="ghost" data-nvr-batch-to-encoding @click=${() => {
               this.phase = 'closed';
               this.emit('encoding-open');
             }}>שינוי קידוד לכמה מצלמות</sw-button></div>`}
