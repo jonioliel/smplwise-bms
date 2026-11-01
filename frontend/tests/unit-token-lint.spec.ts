@@ -32,7 +32,6 @@ const ALLOW_HEX: Record<string, string> = {
   'screens/devices-automations.ts': 'the automation card glyphs',
   'screens/bubble-demo.ts': 'the style guide demo',
   'screens/styleguide-screen.ts': 'the style guide swatches',
-  'screens/nvr-camera-batch.ts': 'the encoding table HUD',
   'screens/wiskey-overview.ts': 'the WisKey embed frame',
   'screens/explore-sites.ts': 'the site cards',
   'screens/system-update.ts': 'the update progress glyph',
