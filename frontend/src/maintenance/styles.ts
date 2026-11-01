@@ -75,7 +75,7 @@ export const maintCss = [tempCss, css`
     padding: 5px 12px; border-radius: calc(var(--sw-r-sm) - 2px); color: var(--sw-text-2); cursor: pointer; font: inherit; font-size: var(--sw-fs-sm); white-space: nowrap; border: 0;
     background: transparent; min-block-size: 28px;
   }
-  .seg button[aria-pressed='true'] { background: var(--sw-surface-solid); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+  .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface-solid)); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
   .seg button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
 
   /* the table (electricity table.t) */

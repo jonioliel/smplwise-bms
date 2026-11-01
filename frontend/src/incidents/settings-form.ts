@@ -50,7 +50,7 @@ export class IncidentSettingsForm extends LitElement {
     .sw:disabled { opacity: var(--sw-disabled-opacity); cursor: default; }
     .seg { display: inline-flex; padding: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); flex: none; }
     .seg button { font: inherit; font-size: var(--sw-fs-sm); border: 0; background: transparent; color: var(--sw-text-2); border-radius: var(--sw-r-xs); padding: 4px 10px; min-block-size: 26px; cursor: pointer; white-space: nowrap; }
-    .seg button[aria-pressed='true'] { background: var(--sw-surface); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+    .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface)); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .seg button:disabled { cursor: default; }
     input[type='number'] { font: inherit; font-size: var(--sw-fs-sm); background: var(--sw-surface); color: var(--sw-text); border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); padding: 3px 6px; min-block-size: 28px; inline-size: 64px; }
     input[aria-invalid='true'] { border-color: var(--sw-danger); }

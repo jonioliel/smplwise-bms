@@ -150,9 +150,12 @@ export class SwCastPicker extends LitElement {
       color: var(--sw-text-2);
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-surface);
+      background: var(--sw-seg-thumb, var(--sw-surface));
       color: var(--sw-accent, var(--sw-text));
-      box-shadow: var(--sw-shadow-1);
+      /* DARK-REVIEW-2342: the bare accent read ~2.2:1 on the lifted dark thumb (3.3:1 on the old one) - dark takes the accent's text ink;
+         light keeps the accent (an engine without light-dark() keeps the line above) */
+      color: light-dark(var(--sw-accent, var(--sw-text)), var(--sw-accent-text));
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .seg button[disabled] {
       opacity: 0.5;

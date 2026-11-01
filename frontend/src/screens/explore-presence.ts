@@ -139,7 +139,7 @@ export class ExplorePresence extends LitElement {
       .body { grid-template-columns: minmax(0, 1fr); }
       .seg { display: inline-flex; border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 2px; background: var(--sw-surface-2); flex: none; align-self: flex-start; }
       .seg button { border: 0; background: transparent; font: inherit; font-size: var(--sw-fs-sm); padding: 4px 14px; border-radius: var(--sw-r-pill); color: var(--sw-text-2); cursor: pointer; }
-      .seg button[aria-pressed='true'] { background: var(--sw-surface); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+      .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface)); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
       .body[data-view='map'] .listpanel, .body[data-view='list'] .mappanel { display: none; }
     }
     @media (max-width: 600px) {

@@ -183,10 +183,10 @@ export class SystemUpdate extends LitElement {
       cursor: pointer;
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-surface);
+      background: var(--sw-seg-thumb, var(--sw-surface));
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-2);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-2));
     }
     .seg button:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);

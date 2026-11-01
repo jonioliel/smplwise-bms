@@ -86,7 +86,7 @@ export const insightCss = css`
     transition: background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
   }
   .seg button:active { transform: scale(0.97); }
-  .seg button[aria-pressed='true'] { background: var(--sw-surface); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+  .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface)); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
 
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .chip {
