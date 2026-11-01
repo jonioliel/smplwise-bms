@@ -121,6 +121,8 @@ def not_writable_error(opts: StreamOptions, unreadable_message: str, details: di
     existing 503 `capabilities_unreadable`."""
     if opts.reason in NOT_SUPPORTED_REASONS:
         return ApiError(409, "nvr_not_supported", "ה־NVR אינו מאפשר לשנות את הזרם הזה.", details={**(details or {}), "reason": opts.reason})
+    if opts.reason == "writes_disabled":  # NVR-H264-BULK-2341: the recorder's switch is off - a 409 with its own words, never "unreadable"
+        return ApiError(409, "nvr_not_supported", "שינויי הגדרות ב־NVR הזה כבויים. אפשר להפעיל אותם בהגדרות החיבור.", details={**(details or {}), "reason": opts.reason})
     return ApiError(503, "capabilities_unreadable", unreadable_message, details={**(details or {}), "reason": opts.reason})
 
 

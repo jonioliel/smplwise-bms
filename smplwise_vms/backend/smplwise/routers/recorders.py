@@ -31,7 +31,7 @@ from ..db import now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, next_id, settings_for, valid_id
-from ..services import autosync, connection_store, events_ingest, nvr, recorder_live
+from ..services import autosync, connection_store, events_ingest, nvr, nvr_write_switch, recorder_live
 from ..services.recorders import registry
 from . import nvr_connection as nc
 
@@ -375,6 +375,52 @@ def save_recorder_connection(recorder_id: str, request: Request, principal: Prin
             raise ApiError(409, "recorder_duplicate", "ה־NVR הזה כבר מחובר למערכת.", details={"field": "host"})
 
     return nc.do_save(request, principal, body, conn, recorder_id, before_write=unique, allow_none=recorder_id == PRIMARY)
+
+
+# ---------------------------------------------------------------- NVR-H264-BULK-2341: "אפשר שינויי הגדרות ב־NVR"
+
+class WritesIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)  # only the JSON literals true / false ("yes", 1 are refused)
+    enabled: bool
+    confirm: bool = False
+
+
+def _running(conn: sqlite3.Connection, request: Request, rid: str) -> tuple[str | None, dict[str, Any]]:
+    """The vendor and the extras the RUNNING adapter of this recorder uses (registry.adapter_for's rule)."""
+    rs = settings_for(settings_of(request), rid)
+    vendor = rs.nvr_vendor
+    if vendor in (None, "", registry.NO_NVR):
+        row = _row(conn, rid)
+        conn_row = connection_store.get_row(conn, rid)
+        vendor = (conn_row["vendor"] if conn_row is not None else None) or (row["vendor"] if row is not None and "vendor" in row.keys() else None) or vendor
+    return vendor, dict(rs.nvr_extra or {})
+
+
+def _writes_admin(conn: sqlite3.Connection, principal: Principal) -> None:
+    for perm in nvr_write_switch.PERMISSIONS:  # both, each refusal audited by `require`
+        require(conn, principal, perm, INSTALLATION)
+
+
+@router.get("/recorders/{recorder_id}/writes")
+def get_recorder_writes(recorder_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The switch "אפשר שינויי הגדרות ב־NVR" of one recorder (on / off, the vendor default, who changed it last and when)."""
+    require(conn, principal, PERMISSION, INSTALLATION)
+    _known(conn, recorder_id)
+    vendor, extra = _running(conn, request, recorder_id)
+    return {**nvr_write_switch.state(conn, recorder_id, vendor, extra), "can_change": authorize(conn, principal, "nvr.configure", INSTALLATION).allowed}
+
+
+@router.patch("/recorders/{recorder_id}/writes")
+def set_recorder_writes(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
+                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Turn the switch on (`confirm: true` required - the screen's dialog) or off (never confirmed: a safety action). Needs
+    `system.configure` AND `nvr.configure`; applies at once, no restart; audited `nvr.writes.switch`. Local channel only."""
+    _writes_admin(conn, principal)
+    body: WritesIn = nc._parse(request, raw, WritesIn)
+    _known(conn, recorder_id)
+    vendor, extra = _running(conn, request, recorder_id)
+    out = nvr_write_switch.set_switch(conn, principal, recorder_id, vendor, extra, enabled=body.enabled, confirm=body.confirm, request_id=_rid(request))
+    return {**out, "can_change": True}
 
 
 @router.get("/recorders/{recorder_id}/health")

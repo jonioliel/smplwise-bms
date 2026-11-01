@@ -5,6 +5,7 @@ import './sw-dialog';
 import './sw-field';
 import './sw-state-panel';
 import './frigate-summary';
+import './nvr-writes-switch';
 import { he } from '../i18n/he';
 import { capabilitiesOfTest } from '../api/frigate';
 import { ApiError, describeError } from '../api/client';
@@ -480,6 +481,7 @@ export class NvrConnectionForm extends LitElement {
     const hasConnection = !!v.vendor && v.state !== 'not_chosen';
     return html`<div class="wrap" data-conn-form-root data-conn-state=${v.state}>
       ${!this.editing && hasConnection ? this.summary(v) : nothing}
+      ${!this.editing && hasConnection && this.context === 'settings' && (v.vendor === 'hikvision' || v.vendor === 'provision_isr') ? html`<nvr-writes-switch recorder-id=${this.recorderId}></nvr-writes-switch>` : nothing}
       ${v.legacy_options_differ && !this.editing ? html`<div class="note" data-conn-legacy>פרטי חיבור ישנים בתשתית המערכת אינם בשימוש</div>` : nothing}
       ${this.editing ? this.form(v) : html`<div class="actions">
           <sw-button size=${this.btn} icon="edit" data-conn-edit @click=${() => { this.seed(); this.editing = true; this.msg = null; }}>עריכה</sw-button>

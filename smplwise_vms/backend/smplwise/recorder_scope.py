@@ -45,6 +45,21 @@ def set_disabled(recorder_id: str, disabled: bool) -> None:
         DISABLED.discard(recorder_id)
 
 
+# NVR-H264-BULK-2341: the per-recorder switch "אפשר שינויי הגדרות ב־NVR" (services/nvr_write_switch.py). Loaded at start-up from the
+# `settings` table and changed by `PATCH /recorders/{id}/writes` while the process runs - turning it off applies AT ONCE to every
+# adapter built afterwards (no restart). Absent = the vendor's own default (Provision-ISR: `nvr_extra.writes_enabled`, else off;
+# Hikvision: on, as shipped since CR-020 S2).
+WRITES: dict[str, bool] = {}
+
+
+def writes_override(recorder_id: str | None) -> bool | None:
+    return WRITES.get(recorder_id or PRIMARY)
+
+
+def set_writes_override(recorder_id: str, enabled: bool) -> None:
+    WRITES[recorder_id] = bool(enabled)
+
+
 def valid_id(recorder_id: Any) -> bool:
     """Security review Low (2026-10-04): only server-assigned `nvr-<n>` ids. Recorder ids end up in go2rtc stream names
     (`smplwise_<id>_...`); anything else (an `intercom`, `wiskey`, `pb` or `ha` prefix) could reach another namespace."""

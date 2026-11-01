@@ -481,6 +481,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     wiskey_camera.apply_at_startup(app.state.db, settings)  # TKWISECRYPT: seal any plaintext per-station WisKey camera password
     settings, legacy_differ = connection_store.apply_at_startup(app.state.db, settings)
+    try:  # NVR-H264-BULK-2341: the per-recorder switch "אפשר שינויי הגדרות ב־NVR" into the process (recorder_scope.WRITES)
+        from .services import nvr_write_switch
+
+        with app.state.db.connection(mode="read", label="nvr writes switch") as _conn:
+            nvr_write_switch.load_all(_conn)
+    except Exception:  # noqa: BLE001 - a failure leaves every recorder at its vendor default (Provision-ISR: off)
+        log.warning("nvr writes switch load failed", exc_info=True)
     # 2.6.3 transitional (delta review S-1): empty the deprecated secret options whose values the stores now hold (names-only logs)
     secrets_store.clear_lingering_options(app.state.db, settings)
     app.state.settings = settings

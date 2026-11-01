@@ -263,7 +263,8 @@ def test_route_refuses_when_writes_disabled(settings, fake, monkeypatch):
         add_camera(s)
         snap = pisr.ProvisionIsrAdapter("nvr-1", s).read_stream("101")
         r = c.put("/api/v1/nvr/cameras/pcam1/streams/101", json={"if_match": snap.etag, "confirm": True, "changes": {"gop": 60}})
-    assert r.status_code == 503 and r.json()["code"] == "capabilities_unreadable"
+    # NVR-H264-BULK-2341: writes switched off is a 409 with its own reason (was a misleading 503 "capabilities unreadable")
+    assert r.status_code == 409 and r.json()["code"] == "nvr_not_supported" and r.json()["details"]["reason"] == "writes_disabled"
     assert "SetVideoStreamConfig" not in fake.writes
 
 

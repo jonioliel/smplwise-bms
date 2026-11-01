@@ -81,6 +81,8 @@ SKIP_HE = {
     "pending": "שינוי אחר של הזרם מתבצע.",
     "source_timeout": "ה־NVR לא ענה בזמן.",
     "source_unavailable": "ה־NVR אינו זמין.",
+    # NVR-H264-BULK-2341: the recorder's switch "אפשר שינויי הגדרות ב־NVR" is off
+    "writes_disabled": "שינויי הגדרות ב־NVR הזה כבויים. אפשר להפעיל אותם בהגדרות החיבור.",
 }
 
 
@@ -442,7 +444,7 @@ def plan_targets(conn: sqlite3.Connection, settings: Settings, rid: str, cams: d
         elif isinstance(opts, str):
             plan = _skip(opts if opts in SKIP_HE else "source_unavailable")
         elif opts is None or not opts.writable or opts.options is None or opts.write_via is None:
-            plan = _skip("capabilities_unreadable" if opts is None or opts.writable else (opts.reason if opts.reason in (*nvr_settings.NOT_SUPPORTED_REASONS, "capabilities_unreadable") else "not_writable"))
+            plan = _skip("capabilities_unreadable" if opts is None or opts.writable else (opts.reason if opts.reason in (*nvr_settings.NOT_SUPPORTED_REASONS, "capabilities_unreadable", "writes_disabled") else "not_writable"))
         else:
             plan = plan_stream(cur, opts.options, target)
         out.append({**base, **plan.as_dict()})

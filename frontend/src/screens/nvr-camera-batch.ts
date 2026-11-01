@@ -32,6 +32,7 @@ import {
   type BatchCandidate,
   type Tone,
 } from './nvr-batch-logic';
+import { undoLabel } from './nvr-h264-preset';
 
 type Phase = 'closed' | 'select' | 'confirm' | 'undo-confirm' | 'progress';
 
@@ -865,7 +866,7 @@ export class NvrCameraBatch extends LitElement {
       ${this.offline ? html`<p class="msg" data-nvr-batch-offline role="status">אין חיבור לשרת. ממשיך לנסות.</p>` : nothing}
       ${this.line ? html`<p class="msg" data-nvr-batch-line role="alert">${this.line}</p>` : nothing}
       ${v.canStop ? html`<sw-button slot="footer" variant="danger" data-nvr-batch-stop @click=${() => void this.stop()}>עצור</sw-button>` : nothing}
-      ${v.showUndo ? html`<sw-button slot="footer" data-nvr-batch-undo ?disabled=${!v.canUndo} title=${v.canUndo ? '' : 'לא ברור אם בוצע. נבדק מול ה־NVR.'} @click=${() => this.askUndo()}>בטל את מה שנשמר</sw-button>` : nothing}
+      ${v.showUndo ? html`<sw-button slot="footer" data-nvr-batch-undo ?disabled=${!v.canUndo} title=${v.canUndo ? '' : 'לא ברור אם בוצע. נבדק מול ה־NVR.'} @click=${() => this.askUndo()}>${undoLabel(b.mode)}</sw-button>` : nothing}
       ${v.showRetry ? html`<sw-button slot="footer" data-nvr-batch-retry @click=${() => this.askUndo()}>נסה שוב</sw-button>` : nothing}
       ${isTerminal(b.state) ? html`<sw-button slot="footer" variant="primary" data-nvr-batch-close @click=${() => this.closeDialog()}>סגור</sw-button>` : nothing}
     </sw-dialog>`;

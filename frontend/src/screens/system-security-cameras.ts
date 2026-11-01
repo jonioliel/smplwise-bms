@@ -17,6 +17,7 @@ import type { NvrCameraBatch, CameraInfo } from './nvr-camera-batch';
 import type { NvrEncodingBatch } from './nvr-encoding-batch';
 import { encodingStreams } from './nvr-encoding-logic';
 import { batchCandidates, doneToast, tally } from './nvr-batch-logic';
+import { undoLabel } from './nvr-h264-preset';
 import { onRemote } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { nvrSettings, type CameraDetail, type CameraList, type EncodingChanges, type NvrCamera, type Recorder, type StreamEncoding } from '../api/nvr-settings';
@@ -65,6 +66,8 @@ interface Toast {
   undo?: { changeId: string; cameraId: string; ref: string };
   /** CR-020 S2C: the "בטל" of a finished multi-camera change: the id of the batch to undo (the press IS the confirmation). */
   batchUndo?: string;
+  /** NVR-H264-BULK-2341: the batch's mode - an encoding batch's undo reads "החזר לערכים הקודמים" (undoLabel). */
+  batchMode?: string;
   reboot?: boolean;
   busy?: boolean;
 }
@@ -953,7 +956,7 @@ export class SystemSecurityCameras extends LitElement {
 
   private onBatchFinished(b: Batch) {
     const t = doneToast(b);
-    this.showToast(t.message, t.undo ? { batchUndo: b.batch_id } : {});
+    this.showToast(t.message, t.undo ? { batchUndo: b.batch_id, batchMode: b.mode } : {});
   }
 
   private async confirmed() {
@@ -1024,7 +1027,7 @@ export class SystemSecurityCameras extends LitElement {
   private renderToast() {
     const t = this.toast;
     if (!t) return nothing;
-    return keyed(t.n, html`<nvr-undo-toast message=${t.message} actionLabel=${t.undo || t.batchUndo ? 'בטל' : ''} linkLabel=${t.reboot ? 'ל־NVR' : ''} linkHref=${t.reboot ? '#/system/security/nvr' : ''} ?busy=${!!t.busy}
+    return keyed(t.n, html`<nvr-undo-toast message=${t.message} actionLabel=${t.batchUndo ? (t.batchMode === 'encoding' ? undoLabel('encoding') : 'בטל') : t.undo ? 'בטל' : ''} linkLabel=${t.reboot ? 'ל־NVR' : ''} linkHref=${t.reboot ? '#/system/security/nvr' : ''} ?busy=${!!t.busy}
       @undo=${() => void this.undoToast()} @dismiss=${() => !t.busy && (this.toast = null)}></nvr-undo-toast>`);
   }
 
