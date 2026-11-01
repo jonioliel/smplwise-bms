@@ -110,6 +110,8 @@ export interface ProductSettings {
   'playback.auto_resume_attempts'?: number;
   /** CR-024: EXPERIMENTAL synchronized playback of cameras of different recorders ('true' | 'false', default 'false'). */
   'playback.cross_recorder_sync'?: string;
+  /** ASYNCIO-DEFAULT-2342: "שרת: רכיב תקשורת מהיר" - uvloop + httptools instead of asyncio + h11 ('true' | 'false', default 'false'; applies after a restart). */
+  'server.fast_network'?: string;
   'exports.max_mb'?: number;
   /** BACKUP-HASH-ENC: the minimum length of the backup password (8-64, default 12; 8 is the server's hard floor). */
   'backup.password_min'?: number;
