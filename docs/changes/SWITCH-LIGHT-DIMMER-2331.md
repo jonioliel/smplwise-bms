@@ -56,10 +56,11 @@ by `services/xs_options.py`, refused values are a 422, a value stored before the
 
 ## 3. The floor lights popup (owner request 2026-11-01, same branch)
 
-A press on a floor's lights strip or lights count opens the floor's lights:
+A press on a floor's lights count opens the floor's lights:
 
-- **Where:** the synoptic board (the light cell of a row) and the cross-section on the floors screen (the facade strip or the
-  "8/8" chip of a row; a press elsewhere on the row still selects the floor). Keyboard: the selected floor's detail line (synoptic)
+- **Where:** the synoptic board (the light cell of a row) and the cross-section on the floors screen (the
+  "8/8" lights chip of a row; a press elsewhere on the row, the facade strip included, still selects / opens the floor - gate 2.33.1:
+  the strip fills the middle of the row, where a press has always selected the floor). Keyboard: the selected floor's detail line (synoptic)
   and the selected floor's actions (floors screen) carry a "תאורה בקומה" button. Not on the wall screen.
 - **What:** the existing lights panel (`devices-tiles-panel`, `sw-drawer modal`: side panel on desktop/tablet, bottom sheet on a
   phone, focus trapped, Escape closes, focus returns) narrowed to the home-system areas our floor stands for (its match:

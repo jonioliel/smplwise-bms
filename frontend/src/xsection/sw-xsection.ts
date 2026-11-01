@@ -115,7 +115,7 @@ export class SwXSection extends LitElement {
       .stack { container-type: size; position: relative; min-block-size: 0; display: flex; flex-direction: column; justify-content: flex-start; gap: 6px; }
       .stack.abs { display: block; container-type: normal; }
       .stack.abs > .row, .stack.abs > .ground { position: absolute; inset-inline: 0; box-sizing: border-box; }
-      .row[data-xs-lights] .fac, .row[data-xs-lights] .lc { cursor: pointer; }
+      .row[data-xs-lights] .lc { cursor: pointer; }
       .row, .xtile { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
       .row { position: relative; flex: 1 1 0; min-block-size: 0; max-block-size: 132px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(150px, auto); align-items: center; gap: 14px; padding: 0 14px; border: 2px solid transparent; border-radius: 12px; background: var(--sw-surface-2); text-align: start; color: inherit; font: inherit; cursor: pointer; overflow: hidden; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), border-color var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); }
       .stack.abs > .row { max-block-size: none; }
@@ -209,9 +209,10 @@ export class SwXSection extends LitElement {
     `,
   ];
 
-  /** A press on a row: on its lights strip or its lights count (a floor with the popup) it opens the lights popup, anywhere else it picks. */
+  /** A press on a row: on its lights count chip ("8/8", a floor with the popup) it opens the lights popup, anywhere else it picks.
+   * Not the facade strip: it fills the middle of the row, where a press has always selected / opened the floor (gate 2.33.1). */
   private press(e: Event, f: FloorSignal) {
-    const onLights = this.lightsOk?.(f) && e.composedPath().some((n) => n instanceof Element && (n.classList.contains('fac') || n.classList.contains('lc')));
+    const onLights = this.lightsOk?.(f) && e.composedPath().some((n) => n instanceof Element && n.classList.contains('lc'));
     if (onLights) this.dispatchEvent(new CustomEvent('xs-lights', { detail: { id: f.id }, bubbles: true, composed: true }));
     else this.pick(f.id);
   }
