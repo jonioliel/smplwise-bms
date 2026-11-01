@@ -12,7 +12,23 @@ import { nvrBatch, type Batch, type EncodingPreview, type PlanItem } from '../ap
 import type { CameraDetail } from '../api/nvr-settings';
 import type { DropdownItem } from '../components/sw-dropdown';
 import type { ConfirmModel } from './nvr-cameras-edit';
-import { FIELD_HE, valueLabel } from './nvr-cameras-edit';
+import { FIELD_HE, REASON_HE, valueLabel } from './nvr-cameras-edit';
+import {
+  PRESET_FLOW,
+  PRESET_SETTINGS,
+  PRESET_STORAGE,
+  PRESET_TITLE,
+  PRESET_WHY,
+  ROLE_ITEMS,
+  SCOPE_ITEMS,
+  presetBlocked,
+  presetButtonLabel,
+  presetEmptyLine,
+  presetKeys,
+  presetStreams,
+  type PresetRole,
+  type PresetScope,
+} from './nvr-h264-preset';
 import { ROLE_HE } from './nvr-cameras-logic';
 import { windowOf } from './nvr-batch-logic';
 import {
@@ -81,6 +97,10 @@ export class NvrEncodingBatch extends LitElement {
   @state() private confirmModel: ConfirmModel | null = null;
   @state() private listTop = 0;
   @state() private viewH = 360;
+  /** NVR-H264-BULK-2341: the one-click "המר את כל הזרמים ל־H.264" - its scope and stream role, and whether the open preview came from it. */
+  @state() private presetScope: PresetScope = 'all';
+  @state() private presetRole: PresetRole = 'both';
+  @state() private presetMode = false;
 
   static styles = css`
     :host {
@@ -377,6 +397,24 @@ export class NvrEncodingBatch extends LitElement {
       font-size: var(--sw-fs-lg);
       font-weight: var(--sw-fw-bold);
     }
+    /* NVR-H264-BULK-2341: the H.264 preset - a quiet well above the checklist (no border; the checklist below keeps its own look) */
+    .preset {
+      display: grid;
+      gap: 8px;
+      padding: 12px 14px;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+      min-inline-size: 0;
+    }
+    .preset-head {
+      display: grid;
+      gap: 2px;
+    }
+    .preset-title {
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
   `;
 
   // ---------------------------------------------------------------------------------------------- the screen's calls
@@ -389,6 +427,7 @@ export class NvrEncodingBatch extends LitElement {
     this.plan = null;
     this.line = '';
     this.listTop = 0;
+    this.presetMode = false;
     this.phase = 'select';
   }
 
@@ -450,7 +489,7 @@ export class NvrEncodingBatch extends LitElement {
     const picked = chosenStreams(this.rows, this.selected).length;
     const selectable = this.rows.filter((r) => r.selectable).length;
     const fl = encFiltersActive(f);
-    return html`<div class="tools" data-nvr-enc-filters>
+    return html`${this.renderPreset()}<div class="tools" data-nvr-enc-filters>
         <sw-field class="q"><input type="search" placeholder="חיפוש מצלמה" aria-label="חיפוש מצלמה" data-nvr-enc-search .value=${f.q} @input=${(e: Event) => this.patchFilters({ q: (e.target as HTMLInputElement).value })} /></sw-field>
         ${this.dd('זרם', 'role', f.role, [{ id: '', label: 'כל הזרמים' }, { id: 'main', label: 'ראשי' }, { id: 'sub', label: 'משני' }], (id) => this.patchFilters({ role: id as EncFilters['role'] }))}
         ${this.dd('קידוד', 'codec', f.codec, [{ id: '', label: 'כל הקידודים' }, { id: 'h264', label: 'H.264' }, { id: 'h265', label: 'H.265' }, { id: 'other', label: 'אחר' }], (id) => this.patchFilters({ codec: id as EncFilters['codec'] }))}
@@ -471,7 +510,40 @@ export class NvrEncodingBatch extends LitElement {
 
   private toSettings() {
     this.line = '';
+    this.presetMode = false;
     this.phase = 'settings';
+  }
+
+  // ---------------------------------------------------------------------------------------------- NVR-H264-BULK-2341: the H.264 preset
+
+  /** The one-click "המר את כל הזרמים ל־H.264": scope (all cameras / the ticked ones) and role (main / sub / both), the reason for H.264,
+   * and one button that ticks those streams and opens the server's preview of `{codec: 'H.264'}` - the same preview, confirmation, start
+   * and undo-all as any bulk change (no other write path). */
+  private renderPreset() {
+    const streams = presetStreams(this.rows, this.selected, this.presetScope, this.presetRole);
+    const blocked = presetBlocked(this.rows, this.selected, this.presetScope, this.presetRole, REASON_HE.writes_disabled);
+    const empty = streams.length === 0;
+    return html`<section class="preset" data-nvr-h264-preset aria-label=${PRESET_TITLE}>
+      <div class="preset-head">
+        <span class="preset-title">${PRESET_TITLE}</span>
+        <p class="note" data-nvr-h264-why>${PRESET_WHY} ${PRESET_STORAGE}</p>
+      </div>
+      <div class="tools">
+        ${this.dd('מצלמות', 'h264-scope', this.presetScope, SCOPE_ITEMS, (id) => ((this.presetScope = id as PresetScope), (this.line = '')))}
+        ${this.dd('זרמים', 'h264-role', this.presetRole, ROLE_ITEMS, (id) => ((this.presetRole = id as PresetRole), (this.line = '')))}
+        <sw-button size="sm" variant="primary" data-nvr-h264-run ?disabled=${empty || this.busy} @click=${() => this.runPreset()}>${this.busy && this.presetMode ? 'בודק…' : presetButtonLabel(streams.length)}</sw-button>
+      </div>
+      ${empty || blocked.writesOff ? html`<p class="msg" data-nvr-h264-empty role="status">${empty ? presetEmptyLine(this.presetScope, blocked, this.selected.size) : `${blocked.writesOff} זרמים לא ישתנו: שינויי הגדרות ב־NVR כבויים (הגדרות החיבור).`}</p>` : nothing}
+    </section>`;
+  }
+
+  private runPreset() {
+    const streams = presetStreams(this.rows, this.selected, this.presetScope, this.presetRole);
+    if (!streams.length) return;
+    this.selected = presetKeys(streams);
+    this.draft = { ...EMPTY_DRAFT, codec: 'H.264' };
+    this.presetMode = true;
+    void this.runPreview();
   }
 
   // ---------------------------------------------------------------------------------------------- step 2: the target settings
@@ -510,7 +582,8 @@ export class NvrEncodingBatch extends LitElement {
   /** A read: the server plans every chosen stream against its device. Never writes. */
   private async runPreview(keepLine = false) {
     const picked = chosenStreams(this.rows, this.selected);
-    const { settings, invalid } = settingsOf(this.draft, choicesFor(picked, this.details, this.draft.codec));
+    // the H.264 preset sends exactly `{codec: 'H.264'}` (every other field "leave as is"); the form's lists play no part in it
+    const { settings, invalid } = this.presetMode ? { settings: { ...PRESET_SETTINGS }, invalid: [] } : settingsOf(this.draft, choicesFor(picked, this.details, this.draft.codec));
     if (!picked.length || !hasSettings(settings) || invalid.length) return;
     this.busy = true;
     if (!keepLine) this.line = '';
@@ -560,13 +633,17 @@ export class NvrEncodingBatch extends LitElement {
     ].filter((t) => t.count > 0 || t.id === 'change');
     const adjusted = p.adjusted > 0;
     return html`<p class="sum" data-nvr-enc-summary role="status">${previewSummary(p)}</p>
-      ${p.settings.codec ? html`<p class="note" data-nvr-enc-webrtc>${WEBRTC_NOTE}</p>` : nothing}
+      ${this.presetMode
+        ? html`<p class="note" data-nvr-h264-preview-note>${PRESET_WHY} ${PRESET_STORAGE} רזולוציה, קצב פריימים וקצב סיביות נשארים כמו שהם, אלא אם המצלמה דורשת התאמה. ${PRESET_FLOW}</p>`
+        : p.settings.codec
+          ? html`<p class="note" data-nvr-enc-webrtc>${WEBRTC_NOTE}</p>`
+          : nothing}
       ${adjusted ? html`<p class="note" data-nvr-enc-adjusted>* הותאם למה שהמצלמה מאפשרת</p>` : nothing}
       <sw-tabs data-nvr-enc-tabs .items=${tabs} .active=${this.tab} group-label="תצוגה מקדימה" @change=${(e: CustomEvent<{ id: string }>) => ((this.tab = e.detail.id as PreviewTab), this.resetScroll())}></sw-tabs>
       ${list.length ? this.vlist(list.length, PREV_ROW, 'preview', (i) => this.previewRow(list[i]), 'תצוגה מקדימה') : html`<p class="msg" data-nvr-enc-empty role="status">אין זרמים ברשימה הזו.</p>`}
       ${p.batch_in_progress ? html`<p class="msg" data-nvr-enc-busy role="status">מתבצע שינוי מרובה</p>` : nothing}
       ${this.line ? html`<p class="msg" data-nvr-enc-line role="alert">${this.line}</p>` : nothing}
-      <sw-button slot="footer" variant="ghost" data-nvr-enc-back @click=${() => ((this.phase = 'settings'), (this.line = ''))}>חזרה</sw-button>
+      <sw-button slot="footer" variant="ghost" data-nvr-enc-back @click=${() => ((this.phase = this.presetMode ? 'select' : 'settings'), (this.line = ''))}>חזרה</sw-button>
       <sw-button slot="footer" variant="primary" data-nvr-enc-apply ?disabled=${!p.counts.change || p.batch_in_progress || this.busy} @click=${() => this.askConfirm()}>${p.counts.change ? `החל על ${p.counts.change === 1 ? 'זרם אחד' : `${p.counts.change} זרמים`}` : 'החל'}</sw-button>`;
   }
 
