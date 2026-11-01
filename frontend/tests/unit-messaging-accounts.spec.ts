@@ -128,6 +128,7 @@ test('the shell: one settings tab, both read permissions, installation scope onl
   const index = readFileSync(path.join(SRC, 'screens/system-index.ts'), 'utf8');
   expect(index).toContain("href: '#/system/messaging-accounts'");
   const app = readFileSync(path.join(SRC, 'shell/sw-app.ts'), 'utf8');
-  expect(app).toContain("import '../screens/system-messaging-accounts'");
+  // PERF-HOME-DEVICES-2342: the shell loads its route screens as lazy chunks (shell/lazy-screens.ts)
+  expect(readFileSync(path.join(SRC, 'shell/lazy-screens.ts'), 'utf8')).toContain("import('../screens/system-messaging-accounts')");
   expect(app).toContain("s[1] === 'messaging-accounts'");
 });

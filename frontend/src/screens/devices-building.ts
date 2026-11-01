@@ -40,7 +40,7 @@ import { ALARM_HE, getDevicesTree, refreshDevicesFromHa, type DeviceArea, type D
 import { mapHrefForArea } from '../api/plan-links';
 import { loadTree as loadCatalogTree } from '../api/catalog';
 import type { Floor as PlanFloor } from '../api/types';
-import './explore-floor-map';
+// PERF-HOME-DEVICES-2342: the plan view's map (<explore-floor-map>, with the plan canvas) is a lazy chunk, fetched only when the plan view renders (renderPlanView)
 import type { DevicesBulkMenu } from './devices-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
@@ -3531,7 +3531,7 @@ export class DevicesBuilding extends LitElement {
             </div>`
           : nothing}
         ${floorId
-          ? html`<explore-floor-map embedded data-plan-map .floorId=${floorId} @area-open=${(e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) => this.onAreaOpen(t, e)}></explore-floor-map>`
+          ? (void import('./explore-floor-map'), html`<explore-floor-map embedded data-plan-map .floorId=${floorId} @area-open=${(e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) => this.onAreaOpen(t, e)}></explore-floor-map>`)
           : this.planFloorsLoaded && this.planFloors.length
             ? html`<sw-state-panel icon="building" state="empty" heading="אין תוכנית קומה" hint="העלו תוכנית לקומה במפה כדי לראות אותה כאן."></sw-state-panel>`
             : html`<sw-state-panel state="loading"></sw-state-panel>`}
