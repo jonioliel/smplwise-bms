@@ -68,6 +68,9 @@ interface MockOpts { canEnable?: boolean; emailReady?: boolean; status?: Record<
 async function install(page: Page, o: MockOpts = {}): Promise<Mock> {
   const mock: Mock = { calls: [] };
   const perms = o.perms ?? ALL;
+  // NIGHTLY-2331: the page clock is the fixtures' instant (23.10.2026). The report opens on the PREVIOUS month of the page clock, so with
+  // a real clock the month-picker expectations (2026-09 -> 2026-08) held only during October and broke on 1.11. Timers still run.
+  await page.clock.setFixedTime(NOW);
   // the scheduled delivery: a small stateful fake of routers/insights.py (setup is complete once a channel is chosen and, for WhatsApp, a recipient)
   const del = { enabled: false, enabled_at: null as string | null, dom: 1, at: '08:00', lang: 'he', email: false, whatsapp: false, users: [] as string[] };
   const delView = () => {
