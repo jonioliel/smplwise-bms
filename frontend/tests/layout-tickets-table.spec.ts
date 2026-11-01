@@ -35,7 +35,8 @@ const SCREENS: Screen[] = [
   { name: 'columns', wait: `${T} tbody tr`, prep: async (p) => p.locator(`${T} tickets-table-toolbar [data-open="columns"]`).click() },
   { name: 'views', wait: `${T} tbody tr`, mock: { ...TABLE, views: [{ id: 'v1', name: 'דחופות שלי במחלקת האחזקה ובקומות העליונות', view: { view: 'table', filters: {}, sort: 'sla:asc', columns: [], density: 'comfortable' } }] },
     prep: async (p) => p.locator(`${T} tickets-table-toolbar [data-open="views"]`).click() },
-  { name: 'filters', wait: `${T} tbody tr`, prep: async (p) => p.locator(`${T} tickets-table-toolbar [data-open="filters"]`).click() },
+  // POLISH-LEFTOVERS-2341: the table's filters are in the page's one "סינון" panel
+  { name: 'filters', wait: `${T} tbody tr`, prep: async (p) => p.locator('sw-app tickets-list [data-filter-toggle]').click() },
   { name: 'status-menu', wait: `${T} tbody tr`, prep: async (p) => p.locator(`${T} tbody tr[data-row="0000000000000a03"] [data-menu-for^="status:"]`).click() },
   { name: 'assignee-menu', wait: `${T} tbody tr`, mock: { ...TABLE, assignees: 12 }, prep: async (p) => p.locator(`${T} tbody tr[data-row="0000000000000a03"] [data-menu-for^="assignee:"]`).click() },
   // 2.5.5: one row and a menu taller than the table (and than a short window): the overlay is placed and limited by the viewport, the table keeps its own height

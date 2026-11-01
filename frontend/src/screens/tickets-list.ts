@@ -20,6 +20,8 @@ import { foldCounts, NO_COUNTS, countText, type ListCounts } from '../tickets/li
 import { applyCardFilters, NO_CARD_FILTERS, type CardFilters } from '../tickets/list-filters';
 import { cardFilterChips, filterRow } from '../tickets/list-filter-row';
 import { activeChips, filterPanel, filterToggle, FilterPanelController, panelSection, ticketToolbarStyles, type ActiveChip } from '../tickets/list-toolbar';
+import { tableFilterChips, tableFilterPanelStyles, tableFilterSections } from '../tickets/table-filter-panel';
+import { NO_TABLE_FILTERS, type ExtraFilters } from '../tickets/table-model';
 import { roleFor, type CardItem } from '../tickets/list-card-model';
 import { lt } from '../tickets/list-text';
 import { ticketListFrameStyles } from '../tickets/list-styles';
@@ -87,6 +89,9 @@ export class TicketsList extends LitElement {
   @state() private counts: ListCounts = NO_COUNTS;
   @state() private filterOpen = false;
   @state() private filters: CardFilters = { ...NO_CARD_FILTERS };
+  /** POLISH-LEFTOVERS-2341: the table view's server-side filters live here (the one "סינון" panel edits them; <tickets-table .extra>) */
+  @state() private tableExtra: ExtraFilters = { ...NO_TABLE_FILTERS };
+  @state() private tableHolders: { key: string; name: string }[] = [];
   @state() private compactHeader = false;
   /** TICKETS-POLISH-2331: the "סינון" panel - Escape, a press outside, the focus in and back */
   readonly panelCtl = new FilterPanelController(this, () => this.filterOpen, (open) => (this.filterOpen = open));
@@ -110,7 +115,7 @@ export class TicketsList extends LitElement {
   private clock = 0;
   private offNames: (() => void) | null = null;
 
-  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, ticketToolbarStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, ticketListFrameStyles, ticketToolbarStyles, tableFilterPanelStyles, css`
     .cgrid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
@@ -451,16 +456,19 @@ export class TicketsList extends LitElement {
       out.push({ key: 'department', label: d ? d.name : lt('tbDept'), remove: () => this.setFilters({ department: '' }) });
     }
     if (cards) out.push(...cardFilterChips((this.items ?? []) as CardItem[], this.filters, (next) => (this.filters = next)));
+    else out.push(...tableFilterChips(this.tableExtra, this.meta, this.tableHolders, (next) => (this.tableExtra = next)));
     return out;
   }
 
   private resetFilters = (): void => {
     this.filters = { ...NO_CARD_FILTERS };
+    this.tableExtra = { ...NO_TABLE_FILTERS };
     const f = this.r.filters;
     if (f.status !== NO_FILTERS.status || f.department) this.setFilters({ status: NO_FILTERS.status, department: '' });
   };
 
-  /** The "סינון" panel: the state (with its counts), the departments (with theirs), then the card filters (priority, handler, flags). */
+  /** The "סינון" panel: the state (with its counts), the departments (with theirs), then the card filters (priority, handler, flags) - or,
+   * in the table view, the table's server-side filters (POLISH-LEFTOVERS-2341: the table toolbar has no "סינון" of its own there). */
   private panelBody(cards: boolean, withCount: (n: number | undefined) => unknown): TemplateResult {
     const f = this.r.filters;
     const c = this.counts;
@@ -475,7 +483,8 @@ export class TicketsList extends LitElement {
         <button type="button" class="rc" aria-pressed=${String(!f.department)} data-dept="" @click=${() => this.setFilters({ department: '' })}>${tt('allDepartments')}${hasDeptCounts ? withCount(total) : nothing}</button>
         ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(f.department === d.id)} data-dept=${d.id} @click=${() => this.setFilters({ department: d.id })}>${bidi(d.name)}${hasDeptCounts ? withCount(c.departments[d.id] ?? 0) : nothing}</button>`)}
       </div>`, 'department') : nothing}
-      ${cards && this.screen === 'ready' ? filterRow((this.items ?? []) as CardItem[], this.filters, (next) => (this.filters = next)) : nothing}`;
+      ${cards && this.screen === 'ready' ? filterRow((this.items ?? []) as CardItem[], this.filters, (next) => (this.filters = next)) : nothing}
+      ${!cards && this.screen === 'ready' ? tableFilterSections(this.tableExtra, this.meta, this.tableHolders, (next) => (this.tableExtra = next)) : nothing}`;
   }
 
   /**
@@ -550,8 +559,9 @@ export class TicketsList extends LitElement {
     if (this.view === 'table' && !this.cal) {
       // CR-038 S6b (D24): the table view - its own server-side sort / filters / pages over the same scope, state, department and text
       const f = this.r.filters;
-      return html`<tickets-table ?fill=${!this.phone} .scope=${this.r.scope} .base=${{ status: f.status, department: f.department, q: f.q }} .meta=${this.meta} .hrefOf=${(id: string) => this.hrefOf(id)}
-        .picked=${this.r.ticketId} @table-filters=${(e: CustomEvent<Partial<ListFilters>>) => this.setFilters(e.detail as Partial<ListFilters>)}></tickets-table>`;
+      return html`<tickets-table ?fill=${!this.phone} hostFilters .extra=${this.tableExtra} .scope=${this.r.scope} .base=${{ status: f.status, department: f.department, q: f.q }} .meta=${this.meta} .hrefOf=${(id: string) => this.hrefOf(id)}
+        .picked=${this.r.ticketId} @table-filters=${(e: CustomEvent<Partial<ListFilters>>) => this.setFilters(e.detail as Partial<ListFilters>)}
+        @table-extra=${(e: CustomEvent<{ extra: ExtraFilters }>) => (this.tableExtra = e.detail.extra)} @table-holders=${(e: CustomEvent<{ holders: { key: string; name: string }[] }>) => (this.tableHolders = e.detail.holders)}></tickets-table>`;
     }
     const rows = this.items ?? [];
     const f = this.r.filters;

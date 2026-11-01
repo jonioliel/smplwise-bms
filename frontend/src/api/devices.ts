@@ -338,6 +338,34 @@ export function climateRange(r: Pick<DeviceRow, 'min_temp' | 'max_temp' | 'targe
 }
 
 export const HVAC_HE: Record<string, string> = { heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר', off: 'כבוי' };
+/** POLISH-LEFTOVERS-2341: the common climate fan_mode values (HA's FAN_* constants plus the usual vendor words) in Hebrew. */
+export const FAN_HE: Record<string, string> = {
+  auto: 'אוטומטי', on: 'פועל', off: 'כבוי', low: 'נמוך', medium: 'בינוני', middle: 'בינוני', mid: 'בינוני', high: 'גבוה', top: 'מרבי',
+  focus: 'ממוקד', diffuse: 'מפוזר', quiet: 'שקט', silent: 'שקט', turbo: 'טורבו', strong: 'חזק', powerful: 'חזק', max: 'מרבי', min: 'מזערי',
+  low_medium: 'נמוך-בינוני', medium_low: 'בינוני-נמוך', medium_high: 'בינוני-גבוה', high_medium: 'גבוה-בינוני', very_low: 'נמוך מאוד', very_high: 'גבוה מאוד',
+  level1: 'דרגה 1', level2: 'דרגה 2', level3: 'דרגה 3', level4: 'דרגה 4', level5: 'דרגה 5',
+};
+/** The common climate swing_mode values (HA's SWING_* constants plus the usual vendor words) in Hebrew. */
+export const SWING_HE: Record<string, string> = {
+  off: 'כבוי', on: 'פועל', both: 'אנכי ואופקי', vertical: 'אנכי', horizontal: 'אופקי', auto: 'אוטומטי', swing: 'נדנוד', stop: 'עצור', fixed: 'קבוע',
+  top: 'למעלה', upper: 'למעלה', high: 'למעלה', middle: 'באמצע', center: 'באמצע', mid: 'באמצע', bottom: 'למטה', lower: 'למטה', low: 'למטה',
+  left: 'שמאלה', right: 'ימינה', wide: 'רחב', '1': 'מיקום 1', '2': 'מיקום 2', '3': 'מיקום 3', '4': 'מיקום 4', '5': 'מיקום 5',
+};
+/** P6 item 7 (moved here from devices-controls.ts): the common preset names, plus a humidifier's usual modes, in Hebrew. */
+export const PRESET_HE: Record<string, string> = {
+  home: 'בבית', away: 'מחוץ לבית', eco: 'חיסכון', comfort: 'נוחות', sleep: 'שינה', boost: 'מוגבר', none: 'ללא', auto: 'אוטומטי', off: 'כבוי', activity: 'פעילות',
+  normal: 'רגיל', baby: 'תינוק', night: 'לילה', quiet: 'שקט', manual: 'ידני', smart: 'חכם', turbo: 'טורבו', vacation: 'חופשה', frost_protection: 'הגנה מקיפאון',
+};
+export type ClimateChoice = 'hvac' | 'fan' | 'swing' | 'preset' | 'hmode';
+/** A climate / humidifier mode value in words for the screen - display only (the device always receives the raw value).
+ * Case-insensitive; an unknown value is shown as the device reports it. */
+export function climateWord(kind: ClimateChoice, value: string | null | undefined): string {
+  const v = value ?? '';
+  if (!v) return '';
+  const map = kind === 'hvac' ? HVAC_HE : kind === 'fan' ? FAN_HE : kind === 'swing' ? SWING_HE : PRESET_HE;
+  const k = v.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return map[v] ?? map[k] ?? v;
+}
 export const HVAC_ACTION_HE: Record<string, string> = { heating: 'מחמם', cooling: 'מקרר', drying: 'מייבש', fan: 'מאוורר', idle: 'ממתין', off: 'כבוי', preheating: 'מחמם מראש', defrosting: 'מפשיר' };
 export const ALARM_HE: Record<string, string> = {
   disarmed: 'מנוטרלת',

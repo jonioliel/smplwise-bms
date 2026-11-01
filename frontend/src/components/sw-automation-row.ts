@@ -193,17 +193,47 @@ export class AutomationRow extends LitElement {
       color: var(--dv-danger);
     }
     @media (max-width: 767px) {
+      /* POLISH-LEFTOVERS-2341: the phone grid gave the run summary (auto, up to 34vw) the room and cut the name to a few letters at
+         320 / 390. The name now owns the whole first line; the place and the last run share the second line (the run capped at
+         38vw like the schedule rows' next-run column) - ellipsis only as the last resort. The cell wrapper keeps its DOM (specs read
+         .who / .where / [data-card-run]); only its box steps aside so the name and the place line join the row's grid. */
       .ar {
-        grid-template-columns: 44px minmax(0, 1fr) auto 36px;
-        gap: var(--sw-s-2);
+        grid-template-columns: 44px minmax(0, 1fr) minmax(0, max-content) 44px;
+        grid-template-areas:
+          'ctl name name ops'
+          'ctl where run ops';
+        column-gap: var(--sw-s-2);
+        row-gap: 2px;
         padding-inline: var(--sw-s-3);
+        padding-block: var(--sw-s-2);
         min-block-size: 56px;
       }
       .ar > .sent {
         display: none;
       }
+      .ctl {
+        grid-area: ctl;
+      }
+      .ops {
+        grid-area: ops;
+      }
+      .who {
+        display: contents;
+      }
+      a.name {
+        grid-area: name;
+        min-inline-size: 0;
+      }
+      .where {
+        grid-area: where;
+        min-inline-size: 0;
+      }
       .run {
-        max-inline-size: 34vw;
+        grid-area: run;
+        justify-self: end;
+        max-inline-size: 38vw;
+        gap: 5px;
+        font-size: var(--sw-fs-sm);
       }
       .more {
         inline-size: 44px;

@@ -19,7 +19,7 @@ import { can, canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { fmtTime, subscribeHa, type HaSyncState } from '../api/ha';
 import { productSettings } from '../api/prefs';
-import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, getEntityRows, type CardId, type DeviceArea, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree, type EntityRow, isDimmable } from '../api/devices';
+import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, climateWord, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, getEntityRows, type CardId, type DeviceArea, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree, type EntityRow, isDimmable } from '../api/devices';
 import { AREA_DESIGN_KEY, AREA_DESIGN_LABEL, AREA_DESIGNS, mainSlotOf, mainStrip, PERSONALIZE_PERMISSION, resolveAreaDesign, SECTION_BULK, sectionBulkActions, type AreaDesign, type BulkLook } from './devices-area-design';
 import type { BulkKind } from '../api/device-bulk';
 import { alarmTone, REFRESH_WINDOW_MS, STRUCTURE_FLASH_MS } from './devices-building';
@@ -1778,14 +1778,14 @@ export class DevicesArea extends LitElement {
               ${r.hvac_action ? html`<span>${HVAC_ACTION_HE[r.hvac_action] ?? r.hvac_action}</span>` : nothing}
               ${r.target_temperature !== null && r.target_temperature !== undefined ? html`<span>יעד ${deg(r.target_temperature)}</span>` : nothing}
               ${r.target_temp_low !== null && r.target_temp_low !== undefined && r.target_temp_high !== null && r.target_temp_high !== undefined ? html`<span>טווח ${deg(r.target_temp_low)}–${deg(r.target_temp_high)}</span>` : nothing}
-              ${r.fan_mode ? html`<span>מאוורר: ${r.fan_mode}</span>` : nothing}
-              ${r.preset_mode ? html`<span>מצב מוגדר: ${r.preset_mode}</span>` : nothing}
-              ${r.swing_mode ? html`<span>נדנוד: ${r.swing_mode}</span>` : nothing}
+              ${r.fan_mode ? html`<span>מאוורר: ${climateWord('fan', r.fan_mode)}</span>` : nothing}
+              ${r.preset_mode ? html`<span>מצב מוגדר: ${climateWord('preset', r.preset_mode)}</span>` : nothing}
+              ${r.swing_mode ? html`<span>נדנוד: ${climateWord('swing', r.swing_mode)}</span>` : nothing}
               ${r.target_humidity !== null && r.target_humidity !== undefined ? html`<span>לחות יעד ${ltrNum(r.target_humidity)}%</span>` : nothing}
             </div>`
           : r.domain === 'humidifier' && !unavailable
             ? html`<div class="d">
-                ${r.mode ? html`<span>מצב: ${r.mode}</span>` : nothing}
+                ${r.mode ? html`<span>מצב: ${climateWord('hmode', r.mode)}</span>` : nothing}
                 ${r.current_humidity !== null && r.current_humidity !== undefined ? html`<span>לחות ${ltrNum(r.current_humidity)}%</span>` : nothing}
                 ${r.target_humidity !== null && r.target_humidity !== undefined ? html`<span>יעד ${ltrNum(r.target_humidity)}%</span>` : nothing}
               </div>`
