@@ -18,6 +18,7 @@ import { canDeleteRow, type DeleteTarget } from '../notices/delete-model';
 import { PLACE_ALL, buildPlaces, placesCss, placesSelect, type AreaOpt } from '../notices/places-tree';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_SETTINGS_HREF } from '../shell/nav';
+import { devicesNoticesCss } from './devices-notices-css';
 
 /**
  * CR-NOTICE106 section 9: ראשי › לוח הודעות (#/devices/notices). Readers see the active notices of their audience (a read sheet marks
@@ -27,7 +28,7 @@ import { NOTICES_SETTINGS_HREF } from '../shell/nav';
  */
 @customElement('devices-notices')
 export class DevicesNotices extends LitElement {
-  static styles = [noticesCss, placesCss];
+  static styles = [noticesCss, placesCss, devicesNoticesCss];
 
   @state() private data: NoticesList | null = null;
   @state() private manager = false;
@@ -131,9 +132,9 @@ export class DevicesNotices extends LitElement {
             <div class="panel flush main">
               ${tree.length ? placesSelect(tree, place, (id) => (this.place = id)) : nothing}
               <div class="toolbar">
-                ${this.manager ? html`<div class="seg" role="group" aria-label=${nt('colBoards')}>${(['all', 'mine', 'tv'] as Seg[]).map((s) => html`<button aria-pressed=${String(this.seg === s)} @click=${() => (this.seg = s)}>${nt(s === 'all' ? 'segAll' : s === 'mine' ? 'segMine' : 'segTv')}</button>`)}</div>` : nothing}
+                ${this.manager ? html`<div class="seg" role="group" aria-label=${nt('colBoards')}>${(['all', 'mine', 'tv'] as Seg[]).map((s) => html`<button type="button" aria-pressed=${String(this.seg === s)} @click=${() => (this.seg = s)}>${nt(s === 'all' ? 'segAll' : s === 'mine' ? 'segMine' : 'segTv')}</button>`)}</div>` : nothing}
                 <span class="sp"></span>
-                <label class="search"><sw-icon name="search" size="14"></sw-icon><input type="search" placeholder=${nt('search')} aria-label=${nt('search')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)}></label>
+                <label class="search"><sw-icon name="search" size="14" aria-hidden="true"></sw-icon><input type="search" placeholder=${nt('search')} aria-label=${nt('search')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)}></label>
               </div>
               <div class="scrollx">${this.table(rows)}</div>
               <div class="cards">${rows.length ? rows.map((n) => this.card(n)) : html`<div class="card" data-no-rows><span class="mut">${nt('noRows')}</span> <button type="button" class="pick" data-clear-filters @click=${() => this.clearFilters()}>${nt('clearFilters')}</button></div>`}</div>
@@ -150,7 +151,7 @@ export class DevicesNotices extends LitElement {
       ? [{ k: 'all', look: 'acc', label: nt('kpiActive') }, { k: 'urgent', look: 'alarm', label: nt('kpiUrgent') }, { k: 'scheduled', look: 'acc', label: nt('kpiScheduled') },
         { k: 'expired', look: 'off', label: nt('kpiExpired') }, { k: 'drafts', look: 'unk', label: nt('kpiDrafts') }]
       : [{ k: 'all', look: 'acc', label: nt('kpiActive') }, { k: 'urgent', look: 'alarm', label: nt('kpiUrgent') }, { k: 'unread', look: 'acc', label: nt('kpiUnread') }];
-    return html`<div class="kpis" role="group" data-kpis>${tiles.map((t) => html`<button class="kpi" data-k=${t.k} data-look=${t.look} aria-pressed=${String(this.kpi === t.k)}
+    return html`<div class="kpis" role="group" data-kpis>${tiles.map((t) => html`<button type="button" class="kpi" data-k=${t.k} data-look=${t.look} aria-pressed=${String(this.kpi === t.k)}
       @click=${() => (this.kpi = this.kpi === t.k && t.k !== 'all' ? 'all' : t.k)}><span class="dot" aria-hidden="true"></span><div><b class="num">${c[t.k]}</b><span class="l">${t.label}</span></div></button>`)}</div>`;
   }
 
@@ -174,9 +175,9 @@ export class DevicesNotices extends LitElement {
     return html`<table class="t"><thead><tr><th>${nt('colState')}</th><th>${nt('colNotice')}</th>${this.manager ? html`<th>${nt('colAudience')}</th><th>${nt('colBoards')}</th>` : nothing}
       <th>${nt('colWindow')}</th>${this.manager ? html`<th>${nt('colReads')}</th><th></th>` : nothing}</tr></thead><tbody>
  ${rows.length ? nothing : html`<tr data-no-rows><td colspan=${this.manager ? 7 : 3}><span class="mut">${nt('noRows')}</span> <button type="button" class="pick" data-clear-filters @click=${() => this.clearFilters()}>${nt('clearFilters')}</button></td></tr>`}
-      ${rows.map((n) => html`<tr class="go" tabindex="0" data-notice=${n.id} data-look=${this.look(n)} @click=${() => this.open(n)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.open(n)}>
+      ${rows.map((n) => html`<tr class="go" tabindex="0" data-notice=${n.id} data-look=${this.look(n)} @click=${() => this.open(n)} @keydown=${(e: KeyboardEvent) => this.rowKey(e, n)}>
         <td>${this.badge(n)}</td>
-        <td><span class="t1">${n.title}${n.read === false && n.state === 'active' && !this.manager ? html`<span class="new" aria-label="new"></span>` : nothing}</span><span class="t2">${n.body.split('\n')[0]}</span></td>
+        <td><span class="t1">${n.title}${n.read === false && n.state === 'active' && !this.manager ? html`${this.unreadDot()}` : nothing}</span><span class="t2">${n.body.split('\n')[0]}</span></td>
         ${this.manager ? html`<td><span class="chips">${audienceText(n.audience, floors).map((a) => html`<span class="chip">${a}</span>`)}</span></td>
           <td>${this.boardNames(n).length ? html`<span class="chips">${this.boardNames(n).map((b) => html`<span class="chip">${b}</span>`)}</span>` : html`<span class="mut">-</span>`}</td>` : nothing}
         <td class="num mut">${windowText(n)}</td>
@@ -186,10 +187,22 @@ export class DevicesNotices extends LitElement {
   }
 
   private card(n: Notice) {
-    return html`<div class="card" data-look=${this.look(n)} @click=${() => this.open(n)}>
+    return html`<div class="card go" tabindex="0" data-look=${this.look(n)} @click=${() => this.open(n)} @keydown=${(e: KeyboardEvent) => this.rowKey(e, n)}>
       <div class="row">${this.badge(n)}<span class="mut num">${windowText(n)}</span></div>
-      <span class="t1">${n.title}</span><span class="t2">${n.body.split('\n')[0]}</span>
+      <span class="t1">${n.title}${n.read === false && n.state === 'active' && !this.manager ? this.unreadDot() : nothing}</span><span class="t2">${n.body.split('\n')[0]}</span>
       ${this.manager ? html`<div class="row" @click=${(e: Event) => e.stopPropagation()}>${this.readsButton(n)}${this.actions(n)}</div>` : nothing}</div>`;
+  }
+
+  /** HOMEEDIT-POLISH-2331: a reader's unread mark, named in the page's language (it was the English word "new"). */
+  private unreadDot() {
+    return html`<span class="new" role="img" aria-label=${nt('widgetNew')}></span>`;
+  }
+
+  /** A table row / phone card opens its notice from the keyboard (Enter or Space), only when the key was pressed on the row itself. */
+  private rowKey(e: KeyboardEvent, n: Notice): void {
+    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    this.open(n);
   }
 
   /** NOTICEPAGE-295: the read count is the button that opens "מי קרא" (a draft has no readers). */

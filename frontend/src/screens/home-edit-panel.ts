@@ -17,6 +17,7 @@ import type { TempUnit } from '../api/temperature';
 import { tt } from '../i18n/temperature';
 import { ELEVATOR_FILTERS, ELEVATOR_MODES, FILTER_KEY, MODE_KEY } from '../elevators/model';
 import { elt } from '../i18n/elevators';
+import { settingsSegStyles } from '../styles/settings';
 
 /** One place of the panel to open: a widget's row (from a card's "הגדרות" button). */
 export interface HomeEditFloor {
@@ -67,263 +68,407 @@ export class HomeEditPanel extends LitElement {
   @property() open: WidgetId | '' = '';
   @state() private dragFloor = '';
 
-  static styles = css`
-    :host {
-      display: block;
-    }
-    .home-edit {
-      display: grid;
-      grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
-      gap: 12px 24px;
-      padding: 12px 14px;
-      border: 1px dashed var(--sw-border-strong);
-      border-radius: var(--sw-r-md);
-      background: var(--sw-surface);
-      backdrop-filter: var(--sw-glass-blur);
-    }
-    .col {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      min-inline-size: 0;
-    }
-    h3 {
-      margin: 0;
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-3);
-      letter-spacing: 0.02em;
-    }
-    .f,
-    .lbl {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-      min-inline-size: 0;
-    }
-    input[type='text'],
-    select {
-      box-sizing: border-box;
-      min-block-size: 32px;
-      max-inline-size: 100%;
-      padding-inline: 8px;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-xs);
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-    }
-    select:disabled {
-      opacity: 0.5;
-    }
-    input:focus-visible,
-    select:focus-visible,
-    button:focus-visible {
-      outline: var(--sw-focus-w) solid var(--sw-focus);
-      outline-offset: 2px;
-    }
-    .seg {
-      display: inline-flex;
-      align-self: flex-start;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-sm);
-      overflow: hidden;
-      flex-wrap: wrap;
-    }
-    .seg button {
-      border: 0;
-      padding: 5px 12px;
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      cursor: pointer;
-    }
-    .seg button + button {
-      border-inline-start: 1px solid var(--sw-border-strong);
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-accent);
-      color: var(--sw-text-inverse);
-    }
-    .seg button:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      gap: 12px 16px;
-      flex-wrap: wrap;
-    }
-    .check {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text);
-    }
-    /* a widget's row */
-    .w {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding: 8px 10px;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      background: var(--sw-surface-2);
-    }
-    .w.off {
-      opacity: 0.7;
-    }
-    .w-top {
-      display: flex;
-      align-items: center;
-      gap: 8px 12px;
-      flex-wrap: wrap;
-    }
-    .w-phone {
-      display: flex;
-      align-items: center;
-      gap: 6px 12px;
-      flex-wrap: wrap;
-      padding-block-start: 6px;
-      border-block-start: 1px dashed var(--sw-border);
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-    }
-    .w-phone .pl {
-      font-weight: var(--sw-fw-semibold);
-      min-inline-size: 44px;
-    }
-    .w-phone select {
-      min-block-size: 30px;
-      max-inline-size: 100%;
-    }
-    .w-name {
-      font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-sm);
-      min-inline-size: 84px;
-    }
-    .w-top .grow {
-      flex: 1;
-    }
-    .w-body {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 8px 12px;
-      align-items: start;
-      padding-block-start: 8px;
-      border-block-start: 1px solid var(--sw-border);
-    }
-    .w-body > .wide {
-      grid-column: 1 / -1;
-    }
-    .ib {
-      display: inline-grid;
-      place-items: center;
-      inline-size: 28px;
-      block-size: 28px;
-      padding: 0;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-xs);
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      cursor: pointer;
-    }
-    .ib:disabled {
-      opacity: 0.35;
-      cursor: default;
-    }
-    .fields {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px 16px;
-    }
-    .frow {
-      display: grid;
-      grid-template-columns: minmax(110px, auto) minmax(0, 1fr);
-      gap: 4px 8px;
-      align-items: center;
-    }
-    .frow select {
-      min-block-size: 28px;
-      font-size: var(--sw-fs-xs);
-    }
-    .val {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
-    .extra {
-      display: grid;
-      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
-      gap: 6px;
-      align-items: center;
-    }
-    .err {
-      color: var(--sw-danger);
-      font-size: var(--sw-fs-xs);
-    }
-    ol {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .floor {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 8px;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-surface-2);
-    }
-    .floor.dragging {
-      opacity: 0.5;
-    }
-    .grip {
-      color: var(--sw-text-3);
-      cursor: grab;
-      display: inline-flex;
-    }
-    .nm {
-      flex: 1;
-      min-inline-size: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: var(--sw-fs-sm);
-    }
-    .floor button {
-      display: inline-grid;
-      place-items: center;
-      inline-size: 28px;
-      block-size: 28px;
-      padding: 0;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-xs);
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      cursor: pointer;
-    }
-    .floor button:disabled {
-      opacity: 0.35;
-      cursor: default;
-    }
-    @media (max-width: 899px) {
-      .home-edit {
-        grid-template-columns: minmax(0, 1fr);
+  /* HOMEEDIT-POLISH-2331: the settings ladder of R5-SYSTEM-297 / HOMEFABLE-297 - the panel is the card (radius lg, shadow 2 + the light
+     line; the dashed accent frame keeps saying "editing"), each group has a real heading, a widget row is a well a step down, the
+     segmented controls are the settings' keys (styles/settings.ts, shared, read only), every pressable thing gives on pointer-down
+     and hovers only under a pointer that hovers; a phone gets 44 px targets. Tokens only. */
+  static styles = [
+    settingsSegStyles,
+    css`
+      :host {
+        display: block;
+        --he-well: color-mix(in srgb, var(--sw-surface-2) 76%, var(--sw-border));
+        --sw-seg-h: var(--sw-ctl-h-md);
       }
-    }
-  `;
+      .home-edit {
+        display: grid;
+        grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+        gap: var(--sw-s-4) var(--sw-s-6);
+        padding: var(--sw-s-4);
+        border: 1px dashed var(--sw-border-strong);
+        border-radius: var(--sw-r-lg);
+        background: var(--sw-surface);
+        -webkit-backdrop-filter: var(--sw-glass-blur);
+        backdrop-filter: var(--sw-glass-blur);
+        box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+      }
+      .col {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sw-s-5);
+        min-inline-size: 0;
+      }
+      .grp {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sw-s-3);
+        min-inline-size: 0;
+      }
+      .gh-row {
+        display: flex;
+        align-items: center;
+        gap: var(--sw-s-2) var(--sw-s-3);
+        flex-wrap: wrap;
+        min-block-size: var(--sw-ctl-h-md);
+      }
+      .gh-row .sp {
+        flex: 1;
+      }
+      h3 {
+        margin: 0;
+        font-size: var(--sw-fs-md);
+        font-weight: var(--sw-fw-bold);
+        color: var(--sw-heading);
+        letter-spacing: -0.01em;
+      }
+      .cnt {
+        display: inline-flex;
+        align-items: center;
+        min-block-size: 20px;
+        padding-inline: var(--sw-s-2);
+        border-radius: var(--sw-r-pill);
+        background: var(--he-well);
+        color: var(--sw-text-2);
+        font-size: var(--sw-fs-xs);
+        font-weight: var(--sw-fw-semibold);
+        font-variant-numeric: tabular-nums;
+      }
+      .hint {
+        margin: 0;
+        font-size: var(--sw-fs-xs);
+        color: var(--sw-text-3);
+      }
+      .f,
+      .lbl {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sw-s-1h);
+        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-medium);
+        color: var(--sw-text-2);
+        min-inline-size: 0;
+      }
+      input[type='text'],
+      select {
+        box-sizing: border-box;
+        min-block-size: var(--sw-ctl-h-md);
+        max-inline-size: 100%;
+        padding-inline: var(--sw-s-2);
+        border: 1px solid var(--sw-border-strong);
+        border-radius: var(--sw-r-xs);
+        background: var(--sw-surface);
+        color: var(--sw-text);
+        font: inherit;
+        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-regular);
+        transition: border-color var(--sw-t-hover) var(--sw-ease-color);
+      }
+      input[type='text']::placeholder {
+        color: var(--sw-text-3);
+      }
+      select:disabled {
+        opacity: 0.5;
+      }
+      input[type='checkbox'] {
+        inline-size: 16px;
+        block-size: 16px;
+        margin: 0;
+        accent-color: var(--sw-accent);
+        flex: none;
+      }
+      input:focus-visible,
+      select:focus-visible,
+      button:focus-visible {
+        outline: var(--sw-focus-w) solid var(--sw-focus);
+        outline-offset: 2px;
+      }
+      .seg {
+        align-self: flex-start;
+        flex: 0 1 auto;
+        flex-wrap: wrap;
+      }
+      .seg button {
+        transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color);
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .seg button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .row {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--sw-s-3) var(--sw-s-4);
+        flex-wrap: wrap;
+      }
+      .check {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--sw-s-2);
+        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-regular);
+        color: var(--sw-text);
+        cursor: pointer;
+      }
+      .check:has(input:disabled) {
+        color: var(--sw-text-3);
+        cursor: default;
+      }
+      /* the widgets: one list of wells */
+      .wl {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sw-s-2);
+      }
+      .w {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sw-s-2);
+        padding: var(--sw-s-2) var(--sw-s-3);
+        border: 1px solid transparent;
+        border-radius: var(--sw-r-md);
+        background: var(--he-well);
+        transition: border-color var(--sw-t-hover) var(--sw-ease-color), background var(--sw-t-hover) var(--sw-ease-color);
+      }
+      .w.open {
+        border-color: var(--sw-accent);
+        background: var(--sw-surface-2);
+      }
+      /* a widget that is off: its name and its phone line step back; the switch itself keeps full contrast (was the whole row at 70 %) */
+      .w.off .w-name {
+        color: var(--sw-text-3);
+      }
+      .w.off .w-phone {
+        opacity: 0.6;
+      }
+      .w-top {
+        display: flex;
+        align-items: center;
+        gap: var(--sw-s-2) var(--sw-s-3);
+        flex-wrap: wrap;
+      }
+      .w-phone {
+        display: flex;
+        align-items: center;
+        gap: var(--sw-s-1h) var(--sw-s-3);
+        flex-wrap: wrap;
+        padding-block-start: var(--sw-s-2);
+        border-block-start: 1px dashed var(--sw-border);
+        font-size: var(--sw-fs-xs);
+        color: var(--sw-text-2);
+      }
+      .w-phone .pl {
+        font-weight: var(--sw-fw-semibold);
+        min-inline-size: 44px;
+      }
+      .w-phone select {
+        min-block-size: var(--sw-ctl-h-sm);
+        font-size: var(--sw-fs-xs);
+      }
+      .w-name {
+        font-weight: var(--sw-fw-semibold);
+        font-size: var(--sw-fs-md);
+        color: var(--sw-heading);
+        min-inline-size: 84px;
+      }
+      .w-top .grow {
+        flex: 1;
+      }
+      .w-body {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: var(--sw-s-3);
+        align-items: start;
+        padding-block-start: var(--sw-s-3);
+        border-block-start: 1px solid var(--sw-border);
+      }
+      .w-body > .wide {
+        grid-column: 1 / -1;
+      }
+      .ib,
+      .floor button {
+        display: inline-grid;
+        place-items: center;
+        inline-size: var(--sw-ctl-h-md);
+        block-size: var(--sw-ctl-h-md);
+        padding: 0;
+        border: 1px solid var(--sw-border-strong);
+        border-radius: var(--sw-r-xs);
+        background: var(--sw-surface);
+        color: var(--sw-text);
+        cursor: pointer;
+        transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color);
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+      }
+      .ib[aria-expanded='true'] {
+        background: var(--sw-accent-soft);
+        border-color: var(--sw-accent);
+        color: var(--sw-accent-text);
+      }
+      @media (hover: hover) and (pointer: fine) {
+        .ib:hover:not(:disabled),
+        .floor button:hover:not(:disabled) {
+          background: var(--sw-hover-wash);
+        }
+        input[type='text']:hover,
+        select:hover:not(:disabled) {
+          border-color: var(--sw-text-3);
+        }
+      }
+      .ib:active:not(:disabled),
+      .floor button:active:not(:disabled),
+      .seg button:active:not(:disabled) {
+        transform: scale(var(--sw-press-scale));
+      }
+      .ib:disabled,
+      .floor button:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+      .fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sw-s-2) var(--sw-s-4);
+      }
+      .frow {
+        display: grid;
+        grid-template-columns: minmax(110px, auto) minmax(0, 1fr);
+        gap: var(--sw-s-1) var(--sw-s-2);
+        align-items: center;
+        font-weight: var(--sw-fw-regular);
+      }
+      .frow select {
+        min-block-size: var(--sw-ctl-h-sm);
+        font-size: var(--sw-fs-xs);
+      }
+      .val {
+        color: var(--sw-text-3);
+        font-size: var(--sw-fs-xs);
+        font-variant-numeric: tabular-nums;
+        direction: ltr;
+        unicode-bidi: isolate;
+      }
+      .extra {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+        gap: var(--sw-s-1h);
+        align-items: center;
+      }
+      .err,
+      .note {
+        display: flex;
+        align-items: center;
+        gap: var(--sw-s-1h);
+        font-size: var(--sw-fs-xs);
+        font-weight: var(--sw-fw-medium);
+      }
+      .err {
+        color: var(--sw-danger-text);
+      }
+      .note {
+        color: var(--sw-text-3);
+      }
+      ol {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: var(--sw-s-1h);
+      }
+      .floor {
+        display: flex;
+        align-items: center;
+        gap: var(--sw-s-2);
+        padding-block: var(--sw-s-1);
+        padding-inline: var(--sw-s-2) var(--sw-s-1);
+        border-radius: var(--sw-r-sm);
+        background: var(--he-well);
+        transition: opacity var(--sw-t-hover) var(--sw-ease-color);
+      }
+      .floor.dragging {
+        opacity: 0.5;
+      }
+      .grip {
+        color: var(--sw-text-3);
+        cursor: grab;
+        display: inline-flex;
+        touch-action: none;
+      }
+      .nm {
+        flex: 1;
+        min-inline-size: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--sw-fs-sm);
+        font-weight: var(--sw-fw-semibold);
+        color: var(--sw-heading);
+      }
+      .pos {
+        min-inline-size: 2ch;
+        color: var(--sw-text-3);
+        font-size: var(--sw-fs-xs);
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+      }
+      @media (max-width: 899px) {
+        .home-edit {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      /* a phone: one column of controls, 44 px targets, the extra calendar field's title under its sensor */
+      @media (max-width: 767px) {
+        :host {
+          --sw-seg-h: var(--sw-touch-desktop);
+        }
+        .home-edit {
+          padding: var(--sw-s-3);
+        }
+        .ib,
+        .floor button {
+          inline-size: var(--sw-touch-desktop);
+          block-size: var(--sw-touch-desktop);
+        }
+        input[type='text'],
+        select,
+        .w-phone select,
+        .frow select {
+          min-block-size: var(--sw-touch-desktop);
+          font-size: var(--sw-fs-md);
+        }
+        .w {
+          padding: var(--sw-s-3);
+        }
+        .w-name {
+          min-inline-size: 0;
+        }
+        .frow {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .extra {
+          grid-template-columns: minmax(0, 1fr) auto;
+        }
+        .extra input {
+          grid-column: 1 / -1;
+          grid-row: 2;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ib,
+        .floor button,
+        .seg button,
+        .w,
+        .floor {
+          transition-duration: 0ms;
+        }
+      }
+    `,
+  ];
 
   private change(patch: Partial<HomeSettings>) {
     this.dispatchEvent(new CustomEvent('home-draft', { detail: { ...this.draft, ...patch }, bubbles: true, composed: true }));
@@ -370,8 +515,12 @@ export class HomeEditPanel extends LitElement {
     const d = this.draft;
     if (!d) return nothing;
     const ids = this.floors.map((f) => f.id);
+    const listed = this.listed;
+    const shown = listed.filter((id) => d.config[id].on).length;
     return html`<section class="home-edit" data-home-edit aria-label="הגדרות המסך הראשי">
       <div class="col">
+        <div class="grp" role="group" aria-labelledby="he-screen-h">
+        <h3 id="he-screen-h">המסך</h3>
         <label class="f" data-home-title-field>כותרת המסך
           <input type="text" data-home-title maxlength=${HOME_TITLE_MAX} .value=${d.title} placeholder=${HOME_TITLE_DEFAULT} @input=${(e: Event) => this.change({ title: (e.target as HTMLInputElement).value })} />
         </label>
@@ -392,24 +541,39 @@ export class HomeEditPanel extends LitElement {
             ${PHONE_LAYOUTS.map((p: PhoneLayout) => html`<button type="button" data-home-phone-layout=${p} aria-pressed=${String(d.config.phone_layout === p)} @click=${() => this.setConfig((c) => (c.phone_layout = p))}>${PHONE_LAYOUT_LABEL[p]}</button>`)}
           </span>
         </div>
-        <h3>ווידג׳טים</h3>
-        ${repeat(this.listed, (id) => id, (id, i) => this.widgetRow(id, i))}
-        ${this.candidatesError ? html`<div class="err" role="alert">${this.candidatesError}</div>` : nothing}
+        </div>
+        <div class="grp" role="group" aria-labelledby="he-widgets-h">
+          <div class="gh-row">
+            <h3 id="he-widgets-h">ווידג׳טים</h3>
+            <span class="cnt" data-home-widgets-count>${shown}/${listed.length} מוצגים</span>
+            <span class="sp"></span>
+            <sw-button size="sm" variant="ghost" icon="refresh" data-home-reset-widgets @click=${() => this.dispatchEvent(new CustomEvent('home-reset', { bubbles: true, composed: true }))}>אפס ווידג׳טים לברירת מחדל</sw-button>
+          </div>
+          ${this.candidatesError
+            ? html`<div class="err" role="alert" data-home-candidates-error><sw-icon name="warning" size=${14}></sw-icon>${this.candidatesError}</div>`
+            : this.candidates === null
+              ? html`<div class="note" role="status" data-home-candidates-loading>טוען את רשימת הישויות…</div>`
+              : nothing}
+          <div class="wl">${repeat(listed, (id) => id, (id, i) => this.widgetRow(id, i))}</div>
+        </div>
       </div>
       <div class="col" data-home-floors-col>
-        <span class="lbl" id="he-floors-lbl">סדר הקומות</span>
+        <div class="grp">
+        <h3 id="he-floors-lbl">סדר הקומות</h3>
+        ${ids.length ? html`<p class="hint">גרור קומה או השתמש בחצים. הקומה הראשונה מוצגת ראשונה.</p>` : html`<p class="hint" data-home-floors-empty>אין עדיין קומות במבנה.</p>`}
         <ol data-home-floors aria-labelledby="he-floors-lbl">
           ${ids.map(
             (id, i) => html`<li class=${classMap({ floor: true, dragging: this.dragFloor === id })} data-home-floor=${id} draggable="true"
               @dragstart=${(e: DragEvent) => this.onFloorDrag(e, id)} @dragend=${() => (this.dragFloor = '')} @dragover=${(e: DragEvent) => this.dragFloor && e.preventDefault()} @drop=${(e: DragEvent) => this.onFloorDrop(e, ids, i)}>
               <span class="grip" aria-hidden="true"><sw-icon name="grip" size=${14}></sw-icon></span>
+              <span class="pos" aria-hidden="true">${i + 1}</span>
               <span class="nm">${bidi(this.floors[i].name)}</span>
               <button type="button" data-home-floor-up=${id} aria-label=${`העבר את ${this.floors[i].name} למעלה`} title="למעלה" ?disabled=${i === 0} @click=${() => this.moveFloor(ids, id, i - 1)}><sw-icon name="arrowUp" size=${13}></sw-icon></button>
               <button type="button" data-home-floor-down=${id} aria-label=${`העבר את ${this.floors[i].name} למטה`} title="למטה" ?disabled=${i === ids.length - 1} @click=${() => this.moveFloor(ids, id, i + 1)}><sw-icon name="arrowDown" size=${13}></sw-icon></button>
             </li>`,
           )}
         </ol>
-        <sw-button size="sm" data-home-reset-widgets @click=${() => this.dispatchEvent(new CustomEvent('home-reset', { bubbles: true, composed: true }))}>אפס ווידג׳טים לברירת מחדל</sw-button>
+        </div>
       </div>
     </section>`;
   }
@@ -419,7 +583,7 @@ export class HomeEditPanel extends LitElement {
     const w = d.config[id];
     const open = this.open === id;
     const last = this.listed.length - 1;
-    return html`<div class=${classMap({ w: true, off: !w.on })} data-home-wrow=${id}>
+    return html`<div class=${classMap({ w: true, off: !w.on, open })} data-home-wrow=${id}>
       <div class="w-top">
         <label class="check"><input type="checkbox" data-home-toggle=${id} .checked=${w.on} @change=${(e: Event) => this.setWidget(id, { on: (e.target as HTMLInputElement).checked } as never)} aria-label=${`הצג ${WIDGET_NAME[id]}`} /><span class="w-name">${WIDGET_NAME[id]}</span></label>
         <span class="seg" role="group" aria-label=${`גודל: ${WIDGET_NAME[id]}`}>${SIZES.map((s: Size) => html`<button type="button" data-home-wsize=${`${id}:${s}`} aria-pressed=${String(w.sizes[d.direction] === s)} ?disabled=${!w.on} @click=${() => this.setConfig((c) => (c[id].sizes[d.direction] = s))}>${SIZE_LABEL[s]}</button>`)}</span>
