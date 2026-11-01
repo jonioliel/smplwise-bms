@@ -10,6 +10,8 @@ import { isApi } from '../api/session';
 import { CHOICES, CHOICE_HE, DEFAULT_VIEW, DIAL_HE, PERSONAL_DIALS, RANGES, planViewPrefs, setPlanViewPrefs, snapDial, type PersonalDial, type PlanViewDials, type PlanViewPrefs } from '../api/plan-view';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsStyles } from '../styles/settings';
+import '../components/sw-icon';
 import { HINT_HE, KIOSK_HE, type FlagDial, type SiteDial } from './plan-view-dials';
 
 type Target = 'own' | 'installation';
@@ -43,69 +45,61 @@ export class SystemPlanView extends LitElement {
   @state() private message = '';
   @state() private error = '';
 
-  static styles = [css`
+  /* SETUPPLAN-POLISH-2331: the card sat on the map settings tab next to cards in the settings vocabulary (styles/settings.ts: the
+     well rows, the semibold labels, the filled-accent segment, the .msg result pill) but carried its own older copy - hairline rows,
+     a thumb-style segment, an 11 px grey sub-heading and a bare coloured word for "saved". It now takes settingsStyles and keeps only
+     what is its own: the 44 px touch dial of the Studio 6 controls (layout-st7-ui measures it), a wrapping segment for the long
+     option lists, the range row and the site fields. */
+  static styles = [settingsStyles, css`
     :host {
       display: block;
     }
     .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
       flex-wrap: wrap;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
     }
-    .lbl {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      font-weight: var(--sw-fw-medium);
+    .row .lbl {
       min-inline-size: 120px;
       flex: 1 1 200px;
     }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-regular);
+    /* the scope switch heads the card: the one choice that changes what every row below means */
+    .row.scope {
+      background: transparent;
+      padding-inline: 0;
+      padding-block: 0 var(--sw-s-3);
+      border-block-end: 1px solid var(--sw-border);
+      border-radius: 0;
     }
-    h4 {
-      margin: 14px 0 0;
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-2);
+    .row.scope + .sub {
+      margin-block-start: var(--sw-s-3);
     }
+    /* a sub-heading inside the card: the settings group-label scale, one step down (a heading, not a grey caption) */
+    .sub {
+      margin: var(--sw-s-4) 0 var(--sw-s-2);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+      letter-spacing: -0.005em;
+    }
+    /* the settings segment, wrapping instead of clipping (five kiosk choices at 320 px) and on the 44 px dial */
     .seg {
-      display: inline-flex;
-      gap: 2px;
-      padding: 3px;
-      background: var(--sw-surface-3);
-      border-radius: var(--sw-r-md);
+      flex: 0 1 auto;
       flex-wrap: wrap;
-      max-inline-size: 100%;
     }
     .seg button {
-      all: unset;
-      box-sizing: border-box;
-      display: inline-flex;
-      align-items: center;
       min-block-size: var(--sw-touch-desktop, 44px);
-      padding: 0 12px;
-      border-radius: var(--sw-r-sm);
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-medium);
-      cursor: pointer;
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-surface);
-      color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-1);
     }
     .seg button[disabled] {
       cursor: default;
       opacity: 0.6;
+    }
+    .dirty {
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-warning-text);
+      font-weight: var(--sw-fw-semibold);
     }
     .seg button:focus-visible,
     .range button:focus-visible,
@@ -138,17 +132,38 @@ export class SystemPlanView extends LitElement {
     .range button {
       all: unset;
       box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
       min-block-size: var(--sw-touch-desktop, 44px);
-      padding: 0 10px;
+      padding: 0 12px;
       border-radius: var(--sw-r-sm);
+      border: 1px solid var(--sw-border-strong);
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
       cursor: pointer;
-      background: var(--sw-surface-3);
+      background: var(--sw-surface);
+      transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .range button:active:not(:disabled) {
+      transform: scale(var(--sw-press-scale));
     }
     .range button[aria-pressed='true'] {
-      color: var(--sw-accent-text);
-      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+      color: var(--sw-text-inverse);
+      background: var(--sw-accent);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .range button[disabled] {
+      cursor: default;
+      opacity: 0.6;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .range button {
+        transition-duration: 0ms;
+      }
     }
     .site {
       display: grid;
@@ -161,19 +176,7 @@ export class SystemPlanView extends LitElement {
       min-block-size: var(--sw-touch-desktop, 44px);
     }
     .foot {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      padding-block-start: 12px;
-    }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
-    }
-    .err {
-      color: var(--sw-danger-text);
-      font-size: var(--sw-fs-sm);
+      margin-block-start: var(--sw-s-4);
     }
     .note {
       font-size: var(--sw-fs-xs);
@@ -385,28 +388,28 @@ export class SystemPlanView extends LitElement {
   render() {
     const own = this.target === 'own';
     return html`<sw-card heading="תצוגה ריאליסטית" subheading="סגנון, תצוגת פתיחה, ריהוט וחומרים, שעה ואור, סיור בגובה עין, מסך קיר ומיקום האתר - לכל ההתקנה ולעצמי" data-plan-view-card>
-      <div class="row">
+      <div class="row scope">
         <span class="lbl">למי<span class="muted">${own ? 'ההעדפה שלי: כל שינוי נשמר מיד ותקף בכל מכשיר שלי' : 'ברירת המחדל של ההתקנה: נשמרת בכפתור'}</span></span>
         <span class="seg" role="group" aria-label="למי">
           <button type="button" data-view-target="own" aria-pressed=${own ? 'true' : 'false'} @click=${() => (this.target = 'own')}>ההעדפה שלי</button>
           <button type="button" data-view-target="installation" aria-pressed=${own ? 'false' : 'true'} @click=${() => (this.target = 'installation')}>ברירת המחדל של ההתקנה</button>
         </span>
       </div>
-      <h4>מראה</h4>
+      <h4 class="sub">מראה</h4>
       ${this.choiceRow('style')}
       ${this.choiceRow('default_view')}
       ${own ? nothing : html`${this.choiceRow('furniture')}${this.choiceRow('textures')}`}
       ${this.flagRow('section_cut')}
       ${this.flagRow('show_temps')}
       ${this.flagRow('motion')}
-      <h4>שעה ואור</h4>
+      <h4 class="sub">שעה ואור</h4>
       ${this.choiceRow('time_source')}
       ${own ? nothing : this.siteRow()}
-      <h4>סיור בגובה עין</h4>
+      <h4 class="sub">סיור בגובה עין</h4>
       ${this.rangeRow('eye_m')}
       ${this.choiceRow('mouse_mode')}
       ${this.flagRow('walk_guard')}
-      <h4>איכות ומסכים</h4>
+      <h4 class="sub">איכות ומסכים</h4>
       ${this.choiceRow('quality')}
       ${this.rangeRow('dpr_cap')}
       ${own ? nothing : html`${this.choiceRow('wall_display')}${this.choiceRow('kiosk_idle_s')}`}
@@ -415,10 +418,11 @@ export class SystemPlanView extends LitElement {
           ? html`<sw-button variant="ghost" size="sm" data-view-clear-own ?disabled=${this.busy || !Object.keys(this.prefs?.own ?? {}).length} @click=${() => void this.clearOwn()}>לפי ההתקנה בכל האפשרויות</sw-button>`
           : html`<sw-button variant="primary" size="sm" icon="check" data-view-save ?disabled=${this.instDisabled || !this.dirty} @click=${() => void this.saveInstallation()}>שמור</sw-button>
               <sw-button variant="ghost" size="sm" data-view-reset ?disabled=${this.instDisabled || !this.dirty} @click=${() => { this.draft = {}; this.siteDraft = null; }}>בטל שינויים</sw-button>
+              ${this.dirty && !this.instDisabled ? html`<span class="dirty" data-view-dirty>יש שינויים שלא נשמרו</span>` : nothing}
               ${!this.canEdit && isApi() ? html`<span class="note">שינוי ברירת המחדל דורש הרשאת מנהל מערכת.</span>` : nothing}
               ${!isApi() ? html`<span class="note">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</span>` : nothing}`}
-        ${this.message ? html`<span class="ok" role="status" data-view-message>${this.message}</span>` : nothing}
-        ${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}
+        ${this.message ? html`<span class="msg ok" role="status" data-view-message><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}
+        ${this.error ? html`<span class="msg err" role="alert" data-view-error><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}
       </div>
     </sw-card>`;
   }
