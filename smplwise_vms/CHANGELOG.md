@@ -1,5 +1,19 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.33.2 (pilot) - The add-on recovers by itself after a crash
+**After installing:** no database migration. Going back to 2.33.1 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. חזרה ל-2.33.1 בטוחה.
+
+### What was fixed - מה תוקן
+- **English:** If the add-on's server process crashes (for example the crash seen during fast scrubbing in recorded playback), it now restarts by itself within seconds instead of the add-on stopping. Each crash is recorded and shown in Diagnostics ("restarts after a crash"), with a warning in the top bar for 24 hours.
+- **עברית:** אם תהליך השרת של התוסף קורס (למשל הקריסה שנראתה בדילוגים מהירים בצפייה בהקלטות), הוא עולה מחדש לבד תוך שניות במקום שהתוסף ייעצר. כל קריסה נרשמת ומוצגת באבחון ("הפעלות מחדש אחרי קריסה"), עם אזהרה בשורה העליונה למשך 24 שעות.
+- **English:** A crash now leaves a full technical trace in the add-on log, so its cause can be found and fixed.
+- **עברית:** קריסה משאירה עכשיו פירוט טכני מלא ביומן התוסף, כדי שאפשר יהיה למצוא את הסיבה ולתקן אותה.
+- **English:** Safe mode: after two crashes within six hours the server restarts on slower but steadier networking components, and returns to normal after six quiet hours.
+- **עברית:** מצב בטוח: אחרי שתי קריסות בתוך שש שעות השרת עולה מחדש על רכיבי תקשורת איטיים מעט אך יציבים יותר, וחוזר למצב הרגיל אחרי שש שעות שקטות.
+- **English:** Recommended: turn on the add-on's Watchdog in Home Assistant as a second safety net.
+- **עברית:** מומלץ: להדליק את Watchdog של התוסף ב-Home Assistant כרשת ביטחון נוספת.
+
 ## 2.33.1 (pilot) - On/off lights without a dimmer, floor lights popup, tidier tree, event centre polish, scrolling tab strips
 **After installing:** no database migration. New settings keep today's behaviour by default. Going back to 2.33.0 is safe; before going back, set "show 'ללא שיוך' in the tree" to "always" if it was changed, so the other home-screen options are kept.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. ההגדרות החדשות שומרות על ההתנהגות הקיימת כברירת מחדל. חזרה ל-2.33.0 בטוחה; לפני החזרה, אם שונתה ההגדרה "הצג 'ללא שיוך' בעץ", יש להחזיר אותה ל"תמיד" כדי ששאר אפשרויות המסך הראשי יישמרו.
