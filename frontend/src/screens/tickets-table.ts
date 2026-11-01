@@ -67,6 +67,8 @@ export class TicketsTable extends LitElement {
   @property({ attribute: false }) hrefOf: (id: string) => string = (id) => `#/tickets/${id}`;
   @property() picked = '';
   @property({ reflect: true, attribute: 'data-density' }) density: 'comfortable' | 'compact' = 'comfortable';
+  /** TICKETS-POLISH-2331: the host gives the table a fixed region (tablet / desktop): the card fills it and its rows scroll under the sticky head */
+  @property({ type: Boolean, reflect: true }) fill = false;
   @state() private rows: TableRow[] | null = null;
   @state() private next: string | null = null;
   @state() private screen: Screen = 'loading';
@@ -105,6 +107,25 @@ export class TicketsTable extends LitElement {
   private offNames: (() => void) | null = null;
 
   static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, ticketTableStyles, css`
+    :host {
+      display: block;
+    }
+    :host([fill]) {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 0;
+    }
+    :host([fill]) > [data-screen] {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-block-size: 0;
+    }
+    :host([fill]) .tw {
+      flex: 0 1 auto;
+      min-block-size: 0;
+      max-block-size: none;
+    }
     sw-dialog {
       --sw-surface: var(--dv-surface-solid);
       --sw-glass-blur: none;
