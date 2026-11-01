@@ -87,6 +87,13 @@ stored before the key existed reads as `table`); frontend `xs-model.ts` (`XS_SYN
   hide-empty off), `evidence-synoptic-ha-2310` (the unlinked hint in the info sheet), `evidence-xsection-synoptic` (the phone row opens
   the floor from its name; under 768 px only the phone list may scroll).
 
+Runs: backend `test_xs_options.py` 11 passed; unit set (the new spec, unit-syn-columns-2321, unit-xs-floor-match,
+unit-switch-light-dimmer-2331 and the lints unit-polish-phone-297, unit-polish-classic-domus-297, unit-token-lint,
+unit-designtokens-297, unit-menu-lint) 82 passed; tsc clean. Runner (preview, `7508e4f3a`, desktop / tablet / mobile): the new evidence
+spec plus evidence-syn-columns-2321, evidence-xsection-synoptic, evidence-synoptic-ha-2310, evidence-switch-light-dimmer-2331 - 185
+passed, 181 skipped (project gates), 0 failed. Run 1 found two real faults (fixed in `a7ab20288`, `7508e4f3a`): the section's lights
+pill touch target widened the pill, and at 320 px with 12 floors the pills left the row. The screenshots stay on the runner worktree.
+
 ## 7. Not done / for the owner
 
 - Not checked on a real phone (tap feel, safe areas, the sheet's swipe): the mobile-native rules are applied in code only.
