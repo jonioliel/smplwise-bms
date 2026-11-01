@@ -638,7 +638,12 @@ def test_retention_drops_old_drafts_and_bills_but_never_frees_a_number(w):
     b = issue(w, draft(w, s["account"]["id"], SEPT).json()).json()
     w.c.get(f"{API}/bills/{b['id']}/pdf")
     d = draft(w, s["account"]["id"], {"from": "2026-10-01", "to": "2026-10-31"}).json()
-    out = eb.retention(w.db, w.settings.data_dir, now=utc(2026, 12, 1))
+    # the draft is written with the real clock (updated_at = today): retention runs 31 days after it, not at a fixed date - a fixed
+    # 2026-12-01 kept the draft whenever the suite ran on or after 2026-11-01 (the 30-day cut fell on the draft's own day)
+    with w.db.connection(mode="read") as conn:
+        written = conn.execute("SELECT updated_at FROM energy_bills WHERE id = ?", (d["id"],)).fetchone()[0]
+    later = dt.datetime.fromisoformat(written.replace("Z", "+00:00")) + dt.timedelta(days=31)
+    out = eb.retention(w.db, w.settings.data_dir, now=later)
     assert out == {"drafts": 1, "bills": 0}
     out = eb.retention(w.db, w.settings.data_dir, now=utc(2034, 1, 1))
     assert out["bills"] == 1

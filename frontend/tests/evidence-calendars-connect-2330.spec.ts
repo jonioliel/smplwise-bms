@@ -84,7 +84,7 @@ test.describe('calendar connect flow (CALCONNECT-2330)', () => {
     const ical = await card(page, 'ical');
     await ical.locator('[data-connect]').click();
     await expect(page.locator(`${D} [data-connect-step="feed"]`)).toBeVisible();
-    await page.locator(`${D} [data-feed-url]`).fill('http://192.168.1.5/cal.ics');
+    await page.locator(`${D} [data-feed-url]`).fill('http://192.0.2.10/cal.ics');
     await page.locator(`${D} [data-connect-save]`).click();
     await expect(page.locator(`${D} [data-connect-error]`)).toContainText('https');
     await page.locator(`${D} [data-feed-url]`).fill('webcal://calendar.example.org/holidays/basic.ics');

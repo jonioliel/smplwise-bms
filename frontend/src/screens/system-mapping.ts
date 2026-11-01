@@ -97,7 +97,7 @@ export class SystemMapping extends LitElement {
       flex: none;
       inline-size: 52px;
       block-size: 30px;
-      border-radius: 15px;
+      border-radius: var(--sw-r-pill);
       border: 0;
       padding: 3px;
       background: var(--sw-border-strong, var(--sw-border));
@@ -207,7 +207,7 @@ export class SystemMapping extends LitElement {
     }
     .pill {
       flex: none;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       padding: 2px 8px;
       border-radius: var(--sw-r-pill);
       background: var(--sw-surface);
@@ -325,7 +325,7 @@ export class SystemMapping extends LitElement {
       const cat = await loadTree();
       const site = cat.sites[0];
       if (!site) {
-        this.error = 'אין עדיין אתר. צרו אתר ובניין במפה › אתרים.';
+        this.error = 'אין עדיין אתר. צרו אתר ובניין במפה ‹ אתרים.';
         return;
       }
       this.data = await loadMapping(isApi() ? site.id : 'site1');

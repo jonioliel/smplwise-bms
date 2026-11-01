@@ -255,7 +255,7 @@ export class SystemWizard extends LitElement {
             ${this.renderRail(d)}
             ${this.renderSummary(d)}
             ${d.steps.map((s) => this.renderStep(s))}
-            ${!isApi() || canAnywhere('site.content.configure') ? html`<sw-card heading="שלב רשות · בניינים ומיפוי" subheading="כשבאותה מערכת בית יש כמה בניינים: איזה שם שייך לאיזה בניין. אפשר גם אחר כך, מהגדרות › בניינים ומיפוי." data-wizard-mapping><system-mapping compact></system-mapping></sw-card>` : nothing}
+            ${!isApi() || canAnywhere('site.content.configure') ? html`<sw-card heading="שלב רשות · בניינים ומיפוי" subheading="כשבאותה מערכת בית יש כמה בניינים: איזה שם שייך לאיזה בניין. אפשר גם אחר כך, מהגדרות ‹ בניינים ומיפוי." data-wizard-mapping><system-mapping compact></system-mapping></sw-card>` : nothing}
             <p class="hint">סטיית שעון עד ${d.thresholds.drift_ok_s} שנ׳ תקינה, עד ${d.thresholds.drift_fail_s} שנ׳ אזהרה, מעבר לזה השלב נכשל. "בדוק שוב" אפשרי פעם ב־${d.check_every_s} שנ׳ לכל שלב; בדיקה מול מכשיר מוצגת ${Math.round(d.live_ttl_s / 60)} דקות.</p>
           </div>`}
     </sw-page>`;

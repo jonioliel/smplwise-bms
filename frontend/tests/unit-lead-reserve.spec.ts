@@ -16,6 +16,7 @@ const ALLOW: Record<string, string> = {
   'screens/kiosk-wall.ts': 'full-screen kiosk wall: it replaces the application, no shell chrome and no tab-group dropdown',
   'screens/bubble-demo.ts': 'style-guide fixture page (#/styleguide/bubble), not a product screen',
   'screens/devices-area-nav.ts': "drawn only inside sw-page's header (the crumbs slot of devices-area), which keeps the reserve: its own doubled it (2.7.2)",
+  'screens/mapping-assistant.ts': 'MAPPING-ASSIST-2330: a full-screen modal sheet (position: fixed, z-modal, over the overlay); its <h1> is the dialog title above the shell chrome, the dropdown chip sits under the overlay',
 };
 
 const HEADER = /<h1\b|<header class="dh\b|<header class=\$\{[^}]*\bdh\b|\bdh: true\b|`dh\$\{/;

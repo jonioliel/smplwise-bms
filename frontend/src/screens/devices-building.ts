@@ -1436,7 +1436,7 @@ export class DevicesBuilding extends LitElement {
     return html`<div class="site-bar" data-site-bar data-site-level=${this.level}>
       <nav class="crumbs" aria-label="מיקום">
         ${here
-          ? html`<button type="button" class="crumb" data-site-crumb="site" @click=${() => this.goLevel(SITE_LEVEL)}>אתר</button><span class="sep" aria-hidden="true">›</span><span class="crumb here" aria-current="page">${bidi(here.name)}</span>`
+          ? html`<button type="button" class="crumb" data-site-crumb="site" @click=${() => this.goLevel(SITE_LEVEL)}>אתר</button><span class="sep" aria-hidden="true">‹</span><span class="crumb here" aria-current="page">${bidi(here.name)}</span>`
           : html`<span class="crumb here" aria-current="page">אתר${site.model.siteName ? html`<span class="sitename"> · ${bidi(site.model.siteName)}</span>` : nothing}</span>`}
       </nav>
       <mapping-health-chip></mapping-health-chip>
@@ -2084,8 +2084,23 @@ export class DevicesBuilding extends LitElement {
     // the height that is left under the summary)
     const tree = this.renderRoot.querySelector<HTMLElement>('.split > nav.tree');
     if (tree && window.innerWidth >= FIT_MIN_WIDTH && !this.lay.editing) {
-      const top = tree.getBoundingClientRect().top + (scrollParentOf(this)?.scrollTop ?? 0);
-      tree.style.maxBlockSize = `${Math.max(160, Math.floor(window.innerHeight - top - 28))}px`;
+      const sc = scrollParentOf(this);
+      const top = tree.getBoundingClientRect().top + (sc?.scrollTop ?? 0);
+      let max = Math.max(160, Math.floor(window.innerHeight - top - 28));
+      tree.style.maxBlockSize = `${max}px`;
+      // MULTIBUILDING-HOME-2330 gate (tablet 1024x768): the 28 px is a guess of the room under the tree; where the page area's own bottom
+      // padding is larger, a tree that reaches its maximum made the page scroll by the difference (10 px at fit step 2). Whatever the page
+      // area still overflows by while the tree is the column that reaches lowest comes off the tree (it scrolls inside its own panel).
+      const over = sc ? sc.scrollHeight - sc.clientHeight : 0;
+      if (over > 0) {
+        const tb = tree.getBoundingClientRect().bottom;
+        const other = [...(tree.parentElement?.children ?? [])].filter((el) => el !== tree).reduce((b, el) => Math.max(b, el.getBoundingClientRect().bottom), 0);
+        const cut = Math.min(over, Math.ceil(tb - other));
+        if (cut > 0) {
+          max = Math.max(160, max - cut);
+          tree.style.maxBlockSize = `${max}px`;
+        }
+      }
     } else tree?.style.removeProperty('max-block-size');
     const vk = `${this.layout}|${this.lay.editing}`;
     if (vk !== this.viewKey) {

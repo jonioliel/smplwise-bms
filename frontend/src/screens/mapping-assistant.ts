@@ -341,7 +341,7 @@ export class MappingAssistant extends LitElement {
       font-weight: var(--sw-fw-semibold);
     }
     .ch small {
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
       font-variant-numeric: tabular-nums;
     }
@@ -418,7 +418,7 @@ export class MappingAssistant extends LitElement {
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text, var(--sw-accent));
       font-weight: var(--sw-fw-bold);
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       padding: 0 4px;
     }
     .nm.no mark {
@@ -428,7 +428,7 @@ export class MappingAssistant extends LitElement {
     .nm small {
       flex: none;
       color: var(--sw-text-3);
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
     }
     .groups {
       display: grid;
@@ -498,7 +498,7 @@ export class MappingAssistant extends LitElement {
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
       min-inline-size: 0;
     }
@@ -550,7 +550,7 @@ export class MappingAssistant extends LitElement {
       min-inline-size: 0;
     }
     .tk .tok small {
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
     .tk .c b {
@@ -559,14 +559,14 @@ export class MappingAssistant extends LitElement {
     }
     .tk .c small {
       display: block;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
     .tag {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       padding: 1px 7px;
       border-radius: var(--sw-r-pill);
       background: var(--sw-surface-2);
@@ -659,7 +659,7 @@ export class MappingAssistant extends LitElement {
     .bar {
       flex: 1 1 160px;
       block-size: 8px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       background: var(--sw-surface-2);
       overflow: hidden;
       max-inline-size: 420px;
@@ -730,13 +730,13 @@ export class MappingAssistant extends LitElement {
     }
     .big button small {
       font-weight: var(--sw-fw-regular);
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
     .big button.rec {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: var(--sw-on-accent, #fff);
+      color: var(--sw-text-inverse);
     }
     .big button.rec small {
       color: inherit;
@@ -1534,7 +1534,7 @@ export class MappingAssistant extends LitElement {
         : this.data.can_toggle
           ? html`<div class="offer" data-ma-offer><span>תצוגת ריבוי הבניינים כבויה - המסך הראשי עדיין מציג בניין אחד.</span>
               <sw-button variant="primary" icon="building" data-ma-enable-multi ?disabled=${this.busy} @click=${() => void this.enableMulti()}>הפעל עכשיו את תצוגת ריבוי הבניינים</sw-button></div>`
-          : html`<p>תצוגת ריבוי הבניינים כבויה. מי שמנהל את כל האתרים יכול להפעיל אותה בהגדרות › בניינים ומיפוי.</p>`}
+          : html`<p>תצוגת ריבוי הבניינים כבויה. מי שמנהל את כל האתרים יכול להפעיל אותה בהגדרות ‹ בניינים ומיפוי.</p>`}
     </div>`;
   }
 
