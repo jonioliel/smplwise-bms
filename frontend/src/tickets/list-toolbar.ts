@@ -392,14 +392,25 @@ export const ticketToolbarStyles = css`
     .areset {
       min-block-size: 44px;
     }
-    /* on a phone the panel opens in the flow under the toolbar, the full width (nothing hangs off the screen) */
+    /* on a phone the panel is a bottom sheet over the page, just above the dock (a panel in the sticky header could not scroll and folded
+       away with the compacting header); it rises 8 px into place */
     .fpop {
-      position: static;
-      order: 3;
-      inline-size: 100%;
-      max-block-size: none;
-      overflow: visible;
-      padding: 14px;
+      position: fixed;
+      inset-block: auto var(--sw-bottomnav-h);
+      inset-inline: 0;
+      inline-size: auto;
+      max-block-size: calc(100dvh - var(--sw-bottomnav-h) - 96px);
+      padding: 18px 16px 14px;
+      border-radius: var(--sw-r-2xl) var(--sw-r-2xl) 0 0;
+      border-block-end: 0;
+      z-index: 60;
+      transform-origin: bottom;
+    }
+    @starting-style {
+      .fpop {
+        opacity: 0;
+        transform: translateY(8px);
+      }
     }
     .fchips .rc,
     .fpop .frow select {

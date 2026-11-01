@@ -299,7 +299,7 @@ export class TicketsBoard extends LitElement {
 
   private onScroll = () => {
     // TICKETS-POLISH-2331: only a scrolling PAGE compacts the header (a phone); from a tablet up the board scrolls in its own region
-    const compact = this.scrollTop > 40;
+    const compact = this.scrollTop > 40 && !this.filterOpen; // the open sheet keeps its toolbar (and itself) on screen
     if (compact !== this.compactHeader) this.compactHeader = compact;
   };
 

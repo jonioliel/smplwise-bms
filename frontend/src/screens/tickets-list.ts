@@ -229,7 +229,7 @@ export class TicketsList extends LitElement {
   private onScroll = () => {
     // TICKETS-POLISH-2331: only a scrolling PAGE compacts the header (a phone). From a tablet up the list scrolls in its own region under a
     // header that never moves, so the toolbar stays usable (it used to fade out while the region scrolled, for no room gained).
-    const compact = this.scrollTop > 40;
+    const compact = this.scrollTop > 40 && !this.filterOpen; // the open sheet keeps its toolbar (and itself) on screen
     if (compact !== this.compactHeader) this.compactHeader = compact;
   };
 
