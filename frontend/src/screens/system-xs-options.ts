@@ -42,6 +42,7 @@ const GROUPS: { title: XtKey; opts: Opt[] }[] = [
       { key: 'syn_columns', kind: 'enum', label: 'optSynColumns', options: [['all', 'optSynAll'], ['few', 'optSynFew'], ['custom', 'optSynCustom']] },
       { key: 'syn_hide_empty', kind: 'bool', label: 'optSynHideEmpty', hint: 'optSynHideEmptyHint' },
       { key: 'syn_switches', kind: 'enum', label: 'optSynSwitches', options: [['typed', 'optSynSwitchesTyped'], ['all', 'optSynSwitchesAll']], hint: 'optSynSwitchesHint' },
+      { key: 'syn_phone_view', kind: 'enum', label: 'optSynPhoneView', options: [['table', 'optSynPhoneTable'], ['cards', 'optSynPhoneCards'], ['section', 'optSynPhoneSection']], hint: 'optSynPhoneViewHint' },
       { key: 'syn_events', kind: 'bool', label: 'optSynEvents' },
       { key: 'wall', kind: 'bool', label: 'optWall' },
     ],
@@ -173,7 +174,7 @@ export class SystemXsOptions extends LitElement {
       return html`<div class="row" data-xs-option=${o.key}><span class="lbl">${xt(o.label)}${def === true ? html` <small>${xt('setDefault')}</small>` : nothing}${o.hint ? html`<small>${xt(o.hint)}</small>` : nothing}</span>
         <sw-toggle ?checked=${cur === true} ?disabled=${!editable || this.busy} label=${xt(o.label)} labelHidden data-xs-toggle=${o.key} @change=${(e: CustomEvent<{ checked: boolean }>) => this.set(o.key, e.detail.checked)}></sw-toggle></div>`;
     }
-    return html`<div class="row" data-xs-option=${o.key}><span class="lbl">${xt(o.label)}</span>
+    return html`<div class="row" data-xs-option=${o.key}><span class="lbl">${xt(o.label)}${o.hint ? html`<small>${xt(o.hint)}</small>` : nothing}</span>
       <select data-xs-select=${o.key} aria-label=${xt(o.label)} ?disabled=${!editable || this.busy} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.set(o.key, typeof def === 'number' ? Number(v) : v); }}>
         ${o.options.map(([v, l]) => html`<option value=${String(v)} ?selected=${cur === v}>${label(l)}${v === def ? ` ${xt('setDefault')}` : ''}</option>`)}
       </select></div>`;

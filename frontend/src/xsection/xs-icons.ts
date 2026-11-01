@@ -17,6 +17,9 @@ const P: Record<string, ReturnType<typeof svg>> = {
   section: svg`<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M5 8h14M5 13h14M5 18h14"/>`,
   close: svg`<path d="M6 6l12 12M18 6 6 18"/>`,
   chev: svg`<path d="m6 9 6 6 6-6"/>`,
+  info: svg`<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>`,
+  /** the "forward" chevron of a right-to-left list (points to the inline end) */
+  fwd: svg`<path d="m15 6-6 6 6 6"/>`,
   check: svg`<path d="m5 12 5 5 9-10"/>`,
   map: svg`<path d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5L3 20z"/>`,
   synoptic: svg`<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 9v12"/>`,

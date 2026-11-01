@@ -3,8 +3,10 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-state-panel';
+import '../components/sw-sheet';
 import '../xsection/sw-fire-bar';
 import './devices-tiles-panel';
+import { synPhoneStyles } from './devices-synoptic-phone-css';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { xt } from '../i18n/xsection';
 import { describeError } from '../api/client';
@@ -19,11 +21,14 @@ import { ackName, mayAck } from '../xsection/sw-fire-bar';
 import { xi } from '../xsection/xs-icons';
 import { matchLine, unlinkedFloors } from '../xsection/sw-xsection';
 import { phoneRestricted } from '../shell/phone';
-import { alarmFloors, floorLightsTarget, onXsOptions, phoneColumns, signalsOf, synBoardColumns, tempState, totalsOf, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsOptions } from '../xsection/xs-model';
+import { alarmFloors, floorLightsTarget, litPercent, onXsOptions, phoneBoardColumns, phoneColumns, phoneGridTemplate, PHONE_DENSE_FLOORS, signalsOf, synBoardColumns, tempState, totalsOf, unassignedLights, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsColumn, type XsOptions } from '../xsection/xs-model';
 import type { XtKey } from '../i18n/xsection';
 
 const REFRESH_MS = 30_000;
 const COL_LABEL: Record<SynColumn, XtKey> = { light: 'colLight', temp: 'colTemp', presence: 'colPresence', cameras: 'colCameras', doors: 'colDoors', alerts: 'colAlerts', fire: 'colFire' };
+/** SYNOPTIC-MOBILE-2342: the icon and the short word of each column on the phone board (the header icons carry the full name as a title). */
+const PH_ICON: Record<SynColumn, string> = { light: 'light', temp: 'therm', presence: 'person', cameras: 'cam', doors: 'door', alerts: 'bell', fire: 'flame' };
+const PH_WORD: Record<SynColumn, XtKey> = { light: 'lightsOn', temp: 'phTemp', presence: 'phPresence', cameras: 'colCameras', doors: 'phDoors', alerts: 'phAlerts', fire: 'phFire' };
 const clock = () => new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 
 /**
@@ -45,11 +50,13 @@ export class DevicesSynoptic extends LitElement {
   @state() private error = '';
   @state() private sel = 'all';
   @state() private now = clock();
+  /** SYNOPTIC-MOBILE-2342: the phone board's info sheet (the summary line of the wide board, behind the info button). */
+  @state() private info = false;
   private timers: number[] = [];
   private stops: Array<() => void> = [];
   private readonly onResize = () => this.requestUpdate();
 
-  static styles = css`
+  static styles = [css`
     :host { display: block; block-size: 100%; min-block-size: 0; }
     sw-page { block-size: 100%; box-sizing: border-box; }
     :host([wall]) { position: fixed; inset: 0; background: var(--sw-bg); padding: 16px 20px; box-sizing: border-box; }
@@ -146,14 +153,18 @@ export class DevicesSynoptic extends LitElement {
     .wallhead h1 { margin: 0; font-size: var(--sw-fs-3xl); color: var(--sw-heading); }
     @media (max-width: 767px) {
       .syn.wide, .syn.wide.ev { grid-template-columns: minmax(0, 1fr); }
-      .sgrid { grid-template-columns: minmax(80px, 1.3fr) repeat(var(--pcols, 3), minmax(0, auto)); gap: 8px; }
+      /* SYNOPTIC-MOBILE-2342 root cause: number columns of minmax(0, auto) shrank to nothing while the lights strip and the number did not,
+         so lighting spilled over the cameras. The narrow wide board (only the wall screen still draws it under 768 px) gets fixed columns. */
+      .sgrid { grid-template-columns: minmax(0, 1fr) repeat(var(--pcols, 3), 64px); gap: 8px; }
+      .fac { display: none; }
+      .cell { overflow: hidden; }
       .hide-phone { display: none !important; }
       .bhead h2 { font-size: var(--sw-fs-lg); }
     }
     .lights-hit { cursor: pointer; border-radius: var(--sw-r-sm); }
-    .lights-hit:hover { background: color-mix(in srgb, var(--sw-lit) 14%, transparent); }
+    @media (hover: hover) and (pointer: fine) { .lights-hit:hover { background: color-mix(in srgb, var(--sw-lit) 14%, transparent); } }
     :focus-visible { outline: 2px solid var(--sw-focus, var(--sw-accent)); outline-offset: 2px; }
-  `;
+  `, synPhoneStyles];
 
   connectedCallback() {
     super.connectedCallback();
@@ -231,9 +242,19 @@ export class DevicesSynoptic extends LitElement {
 
   private signals(floors: Floor[]): FloorSignal[] {
     if (!isApi() || this.data?.demo) return demoSignals([...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order), isApi() ? null : parseRoute().params.get('xsdata'));
+    return signalsOf(floors, this.data?.tree ?? null, this.data?.people ?? null, this.ctx(floors), { switches: this.opts().syn_switches });
+  }
+
+  private ctx(floors: Floor[]) {
     const bid = floors[0]?.building_id;
     const site = this.tree?.sites.find((s) => (s.buildings ?? []).some((b) => b.id === bid)) ?? null;
-    return signalsOf(floors, this.data?.tree ?? null, this.data?.people ?? null, matchContext(this.data, site), { switches: this.opts().syn_switches });
+    return matchContext(this.data, site);
+  }
+
+  /** SYNOPTIC-MOBILE-2342: the lights on no floor (not in the head chip, not in a row) - said once in the info sheet and the chip's title. */
+  private noFloorLights(floors: Floor[], sigs: FloorSignal[]) {
+    if (!isApi() || this.data?.demo) return null;
+    return unassignedLights(this.data?.tree ?? null, sigs, this.ctx(floors), { switches: this.opts().syn_switches });
   }
 
   private head(c: SynColumn): TemplateResult {
@@ -328,9 +349,10 @@ export class DevicesSynoptic extends LitElement {
       </button>`);
     });
     const sf = sigs.find((s) => s.id === this.sel) ?? null;
+    const noFloor = has('light') ? this.noFloorLights(floors, sigs) : null;
     const chips = html`<span class="chips">
       ${has('temp') && t.avg !== null ? html`<span class="chip" data-syn-chip="temp">${xi('therm')}${xt('avgTemp')} <b>${t.avg.toFixed(1)}°</b></span>` : nothing}
-      ${has('light') && t.litKnown ? html`<span class="chip warm" data-syn-chip="light">${xi('light')}<b>${t.lit}/${t.lights}</b> ${xt('lightsOn')}</span>` : nothing}
+      ${has('light') && t.litKnown ? html`<span class="chip warm" data-syn-chip="light" title=${noFloor ? `${xt('synInfoNoFloor')}: ${xt('synInfoNoFloorVal', noFloor)}` : nothing}>${xi('light')}<b>${t.lit}/${t.lights}</b> ${xt('lightsOn')}</span>` : nothing}
       ${has('presence') && t.people !== null ? html`<span class="chip hide-phone" data-syn-chip="presence">${xi('person')}<b>${t.people}</b> ${xt('colPresence')}</span>` : nothing}
       ${has('doors') && t.doorsOpen !== null ? html`<span class="chip hide-phone" data-syn-chip="doors">${xi('door')}<b>${t.doorsOpen}</b> ${xt('colDoors')}</span>` : nothing}
       ${t.nodata ? html`<span class="chip dash">${xi('offline')}${xt('noDataCount', { n: t.nodata })}</span>` : nothing}
@@ -338,6 +360,11 @@ export class DevicesSynoptic extends LitElement {
       ${o.fire_ui && !rep.connected && o.fire_column === 'dashed' ? html`<span class="chip dash">${xi('flame')}${xt('colFire')}: ${xt('fireNotConnected')}</span>` : nothing}
       ${rep.demo ? html`<span class="chip mock">${xt('fireDemo')}</span>` : nothing}
     </span>`;
+    if (!this.wall && window.innerWidth < 768) {
+      // SYNOPTIC-MOBILE-2342 (sub-answer 4C): only the page title, the building and its floors under it - no second title on the card
+      const phone = this.renderPhone(b, sigs, cols, hiddenEmpty, o, rep, chips, alarmF ?? null, hasBelow, noFloor);
+      return this.frame(html`${phone}${this.renderLights()}`, sigs.length, true, xt('synSite', { name: bidi(b.name), n: sigs.length }));
+    }
     const board = html`<section class="card board" aria-label=${xt('synTitle')} data-syn-board style="--n:${sigs.length}">
       <div class="bhead"><h2>${xi('synoptic')}${xt('synTitle')} · ${bidi(b.name)}</h2>${chips}<span class="live"><i></i>${this.now}</span></div>
       ${alarmF ? this.alarmPanel(alarmF, rep) : html`<span></span>`}
@@ -421,8 +448,186 @@ export class DevicesSynoptic extends LitElement {
     return html`<span class="hidnote" data-syn-hidden=${hidden.join(',')}>${xt('hiddenEmpty', { cols: names })}${this.wall ? nothing : html` · <button class="lnk" data-syn-hidden-opt @click=${() => navigate('/system/diagnostics', { focus: 'xs' })}>${xt('hiddenEmptyOpt')}</button>`}</span>`;
   }
 
-  private frame(body: TemplateResult, n: number, ready = false) {
-    return html`<sw-page heading=${xt('synTitle')} subheading=${ready ? xt('synSub', { n }) : ''} data-synoptic-screen>${body}</sw-page>`;
+  private frame(body: TemplateResult, n: number, ready = false, sub?: string) {
+    return html`<sw-page heading=${xt('synTitle')} subheading=${ready ? sub ?? xt('synSub', { n }) : ''} data-synoptic-screen>${body}</sw-page>`;
+  }
+
+  /* ------------------------------------------------------------ the phone board (SYNOPTIC-MOBILE-2342) */
+
+  private openFloor(f: FloorSignal) {
+    this.info = false;
+    navigate(`/explore/floors/${f.id}`);
+  }
+
+  /**
+   * Under 768 px: the layout of "תצוגת המפה הסינופטית בטלפון" (ui.xs syn_phone_view) - A table (default), B floor cards, C the cross-section
+   * first. All three: the head chips with the clock and the info button (the summary lives in its sheet, sub-answer 3B), a press on a floor's
+   * lighting opens its lights popup, only the list scrolls. A and B open the floor from its name; C selects it first (the strip opens it).
+   */
+  private renderPhone(b: Building, sigs: FloorSignal[], cols: SynColumn[], hiddenEmpty: readonly XsColumn[], o: XsOptions, rep: ReturnType<typeof fireReport>, chips: TemplateResult, alarmF: FloorSignal | null, hasBelow: boolean, noFloor: { lit: number; lights: number } | null) {
+    const w = window.innerWidth;
+    const { cols: pc, dashed } = phoneBoardColumns(cols, sigs, w);
+    const dash = new Set<SynColumn>(dashed);
+    const dense = sigs.length > PHONE_DENSE_FLOORS;
+    const view = o.syn_phone_view;
+    const head = html`<div class="phead">${chips}<span class="live"><i></i>${this.now}</span>
+      <button class="ib" data-syn-info aria-haspopup="dialog" aria-label=${xt('synInfo')} title=${xt('synInfo')} @click=${() => (this.info = true)}>${xi('info')}</button></div>`;
+    const alarm = alarmF ? this.alarmPanel(alarmF, rep) : html`<span></span>`;
+    const isBelow = (f: FloorSignal, i: number) => hasBelow && f.level < 0 && (i === 0 || sigs[i - 1].level >= 0);
+    const rowAria = (f: FloorSignal) => `${f.name}${f.nodata ? `, ${xt('noData')}` : ''}${this.detailText(f, (c) => pc.includes(c)) ? `: ${this.detailText(f, (c) => pc.includes(c))}` : ''}`;
+    const grid = phoneGridTemplate(pc);
+    let body: TemplateResult;
+    if (view === 'cards') {
+      const items: TemplateResult[] = [];
+      sigs.forEach((f, i) => {
+        if (isBelow(f, i)) items.push(html`<div class="pgl" aria-hidden="true">${xt('synGroundLine')}</div>`);
+        const fz = rep.floors[f.id];
+        const name = html`<span><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span>${dense ? nothing : html`<span class="s" data-syn-match=${f.match?.how ?? (f.match ? 'none' : '')}>${this.subLine(f)}</span>`}</span>`;
+        items.push(dense
+          ? html`<div class="card pfc row" role="group" aria-label=${rowAria(f)} data-syn-row=${f.id} ?data-off=${f.nodata} data-fire=${fz && fz.state !== 'ok' ? fz.state : ''}>
+              <div class="pfr" style="--pgrid:${grid} 16px">
+                <button class="pfh" data-syn-open-floor=${f.id} @click=${() => this.openFloor(f)}>${name}</button>
+                ${pc.map((c) => this.phoneCell(c, f, o, rep, dash.has(c)))}${xi('fwd', 'fwd')}
+              </div></div>`
+          : html`<div class="card pfc" role="group" aria-label=${rowAria(f)} data-syn-row=${f.id} ?data-off=${f.nodata} data-fire=${fz && fz.state !== 'ok' ? fz.state : ''}>
+              <button class="pfh" data-syn-open-floor=${f.id} @click=${() => this.openFloor(f)}>${name}${xi('fwd', 'fwd')}</button>
+              ${pc.length ? html`<div class="pfm">${pc.map((c) => this.phoneMetric(c, f, o, rep, dash.has(c)))}</div>` : nothing}
+            </div>`);
+      });
+      body = html`<section class="pboard pb" aria-label=${xt('synTitle')} data-syn-board data-syn-phone="cards">${head}${alarm}<div class="pbl" ?data-dense=${dense}>${items}</div></section>`;
+    } else if (view === 'section') {
+      const slab = w < 360 ? 52 : w > 410 ? 72 : 64;
+      const showSub = w >= 360 && !dense;
+      const out: TemplateResult[] = [html`<span class="roof" aria-hidden="true"></span><span aria-hidden="true"></span>`];
+      sigs.forEach((f, i) => {
+        if (isBelow(f, i)) out.push(html`<span class="soil" aria-hidden="true"></span><span class="soiltx" aria-hidden="true"></span>`);
+        const on = this.sel === f.id;
+        out.push(html`<span class="sl ${f.level < 0 ? 'bg' : ''}" aria-hidden="true" ?data-sel=${on}><i style="inline-size:${litPercent(f)}%"></i><em>${ltrNum(f.level)}</em></span>
+          <div class="ci" role="group" aria-label=${rowAria(f)} data-syn-row=${f.id} ?data-off=${f.nodata}>
+            <button class="pl1" data-syn-sel=${f.id} aria-pressed=${on} aria-label=${xt('synSelectAria', { name: f.name })} @click=${() => this.pick(f.id)}><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span>${showSub ? html`<span class="s" data-syn-match=${f.match?.how ?? (f.match ? 'none' : '')}>${this.subLine(f)}</span>` : nothing}</button>
+            <span class="ppls">${pc.map((c) => this.phonePill(c, f, o, rep, dash.has(c)))}</span>
+          </div>`);
+      });
+      const sf = sigs.find((s) => s.id === this.sel) ?? null;
+      const t = totalsOf(sigs, o.temp_threshold);
+      const lightsText = (lit: number | null, lights: number | null) => (lit === null || lights === null ? '' : ` · ${ltrNum(`${lit}/${lights}`)} ${xt('lightsOn')}`);
+      const strip = sf
+        ? html`<span class="tx"><b title=${sf.name}>${bidi(sf.name)}</b>${this.subLine(sf)}${pc.includes('light') ? lightsText(sf.lit, sf.lights) : ''}</span>
+            <sw-button size="sm" variant="primary" data-syn-open @click=${() => this.openFloor(sf)}>${xt('synOpenFloor')}</sw-button>`
+        : html`<span class="tx"><b>${xt('synAll')}</b>${xt('synFloorsN', { n: sigs.length })}${pc.includes('light') && t.litKnown ? lightsText(t.lit, t.lights) : ''}</span>
+            <sw-button size="sm" variant="ghost" data-syn-details @click=${() => (this.info = true)}>${xt('synDetails')}</sw-button>`;
+      body = html`<section class="card pboard pc" aria-label=${xt('synTitle')} data-syn-board data-syn-phone="section" style="--slab:${slab}px">${head}${alarm}
+        <div class="cl" ?data-dense=${dense}>${out}</div><div class="dstrip" data-syn-strip>${strip}</div></section>`;
+    } else {
+      const rows: TemplateResult[] = [];
+      sigs.forEach((f, i) => {
+        if (isBelow(f, i)) rows.push(html`<div class="ground" aria-hidden="true"></div>`);
+        const tt = pc.includes('temp') ? tempState(f, o.temp_threshold) : null;
+        const fz = rep.floors[f.id];
+        const sub = this.subLine(f);
+        rows.push(html`<div class="par" role="group" aria-label=${rowAria(f)} data-syn-row=${f.id} data-temp=${tt ?? ''} ?data-off=${f.nodata} data-fire=${fz && fz.state !== 'ok' ? fz.state : ''}>
+          <button class="pan" data-syn-open-floor=${f.id} @click=${() => this.openFloor(f)}><span class="t" dir="auto" title=${f.name}>${bidi(f.name)}</span><span class="s" title=${sub} data-syn-match=${f.match?.how ?? (f.match ? 'none' : '')}>${sub}</span></button>
+          ${pc.map((c) => this.phoneCell(c, f, o, rep, dash.has(c)))}
+        </div>`);
+      });
+      body = html`<section class="card pboard pa" aria-label=${xt('synTitle')} data-syn-board data-syn-phone="table" style="--pgrid:${grid}">${head}${alarm}
+        <div class="pah" aria-hidden="true"><span>${xt('synFloor')}</span>${pc.map((c) => html`<span data-syn-col=${c} title=${xt(COL_LABEL[c])}>${xi(PH_ICON[c])}</span>`)}</div>
+        <div class="plist" ?data-dense=${dense}>${rows}</div></section>`;
+    }
+    return html`${body}${this.renderInfo(b, sigs, cols, pc, hiddenEmpty, noFloor)}`;
+  }
+
+  /** What one phone cell / metric / pill draws for a column: the value (null = no source, drawn "-"), whether it is quiet, a warning, a tone. */
+  private phoneValue(c: SynColumn, f: FloorSignal, o: XsOptions, rep: ReturnType<typeof fireReport>): { v: TemplateResult | null; mut: boolean; warn?: boolean; tone?: string; title?: string; nc?: boolean } {
+    switch (c) {
+      case 'light':
+        return f.lit === null || f.lights === null || f.nodata ? { v: null, mut: true } : { v: html`<span class="n">${f.lit}</span><small>/${f.lights}</small>`, mut: !f.lit };
+      case 'temp':
+        return f.temp === null || f.nodata ? { v: null, mut: true } : { v: html`<span class="n">${f.temp.toFixed(1)}</span><small>°</small>`, mut: false, tone: tempState(f, o.temp_threshold) ?? undefined };
+      case 'presence':
+        return f.people === null ? { v: null, mut: true } : { v: html`<span class="n">${f.people}</span>`, mut: !f.people };
+      case 'cameras':
+        return { v: html`<span class="n">${f.cams}</span>${f.shared ? html`<small>+${f.shared}</small>` : nothing}`, mut: !f.cams && !f.shared, title: f.shared ? xt('camsShared', { n: f.shared }) : undefined };
+      case 'doors':
+        return f.doorsOpen === null || f.nodata ? { v: null, mut: true } : { v: html`<span class="n">${f.doorsOpen}</span>`, mut: !f.doorsOpen };
+      case 'alerts':
+        return f.alerts === null ? { v: null, mut: true, title: xt('alertsNone') } : { v: html`<span class="n">${f.alerts}</span>`, mut: !f.alerts, warn: !!f.alerts };
+      case 'fire': {
+        if (!rep.connected) return { v: xi('offline'), mut: true, title: xt('fireNotConnected'), nc: true };
+        const z = rep.floors[f.id];
+        if (!z) return { v: null, mut: true };
+        return z.state === 'alarm' ? { v: xi('flame'), mut: false, warn: true, title: xt('fireAlarm') } : z.state === 'fault' ? { v: xi('wrench'), mut: true, title: xt('fireFault') } : { v: xi('check'), mut: true, title: xt('fireOk') };
+      }
+    }
+  }
+
+  private lightsAria(f: FloorSignal): string {
+    return xt('synLightsAria', { name: f.name, lit: f.lit ?? 0, lights: f.lights ?? 0 });
+  }
+
+  /** A - a table cell (B's dense row too): the number centred in its fixed column; lighting is "2/10" over a small bar and opens the popup. */
+  private phoneCell(c: SynColumn, f: FloorSignal, o: XsOptions, rep: ReturnType<typeof fireReport>, dashed: boolean) {
+    const p = this.phoneValue(c, f, o, rep);
+    if (c === 'light' && p.v && !dashed) {
+      const inner = html`<span class="pv ${p.mut ? 'mut' : ''}"><span class="n">${f.lit}/${f.lights}</span></span><span class="mb" aria-hidden="true"><i style="inline-size:${litPercent(f)}%"></i></span>`;
+      return this.lightsAllowed(f)
+        ? html`<button class="plc" data-syn-lights=${f.id} aria-label=${this.lightsAria(f)} title=${xt('floorLightsOpen', { name: f.name })} @click=${(e: Event) => this.openLights(e, f)}>${inner}</button>`
+        : html`<span class="plc">${inner}</span>`;
+    }
+    const none = dashed || !p.v;
+    return html`<span class="pcell" data-syn-cell=${c} ?data-fire-nc=${p.nc}><span class="pv ${none || p.mut ? 'mut' : ''} ${p.warn ? 'warn' : ''}" data-t=${p.tone ?? nothing} title=${none ? xt('noSource') : p.title ?? nothing}>${none ? '-' : p.v}</span></span>`;
+  }
+
+  /** B - a metric tile of a floor card: the word over the number; lighting carries a bar and opens the popup; a column with no source is dashed. */
+  private phoneMetric(c: SynColumn, f: FloorSignal, o: XsOptions, rep: ReturnType<typeof fireReport>, dashed: boolean) {
+    const p = this.phoneValue(c, f, o, rep);
+    const none = dashed || !p.v;
+    const k = html`<span class="k">${xi(PH_ICON[c])}${xt(PH_WORD[c])}</span>`;
+    if (c === 'light' && !none) {
+      const inner = html`${k}<span class="pval">${p.v}</span><span class="mb" aria-hidden="true"><i style="inline-size:${litPercent(f)}%"></i></span>`;
+      return this.lightsAllowed(f)
+        ? html`<button class="pmt lit" data-syn-lights=${f.id} aria-label=${this.lightsAria(f)} @click=${(e: Event) => this.openLights(e, f)}>${inner}</button>`
+        : html`<div class="pmt lit">${inner}</div>`;
+    }
+    return html`<div class="pmt ${none ? 'mut' : p.mut ? 'mut' : ''} ${dashed ? 'dash' : ''} ${p.warn ? 'warn' : ''}" data-syn-cell=${c} ?data-fire-nc=${p.nc} title=${none ? xt('noSource') : p.title ?? nothing}>${k}<span class="pval" data-t=${p.tone ?? nothing}>${none ? '-' : p.v}</span></div>`;
+  }
+
+  /** C - a pill beside a floor of the section. */
+  private phonePill(c: SynColumn, f: FloorSignal, o: XsOptions, rep: ReturnType<typeof fireReport>, dashed: boolean) {
+    const p = this.phoneValue(c, f, o, rep);
+    const none = dashed || !p.v;
+    if (c === 'light' && !none && this.lightsAllowed(f)) {
+      return html`<button class="ppl lit" data-syn-lights=${f.id} aria-label=${this.lightsAria(f)} @click=${(e: Event) => this.openLights(e, f)}>${xi('light')}<span class="n">${f.lit}/${f.lights}</span></button>`;
+    }
+    const cls = c === 'light' && !none ? 'lit' : none ? (dashed ? 'dash mut' : 'mut') : `${p.mut ? 'mut' : ''} ${p.warn ? 'warn' : ''}`;
+    return html`<span class="ppl ${cls}" data-syn-cell=${c} ?data-fire-nc=${p.nc} title=${none ? xt('noSource') : p.title ?? xt(COL_LABEL[c])}>${c === 'fire' ? nothing : xi(PH_ICON[c])}${none ? '-' : c === 'light' ? html`<span class="n">${f.lit}/${f.lights}</span>` : p.v}</span>`;
+  }
+
+  /** Sub-answer 3B: the wide board's summary line (floors, the columns drawn and hidden, lights on no floor, unlinked floors) as a sheet. */
+  private renderInfo(b: Building, sigs: FloorSignal[], cols: readonly SynColumn[], pc: readonly SynColumn[], hiddenEmpty: readonly XsColumn[], noFloor: { lit: number; lights: number } | null) {
+    const names = (cs: readonly SynColumn[]) => cs.map((c) => xt(COL_LABEL[c])).join(', ');
+    const wideOnly = cols.filter((c) => !pc.includes(c));
+    const un = unlinkedFloors(sigs);
+    const hint = un.length ? (un.length === 1 ? xt('matchHintOne', { name: un[0].name }) : xt('matchHintMany', { n: un.length })) : '';
+    return html`<sw-sheet narrow heading=${xt('synInfoTitle', { name: bidi(b.name) })} ?open=${this.info} data-syn-info-sheet @close=${() => (this.info = false)}>
+      ${this.info
+        ? html`<div class="pinfo">
+            <p class="sub">${xt('synBoardSub')}</p>
+            <dl>
+              <dt>${xt('synInfoFloors')}</dt><dd>${ltrNum(sigs.length)}</dd>
+              <dt>${xt('synInfoShown')}</dt><dd data-syn-info-shown>${pc.length ? names(pc) : '-'}</dd>
+              ${wideOnly.length ? html`<dt>${xt('synInfoWide')}</dt><dd data-syn-info-wide>${names(wideOnly)}</dd>` : nothing}
+              ${hiddenEmpty.length ? html`<dt>${xt('synInfoHidden')}</dt><dd data-syn-info-hidden>${names(hiddenEmpty)}</dd>` : nothing}
+              ${noFloor ? html`<dt>${xt('synInfoNoFloor')}</dt><dd data-syn-info-nofloor>${xt('synInfoNoFloorVal', noFloor)}</dd>` : nothing}
+            </dl>
+            ${hint ? html`<p class="hint" data-syn-hint>${hint}</p>` : nothing}
+            <div class="acts">
+              ${hint && this.canLink() ? html`<sw-button size="sm" variant="ghost" data-syn-link=${un[0].id} @click=${() => this.linkFloor(b, un[0].id)}>${xt('matchHintAction')}</sw-button>` : nothing}
+              <sw-button size="sm" variant="ghost" data-syn-info-settings @click=${() => { this.info = false; navigate('/system/diagnostics', { focus: 'xs' }); }}>${xt('synInfoSettings')}</sw-button>
+            </div>
+          </div>`
+        : nothing}
+    </sw-sheet>`;
   }
 }
 
