@@ -657,7 +657,6 @@ def _store_staged_digest(db: Any, conn: Any, value: str) -> None:
 
 MANAGED_PROFILE = "managed_original_authority_flow"  # the rc.7 managed pin profile (WisKey Mac rc.7, product 015f0277)
 AUDIT_NATIVE_REFUSED = "wiskey.installation.native_refused"
-REFUSAL_KEY = "wiskey.installation.native_refusal"  # the last audited refusal (dedupe only; `wiskey.installation.*`: never restored)
 _FOREIGN = "native_foreign_installed"
 
 
@@ -720,24 +719,25 @@ def preflight_native(db: Any, conn: Any, config_root: Path, source: Path) -> tup
 
 
 def _audit_refusal(db: Any, conn: Any, reason: str, code: str | None, source: Path, enabled: bool) -> None:
-    """One audit row per NEW refusal (reason, code, switch, bundle digest); the same refusal on the next start-up is not repeated.
-    Codes and digests only - never a path, a file content or a secret. Never raises."""
+    """One audit row per NEW refusal: the same (reason, code, switch, bundle digest) as the latest refusal row is not repeated on the
+    next start-up. The dedupe reads audit_log only - no setting is written (with the switch off nothing `wiskey.*` is written,
+    tests/test_wiskey_r3_2272_owner_switch.py). Codes and digests only - never a path, a file content or a secret. Never raises."""
     from ..audit import audit
-    from ..db import get_setting, set_setting
 
     try:
         bundle = source_digest(source)
     except (OSError, ValueError):
         bundle = None
     switch = "on" if enabled else "off"
-    fingerprint = json.dumps({"reason": reason, "code": code, "switch": switch, "bundle": bundle}, sort_keys=True)
+    details = {"code": code, "switch": switch, "bundle_digest": bundle, "component_written": False}
 
     def write(c: Any) -> None:
-        if get_setting(c, REFUSAL_KEY) == fingerprint:
+        last = c.execute("SELECT reason, details_json FROM audit_log WHERE action = ? ORDER BY rowid DESC LIMIT 1",
+                         (AUDIT_NATIVE_REFUSED,)).fetchone()
+        if last is not None and last[0] == reason and json.loads(last[1] or "{}") == details:
             return
-        set_setting(c, REFUSAL_KEY, fingerprint)
         audit(c, actor=None, action=AUDIT_NATIVE_REFUSED, decision="denied", resource_type="installation", resource_id=NATIVE_DOMAIN,
-              reason=reason, details={"code": code, "switch": switch, "bundle_digest": bundle, "component_written": False})
+              reason=reason, details=details)
 
     try:
         if conn is not None:
@@ -747,20 +747,6 @@ def _audit_refusal(db: Any, conn: Any, reason: str, code: str | None, source: Pa
                 write(c)
     except Exception as exc:  # noqa: BLE001 - the audit never blocks the bridge install
         log.warning("wiskey native refusal audit unavailable (%s)", type(exc).__name__)
-
-
-def _clear_refusal(db: Any, conn: Any) -> None:
-    from ..db import get_setting, set_setting
-
-    def clear(c: Any) -> None:
-        if get_setting(c, REFUSAL_KEY):
-            set_setting(c, REFUSAL_KEY, "")
-
-    if conn is not None:
-        clear(conn)
-    else:
-        with db.write_aside(label="wiskey native refusal cleared") as c:
-            clear(c)
 
 
 def installer_step(db: Any, settings: Any, config_root: Path, bridge_source: Path | None, *, conn: Any = None, restart: bool) -> dict[str, Any]:
@@ -796,7 +782,6 @@ def installer_step(db: Any, settings: Any, config_root: Path, bridge_source: Pat
                            staged, source, enabled)
             NATIVE.update(state="refused", code=staged, restart=None)  # the installed tree is left exactly as it is
             return dict(NATIVE)
-        _clear_refusal(db, conn)
         _store_staged_digest(db, conn, source_digest(source))
         NATIVE.update(state=staged, code=None)
         from . import wiskey_native_projection as projection, wiskey_install_generation as gen

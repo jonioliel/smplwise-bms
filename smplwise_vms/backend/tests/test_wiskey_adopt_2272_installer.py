@@ -63,6 +63,7 @@ def test_switch_off_changes_nothing(settings: Any, ha_cfg: Path, supervisor: dic
     assert (ha_cfg / "custom_components" / "smplwise_bridge" / "manifest.json").is_file()  # the bridge itself as before
 
 
+@pytest.mark.skipif(not __import__('smplwise.services.wiskey_native_projection', fromlist=['x']).fence_supported(), reason="WISKEY-RC7-ADOPT-2331 rc.7 row 5b: the projection refuses without fcntl (generation_fence_unsupported) - runner")
 def test_switch_on_stages_the_pinned_bundle_and_requests_one_restart_per_digest(settings: Any, ha_cfg: Path,
                                                                                supervisor: dict[str, list[Any]]) -> None:
     app = _app(settings, True)
@@ -81,6 +82,7 @@ def test_switch_on_stages_the_pinned_bundle_and_requests_one_restart_per_digest(
     assert "path" not in str(again["wiskey_native"]).lower() and str(ha_cfg) not in str(again["wiskey_native"])
 
 
+@pytest.mark.skipif(not __import__('smplwise.services.wiskey_native_projection', fromlist=['x']).fence_supported(), reason="WISKEY-RC7-ADOPT-2331 rc.7 row 5b: the projection refuses without fcntl (generation_fence_unsupported) - runner")
 def test_a_tree_edited_after_staging_is_never_overwritten_and_never_restarted(settings: Any, ha_cfg: Path,
                                                                              supervisor: dict[str, list[Any]]) -> None:
     # review H3: an installed tree whose digest is not the one Arx staged last is someone else's - refused, left exactly as it is
@@ -93,6 +95,7 @@ def test_a_tree_edited_after_staging_is_never_overwritten_and_never_restarted(se
     assert edited.read_text(encoding="utf-8") == "# edited\n" and len(supervisor["restart"]) == 1
 
 
+@pytest.mark.skipif(not __import__('smplwise.services.wiskey_native_projection', fromlist=['x']).fence_supported(), reason="WISKEY-RC7-ADOPT-2331 rc.7 row 5b: the projection refuses without fcntl (generation_fence_unsupported) - runner")
 def test_a_failed_restart_answer_is_never_replayed(settings: Any, ha_cfg: Path, supervisor: dict[str, list[Any]],
                                                    monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []

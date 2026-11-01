@@ -21,6 +21,7 @@ def test_not_ready_empty_and_partial_maps_follow_original_closed_schema():
  with pytest.raises(InstallationError):r2.read_readiness(value)
 
 
+@pytest.mark.skipif(not __import__('smplwise.services.wiskey_native_projection', fromlist=['x']).fence_supported(), reason="WISKEY-RC7-ADOPT-2331 rc.7 row 5b: the projection refuses without fcntl (generation_fence_unsupported) - runner")
 def test_projection_is_derived_from_only_current_sqlite_journal(tmp_path):
  db=Database(tmp_path/'db/main.db');db.migrate();cfg=tmp_path/'ha';cfg.mkdir()
  for name in projection.NAMES:
@@ -61,7 +62,8 @@ def test_current_runtime_catalog_and_approval_business_commands_are_reachable():
  from smplwise.services import wiskey_direct_catalog as catalog
  catalog.load.cache_clear()
  actual=catalog.load()
- assert actual.registered_count==290 and actual.command_count==294
+ # WISKEY-RC7-ADOPT-2331: the file's 290 / 294 plus the runtime extras (2 emergency + 5 relay map transfer commands)
+ assert actual.registered_count==297 and actual.command_count==301
  for command in ["installation/request_restart_v2","installation/capability_preflight_v1","installation/template_source_status_v1","installation/readiness_v1","media/station_snapshot_v1","jobs/approval_request","jobs/approval_decide","whatsapp/template_send_v3"]:
   assert actual.get(command) is not None
  # approvals: reachable on the direct envelope only while the installation switch is on (review M2, owner decision 29.10); every other

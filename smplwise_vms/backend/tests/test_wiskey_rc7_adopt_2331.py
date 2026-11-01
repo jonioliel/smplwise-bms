@@ -271,8 +271,7 @@ def test_8a_d_after_the_owner_switch_the_owned_tree_is_replaced_with_one_backup(
     assert answer["state"] == "staged", answer
     assert digest(target) == digest(bundle)
     assert tree_digest(cfg / "custom_components" / ("hikvision_intercom" + install.BACKUP_SUFFIX)) == previous
-    with database.connection(mode="read") as c:
-        assert get_setting(c, install.REFUSAL_KEY) in (None, "")
+    assert refusals(database) == []  # a guarded write that proceeds is not a refusal
 
 
 def test_8a_bridge_install_under_a_manual_profile_writes_neither_component_and_audits(tmp_path, settings, monkeypatch, bundle):

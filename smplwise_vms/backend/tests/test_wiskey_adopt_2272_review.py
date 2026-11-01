@@ -227,6 +227,7 @@ def test_h3_arx_s_own_tree_is_replaced_and_kept_as_the_rollback_backup(cfg: Path
     assert (backup / "synthetic_marker.txt").read_text(encoding="utf-8") == "one" and wai.source_digest(backup) == staged
 
 
+@pytest.mark.skipif(not __import__('smplwise.services.wiskey_native_projection', fromlist=['x']).fence_supported(), reason="WISKEY-RC7-ADOPT-2331 rc.7 row 5b: the projection refuses without fcntl (generation_fence_unsupported) - runner")
 def test_h3_the_installer_stores_the_staged_digest_and_refuses_a_newer_tree(settings: Any, tmp_path: Path,
                                                                             monkeypatch: pytest.MonkeyPatch) -> None:
     from smplwise.services import bridge_install, ha_client
@@ -517,7 +518,8 @@ def test_m7_concurrent_enqueue_returns_the_recorded_state_never_a_false_not_sent
 
 # ================================================================ M8: a database error in the installer step is a closed code, never a 500
 
-@pytest.mark.parametrize("where", ["_staged_digest", "request_component_restart"])
+@pytest.mark.parametrize("where", ["_staged_digest", pytest.param("request_component_restart", marks=pytest.mark.skipif(
+    not __import__('smplwise.services.wiskey_native_projection', fromlist=['x']).fence_supported(), reason="WISKEY-RC7-ADOPT-2331 rc.7 row 5b: the projection refuses without fcntl (generation_fence_unsupported) - runner"))])
 def test_m8_installer_step_on_a_database_error(settings: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str) -> None:
     import sqlite3
 

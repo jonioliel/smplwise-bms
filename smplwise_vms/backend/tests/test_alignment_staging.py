@@ -40,6 +40,7 @@ def test_foreign_extra_and_unsupported_downgrade_are_explicit_refusals(tmp_path)
  assert json.loads((target/'manifest.json').read_text())['version']=='2.0.0-rc.39'
 
 
+@pytest.mark.skipif(not __import__('smplwise.services.wiskey_native_projection', fromlist=['x']).fence_supported(), reason="WISKEY-RC7-ADOPT-2331 rc.7 row 5b: the projection refuses without fcntl (generation_fence_unsupported) - runner")
 def test_interrupted_native_rename_restores_old_tree_and_invalidates_ready(tmp_path,monkeypatch):
  source,cfg=setup(tmp_path);wai.stage_native_bundle(cfg,source)
  target=cfg/'custom_components/hikvision_intercom';owned=wai.source_digest(target)
@@ -57,6 +58,7 @@ def test_interrupted_native_rename_restores_old_tree_and_invalidates_ready(tmp_p
  assert wai.source_digest(target)==wai.source_digest(source)
 
 
+@pytest.mark.skipif(not __import__('smplwise.services.wiskey_native_projection', fromlist=['x']).fence_supported(), reason="WISKEY-RC7-ADOPT-2331 rc.7 row 5b: the projection refuses without fcntl (generation_fence_unsupported) - runner")
 def test_partial_pair_is_observation_not_installed_generation(tmp_path):
  from smplwise.db import Database
  from smplwise.services import wiskey_install_generation as gen
