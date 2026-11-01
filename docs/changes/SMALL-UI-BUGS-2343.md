@@ -70,14 +70,18 @@ Run here (workstation, `--workers=1`, `playwright.unit.config.ts`):
   `unit-security-public`, `unit-tickets-assignees`, `unit-tickets-delete`, `unit-tickets-naming`, `unit-tickets-overlay-menu`,
   `unit-uxfix-nav-295`, `unit-wiskey-switches`, `unit-wxunblk`) - 133 passed.
 
-For the runner (NOT run here - workstation memory rule: no vite build / preview / browser evidence locally):
+Runner (`run_smart.py preview fix/SMALL-UI-BUGS-2343 ... --workers=1 --machine runner`, at 8214925f7, desktop / tablet / mobile
+projects): `evidence-small-ui-bugs-2343`, `evidence-calendars-nav-2310`, `layout-settings-nav-fit-402` - 39 passed, 12 skipped (the
+desktop-only tests on tablet / mobile), 0 failed.
+
+Specs added or changed for the runner:
 
 - `frontend/tests/evidence-small-ui-bugs-2343.spec.ts` (new): at 1440 and 1280 the default table has no sideways scroll in the card or
   the page, the key columns show, a cut cell keeps a tooltip; at 1280 a hidden default column comes back from the chooser. Screenshots
   in the test output (`tickets-table-1440.png`, `tickets-table-1280.png`).
 - `frontend/tests/evidence-calendars-nav-2310.spec.ts` (one assertion added): no `#/system/calendars?tab=` link in the column, and the
   calendars entry is `aria-current="page"`.
-- Layout sweeps that cover the table and the settings column: `layout-tickets-table.spec.ts` (all screens, 320-1440),
+- NOT_RUN (for the train gate) - layout sweeps that cover the table and the settings column: `layout-tickets-table.spec.ts` (all screens, 320-1440),
   `layout-settings-nav-fit-402.spec.ts`, `layout-settings-nav-295.spec.ts`, `evidence-tickets-table.spec.ts`,
   `evidence-tickets-ui4.spec.ts`, `evidence-tickets-polish-2331.spec.ts`.
 
