@@ -2402,7 +2402,7 @@ export class SwApp extends LitElement {
     // POLISH4-WP1 D1: for them the dot is a key that opens a read-only note (the state in words + the components), not a bare dot
     if (!this.canOpenHealth())
       return html`<button type="button" class="sysdot ${status}" data-sys-pill data-sys-static data-status=${status} title=${`${text}\n${title}`.trim()} aria-label=${`מצב המערכת: ${text}`}
-        aria-haspopup="dialog" aria-expanded=${this.sysPop ? 'true' : 'false'} aria-controls="sys-pop" @click=${() => (this.sysPop = !this.sysPop)}><i></i></button>`;
+        aria-haspopup="dialog" aria-expanded=${this.sysPop ? 'true' : 'false'} aria-controls=${this.sysPop ? 'sys-pop' : nothing} @click=${() => (this.sysPop = !this.sysPop)}><i></i></button>`;
     return html`<button type="button" class="sysdot ${status}" data-sys-pill data-status=${status} title=${`${text}\n${title}`.trim()} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i></button>`;
   }
 
