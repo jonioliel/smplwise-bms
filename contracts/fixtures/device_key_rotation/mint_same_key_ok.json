@@ -1,0 +1,49 @@
+{
+  "description": "201: the pinned key minted again (a new sign-in of the same phone) needs no replaces.",
+  "name": "mint_same_key_ok",
+  "request": {
+    "body": {
+      "device_id": "<DEVICE_ID>",
+      "device_key": {
+        "alg": "ES256",
+        "proof": {
+          "sig": "<PINNED_KEY_MINT_SIGNATURE>",
+          "ts": "<UNIX_SECONDS>"
+        },
+        "public_key": "<OLD_PUBLIC_KEY>"
+      },
+      "install_id": "<INSTALL_ID>"
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "Cookie": "<SESSION_COOKIE>",
+      "Origin": "<ORIGIN>",
+      "X-Correlation-Id": "0123456789abcdef0123456789abcdef"
+    },
+    "method": "POST",
+    "path": "/arx/api/v1/auth/app/refresh-tokens"
+  },
+  "response": {
+    "body": {
+      "absolute_expires_at": "<ISO_8601_UTC>",
+      "access_expires_at": "<ISO_8601_UTC>",
+      "access_token": "<ACCESS_TOKEN>",
+      "device_key": {
+        "alg": "ES256",
+        "bound": true
+      },
+      "expires_in": 600,
+      "family_id": "<FAMILY_ID>",
+      "proof_required": true,
+      "refresh_expires_at": "<ISO_8601_UTC>",
+      "refresh_token": "<REFRESH_TOKEN>",
+      "token_type": "Bearer"
+    },
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json",
+      "x-correlation-id": "0123456789abcdef0123456789abcdef"
+    },
+    "status": 201
+  }
+}
