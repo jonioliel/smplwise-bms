@@ -62,8 +62,9 @@ def test_current_runtime_catalog_and_approval_business_commands_are_reachable():
  from smplwise.services import wiskey_direct_catalog as catalog
  catalog.load.cache_clear()
  actual=catalog.load()
- # WISKEY-RC7-ADOPT-2331: the file's 290 / 294 plus the runtime extras (2 emergency + 5 relay map transfer commands)
- assert actual.registered_count==297 and actual.command_count==301
+ # WISKEY-RC7-ADOPT-2331: the file's 290 / 294 plus the runtime extras (2 emergency + 6 relay map transfer commands; WisKey M12 S3
+ # added installation/relay_map_prepare_v3)
+ assert actual.registered_count==298 and actual.command_count==302
  for command in ["installation/request_restart_v2","installation/capability_preflight_v1","installation/template_source_status_v1","installation/readiness_v1","media/station_snapshot_v1","jobs/approval_request","jobs/approval_decide","whatsapp/template_send_v3"]:
   assert actual.get(command) is not None
  # approvals: reachable on the direct envelope only while the installation switch is on (review M2, owner decision 29.10); every other

@@ -163,9 +163,10 @@ def load(path: str | None = None) -> Catalog:
     catalog = parse(Path(path or CATALOG_PATH).read_text(encoding="utf-8"))
     if path is not None:
         return catalog
-    # WISKEY-RC7-ADOPT-2331 (rc.7 map row 4): the five relay map transfer commands are DECLARED here only; their one caller is
-    # services/wiskey_relay_map_native.py (stage v1 after an approval, with the owner's switch on; prepare only from the NOT_BUILT
-    # maintenance_v1). The OWNER_EXCLUDED_WRITES rule above (review M2) is unchanged.
+    # WISKEY-RC7-ADOPT-2331 (rc.7 map row 4): the relay map transfer commands are DECLARED here only; their one caller is
+    # services/wiskey_relay_map_native.py (stage v1 after an approval, with the owner's switch on; prepare v1 / v2 only from a
+    # maintenance caller - none). WisKey M12 S3 adds the sixth (prepare v3), sent only by the DORMANT
+    # `maintain` (switch ON + a witness provider, which no production code has). The OWNER_EXCLUDED_WRITES rule (review M2) is unchanged.
     from .wiskey_relay_map_native import COMMANDS as RELAY_MAP_COMMANDS
 
     extra = tuple(_entry({"kind": "COMMAND", "command": name, "wire_schema": NATIVE_WIRE,

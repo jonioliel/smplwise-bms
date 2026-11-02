@@ -539,10 +539,11 @@ def test_prepare_quiesced_has_no_production_caller_and_demands_a_maintenance_tok
     assert err.value.code == "relay_export_maintenance_required" and err.value.outcome == "not_sent"
 
 
-def test_catalog_declares_the_five_relay_map_commands_and_keeps_the_m2_exclusion():
+def test_catalog_declares_the_relay_map_commands_and_keeps_the_m2_exclusion():
     from smplwise.services import wiskey_direct_catalog as catalog
     from smplwise.services import wiskey_relay_map_native as native
 
     commands = {e.command for e in catalog.load().entries()}
-    assert set(native.COMMANDS) <= commands and len(native.COMMANDS) == 5
+    # five rc.7 transfer commands + WisKey M12 S3 `installation/relay_map_prepare_v3` (sent only by the dormant `maintain`)
+    assert set(native.COMMANDS) <= commands and len(native.COMMANDS) == 6 and native.PREPARE_V3 in native.COMMANDS
     assert catalog.OWNER_EXCLUDED_WRITES == frozenset({"jobs/approval_decide", "jobs/approval_request"})
