@@ -77,9 +77,13 @@ def event_occurrences(conn: sqlite3.Connection, ev: sqlite3.Row, settings: dict[
 def rebuild(conn: sqlite3.Connection, event_id: str, settings: dict[str, Any], now: dt.datetime) -> int:
     """Rewrites the cached rows of one event (and, for a series, of its override rows). Returns the number of rows written."""
     ev = conn.execute("SELECT * FROM cal_events WHERE id = ?", (event_id,)).fetchone()
-    conn.execute("DELETE FROM cal_occurrences WHERE event_id = ?", (event_id,))
+    conn.execute("DELETE FROM cal_occurrences WHERE event_id IN (?, ?)", (event_id, held_id(event_id)))
     if ev is None or ev["state"] in TERMINAL:
         return 0
+    held = held_of(ev)
+    if held and ev["state"] == "pending":  # CAL-GRID-EDIT-2343: the approved slot a change request keeps, confirmed until the decision
+        conn.execute("INSERT OR REPLACE INTO cal_occurrences(event_id, holder_calendar_id, room_calendar_id, occ_start, occ_end, local_start, state) VALUES (?,?,?,?,?,?,?)",
+                     (held_id(event_id), held["calendar_id"], None, held["starts_at"], held["ends_at"], held["local_start"], "confirmed"))
     base = ev["override_of"] or ev["id"]
     halves: list[tuple[str, str | None, str]] = [(ev["calendar_id"], None, ev["state"])]
     for r in conn.execute("SELECT room_calendar_id, state FROM cal_event_rooms WHERE event_id = ?", (base,)).fetchall():
@@ -98,11 +102,37 @@ def rebuild(conn: sqlite3.Connection, event_id: str, settings: dict[str, Any], n
     return written
 
 
+HELD_SUFFIX = "#held"
+
+
+def held_id(event_id: str) -> str:
+    """The pseudo event id of a held slot in the occurrence cache (CAL-GRID-EDIT-2343)."""
+    return f"{event_id}{HELD_SUFFIX}"
+
+
+def held_of(ev: sqlite3.Row | dict[str, Any] | None) -> dict[str, Any] | None:
+    """The approved slot a pending change request keeps ({calendar_id, starts_at, ends_at, local_start, local_end}), or None."""
+    if ev is None:
+        return None
+    try:
+        raw = ev["held_json"]
+    except (IndexError, KeyError):
+        return None
+    if not raw:
+        return None
+    try:
+        doc = json.loads(raw)
+    except ValueError:
+        return None
+    return doc if isinstance(doc, dict) and doc.get("calendar_id") else None
+
+
 def family(conn: sqlite3.Connection, event_id: str) -> set[str]:
-    """The event, its series and every override row of that series: one booking for conflict purposes."""
+    """The event, its series and every override row of that series: one booking for conflict purposes (its own held slot included)."""
     ev = conn.execute("SELECT id, override_of FROM cal_events WHERE id = ?", (event_id,)).fetchone()
     root = (ev["override_of"] or ev["id"]) if ev else event_id
-    return {root} | {r[0] for r in conn.execute("SELECT id FROM cal_events WHERE override_of = ?", (root,)).fetchall()}
+    ids = {root} | {r[0] for r in conn.execute("SELECT id FROM cal_events WHERE override_of = ?", (root,)).fetchall()}
+    return ids | {held_id(i) for i in ids}
 
 
 def blockers(conn: sqlite3.Connection, holder: sqlite3.Row, spans: Iterable[tuple[dt.datetime, dt.datetime]], settings: dict[str, Any], *,
@@ -120,7 +150,11 @@ def blockers(conn: sqlite3.Connection, holder: sqlite3.Row, spans: Iterable[tupl
                               f"AND o.state IN ({marks}) AND o.occ_start < ? AND o.occ_end > ?", (holder["id"], *st, model.iso(e + margin), model.iso(s - margin))).fetchall():
             if r["event_id"] in skip:
                 continue
-            found[(r["event_id"], r["local_start"])] = {"event_id": r["event_id"], "calendar_id": holder["id"], "start": r["occ_start"], "end": r["occ_end"], "state": r["state"]}
+            eid, held = r["event_id"], r["event_id"].endswith(HELD_SUFFIX)
+            row = {"event_id": eid[: -len(HELD_SUFFIX)] if held else eid, "calendar_id": holder["id"], "start": r["occ_start"], "end": r["occ_end"], "state": r["state"]}
+            if held:
+                row["held"] = True  # the approved slot of a booking whose change waits for a decision
+            found[(eid, r["local_start"])] = row
     return sorted(found.values(), key=lambda c: (c["start"], c["event_id"]))
 
 

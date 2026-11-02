@@ -16,6 +16,10 @@ export type OverlapMode = 'first_holds' | 'override_notify' | 'block' | 'ask';
 export type ApprovalMode = 'none' | 'always' | 'outside_hours' | 'on_behalf';
 export type OnBehalfKind = 'self' | 'team' | 'class' | 'customer' | 'department' | 'vendor';
 export type MenuPosition = 'rail' | 'home_tab' | 'both';
+/** CAL-GRID-EDIT-2343 (owner answer 3C, per calendar): moving an approved booking that now needs an approval. */
+export type ApprovedMove = 'reapproval' | 'managers';
+export type GridEdit = 'drag' | 'create_only';
+export interface OpenHours { weekdays: number[]; start: string; end: string }
 export type Equipment = 'screen' | 'projector' | 'video_call' | 'whiteboard' | 'kitchen' | 'accessible';
 
 export const CAL_TYPES: readonly CalType[] = ['room', 'team', 'maintenance', 'event'];
@@ -43,11 +47,17 @@ export interface Calendar {
   area_ref: string | null;
   conflict_policy?: 'exclusive' | 'overlap';
   buffer_after_min?: number;
+  buffer_before_min?: number;
   slot_step_min?: number;
   min_minutes?: number | null;
   max_minutes?: number | null;
   horizon_days?: number;
   overlap_override: OverlapMode | null;
+  /** CAL-GRID-EDIT-2343: the per-calendar rule for moving an approved booking (default re-approval) */
+  approved_move?: ApprovedMove;
+  /** CAL-GRID-EDIT-2343: the open hours in force ({weekdays ISO 1-7, start, end}); null = always open; absent = unknown (no hint) */
+  open_hours?: OpenHours | null;
+  lead_min?: number;
   sync: SyncInfo | null;
   pending_count: number;
   archived: boolean;
@@ -72,6 +82,14 @@ export interface Occurrence {
   recurring: boolean;
   contested?: boolean;
   sync_flag?: 'conflict' | 'deleted_external' | null;
+  /** CAL-GRID-EDIT-2343: may this viewer move / resize it (the PATCH decides again), its revision and local start */
+  can_edit?: boolean;
+  revision?: number;
+  local_start?: string;
+  /** a change request: the approved slot it keeps until the decision */
+  held?: { calendar_id: string; start: string; end: string } | null;
+  /** this row IS such a kept slot (drawn dotted, never dragged) */
+  held_slot?: boolean;
 }
 
 export interface RoomDay {
@@ -104,8 +122,10 @@ export interface CalEvent {
   recurring: boolean;
   source?: string;
   sync_flag?: string | null;
-  can: { edit: boolean; cancel: boolean; approve: boolean };
+  can: { edit: boolean; cancel: boolean; approve: boolean; restore?: boolean };
   rooms: { room_calendar_id: string; state: EntryState; contested: boolean }[];
+  /** CAL-GRID-EDIT-2343: the approved slot a change request keeps */
+  held?: { calendar_id: string; start: string; end: string } | null;
 }
 
 export interface CalRequest {
@@ -130,6 +150,8 @@ export interface CalRequest {
   /** demo / UI: a recurring summary (the server sends `recurring` only) */
   recurring_summary?: string;
   guests_count?: number;
+  /** CAL-GRID-EDIT-2343: a change of an approved booking - the slot it keeps until the decision */
+  change_of?: { calendar_id: string; start: string; end: string } | null;
 }
 
 export interface Member { subject_kind: 'user' | 'role' | 'department' | 'everyone'; subject_id: string; label: string; cal_role: CalRole }
@@ -165,12 +187,16 @@ export interface CalSettings {
   default_approval_timeout_h: number;
   reopen_days: number;
   sync_external_delete: 'cancel' | 'flag';
+  /** CAL-GRID-EDIT-2343 */
+  grid_edit?: GridEdit;
+  cancel_notice_delay_s?: number;
+  undo_window_s?: number;
   [k: string]: unknown;
 }
 
 /** The presentation choices GET /calendar/module carries (every screen needs them before it draws). */
 export type CalUi = Pick<CalSettings, 'contested_order' | 'displace_approver' | 'override_scope' | 'phone_time_picker' | 'reauth_mode' | 'sync_conflict_display' | 'tablet_panels'
-  | 'resident_pending_display' | 'resident_cancel_until' | 'resident_rooms' | 'purge_confirm' | 'loading_style' | 'allow_displace' | 'guest_details_enabled'>;
+  | 'resident_pending_display' | 'resident_cancel_until' | 'resident_rooms' | 'purge_confirm' | 'loading_style' | 'allow_displace' | 'guest_details_enabled'> & { grid_edit?: GridEdit };
 
 export interface ModuleState {
   enabled: boolean;
@@ -238,6 +264,20 @@ export interface NewEvent {
   headcount?: number;
   guests?: { name: string; phone: string }[];
 }
+/** CAL-GRID-EDIT-2343: PATCH /calendar/events/{id} - a move / resize / edit (only the keys sent change). */
+export interface EventPatch {
+  revision: number;
+  calendar_id?: string;
+  title?: string;
+  notes?: string;
+  start?: string;
+  end?: string;
+  all_day?: boolean;
+  headcount?: number | null;
+  on_behalf?: { kind: OnBehalfKind; label: string };
+  scope?: 'occurrence' | 'following' | 'series';
+  occurrence_start?: string;
+}
 export interface EventPreview { conflicts: { calendar_id: string; start: string; end: string; title: string | null; state: EntryState }[]; needs_approval_by: string[]; outside_hours: boolean; holiday_hits: string[]; capacity_ok: boolean }
 
 /** The wire calls. One object so the demo can stand in for it as a whole (calendars/demo.ts implements the same shape). */
@@ -258,7 +298,10 @@ export interface CalendarsApi {
   previewEvent(body: NewEvent): Promise<EventPreview>;
   event(id: string): Promise<{ event: CalEvent }>;
   cancelEvent(id: string, revision: number, occurrenceStart?: string): Promise<{ event: CalEvent }>;
-  withdrawEvent(id: string, revision: number): Promise<{ event: CalEvent }>;
+  withdrawEvent(id: string, revision: number): Promise<{ event: CalEvent; change_withdrawn?: boolean }>;
+  /** CAL-GRID-EDIT-2343: a move / resize / edit, and "בטל" after a delete */
+  patchEvent(id: string, body: EventPatch): Promise<{ event: CalEvent; change_withdrawn?: boolean }>;
+  restoreEvent(id: string, revision: number): Promise<{ event: CalEvent; state: EntryState }>;
   mine(from?: string, to?: string): Promise<{ occurrences: Occurrence[] }>;
   requests(): Promise<{ requests: CalRequest[] }>;
   decide(id: string, body: { decision: 'approve' | 'reject'; revision: number; room_calendar_id?: string | null; note?: string; displace_existing?: boolean; except_occurrences?: string[] }): Promise<{ state: EntryState }>;
@@ -312,6 +355,8 @@ export const httpCalendars: CalendarsApi = {
   event: (id) => get(`/calendar/events/${encodeURIComponent(id)}`),
   cancelEvent: (id, revision, occurrence_start) => post(`/calendar/events/${encodeURIComponent(id)}/cancel`, occurrence_start ? { revision, scope: 'occurrence', occurrence_start } : { revision }),
   withdrawEvent: (id, revision) => post(`/calendar/events/${encodeURIComponent(id)}/withdraw`, { revision }),
+  patchEvent: (id, body) => patch(`/calendar/events/${encodeURIComponent(id)}`, body),
+  restoreEvent: (id, revision) => post(`/calendar/events/${encodeURIComponent(id)}/restore`, { revision }),
   mine: (from, to) => get(`/me/calendar${q({ from, to })}`),
   requests: () => get('/calendar/requests'),
   decide: (id, body) => post(`/calendar/requests/${encodeURIComponent(id)}/decide`, body),

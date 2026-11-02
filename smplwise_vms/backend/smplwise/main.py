@@ -308,6 +308,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         calendar_jobs.sync_tick(db, settings.data_dir)
     except Exception:  # noqa: BLE001
         log.warning("calendar sync tick failed", exc_info=True)
+    try:  # CAL-GRID-EDIT-2343: held-back cancel / move notices whose undo window passed
+        from .services.calendar import jobs as calendar_jobs
+
+        calendar_jobs.notice_tick(db)
+    except Exception:  # noqa: BLE001
+        log.warning("calendar notice tick failed", exc_info=True)
     try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
         from .services import messaging_runtime
 

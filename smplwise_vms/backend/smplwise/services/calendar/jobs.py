@@ -58,6 +58,21 @@ def tick(db: Database) -> None:
 
 
 
+def notice_tick(db: Database, now: dt.datetime | None = None) -> int:
+    """CAL-GRID-EDIT-2343: every janitor pass (30 s) delivers the held-back notices that are due (the undo window of the grid has passed)."""
+    from . import notices  # noqa: PLC0415
+
+    now = now or dt.datetime.now(dt.timezone.utc)
+    try:
+        with db.connection(label="calendar.notices") as conn:
+            if conn.execute("SELECT 1 FROM cal_notices WHERE sent_at IS NULL AND withdrawn_at IS NULL AND due_at <= ? LIMIT 1", (model.iso(now),)).fetchone() is None:
+                return 0
+            return notices.deliver_due(conn, now)
+    except Exception:  # noqa: BLE001 - housekeeping never stops the janitor tick
+        log.warning("calendar notices failed", exc_info=True)
+        return 0
+
+
 def sync_run(db: Database, data_dir, now: dt.datetime | None = None) -> dict:
     """Phase 2: every due external-calendar sync (polling; nothing while the module or `sync_enabled` is off, nothing without a connection)."""
     from ..calendar_sync import engine  # noqa: PLC0415

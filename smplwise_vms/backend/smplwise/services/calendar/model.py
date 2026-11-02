@@ -28,7 +28,10 @@ UI_CHOICES: dict[str, tuple[str, ...]] = {
     "phone_time_picker": ("grid", "timeline"), "reauth_mode": ("reauth_and_continue", "reauth_only"), "sync_conflict_display": ("side_by_side", "list_only"),
     "tablet_panels": ("collapse", "shrink"), "resident_pending_display": ("count", "free", "blocked"), "resident_cancel_until": ("start", "1h", "24h"),
     "resident_rooms": ("bookable", "all_busy"), "purge_confirm": ("type_word", "one_click"), "loading_style": ("skeleton", "spinner"),
+    # CAL-GRID-EDIT-2343 (owner answer 1, a setting): drag-create + move + resize on the grid (A, default) | create only, no drag of existing entries (B)
+    "grid_edit": ("drag", "create_only"),
 }
+APPROVED_MOVE = ("reapproval", "managers")  # CAL-GRID-EDIT-2343 owner answer 3C: a per-calendar setting, default re-approval
 HOURS_MODES = ("always", "working_hours", "custom")
 HOLIDAY_RULES = ("ignore", "closed", "warn")
 APPROVAL_MODES = ("none", "always", "outside_hours", "on_behalf")
@@ -81,6 +84,9 @@ SETTINGS_DEFAULTS: dict[str, Any] = {
     "purge_confirm": "type_word",  # 24A: type_word | one_click
     "loading_style": "skeleton",  # 26A: skeleton after 300 ms | spinner
     "default_approval_timeout_h": 2,  # a new calendar's approval_timeout_h
+    "grid_edit": "drag",  # CAL-GRID-EDIT-2343 1A: drag | create_only
+    "cancel_notice_delay_s": 6,  # CAL-GRID-EDIT-2343: a cancel / move notice to the organizer waits this long, so "בטל" withdraws it first (0-60)
+    "undo_window_s": 120,  # CAL-GRID-EDIT-2343: how long after a cancel "בטל" may still restore the entry (10-600)
     "reopen_days": 7,  # a rejected / expired / withdrawn request may be reopened within N days  # stand-in for the SLACAL working-hours calendar (phase 3)
 }
 
@@ -194,6 +200,8 @@ def calendar_values(body: dict[str, Any], *, creating: bool, current: dict[str, 
         out["approval_timeout_h"] = None if body["approval_timeout_h"] is None else _int(body["approval_timeout_h"], "approval_timeout_h", 0, 720)
     if "overlap_override" in body:
         out["overlap_override"] = None if body["overlap_override"] is None else _choice(body["overlap_override"], "overlap_override", OVERLAP_MODES)
+    if "approved_move" in body:
+        out["approved_move"] = _choice(body["approved_move"], "approved_move", APPROVED_MOVE)
     if "visibility" in body:
         out["visibility"] = _choice(body["visibility"], "visibility", VISIBILITIES)
     mn, mx = out.get("min_minutes", cur.get("min_minutes")), out.get("max_minutes", cur.get("max_minutes"))
@@ -270,6 +278,8 @@ def settings_doc(doc: dict[str, Any]) -> dict[str, Any]:
         s[f] = _choice(s[f], f, allowed)
     s["default_approval_timeout_h"] = _int(s["default_approval_timeout_h"], "default_approval_timeout_h", 0, 720)
     s["reopen_days"] = _int(s["reopen_days"], "reopen_days", 0, 60)
+    s["cancel_notice_delay_s"] = _int(s["cancel_notice_delay_s"], "cancel_notice_delay_s", 0, 60)
+    s["undo_window_s"] = _int(s["undo_window_s"], "undo_window_s", 10, 600)
     return s
 
 
