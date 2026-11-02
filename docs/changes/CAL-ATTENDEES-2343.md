@@ -139,10 +139,10 @@ New files only, plus one clearly scoped insertion in the drawer:
 
 ## 9. Tests
 
-- Backend: `smplwise_vms/backend/tests/test_calendar_attendees_2343.py` (19 tests: migration and sequence, create with attendees,
+- Backend: `smplwise_vms/backend/tests/test_calendar_attendees_2343.py` (20 tests: migration and sequence, create with attendees,
   validation, resident rules, limits and closed entries, desired-list PATCH, privacy and no contact leakage on the raw tables, directory,
   in-app + guest delivery, channel selection incl. the e-mail plug point, change notices and the calendar switch, the cancel undo window,
-  pending requests and removal rules, RSVP, residents with / without an account, settings and policy documents, retention, module-off
+  one-occurrence and "following" cancels, pending requests and removal rules, RSVP, residents with / without an account, settings and policy documents, retention, module-off
   visibility, the real WhatsApp path on the fake ha-whatsapp adapter).
 - Frontend: `frontend/tests/unit-calendars-attendees-2343.spec.ts` (node; logic + static a11y checks of the markup).
 
