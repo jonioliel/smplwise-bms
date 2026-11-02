@@ -24,13 +24,25 @@ export class SystemAnnounceTemplates extends LitElement {
     :host { display: block; }
     details { border-block-end: 1px solid var(--sw-border); padding-block: 8px; }
     details:last-of-type { border-block-end: 0; }
-    summary { cursor: pointer; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); display: flex; gap: 10px; align-items: center; }
+    summary { cursor: pointer; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); display: flex; gap: 10px; align-items: center; min-block-size: 44px; border-radius: var(--sw-r-sm); }
+    summary:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     .muted { font-size: var(--sw-fs-xs); color: var(--sw-text-3); font-weight: var(--sw-fw-regular); }
     .grid { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px 10px; align-items: center; padding-block: 10px 4px; }
     input, textarea, select { box-sizing: border-box; min-block-size: 36px; padding-inline: 10px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); inline-size: 100%; }
     textarea { padding: 8px 10px; resize: vertical; min-block-size: 56px; }
     .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-block-start: 10px; }
-    .err { color: var(--sw-danger); font-size: var(--sw-fs-sm); }
+    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
+    @media (pointer: coarse) {
+      input, select { min-block-size: 44px; }
+    }
+    /* POLISH4-WP8 (D17): on a phone a template's labels sit above their fields (the 90 px label column squeezed "שם · English"), and the
+       add / save row of the list stays in view while the open templates scroll under it (owner Q7, the settings kit's .foot.sticky look) */
+    @media (max-width: 767px) {
+      .grid { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+      .grid > span { margin-block-start: 6px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+      .bar { position: sticky; inset-block-end: var(--sw-s-2); z-index: 3; padding: 10px var(--sw-s-2); border: 1px solid var(--sw-border-strong);
+        border-radius: var(--sw-r-lg); background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-3); }
+    }
   `;
 
   protected willUpdate(changed: PropertyValues<this>) {

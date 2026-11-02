@@ -99,7 +99,7 @@ export class SystemPresence extends LitElement {
       font: inherit;
       padding: 8px 10px;
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-radius-sm, 8px);
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: inherit;
       box-sizing: border-box;
@@ -111,17 +111,43 @@ export class SystemPresence extends LitElement {
       align-items: center;
       margin-block-start: 12px;
     }
+    /* POLISH4-WP8: the message inks are the -text tokens (the live-video dot and the bare state colours were below text contrast) */
     .ok {
-      color: var(--sw-live);
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     .warn {
-      color: var(--sw-warning);
+      color: var(--sw-warning-text);
       font-size: var(--sw-fs-sm);
+    }
+    textarea:focus-visible,
+    input:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    .seg button {
+      transition: transform var(--sw-t-press) var(--sw-ease);
+    }
+    .seg button:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    @media (pointer: coarse) {
+      .chk,
+      .seg button {
+        min-block-size: 44px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .seg button {
+        transition-duration: 0ms;
+      }
+      .seg button:active {
+        transform: none;
+      }
     }
     .glass {
       display: flex;
@@ -198,6 +224,17 @@ export class SystemPresence extends LitElement {
       }
       .row > :not(.lbl) {
         align-self: flex-end;
+      }
+      /* owner Q7: the policy card's save row stays in view on a phone while the long card scrolls under it (settings kit .foot.sticky look) */
+      .foot {
+        position: sticky;
+        inset-block-end: var(--sw-s-2);
+        z-index: 3;
+        padding: 10px var(--sw-s-2);
+        border: 1px solid var(--sw-border-strong);
+        border-radius: var(--sw-r-lg);
+        background: var(--sw-surface-solid);
+        box-shadow: var(--sw-shadow-3);
       }
     }
   `, bubbleChrome];
