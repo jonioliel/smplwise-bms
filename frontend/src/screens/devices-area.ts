@@ -337,6 +337,11 @@ const AREA_DESIGN = css`
   :host([data-area-design='tiles']) .grid:not(.lay-grid) > sw-card > header {
     margin-block-end: 10px;
   }
+  /* PRE-GATE-2350: the tiles design's own card padding (2026-10-28) outweighed the compact density's sw-card rule, so
+     devices.density = compact no longer tightened the area cards of the default design; compact wins again here */
+  :host([data-area-design='tiles'][data-devices-density='compact']) .grid:not(.lay-grid) > sw-card {
+    padding: 10px;
+  }
   /* sections: one section after the other, its title at the side; the sensors card stands beside them */
   :host([data-area-design='sections']) .grid:not(.lay-grid) {
     display: grid;
