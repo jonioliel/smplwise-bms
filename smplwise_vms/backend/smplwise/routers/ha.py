@@ -49,17 +49,6 @@ def _grant_label(permission: str) -> str:
     return PERMISSION_LABELS.get(permission, permission)
 
 
-def _wiskey_open_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: str) -> bool:
-    """Whether the open button of a WisKey lock entity is offered to this caller: the door map resolves it and the one door
-    rule allows it (the action route checks both again). Display only, never authority."""
-    try:
-        target = intercom_doors.resolve(conn, entity_id)
-    except ApiError:
-        return False
-    # display only: a developer identity counts as identified here (it never exists in the add-on; the route decides for real)
-    return door_authority.check(conn, principal, target.station_id, target.relay, entity_id=entity_id, dev_mode=True).allowed
-
-
 def _entity(conn: sqlite3.Connection, entity_id: str) -> dict[str, Any]:
     row = conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
     if not row:
@@ -170,10 +159,16 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal)
     e["schedule_entity"] = dsvc.is_scheduler_entity(entity_id, e.get("platform"))  # CR-014: read-only here
     e["media_managed"] = media_store.is_managed(conn, entity_id)  # CR-015: read-only here, operated from "מולטימדיה"
     e["actions"] = [] if (e["alarm_managed"] or e["schedule_entity"] or e["media_managed"]) else [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
-    if e["actions"] and intercom_doors.is_wiskey_lock(conn, entity_id):
+    wiskey = intercom_doors.is_wiskey_lock(conn, entity_id)
+    if e["actions"] and wiskey:
         # CR-033 D3: a WisKey door's open is the one door rule's answer (access.doors.open on its station or door.unlock on it)
         e["wiskey_door"] = True
-        e["actions"] = [{**a, "granted": _wiskey_open_allowed(conn, principal, entity_id)} if a["id"] == "lock.unlock" else a for a in e["actions"] if a["id"] != "lock.lock"]  # D6: no lock
+        e["actions"] = [a for a in e["actions"] if a["id"] != "lock.lock"]  # D6: no lock
+    if e["domain"] == "lock":
+        # UNLOCK-REASON-2370: why the open action is (not) offered - the same function the devices panel's `can_unlock` uses; `granted`
+        # of lock.unlock IS "ok", so the two cannot disagree. A reason code only (nothing about the configuration).
+        e["unlock_reason"] = door_authority.unlock_reason(conn, principal, entity_id, wiskey=wiskey, alarm_managed=bool(e["alarm_managed"]), can_control=bool(e["can_control"]))
+        e["actions"] = [{**a, "granted": e["unlock_reason"] == "ok", "reason": e["unlock_reason"]} if a["id"] == "lock.unlock" else a for a in e["actions"]]
     e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
     return e
 
