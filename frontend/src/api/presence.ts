@@ -14,6 +14,14 @@ export const SENSOR_LABEL: Record<SensorKey, string> = {
 };
 export const RETENTION_CHOICES: readonly number[] = [7, 14, 30, 60, 90, 180, 365];
 
+/** MOBILE-CONTRACT-V22-2380: what the server does with a sensor value outside the v2.2 shapes (contract section 4.1) - off = stored as sent
+ * (contract 2.1, the default), normalize = never refuses, keeps only the valid keys, strict = the event is refused (400 invalid_event). */
+export type ValueCheck = 'off' | 'normalize' | 'strict';
+export const VALUE_CHECK_MODES: readonly ValueCheck[] = ['off', 'normalize', 'strict'];
+export const VALUE_CHECK_DEFAULT: ValueCheck = 'off';
+/** The stored mode as the API sent it; an older backend (no key) or an unknown value reads as the default. */
+export const valueCheckOf = (v: unknown): ValueCheck => (VALUE_CHECK_MODES.includes(v as ValueCheck) ? (v as ValueCheck) : VALUE_CHECK_DEFAULT);
+
 export interface RequiredSensorsPolicy {
   enabled: boolean;
   sensors: SensorKey[];
@@ -61,6 +69,8 @@ export interface PresenceSettings {
   wifi_sites: PresenceWifiSite[];
   /** PRESENCE307: who decides "connected to a site network": the phone (default) or the server (hash match). */
   wifi_match_mode: 'phone' | 'server';
+  /** MOBILE-CONTRACT-V22-2380 (absent from an older backend = off). */
+  value_check?: ValueCheck;
   retention_days: number;
   required_sensors: RequiredSensorsPolicy;
   break_glass: { until: string | null; reason: string; by: string | null };
@@ -98,7 +108,7 @@ export interface PresenceGate {
   reason: 'presence_disabled' | 'exempt' | 'not_in_scope' | 'web_not_covered' | 'break_glass' | 'missing_sensors' | null;
 }
 
-export type PresenceSettingsPatch = Partial<Pick<PresenceSettings, 'enabled' | 'notice_text' | 'sensors_allowed' | 'retention_days' | 'interval_s' | 'distance_filter_m' | 'wifi_match_mode'>> & {
+export type PresenceSettingsPatch = Partial<Pick<PresenceSettings, 'enabled' | 'notice_text' | 'sensors_allowed' | 'retention_days' | 'interval_s' | 'distance_filter_m' | 'wifi_match_mode' | 'value_check'>> & {
   required_sensors?: Partial<RequiredSensorsPolicy>;
   sites?: Partial<PresenceSite>[];
   beacons?: Partial<PresenceBeacon>[];

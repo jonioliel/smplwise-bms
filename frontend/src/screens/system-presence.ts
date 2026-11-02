@@ -8,8 +8,8 @@ import './system-building-presence';
 import { describeError } from '../api/client';
 import { dayTimeText } from '../api/day-format';
 import {
-  RETENTION_CHOICES, SENSOR_KEYS, SENSOR_LABEL, breakGlass, getPresenceSettings, listPresenceDevices, policyProblem, putPresenceSettings,
-  type PresenceDevice, type PresenceSettings, type SensorKey,
+  RETENTION_CHOICES, SENSOR_KEYS, SENSOR_LABEL, VALUE_CHECK_MODES, breakGlass, valueCheckOf, getPresenceSettings, listPresenceDevices, policyProblem, putPresenceSettings,
+  type PresenceDevice, type PresenceSettings, type SensorKey, type ValueCheck,
 } from '../api/presence';
 import { can, isApi } from '../api/session';
 import { SkinController } from '../design/skin';
@@ -302,7 +302,7 @@ export class SystemPresence extends LitElement {
       const d = this.draft;
       const r = await putPresenceSettings({
         enabled: d.enabled, notice_text: d.notice_text, sensors_allowed: d.sensors_allowed, retention_days: d.retention_days, wifi_match_mode: d.wifi_match_mode ?? 'phone',
-        required_sensors: d.required_sensors,
+        value_check: valueCheckOf(d.value_check), required_sensors: d.required_sensors,
       });
       this.saved = r.settings;
       this.draft = structuredClone(r.settings);
@@ -394,6 +394,8 @@ export class SystemPresence extends LitElement {
             <option value="phone" ?selected=${(d.wifi_match_mode ?? 'phone') === 'phone'}>בטלפון (ברירת מחדל)</option>
             <option value="server" ?selected=${d.wifi_match_mode === 'server'}>בשרת (גיבוב)</option>
           </select></sw-field></div>
+        <div class="row" data-presence-row="value-check"><span class="lbl">${pt('valueCheck')}<span class="muted">${pt('valueCheckHint')}</span></span>
+          <div class="seg" role="group" aria-label=${pt('valueCheck')} data-presence-value-check>${VALUE_CHECK_MODES.map((m: ValueCheck) => html`<button type="button" data-v=${m} aria-pressed=${String(valueCheckOf(d.value_check) === m)} ?disabled=${!editable || this.busy} @click=${() => this.patch({ value_check: m })}>${pt(`valueCheck_${m}`)}</button>`)}</div></div>
         <div class="row" data-presence-row="notice"><span class="lbl">הודעה לעובדים<span class="muted">גרסה ${d.notice_version}; שינוי בטקסט מעלה את הגרסה וכל מכשיר מאשר מחדש</span></span></div>
         <textarea data-presence-notice placeholder="טקסט ההודעה לעובדים (ניסוח משפטי של בעל המערכת)" .value=${d.notice_text} ?disabled=${!editable || this.busy} @input=${(e: Event) => this.patch({ notice_text: (e.target as HTMLTextAreaElement).value })}></textarea>
         <div class="row" data-presence-row="retention"><span class="lbl">שמירת יומן הדיווחים</span>

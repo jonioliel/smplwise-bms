@@ -106,6 +106,12 @@ const he = {
   refreshSec: 'רענון המסך (שניות)',
   optOutCount: '{n} משתמשים ביקשו לא להופיע',
   rangeHint: 'בין {lo} ל־{hi}',
+  // MOBILE-CONTRACT-V22-2380: presence.value_check
+  valueCheck: 'בדיקת ערכי החיישנים',
+  valueCheckHint: 'מה השרת עושה עם ערך חיישן שלא בתבנית: כבוי - נשמר כפי שנשלח; נרמול - נשמרים רק השדות התקינים; קפדני - הדיווח נדחה. מומלץ לבחור נרמול לפני הפעלת השיתוף.',
+  valueCheck_off: 'כבוי',
+  valueCheck_normalize: 'נרמול',
+  valueCheck_strict: 'קפדני',
 };
 
 type Key = keyof typeof he;
@@ -132,6 +138,8 @@ const en: Partial<Record<Key, string>> = {
   wifiAge: 'Network report valid for (min)', minProximity: 'Minimum beacon proximity', proxImmediate: 'Immediate', proxNear: 'Near', proxFar: 'Far',
   showNames: 'Show names', showNamesHint: 'Off: counts per floor and area only', refreshSec: 'Screen refresh (s)', optOutCount: '{n} users asked not to appear',
   rangeHint: '{lo} to {hi}',
+  valueCheck: 'Sensor value check', valueCheck_off: 'Off', valueCheck_normalize: 'Normalise', valueCheck_strict: 'Strict',
+  valueCheckHint: 'What the server does with a sensor value outside its shape: Off - stored as sent; Normalise - only the valid fields are kept; Strict - the report is refused. Choose Normalise before sharing is switched on.',
 };
 
 export type PtLang = 'he' | 'en';
