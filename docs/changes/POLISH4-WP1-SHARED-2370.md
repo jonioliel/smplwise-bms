@@ -32,7 +32,8 @@ Not done here: the maintenance sheet `maintenance/styles.ts` has the same ungate
 
 | Check | Where | Result |
 |---|---|---|
-| `npx tsc --noEmit` | workstation | exit 0 |
+| `npx tsc --noEmit` | workstation | exit 0 (before and after merging `release/2360-train @ eb9525d9b`, which contains v2.34.2 and 2.36.0) |
+| Unit specs, the 34 files below, after the merge | workstation, `--workers=1` | **255 passed / 0 failed** |
 | Unit specs touching the changed files (33 files) | workstation, `--workers=1` | **243 passed / 0 failed** |
 | New `tests/unit-polish4-shared.spec.ts` (source guards + light contrast of the settings key, every live skin) | workstation | **10 passed / 0 failed** |
 | `evidence-shell.spec.ts --grep "status dot"` (updated: the viewer's dot opens the note, no link, Escape closes) | runner, preview | **3 passed** (desktop, tablet, mobile) |
