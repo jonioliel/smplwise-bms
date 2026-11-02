@@ -2,8 +2,10 @@
  * MAPPING-ASSIST-2330 slice 2 - the health of the mapping after an apply (mockup v3 "אחרי ההחלה", answer 3A): names the home system added
  * since the last apply. Those the remembered table / rules / floor place are offered with one "אשר N" (a new version, kind `confirm`); the
  * others wait for a decision in the assistant. With the setting `auto_insert = on` the placed ones go in by themselves (kind `auto`, a
- * version and an audit row like any apply) the next time someone who may configure the site opens the settings page or the home screen -
- * there is no background job (the engine runs in the browser).
+ * version and an audit row like any apply): MAPPING-IMPROVE-2351 moved that to a server background job (services/mapping_auto.py, on every
+ * home-system structure refresh and at startup); the card shows "נוספו אוטומטית N אזורים" for what it placed. Only the static demo, which
+ * has no server, still auto-inserts from here. A floor still waiting for its level ("קומות ללא מפלס") is never "אשר"-ed: it goes to the
+ * assistant.
  *
  *  - the card on הגדרות › בניינים ומיפוי (registered on <system-mapping>);
  *  - <mapping-health-chip> - a quiet chip in the home's site bar ("3 אזורים חדשים - אשר"), only for a configurer, only with something new.
@@ -18,7 +20,7 @@ import '../components/sw-icon';
 import { describeError } from '../api/client';
 import { canAnywhere, isApi } from '../api/session';
 import { loadTree } from '../api/catalog';
-import { buildPlan, health, itemKey, labelCoverage, labelCoverageText, resolve, subsetPlan, type Health, type LabelCoverage, type MapItem } from '../api/mapping-engine';
+import { autoNoticeText, buildPlan, health, itemKey, labelCoverage, labelCoverageText, levelWaiting, resolve, subsetPlan, type Health, type LabelCoverage, type MapItem } from '../api/mapping-engine';
 import { applyMapping, loadMapping, type MappingData } from '../api/mapping';
 import { navigate } from '../router';
 import { SystemMapping } from './system-mapping';
@@ -27,14 +29,14 @@ const refsOf = (d: MappingData) => d.buildings.map((b) => ({ id: b.id, name: b.n
 
 export function healthOf(d: MappingData): Health {
   const res = resolve(d.mapItems, d.parsed, { buildings: refsOf(d), settings: d.settings });
-  return health(d.mapItems, res, d.seen);
+  return health(d.mapItems, res, d.seen, levelWaiting(d.mapItems, res, refsOf(d), d.ourFloors, d.links, d.parsed.levels));
 }
 
 /** "אשר" (or auto-insert): only the given new names, as their own version. */
 export async function confirmFresh(d: MappingData, items: MapItem[], kind: 'confirm' | 'auto'): Promise<number> {
   const res = resolve(d.mapItems, d.parsed, { buildings: refsOf(d), settings: d.settings });
   const keys = new Set(items.map(itemKey));
-  const plan = subsetPlan(buildPlan(d.mapItems, res, refsOf(d), d.ourFloors, d.links), keys);
+  const plan = subsetPlan(buildPlan(d.mapItems, res, refsOf(d), d.ourFloors, d.links, d.parsed.levels), keys);
   const r = await applyMapping(d.site.id, { state: d.parsed, revision: d.revision, plan: { ...plan, items: [...keys] }, kind, summary: { confirmed: keys.size } });
   return r.version;
 }
@@ -59,10 +61,10 @@ function coverageLine(d: MappingData) {
 
 let autoRan = false;
 
-/** Auto-insert (3A, setting on): once per page load, for a configurer. */
+/** Auto-insert (3A, setting on) in the static demo only - with a server the background job does it (MAPPING-IMPROVE-2351). */
 async function autoInsert(host: SystemMapping) {
   const d = host.mapping;
-  if (!d || autoRan || d.settings.auto_insert !== 'on' || !d.seen) return;
+  if (isApi() || !d || autoRan || d.settings.auto_insert !== 'on' || !d.seen) return;
   const h = healthOf(d);
   if (!h.ready.length) return;
   autoRan = true;
@@ -74,11 +76,22 @@ async function autoInsert(host: SystemMapping) {
   }
 }
 
+function autoNotice(d: MappingData) {
+  const t = autoNoticeText(d);
+  return t
+    ? html`<div class="health ok" role="status" data-mapping-auto-notice><sw-icon name="sparkle" size=${22}></sw-icon><div class="t"><b>${t}</b><span>לפי הסימונים והכללים השמורים, בגרסה ${d.versions[0].number}. אפשר לחזור לגרסה קודמת בכל רגע.</span></div></div>`
+    : nothing;
+}
+
 function card(host: SystemMapping, h: Health) {
   const d = host.mapping;
   if (!d) return nothing;
   if (!d.seen)
     return html`<div class="health ok" data-mapping-health="labels"><sw-icon name="info" size=${22}></sw-icon><div class="t"><b>תוויות ממערכת הבית</b>${coverageLine(d)}</div></div>`;
+  return html`${autoNotice(d)}${freshCard(host, d, h)}`;
+}
+
+function freshCard(host: SystemMapping, d: NonNullable<SystemMapping['mapping']>, h: Health) {
   if (!h.fresh.length)
     return html`<div class="health ok" data-mapping-health="ok"><sw-icon name="check" size=${22}></sw-icon><div class="t"><b>המיפוי מעודכן</b><span>כל השמות במערכת הבית מוכרים מאז ההחלה האחרונה.</span>${coverageLine(d)}</div></div>`;
   if (d.settings.auto_insert === 'on' && h.ready.length) void autoInsert(host);

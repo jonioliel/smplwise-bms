@@ -11,7 +11,7 @@ import { isApi } from '../api/session';
 import { loadTree, type HomeLinks } from '../api/catalog';
 import type { Floor } from '../api/types';
 import { loadXsData, type XsData } from '../xsection/xs-data';
-import { detect, health, itemKey, MAPPING_SETTING_CHOICES, resolve, summarize, tableRows, type MappingSettings, type Target } from '../api/mapping-engine';
+import { detect, health, itemKey, levelWaiting, MAPPING_SETTING_CHOICES, resolve, summarize, tableRows, type MappingSettings, type Target } from '../api/mapping-engine';
 import { loadMapping, restoreVersion, saveSettings, setMultiBuilding, type MappingData, type MappingVersion } from '../api/mapping';
 import { MappingAssistant } from './mapping-assistant';
 
@@ -395,7 +395,7 @@ export class SystemMapping extends LitElement {
     const res = resolve(d.mapItems, d.parsed, { buildings: refs, settings: d.settings });
     const det = detect(d.mapItems, d.parsed.spec);
     const sum = summarize(d.mapItems, res, refs, tableRows(det, d.parsed, refs));
-    return { res, sum, health: health(d.mapItems, res, d.seen) };
+    return { res, sum, health: health(d.mapItems, res, d.seen, levelWaiting(d.mapItems, res, refs, d.ourFloors, d.links, d.parsed.levels)) };
   }
 
   render() {
