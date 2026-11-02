@@ -28,6 +28,14 @@ export const XS_FIRE_COLUMN = ['hidden', 'dashed'] as const; // B: hidden until 
 export const XS_SYN_SWITCHES = ['typed', 'all'] as const;
 /** SYNOPTIC-MOBILE-2342 "תצוגת המפה הסינופטית בטלפון" (under 768 px): A compact table (default), B one card per floor, C the cross-section first. */
 export const XS_SYN_PHONE_VIEW = ['table', 'cards', 'section'] as const;
+/**
+ * SYNOPTIC-PHONE-SETTINGS-2360 "תאורה בטלפון": how a floor's lights are drawn under its "2/10" on the phone table and the floor cards - a
+ * small bar (default, today's fixed behaviour), the segment strip of the wide board (one segment a light, up to eight, in the same 34 px), or
+ * the number only. The building cross-section colours the slab by the share of lights on whatever this says (the setting does not apply there).
+ */
+export const XS_SYN_PHONE_LIGHT = ['bar', 'segments', 'number'] as const;
+/** SYNOPTIC-PHONE-SETTINGS-2360 "שורת סיכום בטלפון": the board's summary behind an info button in the head (default, today's), as a line under the board, or none. */
+export const XS_SYN_PHONE_SUMMARY = ['button', 'line', 'off'] as const;
 export const XS_SYN_COLUMNS = ['all', 'few', 'custom'] as const; // A: seven columns (default), B: temperature, light, alerts, fire, C: the columns ticked in syn_custom
 /** SYN-COLUMNS-2321: every column of the board in its fixed order (the custom choice ticks any of them; the order never changes). */
 export const SYN_COLUMN_ORDER = ['light', 'temp', 'presence', 'cameras', 'doors', 'alerts', 'fire'] as const;
@@ -54,6 +62,10 @@ export interface XsOptions {
   syn_switches: (typeof XS_SYN_SWITCHES)[number];
   /** SYNOPTIC-MOBILE-2342: the phone layout of the board (table, default / cards / section); tablet and desktop keep the table. */
   syn_phone_view: (typeof XS_SYN_PHONE_VIEW)[number];
+  /** SYNOPTIC-PHONE-SETTINGS-2360: the lights gauge of the phone table and cards (bar, default / segments / number). */
+  syn_phone_light: (typeof XS_SYN_PHONE_LIGHT)[number];
+  /** SYNOPTIC-PHONE-SETTINGS-2360: the phone board's summary (info button, default / line under the board / off). */
+  syn_phone_summary: (typeof XS_SYN_PHONE_SUMMARY)[number];
   fire_column: (typeof XS_FIRE_COLUMN)[number];
   fire_ui: boolean; // MASTER SWITCH of the alarm UI (off: no bar, no acknowledge, nothing about fire anywhere)
   ack: (typeof XS_ACK)[number];
@@ -78,6 +90,8 @@ export const XS_DEFAULT: Readonly<XsOptions> = {
   syn_events: true,
   syn_switches: 'typed',
   syn_phone_view: 'table',
+  syn_phone_light: 'bar',
+  syn_phone_summary: 'button',
   fire_column: 'hidden',
   fire_ui: false,
   ack: 'hold',
@@ -114,6 +128,8 @@ export function normalizeXs(raw: unknown): XsOptions {
   out.syn_events = bool(r.syn_events, XS_DEFAULT.syn_events);
   out.syn_switches = pick(r.syn_switches, XS_SYN_SWITCHES, XS_DEFAULT.syn_switches);
   out.syn_phone_view = pick(r.syn_phone_view, XS_SYN_PHONE_VIEW, XS_DEFAULT.syn_phone_view);
+  out.syn_phone_light = pick(r.syn_phone_light, XS_SYN_PHONE_LIGHT, XS_DEFAULT.syn_phone_light);
+  out.syn_phone_summary = pick(r.syn_phone_summary, XS_SYN_PHONE_SUMMARY, XS_DEFAULT.syn_phone_summary);
   out.fire_column = pick(r.fire_column, XS_FIRE_COLUMN, XS_DEFAULT.fire_column);
   out.fire_ui = bool(r.fire_ui, XS_DEFAULT.fire_ui);
   out.ack = pick(r.ack, XS_ACK, XS_DEFAULT.ack);
@@ -560,6 +576,40 @@ export function phoneGridTemplate(cols: readonly SynColumn[]): string {
 /** The share of a floor's lights that are on, 0-100 (the small bar under "2/10", the warm fill of the section slab); 0 with no lights. */
 export function litPercent(f: Pick<FloorSignal, 'lit' | 'lights'>): number {
   return f.lights && f.lit !== null ? Math.max(0, Math.min(100, Math.round((f.lit / f.lights) * 100))) : 0;
+}
+
+/** SYNOPTIC-PHONE-SETTINGS-2360: the lights gauge of one floor under the setting `syn_phone_light` - what the table cell and the card tile draw. */
+export interface PhoneLightGauge {
+  kind: 'bar' | 'segments' | 'none';
+  /** bar: the filled share, 0-100 (litPercent). */
+  percent: number;
+  /** segments: how many of `total` are lit. */
+  on: number;
+  /** segments: one per light, at most eight (the wide board's strip), never zero while the gauge is drawn. */
+  total: number;
+}
+/** The segment count of the strip never passes the wide board's eight (`devices-synoptic.ts cell`). */
+export const PHONE_MAX_SEGMENTS = 8;
+export function phoneLightGauge(mode: (typeof XS_SYN_PHONE_LIGHT)[number], f: Pick<FloorSignal, 'lit' | 'lights'>): PhoneLightGauge {
+  const percent = litPercent(f);
+  if (mode === 'number') return { kind: 'none', percent, on: 0, total: 0 };
+  if (mode === 'bar') return { kind: 'bar', percent, on: 0, total: 0 };
+  const lights = f.lights ?? 0;
+  const lit = f.lit ?? 0;
+  const total = Math.max(1, Math.min(PHONE_MAX_SEGMENTS, lights));
+  // rounded to a segment, but a floor with any light on shows at least one segment and a floor with a light off never shows a full strip
+  const on = lights ? Math.max(lit > 0 ? 1 : 0, Math.min(lit < lights ? total - 1 : total, Math.round((lit / lights) * total))) : 0;
+  return { kind: 'segments', percent, on, total };
+}
+
+/** SYNOPTIC-PHONE-SETTINGS-2360: which phone layouts a phone setting applies to (the cross-section colours its slabs itself; it has no gauge to restyle). */
+export function phoneLightApplies(view: (typeof XS_SYN_PHONE_VIEW)[number]): boolean {
+  return view !== 'section';
+}
+
+/** SYNOPTIC-PHONE-SETTINGS-2360: the summary under `syn_phone_summary` - the info button (and its sheet), the line under the board, or neither. All three layouts. */
+export function phoneSummaryParts(mode: (typeof XS_SYN_PHONE_SUMMARY)[number]): { button: boolean; line: boolean } {
+  return { button: mode === 'button', line: mode === 'line' };
 }
 
 /**
