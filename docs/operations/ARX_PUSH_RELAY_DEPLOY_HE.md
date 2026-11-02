@@ -7,6 +7,10 @@
 > מודבקים בצ'אט ולא נשלחים במייל. הם נכנסים רק בחלון ה-`wrangler secret put` (שבו ההקלדה מוסתרת) או נשמרים בקובץ מקומי ב-`secrets\`
 > שאינו עולה לשום מאגר.
 
+> **ערכת ההפעלה (PUSH-GOLIVE-KIT-2380):** מושב ההקמה עם Firebase, Apple, Play ו-TestFlight (רשימת סימון, 90 דקות) נמצא ב-
+> `PUSH_GOLIVE_OWNER_SESSION_HE.md`; הבדיקה בשטח עם הטלפון ב-`MOBILE_FIELD_TEST_HE.md`. מסמך זה הוא ההפניה לפקודות של הממסר עצמו.
+> שלוש הבדיקות של `scripts\push_golive_check.py` (`dry-run` לפני, `secrets-preflight` לפני `secret put`, `health` אחרי כל שלב) מופיעות בסעיפים 3.1, 3.4 ו-5.
+
 ---
 
 ## 1. מה זה הממסר ולמה צריך אותו
@@ -29,8 +33,8 @@
 | חשבון | מצב | למה |
 |---|---|---|
 | Cloudflare | קיים (זה שמריץ את המנהרות) | אירוח הממסר (Worker) ומאגר ה-KV |
-| Firebase / Google | יש לפתוח לפי `FIREBASE_SETUP_HE.txt` בשורש הפרויקט (כ-10 דקות, חינם) | דחיפות לאנדרואיד. הקובץ הנדרש: `secrets\firebase-relay-service-account.json` |
-| Apple Developer Program | יפתח בהמשך (בתשלום שנתי של Apple) | דחיפות לאייפון. עד אז הממסר עובד לאנדרואיד בלבד ואין בעיה |
+| Firebase / Google | יש לפתוח לפי צעד 1 ב-`PUSH_GOLIVE_OWNER_SESSION_HE.md` (כ-20 דקות, חינם; הקובץ `FIREBASE_SETUP_HE.txt` שהוזכר כאן בעבר לא קיים במאגר) | דחיפות לאנדרואיד. הקובץ הנדרש: `secrets\firebase-relay-service-account.json` |
+| Apple Developer Program | יפתח בהמשך (בתשלום שנתי של Apple; האימות אצל Apple יכול לקחת ימים) | דחיפות לאייפון. עד אז הממסר עובד לאנדרואיד בלבד ואין בעיה |
 
 מה להכין על המחשב: Node.js 20 ומעלה (במחשב העבודה כבר מותקן), והפרויקט משוכפל מ-git.
 
@@ -53,7 +57,18 @@ cd C:\cloude\smplwisebms
 powershell -File scripts\test_push_relay.ps1
 ```
 
-מצופה: "27 passed" ובסוף "--dry-run: exiting now". (אפשר גם `make test-push-relay` בסביבה שיש בה make.)
+מצופה: "34 passed" ובסוף "--dry-run: exiting now". (אפשר גם `make test-push-relay` בסביבה שיש בה make.)
+
+חזרה מלאה על החוזה מול ממסר מזויף (ללא רשת, ללא מפתחות, עם בדיקת מצב הקבצים במאגר ובדיקות ה-Worker עצמו) בפקודה אחת:
+
+```powershell
+cd C:\cloude\smplwisebms
+.\.venv\Scripts\python.exe scripts\push_golive_check.py dry-run --worker
+```
+
+מצופה: `0 failed, 0 not run`. מה היא בודקת: רישום (אסימון יציב, אותו אסימון בפעם השנייה), דחיפה עם מפתח נכון / שגוי / חסר, אסימון ממסר לא מוכר (404),
+ביטול רישום, שהממסר לא שומר טקסט של התראה ולא אסימון; ש-`wrangler.toml` לא מכיל סוד ושמזהה האפליקציה מותר; שאף קובץ בצורת מפתח (`.p8`, `*service-account*.json`,
+`google-services.json`, keystore) לא עוקב ב-git. הצד של שרת Arx מול ממסר מזויף נבדק ב-`smplwise_vms\backend\tests\test_mobile_push.py`.
 
 ### 3.2 יצירת מאגר ה-KV
 
@@ -73,10 +88,11 @@ npx wrangler deploy
 בסוף מודפסת כתובת בסגנון `https://smplwise-push-relay.<שם-החשבון>.workers.dev`. בדיקה:
 
 ```powershell
-curl https://smplwise-push-relay.<שם-החשבון>.workers.dev/v1/health
+cd C:\cloude\smplwisebms
+.\.venv\Scripts\python.exe scripts\push_golive_check.py health --url https://smplwise-push-relay.<שם-החשבון>.workers.dev
 ```
 
-מצופה בשלב זה: `{"ok":true,"apns":false,"fcm":false,"stable_tokens":false,"server_keys":0}` - הממסר חי, עדיין בלי מפתחות.
+(אפשר גם `curl <הכתובת>/v1/health`; הסקריפט רק משווה לתוצאה המצופה ומסביר מה חסר.) מצופה בשלב זה: `{"ok":true,"apns":false,"fcm":false,"stable_tokens":false,"server_keys":0}` - הממסר חי, עדיין בלי מפתחות.
 
 ### 3.4 הכנסת הסודות
 
@@ -125,9 +141,10 @@ Store). לבניות פיתוח מ-Xcode יש להעלות Worker שני בשם 
 בסוף כל סודות יש לבדוק שוב:
 
 ```powershell
-curl https://smplwise-push-relay.<שם-החשבון>.workers.dev/v1/health
+.\.venv\Scripts\python.exe scripts\push_golive_check.py health --url https://smplwise-push-relay.<שם-החשבון>.workers.dev --expect-fcm --expect-stable --min-server-keys 1
 ```
 
+(מוסיפים `--expect-apns` אחרי סודות Apple. לפני ההכנסה אפשר לבדוק את צורת הקבצים המקומיים: `scripts\push_golive_check.py secrets-preflight`; הפקודה לא מדפיסה שום ערך.)
 מצופה: `{"ok":true,"apns":true|false,"fcm":true,"stable_tokens":true,"server_keys":1}` לפי מה שהוכנס. `true` פירושו שהסוד קיים ונקרא
 תקין (המבנה של הקובץ נבדק), לא שהוא מקובל אצל Apple או Google - את זה מוכיחה רק בדיקת דחיפה אמיתית (סעיף 5).
 
@@ -154,12 +171,28 @@ curl https://smplwise-push-relay.<שם-החשבון>.workers.dev/v1/health
 
 ## 5. בדיקה אחרי ההקמה
 
+הבדיקה האמיתית הראשונה (מתבצעת במושב הבדיקה בשטח, `MOBILE_FIELD_TEST_HE.md` סעיף 6, ולא לפני שיש אפליקציה בטלפון):
+
 1. באפליקציה (בטלפון אמיתי, לא סימולטור) נרשמים לשרת, מאשרים התראות, ומפעילים את ערוץ "אפליקציה" בהגדרות ההתראות של Arx.
-2. שולחים התראת בדיקה: זו הקריאה `POST notifications/app/test` של השרת (עם אסימון המכשיר, עד 3 בדקה). התשובה:
-   `{"sent": true}` = הממסר קיבל ושלח; `{"sent": false, "reason": "..."}` מסביר למה. סיבות נפוצות:
-   `relay_unconfigured` (חסר url או key בשרת), `http_401` (המפתח לא תואם ל-`SERVER_KEYS`), `http_404` / `http_410` (הטלפון לא רשום
-   בממסר או שהאסימון פג; יש לפתוח את האפליקציה), `http_503` (חסר סוד של apns / fcm, בדוק ב-`/v1/health`).
-3. לצפייה בלוגים בזמן אמת: `npx wrangler tail` (אסימונים לא נרשמים בלוג).
+2. שולחים התראת בדיקה: זו הקריאה `POST notifications/app/test` של השרת (עם אסימון המכשיר, עד 3 בדקה; **היא נשלחת על ידי האפליקציה**, כי רק לה יש
+   את אסימון המכשיר; אם בגרסה שהותקנה אין כפתור לכך, בודקים עם התראה אמיתית בערוץ "אפליקציה" - ראה `MOBILE_FIELD_TEST_HE.md`). התשובה:
+   `{"sent": true}` = הממסר קיבל ושלח; `{"sent": false, "reason": "..."}` מסביר למה (טבלה בהמשך).
+3. לצפייה בלוגים בזמן אמת, במקביל לבדיקה: `npx wrangler tail` (אסימונים לא נרשמים בלוג).
+
+### 5.1 פענוח תשובה (העמודה "reason" של השרת היא `http_<קוד>` של הממסר)
+
+| reason | מה אמר הממסר | הסיבה הסבירה | מה עושים |
+|---|---|---|---|
+| `relay_unconfigured` | (השרת לא קרא לממסר) | חסר `push_relay_url` או מפתח הממסר בשרת, או הכתובת אינה `https://` | צעד 3.5; הפעלה מחדש של התוסף אחרי שינוי הכתובת |
+| `http_401` | `unauthorized` | מפתח השרת אינו ב-`SERVER_KEYS` של הממסר | להשוות את הסוד בשרת (חלק אחרי הנקודתיים) לערך שהוכנס; `health` מראה `server_keys` |
+| `http_404` / `http_410` | `relay_token_unknown` / `push_token_gone` | הטלפון לא רשום בממסר, האסימון פג, או (410) Google / Apple ביטלו אותו | **השרת מוחק את רישום ה-Push של המכשיר מיד**; האפליקציה נרשמת מחדש בפתיחה הבאה. אותה תופעה גורמת גם כתובת שגויה (נתיב נוסף) - בדוק `health` קודם |
+| `http_429` | `rate_limited` | מגבלת קצב (60 בדקה לכל מכשיר, 500 ליום) | לחכות; בבדיקת בדיקה חוזרת - עד 3 בדקה |
+| `http_502` | `upstream_refused` + `upstream_status` | Apple / Google **סירבו**: מפתח לא מורשה, API לא מופעל, מזהה חבילה שגוי (`APNS_BUNDLE_ID`), או אסימון sandbox מול `production` | זו התקלה הנפוצה ביותר בהפעלה ראשונה. בודקים ב-`wrangler tail` את הקוד; ב-FCM: ש-Firebase Cloud Messaging API מופעל ושמפתח השירות שייך לפרויקט של `google-services.json`; ב-APNs: Key ID, Team ID, Bundle ID, סביבת הבניה |
+| `http_503` | `fcm_unconfigured` / `apns_unconfigured` / `upstream_busy` | חסר סוד של הפלטפורמה (`health` יראה `false`), או Apple / Google עמוסות | להשלים את הסוד; `upstream_busy` - לנסות שוב |
+| שם חריגה (`ConnectError`, `ReadTimeout`...) | (אין תשובה) | הממסר לא נגיש מהשרת | `health` מהמחשב ומהשרת; חומת אש / DNS |
+
+ההתראה עצמה מגיעה כהודעה כללית ("התראה חדשה"); הטלפון מביא את הטקסט מהשרת. אם הגיעה הודעה כללית בלי טקסט, הממסר תקין והבעיה בין הטלפון לשרת
+(`GET notifications/app/{id}`), לא בממסר.
 
 ## 6. החלפת מפתחות (Rotation)
 
@@ -203,7 +236,7 @@ curl https://smplwise-push-relay.<שם-החשבון>.workers.dev/v1/health
 
 **נבדק בפועל:**
 - בדיקת טיפוסים (`tsc`) - עברה.
-- 27 בדיקות יחידה - עברו: רישום (אסימון יציב, מגבלת 60 בשעה, מזהה אפליקציה, אסימון שגוי), מחיקה (`204`), דחיפה (מפתח שגוי `401`, `404`,
+- 34 בדיקות יחידה (נספרו מחדש ב-2026-11-02 בערכת ההפעלה; המסמך אמר 27) - עברו: רישום (אסימון יציב, מגבלת 60 בשעה, מזהה אפליקציה, אסימון שגוי), מחיקה (`204`), דחיפה (מפתח שגוי `401`, `404`,
   `410`, `429` לכל מכשיר ולכל שרת, `503` כשהפלטפורמה לא מוגדרת), ושהאחסון מכיל hash בלבד.
 - חבילת העלאה (`wrangler deploy --dry-run`) - נבנתה (כ-17 KiB).
 - הרצה מקומית עם `wrangler dev --local` ומפתחות מזויפים: `/v1/health`, רישום (אותו אסימון בפעם השנייה), דחיפה שהחזירה `503 apns_unconfigured` כצפוי.
