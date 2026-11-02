@@ -19,8 +19,11 @@ export interface SettingsEntry {
   href: string;
   /** Words a person types to find it (Hebrew and the technical names a settings screen keeps). */
   keywords?: string;
-  /** A sub-entry (a tab of the screen): drawn indented under its parent. */
+  /** A sub-entry (a tab of the screen): drawn indented under its parent - unless the parent has `ownTabs`. */
   sub?: boolean;
+  /** SMALL-UI-BUGS-2343: the screen draws its own tab strip, so its sub-entries are search results only - the column never unfolds them
+   * under it (a second, parallel tab strip); while the user is on one of them the column marks this entry. */
+  ownTabs?: boolean;
 }
 
 export interface SettingsGroup {
@@ -38,7 +41,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     label: 'מראה ותצוגה',
     icon: 'dashboard',
     entries: [
-      { tab: 'general', label: 'מראה ותצוגה', href: GEN, keywords: 'מראה סגנון skin בהיר כהה dark light אזור זמן אחסון בריאות צפיפות ניווט נייד אפשרויות צבעי המותג צבע הדגשה מתג accent brand לוגו logo יזם חברת ניהול מיתוג מתקין white label לקוח חבילת לקוח ייצוא ייבוא שם הפרויקט כותרת הדפדפן לשונית גודל הלוגו לוחיתקריסטל crystal רקע תמונת background מצב תצוגה התצוגה סכמטי מלא אוטומטי 3D' },
+      { ownTabs: true, tab: 'general', label: 'מראה ותצוגה', href: GEN, keywords: 'מראה סגנון skin בהיר כהה dark light אזור זמן אחסון בריאות צפיפות ניווט נייד אפשרויות צבעי המותג צבע הדגשה מתג accent brand לוגו logo יזם חברת ניהול מיתוג מתקין white label לקוח חבילת לקוח ייצוא ייבוא שם הפרויקט כותרת הדפדפן לשונית גודל הלוגו לוחיתקריסטל crystal רקע תמונת background מצב תצוגה התצוגה סכמטי מלא אוטומטי 3D' },
       { tab: 'general', label: 'לשוניות', href: `${GEN}?tab=tabs`, sub: true, keywords: 'סדר הסתרה סרגל פס תחתון כמוסה dropdown' },
       { tab: 'general', label: 'וידאו ומדיה', href: `${GEN}?tab=media`, sub: true, keywords: 'webrtc mse תעבורה קיר מצלמות קיוסק מסך פתיחה זרמים go2rtc ייצוא שמירה ימים ציר זמן צבעים סקינים AI תלת־ממד 3D מצב תצוגה ריאליסטי realistic תמונות מוכנות stills מסך קיר תצוגת התוכנית מפת תאורה מיקום האתר שמש מיקום הבית ידני קו רוחב קו אורך מעבר לתמונה מוכנה חוסר פעילות idle' },
       { tab: 'general', label: 'מפה', href: `${GEN}?tab=map`, sub: true, keywords: 'קומת ברירת מחדל 2D 3D מפלסים תוכנית תצוגה ריאליסטית realistic סגנון אדריכלי בהיר תאום דיגיטלי כהה שמש שעה מיקום האתר קו רוחב קו אורך רהיטים טקסטורות חתך סיור גובה עין ההעדפה שלי' },
@@ -56,14 +59,14 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     label: 'משתמשים ואבטחה',
     icon: 'users',
     entries: [
-      { tab: 'access', label: 'משתמשים והרשאות', href: '#/system/access', keywords: 'תפקידים roles קבוצות בינדינג היקף הרשאות אפקטיביות' },
+      { ownTabs: true, tab: 'access', label: 'משתמשים והרשאות', href: '#/system/access', keywords: 'תפקידים roles קבוצות בינדינג היקף הרשאות אפקטיביות' },
       { tab: 'access', label: 'קבוצות', href: '#/system/access?tab=groups', sub: true, keywords: 'קבוצה חברים' },
       { tab: 'access', label: 'תפקידים', href: '#/system/access?tab=roles', sub: true, keywords: 'תפקיד מותאם הרשאה' },
       { tab: 'access', label: 'הרשאות אפקטיביות', href: '#/system/access?tab=effective', sub: true, keywords: 'מה מותר למשתמש' },
       { tab: 'access', label: 'אודיט הרשאות', href: '#/system/access?tab=audit', sub: true },
       { tab: 'access', label: 'משתמשי מערכת הבית', href: '#/system/access?tab=ha-users', sub: true, keywords: 'משתמש חדש יצירה מחיקה השבתה סיסמה' },
       { tab: 'general', label: 'גישה מרחוק', href: `${GEN}?tab=remote`, keywords: 'arx remote כניסה מרחוק אימות דו שלבי MFA סשן CSP אפליקציית android הורדה' },
-      { tab: 'security', label: 'אבטחה', href: '#/system/security', keywords: 'אזעקה alarm לוח קוד NVR מצלמות' },
+      { ownTabs: true, tab: 'security', label: 'אבטחה', href: '#/system/security', keywords: 'אזעקה alarm לוח קוד NVR מצלמות' },
       { tab: 'security', label: 'ניהול אזעקה', href: '#/system/security/manage', sub: true, keywords: 'לוחות קוד חיישנים עקיפה' },
       { tab: 'security', label: 'מצלמות', href: '#/system/security/cameras', sub: true, keywords: 'קידוד codec רזולוציה bitrate' },
       { tab: 'security', label: 'ממשק ציבורי', href: '#/system/security/public', sub: true, keywords: 'טכנאים ספקים מחיקה אוטומטית פורטל 404' },
@@ -92,7 +95,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     label: 'מדיה',
     icon: 'media',
     entries: [
-      { tab: 'multimedia', label: 'מולטימדיה', href: '#/system/multimedia', keywords: 'מסכים נגנים music assistant שלט' },
+      { ownTabs: true, tab: 'multimedia', label: 'מולטימדיה', href: '#/system/multimedia', keywords: 'מסכים נגנים music assistant שלט' },
       { tab: 'multimedia', label: 'שידור למסכים', href: '#/system/multimedia?tab=cast', sub: true, keywords: 'cast' },
       { tab: 'multimedia', label: 'כריזה', href: '#/system/multimedia?tab=announce', sub: true, keywords: 'הודעות קוליות announce' },
     ],
@@ -104,7 +107,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     entries: [
       { tab: 'setup', label: 'חיבורים', href: '#/system/setup', keywords: 'nvr go2rtc wiskey חשבון סיסמה ntp דיסקים הפעלה מחדש חסימות פתיחת דלתות שחרור התקן וירטואלי תבנית template universal פריטים שפותחים דלתות שיוך דלתות' },
       // CR-036 S10: the access-control status page and its segments (docs/changes/CR-036-S8-S10-NOTES.md, "Merging ... with main")
-      { tab: 'access-control', label: 'בקרת כניסה', href: '#/system/access-control', keywords: 'wiskey אינטרקום תחנות בריאות סנכרון התרעות התנגשויות' },
+      { ownTabs: true, tab: 'access-control', label: 'בקרת כניסה', href: '#/system/access-control', keywords: 'wiskey אינטרקום תחנות בריאות סנכרון התרעות התנגשויות' },
       { tab: 'access-control', label: 'יומן האינטרקום', href: '#/system/access-control/audit', sub: true, keywords: 'פעולות audit מי עשה מה' },
       { tab: 'access-control', label: 'קבוצות ושדות', href: '#/system/access-control/groups', sub: true, keywords: 'קבוצה שדות פרופיל גרסאות מדיניות' },
       { tab: 'access-control', label: 'מדיניות', href: '#/system/access-control/policy', sub: true, keywords: 'תמונת אירוע מספר עובד שגיאות סנכרון רגיש תיעוד צפייה' },
@@ -113,7 +116,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'general', label: 'מתגי מסכי כניסה', href: `${GEN}?tab=access-control`, keywords: 'wiskey מוטמע אינטרקום תצוגה מסך תחנות שיחה דיבור הכרזה משפטים בדיקת התאמה השוואה צד לצד' },
       { tab: 'entities', label: 'קטלוג התקנים', href: '#/system/entities', keywords: 'ישויות entities תחומים' },
       // CALENDARS-UI-2310: the calendars module (contract section 16: settings live under "מערכת ותשתית" › "יומנים") and its external connections
-      { tab: 'calendars', label: 'יומנים', href: '#/system/calendars', keywords: 'יומן חדרים הזמנות אישורים תחזוקה חפיפה אורחים מחיקה מיקום בתפריט calendar booking' },
+      { ownTabs: true, tab: 'calendars', label: 'יומנים', href: '#/system/calendars', keywords: 'יומן חדרים הזמנות אישורים תחזוקה חפיפה אורחים מחיקה מיקום בתפריט calendar booking' },
       { tab: 'calendars', label: 'התנהגות', href: '#/system/calendars?tab=behavior', sub: true, keywords: 'ערב חג ביטול דייר בקשות מתחרות דחיקה טלפון טאבלט טעינה' },
       { tab: 'calendars', label: 'אישור לכל יומן', href: '#/system/calendars?tab=approval', sub: true },
       { tab: 'calendars', label: 'הרשאות', href: '#/system/calendars?tab=perm', sub: true },
@@ -121,7 +124,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'calendar-sync', label: 'חיבורי יומן', href: '#/system/calendar-sync', keywords: 'google microsoft ical סנכרון חיבור הרשאה מחדש פיד' },
       { tab: 'infra', label: 'תשתיות', href: '#/system/infra', keywords: 'חשמל מונים מחירים מע"מ תעריף גנרטור' },
       // CR-038: the optional tickets module - its labels and search words carry the configured name (D33: getters, read at render time)
-      { tab: 'tickets', get label() { return tt('settingsTab'); }, href: '#/system/tickets', get keywords() { return tt('settingsKeywords'); } },
+      { ownTabs: true, tab: 'tickets', get label() { return tt('settingsTab'); }, href: '#/system/tickets', get keywords() { return tt('settingsKeywords'); } },
       { tab: 'tickets', get label() { return tt('setTabDepartments'); }, href: '#/system/tickets?tab=departments', sub: true },
       { tab: 'tickets', get label() { return tt('setTabPermissions'); }, href: '#/system/tickets?tab=permissions', sub: true },
       { tab: 'messaging-accounts', label: 'ערוץ ההודעות', href: '#/system/messaging-accounts', keywords: 'וואטסאפ whatsapp חשבון חשבונות מספר שולח קוד אימות שימושים קצב שליחה sms' }, // CR-038 S5a
@@ -195,6 +198,10 @@ export function routeHref(r: RouteState | null): string {
     const tab = p.get('tab');
     return tab && tab !== 'general' ? `#/system/tickets?tab=${tab}` : '#/system/tickets';
   }
+  if (s[1] === 'calendars') {
+    const tab = p.get('tab');
+    return tab && tab !== 'overlap' ? `#/system/calendars?tab=${tab}` : '#/system/calendars';
+  }
   if (s[1] === 'security') return s[2] ? `#/system/security/${s[2]}` : '#/system/security';
   if (s[1] === 'access-control') return s[2] ? `#/system/access-control/${s[2]}` : '#/system/access-control'; // CR-036 S10 segments
   return `#/system/${s[1]}`;
@@ -215,3 +222,31 @@ export function activeEntry(groups: SettingsGroup[], r: RouteState | null): Sett
   return all.find((e) => !e.sub && e.href.split('?')[0] === base) ?? null;
 }
 
+/** The top-level entry a sub-entry belongs to (the nearest one above it in its group), or null. */
+export function parentEntry(group: SettingsGroup, entry: SettingsEntry): SettingsEntry | null {
+  const i = group.entries.indexOf(entry);
+  return i < 0 ? null : group.entries.slice(0, i).reverse().find((e) => !e.sub) ?? null;
+}
+
+/** SMALL-UI-BUGS-2343: the entry the column marks - the active one, or its parent when the active one is a tab of a screen that
+ * draws its own tabs (`ownTabs`: that sub-entry is not in the column). */
+export function navActive(groups: SettingsGroup[], active: SettingsEntry | null): SettingsEntry | null {
+  if (!active?.sub) return active;
+  const group = groups.find((g) => g.entries.includes(active));
+  const parent = group ? parentEntry(group, active) : null;
+  return parent?.ownTabs ? parent : active;
+}
+
+/** A group's entries as the column draws them: the screens, and the sub-pages of the screen the user is on folded open under it -
+ * never those of a screen with its own tab strip (`ownTabs`; they stay in the search). */
+export function navTree(group: SettingsGroup, active: SettingsEntry | null): SettingsEntry[] {
+  const out: SettingsEntry[] = [];
+  let open = false;
+  for (const e of group.entries) {
+    if (!e.sub) {
+      open = !e.ownTabs && !!active && (active === e || (!!active.sub && parentEntry(group, active) === e));
+      out.push(e);
+    } else if (open) out.push(e);
+  }
+  return out;
+}

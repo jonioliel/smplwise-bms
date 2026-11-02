@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { canNav, isApi, onSession } from '../api/session';
 import { onRouteChange, parseRoute, type RouteState } from '../router';
-import { activeEntry, searchSettings, visibleGroups, type SettingsEntry, type SettingsGroup } from './system-index';
+import { activeEntry, navActive, navTree, parentEntry, searchSettings, visibleGroups, type SettingsEntry, type SettingsGroup } from './system-index';
 import { SkinController } from '../design/skin';
 import { getReadinessChip, levelTone, onReadinessChip } from '../api/readiness';
 
@@ -450,6 +450,7 @@ export class SystemNav extends LitElement {
 
   render() {
     const active = activeEntry(this.groups, this.route);
+    const marked = navActive(this.groups, active); // SMALL-UI-BUGS-2343: a tab of a screen with its own tab strip marks the screen
     const res = this.q.trim() ? this.results() : null;
     return html`<div class="search" role="search">
         <sw-icon name="search" size=${15}></sw-icon>
@@ -462,7 +463,7 @@ export class SystemNav extends LitElement {
           : html`<div class="none" data-settings-no-results>לא נמצא דבר ב"${this.q}"</div>`
         : html`<nav aria-label="הגדרות" data-settings-nav>${this.groups.map((g) => {
             const open = this.isOpen(g, active);
-            return html`<div class="grp" data-settings-group=${g.id} data-open=${open ? 'true' : 'false'}><b><button type="button" class="gh" aria-expanded=${open ? 'true' : 'false'} data-settings-group-toggle=${g.id} @click=${() => this.toggle(g, active)}><sw-icon name=${g.icon} size=${13}></sw-icon>${g.label}<sw-icon class="chev" name="chevronDown" size=${12}></sw-icon></button></b>${open ? this.tree(g, active).map((e) => this.link(e, active)) : nothing}</div>`;
+            return html`<div class="grp" data-settings-group=${g.id} data-open=${open ? 'true' : 'false'}><b><button type="button" class="gh" aria-expanded=${open ? 'true' : 'false'} data-settings-group-toggle=${g.id} @click=${() => this.toggle(g, active)}><sw-icon name=${g.icon} size=${13}></sw-icon>${g.label}<sw-icon class="chev" name="chevronDown" size=${12}></sw-icon></button></b>${open ? navTree(g, active).map((e) => this.link(e, marked)) : nothing}</div>`;
           })}</nav>`}`;
   }
 
@@ -478,22 +479,10 @@ export class SystemNav extends LitElement {
     this.opened = this.isOpen(group, active) ? '' : group.id;
   }
 
-  /** A group's entries with the sub-pages folded away except under the screen the user is on (the column stays one glance long). */
-  private tree(group: SettingsGroup, active: SettingsEntry | null): SettingsEntry[] {
-    const out: SettingsEntry[] = [];
-    let open = false;
-    for (const e of group.entries) {
-      if (!e.sub) {
-        open = !!active && (active === e || (!!active.sub && this.parentOf(group, active) === e));
-        out.push(e);
-      } else if (open) out.push(e);
-    }
-    return out;
-  }
-
+  /** The sub-pages fold away except under the screen the user is on (the column stays one glance long), and never unfold under a
+   * screen that draws its own tabs - system-index.ts navTree. */
   private parentOf(group: SettingsGroup, entry: SettingsEntry): SettingsEntry | null {
-    const i = group.entries.indexOf(entry);
-    return i < 0 ? null : group.entries.slice(0, i).reverse().find((e) => !e.sub) ?? null;
+    return parentEntry(group, entry);
   }
 
   /** Where a result lives: "<group> › <parent>" for a sub-page, the group alone for a screen. */
