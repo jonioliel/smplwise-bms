@@ -5,8 +5,8 @@ Branch `sec/CAL-FEED-REVIEW-2351` from `release/2350-train` (1993a207d). Scope: 
 document on `remote_channel.BLOCKED_ON_REMOTE` until this review. No version bump; the owner decides the remote exposure (last section).
 
 Code: `smplwise_vms/backend/smplwise/routers/calendar_feeds.py`, `remote_channel.py` (`ROUTE_GATED_ON_REMOTE`), `services/calendar/model.py`
-(three settings), migration `0192_calendar_feed_review.sql` (two columns; the lead re-sequences at assembly if another branch departs
-first - WisKey plans 0192-0194). Tests: `smplwise_vms/backend/tests/test_calendar_feed_review_2351.py`.
+(three settings), migration `0193_calendar_feed_review.sql` (two columns; built as 0192, re-sequenced to 0193 on the 2.36.0 train after
+`0192_ha_labels.sql`; WisKey, not merged, must move to 0194+). Tests: `smplwise_vms/backend/tests/test_calendar_feed_review_2351.py`.
 
 ## 1. Threat model
 
@@ -42,7 +42,7 @@ nevertheless re-compared with `hmac.compare_digest` (defence in depth).
 | F8 | Caching: `private, max-age=300` let a client / proxy keep serving a revoked feed for 5 min; no `Referrer-Policy` | Low | `Cache-Control: private, no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow`, `nosniff`; no cookie, no CORS | `test_document_headers` |
 | F9 | **Token in logs**: uvicorn's access line records the full path (= the token) in the add-on log; the request's DB-connection label (slow-hold / busy log lines, lock statistics) also carried the full path | **High** | `RedactFeedToken` log filter on `uvicorn.access`, `uvicorn.error`, `smplwise` (`/calendar/feed/REDACTED`); the document's own read connection with a token-free label | `test_access_log_lines_are_redacted_and_the_connection_label_has_no_token` |
 | F10 | Hash compare by SQL equality only | Info | `hmac.compare_digest` after the indexed lookup | `test_the_stored_hash_is_compared_in_constant_time` |
-| F11 | Remote exposure was all-or-nothing (blocked at the edge) | Design | Per-feed `remote_enabled` (default 0). The edge (`ROUTE_GATED_ON_REMOTE`) passes only an exact `GET /api/v1/calendar/feed/<43 chars>.ics`; every other method / shape stays edge-blocked; the route answers the uniform 404 unless that feed's switch is on. `PUT /calendar/feeds/{id}/remote {enabled}`: creator or admin, LOCAL session only (403 `local_only` remotely), feed live, audited `calendar.feed.remote`; revoke clears it | `test_remote_is_off_by_default_switched_per_feed_from_a_local_session_and_audited`, `test_edge_gate_shape`, `test_migration_0192_columns`; `test_remote_access.py` unchanged and green |
+| F11 | Remote exposure was all-or-nothing (blocked at the edge) | Design | Per-feed `remote_enabled` (default 0). The edge (`ROUTE_GATED_ON_REMOTE`) passes only an exact `GET /api/v1/calendar/feed/<43 chars>.ics`; every other method / shape stays edge-blocked; the route answers the uniform 404 unless that feed's switch is on. `PUT /calendar/feeds/{id}/remote {enabled}`: creator or admin, LOCAL session only (403 `local_only` remotely), feed live, audited `calendar.feed.remote`; revoke clears it | `test_remote_is_off_by_default_switched_per_feed_from_a_local_session_and_audited`, `test_edge_gate_shape`, `test_migration_0193_columns`; `test_remote_access.py` unchanged and green |
 | F12 | Audit: create / rotate / revoke audited with ids only, the token never in an audit row - **sound**; document reads are not audited (volume) - `last_used_at` (10-minute granularity) is the trace | Info | the remote switch is audited (F11) | F1 + F11 tests |
 
 ## 3. Residual risks

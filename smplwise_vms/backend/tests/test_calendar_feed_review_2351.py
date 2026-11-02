@@ -352,11 +352,12 @@ def test_edge_gate_shape():
     assert feeds.DOC_PATH_RE.pattern == remote_channel.ROUTE_GATED_ON_REMOTE[0][1].pattern
 
 
-def test_migration_0192_columns(cc):
+def test_migration_0193_columns(cc):
     from smplwise.db import MIGRATIONS_DIR
 
     nums = sorted(int(p.name[:4]) for p in MIGRATIONS_DIR.glob("*.sql"))
-    assert nums == list(range(nums[0], nums[-1] + 1)) and 192 in nums
+    assert nums == list(range(nums[0], nums[-1] + 1)) and 193 in nums  # contiguous, no gap, no duplicate
+    assert (MIGRATIONS_DIR / "0193_calendar_feed_review.sql").exists()
     with db(cc).connection() as x:
         cols = {r[1]: r for r in x.execute("PRAGMA table_info(cal_feeds)")}
     assert "remote_enabled" in cols and cols["remote_enabled"][4] == "0" and "token_set_at" in cols
