@@ -9,8 +9,11 @@ WISKEY-RC7-ADOPT-2331 S2 (Arx): adopted unchanged in logic from the WisKey M12 p
 image verifier, so `read_core` never returns `supported`: a managed-profile bundle is never staged even after the owner's ON
 (`wiskey_auto_install.preflight_managed_runtime`). Called only after the owner's ON, never with the switch off. Inside a running event
 loop `read_core` refuses (`core_runtime_observation_thread_required`) - conservative; the add-on start-up calls it from a worker thread.
-The bootstrap bridge observer (`smplwise_bridge/core_runtime_v1`) is slice S4 (not on this branch yet): until then the read answers
-`unknown_command` and the gate is `core_runtime_bootstrap_unavailable` or `core_runtime_unavailable`.
+The bootstrap bridge observer (`smplwise_bridge/core_runtime_v1`) is slice S4 (pilot/WISKEY-S4-OBSERVER, bridge 0.10.2,
+`custom_components/smplwise_bridge/core_runtime_observation.py`). Until the owner restarts Home Assistant with that bridge, the read
+answers `unknown_command` and the gate is `core_runtime_bootstrap_unavailable` or `core_runtime_unavailable`. With it loaded the
+observation is shape-checked and challenge-bound here, and still ends `unverified` (no image verifier): the owner's ON never replaces
+provenance.
 """
 
 import secrets
