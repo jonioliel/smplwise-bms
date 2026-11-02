@@ -655,11 +655,11 @@ export class SwOffboxBackup extends LitElement {
   }
 
   static styles = [settingsStyles, css`
-    :host { display: grid; gap: var(--sw-space-4, 16px); }
+    :host { display: grid; gap: var(--sw-s-4); }
     .target { display: grid; gap: 6px; padding-block: 10px; border-block-end: 1px solid var(--sw-border); }
     .target:last-of-type { border-block-end: 0; }
     .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .name { font-weight: 600; }
+    .name { font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); }
     .runs { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--sw-fs-sm); }
     .run { display: inline-flex; align-items: center; gap: 6px; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; padding-block: 6px; }
@@ -667,7 +667,7 @@ export class SwOffboxBackup extends LitElement {
     .ret { display: flex; flex-wrap: wrap; gap: 10px; }
     .ret label { display: inline-flex; align-items: center; gap: 4px; }
     .ret input { inline-size: 64px; }
-    input.ctl, textarea.ctl, .ret input, .confirm-in, .keybox { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-radius-sm, 6px);
+    input.ctl, textarea.ctl, .ret input, .confirm-in, .keybox { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm);
       background: var(--sw-surface); color: var(--sw-text); min-inline-size: 0; }
     .keyfacts { margin: 0; padding-inline-start: 18px; display: grid; gap: 4px; }
     .ack { display: flex; gap: 8px; align-items: flex-start; }
@@ -683,17 +683,29 @@ export class SwOffboxBackup extends LitElement {
     .facts .num { font-variant-numeric: tabular-nums; }
     /* GDRIVEBK-2310: the Google connection row and the consent dialog (the code is LTR, large, monospace) */
     .gd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-    select.ctl { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-radius-sm, 6px);
+    select.ctl { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm);
       background: var(--sw-surface); color: var(--sw-text); min-inline-size: 0; }
     input.num { inline-size: 96px; }
     .steps { margin: 0; padding-inline-start: 20px; display: grid; gap: 10px; }
-    .steps a { color: var(--sw-accent, var(--sw-text)); font-weight: var(--sw-fw-semibold); }
+    .steps a { color: var(--sw-accent-text, var(--sw-accent)); font-weight: var(--sw-fw-semibold); }
     .code { margin-block-start: 6px; font-family: var(--sw-font-mono, monospace); font-size: var(--sw-fs-xl, 1.5rem); letter-spacing: 0.12em;
       font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); }
     /* GDRIVE-READY-2351: the connection check - one row per step, the fix under it */
     .diag { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
     .diag li { display: grid; gap: 2px; }
     .diag .fix { font-size: var(--sw-fs-sm); }
+    /* POLISH4-WP7: a visible focus ring on the plain fields, and on a phone the head, the action keys and the fields wrap onto the width */
+    input.ctl:focus-visible, textarea.ctl:focus-visible, select.ctl:focus-visible, .ret input:focus-visible, .confirm-in:focus-visible, .keybox:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; border-color: var(--sw-accent); }
+    @media (max-width: 767px) {
+      .head { flex-wrap: wrap; }
+      .actions sw-button, .gd sw-button { flex: 1 1 auto; }
+      input.ctl, select.ctl { inline-size: 100%; box-sizing: border-box; }
+      .code { overflow-wrap: anywhere; }
+    }
+    @media (pointer: coarse) {
+      input.ctl, select.ctl, .ret input, input.num { min-block-size: 44px; }
+    }
   `];
 }
 
