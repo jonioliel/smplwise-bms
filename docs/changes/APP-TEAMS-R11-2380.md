@@ -22,9 +22,13 @@ Task: M1 of `private/planning/NEXT_PHASE_DISPLAY_MOBILE_PLAN_2026-11-02.md` (A1,
 question 10), the BUILT / NOT_RUN / BLOCKED table of what the server provides, the attachments list, the attachments and one zip. The owner
 sends it; Arx does not.
 
-Server facts come from `origin/main` (2.35.0) and the 2.36.0 train (`release/2360-train` @ `eb9525d9b`). The only phone-relevant item that is on the
-train alone is the area presence line (anonymous count; no contract change), marked "בגרסה הבאה". Marked "not built": contract v2.2 (value shapes,
-`intervals_s`, K-5 key-rotation proof), the brand-logo API for apps (L-2), narrowing the quiet window to phone/browser push (Q-3).
+Server facts come from `origin/main` (2.35.0), the 2.36.0 train (`release/2360-train` @ `eb9525d9b`) and, for contract v2.2, branch
+`pilot/MOBILE-CONTRACT-V22-2380` @ `aed13eda4` (lead's message of 2026-11-03). The package attaches contract v2.2, `presence-sensor-values.v2.2.example.json`,
+`contracts/fixtures/device_key_rotation/` (incl. `replace_vector.json`, test key only) and `APPREFRESH-DEVICEKEY-SPEC.md` rev 2. v2.2 items are marked
+"בגרסה הבאה" (server value check defaults to `off` = the 2.1 behaviour, so 2.1.x apps are unaffected); the prompt asks both teams for S-1, S-2, S-4,
+W-3 and K-5 status (P-1 added). K-5 itself is already BUILT on main (device-key pin, `409 device_key_bound`); v2.2 adds the normative section and fixtures.
+The area presence line (anonymous count, no contract change) is the only other train-only item. Marked "not built": the brand-logo API for apps (L-2) and
+narrowing the quiet window to phone/browser push (Q-3).
 
 ## NOT_RUN
 
