@@ -39,7 +39,7 @@ from ..services import device_activity
 from ..services import device_bulk as bulk
 from ..services import device_types
 from ..services import devices as svc
-from ..services import ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
+from ..services import building_scope, ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
 from ..services import service_identity
 from ..services.timeutil import parse_utc
 
@@ -295,6 +295,7 @@ def items(
     scope: Literal["building", "floor", "area"] = Query("building"),
     id: str | None = Query(None, min_length=1, max_length=255),  # noqa: A002 - the scope's id, as in the bulk routes
     switches: Literal["typed", "all"] = Query("typed"),
+    building: str | None = Query(None, min_length=1, max_length=64),
 ) -> dict[str, Any]:
     """CR-007 overview tiles (owner 2026-09-29): every entity of one kind in the building, one HA floor or one HA area,
     grouped by floor › area, each with the area card's own fields and `can_control` - what the panel behind a summary
@@ -303,13 +304,22 @@ def items(
     may unlock it (`can_unlock`: `door.unlock` at the lock's own scope - the action route checks it again). Same
     visibility as the tree (`devices.read`, a floor-scoped reader sees only what is placed on their floors); a scope
     this caller cannot see is a 404. Read-only: nothing here calls Home Assistant. SWITCH-LIGHT-DIMMER-2331: `switches=all` (kind lights
-    only - the synoptic floor lights popup under "מפסקים בעמודת התאורה = כל המפסקים") lists every switch.* with the lights."""
+    only - the synoptic floor lights popup under "מפסקים בעמודת התאורה = כל המפסקים") lists every switch.* with the lights. BUILDING-SCOPE-CONTROL-2351: `building` (a multi-building site's "הצג ושלוט" inside one
+    building) lists only that building's areas as the server resolves them (services/building_scope); a floor / area of another building is a 404."""
     if switches == "all" and kind != "lights":
         raise ApiError(422, "validation", "\"כל המפסקים\" חל רק על רשימת התאורה.", details={"fields": ["switches"]})
     if scope != "building" and not id:
         raise ApiError(422, "validation", "נדרש מזהה קומה או אזור (id).", details={"fields": ["id"]})
     reads = _RequestReads(conn)
     entities, scoped = _visible_entities(conn, principal, reads)
+    if building is not None:
+        _fl, all_areas = svc.load_structure(conn, entities)
+        keep = building_scope.building_areas(conn, building, all_areas)
+        if scope == "area" and id not in keep:
+            raise ApiError(404, "not_found", "הקומה או האזור לא נמצאו.")
+        if scope == "floor" and not any(a["area_id"] in keep and (a.get("floor_id") or svc.NO_FLOOR) == id for a in all_areas):
+            raise ApiError(404, "not_found", "הקומה או האזור לא נמצאו.")
+        entities = [e for e in entities if e.get("area_id") in keep]
     control_of = ha_scope.control_checker(conn, principal)
     body = svc.build_items(conn, entities, kind, scope, id or "*", scoped=scoped, control_of=control_of, switches=switches)
     if body is None:
@@ -360,6 +370,11 @@ def items(
                         r["wiskey_door"] = True
                         r["can_unlock"] = not r.get("alarm_managed") and _wiskey_open_allowed(conn, principal, r["entity_id"])
     body["sync"] = ha_sync.STATE.as_dict()
+    if building is not None:
+        body["building_id"] = building
+        if scope == "building":
+            row = conn.execute("SELECT name FROM buildings WHERE id = ?", (building,)).fetchone()
+            body["name"] = row[0] if row else body["name"]
     return body
 
 
@@ -807,6 +822,9 @@ class BulkBody(BaseModel):
     only: list[str] | None = Field(None, max_length=500)
     # SWITCH-LIGHT-DIMMER-2331: "all" = the lights kinds reach every switch.* too (the synoptic floor lights popup); typed when absent
     switches: Literal["typed", "all"] | None = None
+    # BUILDING-SCOPE-CONTROL-2351: on a multi-building site, the building the request acts in - the server cuts the scope to that building's
+    # areas (services/building_scope) and refuses a scope / `only` id of another building (403 `outside_building`, audited); absent = as before
+    building: str | None = Field(None, min_length=1, max_length=64)
 
 
 def _bulk_holder(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
@@ -901,15 +919,16 @@ def bulk_preview(
     position: int | None = Query(None, ge=0, le=100),
     only: str | None = Query(None, max_length=20000),
     switches: Literal["typed", "all"] = Query("typed"),
+    building: str | None = Query(None, min_length=1, max_length=64),
 ) -> dict[str, Any]:
     """Exactly what `POST /devices/actions` would send for this scope and kind, per entity - the confirmation dialog
     states it (count by domain, what is skipped as already off / unavailable, what is never included). Sends nothing."""
     try:
-        return bulk.resolve(conn, principal, scope, id, kind, position, _only(only), switches)
+        return bulk.resolve(conn, principal, scope, id, kind, position, _only(only), switches, building)
     except ApiError as exc:
         if exc.status == 403:
             audit(conn, actor=principal, action=bulk.AUDIT_ACTION, decision="denied", resource_type=f"devices_{scope}", resource_id=id, reason=exc.code,
-                  details={"phase": "preview", "scope": scope, "id": id, "kind": kind})
+                  details={"phase": "preview", "scope": scope, "id": id, "kind": kind, **({"building_id": building} if building is not None else {})})
         raise
 
 
@@ -931,11 +950,13 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder_ro), 
     act.details.update(scope=body.scope, id=body.id, kind=body.kind, client_request_id=body.client_request_id, expires_at=body.expires_at)
     if body.switches == "all":
         act.details["switches"] = "all"  # SWITCH-LIGHT-DIMMER-2331: the lights kinds reached every switch
+    if body.building is not None:
+        act.details["building_id"] = body.building  # BUILDING-SCOPE-CONTROL-2351: every row of this request names the building it acted in
     not_after = _envelope(act, body)
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "פעולה מרוכזת דורשת אישור מפורש בחלון האישור."))
     try:
-        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind, body.position, set(body.only) if body.only is not None else None, body.switches or "typed")
+        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind, body.position, set(body.only) if body.only is not None else None, body.switches or "typed", body.building)
     except ApiError as exc:
         raise act.refuse(exc) from None
     if body.preview_digest is not None and body.preview_digest != plan["digest"]:
@@ -951,7 +972,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder_ro), 
     if not secret or not get_setting(conn, "bridge.paired_at"):
         raise act.refuse(ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את הגשר מותקן ומצומד."))
     bulk_id = uuid.uuid4().hex[:12]
-    blocking = bulk.RUNNER.reserve(bulk.scope_key(body.scope, body.id), bulk_id, {t["entity_id"] for t in plan["targets"]})
+    blocking = bulk.RUNNER.reserve(bulk.scope_key(body.scope, body.id if body.building is None else f"{body.id}@{body.building}"), bulk_id, {t["entity_id"] for t in plan["targets"]})
     if blocking:
         raise act.refuse(ApiError(409, "bulk_in_progress", "פעולה מרוכזת קודמת על ההיקף הזה (או על חלק מההתקנים שלו) עדיין רצה. המתינו לסיומה.", details={"bulk_id": blocking}))
     started = False
