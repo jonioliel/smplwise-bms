@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { leadReserveStyles } from '../styles/lead-reserve';
+import '../components/sw-state-panel';
 import './costs-tab'; // TKUI3: the Costs tab (its payment demand is slice 9's cost card, embedded)
 import { ct } from './cost-text';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -213,7 +214,7 @@ export class TicketDetailView extends LitElement {
       display: inline-flex;
       gap: 2px;
       padding: 3px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: var(--dv-surface-3);
     }
     .sizes button {
@@ -222,7 +223,7 @@ export class TicketDetailView extends LitElement {
       inline-size: 34px;
       block-size: 30px;
       border: 0;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: transparent;
       color: var(--dv-text-2);
       cursor: pointer;
@@ -328,10 +329,14 @@ export class TicketDetailView extends LitElement {
       text-decoration: none;
       cursor: pointer;
     }
-    .pop [role='menuitem']:hover,
     .pop [role='menuitem']:focus-visible {
       background: var(--dv-surface-3);
       outline: none;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .pop [role='menuitem']:hover {
+        background: var(--dv-surface-3);
+      }
     }
     .pop [role='menuitem'] .ic {
       font-size: var(--sw-fs-lg);
@@ -1198,6 +1203,15 @@ export class TicketDetailView extends LitElement {
   }
 
   private stateBox(): TemplateResult {
+    // WP3 (POLISH-4): the full screen is a page of its own, so its "gone" and "failed" states are the shared panel (with "try again");
+    // the drawer keeps the small box it always had (a panel card inside a drawer card is the card-in-card the shared bare variant will fix)
+    if (this.mode === 'page') {
+      if (this.gone) return html`<sw-state-panel state="empty" icon="ticket" quiet heading=${tt('notFound')} data-ticket-state="gone"></sw-state-panel>`;
+      if (this.failed) {
+        return html`<sw-state-panel state="error" hint=${this.failed} actionLabel=${tt('retry')} data-ticket-state="error"
+          @action=${() => { this.failed = ''; void this.load(); }}></sw-state-panel>`;
+      }
+    }
     if (this.gone) return html`<div class="statebox glass" role="status" data-ticket-state="gone"><span class="ring">${tIcon('ticket')}</span><b>${tt('notFound')}</b></div>`;
     if (this.failed) return html`<div class="statebox glass" role="status" data-ticket-state="error"><span class="ring">${tIcon('warning')}</span><b>${this.failed}</b><button type="button" class="btn sm" @click=${() => { this.failed = ''; void this.load(); }}>${tIcon('refresh')}${tt('retry')}</button></div>`;
     // IA §5: a skeleton of the header + status block + three rows, never a spinner alone

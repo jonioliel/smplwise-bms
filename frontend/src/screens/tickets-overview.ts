@@ -26,6 +26,7 @@ import { LiveRefresh } from '../tickets/live-refresh';
 import { formatMoney } from '../tickets/cost-model';
 import { asHandledDays, HANDLED_DEFAULT, installationHandledDays, readStoredPeriod, storePeriod, type HandledDays } from '../tickets/handler-load';
 import { ot, type OverviewTextKey } from '../tickets/overview-text';
+import '../components/sw-state-panel';
 import {
   agenda, APPROVALS_SHOWN, approvalsTotal, dailyTotals, dayKey, daysOfPeriod, deptComparison, FOLD_STORAGE_KEY, foldedOf, handlerRows, kpiDeltas, lanes, METER_SEGMENTS,
   overdueRows, OVERDUE_SHOWN, overviewSettingsOf, packPages, filledSpans, parseKpiStore, paymentDates, paymentOverdueRows, paymentsTotal, payWhen, periodOfDays, rfqStageOf, rollKpis, serverPaymentDates, shortDay, signed, sortDepartments, splitVendors,
@@ -271,7 +272,9 @@ export class TicketsOverview extends LitElement {
     .rtbl .num { text-align: center; }
     .rtbl td.bad { color: var(--dv-danger); font-weight: 700; }
     .tl { display: inline-flex; align-items: center; gap: 5px; color: var(--dv-accent-text); font-weight: 600; text-decoration: none; min-block-size: 32px; }
-    .tl:hover { text-decoration: underline; }
+    @media (hover: hover) and (pointer: fine) {
+      .tl:hover { text-decoration: underline; }
+    }
     .dcards { display: none; }
     /* phase 3: how much was handled, opened vs closed, waiting for my approval, requests for quotation */
     .w > header .pseg { margin-inline-start: auto; flex: none; }
@@ -289,7 +292,7 @@ export class TicketsOverview extends LitElement {
     .bars .base { stroke: var(--dv-border); }
     .bars .lg { display: flex; gap: 14px; font-size: var(--sw-fs-xs); color: var(--dv-text-2); }
     .bars .lg span { display: inline-flex; align-items: center; gap: 5px; }
-    .bars .lg i { inline-size: 10px; block-size: 10px; border-radius: 3px; display: inline-block; }
+    .bars .lg i { inline-size: 10px; block-size: 10px; border-radius: var(--sw-r-2xs); display: inline-block; }
     .bars .lg i.o { background: var(--dv-accent); }
     .bars .lg i.c { background: var(--dv-success, var(--sw-success)); }
     .closedrows .cr .amt { font-weight: 700; color: var(--dv-text); white-space: nowrap; }
@@ -797,7 +800,7 @@ export class TicketsOverview extends LitElement {
   }
 
   private kpiRow(): TemplateResult {
-    if (this.screen === 'loading' || !this.data) return html`<div class="kpis" aria-busy="true">${Array.from({ length: 5 }, () => html`<span class="skl" style="block-size:76px;border-radius:14px"></span>`)}</div>`;
+    if (this.screen === 'loading' || !this.data) return html`<div class="kpis" aria-busy="true">${Array.from({ length: 5 }, () => html`<span class="skl" style="block-size:76px;border-radius:var(--sw-r-lg)"></span>`)}</div>`;
     const k = this.kpis();
     const deltas = kpiDeltas(k, this.yesterday);
     const truncated = this.data.truncated;
@@ -1137,8 +1140,15 @@ export class TicketsOverview extends LitElement {
     </div>`;
   }
 
-  private stateBox(icon: Parameters<typeof tIcon>[0], title: string, kind: string, action?: TemplateResult): TemplateResult {
-    return html`<div class="statebox glass" role="status" data-overview-state=${kind}><span class="ring">${tIcon(icon)}</span><b>${title}</b>${action ?? nothing}</div>`;
+  /** WP3 (POLISH-4): every non-ready state of the overview is the shared panel (it used to be a private box; the failure one had a bare
+   * retry button). The "empty" one carries its "new request" link in the panel's slot; the error one asks to try again. */
+  private stateBox(kind: 'off' | 'forbidden' | 'error' | 'empty', title: string, slot?: TemplateResult): TemplateResult {
+    if (kind === 'error') {
+      return html`<sw-state-panel state="error" heading=${title} actionLabel=${ot('retry')} data-overview-state="error" data-retry
+        @action=${() => { this.screen = 'loading'; this.data = null; void this.boot(); }}></sw-state-panel>`;
+    }
+    if (kind === 'forbidden') return html`<sw-state-panel state="forbidden" quiet heading=${title} data-overview-state="forbidden"></sw-state-panel>`;
+    return html`<sw-state-panel state="empty" icon="ticket" quiet heading=${title} data-overview-state=${kind}>${slot ?? nothing}</sw-state-panel>`;
   }
 
   private loadingGrid(): TemplateResult {
@@ -1188,16 +1198,16 @@ export class TicketsOverview extends LitElement {
       case 'loading':
         return html`${this.kpiRow()}${this.loadingGrid()}`;
       case 'off':
-        return this.stateBox('ticket', tt('moduleOff'), 'off');
+        return this.stateBox('off', tt('moduleOff'));
       case 'forbidden':
-        return this.stateBox('lock', ot('notManager'), 'forbidden');
+        return this.stateBox('forbidden', ot('notManager'));
       case 'error':
-        return this.stateBox('warning', ot('loadFailed'), 'error', html`<button type="button" class="btn sm" data-retry @click=${() => { this.screen = 'loading'; this.data = null; void this.boot(); }}>${tIcon('refresh')}${ot('retry')}</button>`);
+        return this.stateBox('error', ot('loadFailed'));
       default:
         break;
     }
     if (!ws) {
-      return this.stateBox('ticket', ot('emptyAll'), 'empty', this.meta?.can.create ? html`<a class="btn primary" href=${listHref('mine', NO_FILTERS, { create: true })} data-new>${tIcon('plus')}${ot('newTicket')}</a>` : undefined);
+      return this.stateBox('empty', ot('emptyAll'), this.meta?.can.create ? html`<a class="btn primary" href=${listHref('mine', NO_FILTERS, { create: true })} data-new>${tIcon('plus')}${ot('newTicket')}</a>` : undefined);
     }
     const top = ws.top ? html`<div class="wgrid top">${ws.top.make()}</div>` : nothing;
     if (!pages) {
