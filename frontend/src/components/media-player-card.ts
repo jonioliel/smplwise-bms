@@ -52,6 +52,8 @@ export class MediaPlayerCard extends LitElement {
   private timers: number[] = [];
   private ticker = 0;
   private detailKey = '';
+  /** POLISH4-WP1: the width of the page's edit chips (slot `edit`), kept in --mm-edit-w. */
+  private editRo: ResizeObserver | null = null;
 
   static styles = [mediaGlassStyles, css`
     :host {
@@ -131,6 +133,11 @@ export class MediaPlayerCard extends LitElement {
     }
     .edit-slot ::slotted(*) {
       pointer-events: auto;
+    }
+    /* POLISH4-WP1 (MEDIA-POLISH-2331 5.2): while editing, the text column keeps clear of the edit chips (measured into --mm-edit-w by
+       the edit slot), so a long name ("רמקול חדר אורחים") ends in an ellipsis before the chips instead of running under them */
+    :host([editing]) .tx {
+      padding-inline-end: var(--mm-edit-w, 0px);
     }
     :host([data-dimmed]) .pcard {
       opacity: 0.45;
@@ -659,7 +666,26 @@ export class MediaPlayerCard extends LitElement {
     this.timers = [];
     window.clearInterval(this.ticker);
     this.ticker = 0;
+    this.editRo?.disconnect();
+    this.editRo = null;
   }
+
+  /** POLISH4-WP1: measure what the page put into the `edit` slot (its chips), so the text column can keep clear of it. */
+  private onEditSlot = (e: Event) => {
+    const el = (e.target as HTMLSlotElement).assignedElements({ flatten: true })[0] as HTMLElement | undefined;
+    this.editRo?.disconnect();
+    this.editRo = null;
+    if (!el || typeof ResizeObserver === 'undefined') {
+      this.style.removeProperty('--mm-edit-w');
+      return;
+    }
+    this.editRo = new ResizeObserver(() => {
+      const w = Math.ceil(el.getBoundingClientRect().width);
+      if (w > 0) this.style.setProperty('--mm-edit-w', `${w}px`);
+      else this.style.removeProperty('--mm-edit-w');
+    });
+    this.editRo.observe(el);
+  };
 
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('device') && this.device) {
@@ -908,7 +934,7 @@ export class MediaPlayerCard extends LitElement {
       const chipEl = chip ? html`<span class=${classMap({ gchip: true, warn: chip.kind === 'conflict' })}>${mIcon(chip.kind === 'conflict' ? 'warning' : 'group')}${chip.text}</span>` : nothing;
       const morph = this.volOpen && d.can.control && d.caps.volume_set && v.kind !== 'off';
       return html`<article class=${classMap({ pcard: true, glass: true, lit, paused: v.paused, un: v.kind === 'un', morph })} aria-label=${d.name} data-device=${d.key} data-kind=${d.kind} data-state=${v.kind} data-group-role=${d.live.group.role} data-leader=${leaderName(d, lead) ?? ''}>
-        <div class="edit-slot"><slot name="edit"></slot></div>
+        <div class="edit-slot"><slot name="edit" @slotchange=${this.onEditSlot}></slot></div>
         ${morph ? this.bubbleSlider(d, v) : html`${this.cover(d, v)}<div class="tx"><b>${nameText(d.name)}</b><span class="st">${sub}${chipEl}</span></div>${this.editing ? nothing : this.bubbleKeys(d, v)}`}
         ${this.sourceMenu(d)}
       </article>`;
@@ -922,7 +948,7 @@ export class MediaPlayerCard extends LitElement {
     const name = leaderName(d, lead);
     return html`<article class=${classMap({ pcard: true, glass: true, lit, paused: v.paused, un: v.kind === 'un' })} style=${lit ? `--art:${v.rgb}` : ''} aria-label=${d.name} data-device=${d.key} data-kind=${d.kind} data-state=${v.kind} data-group-role=${d.live.group.role} data-leader=${name ?? ''}>
       <span class="gbox" aria-hidden="true">${lit ? this.art(v) : nothing}</span>
-      <div class="edit-slot"><slot name="edit"></slot></div>
+      <div class="edit-slot"><slot name="edit" @slotchange=${this.onEditSlot}></slot></div>
       ${this.cover(d, v)}
       <div class="tx"><b>${nameText(d.name)}</b><span class="st">${sub}${chipEl}</span>${now}</div>
       ${this.editing ? nothing : this.mainKey(d, v)}

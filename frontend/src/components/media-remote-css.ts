@@ -187,6 +187,16 @@ export const remoteStyles = css`
     color: var(--mr-text);
     padding-block-end: 6px;
   }
+  /* POLISH4-WP1 (MEDIA-POLISH-2331 5.3): while the layout editor is open its "ביטול / שמירה" bar sticks to the top of the drawer's
+     scroll box. A sticky box stops at the scroll box's padding edge, so the body's top padding left a strip where the rows scrolled
+     past ABOVE the bar. Editing, the body has no top padding and the editor carries the same space itself: at rest nothing moves,
+     scrolled the bar meets the top edge and nothing shows above it. */
+  sw-drawer[data-editing]::part(body) {
+    padding-block-start: 0;
+  }
+  .r[data-mr-state='editing'] {
+    padding-block-start: 14px;
+  }
   .r svg.ic {
     inline-size: 1em;
     block-size: 1em;
