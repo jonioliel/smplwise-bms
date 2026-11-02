@@ -8,6 +8,8 @@ import { CAL_EVENTS, emit, type CalCtx, type NewEventDetail } from './ctx';
 import { STATE_LABEL, addDays, colorVar, ddmm, hm, isoDate, pad, startOfDay, whenText } from './model';
 import { calCss } from './styles';
 import { BEHALF_LABEL, localInstant, repeatSummary, rruleOf, type Repeat } from './booking-logic';
+import './attendees-section'; // CAL-ATTENDEES-2343: the "מוזמנים" section (self-contained; reads / writes its own API)
+import type { CalAttendeesSection } from './attendees-section';
 
 /**
  * CALENDARS-UI-2310 slice A: the new / edit booking drawer (the approved round-8 mock-up, screen 4). Permission-aware: an operator books for
@@ -205,6 +207,8 @@ export class CalEventDrawer extends LitElement {
     const hc = parseInt(this.headcount, 10);
     if (hc > 0) out.headcount = hc;
     if (this.guestsOffered() && (this.guestName.trim() || this.guestPhone.trim())) out.guests = [{ name: this.guestName.trim(), phone: this.guestPhone.trim() }];
+    const attendees = (this.renderRoot.querySelector('cal-attendees-section') as CalAttendeesSection | null)?.payload() ?? []; // CAL-ATTENDEES-2343
+    if (attendees.length) Object.assign(out, { attendees });
     return out;
   }
 
@@ -308,6 +312,7 @@ export class CalEventDrawer extends LitElement {
           ${ev.headcount ? html`<dt>משתתפים</dt><dd class="num">${ev.headcount}</dd>` : nothing}
           ${ev.notes ? html`<dt>הערות</dt><dd>${ev.notes}</dd>` : nothing}
         </dl>
+        <cal-attendees-section .eventId=${ev.id}></cal-attendees-section>
         ${ev.sync_flag ? html`<div class="note bad" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>מסומן להחלטה</b><span class="muted">${ev.sync_flag === 'conflict' ? 'התנגשות עם יומן חיצוני: שתי ההזמנות נשמרו. ההחלטה בהגדרות ‹ חיבורי יומן.' : 'האירוע נמחק ביומן החיצוני.'}</span></div></div>` : nothing}
         ${ev.state === 'displaced' ? html`<div class="note warn" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>ההזמנה נדחקה בגלל תחזוקה</b><span class="muted">היא לא נמחקה. אפשר לבחור מועד אחר ולבטל אותה.</span></div></div>` : nothing}
         ${this.confirmCancel ? html`<div class="note warn" role="alert"><sw-icon name="warning" size="18"></sw-icon><div><b>${canWithdraw ? 'למשוך את הבקשה?' : 'לבטל את ההזמנה?'}</b><span class="muted">${ev.recurring ? 'הביטול חל על כל הסדרה.' : 'המועד יתפנה לאחרים.'}</span></div></div>` : nothing}`
@@ -397,6 +402,7 @@ export class CalEventDrawer extends LitElement {
             <div class="ctls"><input class="inp" maxlength="80" aria-label="שם האורח" placeholder="שם" data-cal-field="guest-name" .value=${this.guestName} @input=${(e: Event) => (this.guestName = (e.target as HTMLInputElement).value)}>
               <input class="inp num ltr" type="tel" inputmode="tel" maxlength="20" aria-label="טלפון האורח" placeholder="050-000-0000" data-cal-field="guest-phone" .value=${this.guestPhone} @input=${(e: Event) => (this.guestPhone = (e.target as HTMLInputElement).value)}></div>
             <span class="hint" data-cal-retention><sw-icon name="clock" size="14"></sw-icon><span>${this.retention === null ? 'השם והטלפון יימחקו אחרי המועד האחרון, לפי הגדרות השמירה.' : this.retention === 0 ? 'השם והטלפון יימחקו בסיום המועד האחרון.' : html`השם והטלפון יימחקו <span class="num">${this.retention}</span> יום אחרי המועד האחרון.`}${this.behalfLabel.trim() ? ` התווית "${this.behalfLabel.trim()}" נשארת.` : ''}</span></span></div></div>` : nothing}
+        <cal-attendees-section></cal-attendees-section>
         ${toApproval ? html`<div class="note" role="note" data-cal-approval-note><sw-icon name="info" size="18"></sw-icon><div><b>הבקשה תישלח לאישור</b>
           <span class="muted">${conflicts.length ? 'המועד חופף להזמנה שכבר אושרה; הבקשה תיכנס לתור והמנהל יחליט. ' : ''}${cal?.owner.name ? `${cal.owner.name}, מנהל/ת היומן, ת/יקבל התראה. ` : ''}בקשה לא שומרת את המועד: מי שמאושר ראשון מקבל אותו.</span></div></div>` : nothing}
         ${this.error ? html`<div class="err" role="alert" data-cal-error>${this.error}</div>` : nothing}
