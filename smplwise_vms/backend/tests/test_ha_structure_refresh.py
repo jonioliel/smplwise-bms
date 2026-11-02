@@ -441,14 +441,14 @@ def test_a_timed_out_manual_refresh_keeps_the_lock_until_its_write_is_done(app_s
     guard = threading.Lock()
     real_structure = ha_sync.apply_structure
 
-    def slow_structure(conn, areas, floors):
+    def slow_structure(conn, areas, floors, labels=None):
         with guard:
             active["now"] += 1
             active["max"] = max(active["max"], active["now"])
             active["writes"] += 1
         try:
             time.sleep(0.6)
-            real_structure(conn, areas, floors)
+            real_structure(conn, areas, floors, labels)
         finally:
             with guard:
                 active["now"] -= 1
