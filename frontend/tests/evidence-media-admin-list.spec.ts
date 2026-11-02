@@ -81,7 +81,7 @@ test.describe('settings lists: filter, sort, group, copy, remember (mocked backe
     const first = chips.first();
     await first.click();
     // GATE2360-B: count() does not wait for the redraw a click starts; the toolbar's own "n מתוך total" is the signal it landed
-    await expect(list.locator('[data-mm-shown]')).toHaveText(new RegExp(`^\d+ מתוך ${total}$`));
+    await expect(list.locator('[data-mm-shown]')).toHaveText(new RegExp(`^[0-9]+ מתוך ${total}$`));
     const n1 = await shown(list).count();
     expect(n1).toBeLessThan(total);
     await expect(list.locator('[data-mm-shown]')).toHaveText(`${n1} מתוך ${total}`);
