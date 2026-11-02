@@ -21,6 +21,9 @@ export interface MItem {
   user_message: string | null;
   /** CR-020 phase D: the item's planned `{field: [from, to]}` (an encoding batch). */
   fields?: Record<string, [unknown, unknown]>;
+  /** CAM-H264-VERIFY-2361: the item's verification (`{outcome, label, detail, ...}`) and whether the batch stepped over it (answered as is). */
+  verify?: Record<string, unknown> | null;
+  skipped?: boolean;
 }
 
 export interface MBatch {
@@ -34,6 +37,8 @@ export interface MBatch {
   /** rollback batches: the batch they undo (the server's `source_batch_id`) */
   source_batch_id: string | null;
   stopped_reason: string | null;
+  /** CAM-H264-VERIFY-2361: extra fields of the status body (`on_refusal`, `skipped`, `verify`, `created_at`...), merged over the base view. */
+  extra?: Record<string, unknown>;
 }
 
 export interface BatchMock {
@@ -61,6 +66,10 @@ export interface BatchMock {
   encodingStarts: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
   /** CR-020 phase D: `camera_id:stream_ref` -> a skip reason code the preview answers for that stream */
   encSkip: Record<string, string>;
+  /** CAM-H264-VERIFY-2361: the installation's default the preview answers (`on_refusal`); undefined = an older server that names none */
+  onRefusal?: 'skip' | 'stop';
+  /** CAM-H264-VERIFY-2361: what a re-check (POST /nvr/stream-batches/{id}/verify) does to the batch; absent = 409 nothing_to_verify */
+  recheck?: (b: MBatch) => void;
 }
 
 export const newBatchMock = (): BatchMock => ({ batches: [], seq: 0, gate: true, activeShape: 'batches', startFault: null, undoFault: null, calls: [], refusedSingles: [], getDown: false, pageMax: 500, pages: [], encodingStarts: [], encSkip: {} });
@@ -185,7 +194,7 @@ const view = (b: MBatch, offset = 0, limit = 500, withItems = true) => {
     batch_id: b.batch_id, kind: b.kind, state: b.state, recorder_id: 'nvr-1', total: b.items.length, done: b.items.filter((i) => ['applied', 'unchanged', 'rolled_back'].includes(i.status)).length,
     current_index: cur < 0 ? null : cur, counts: counts(b), hidden: 0, offset, limit, next_offset: next, ...(page ? { items: clone(page) } : {}),
     created_at: '2026-10-03T09:00:00Z', started_by: 'joni', stopped_at: null, stopped_reason: b.stopped_reason, source_batch_id: b.source_batch_id, can_rollback: canRollback(b),
-    mode: b.mode ?? 'svc', settings: b.settings ?? null,
+    mode: b.mode ?? 'svc', settings: b.settings ?? null, ...(b.extra ?? {}),
   };
 };
 
@@ -398,7 +407,7 @@ export async function installBatch(page: Page, st: Mock, bm: BatchMock): Promise
       const b = d.start(targets.map((t) => t.camera_id));
       return json(view(b), 202);
     }
-    if (p === 'nvr/encoding-batches/preview' && method === 'POST') return json(planEncoding(st, bm, body));
+    if (p === 'nvr/encoding-batches/preview' && method === 'POST') return json({ ...planEncoding(st, bm, body), ...(bm.onRefusal ? { on_refusal: bm.onRefusal } : {}) });
     if (p === 'nvr/encoding-batches' && method === 'POST') {
       if (body?.confirm !== true) return json(err('confirm_required', 'נדרש אישור.'), 422);
       const fault = bm.startFault;
@@ -425,6 +434,14 @@ export async function installBatch(page: Page, st: Mock, bm: BatchMock): Promise
       const limit = Math.max(1, Math.min(Number(url.searchParams.get('limit') ?? 200), bm.pageMax));
       bm.pages.push(`${offset},${limit}`);
       return b ? json(view(b, offset, limit)) : json(err('not_found', 'השינוי לא נמצא.'), 404);
+    }
+    m = /^nvr\/stream-batches\/([^/]+)\/verify$/.exec(p);
+    if (m && method === 'POST') {
+      const b = bm.batches.find((x) => x.batch_id === m![1]);
+      if (!b) return json(err('not_found', 'השינוי לא נמצא.'), 404);
+      if (!bm.recheck) return json(err('nothing_to_verify', 'אין מה לבדוק שוב.'), 409);
+      bm.recheck(b);
+      return json(view(b), 202);
     }
     m = /^nvr\/stream-batches\/([^/]+)\/stop$/.exec(p);
     if (m && method === 'POST') {

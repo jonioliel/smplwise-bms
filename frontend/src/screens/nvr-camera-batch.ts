@@ -18,6 +18,7 @@ import {
   clearSelection,
   filterCandidates,
   focusIndex,
+  isEncoding,
   isTerminal,
   isUnsettled,
   itemLine,
@@ -594,6 +595,9 @@ export class NvrCameraBatch extends LitElement {
 
   private finished(b: Batch) {
     this.emit('batch-refresh');
+    // CAM-H264-VERIFY-2361: an encoding change (or its undo) ended in front of the person - its verification report opens (it fills in as the
+    // server checks every stream); a stop or a failure keeps the progress dialog, whose "דוח בדיקה" opens it
+    if (isEncoding(b) && b.state === 'completed') this.emit('verify-report', { batchId: b.batch_id });
     if (b.state === 'completed') {
       // finished in front of the person: the toast tells it (with the undo for a write); the dialog gets out of the way
       this.phase = 'closed';
@@ -717,7 +721,7 @@ export class NvrCameraBatch extends LitElement {
     if (!sourceId) return;
     const names = (b.items ?? []).filter((i) => (b.kind === 'rollback' ? toneOf(i) !== 'ok' : i.status === 'applied')).map(this.nameOf);
     this.line = '';
-    this.confirmFor = { model: undoConfirmModel(names, b.mode), run: () => void this.runUndo(sourceId) };
+    this.confirmFor = { model: undoConfirmModel(names, b.mode, b.on_refusal), run: () => void this.runUndo(sourceId) };
     this.phase = 'undo-confirm';
   }
 
@@ -884,6 +888,7 @@ export class NvrCameraBatch extends LitElement {
       ${v.canStop ? html`<sw-button slot="footer" variant="danger" data-nvr-batch-stop @click=${() => void this.stop()}>עצור</sw-button>` : nothing}
       ${v.showUndo ? html`<sw-button slot="footer" data-nvr-batch-undo ?disabled=${!v.canUndo} title=${v.canUndo ? '' : 'לא ברור אם בוצע. נבדק מול ה־NVR.'} @click=${() => this.askUndo()}>${undoLabel(b.mode)}</sw-button>` : nothing}
       ${v.showRetry ? html`<sw-button slot="footer" data-nvr-batch-retry @click=${() => this.askUndo()}>נסה שוב</sw-button>` : nothing}
+      ${isEncoding(b) && isTerminal(b.state) ? html`<sw-button slot="footer" data-nvr-batch-report @click=${() => this.emit('verify-report', { batchId: b.batch_id })}>דוח בדיקה</sw-button>` : nothing}
       ${isTerminal(b.state) ? html`<sw-button slot="footer" variant="primary" data-nvr-batch-close @click=${() => this.closeDialog()}>סגור</sw-button>` : nothing}
     </sw-dialog>`;
   }

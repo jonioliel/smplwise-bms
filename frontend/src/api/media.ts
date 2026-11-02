@@ -71,6 +71,8 @@ export interface ProductSettings {
   'media.h265_max_transcodes'?: number;
   /** NVRMASK-295: privacy-mask preview / write to the NVR; off by default. */
   'nvr.privacy_mask_write'?: 'true' | 'false';
+  /** CAM-H264-VERIFY-2361: a bulk encoding change whose stream the NVR refuses - skip it and continue (default) | stop the whole change. */
+  'nvr.batch_on_refusal'?: 'skip' | 'stop';
   'snapshots.max_age_s': number;
   'plan.estimates'?: 'true' | 'false';
   /** Default levels view on every map (0.1.89): 'all' shows every level together, 'default' opens on the floor's

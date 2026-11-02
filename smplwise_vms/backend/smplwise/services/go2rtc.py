@@ -244,6 +244,32 @@ class Go2rtc:
             out[name] = StreamInfo(name=name, sources=sources, online=online, video_codec=producer_video_codec(producers))
         return out
 
+    def probe_video_codec(self, name: str, timeout_s: float = 12.0) -> tuple[bool, str | None]:
+        """CAM-H264-VERIFY-2361: what one of OUR streams really carries now - `(known, codec)`. Read-only: `GET /api/streams?src=<name>&video=all`
+        is go2rtc's stream probe (a short-lived probe consumer: go2rtc connects the stream's producer, i.e. opens the recorder's RTSP session for that
+        channel for about a second, answers the stream with its producers' receivers, and removes the consumer). Only a NAME is sent - never a
+        source - and a plain name is only ever looked up, so nothing can be created, re-pointed or deleted. `known` False: go2rtc does not hold the
+        stream (404). The codec is None when no producer reported one (a go2rtc without the probe answers the plain stream JSON)."""
+        if not name.startswith(STREAM_PREFIX) or name.startswith(HA_STREAM_PREFIX) or not NAME_RE.match(name):
+            raise ValueError("refusing to probe a stream outside the smplwise_ namespace")
+        try:
+            with httpx.Client(base_url=self.base, auth=self.auth, timeout=timeout_s, verify=_verify()) as c:
+                r = c.get("/api/streams", params={"src": name, "video": "all"})
+        except httpx.HTTPError as exc:
+            raise self._wrap(exc, "probe") from exc
+        if r.status_code == 404:
+            return False, None
+        if r.status_code != 200:
+            raise ApiError(503, "media_error", "go2rtc החזיר שגיאה.", details={"status": r.status_code})
+        try:
+            data = r.json() or {}
+        except ValueError:
+            return True, None
+        if isinstance(data, dict) and name in data and isinstance(data[name], dict) and "producers" not in data:
+            data = data[name]  # an older go2rtc may answer `{name: {...}}`
+        producers = data.get("producers") if isinstance(data, dict) else None
+        return True, producer_video_codec(producers if isinstance(producers, list) else [])
+
     def ensure_stream(self, name: str, src: str, check: Callable[[dict[str, StreamInfo]], None] | None = None) -> str:
         """Create or update one of our streams. Returns 'unchanged' | 'created' | 'updated'. `check` (optional) is called with the
         stream listing this call fetches anyway, before anything is written; it raises to refuse the write."""
