@@ -82,7 +82,9 @@ def area_presence_line(area_id: str, request: Request, principal: Principal = De
     """AREA-PRESENCE-LINE-2351: who / how many are in one area now, for the area screen's presence line.
 
     presence.building.view or presence.view anywhere; each part only with its own permission. `line: false` while the administrator has not switched the line on (nothing is read
-    then). Names only under the people `show_names` setting; the people part is audited like GET presence/people (throttled, counts only)."""
+    then). Names only under the people `show_names` setting; the people part is audited like GET presence/people (throttled, counts only).
+    Owner 02.11 (round 14): presence.building.view without presence.view gets the people part as an anonymous count only
+    (`{count, names: null, more: 0, anonymous: true}`, services/area_presence.py) - never a name or any per-person field."""
     if len(area_id) > 120:
         raise validation("אזור לא תקין.", field="area_id")
     db = request.app.state.db
@@ -98,7 +100,7 @@ def area_presence_line(area_id: str, request: Request, principal: Principal = De
             with db.write_aside() as w:  # counts only, never a name (as GET presence/people)
                 audit(w, actor=principal, action="presence.people.view", decision="allowed", resource_type="area", resource_id=area_id, request_id=_rid(request),
                       details={"inside": view["totals"]["inside"], "named": view["totals"]["named"], "hidden": view["totals"]["hidden"], "enabled": view["enabled"],
-                               "area": (out["people"] or {}).get("count", 0)})
+                               "area": (out["people"] or {}).get("count", 0), "anonymous": bool((out["people"] or {}).get("anonymous"))})
         return out
 
 

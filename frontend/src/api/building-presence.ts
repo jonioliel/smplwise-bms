@@ -66,13 +66,14 @@ export interface CandidateList { sensors: PresenceCandidate[]; rooms?: PresenceR
 export interface PresenceHistorySummary { rows: number; oldest: string | null; retention_days: number; enabled: boolean }
 
 /** AREA-PRESENCE-LINE-2351: GET presence/area/{id}. `line` false = the administrator has not switched the line on (nothing was read).
- * `sensors` only with presence.building.view and a tagged sensor in the room; `people` only with presence.view and a plan room linked to the
- * area - `names` null = counts only (the people `show_names` setting is off). */
+ * `sensors` only with presence.building.view and a tagged sensor in the room; `people` only with a plan room linked to the area - with
+ * presence.view the people (`names` null = counts only: the people `show_names` setting is off); owner 02.11 (round 14): with
+ * presence.building.view WITHOUT presence.view an anonymous count, decided by the server (`anonymous: true`, `names` always null). */
 export interface AreaPresence {
   area_id: string;
   line: boolean;
   sensors: { status: OccupancyStatus; empty_since: string | null; sensors: number } | null;
-  people: { count: number; names: string[] | null; more: number } | null;
+  people: { count: number; names: string[] | null; more: number; anonymous?: boolean } | null;
 }
 
 export const HOLD_RANGE = { min: 0, max: 3600 } as const;

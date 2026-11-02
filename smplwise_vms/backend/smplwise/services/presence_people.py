@@ -152,8 +152,12 @@ def place_device(conn: sqlite3.Connection, d: sqlite3.Row, st: dict[str, Any], n
     return max(found, key=lambda f: (_PRECISION[f["source"]], f["at"]))
 
 
-def people_view(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
-    """The screen's whole answer (GET presence/people)."""
+def people_view(conn: sqlite3.Connection, principal: Principal, perm: str = VIEW, with_names: bool = True) -> dict[str, Any]:
+    """The screen's whole answer (GET presence/people).
+
+    AREA-PRESENCE-LINE-2351 (owner 02.11, round 14): the area line's anonymous count reuses this placement for a holder of
+    presence.building.view without presence.view - `perm` is then the permission whose scope decides which floors count (the same
+    installation / floor rule), and `with_names=False` never builds the per-person list (no name, no user id leaves this function)."""
     st = P.load_settings(conn)
     ps = st["people"]
     now = P.now_utc()
@@ -163,7 +167,7 @@ def people_view(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any
         "settings": {k: ps[k] for k in ("show_names", "refresh_seconds", "stale_minutes", "beacon_max_age_minutes", "wifi_max_age_minutes", "min_proximity")},
         "people": [], "floors": [], "sites": [], "totals": {"inside": 0, "named": 0, "hidden": 0, "on_floors": 0, "site_only": 0},
     }
-    install_view = authorize(conn, principal, VIEW, INSTALLATION).allowed
+    install_view = authorize(conn, principal, perm, INSTALLATION).allowed
     floor_rows = conn.execute(
         "SELECT f.id, f.name, f.level, f.sort_order, b.name AS building_name, b.sort_order AS b_order FROM floors f JOIN buildings b ON b.id = f.building_id"
         " WHERE f.deleted_at IS NULL AND b.deleted_at IS NULL ORDER BY b.sort_order, b.name, f.level DESC, f.sort_order"
@@ -172,7 +176,7 @@ def people_view(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any
 
     def floor_ok(fid: str) -> bool:
         if fid not in visible_floor:
-            visible_floor[fid] = install_view or authorize(conn, principal, VIEW, ("floor", fid)).allowed
+            visible_floor[fid] = install_view or authorize(conn, principal, perm, ("floor", fid)).allowed
         return visible_floor[fid]
 
     floors = {r["id"]: r for r in floor_rows if floor_ok(r["id"])}
@@ -225,7 +229,7 @@ def people_view(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any
             totals["site_only"] += 1
             sid = str(place["site_id"] or "")
             site_count[sid] = site_count.get(sid, 0) + 1
-        if ps["show_names"]:
+        if ps["show_names"] and with_names:
             fr = floors.get(fid) if fid else None
             people.append({
                 "user_id": uid, "name": names.get(uid) or uid, "source": place["source"], "at": place["at"],
