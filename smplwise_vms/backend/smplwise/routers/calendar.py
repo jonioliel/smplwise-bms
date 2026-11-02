@@ -340,8 +340,27 @@ def get_event(eid: str, principal: Principal = Depends(current_principal_ro), co
 def patch_event(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
-        out = events.update(ctx, model.read_settings(conn), eid, _body(body), _now())
-        _audit(conn, principal, request, "calendar.event.update", "calendar_event", eid, scope=_body(body).get("scope", "series"))
+        data = _body(body)
+        before = conn.execute("SELECT calendar_id, starts_at, ends_at, state FROM cal_events WHERE id = ?", (eid,)).fetchone()
+        out = events.update(ctx, model.read_settings(conn), eid, data, _now())
+        ev = out["event"]
+        # CAL-GRID-EDIT-2343: a move / resize from the grid is audited with what changed (ids and instants, never a title)
+        moved = bool(before and (before["starts_at"], before["ends_at"], before["calendar_id"]) != (ev["start"], ev["end"], ev["calendar_id"]))
+        extra: dict[str, Any] = {"moved": moved, "state": ev["state"]}
+        if moved and before:
+            extra |= {"from": [before["calendar_id"], before["starts_at"], before["ends_at"]], "to": [ev["calendar_id"], ev["start"], ev["end"]],
+                      "held": bool(ev.get("held")), "change_withdrawn": bool(out.get("change_withdrawn"))}
+        _audit(conn, principal, request, "calendar.event.update", "calendar_event", eid, scope=data.get("scope", "series"), **extra)
+        return out
+
+
+@router.post("/calendar/events/{eid}/restore")
+def restore_event(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CAL-GRID-EDIT-2343: the grid's "בטל" after a delete (a single entry, inside the undo window)."""
+    ctx = _ctx(request, conn, principal)
+    with _errors(conn, principal, request):
+        out = events.restore(ctx, model.read_settings(conn), eid, _body(body), _now())
+        _audit(conn, principal, request, "calendar.event.restore", "calendar_event", eid, state=out["state"])
         return out
 
 

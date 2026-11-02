@@ -60,7 +60,16 @@ def serialize(conn: sqlite3.Connection, cal: sqlite3.Row, role: str | None) -> d
         "min_minutes": cal["min_minutes"], "max_minutes": cal["max_minutes"], "lead_min": cal["lead_min"], "horizon_days": cal["horizon_days"],
         "hours_mode": cal["hours_mode"], "hours_json": json.loads(cal["hours_json"]) if cal["hours_json"] else None, "holiday_rule": cal["holiday_rule"],
         "overlap_override": cal["overlap_override"], "sync": sync_of(conn, cal), "pending_count": pending, "archived": bool(cal["archived_at"]), "revision": cal["revision"],
+        # CAL-GRID-EDIT-2343: what the grid's hints need (the server re-checks every rule): the per-calendar move rule and the open hours in force
+        "approved_move": cal["approved_move"], "open_hours": _open_hours(conn, cal),
     }
+
+
+def _open_hours(conn: sqlite3.Connection, cal: sqlite3.Row) -> dict[str, Any] | None:
+    """The calendar's hours in force ({weekdays, start, end}; None = always open): its own, or the installation's default hours."""
+    from .occ import hours_of  # noqa: PLC0415 - occ imports this module's neighbours
+
+    return hours_of(cal, model.read_settings(conn))
 
 
 def listing(ctx: Ctx, *, type_: str | None = None, include_archived: bool = False) -> list[dict[str, Any]]:
@@ -100,7 +109,7 @@ def create(ctx: Ctx, body: dict[str, Any], settings: dict[str, Any]) -> sqlite3.
         "lead_min": vals.get("lead_min", 0), "horizon_days": vals.get("horizon_days", 180), "hours_mode": vals.get("hours_mode", "always"),
         "hours_json": vals.get("hours_json"), "holiday_rule": vals.get("holiday_rule", "warn"), "approval_mode": vals.get("approval_mode", "none"),
         "approval_timeout_h": vals.get("approval_timeout_h", settings["default_approval_timeout_h"]), "overlap_override": vals.get("overlap_override"),
-        "visibility": vals.get("visibility", "members"), "created_by": p.user_id, "created_at": now, "updated_at": now,
+        "visibility": vals.get("visibility", "members"), "approved_move": vals.get("approved_move", "reapproval"), "created_by": p.user_id, "created_at": now, "updated_at": now,
     }
     cols = ", ".join(row)
     conn.execute(f"INSERT INTO cal_calendars({cols}) VALUES ({', '.join('?' * len(row))})", list(row.values()))
