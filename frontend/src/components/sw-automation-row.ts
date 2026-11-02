@@ -205,7 +205,10 @@ export class AutomationRow extends LitElement {
         column-gap: var(--sw-s-2);
         row-gap: 2px;
         padding-inline: var(--sw-s-3);
-        padding-block: var(--sw-s-2);
+        /* the two lines (24 + 2 + 20 px) sit centred in the 56 px row with no block padding: padding grew every phone row to 62 px and
+           seven rows plus the pager scrolled the phone by 18-24 px (POLISH2-295 contract: 7 rows and the pager fit, no scroll) */
+        padding-block: 0;
+        align-content: center;
         min-block-size: 56px;
       }
       .ar > .sent {

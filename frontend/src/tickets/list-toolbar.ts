@@ -75,8 +75,17 @@ export class FilterPanelController implements ReactiveController {
   }
   hostUpdated(): void {
     const open = this.isOpen();
+    if (open) this.placeSheet();
     if (open && !this.wasOpen) this.panel()?.querySelector<HTMLElement>('button:not([disabled]), select, input')?.focus({ preventScroll: true });
     this.wasOpen = open;
+  }
+  /** On a phone the panel is a fixed bottom sheet: its top stays under the toolbar (re-measured on every update, the chips row comes and goes). */
+  private placeSheet(): void {
+    const p = this.panel();
+    const t = this.toggle();
+    if (!p || !t || getComputedStyle(p).position !== 'fixed') return;
+    const bar = t.closest<HTMLElement>('[data-toolbar], .tb') ?? t;
+    p.style.setProperty('--fpop-top', `${Math.ceil(bar.getBoundingClientRect().bottom + 8)}px`);
   }
   private root(): ShadowRoot | null {
     return this.host.shadowRoot;
@@ -319,6 +328,10 @@ export const ticketToolbarStyles = css`
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+  /* inside the panel the old filter row is a plain stack, not a bubble: no rounded corner for the guard to find text in */
+  .fpop .frow {
+    border-radius: 0;
+  }
   .fpop .frow select {
     inline-size: min(100%, 280px);
     max-inline-size: none;
@@ -399,7 +412,9 @@ export const ticketToolbarStyles = css`
       inset-block: auto var(--sw-bottomnav-h);
       inset-inline: 0;
       inline-size: auto;
-      max-block-size: calc(100dvh - var(--sw-bottomnav-h) - 96px);
+      /* the sheet stops under the toolbar (--fpop-top, measured by FilterPanelController): the scope, "סינון" and the active chips stay
+         reachable while it is open (a sheet over the toolbar swallowed their taps) */
+      max-block-size: max(160px, calc(100dvh - var(--sw-bottomnav-h) - var(--fpop-top, 96px)));
       padding: 18px 16px 14px;
       border-radius: var(--sw-r-2xl) var(--sw-r-2xl) 0 0;
       border-block-end: 0;

@@ -246,6 +246,19 @@ export class TicketsBoard extends LitElement {
       .layout.with-tree {
         grid-template-columns: 240px minmax(0, 1fr);
       }
+      /* a portrait tablet: "סינון" and "+ חדשה" are icon buttons (their names stay in aria-label), and the toolbar may take a second line
+         rather than run past the screen's edge (the layout guard found both labels cut by the board at 768) */
+      .tb .filterbtn .lbl,
+      .dh-row .pact .newbtn .lbl {
+        display: none;
+      }
+      .dh-row .pact .newbtn {
+        min-inline-size: 44px;
+        justify-content: center;
+      }
+      .dh-det.tb {
+        flex-wrap: wrap;
+      }
     }
     @media (max-width: 767px) {
       .dh-row {
