@@ -1,5 +1,17 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.35.0 (pilot) - Outlook-style calendar editing, named attendees, faster database access
+**After installing:** two database migrations (0190 calendar attendees, 0191 calendar grid edit). Going back to 2.34.2 needs the database backup taken before the update. New settings keep today's behaviour where it matters: attendees can be switched off; editing by dragging can be limited to "create only".
+- **עברית:** אחרי ההתקנה: שתי מיגרציות של מסד הנתונים (0190 משתתפים ביומן, 0191 עריכה ביומן). חזרה ל-2.34.2 מחייבת את גיבוי מסד הנתונים שנלקח לפני העדכון. ההגדרות החדשות שומרות על ההתנהגות הקיימת היכן שזה חשוב: אפשר לכבות משתתפים, ואפשר להגביל עריכה בגרירה ל"יצירה בלבד".
+
+### What was added - מה נוסף
+- **English:** Calendars, Outlook-style: drag across free time to create (quick-create popover, Enter saves), drag an event to move it, drag its edge to resize, peek card on click, full editing in the drawer by permission, keyboard support, long-press on phones and tablets, undo after move/resize/delete (the cancel notice waits a few seconds so undo never sends cancelled-then-booked). Moving an approved booking in an approval room becomes a request with the old slot held (per-calendar setting).
+- **עברית:** יומנים בסגנון Outlook: גרירה על זמן פנוי יוצרת אירוע (חלון יצירה מהירה, Enter שומר), גרירת אירוע מזיזה אותו, משיכת הקצה משנה אורך, כרטיס מהיר בלחיצה, עריכה מלאה בחלון לפי הרשאה, מקלדת, לחיצה ארוכה בטלפון ובטאבלט, ו"בטל" אחרי הזזה / שינוי אורך / מחיקה (הודעת הביטול ממתינה כמה שניות כדי ש"בטל" לא ישלח בוטל-ואז-הוזמן). הזזת הזמנה מאושרת בחדר שדורש אישור הופכת לבקשה והמקום הישן נשמר (הגדרה לכל יומן).
+- **English:** Named attendees: Arx users, residents and external guests (name + phone or email, stored encrypted); in-app notices, guest notices on the configured messaging channel; RSVP; privacy (viewers see the count only); attendee settings per installation and per calendar.
+- **עברית:** משתתפים בשם: משתמשי Arx, דיירים ואורחים חיצוניים (שם וטלפון או מייל, נשמרים מוצפנים); התראות בתוך המערכת, והודעה לאורח בערוץ ההודעות המוגדר; אישור הגעה; פרטיות (צופה רואה רק את המספר); הגדרות משתתפים להתקנה ולכל יומן.
+- **English:** Faster database access: connections are reused (settings read 2.6x faster); the add-on option db_conn_pool turns it off.
+- **עברית:** גישה מהירה יותר למסד הנתונים: חיבורים בשימוש חוזר (קריאת ההגדרות מהירה פי 2.6); אפשרות התוסף db_conn_pool מכבה זאת.
+
 ## 2.34.2 (pilot) - Dark mode, accessibility, faster screens, 44 px phone buttons, the synoptic map on phones
 **After installing:** no database migration. Going back to 2.34.1 is safe.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. חזרה ל-2.34.1 בטוחה.
