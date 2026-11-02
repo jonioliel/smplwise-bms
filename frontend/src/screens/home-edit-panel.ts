@@ -64,6 +64,8 @@ export class HomeEditPanel extends LitElement {
   @property({ type: Boolean }) notices = false;
   /** PRESENCE-2280: the editor sees the presence widget (the module is on, configured, shown as a card and the viewer may see it). */
   @property({ type: Boolean }) presence = false;
+  /** XS-MINI-WIDGET-2351: the editor is offered the mini cross-section (devices.read and a catalogue building with floors); off by default. */
+  @property({ type: Boolean }) xsection = false;
   /** The widget whose settings are open (a card's "הגדרות" button sets it). */
   @property() open: WidgetId | '' = '';
   @state() private dragFloor = '';
@@ -497,7 +499,7 @@ export class HomeEditPanel extends LitElement {
 
   /** The widgets the editor lists: the elevators widget only while the editor sees an elevator (review L6: indices and ends count these). */
   private get listed(): WidgetId[] {
-    return this.draft.config.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.temperatureUnits.length > 0) && (id !== 'generators' || this.generators) && (id !== 'doors' || this.doors) && (id !== 'notices' || this.notices) && (id !== 'presence' || this.presence));
+    return this.draft.config.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.temperatureUnits.length > 0) && (id !== 'generators' || this.generators) && (id !== 'doors' || this.doors) && (id !== 'notices' || this.notices) && (id !== 'presence' || this.presence) && (id !== 'xsection' || this.xsection));
   }
 
   private moveW(id: WidgetId, to: number) {

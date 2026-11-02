@@ -77,6 +77,12 @@ import { demoHome } from './home-demo';
 // MULTIBUILDING-HOME-2330: the site level of a multi-building installation (one building: nothing here is drawn)
 import { activeOff, bulkTargets, entryLevel, offSelection, scopeTag, scopeTree, shownBuildings, siteModel, SITE_LEVEL, type SiteBuilding, type SiteModel } from '../api/home-site';
 import { getHomeLinks } from '../api/catalog';
+import { MINI_SITE_LEVEL, miniBuilding, miniModel, type MiniFloor, type MiniModel } from '../xsection/xs-mini-model'; // XS-MINI-WIDGET-2351
+import { floorLightsTarget, onXsOptions, xsOptions, type FloorSignal } from '../xsection/xs-model';
+import { demoSignals } from '../xsection/xs-data';
+import { xt } from '../i18n/xsection';
+import { fireReport } from '../xsection/fire-store';
+import { navigate } from '../router';
 import { multiBuildingOn } from '../api/mapping';
 import './mapping-all'; // MAPPING-ASSIST-2330: the site bar's health chip
 import type { Building, Floor as CatalogFloor } from '../api/types';
@@ -1335,6 +1341,15 @@ export class DevicesBuilding extends LitElement {
     this.levelReady = false;
     if (this.multiOn && !this.siteSrc && isApi()) void this.loadSite();
   };
+  // ------------------------------------------------------------------ XS-MINI-WIDGET-2351: the mini cross-section widget
+  /** The catalogue's buildings with their floors and the mapping rows, read once - only when the widget is on or being edited (it is off by
+   * default, so a home without it never asks); null = not read. With the multi-building view on, the site's own read (siteSrc) is used. */
+  @state() private xsCat: { buildings: (Building & { floors?: CatalogFloor[] })[]; links: MatchLinks | null } | null = null;
+  private xsCatAsked = false;
+  /** The floor whose lights popup is open (from the widget's lights chip). */
+  @state() private xsLightsOf: FloorSignal | null = null;
+  private offXs: (() => void) | null = null;
+
   /** SITE_LEVEL or a building id: what the home shows on a multi-building site. */
   @state() private level: string = SITE_LEVEL;
   private levelReady = false;
@@ -1727,7 +1742,8 @@ export class DevicesBuilding extends LitElement {
     return resolveWidgets(h.config, h.direction, h.data, { editing: this.lay.editing, quickAllowed: this.quickInfo(t).allowed, phone: this.isPhone, mediaAvailable: this.mediaScreens === null ? undefined : this.mediaScreens > 0,
       elevatorsAvailable: !!this.elevators?.length, temperatureAvailable: this.tempWidget && this.tempUnits.length > 0,
       generatorsAvailable: generatorsAvailable(this.generators), doorsAvailable: doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()),
-      noticesAvailable: (this.lay.editing ? noticesWidgetOffered : noticesWidgetAvailable)(this.noticesData, noticesModuleOn()), presenceAvailable: this.presenceOffered() });
+      noticesAvailable: (this.lay.editing ? noticesWidgetOffered : noticesWidgetAvailable)(this.noticesData, noticesModuleOn()), presenceAvailable: this.presenceOffered(),
+      xsectionAvailable: this.xsOffered(h) });
   }
 
   /** CR-015: whether the home's media widget has anything to show - the approved screens of this user (the same question the widget
@@ -1897,7 +1913,92 @@ export class DevicesBuilding extends LitElement {
     const data = areas && t.building.alarm && h.data.alarm ? { ...h.data, alarm: { ...h.data.alarm, state: t.building.alarm } } : h.data;
     return html`<home-widgets layout=${layout} ?quick-hidden=${!this.lay.editing && this.screen.quick_card === 'hide'} .items=${items} .config=${h.config} .data=${data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')} .scopeTag=${this.kpiTag}
       .elevators=${elevators} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .doors=${this.doorsData} .notices=${this.noticesData} .presence=${this.presenceOffered() ? this.presenceSnap : null} .failed=${this.failedWidgets}
+      .xsMini=${items.some((i) => i.id === 'xsection' && i.avail === 'ok') ? this.xsMiniModel(items.find((i) => i.id === 'xsection')!.size) : null} .xsLightsOk=${this.xsLightsOk}
+      @home-xs-floor=${(e: CustomEvent<{ id: string }>) => navigate(`/explore/floors/${encodeURIComponent(e.detail.id)}`)} @home-xs-all=${this.onXsAll} @home-xs-lights=${this.onXsLights}
       @home-widget-retry=${this.onWidgetRetry} @home-widget-size=${this.onWidgetSize} @home-widget-toggle=${this.onWidgetToggle} @home-widget-move=${this.onWidgetMove} @home-widget-edit=${this.onWidgetEdit} @home-quick=${this.onQuick}></home-widgets>`;
+  }
+
+  /** XS-MINI-WIDGET-2351: may the viewer read the devices (the static demo always)? Without it nothing is read and the widget is absent. */
+  private xsMayRead(): boolean {
+    return !isApi() || canAnywhere('devices.read');
+  }
+
+  /** The buildings the widget may draw: the multi-building site's own read, else the widget's (read on demand). */
+  private xsBuildings(): (Building & { floors?: CatalogFloor[] })[] | null {
+    return (this.multiOn && this.siteSrc ? this.siteSrc.buildings : null) ?? this.xsCat?.buildings ?? null;
+  }
+
+  /** The widget is offered (a ghost / the switch in the editor, or drawn when on): the viewer may read the devices and a building has floors.
+   * The catalogue is read the first time the widget is switched on or the editor opens - a home that never shows it never asks. */
+  private xsOffered(h: HomeView): boolean {
+    if (!this.xsMayRead()) return false;
+    if (!this.xsCatAsked && (h.config.xsection.on || h.config.xsection.phone_on === true || this.lay.editing)) void this.loadXsCatalog();
+    const b = this.xsBuildings();
+    return !!b && miniBuilding(b) !== null;
+  }
+
+  private async loadXsCatalog() {
+    this.xsCatAsked = true;
+    try {
+      const [cat, links] = await Promise.all([loadCatalogTree(), isApi() ? getHomeLinks().catch(() => null) : Promise.resolve(null)]);
+      this.xsCat = { buildings: cat.sites.flatMap((s) => s.buildings ?? []), links };
+    } catch {
+      this.xsCat = { buildings: [], links: null }; // the widget stays absent; the next visit of the screen asks again
+    }
+  }
+
+  /** The building the widget draws: the level's on a multi-building site (the first one shown at the site level), else the first with floors. */
+  private xsBuilding() {
+    const all = this.xsBuildings();
+    if (!all) return null;
+    const site = this.site();
+    if (site) {
+      const shown = all.filter((b) => site.shown.some((s) => s.id === b.id));
+      return miniBuilding(shown, this.level === SITE_LEVEL ? MINI_SITE_LEVEL : this.level);
+    }
+    return miniBuilding(all);
+  }
+
+  /** The last model and what it was built from (the matching runs once per tree / building / option change, not on every render). */
+  private xsMemo: { key: unknown[]; out: MiniModel } | null = null;
+
+  private xsMiniModel(size: 's' | 'm' | 'l'): MiniModel | null {
+    const b = this.xsBuilding();
+    if (!b) return null;
+    const o = xsOptions();
+    const links = (this.multiOn && this.siteSrc ? this.siteSrc.links : null) ?? this.xsCat?.links ?? null;
+    const fire = o.fire_ui ? fireReport() : null;
+    const key = [b, this.tree, links, o, size, fire?.floors ?? null, !!this.site()];
+    if (this.xsMemo && this.xsMemo.key.every((k, i) => k === key[i])) return this.xsMemo.out;
+    const floors = b.floors ?? [];
+    const signals = isApi() ? undefined : demoSignals([...floors].sort((x, y) => y.level - x.level || y.sort_order - x.sort_order));
+    const out = miniModel({ building: b, tree: this.tree, ctx: { links, singleBuilding: !this.site() }, opts: o, size, fire: fire?.floors ?? null, signals });
+    this.xsMemo = { key, out };
+    return out;
+  }
+
+  /** The lights chip opens the floor lights popup (SWITCH-LIGHT-DIMMER-2331): devices.read and a target; the static demo shows its own rows. */
+  private xsLightsOk = (f: MiniFloor): boolean => (!isApi() ? f.lights !== null : canAnywhere('devices.read') && f.lightsTarget);
+
+  private onXsLights = (e: CustomEvent<{ id: string }>) => {
+    const b = this.xsBuilding();
+    const m = b ? this.xsMiniModel('l') : null;
+    this.xsLightsOf = m?.signals.find((s) => s.id === e.detail.id) ?? null;
+  };
+
+  private onXsAll = () => {
+    const b = this.xsBuilding();
+    navigate(b ? `/explore/buildings/${encodeURIComponent(b.id)}` : '/explore/sites');
+  };
+
+  /** The floor lights popup of the widget: the same panel and target as the floors screen and the synoptic board. */
+  private renderXsLights() {
+    const f = this.xsLightsOf;
+    const t = f && isApi() ? floorLightsTarget(f) : null;
+    return html`<devices-tiles-panel kind="lights" data-floor-lights=${f?.id ?? ''} data-xs-mini-panel ?open=${!!f} pairedMaster
+      scope=${t?.scope ?? 'building'} scopeId=${t?.scopeId ?? ''} scopeName=${f?.name ?? ''} .areaFilter=${t ? t.areaIds : null} switches=${xsOptions().syn_switches}
+      headingText=${f ? xt('floorLightsTitle', { name: f.name }) : ''}
+      @panel-close=${() => (this.xsLightsOf = null)} @panel-changed=${() => this.scheduleReload()}></devices-tiles-panel>`;
   }
 
   private onWidgetSize = (e: CustomEvent<{ id: WidgetId; size: 's' | 'm' | 'l' }>) => {
@@ -1978,7 +2079,7 @@ export class DevicesBuilding extends LitElement {
     const names = new Map(t.floors.map((f) => [f.floor_id, f.name]));
     const floors = this.floorsOf(t).map((f) => ({ id: f.floor_id, name: names.get(f.floor_id) ?? f.floor_id }));
     const areas = this.floorsOf(t).flatMap((f) => f.areas.map((a) => ({ id: a.area_id, name: a.name, floor: f.name, counts: a.counts })));
-    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())} ?presence=${this.presenceOffered()}
+    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())} ?presence=${this.presenceOffered()} ?xsection=${this.xsOffered(this.homeOf(t))}
       @home-draft=${this.onDraft} @home-reset=${this.onHomeReset} @home-edit-open=${(e: CustomEvent<{ id: WidgetId | '' }>) => (this.openWidget = e.detail.id)}></home-edit-panel>
       ${this.screenDraft
         ? html`<section class="hs-edit" data-home-screen-edit aria-label=${hs('heading')}><h3>${hs('heading')}</h3>
@@ -3086,6 +3187,7 @@ export class DevicesBuilding extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener('sw-multi-building', this.onMulti);
+    this.offXs = onXsOptions(() => this.requestUpdate()); // XS-MINI-WIDGET-2351: the widget follows the installation's cross-section options
     this.prefsReady = Promise.all([
       loadDevicesPrefs().then((p) => {
         this.prefs = p;
@@ -3194,6 +3296,8 @@ export class DevicesBuilding extends LitElement {
     super.disconnectedCallback();
     window.clearTimeout(this.looseTimer);
     window.removeEventListener('sw-multi-building', this.onMulti);
+    this.offXs?.();
+    this.offXs = null;
     this.offRoute?.();
     this.offRoute = null;
     this.stop?.();
@@ -3380,6 +3484,7 @@ export class DevicesBuilding extends LitElement {
       ${this.renderSheets(t)}
       ${this.renderQuickSheet()}
       ${looseNotice(this.looseNote, this.undoLoose, () => this.showLooseNote(null))}
+      ${this.xsLightsOf ? this.renderXsLights() : nothing}
       <devices-tiles-panel ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
     </sw-page>`;
   }
