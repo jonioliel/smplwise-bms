@@ -10,6 +10,7 @@ Files (keep them together in one directory, the runner convention is `~/`):
 | `gate_durations.json` | seconds per Playwright spec file from the last accepted gate: a committed seed that `release_gate.py` uses only for files no `gate_*.logs/pw_*.json` on the runner has timed (balances the `--workers=1` chunks); since GATESPEED-293 also `backend_seconds` (per backend test file, v2 shard split), `backend_shard_seconds_total` and `pixel_phase_seconds` (`--plan` estimates); optional, the engine runs without it |
 | `selftest_gate.py` | self-test with a fake suite; proves the gate fails on a crash and on zero tests |
 | `timing_lane.sh` | GATELANES-297: the non-blocking timing lane (`@timing-lane` / `timing_lane` tests), started by `release_gate.sh` in the background after a gate; waits for a quiet machine; reports in `~/smplwise-results/timing-lane/` (`docs/testing/GATE_LANES.md`) |
+| `addon_build_check.sh` | SUPERVISOR-BUILD-GATE-2341: the Supervisor-style image build + smoke test; run from the branch under test, not copied (section below) |
 | `runner_cleanup.sh` | disk housekeeping by the retention rules below (dry run by default) |
 
 ## Install / update
@@ -77,6 +78,53 @@ in `~/smplwise-results/nightly/` (never the release gate's files). Knobs: `SW_NI
 `SW_NIGHTLY_BRANCH_MAX_MIN` (engine budget per branch, 225; was 120, which cut every nightly of 10-15..10-20), `SW_NIGHTLY_SCHEDULE` (v1 or v2), `GATE_PW_WORKERS` (workers per Playwright process, 3),
 `SW_NIGHTLY_ENGINE` (engine path). `--backend-only` keeps the old two-shard backend path; `--frontend-only` / `--no-dev` map to
 the engine's `GATE_SKIP_BACKEND=1` / `GATE_SKIP_DEV=1` (a skipped category is left out of the baseline check).
+
+## Supervisor build stage (SUPERVISOR-BUILD-GATE-2341)
+
+The engine starts `scripts/gate/addon_build_check.sh` **of the branch under test** (nothing to copy for the script itself) in the
+background right after `release_check`, and collects it before the backend. It builds the add-on image as the HA Supervisor does
+(`docker build` of `smplwise_vms/` with `BUILD_FROM` = build.yaml amd64, `BUILD_VERSION`, `BUILD_ARCH=amd64`, layer cache kept) and
+runs `import smplwise`, `create_app()`, `python3 -m smplwise` + `/healthz`, and the Dockerfile's tools inside it with `--network none`.
+Report: section "addon_build" and `gate_<b>_<sha>.logs/addon_build.{log,json}`. Category `addon_build` has no count baseline.
+
+| `GATE_ADDON_BUILD` | Effect |
+|---|---|
+| `auto` (default) | PASS / FAIL as the script says; no docker (or a branch without the script) = `SKIPPED_NOT_RUN` with the reason, never a pass |
+| `require` | as auto, but NOT_RUN fails the gate (use once docker is installed) |
+| `off` | not started |
+
+`GATE_ADDON_BUILD_SECS` (600) is the stage's budget; the script is killed 30 s after it.
+
+**State on 2026-11-01 (read-only probe):** the runner has **no docker** (`docker: command not found`). `podman` 4.9.3 is installed,
+but `podman version` did not answer within 60 s while a gate was running, so the script does not use podman unless
+`ADDON_BUILD_ENGINE=podman` is set on purpose. Until docker is installed the stage reports NOT_RUN in every gate.
+
+Owner steps to enable it (once, on an idle runner; nothing here was done by an agent):
+
+```
+sudo apt-get update && sudo apt-get install -y docker.io docker-buildx
+sudo usermod -aG docker sw            # docker group membership is root-equivalent on this host
+# log out and in again (or reboot), then:
+docker version && docker run --rm hello-world
+# warm the layer cache once (base image pull + pip layer, about 1-3 GB under /var/lib/docker; later runs reuse the layers):
+bash ~/work/gate-<branch>/scripts/gate/addon_build_check.sh --root ~/work/gate-<branch>   # any checkout that has the script
+```
+
+After that a gate shows `addon_build: PASS`; switch to `GATE_ADDON_BUILD=require` in the gate's environment when it has been
+green twice. Disk: the check keeps one tagged image (`smplwise-gate/amd64-addon-smplwise_vms:gate`) as its cache and prunes only the
+dangling layers of its own label (`smplwise.gate=addon-build`); `docker system df` shows the use.
+
+Re-install after this change (idle runner only, backup first):
+
+```
+ssh runner 'cp ~/release_gate.py ~/release_gate.py.bak-$(date +%Y%m%d) && cp ~/nightly-gate/release_gate.py ~/nightly-gate/release_gate.py.bak-$(date +%Y%m%d)'
+scp scripts/gate/release_gate.py scripts/gate/selftest_gate.py runner:~/
+scp scripts/gate/release_gate.py runner:~/nightly-gate/
+ssh runner 'GATE_SELFTEST_REPO=~/work/gate-<branch> python3 ~/selftest_gate.py'   # the addon-build cases need a checkout with the script (fake docker); without it they print SKIP
+```
+
+`~/gate2/release_gate.py` is refreshed from `~/` by `release_gate2.sh` only when it is missing: copy it there too
+(`scp scripts/gate/release_gate.py runner:~/gate2/`). A gate started before the copy keeps the old engine (no stage).
 
 ## Usage
 

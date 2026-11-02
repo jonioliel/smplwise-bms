@@ -337,6 +337,58 @@ real_be = Path(__file__).resolve().parents[2] / "smplwise_vms" / "backend"
 if real_be.is_dir():
     check("lane: the shipped backend has timing_lane tests (the door slot recovery, LAT1)", {"test_f3a_doorwin_dw03_295.py", "test_lat1_toggle_latency.py"} <= g.lane_backend_files(real_be), g.lane_backend_files(real_be))
 
+# ---- SUPERVISOR-BUILD-GATE-2341: the Supervisor build stage (a fake `docker`; the real addon_build_check.sh of this checkout)
+FAKE_DOCKER = r"""#!/usr/bin/env bash
+m="${FAKE_DOCKER_MODE:-ok}"
+case "$1" in
+  version) [ "$m" = nodaemon ] && exit 1; echo 27.5.1; exit 0;;
+  build) [ "$m" = buildfail ] && { echo "ERROR: process \"/bin/sh -c pip install\" did not complete successfully: exit code: 127"; exit 1; }; exit 0;;
+  run) case "$*" in *"import smplwise,"*) [ "$m" = importfail ] && { echo "ModuleNotFoundError: smplwise"; exit 1; };; esac; exit 0;;
+esac
+exit 0
+"""
+repo = Path(os.environ.get("GATE_SELFTEST_REPO") or Path(__file__).resolve().parents[2])   # a checkout (the ~/ copy: set it)
+if not ((repo / g.ADDON_BUILD_SCRIPT).is_file() and (repo / "smplwise_vms" / "Dockerfile").is_file()):
+    print(f"SKIP    addon build cases: no checkout with {g.ADDON_BUILD_SCRIPT} at {repo} (set GATE_SELFTEST_REPO)")
+else:
+    dk = BIN / "docker"
+    dk.write_text(FAKE_DOCKER)
+    dk.chmod(dk.stat().st_mode | stat.S_IEXEC)
+
+    def abuild_case(mode, gate_mode="auto", wt=repo):
+        reset()
+        g.ADDON_BUILD = gate_mode
+        os.environ["FAKE_DOCKER_MODE"] = mode
+        logd = TMP / f"logs_abuild_{mode}_{gate_mode}"
+        logd.mkdir(exist_ok=True)
+        ex = {}
+        out = g.addon_build_finish(g.addon_build_start(wt, logd), ex)
+        return out, g.compute_verdict([]), g.COUNTS.get("addon_build", {}), [i["status"] for i in g.ITEMS]
+
+    out, v, c, st = abuild_case("ok")
+    check("addon build: a clean build + smoke steps is a PASS", out["result"] == "PASS" and v == "pass" and c.get("pass") == 1 and not st, (out, c, st))
+    out, v, c, st = abuild_case("buildfail")
+    check("addon build: the 2.31.0-style pip exit 127 FAILS the gate with the log tail", out["result"] == "FAIL" and v == "fail"
+          and "127" in " ".join(out.get("log_tail", [])) and st == ["FAIL"], (out, st))
+    out, v, c, st = abuild_case("importfail")
+    check("addon build: `import smplwise` failing inside the image FAILS the gate", out["result"] == "FAIL" and v == "fail" and "import_smplwise" in out["reason"], out)
+    out, v, c, st = abuild_case("nodaemon")
+    check("addon build: no docker daemon is NOT_RUN (skipped item with the reason), never a pass", out["result"] == "NOT_RUN" and v == "pass"
+          and c.get("pass", 0) == 0 and c.get("skipped") == 1 and st == ["SKIPPED_NOT_RUN"], (out, c, st))
+    out, v, c, st = abuild_case("nodaemon", "require")
+    check("addon build: GATE_ADDON_BUILD=require turns NOT_RUN into a FAIL", out["result"] == "FAIL" and v == "fail", out)
+    out, v, c, st = abuild_case("ok", "auto", TMP)
+    check("addon build: a branch without the script is NOT_RUN", out["result"] == "NOT_RUN" and "has no" in out["reason"], out)
+    out, v, c, st = abuild_case("ok", "off")
+    check("addon build: GATE_ADDON_BUILD=off starts nothing (NOT_RUN, no fail)", out["result"] == "NOT_RUN" and v == "pass" and out["seconds"] == 0, out)
+    reset()
+    g.COUNTS["addon_build"] = {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 1}
+    w = g.check_baselines({"tiers": {"L": {}}}, "L")
+    check("addon build: an optional category gets no 'no baseline entry' warning", not any("addon_build" in x for x in w), w)
+    g.ADDON_BUILD = "auto"
+    os.environ.pop("FAKE_DOCKER_MODE", None)
+    dk.unlink()
+
 print()
 print("SELFTEST " +("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))
 sys.exit(0 if not FAILS else 1)
