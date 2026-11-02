@@ -1,0 +1,36 @@
+{
+  "cases": [
+    "challenge_ok",
+    "mint_replace_clock",
+    "mint_replace_invalid",
+    "mint_replace_missing",
+    "mint_replace_nonce",
+    "mint_replace_ok",
+    "mint_same_key_ok"
+  ],
+  "contract": "docs/api/mobile-presence-contract.md section 11 (v2.2); docs/changes/APPREFRESH-DEVICEKEY-SPEC.md sections 4, 6, 6a",
+  "generated_by": "smplwise_vms/backend/tests/test_app_refresh_rotation_fixtures_k5.py (ARX_WRITE_FIXTURES=1)",
+  "placeholders": {
+    "<ACCESS_TOKEN>": "`arxa_` + base64url (minutes, never logged)",
+    "<DEVICE_ID>": "`dev_` + 16 lowercase hex: the device registration (`POST presence/devices`)",
+    "<FAMILY_ID>": "`arf_` + 16 lowercase hex: the saved sign-in",
+    "<INSTALL_ID>": "the install id that registration holds (8-64 characters)",
+    "<ISO_8601_UTC>": "`YYYY-MM-DDTHH:MM:SSZ`",
+    "<NEW_KEY_SIGNATURE>": "base64url ES256 signature by the NEW key over the `mint` message",
+    "<NEW_PUBLIC_KEY>": "base64url of the NEW key's SPKI DER (Android) or 65-byte X9.63 point (iOS)",
+    "<NONCE>": "`arxn_` + 43 base64url from `POST /auth/app/refresh-challenge`, single use, 120 s",
+    "<OLD_KEY_SIGNATURE>": "base64url ES256 signature by the OLD (pinned) key over the `replace` message",
+    "<OLD_PUBLIC_KEY>": "base64url of the key the device is pinned to",
+    "<ORIGIN>": "`<scheme>://<host[:port]>` of the server, exactly as the app stored it (contract section 0)",
+    "<OTHER_KEY_SIGNATURE>": "base64url ES256 signature by a key that is not the pinned one",
+    "<PINNED_KEY_MINT_SIGNATURE>": "base64url ES256 signature by the pinned key itself over the `mint` message (the same key again)",
+    "<REFRESH_TOKEN>": "`arxr_` + base64url (Keychain / Keystore only, never logged)",
+    "<SERVER_CORRELATION_ID>": "the server's own correlation id (12 lowercase hex)",
+    "<SESSION_COOKIE>": "the web view's Arx session cookie from a sign-in at most 15 minutes old (the app's native call carries it)",
+    "<UNIX_SECONDS>": "a JSON integer, Unix seconds (UTC)",
+    "<UNIX_SECONDS_SKEWED>": "a JSON integer more than 300 s away from the server clock",
+    "<UNKNOWN_NONCE>": "a nonce-shaped value the server never issued"
+  },
+  "status": "FIXTURES: a passing client test against these files proves the client's parsing and byte layout, not the server, a device or an activation",
+  "vector": "replace_vector.json"
+}

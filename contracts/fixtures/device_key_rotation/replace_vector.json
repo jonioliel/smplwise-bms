@@ -1,0 +1,11 @@
+{
+  "device_id": "dev_0123456789abcdef",
+  "message_b64u": "YXJ4LWFwcC1wb3AtdjEKcmVwbGFjZQpkZXZfMDEyMzQ1Njc4OWFiY2RlZgphcnhuX1Rlc3RWZWN0b3JOb25jZTBUZXN0VmVjdG9yTm9uY2UwVGVzdFZlY3Rvck4KMTkwMDAwMDAwMApCT3J4dm1nQjExR01FMHA2OHIyZUJuSGZJaDA4Wldrbk5BT3l1eEc1WkVQNktVbDMwNGdKYnRZUVFtYmxVZGhjM1E1WXVjZ3NIV015X3hhNlYwS3E2bzA",
+  "message_utf8": "arx-app-pop-v1\nreplace\ndev_0123456789abcdef\narxn_TestVectorNonce0TestVectorNonce0TestVectorN\n1900000000\nBOrxvmgB11GME0p68r2eBnHfIh08ZWknNAOyuxG5ZEP6KUl304gJbtYQQmblUdhc3Q5YucgsHWMy_xa6V0Kq6o0",
+  "new_public_key": "BOrxvmgB11GME0p68r2eBnHfIh08ZWknNAOyuxG5ZEP6KUl304gJbtYQQmblUdhc3Q5YucgsHWMy_xa6V0Kq6o0",
+  "nonce": "arxn_TestVectorNonce0TestVectorNonce0TestVectorN",
+  "old_public_key_spki_b64u": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE14Xk2OVhvnq_aneCU7G94Wi_ow2VEhJksK9mD1_Lg0TWtH4Pl4iFtA0AQp0vj_ikEShiChdbQ4SsBlUrW2b2JA",
+  "sig_der_b64u": "MEUCIQD0-TCS2HjOCbLMv9BqrzT7bRyRGX3owoozDiozSMxEMwIgOX8p6U3fjNX-IL6VR672b2sMMAV8fCCP-l-QcN5QTNU",
+  "ts": 1900000000,
+  "what": "K-5 replace proof: the OLD key's ES256 signature over the replace message (contract v2.2 section 11). TEST VALUES - no real device, nonce or key; the private halves were never stored."
+}

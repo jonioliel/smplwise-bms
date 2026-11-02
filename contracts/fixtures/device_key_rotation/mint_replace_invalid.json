@@ -1,0 +1,49 @@
+{
+  "description": "409 device_key_bound, reason invalid: not the pinned key's signature over exactly this replace message (here: signed by the new key itself). The nonce is spent.",
+  "name": "mint_replace_invalid",
+  "request": {
+    "body": {
+      "device_id": "<DEVICE_ID>",
+      "device_key": {
+        "alg": "ES256",
+        "proof": {
+          "sig": "<NEW_KEY_SIGNATURE>",
+          "ts": "<UNIX_SECONDS>"
+        },
+        "public_key": "<NEW_PUBLIC_KEY>",
+        "replaces": {
+          "nonce": "<NONCE>",
+          "sig": "<OTHER_KEY_SIGNATURE>",
+          "ts": "<UNIX_SECONDS>"
+        }
+      },
+      "install_id": "<INSTALL_ID>"
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "Cookie": "<SESSION_COOKIE>",
+      "Origin": "<ORIGIN>",
+      "X-Correlation-Id": "0123456789abcdef0123456789abcdef"
+    },
+    "method": "POST",
+    "path": "/arx/api/v1/auth/app/refresh-tokens"
+  },
+  "response": {
+    "body": {
+      "code": "device_key_bound",
+      "correlation_id": "0123456789abcdef0123456789abcdef",
+      "details": {
+        "reason": "invalid",
+        "server_time": "<UNIX_SECONDS>"
+      },
+      "retryable": false,
+      "user_message": "המכשיר הזה רשום עם מפתח אבטחה אחר. אם המפתח אבד, בקשו ממנהל המערכת לאפס אותו."
+    },
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json",
+      "x-correlation-id": "0123456789abcdef0123456789abcdef"
+    },
+    "status": 409
+  }
+}

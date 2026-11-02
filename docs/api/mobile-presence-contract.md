@@ -1,4 +1,4 @@
-# SmplWise Arx — mobile presence and push contract (v2.1, CR-027 + PRESENCE307)
+# SmplWise Arx — mobile presence and push contract (v2.2, CR-027 + PRESENCE307 + MOBILE-CONTRACT-V22)
 
 The server contract the SmplWise Arx phone apps (iOS first, Android later; same shape) are built against. It is the
 implemented truth of `smplwise_vms/backend/smplwise/routers/presence.py` and `routers/mobile_notifications.py`; where
@@ -7,7 +7,13 @@ it differs from the drafts in `mobile/ios-shell/HANDOFF_IOS_CODEX.md` section 6 
 `docs/changes/CR-027-MOBILE-PRESENCE-PUSH.md` section 9). Codex extends the local mock (`mobile/ios-shell/tools/`) to
 this shape; the mock never points at the lab.
 
-Changelog: **v2.1 (PRESENCE307, owner decision; additive, backward compatible)** - `GET presence/config` adds `wifi_match_mode`
+Changelog: **v2.2 (MOBILE-CONTRACT-V22-2380, 2026-11-02; additive, backward compatible)** - one `value` shape per sensor (section 4.1:
+keys, enums, `confidence` / `proximity` / `charging_state` lists, battery level unknown = `null`) with a server setting
+`presence.value_check` = `off` (default, the 2.1 behaviour) | `normalize` | `strict`; `GET presence/config` adds `contract_version` and
+`sensors.value_check`, and `sensors.intervals_s` now carries a default for every sensor but `location` (section 2.2); the status object's
+`location_auth` list and `sensors` states are written down (section 4.2); `relay_url: null` means no push (section 8); the saved sign-in's
+key rotation proof (K-5) is normative for the apps, with fixtures and a verification vector (section 11). Nothing an app built to v2.1
+sends is refused while `value_check` is `off`. **v2.1 (PRESENCE307, owner decision; additive, backward compatible)** - `GET presence/config` adds `wifi_match_mode`
 (`phone` default | `server`); the `network` sensor event gains `wifi_match` / `wifi_site_id`; apps that still send `ssid_hash` keep
 working (section 2.1). **v2 (2026-10-06, owner-approved)** - one app serves many Arx servers: the registration also returns `relay_url`
 (section 1); every state-changing request that carries the session cookie must send `Origin`, and the refusal is
@@ -129,6 +135,7 @@ Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidd
 
 ```json
 {
+  "contract_version": "2.2",
   "server_id": "srv_0a1b2c3d4e5f6071",
   "relay_url": "https://relay.example",
   "enabled": false,
@@ -140,7 +147,8 @@ Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidd
   "sites": [ { "id": "site_main", "name": "המשרד", "lat": 32.0, "lon": 34.8, "radius_m": 150 } ],
   "sensors": {
     "allowed": ["location", "activity", "battery"],
-    "intervals_s": { "battery": 900, "steps": 300, "app_state": 300 },
+    "intervals_s": { "activity": 300, "steps": 300, "altitude": 300, "battery": 900, "network": 60, "beacon": 60, "app_state": 300 },
+    "value_check": "off",
     "catalog": [ { "key": "location", "name_he": "מיקום", "purpose_he": "נוכחות במבנה: כניסה ויציאה" }, … ]
   },
   "beacons": [ { "id": "bcn_lobby", "name": "לובי", "uuid": "…", "major": 1, "minor": 2, "site_id": "site_main", "floor_id": "…", "zone_id": "…" } ],
@@ -165,6 +173,9 @@ Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidd
 - `wifi_match_mode` (v2.1; absent from older servers = treat as `server`, the pre-2.1 behaviour) tells the app who decides that
   the phone is on a site's Wi-Fi network; see section 2.1. It is returned whatever the master switch says.
 - Sensor keys (v1, all platforms): `location, activity, steps, altitude, battery, network, beacon, app_state`.
+- `contract_version` (v2.2; absent = 2.1 or older) is the contract text the server implements. `sensors.value_check` (v2.2; absent =
+  `off`) says what the server does with a sensor `value` outside its v2.2 shape (section 4.1). Both are returned whatever the master
+  switch says.
 - WHOIN034-295 (2.16.0, additive): a beacon carries its server `id`, a `name`, optional `major` / `minor` (`null` = any) and an
   optional placement (`floor_id`, `zone_id`); a Wi-Fi site carries `id`, `name` and an optional `floor_id`. The app ignores what
   it does not use. `ssid_hashes` are `sha256_hex(ssid_hash_salt + ssid)` over UTF-8 (lowercase hex): the app hashes the SSID
@@ -194,6 +205,28 @@ The `network` sensor must be in `sensors.allowed`; the employee notice covers "l
 App work: read `wifi_match_mode`; in `phone` mode do the comparison on the device and stop sending the hash; keep sending the hash when
 the mode is `server` or the field is absent. Minimum app change for the next release: honour the mode; the hash path stays valid.
 
+### 2.2 Reporting cadence - `sensors.intervals_s` (v2.2)
+
+`sensors.intervals_s` gives, per sensor, the seconds between two reports **while nothing changes** (a heartbeat). It now carries a value
+for every sensor except `location` (whose cadence is `interval_s` + `distance_filter_m`, section 2): the server's defaults below, each
+overridable by the administrator (30-86400 s, הגדרות › אפליקציה לנייד). The app uses the server's value and falls back to the same
+default only when a key is absent (an older server). The defaults keep what the apps already do (S-4: `network` and `beacon` 60 s,
+`altitude` 300 s) and the 2.1 values (`battery`, `steps`, `app_state`).
+
+| sensor | default seconds | notes |
+|---|---|---|
+| `activity` | 300 | a change of `state` is reported at once (next batch) |
+| `steps` | 300 | `steps_delta` counts the steps since the previous report |
+| `altitude` | 300 | `relative_change_m` since the previous report |
+| `battery` | 900 | a change of `charging_state` or `low_power_mode` is reported at once |
+| `network` | 60 | every change of `network` or of the Wi-Fi match is reported, never dropped (W-3) |
+| `beacon` | 60 | a new nearest beacon or a change of `proximity` is reported at once |
+| `app_state` | 300 | foreground / background changes are reported at once |
+
+**A change of state is never dropped** because it falls inside the interval: the app may coalesce several changes into one batch (the
+newest state wins), but the last state before the change and the change itself both reach the server. Every report still obeys the
+batch rules of section 4 (60 batches a minute per device).
+
 ## 3. The notice — `POST presence/devices/{device_id}/ack` (device token)
 
 `{ "notice_version": 2 }` → `200 { "ok": true, "notice_version": 2 }`. `409 notice_version_stale`
@@ -220,27 +253,9 @@ Rules:
 - `type`: `fix | enter | exit | sensor`. `fix` needs `lat`, `lon` (`accuracy_m` optional); `enter` / `exit` may carry a
   coordinate and should carry `site_id`. `source`: `continuous | region | significant | foreground` (optional).
 - `sensor` events: `sensor` must be in the catalogue **and** in `sensors.allowed`; `value` is a flat object (<= 20 keys,
-  strings <= 128 characters, numbers, booleans, null; <= 1 KiB). Location events need `location` allowed.
-  **The server validates only that envelope, not per-sensor keys**: whatever flat object passes is stored as sent
-  (`services/presence.py` `_validate_event`; nothing reads individual keys). The keys below are therefore the
-  **agreed shape from the iOS addendum A.2 (not enforced)**; a client sends exactly these so the data stays comparable
-  across platforms, and an unknown key is stored, not rejected:
-
-  | sensor | `value` keys (agreed, not validated) |
-  |---|---|
-  | `location` | no `sensor` event: sent as `fix` / `enter` / `exit` events (`lat`, `lon`, `accuracy_m`, `site_id`) |
-  | `activity` | `state` (`stationary \| walking \| running \| cycling \| automotive \| unknown`), `confidence` |
-  | `steps` | steps delta per interval, floors up / down |
-  | `altitude` | relative altitude change |
-  | `battery` | level %, charging state, low-power mode |
-  | `network` | `type`: `wifi \| cellular \| none`; Wi-Fi: `wifi_match` + `wifi_site_id` (phone mode) or `ssid_hash` (server mode, matched against `wifi_sites[].ssid_hashes`), see section 2.1 |
-  | `beacon` | `beacon_id` (the server's id from `beacons[]`; or `uuid` with `major` / `minor`), `site_id`, `proximity` (`immediate \| near \| far`) |
-  | `app_state` | `foreground \| background`, last-seen |
-
-  The addendum names the data but not the JSON key spellings for every row; until the owner fixes them, the spellings
-  are the app's choice and the server accepts any. **Exception (WHOIN034-295):** the server's "who is in the building"
-  screen READS the `beacon` keys `beacon_id` / `uuid` / `major` / `minor` / `proximity` and the `network` key `ssid_hash`
-  with exactly these spellings; a report with other spellings is stored but places nobody on a floor.
+  strings <= 128 characters, numbers, booleans, null; <= 1 KiB) - the **envelope**, checked in every mode. Location events need
+  `location` allowed. **v2.2:** the keys and values inside the envelope have ONE shape per sensor, section 4.1; what the server does with
+  a value outside it is the setting `sensors.value_check` (`off` by default: stored as sent, as in 2.1).
 - `status` is optional and may be sent **alone** (`events: []`): it is how "sharing off", permission changes and the
   per-sensor switches reach the server (and what the required-sensors policy reads). `status.sensors.<key>` is one of
   `on`, `off` (permission denied or the user switched the sensor off) or `unavailable` (the phone has no such hardware).
@@ -259,6 +274,55 @@ Response:
 `inside` / `site_id` are the device's **current** presence state after this batch: from the newest `enter` / `exit`, or
 from the newest `fix` matched against the geofences (`inside: null` when no geofence is configured and no enter / exit
 was ever reported). Events are stored in time order; an older event never moves the state backwards.
+
+### 4.1 Sensor value shapes (v2.2, normative)
+
+One shape per sensor for both platforms (owner decision 2026-10-24; the MOBILE214 proposal with the answers to S-1..S-4). Keys not in the
+table are not part of the contract. "Required" keys must be present; an optional key that is absent means "unknown". Enums are closed
+lists, lowercase. Integers are JSON integers (`10`, not `"10"`); numbers may carry a fraction.
+
+| sensor | `value` keys (required **bold**) | rules |
+|---|---|---|
+| `location` | none - no `sensor` event | location is reported as `fix` / `enter` / `exit` events (`lat`, `lon`, `accuracy_m`, `site_id`), never as a `sensor` event |
+| `activity` | **`state`**, `confidence` | `state`: `stationary` \| `walking` \| `running` \| `cycling` \| `automotive` \| `unknown`; `confidence`: `high` \| `medium` \| `low` \| `unknown` (Android sends `unknown` when the platform gives none) |
+| `steps` | **`steps_delta`**, `floors_up`, `floors_down` | integers >= 0 (`steps_delta` <= 1,000,000, floors <= 10,000); a phone without a barometer omits the floors keys (no `floors_available` key) |
+| `altitude` | **`relative_change_m`** | number, metres, -10,000..10,000, relative to the previous report |
+| `battery` | **`level_percent`**, `charging_state`, `low_power_mode` | `level_percent`: number 0..100, or `null` when the phone cannot read the level (S-2: the key is always present; an app with nothing at all to report may skip the event); `charging_state`: `charging` \| `full` \| `unplugged` \| `unknown`; `low_power_mode`: boolean or `null` |
+| `network` | **`network`**, `wifi_match`, `wifi_site_id`, `ssid_hash` | `network`: `wifi` \| `cellular` \| `none` \| `other` (`other` = a kind outside the list, e.g. ethernet); the three Wi-Fi keys only with `network: "wifi"`; `wifi_match` boolean; `wifi_site_id` (a `wifi_sites[].site_id`) only with `wifi_match: true` (phone mode); `ssid_hash` 64 hex characters (server mode, or an app that has not moved to the phone match yet), section 2.1. No SSID, no `network_ssid` key |
+| `beacon` | `beacon_id`, `uuid`, `major`, `minor`, `site_id`, **`proximity`** | `beacon_id` (the server's id from `beacons[]`) **or** `uuid` (8-4-4-4-12 hex) is required; `major` / `minor` integers 0..65535 or `null`, only with `uuid`; `site_id` optional; `proximity`: `immediate` \| `near` \| `far` \| `unknown` (`unknown` is stored but never places anyone on a floor) |
+| `app_state` | **`state`**, `last_seen` | `state`: `foreground` \| `background`; `last_seen`: UTC instant `YYYY-MM-DDTHH:MM:SSZ` (fraction optional) |
+
+Identifiers (`beacon_id`, `site_id`, `wifi_site_id`) are the server's ids as delivered in `GET presence/config`, 1-64 characters of
+`[A-Za-z0-9_.:-]`. The "who is in the building" screen reads `beacon_id` / `uuid` / `major` / `minor` / `proximity` and `wifi_match` /
+`wifi_site_id` / `ssid_hash` with exactly these spellings (WHOIN034-295).
+
+**What the server does - `sensors.value_check`** (administrator setting `value_check` in `PUT presence/settings`; returned in
+`GET presence/config`):
+
+| mode | a value outside the shape | for |
+|---|---|---|
+| `off` (**default**) | stored as sent, after the envelope check (the 2.1 behaviour) | the 2.1.x apps in the field; nothing is refused |
+| `normalize` | never refused; the server keeps only the keys of the table whose values are valid and drops the rest (an unknown key, a wrong type, Wi-Fi keys on a non-Wi-Fi report, `major` / `minor` without `uuid`); the one legacy spelling `type` (v2.1's table) is read as `network`. A missing required key is not invented | recommended before presence is switched on: an unknown key is personal data nobody asked for |
+| `strict` | the whole batch is refused: `400 invalid_event`, `details = { "field": "value.<key>", "reason": "unknown_key" \| "invalid_value" \| "missing_key", "sensor", "client_event_id", "contract_version": "2.2" }` (the first problem; `value.beacon_id` + `missing_key` when neither id is sent). The answer never repeats the value | apps that implement v2.2 |
+
+The checks run after the envelope and the allow-list (a sensor that is not allowed is still `400 sensor_not_allowed`), and before the
+Wi-Fi verdict of section 2.1 (which still drops a `wifi_site_id` the server does not know). App work for v2.2: send exactly these keys,
+read `value_check` from the config and treat `400 invalid_event` with a `value.` field as an app bug (log the field and reason, never the
+value; do not retry the batch unchanged). Official examples - valid values, refused values with their exact `field` / `reason`, and what
+`normalize` keeps of the 2.1.x shapes: `contracts/examples/presence-sensor-values.v2.2.example.json` (the server test
+`smplwise_vms/backend/tests/test_presence_contract_v22.py` fails whenever the examples, this table and the server drift).
+
+### 4.2 The status object (v2.2, normative)
+
+`status = { "location_auth", "precise", "sharing", "sensors" }`, all optional, sent with any batch or alone:
+
+- `location_auth`: `always` | `when_in_use` | `denied` | `restricted` | `not_determined`. iOS maps `CLAuthorizationStatus` one to one;
+  Android maps background location granted -> `always`, foreground only -> `when_in_use`, refused -> `denied`, blocked by a policy or a
+  device administrator -> `restricted`, not asked yet -> `not_determined`. Any other value is stored as `not_determined`.
+- `precise`: boolean (iOS full accuracy / Android `ACCESS_FINE_LOCATION`); `sharing`: boolean, the user's own switch in the app.
+- `sensors.<key>`: `on` | `off` | `unavailable` per section 4's rules; a missing key, another value, or a sensor the administrator does
+  not allow is stored `off`. The app's `deviceStatus()` bridge answer uses the same words.
+- The status object is never refused by `value_check`; it is accepted even while the installation is off.
 
 ## 5. The required-sensors policy (owner decision 2026-10-05)
 
@@ -370,9 +434,9 @@ Do-Not-Disturb-bypassing channel) or `resolved_tone: "1"` (the resolved update o
 
 ## 8. The relay API (app ↔ relay; server ↔ relay)
 
-Base `https://<relay>/v1`. The app **prefers the `relay_url` its Arx server returns** (section 2, section 7.2) and falls
-back to the default baked into the build when it is `null` / absent, so moving the relay to another domain needs a server
-option change, not an app update. The app uses the relay of the server it is registering with, per server. All bodies JSON, <= 2 KiB.
+Base `https://<relay>/v1`. The app uses **the `relay_url` its Arx server returns** (section 2, section 7.2), so moving the relay to
+another domain needs a server option change, not an app update. **v2.2 (P-1):** `relay_url: null` - or absent, an older server - means
+that server sends no push: the app does not register with any relay for it (there is no default baked into the build). The app uses the relay of the server it is registering with, per server. All bodies JSON, <= 2 KiB.
 
 - `POST /v1/register` (app) `{ "platform": "ios" | "android", "push_token": "<APNs hex | FCM token>", "app_version": "…",
   "bundle_id": "com.smplwise.arx.app" }` → `200 { "relay_token": "rt_…" }`. **Idempotent per push token**: the same
@@ -467,3 +531,39 @@ supervised run this is how a WebView that sends the wrong `Sec-Fetch-Site` is to
   (audited). The app registers after a full sign-in, as SX-07 says.
 - Unknown and lapsed codes are audited (`code_unknown`, `code_expired`); every `auth.app_session.*` row of the exchange and the
   redeem carries the masked client address (`ip`), never a code, a token or a hash of either.
+
+## 11. Saved sign-in: replacing the device key needs the old key (K-5, v2.2, normative)
+
+The saved sign-in (`security.app_refresh`, **off** by default, lab only) binds an ES256 key the app keeps in the Keystore / Secure
+Enclave. The exact bytes, encodings and calls are `docs/changes/APPREFRESH-DEVICEKEY-SPEC.md` (v1 `arx-app-pop-v1`, revision 2); this
+section makes the owner's K-5 decision (2026-10-24) part of the app contract. The server side is built and unchanged by v2.2.
+
+- **The rule.** Once a mint bound a key, the device registration is **pinned** to it - also after that sign-in ended. A later mint that
+  would bind another key, or none, must carry the OLD key's consent, or it is refused `409 device_key_bound` and nothing ends:
+
+  ```json
+  "device_key": { "alg": "ES256", "public_key": "<NEW key>", "proof": { "ts": 1900000000, "sig": "<NEW key signs the mint message>" },
+                  "replaces": { "nonce": "arxn_…", "ts": 1900000000, "sig": "<OLD key signs the replace message>" } }
+  ```
+
+  The nonce comes from `POST /auth/app/refresh-challenge` for the device (single use, 120 s; it works with or without a live sign-in
+  while the device is pinned). The replace message is six lines joined by LF, no trailing LF:
+  `arx-app-pop-v1` / `replace` / `<device_id>` / `<nonce>` / `<replaces.ts>` / `<the NEW public_key field verbatim>`.
+- **Refusals** (`409 device_key_bound`, `details.reason`): `missing` (no `replaces` and nothing else releases the pin), `nonce`
+  (unknown, used, expired or another device's), `invalid` (not the pinned key's signature over exactly that message - signed by the new
+  key, another key, or over another new key), `clock` (`ts` more than 300 s from `details.server_time`; the nonce is spent). Get a new
+  challenge before trying again. Never loop: after `invalid` or `missing` without the old key, show "ask your administrator to reset this
+  phone's security key".
+- **What needs no `replaces`:** the SAME key minted again; a mint after the user's own end of the sign-in (the app's
+  `POST /auth/app/sign-out`, "end this sign-in", "sign out everywhere" - each releases the pin and notifies the user); a mint inside the
+  24 h window of an administrator-approved reset (once).
+- **What does NOT release the pin:** an administrator's end, a re-registration of the device, deleting and re-adding it, a refusal,
+  expiry, the feature switched off. Keep the key pair until a mint with the new key has succeeded.
+- **Proof for the app teams.** `contracts/fixtures/device_key_rotation/` holds the request / answer of each case, produced from the
+  real routes by `smplwise_vms/backend/tests/test_app_refresh_rotation_fixtures_k5.py` (fails when code and files drift; every token,
+  nonce, signature, key and id is a placeholder), and `replace_vector.json`: a fixed TEST public key, a replace message and a signature
+  over it that the server verifies - a client's own verifier (or mock server) must accept it, and a client's message builder must produce
+  the same bytes. These are FIXTURES: a client test against them proves the client's parsing and byte layout, not the server, a device or
+  an activation.
+- Not in v2.2: hardware attestation (K-6; the server side exists behind `security.app_refresh_attestation`, default **off**,
+  `docs/changes/CR-ATTEST232.md`) and signing every call (K-7, not designed).

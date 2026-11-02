@@ -39,6 +39,7 @@ from typing import Any
 from ..db import Database, get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import Principal, is_system_admin
+from . import presence_values as pv
 
 log = logging.getLogger("smplwise.presence")
 
@@ -81,7 +82,9 @@ SENSOR_KEYS = tuple(SENSORS)
 # (the user cannot be blocked for hardware the phone does not have) - except `location`, which also needs sharing + authorisation.
 SENSOR_STATES = ("on", "off", "unavailable")
 UNAVAILABLE_SATISFIES_REQUIRED = True
-DEFAULT_INTERVALS: dict[str, int] = {"battery": 900, "steps": 300, "app_state": 300}
+# Contract v2.2 (MOBILE-CONTRACT-V22): a default cadence for every sensor but `location` (services/presence_values.py). A stored
+# `presence.intervals_s` overrides per key; a key it lacks falls back to this default.
+DEFAULT_INTERVALS: dict[str, int] = dict(pv.DEFAULT_INTERVALS)
 
 # WHOIN034-295 (board r034 / r035): the "who is in the building" screen and the place editors (geofences, beacons, Wi-Fi sites).
 PROXIMITY = ("immediate", "near", "far")  # the beacon sensor's proximity bucket, nearest first
@@ -111,6 +114,8 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "presence.beacons": "[]",
     "presence.wifi_sites": "[]",
     "presence.wifi_match_mode": "phone",
+    # Contract v2.2: the per-sensor `value` check - off (the 2.1 envelope only, the default) | normalize | strict
+    "presence.value_check": pv.VALUE_CHECK_DEFAULT,
     "presence.retention_days": str(RETENTION_DEFAULT),
     "presence.required_sensors": json.dumps({"enabled": False, "sensors": [], "hardware_required": [], "apply_to_web": False, "max_stale_hours": 48, "roles": [], "users": [], "exempt_users": []}),
     "presence.break_glass": json.dumps({"until": None, "reason": "", "by": None}),
@@ -284,11 +289,13 @@ def load_settings(conn: sqlite3.Connection) -> dict[str, Any]:
         "notice_text": raw["presence.notice_text"],
         "notice_version": max(1, int(raw["presence.notice_version"] or 1)),
         "sensors_allowed": allowed,
-        "intervals_s": {k: int(v) for k, v in _json(raw["presence.intervals_s"], {}).items() if k in SENSORS and isinstance(v, int) and 30 <= v <= 86400},
+        "intervals_s": {**DEFAULT_INTERVALS, **{k: int(v) for k, v in _json(raw["presence.intervals_s"], {}).items()
+                                                if k in SENSORS and isinstance(v, int) and not isinstance(v, bool) and 30 <= v <= 86400}},
         "sites": [s for s in _json(raw["presence.sites"], []) if isinstance(s, dict)],
         "beacons": [b for b in _json(raw["presence.beacons"], []) if isinstance(b, dict)],
         "wifi_sites": [w for w in _json(raw["presence.wifi_sites"], []) if isinstance(w, dict)],
         "wifi_match_mode": raw["presence.wifi_match_mode"] if raw["presence.wifi_match_mode"] in WIFI_MATCH_MODES else "phone",
+        "value_check": raw["presence.value_check"] if raw["presence.value_check"] in pv.VALUE_CHECK_MODES else pv.VALUE_CHECK_DEFAULT,
         "retention_days": max(RETENTION_MIN, min(RETENTION_MAX, int(raw["presence.retention_days"] or RETENTION_DEFAULT))),
         "required_sensors": req,
         "break_glass": {"until": iso(until) if until else None, "reason": str(bg.get("reason") or "")[:200], "by": bg.get("by") if isinstance(bg.get("by"), str) else None},
@@ -554,10 +561,12 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
     current = load_settings(conn)
     changes: dict[str, Any] = {}
     unknown = set(body) - {"enabled", "mode", "interval_s", "distance_filter_m", "notice_text", "sensors_allowed", "intervals_s", "sites", "beacons", "wifi_sites", "wifi_match_mode",
-                           "retention_days", "required_sensors", "people"}
+                           "value_check", "retention_days", "required_sensors", "people"}
     if unknown:
         raise PresenceError(422, "validation", "שדה לא מוכר: " + ", ".join(sorted(unknown)), details={"fields": sorted(unknown)})
     places = _validate_places(conn, body, current)  # WHOIN034-295: all validated BEFORE anything is written (a refusal still commits)
+    if "value_check" in body and body["value_check"] not in pv.VALUE_CHECK_MODES:  # v2.2: also before any write
+        raise PresenceError(422, "validation", "בדיקת ערכי החיישנים: כבויה, ניקוי או קפדנית.", details={"field": "value_check", "known": list(pv.VALUE_CHECK_MODES)})
     bump = False
     if "enabled" in body:
         if not isinstance(body["enabled"], bool):
@@ -617,6 +626,9 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
             raise PresenceError(422, "validation", "מצב התאמת Wi-Fi: בטלפון או בשרת.", details={"field": "wifi_match_mode", "known": list(WIFI_MATCH_MODES)})
         set_setting(conn, "presence.wifi_match_mode", body["wifi_match_mode"])
         changes["wifi_match_mode"] = body["wifi_match_mode"]
+    if "value_check" in body:  # validated above, before any write
+        set_setting(conn, "presence.value_check", body["value_check"])
+        changes["value_check"] = body["value_check"]
     if "required_sensors" in body:
         req = _normalize_required(body["required_sensors"], strict=True)
         set_setting(conn, "presence.required_sensors", json.dumps(req))
@@ -870,6 +882,7 @@ def config_for(conn: sqlite3.Connection, st: dict[str, Any] | None = None) -> di
     st = st or load_settings(conn)
     enabled = st["enabled"]
     return {
+        "contract_version": pv.CONTRACT_VERSION,  # v2.2: the contract text this server implements (additive; absent = 2.1 or older)
         "enabled": enabled,
         "mode": st["mode"],
         "interval_s": st["interval_s"],
@@ -880,6 +893,7 @@ def config_for(conn: sqlite3.Connection, st: dict[str, Any] | None = None) -> di
         "sensors": {
             "allowed": st["sensors_allowed"] if enabled else [],  # the second gate: a switched-off installation allows nothing
             "intervals_s": st["intervals_s"],
+            "value_check": st["value_check"],  # v2.2: what the server does with a sensor value outside its shape (section 4.1)
             "catalog": [{"key": k, **v} for k, v in SENSORS.items()],
         },
         "beacons": st["beacons"] if enabled else [],
@@ -971,6 +985,23 @@ def _resolve_wifi(value: dict[str, Any], st: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+VALUE_REFUSED_HE = "ערך החיישן אינו בצורה שהחוזה קובע."
+
+
+def _check_value(sensor: str, value: dict[str, Any], mode: str, cid: str) -> dict[str, Any]:
+    """Contract v2.2 section 4.1: `off` keeps the value as sent (2.1), `normalize` keeps only its valid v2.2 keys, `strict` refuses a
+    non-conforming value with the first problem (`details.field = value.<key>`, `details.reason`). Never logs or echoes the value."""
+    if mode == "normalize":
+        return pv.normalize(sensor, value)
+    if mode == "strict":
+        found = pv.problems(sensor, value)
+        if found:
+            key, reason = found[0]
+            raise PresenceError(400, "invalid_event", VALUE_REFUSED_HE, details={"field": f"value.{key}" if key else "value", "reason": reason, "sensor": sensor,
+                                                                                 "client_event_id": cid, "contract_version": pv.CONTRACT_VERSION})
+    return value
+
+
 def _validate_event(e: dict[str, Any], st: dict[str, Any]) -> dict[str, Any]:
     cid = str(e.get("client_event_id") or "").strip()
     if not 1 <= len(cid) <= 64:
@@ -992,6 +1023,7 @@ def _validate_event(e: dict[str, Any], st: dict[str, Any]) -> dict[str, Any]:
             raise PresenceError(400, "invalid_event", "ערך החיישן: אובייקט שטוח של עד 20 מפתחות.", details={"field": "value", "client_event_id": cid})
         if len(json.dumps(value, ensure_ascii=False)) > VALUE_MAX_BYTES:
             raise PresenceError(400, "invalid_event", "ערך החיישן גדול מדי.", details={"field": "value", "client_event_id": cid})
+        value = _check_value(sensor, value, st.get("value_check", pv.VALUE_CHECK_DEFAULT), cid)
         if sensor == "network":
             value = _resolve_wifi(value, st)
         out["sensor"], out["value"] = sensor, value

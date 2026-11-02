@@ -1,0 +1,44 @@
+{
+  "description": "409 device_key_bound, reason missing: a new key without the old key's consent; nothing ends. Holding the old key: challenge, sign the replace message, mint again. Without it: ask the administrator.",
+  "name": "mint_replace_missing",
+  "request": {
+    "body": {
+      "device_id": "<DEVICE_ID>",
+      "device_key": {
+        "alg": "ES256",
+        "proof": {
+          "sig": "<NEW_KEY_SIGNATURE>",
+          "ts": "<UNIX_SECONDS>"
+        },
+        "public_key": "<NEW_PUBLIC_KEY>"
+      },
+      "install_id": "<INSTALL_ID>"
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "Cookie": "<SESSION_COOKIE>",
+      "Origin": "<ORIGIN>",
+      "X-Correlation-Id": "0123456789abcdef0123456789abcdef"
+    },
+    "method": "POST",
+    "path": "/arx/api/v1/auth/app/refresh-tokens"
+  },
+  "response": {
+    "body": {
+      "code": "device_key_bound",
+      "correlation_id": "0123456789abcdef0123456789abcdef",
+      "details": {
+        "reason": "missing",
+        "server_time": "<UNIX_SECONDS>"
+      },
+      "retryable": false,
+      "user_message": "המכשיר הזה רשום עם מפתח אבטחה אחר. אם המפתח אבד, בקשו ממנהל המערכת לאפס אותו."
+    },
+    "headers": {
+      "cache-control": "no-store",
+      "content-type": "application/json",
+      "x-correlation-id": "0123456789abcdef0123456789abcdef"
+    },
+    "status": 409
+  }
+}
