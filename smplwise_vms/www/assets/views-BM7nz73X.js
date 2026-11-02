@@ -1,2 +1,0 @@
-import{g as a,ba as o,b6 as t,b9 as c}from"./index-Iu0qJdv4.js";const n=()=>a("views"),l=s=>t("views",s),w=(s,e)=>o(`views/${s}`,e),r=s=>c(`views/${s}`),m=s=>`#/live/wall?cameras=${encodeURIComponent(s.cameras.join(","))}`,p=s=>`#/kiosk/all?cameras=${encodeURIComponent(s.cameras.join(","))}&cols=${s.cols}&rows=${s.rows}`;export{l as c,r as d,p as k,n as l,w as u,m as w};
-//# sourceMappingURL=views-BM7nz73X.js.map
