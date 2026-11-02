@@ -88,7 +88,39 @@ picking a floor card on the building screen shows its panel (`evidence-devices` 
   render at the drawer's width (one column).
 - Any guide / owner-round screenshot taken in edit mode (`guide-screenshots`, `evidence-home-screen` captures) changes on re-take.
 
-## Owner questions
+## Owner decision 02.11 (round 14)
+
+- **Question 2 answered (b), with a setting.** A CLOSED drawer now gives its width back to the preview (the new default), and the
+  installation can keep the old behaviour: "שמירת מקום לחלון העריכה כשהוא סגור" (`home.screen.edit_drawer_space`, `free` default /
+  `keep` = the column stays reserved, as before). No migration: it is one more key of the existing `home.screen` JSON setting
+  (services/home_screen_options.py, PATCH /settings, system.configure, audited; a stored value without the key reads as `free`).
+  The choice sits in the screen options form, so it shows both on the drawer's "המסך" tab (previewed live from the editor's draft,
+  saved with "שמור") and in Settings › home screen (saved at once).
+  - How: while editing, the building screen sets `data-he-free` on its host when the drawer is closed and the setting is `free`
+    (`editDrawerReserved()` in api/home-screen.ts); `devices-layout-css.ts` keys the page's reserved inline-end padding on
+    `:host([data-lay-editing]:not([data-he-free]))`. The area screen never sets the attribute (its card panel is unchanged).
+  - Only the side drawer (from 1200 px) reserves a column. Below 1200 px (tablet bottom sheet, phone) nothing changes: the 52vh room
+    under the page stays, open or closed.
+  - Measurements: the attribute is set in `willUpdate`, before the render, so the measurements in `updated()` (the tree height) already
+    see the new width. The width changes without a window resize, so the fit key is cleared and the fit pass is re-scheduled (no stale
+    fit; the fit packing itself stays off while the editor is open, as before). The CSS grids reflow by themselves, the editor's drag step
+    is measured on every pointer-down, and container-query children (the edit panel) and ResizeObserver users re-measure on their own.
+- **Question 1 answered (c): no change.** Home editing on the phone stays exactly as it is (the installation option
+  "הסתרת עורך פריסת האזור בנייד" decides; default off).
+- Also fixed on the branch: `unit-menu-lint` flagged `.he-drawer` as a menu-like floating rule; it is exempted with its reason (an
+  opaque docked panel that replaces `.lay-panel`, which has the same exemption).
+
+### Tests (round 14)
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit` | **0 errors** |
+| `playwright -c playwright.unit.config.ts --workers=1`: `unit-home-edit-drawer` (8, one new), `unit-home-screen-295`, `unit-tree-unassigned-2331`, `unit-owner-r12-2341`, `unit-a11y-polished-lint`, `unit-token-lint`, `unit-area-popup-edit-2290`, `unit-menu-lint`, `unit-lead-reserve`, `unit-uxfix-rtl`, `unit-entity-id-sweep`, `unit-dark-polish-beds` | **92 passed / 92** |
+| pytest `test_home_screen_options_295` (new `test_edit_drawer_space_round_trip`: default, round trip, 422 on bad values, 403 for a viewer), `test_tree_unassigned_2331`, `test_multibuilding_home_2330`, `test_mobile_options`, `test_home_screen`, `test_polish_display_settings` | **68 passed / 68** |
+| pytest `test_popup_layout_2290` (writes `home.screen.popup`) | **4 passed / 4** |
+| Browser evidence (drawer closed at 1440: the preview widens; with `keep` it does not) | see the runner line in the round-14 report |
+
+## Owner questions (answered 02.11, round 14 - kept for the record)
 
 1. Should home edit mode be refused on a phone always, or should the "hide the layout editor on the phone" option default to on?
    (a) refuse always (b) default the option to on (c) leave as is.
