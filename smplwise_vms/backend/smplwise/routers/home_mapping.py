@@ -112,6 +112,20 @@ def _can_toggle(conn: sqlite3.Connection, principal: Principal) -> bool:
     return bool(sites) and all(authorize(conn, principal, P_CONTENT, ("site", s)).allowed for s in sites)
 
 
+def _labels(conn: sqlite3.Connection) -> tuple[dict[str, list[str]], list[dict[str, Any]], str | None]:
+    """HA-LABELS-SYNC-2351: the home system's labels as the sync mirrored them (read-only). Returns each area's label NAMES in the area's
+    own order (what the engine's "בתווית" rules and label conflicts read; an id the label table does not know is skipped), the label
+    catalogue with how many areas carry each, and when the label registry was last listed (None = never: an old core, or not synced yet)."""
+    by_area: dict[str, list[str]] = {}
+    for r in conn.execute("SELECT al.area_id, l.name FROM ha_area_labels al JOIN ha_labels l ON l.label_id = al.label_id ORDER BY al.area_id, al.position").fetchall():
+        by_area.setdefault(r["area_id"], []).append(r["name"])
+    catalogue = [{"id": r["label_id"], "name": r["name"], "color": r["color"], "icon": r["icon"], "areas": r["n"]} for r in conn.execute(
+        "SELECT l.label_id, l.name, l.color, l.icon, (SELECT COUNT(*) FROM ha_area_labels al JOIN ha_areas a ON a.area_id = al.area_id WHERE al.label_id = l.label_id) AS n"
+        " FROM ha_labels l ORDER BY l.position, l.name").fetchall()]
+    row = conn.execute("SELECT synced_at FROM ha_label_sync WHERE id = 1").fetchone()
+    return by_area, catalogue, row["synced_at"] if row else None
+
+
 # ---------------------------------------------------------------------------------------------------------------------------------- read
 
 @router.get("/sites/{site_id}/mapping")
@@ -134,9 +148,13 @@ def read_mapping(site_id: str, principal: Principal = Depends(current_principal)
     for f in _site_floors(conn, site_id):
         floors_by_b.setdefault(f["building_id"], []).append({"id": f["id"], "name": f["name"], "level": f["level"]})
     buildings = [{"id": b["id"], "name": b["name"], "is_shared": bool(b["is_shared"]) if "is_shared" in b.keys() else False, "floors": floors_by_b.get(b["id"], [])} for b in _site_buildings(conn, site_id)]
+    area_labels, labels, labels_synced_at = _labels(conn)
     items = {
         "floors": [{"id": r["floor_id"], "name": r["name"], "level": r["level"]} for r in conn.execute("SELECT floor_id, name, level FROM ha_floors ORDER BY position, name").fetchall()],
-        "areas": [{"id": r["area_id"], "name": r["name"], "floor_id": r["floor_id"]} for r in conn.execute("SELECT area_id, name, floor_id FROM ha_areas ORDER BY position, name").fetchall()],
+        "areas": [{"id": r["area_id"], "name": r["name"], "floor_id": r["floor_id"], "labels": area_labels.get(r["area_id"], [])}
+                  for r in conn.execute("SELECT area_id, name, floor_id FROM ha_areas ORDER BY position, name").fetchall()],
+        "labels": labels,
+        "labels_synced_at": labels_synced_at,
     }
     return {
         "site": {"id": site["id"], "name": site["name"]},

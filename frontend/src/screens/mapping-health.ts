@@ -7,6 +7,9 @@
  *
  *  - the card on הגדרות › בניינים ומיפוי (registered on <system-mapping>);
  *  - <mapping-health-chip> - a quiet chip in the home's site bar ("3 אזורים חדשים - אשר"), only for a configurer, only with something new.
+ *
+ * HA-LABELS-SYNC-2351: the card also explains the coverage by the home system's REAL labels (synced read-only by the server): how many
+ * areas carry a label, how many are placed by one, where a label points to another building than the name - also before the first apply.
  */
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
@@ -15,7 +18,7 @@ import '../components/sw-icon';
 import { describeError } from '../api/client';
 import { canAnywhere, isApi } from '../api/session';
 import { loadTree } from '../api/catalog';
-import { buildPlan, health, itemKey, resolve, subsetPlan, type Health, type MapItem } from '../api/mapping-engine';
+import { buildPlan, health, itemKey, labelCoverage, labelCoverageText, resolve, subsetPlan, type Health, type LabelCoverage, type MapItem } from '../api/mapping-engine';
 import { applyMapping, loadMapping, type MappingData } from '../api/mapping';
 import { navigate } from '../router';
 import { SystemMapping } from './system-mapping';
@@ -43,6 +46,17 @@ function where(d: MappingData, it: MapItem): string {
   return to.t === 'new' ? to.name : d.buildings.find((b) => b.id === to.id)?.name ?? '';
 }
 
+/** HA-LABELS-SYNC-2351: the coverage by label of the current mapping. */
+export function coverageOf(d: MappingData): LabelCoverage {
+  const refs = refsOf(d);
+  const res = resolve(d.mapItems, d.parsed, { buildings: refs, settings: d.settings });
+  return labelCoverage(d.mapItems, res, d.parsed, refs, d.haLabels);
+}
+
+function coverageLine(d: MappingData) {
+  return html`<span data-mapping-label-coverage>${labelCoverageText(coverageOf(d))}</span>`;
+}
+
 let autoRan = false;
 
 /** Auto-insert (3A, setting on): once per page load, for a configurer. */
@@ -62,16 +76,18 @@ async function autoInsert(host: SystemMapping) {
 
 function card(host: SystemMapping, h: Health) {
   const d = host.mapping;
-  if (!d || !d.seen) return nothing;
+  if (!d) return nothing;
+  if (!d.seen)
+    return html`<div class="health ok" data-mapping-health="labels"><sw-icon name="info" size=${22}></sw-icon><div class="t"><b>תוויות ממערכת הבית</b>${coverageLine(d)}</div></div>`;
   if (!h.fresh.length)
-    return html`<div class="health ok" data-mapping-health="ok"><sw-icon name="check" size=${22}></sw-icon><div class="t"><b>המיפוי מעודכן</b><span>כל השמות במערכת הבית מוכרים מאז ההחלה האחרונה.</span></div></div>`;
+    return html`<div class="health ok" data-mapping-health="ok"><sw-icon name="check" size=${22}></sw-icon><div class="t"><b>המיפוי מעודכן</b><span>כל השמות במערכת הבית מוכרים מאז ההחלה האחרונה.</span>${coverageLine(d)}</div></div>`;
   if (d.settings.auto_insert === 'on' && h.ready.length) void autoInsert(host);
   const sample = h.ready.slice(0, 2).map((it) => `"${it.name}" ← ${where(d, it)}`).join(', ');
   const openNames = h.open.slice(0, 2).map((it) => `"${it.name}"`).join(', ');
   const n = h.fresh.length;
   return html`<div class="health" data-mapping-health="fresh"><sw-icon name="warning" size=${22}></sw-icon>
     <div class="t"><b data-mapping-health-count>${n} ${n === 1 ? 'שם חדש' : 'שמות חדשים'} במערכת הבית</b>
-      <span>${h.ready.length ? `לפי הסימון: ${sample}${h.ready.length > 2 ? ` ועוד ${h.ready.length - 2}` : ''}. ` : ''}${h.open.length ? `${openNames}${h.open.length > 2 ? ` ועוד ${h.open.length - 2}` : ''} - צריך החלטה.` : ''}</span></div>
+      <span>${h.ready.length ? `לפי הסימון: ${sample}${h.ready.length > 2 ? ` ועוד ${h.ready.length - 2}` : ''}. ` : ''}${h.open.length ? `${openNames}${h.open.length > 2 ? ` ועוד ${h.open.length - 2}` : ''} - צריך החלטה.` : ''}</span>${coverageLine(d)}</div>
     ${h.ready.length
       ? html`<sw-button size="sm" variant="primary" icon="check" data-mapping-confirm @click=${async (e: Event) => {
           const b = e.currentTarget as HTMLElement & { disabled: boolean };

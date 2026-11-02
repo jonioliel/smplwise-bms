@@ -559,6 +559,7 @@ class DevRegistryIn(BaseModel):
     devices: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
     areas: list[dict[str, Any]] = Field(default_factory=list, max_length=200)
     floors: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
+    labels: list[dict[str, Any]] | None = Field(default=None, max_length=200)  # HA-LABELS-SYNC-2351: None = keep the label mirror
 
 
 @dev_router.post("/ha/dev/registry")
@@ -587,7 +588,7 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
     with ha_sync.SYNC.mirror_lock, db.connection() as wconn:
         before = ha_sync.mirror_fingerprint(wconn)
         n = ha_sync.apply_registry(wconn, maps)
-        ha_sync.apply_structure(wconn, body.areas, body.floors)
+        ha_sync.apply_structure(wconn, body.areas, body.floors, body.labels)
         media_store.apply_devices(wconn, body.devices)  # CR-015: the device mirror and the media model, as the sync's refresh does
         switch_protection.reconcile(wconn, set(maps), devices=body.devices)
         media_changed = media_store.rebuild(wconn)

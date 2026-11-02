@@ -835,6 +835,108 @@ export function health(items: MapItem[], res: Map<string, Res>, seen: Iterable<s
   return { fresh, ready, open };
 }
 
+// ------------------------------------------------------------------------------------------------------------------------------- labels
+
+/** HA-LABELS-SYNC-2351: one label of the home system, as the sync mirrored it (read-only). `areas` = how many areas carry it. */
+export interface HaLabel {
+  id: string;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  areas: number;
+}
+
+export interface LabelCoverageRow {
+  name: string;
+  color: string | null;
+  /** Areas that carry this label. */
+  areas: number;
+  /** Of those: placed BY a label ("התווית היא" rule, or the token table read from labels). */
+  byLabel: number;
+  /** Of those: placed by something else (name / floor / manual) and the label points to the same building. */
+  agrees: number;
+  /** Of those: the label points to another building (a "label" conflict, or a manual answer that differs). */
+  differs: number;
+  /** The building the label points to (table / building name), if any. */
+  to: Target | null;
+}
+
+export interface LabelCoverage {
+  /** The label registry was listed at least once (false = an old core, or not synced yet - not "no labels"). */
+  synced: boolean;
+  /** Areas of the home system. */
+  areas: number;
+  /** Areas with at least one label. */
+  labelled: number;
+  /** Areas whose building comes from a label. */
+  byLabel: number;
+  /** Labelled areas where the label and the name / floor / manual answer disagree. */
+  differs: number;
+  /** Per label, in the registry's order (labels no area carries last). */
+  rows: LabelCoverageRow[];
+}
+
+/** The building a label points to on its own: the token table, else one of our buildings with that name. */
+export function labelPointsTo(label: string, state: Pick<MappingState, 'tokens'>, buildings: BuildingRef[]): Target | null {
+  const t = state.tokens[label.trim()];
+  if (t) return t;
+  const b = buildingForToken(label, buildings);
+  return b ? { t: 'b', id: b.id } : null;
+}
+
+function decidedByLabel(r: Res | undefined, state: MappingState): boolean {
+  if (!r || r.src !== 'rule' || !r.to) return false;
+  const rule = (state.advanced ? state.rules : [TABLE_RULE]).find((x) => x.id === r.rule);
+  return !!rule && (rule.kind === 'label' || (rule.kind === 'table' && state.spec.position === 'label'));
+}
+
+/** The health card's "coverage by label": how much of the home system the real labels explain, and where they disagree with the names. */
+export function labelCoverage(items: MapItem[], res: Map<string, Res>, state: MappingState, buildings: BuildingRef[], labels: HaLabel[] | null | undefined): LabelCoverage {
+  const areas = items.filter((it) => it.kind === 'area');
+  const rows = new Map<string, LabelCoverageRow>();
+  for (const l of labels ?? []) rows.set(l.name.trim(), { name: l.name, color: l.color, areas: 0, byLabel: 0, agrees: 0, differs: 0, to: labelPointsTo(l.name, state, buildings) });
+  let labelled = 0;
+  let byLabel = 0;
+  let differs = 0;
+  for (const it of areas) {
+    const names = [...new Set((it.labels ?? []).map((l) => l.trim()).filter(Boolean))];
+    if (!names.length) continue;
+    labelled += 1;
+    const r = res.get(itemKey(it));
+    const viaLabel = decidedByLabel(r, state);
+    if (viaLabel) byLabel += 1;
+    let any = false;
+    for (const n of names) {
+      let row = rows.get(n);
+      if (!row) rows.set(n, (row = { name: n, color: null, areas: 0, byLabel: 0, agrees: 0, differs: 0, to: labelPointsTo(n, state, buildings) }));
+      row.areas += 1;
+      if (viaLabel) row.byLabel += 1;
+      else if (row.to && row.to.t !== 'none' && r?.to && r.to.t !== 'none') {
+        if (sameTarget(row.to, r.to)) row.agrees += 1;
+        else {
+          row.differs += 1;
+          any = true;
+        }
+      }
+    }
+    if (any || r?.conflict?.kind === 'label') differs += 1;
+  }
+  const ordered = [...rows.values()].sort((a, b) => (b.areas > 0 ? 1 : 0) - (a.areas > 0 ? 1 : 0));
+  return { synced: labels != null, areas: areas.length, labelled, byLabel, differs, rows: ordered };
+}
+
+/** One plain sentence about the labels (the health card's last line). */
+export function labelCoverageText(c: LabelCoverage): string {
+  if (!c.synced) return 'תוויות: עדיין לא נקראו ממערכת הבית, ולכן כללי "בתווית" לא נבדקים כאן.';
+  const known = c.rows.length;
+  if (!c.labelled) return known ? `תוויות: יש ${known} ${known === 1 ? 'תווית' : 'תוויות'} במערכת הבית, אבל אף אזור לא מסומן באחת מהן.` : 'תוויות: אין תוויות במערכת הבית.';
+  const top = c.rows.filter((r) => r.areas > 0).slice(0, 3).map((r) => `${r.name} (${r.areas})`).join(', ');
+  const parts = [`תוויות: ${c.labelled} מתוך ${c.areas} אזורים מסומנים בתווית - ${top}${c.rows.filter((r) => r.areas > 0).length > 3 ? ' ועוד' : ''}`];
+  parts.push(c.byLabel ? `${c.byLabel} משויכים לפי התווית` : 'אף אזור לא משויך לפי התווית');
+  if (c.differs) parts.push(`ב-${c.differs} התווית מצביעה על בניין אחר מהשם`);
+  return `${parts.join('; ')}.`;
+}
+
 /** The items of the health card's "אשר": only those, so the apply touches nothing else. */
 export function subsetPlan(plan: Plan, keys: Set<string>): Plan {
   return {
