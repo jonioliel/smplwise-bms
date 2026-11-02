@@ -74,7 +74,9 @@ interface ZoneCandidate {
   include: boolean;
 }
 /** Same palette as the backend assigns on save, so candidates keep their colour once accepted. */
-const PALETTE = ['#2767ED', '#22A06B', '#F59E0B', '#8B5CF6', '#0EA5E9', '#EC4899', '#14B8A6', '#F97316'];
+// POLISH4 WP6 (D13): the preview colours of the detected rooms come from the skin's categorical hues (light / dark aware) instead of
+// eight fixed hex values; the green hues stay out (green is a status colour only). Preview only: the server sets a saved room's colour.
+const PALETTE = ['var(--sw-hue-7)', 'var(--sw-hue-6)', 'var(--sw-hue-1)', 'var(--sw-hue-4)', 'var(--sw-hue-5)', 'var(--sw-hue-2)'];
 
 type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 'library' | 'connectors' | 'circuits' | 'calibrate' | 'walk' | 'measure' | 'detect' | 'layers';
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
@@ -413,10 +415,6 @@ export class ExplorePlanEditor extends LitElement {
       color: var(--sw-text-2);
       cursor: pointer;
     }
-    .rail button:hover {
-      background: var(--sw-surface-3);
-      color: var(--sw-text);
-    }
     .rail button.on {
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
@@ -477,13 +475,9 @@ export class ExplorePlanEditor extends LitElement {
       cursor: pointer;
       flex-shrink: 0;
     }
-    .bar button.icon:hover {
-      background: var(--sw-surface-2);
-      color: var(--sw-text);
-    }
     .bar button.icon.on {
       background: var(--sw-warning-soft);
-      color: var(--sw-warning);
+      color: var(--sw-warning-text); /* POLISH4 WP6 (D28): the bare warning hue read ~2:1 on its own wash in light; the ink is >= 4.5:1 */
       border-color: var(--sw-warning);
     }
     .bar button.icon:disabled {
@@ -528,7 +522,7 @@ export class ExplorePlanEditor extends LitElement {
     .placing-hint span {
       background: var(--sw-toast-bg);
       color: var(--sw-toast-text);
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       padding: 6px 14px;
       font-size: var(--sw-fs-sm);
       box-shadow: var(--sw-shadow-2);
@@ -638,18 +632,20 @@ export class ExplorePlanEditor extends LitElement {
     .bar button.icon {
       transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
     }
-    @media (hover: none) {
-      .rail button:hover:not(.on) {
-        background: transparent;
-        color: var(--sw-text-2);
+    /* POLISH4 WP6 (D12 / D13): hover lives only under a fine pointer - the tool rail, the bar's icon keys and the side lists never keep a
+       sticky wash after a tap on a tablet (it replaces the ungated :hover + (hover: none) undo pair); the active key keeps its own fill */
+    @media (hover: hover) and (pointer: fine) {
+      .rail button:hover:not(.on):not(:disabled) {
+        background: var(--sw-surface-3);
+        color: var(--sw-text);
       }
-      .bar button.icon:hover:not(.on) {
-        background: var(--sw-surface);
-        color: var(--sw-text-2);
+      .bar button.icon:hover:not(.on):not(:disabled) {
+        background: var(--sw-surface-2);
+        color: var(--sw-text);
       }
       .list button:hover:not(.on) {
-        background: var(--sw-surface);
-        border-color: var(--sw-border);
+        background: var(--sw-accent-soft);
+        border-color: var(--sw-accent);
       }
     }
     .bar {
@@ -754,7 +750,6 @@ export class ExplorePlanEditor extends LitElement {
       cursor: pointer;
       text-align: start;
     }
-    .list button:hover,
     .list button.on {
       background: var(--sw-accent-soft);
       border-color: var(--sw-accent);
@@ -807,7 +802,7 @@ export class ExplorePlanEditor extends LitElement {
     .shared-box .chip {
       padding: 1px 8px;
       border: 1px dashed var(--sw-accent);
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
     }
@@ -868,8 +863,8 @@ export class ExplorePlanEditor extends LitElement {
       display: inline-block;
       inline-size: 12px;
       block-size: 12px;
-      border-radius: 3px;
-      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.15);
+      border-radius: var(--sw-r-2xs);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-text) 15%, transparent);
       margin-inline-end: 6px;
       vertical-align: -2px;
     }
@@ -899,7 +894,7 @@ export class ExplorePlanEditor extends LitElement {
       margin-block-start: 8px;
     }
     .legend i.zone {
-      border-radius: 2px;
+      border-radius: var(--sw-r-2xs);
       background: var(--sw-accent);
       opacity: 0.45;
     }
@@ -999,10 +994,11 @@ export class ExplorePlanEditor extends LitElement {
     }
     .bindbar button {
       margin-inline-start: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.6);
+      /* POLISH4 WP6 (D13): the key sits on the toast-coloured hint pill, so it takes the toast ink (was white / white 60 % literals) */
+      border: 1px solid color-mix(in srgb, var(--sw-toast-text) 60%, transparent);
       background: transparent;
-      color: #fff;
-      border-radius: 999px;
+      color: var(--sw-toast-text);
+      border-radius: var(--sw-r-pill);
       padding: 2px 10px;
       font: inherit;
       cursor: pointer;
@@ -1030,6 +1026,25 @@ export class ExplorePlanEditor extends LitElement {
       }
       .props {
         order: 2;
+      }
+    }
+    /* POLISH4 WP6 (D13): a phone gets the canvas at most 70 % of the screen tall (it was a fixed 520 / 560 px floor that pushed the
+       properties a full screen down), the tighter phone gap and the medium radius of a phone card */
+    @media (max-width: 767px) {
+      .layout {
+        gap: 12px;
+        min-block-size: 0;
+      }
+      .mapwrap {
+        min-block-size: min(520px, 70dvh);
+        border-radius: var(--sw-r-md);
+      }
+    }
+    /* POLISH4 WP6 (D13): a finger gets a larger key on the bar's 26 px icon buttons (the tool rail is already 38 px) */
+    @media (pointer: coarse) {
+      .bar button.icon {
+        inline-size: var(--sw-ctl-h-lg);
+        block-size: var(--sw-ctl-h-lg);
       }
     }
   `, studioPanelStyles, packageDialogStyles, studio6Styles];
@@ -1167,7 +1182,7 @@ export class ExplorePlanEditor extends LitElement {
     if (!this.showZones) return [];
     const moving = this.zonePreview; // a multi-selection drag: its zones are drawn where they are going
     const saved: PlanZone[] = this.zones.map((z) => ({ id: z.id, name: z.name, kind: z.kind, color: z.color, polygon: moving?.[z.id] ?? z.polygon, labelPos: z.label_pos, chip: sharedChip(z.shared) }));
-    const cands: PlanZone[] = (this.candidates ?? []).map((c, i) => ({ id: `cand-${i}`, name: c.include ? c.name : '', color: c.include ? PALETTE[i % PALETTE.length] : '#9AA3B5', polygon: c.polygon, candidate: true }));
+    const cands: PlanZone[] = (this.candidates ?? []).map((c, i) => ({ id: `cand-${i}`, name: c.include ? c.name : '', color: c.include ? PALETTE[i % PALETTE.length] : 'var(--sw-offline)', polygon: c.polygon, candidate: true }));
     return [...saved, ...cands];
   }
 
