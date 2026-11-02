@@ -113,7 +113,7 @@ const he = {
   nobody: 'אין נוכחים',
   andMore: (n: number) => `ועוד ${num(n)}`,
   areaSwitchLabel: 'שורת נוכחות במסך האזור',
-  areaSwitchHint: 'כבוי כברירת מחדל. מי שמורשה לראות שמות יראה שמות, השאר רק מספר',
+  areaSwitchHint: 'כבוי כברירת מחדל. מוצגת במסך האזור ובחלון האזור המהיר. מי שמורשה לראות שמות יראה שמות, השאר רק מספר',
 };
 type Key = keyof typeof he;
 
@@ -148,7 +148,7 @@ const en: Partial<Record<Key, unknown>> = {
   allEmptyCount: 'Only "all rooms are empty"', cardOnlyHint: 'Applies when the home display is "Card"',
   areaLineLabel: 'Presence', areaLineAria: 'Presence in the area', people: (n: number) => (n === 1 ? '1 person' : `${num(n)} people`), nobody: 'Nobody here',
   andMore: (n: number) => `+${num(n)} more`, areaSwitchLabel: 'Presence line on the area screen',
-  areaSwitchHint: 'Off by default. Whoever may see names sees names; everyone else sees a number only',
+  areaSwitchHint: 'Off by default. Shown on the area screen and in the area quick window. Whoever may see names sees names; everyone else sees a number only',
 };
 
 export const BP: typeof he = new Proxy(he, {

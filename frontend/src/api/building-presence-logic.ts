@@ -293,3 +293,15 @@ export function areaLineView(a: AreaPresence | null | undefined, zone = 'Asia/Je
   const tone: AreaLineView['tone'] = a.sensors?.status === 'occupied' || (p?.count ?? 0) > 0 ? 'ok' : 'quiet';
   return { show: true, tone, room, people, names, rest, title: [room, title || people].filter(Boolean).join(' · ') };
 }
+
+/** AREA-PRESENCE-LINE-2351 (owner 02.11, round 14): the area quick pop-up shows the same line while the administrator switched it on
+ * (the server's `line`), under its title. While the line is drawn, the sub-line's own room word (PRESENCE-COMPACT-2310) is left out - it
+ * is the line's first part; with the line off the pop-up stays as before (the room word in the sub-line only). */
+export function quickSheetPresence(
+  roomWord: { text: string; tone: 'ok' | 'clear' | 'unknown' } | null | undefined,
+  a: AreaPresence | null | undefined,
+  zone = 'Asia/Jerusalem',
+): { line: AreaLineView; subWord: { text: string; tone: 'ok' | 'clear' | 'unknown' } | null } {
+  const line = areaLineView(a, zone);
+  return { line, subWord: line.show ? null : roomWord ?? null };
+}
