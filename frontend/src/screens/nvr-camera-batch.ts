@@ -374,6 +374,12 @@ export class NvrCameraBatch extends LitElement {
       .sel[aria-checked='true']:hover:not([aria-disabled='true']) {
         background: color-mix(in srgb, var(--sw-accent) 32%, var(--sw-surface));
       }
+      /* DARK-REVIEW-2342: with the light dark-scheme accents of domus / crystal a 32 % field lifted the bed until the --sw-text-2 meta
+         line read 4.3-4.4:1; dark hovers at 28 % (>= 4.7:1 every skin, tests/unit-dark-polish-beds.spec.ts) - still a step above the
+         26 % resting field. Light keeps 32 % (light-dark() keys on the page's color-scheme; the rule above is the fallback of an engine without it). */
+      .sel[aria-checked='true']:hover:not([aria-disabled='true']) {
+        background: light-dark(color-mix(in srgb, var(--sw-accent) 32%, var(--sw-surface)), color-mix(in srgb, var(--sw-accent) 28%, var(--sw-surface)));
+      }
     }
     .sel[aria-checked='true'] .nm {
       font-weight: var(--sw-fw-bold);

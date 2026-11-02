@@ -241,8 +241,10 @@ export class HomeEditPanel extends LitElement {
       .w.off .w-name {
         color: var(--sw-text-3);
       }
+      /* DARK-REVIEW-2342: by the muted ink instead of opacity 0.6 (which read 3.4-3.8:1 on the dark well, 2.7-3.1:1 in light; the
+         placement select on that line is still live) - the same step back as the name */
       .w.off .w-phone {
-        opacity: 0.6;
+        color: var(--sw-text-3);
       }
       .w-top {
         display: flex;

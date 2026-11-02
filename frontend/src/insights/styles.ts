@@ -91,7 +91,7 @@ export const insightCss = css`
     transition: background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
   }
   .seg button:active { transform: scale(0.97); }
-  .seg button[aria-pressed='true'] { background: var(--sw-surface); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+  .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface)); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
 
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .chip {
@@ -102,6 +102,8 @@ export const insightCss = css`
   button.chip:active { transform: scale(0.97); }
   .chip.sel { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; font-weight: var(--sw-fw-semibold); }
   .chip .n { font-variant-numeric: tabular-nums; opacity: 0.8; font-weight: var(--sw-fw-regular); }
+  /* DARK-REVIEW-2342: on the selected chip the count keeps full ink - accent-text at 0.8 over accent-soft read 4.47:1 in domus dark (3.4-4.1:1 in light) */
+  .chip.sel .n { opacity: 1; }
   .chip.off { color: var(--sw-text-3); border-style: dashed; cursor: default; }
   .chip sw-icon { --sw-icon-size: 13px; inline-size: 13px; block-size: 13px; }
   .chip:not(.sel):not(.off) sw-icon.tick { visibility: hidden; }

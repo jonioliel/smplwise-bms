@@ -73,7 +73,7 @@ export class TempReport extends LitElement {
     .sw input { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
     .seg { display: inline-flex; background: var(--sw-surface-2); border-radius: var(--sw-r-pill); padding: 3px; gap: 2px; }
     .seg button { border: 0; background: transparent; border-radius: var(--sw-r-pill); padding: 5px 14px; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text-2); cursor: pointer; }
-    .seg button[aria-pressed='true'] { background: var(--sw-surface); color: var(--sw-text); box-shadow: var(--sw-shadow-1); font-weight: var(--sw-fw-semibold); }
+    .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface)); color: var(--sw-text); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); font-weight: var(--sw-fw-semibold); }
     .paper { background: var(--sw-surface-solid); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 18px 20px; box-shadow: var(--sw-shadow-2); display: grid; gap: 10px; min-inline-size: 0; }
     .ph { display: flex; justify-content: space-between; gap: 10px; border-block-end: 2px solid var(--sw-text); padding-block-end: 6px; }
     .ph h3 { margin: 0; font-size: var(--sw-fs-lg); }

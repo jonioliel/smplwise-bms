@@ -132,9 +132,9 @@ export class HomeScreenOptionsForm extends LitElement {
       cursor: pointer;
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-on-bg, var(--sw-surface));
+      background: var(--sw-seg-on-bg, var(--sw-seg-thumb, var(--sw-surface)));
       color: var(--sw-seg-on-text, var(--sw-accent-text));
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
       font-weight: var(--sw-fw-semibold);
     }
     .picks {

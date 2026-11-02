@@ -124,7 +124,7 @@ const rules = `
 :host(sw-kpi) .icon { border-radius: var(--sw-r-sm); background: linear-gradient(160deg, color-mix(in srgb, var(--sw-accent-soft) 70%, var(--sw-surface)), var(--sw-accent-soft)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw-accent) 16%, transparent), inset 0 1px 0 var(--sw-highlight); }
 /* classic 4 - the segmented control: a well with a raised white key; the switch: a well, the "on" track a gradient of the accent */
 :host(sw-tabs[data-variant='pill']) .row::before { background: var(--sw-surface-3); box-shadow: inset 0 1px 2px rgba(16, 24, 40, 0.08); }
-:host(sw-tabs[data-variant='pill']) .on .lbl { font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight); }
+:host(sw-tabs[data-variant='pill']) .on .lbl { font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-thumb), inset 0 1px 0 var(--sw-highlight)); }
 :host(sw-toggle) button { box-shadow: inset 0 1px 3px rgba(16, 24, 40, 0.16); }
 :host(sw-toggle[checked]) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-toggle-on) 86%, #ffffff), var(--sw-toggle-on)); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18); }
 /* classic 5 - fields sit in a shallow well; focus is a 4 px halo of the accent */

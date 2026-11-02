@@ -60,7 +60,7 @@ export class ElevatorSettings extends LitElement {
     .drow > span:first-child { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
     .seg { display: inline-flex; flex-wrap: wrap; background: var(--sw-surface-3); padding: 2px; border-radius: 999px; gap: 1px; }
     .seg button { border: 0; background: transparent; padding: 3px 12px; min-block-size: 30px; font: inherit; font-size: var(--sw-fs-xs); color: var(--sw-text-2); border-radius: 999px; cursor: pointer; }
-    .seg button[aria-pressed='true'] { background: var(--sw-surface); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+    .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface)); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .seg button:focus-visible, .lnk:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 1px; }
     .incl { display: flex; flex-wrap: wrap; gap: 6px 14px; }
     .lnk { color: var(--sw-accent-text, var(--sw-accent)); font-size: var(--sw-fs-sm); }

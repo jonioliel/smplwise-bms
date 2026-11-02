@@ -93,10 +93,10 @@ export class SystemLook extends LitElement {
       cursor: pointer;
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-surface);
+      background: var(--sw-seg-thumb, var(--sw-surface));
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .seg button[disabled] {
       cursor: default;

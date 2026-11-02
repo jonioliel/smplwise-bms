@@ -110,9 +110,10 @@ export class WaterMetersPage extends LitElement {
         font-weight: var(--sw-fw-bold);
         box-shadow: var(--sw-shadow-primary);
       }
+      /* DARK-REVIEW-2342: the count at full ink - at opacity 0.85 it read 3.7-3.9:1 on the dark accent (classic, infra, soft) and ~4.0:1
+         in light; the name beside it is bold, so the count stays the quieter of the two by weight alone */
       .tree button[aria-current='true'] .cnt {
         color: var(--sw-text-inverse);
-        opacity: 0.85;
       }
       .tree .fl {
         color: var(--sw-text-2);
