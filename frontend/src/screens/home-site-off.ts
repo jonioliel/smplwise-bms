@@ -200,7 +200,7 @@ export class HomeSiteOff extends LitElement {
     }
     try {
       const out: { b: string; p: BulkPreview }[] = [];
-      for (const b of chosen) for (const t of b.targets) out.push({ b: b.id, p: await previewBulk(t.scope, t.id, this.kind) });
+      for (const b of chosen) for (const t of b.targets) out.push({ b: b.id, p: await previewBulk(t.scope, t.id, this.kind, undefined, undefined, undefined, t.building) });
       this.previews = out.filter((x) => x.p.count > 0);
       this.phase = this.previews.length ? 'confirm' : 'nothing';
     } catch (err) {
@@ -214,7 +214,7 @@ export class HomeSiteOff extends LitElement {
     this.phase = 'running';
     try {
       const first: BulkRecord[] = [];
-      for (const x of this.previews) first.push(await runBulk(x.p.scope, x.p.id, this.kind, x.p.digest));
+      for (const x of this.previews) first.push(await runBulk(x.p.scope, x.p.id, this.kind, x.p.digest, undefined, undefined, undefined, x.p.building_id));
       this.records = first;
       this.follow = { stopped: false };
       await Promise.all(first.map((r, i) => followBulk(r, (n) => (this.records = this.records.map((o, j) => (j === i ? n : o))), this.follow!)));

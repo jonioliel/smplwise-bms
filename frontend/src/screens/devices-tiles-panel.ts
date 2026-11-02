@@ -210,6 +210,12 @@ export class DevicesTilesPanel extends LitElement {
   @property({ type: Boolean }) pairedMaster = false;
   /** A heading of the opener's own (the floor lights popup: "תאורה · <floor>"); '' = the kind and the scope. */
   @property() headingText = '';
+  /** BUILDING-SCOPE-CONTROL-2351: one building of a multi-building site - the list, its counts and every bulk action are cut to it by the
+   * server (`building` on GET /devices/items and the bulk routes). '' = no building: every request exactly as before. */
+  @property({ attribute: false }) building = '';
+  /** BUILDING-SCOPE-CONTROL-2351: the site level of a multi-building site - the list shows the whole site, but a group action over every
+   * building is not offered here (the reason, in the disabled control's tooltip); '' = the master control as before. */
+  @property({ attribute: false }) bulkHold = '';
   @state() private data: DeviceItems | null = null;
   @state() private error = '';
   @state() private notFound = false;
@@ -546,8 +552,8 @@ export class DevicesTilesPanel extends LitElement {
   ];
 
   protected willUpdate(changed: PropertyValues<this>) {
-    if ((changed.has('open') || changed.has('kind') || changed.has('scope') || changed.has('scopeId') || changed.has('switches')) && this.open) {
-      if (changed.has('kind') || changed.has('scope') || changed.has('scopeId') || changed.has('switches') || !this.data) {
+    if ((changed.has('open') || changed.has('kind') || changed.has('scope') || changed.has('scopeId') || changed.has('switches') || changed.has('building')) && this.open) {
+      if (changed.has('kind') || changed.has('scope') || changed.has('scopeId') || changed.has('switches') || changed.has('building') || !this.data) {
         this.data = null;
         this.q = '';
         this.why = null;
@@ -631,10 +637,10 @@ export class DevicesTilesPanel extends LitElement {
       return;
     }
     this.loading = true;
-    const want = `${this.kind}|${this.scope}|${this.scopeId}|${this.switches}`;
+    const want = `${this.kind}|${this.scope}|${this.scopeId}|${this.switches}|${this.building}`;
     try {
-      const d = await getDeviceItems(this.kind, this.scope, this.scopeId, this.switches);
-      if (want !== `${this.kind}|${this.scope}|${this.scopeId}|${this.switches}`) return;
+      const d = await getDeviceItems(this.kind, this.scope, this.scopeId, this.switches, this.building);
+      if (want !== `${this.kind}|${this.scope}|${this.scopeId}|${this.switches}|${this.building}`) return;
       this.data = d;
       this.ids = new Set(d.floors.flatMap((f) => f.areas.flatMap((a) => a.items.map((r) => r.entity_id))));
       this.error = '';
@@ -683,10 +689,15 @@ export class DevicesTilesPanel extends LitElement {
     return { ...d, floors, counts: { total: rows.length, active: count('active'), inactive: count('inactive'), unavailable: count('unavailable') } };
   }
 
+  /** "במבנה", or inside one building of a multi-building site "ב<building>" (the server's own name once the list loaded). */
+  private buildingWord(): string {
+    return this.building && this.data?.name ? `ב${this.data.name}` : 'במבנה';
+  }
+
   private heading(): string {
     if (this.headingText) return this.headingText;
     const m = KIND_META[this.kind];
-    const where = this.scope === 'building' ? 'במבנה' : `${SCOPE_WORD[this.scope]} ${this.data?.name ?? this.scopeName}`;
+    const where = this.scope === 'building' ? this.buildingWord() : `${SCOPE_WORD[this.scope]} ${this.data?.name ?? this.scopeName}`;
     return `${m.noun} ${where}`;
   }
 
@@ -730,13 +741,13 @@ export class DevicesTilesPanel extends LitElement {
           <div class="seg" role="group" aria-label="סינון">
             ${m.order.map((f) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => this.setFilter(f)}>${label[f]} <span>(${ltrNum(n[f])})</span></button>`)}
           </div>
-          ${bulkOk ? this.renderMaster(shown, narrowed, this.headingText ? this.scopeName : d.name) : this.pairedMaster && m.master && 'on' in m.master ? this.renderPairedOff() : nothing}
+          ${bulkOk && this.bulkHold ? this.renderHeld() : bulkOk ? this.renderMaster(shown, narrowed, this.headingText ? this.scopeName : d.name) : this.pairedMaster && m.master && 'on' in m.master ? this.renderPairedOff() : nothing}
           ${this.kind === 'locks' ? this.renderLockAllButton(shown) : nothing}
         </div>
         <label class="search"><sw-icon name="search" size=${14}></sw-icon><input type="search" data-panel-search placeholder=${`חיפוש ב${m.noun}…`} aria-label=${`חיפוש ב${m.noun}`} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
       </div>
       ${!c.total
-        ? html`<sw-state-panel icon="grid" data-panel-state="empty" state="empty" heading=${`אין ${m.noun} ${this.scope === 'building' ? 'במבנה' : `${SCOPE_WORD[this.scope]} ${d.name}`}`} hint=${d.scoped ? 'רק התקנים שהוצבו במפה של הקומות שבהרשאתך מופיעים כאן.' : m.emptyHint}></sw-state-panel>`
+        ? html`<sw-state-panel icon="grid" data-panel-state="empty" state="empty" heading=${`אין ${m.noun} ${this.scope === 'building' ? this.buildingWord() : `${SCOPE_WORD[this.scope]} ${d.name}`}`} hint=${d.scoped ? 'רק התקנים שהוצבו במפה של הקומות שבהרשאתך מופיעים כאן.' : m.emptyHint}></sw-state-panel>`
         : !floors.length
           ? html`<sw-state-panel icon="filter" data-panel-state="no_match" state="empty" heading="אין פריטים שמתאימים לסינון" hint=${q ? 'נסו חיפוש אחר, או בחרו "הכול".' : 'בחרו "הכול" כדי לראות את כל הפריטים.'}></sw-state-panel>`
           : repeat(
@@ -755,7 +766,7 @@ export class DevicesTilesPanel extends LitElement {
               </section>`,
             )}
       ${d.truncated ? html`<div class="note" data-panel-truncated>מוצגים 500 פריטים מתוך ${ltrNum(c.total)}; צמצמו בעזרת הסינון, החיפוש או קומה אחת.</div>` : nothing}
-      ${bulkOk ? html`<devices-bulk-dialog @bulk-done=${() => this.changed()}></devices-bulk-dialog>` : nothing}
+      ${bulkOk ? html`<devices-bulk-dialog .building=${this.building} @bulk-done=${() => this.changed()}></devices-bulk-dialog>` : nothing}
       ${this.kind === 'locks' ? html`${this.renderUnlockDialog()}${this.renderLockAllDialog()}` : nothing}`;
   }
 
@@ -794,6 +805,13 @@ export class DevicesTilesPanel extends LitElement {
       aria-label=${state === 'mixed' ? `${words} (${on} מתוך ${avail.length} פעילים)` : words} title=${words} ?disabled=${!avail.length} @click=${() => ask(on ? master.off : master.on)}>
       <sw-icon name="power" size=${20}></sw-icon>${state === 'mixed' ? html`<span class="badge" data-master-badge aria-hidden="true">${ltrNum(on)}</span>` : nothing}
     </button>`;
+  }
+
+  /** BUILDING-SCOPE-CONTROL-2351: the site level of a multi-building site - the master control shown disabled, the reason in its tooltip
+   * (the owner's rule: nothing about eligibility on the screen itself). The group actions live inside a building, and "כבה הכל" of the
+   * site goes through its own dialog with the buildings checked. */
+  private renderHeld() {
+    return html`<button type="button" class="master" data-panel-master=${this.kind} data-panel-held aria-label=${this.bulkHold} title=${this.bulkHold} disabled><sw-icon name="power" size=${20}></sw-icon></button>`;
   }
 
   /** SWITCH-LIGHT-DIMMER-2331: the two labelled actions without bulk control here (the demo, or no devices.control_bulk in this scope):

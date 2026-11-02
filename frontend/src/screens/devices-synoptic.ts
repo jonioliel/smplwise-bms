@@ -21,6 +21,8 @@ import { ackName, mayAck } from '../xsection/sw-fire-bar';
 import { xi } from '../xsection/xs-icons';
 import { matchLine, unlinkedFloors } from '../xsection/sw-xsection';
 import { phoneRestricted } from '../shell/phone';
+import { multiBuildingOn } from '../api/mapping';
+import { floorScreenBuilding } from '../api/home-site';
 import { alarmFloors, floorLightsTarget, litPercent, onXsOptions, phoneBoardColumns, phoneColumns, phoneGridTemplate, PHONE_DENSE_FLOORS, signalsOf, synBoardColumns, tempState, totalsOf, unassignedLights, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsColumn, type XsOptions } from '../xsection/xs-model';
 import type { XtKey } from '../i18n/xsection';
 
@@ -52,6 +54,8 @@ export class DevicesSynoptic extends LitElement {
   @state() private now = clock();
   /** SYNOPTIC-MOBILE-2342: the phone board's info sheet (the summary line of the wide board, behind the info button). */
   @state() private info = false;
+  /** BUILDING-SCOPE-CONTROL-2351: the multi-building switch (home.multi_building) - the floor lights popup names its building to the server. */
+  @state() private multiOn = false;
   private timers: number[] = [];
   private stops: Array<() => void> = [];
   private readonly onResize = () => this.requestUpdate();
@@ -183,6 +187,7 @@ export class DevicesSynoptic extends LitElement {
   }
 
   private async load() {
+    void multiBuildingOn().then((on) => (this.multiOn = on));
     try {
       this.tree = await loadTree();
       this.error = '';
@@ -221,8 +226,16 @@ export class DevicesSynoptic extends LitElement {
     const t = f && !demo ? floorLightsTarget(f) : null;
     return html`<devices-tiles-panel kind="lights" data-floor-lights=${f?.id ?? ''} ?open=${!!f} pairedMaster
       scope=${t?.scope ?? 'building'} scopeId=${t?.scopeId ?? ''} scopeName=${f?.name ?? ''} .areaFilter=${t ? t.areaIds : null} switches=${this.opts().syn_switches}
+      .building=${t ? this.ctlBuilding() : ''}
       headingText=${f ? xt('floorLightsTitle', { name: f.name }) : ''}
       @panel-close=${() => (this.lightsOf = null)} @panel-changed=${() => void this.refresh()}></devices-tiles-panel>`;
+  }
+
+  /** BUILDING-SCOPE-CONTROL-2351: the building shown, when the multi-building switch is on and the site has two or more buildings ('' otherwise). */
+  private ctlBuilding(): string {
+    const b = this.building();
+    const site = b ? this.tree?.sites.find((s) => (s.buildings ?? []).some((x) => x.id === b.id)) : null;
+    return floorScreenBuilding(this.multiOn, site?.buildings?.length ?? 0, b?.id);
   }
 
   private opts(): XsOptions {
