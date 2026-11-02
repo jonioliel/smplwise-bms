@@ -5,7 +5,7 @@
 import { BP } from '../i18n/building-presence';
 import {
   CARD_CHOICES, EMPTY_RANGE, HOLD_RANGE, RETENTION_RANGE,
-  type BuildingPresenceSettings, type BuildingSnapshot, type CardAllEmpty, type CardDetails, type CardEmptyRooms, type CardStyle, type PresenceCandidate,
+  type AreaPresence, type BuildingPresenceSettings, type BuildingSnapshot, type CardAllEmpty, type CardDetails, type CardEmptyRooms, type CardStyle, type PresenceCandidate,
 } from './building-presence';
 
 export interface ChipView { show: boolean; tone: 'ok' | 'neutral'; text: string }
@@ -239,4 +239,57 @@ export function groupByRoom(list: readonly PresenceCandidate[]): { room: string;
   return [...by.entries()]
     .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b, 'he')))
     .map(([room, items]) => ({ room: room || BP.noRoom, items }));
+}
+
+// ---- AREA-PRESENCE-LINE-2351: the area screen's presence line ----
+
+export interface AreaLineView {
+  show: boolean;
+  /** ok = someone is there (an occupied room or a person placed in it); quiet otherwise. Green is reserved for that state only. */
+  tone: 'ok' | 'quiet';
+  /** The sensor word ("פעיל" / "ריק מ־HH:MM" / "אין מידע") or ''. */
+  room: string;
+  /** "דנה, יוסי ועוד 2" / "3 אנשים" / "אין נוכחים" / '' (no people part). */
+  people: string;
+  /** The names drawn (each in its own bdi); empty for counts only. */
+  names: string[];
+  /** People beyond the drawn names ("ועוד N"). */
+  rest: number;
+  /** The tooltip: every name the server sent (a long line ends in an ellipsis on screen). */
+  title: string;
+}
+
+/** Names drawn inline before "ועוד N" (the rest are in the tooltip). */
+export const AREA_LINE_NAMES = 3;
+
+/** What the area line draws. Nothing unless the administrator switched the line on and the caller may see at least one part that exists. */
+export function areaLineView(a: AreaPresence | null | undefined, zone = 'Asia/Jerusalem'): AreaLineView {
+  const none: AreaLineView = { show: false, tone: 'quiet', room: '', people: '', names: [], rest: 0, title: '' };
+  if (!a || !a.line || (!a.sensors && !a.people)) return none;
+  let room = '';
+  if (a.sensors) {
+    const at = clockText(a.sensors.empty_since, zone);
+    room = a.sensors.status === 'occupied' ? BP.occupied : a.sensors.status === 'clear' ? (at ? BP.emptySince(at) : BP.empty) : BP.unknown;
+  }
+  let people = '';
+  let names: string[] = [];
+  let rest = 0;
+  let title = '';
+  const p = a.people;
+  if (p) {
+    const all = (p.names ?? []).filter((n) => typeof n === 'string' && n.trim());
+    if (p.names && all.length) {
+      names = all.slice(0, AREA_LINE_NAMES);
+      rest = Math.max(0, Math.max(p.count, all.length + p.more) - names.length);
+      people = rest > 0 ? `${names.join(', ')} ${BP.andMore(rest)}` : names.join(', ');
+      title = p.more > 0 ? `${all.join(', ')} ${BP.andMore(p.more)}` : all.join(', ');
+    } else if (p.count > 0) {
+      people = BP.people(p.count);
+    } else if (!a.sensors) {
+      people = BP.nobody; // the people part alone: say so instead of an empty line
+    }
+  }
+  if (!room && !people) return none;
+  const tone: AreaLineView['tone'] = a.sensors?.status === 'occupied' || (p?.count ?? 0) > 0 ? 'ok' : 'quiet';
+  return { show: true, tone, room, people, names, rest, title: [room, title || people].filter(Boolean).join(' · ') };
 }

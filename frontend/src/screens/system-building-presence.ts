@@ -17,7 +17,7 @@ import {
 import { cardOptions, filterSensors, pageSlice, settingsProblem, toggledTags, type SensorFilter } from '../api/building-presence-logic';
 import { BP } from '../i18n/building-presence';
 
-const DEFAULT_CFG: BuildingPresenceSettings = { enabled: false, hold_seconds: 60, empty_minutes: 10, retention_days: 30, home_display: 'chip', map_tint: true };
+const DEFAULT_CFG: BuildingPresenceSettings = { enabled: false, hold_seconds: 60, empty_minutes: 10, retention_days: 30, home_display: 'chip', map_tint: true, area_line: false };
 
 /**
  * `<system-building-presence>` - הגדרות › נוכחות › חיישנים במבנה (mockup round 7). The master switch comes first and is OFF by default: while it is off
@@ -485,6 +485,8 @@ export class SystemBuildingPresence extends LitElement {
       ${this.cfg.home_display === 'card' ? this.renderCardOptions() : nothing}
       <div class="row"><sw-toggle label=${BP.tintLabel} data-building-tint .checked=${this.cfg.map_tint} ?disabled=${!this.editable || this.busy}
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patch({ map_tint: e.detail.checked })}></sw-toggle><span class="muted">${BP.tintHint}</span></div>
+      <div class="row"><sw-toggle label=${BP.areaSwitchLabel} data-building-area-line .checked=${!!this.cfg.area_line} ?disabled=${!this.editable || this.busy}
+        @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patch({ area_line: e.detail.checked })}></sw-toggle><span class="muted">${BP.areaSwitchHint}</span></div>
     </sw-card>`;
   }
 
