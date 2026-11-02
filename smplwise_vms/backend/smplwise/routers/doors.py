@@ -238,7 +238,9 @@ def door_grants(principal: Principal = Depends(current_principal), conn: sqlite3
     for r in conn.execute("SELECT id, name_he, sensitive_json, delegable, revision FROM custom_roles WHERE deleted_at IS NULL ORDER BY created_at").fetchall():
         sens = json.loads(r["sensitive_json"] or "[]")
         roles.append({"id": r["id"], "name": r["name_he"], "custom": True, "includes": any(p in sens for p in DOOR_GRANTS), "editable": can_roles, "delegable": bool(r["delegable"]), "revision": r["revision"]})
-    return {"users": users, "groups": groups, "roles": roles if can_roles else [], "can_manage_roles": can_roles, "can_manage_subjects": can_subjects, "delegated": not full}
+    # UNLOCK-REASON-2370: intercom doors waiting for a door mapping (counts only) - no grant opens them until an administrator maps them
+    return {"users": users, "groups": groups, "roles": roles if can_roles else [], "can_manage_roles": can_roles, "can_manage_subjects": can_subjects, "delegated": not full,
+            "unmapped_doors": intercom_doors.unmapped_summary(conn)}
 
 
 class SubjectSwitch(BaseModel):

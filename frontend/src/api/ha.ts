@@ -33,6 +33,8 @@ export interface HaActionSpec {
   /** A separate permission the action needs on top of entity control (T079), and whether this caller holds it. */
   grant?: string | null;
   granted?: boolean;
+  /** UNLOCK-REASON-2370: on `lock.unlock`, why it is (not) granted - the server's `unlock_reason`. */
+  reason?: string | null;
 }
 
 export interface HaPlacement {
@@ -83,6 +85,8 @@ export interface HaEntity {
   actions?: HaActionSpec[];
   recent_actions?: HaActionRecord[];
   can_control?: boolean;
+  /** UNLOCK-REASON-2370: on a lock, why the open action is (not) offered. */
+  unlock_reason?: string;
   /** CR-010 review B1: owned by the alarm section (the panel, a zone's bypass control) - operated only from אבטחה › אזעקה. */
   alarm_managed?: boolean;
 }

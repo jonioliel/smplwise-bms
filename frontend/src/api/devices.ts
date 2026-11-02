@@ -7,6 +7,9 @@ import { get, post, put } from './client';
 import { entityLabel } from '../i18n/entity-label';
 import type { HaSyncState } from './ha';
 import type { HomeView } from './home-config';
+import type { UnlockReason } from '../screens/lock-reason';
+
+export type { UnlockReason };
 
 export interface DeviceCounts {
   entities: number;
@@ -245,6 +248,8 @@ export interface DeviceItem extends DeviceRow {
   floor_id: string | null;
   floor_name: string | null;
   can_unlock?: boolean;
+  /** UNLOCK-REASON-2370: why a lock row cannot be unlocked (`ok` when it can) - one of the closed set the server's `unlock_reason` returns. */
+  unlock_reason?: UnlockReason;
 }
 
 export interface DeviceItems {

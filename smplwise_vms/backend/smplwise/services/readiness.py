@@ -262,6 +262,26 @@ def check_time(c: Ctx) -> dict[str, Any]:
                 None if valid else {"label": "הגדרות כלליות", "href": "#/system/diagnostics"})
 
 
+DOOR_MAP_NEXT = {"label": "שיוך דלתות", "href": "#/system/setup"}  # the "שיוך דלתות" card (Settings › חיבורים)
+
+
+def _doors_waiting(c: Ctx) -> dict[str, Any] | None:
+    """UNLOCK-REASON-2370: intercom doors with no working door mapping. None = nothing waits. Read-only: it only counts and links; the
+    administrator approves the suggestions on the door-map card, nothing here maps a door."""
+    from . import intercom_doors
+
+    try:
+        waiting = intercom_doors.unmapped_summary(c.conn)
+    except Exception:  # noqa: BLE001 - the door map must never take the readiness page down
+        log.warning("readiness: door map summary unavailable", exc_info=True)
+        return None
+    if waiting["count"] <= 0:
+        return None
+    n, sug = waiting["count"], waiting["with_suggestion"]
+    text = f"{sug} דלתות ממתינות לשיוך - אשר הצעות" if sug == n else f"{n} דלתות ממתינות לשיוך ({sug} עם הצעה מוכנה)" if sug else f"{n} דלתות ממתינות לשיוך ידני"
+    return {"count": n, "with_suggestion": sug, "text": text}
+
+
 def check_integrations(c: Ctx) -> dict[str, Any]:
     from . import health_report
 
@@ -271,12 +291,21 @@ def check_integrations(c: Ctx) -> dict[str, Any]:
         log.warning("readiness: health report unavailable", exc_info=True)
         return _res(0.0, "דוח הבריאות לא זמין.", [], {"label": "בריאות ועבודות", "href": "#/system/diagnostics?tab=health"}, status=ATTENTION)
     wanted = [x for x in report.get("checks", []) if x["id"] in ("nvr", "go2rtc", "ha_sync", "bridge") and x["status"] != "off"]
-    if not wanted:
+    doors = _doors_waiting(c)  # an intercom door nobody can open is an unfinished connection: one more item, half credit while it waits
+    if not wanted and doors is None:
         return _res(None, "אין חיבורים לבדוק.", [], None)
-    score = sum(1.0 if x["status"] == "ok" else 0.5 if x["status"] == "warn" else 0.0 for x in wanted)
-    f = score / len(wanted)
-    return _res(f, f"{sum(1 for x in wanted if x['status'] == 'ok')} מתוך {len(wanted)} חיבורים תקינים.", [_fact(x["label"], x["status"], x["status"] == "ok") for x in wanted],
-                None if f >= 1 else {"label": "בריאות ועבודות", "href": "#/system/diagnostics?tab=health"})
+    health_score = sum(1.0 if x["status"] == "ok" else 0.5 if x["status"] == "warn" else 0.0 for x in wanted)
+    total = len(wanted) + (1 if doors else 0)
+    f = (health_score + (0.5 if doors else 0.0)) / total
+    facts = [_fact(x["label"], x["status"], x["status"] == "ok") for x in wanted]
+    if doors:
+        facts.append(_fact("שיוך דלתות", doors["text"], False))
+    summary = f"{sum(1 for x in wanted if x['status'] == 'ok')} מתוך {len(wanted)} חיבורים תקינים." if wanted else "החיבורים תקינים."
+    if doors:
+        summary = f"{summary} {doors['text']}."
+    health_ok = all(x["status"] == "ok" for x in wanted)
+    nxt = None if f >= 1 else DOOR_MAP_NEXT if (health_ok and doors) else {"label": "בריאות ועבודות", "href": "#/system/diagnostics?tab=health"}
+    return _res(f, summary, facts, nxt)
 
 
 def check_modules(c: Ctx) -> dict[str, Any]:

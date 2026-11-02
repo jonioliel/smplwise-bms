@@ -39,7 +39,7 @@ from ..services import device_activity
 from ..services import device_bulk as bulk
 from ..services import device_types
 from ..services import devices as svc
-from ..services import building_scope, ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
+from ..services import building_scope, door_authority, ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
 from ..services import service_identity
 from ..services.timeutil import parse_utc
 
@@ -355,20 +355,20 @@ def items(
                     r["bulk_protected"], r["bulk_reason"] = policy.switch_row(r["entity_id"])
     body["can_mark_bulk_protected"] = kind == "switches" and authorize(conn, principal, "system.configure", INSTALLATION).allowed
     if kind == "locks":
-        wide, floors = ha_scope.visible_floors(conn, principal, "door.unlock")
-        placed = ha_scope.placements(conn) if floors and not wide else {}
+        # UNLOCK-REASON-2370: `can_unlock` is `unlock_reason == "ok"` - the one function (services/door_authority.unlock_reason) that also
+        # answers the single-entity view and says WHY not (a code per row; the screens word it)
         from ..services import intercom_doors
-        from .ha import _wiskey_open_allowed
 
+        scope_of = door_authority.UnlockScope(conn, principal)
         wiskey = intercom_doors.wiskey_lock_ids(conn)
         for f in body["floors"]:
             for a in f["areas"]:
                 for r in a["items"]:
-                    r["can_unlock"] = bool(r["can_control"]) and not r.get("alarm_managed") and ha_scope.entity_visible(wide, floors, placed, r["entity_id"])
-                    if r["entity_id"] in wiskey:
-                        # CR-033 D3: a WisKey door follows the one door rule (no ha.entity.control needed); display only
-                        r["wiskey_door"] = True
-                        r["can_unlock"] = not r.get("alarm_managed") and _wiskey_open_allowed(conn, principal, r["entity_id"])
+                    is_wiskey = r["entity_id"] in wiskey
+                    if is_wiskey:
+                        r["wiskey_door"] = True  # CR-033 D3: a WisKey door follows the one door rule (no ha.entity.control needed); display only
+                    r["unlock_reason"] = door_authority.unlock_reason(conn, principal, r["entity_id"], wiskey=is_wiskey, alarm_managed=bool(r.get("alarm_managed")), can_control=bool(r["can_control"]), scope=scope_of)
+                    r["can_unlock"] = r["unlock_reason"] == "ok"
     body["sync"] = ha_sync.STATE.as_dict()
     if bcut is not None:
         body["building_id"] = building

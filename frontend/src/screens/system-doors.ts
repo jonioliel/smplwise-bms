@@ -19,6 +19,8 @@ import {
   parseRelay, peopleLine, placementOptions, placementValue, relayOptions, roleQuestion, type InventoryFilter,
 } from './system-doors-logic';
 import { editorBlockHint, editorBlockLabel, editorBlockQuestion, lockJobLine } from './door-path-logic';
+import { unmappedDoorsNotice } from './lock-reason';
+import { can } from '../api/session';
 
 const cardCss = css`
   :host {
@@ -82,6 +84,16 @@ const cardCss = css`
   .err {
     color: var(--sw-danger-text);
     font-size: var(--sw-fs-sm);
+  }
+  .notice {
+    color: var(--sw-warning-text, var(--sw-text-2));
+    font-size: var(--sw-fs-sm);
+    padding: var(--sw-s-2) 0;
+  }
+  .notice a {
+    color: var(--sw-accent-text, var(--sw-accent));
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
   .ctl {
     display: flex;
@@ -193,6 +205,14 @@ export class SwDoorGrants extends LitElement {
     </div>`;
   }
 
+  /** UNLOCK-REASON-2370: intercom doors with no door mapping cannot be opened by anyone, whatever they are granted - said here, where the grants are
+   * given (read-only: the link goes to "שיוך דלתות", it never maps anything, and is offered only to a system administrator). */
+  private unmappedNotice(d: DoorGrants) {
+    const n = unmappedDoorsNotice(d.unmapped_doors, can('system.configure'));
+    if (!n) return nothing;
+    return html`<div class="notice" role="status" data-door-unmapped-notice>${n.text}${n.link ? html` <a data-door-unmapped-link href=${n.link.href}>${n.link.label}</a>` : nothing}</div>`;
+  }
+
   private roleRow(r: DoorGrantRole) {
     if (!r.custom) {
       return html`<div class="row" data-door-role=${r.id}><div class="who"><span class="name">${r.name}</span><span class="sub">תפקיד מובנה</span></div><span class="sub" data-door-role-answer>${builtinAnswer(r)}</span></div>`;
@@ -213,6 +233,7 @@ export class SwDoorGrants extends LitElement {
     const pname = p ? (p.kind === 'subject' ? p.row.name : p.role.name) : '';
     return html`<sw-card heading="פתיחת דלתות" subheading="מי רשאי לפתוח דלתות אינטרקום מ-Arx · ברירת המחדל: כל הדלתות בהתקנה" data-door-grants-card>
       ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
+      ${this.unmappedNotice(d)}
       <h3>משתמשים וקבוצות</h3>
       <div class="tools">
         <input type="search" placeholder="חיפוש לפי שם" aria-label="חיפוש לפי שם" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
