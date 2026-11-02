@@ -31,6 +31,7 @@ import { age, appendVersions, fieldFlags, fieldTypeKey, groupRule, optionsLine, 
 import { ageText, versionActionText, whenText } from '../access-control/status-text';
 import { UTC_ZONE } from './wiskey-format';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { accessPanelPolish } from './system-access-polish-css';
 import { st, type StKey } from '../i18n/access-status';
 
 /**
@@ -68,6 +69,7 @@ export class SystemAccessGroups extends LitElement {
         border-block-start: 1px solid var(--sw-border);
       }
     `,
+    accessPanelPolish,
     bubbleChrome,
   ];
 
@@ -226,7 +228,7 @@ export class SystemAccessGroups extends LitElement {
     else if (!v.records.length) body = html`<div class="empty">${st('versionsEmpty')}</div>`;
     else body = html`<sw-table data-access-versions .columns=${columns} .rows=${v.records as unknown as Record<string, unknown>[]} rowKey="revision"></sw-table>`;
     return html`<sw-card flush data-access-card="versions">
-      <div class="ch"><div><h3>${st('versionsTitle')}</h3><div class="sub ltr">${st('versionsSub')}</div></div></div>
+      <div class="ch"><div><h3>${st('versionsTitle')}</h3><div class="sub">${st('versionsSub')}</div></div></div>
       ${r.stale && v ? html`<div class="note stale" role="status" data-access-stale="versions"><sw-icon name="offline" size=${16}></sw-icon><span>${s.fetchedAt ? st('stale', { t: ageText(age(s.fetchedAt, now, zone)) }) : st('staleNever')}</span></div>` : nothing}
       ${body}
       ${r.hasMore ? html`<div class="more"><sw-button size="lg" data-access-versions-more ?disabled=${s.loadingMore} @click=${() => void r.more()}>${s.loadingMore ? st('loadingMore') : `${st('more')} (${versionsLeft(v)})`}</sw-button></div>` : nothing}

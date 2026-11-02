@@ -19,6 +19,7 @@ import { insertAt, problemsAt, settingsProblems, DEFAULT_LIMITS } from '../acces
 import { statusStyles } from '../access-control/status-css';
 import { failurePanel, skeletonRows } from '../access-control/status-panel';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { accessPanelPolish } from './system-access-polish-css';
 import { mt, problemText, type MessagingKey } from '../i18n/access-messaging';
 import { dateInputLang } from '../api/day-format';
 
@@ -327,10 +328,25 @@ export class SystemAccessMessaging extends LitElement {
         flex: 1 1 14rem;
         min-inline-size: 0;
       }
+      /* POLISH4-WP8 (owner Q7): the page is a long settings document; on a phone its save row stays in view while it scrolls under it
+         (the settings kit's .foot.sticky look, styles/settings.ts) */
+      @media (max-width: 767px) {
+        .actions {
+          position: sticky;
+          inset-block-end: var(--sw-s-2);
+          z-index: 3;
+          padding: 10px var(--sw-s-2);
+          border: 1px solid var(--sw-border-strong);
+          border-radius: var(--sw-r-lg);
+          background: var(--sw-surface-solid);
+          box-shadow: var(--sw-shadow-3);
+        }
+      }
       sw-button {
         min-block-size: var(--_t);
       }
     `,
+    accessPanelPolish,
     bubbleChrome,
   ];
 

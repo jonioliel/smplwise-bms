@@ -9,6 +9,7 @@ import { statusStyles } from '../access-control/status-css';
 import { failurePanel, skeletonRows } from '../access-control/status-panel';
 import { POLICY_DEFAULT, POLICY_KEYS, policyValue, type PolicyKey } from '../access-control/status-logic';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { accessPanelPolish } from './system-access-polish-css';
 import { st, type StKey } from '../i18n/access-status';
 
 interface SettingsReply {
@@ -125,6 +126,7 @@ export class SystemAccessPolicy extends LitElement {
         }
       }
     `,
+    accessPanelPolish,
     bubbleChrome,
   ];
 

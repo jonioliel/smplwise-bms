@@ -38,6 +38,24 @@ export class SystemTransit extends LitElement {
       .res .row span { font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
       .state { display: inline-flex; align-items: center; gap: 6px; }
       .alert { display: flex; gap: 8px; align-items: flex-start; margin-block-start: 8px; padding: 8px 10px; border-radius: var(--sw-r-md); background: var(--sw-warning-soft); color: var(--sw-warning-text); font-size: var(--sw-fs-sm); }
+      /* POLISH4-WP8 (D16): the two-card rows never force a card wider than a narrow screen; a long source error or time wraps in its cell */
+      .two { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
+      .kv dd { min-inline-size: 0; overflow-wrap: anywhere; }
+      .stop .fld { min-inline-size: 0; }
+      @media (pointer: coarse) {
+        .inp { min-block-size: 44px; }
+        .ck { min-block-size: 44px; }
+      }
+      /* the phone: a stop is two lines - its code and display name, then the order and remove keys - so the name field keeps its width
+         (three keys beside it squeezed it to a sliver); the toast clears the bottom bar */
+      @media (max-width: 767px) {
+        .stop { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'code name' 'acts acts'; row-gap: 6px; }
+        .stop > .chip { grid-area: code; }
+        .stop > .fld { grid-area: name; }
+        .stop > .acts { grid-area: acts; justify-content: flex-end; flex-wrap: wrap; }
+        .kv { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); }
+        .toast { inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 16px + env(safe-area-inset-bottom, 0px)); max-inline-size: calc(100% - 32px); }
+      }
     `,
   ];
 
