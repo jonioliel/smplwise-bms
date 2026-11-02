@@ -485,6 +485,7 @@ export class MultimediaScreens extends LitElement {
       }
       .shlink {
         min-block-size: 44px;
+        margin-block: -8px; /* the hit area grows, the heading row does not */
       }
     }
     @media (prefers-reduced-motion: reduce) {
