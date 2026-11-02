@@ -193,6 +193,7 @@ test.describe('calendar connections (הגדרות › חיבורי יומן)', (
   test('providers in order iCal, Google, Microsoft', async ({ page }) => {
     test.skip(phone(), 'one provider at a time on the phone');
     await open(page, '/system/calendar-sync');
+    await expect(page.locator(`${Y} [data-provider]`)).toHaveCount(3); // evaluateAll does not wait: let the cards render first
     expect(await page.locator(`${Y} [data-provider]`).evaluateAll((els) => els.map((e) => e.getAttribute('data-provider')))).toEqual(['ical', 'google', 'microsoft']);
   });
 
