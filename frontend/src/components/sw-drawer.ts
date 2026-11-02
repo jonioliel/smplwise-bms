@@ -51,6 +51,11 @@ function deepActive(): HTMLElement | null {
  * scrolling body - the request's status block and tabs, so the body stays the ONE scroll container), parts `title` / `strip` / `body`,
  * and the phone sheet's height vars `--sw-drawer-sheet-h` / `--sw-drawer-sheet-max-h` (default auto / 88dvh). An element marked
  * `data-nested-open` inside the drawer (an open menu) keeps Escape for itself, like an open confirmation.
+ *
+ * POLISH4-WP1 (ACCESS-POLISH-2331 proposal): slot `footer-end` - the footer's far end (a destructive "מחק", "בטל הרשאה"). A slotted
+ * footer container is a flex item, so `margin-inline-start: auto` inside it did nothing and every drawer pushed its end action its
+ * own way; this slot sits at the far end of the footer row, after the `footer` actions. Opt-in: a drawer that slots nothing there
+ * draws exactly as before.
  */
 @customElement('sw-drawer')
 export class SwDrawer extends LitElement {
@@ -60,6 +65,7 @@ export class SwDrawer extends LitElement {
   @property({ type: Boolean, reflect: true }) modal = false;
   private opener: HTMLElement | null = null;
   @state() private hasFooter = false;
+  @state() private hasFooterEnd = false;
   /** review M3: a press that STARTED on the backdrop - a drag from inside the panel ending outside never closes it. */
   private downOnBackdrop = false;
   /** review M2: the release of the scroll lock behind a modal drawer while it is open (components/scroll-lock.ts). */
@@ -151,6 +157,16 @@ export class SwDrawer extends LitElement {
       flex-wrap: wrap;
     }
     footer[hidden] {
+      display: none;
+    }
+    /* the far end of the footer row (slot footer-end); it wraps under the actions as a whole on a narrow panel */
+    footer .fend {
+      display: flex;
+      gap: var(--sw-s-2);
+      flex-wrap: wrap;
+      margin-inline-start: auto;
+    }
+    footer .fend[hidden] {
       display: none;
     }
     .grip {
@@ -295,9 +311,16 @@ export class SwDrawer extends LitElement {
     this.releaseScroll = null;
   }
 
+  private static filled(slot: HTMLSlotElement): boolean {
+    return slot.assignedNodes({ flatten: true }).some((n) => n.nodeType === Node.ELEMENT_NODE || (n.textContent ?? '').trim() !== '');
+  }
+
   private onFooterSlot = (e: Event) => {
-    const slot = e.target as HTMLSlotElement;
-    this.hasFooter = slot.assignedNodes({ flatten: true }).some((n) => n.nodeType === Node.ELEMENT_NODE || (n.textContent ?? '').trim() !== '');
+    this.hasFooter = SwDrawer.filled(e.target as HTMLSlotElement);
+  };
+
+  private onFooterEndSlot = (e: Event) => {
+    this.hasFooterEnd = SwDrawer.filled(e.target as HTMLSlotElement);
   };
 
   private onPointerDown = (e: PointerEvent) => {
@@ -385,7 +408,7 @@ export class SwDrawer extends LitElement {
       </header>
       <div class="strip" part="strip"><slot name="strip"></slot></div>
       <div class="body" part="body"><slot></slot></div>
-      <footer ?hidden=${!this.hasFooter}><slot name="footer" @slotchange=${this.onFooterSlot}></slot></footer>`;
+      <footer ?hidden=${!this.hasFooter && !this.hasFooterEnd}><slot name="footer" @slotchange=${this.onFooterSlot}></slot><span class="fend" ?hidden=${!this.hasFooterEnd}><slot name="footer-end" @slotchange=${this.onFooterEndSlot}></slot></span></footer>`;
   }
 
   render() {
