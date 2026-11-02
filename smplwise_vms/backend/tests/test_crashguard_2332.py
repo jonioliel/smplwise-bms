@@ -56,7 +56,9 @@ def test_child_env_switches_to_pure_python_loop_in_safe_mode():
     assert safe["SW_UVICORN_LOOP"] == "asyncio" and safe["SW_UVICORN_HTTP"] == "h11" and safe["SW_SAFE_MODE"] == "1"
     fixed = {"PYTHONFAULTHANDLER", "SW_UVICORN_LOOP", "SW_UVICORN_HTTP", "SW_SAFE_MODE"}
     assert set(safe) - {"PATH"} <= fixed and set(normal) - set(base) <= fixed, "the server child gets the supervisor's environment plus fixed keys only"
-    assert server_impl(safe) == ("asyncio", "h11") and server_impl({}) == ("auto", "auto") and server_impl({"SW_UVICORN_LOOP": "bogus"}) == ("auto", "auto")
+    # ASYNCIO-DEFAULT-2342: the default is asyncio + h11 (was uvicorn's "auto" = uvloop + httptools); safe mode wins over a fast opt-in
+    assert server_impl(safe) == ("asyncio", "h11") and server_impl({}) == ("asyncio", "h11") and server_impl({"SW_UVICORN_LOOP": "bogus"}) == ("asyncio", "h11")
+    assert server_impl(safe, fast=True, installed=lambda _m: True) == ("asyncio", "h11"), "safe mode overrides the fast-network opt-in"
 
 
 def test_crash_record_keeps_a_bounded_history(tmp_path):

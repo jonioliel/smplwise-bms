@@ -255,6 +255,12 @@ export class RecorderHealthPanel extends LitElement {
       color: var(--sw-danger);
       font-size: var(--sw-fs-xs);
     }
+    .fix {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+      line-height: 1.45;
+      margin: 2px 0 4px;
+    }
     .ok {
       color: var(--sw-text-2);
       font-size: var(--sw-fs-xs);
@@ -429,6 +435,7 @@ export class RecorderHealthPanel extends LitElement {
     return html`<div class="card" data-rh-card=${c.id} data-status=${c.status}>
       <div class="hh"><span class="nm">${c.name}</span><sw-badge kind=${KIND[c.status]} label=${STATUS_TEXT[c.status]}></sw-badge></div>
       ${this.row('api', 'חיבור', a, api)}
+      ${a.state === 'error' && a.action ? html`<div class="fix" data-rh-fix role="note">${a.action}</div>` : nothing}
       ${this.row('disks', 'דיסקים', d, disk)}
       ${this.row('recording', 'הקלטה', r, rec)}
       ${this.row('channels', 'מצלמות', ch, cams)}

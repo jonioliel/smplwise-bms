@@ -186,7 +186,22 @@ def gate_for(path: Path) -> WriteGate:
 _conn_gate: dict[int, WriteGate] = {}  # id(conn) -> its database's gate (connection() / write_aside())
 _gate_tokens: dict[int, tuple[WriteGate, object, sqlite3.Connection]] = {}  # id(conn) -> the gate token it holds while it writes
 _stray_logged: set[int] = set()
-_beginning: set[int] = set()  # id(conn) between taking the gate and BEGIN IMMEDIATE returning
+_beginning: set[int] = set()  # id(conn) from before it takes the gate until BEGIN IMMEDIATE returned
+# WRITE-GATE-EVENTS-2341: id(conn) from the moment its COMMIT / ROLLBACK starts until the gate is handed on. SQLite
+# clears its "in a transaction" flag when COMMIT STARTS - before the WAL write and the fsync of a FULL commit - so a
+# holder that is committing reads as outside any transaction; the stray detector must not take it for a manual COMMIT.
+_ending: set[int] = set()
+
+
+@contextmanager
+def _finishing(conn: sqlite3.Connection) -> Iterator[None]:
+    """Mark the connection as ending its transaction (COMMIT / ROLLBACK, then handing the gate on)."""
+    key = id(conn)
+    _ending.add(key)
+    try:
+        yield
+    finally:
+        _ending.discard(key)
 
 
 def _release_gate(conn: sqlite3.Connection) -> None:
@@ -269,18 +284,29 @@ def _busy(label: str, exc: sqlite3.OperationalError) -> sqlite3.OperationalError
     return exc
 
 
+def _settled(key: int, entry: tuple[WriteGate, object, sqlite3.Connection]) -> bool:
+    """The connection holds this very token and is neither starting nor finishing its transaction. The order matters:
+    a finishing holder drops its token before it leaves _ending, so one that left _ending is seen without the token."""
+    return key not in _ending and key not in _beginning and _gate_tokens.get(key) is entry
+
+
 def _report_stray_holders(gate: WriteGate, waiter: str) -> None:
     """A writer has waited a second: is the gate held by a connection outside any transaction? That is a manual
     COMMIT (conn.execute("COMMIT") instead of db.commit_now) - the token stays with a connection that no longer writes,
     and every writer queues behind it until the connection closes. Logged once per connection, as an error."""
-    for key, (g, _tok, holder) in list(_gate_tokens.items()):
-        if g is not gate or key in _stray_logged or key in _beginning:
-            continue  # a holder still inside BEGIN IMMEDIATE (waiting for another process) is not a stray
+    for key, entry in list(_gate_tokens.items()):
+        if entry[0] is not gate or key in _stray_logged:
+            continue
+        # the snapshot may be stale and the holder runs on meanwhile: it is a stray only when it holds the same token,
+        # is neither starting (BEGIN IMMEDIATE may wait for another process) nor finishing (COMMIT clears the flag before
+        # the commit is written) both before and after the flag is read, and the flag says no transaction
+        if not _settled(key, entry):
+            continue
         try:
-            open_tx = holder.in_transaction
-        except sqlite3.ProgrammingError:  # closed
-            open_tx = False
-        if not open_tx:
+            open_tx = entry[2].in_transaction
+        except sqlite3.ProgrammingError:  # closed: its gate is handed on by _drop_hold, never kept
+            continue
+        if not open_tx and _settled(key, entry):
             _stray_logged.add(key)
             label = _MODES.get(key, ("write", None, "?"))[2]
             log.error("write gate held by %s outside a transaction (a manual COMMIT? use db.commit_now); %s waits", label, waiter)
@@ -295,36 +321,41 @@ def _begin_immediate(conn: sqlite3.Connection, label: str, wait_s: float | None 
     budget = BUSY_TIMEOUT_S if wait_s is None else max(0.0, min(float(wait_s), BUSY_TIMEOUT_S))
     full_ms = int(conn.execute("PRAGMA busy_timeout").fetchone()[0])  # the connection's own (BUSY_TIMEOUT_S unless a caller set less)
     gate = _conn_gate.get(id(conn)) if WRITE_GATE else None
-    if gate is not None and id(conn) not in _gate_tokens:
-        token = gate.acquire(budget, on_slow=lambda: _report_stray_holders(gate, label), priority=priority)
-        if token is None:
-            with _stats_lock:
-                LOCK_STATS["gate_timeouts"] += 1
-            raise _busy(label, sqlite3.OperationalError("database is locked"))
-        _gate_tokens[id(conn)] = (gate, token, conn)
-    _beginning.add(id(conn))
-    # one attempt never waits longer than its budget (BUSY_TIMEOUT_S) in total: SQLite gets what the gate queue left of it
-    remaining_ms = max(1, int((budget - (time.monotonic() - started)) * 1000))
-    shortened = remaining_ms < full_ms
+    key = id(conn)
+    # "beginning" from before the token is recorded: a stray check between recording it and BEGIN IMMEDIATE (or while
+    # BEGIN waits for a writer in another process) sees a connection that is starting to write, not a manual COMMIT
+    _beginning.add(key)
     try:
-        if shortened:
-            conn.execute(f"PRAGMA busy_timeout={remaining_ms}")
-        conn.execute("BEGIN IMMEDIATE")
-    except sqlite3.OperationalError as exc:
-        _release_gate(conn)
-        if is_busy(exc):
-            _busy(label, exc)
-        raise
-    except BaseException:
-        _release_gate(conn)
-        raise
+        if gate is not None and key not in _gate_tokens:
+            token = gate.acquire(budget, on_slow=lambda: _report_stray_holders(gate, label), priority=priority)
+            if token is None:
+                with _stats_lock:
+                    LOCK_STATS["gate_timeouts"] += 1
+                raise _busy(label, sqlite3.OperationalError("database is locked"))
+            _gate_tokens[key] = (gate, token, conn)
+        # one attempt never waits longer than its budget (BUSY_TIMEOUT_S) in total: SQLite gets what the gate queue left of it
+        remaining_ms = max(1, int((budget - (time.monotonic() - started)) * 1000))
+        shortened = remaining_ms < full_ms
+        try:
+            if shortened:
+                conn.execute(f"PRAGMA busy_timeout={remaining_ms}")
+            conn.execute("BEGIN IMMEDIATE")
+        except sqlite3.OperationalError as exc:
+            _release_gate(conn)
+            if is_busy(exc):
+                _busy(label, exc)
+            raise
+        except BaseException:
+            _release_gate(conn)
+            raise
+        finally:
+            if shortened:
+                try:
+                    conn.execute(f"PRAGMA busy_timeout={full_ms}")
+                except sqlite3.Error:
+                    pass
     finally:
-        _beginning.discard(id(conn))
-        if shortened:
-            try:
-                conn.execute(f"PRAGMA busy_timeout={full_ms}")
-            except sqlite3.Error:
-                pass
+        _beginning.discard(key)
     now = time.monotonic()
     _holders[id(conn)] = (label, now)
     _note_wait(now - started, label)
@@ -353,20 +384,22 @@ def _drop_hold(conn: sqlite3.Connection) -> None:
     _holders.pop(id(conn), None)
     _release_gate(conn)
     _stray_logged.discard(id(conn))
+    _ending.discard(id(conn))
     _conn_gate.pop(id(conn), None)
 
 
 def _finish(conn: sqlite3.Connection, sql: str) -> None:
     """COMMIT / ROLLBACK when a transaction is still open (release() may already have committed it)."""
-    try:
-        if conn.in_transaction:
-            conn.execute(sql)
-    except sqlite3.OperationalError as exc:
-        if "no transaction is active" not in str(exc):  # committed by release() a moment earlier: nothing left to do
-            raise
-    finally:
-        if not conn.in_transaction:
-            _end_hold(conn)
+    with _finishing(conn):
+        try:
+            if conn.in_transaction:
+                conn.execute(sql)
+        except sqlite3.OperationalError as exc:
+            if "no transaction is active" not in str(exc):  # committed by release() a moment earlier: nothing left to do
+                raise
+        finally:
+            if not conn.in_transaction:
+                _end_hold(conn)
 
 
 def retry_locked(fn: Callable[[], T], *, what: str = "write", attempts: int = 3, base_s: float = 0.5) -> T:
@@ -502,6 +535,7 @@ class Database:
             raise
         finally:
             _MODES.pop(id(conn), None)
+            _ending.add(id(conn))  # closing: the gate, if still held, is handed on by _drop_hold right after
             try:
                 conn.close()  # rolls back whatever is still open: the lock is free before the gate is handed on
             finally:
@@ -529,6 +563,7 @@ class Database:
                 pass
             raise
         finally:
+            _ending.add(id(conn))
             try:
                 conn.close()
             finally:
@@ -601,9 +636,10 @@ def release(conn: sqlite3.Connection) -> None:
         open_tx = conn.in_transaction
     except sqlite3.ProgrammingError:  # closed
         return
-    if open_tx:
-        conn.execute("COMMIT")
-    _end_hold(conn)  # hands the gate on
+    with _finishing(conn):
+        if open_tx:
+            conn.execute("COMMIT")
+        _end_hold(conn)  # hands the gate on
     conn.execute("PRAGMA query_only=1")
 
 
@@ -612,18 +648,20 @@ def commit_now(conn: sqlite3.Connection, *, keep_reading: bool = True) -> None:
     by hand (a bare conn.execute("COMMIT") keeps this process's write gate, and every other writer queues until the
     connection closes; tests/test_db_gate.py forbids it outside db.py). keep_reading: continue in a deferred read
     transaction (nothing more may be written on the connection until it closes); False leaves it in autocommit."""
-    if conn.in_transaction:
-        conn.execute("COMMIT")
-    _end_hold(conn)
+    with _finishing(conn):
+        if conn.in_transaction:
+            conn.execute("COMMIT")
+        _end_hold(conn)
     if keep_reading:
         conn.execute("BEGIN")
 
 
 def rollback_and_restart(conn: sqlite3.Connection) -> None:
     """Drop everything this write transaction wrote and start a fresh one (queued like any writer)."""
-    if conn.in_transaction:
-        conn.execute("ROLLBACK")
-    _end_hold(conn)
+    with _finishing(conn):
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        _end_hold(conn)
     label = _MODES.get(id(conn), ("write", None, "restart"))[2]
     _begin_immediate(conn, label)
 
