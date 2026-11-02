@@ -1,30 +1,30 @@
 # Project status — generated view
 
-Generated: 2026-10-31T09:30:04.733931+00:00
+Generated: 2026-11-02T21:37:20.945738+00:00
 
-Tasks: 275 | Requirements: 377 | Tests: 394 | Screens: 32
+Tasks: 383 | Requirements: 492 | Tests: 509 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
 - BACKLOG: 138
-- BLOCKED: 13
-- DONE: 38
-- IN_PROGRESS: 4
-- READY: 1
-- REVIEW: 81
+- BLOCKED: 15
+- DONE: 40
+- IN_PROGRESS: 32
+- REVIEW: 158
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 181
+- V1: 289
 - V2: 29
 - V3: 2
 
 ## Blockers
 - T003: Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).
 - T004: Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).
+- T096: Real FCM / APNs delivery needs the owner's Firebase project and Apple account (docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md); the relay Worker is not deployed. The CR-012 wake design is treated as superseded by the CR-027 relay (the CR-012 document itself still says "Proposed"); the go-live work is PUSH-GOLIVE-KIT-2380.
 - WXH0: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
 - WXH1: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
 - WXH2: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
@@ -34,8 +34,9 @@ No VMS implementation or hardware test is implied by this planning registry.
 - WXH6: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
 - WXH7: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
 - WXAV: Waiting for W10 (stream descriptor and audio hook) from the WisKey side; the owner asks to start S18 right after stage 1 as soon as W10 arrives.
-- WISKEY-RC4-2310: Waits for the WisKey team reply via the owner, and the owner packaging decision (managed vs manual). WisKey goes last.
-- PRESENCE-COMPACT-2310: Waits for the owner: 5 questions on round9/presence-compact (recommended direction A, strip)
+- WISKEY-RC4-2310: Held by the owner release order "WisKey ships last" (after 2.36.0 and 2.37.0) and by the WisKey team reply via the owner. The code is on the branch chain that ends at pilot/WISKEY-RC7-ADOPT-2331; nothing is merged to main or tagged.
+- REAL-TV-SESSION-2380: Waits for the owner (question Q2: a lab TV in a joint session this week, an Android TV box only, or fix blind) and for TV-FIT-2380 to merge.
+- CAST-FIRST-TEST-2380: A device action needs the owner's explicit approval (question Q9: approve one camera to one lab TV in a joint session, or later).
 
 ## Backlog
 | ID | Phase | Status | Task | Depends on |
@@ -135,18 +136,18 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T093](tasks/T093.md) | V1 | REVIEW | אבטחה: לייב | חקירה | אזעקה — אזעקה מתשתית המערכת (CR-010) | — |
 | [T094](tasks/T094.md) | V1 | REVIEW | מעטפת האפליקציה: המשתמש בסוף סרגל הניווט, בלי סרגל עליון בטלפון, סדר לשוניות אישי (CR-013) | — |
 | [T095](tasks/T095.md) | V3 | BACKLOG | גורם אימות שני ל-Arx (CR-011) — מדיניות כניסה, step-up לפעולות רגישות, passkeys | T092 |
-| [T096](tasks/T096.md) | V1 | BACKLOG | התראות באפליקציית Android (CR-012) — השכמת FCM דרך ממסר, חלופת UnifiedPush | T092 |
+| [T096](tasks/T096.md) | V1 | BLOCKED | התראות באפליקציית Android (CR-012) — השכמת FCM דרך ממסר, חלופת UnifiedPush | T092 |
 | [T097](tasks/T097.md) | V1 | BACKLOG | חלל משותף לשתי קומות (CR-009) — אולם בגובה כפול, שלם בכל קומה | T085 |
-| [T098](tasks/T098.md) | V1 | READY | מולטימדיה - מסכים ושלט (CR-015): מסך המסכים, השלט, כרטיסי מדיה באזורים ובמסך הראשי | — |
+| [T098](tasks/T098.md) | V1 | REVIEW | מולטימדיה - מסכים ושלט (CR-015): מסך המסכים, השלט, כרטיסי מדיה באזורים ובמסך הראשי | — |
 | [T099](tasks/T099.md) | V1 | BACKLOG | מולטימדיה שלב 2 - נגנים, רמקולים וקבוצות (CR-016): כרטיסים, חלונית נגן, קבוצות, מועדפים ותחנות | — |
 | [T100](tasks/T100.md) | V1 | BACKLOG | אוטומציות, סצנות וסקריפטים (CR-017): צפייה, הרצה, בונה בעברית, שמירה בטוחה דרך רכיב החיבור | — |
 | [T101](tasks/T101.md) | V1 | BACKLOG | התראות (CR-018): מרכז התראות אחד, מקורות מובנים, Push וטלפונים, העדפות אישיות, אישור והסלמה | — |
 | [T102](tasks/T102.md) | V1 | BACKLOG | תזמונים (CR-014): מסך תזמונים מעל רכיב התזמונים, הרשאות, ביטול ושחזור, אימות חי במעבדה | — |
-| [T103](tasks/T103.md) | V1 | BACKLOG | אפליקציית הטלפון - צד השרת (CR-027): רישום מכשירים, נוכחות וחיישנים, דחיפה דרך הממסר; כבוי כברירת מחדל | — |
-| [T104](tasks/T104.md) | V1 | BACKLOG | שידור וידאו למסכים (CR-028): מחקר, תוכנית בשלבים והכנה לקריאה בלבד - עמודת 'שידור' בהגדרות המולטימדיה | — |
+| [T103](tasks/T103.md) | V1 | REVIEW | אפליקציית הטלפון - צד השרת (CR-027): רישום מכשירים, נוכחות וחיישנים, דחיפה דרך הממסר; כבוי כברירת מחדל | — |
+| [T104](tasks/T104.md) | V1 | REVIEW | שידור וידאו למסכים (CR-028): מחקר, תוכנית בשלבים והכנה לקריאה בלבד - עמודת 'שידור' בהגדרות המולטימדיה | — |
 | [T105](tasks/T105.md) | V1 | BACKLOG | Provision-ISR: מקליטים ומצלמות (CR-025) - מתאם API v1 לקריאה, חיפוש, השמעה, ייצוא, אירועים | — |
 | [T106](tasks/T106.md) | V1 | BACKLOG | ניטור בריאות מקליטים (CR-026): שבעה מקורות התראה, הגדרות פר מקליט, עומק ל-Provision-ISR | — |
-| [T107](tasks/T107.md) | V2 | BACKLOG | מסך קיר לטאבלט קבוע (CR-030, WDM / WDX): משתמש קיר שמזוהה לפי טאבלט | — |
+| [T107](tasks/T107.md) | V2 | REVIEW | מסך קיר לטאבלט קבוע (CR-030, WDM / WDX): משתמש קיר שמזוהה לפי טאבלט | — |
 | [T108](tasks/T108.md) | V2 | BACKLOG | גנרטורים (CR-031, GEN1): זיהוי לפי התקן, תרשים זרימת הספק, התראות וניתוב, היסטוריה | — |
 | [T109](tasks/T109.md) | V1 | BACKLOG | מתגים מוגנים (CR-019): ברירת מחדל 'כלול', הצעת סיווג, רשימת סקירה בהגדרות | — |
 | [T110](tasks/T110.md) | V1 | BACKLOG | הגדרות מצלמות ב-NVR (CR-020): טבלת מצלמות, כתיבה מוגנת (SVC / קידוד), שינוי לכמה מצלמות | — |
@@ -157,7 +158,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T115](tasks/T115.md) | V1 | BACKLOG | בחירת מצלמות להשוואה כתפריט נפתח (CMP1 / CMP2): הקלטות › השוואה וניגון מסונכרן | — |
 | [T116](tasks/T116.md) | V1 | BACKLOG | מקליטי Frigate (CR-029, NN5): צפייה וניגון (F1) ושליטה מוגנת (F2), כבוי כברירת מחדל | — |
 | [T117](tasks/T117.md) | V1 | BACKLOG | הכרזות קוליות (MU2): השמעת שורה מוקלדת ברמקולים מותרים, מגבלות קצב, יומן | — |
-| [T118](tasks/T118.md) | V1 | BACKLOG | הצעת הורדה לאפליקציית Android במסך הכניסה מרחוק (כבויה כברירת מחדל) | — |
+| [T118](tasks/T118.md) | V1 | REVIEW | הצעת הורדה לאפליקציית Android במסך הכניסה מרחוק (כבויה כברירת מחדל) | — |
 | [WXD0](tasks/WXD0.md) | V1 | REVIEW | WisKey CR-033: Trusted-bridge fakes and vector oracle | — |
 | [WXD1](tasks/WXD1.md) | V1 | BACKLOG | WisKey CR-033: WisKey door map (explicit, single relay, manual) | WXD0 |
 | [WXD2](tasks/WXD2.md) | V1 | REVIEW | WisKey CR-033: Access control station scope and placement | — |
@@ -301,17 +302,125 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [WISKEYA06-297](tasks/WISKEYA06-297.md) | V1 | REVIEW | WisKey A06 (T06, W-031, board r152): identity source + role + scope -> admission, working-state mapping (fakes) | — |
 | [EXTERNALBUILD-297](tasks/EXTERNALBUILD-297.md) | V1 | REVIEW | External access built to full scope (X0-X6 of EXTERNALSPEC-297 + one-time code + CR-VISITOR105 visitors), fakes only, OFF by default | — |
 | [DOORWRITE-297](tasks/DOORWRITE-297.md) | V1 | REVIEW | Door-window program written from Arx to WisKey (board r129): validate, read-back proof, drift, retries, dry run, write again | — |
-| [XSECFIX-297](tasks/XSECFIX-297.md) | V1 | REVIEW | Security review 2026-10-27 (phone apps): the four medium findings M1-M4 - presence gate exact match, device credentials end on sign-out, failure limiter per source, arx://open waits for the app lock | — |
+| [XSECFIX-297](tasks/XSECFIX-297.md) | V1 | DONE | Security review 2026-10-27 (phone apps): the four medium findings M1-M4 - presence gate exact match, device credentials end on sign-out, failure limiter per source, arx://open waits for the app lock | — |
 | [MOTIONSETTING-297](tasks/MOTIONSETTING-297.md) | V1 | REVIEW | Motion setting ui.motion (auto | full | reduced), separate from the skin and the scheme | — |
 | [SPLITSWITCH2-297](tasks/SPLITSWITCH2-297.md) | V1 | REVIEW | Emergency-buttons switch is a setting (owner q48): default on, admin-only, audited, confirmed when turned off; a gate on the build flags, never an activation | — |
 | [CURVEDGATE-297](tasks/CURVEDGATE-297.md) | V1 | REVIEW | Curved walls stage 1a: the two live curved-wall browser specs (evidence-curved-walls, evidence-curve-points) join the release gate's fixture phase | — |
-| [XSECFOLLOW-297](tasks/XSECFOLLOW-297.md) | V1 | REVIEW | Security review 2026-10-27 follow-ups of XSECFIX-297: the presence block on WebSockets, phone credentials end on a password change / reset and a forced second factor, ?do=run and Android tests | — |
+| [XSECFOLLOW-297](tasks/XSECFOLLOW-297.md) | V1 | DONE | Security review 2026-10-27 follow-ups of XSECFIX-297: the presence block on WebSockets, phone credentials end on a password change / reset and a forced second factor, ?do=run and Android tests | — |
 | [SUPPLIERDOCS-297](tasks/SUPPLIERDOCS-297.md) | V1 | REVIEW | Supplier certificate reading, slice 1: text-layer PDFs into proposed fields decided field by field (OFF by default, PROVISIONAL on owner questions q52-q56) | — |
 | [SUPPLIERDOCS2-297](tasks/SUPPLIERDOCS2-297.md) | V1 | REVIEW | Supplier documents: migration renumbered to 0182 after release/2241, merge of release/2241, security review with fixes F1-F3 and F6 | — |
-| [CALENDARS-UI-2310](tasks/CALENDARS-UI-2310.md) | V1 | IN_PROGRESS | Calendars UI: booking calendars, approvals, maintenance calendar, resident view, sync settings (owner answers 30.10) | — |
-| [TEMPREPORT-2310](tasks/TEMPREPORT-2310.md) | V1 | IN_PROGRESS | Temperature report: security review and hardening of the report link and WhatsApp send | — |
-| [WORSTCASE-2310](tasks/WORSTCASE-2310.md) | V1 | IN_PROGRESS | Worst-case data on the main screens: long names, empty states, huge counts, no scrolling | — |
+| [CALENDARS-UI-2310](tasks/CALENDARS-UI-2310.md) | V1 | REVIEW | Calendars UI: booking calendars, approvals, maintenance calendar, resident view, sync settings (owner answers 30.10) | — |
+| [TEMPREPORT-2310](tasks/TEMPREPORT-2310.md) | V1 | REVIEW | Temperature report: security review and hardening of the report link and WhatsApp send | — |
+| [WORSTCASE-2310](tasks/WORSTCASE-2310.md) | V1 | REVIEW | Worst-case data on the main screens: long names, empty states, huge counts, no scrolling | — |
 | [POLISH-PHONE-2310](tasks/POLISH-PHONE-2310.md) | V1 | REVIEW | Phone layer polish: chips and switch hit areas | — |
 | [ENTRY-CHECK-2310](tasks/ENTRY-CHECK-2310.md) | V1 | REVIEW | Gate: runner entry check before a release train + 7-day quarantine list | — |
 | [WISKEY-RC4-2310](tasks/WISKEY-RC4-2310.md) | V1 | BLOCKED | WisKey rc.4 adoption + rc.5 host check (deadline fix, migration 0186, relay-by-door fix) | — |
-| [PRESENCE-COMPACT-2310](tasks/PRESENCE-COMPACT-2310.md) | V1 | BLOCKED | Presence card: compact redesign (owner rejected the tall card 30.10) | — |
+| [PRESENCE-COMPACT-2310](tasks/PRESENCE-COMPACT-2310.md) | V1 | REVIEW | Presence card: compact redesign (owner rejected the tall card 30.10) | — |
+| [COORD-DOCS-2310](tasks/COORD-DOCS-2310.md) | V1 | REVIEW | Multi-Claude coordination protocol as documents and an optional tool | — |
+| [LICENSE-2310](tasks/LICENSE-2310.md) | V1 | REVIEW | Proprietary all-rights-reserved licence notice; internal review notes untracked | — |
+| [DEPAUDIT-2310](tasks/DEPAUDIT-2310.md) | V1 | REVIEW | Dependency, licence and secrets audit refreshed for v2.29.0 | — |
+| [TASKS-SYNC-3110](tasks/TASKS-SYNC-3110.md) | V1 | REVIEW | Task registry matched to the code history after 2.29.0 | — |
+| [A11Y-2310](tasks/A11Y-2310.md) | V1 | REVIEW | The shared dialog keeps the keyboard focus inside its box | — |
+| [GDRIVEBK-2310](tasks/GDRIVEBK-2310.md) | V1 | REVIEW | Google Drive as an off-box backup target (device-flow OAuth, off by default) | — |
+| [DEPFIX-2310](tasks/DEPFIX-2310.md) | V1 | REVIEW | Dependency security fixes: Pillow 13, paramiko 5, format-restricted image decodes | — |
+| [DEPHARDEN-2310](tasks/DEPHARDEN-2310.md) | V1 | REVIEW | Worker dev tooling hardened; add-on base image pinned by digest (pin reverted in 2.31.1) | — |
+| [SYNOPTIC-HA-2310](tasks/SYNOPTIC-HA-2310.md) | V1 | REVIEW | Synoptic map and building cross-section read every home-system floor; floor mapping editor | — |
+| [ADDON-IMAGE-BUILD-FIXES-2311](tasks/ADDON-IMAGE-BUILD-FIXES-2311.md) | V1 | REVIEW | Add-on image build fixes in 2.31.1 and 2.33.3 | — |
+| [PUBSURF-2310](tasks/PUBSURF-2310.md) | V1 | REVIEW | Public surfaces re-check before document links; module gate and CDN no-store on document answers | — |
+| [TEMPLINK-2320](tasks/TEMPLINK-2320.md) | V1 | REVIEW | Report links: revoke on user deactivation, per-sender daily limit | — |
+| [UIPOLISH-2320](tasks/UIPOLISH-2320.md) | V1 | REVIEW | Phone switch 44 px touch target and readable dark-mode muted text | — |
+| [LEGAL-WKMIT-2320](tasks/LEGAL-WKMIT-2320.md) | V1 | REVIEW | Licence notice of the WisKey embed reference client (MIT) ships with the product | — |
+| [PROVISION-BACKCHANNEL-2320](tasks/PROVISION-BACKCHANNEL-2320.md) | V1 | REVIEW | Provision-ISR live and playback: video-only stream request, talk-back as a recorder setting | — |
+| [SWITCH-AS-LIGHT-2321](tasks/SWITCH-AS-LIGHT-2321.md) | V1 | REVIEW | A switch typed as a light counts and acts as lighting | — |
+| [SYN-COLUMNS-2321](tasks/SYN-COLUMNS-2321.md) | V1 | REVIEW | Synoptic map hides columns without a data source; custom board columns | — |
+| [CAL-SWITCH-REACH-2321](tasks/CAL-SWITCH-REACH-2321.md) | V1 | REVIEW | Calendars module switch reachable while the module is off | — |
+| [MULTIBUILDING-HOME-2330](tasks/MULTIBUILDING-HOME-2330.md) | V1 | REVIEW | Multi-building home: site level, building cards, building switch, shared building | — |
+| [MAPPING-ASSIST-2330](tasks/MAPPING-ASSIST-2330.md) | V1 | REVIEW | Mapping assistant: which home-system name belongs to which building | — |
+| [CALCONNECT-2330](tasks/CALCONNECT-2330.md) | V1 | REVIEW | External calendar connections: iCal subscription, Google Calendar, Microsoft 365 / Outlook | — |
+| [SWITCH-LIGHT-DIMMER-2331](tasks/SWITCH-LIGHT-DIMMER-2331.md) | V1 | REVIEW | No dimmer on on/off lights; switches in the synoptic lights column; floor lights popup | — |
+| [EVENTS-POLISH-2331](tasks/EVENTS-POLISH-2331.md) | V1 | REVIEW | Event centre polish (Security > Investigate > Events) | — |
+| [SETTINGS-TABS-SCROLL-2331](tasks/SETTINGS-TABS-SCROLL-2331.md) | V1 | REVIEW | Scroll arrows, wheel, swipe and keys for long tab strips | — |
+| [TREE-HIDE-UNASSIGNED-2331](tasks/TREE-HIDE-UNASSIGNED-2331.md) | V1 | REVIEW | Hide "ללא שיוך" from the building tree | — |
+| [AZIA-LIVE-2331](tasks/AZIA-LIVE-2331.md) | V1 | REVIEW | Provision-ISR live video steadier on a full wall of cameras | — |
+| [SEGFAULT-PLAYBACK-2332](tasks/SEGFAULT-PLAYBACK-2332.md) | V1 | REVIEW | The add-on recovers by itself after a crash during recorded-playback scrubbing | — |
+| [OWNER-R12-2341](tasks/OWNER-R12-2341.md) | V1 | REVIEW | Owner answers of 01.11 (round 12): wording, unassigned section, tablet side panel | — |
+| [POLISH-LEFTOVERS-2341](tasks/POLISH-LEFTOVERS-2341.md) | V1 | REVIEW | Three leftovers of the 2.33.1 polish round | — |
+| [LIVE-H265-2341](tasks/LIVE-H265-2341.md) | V1 | REVIEW | Live video of H.265 cameras in browsers that cannot decode H.265 | — |
+| [NVR-H264-BULK-2341](tasks/NVR-H264-BULK-2341.md) | V1 | REVIEW | Switch every camera stream to H.264 from the UI; per-recorder NVR writes switch | — |
+| [SHARED-POLISH-2342](tasks/SHARED-POLISH-2342.md) | V1 | REVIEW | Shared-layer proposals of the design-polish round | — |
+| [TICKETS-POLISH-2331](tasks/TICKETS-POLISH-2331.md) | V1 | REVIEW | Service requests: one compact toolbar for the list and the manager board | — |
+| [TKSET-POLISH-2331](tasks/TKSET-POLISH-2331.md) | V1 | REVIEW | Service request settings and side screens polish | — |
+| [DEVICES-POLISH-2331](tasks/DEVICES-POLISH-2331.md) | V1 | REVIEW | Layout editor, device controls and automations screen polish | — |
+| [ACCESS-POLISH-2331](tasks/ACCESS-POLISH-2331.md) | V1 | REVIEW | People and access administration polish (wave 1) | — |
+| [CALMSG-POLISH-2331](tasks/CALMSG-POLISH-2331.md) | V1 | REVIEW | Calendars and messaging settings polish | — |
+| [MEDIA-POLISH-2331](tasks/MEDIA-POLISH-2331.md) | V1 | REVIEW | Media and doors polish (wave 3) | — |
+| [WKWATER-POLISH-2331](tasks/WKWATER-POLISH-2331.md) | V1 | REVIEW | WisKey stations and water pages polish (wave 3) | — |
+| [LOOK-POLISH-2331](tasks/LOOK-POLISH-2331.md) | V1 | REVIEW | Look and branding settings polish (wave 2, part A) | — |
+| [CAMADMIN-POLISH-2331](tasks/CAMADMIN-POLISH-2331.md) | V1 | REVIEW | Camera administration polish (wave 3) | — |
+| [SCHED-POLISH-2331](tasks/SCHED-POLISH-2331.md) | V1 | REVIEW | Automations and schedules administration polish (wave 3) | — |
+| [INVREST-POLISH-2331](tasks/INVREST-POLISH-2331.md) | V1 | REVIEW | Investigation leftovers polish (cases, one case, exports, event page) | — |
+| [INSIGHTS-POLISH-2331](tasks/INSIGHTS-POLISH-2331.md) | V1 | REVIEW | Insights and infrastructure reports polish (wave 3) | — |
+| [HOMEEDIT-POLISH-2331](tasks/HOMEEDIT-POLISH-2331.md) | V1 | REVIEW | Home editing screens polish (wave 3) | — |
+| [SETUPPLAN-POLISH-2331](tasks/SETUPPLAN-POLISH-2331.md) | V1 | REVIEW | Setup and plan administration polish (wave 3) | — |
+| [TABSMODE-POLISH-2331](tasks/TABSMODE-POLISH-2331.md) | V1 | REVIEW | Tabs display settings polish (wave 2, part B) | — |
+| [PLAYBACK-SCRUB-2341](tasks/PLAYBACK-SCRUB-2341.md) | V1 | REVIEW | Smooth recorded playback under fast scrubbing | — |
+| [ASYNCIO-DEFAULT-2342](tasks/ASYNCIO-DEFAULT-2342.md) | V1 | REVIEW | The server runs on asyncio and h11 by default (uvloop and httptools opt-in) | — |
+| [WRITE-GATE-EVENTS-2341](tasks/WRITE-GATE-EVENTS-2341.md) | V1 | REVIEW | False "write gate held outside a transaction" log alarm removed | — |
+| [FRIGATE-FORBIDDEN-2341](tasks/FRIGATE-FORBIDDEN-2341.md) | V1 | REVIEW | Refused Frigate credentials: one health item instead of a flooded log | — |
+| [SUPERVISOR-BUILD-GATE-2341](tasks/SUPERVISOR-BUILD-GATE-2341.md) | V1 | REVIEW | Release gate proves the add-on image builds the way the Supervisor builds it | — |
+| [A11Y-POLISHED-2342](tasks/A11Y-POLISHED-2342.md) | V1 | REVIEW | Accessibility pass over the screens polished on 31.10 and 01.11 | — |
+| [DARK-REVIEW-2342](tasks/DARK-REVIEW-2342.md) | V1 | REVIEW | Dark-mode review of the screens polished on 01.11 | — |
+| [HOME-DEVICES-LOAD-2342](tasks/HOME-DEVICES-LOAD-2342.md) | V1 | REVIEW | Faster home and devices screens: lazy screens, settings in two queries, shared requests | — |
+| [PHONE-BUTTONS-44-2342](tasks/PHONE-BUTTONS-44-2342.md) | V1 | REVIEW | The shared button is 44 px high on a phone | — |
+| [SYNOPTIC-MOBILE-2342](tasks/SYNOPTIC-MOBILE-2342.md) | V1 | REVIEW | The synoptic map on phones in three layouts | — |
+| [SMALL-UI-BUGS-2343](tasks/SMALL-UI-BUGS-2343.md) | V1 | REVIEW | Tickets table width at 1440 and 1280 px; settings tab duplication | — |
+| [GATE2342](tasks/GATE2342.md) | V1 | REVIEW | Release gate fixes of 2.34.2 (groups A, B, C and the pixel side) | — |
+| [CAL-GRID-EDIT-2343](tasks/CAL-GRID-EDIT-2343.md) | V1 | REVIEW | Outlook-style editing on the calendar grid | — |
+| [CAL-ATTENDEES-2343](tasks/CAL-ATTENDEES-2343.md) | V1 | REVIEW | Named attendees of calendar entries | — |
+| [DB-CONN-POOL-2343](tasks/DB-CONN-POOL-2343.md) | V1 | REVIEW | Reuse SQLite connections between requests | — |
+| [PRE-GATE-2350](tasks/PRE-GATE-2350.md) | V1 | REVIEW | Browser and backend evidence before the 2.35.0 gate | — |
+| [GATE2350-A](tasks/GATE2350-A.md) | V1 | REVIEW | Release gate of 2.35.0: the six backend failures | — |
+| [NOTICE-BOARD-106](tasks/NOTICE-BOARD-106.md) | V1 | REVIEW | Building notice board with TV screens (CR-NOTICE106) and the 2.18.0 overhaul | — |
+| [NOTICE-BOARD-FOLLOWUPS-295](tasks/NOTICE-BOARD-FOLLOWUPS-295.md) | V1 | REVIEW | Notice board follow-ups: news sources, deletion, TV options, removal fix, nearby bus times | — |
+| [TVNOTICE-297](tasks/TVNOTICE-297.md) | V1 | REVIEW | TV notice board V2 design and the owner answers of 27.10 | — |
+| [LOBBY-STYLES-2290](tasks/LOBBY-STYLES-2290.md) | V1 | REVIEW | Lobby screen styles (Gallery, Concierge, Stone, Lumen, Axis, Prism, Ink and Sign) | — |
+| [MOBILE-APP-SERVER-295](tasks/MOBILE-APP-SERVER-295.md) | V1 | REVIEW | Phone-app server side: saved sign-in, device key, WebView session exchange, attestation, critical sound | — |
+| [NOTICEPUSH-295](tasks/NOTICEPUSH-295.md) | V1 | REVIEW | Push on publish for the notice board to the phone app channel | — |
+| [HA-LABELS-SYNC-2351](tasks/HA-LABELS-SYNC-2351.md) | V1 | IN_PROGRESS | Home-system labels synced into Arx (read-only) for the mapping assistant | — |
+| [CAL-FEED-REVIEW-2351](tasks/CAL-FEED-REVIEW-2351.md) | V1 | IN_PROGRESS | Security review of the outgoing iCal feed; remote switch, busy-only, 365-day expiry | — |
+| [GDRIVE-READY-2351](tasks/GDRIVE-READY-2351.md) | V1 | IN_PROGRESS | Google Drive backup ready for the owner's first real connection | — |
+| [HOME-EDIT-DRAWER-2351](tasks/HOME-EDIT-DRAWER-2351.md) | V1 | IN_PROGRESS | Home screen edit mode in a drawer | — |
+| [AREA-PRESENCE-LINE-2351](tasks/AREA-PRESENCE-LINE-2351.md) | V1 | IN_PROGRESS | Presence line in the area screen and quick pop-up | — |
+| [XS-MINI-WIDGET-2351](tasks/XS-MINI-WIDGET-2351.md) | V1 | IN_PROGRESS | Mini building cross-section on the home widgets row | — |
+| [MAPPING-IMPROVE-2351](tasks/MAPPING-IMPROVE-2351.md) | V1 | IN_PROGRESS | Mapping: floors without a level asked about; auto-insert in the background | — |
+| [BUILDING-SCOPE-CONTROL-2351](tasks/BUILDING-SCOPE-CONTROL-2351.md) | V1 | IN_PROGRESS | "Show and control" per building on a multi-building site | — |
+| [PRE-GATE-2360](tasks/PRE-GATE-2360.md) | V1 | IN_PROGRESS | Runner checks before the 2.36.0 release gate | — |
+| [SYNOPTIC-PHONE-SETTINGS-2360](tasks/SYNOPTIC-PHONE-SETTINGS-2360.md) | V1 | IN_PROGRESS | Phone synoptic map: light and summary-line settings | — |
+| [TICKETS-1440-COLUMN-SETTING-2360](tasks/TICKETS-1440-COLUMN-SETTING-2360.md) | V1 | IN_PROGRESS | Tickets table: which column the default table keeps at a medium width | — |
+| [RELEASE-2360-TRAIN](tasks/RELEASE-2360-TRAIN.md) | V1 | IN_PROGRESS | Release train 2.36.0 (building scope, mapping, labels, feed review, GDrive ready, home edit drawer, presence line, xs widget) | — |
+| [CAM-H264-VERIFY-2361](tasks/CAM-H264-VERIFY-2361.md) | V1 | IN_PROGRESS | Verify a bulk encoding change at the camera, per-channel report, skip a refused camera | — |
+| [RELEASE-2361-TRAIN](tasks/RELEASE-2361-TRAIN.md) | V1 | IN_PROGRESS | Release train 2.36.1 (camera H.264 verification) | — |
+| [POLISH4-WP1-SHARED-2370](tasks/POLISH4-WP1-SHARED-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP1: shared stage 2 and the shell pill | — |
+| [POLISH4-WP2-LIVEINV-2370](tasks/POLISH4-WP2-LIVEINV-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP2: live and investigation screens | — |
+| [POLISH4-WP3-SERVICE-2370](tasks/POLISH4-WP3-SERVICE-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP3: the service area | — |
+| [POLISH4-WP4-HOME-2370](tasks/POLISH4-WP4-HOME-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP4: home and devices | — |
+| [POLISH4-WP5-MEDIA-2370](tasks/POLISH4-WP5-MEDIA-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP5: multimedia, cast, generator, electricity | — |
+| [POLISH4-WP6-MAPS-2370](tasks/POLISH4-WP6-MAPS-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP6: maps and plan | — |
+| [POLISH4-WP7-SETSYS-2370](tasks/POLISH4-WP7-SETSYS-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP7: settings (system) | — |
+| [POLISH4-WP8-SETMOD-2370](tasks/POLISH4-WP8-SETMOD-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP8: settings (modules) and the transit check button | — |
+| [TRANSIT-CHECK-2370](tasks/TRANSIT-CHECK-2370.md) | V1 | IN_PROGRESS | Transit settings: "בדוק עכשיו" check button and route (owner-approved addition, 02.11 evening) | — |
+| [UNLOCK-REASON-2370](tasks/UNLOCK-REASON-2370.md) | V1 | IN_PROGRESS | Say why a lock cannot be opened: one unlock_reason rule behind can_unlock | — |
+| [RELEASE-2370-TRAIN](tasks/RELEASE-2370-TRAIN.md) | V1 | IN_PROGRESS | Release train 2.37.0 (polish round 4, transit check, unlock reason) | — |
+| [WISKEY-RC7-ADOPT-2331](tasks/WISKEY-RC7-ADOPT-2331.md) | V1 | IN_PROGRESS | WisKey Mac rc.7 adoption with auto-install policy B (the owner's switch) | — |
+| [APP-TEAM-R11-2380](tasks/APP-TEAM-R11-2380.md) | V1 | BACKLOG | Mobile M1: app-team R11 package (documents only) | T103 |
+| [MOBILE-CONTRACT-V22-2380](tasks/MOBILE-CONTRACT-V22-2380.md) | V1 | IN_PROGRESS | Mobile M2: presence contract v2.2 (sensor shapes, intervals defaults, key-rotation proof) | — |
+| [APP-SERVER-LEFTOVERS-2380](tasks/APP-SERVER-LEFTOVERS-2380.md) | V1 | IN_PROGRESS | Mobile M3: brand-logo API for the apps; quiet-window hold narrowed to phone and browser push | — |
+| [PUSH-GOLIVE-KIT-2380](tasks/PUSH-GOLIVE-KIT-2380.md) | V1 | IN_PROGRESS | Mobile M4: push go-live kit and supervised field-test script | — |
+| [TV-FIT-2380](tasks/TV-FIT-2380.md) | V1 | IN_PROGRESS | Display D1: TV fit - portrait footer chips, crest logo, Hebrew-date fallback, overscan margin | — |
+| [REAL-TV-SESSION-2380](tasks/REAL-TV-SESSION-2380.md) | V1 | BLOCKED | Display D2: real-TV runbook, joint session and fixes | TV-FIT-2380 |
+| [BOARD-ADMIN-2380](tasks/BOARD-ADMIN-2380.md) | V1 | BACKLOG | Display D3: notice board administration (chips providers, screen count, copy link, re-send, editor role) | POLISH4-WP8-SETMOD-2370 |
+| [CAST-FIRST-TEST-2380](tasks/CAST-FIRST-TEST-2380.md) | V1 | BLOCKED | Display D4: first physical cast test and phase-2 decision memo | T104, POLISH4-WP5-MEDIA-2370 |
+| [WALL-FOLLOWUPS-2380](tasks/WALL-FOLLOWUPS-2380.md) | V1 | BACKLOG | Display D5: wall display follow-ups (desktop wall mode, foldable detection, AT221 / AT301 evidence) | POLISH4-WP2-LIVEINV-2370, T107 |
+| [ROUND4-LEFTOVERS-2380](tasks/ROUND4-LEFTOVERS-2380.md) | V1 | BACKLOG | Display U1: polish round 4 leftovers (WisKey area, calendars D22, compact presence card redesign) | WISKEY-RC7-ADOPT-2331 |
+| [RELEASE-2380-TRAIN](tasks/RELEASE-2380-TRAIN.md) | V1 | BACKLOG | Release train 2.38.0 (display and mobile server; features off by default) | RELEASE-2370-TRAIN |
+| [REGISTRY-UPDATE-2380](tasks/REGISTRY-UPDATE-2380.md) | V1 | IN_PROGRESS | Registry H1: tasks.json and test_catalog brought up to date after v2.35.0 | — |
