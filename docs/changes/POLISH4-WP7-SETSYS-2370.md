@@ -38,7 +38,11 @@ Looked at and left alone (already tokenised, phone-ready, states in place): syst
   at ~0.01 ratio, because the train does not contain 2.34.2 yet and those baselines were re-taken in 2.34.2 (same failure with no change of
   mine). On `probe/POLISH4-WP7-with2342` (this branch + `v2.34.2`, only conflict the generated `contracts/API_INVENTORY.md`, train side
   kept) the six **pass (6 of 6)**: no baseline refresh is needed for this package.
-- Tablet + mobile projects of the same evidence specs: see NOT_RUN / the report (filled in at the end of the run).
+- Runner, tablet + mobile projects of evidence-backup, -health, -storage, -readiness-96, -alarm, -security-polish: **43 passed, 58 skipped,
+  1 failed**. The one failure, `evidence-readiness-96` "the hand-over is recorded below the advice" on **mobile**
+  (`[data-below-advice]` hidden: on a phone the readiness page opens on the "checks" pane and the hand-over sits in another pane), fails
+  identically on the unchanged train tip `release/2360-train` @ 44b8383c2 (re-run there: 1 failed, same line). Not caused by this package (its only
+  readiness change is the ring digit size); the spec needs to open the pane first on a phone (spec fix, outside this package).
 
 ## NOT_RUN
 
