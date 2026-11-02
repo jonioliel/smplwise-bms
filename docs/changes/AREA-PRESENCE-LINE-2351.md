@@ -105,7 +105,8 @@ by default).
 | pytest `test_area_presence_line_2351` (12, 3 new: building.view-only -> anonymous count, `people_view` asked with `perm=presence.building.view, with_names=False`, no person field in the body, names-off and module-off; floor scope + opt-out for the anonymous count; presence.view keeps names, both combinations audited with the `anonymous` flag and without names), `test_whoin034_295`, `test_building_presence_2271`, `test_building_presence_cockpit_2271`, `test_presence`, `test_presence_history_2280`, `test_presence_compact_2310` | **93 passed / 93** |
 | `npx tsc --noEmit` | **0 errors** |
 | `playwright -c playwright.unit.config.ts --workers=1`: `unit-area-presence-line-2351` (4 new: anonymous count, pop-up line on / off, pop-up source contract), `unit-a11y-polished-lint`, `unit-area-popup-edit-2290`, `unit-building-presence-logic`, `unit-presence-compact-2310`, `unit-token-lint`, `unit-menu-lint` | **77 passed / 77** |
-| Browser evidence of the pop-up line | see the runner line in the round-14 report |
+| Runner `preview` @ 06c33e1e6: `unit-area-quick`, `layout-area-popup-edit-2290`, `unit-area-presence-line-2351` (desktop / tablet / mobile) | **75 passed, 0 failed** (12 skipped by project) |
+| A browser spec that renders the pop-up line with the switch on (needs a presence fixture) | NOT_RUN: none exists yet |
 
 ## Open for the owner (answered 02.11, round 14 - kept for the record)
 
