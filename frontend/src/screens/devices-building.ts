@@ -68,6 +68,7 @@ import { hs } from '../i18n/home-screen';
 import { HOME_SCREEN_CSS } from './home-screen-css';
 import './home-screen-options'; // (the phone's area sheet draws <devices-area>, defined by the shell's route table - no import here: it imports this module)
 import './home-edit-panel';
+import { HOME_DRAWER_CSS, renderDrawerToggle, renderHomeDrawer, type HomeDrawerTab } from './home-edit-drawer';
 import type { QuickInfo } from './home-widgets';
 import {
   getHomeCandidates, HOME_DEFAULT, HOME_PERSONAL_EVENT, HOME_TITLE_DEFAULT, homeViewOf, loadHomeSettings, loadPersonal, moveAmong, NO_DATA, orderFloors, previewData, PHONE_MAX_WIDTH, resolveWidgets, saveHomeSettings, suggestConfig, widgetOn,
@@ -1295,6 +1296,13 @@ export class DevicesBuilding extends LitElement {
   private fitTimer = 0;
   /** The widget whose settings are open in edit mode (a card's "הגדרות" button, or its row). */
   @state() private openWidget: WidgetId | '' = '';
+  /** HOME-EDIT-DRAWER-2351: edit mode's drawer (home-edit-drawer.ts) - open or closed (Escape), and its tab. */
+  @state() private drawerOpen = true;
+  @state() private drawerTab: HomeDrawerTab = 'home';
+  /** The layout editor's card selection as last seen: a new pick switches the drawer to the card tab. */
+  private drawerSel: string | null = null;
+  /** Focus moves into the drawer after the next render (edit mode entered, or the drawer opened from the bar). */
+  private drawerFocus = false;
 
   // ---------------------------------------------------------------------------------- HOME-295 (owner answers on the home mockup round 2)
   /** The installation's display options (home.screen) and this user's own (home.personal.screen, screen.personalize). */
@@ -1492,7 +1500,7 @@ export class DevicesBuilding extends LitElement {
       this.selected = 'all';
       this.beginHomeEdit();
     },
-    barExtra: () => this.renderInfoChoice(),
+    barExtra: () => html`${this.renderInfoChoice()}${renderDrawerToggle(this.drawerOpen, () => this.setDrawer(!this.drawerOpen, true))}`,
     extras: {
       dirty: () => this.homeDirty,
       save: () => this.saveHome(),
@@ -1660,6 +1668,11 @@ export class DevicesBuilding extends LitElement {
     this.candidates = null;
     this.candidatesError = '';
     this.openWidget = '';
+    // HOME-EDIT-DRAWER-2351: every session starts with the drawer open on the screen tab, focus inside it
+    this.drawerOpen = true;
+    this.drawerTab = 'home';
+    this.drawerSel = null;
+    this.drawerFocus = true;
     getHomeCandidates().then(
       (c) => (this.candidates = c),
       (err) => (this.candidatesError = describeError(err)),
@@ -1963,22 +1976,61 @@ export class DevicesBuilding extends LitElement {
   }
 
   private onWidgetEdit = (e: CustomEvent<{ id: WidgetId }>) => {
+    // HOME-EDIT-DRAWER-2351: the widget's row opens in the drawer (screen tab) and is brought into view inside the drawer's own
+    // scroll - the page itself never moves
     this.openWidget = e.detail.id;
-    void this.updateComplete.then(() => this.renderRoot.querySelector('home-edit-panel')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+    this.drawerOpen = true;
+    this.drawerTab = 'home';
+    const id = e.detail.id;
+    void this.updateComplete.then(() => requestAnimationFrame(() => {
+      const panel = this.renderRoot.querySelector('home-edit-panel');
+      const row = panel?.shadowRoot?.querySelector<HTMLElement>(`[data-home-wrow="${CSS.escape(id)}"]`) ?? panel;
+      const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      row?.scrollIntoView({ block: 'nearest', behavior: still ? 'auto' : 'smooth' });
+    }));
   };
+
+  /** HOME-EDIT-DRAWER-2351: open / close the drawer. Closing hands focus back to the edit bar's "הגדרות המסך" key (when the close
+   * came from inside the drawer); opening from the bar moves focus into the drawer. */
+  private setDrawer(open: boolean, fromBar = false) {
+    if (open === this.drawerOpen) return;
+    this.drawerOpen = open;
+    if (open) this.drawerFocus = true;
+    else if (!fromBar) void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>('[data-home-drawer-toggle]')?.focus({ preventScroll: true }));
+  }
+
+  /** The drawer of edit mode: the screen tab (the home edit panel and the display options) and the card tab (the layout editor's
+   * panel of the selected card), with save / cancel in its footer. */
+  private renderEditDrawer(t: DeviceTree) {
+    const sel = this.lay.tileCard ?? this.lay.selected;
+    return renderHomeDrawer({
+      open: this.drawerOpen,
+      tab: this.drawerTab,
+      cardSelected: !!sel,
+      home: this.renderHomeEdit(t),
+      card: this.lay.renderPanel(),
+      dirty: this.lay.dirty,
+      busy: this.lay.busy,
+      onTab: (tab) => (this.drawerTab = tab),
+      onClose: () => this.setDrawer(false),
+      onSave: () => void this.lay.save(),
+      onCancel: () => this.lay.cancel(),
+    });
+  }
 
   private onQuick = (e: CustomEvent<{ action: QuickAction }>) => {
     if (!this.lay.editing) this.building(e.detail.action);
   };
 
-  /** Edit mode's card beside the layout bar: the title, the direction, every widget and the floor order. */
+  /** Edit mode's screen tab in the drawer (HOME-EDIT-DRAWER-2351): the title, the direction, every widget, the floor order and the
+   * display options. The panel is `flat` there (the drawer is its card). */
   private renderHomeEdit(t: DeviceTree) {
     const d = this.homeDraft;
     if (!d) return nothing;
     const names = new Map(t.floors.map((f) => [f.floor_id, f.name]));
     const floors = this.floorsOf(t).map((f) => ({ id: f.floor_id, name: names.get(f.floor_id) ?? f.floor_id }));
     const areas = this.floorsOf(t).flatMap((f) => f.areas.map((a) => ({ id: a.area_id, name: a.name, floor: f.name, counts: a.counts })));
-    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())} ?presence=${this.presenceOffered()}
+    return html`<home-edit-panel flat .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())} ?presence=${this.presenceOffered()}
       @home-draft=${this.onDraft} @home-reset=${this.onHomeReset} @home-edit-open=${(e: CustomEvent<{ id: WidgetId | '' }>) => (this.openWidget = e.detail.id)}></home-edit-panel>
       ${this.screenDraft
         ? html`<section class="hs-edit" data-home-screen-edit aria-label=${hs('heading')}><h3>${hs('heading')}</h3>
@@ -2068,6 +2120,16 @@ export class DevicesBuilding extends LitElement {
   protected willUpdate(changed: PropertyValues) {
     // never hide what is selected: a floor that gets selected (the tree, a floor card, the filter) opens in the tree
     if (changed.has('selected') && this.collapsed.has(this.selected)) this.setCollapsed(this.selected, false);
+    // HOME-EDIT-DRAWER-2351: a card picked on the page (or its device tiles opened) shows its panel - the drawer opens on the card
+    // tab; when the pick is cleared the drawer goes back to the screen tab. Focus stays where it is (a card moved by the arrows keeps it).
+    const sel = this.lay.editing ? this.lay.tileCard ?? this.lay.selected : null;
+    if (sel !== this.drawerSel) {
+      this.drawerSel = sel;
+      if (sel) {
+        this.drawerTab = 'card';
+        this.drawerOpen = true;
+      } else if (this.drawerTab === 'card') this.drawerTab = 'home';
+    }
   }
 
   private setCollapsed(id: string, collapse: boolean) {
@@ -2097,6 +2159,14 @@ export class DevicesBuilding extends LitElement {
       else if (byKey) requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>('[data-phone-tree]')?.focus({ preventScroll: true }));
     }
     this.syncEditFromRoute();
+    // HOME-EDIT-DRAWER-2351: focus into the drawer once it is drawn (edit mode entered, or opened from the bar): its selected tab
+    if (this.drawerFocus && this.lay.editing && this.drawerOpen) {
+      const tab = this.renderRoot.querySelector<HTMLElement>('[data-home-drawer] [role="tab"][aria-selected="true"]');
+      if (tab) {
+        this.drawerFocus = false;
+        requestAnimationFrame(() => tab.focus({ preventScroll: true }));
+      }
+    }
     // HOME-295: no connection greys the last values (CSS keys on the host); the scrolling tree takes exactly the height that is left
     this.toggleAttribute('data-offline', this.offline);
     // (a control screen never scrolls: on a wide screen the tree - every floor with tree_scroll, the first ones with "more" - scrolls inside
@@ -3081,7 +3151,7 @@ export class DevicesBuilding extends LitElement {
         padding-inline: 10px;
       }
     }
-  `, BUILDING_GLASS, TILE_LAYOUT, HOME_LAYOUT, BUILDING_BUBBLE, HOME_SCREEN_CSS, TREE_UNASSIGNED_CSS];
+  `, BUILDING_GLASS, TILE_LAYOUT, HOME_LAYOUT, BUILDING_BUBBLE, HOME_SCREEN_CSS, TREE_UNASSIGNED_CSS, HOME_DRAWER_CSS];
 
   connectedCallback() {
     super.connectedCallback();
@@ -3345,7 +3415,6 @@ export class DevicesBuilding extends LitElement {
     const body = html`${!t.floors.length
         ? html`<sw-state-panel icon="building" data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים'} hint=${t.scoped ? 'מוצגות רק הקומות שבהרשאתך.' : 'המבנה יופיע כאן כשיוגדרו קומות ואזורים.'}></sw-state-panel>`
         : nothing}
-      ${this.lay.editing ? this.renderHomeEdit(t) : nothing}
       ${this.layout === 'cards' ? this.renderCards(t, sideLayout) : this.layout === 'plan' ? this.renderPlan(t, sideLayout) : this.renderTiles(t, sideLayout)}`;
     // owner notes 2026-09-30: no "ערוך פריסה" button here (the user menu's "עריכת המסך הראשי" opens `?edit=1`); the header
     // row carries only a "not synced" chip when the state is NOT fine, and a small refresh icon
@@ -3376,7 +3445,7 @@ export class DevicesBuilding extends LitElement {
       </div>
       ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${site ? html`<home-site-off @bulk-done=${() => void this.load()}></home-site-off>` : nothing}
-      ${this.lay.renderPanel()}
+      ${this.lay.editing ? this.renderEditDrawer(t) : this.lay.renderPanel()}
       ${this.renderSheets(t)}
       ${this.renderQuickSheet()}
       ${looseNotice(this.looseNote, this.undoLoose, () => this.showLooseNote(null))}
