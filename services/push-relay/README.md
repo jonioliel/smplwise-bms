@@ -7,7 +7,7 @@ SmplWise Arx phone app, without any customer ever holding our Apple or Google ke
 What it stores: `sha256(relay_token) → {platform, push_token, bundle_id, created_at}` in Workers KV (expires after 180
 days without use). What it never sees: notification text, user names, server addresses (only an opaque server id).
 
-Status: written, typechecked, unit-tested (`npm test`: 27 tests with a fake KV and fake signing keys, covering the contract
+Status: written, typechecked, unit-tested (`npm test`: 34 tests with a fake KV and fake signing keys, covering the contract
 section 8 routes, limits, 404 / 410 handling, the APNs and FCM request shapes) and bundled / started locally with
 `wrangler dev --local` and fake secrets. **Not yet deployed, and never run against the real APNs / FCM** - that needs the
 owner's Firebase project and (iOS) Apple Developer Program membership. The step-by-step owner guide in Hebrew is
@@ -15,6 +15,7 @@ owner's Firebase project and (iOS) Apple Developer Program membership. The step-
 their own in-process fake.
 
 Run the checks: `make test-push-relay` (or `powershell -File scripts/test_push_relay.ps1`): typecheck + tests + a bundle dry run.
+Go-live rehearsal with fakes plus the secret-shape and health checks for the owner session: `python scripts/push_golive_check.py dry-run --worker` (see `docs/operations/PUSH_GOLIVE_OWNER_SESSION_HE.md`).
 
 ## 1. One-time setup (the owner, about 30 minutes)
 
