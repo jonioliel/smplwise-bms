@@ -270,8 +270,8 @@ export class LiveCamera extends LitElement {
     if (!ed) return nothing;
     const active = (type: 'line' | 'field', id: number) => ed.tool.type === type && ed.tool.id === id;
     return svg`
-      ${ed.field ? ed.field.regions.filter((r) => r.points.length >= 1).map((r) => svg`<polygon points=${r.points.map((p) => p.join(',')).join(' ')} class="field" style=${active('field', r.id) ? 'stroke:#fff;stroke-width:6' : ''}></polygon>${r.points.map((p) => svg`<circle cx=${p[0]} cy=${p[1]} r="9" fill="#f59e0b" stroke="#fff" stroke-width="3"></circle>`)}`) : nothing}
-      ${ed.line ? ed.line.lines.filter((l) => l.points.length >= 1 && !(l.points[0][0] === 0 && l.points[0][1] === 1000)).map((l) => svg`<polyline points=${l.points.map((p) => p.join(',')).join(' ')} class="line ${l.enabled ? '' : 'off'}" style=${active('line', l.id) ? 'stroke:#fff' : ''}></polyline>${l.points.map((p) => svg`<circle cx=${p[0]} cy=${p[1]} r="9" fill="#2f6bff" stroke="#fff" stroke-width="3"></circle>`)}`) : nothing}
+      ${ed.field ? ed.field.regions.filter((r) => r.points.length >= 1).map((r) => svg`<polygon points=${r.points.map((p) => p.join(',')).join(' ')} class="field" style=${active('field', r.id) ? 'stroke:var(--sw-on-video);stroke-width:6' : ''}></polygon>${r.points.map((p) => svg`<circle class="handle field" cx=${p[0]} cy=${p[1]} r="9"></circle>`)}`) : nothing}
+      ${ed.line ? ed.line.lines.filter((l) => l.points.length >= 1 && !(l.points[0][0] === 0 && l.points[0][1] === 1000)).map((l) => svg`<polyline points=${l.points.map((p) => p.join(',')).join(' ')} class="line ${l.enabled ? '' : 'off'}" style=${active('line', l.id) ? 'stroke:var(--sw-on-video)' : ''}></polyline>${l.points.map((p) => svg`<circle class="handle line" cx=${p[0]} cy=${p[1]} r="9"></circle>`)}`) : nothing}
     `;
   }
 
@@ -454,10 +454,15 @@ export class LiveCamera extends LitElement {
     .zones .frame { position: relative; aspect-ratio: 16 / 9; background: var(--sw-video-bg); border-radius: var(--sw-r-sm); overflow: hidden; }
     .zones .frame img { inline-size: 100%; block-size: 100%; object-fit: fill; display: block; }
     .zones .frame svg { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
-    .zones .cell { fill: rgba(239, 68, 68, 0.28); stroke: rgba(239, 68, 68, 0.55); stroke-width: 1; }
-    .zones .mask { fill: rgba(15, 23, 42, 0.78); stroke: #0f172a; stroke-width: 3; }
-    .zones .field { fill: rgba(245, 158, 11, 0.25); stroke: #f59e0b; stroke-width: 4; }
-    .zones .line { fill: none; stroke: #2f6bff; stroke-width: 6; }
+    /* POLISH4-WP2: the overlays drawn over the video take tokens of the video domain (fixed in both schemes, as the picture is):
+       motion cells the timeline's motion tone, a mask the video ink, a field the warning tone, a line the recorded blue */
+    .zones .cell { fill: color-mix(in srgb, var(--sw-tl-motion) 28%, transparent); stroke: color-mix(in srgb, var(--sw-tl-motion) 55%, transparent); stroke-width: 1; }
+    .zones .mask { fill: color-mix(in srgb, var(--sw-video-bg) 78%, transparent); stroke: var(--sw-video-bg); stroke-width: 3; }
+    .zones .field { fill: color-mix(in srgb, var(--sw-warning) 25%, transparent); stroke: var(--sw-warning); stroke-width: 4; }
+    .zones .line { fill: none; stroke: var(--sw-recorded); stroke-width: 6; }
+    .zones .handle { stroke: var(--sw-on-video); stroke-width: 3; }
+    .zones .handle.field { fill: var(--sw-warning); stroke-width: 3; }
+    .zones .handle.line { fill: var(--sw-recorded); stroke-width: 3; }
     .zones .line.off { stroke-dasharray: 14 10; opacity: 0.6; }
     .zones .legend { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-block-start: 8px; }
     .video {
@@ -491,7 +496,7 @@ export class LiveCamera extends LitElement {
     .shade {
       position: absolute;
       inset: 0;
-      background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 25%, rgba(0, 0, 0, 0) 65%, rgba(0, 0, 0, 0.45) 100%);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--sw-video-scrim) 18%, transparent) 0%, transparent 25%, transparent 65%, color-mix(in srgb, var(--sw-video-scrim) 82%, transparent) 100%);
       pointer-events: none;
     }
     .demo {
@@ -514,7 +519,7 @@ export class LiveCamera extends LitElement {
       font-size: var(--sw-fs-xs);
       direction: ltr;
       color: var(--sw-on-video);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      text-shadow: 0 1px 2px var(--sw-video-scrim);
     }
     .quality {
       position: absolute;
@@ -522,7 +527,7 @@ export class LiveCamera extends LitElement {
       inset-block-end: 10px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-on-video);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      text-shadow: 0 1px 2px var(--sw-video-scrim);
       direction: ltr;
       z-index: 2;
     }
@@ -1213,7 +1218,7 @@ export class LiveCamera extends LitElement {
           <img src=${snapshotUrl(cam.id)} alt="" />
           <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="אזורי זיהוי מעל תמונת המצלמה" style=${this.smartEdit ? 'cursor:crosshair' : ''} data-zones-svg @click=${(e: MouseEvent) => this.smartClick(e)}>
             ${this.motionEdit && m && m.rows && m.cols
-              ? this.motionEdit.cells.flatMap((row, r) => row.map((on, c) => svg`<rect class=${on ? 'cell' : 'cell off'} data-motion-cell=${`${r}-${c}`} x=${(c * 1000) / m.cols} y=${(r * 1000) / m.rows} width=${1000 / m.cols} height=${1000 / m.rows} style="cursor:crosshair;${on ? '' : 'fill:rgba(255,255,255,0.03);stroke:rgba(255,255,255,0.18)'}" @pointerdown=${(ev: PointerEvent) => { ev.preventDefault(); this.paintCell(r, c, true); }} @pointerenter=${(ev: PointerEvent) => { if (ev.buttons & 1) this.paintCell(r, c); }} @pointerup=${() => (this.paintValue = null)}></rect>`))
+              ? this.motionEdit.cells.flatMap((row, r) => row.map((on, c) => svg`<rect class=${on ? 'cell' : 'cell off'} data-motion-cell=${`${r}-${c}`} x=${(c * 1000) / m.cols} y=${(r * 1000) / m.rows} width=${1000 / m.cols} height=${1000 / m.rows} style="cursor:crosshair;${on ? '' : 'fill:color-mix(in srgb, var(--sw-on-video) 3%, transparent);stroke:var(--sw-video-line)'}" @pointerdown=${(ev: PointerEvent) => { ev.preventDefault(); this.paintCell(r, c, true); }} @pointerenter=${(ev: PointerEvent) => { if (ev.buttons & 1) this.paintCell(r, c); }} @pointerup=${() => (this.paintValue = null)}></rect>`))
               : nothing}
             ${!this.motionEdit && L.motion && m && m.rows && m.cols ? m.cells.flatMap((row, r) => row.map((on, c) => (on ? svg`<rect x=${(c * 1000) / m.cols} y=${(r * 1000) / m.rows} width=${1000 / m.cols} height=${1000 / m.rows} class="cell"></rect>` : nothing))) : nothing}
             ${L.privacy && z.privacy_mask ? z.privacy_mask.regions.map((reg) => svg`<polygon points=${scale(reg.points, z.privacy_mask!.normalized)} class="mask"></polygon>`) : nothing}
