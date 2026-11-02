@@ -40,7 +40,16 @@ export function looseRow(o: LooseRowOpts) {
     if (e.key === 'Escape' && o.menuOpen) {
       e.stopPropagation();
       o.onMenu(false);
+      // A11Y-POLISHED-2342: the focused item goes away with the menu - the focus goes back to the "⋯" that opened it
+      (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-tree-unassigned-menu]')?.focus();
     }
+  };
+  // A11Y-POLISHED-2342 (menu button pattern): a menu opened from the keyboard takes the focus on its first item
+  const toggle = (e: MouseEvent) => {
+    const open = !o.menuOpen;
+    o.onMenu(open);
+    const line = (e.currentTarget as HTMLElement).parentElement;
+    if (open && e.detail === 0) requestAnimationFrame(() => line?.querySelector<HTMLElement>('[role="menuitem"]')?.focus());
   };
   const out = (e: FocusEvent) => {
     const to = e.relatedTarget as Node | null;
@@ -48,7 +57,7 @@ export function looseRow(o: LooseRowOpts) {
   };
   return html`<div class="tree-loose-line" data-tree-unassigned-line @keydown=${key} @focusout=${out}>
     ${row}
-    <button type="button" class="tl-more" data-tree-unassigned-menu aria-haspopup="menu" aria-expanded=${String(o.menuOpen)} aria-label=${hs('tuMenu')} title=${hs('tuMenu')} @click=${() => o.onMenu(!o.menuOpen)}><sw-icon name="more" size=${16}></sw-icon></button>
+    <button type="button" class="tl-more" data-tree-unassigned-menu aria-haspopup="menu" aria-expanded=${String(o.menuOpen)} aria-label=${hs('tuMenu')} title=${hs('tuMenu')} @click=${toggle}><sw-icon name="more" size=${16}></sw-icon></button>
     ${o.menuOpen
       ? html`<div class="tl-menu" role="menu" data-tree-unassigned-pop>
           <button type="button" role="menuitem" data-tree-unassigned-hide @click=${o.onHide}><sw-icon name="eyeOff" size=${15}></sw-icon>${hs('tuHide')}</button>

@@ -91,7 +91,7 @@ export class ScheduleTableView extends LitElement {
       background: var(--sw-accent-soft);
     }
     tr.bad td.n {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     td.n {
       color: var(--sw-text-3);

@@ -123,15 +123,15 @@ const AREA_DESIGN = css`
     flex: none;
   }
   .sec-chip.ok span {
-    color: var(--sw-success);
+    color: var(--sw-success-text);
     font-weight: var(--sw-fw-medium);
   }
   .sec-chip.warn span {
-    color: var(--sw-warning);
+    color: var(--sw-warning-text);
     font-weight: var(--sw-fw-medium);
   }
   .sec-chip.bad span {
-    color: var(--sw-danger);
+    color: var(--sw-danger-text);
     font-weight: var(--sw-fw-semibold);
   }
   .sec-chip.off {
@@ -198,7 +198,7 @@ const AREA_DESIGN = css`
     border: 1px dashed var(--sw-border-strong);
     border-radius: var(--sw-r-sm);
     background: transparent;
-    color: var(--sw-accent);
+    color: var(--sw-accent-text);
     font: inherit;
     font-size: var(--sw-fs-xs);
     cursor: pointer;
@@ -988,7 +988,7 @@ export class DevicesArea extends LitElement {
       border-block-start: 1px solid var(--sw-border);
     }
     .assign-err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     .assign-muted {
@@ -1749,7 +1749,7 @@ export class DevicesArea extends LitElement {
       ${this.assignError ? html`<div class="assign-err" data-assign-error>${this.assignError}</div>` : nothing}
       ${this.assignAreas === null
         ? html`<div class="assign-muted">טוען אזורים…</div>`
-        : html`<select class="assign-select" data-assign-select @change=${(e: Event) => (this.assignTarget = (e.target as HTMLSelectElement).value)}>
+        : html`<select class="assign-select" data-assign-select aria-label="אזור" @change=${(e: Event) => (this.assignTarget = (e.target as HTMLSelectElement).value)}>
             <option value="" ?selected=${!this.assignTarget} disabled>בחרו אזור</option>
             ${this.assignAreas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.assignTarget}>${bidi(a.name)}${a.floor_name ? ` · ${bidi(a.floor_name)}` : ''}</option>`)}
           </select>`}

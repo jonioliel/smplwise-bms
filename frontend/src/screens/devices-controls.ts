@@ -133,7 +133,7 @@ export const deviceControlStyles = css`
     gap: var(--sw-s-1h);
   }
   .rollback-note {
-    color: var(--sw-danger);
+    color: var(--sw-danger-text);
   }
   .cmd-status.pending {
     color: var(--sw-text);

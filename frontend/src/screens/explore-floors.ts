@@ -232,7 +232,7 @@ export class ExploreFloors extends LitElement {
       margin-block-start: 2px;
     }
     .counts .shared {
-      color: var(--sw-accent);
+      color: var(--sw-accent-text);
     }
     .chev {
       color: var(--sw-text-3);
@@ -252,7 +252,7 @@ export class ExploreFloors extends LitElement {
       flex-wrap: wrap;
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-xs);
     }
     .empty {
@@ -689,7 +689,7 @@ export class ExploreFloors extends LitElement {
       ${phone && place === 'card' ? html`<sw-xs-compact .floors=${sigs} .opts=${o} selectedId=${sel?.id ?? ''} @xs-open-sheet=${() => (this.sheetOpen = true)}></sw-xs-compact>` : nothing}
       <div class="cards" data-step=${step} data-cols=${cols} ?data-align=${aligns}>${cards}</div>
       ${folded ? this.renderLinksFolded(links) : this.renderLinks(floors)}
-      ${this.error && !this.dialog ? html`<div class="err">${this.error}</div>` : nothing}
+      ${this.error && !this.dialog ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       ${actions}
     </div>`;
     return html`<div class="fl ${beside ? `beside ${o.desktop_place}` : ''}" data-xs-place=${phone ? place : beside ? o.desktop_place : 'off'}>
@@ -759,7 +759,7 @@ export class ExploreFloors extends LitElement {
     const demo = this.tree?.source === 'demo';
     const nameField = html`<sw-field label="שם"><input .value=${this.formName} @input=${(e: Event) => (this.formName = (e.target as HTMLInputElement).value)} placeholder="למשל: קומה 1" autofocus /></sw-field>`;
     const levelField = html`<sw-field label="מפלס (0 = קרקע, שלילי = מרתף)" hint="קובע את סדר התצוגה בין הקומות"><input type="number" data-ltr .value=${String(this.formLevel)} @input=${(e: Event) => (this.formLevel = Number((e.target as HTMLInputElement).value))} /></sw-field>`;
-    const errorLine = this.error ? html`<div class="err">${this.error}</div>` : nothing;
+    const errorLine = this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing;
     const demoLine = demo ? html`<div class="err">נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.</div>` : nothing;
     switch (d.kind) {
       case 'floor':

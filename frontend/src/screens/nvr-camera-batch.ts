@@ -388,6 +388,13 @@ export class NvrCameraBatch extends LitElement {
     .sel[aria-checked='true'] .box {
       box-shadow: none;
     }
+    /* A11Y-POLISHED-2342 + DARK-REVIEW-2342: the unchecked box's 2 px --sw-border-strong edge read 1.3-2.0:1 on the light row and
+       1.5-2.3:1 on the dark one (a checkbox boundary needs 3:1, WCAG 1.4.11). Light draws it in the muted ink (>= 4.9:1 every skin), dark
+       in the muted ink at 70 % (3.2-4.3:1, tests/unit-dark-polish-beds.spec.ts on fix/DARK-REVIEW-2342). light-dark() keys on the page's
+       color-scheme (it inherits into the shadow root); an engine without it drops the line and keeps the old edge. */
+    .sel:not([aria-checked='true']) .box {
+      border-color: light-dark(var(--sw-text-3), color-mix(in srgb, var(--sw-text-3) 70%, transparent));
+    }
     .sel[aria-disabled='true'] .box {
       opacity: 0.7;
     }
@@ -424,6 +431,9 @@ export class NvrCameraBatch extends LitElement {
     }
     .row.unk .ln {
       color: var(--sw-warning-text);
+      /* A11Y-POLISHED-2342: on the 12 % warning row the warning ink read 4.29:1 in classic light (4.27 bubble); light mixes a quarter of
+         the body ink in (>= 5.4:1), dark unchanged */
+      color: light-dark(color-mix(in srgb, var(--sw-warning-text) 75%, var(--sw-text)), var(--sw-warning-text));
     }
     .ic {
       inline-size: 24px;

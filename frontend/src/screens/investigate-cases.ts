@@ -171,7 +171,7 @@ export class InvestigateCases extends LitElement {
       }
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
       margin-block-end: 8px;
     }
@@ -348,7 +348,7 @@ export class InvestigateCases extends LitElement {
     const dup = v?.already_imported;
     return html`<sw-dialog open heading="ייבוא חבילת ראיות" subheading=${f ? `${f.name} · ${formatBytes(f.size)}` : ''} data-bundle-import-dialog @close=${() => (this.importOpen = false)}>
       ${this.importBusy && !v ? html`<sw-state-panel state="loading" heading="מאמת את החבילה…" hint="כל קובץ מגובב מחדש ומושווה ל־manifest; שום דבר עוד לא יובא"></sw-state-panel>` : nothing}
-      ${this.importError ? html`<div class="err" data-import-error>${this.importError}</div>` : nothing}
+      ${this.importError ? html`<div class="err" data-import-error role="alert">${this.importError}</div>` : nothing}
       ${v
         ? html`<div class="verdict" data-import-summary data-ok=${String(v.ok)}>${v.summary ?? (v.ok ? 'החבילה אומתה.' : 'האימות נכשל.')}</div>
             <div class="kv" data-import-origin>
@@ -783,7 +783,7 @@ export class InvestigateCaseDetail extends LitElement {
       margin-block-start: 6px;
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     .ok {

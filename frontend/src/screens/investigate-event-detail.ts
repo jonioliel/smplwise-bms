@@ -413,7 +413,7 @@ export class InvestigateEventDetail extends LitElement {
       max-inline-size: 220px;
     }
     .routeconfirm .ok {
-      color: var(--sw-success);
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     .nearby {
@@ -467,7 +467,7 @@ export class InvestigateEventDetail extends LitElement {
       margin-block-start: 8px;
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-xs);
     }
     .ltr {
@@ -591,7 +591,7 @@ export class InvestigateEventDetail extends LitElement {
                   ${(this.routeCases ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.routeCase}>${c.title}</option>`)}
                 </select>
                 <sw-button variant="primary" size="sm" icon="case" ?disabled=${!picks.size || this.routeBusy} data-route-confirm-button @click=${() => this.confirmRoute()}>${this.routeBusy ? 'מוסיף…' : `אשר מסלול לתיק (${picks.size})`}</sw-button>
-                ${this.routeDone ? html`<span class="ok" data-route-done>נוסף לתיק „${this.routeDone.title}”${this.routeDone.skipped.length ? ` · ${this.routeDone.skipped.length} דולגו` : ''} · <a href=${`#/investigate/cases/${this.routeDone.case_id}`}>פתח</a></span>` : nothing}
+                ${this.routeDone ? html`<span class="ok" data-route-done role="status">נוסף לתיק „${this.routeDone.title}”${this.routeDone.skipped.length ? ` · ${this.routeDone.skipped.length} דולגו` : ''} · <a href=${`#/investigate/cases/${this.routeDone.case_id}`}>פתח</a></span>` : nothing}
                 ${this.routeError ? html`<span class="err" role="alert" data-route-error>${this.routeError}</span>` : nothing}
               </div>`
             : nothing}`
@@ -923,7 +923,7 @@ export class InvestigateEventDetail extends LitElement {
         <sw-button slot="actions" icon="case" data-add-to-case @click=${() => (this.casePick = { kind: 'event', event_id: ev.id })}>הוסף לתיק</sw-button>
         ${mayOpenFromEvent(incidentsModuleOn()) ? html`<sw-button slot="actions" icon="warning" data-open-incident ?disabled=${this.busy} @click=${() => void this.openLive(ev.id)}>${incText('fromEvent')}</sw-button>` : nothing}
         <sw-button slot="actions" variant="ghost" icon="list" @click=${() => navigate('/investigate/events')}>למרכז האירועים</sw-button>
-        ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
+        ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
         <div class="layout">
           <div>
             <div class="player" data-player>

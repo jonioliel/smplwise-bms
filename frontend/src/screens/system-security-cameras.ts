@@ -278,11 +278,11 @@ export class SystemSecurityCameras extends LitElement {
       border-radius: 50%;
     }
     .v.ok {
-      color: var(--sw-success);
+      color: var(--sw-success-text);
       background: var(--sw-success-soft);
     }
     .v.no {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       background: var(--sw-danger-soft);
     }
     .v.unknown {

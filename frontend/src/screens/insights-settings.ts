@@ -203,10 +203,10 @@ export class InsightsSettings extends LitElement {
     const set = (patch: Partial<DoorPair>) => (this.editing = { ...ed, pair: { ...ed.pair, ...patch } });
     const ok = !!ed.pair.sensor_entity_id;
     return html`<sw-dialog open heading=${ix('pairEdit')} @close=${() => (this.editing = null)}>
-      ${this.entitiesError ? html`<div class="banner bad">${ix('pairsLoadError')}</div>` : nothing}
-      <div class="formrow">${ix('pairDoor')}<select class="inp" data-pair-door @change=${(e: Event) => set({ sensor_entity_id: (e.target as HTMLSelectElement).value })}>
+      ${this.entitiesError ? html`<div class="banner bad" role="alert">${ix('pairsLoadError')}</div>` : nothing}
+      <div class="formrow">${ix('pairDoor')}<select class="inp" data-pair-door aria-label=${ix('pairDoor')} @change=${(e: Event) => set({ sensor_entity_id: (e.target as HTMLSelectElement).value })}>
         <option value="" ?selected=${!ed.pair.sensor_entity_id}></option>${doors.map((d) => html`<option value=${d.entity_id} ?selected=${d.entity_id === ed.pair.sensor_entity_id}>${label(d)}</option>`)}</select></div>
-      <div class="formrow">${ix('pairLock')}<select class="inp" data-pair-lock @change=${(e: Event) => set({ lock_entity_id: (e.target as HTMLSelectElement).value || null })}>
+      <div class="formrow">${ix('pairLock')}<select class="inp" data-pair-lock aria-label=${ix('pairLock')} @change=${(e: Event) => set({ lock_entity_id: (e.target as HTMLSelectElement).value || null })}>
         <option value="" ?selected=${!ed.pair.lock_entity_id}>${ix('pairNoLock')}</option>${locks.map((d) => html`<option value=${d.entity_id} ?selected=${d.entity_id === ed.pair.lock_entity_id}>${label(d)}</option>`)}</select></div>
       <div class="formrow">${ix('pairRex')}<div class="checks scrollbox">${rex.map((d) => html`<label><input type="checkbox" data-pair-rex .checked=${ed.pair.rex_entity_ids.includes(d.entity_id)}
         ?disabled=${!ed.pair.rex_entity_ids.includes(d.entity_id) && ed.pair.rex_entity_ids.length >= 4}
@@ -263,7 +263,7 @@ export class InsightsSettings extends LitElement {
           <sw-toggle data-delivery-switch .checked=${on} ?disabled=${!d.can_enable || this.delBusy || dirty || (!on && d.problems.length > 0)} label=${ix('deliveryEnable')} labelHidden
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDelivery(e.detail.checked)}></sw-toggle></span></div>
       <div class="pad muted">${ix('deliveryMonthly')}</div>
-      ${this.delNote ? html`<div class="banner ${this.delNote.tone}" data-delivery-note style="margin:0 14px 10px">${this.delNote.text}${this.delNote.tone === 'bad' && this.delBad.length ? ` ${this.delBad.map((p) => this.problemText(p)).join(' · ')}` : ''}</div>` : nothing}
+      ${this.delNote ? html`<div class="banner ${this.delNote.tone}" data-delivery-note role=${this.delNote.tone === 'bad' ? 'alert' : 'status'} style="margin:0 14px 10px">${this.delNote.text}${this.delNote.tone === 'bad' && this.delBad.length ? ` ${this.delBad.map((p) => this.problemText(p)).join(' · ')}` : ''}</div>` : nothing}
       ${!on && d.problems.length ? html`<div class="pad ferr" data-delivery-problems>${ix('deliverySetupMissing')} ${d.problems.map((p) => this.problemText(p)).join(' · ')}</div>` : nothing}
       ${!d.can_enable && !on ? html`<div class="pad muted">${ix('deliveryNeedsAdmin')}</div>` : nothing}
       <div class="fields">

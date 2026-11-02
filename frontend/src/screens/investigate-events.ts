@@ -1366,7 +1366,7 @@ export class InvestigateEvents extends LitElement {
       </div>
       ${this.renderTech(noAlerts)}
       ${this.unsupported.length ? html`<div class="banner warn" data-unsupported>המסנן אינו נתמך כאן, לא "אין תוצאות": ${this.unsupported.map((u) => u.reason).join(' · ')}</div>` : nothing}
-      ${this.error ? html`<div class="banner warn">${this.error}</div>` : nothing}
+      ${this.error ? html`<div class="banner warn" role="alert">${this.error}</div>` : nothing}
       <div class="stage ${(ev || (this.mode === 'windows' && this.selectedWindow)) && this.dock ? 'docked' : ''}">
         ${this.mode === 'windows'
           ? this.windows === null || (this.windowsBusy && !this.windows.length)

@@ -248,7 +248,7 @@ export class SystemAccess extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .chk.sens {
-      color: var(--sw-warning);
+      color: var(--sw-warning-text);
     }
     .chips {
       display: flex;
@@ -263,7 +263,7 @@ export class SystemAccess extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     .err.banner {
@@ -308,7 +308,7 @@ export class SystemAccess extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .role .d {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-xs);
     }
     /* a custom role's own description is plain text, not a warning (it used the red "not included" style) */
@@ -425,7 +425,7 @@ export class SystemAccess extends LitElement {
       color: var(--sw-success-text);
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     /* the drawer footer's actions: one row with a gap; a destructive action sits apart at the far end */
     .dfoot {
@@ -862,7 +862,7 @@ export class SystemAccess extends LitElement {
       : [{ key: 'remote_access', label: 'מרחוק', render: (r) => { const u = r as unknown as DirectoryUser; const n = u.remote_sessions ?? 0; return html`<span data-remote-col style="font-size:var(--sw-fs-xs)">${u.remote_access_basis === 'admin_default' ? 'ברירת מחדל (מנהל)' : u.remote_access ? 'מופעלת' : 'כבויה'}${n ? html` · <sw-badge kind="live" label=${n === 1 ? 'מחובר' : `${n} חיבורים`}></sw-badge>` : nothing}</span><div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${u.remote_last_sign_in ? `אחרונה ${fmtWhen(u.remote_last_sign_in)}` : 'טרם נכנס'}</div>`; } }];
     const allColumns: TableColumn[] = [
       { key: 'name', label: 'שם', render: (r) => html`<div style="display:flex;align-items:center;gap:10px"><sw-avatar name=${String(r.name)} size=${30}></sw-avatar><div style="min-inline-size:0;white-space:normal;overflow-wrap:anywhere"><strong>${String(r.name)}</strong>${r.is_admin ? html` <sw-badge kind="neutral" label="מנהל HA · מידע בלבד"></sw-badge>` : nothing}${r.is_self ? html` <sw-badge kind="recorded" label="אני"></sw-badge>` : nothing}${secondaryIdentity(String(r.name), String(r.username ?? ''), String(r.id ?? '')) ? html`<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3);direction:ltr;text-align:start">${secondaryIdentity(String(r.name), String(r.username ?? ''), String(r.id ?? ''))}</div>` : nothing}</div></div>` },
-      { key: 'bindings', label: 'תפקיד · היקף', render: (r) => { const bs = r.bindings as AccessBinding[]; return bs.length ? html`${bs.slice(0, 2).map((b) => html`<div style="font-size:var(--sw-fs-xs);white-space:normal;overflow-wrap:anywhere;min-inline-size:16ch"><strong>${b.role_name}</strong> · ${b.scope_name}${b.via_group ? ` (קבוצה)` : ''}${b.effect === 'deny' ? html` <span data-binding-deny style="color:var(--sw-danger);font-weight:var(--sw-fw-semibold)">· חסימה</span>` : nothing}</div>`)}${bs.length > 2 ? html`<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">+${bs.length - 2}</div>` : nothing}` : html`<span style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">ללא שיוך · אין גישה לתוכן</span>`; } },
+      { key: 'bindings', label: 'תפקיד · היקף', render: (r) => { const bs = r.bindings as AccessBinding[]; return bs.length ? html`${bs.slice(0, 2).map((b) => html`<div style="font-size:var(--sw-fs-xs);white-space:normal;overflow-wrap:anywhere;min-inline-size:16ch"><strong>${b.role_name}</strong> · ${b.scope_name}${b.via_group ? ` (קבוצה)` : ''}${b.effect === 'deny' ? html` <span data-binding-deny style="color:var(--sw-danger-text);font-weight:var(--sw-fw-semibold)">· חסימה</span>` : nothing}</div>`)}${bs.length > 2 ? html`<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">+${bs.length - 2}</div>` : nothing}` : html`<span style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">ללא שיוך · אין גישה לתוכן</span>`; } },
       // BREAKUI-297: a user in many groups with long names kept the cell on one line and pushed the status column out of the card
       // (the table scrolled sideways at 1440 px): at most two lines, the full list as the tooltip
       { key: 'groups', label: 'קבוצות', render: (r) => { const t = (r.groups as { name: string }[]).map((g) => g.name).join(', '); return html`<span title=${t} style="font-size:var(--sw-fs-xs);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;white-space:normal;overflow-wrap:anywhere;min-inline-size:12ch;max-inline-size:32ch">${t || '—'}</span>`; } },
@@ -925,7 +925,7 @@ export class SystemAccess extends LitElement {
     const columns: TableColumn[] = [
       { key: 'name', label: 'קבוצה', render: (r) => html`<strong>${String(r.name)}</strong>` },
       { key: 'members', label: 'חברים', render: (r) => html`${(r.members as { name: string }[]).length}` },
-      { key: 'bindings', label: 'שיוכים (תפקיד · היקף)', render: (r) => html`${(r.bindings as AccessBinding[]).map((b) => html`<div style="font-size:var(--sw-fs-xs)">${b.role_name} · ${b.scope_name}${b.effect === 'deny' ? html` <span data-binding-deny style="color:var(--sw-danger);font-weight:var(--sw-fw-semibold)">· חסימה</span>` : nothing}</div>`)}` },
+      { key: 'bindings', label: 'שיוכים (תפקיד · היקף)', render: (r) => html`${(r.bindings as AccessBinding[]).map((b) => html`<div style="font-size:var(--sw-fs-xs)">${b.role_name} · ${b.scope_name}${b.effect === 'deny' ? html` <span data-binding-deny style="color:var(--sw-danger-text);font-weight:var(--sw-fw-semibold)">· חסימה</span>` : nothing}</div>`)}` },
     ];
     const g = groups.find((x) => x.id === this.selectedGroup) ?? null;
     const memberSet = this.members ?? new Set(g?.members.map((m) => m.id) ?? []);

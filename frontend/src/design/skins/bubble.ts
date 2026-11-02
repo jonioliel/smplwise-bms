@@ -61,7 +61,7 @@ const tokens: TokenTable = {
   '--sw-danger-text': lt('#a01515', '#ffc8c3'),
   '--sw-warning': lt('#f59e0b', '#f5b043'),
   '--sw-warning-soft': lt('rgba(245, 158, 11, 0.16)', 'rgba(245, 176, 67, 0.22)'),
-  '--sw-warning-text': lt('#9a4a06', '#ffd08a'),
+  '--sw-warning-text': lt('#944705', '#ffd08a'), // A11Y-POLISHED-2342: #9a4a06 read 4.45:1 on the warning wash over the light card
   '--sw-success': lt('#16a34a', '#3ddc84'),
   '--sw-success-soft': lt('rgba(22, 163, 74, 0.14)', 'rgba(61, 220, 132, 0.2)'),
   '--sw-success-text': lt('#116330', '#7ff0b0'),

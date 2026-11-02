@@ -42,6 +42,7 @@ import type { AutomationDrawer } from './automation-drawer';
 import type { CardAction } from '../components/sw-automation-card';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tablistKeydown } from '../components/a11y-keys';
 
 /** 0.1.154: the schedules screen, the first segment of "קברניט" (its address is unchanged). */
 const SCHEDULES_PATH = '/devices/schedules';
@@ -769,7 +770,7 @@ export class DevicesAutomations extends LitElement {
         ${showViews && !this.phone ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}
       </div>
       ${tools || (sv && scenOk) ? html`<div class="dh-det">
-        ${kinds.length > 1 || scenOk || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label="סוג">${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>תזמונים${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id && !sv)} data-segment=${s.id} @click=${() => (sv ? navigate(itemPath(s.id)) : this.setSegment(s.id))}>${s.label} <small>${counts[s.kind]}</small></button>`)}${scenOk ? html`<button type="button" role="tab" aria-selected=${String(sv)} data-segment="scenarios" @click=${() => navigate('/devices/automations/scenarios')}>${sct('tab')}</button>` : nothing}</div>` : nothing}
+        ${kinds.length > 1 || scenOk || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label="סוג" @keydown=${tablistKeydown}>${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>תזמונים${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id && !sv)} data-segment=${s.id} @click=${() => (sv ? navigate(itemPath(s.id)) : this.setSegment(s.id))}>${s.label} <small>${counts[s.kind]}</small></button>`)}${scenOk ? html`<button type="button" role="tab" aria-selected=${String(sv)} data-segment="scenarios" @click=${() => navigate('/devices/automations/scenarios')}>${sct('tab')}</button>` : nothing}</div>` : nothing}
         ${def.kind === 'automation' && all.length && !sv ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_FILTERS_OF(extFlags(this.status?.ui ?? null).precheck).map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
         ${def.kind === 'automation' && all.length && !sv ? html`<button type="button" class="btn foldbtn" data-fold-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}סינון${active ? html` <small>${active}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>

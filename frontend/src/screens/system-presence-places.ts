@@ -57,7 +57,7 @@ export class SystemPresencePlaces extends LitElement {
     .lbl b { font-weight: var(--sw-fw-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .lbl small { color: var(--sw-text-2); font-size: var(--sw-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ltr { direction: ltr; unicode-bidi: isolate; }
-    .bad { color: var(--sw-danger); font-size: var(--sw-fs-xs); }
+    .bad { color: var(--sw-danger-text); font-size: var(--sw-fs-xs); }
     .muted { color: var(--sw-text-2); font-size: var(--sw-fs-sm); padding: 6px 0; }
     form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; padding: 10px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); margin-block: 6px; }
     form .wide { grid-column: 1 / -1; }
@@ -65,7 +65,7 @@ export class SystemPresencePlaces extends LitElement {
     textarea { min-block-size: 64px; resize: vertical; }
     .foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .ok { color: var(--sw-success-text); font-size: var(--sw-fs-sm); }
-    .err { color: var(--sw-danger); font-size: var(--sw-fs-sm); }
+    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
     /* ACCESS-POLISH-2331: why the save button is (not) available - unsaved edits, or the problems that block it */
     .pending { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     @media (max-width: 480px) { form { grid-template-columns: minmax(0, 1fr); } }
@@ -301,7 +301,7 @@ export class SystemPresenceScreen extends LitElement {
     .muted { color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-regular); }
     .foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-block-start: 10px; }
     .ok { color: var(--sw-live); font-size: var(--sw-fs-sm); }
-    .err { color: var(--sw-danger); font-size: var(--sw-fs-sm); }
+    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
   `, bubbleChrome];
 
   willUpdate() {

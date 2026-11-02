@@ -88,7 +88,7 @@ export class SystemXsOptions extends LitElement {
     select:disabled { opacity: var(--sw-disabled-opacity, 0.6); }
     .foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-block-start: 12px; }
     .ok { color: var(--sw-live); font-size: var(--sw-fs-sm); }
-    .err { color: var(--sw-danger); font-size: var(--sw-fs-sm); }
+    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
     .note { color: var(--sw-text-3); font-size: var(--sw-fs-xs); margin-block-start: 8px; }
     .row.custom { align-items: flex-start; flex-wrap: wrap; }
     .row .lbl small.warn { color: var(--sw-warning-text, var(--sw-text-2)); }

@@ -285,7 +285,7 @@ export const BV1_STYLES = css`
     place-items: center;
     background: var(--sw-surface-2);
     border: 1px solid var(--sw-border-strong);
-    color: var(--sw-accent);
+    color: var(--sw-accent-text);
     transition: transform var(--sw-t-fast) var(--sw-ease-thumb), background var(--sw-t-fast) var(--sw-ease);
   }
   /* HOMEEDIT-POLISH-2331: hover only under a pointer that hovers (a tap left the ring grey on a phone); the press is the one press
@@ -310,7 +310,7 @@ export const BV1_STYLES = css`
     color: var(--sw-success-text);
   }
   .lb.danger .lr {
-    color: var(--sw-danger);
+    color: var(--sw-danger-text);
   }
   .lb:focus-visible {
     outline: none;

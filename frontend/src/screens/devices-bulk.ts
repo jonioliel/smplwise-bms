@@ -268,7 +268,7 @@ export class DevicesBulkMenu extends LitElement {
       border-start-start-radius: 0;
       border-start-end-radius: 0;
       font-weight: var(--sw-fw-semibold);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       margin-block-start: 2px;
     }
     button.item.all:disabled {
@@ -291,7 +291,7 @@ export class DevicesBulkMenu extends LitElement {
       justify-content: space-between;
       padding: 8px 10px;
       border-radius: var(--sw-r-sm);
-      color: var(--sw-accent);
+      color: var(--sw-accent-text);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium);
       text-decoration: none;
@@ -710,7 +710,7 @@ export class DevicesBulkDialog extends LitElement {
   private renderBody() {
     const cancel = (label = 'ביטול') => html`<sw-button data-bulk-cancel autofocus @click=${this.close}>${label}</sw-button>`;
     if (this.phase === 'loading') return html`<div class="muted">בודק מה יישלח…</div><div class="actions">${cancel()}</div>`;
-    if (this.phase === 'error') return html`<div class="err" data-bulk-error>${this.error}</div><div class="actions">${cancel('סגור')}</div>`;
+    if (this.phase === 'error') return html`<div class="err" data-bulk-error role="alert">${this.error}</div><div class="actions">${cancel('סגור')}</div>`;
     const p = this.preview;
     if (this.phase === 'nothing' && p) {
       return html`<div class="what" data-bulk-nothing>

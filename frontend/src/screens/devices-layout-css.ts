@@ -209,7 +209,7 @@ export const devicesLayoutCss = [
       color: var(--sw-text-2);
     }
     .lay-msg.err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .lay-live {
       position: absolute;
@@ -518,7 +518,7 @@ export const devicesLayoutCss = [
       font-variant-numeric: tabular-nums;
     }
     .lay-panel .lay-del {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       border-color: var(--sw-danger);
     }
     .lay-undo {
@@ -527,7 +527,7 @@ export const devicesLayoutCss = [
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
-      color: var(--sw-accent);
+      color: var(--sw-accent-text);
       font: inherit;
       font-weight: var(--sw-fw-semibold);
       cursor: pointer;

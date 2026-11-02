@@ -9,6 +9,7 @@ import { createSchedule, getScheduleCatalog, getScheduleStatus, type CatalogEnti
 import { navigate } from '../router';
 import { metaFromCatalog, type EntityMeta } from './schedule-edit-logic';
 import { PRESET_CHOICES, QUICK_DAYS, QUICK_TIMES, TEMPLATES, quickActions, quickDraft, quickReady, quickSentence, type QuickAction, type QuickDays, type QuickTime, type ScheduleTemplate } from './schedule-templates';
+import { tablistKeydown } from '../components/a11y-keys';
 
 /**
  * CR-014 S4: "תזמון חדש" (mockup 09 / 26). Two ways in: a template (then the editor opens with a draft; the devices are chosen
@@ -629,7 +630,7 @@ export class ScheduleCreateDialog extends LitElement {
     return html`<div class="backdrop" @click=${(e: Event) => e.target === e.currentTarget && !this.busy && this.close()}>
       <div class="box" role="dialog" aria-modal="true" aria-labelledby="create-title" tabindex="-1" data-create-dialog>
         <header><h3 id="create-title">תזמון חדש</h3><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${() => this.close()}></sw-button></header>
-        <div class="tabs" role="tablist" aria-label="דרך היצירה">
+        <div class="tabs" role="tablist" aria-label="דרך היצירה" @keydown=${tablistKeydown}>
           ${tab('tpl', 'מתבנית')}${tab('quick', 'יצירה מהירה (3 הקשות)')}
         </div>
         <div class="body" id="create-panel" role="tabpanel" aria-labelledby=${`tab-${this.tab}`} aria-busy=${this.loading ? 'true' : 'false'}>
