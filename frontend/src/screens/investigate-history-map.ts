@@ -217,7 +217,7 @@ export class InvestigateHistoryMap extends LitElement {
       margin: 0 24px 10px;
       padding: 8px 12px;
       background: var(--sw-recorded-soft);
-      border: 1px solid #cddcff;
+      border: 1px solid color-mix(in srgb, var(--sw-recorded) 35%, transparent);
       border-radius: var(--sw-r-md);
       font-size: var(--sw-fs-sm);
       flex-wrap: wrap;
@@ -700,8 +700,8 @@ export class InvestigateHistoryMap extends LitElement {
       inline-size: 14px;
       block-size: 14px;
       border-radius: 50%;
-      background: #fff;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+      background: var(--sw-toggle-thumb);
+      box-shadow: var(--sw-shadow-1);
       transition: transform var(--sw-t-fast) var(--sw-ease);
     }
     .lyr .sw[aria-checked='true'] {

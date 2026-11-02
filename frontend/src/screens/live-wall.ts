@@ -143,9 +143,11 @@ export class LiveWall extends LitElement {
       color: var(--sw-accent-text);
       box-shadow: var(--sw-shadow-1);
     }
-    .layouts button:hover:not(.on) {
-      color: var(--sw-text);
-      background: var(--sw-hover-wash);
+    @media (hover: hover) and (pointer: fine) {
+      .layouts button:hover:not(.on) {
+        color: var(--sw-text);
+        background: var(--sw-hover-wash);
+      }
     }
     .layouts button:focus-visible,
     .pbar .kiosk:focus-visible,

@@ -282,8 +282,10 @@ export class KioskWall extends LitElement {
       border-radius: var(--sw-r-md);
       transition: background-color var(--sw-t-fast) ease;
     }
-    header a.exit:hover {
-      background: var(--k-wash);
+    @media (hover: hover) and (pointer: fine) {
+      header a.exit:hover {
+        background: var(--k-wash);
+      }
     }
     .grid {
       flex: 1;

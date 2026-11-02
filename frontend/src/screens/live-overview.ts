@@ -300,7 +300,7 @@ export class LiveOverview extends LitElement {
     }
     .bar {
       block-size: 6px;
-      border-radius: 3px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-surface-3);
       overflow: hidden;
       margin-block: 6px 4px;
@@ -332,9 +332,12 @@ export class LiveOverview extends LitElement {
       border-radius: var(--sw-r-xs);
       transition: background var(--sw-t-fast) var(--sw-ease);
     }
-    .hrow.link:hover,
-    .ev:hover {
-      background: var(--sw-hover-wash);
+    /* POLISH4-WP2: the wash follows a hovering fine pointer only (it stuck on a tapped row on touch) */
+    @media (hover: hover) and (pointer: fine) {
+      .hrow.link:hover,
+      .ev:hover {
+        background: var(--sw-hover-wash);
+      }
     }
     .hrow.link:focus-visible,
     .ev:focus-visible {
@@ -635,10 +638,6 @@ export class LiveOverview extends LitElement {
     .hrow.link,
     .ev {
       transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
-    }
-    .hrow.link:hover,
-    .ev:hover {
-      background: var(--sw-surface-2);
     }
     @media (hover: hover) and (pointer: fine) {
       .hrow.link:hover,
