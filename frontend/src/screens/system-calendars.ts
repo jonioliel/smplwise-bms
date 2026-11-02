@@ -6,6 +6,7 @@ import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import { calendarsApi, type CalSettings, type Calendar, type CalendarsApi, type OverlapMode } from '../api/calendars';
+import { attendeesApi, type AttendeePolicy, type AttendeeSettings } from '../api/calendar-attendees';
 import type { RouteState } from '../router';
 import { refreshCalendars } from '../calendars/access';
 import { APPROVAL_LABEL, OVERLAP_LABEL, OVERLAP_SHORT, ROLE_HINT, ROLE_LABEL, STRICTNESS, TYPE_LABEL, colorVar, pageOf, rowsThatFit } from '../calendars/model';
@@ -28,10 +29,16 @@ export const CAL_DEFAULTS: Partial<CalSettings> = {
 
 type Opt = [value: string | boolean, label: string];
 /** CALMSG-POLISH-2331: the topic of a behaviour row - the tab filters by it (22 rows were one unsorted list of 2 pages, 8 on a phone). */
-export type BehaviorGroup = 'display' | 'requests' | 'booking' | 'residents' | 'sync';
+export type BehaviorGroup = 'display' | 'requests' | 'booking' | 'residents' | 'sync' | 'attendees';
 export interface SettingRow { key: keyof CalSettings | 'displaced'; label: string; kind: 'seg' | 'tog' | 'step'; opts?: Opt[]; min?: number; max?: number; step?: number; unit?: string; hint?: string; static?: boolean; group?: BehaviorGroup }
 
-export const BEHAVIOR_GROUPS: [BehaviorGroup | 'all', string][] = [['all', 'הכל'], ['display', 'תצוגה'], ['requests', 'בקשות ואישורים'], ['booking', 'הזמנות'], ['residents', 'דיירים'], ['sync', 'סנכרון ופרטיות']];
+export const BEHAVIOR_GROUPS: [BehaviorGroup | 'all', string][] = [['all', 'הכל'], ['display', 'תצוגה'], ['requests', 'בקשות ואישורים'], ['booking', 'הזמנות'], ['residents', 'דיירים'], ['sync', 'סנכרון ופרטיות'], ['attendees', 'משתתפים']];
+
+/** CAL-ATTENDEES-2343 follow-up: the attendee rows ("משתתפים" topic) - the installation document and one calendar's policy (server defaults). */
+const ATT_DEFAULTS: AttendeeSettings = { enabled: true, cancel_notice_delay_s: 6, guest_channel_order: ['whatsapp', 'sms', 'email'], notify_users_inapp: true, notify_guests: true };
+const POLICY_DEFAULTS: Omit<AttendeePolicy, 'revision'> = { guests_mode: 'organizer', self_join: false, max_attendees: 50, notify_on_change: true, list_visibility: 'organizer' };
+const GUESTS_OPTS: Opt[] = [['off', 'אף אחד'], ['organizer', 'מארגן ומנהלים'], ['anyone', 'כל משתתף']];
+const VISIBILITY_OPTS: Opt[] = [['organizer', 'מארגן ומנהלים'], ['attendees', 'המשתתפים'], ['viewers', 'כל מי שרואה']];
 
 /** Every behaviour of the module is a setting (owner rule); the rows of the "התנהגות" tab, by topic (the placement first, as in the mock-up). */
 export const BEHAVIOR_ROWS: SettingRow[] = [
@@ -212,7 +219,14 @@ export class SystemCalendars extends LitElement {
   @state() private phone = window.innerWidth < 700;
   /** CALMSG-POLISH-2331: the topic shown on the behaviour tab ("הכל" by default; every row stays reachable) */
   @state() private group: BehaviorGroup | 'all' = 'all';
+  /** CAL-ATTENDEES-2343 follow-up: the attendee settings (loaded when the "משתתפים" topic opens) and the chosen calendar's policy */
+  @state() private att: AttendeeSettings | null = null;
+  @state() private attCanEdit = false;
+  @state() private attCal = '';
+  @state() private policy: AttendeePolicy | null = null;
+  @state() private policyCanEdit = false;
   private api: CalendarsApi | null = null;
+  private attTimer = 0;
   private ro: ResizeObserver | null = null;
   private stepTimer = 0;
   /** The tallest row met on this tab so far: rows per page only shrink while paging, so turning a page never skips a row. */
@@ -232,6 +246,123 @@ export class SystemCalendars extends LitElement {
     this.ro?.disconnect();
     clearTimeout(this.stepTimer);
     clearTimeout(this.toastTimer);
+    clearTimeout(this.attTimer);
+  }
+
+  // ---------------------------------------------------------------- attendees (CAL-ATTENDEES-2343 follow-up)
+
+  private async loadAttendees(): Promise<void> {
+    try {
+      const r = await attendeesApi().settings();
+      this.att = r.settings;
+      this.attCanEdit = r.can_configure;
+      const first = this.attCals()[0]?.id ?? '';
+      if (!this.attCal && first) await this.pickPolicyCal(first);
+    } catch (e) {
+      this.saveError = describeError(e);
+    }
+  }
+
+  private attCals(): Calendar[] {
+    return this.cals.filter((c) => c.type !== 'maintenance');
+  }
+
+  private async pickPolicyCal(cid: string): Promise<void> {
+    this.attCal = cid;
+    this.policy = null;
+    if (!cid) return;
+    try {
+      const r = await attendeesApi().policy(cid);
+      if (this.attCal !== cid) return;
+      this.policy = r.policy;
+      this.policyCanEdit = r.can_edit;
+    } catch (e) {
+      this.saveError = describeError(e);
+    }
+  }
+
+  /** Saves the whole installation document with one change (the server validates; a refusal restores the old value). */
+  private async saveAtt(patch: Partial<AttendeeSettings>): Promise<void> {
+    if (!this.att || !this.attCanEdit) return;
+    const before = this.att;
+    this.att = { ...this.att, ...patch };
+    this.saveError = '';
+    try {
+      this.att = (await attendeesApi().saveSettings(this.att)).settings;
+    } catch (e) {
+      this.att = before;
+      this.saveError = describeError(e);
+    }
+  }
+
+  private async savePolicy(patch: Partial<AttendeePolicy>): Promise<void> {
+    if (!this.policy || !this.policyCanEdit) return;
+    const before = this.policy;
+    const cid = this.attCal;
+    this.policy = { ...this.policy, ...patch };
+    this.saveError = '';
+    try {
+      const r = await attendeesApi().savePolicy(cid, { ...patch, revision: before.revision });
+      if (this.attCal === cid) this.policy = r.policy;
+    } catch (e) {
+      if (this.attCal === cid) this.policy = before;
+      this.saveError = describeError(e);
+    }
+  }
+
+  /** One attendee row in the shared look of settingRow: name, default (+ reset), control. */
+  private attRow(key: string, label: string, hint: string, off: boolean, cur: unknown, def: unknown, kind: 'seg' | 'tog' | 'step', save: (v: unknown) => void,
+    o: { opts?: Opt[]; min?: number; max?: number; unit?: string } = {}) {
+    let ctl;
+    if (kind === 'tog') {
+      ctl = html`<sw-toggle label=${label} labelHidden ?checked=${!!cur} ?disabled=${off} @change=${(e: CustomEvent<{ checked: boolean }>) => save(e.detail.checked)}></sw-toggle>`;
+    } else if (kind === 'step') {
+      const n = Number(cur);
+      const lo = o.min ?? 0;
+      const hi = o.max ?? 9999;
+      const set = (x: number) => {
+        const v = Math.min(hi, Math.max(lo, Math.round(x || 0)));
+        clearTimeout(this.attTimer);
+        this.attTimer = window.setTimeout(() => save(v), 500);
+        if (key.startsWith('policy.') && this.policy) this.policy = { ...this.policy, [key.slice(7)]: v };
+        else if (this.att) this.att = { ...this.att, [key.slice(4)]: v };
+      };
+      ctl = html`<span class="stepper"><button type="button" aria-label="פחות" ?disabled=${off || n <= lo} @click=${() => set(n - 1)}>−</button>
+        <input type="number" inputmode="numeric" aria-label=${label} .value=${String(n)} ?disabled=${off} min=${lo} max=${hi} @change=${(e: Event) => set(Number((e.target as HTMLInputElement).value))}><button type="button" aria-label="יותר" ?disabled=${off || n >= hi} @click=${() => set(n + 1)}>+</button></span>`;
+    } else {
+      ctl = html`<div class="seg" role="radiogroup" aria-label=${label}>${(o.opts ?? []).map(([val, lab]) => html`<button type="button" role="radio" aria-pressed=${String(cur === val)} aria-checked=${String(cur === val)}
+        ?disabled=${off} data-opt=${String(val)} @click=${() => { if (cur !== val) save(val); }}>${lab}</button>`)}</div>`;
+    }
+    const defText = kind === 'tog' ? (def ? 'דולק' : 'כבוי') : kind === 'step' ? `${def}${o.unit ? ` ${o.unit}` : ''}` : o.opts?.find((x) => x[0] === def)?.[1] ?? String(def);
+    return html`<div class="row" data-setting=${key}><div class="grow"><div class="name ell" title=${label}>${label}</div>
+      <div class="sub">ברירת מחדל: ${defText}${hint ? html` · ${hint}` : nothing}${cur !== def && !off ? html` <button type="button" class="reset" data-reset=${key} @click=${() => save(def)}>איפוס</button>` : nothing}</div></div><div class="ctl">${ctl}</div></div>`;
+  }
+
+  /** The "משתתפים" topic of the behaviour tab: the installation rows, then the policy of the calendar picked in the head. */
+  private attendeeRows(): unknown[] {
+    const a = this.att;
+    if (!a) return [html`<div class="skel" style="block-size:56px"></div>`];
+    const offA = !this.attCanEdit;
+    const sa = (k: keyof AttendeeSettings) => (v: unknown) => void this.saveAtt({ [k]: v } as Partial<AttendeeSettings>);
+    const rows: unknown[] = [
+      this.attRow('att.enabled', 'משתתפים בשמם באירועים', 'כבוי: אין רשימת משתתפים ואין הודעות', offA, a.enabled, ATT_DEFAULTS.enabled, 'tog', sa('enabled')),
+      this.attRow('att.notify_users_inapp', 'הודעה במערכת למשתמשים ולדיירים', '', offA, a.notify_users_inapp, ATT_DEFAULTS.notify_users_inapp, 'tog', sa('notify_users_inapp')),
+      this.attRow('att.notify_guests', 'הודעה לאורחים בערוץ ההודעות', 'וואטסאפ היום', offA, a.notify_guests, ATT_DEFAULTS.notify_guests, 'tog', sa('notify_guests')),
+      this.attRow('att.cancel_notice_delay_s', 'הודעת ביטול למשתתפים אחרי', 'כדי ש"בטל" יעצור אותה', offA, a.cancel_notice_delay_s, ATT_DEFAULTS.cancel_notice_delay_s, 'step', sa('cancel_notice_delay_s'), { min: 0, max: 120, unit: 'שנ׳' }),
+    ];
+    const p = this.policy;
+    if (!this.attCal) return rows;
+    if (!p) return [...rows, html`<div class="skel" style="block-size:56px"></div>`];
+    const offP = !this.policyCanEdit;
+    const sp = (k: keyof AttendeePolicy) => (v: unknown) => void this.savePolicy({ [k]: v } as Partial<AttendeePolicy>);
+    const D = POLICY_DEFAULTS;
+    return [...rows,
+      this.attRow('policy.guests_mode', 'מי מזמין אורחים מבחוץ', 'ביומן הנבחר', offP, p.guests_mode, D.guests_mode, 'seg', sp('guests_mode'), { opts: GUESTS_OPTS }),
+      this.attRow('policy.self_join', 'מי שרואה את האירוע מצטרף בעצמו', 'ביומן הנבחר', offP, p.self_join, D.self_join, 'tog', sp('self_join')),
+      this.attRow('policy.list_visibility', 'מי רואה את רשימת המשתתפים', 'ביומן הנבחר · השאר רואים רק את המספר', offP, p.list_visibility, D.list_visibility, 'seg', sp('list_visibility'), { opts: VISIBILITY_OPTS }),
+      this.attRow('policy.max_attendees', 'מספר משתתפים מרבי', 'ביומן הנבחר', offP, p.max_attendees, D.max_attendees, 'step', sp('max_attendees'), { min: 1, max: 500 }),
+      this.attRow('policy.notify_on_change', 'הודעה למשתתפים על שינוי', 'ביומן הנבחר', offP, p.notify_on_change, D.notify_on_change, 'tog', sp('notify_on_change')),
+    ];
   }
 
   protected willUpdate(changed: PropertyValues): void {
@@ -373,7 +504,8 @@ export class SystemCalendars extends LitElement {
   // ---------------------------------------------------------------- tab: behaviour (owner rule: every behaviour is a setting)
 
   private behaviorTab() {
-    const rows = this.group === 'all' ? BEHAVIOR_ROWS : BEHAVIOR_ROWS.filter((r) => r.group === this.group);
+    const attendees = this.group === 'attendees';
+    const rows: unknown[] = attendees ? this.attendeeRows() : (this.group === 'all' ? BEHAVIOR_ROWS : BEHAVIOR_ROWS.filter((r) => r.group === this.group)).map((r) => this.settingRow(r));
     const p = pageOf(rows, this.page, this.per);
     const changed = (g: BehaviorGroup | 'all') => BEHAVIOR_ROWS.filter((r) => (g === 'all' || r.group === g) && !r.static && this.s?.[r.key as keyof CalSettings] !== CAL_DEFAULTS[r.key as keyof CalSettings]).length;
     const pick = (g: BehaviorGroup | 'all') => {
@@ -381,15 +513,20 @@ export class SystemCalendars extends LitElement {
       this.group = g;
       this.page = 1;
       this.fitRowH = 0;
+      if (g === 'attendees' && !this.att) void this.loadAttendees();
     };
+    // the calendar whose attendee policy the lower rows show (a calendar manager edits his own; the server decides)
+    const calPick = attendees && this.attCals().length ? html`<span class="selw"><select class="inp" aria-label="יומן" data-calset-attcal .value=${this.attCal}
+        @change=${(e: Event) => { this.page = 1; void this.pickPolicyCal((e.target as HTMLSelectElement).value); }}>
+        ${this.attCals().map((c) => html`<option value=${c.id} ?selected=${c.id === this.attCal}>${c.name}</option>`)}</select><sw-icon name="chevronDown" size="14"></sw-icon></span>` : nothing;
     return html`<div class="tabhead"><div class="grow"><h2>התנהגות המודול</h2><p class="lead">כל התנהגות היא הגדרה. ברירת המחדל כתובה מתחת לכל שורה; "איפוס" מחזיר אותה.</p></div>
         ${this.phone ? html`<select class="inp groupsel" aria-label="נושא" data-calset-group .value=${this.group} @change=${(e: Event) => pick((e.target as HTMLSelectElement).value as BehaviorGroup | 'all')}>
             ${BEHAVIOR_GROUPS.map(([g, he]) => html`<option value=${g} ?selected=${g === this.group}>${he}</option>`)}</select>`
           : html`<div class="seg groups" role="radiogroup" aria-label="נושא" data-calset-groups>${BEHAVIOR_GROUPS.map(([g, he]) => {
             const n = g === 'all' ? 0 : changed(g);
             return html`<button type="button" role="radio" aria-pressed=${String(g === this.group)} aria-checked=${String(g === this.group)} data-calset-group=${g} @click=${() => pick(g)}>${he}${n ? html`<span class="mod num" title="שונו מברירת המחדל">${n}</span>` : nothing}</button>`;
-          })}</div>`}</div>
-      <div class="fitbox"><div class="grid rows2" data-fit="66" data-calset-rows>${p.items.map((r) => this.settingRow(r))}</div></div>
+          })}</div>`}${calPick}</div>
+      <div class="fitbox"><div class="grid rows2" data-fit="66" data-calset-rows>${p.items}</div></div>
       ${this.pager(p.page, p.pages)}`;
   }
 

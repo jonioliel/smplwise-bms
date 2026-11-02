@@ -94,3 +94,15 @@ test('the drawer carries exactly one attendees section per mode and sends `atten
   expect(d).toContain("querySelector('cal-attendees-section')");
   expect(d).toContain('Object.assign(out, { attendees })');
 });
+
+test('follow-up: the quick create carries a collapsed attendee row and sends the picked list; the settings screen has the attendee rows', () => {
+  const a = src('calendars/attendees-section.ts');
+  expect(a).toContain("customElement('cal-quick-attendees')");
+  expect(a).toContain('data-cal-qc-attendees-toggle');
+  const v = src('calendars/view-calendar.ts');
+  expect(v).toMatch(/payloadOf\(d\.attendees as AttendeeDraft\[\]\)/);
+  const s = src('screens/system-calendars.ts');
+  for (const k of ['policy.guests_mode', 'policy.self_join', 'policy.list_visibility', 'policy.max_attendees', 'policy.notify_on_change', 'att.cancel_notice_delay_s']) expect(s).toContain(`'${k}'`);
+  expect(s).toContain("['attendees', 'משתתפים']");
+  expect(src('api/calendar-attendees.ts')).toContain("saveSettings: (body) => put('/calendar/attendee-settings', body)");
+});

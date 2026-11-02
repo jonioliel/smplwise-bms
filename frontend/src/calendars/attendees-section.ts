@@ -145,11 +145,56 @@ export class CalAttendeesSection extends LitElement {
   }
 }
 
-declare global {
-  interface HTMLElementTagNameMap {
-    'cal-attendees-section': CalAttendeesSection;
+/**
+ * CAL-ATTENDEES-2343 follow-up: the quick create's compact attendee row. Collapsed it is one line ("משתתפים" + how many were picked);
+ * open it is the same picker as the drawer. The list is the host's (QuickDraft.attendees, handed back through `onChange`), so the
+ * quick create sends it with the create request as `attendees`.
+ */
+@customElement('cal-quick-attendees')
+export class CalQuickAttendees extends LitElement {
+  static styles = [calCss, css`
+    :host { display: block; min-inline-size: 0; }
+    .tg { display: flex; align-items: center; gap: 8px; inline-size: 100%; min-block-size: 32px; padding: 0; border: 0; background: transparent; font: inherit;
+      font-size: var(--sw-fs-md); color: var(--sw-heading); cursor: pointer; text-align: start; }
+    .tg > sw-icon { color: var(--sw-text-3); flex: none; }
+    .tg .muted { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+    .tg .chev { margin-inline-start: auto; transition: transform var(--sw-t-hover) var(--sw-ease-color); }
+    .tg[aria-expanded='true'] .chev { transform: rotate(180deg); }
+    .tg:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; border-radius: var(--sw-r-sm); }
+    .body { padding-block-start: 6px; padding-inline-start: 26px; }
+  `];
+
+  @property({ attribute: false }) value: AttendeeDraft[] = [];
+  @property({ attribute: false }) onChange: ((v: AttendeeDraft[]) => void) | null = null;
+  @property({ attribute: false }) api: AttendeesApi | null = null;
+  @state() private open = false;
+
+  private search = async (q: string) => (await (this.api ?? attendeesApi()).directory(q)).results;
+
+  private put(v: AttendeeDraft[]): void {
+    this.onChange?.(v);
+  }
+
+  render() {
+    const n = this.value.length;
+    return html`<button type="button" class="tg" aria-expanded=${String(this.open)} aria-controls="qatt" data-cal-qc-attendees-toggle @click=${() => (this.open = !this.open)}>
+        <sw-icon name="users" size="16"></sw-icon><span>משתתפים</span><span class="muted">${n ? countText(n) : 'אף אחד עדיין'}</span>
+        <sw-icon class="chev" name="chevronDown" size="14"></sw-icon></button>
+      ${this.open ? html`<div class="body" id="qatt" data-cal-qc-attendees><cal-attendee-picker .value=${this.value} .search=${this.search} allow-guests show-contacts
+        @attendee-add=${(e: CustomEvent<PickerAdd>) => { const d = e.detail.draft; this.put(d.kind === 'guest' ? [...this.value, d] : addHit(this.value, { kind: d.kind, ref_id: d.ref_id as string, name: d.name })); }}
+        @attendee-remove=${(e: CustomEvent<PickerRemove>) => this.put(this.value.filter((x) => x.key !== e.detail.draft.key))}
+        @attendee-role=${(e: CustomEvent<PickerRole>) => this.put(this.value.map((x) => (x.key === e.detail.draft.key ? { ...x, role: e.detail.role } : x)))}></cal-attendee-picker></div>` : nothing}`;
   }
 }
 
-// 2.35.0 train: the picker fills the grid branch's attendee slot in the booking drawer (new: a local list read by the drawer's payload; edit: live).
-calHooks.attendees = (p) => (p.surface === 'drawer' ? html`<cal-attendees-section .eventId=${p.eventId ?? ''}></cal-attendees-section>` : null);
+declare global {
+  interface HTMLElementTagNameMap {
+    'cal-attendees-section': CalAttendeesSection;
+    'cal-quick-attendees': CalQuickAttendees;
+  }
+}
+
+// 2.35.0 train: the picker fills the grid branch's attendee slot - the booking drawer (new: a local list read by the drawer's payload;
+// edit: live) and the quick create (a collapsed row; the list rides in the draft).
+calHooks.attendees = (p) => (p.surface === 'drawer' ? html`<cal-attendees-section .eventId=${p.eventId ?? ''}></cal-attendees-section>`
+  : html`<cal-quick-attendees .value=${Array.isArray(p.value) ? (p.value as AttendeeDraft[]) : []} .onChange=${(v: AttendeeDraft[]) => p.onChange(v)}></cal-quick-attendees>`);

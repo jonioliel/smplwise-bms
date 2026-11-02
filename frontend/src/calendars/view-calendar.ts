@@ -15,6 +15,7 @@ import {
 } from './grid-logic';
 import './grid-overlays';
 import type { Anchor, QuickDraft } from './grid-overlays';
+import { payloadOf, type AttendeeDraft } from './attendee-logic';
 
 export type CalMode = 'month' | 'week' | 'day';
 const FROM_H = 7;
@@ -1092,6 +1093,9 @@ export class CalViewCalendar extends LitElement {
     if (rr) out.rrule = rr;
     if (ctx.access.can.book_for_others && d.behalf !== 'self') out.on_behalf = { kind: d.behalf, label: d.behalfLabel.trim() };
     if (d.headcount > 0) out.headcount = d.headcount;
+    // CAL-ATTENDEES-2343 follow-up: the quick create's picked attendees ride in the create body (the route checks them before writing)
+    const attendees = preview || !Array.isArray(d.attendees) ? [] : payloadOf(d.attendees as AttendeeDraft[]);
+    if (attendees.length) Object.assign(out, { attendees });
     return out;
   }
 

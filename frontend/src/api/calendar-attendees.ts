@@ -67,6 +67,8 @@ export interface AttendeesApi {
   policy(calendarId: string): Promise<{ policy: AttendeePolicy; can_edit: boolean }>;
   savePolicy(calendarId: string, body: Partial<AttendeePolicy>): Promise<{ policy: AttendeePolicy; can_edit: boolean }>;
   settings(): Promise<{ settings: AttendeeSettings; channels: { key: string; address: 'phone' | 'email'; state: 'live' | 'soon'; available: boolean }[]; can_configure: boolean }>;
+  /** the whole installation document (`calendar.configure`); the server validates it and refuses unknown keys */
+  saveSettings(body: AttendeeSettings): Promise<{ settings: AttendeeSettings }>;
 }
 
 const ev = (id: string) => `/calendar/events/${encodeURIComponent(id)}/attendees`;
@@ -81,6 +83,7 @@ export const httpAttendees: AttendeesApi = {
   policy: (cid) => get(`/calendar/calendars/${encodeURIComponent(cid)}/attendee-policy`),
   savePolicy: (cid, body) => put(`/calendar/calendars/${encodeURIComponent(cid)}/attendee-policy`, body),
   settings: () => get('/calendar/attendee-settings'),
+  saveSettings: (body) => put('/calendar/attendee-settings', body),
 };
 
 // ---------------------------------------------------------------- the static demo (no backend)
@@ -134,6 +137,7 @@ export const demoAttendees: AttendeesApi = {
     channels: [{ key: 'whatsapp', address: 'phone', state: 'live', available: true }, { key: 'sms', address: 'phone', state: 'soon', available: false }, { key: 'email', address: 'email', state: 'soon', available: false }],
     can_configure: true,
   }),
+  saveSettings: async (body) => ({ settings: { ...body } }),
 };
 
 /** The client for the current session: the server, or (no backend) the demo list. */
