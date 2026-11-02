@@ -552,6 +552,8 @@ export class DevicesTilesPanel extends LitElement {
   ];
 
   protected willUpdate(changed: PropertyValues<this>) {
+    // BUILDING-SCOPE-CONTROL-2351: every row's control names the panel's building too (the server refuses a device of another building)
+    if (changed.has('building')) this.ctl.building = this.building;
     if ((changed.has('open') || changed.has('kind') || changed.has('scope') || changed.has('scopeId') || changed.has('switches') || changed.has('building')) && this.open) {
       if (changed.has('kind') || changed.has('scope') || changed.has('scopeId') || changed.has('switches') || changed.has('building') || !this.data) {
         this.data = null;
@@ -856,7 +858,7 @@ export class DevicesTilesPanel extends LitElement {
       await runCommand(key, 'lock', r.entity_id, 'lock.lock', {}, 'locked', (s) => {
         this.ctl.setCmd(key, s);
         if (this.lockAll) this.lockAll = { ...this.lockAll, out: { ...this.lockAll.out, [r.entity_id]: s.phase } };
-      }, { label: 'נעילה' });
+      }, { label: 'נעילה', building: this.building });
     }
     if (this.lockAll) this.lockAll = { ...this.lockAll, step: 'done' };
     this.changed();

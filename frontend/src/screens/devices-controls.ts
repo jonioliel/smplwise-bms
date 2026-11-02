@@ -3,7 +3,7 @@ import '../components/sw-toggle';
 import '../components/sw-button';
 import { ALARM_HE, climateRange, climateWord, HVAC_HE, isDimmable, type DeviceRow } from '../api/devices';
 import { stateLabel } from '../api/ha';
-import { debouncedCommand, pendingVisible, PENDING_VISIBLE_MS, powerReached, runCommand, supersede, warmCommandChannel, type CommandState } from '../api/device-commands';
+import { debouncedCommand, pendingVisible, PENDING_VISIBLE_MS, powerReached, runCommand, supersede, warmCommandChannel, type CommandOptions, type CommandState } from '../api/device-commands';
 import { bidi, ltrNum } from '../i18n/bidi';
 
 /**
@@ -196,7 +196,23 @@ export class DeviceControls implements ReactiveController {
   armed: Record<string, number> = {};
   /** A cover position dragged but not yet confirmed (per `entityId:position`): shown on the slider only, never sent. */
   drafts: Record<string, number> = {};
-  private debouncedRange = debouncedCommand<number>();
+  private debouncedRaw = debouncedCommand<number>();
+  /** BUILDING-SCOPE-CONTROL-2351: the building whose view these controls are in (the tiles' panel inside one building of a multi-building
+   * site) - every command names it, so the server refuses a device of another building. '' = every command exactly as before. */
+  building = '';
+
+  private scoped(opts: CommandOptions): CommandOptions {
+    return this.building ? { ...opts, building: this.building } : opts;
+  }
+
+  /** runCommand with this view's building (see `building`). */
+  private run<T>(key: string, domain: string, entityId: string, actionId: string, args: Record<string, unknown>, optimistic: T, onUpdate: (s: CommandState<T>) => void, opts: CommandOptions = {}): Promise<void> {
+    return runCommand(key, domain, entityId, actionId, args, optimistic, onUpdate, this.scoped(opts));
+  }
+
+  private debouncedRange(key: string, domain: string, entityId: string, actionId: string, args: Record<string, unknown>, optimistic: number, onUpdate: (s: CommandState<number>) => void, opts: CommandOptions = {}): void {
+    this.debouncedRaw(key, domain, entityId, actionId, args, optimistic, onUpdate, this.scoped(opts));
+  }
 
   /** onSettle: called when a command ends (confirmed, sent or rolled back) - a screen whose caller may not receive
    * the state push (no entity.state.read) refetches then, so the row's reported state still follows. */
@@ -359,7 +375,7 @@ export class DeviceControls implements ReactiveController {
     const posKey = `${entityId}:position`;
     const moving = [openKey, closeKey, posKey].some((k) => this.commands[k]?.phase === 'pending');
     const move = (key: string, actionId: string, args: Record<string, unknown>, target: unknown, label: string) =>
-      void runCommand(key, 'cover', entityId, actionId, args, target, (s) => this.setCmd(key, s), { confirmed: true, label });
+      void this.run(key, 'cover', entityId, actionId, args, target, (s) => this.setCmd(key, s), { confirmed: true, label });
     const doOpen = () => this.tapArmed(openKey, () => move(openKey, 'cover.open_cover', {}, 'open', 'פתיחה'));
     const doClose = () => this.tapArmed(closeKey, () => move(closeKey, 'cover.close_cover', {}, 'closed', 'סגירה'));
     const doStop = () => {
@@ -373,7 +389,7 @@ export class DeviceControls implements ReactiveController {
       }
       this.commands = next;
       this.changed();
-      void runCommand(stopKey, 'cover', entityId, 'cover.stop_cover', {}, 'stopped', (s) => this.setCmd(stopKey, s), { label: 'עצירה' });
+      void this.run(stopKey, 'cover', entityId, 'cover.stop_cover', {}, 'stopped', (s) => this.setCmd(stopKey, s), { label: 'עצירה' });
     };
     const draft = this.drafts[posKey];
     const armedPos = this.isArmed(posKey) && draft !== undefined;
@@ -397,7 +413,7 @@ export class DeviceControls implements ReactiveController {
     const tiltPosKey = `${entityId}:tilt-position`;
     const tiltMoving = [openTiltKey, closeTiltKey, tiltPosKey].some((k) => this.commands[k]?.phase === 'pending');
     const moveTilt = (key: string, actionId: string, args: Record<string, unknown>, target: unknown, label: string) =>
-      void runCommand(key, 'cover', entityId, actionId, args, target, (s) => this.setCmd(key, s), { confirmed: true, label });
+      void this.run(key, 'cover', entityId, actionId, args, target, (s) => this.setCmd(key, s), { confirmed: true, label });
     const doOpenTilt = () => this.tapArmed(openTiltKey, () => moveTilt(openTiltKey, 'cover.open_cover_tilt', {}, 'open', 'פתיחת הטיה'));
     const doCloseTilt = () => this.tapArmed(closeTiltKey, () => moveTilt(closeTiltKey, 'cover.close_cover_tilt', {}, 'closed', 'סגירת הטיה'));
     const doStopTilt = () => {
@@ -409,7 +425,7 @@ export class DeviceControls implements ReactiveController {
       }
       this.commands = next;
       this.changed();
-      void runCommand(stopTiltKey, 'cover', entityId, 'cover.stop_cover_tilt', {}, 'stopped', (s) => this.setCmd(stopTiltKey, s), { label: 'עצירת הטיה' });
+      void this.run(stopTiltKey, 'cover', entityId, 'cover.stop_cover_tilt', {}, 'stopped', (s) => this.setCmd(stopTiltKey, s), { label: 'עצירת הטיה' });
     };
     const tiltDraft = this.drafts[tiltPosKey];
     const armedTiltPos = this.isArmed(tiltPosKey) && tiltDraft !== undefined;
@@ -461,8 +477,8 @@ export class DeviceControls implements ReactiveController {
       const changeMode = (ev: Event) => {
         const v = (ev.target as HTMLSelectElement).value;
         const label = `מצב ${HVAC_HE[v] ?? v}`;
-        if (v === 'off') void runCommand(modeKey, 'climate', entityId, 'climate.turn_off', {}, 'off', (s) => this.setCmd(modeKey, s), { label });
-        else void runCommand(modeKey, 'climate', entityId, 'climate.set_hvac_mode', { hvac_mode: v }, v, (s) => this.setCmd(modeKey, s), { label });
+        if (v === 'off') void this.run(modeKey, 'climate', entityId, 'climate.turn_off', {}, 'off', (s) => this.setCmd(modeKey, s), { label });
+        else void this.run(modeKey, 'climate', entityId, 'climate.set_hvac_mode', { hvac_mode: v }, v, (s) => this.setCmd(modeKey, s), { label });
       };
       const fanKey = `${entityId}:fan`;
       const fanPending = this.commands[fanKey]?.phase === 'pending';
@@ -470,7 +486,7 @@ export class DeviceControls implements ReactiveController {
       const fan = this.live<string>(entityId, 'fan') ?? r.fan_mode ?? '';
       const changeFan = (ev: Event) => {
         const v = (ev.target as HTMLSelectElement).value;
-        if (v) void runCommand(fanKey, 'climate', entityId, 'climate.set_fan_mode', { fan_mode: v }, v, (s) => this.setCmd(fanKey, s), { label: `מאוורר ${climateWord('fan', v)}` });
+        if (v) void this.run(fanKey, 'climate', entityId, 'climate.set_fan_mode', { fan_mode: v }, v, (s) => this.setCmd(fanKey, s), { label: `מאוורר ${climateWord('fan', v)}` });
       };
       // CR-007 slice 4: preset / swing - only the modes this entity itself reports
       const presetKey = `${entityId}:preset`;
@@ -479,7 +495,7 @@ export class DeviceControls implements ReactiveController {
       const preset = this.live<string>(entityId, 'preset') ?? r.preset_mode ?? '';
       const changePreset = (ev: Event) => {
         const v = (ev.target as HTMLSelectElement).value;
-        if (v) void runCommand(presetKey, 'climate', entityId, 'climate.set_preset_mode', { preset_mode: v }, v, (s) => this.setCmd(presetKey, s), { label: `מצב מוגדר ${climateWord('preset', v)}` });
+        if (v) void this.run(presetKey, 'climate', entityId, 'climate.set_preset_mode', { preset_mode: v }, v, (s) => this.setCmd(presetKey, s), { label: `מצב מוגדר ${climateWord('preset', v)}` });
       };
       const swingKey = `${entityId}:swing`;
       const swingPending = this.commands[swingKey]?.phase === 'pending';
@@ -487,14 +503,14 @@ export class DeviceControls implements ReactiveController {
       const swing = this.live<string>(entityId, 'swing') ?? r.swing_mode ?? '';
       const changeSwing = (ev: Event) => {
         const v = (ev.target as HTMLSelectElement).value;
-        if (v) void runCommand(swingKey, 'climate', entityId, 'climate.set_swing_mode', { swing_mode: v }, v, (s) => this.setCmd(swingKey, s), { label: `נדנוד ${climateWord('swing', v)}` });
+        if (v) void this.run(swingKey, 'climate', entityId, 'climate.set_swing_mode', { swing_mode: v }, v, (s) => this.setCmd(swingKey, s), { label: `נדנוד ${climateWord('swing', v)}` });
       };
       // CR-007 slice 4: a climate entity's own target humidity (separate from a humidifier's) - only when it reports one
       const humKey = `${entityId}:humidity`;
       const humMin = r.min_humidity ?? 0;
       const humMax = r.max_humidity ?? 100;
       const humidity = this.live<number>(entityId, 'humidity') ?? r.target_humidity;
-      const setHumidity = (next: number) => void runCommand(humKey, 'climate', entityId, 'climate.set_humidity', { humidity: next }, next, (s) => this.setCmd(humKey, s), { label: `לחות יעד ${next}%` });
+      const setHumidity = (next: number) => void this.run(humKey, 'climate', entityId, 'climate.set_humidity', { humidity: next }, next, (s) => this.setCmd(humKey, s), { label: `לחות יעד ${next}%` });
       return html`<div class="ctl-row" data-control="climate">
         ${target !== null && target !== undefined
           ? html`<sw-button size="sm" iconOnly icon="minus" label="הורדת טמפרטורה" data-control="temp-down" ?disabled=${target <= min} @click=${() => setTemp(clamp(target - step))}></sw-button>
@@ -552,13 +568,13 @@ export class DeviceControls implements ReactiveController {
     const modeH = this.live<string>(entityId, 'mode') ?? r.mode ?? '';
     const changeModeH = (ev: Event) => {
       const v = (ev.target as HTMLSelectElement).value;
-      if (v) void runCommand(modeKeyH, 'humidifier', entityId, 'humidifier.set_mode', { mode: v }, v, (s) => this.setCmd(modeKeyH, s), { label: `מצב ${climateWord('hmode', v)}` });
+      if (v) void this.run(modeKeyH, 'humidifier', entityId, 'humidifier.set_mode', { mode: v }, v, (s) => this.setCmd(modeKeyH, s), { label: `מצב ${climateWord('hmode', v)}` });
     };
     const humKeyH = `${entityId}:humidity`;
     const humMinH = r.min_humidity ?? 0;
     const humMaxH = r.max_humidity ?? 100;
     const humidityH = this.live<number>(entityId, 'humidity') ?? r.target_humidity;
-    const setHumidityH = (next: number) => void runCommand(humKeyH, 'humidifier', entityId, 'humidifier.set_humidity', { humidity: next }, next, (s) => this.setCmd(humKeyH, s), { label: `לחות יעד ${next}%` });
+    const setHumidityH = (next: number) => void this.run(humKeyH, 'humidifier', entityId, 'humidifier.set_humidity', { humidity: next }, next, (s) => this.setCmd(humKeyH, s), { label: `לחות יעד ${next}%` });
     return html`<div class="ctl-row" data-control="humidifier">
       ${modesH.length
         ? html`<select class="ctl-select" data-control="mode" aria-label="מצב לחות" ?disabled=${modePendingH} @change=${changeModeH}>
@@ -580,11 +596,11 @@ export class DeviceControls implements ReactiveController {
     const ppKey = `${entityId}:playpause`;
     const muted = this.live<boolean>(entityId, 'mute') ?? Boolean(r.muted);
     const toggleMute = () =>
-      void runCommand(muteKey, 'media_player', entityId, 'media_player.volume_mute', { is_volume_muted: !muted }, !muted, (s) => this.setCmd(muteKey, s), { label: muted ? 'ביטול השתקה' : 'השתקה' });
+      void this.run(muteKey, 'media_player', entityId, 'media_player.volume_mute', { is_volume_muted: !muted }, !muted, (s) => this.setCmd(muteKey, s), { label: muted ? 'ביטול השתקה' : 'השתקה' });
     const playing = (this.live<string>(entityId, 'playpause') ?? r.state) === 'playing';
     // media_play / media_pause (not play_pause): each has a state Home Assistant reports, so it can be confirmed
     const playPause = () =>
-      void runCommand(ppKey, 'media_player', entityId, playing ? 'media_player.media_pause' : 'media_player.media_play', {}, playing ? 'paused' : 'playing', (s) => this.setCmd(ppKey, s), { label: playing ? 'השהיה' : 'ניגון' });
+      void this.run(ppKey, 'media_player', entityId, playing ? 'media_player.media_pause' : 'media_player.media_play', {}, playing ? 'paused' : 'playing', (s) => this.setCmd(ppKey, s), { label: playing ? 'השהיה' : 'ניגון' });
     return html`<div class="ctl-row" data-control="media">
       ${this.renderPowerToggle(r)}
       <sw-button size="sm" icon=${playing ? 'pause' : 'play'} iconOnly label=${playing ? 'השהה' : 'נגן'} data-control="playpause" ?disabled=${this.commands[ppKey]?.phase === 'pending'} @click=${playPause}></sw-button>
@@ -600,7 +616,7 @@ export class DeviceControls implements ReactiveController {
     const key = `${r.entity_id}:lock`;
     const pending = this.commands[key]?.phase === 'pending';
     const locked = this.live<string>(r.entity_id, 'lock') ?? (r.locked ? 'locked' : r.state);
-    const doLock = () => void runCommand(key, 'lock', r.entity_id, 'lock.lock', {}, 'locked', (s) => this.setCmd(key, s), { label: 'נעילה' });
+    const doLock = () => void this.run(key, 'lock', r.entity_id, 'lock.lock', {}, 'locked', (s) => this.setCmd(key, s), { label: 'נעילה' });
     return html`<div class="ctl-row" data-control="lock">
       ${locked === 'locked'
         ? r.can_unlock
@@ -614,7 +630,7 @@ export class DeviceControls implements ReactiveController {
   /** The confirmed unlock: sent only from the screen's confirmation dialog, with the confirmation grant. */
   runUnlock(r: DeviceRow) {
     const key = `${r.entity_id}:lock`;
-    void runCommand(key, 'lock', r.entity_id, 'lock.unlock', {}, 'unlocked', (s) => this.setCmd(key, s), { confirmed: true, label: 'פתיחה' });
+    void this.run(key, 'lock', r.entity_id, 'lock.unlock', {}, 'unlocked', (s) => this.setCmd(key, s), { confirmed: true, label: 'פתיחה' });
   }
 
   // ---------------------------------------------------------------- Bubble skin (phase C, 2026-10-02): the SAME commands, keys,
@@ -639,7 +655,7 @@ export class DeviceControls implements ReactiveController {
     if (cur?.phase === 'pending' && cur.optimistic === next) return; // the same target already on its way: one command per intent
     const domain = ['light', 'input_boolean', 'media_player', 'fan'].includes(r.domain) ? r.domain : 'switch';
     // LAT1: confirmed by the entity's own push the moment it shows the new state (api/device-commands.ts)
-    void runCommand(key, r.domain, r.entity_id, `${domain}.${next ? 'turn_on' : 'turn_off'}`, {}, next, (s) => this.setCmd(key, s), { label: next ? 'הדלקה' : 'כיבוי', reached: powerReached(r.domain, next) });
+    void this.run(key, r.domain, r.entity_id, `${domain}.${next ? 'turn_on' : 'turn_off'}`, {}, next, (s) => this.setCmd(key, s), { label: next ? 'הדלקה' : 'כיבוי', reached: powerReached(r.domain, next) });
   }
 
   /** A light's brightness in percent (1..100 turns it on; 0 turns it off). */
@@ -669,7 +685,7 @@ export class DeviceControls implements ReactiveController {
     const tilt = axis === 'tilt';
     const key = this.coverKey(r, which, axis);
     const run = (actionId: string, target: unknown, label: string, confirmed: boolean) =>
-      void runCommand(key, 'cover', r.entity_id, actionId, {}, target, (s) => this.setCmd(key, s), confirmed ? { confirmed: true, label } : { label });
+      void this.run(key, 'cover', r.entity_id, actionId, {}, target, (s) => this.setCmd(key, s), confirmed ? { confirmed: true, label } : { label });
     if (which === 'stop') {
       const next = { ...this.commands };
       for (const w of ['open', 'close', 'position'] as const) {
@@ -705,7 +721,7 @@ export class DeviceControls implements ReactiveController {
     if (pct === undefined || !this.isArmed(key)) return;
     this.disarm(key);
     const tilt = axis === 'tilt';
-    void runCommand(key, 'cover', r.entity_id, tilt ? 'cover.set_cover_tilt_position' : 'cover.set_cover_position', tilt ? { tilt_position: pct } : { position: pct }, pct, (s) => this.setCmd(key, s), { confirmed: true, label: tilt ? `מיקום הטיה ${pct}%` : `מיקום ${pct}%` });
+    void this.run(key, 'cover', r.entity_id, tilt ? 'cover.set_cover_tilt_position' : 'cover.set_cover_position', tilt ? { tilt_position: pct } : { position: pct }, pct, (s) => this.setCmd(key, s), { confirmed: true, label: tilt ? `מיקום הטיה ${pct}%` : `מיקום ${pct}%` });
   }
 
   /** The cover's position as a control shows it: the armed draft, the pending target, else the reported one. */
@@ -723,22 +739,22 @@ export class DeviceControls implements ReactiveController {
   climateMode(r: DeviceRow, mode: string) {
     const key = `${r.entity_id}:mode`;
     const label = `מצב ${HVAC_HE[mode] ?? mode}`;
-    if (mode === 'off') void runCommand(key, 'climate', r.entity_id, 'climate.turn_off', {}, 'off', (s) => this.setCmd(key, s), { label });
-    else void runCommand(key, 'climate', r.entity_id, 'climate.set_hvac_mode', { hvac_mode: mode }, mode, (s) => this.setCmd(key, s), { label });
+    if (mode === 'off') void this.run(key, 'climate', r.entity_id, 'climate.turn_off', {}, 'off', (s) => this.setCmd(key, s), { label });
+    else void this.run(key, 'climate', r.entity_id, 'climate.set_hvac_mode', { hvac_mode: mode }, mode, (s) => this.setCmd(key, s), { label });
   }
 
   /** fan / preset / swing of a climate entity, mode of a humidifier: only values the entity itself reports. */
   climateChoice(r: DeviceRow, which: 'fan' | 'preset' | 'swing' | 'hmode', value: string) {
     const key = `${r.entity_id}:${which === 'hmode' ? 'mode' : which}`;
     const spec = which === 'fan' ? ['climate.set_fan_mode', 'fan_mode', 'מאוורר'] : which === 'preset' ? ['climate.set_preset_mode', 'preset_mode', 'מצב מוגדר'] : which === 'swing' ? ['climate.set_swing_mode', 'swing_mode', 'נדנוד'] : ['humidifier.set_mode', 'mode', 'מצב'];
-    void runCommand(key, which === 'hmode' ? 'humidifier' : 'climate', r.entity_id, spec[0], { [spec[1]]: value }, value, (s) => this.setCmd(key, s), { label: `${spec[2]} ${climateWord(which, value)}` });
+    void this.run(key, which === 'hmode' ? 'humidifier' : 'climate', r.entity_id, spec[0], { [spec[1]]: value }, value, (s) => this.setCmd(key, s), { label: `${spec[2]} ${climateWord(which, value)}` });
   }
 
   humidity(r: DeviceRow, next: number) {
     const v = Math.min(r.max_humidity ?? 100, Math.max(r.min_humidity ?? 0, Math.round(next)));
     const key = `${r.entity_id}:humidity`;
     const dom = r.domain === 'humidifier' ? 'humidifier' : 'climate';
-    void runCommand(key, dom, r.entity_id, `${dom}.set_humidity`, { humidity: v }, v, (s) => this.setCmd(key, s), { label: `לחות יעד ${v}%` });
+    void this.run(key, dom, r.entity_id, `${dom}.set_humidity`, { humidity: v }, v, (s) => this.setCmd(key, s), { label: `לחות יעד ${v}%` });
   }
 
   fanPercentage(r: DeviceRow, pct: number) {
@@ -751,13 +767,13 @@ export class DeviceControls implements ReactiveController {
     const key = `${r.entity_id}:playpause`;
     if (this.commands[key]?.phase === 'pending') return;
     const playing = (this.live<string>(r.entity_id, 'playpause') ?? r.state) === 'playing';
-    void runCommand(key, 'media_player', r.entity_id, playing ? 'media_player.media_pause' : 'media_player.media_play', {}, playing ? 'paused' : 'playing', (s) => this.setCmd(key, s), { label: playing ? 'השהיה' : 'ניגון' });
+    void this.run(key, 'media_player', r.entity_id, playing ? 'media_player.media_pause' : 'media_player.media_play', {}, playing ? 'paused' : 'playing', (s) => this.setCmd(key, s), { label: playing ? 'השהיה' : 'ניגון' });
   }
 
   mediaMute(r: DeviceRow) {
     const key = `${r.entity_id}:mute`;
     if (this.commands[key]?.phase === 'pending') return;
     const muted = this.live<boolean>(r.entity_id, 'mute') ?? Boolean(r.muted);
-    void runCommand(key, 'media_player', r.entity_id, 'media_player.volume_mute', { is_volume_muted: !muted }, !muted, (s) => this.setCmd(key, s), { label: muted ? 'ביטול השתקה' : 'השתקה' });
+    void this.run(key, 'media_player', r.entity_id, 'media_player.volume_mute', { is_volume_muted: !muted }, !muted, (s) => this.setCmd(key, s), { label: muted ? 'ביטול השתקה' : 'השתקה' });
   }
 }

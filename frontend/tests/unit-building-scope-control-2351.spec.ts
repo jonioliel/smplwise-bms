@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { controlBuilding, floorScreenBuilding, shownBuildings, siteModel, SITE_LEVEL } from '../src/api/home-site';
 import { bulkBody, previewQuery } from '../src/api/device-bulk';
+import { actionBody } from '../src/api/ha';
 import { itemsQuery, type DeviceCounts, type DeviceTree } from '../src/api/devices';
 import { demoSite } from '../src/screens/home-site-demo';
 
@@ -52,4 +53,12 @@ test('with a building every request carries it', () => {
   expect(itemsQuery('lights', 'building', '', 'typed', 'b1')).toBe('kind=lights&scope=building&building=b1');
   expect(new URLSearchParams(previewQuery('floor', 'ground', 'lights_off', undefined, undefined, undefined, 'b1')).get('building')).toBe('b1');
   expect(bulkBody('area', 'lobby', 'all_off', 'abc', undefined, ['light.a'], undefined, 'b1')).toMatchObject({ scope: 'area', id: 'lobby', building: 'b1', only: ['light.a'], confirmed: true });
+});
+
+test('a single control: the body as before without a building, the building added only when named', () => {
+  // the shape the server's closed entity-action schema took before this change, key for key and value for value
+  const today = { allowed_action_id: 'light.turn_off', arguments: {}, expected_state_version: null, confirmation_grant: null, client_request_id: 'r1', expires_at: '2099-01-01T00:00:00Z' };
+  expect(actionBody('light.turn_off', {}, false, 'r1', '2099-01-01T00:00:00Z')).toEqual(today);
+  expect(JSON.stringify(actionBody('light.turn_off', {}, false, 'r1', '2099-01-01T00:00:00Z', ''))).toBe(JSON.stringify(today));
+  expect(actionBody('lock.unlock', {}, true, 'r2', '2099-01-01T00:00:00Z', 'b1')).toEqual({ ...today, allowed_action_id: 'lock.unlock', confirmation_grant: 'confirmed', client_request_id: 'r2', building: 'b1' });
 });
