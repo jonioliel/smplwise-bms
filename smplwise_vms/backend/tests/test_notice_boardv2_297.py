@@ -12,8 +12,8 @@ from conftest import as_user, bind
 from smplwise.services.notices import model
 
 API = "/api/v1"
-KEYS = ("design", "board_layout", "co_size", "portrait_order", "next_row", "live_bg", "systems_status", "urgent_screen")  # the last three: LOBBY-STYLES-2300
-FACTORY = {"design": "classic", "board_layout": "side", "co_size": "auto", "portrait_order": "bus", "next_row": "show", "live_bg": "auto", "systems_status": "problems", "urgent_screen": "style"}
+KEYS = ("design", "board_layout", "co_size", "portrait_order", "next_row", "live_bg", "systems_status", "urgent_screen", "portrait_chips", "safe_margin")  # LOBBY-STYLES-2300 added three, TV-SETTINGS-2380 the last two
+FACTORY = {"design": "classic", "board_layout": "side", "co_size": "auto", "portrait_order": "bus", "next_row": "show", "live_bg": "auto", "systems_status": "problems", "urgent_screen": "style", "portrait_chips": "rows", "safe_margin": 0}
 
 
 def _enable(client):
@@ -39,7 +39,7 @@ def test_the_v2_choices_and_their_factory_defaults():
     assert model.PORTRAIT_ORDERS == ("bus", "notices")
     assert model.NEXT_ROWS == ("show", "hide")
     assert model.TV2_FACTORY == FACTORY
-    assert {k: model.SETTINGS_DEFAULTS[f"notices.tv2.{k}"] for k in KEYS} == FACTORY
+    assert {k: model.SETTINGS_DEFAULTS[f"notices.tv2.{k}"] for k in KEYS} == {k: str(v) for k, v in FACTORY.items()}  # stored as strings
     assert model.tv2_defaults_doc(lambda k, d: d) == FACTORY
     # the TVOPT-295 document keeps only its own keys (five, plus idle_logo from TVNOTICE2-297); no V2 key leaks into it
     assert set(model.tv_defaults_doc(lambda k, d: d)) == {"header", "updated", "space", "night_logo", "weather_days", "idle_logo"}

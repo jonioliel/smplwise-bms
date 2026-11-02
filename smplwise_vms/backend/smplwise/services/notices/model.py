@@ -84,10 +84,20 @@ BOARD_LAYOUTS = ("side", "strip", "slide")
 CO_SIZES = ("auto", "s", "m", "l", "xl")
 PORTRAIT_ORDERS = ("bus", "notices")
 NEXT_ROWS = ("show", "hide")
+#  TV-SETTINGS-2380 (the TV page reads both since TV-FIT-2380):
+#  portrait_chips: the portrait footer's building chips - rows = two rows, nothing is dropped (default; landscape turns to two rows only
+#                  when a chip would be cut), drop = one row, the healthiest chips leave first (an alarm last)
+#  safe_margin:    the overscan / safe-area margin, whole percent of each side (0..5; 0 = none, the factory value). A TV's own address
+#                  `?safe=<n>` overrides it for that device.
+TV_FIT_KEYS = ("portrait_chips", "safe_margin")
+PORTRAIT_CHIPS = ("rows", "drop")
+SAFE_MARGINS = (0, 1, 2, 3, 4, 5)
 TV2_CHOICES: dict[str, tuple[Any, ...]] = {"design": DESIGNS, "board_layout": BOARD_LAYOUTS, "co_size": CO_SIZES, "portrait_order": PORTRAIT_ORDERS, "next_row": NEXT_ROWS,
-                                           "live_bg": LIVE_BGS, "systems_status": SYSTEMS_STATUS, "urgent_screen": URGENT_SCREENS}
+                                           "live_bg": LIVE_BGS, "systems_status": SYSTEMS_STATUS, "urgent_screen": URGENT_SCREENS,
+                                           "portrait_chips": PORTRAIT_CHIPS, "safe_margin": SAFE_MARGINS}
 TV2_FACTORY: dict[str, Any] = {"design": "classic", "board_layout": "side", "co_size": "auto", "portrait_order": "bus", "next_row": "show",
-                               "live_bg": "auto", "systems_status": "problems", "urgent_screen": "style"}
+                               "live_bg": "auto", "systems_status": "problems", "urgent_screen": "style",
+                               "portrait_chips": "rows", "safe_margin": 0}
 TV2_SETTING: dict[str, str] = {k: f"notices.tv2.{k}" for k in TV2_CHOICES}
 ALL_TV_CHOICES: dict[str, tuple[Any, ...]] = {**TV_CHOICES, **TV2_CHOICES}
 ALL_TV_FACTORY: dict[str, Any] = {**TV_FACTORY, **TV2_FACTORY}

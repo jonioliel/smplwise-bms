@@ -377,6 +377,9 @@ class TvDefaultsIn(BaseModel):
     live_bg: str | None = None
     systems_status: str | None = None
     urgent_screen: str | None = None
+    # TV-SETTINGS-2380: the TV fit options (portrait chips rows / drop, the safe-area margin in whole percent 0..5)
+    portrait_chips: str | None = None
+    safe_margin: StrictInt | None = None
 
 
 @router.get("/notices/tv-defaults")
@@ -480,6 +483,11 @@ def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Pr
     action = "notices.board.disable" if body.enabled is False and b["enabled"] else "notices.board.update"
     details: dict[str, Any] = {"keys": sorted(k for k in cols)}
     if body.display is not None:
+        # TV-SETTINGS-2380: the TV fit options are audited by name and new value (a change of the board's own choice, or its return to the default)
+        before = model.load_display(b["display_json"])
+        fit = {k: cols["display"].get(k) for k in model.TV_FIT_KEYS if cols["display"].get(k) != before.get(k)}
+        if fit:
+            details["tv_fit"] = fit
         old = {f["url"] for f in model.load_display(b["display_json"])["news"]["feeds"]}
         curated = news_sources.allowed_urls(conn)
         details["custom_feeds_added"] = len([f for f in cols["display"]["news"]["feeds"] if f["url"] not in old and f["url"] not in curated])
