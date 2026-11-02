@@ -41,7 +41,29 @@ export const CAL_EVENTS = {
   toast: 'cal-toast',
 } as const;
 
-export interface NewEventDetail { calendarId?: string; start?: string; end?: string; eventId?: string }
+/** CAL-GRID-EDIT-2343: the quick create's draft travels into the full drawer on "פרטים נוספים" (nothing typed is lost). */
+export interface NewEventDetail {
+  calendarId?: string; start?: string; end?: string; eventId?: string;
+  title?: string; repeat?: 'none' | 'daily' | 'weekly'; count?: number; behalf?: string; behalfLabel?: string; headcount?: number;
+}
+
+/**
+ * CAL-GRID-EDIT-2343 - THE ATTENDEE SLOT. Named attendees are built on their own branch (pilot/CAL-ATTENDEES-2343); this branch only leaves
+ * the place where the picker plugs in, in the quick create popover and in the booking drawer (new and edit). Until a picker registers,
+ * nothing is drawn there and the existing fields (headcount, on behalf, guest details) are what a booking carries.
+ *
+ *   import { calHooks } from './ctx';
+ *   calHooks.attendees = (p) => html`<cal-attendee-picker .calendarId=${p.calendarId} .eventId=${p.eventId} @change=${...}></cal-attendee-picker>`;
+ *
+ * `p.surface` says where it is drawn ('quick' = the narrow popover / phone sheet, 'drawer' = the full form); `p.onChange` hands the picked
+ * value back to the host form, which sends it with the booking as `attendees` once the server knows that field (not sent by this branch).
+ */
+export interface AttendeeSlotProps { surface: 'quick' | 'drawer'; calendarId: string; eventId?: string; value: unknown; onChange: (value: unknown) => void }
+export const calHooks: { attendees: ((p: AttendeeSlotProps) => unknown) | null } = { attendees: null };
+/** The host's call: the registered picker's template, or nothing (the slot keeps its data attribute for the picker's own specs). */
+export function attendeeSlot(p: AttendeeSlotProps): unknown {
+  return calHooks.attendees ? calHooks.attendees(p) : null;
+}
 export interface NewMaintDetail { rooms?: string[]; start?: string; end?: string }
 
 export function emit(el: HTMLElement, name: string, detail?: unknown): void {

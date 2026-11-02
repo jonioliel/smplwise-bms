@@ -22,6 +22,7 @@ export const CAL_DEFAULTS: Partial<CalSettings> = {
   contested_order: 'first_come', allow_displace: true, displace_approver: 'calendar_manager', override_scope: 'both', phone_time_picker: 'grid', reauth_mode: 'reauth_and_continue',
   sync_conflict_display: 'side_by_side', tablet_panels: 'collapse', resident_pending_display: 'count', resident_cancel_until: 'start', resident_rooms: 'bookable',
   purge_confirm: 'type_word', loading_style: 'skeleton', default_approval_timeout_h: 2, reopen_days: 7, sync_external_delete: 'cancel',
+  grid_edit: 'drag', cancel_notice_delay_s: 6, undo_window_s: 120,
 };
 
 type Opt = [value: string | boolean, label: string];
@@ -47,6 +48,10 @@ export const BEHAVIOR_ROWS: SettingRow[] = [
   { group: 'requests', key: 'displaced', label: 'הזמנה שנדחקה', kind: 'seg', opts: [['organizer', 'המארגן בוחר'], ['auto', 'הזזה אוטומטית']], static: true, hint: 'הזזה אוטומטית לא נבנתה' },
   { group: 'booking', key: 'holiday_eve_as_holiday', label: 'ערב חג', kind: 'seg', opts: [[false, 'יום רגיל'], [true, 'כמו חג']] },
   { group: 'booking', key: 'default_room_buffer_after_min', label: 'הפסקה אחרי הזמנת חדר', kind: 'step', min: 0, max: 240, step: 5, unit: 'דק׳' },
+  // CAL-GRID-EDIT-2343 (owner answers 02.11): editing on the grid, and how long "בטל" waits before the organizer is told
+  { group: 'booking', key: 'grid_edit', label: 'עבודה על לוח היומן', kind: 'seg', opts: [['drag', 'יצירה, הזזה ושינוי אורך'], ['create_only', 'יצירה בלבד']], hint: 'בלי הזזה: משנים שעה מהעריכה' },
+  { group: 'requests', key: 'cancel_notice_delay_s', label: 'הודעה למארגן על ביטול או הזזה אחרי', kind: 'step', min: 0, max: 60, step: 1, unit: 'שנ׳', hint: 'כדי ש"בטל" לא ישלח "בוטל" ואז "נקבע שוב"' },
+  { group: 'requests', key: 'undo_window_s', label: 'אפשר לשחזר מחיקה עד', kind: 'step', min: 10, max: 600, step: 10, unit: 'שנ׳' },
   { group: 'booking', key: 'series_horizon_days', label: 'טווח פריסת סדרות', kind: 'step', min: 30, max: 800, step: 10, unit: 'יום' },
   { group: 'booking', key: 'max_calendars', label: 'מספר יומנים מרבי', kind: 'step', min: 1, max: 2000, step: 10 },
   { group: 'residents', key: 'resident_cancel_until', label: 'דייר יכול לבטל עד', kind: 'seg', opts: [['start', 'תחילה'], ['1h', 'שעה לפני'], ['24h', '24 שע׳']] },

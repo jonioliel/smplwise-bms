@@ -104,6 +104,8 @@ export const MENU_SURFACES: readonly MenuSurface[] = [
   { file: 'screens/system-nav.ts', selector: '.results', what: 'the same list on a tablet' },
   { file: 'electricity/styles.ts', selector: '.menu', what: 'the meter menu of the formula editor' },
   { file: 'tickets/styles.ts', selector: '.pop', what: 'the ticket card "..." menu (CR-038)' },
+  { file: 'calendars/grid-overlays.ts', selector: '.pop', what: 'the calendar grid quick create and peek card beside the selection (CAL-GRID-EDIT-2343)' },
+  { file: 'calendars/grid-overlays.ts', selector: '.sheet', what: 'the same quick create and peek card as a phone bottom sheet (CAL-GRID-EDIT-2343)' },
 ];
 
 /** A HUD panel over the plan canvas or the 3D canvas: how it is made opaque (see "WHAT IS A HUD PANEL" above). */

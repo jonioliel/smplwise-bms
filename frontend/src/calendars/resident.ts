@@ -10,6 +10,7 @@ import {
   type Slot,
 } from './model';
 import { calCss } from './styles';
+import './view-calendar';
 
 const EQUIP: Record<Equipment, string> = { screen: 'מסך', projector: 'מקרן', video_call: 'שיחת וידאו', whiteboard: 'לוח', kitchen: 'מטבח', accessible: 'נגישות' };
 const DURATIONS: [number, string][] = [[30, '30 דק׳'], [60, 'שעה'], [120, 'שעתיים'], [180, '3 שעות']];
@@ -137,7 +138,8 @@ export class CalResident extends LitElement {
   `];
 
   @property({ attribute: false }) ctx: CalCtx | null = null;
-  @state() private tab: 'book' | 'mine' = 'book';
+  /** CAL-GRID-EDIT-2343 (owner answer 4A): 'grid' = the day grid of the rooms he may book (long press selects, drag extends; others read "תפוס") */
+  @state() private tab: 'grid' | 'book' | 'mine' = 'book';
   @state() private dayIdx = 0;
   @state() private rooms: RoomDay[] | null = null;
   @state() private roomId = '';
@@ -268,10 +270,11 @@ export class CalResident extends LitElement {
     return html`
       <h1>יומנים</h1>
       <div class="tabs" role="tablist" aria-label="יומנים">
+        <button type="button" role="tab" aria-pressed=${String(this.tab === 'grid')} aria-selected=${String(this.tab === 'grid')} data-res-tab="grid" @click=${() => (this.tab = 'grid')}>יומן</button>
         <button type="button" role="tab" aria-pressed=${String(this.tab === 'book')} aria-selected=${String(this.tab === 'book')} data-res-tab="book" @click=${() => (this.tab = 'book')}>הזמנת חדר</button>
         <button type="button" role="tab" aria-pressed=${String(this.tab === 'mine')} aria-selected=${String(this.tab === 'mine')} data-res-tab="mine" @click=${() => { this.tab = 'mine'; this.done = ''; }}>ההזמנות שלי${!this.past && mineN ? html` <b class="num">${mineN}</b>` : nothing}</button>
       </div>
-      ${this.tab === 'book' ? this.bookView() : this.mineView()}
+      ${this.tab === 'grid' ? html`<cal-view-calendar resident .ctx=${this.ctx} data-res-view="grid"></cal-view-calendar>` : this.tab === 'book' ? this.bookView() : this.mineView()}
       ${this.sheetView()}`;
   }
 
