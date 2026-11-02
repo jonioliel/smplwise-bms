@@ -1,5 +1,19 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.36.1 (pilot) - Camera H.264 check after an encoding change, per-camera report
+**After installing:** no database migration. Going back to 2.36.0 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. חזרה ל-2.36.0 בטוחה.
+
+### What was added - מה נוסף
+- **English:** After every bulk encoding change (including "convert all streams to H.264") and after an undo, Arx checks each stream read-only: did the recorder accept the change, what codec does the camera really send now, does it need a restart. A per-camera report opens by itself with "recorder accepted", "camera confirmed (H.264)", "still H.265", "needs restart" or "failed: reason", a "cameras that did not change" list and a read-only "check again".
+- **עברית:** אחרי כל שינוי קידוד לכמה מצלמות (כולל "המר את כל הזרמים ל-H.264") ואחרי ביטול, Arx בודק כל זרם בקריאה בלבד: האם המקליט קיבל את השינוי, מה המצלמה באמת משדרת עכשיו, והאם צריך אתחול. דוח לכל מצלמה נפתח לבד: "המקליט קיבל", "המצלמה אישרה (H.264)", "עדיין H.265", "צריך אתחול" או "נכשל: סיבה", עם רשימת "מצלמות שלא השתנו" ו"בדוק שוב" בקריאה בלבד.
+- **English:** New setting (Settings › video and media): when one camera refuses the change, "skip and continue" (default) or "stop the whole change". The same setting applies to undo. A recorder problem, a lost permission or the write switch turned off always stops.
+- **עברית:** הגדרה חדשה (הגדרות › וידאו ומדיה): כשמצלמה אחת מסרבת לשינוי - "לדלג ולהמשיך" (ברירת מחדל) או "לעצור את כל השינוי". אותה הגדרה חלה גם על ביטול. תקלה במקליט, איבוד הרשאה או כיבוי מתג הכתיבה עוצרים תמיד.
+
+### Known - ידוע
+- **English:** No new write path to any device; writes stay the approved recorder paths behind their switches. Some recorders do not publish which codecs a camera accepts; such streams are listed as "not possible" in the preview.
+- **עברית:** אין נתיב כתיבה חדש לשום מכשיר; הכתיבה נשארת במסלולים המאושרים של המקליט מאחורי המתגים שלהם. יש מקליטים שלא מפרסמים אילו קידודים המצלמה מקבלת; זרמים כאלה מופיעים בתצוגה המקדימה כ"לא ניתן".
+
 ## 2.36.0 (pilot) - Home editing in a side drawer, area labels in the mapping, per-building control, safer calendar feeds, phone map and tickets table settings
 **After installing:** two database migrations (0192 home system labels, 0193 calendar feed review). Going back to 2.35.0 needs the database backup taken before the update. New features start switched off or draw exactly as in 2.35.0 (the area presence line, the building cross-section widget, the phone map and tickets table settings). Three defaults to know: a closed home edit drawer gives its width back to the preview (a setting keeps the column reserved); new calendar feed links expire after 365 days (a setting; links issued before the update keep no expiry); with the multi-building view on, a building permission also reaches the devices whose area is mapped to that building (a setting returns to map placement only).
 - **עברית:** אחרי ההתקנה: שתי מיגרציות של מסד הנתונים (0192 תוויות ממערכת הבית, 0193 סקירת פיד היומן). חזרה ל-2.35.0 מחייבת את גיבוי מסד הנתונים שנלקח לפני העדכון. היכולות החדשות מתחילות כבויות או מוצגות בדיוק כמו ב-2.35.0 (שורת הנוכחות באזור, ווידג'ט חתך הבניין, הגדרות המפה בטלפון וטבלת הקריאות). שלוש ברירות מחדל שכדאי להכיר: חלון עריכה סגור מחזיר את רוחבו לתצוגה המקדימה (הגדרה שומרת את העמודה); קישורים חדשים של פיד יומן יוצא פגים אחרי 365 יום (הגדרה; קישורים שהונפקו לפני העדכון נשארים ללא תפוגה); כשתצוגת ריבוי בניינים פעילה, הרשאה על בניין מגיעה גם להתקנים שהאזור שלהם ממופה לאותו בניין (הגדרה מחזירה למיקום במפה בלבד).
