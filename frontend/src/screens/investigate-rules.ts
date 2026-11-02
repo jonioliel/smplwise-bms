@@ -29,11 +29,13 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, dayTimeText } from '../api/day-format';
 
+/** POLISH4-WP2 (D7): the icon tile takes skin tokens, so it follows the scheme (the hex pairs of before were pastel tiles in dark).
+    A rule's kind is a category, never a status, so none of them is green (green is for status only); "move" takes the neutral well. */
 const RULE_ICON: Record<string, { icon: IconName; bg: string; fg: string }> = {
-  'r-1': { icon: 'user', bg: '#eaf0ff', fg: '#2f6bff' },
-  'r-2': { icon: 'move', bg: '#e8f8ee', fg: '#16a34a' },
-  'r-3': { icon: 'door', bg: '#fff4e0', fg: '#d97706' },
-  'r-4': { icon: 'offline', bg: '#fdecec', fg: '#ef4444' },
+  'r-1': { icon: 'user', bg: 'var(--sw-accent-soft)', fg: 'var(--sw-accent-text)' },
+  'r-2': { icon: 'move', bg: 'var(--sw-surface-3)', fg: 'var(--sw-text-2)' },
+  'r-3': { icon: 'door', bg: 'var(--sw-warning-soft)', fg: 'var(--sw-warning-text)' },
+  'r-4': { icon: 'offline', bg: 'var(--sw-danger-soft)', fg: 'var(--sw-danger-text)' },
 };
 
 /** SC21 — alerts & automation rules (board 3 screen 19): tabs, rule cards with icon square, toggle, Edit, ⋯. */
@@ -266,7 +268,7 @@ export class InvestigateRules extends LitElement {
           ? this.loading && !this.rules.length
             ? html`<sw-state-panel state="loading"></sw-state-panel>`
             : this.rules.length
-              ? html`<div class="list">${this.rules.map((r) => html`<sw-card flush class="rule" data-rule-row data-rule-id=${r.id} style="--bg:#eaf0ff;--fg:#2f6bff">
+              ? html`<div class="list">${this.rules.map((r) => html`<sw-card flush class="rule" data-rule-row data-rule-id=${r.id} style="--bg:var(--sw-accent-soft);--fg:var(--sw-accent-text)">
                     <div class="ic"><sw-icon name=${r.owner === 'ha' ? 'home' : 'bell'} size=${16}></sw-icon></div>
                     <div class="txt"><b>${r.name}</b><small>${this.summary(r)}</small><small>התראות: ${r.alerts.open} פתוחות מתוך ${r.alerts.total} · שונה על ידי ${r.updated_by_username ?? r.created_by_username ?? '—'} ${this.fmt(r.updated_at)}</small></div>
                     <span class="last">הופעל: ${r.last_fired_at ? this.fmt(r.last_fired_at) : '—'}</span>
@@ -276,7 +278,7 @@ export class InvestigateRules extends LitElement {
                   </sw-card>`)}</div>`
               : html`<sw-state-panel icon="rule" state="empty" heading="אין חוקים עדיין" hint="חוק בודק אירועים שכבר נשמרו ומייצר התראה במערכת; הרץ הרצה יבשה לפני שמירה."></sw-state-panel>`
           : html`<div class="list">${this.alerts.length
-              ? this.alerts.map((a) => html`<sw-card flush class="rule" data-alert-row data-acked=${a.acked_at ? 'true' : 'false'} style="--bg:${a.acked_at ? '#f1f5f9' : '#fff4e0'};--fg:${a.acked_at ? '#64748b' : '#d97706'}">
+              ? this.alerts.map((a) => html`<sw-card flush class="rule" data-alert-row data-acked=${a.acked_at ? 'true' : 'false'} style="--bg:${a.acked_at ? 'var(--sw-offline-soft)' : 'var(--sw-warning-soft)'};--fg:${a.acked_at ? 'var(--sw-offline-text)' : 'var(--sw-warning-text)'}">
                   <div class="ic"><sw-icon name="bell" size=${16}></sw-icon></div>
                   <div class="txt"><b>${a.message || a.rule_name}</b><small>${a.rule_name} · ${a.camera_id ? `מצלמה ${a.camera_id}` : a.entity_id ?? ''} · <span class="ltr">${this.fmt(a.fired_at)}</span></small><small>${a.reasons.join(' · ')}</small></div>
                   <a href=${`#/investigate/events/${a.event_id}`}><sw-button size="sm" variant="ghost" icon="bell">לאירוע</sw-button></a>
@@ -331,6 +333,14 @@ export class InvestigateRules extends LitElement {
     }
     .rule:active {
       transform: scale(var(--sw-press-scale));
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rule {
+        transition: none;
+      }
+      .rule:active {
+        transform: none;
+      }
     }
     .rule[data-off] {
       color: var(--sw-text-3);

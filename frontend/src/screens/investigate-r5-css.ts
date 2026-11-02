@@ -119,4 +119,15 @@ export const INVESTIGATE_R5 = css`
     direction: ltr;
     unicode-bidi: isolate;
   }
+  /* POLISH4-WP2: the wells and keys stand still under reduced motion (the press keeps its colour change, not its travel) */
+  @media (prefers-reduced-motion: reduce) {
+    .r5-well,
+    .r5-key {
+      transition: none;
+    }
+    .r5-press:active,
+    .r5-key:active {
+      transform: none;
+    }
+  }
 `;

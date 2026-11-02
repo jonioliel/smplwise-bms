@@ -368,9 +368,29 @@ export class InvestigateSync extends LitElement {
       background: var(--sw-video-scrim);
       display: grid;
       place-items: center;
+      transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     }
-    .slot .media .rm:hover .x {
+    .slot .media .rm {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    /* POLISH4-WP2 (D10): the hover wash only under a fine pointer (it stuck on a tablet after a tap); the press on pointer-down */
+    @media (hover: hover) and (pointer: fine) {
+      .slot .media .rm:hover .x {
+        background: var(--sw-video-scrim-strong);
+      }
+    }
+    .slot .media .rm:active .x {
       background: var(--sw-video-scrim-strong);
+      transform: scale(var(--sw-press-scale, 0.94));
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .slot .media .rm .x {
+        transition: none;
+      }
+      .slot .media .rm:active .x {
+        transform: none;
+      }
     }
     .slot .cap {
       display: flex;
