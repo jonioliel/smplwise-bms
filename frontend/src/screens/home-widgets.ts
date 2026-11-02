@@ -35,6 +35,18 @@ import { XS_MINI_WIDGET_STYLES, renderXsMini } from '../xsection/xs-mini-widget'
 import type { MiniFloor, MiniModel } from '../xsection/xs-mini-model';
 import '../door-windows/emergency';
 
+/** POLISH4-WP4 (D2, PRE-GATE-2360): in edit mode every shown card keeps room under its content for its edit bar, the bar's measured
+ * height (--wg-e-h, set by home-widgets from a ResizeObserver: one row on a wide card, two or three when the controls wrap in a
+ * narrow one or take 44 px targets on touch) plus its 8 px inset and 8 px of air. The old fixed 52 px lost to the band's fit steps
+ * (`[data-fit] .wg { padding-block: 10px }` came later at the same weight) and was too short for a wrapped bar, so the bar covered
+ * the last rows of "פעולות מהירות" at 1920 / 1440. Kept as the LAST sheet, at the weight of the heaviest per-direction rule, so no
+ * direction, fit step, skin or tile padding wins over it. */
+const HOME_EDIT_BAR_STYLES = css`
+  :host([editing]) .wg.wg:not(.ghost) {
+    padding-block-end: calc(var(--wg-e-h, 34px) + 16px);
+  }
+`;
+
 /** The Bubble skin (phase C, 2026-10-02; the approved board docs/design/mockups/bubble-taste/home.html): the status widgets are
  * flat pills - the weather on its hue, the armed alarm on the accent, no gradients - and the quick actions are pill rows
  * (home-widgets draws them with sw-pill when the skin is bubble). Keyed on the host's data-skin (design/skin.ts). */
@@ -301,7 +313,7 @@ export class HomeWidgetsView extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
       padding: 0 6px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
       font-size: var(--sw-fs-2xs);
@@ -871,7 +883,7 @@ export class HomeWidgetsView extends LitElement {
       min-block-size: 36px;
       max-inline-size: 100%;
       padding: 0 12px 0 10px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       border: 1px solid var(--sw-border-strong);
       background: var(--sw-surface);
       font: inherit;
@@ -882,9 +894,14 @@ export class HomeWidgetsView extends LitElement {
       overflow: hidden;
       white-space: nowrap;
     }
-    .mchip:hover {
-      background: var(--sw-hover-wash);
-      border-color: var(--sw-text-3);
+    @media (hover: hover) and (pointer: fine) {
+      .mchip:hover:not(:disabled) {
+        background: var(--sw-hover-wash);
+        border-color: var(--sw-text-3);
+      }
+    }
+    .mchip:active:not(:disabled) {
+      background: var(--sw-pressed-wash);
     }
     .mchip:disabled {
       opacity: var(--sw-disabled-opacity);
@@ -986,21 +1003,27 @@ export class HomeWidgetsView extends LitElement {
     .gbtn {
       border: 1px solid var(--sw-border-strong);
       background: var(--sw-surface);
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       padding: 4px 12px;
       font: inherit;
       font-size: var(--sw-fs-sm);
       color: var(--sw-text);
       cursor: pointer;
     }
-    .gbtn:hover {
-      background: var(--sw-hover-wash);
+    @media (hover: hover) and (pointer: fine) {
+      .gbtn:hover {
+        background: var(--sw-hover-wash);
+      }
+    }
+    .gbtn:active {
+      background: var(--sw-pressed-wash);
     }
     /* ---- edit chrome on every shown widget ---- */
+    /* POLISH4-WP4 (D2): the room under the content for the edit bar is reserved in HOME_EDIT_BAR_STYLES (the last sheet), from the
+       bar's measured height */
     :host([editing]) .wg:not(.ghost) {
       outline: 2px solid var(--sw-accent);
       outline-offset: -2px;
-      padding-block-end: 52px;
     }
     :host([editing]) .wg[draggable='true'] {
       cursor: grab;
@@ -1015,11 +1038,12 @@ export class HomeWidgetsView extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
-      /* WIDGETBREAK-297: the edit controls wrap in a 240 px card instead of leaving it */
+      /* WIDGETBREAK-297: the edit controls wrap in a 240 px card instead of leaving it; POLISH4-WP4 (D2): the card reserves the
+         wrapped bar's whole height (--wg-e-h), and the radius is a token (a pill reads badly once the bar takes two rows) */
       flex-wrap: wrap;
       row-gap: 2px;
       background: var(--sw-surface);
-      border-radius: 999px;
+      border-radius: var(--sw-r-lg);
       padding: 3px 4px 3px 8px;
       box-shadow: var(--sw-shadow-2);
       z-index: 3;
@@ -1035,9 +1059,22 @@ export class HomeWidgetsView extends LitElement {
       color: var(--sw-text-3);
       cursor: grab;
     }
-    .grip:hover,
-    .eb:hover {
-      background: var(--sw-surface-3);
+    /* POLISH4-WP4 (D2): the wash only under a pointer that hovers (it stuck after a tap), a press wash on pointer-down */
+    @media (hover: hover) and (pointer: fine) {
+      .grip:hover,
+      .eb:hover:not(:disabled) {
+        background: var(--sw-surface-3);
+      }
+    }
+    .grip:active,
+    .eb:active:not(:disabled) {
+      background: var(--sw-pressed-wash);
+    }
+    .grip,
+    .eb,
+    .seg button {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
     .eb {
       display: inline-grid;
@@ -1068,7 +1105,7 @@ export class HomeWidgetsView extends LitElement {
       display: inline-flex;
       background: var(--sw-surface-3);
       padding: 2px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       gap: 1px;
     }
     .seg button {
@@ -1079,8 +1116,26 @@ export class HomeWidgetsView extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       cursor: pointer;
+    }
+    /* POLISH4-WP4 (D2): a 44 px target for every edit control on touch (26 px on a mouse) */
+    @media (pointer: coarse) {
+      .grip,
+      .eb {
+        inline-size: 44px;
+        block-size: 44px;
+      }
+      .wg-e .seg {
+        padding: 0;
+      }
+      .seg button {
+        min-block-size: 44px;
+        min-inline-size: 44px;
+      }
+      .wg-e {
+        gap: 2px;
+      }
     }
     .seg button[aria-pressed='true'] {
       background: var(--sw-seg-thumb, var(--sw-surface));
@@ -1467,9 +1522,6 @@ export class HomeWidgetsView extends LitElement {
       --ali: 46px;
       --als: 18px;
     }
-    :host(:is([layout='snap'], [layout='stack'], [layout='two'])[editing]) .wg:not(.ghost) {
-      padding-block-end: 52px;
-    }
     /* POLISH2-295: the media card's height is its content (one header line and one row), in every direction and on a phone; kept last
        so it outranks the band's per-size minimums above (a card beside it in the same band still stretches it) */
     :host([layout]) .wg.wg-media[data-size='m'],
@@ -1621,7 +1673,7 @@ export class HomeWidgetsView extends LitElement {
         scroll-behavior: auto;
       }
     }
-  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES, TEMPERATURE_WIDGET_STYLES, GENERATOR_WIDGET_STYLES, DOORS_WIDGET_STYLES, NOTICES_WIDGET_STYLES, PRESENCE_WIDGET_STYLES, XS_MINI_WIDGET_STYLES];
+  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES, TEMPERATURE_WIDGET_STYLES, GENERATOR_WIDGET_STYLES, DOORS_WIDGET_STYLES, NOTICES_WIDGET_STYLES, PRESENCE_WIDGET_STYLES, XS_MINI_WIDGET_STYLES, HOME_EDIT_BAR_STYLES];
 
   connectedCallback() {
     super.connectedCallback();
@@ -1635,6 +1687,25 @@ export class HomeWidgetsView extends LitElement {
     super.disconnectedCallback();
     this.ticker.stop();
     window.clearInterval(this.mediaTimer);
+    this.barRo?.disconnect();
+  }
+
+  /** POLISH4-WP4 (D2): each card's edit bar reports its height to its card (--wg-e-h), which keeps that much room under its content. */
+  private barRo: ResizeObserver | null = null;
+  private watchEditBars() {
+    if (typeof ResizeObserver === 'undefined') return;
+    this.barRo?.disconnect();
+    if (!this.editing) return;
+    this.barRo ??= new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const bar = e.target as HTMLElement;
+        const h = Math.ceil(e.borderBoxSize?.[0]?.blockSize ?? bar.getBoundingClientRect().height);
+        const card = bar.parentElement;
+        if (card && h > 0 && card.style.getPropertyValue('--wg-e-h') !== `${h}px`) card.style.setProperty('--wg-e-h', `${h}px`);
+      }
+    });
+    // re-observed after every render: a render may replace a card (or reset its style attribute), and observe() reports at once
+    for (const bar of this.renderRoot.querySelectorAll<HTMLElement>('.wg-e')) this.barRo.observe(bar);
   }
 
   /** The screens and (CR-016) the speakers, players and receivers of the installation that this user may see (media.read; the demo has
@@ -1677,6 +1748,7 @@ export class HomeWidgetsView extends LitElement {
 
   protected updated() {
     this.syncTicker();
+    this.watchEditBars();
     // BV1: the surface dial on the host (the surfaceless / glass widget rules key on it; the other skins ignore it)
     const surface = this.look.of('surface');
     if (this.getAttribute('data-surface') !== surface) this.setAttribute('data-surface', surface);

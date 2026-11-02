@@ -41,32 +41,44 @@ export class DevicesAnnounce extends LitElement {
     :host { display: block; }
     .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 14px; align-items: start; }
     @media (max-width: 760px) { .grid { grid-template-columns: minmax(0, 1fr); } }
-    .panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg, 12px); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+    .panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-1); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
     .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .lbl { font-size: var(--sw-fs-sm); color: var(--sw-text-2); min-inline-size: 64px; }
     select, textarea { box-sizing: border-box; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-sm); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); max-inline-size: 100%; }
-    select { min-block-size: 36px; padding-inline: 10px; }
+    select { min-block-size: 36px; padding-inline: 10px; cursor: pointer; }
     textarea { inline-size: 100%; padding: 8px 10px; resize: none; block-size: 56px; }
-    .chip { min-block-size: 34px; padding-inline: 12px; border-radius: 999px; border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; }
+    /* POLISH4-WP4 (D24): every radius from the tokens (the chip and the machine mark were literal pills) */
+    .chip { min-block-size: 34px; padding-inline: 12px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border-strong); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; }
     .chip[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); }
     .part { display: flex; flex-direction: column; gap: 4px; }
     .em { display: flex; flex-direction: column; gap: 8px; }
     .em sw-button { inline-size: 100%; }
     .ok { color: var(--sw-live); font-size: var(--sw-fs-sm); }
-    /* ANNOUNCE-297 design pass: press feedback on the chips (the translate chip too), no double-tap delay */
-    .chip { touch-action: manipulation; user-select: none; -webkit-user-select: none; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+    /* ANNOUNCE-297 design pass: press feedback on the chips (the translate chip too), no double-tap delay; POLISH4-WP4: the motion tokens,
+       a pressed wash on pointer-down, the hover only under a pointer that hovers, a visible keyboard focus */
+    .chip { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+      transition: transform var(--sw-t-press) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease); }
     .chip:active:not([disabled]) { transform: scale(0.97); }
+    .chip:not([aria-pressed='true']):active:not([disabled]) { background: var(--sw-pressed-wash); }
+    @media (hover: hover) and (pointer: fine) {
+      .chip:not([aria-pressed='true']):hover:not([disabled]) { background: var(--sw-hover-wash); border-color: var(--sw-text-3); }
+      select:hover, textarea:hover { border-color: var(--sw-text-3); }
+    }
+    .chip:focus-visible, select:focus-visible, textarea:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .chip[disabled] { opacity: var(--sw-disabled-opacity, 0.45); cursor: default; }
+    .chip[aria-busy='true'] { cursor: progress; }
     /* a long translation grows its field instead of hiding lines (a 200-character Russian text at phone width); one line keeps the old height */
     textarea { field-sizing: content; min-block-size: 56px; max-block-size: 160px; block-size: auto; }
     .part-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     /* ANNOUNCE2-297: the machine mark is quiet (neutral, small): the translation is an aid, not a warning */
-    .mt { padding: 1px 8px; border-radius: 999px; font-size: var(--sw-fs-xs); white-space: nowrap; background: color-mix(in srgb, var(--sw-text-2) 10%, var(--sw-surface)); color: var(--sw-text-2); }
+    .mt { padding: 1px 8px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-xs); white-space: nowrap; background: color-mix(in srgb, var(--sw-text-2) 10%, var(--sw-surface)); color: var(--sw-text-2); }
     @media (pointer: coarse) {
       textarea, select { font-size: var(--sw-fs-xl); } /* no zoom-in on focus on a phone (needs >= 16px; the xl tier is 17px) */
+      /* POLISH4-WP4: a 44 px target on touch for the chips and the pickers */
+      .chip, select { min-block-size: 44px; }
     }
-    @media (prefers-reduced-motion: reduce) { .chip { transition: none; } }
-    .err { padding: 8px 12px; border-radius: var(--sw-r-md); background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface)); color: var(--sw-danger); font-size: var(--sw-fs-sm); }
+    @media (prefers-reduced-motion: reduce) { .chip { transition: none; } .chip:active:not([disabled]) { transform: none; } }
+    .err { padding: 8px 12px; border-radius: var(--sw-r-md); background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface)); color: var(--sw-danger-text, var(--sw-danger)); font-size: var(--sw-fs-sm); }
   `;
 
   connectedCallback() {

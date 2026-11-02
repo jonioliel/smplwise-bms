@@ -20,7 +20,6 @@ const ALLOW_HEX: Record<string, string> = {
   'screens/system-notifications.ts': 'the phone mock of the push preview (a drawn phone, dark in both schemes)',
   'screens/automation-editor-css.ts': 'the automation builder knobs (--ab-*) carry their own light / dark blocks on the --dv-* layer',
   'screens/automation-editor-base.ts': 'the builder sheet (--ab-*)',
-  'screens/devices-layout-css.ts': 'the layout editor grid lines',
   'screens/investigate-cases.ts': 'evidence thumbnails HUD',
   'screens/devices-schedules.ts': 'the summary bar swatches',
   'screens/bubble-demo.ts': 'the style guide demo',

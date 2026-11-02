@@ -260,7 +260,7 @@ export const devicesLayoutCss = [
       gap: 5px;
       max-inline-size: calc(100% - 20px);
       padding: 2px 9px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-text-3);
       color: var(--sw-surface-solid);
       font-size: var(--sw-fs-xs);
@@ -274,7 +274,7 @@ export const devicesLayoutCss = [
     }
     .lay-sel .lay-hd {
       background: var(--sw-accent);
-      color: var(--sw-on-accent, #fff);
+      color: var(--sw-on-accent, var(--sw-text-inverse));
     }
     .lay-rz {
       position: absolute;
@@ -359,7 +359,7 @@ export const devicesLayoutCss = [
       font-weight: var(--sw-fw-medium);
       color: var(--sw-text-2);
       background: var(--sw-surface-2);
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       padding: 2px 8px;
     }
     .lay-f {
@@ -561,7 +561,13 @@ export const devicesLayoutCss = [
       text-align: start;
       cursor: pointer;
     }
-    .lay-libItem:hover,
+    /* POLISH4-WP4: the hover wash only under a pointer that hovers (it stuck after a tap on a tablet) */
+    @media (hover: hover) and (pointer: fine) {
+      .lay-libItem:hover {
+        border-color: var(--sw-accent);
+        background: var(--sw-surface-2);
+      }
+    }
     .lay-libItem:focus-visible {
       border-color: var(--sw-accent);
       background: var(--sw-surface-2);
@@ -598,7 +604,7 @@ export const devicesLayoutCss = [
       flex: none;
       min-inline-size: 26px;
       padding: 1px 8px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-surface-2);
       color: var(--sw-text-2);
       font-size: var(--sw-fs-xs);
@@ -707,7 +713,7 @@ export const devicesLayoutCss = [
       align-items: center;
       gap: 4px;
       padding: 0 7px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-text-3);
       color: var(--sw-surface-solid);
       font-size: var(--sw-fs-2xs);
@@ -719,7 +725,7 @@ export const devicesLayoutCss = [
     }
     .lay-tsel .lay-thd {
       background: var(--sw-accent);
-      color: var(--sw-on-accent, #fff);
+      color: var(--sw-on-accent, var(--sw-text-inverse));
     }
     /* a card's "סידור התקנים" in the cards editor (the move chip holds the other corner) */
     .lay-tbtn {
@@ -732,7 +738,7 @@ export const devicesLayoutCss = [
       gap: 4px;
       padding: 2px 9px;
       border: 1px solid var(--sw-accent);
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-surface-solid);
       color: var(--sw-accent-text, var(--sw-accent));
       font: inherit;
@@ -742,8 +748,10 @@ export const devicesLayoutCss = [
       white-space: nowrap;
       cursor: pointer;
     }
-    .lay-tbtn:hover {
-      background: var(--sw-accent-soft, var(--sw-surface-2));
+    @media (hover: hover) and (pointer: fine) {
+      .lay-tbtn:hover {
+        background: var(--sw-accent-soft, var(--sw-surface-2));
+      }
     }
     .lay-tbtn:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
