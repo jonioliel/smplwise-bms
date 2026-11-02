@@ -19,15 +19,12 @@ const ALLOW_HEX: Record<string, string> = {
   'tickets/map-element.ts': 'TKMAP1: the plan drawing and the vendor picture sit on white in both schemes (plan ink is drawn for white, never re-themed)',
   'screens/system-diagnostics.ts': 'static style previews of the device styles (DEVICE_THEMES.md §3: swatches, not knobs)',
   'screens/system-notifications.ts': 'the phone mock of the push preview (a drawn phone, dark in both schemes)',
-  'screens/investigate-playback.ts': 'timeline and scrubber HUD on video (LTR geometry, dark in both schemes)',
-  'screens/live-camera.ts': 'zone / line editor overlays on video',
   'screens/automation-editor-css.ts': 'the automation builder knobs (--ab-*) carry their own light / dark blocks on the --dv-* layer',
   'screens/automation-editor-base.ts': 'the builder sheet (--ab-*)',
   'screens/devices-layout-css.ts': 'the layout editor grid lines',
   'screens/investigate-cases.ts': 'evidence thumbnails HUD',
   'screens/explore-plan-editor.ts': 'the plan editor canvas HUD',
   'screens/explore-plan-import.ts': 'the import preview canvas',
-  'screens/investigate-history-map.ts': 'history map HUD',
   'screens/devices-schedules.ts': 'the summary bar swatches',
   'screens/bubble-demo.ts': 'the style guide demo',
   'screens/styleguide-screen.ts': 'the style guide swatches',
@@ -45,7 +42,6 @@ const ALLOW_HEX: Record<string, string> = {
   'screens/system-brand-logos.ts': 'LOGOS295: the Settings card previews of the light and the dark strip / notice board side by side, whatever scheme the page is in (static swatches)',
   'screens/system-brand-installer.ts': 'WHITELABEL097: the installer card previews of the light and the dark strip side by side, and the white switch knob (static swatches)',
   'screens/system-notices.ts': 'NOTICERSS: the news-feed logo plate - a publisher logo is drawn for a white ground in both schemes (the same reason as the sw-brand plate)',
-  'screens/investigate-incidents.ts':'LIVEEVENT100: the amber cap chip over a camera tile keeps dark ink in both schemes (the on-video HUD family; the warning fill does not change with the scheme)',
 };
 
 function walk(dir: string, out: string[] = []): string[] {
