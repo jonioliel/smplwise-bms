@@ -152,7 +152,9 @@ def test_the_confirmation_flag_is_required(pw):
 # ---------------------------------------------------------------- expiry at use time, revoke, listing
 
 def test_an_expired_assignment_is_refused_at_use_time(pw):
-    assert grant(pw, None, "temp", expires_at=at(pw, 1)).status_code == 201
+    # binding expiry is checked against the real clock, so the grant must expire in the real future (the world clock is a fixed 2026-11-02 morning)
+    real_soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert grant(pw, None, "temp", expires_at=max(at(pw, 1), real_soon)).status_code == 201
     assert can_open(pw, "temp")
     with pw.db.connection() as conn:  # the hour passes
         conn.execute("UPDATE bindings SET expires_at = ? WHERE subject_id = 'dev-temp' AND role_id = 'emergency_open'", (PAST,))
