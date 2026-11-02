@@ -12,6 +12,7 @@ import { esc, str, type FeedNotice, type Item } from './tv-logic';
 import { HX_STEPS, colsFor, familyOf, fxLevelFor, fxStart, fxStep, greetingKey, lobbyDrift, lobbyPhoto, skyOf, systemsShown, urgentInRotation, type FxLevel, type FxState } from './skin-logic';
 import { digitsHtml, hoursRow, metaHtml, tx, words } from './hx-parts';
 import type { EngineApi } from './skin-board';
+import { dropOrder } from './tv-fit';
 
 const E_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
 const E_IO = 'cubic-bezier(0.77, 0, 0.175, 1)';
@@ -171,14 +172,18 @@ export function createHx(api: EngineApi): Hx {
       '<div class="nb-live" data-net="' + i.net + '"><span class="nb-st8">' + api.liveHtml() + '</span>' + api.logo(i.dark) + '</div>';
     fitInfo(ft);
   }
-  /** The building-systems row never runs past the footer: the healthy entries go first, then the last one. */
+  /** The building-systems row never runs past the footer. TV-FIT-2380: in portrait (`rows`, the default) every style gives the entries a
+   * line of their own and the "updated" line ends its words in an ellipsis, so the longer "עודכן · <place>" wording costs no entry; what
+   * still does not fit leaves in priority order - the healthy entries first, then "off", then warnings, an alarm last. */
   function fitInfo(ft: HTMLElement): void {
     const ul = ft.querySelector<HTMLElement>('.nb-info');
     if (!ul) return;
+    const over = (): boolean => ft.scrollWidth > ft.clientWidth + 1 || ul.scrollWidth > ul.clientWidth + 1;
+    const lis = [...ul.children] as HTMLElement[];
     let guard = 0;
-    while ((ft.scrollWidth > ft.clientWidth + 1 || ul.scrollWidth > ul.clientWidth + 1) && ul.children.length > 1 && guard++ < 8) {
-      const ok = ([...ul.children] as HTMLElement[]).reverse().find((li) => li.dataset.state === 'ok');
-      (ok ?? (ul.lastElementChild as HTMLElement)).remove();
+    for (const k of dropOrder(lis.map((li) => li.dataset.state || 'ok'))) {
+      if (!over() || ul.children.length <= 1 || guard++ >= 8) break;
+      lis[k].remove();
     }
     const nw = ft.querySelector<HTMLElement>('.nb-news');
     if (nw) nw.hidden = nw.clientWidth < 300 && ft.dataset.news === '1' && root.dataset.orient !== 'p';

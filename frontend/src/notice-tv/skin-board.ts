@@ -61,6 +61,8 @@ export interface SkinInput {
   drift: boolean;
   night: boolean;
   nightB: number;
+  /** TV-FIT-2380: the building chips when the footer is short of room - rows (default) = a row of their own, drop = the healthy ones leave first */
+  chips?: 'rows' | 'drop';
 }
 
 /** What a style plug-in (hx-engine.ts) may use of the engine. */
@@ -208,8 +210,10 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
 
   // ------------------------------------------------------------------ canvas
   function fitCanvas(): void {
-    const vw = window.innerWidth || 1920;
-    const vh = window.innerHeight || 1080;
+    // TV-FIT-2380: the frame the page gives the board (the viewport less the safe-area margin), not the whole viewport
+    const frame = root.parentElement;
+    const vw = frame?.clientWidth || window.innerWidth || 1920;
+    const vh = frame?.clientHeight || window.innerHeight || 1080;
     const c = canvasOf(vw, vh, inp()?.force || undefined);
     S.W = c.w;
     S.H = c.h;
@@ -244,7 +248,9 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
     const i = inp();
     const l = i.live;
     const t = '<span class="nb-num" data-nb-updated>' + esc(l.time) + '</span>';
-    if (i.net === 'live') return l.mode === 'issues' ? '' : ic('rss', 22) + '<span>' + (l.mode === 'time' ? t : esc(l.before) + t + esc(l.after)) + '</span>';
+    // TV-FIT-2380: the words around the time may end in an ellipsis, the time never does (the place wording puts it at the end of the line)
+    const words = l.mode === 'place' ? '<span class="nb-lt">' + esc(l.before) + '</span>' + t : esc(l.before) + t + (l.after ? '<span class="nb-lt">' + esc(l.after) + '</span>' : '');
+    if (i.net === 'live') return l.mode === 'issues' ? '' : ic('rss', 22) + '<span class="nb-lw">' + (l.mode === 'time' ? t : words) + '</span>';
     if (i.net === 'stale') return ic('unlink', 24) + '<span>' + esc(str(i.lang, 'staleFrom', { t: l.time })) + '</span>';
     return ic('unlink', 24) + '<span>' + esc(str(i.lang, 'offline')) + '</span>';
   }
@@ -880,7 +886,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
   // ------------------------------------------------------------------ apply
   function signature(i: SkinInput): string {
     return JSON.stringify([
-      i.skin, i.dark, i.lang, i.force, i.urgentScreen, i.systemsStatus, i.photo ?? '', i.photoNight ?? '', S.W, S.H, i.building, i.place, i.weather, i.info, i.news, i.rotateS, i.company, i.idleCompany,
+      i.skin, i.dark, i.lang, i.force, i.urgentScreen, i.systemsStatus, i.chips ?? 'rows', i.photo ?? '', i.photoNight ?? '', S.W, S.H, i.building, i.place, i.weather, i.info, i.news, i.rotateS, i.company, i.idleCompany,
       i.items.map((x) => [x.n.id, x.n.title, x.n.body, x.n.severity, x.dwell, i.whenOf(x.n), x.slide ? i.imgOf(x.slide) : '']),
     ]);
   }
@@ -927,6 +933,7 @@ export function createSkinBoard(root: HTMLElement, opts: SkinOpts): SkinBoard {
       S.inp = input;
       root.dataset.skin = input.skin;
       root.dataset.fam = familyOf(input.skin);
+      root.dataset.chips = input.chips ?? 'rows'; // TV-FIT-2380
       if (hx && familyOf(input.skin) === 'station') { hx.dispose(); hx = null; }
       root.dataset.theme = input.dark ? 'dark' : 'light';
       root.dir = input.lang === 'en' ? 'ltr' : 'rtl';

@@ -231,3 +231,9 @@
 #cv[data-design="v2"] .b2bd[data-l="portrait"] .b2bus.panel .b2dest .b2nx { font-size: 22px; }
 #cv[data-design="v2"] .b2bd[data-l="portrait"] .b2bus.panel .b2eta b { font-size: 52px; }
 #cv[data-design="v2"].v2p .tk { block-size: 60px; }
+
+/* TV-FIT-2380: portrait - the status line and "powered by" share the footer while they fit; a long place name sends "powered by" to a
+   second row instead of running the two into each other. The company logo's width cap follows a long banner's shape (--cow, main.ts). */
+#cv[data-design="v2"].v2p .b2ft { flex-wrap: wrap; row-gap: 6px; }
+#cv[data-design="v2"].v2p .b2ft .b2st { max-inline-size: 100%; overflow: hidden; }
+#cv[data-design="v2"] .b2hd .lg.company img { max-inline-size: calc(640px * var(--cow, 1)); }
